@@ -1,0 +1,4 @@
+ID,Team,Title,Description,Status,Estimate,Priority,Project ID,Project,Creator,Assignee,Labels,Cycle Number,Cycle Name,Cycle Start,Cycle End,Created,Updated,Started,Triaged,Completed,Canceled,Archived,Due Date,Parent issue,Initiatives,Project Milestone ID,Project Milestone,SLA Status
+ENG-1,Engineering,Ship the API,Public API v1,In Progress,3,High,,,Owner,owner@acme.io,"Backend, API",,,,,2026-10-01,2026-10-02,2026-10-02,,,,,2026-11-15,,,,,
+ENG-2,Engineering,Write API docs,,Todo,1,Medium,,,Owner,,Docs,,,,,2026-10-01,2026-10-02,,,,,,,ENG-1,,,,
+ENG-3,Engineering,Remove old endpoint,,Done,1,Low,,,Owner,someone@outside.test,,,,,,2026-10-01,2026-10-03,,,2026-10-03,,,,,,,,

@@ -1,0 +1,43 @@
+extends: existence
+message: "Stock phrase '%s'. Say the concrete thing instead."
+level: error
+ignorecase: true
+tokens:
+  - seamless
+  - seamlessly
+  - elevate
+  - elevates
+  - unlock
+  - unlocks
+  - supercharge
+  - supercharged
+  - effortless
+  - effortlessly
+  - robust
+  - cutting-edge
+  - cutting edge
+  - in today's
+  - game-changer
+  - game changer
+  - revolutionize
+  - revolutionary
+  - leverage
+  - empower
+  - empowers
+  - delve
+  - best-in-class
+  - world-class
+  - next-level
+  - next level
+  - unleash
+  - harness the power
+  - streamline
+  - streamlined
+  - blazing fast
+  - blazing-fast
+  - state-of-the-art
+  - transform your
+  - look no further
+  - embark
+  - tapestry
+  - game changing

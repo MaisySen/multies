@@ -1,0 +1,56 @@
+/* global jest */
+jest.mock("expo-secure-store", () => {
+  const m = new Map();
+  return {
+    getItemAsync: jest.fn(async (k) => m.get(k) ?? null),
+    setItemAsync: jest.fn(async (k, v) => { m.set(k, v); }),
+    deleteItemAsync: jest.fn(async (k) => { m.delete(k); }),
+  };
+});
+jest.mock("expo-notifications", () => ({
+  setNotificationHandler: jest.fn(),
+  setNotificationChannelAsync: jest.fn(async () => null),
+  getPermissionsAsync: jest.fn(async () => ({ granted: false })),
+  requestPermissionsAsync: jest.fn(async () => ({ granted: false })),
+  getExpoPushTokenAsync: jest.fn(async () => ({ data: "ExponentPushToken[test]" })),
+  scheduleNotificationAsync: jest.fn(async () => "id"),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  getLastNotificationResponseAsync: jest.fn(async () => null),
+  registerTaskAsync: jest.fn(async () => null),
+  AndroidImportance: { DEFAULT: 3, HIGH: 4 },
+  BackgroundNotificationTaskResult: { NewData: 0, NoData: 1, Failed: 2 },
+}));
+jest.mock("expo-task-manager", () => ({ defineTask: jest.fn(), isTaskDefined: jest.fn(() => false) }));
+jest.mock("expo-device", () => ({ isDevice: true }));
+jest.mock("expo-haptics", () => ({
+  impactAsync: jest.fn(async () => {}), selectionAsync: jest.fn(async () => {}), notificationAsync: jest.fn(async () => {}),
+  ImpactFeedbackStyle: { Medium: "medium" }, NotificationFeedbackType: { Success: "success" },
+}));
+jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn(async () => ({})), openAuthSessionAsync: jest.fn(async () => ({ type: "cancel" })) }));
+jest.mock("expo-document-picker", () => ({ getDocumentAsync: jest.fn(async () => ({ canceled: true, assets: null })) }));
+jest.mock("expo-clipboard", () => ({ setStringAsync: jest.fn(async () => true) }));
+jest.mock("expo-crypto", () => {
+  const nodeCrypto = require("crypto");
+  return {
+    randomUUID: () => "00000000-0000-4000-8000-000000000000",
+    getRandomBytes: (n) => new Uint8Array(nodeCrypto.randomBytes(n)),
+    digestStringAsync: async (_alg, s) => nodeCrypto.createHash("sha256").update(s).digest("base64"),
+    CryptoDigestAlgorithm: { SHA256: "SHA-256" },
+    CryptoEncoding: { BASE64: "base64" },
+  };
+});
+jest.mock("lucide-react-native", () => {
+  const { Text } = require("react-native");
+  const React = require("react");
+  // Each icon renders as hidden text with its component name, so tests stay readable and need no SVG.
+  return new Proxy({ __esModule: true }, {
+    get: (target, key) => (key in target ? target[key] : (props) => React.createElement(Text, { accessibilityElementsHidden: true, testID: props.testID }, String(key))),
+  });
+});
+jest.mock("react-native-svg", () => {
+  const { View } = require("react-native");
+  const React = require("react");
+  const C = (props) => React.createElement(View, props, props.children);
+  return { __esModule: true, default: C, Svg: C, Path: C, Rect: C, Circle: C, G: C, Polyline: C };
+});
+jest.setTimeout(15000);

@@ -1,0 +1,1 @@
+DROP INDEX `companies_org_idx`;

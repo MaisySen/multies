@@ -1,0 +1,41 @@
+import type { AppConfig } from "../config";
+import { socialKey } from "../../shared/prerender-shell";
+
+/**
+ * How people sign in on this deployment, read from config once.
+ * - idp: the OIDC identity provider (Universal Login) is configured.
+ * - localPassword: the app's own email and password form is on.
+ * At least one is always on: with no identity provider the password form cannot be turned off,
+ * so a self host can never lock itself out.
+ */
+export interface AuthMode { idp: boolean; localPassword: boolean; mobile: boolean }
+
+export function authMode(config: Pick<AppConfig, "auth">): AuthMode {
+  const idp = !!config.auth.auth0;
+  return { idp, localPassword: localPasswordEnabled(config), mobile: !!config.auth.auth0?.nativeClientId };
+}
+
+/** R34: the providers answer (GET /api/account/providers), shared with the prerendered sign in card's variant pick. */
+export function providersAnswer(config: Pick<AppConfig, "auth">) {
+  const mode = authMode(config);
+  const { social } = config.auth;
+  return { idp: mode.idp, password: mode.localPassword, google: !mode.idp && !!social.google, github: !mode.idp && !!social.github, auth0: mode.idp };
+}
+
+/** R34: which prerendered sign in card this deployment shows (the providers answer plus the demo button). */
+export interface LoginVariantOf { idp: boolean; password: boolean; google: boolean; github: boolean; demo: boolean; social: string }
+export function loginVariant(config: Pick<AppConfig, "auth" | "demoEnabled">): LoginVariantOf {
+  const p = providersAnswer(config);
+  // R35: the direct social buttons the identity provider page shows (the same list /api/config answers).
+  const social = p.idp ? socialKey(config.auth.socialConnections) : "";
+  return { idp: p.idp, password: p.password, google: p.google, github: p.github, demo: !!config.demoEnabled, social };
+}
+
+export function localPasswordEnabled(config: Pick<AppConfig, "auth">): boolean {
+  return config.auth.localPassword || !config.auth.auth0;
+}
+
+/** The issuer the identity provider signs with: https://<domain>/ (trailing slash included). */
+export function idpIssuer(domain: string): string {
+  return `https://${domain.replace(/^https?:\/\//, "").replace(/\/+$/, "")}/`;
+}

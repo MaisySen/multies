@@ -1,0 +1,64 @@
+# Nightly logical backup of the production and staging D1 databases, on top of D1
+# Time Travel (point-in-time restore for the last 30 days, built in). Each dump is
+# compressed and encrypted with age to a public key; the private key lives offline.
+# Artifacts are kept 30 days. If R2 is enabled on the account and the R2_BUCKET
+# variable is set, the encrypted file is also copied to R2.
+# Restore steps: docs/runbooks/db-backup-restore.md
+name: Backup
+on:
+  schedule:
+    - cron: "30 15 * * *" # 02:30 in Sydney (AEDT)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AGE_RECIPIENT: age1u2psgukkx5mmu8s6dcqfwgmtpwwh8sz3k9zntvszp9k0dqvh9v9ssml57h
+
+jobs:
+  d1:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - db: mymail-au
+            env_flag: ""
+          - db: mymail-staging
+            env_flag: "--env staging"
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install age
+        run: |
+          curl -sSfL https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz | tar xz
+          echo "$PWD/age" >> "$GITHUB_PATH"
+      - name: Export, compress and encrypt
+        run: |
+          STAMP=$(date -u +%Y%m%dT%H%MZ)
+          echo "FILE=${{ matrix.db }}-$STAMP.sql.gz.age" >> "$GITHUB_ENV"
+          npx wrangler d1 export ${{ matrix.db }} --remote ${{ matrix.env_flag }} --output dump.sql
+          test -s dump.sql
+          grep -q "CREATE TABLE" dump.sql
+          echo "tables: $(grep -c 'CREATE TABLE' dump.sql), bytes: $(wc -c < dump.sql)"
+          gzip -9 dump.sql
+          age -r "$AGE_RECIPIENT" -o "${{ matrix.db }}-$STAMP.sql.gz.age" dump.sql.gz
+          rm dump.sql.gz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ env.FILE }}
+          path: ${{ env.FILE }}
+          retention-days: 30
+          if-no-files-found: error
+      - name: Copy to R2 (when enabled)
+        if: vars.R2_BUCKET != ''
+        run: npx wrangler r2 object put "${{ vars.R2_BUCKET }}/d1/${{ env.FILE }}" --file "${{ env.FILE }}" --remote

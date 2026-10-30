@@ -1,0 +1,8 @@
+TYPE,CONTENT,DESCRIPTION,PRIORITY,INDENT,AUTHOR,RESPONSIBLE,DATE,DATE_LANG,TIMEZONE,DURATION,DURATION_UNIT,DEADLINE,DEADLINE_LANG
+section,Planning,,,,,,,,,,,,
+task,Write the brief @launch,Two pages at most,1,1,Owner Person (1001),Owner Person (1001),2026-11-03,en,UTC,,None,,
+note,Remember the budget line,,,,,,,,,,,,
+task,Collect quotes,,2,2,Owner Person (1001),,,en,UTC,,None,,
+section,Doing,,,,,,,,,,,,
+task,Book the venue,,4,1,Owner Person (1001),Pat Outside (2002),,en,UTC,,None,2026-11-20,en
+,,,,,,,,,,,,,

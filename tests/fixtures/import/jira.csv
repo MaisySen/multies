@@ -1,0 +1,4 @@
+Summary,Issue key,Issue id,Parent id,Issue Type,Status,Status Category,Priority,Assignee,Reporter,Created,Due date,Labels,Labels,Description,Comment,Comment
+Login page,WEB-1,10001,,Story,In Progress,In Progress,High,owner@acme.io,owner@acme.io,01/Oct/26 9:00 AM,30/Oct/26,frontend,auth,Build the login page,01/Oct/26 10:00 AM;557058:abc;Looks good so far,
+Password reset,WEB-2,10002,10001,Sub-task,To Do,To Do,Medium,,owner@acme.io,02/Oct/26 9:00 AM,,auth,,,,
+Fix footer link,WEB-3,10003,,Bug,Closed,Done,Lowest,Dana Unknown,owner@acme.io,03/Oct/26 9:00 AM,05/Oct/26,,,,03/Oct/26 11:00 AM;557058:abc;Fixed,04/Oct/26 11:00 AM;557058:abc;Confirmed

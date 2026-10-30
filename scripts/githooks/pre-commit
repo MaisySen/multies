@@ -1,0 +1,14 @@
+#!/bin/sh
+# Pre-commit: refuse a commit that adds a secret. Install once with: npm run hooks:install
+# 1. gitleaks on the staged changes (gitleaks from PATH, or the copy npm run security downloads).
+# 2. R27: no value from ../CREDENTIALS.local.md may appear in a log under the task directories
+#    (scripts/check-cred-leaks.mjs prints paths and key names only). Skipped where that file does not exist.
+GL="$(command -v gitleaks || echo node_modules/.cache/gitleaks/gitleaks)"
+if [ ! -x "$GL" ]; then
+  echo "pre-commit: gitleaks not found. Run npm run security once, or install gitleaks." >&2
+  exit 1
+fi
+"$GL" git --pre-commit --staged --no-banner --redact --config .gitleaks.toml . || exit 1
+if [ -f ../CREDENTIALS.local.md ] || [ -n "$CREDENTIALS_PATH" ]; then
+  node scripts/check-cred-leaks.mjs || { echo "pre-commit: a credential value is in a log above. Clean it (node scripts/check-cred-leaks.mjs --scrub) and rotate it." >&2; exit 1; }
+fi

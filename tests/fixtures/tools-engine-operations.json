@@ -1,0 +1,1238 @@
+{
+ "_note": "Every op exactly as the live engine publishes it at GET /internal/v1/operations (office-toolkit main 0006d0a, 13 P1 + 21 P2 ops), regenerated 2026-10-30 for the catalogue parity test.",
+ "operations": [
+  {
+   "accepts": "pdf",
+   "label": "Compress PDF",
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "compressed.pdf"
+   },
+   "slow": false,
+   "slug": "compress"
+  },
+  {
+   "accepts": "pdf",
+   "label": "Merge PDFs",
+   "max_bytes": null,
+   "max_files": 20,
+   "max_pages": null,
+   "min_files": 2,
+   "options": [],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "merged.pdf"
+   },
+   "slow": false,
+   "slug": "merge"
+  },
+  {
+   "accepts": "office",
+   "label": "Convert to PDF",
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "converted.pdf"
+   },
+   "slow": false,
+   "slug": "convert"
+  },
+  {
+   "accepts": "pdf",
+   "label": "PDF to images",
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": 100,
+   "min_files": 1,
+   "options": [
+    {
+     "choices": [
+      "72",
+      "150",
+      "300"
+     ],
+     "default": "150",
+     "kind": "choice",
+     "label": "Quality",
+     "name": "dpi",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "application/zip",
+    "name": "pages.zip"
+   },
+   "slow": true,
+   "slug": "to-jpeg"
+  },
+  {
+   "accepts": "image",
+   "label": "Images to PDF",
+   "max_bytes": null,
+   "max_files": 50,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "images.pdf"
+   },
+   "slow": false,
+   "slug": "images-to-pdf"
+  },
+  {
+   "accepts": "pdf",
+   "label": "Split PDF",
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "kind": "ranges",
+     "label": "Pages for each part",
+     "max_len": 200,
+     "name": "ranges",
+     "required": true
+    }
+   ],
+   "output": {
+    "content_type": "application/zip",
+    "name": "split.zip"
+   },
+   "slow": false,
+   "slug": "split"
+  },
+  {
+   "accepts": "pdf",
+   "label": "Rotate pages",
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "choices": [
+      "90",
+      "180",
+      "270"
+     ],
+     "default": "90",
+     "kind": "choice",
+     "label": "Turn",
+     "name": "angle",
+     "required": false
+    },
+    {
+     "kind": "ranges",
+     "label": "Pages",
+     "max_len": 200,
+     "name": "ranges",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "rotated.pdf"
+   },
+   "slow": false,
+   "slug": "rotate"
+  },
+  {
+   "accepts": "pdf",
+   "label": "Remove metadata",
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "cleaned.pdf"
+   },
+   "slow": false,
+   "slug": "scrub"
+  },
+  {
+   "accepts": "pdf",
+   "label": "Make searchable (OCR)",
+   "max_bytes": 20971520,
+   "max_files": 1,
+   "max_pages": 30,
+   "min_files": 1,
+   "options": [
+    {
+     "choices": [
+      "eng",
+      "nep",
+      "hin",
+      "chi_sim",
+      "chi_tra",
+      "ara",
+      "vie",
+      "ind",
+      "spa",
+      "fra",
+      "deu",
+      "jpn",
+      "kor",
+      "tha",
+      "fil",
+      "eng+nep",
+      "eng+hin"
+     ],
+     "default": "eng",
+     "kind": "choice",
+     "label": "Language",
+     "name": "language",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "searchable.pdf"
+   },
+   "slow": true,
+   "slug": "ocr"
+  },
+  {
+   "accepts": "pdf",
+   "label": "Redact text",
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "kind": "phrases",
+     "label": "Words or phrases to black out",
+     "max_len": 2000,
+     "name": "phrases",
+     "required": true
+    }
+   ],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "redacted.pdf"
+   },
+   "slow": false,
+   "slug": "redact"
+  },
+  {
+   "accepts": "pdf",
+   "label": "Watermark",
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "kind": "text",
+     "label": "Watermark text",
+     "max_len": 80,
+     "name": "text",
+     "required": true
+    },
+    {
+     "default": 25,
+     "kind": "int",
+     "label": "Strength (percent)",
+     "max": 60,
+     "min": 10,
+     "name": "opacity",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "watermarked.pdf"
+   },
+   "slow": false,
+   "slug": "watermark"
+  },
+  {
+   "accepts": "pdf",
+   "label": "Remove password",
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "kind": "password",
+     "label": "Current password",
+     "max_len": 128,
+     "name": "password",
+     "required": true
+    }
+   ],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "unlocked.pdf"
+   },
+   "slow": false,
+   "slug": "unlock"
+  },
+  {
+   "accepts": "pdf",
+   "label": "PDF to Word",
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [],
+   "output": {
+    "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "name": "document.docx"
+   },
+   "slow": false,
+   "slug": "pdf-to-docx"
+  },
+  {
+   "accepts": "pdf",
+   "label": "Page thumbnails",
+   "limits": {
+    "long_edge_px": 200
+   },
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": 200,
+   "min_files": 1,
+   "options": [],
+   "output": {
+    "content_type": "application/zip",
+    "name": "thumbnails.zip"
+   },
+   "slow": true,
+   "slug": "thumbnails"
+  },
+  {
+   "accepts": "pdf",
+   "label": "Organize pages",
+   "limits": {
+    "max_plan_entries": 1000
+   },
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "kind": "json",
+     "label": "Page plan",
+     "max_len": 40000,
+     "name": "plan",
+     "required": true
+    }
+   ],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "organized.pdf"
+   },
+   "slow": false,
+   "slug": "organize"
+  },
+  {
+   "accepts": "pdf",
+   "label": "List form fields",
+   "limits": {
+    "max_fields": 1000
+   },
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [],
+   "output": {
+    "content_type": "application/json",
+    "name": "fields.json"
+   },
+   "slow": false,
+   "slug": "form-fields"
+  },
+  {
+   "accepts": "pdf",
+   "label": "Fill PDF form",
+   "limits": {
+    "max_fields": 1000,
+    "max_value_chars": 2000
+   },
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "kind": "json",
+     "label": "Field values",
+     "max_len": 200000,
+     "name": "values",
+     "required": true
+    },
+    {
+     "choices": [
+      "yes",
+      "no"
+     ],
+     "default": "no",
+     "kind": "choice",
+     "label": "Flatten so it cannot be changed",
+     "name": "flatten",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "filled.pdf"
+   },
+   "slow": false,
+   "slug": "form-fill"
+  },
+  {
+   "accepts": "pdf",
+   "label": "Compare PDFs",
+   "limits": {
+    "max_words_per_page": 6000
+   },
+   "max_bytes": 31457280,
+   "max_files": 2,
+   "max_pages": 100,
+   "min_files": 2,
+   "options": [
+    {
+     "choices": [
+      "pdf",
+      "json"
+     ],
+     "default": "pdf",
+     "kind": "choice",
+     "label": "Result",
+     "name": "output",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "comparison.pdf"
+   },
+   "outputs": [
+    {
+     "content_type": "application/pdf",
+     "name": "comparison.pdf"
+    },
+    {
+     "content_type": "application/json",
+     "name": "changes.json"
+    }
+   ],
+   "slow": true,
+   "slug": "compare"
+  },
+  {
+   "accepts": "pdf",
+   "label": "Add password",
+   "limits": {
+    "password_max": 128,
+    "password_min": 4
+   },
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "kind": "password",
+     "label": "Password (4 to 128 characters)",
+     "max_len": 128,
+     "name": "password",
+     "required": true
+    },
+    {
+     "choices": [
+      "yes",
+      "no"
+     ],
+     "default": "yes",
+     "kind": "choice",
+     "label": "Allow printing",
+     "name": "allow_print",
+     "required": false
+    },
+    {
+     "choices": [
+      "yes",
+      "no"
+     ],
+     "default": "yes",
+     "kind": "choice",
+     "label": "Allow copying text",
+     "name": "allow_copy",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "protected.pdf"
+   },
+   "slow": false,
+   "slug": "protect"
+  },
+  {
+   "accepts": "pdf",
+   "label": "Stamp, page numbers, header and footer",
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": 500,
+   "min_files": 1,
+   "options": [
+    {
+     "choices": [
+      "none",
+      "approved",
+      "paid",
+      "draft",
+      "confidential",
+      "copy",
+      "custom"
+     ],
+     "default": "none",
+     "kind": "choice",
+     "label": "Stamp",
+     "name": "stamp",
+     "required": false
+    },
+    {
+     "kind": "text",
+     "label": "Custom stamp text",
+     "max_len": 40,
+     "name": "stamp_text",
+     "required": false
+    },
+    {
+     "choices": [
+      "top-left",
+      "top-right",
+      "bottom-left",
+      "bottom-right",
+      "center"
+     ],
+     "default": "top-right",
+     "kind": "choice",
+     "label": "Stamp position",
+     "name": "position",
+     "required": false
+    },
+    {
+     "choices": [
+      "none",
+      "n",
+      "page n of N"
+     ],
+     "default": "none",
+     "kind": "choice",
+     "label": "Page numbers",
+     "name": "page_numbers",
+     "required": false
+    },
+    {
+     "choices": [
+      "bottom-center",
+      "bottom-right",
+      "top-right"
+     ],
+     "default": "bottom-center",
+     "kind": "choice",
+     "label": "Page number position",
+     "name": "number_position",
+     "required": false
+    },
+    {
+     "kind": "text",
+     "label": "Header",
+     "max_len": 120,
+     "name": "header",
+     "required": false
+    },
+    {
+     "kind": "text",
+     "label": "Footer",
+     "max_len": 120,
+     "name": "footer",
+     "required": false
+    },
+    {
+     "kind": "ranges",
+     "label": "Pages",
+     "max_len": 200,
+     "name": "ranges",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "stamped.pdf"
+   },
+   "slow": false,
+   "slug": "stamp"
+  },
+  {
+   "accepts": "pdf",
+   "extra_files": {
+    "accepts_ext": [
+     ".png"
+    ],
+    "field": "images",
+    "label": "Signature images",
+    "max": 10,
+    "max_bytes_each": 1048576,
+    "min": 1
+   },
+   "label": "Sign PDF",
+   "limits": {
+    "max_events": 200,
+    "max_image_px": 2000,
+    "max_signatures": 50
+   },
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "kind": "json",
+     "label": "Signature places",
+     "max_len": 20000,
+     "name": "signatures",
+     "required": true
+    },
+    {
+     "kind": "json",
+     "label": "Signing record",
+     "max_len": 100000,
+     "name": "audit",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "signed.pdf"
+   },
+   "slow": false,
+   "slug": "sign"
+  },
+  {
+   "accepts": "file",
+   "accepts_ext": [
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp"
+   ],
+   "label": "Scan to clean PDF",
+   "limits": {
+    "long_edge_px": 2400,
+    "max_megapixels_each": 40,
+    "ocr_seconds_per_page": 180
+   },
+   "max_bytes": 41943040,
+   "max_files": 20,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "choices": [
+      "yes",
+      "no"
+     ],
+     "default": "no",
+     "kind": "choice",
+     "label": "Make text searchable",
+     "name": "ocr",
+     "required": false
+    },
+    {
+     "choices": [
+      "eng",
+      "nep",
+      "hin",
+      "chi_sim",
+      "chi_tra",
+      "ara",
+      "vie",
+      "ind",
+      "spa",
+      "fra",
+      "deu",
+      "jpn",
+      "kor",
+      "tha",
+      "fil",
+      "eng+nep",
+      "eng+hin"
+     ],
+     "default": "eng",
+     "kind": "choice",
+     "label": "Language",
+     "name": "language",
+     "required": false
+    },
+    {
+     "choices": [
+      "color",
+      "gray",
+      "bw"
+     ],
+     "default": "color",
+     "kind": "choice",
+     "label": "Colour",
+     "name": "mode",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "scan.pdf"
+   },
+   "slow": true,
+   "slug": "scan-clean"
+  },
+  {
+   "accepts": "file",
+   "accepts_ext": [
+    ".html",
+    ".htm",
+    ".md",
+    ".markdown",
+    ".csv",
+    ".txt",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".svg"
+   ],
+   "label": "Convert to PDF (web page, Markdown, CSV, text, image)",
+   "limits": {
+    "csv_rows": 5000,
+    "image_megapixels": 50,
+    "text_mb": 5
+   },
+   "max_bytes": 10485760,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "converted.pdf"
+   },
+   "slow": false,
+   "slug": "to-pdf"
+  },
+  {
+   "accepts": "pdf",
+   "label": "PDF to text, Markdown, CSV, Excel or images",
+   "limits": {
+    "image_pages": 100,
+    "table_pages": 100,
+    "tables": 200,
+    "text_pages": 200
+   },
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": 200,
+   "min_files": 1,
+   "options": [
+    {
+     "choices": [
+      "txt",
+      "md",
+      "csv",
+      "xlsx",
+      "png"
+     ],
+     "default": "txt",
+     "kind": "choice",
+     "label": "Convert to",
+     "name": "target",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "text/plain",
+    "name": "document.txt"
+   },
+   "outputs": [
+    {
+     "content_type": "text/plain",
+     "name": "document.txt"
+    },
+    {
+     "content_type": "text/markdown",
+     "name": "document.md"
+    },
+    {
+     "content_type": "text/csv",
+     "name": "tables.csv"
+    },
+    {
+     "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "name": "tables.xlsx"
+    },
+    {
+     "content_type": "application/zip",
+     "name": "pages.zip"
+    }
+   ],
+   "slow": true,
+   "slug": "pdf-to"
+  },
+  {
+   "accepts": "pdf",
+   "label": "PDF tables to Excel",
+   "limits": {
+    "tables": 200
+   },
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": 100,
+   "min_files": 1,
+   "options": [],
+   "output": {
+    "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "name": "tables.xlsx"
+   },
+   "slow": true,
+   "slug": "pdf-tables"
+  },
+  {
+   "accepts": "file",
+   "accepts_ext": [
+    ".xlsx",
+    ".xls",
+    ".csv"
+   ],
+   "label": "Merge spreadsheets",
+   "limits": {
+    "cells": 2000000,
+    "columns": 200,
+    "rows": 200000
+   },
+   "max_bytes": 52428800,
+   "max_files": 20,
+   "max_pages": null,
+   "min_files": 2,
+   "options": [
+    {
+     "choices": [
+      "sheets",
+      "stack"
+     ],
+     "default": "sheets",
+     "kind": "choice",
+     "label": "How to merge",
+     "name": "mode",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "name": "merged.xlsx"
+   },
+   "slow": false,
+   "slug": "excel-merge"
+  },
+  {
+   "accepts": "file",
+   "accepts_ext": [
+    ".xlsx",
+    ".xls",
+    ".csv"
+   ],
+   "label": "Clean spreadsheet data",
+   "limits": {
+    "cells": 2000000,
+    "columns": 200,
+    "rows": 200000
+   },
+   "max_bytes": 52428800,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "choices": [
+      "yes",
+      "no"
+     ],
+     "default": "yes",
+     "kind": "choice",
+     "label": "Trim spaces",
+     "name": "trim",
+     "required": false
+    },
+    {
+     "choices": [
+      "yes",
+      "no"
+     ],
+     "default": "yes",
+     "kind": "choice",
+     "label": "Remove duplicate rows",
+     "name": "dedupe",
+     "required": false
+    },
+    {
+     "choices": [
+      "keep",
+      "iso",
+      "au"
+     ],
+     "default": "keep",
+     "kind": "choice",
+     "label": "Dates",
+     "name": "dates",
+     "required": false
+    },
+    {
+     "choices": [
+      "yes",
+      "no"
+     ],
+     "default": "yes",
+     "kind": "choice",
+     "label": "Remove empty rows and columns",
+     "name": "drop_empty",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "name": "cleaned.xlsx"
+   },
+   "slow": false,
+   "slug": "excel-clean"
+  },
+  {
+   "accepts": "file",
+   "accepts_ext": [
+    ".pdf",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".docx"
+   ],
+   "label": "Extract text",
+   "limits": {
+    "chars": 2000000,
+    "ocr_pages": 30,
+    "pages_read": 50
+   },
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "choices": [
+      "auto",
+      "no",
+      "yes"
+     ],
+     "default": "auto",
+     "kind": "choice",
+     "label": "Read scanned pages",
+     "name": "ocr",
+     "required": false
+    },
+    {
+     "choices": [
+      "eng",
+      "nep",
+      "hin",
+      "chi_sim",
+      "chi_tra",
+      "ara",
+      "vie",
+      "ind",
+      "spa",
+      "fra",
+      "deu",
+      "jpn",
+      "kor",
+      "tha",
+      "fil",
+      "eng+nep",
+      "eng+hin"
+     ],
+     "default": "eng",
+     "kind": "choice",
+     "label": "Language",
+     "name": "language",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "application/json",
+    "name": "text.json"
+   },
+   "slow": true,
+   "slug": "extract-text"
+  },
+  {
+   "accepts": "pdf",
+   "label": "Find sensitive info",
+   "limits": {
+    "matches": 5000
+   },
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": 200,
+   "min_files": 1,
+   "options": [
+    {
+     "kind": "json",
+     "label": "What to look for",
+     "max_len": 300,
+     "name": "kinds",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "application/json",
+    "name": "matches.json"
+   },
+   "slow": true,
+   "slug": "pii-find"
+  },
+  {
+   "accepts": "file",
+   "accepts_ext": [
+    ".pdf",
+    ".docx"
+   ],
+   "label": "Split text for translation",
+   "limits": {
+    "segments": 2000
+   },
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": 50,
+   "min_files": 1,
+   "options": [],
+   "output": {
+    "content_type": "application/json",
+    "name": "segments.json"
+   },
+   "slow": false,
+   "slug": "segments"
+  },
+  {
+   "accepts": "file",
+   "accepts_ext": [
+    ".pdf",
+    ".docx"
+   ],
+   "label": "Put translated text in place",
+   "limits": {
+    "segments": 2000
+   },
+   "max_bytes": null,
+   "max_files": 1,
+   "max_pages": 50,
+   "min_files": 1,
+   "options": [
+    {
+     "kind": "json",
+     "label": "Translations",
+     "max_len": 450000,
+     "name": "translations",
+     "required": true
+    }
+   ],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "translated.pdf"
+   },
+   "outputs": [
+    {
+     "content_type": "application/pdf",
+     "name": "translated.pdf"
+    },
+    {
+     "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+     "name": "translated.docx"
+    }
+   ],
+   "slow": true,
+   "slug": "translate-apply"
+  },
+  {
+   "accepts": "file",
+   "accepts_ext": [
+    ".html",
+    ".htm",
+    ".docx"
+   ],
+   "label": "Fill a template",
+   "limits": {
+    "fields": 500
+   },
+   "max_bytes": 2097152,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "kind": "json",
+     "label": "Field values",
+     "max_len": 100000,
+     "name": "data",
+     "required": true
+    }
+   ],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "document.pdf"
+   },
+   "slow": false,
+   "slug": "render"
+  },
+  {
+   "accepts": "file",
+   "accepts_ext": [
+    ".html",
+    ".htm",
+    ".docx"
+   ],
+   "label": "Fill a template for many rows",
+   "limits": {
+    "rows": 500
+   },
+   "max_bytes": 2097152,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "kind": "json",
+     "label": "Rows",
+     "max_len": 450000,
+     "name": "rows",
+     "required": true
+    },
+    {
+     "kind": "text",
+     "label": "Field that names each file",
+     "max_len": 64,
+     "name": "name_field",
+     "required": true
+    }
+   ],
+   "output": {
+    "content_type": "application/zip",
+    "name": "documents.zip"
+   },
+   "slow": true,
+   "slug": "render-batch"
+  },
+  {
+   "accepts": "file",
+   "accepts_ext": [
+    ".pdf",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".docx",
+    ".xlsx",
+    ".pptx",
+    ".odt",
+    ".ods",
+    ".odp",
+    ".xls",
+    ".csv",
+    ".txt",
+    ".md",
+    ".markdown",
+    ".html",
+    ".htm",
+    ".svg"
+   ],
+   "label": "Workflow (run tools in a row)",
+   "limits": {
+    "pages_per_step": 100,
+    "seconds": 600,
+    "steps_max": 6,
+    "steps_min": 2
+   },
+   "max_bytes": null,
+   "max_files": 50,
+   "max_pages": 100,
+   "min_files": 1,
+   "options": [
+    {
+     "kind": "json",
+     "label": "Steps",
+     "max_len": 4000,
+     "name": "steps",
+     "required": true
+    }
+   ],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "result.pdf"
+   },
+   "outputs": [
+    {
+     "content_type": "application/pdf",
+     "name": "result.pdf"
+    },
+    {
+     "content_type": "application/zip",
+     "name": "result.zip"
+    },
+    {
+     "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+     "name": "result.docx"
+    },
+    {
+     "content_type": "application/json",
+     "name": "result.json"
+    },
+    {
+     "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "name": "result.xlsx"
+    },
+    {
+     "content_type": "text/csv",
+     "name": "result.csv"
+    },
+    {
+     "content_type": "text/plain",
+     "name": "result.txt"
+    },
+    {
+     "content_type": "text/markdown",
+     "name": "result.md"
+    },
+    {
+     "content_type": "image/png",
+     "name": "result.png"
+    }
+   ],
+   "slow": true,
+   "slug": "chain"
+  }
+ ]
+}
