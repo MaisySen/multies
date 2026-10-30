@@ -124,7 +124,6 @@ export const OCR_LANGUAGES: { value: string; label: string }[] = [
 export const HEAVY_OCR_MAX_PAGES = 10;
 export const HEAVY_OCR_LANGUAGES = ["nep", "hin", "eng+nep", "eng+hin", "chi_sim", "chi_tra", "jpn", "kor", "ara", "tha"] as const;
 export const ocrPageCap = (language: string | undefined): number => ((HEAVY_OCR_LANGUAGES as readonly string[]).includes(language ?? "") ? HEAVY_OCR_MAX_PAGES : 30);
-const HEAVY_OCR_HELP = "Nepali, Hindi, Chinese, Japanese, Korean, Arabic and Thai read up to 10 pages a run.";
 
 export const TOOLS: ToolDef[] = [
   { op: "merge", group: "Organise", label: "Merge PDFs", blurb: "Join several PDFs into one, in the order you choose.", accept: PDF, acceptLabel: "2 or more PDFs", minFiles: 2, maxFiles: "plan", suffix: "-merged", ext: "pdf", contentType: PDF_TYPE, options: [], ordered: true },
@@ -153,8 +152,8 @@ export const TOOLS: ToolDef[] = [
   { op: "unlock", group: "Protect", label: "Remove password", blurb: "Save a copy without its password, when you know the password.", accept: PDF, acceptLabel: "a password protected PDF", minFiles: 1, maxFiles: 1, suffix: "-unlocked", ext: "pdf", contentType: PDF_TYPE,
     options: [{ name: "password", kind: "password", label: "Current password", required: true, maxLen: 128, help: "Used for this run only and never stored." }] },
   { op: "ocr", group: "Scans", label: "Make searchable (OCR)", blurb: "Read the text in a scanned PDF so you can search and copy it.", accept: PDF, acceptLabel: "a scanned PDF", minFiles: 1, maxFiles: 1, suffix: "-searchable", ext: "pdf", contentType: PDF_TYPE, maxPages: 30, maxBytes: 20 * 1024 * 1024, slow: { secondsPerPage: 6 },
-    options: [{ name: "language", kind: "choice", label: "Language", default: "eng", choices: OCR_LANGUAGES, help: HEAVY_OCR_HELP }],
-    note: "Up to 30 pages (10 in Nepali, Hindi and other non Latin languages) and 20 MB. It reads about one page every few seconds." },
+    options: [{ name: "language", kind: "choice", label: "Language", default: "eng", choices: OCR_LANGUAGES}],
+    note: "Up to 30 pages and 20 MB. It reads about one page every few seconds." },
 
   // Tools P2, wave 1 (engine ops E1 and E2). Each sits behind its own flag.
   { op: "protect", group: "Protect", feature: "protect", label: "Add a password", blurb: "Lock a PDF so it needs a password to open.", accept: PDF, acceptLabel: "a PDF", minFiles: 1, maxFiles: 1, suffix: "-protected", ext: "pdf", contentType: PDF_TYPE,
@@ -199,7 +198,7 @@ export const TOOLS: ToolDef[] = [
   { op: "scan-clean", group: "Scans", feature: "scan", label: "Scan to PDF", blurb: "Photos of paper become a clean, straight PDF. On a phone, take the photos right here.", accept: ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp", acceptLabel: "photos of pages", minFiles: 1, maxFiles: 20, suffix: "-scan", ext: "pdf", contentType: PDF_TYPE, maxBytes: 40 * 1024 * 1024, slow: { secondsPerPage: 6 }, ordered: true, camera: true,
     options: [
       { name: "ocr", kind: "choice", label: "Make the text searchable", default: "no", choices: YES_NO() },
-      { name: "language", kind: "choice", label: "Language of the text", default: "eng", choices: OCR_LANGUAGES, when: { option: "ocr", is: ["yes"] }, help: "Nepali, Hindi, Chinese, Japanese, Korean, Arabic and Thai take up to 10 photos a run." },
+      { name: "language", kind: "choice", label: "Language of the text", default: "eng", choices: OCR_LANGUAGES, when: { option: "ocr", is: ["yes"] } },
       { name: "mode", kind: "choice", label: "Colour", default: "color", choices: [{ value: "color", label: "Colour" }, { value: "gray", label: "Greyscale" }, { value: "bw", label: "Black and white" }] },
     ],
     note: "Up to 20 photos, one page each, in the order shown. Pages are cropped, straightened and evened out." },
@@ -245,7 +244,7 @@ export function optionShown(o: Pick<ToolOption, "when">, values: Record<string, 
 }
 
 /** Shown beside the OCR language choice when languages other than English are offered. */
-export const OCR_SLOW_NOTE = "English is quickest. Other languages can take a few minutes.";
+export const OCR_SLOW_NOTE = "English is quickest. Nepali, Hindi, Chinese, Japanese, Korean, Arabic and Thai read up to 10 pages a run.";
 
 /** The OCR languages a deployment allows (English only while ocr_langs is off). */
 export const ocrLanguagesFor = (features: readonly string[]) => (features.includes("ocr_langs") ? OCR_LANGUAGES : OCR_LANGUAGES.filter((l) => l.value === "eng"));
