@@ -164,8 +164,8 @@ export function ChatView({ id, onBack }: { id: string; onBack: () => void }) {
 
   return (
     <Card data-testid="chat-view"
-      className="flex flex-col overflow-hidden max-lg:fixed max-lg:inset-0 max-lg:z-40 max-lg:rounded-none max-lg:border-0 max-lg:bg-bg max-lg:shadow-none lg:h-[calc(100dvh-11rem)]">
-      {/* Header */}
+      className="flex flex-col overflow-hidden max-lg:fixed max-lg:inset-x-0 max-lg:top-0 max-lg:bottom-[var(--kb-h,0px)] max-lg:z-40 max-lg:rounded-none max-lg:border-0 max-lg:bg-bg max-lg:shadow-none lg:h-[calc(100dvh-11rem)]">
+      {/* Header. On a phone the view is full screen and its bottom follows the keyboard (--kb-h from lib/keyboard-inset). */}
       <div className="border-b border-line bg-surface/90 px-3 py-2.5 backdrop-blur max-lg:pt-[calc(0.625rem+env(safe-area-inset-top))] md:px-4">
         <div className="flex items-center gap-2">
           <button onClick={onBack} className="-ml-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-brand-hover hover:bg-hover lg:hidden" aria-label="Back to the inbox"><IconArrowLeft className="h-5 w-5" /></button>
