@@ -36,7 +36,7 @@ export const navCommands: Command[] = PALETTE_PAGES.map((p): Command => {
 /** The command menu's actions (write an email, new task, theme, ...). */
 export const actionCommands: Command[] = PALETTE_ACTIONS.map((a): Command => ({
   id: `action-${a.id}`, title: a.label, group: "General", scope: "global", icon: a.icon, to: a.to, keywords: a.keywords,
-  palette: true, sheet: false, handler: "run",
+  palette: true, sheet: false, handler: "run", flag: a.flag,
   run: (c) => {
     if (a.kind === "shortcuts") c.openSheet();
     else if (a.kind === "theme") c.toggleTheme?.();

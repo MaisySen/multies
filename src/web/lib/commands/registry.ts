@@ -22,7 +22,7 @@ export const commandById = (id: string) => COMMANDS.find((c) => c.id === id);
 export const inSheet = (c: Command) => c.sheet ?? !!c.keys?.length;
 export const inPalette = (c: Command) => c.palette ?? false;
 /** R59: a command tied to a server switch is offered only while /api/config says the switch is on. */
-export const flagOn = (c: { flag?: "chatChannels" }, config: { chatChannels?: boolean } | undefined) => !c.flag || !!config?.[c.flag];
+export const flagOn = (c: { flag?: "chatChannels" | "tools" }, config: { chatChannels?: boolean; tools?: boolean } | undefined) => !c.flag || !!config?.[c.flag];
 
 /** How long after the first key of a sequence the next one still counts, in ms. */
 export const SEQUENCE_MS = 1000;
