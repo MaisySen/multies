@@ -51,7 +51,7 @@ export function parseDateValue(text: string, order: DateOrder = dateOrder()): st
   let y: number, m: number, d: number;
   if (iso) { y = +iso[1]; m = +iso[2]; d = +iso[3]; }
   else {
-    const parts = s.split(/[\/.\-\s]+/).filter(Boolean);
+    const parts = s.split(/[/.\-\s]+/).filter(Boolean);
     if (parts.length !== 3 || parts.some((p) => !/^\d+$/.test(p))) return null;
     const [a, b, c] = parts.map(Number);
     if (order === "ymd") { y = a; m = b; d = c; } else if (order === "mdy") { m = a; d = b; y = c; } else { d = a; m = b; y = c; }
