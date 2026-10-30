@@ -3,6 +3,13 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.10.3 (OTA, runs on Android versionCode 16 and iOS build 20), 31 Oct 2026
+
+- Tools on iPhone: the upload progress bar works again. It had stopped with an error while a file was
+  sending, and a result used in another tool could show an error instead of its size.
+
+Carries everything in 1.10.2.
+
 ## 1.10.2 (OTA, runs on Android versionCode 16 and iOS build 20), 31 Oct 2026
 
 - Compress: pick Light, Balanced or Smallest. Each says what to expect, and scanned PDFs now shrink a

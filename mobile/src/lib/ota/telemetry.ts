@@ -51,7 +51,8 @@ export function framesFromStack(stack: string | undefined): { function: string; 
   if (!stack) return [];
   const out: { function: string; filename: string; lineno?: number; colno?: number }[] = [];
   for (const line of stack.split("\n").slice(0, 50)) {
-    const m = line.match(/^\s*(?:at\s+)?([^@(\s]*)\s*[@(]?\s*([^\s()]+?):(\d+):(\d+)\)?\s*$/);
+    // Hermes release builds write "at fn (address at index.bundle:1:2345)"; drop the "address at " part.
+    const m = line.replace(/\(address at /, "(").match(/^\s*(?:at\s+)?([^@(\s]*)\s*[@(]?\s*([^\s()]+?):(\d+):(\d+)\)?\s*$/);
     if (m) out.push({ function: m[1] || "?", filename: m[2], lineno: Number(m[3]), colno: Number(m[4]) });
   }
   return out.reverse();

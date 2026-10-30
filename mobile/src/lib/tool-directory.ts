@@ -186,10 +186,11 @@ export function middleTruncate(name: string, max = 30): string {
 }
 
 /** A plain size: 812 KB, 3.4 MB. */
-export const sizeLabel = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / (1024 * 1024)).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`);
+export const sizeLabel = (raw: number | bigint) => { const n = Number(raw); return (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / (1024 * 1024)).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`); };
 
 /** "27 KB to 3 KB, 89% smaller" for a compress result. */
-export function savedLine(before: number, after: number, level?: string): string | null {
+export function savedLine(rawBefore: number | bigint, rawAfter: number | bigint, level?: string): string | null {
+  const before = Number(rawBefore), after = Number(rawAfter);
   if (!before || !after) return null;
   const pct = Math.round((1 - after / before) * 100);
   if (pct < 2) {

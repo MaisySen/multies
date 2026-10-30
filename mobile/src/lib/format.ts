@@ -32,7 +32,8 @@ export function timeLeft(iso: string, now = Date.now()): string {
   return h < 48 ? `expires in ${h} h` : `expires in ${Math.round(h / 24)} days`;
 }
 
-export function bytes(n: number): string {
+export function bytes(raw: number | bigint): string {
+  const n = typeof raw === "bigint" ? Number(raw) : raw;
   if (n < 1024) return `${n} B`;
   if (n < 1024 ** 2) return `${(n / 1024).toFixed(0)} KB`;
   if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MB`;

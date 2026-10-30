@@ -106,3 +106,13 @@ describe("crash handler", () => {
     expect(previous).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Hermes release stacks", () => {
+  it("parses 'address at' frames so crash reports keep their stack", () => {
+    const stack = "TypeError: Cannot convert 100 to BigInt\n    at anonymous (address at index.bundle:1:123456)\n    at onProgress (address at index.bundle:1:98765)";
+    const frames = framesFromStack(stack);
+    expect(frames).toHaveLength(2);
+    expect(frames[1]).toEqual({ function: "anonymous", filename: "index.bundle", lineno: 1, colno: 123456 });
+    expect(frames[0].function).toBe("onProgress");
+  });
+});

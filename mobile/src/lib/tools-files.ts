@@ -8,13 +8,14 @@ import { Directory, File, Paths, UploadType } from "../../node_modules/expo/node
 import { concatBytes, makeBoundary, multipartParts, pickerTypes, safeFileName, toolErrorMessage, typeForName, uploadQuery, type PickedFile, type ToolDef, type ToolJob } from "./tools";
 
 import type { FileAuth } from "@/api/transport";
+import { byteFraction, toNumber } from "@/lib/native-number";
 
 /** Picks files for a tool from Files (and, on Android, Photos and Drive through the same system picker). */
 export async function pickFiles(def: ToolDef, multiple: boolean, only?: "images"): Promise<PickedFile[]> {
   const types = only === "images" ? pickerTypes(def).filter((t) => t.startsWith("image/")) : pickerTypes(def);
   const res = await DocumentPicker.getDocumentAsync({ multiple, copyToCacheDirectory: true, type: types.length ? types : ["image/*"] });
   if (res.canceled) return [];
-  return res.assets.map((a) => ({ uri: a.uri, name: a.name || "file", size: a.size ?? 0, type: a.mimeType || typeForName(a.name || "") }));
+  return res.assets.map((a) => ({ uri: a.uri, name: a.name || "file", size: toNumber(a.size), type: a.mimeType || typeForName(a.name || "") }));
 }
 
 async function readBytes(f: PickedFile): Promise<Uint8Array> {
@@ -50,7 +51,10 @@ export async function uploadJob(auth: FileAuth, op: string, files: PickedFile[],
       tmp.write(body);
       const r = await tmp.upload(url, {
         httpMethod: "POST", uploadType: UploadType.BINARY_CONTENT, headers, mimeType: contentType,
-        onProgress: onProgress ? (p: { bytesSent: number; totalBytes: number }) => { if (p.totalBytes > 0) onProgress(p.bytesSent / p.totalBytes); } : undefined,
+        // iPhone sends bytesSent and totalBytes as BigInt (native Int64); a progress callback must never throw.
+        onProgress: onProgress ? (p: { bytesSent: number | bigint; totalBytes: number | bigint }) => {
+          try { const f = byteFraction(p?.bytesSent, p?.totalBytes); if (f !== null) onProgress(f); } catch { /* progress is cosmetic */ }
+        } : undefined,
       });
       return { status: r.status, body: r.body };
     } finally {
@@ -128,5 +132,5 @@ export async function readResultText(auth: FileAuth, job: ToolJob): Promise<stri
 
 /** The file as a picked file, ready for the next tool ("Use in another tool"). */
 export function asPicked(file: File, name: string, type: string): PickedFile {
-  return { uri: file.uri, name, size: file.size ?? 0, type };
+  return { uri: file.uri, name, size: toNumber(file.size), type };
 }
