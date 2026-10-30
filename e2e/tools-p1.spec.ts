@@ -35,10 +35,15 @@ function pageCount(buf: Buffer): number {
 async function signIn(page: Page) {
   const sessionFile = process.env.TOOLS_E2E_SESSION_FILE;
   if (sessionFile) {
-    const { cookie } = JSON.parse(readFileSync(sessionFile, "utf8")) as { cookie: string };
+    // scripts/staging-session.mjs writes { cookie_name, cookie_value }.
+    const { cookie_name: name, cookie_value: value } = JSON.parse(readFileSync(sessionFile, "utf8")) as { cookie_name: string; cookie_value: string };
     const base = new URL(test.info().project.use.baseURL ?? "http://localhost");
-    const eq = cookie.indexOf("=");
-    await page.context().addCookies([{ name: cookie.slice(0, eq), value: cookie.slice(eq + 1).split(";")[0], domain: base.hostname, path: "/", secure: base.protocol === "https:", httpOnly: true, sameSite: "Lax" }]);
+    await page.context().addCookies([{ name, value, domain: base.hostname, path: "/", secure: base.protocol === "https:", httpOnly: true, sameSite: "Lax" }]);
+    const me = await (await page.request.get("/api/account/me")).json() as { user?: { onboarded?: boolean; onboardedAt?: string | null } };
+    if (!me.user?.onboarded && !me.user?.onboardedAt) {
+      const done = await page.request.post("/api/account/onboarding", { data: { name: "Staging Test", timezone: "Australia/Sydney", locale: "en-AU", company: "Multies QA", workspaceTimezone: "Australia/Sydney" }, headers: { origin: base.origin } });
+      expect(done.status()).toBeLessThan(300);
+    }
     return;
   }
   const email = `tools${Date.now()}@example.com`;
