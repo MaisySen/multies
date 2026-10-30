@@ -1,0 +1,136 @@
+import { Hono, type Context } from "hono";
+import type { AppEnv } from "../context";
+import { requireAuth } from "../middleware";
+import { HttpError, notFound, planLimit } from "../lib/errors";
+import { audit } from "../services/audit";
+import { engineFetch, type EngineConfig } from "../services/tools/engine-client";
+import { mintToken, readToken } from "../services/tools/tokens";
+import { readToolState, recordRun, toolLimits, toolsOnFor, type ToolState } from "../services/tools/usage";
+import { TOOLS, isToolOp, resultName, toolDef, type ToolJob, type ToolJobStatus, type ToolsInfo } from "@/shared/tools";
+
+/** The custom header the web app sends with an upload. A cross site form cannot set it (it needs a CORS preflight). */
+export const TOOLS_UPLOAD_HEADER = "x-multies-upload";
+/** Multipart framing on top of the files themselves (boundaries and part headers). */
+const MULTIPART_ALLOWANCE = 64 * 1024;
+
+const expired = () => new HttpError(404, "not_found", "This file has expired. Run the tool again.");
+const engineDown = () => new HttpError(503, "tools_unavailable", "Tools are warming up. Try again in a few seconds.");
+
+function setup(c: Context<AppEnv>) {
+  const t = c.var.deps.config.tools;
+  if (!t.enabled || !t.engine || !t.tokenKey) throw notFound("Page");
+  return { engine: t.engine as EngineConfig, tokenKey: t.tokenKey };
+}
+
+async function stateFor(c: Context<AppEnv>): Promise<ToolState> {
+  const s = await readToolState(c.var.deps.db, c.var.auth.orgId, c.var.deps.now());
+  if (!s || !toolsOnFor(s)) throw notFound("Page");
+  return s;
+}
+
+async function callEngine(c: Context<AppEnv>, engine: EngineConfig, init: Parameters<typeof engineFetch>[2]) {
+  try {
+    return await engineFetch(c.var.deps.fetch, engine, init);
+  } catch (err) {
+    c.var.log?.warn("tools.engine_unreachable", { error: String(err) });
+    throw engineDown();
+  }
+}
+
+async function engineError(res: Response): Promise<never> {
+  let message = "";
+  try { message = ((await res.json()) as { message?: string }).message ?? ""; } catch { /* not JSON */ }
+  if (res.status === 400) throw new HttpError(422, "tool_input", message || "That file could not be used with this tool.");
+  if (res.status === 413) throw new HttpError(413, "too_large", "That upload is larger than your plan allows.");
+  if (res.status === 429) throw new HttpError(429, "tools_busy", message || "Tools are busy. Try again in a minute.");
+  throw engineDown();
+}
+
+/** Tools: document tools on the private engine (/api/tools). Off (404) unless the deployment turns them on. */
+export function toolsRoutes() {
+  return new Hono<AppEnv>()
+    .use("*", requireAuth)
+    .get("/", async (c) => {
+      setup(c);
+      const s = await stateFor(c);
+      const body: ToolsInfo = { enabled: true, tools: TOOLS, usage: { month: s.month, day: s.day }, limits: toolLimits(s.plan) };
+      return c.json(body);
+    })
+    .post("/jobs", async (c) => {
+      const { engine, tokenKey } = setup(c);
+      if (c.req.header(TOOLS_UPLOAD_HEADER) !== "1") throw new HttpError(403, "bad_origin", "Cross-site request blocked.");
+      const op = c.req.query("op");
+      if (!isToolOp(op)) throw new HttpError(400, "bad_request", "That tool is not available.");
+      const lenHeader = c.req.header("content-length");
+      if (!lenHeader || !/^\d+$/.test(lenHeader)) throw new HttpError(411, "length_required", "The upload needs a size. Try again from the Tools page.");
+      const len = Number(lenHeader);
+      const ctype = c.req.header("content-type") ?? "";
+      if (!/^multipart\/form-data;\s*boundary=/i.test(ctype)) throw new HttpError(400, "bad_request", "Send the files as a form upload.");
+      const { auth, deps } = c.var;
+      const s = await stateFor(c);
+      const limits = toolLimits(s.plan);
+      const maxBytes = limits.maxBytes + MULTIPART_ALLOWANCE;
+      if (len > maxBytes) throw new HttpError(413, "too_large", `Uploads can be up to ${Math.round(limits.maxBytes / (1024 * 1024))} MB on your plan.`);
+      const files = Math.max(1, Math.min(1000, Number(c.req.query("files") ?? "1") || 1));
+      const def = toolDef(op);
+      if (files < def.minFiles) throw new HttpError(400, "bad_request", `This tool needs ${def.minFiles} or more files.`);
+      const maxFiles = def.maxFiles === "plan" ? limits.maxMergeFiles : def.maxFiles;
+      if (files > maxFiles) throw planLimit(`You can merge up to ${maxFiles} files at once on your plan.`);
+      if (s.month >= limits.runsMonthly) throw planLimit(`Your workspace has used all ${limits.runsMonthly} tool runs this month. They reset on the 1st.`);
+      if (s.day >= limits.runsDaily) throw planLimit(`Your workspace has used all ${limits.runsDaily} tool runs for today. Try again tomorrow.`);
+      const res = await callEngine(c, engine, {
+        method: "POST", path: `/internal/v1/jobs?op=${op}`, ws: auth.orgId, user: auth.userId, maxBytes,
+        body: c.req.raw.body, contentLength: len, contentType: ctype,
+      });
+      if (res.status !== 202) await engineError(res);
+      const job = (await res.json()) as { id: string; status: ToolJobStatus };
+      const now = deps.now();
+      // Two writes a run: the usage rows (one upsert) and the audit row. No file names are kept.
+      await Promise.all([
+        recordRun(deps.db, auth.orgId, now, len),
+        audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "tools.run", targetType: "tool_job", targetId: job.id, metadata: { op, source: "upload", files, bytes_in: len }, ip: c.var.ip }),
+      ]);
+      const name = resultName(op, c.req.query("name"));
+      const token = await mintToken(tokenKey, { k: "s", j: job.id, w: auth.orgId, u: auth.userId, o: op, n: name }, now.getTime());
+      const out: ToolJob = { token, op, status: job.status, name };
+      return c.json(out, 202);
+    })
+    .get("/jobs/:token", async (c) => {
+      const { engine, tokenKey } = setup(c);
+      const { auth, deps } = c.var;
+      const t = await readToken(tokenKey, c.req.param("token"), "s", deps.now().getTime());
+      if (!t || t.w !== auth.orgId) throw notFound("Job");
+      // Polling reads no D1: the token carries the workspace and the engine checks it again.
+      const res = await callEngine(c, engine, { method: "GET", path: `/internal/v1/jobs/${t.j}`, ws: auth.orgId, user: auth.userId, maxBytes: 0 });
+      if (res.status === 404) return c.json({ token: c.req.param("token"), op: t.o, status: "expired", name: t.n } satisfies ToolJob);
+      if (!res.ok) await engineError(res);
+      const j = (await res.json()) as { status: ToolJobStatus; error?: string; output?: { bytes: number } };
+      const out: ToolJob = { token: c.req.param("token"), op: t.o, status: j.status, name: t.n };
+      if (j.status === "failed") out.error = j.error || "The file could not be processed.";
+      if (j.status === "done") {
+        out.bytes = j.output?.bytes;
+        const d = await mintToken(tokenKey, { k: "d", j: t.j, w: t.w, u: auth.userId, o: t.o, n: t.n }, deps.now().getTime());
+        out.downloadUrl = `/api/tools/jobs/${d}/download`;
+      }
+      return c.json(out);
+    })
+    .get("/jobs/:token/download", async (c) => {
+      const { engine, tokenKey } = setup(c);
+      const { auth, deps } = c.var;
+      const t = await readToken(tokenKey, c.req.param("token"), "d", deps.now().getTime());
+      if (!t || t.w !== auth.orgId) throw expired();
+      const res = await callEngine(c, engine, { method: "GET", path: `/internal/v1/jobs/${t.j}/output`, ws: auth.orgId, user: auth.userId, maxBytes: 0 });
+      if (res.status === 404) throw expired();
+      if (!res.ok || !res.body) await engineError(res);
+      const ascii = t.n.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+      const headers = new Headers({
+        "content-type": "application/pdf",
+        "content-disposition": `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(t.n)}`,
+        "cache-control": "private, no-store",
+        "x-content-type-options": "nosniff",
+      });
+      const size = res.headers.get("content-length");
+      if (size) headers.set("content-length", size);
+      return new Response(res.body, { status: 200, headers });
+    });
+}

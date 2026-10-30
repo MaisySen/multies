@@ -875,5 +875,17 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TRIGGER `tasks_project_counts_au_old` AFTER UPDATE OF `project_id`, `status`, `deleted_at`, `triage_state` ON `tasks` WHEN OLD.`deleted_at` IS NULL AND OLD.`triage_state` IS NULL AND (NOT (NEW.`deleted_at` IS NULL AND NEW.`triage_state` IS NULL) OR (NEW.`project_id` IS NOT OLD.`project_id` OR NEW.`status` IS NOT OLD.`status`)) BEGIN UPDATE `project_status_counts` SET `n` = max(`n` - 1, 0) WHERE `org_id` = OLD.`org_id` AND `project_id` = OLD.`project_id` AND `status` = OLD.`status`; END;",
       "CREATE TRIGGER `tasks_project_counts_au_new` AFTER UPDATE OF `project_id`, `status`, `deleted_at`, `triage_state` ON `tasks` WHEN NEW.`deleted_at` IS NULL AND NEW.`triage_state` IS NULL AND (NOT (OLD.`deleted_at` IS NULL AND OLD.`triage_state` IS NULL) OR (NEW.`project_id` IS NOT OLD.`project_id` OR NEW.`status` IS NOT OLD.`status`)) BEGIN INSERT INTO `project_status_counts` (`org_id`, `project_id`, `status`, `n`) VALUES (NEW.`org_id`, NEW.`project_id`, NEW.`status`, 1) ON CONFLICT (`org_id`, `project_id`, `status`) DO UPDATE SET `n` = `n` + 1; END;"
     ]
+  },
+  {
+    "name": "0091_tools_usage",
+    "statements": [
+      "-- Tools P1: document tools usage per workspace. One row per month (period \"2026-10\") and one per day\n-- (period \"2026-10-30\"); a run adds one to both in a single upsert. The cron prunes day rows after 2 days\n-- and month rows after 13 months. WITHOUT ROWID so a run writes only the primary key b-tree row.\nCREATE TABLE `tool_usage` (\n\t`org_id` text NOT NULL,\n\t`period` text NOT NULL,\n\t`runs` integer DEFAULT 0 NOT NULL,\n\t`bytes_in` integer DEFAULT 0 NOT NULL,\n\tPRIMARY KEY(`org_id`, `period`)\n) WITHOUT ROWID;"
+    ]
+  },
+  {
+    "name": "0092_tools_switch",
+    "statements": [
+      "-- Tools P1: a workspace switch for Tools. NULL follows the default (on wherever the deployment has Tools),\n-- \"off\" hides Tools for the workspace, \"on\" keeps them on. Read only by the Tools routes.\nALTER TABLE `organizations` ADD `tools_mode` text;"
+    ]
   }
 ];

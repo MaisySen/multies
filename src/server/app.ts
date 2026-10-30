@@ -26,6 +26,7 @@ import { APIError } from "better-auth/api";
 import { domainRoutes } from "./routes/domains";
 import { aliasRoutes, mailboxRoutes } from "./routes/addresses";
 import { freeAddressRoutes } from "./routes/free-address";
+import { toolsRoutes } from "./routes/tools";
 import { connectionRoutes } from "./routes/connections";
 import { fxRoutes } from "./routes/fx";
 import { orgRoutes } from "./routes/org";
@@ -373,6 +374,8 @@ export function createApp(deps: Deps) {
       plans: Object.values(PLANS),
       meetings: !!deps.config.meetings,
       scheduling: deps.config.schedulingEnabled,
+      // Tools P1: whether the Tools page and its menu entries show (TOOLS_ENABLED with an engine configured).
+      tools: deps.config.tools.enabled,
       // R43: whether the import pages say a run carries on after the page closes (BACKGROUND_COPY).
       backgroundCopy: !!deps.config.backgroundCopy,
       // Round 25: provider connections shown as sign in buttons (AUTH0_SOCIAL_CONNECTIONS).
@@ -400,6 +403,7 @@ export function createApp(deps: Deps) {
   app.route("/api/domains", domainRoutes());
   app.route("/api/mailboxes", mailboxRoutes());
   app.route("/api/free-address", freeAddressRoutes());
+  app.route("/api/tools", toolsRoutes()); // Tools P1: document tools (off unless TOOLS_ENABLED)
   app.route("/api/connections", connectionRoutes());
   app.route("/api/fx", fxRoutes());
   app.route("/api/aliases", aliasRoutes());
