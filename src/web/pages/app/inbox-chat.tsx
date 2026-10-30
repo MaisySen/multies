@@ -21,14 +21,15 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Input, Select, Textarea } from "@/web/components/ui/input";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import {
-  PROVIDER_LABEL, replyWindow, windowLeftLabel,
+  PROVIDER_LABEL, replyWindow,
   type ChannelProvider, type ChatMessage, type ChatTemplate, type ConversationDetail, type ConversationStatus, type ConversationSummary,
 } from "@/shared/channels";
 import { ChannelChip } from "./channels-ui";
+import { chatQuery, closedWindowCopy, fileTooBig, fillTemplate, mergeByDate, sizeLabel, windowPill } from "@/web/lib/chat-channels";
+export { mergeByDate };
 import type { InboxView } from "./inbox-assign";
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
-export const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 /* ---------- List ---------- */
 
@@ -40,18 +41,6 @@ export function useChannelFilter() {
   const [filter, setFilter] = useState<ChannelFilter>(() => { try { return (sessionStorage.getItem(FILTER_KEY) as ChannelFilter | null) ?? "all"; } catch { return "all"; } });
   const set = (f: ChannelFilter) => { setFilter(f); try { sessionStorage.setItem(FILTER_KEY, f); } catch { /* private mode */ } };
   return { filter, set };
-}
-
-/** The mail view as conversation query params; views that hide done chats say so with hideDone. */
-export function chatQuery(view: InboxView, assignee: string | null): { qs: string; hideDone: boolean } {
-  const p = new URLSearchParams({ limit: "50" });
-  let hideDone = true;
-  if (view === "mine") p.set("assignee", "me");
-  else if (view === "unassigned") p.set("assignee", "none");
-  else if (view === "assigned" && assignee) p.set("assignee", assignee);
-  else if (view === "waiting") { p.set("status", "waiting"); hideDone = false; }
-  else if (view === "done") { p.set("status", "done"); hideDone = false; }
-  return { qs: `?${p.toString()}`, hideDone };
 }
 
 export function useChatConversations(enabled: boolean, view: InboxView, assignee: string | null) {
@@ -66,12 +55,6 @@ export function useChatConversations(enabled: boolean, view: InboxView, assignee
     refetchInterval: 20_000,
     retry: false,
   });
-}
-
-/** Mail and chats in one list, newest first. */
-export function mergeByDate<M extends { lastMessageAt: string }, C extends { lastMessageAt: string }>(mail: M[], chats: C[]): ({ kind: "mail"; item: M } | { kind: "chat"; item: C })[] {
-  const all = [...mail.map((item) => ({ kind: "mail" as const, item })), ...chats.map((item) => ({ kind: "chat" as const, item }))];
-  return all.sort((a, b) => Date.parse(b.item.lastMessageAt) - Date.parse(a.item.lastMessageAt));
 }
 
 /** The channel filter: a segmented control on desktop, the phone picker on a phone. */
@@ -97,7 +80,7 @@ export function ChannelFilterControl({ filter, set, providers }: { filter: Chann
 }
 
 /** One chat in the shared list. */
-export function ChatRow({ c, selected, onOpen }: { c: ConversationSummary; selected: boolean; onOpen: () => void }) {
+export function ChatRow({ c, selected, onOpen, channelName }: { c: ConversationSummary; selected: boolean; onOpen: () => void; channelName?: string }) {
   return (
     <button onClick={onOpen} aria-current={selected} data-testid="chat-row" data-conv={c.id}
       className={cn("block w-full px-4 py-3 text-left transition-colors hover:bg-hover max-sm:min-h-[64px]", selected && "bg-fill/60")}>
@@ -111,7 +94,7 @@ export function ChatRow({ c, selected, onOpen }: { c: ConversationSummary; selec
       </div>
       <div className={cn("mt-0.5 truncate text-sm", c.unreadCount ? "text-fg" : "text-muted")}>{c.snippet || "Attachment"}</div>
       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-        <span className="truncate text-subtle">{PROVIDER_LABEL[c.provider]}</span>
+        <span className="truncate text-subtle">{channelName ? `${PROVIDER_LABEL[c.provider]} · ${channelName}` : PROVIDER_LABEL[c.provider]}</span>
         {c.labels.map((l) => <Badge key={l}>{l}</Badge>)}
         {(c.assignee || c.status !== "open") && (
           <span className="ml-auto inline-flex items-center gap-1.5" data-testid="chat-assignee">
@@ -128,14 +111,6 @@ export function ChatRow({ c, selected, onOpen }: { c: ConversationSummary; selec
 /* ---------- Chat view ---------- */
 
 const detailKey = (id: string) => ["channels", "conv", id] as const;
-
-/** The pill under the header: time left in the reply window, amber under 2 hours, or closed. */
-export function windowPill(w: { open: boolean; closesAt: string | null }, now = new Date()): { label: string; tone: "ok" | "warn" | "closed" } {
-  const label = windowLeftLabel(w, now);
-  if (!label) return { label: "Reply window closed", tone: "closed" };
-  const left = Date.parse(w.closesAt!) - now.getTime();
-  return { label, tone: left < 2 * 3_600_000 ? "warn" : "ok" };
-}
 
 interface Pending { key: string; text: string; file: { name: string; contentType: string; size: number } | null; date: string; failed: string | null; body: { text?: string; file?: { name: string; contentType: string; dataB64: string } } }
 
@@ -229,7 +204,7 @@ export function ChatView({ id, onBack }: { id: string; onBack: () => void }) {
           : w.open ? <Composer onSend={(body, file) => void send({ key: newIdempotencyKey("chat"), text: body.text ?? "", file, date: new Date().toISOString(), failed: null, body })} />
           : (
             <div className="flex flex-col gap-2 py-1 sm:flex-row sm:items-center" data-testid="window-closed">
-              <p className="flex-1 text-[13px] leading-relaxed text-muted">It has been more than 24 hours since this customer wrote, so WhatsApp only allows an approved template.</p>
+              <p className="flex-1 text-[13px] leading-relaxed text-muted">{closedWindowCopy(c.provider)}</p>
               <Button onClick={() => setSheet(true)} className="max-sm:w-full">Choose a template</Button>
             </div>
           )}
@@ -291,7 +266,6 @@ function dayLabel(iso: string) {
   return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 }
 const clock = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-const sizeLabel = (n: number) => n >= 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
 
 function Ticks({ m }: { m: Pick<ChatMessage, "delivery"> }) {
   if (m.delivery === "read") return <IconCheckDouble className="h-3.5 w-3.5 text-[#7FD3FF]" aria-label="Read" />;
@@ -416,7 +390,8 @@ function Composer({ onSend }: { onSend: (body: Pending["body"], file: Pending["f
   const pick = (f: File | undefined) => {
     setErr(null);
     if (!f) return;
-    if (f.size > MAX_FILE_BYTES) { setErr(`${f.name} is ${sizeLabel(f.size)}. Files can be up to 5 MB.`); return; }
+    const big = fileTooBig(f.name, f.size);
+    if (big) { setErr(big); return; }
     setFile(f);
   };
   const submit = async () => {
@@ -453,11 +428,6 @@ function Composer({ onSend }: { onSend: (body: Pending["body"], file: Pending["f
       </div>
     </div>
   );
-}
-
-/** Fills {{1}} style placeholders for the preview. */
-export function fillTemplate(body: string, params: string[]) {
-  return body.replace(/\{\{(\d+)\}\}/g, (all, n: string) => { const v = params[Number(n) - 1]; return v && v.trim() ? v : all; });
 }
 
 function TemplateSheet({ open, onClose, conversationId, onSent }: { open: boolean; onClose: () => void; conversationId: string; onSent: (m: ChatMessage) => void }) {

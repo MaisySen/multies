@@ -50,6 +50,7 @@ export function TeamInboxPage() {
   const chats = useChatConversations(chatOn, iv.view, iv.assignee);
   const cf = useChannelFilter();
   const filter = chatOn ? cf.filter : "all";
+  const channelName = (id: string) => channels.data?.channels.find((c) => c.id === id)?.name;
   const providers = [...new Set((channels.data?.channels ?? []).map((c) => c.provider))];
   const boxName = (id: string) => mailboxes.data?.find((m) => m.id === id)?.address ?? agents.data?.find((a) => a.inboxId === id)?.address ?? "";
   const open = (id: string | null) => setParams(id ? { thread: id } : {}, { replace: false });
@@ -78,7 +79,7 @@ export function TeamInboxPage() {
             : (
               <ul className="divide-y divide-line">
                 {rows.map((r) => r.kind === "chat" ? (
-                  <li key={`c-${r.item.id}`}><ChatRow c={r.item} selected={selectedConv === r.item.id} onOpen={() => openConv(r.item.id)} /></li>
+                  <li key={`c-${r.item.id}`}><ChatRow c={r.item} channelName={channelName(r.item.channelId)} selected={selectedConv === r.item.id} onOpen={() => openConv(r.item.id)} /></li>
                 ) : (() => { const t = r.item; return (
                   <li key={t.id}>
                     <button onClick={() => open(t.id)} aria-current={selected === t.id} className={cn("block w-full px-4 py-3 text-left transition-colors hover:bg-hover", selected === t.id && "bg-fill/60")}>

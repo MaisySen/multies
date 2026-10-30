@@ -16,6 +16,7 @@ import { Button } from "@/web/components/ui/button";
 import { ConfirmDialog } from "@/web/components/ui/confirm";
 import { PROVIDER_LABEL, type ChannelSummary, type ChannelsStatus } from "@/shared/channels";
 import { ProviderTile, channelsStatusKey, useChannelsStatus } from "./channels-ui";
+import { connectErrorCopy, parseSignupMessage } from "@/web/lib/chat-channels";
 
 /* ---------- Meta Embedded Signup (v4) ---------- */
 
@@ -46,38 +47,6 @@ export function loadFacebookSdk(appId: string, version: string, timeoutMs = 15_0
     document.body.appendChild(s);
   });
   return sdkPromise;
-}
-
-/** What the WA_EMBEDDED_SIGNUP window message tells us. Only messages from facebook.com count. */
-export type SignupEvent = { kind: "finish"; phoneNumberId: string; wabaId: string } | { kind: "cancel"; step: string | null } | { kind: "error"; message: string | null };
-export function parseSignupMessage(origin: string, data: unknown): SignupEvent | null {
-  if (!/^https:\/\/([a-z0-9-]+\.)*facebook\.com$/.test(origin)) return null;
-  let d: { type?: string; event?: string; data?: Record<string, string | undefined> } | null = null;
-  try { d = typeof data === "string" ? JSON.parse(data) : (data as typeof d); } catch { return null; }
-  if (!d || d.type !== "WA_EMBEDDED_SIGNUP") return null;
-  const ev = String(d.event ?? "");
-  // FINISH, plus FINISH_ONLY_WABA and FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING (a number already on the business app).
-  if (ev.startsWith("FINISH")) {
-    const phoneNumberId = d.data?.phone_number_id ?? "";
-    const wabaId = d.data?.waba_id ?? "";
-    return phoneNumberId && wabaId ? { kind: "finish", phoneNumberId, wabaId } : { kind: "error", message: null };
-  }
-  if (ev === "CANCEL") return { kind: "cancel", step: d.data?.current_step ?? null };
-  if (ev === "ERROR") return { kind: "error", message: d.data?.error_message ?? null };
-  return null;
-}
-
-/** Plain words for each way connecting can fail. */
-export function connectErrorCopy(code: string, detail?: string | null): string {
-  switch (code) {
-    case "sdk_failed": return "Couldn't load the Facebook sign in. Check your connection, or turn off any blocker for facebook.com, and try again.";
-    case "sdk_timeout": return "The Facebook sign in took too long to load. Try again.";
-    case "cancelled": return "Setup was closed before it finished. Nothing was connected.";
-    case "no_code": return "Facebook didn't confirm the sign in. Try again, and finish every step in the window.";
-    case "no_number": return "Facebook didn't send the WhatsApp number. Try again and pick a number on the last step.";
-    case "meta_error": return detail ? `Facebook stopped the setup: ${detail}` : "Facebook stopped the setup. Try again in a minute.";
-    default: return detail || "Couldn't connect WhatsApp. Try again.";
-  }
 }
 
 function useEmbeddedSignup(status: ChannelsStatus | undefined, onConnected: (c: ChannelSummary) => void) {
@@ -210,14 +179,13 @@ export function ChannelsSettings() {
               <ProviderTile provider="whatsapp" />
               <div className="min-w-0 flex-1">
                 <p className="text-[15px] font-medium">WhatsApp</p>
-                <p className="text-[13px] text-muted">A WhatsApp Business number. You sign in with Facebook and pick the number.</p>
+                <p className="text-[13px] text-muted">{s.embeddedSignup || !s.canManage ? "A WhatsApp Business number. You sign in with Facebook and pick the number." : "A WhatsApp Business number. Connecting opens once setup with Meta is finished."}</p>
               </div>
               {s.canManage && s.embeddedSignup && (
                 <Button onClick={() => void signup.start()} loading={signup.busy} variant={hasWhatsapp ? "outline" : "primary"} size="sm" className="max-sm:w-full">
                   <IconPlug className="h-4 w-4" aria-hidden />{hasWhatsapp ? "Connect another number" : "Connect WhatsApp"}
                 </Button>
               )}
-              {s.canManage && !s.embeddedSignup && <Badge>Needs setup on the server</Badge>}
               {signup.error && <p role="alert" className="basis-full rounded-lg bg-bad-soft px-3 py-2 text-[13px] text-bad" data-testid="connect-error">{signup.error}</p>}
             </div>
             {s.mock && s.canManage && (

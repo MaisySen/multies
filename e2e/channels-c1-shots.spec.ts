@@ -37,6 +37,19 @@ test(`C1 shots (${PHASE})`, async ({ browser }) => {
 
   let convId = "";
   if (PHASE === "after") {
+    // Settings, Channels on a server with no Meta app: the Coming soon card.
+    await page.route("**/api/channels/status", (r) => r.fulfill({ json: { available: false, mock: false, enabled: false, canManage: true, channels: [], embeddedSignup: null, usage: { today: 0, softCap: 2000, level: "ok" } } }));
+    for (const [w, h, dev] of DEVICES) {
+      await page.setViewportSize({ width: w, height: h });
+      for (const scheme of SCHEMES) {
+        await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+        await page.goto("/app/settings/channels");
+        await expect(page.getByTestId("channels-coming-soon")).toBeVisible();
+        await settle(page);
+        await shot(page, "settings", "channels-coming-soon", dev, scheme);
+      }
+    }
+    await page.unroute("**/api/channels/status");
     expect((await page.request.put("/api/channels/settings", { data: { enabled: true }, headers })).status()).toBe(200);
     // Settings, Channels with nothing connected yet.
     for (const [w, h, dev] of DEVICES) {

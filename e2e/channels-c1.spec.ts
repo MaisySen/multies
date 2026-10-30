@@ -93,3 +93,18 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     if (label === "phone") expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 }
+
+test("Settings, Channels shows a calm Coming soon card when the server has no Meta app", async ({ page, context }) => {
+  if (!process.env.E2E_BASE_URL) await context.setExtraHTTPHeaders({ "x-forwarded-for": ip() });
+  await demo(page);
+  await page.route("**/api/channels/status", (r) => r.fulfill({ json: { available: false, mock: false, enabled: false, canManage: true, channels: [], embeddedSignup: null, usage: { today: 0, softCap: 2000, level: "ok" } } }));
+  await page.goto("/app/settings/channels");
+  const card = page.getByTestId("channels-coming-soon");
+  await expect(card).toContainText("Coming soon");
+  await expect(card).toContainText("WhatsApp, Messenger and Instagram messages will land in your shared inbox. We are finishing setup with Meta.");
+  await expect(page.getByRole("switch")).toHaveCount(0);
+  // The inbox stays mail only: no channel filter.
+  await page.goto("/app/inbox");
+  await expect(page.getByRole("heading", { name: "Shared inbox" })).toBeVisible();
+  await expect(page.getByTestId("channel-filter")).toHaveCount(0);
+});
