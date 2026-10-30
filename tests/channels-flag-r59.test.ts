@@ -93,7 +93,8 @@ describe("CHAT_CHANNELS in the web app", () => {
     expect(flagOn(cmd, { chatChannels: false })).toBe(false);
     expect(flagOn(cmd, undefined)).toBe(false);
     expect(flagOn(cmd, { chatChannels: true })).toBe(true);
-    // Every other page stays in the menu whatever the switch says.
-    expect(navCommands.filter((c) => !flagOn(c, {})).map((c) => c.to)).toEqual(["/app/settings/channels"]);
+    // Every other page stays in the menu whatever the switch says (Tools has its own switch, Tools P1).
+    expect(navCommands.filter((c) => !flagOn(c, {})).map((c) => c.to)).toEqual(["/app/tools", "/app/settings/channels"]);
+    expect(navCommands.filter((c) => !flagOn(c, { tools: true })).map((c) => c.to)).toEqual(["/app/settings/channels"]);
   });
 });
