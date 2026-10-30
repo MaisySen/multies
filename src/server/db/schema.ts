@@ -63,6 +63,8 @@ export const organizations = sqliteTable("organizations", {
   meetingMinutesCap: integer("meeting_minutes_cap"),
   /** C1 (0089): chat channels (WhatsApp, Messenger, Instagram) in the shared inbox. Off until an admin turns it on. */
   channelsEnabled: integer("channels_enabled", { mode: "boolean" }).notNull().default(false),
+  /** C1: agents (MCP) may send chat replies without a person approving each one. Off: their replies wait as drafts. */
+  channelsAgentAutosend: integer("channels_agent_autosend", { mode: "boolean" }).notNull().default(false),
   /** How the Stripe subscription bills: "month", or "year" when add-ons total under A$5 a month. */
   billingInterval: text("billing_interval", { enum: ["month", "year"] }),
   createdAt: createdAt(),
@@ -2131,7 +2133,8 @@ export const msgMessages = sqliteTable("msg_messages", {
   externalId: text("external_id"),
   kind: text("kind").notNull().default("text"),
   text: text("text").notNull().default(""),
-  delivery: text("delivery", { enum: ["pending", "sent", "delivered", "read", "failed", "received"] }).notNull(),
+  /** "draft": an agent's reply waiting for a person to approve it (the workspace has agent auto send off). */
+  delivery: text("delivery", { enum: ["draft", "pending", "sent", "delivered", "read", "failed", "received"] }).notNull(),
   error: text("error"),
   mediaName: text("media_name"),
   mediaType: text("media_type"),
@@ -2139,7 +2142,11 @@ export const msgMessages = sqliteTable("msg_messages", {
   mediaB64: text("media_b64"),
   mediaKey: text("media_key"),
   templateName: text("template_name"),
+  /** A draft's send payload (JSON: template language and values) until it is approved; cleared then. */
+  draftPayload: text("draft_payload"),
   sentByUserId: text("sent_by_user_id"),
+  /** The agent inbox an MCP key replied as, when that is how the reply was written. */
+  sentByAgentId: text("sent_by_agent_id"),
   date: ts("date").notNull(),
   createdAt: createdAt(),
 }, (t) => [

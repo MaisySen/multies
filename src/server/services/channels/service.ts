@@ -5,7 +5,7 @@
  */
 import { and, asc, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
 import type { Deps, AuthContext } from "../../context";
-import { members, msgChannels, msgConversations, msgMessages, organizations, tasks, threadComments, usageCounters, users } from "../../db/schema";
+import { agents, members, msgChannels, msgConversations, msgMessages, organizations, tasks, threadComments, usageCounters, users } from "../../db/schema";
 import { encryptSecret, fromB64, newId } from "../../lib/crypto";
 import { HttpError, forbidden, notFound } from "../../lib/errors";
 import { audit } from "../audit";
@@ -58,15 +58,26 @@ export async function channelsStatus(deps: Deps, a: AuthContext): Promise<Channe
     available: !!meta || mock, mock, enabled, canManage: isAdmin(a),
     channels: rows.map(summarizeChannel),
     embeddedSignup: meta ? { appId: meta.appId, configId: meta.configId, graphVersion: meta.graphVersion } : null,
+    agentAutoSend: await agentAutoSend(deps, a.orgId),
     usage: { today, softCap: dailySoftCap, level: today >= dailySoftCap ? "over" : today >= dailySoftCap * 0.8 ? "near" : "ok" },
   };
 }
 
-export async function setEnabled(deps: Deps, a: AuthContext, enabled: boolean) {
+async function agentAutoSend(deps: Deps, orgId: string) {
+  const o = await deps.db.select({ auto: organizations.channelsAgentAutosend }).from(organizations).where(eq(organizations.id, orgId)).get();
+  return !!o?.auto;
+}
+
+export async function setEnabled(deps: Deps, a: AuthContext, enabled?: boolean, agentAutoSendOn?: boolean) {
   if (!isAdmin(a)) throw forbidden("Only owners and admins can change channels.");
   if (enabled && !deps.config.channels.meta && !deps.config.channels.mock) throw new HttpError(409, "channel_unavailable", "Messaging channels are not set up on this server yet.");
-  await deps.db.update(organizations).set({ channelsEnabled: enabled }).where(eq(organizations.id, a.orgId));
-  await audit(deps.db, { orgId: a.orgId, actorUserId: a.userId, actorEmail: a.email, action: enabled ? "channels.enabled" : "channels.disabled" }).catch(() => undefined);
+  const set: { channelsEnabled?: boolean; channelsAgentAutosend?: boolean } = {};
+  if (enabled !== undefined) set.channelsEnabled = enabled;
+  if (agentAutoSendOn !== undefined) set.channelsAgentAutosend = agentAutoSendOn;
+  if (!Object.keys(set).length) return channelsStatus(deps, a);
+  await deps.db.update(organizations).set(set).where(eq(organizations.id, a.orgId));
+  if (enabled !== undefined) await audit(deps.db, { orgId: a.orgId, actorUserId: a.userId, actorEmail: a.email, action: enabled ? "channels.enabled" : "channels.disabled" }).catch(() => undefined);
+  if (agentAutoSendOn !== undefined) await audit(deps.db, { orgId: a.orgId, actorUserId: a.userId, actorEmail: a.email, action: agentAutoSendOn ? "channels.agent_autosend_on" : "channels.agent_autosend_off" }).catch(() => undefined);
   return channelsStatus(deps, a);
 }
 
@@ -122,12 +133,20 @@ export async function disconnectChannel(deps: Deps, a: AuthContext, id: string) 
 
 const parseLabels = (s: string): string[] => { try { const v = JSON.parse(s); return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []; } catch { return []; } };
 
-async function namesOf(deps: Deps, ids: (string | null)[]) {
+async function namesOf(deps: Deps, ids: (string | null)[], agentIds: (string | null)[] = []) {
   const list = [...new Set(ids.filter((x): x is string => !!x))].slice(0, 90);
-  if (!list.length) return new Map<string, string>();
-  const rows = await deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, list));
-  return new Map(rows.map((r) => [r.id, r.name || r.email]));
+  const agentList = [...new Set(agentIds.filter((x): x is string => !!x && x !== API_SENDER))].slice(0, 90);
+  const map = new Map<string, string>();
+  if (list.length) for (const r of await deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, list))) map.set(r.id, r.name || r.email);
+  if (agentList.length) for (const r of await deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(inArray(agents.id, agentList))) map.set(`agent:${r.id}`, r.name);
+  return map;
 }
+
+/** sent_by_agent_id for an API (MCP) reply from a member's own key (for example an agent member), not an agent inbox. */
+const API_SENDER = "api";
+
+/** Who is replying through the API: an agent inbox key or a member's key. Null for a person in the app. */
+export type AgentSender = { agentId: string | null };
 
 function summarize(c: ConvRow, provider: ChannelRow["provider"], names: Map<string, string>): ConversationSummary {
   return {
@@ -139,7 +158,7 @@ function summarize(c: ConvRow, provider: ChannelRow["provider"], names: Map<stri
   };
 }
 
-export interface ListQuery { channel?: string; status?: "open" | "waiting" | "done"; assignee?: string; q?: string; limit?: number }
+export interface ListQuery { channel?: string; status?: "open" | "waiting" | "done"; assignee?: string; q?: string; limit?: number; unread?: "true" | "false" }
 
 export async function listConversations(deps: Deps, a: AuthContext, q: ListQuery): Promise<ConversationSummary[]> {
   await requireEnabled(deps, a);
@@ -151,6 +170,7 @@ export async function listConversations(deps: Deps, a: AuthContext, q: ListQuery
       eq(msgConversations.orgId, a.orgId),
       q.channel ? eq(msgConversations.channelId, q.channel) : undefined,
       q.status ? eq(msgConversations.status, q.status) : undefined,
+      q.unread === "true" ? sql`${msgConversations.unreadCount} > 0` : undefined,
       q.assignee === "me" ? eq(msgConversations.assigneeUserId, a.userId) : q.assignee === "none" ? isNull(msgConversations.assigneeUserId) : q.assignee ? eq(msgConversations.assigneeUserId, q.assignee) : undefined,
       pat ? or(
         sql`${msgConversations.contactName} LIKE ${pat} ESCAPE '\\'`, like(msgConversations.contactExternalId, pat),
@@ -178,6 +198,10 @@ function toMessage(m: MsgRow, names: Map<string, string>): ChatMessage {
     id: m.id, direction: m.direction, kind: m.kind as ChatMessage["kind"], text: m.text, date: m.date.toISOString(), delivery: m.delivery, error: m.error,
     media: m.mediaName ? { filename: m.mediaName, contentType: m.mediaType ?? "application/octet-stream", size: m.mediaSize ?? 0, url: mediaUrl(m) } : null,
     sentBy: m.sentByUserId ? { userId: m.sentByUserId, name: names.get(m.sentByUserId) ?? "Teammate" } : null,
+    // Through the API: an agent inbox key names its agent; an agent member's own key is that member.
+    agent: m.sentByAgentId ? (m.sentByAgentId === API_SENDER
+      ? { id: null, name: (m.sentByUserId && names.get(m.sentByUserId)) || "AI agent" }
+      : { id: m.sentByAgentId, name: names.get(`agent:${m.sentByAgentId}`) ?? "AI agent" }) : null,
     templateName: m.templateName,
   };
 }
@@ -188,13 +212,14 @@ const MSG_COLS = {
   externalId: msgMessages.externalId, kind: msgMessages.kind, text: msgMessages.text, delivery: msgMessages.delivery, error: msgMessages.error,
   mediaName: msgMessages.mediaName, mediaType: msgMessages.mediaType, mediaSize: msgMessages.mediaSize,
   mediaB64: sql<string | null>`CASE WHEN ${msgMessages.mediaB64} IS NULL THEN NULL ELSE '1' END`, mediaKey: msgMessages.mediaKey,
-  templateName: msgMessages.templateName, sentByUserId: msgMessages.sentByUserId, date: msgMessages.date, createdAt: msgMessages.createdAt,
+  templateName: msgMessages.templateName, sentByUserId: msgMessages.sentByUserId, sentByAgentId: msgMessages.sentByAgentId, draftPayload: msgMessages.draftPayload,
+  date: msgMessages.date, createdAt: msgMessages.createdAt,
 };
 
 export async function conversationDetail(deps: Deps, a: AuthContext, id: string): Promise<ConversationDetail> {
   const { c, ch } = await openConversation(deps, a, id);
   const msgs = (await deps.db.select(MSG_COLS).from(msgMessages).where(eq(msgMessages.conversationId, c.id)).orderBy(desc(msgMessages.date)).limit(200)).reverse() as MsgRow[];
-  const names = await namesOf(deps, [c.assigneeUserId, ...msgs.map((m) => m.sentByUserId)]);
+  const names = await namesOf(deps, [c.assigneeUserId, ...msgs.map((m) => m.sentByUserId)], msgs.map((m) => m.sentByAgentId));
   return {
     conversation: summarize(c, ch.provider, names), channel: summarizeChannel(ch),
     messages: msgs.map((m) => toMessage(m, names)), window: replyWindow(c.lastInboundAt, deps.now()),
@@ -233,16 +258,33 @@ export async function markNeedsReconnect(deps: Deps, channelId: string, why: str
   await deps.db.update(msgChannels).set({ status: "error", lastError: why.slice(0, 300) }).where(and(eq(msgChannels.id, channelId), eq(msgChannels.status, "active")));
 }
 
-async function storeOutbound(deps: Deps, a: AuthContext, c: ConvRow, ch: ChannelRow, opts: { id?: string; retry?: boolean }, row: Partial<MsgRow>, send: () => Promise<{ externalId: string }>) {
+type SendOpts = { id?: string; retry?: boolean; agent?: AgentSender };
+
+async function storeOutbound(deps: Deps, a: AuthContext, c: ConvRow, ch: ChannelRow, opts: SendOpts, row: Partial<MsgRow>, send: () => Promise<{ externalId: string }>, draft?: { payload: Record<string, unknown> }) {
   // Same Idempotency-Key: the retry answers the message the first attempt made instead of sending again.
   if (opts.id && opts.retry) {
     const prior = await deps.db.select(MSG_COLS).from(msgMessages).where(and(eq(msgMessages.id, opts.id), eq(msgMessages.orgId, a.orgId))).get() as MsgRow | undefined;
-    if (prior) return toMessage(prior, await namesOf(deps, [prior.sentByUserId]));
+    if (prior) return toMessage(prior, await namesOf(deps, [prior.sentByUserId], [prior.sentByAgentId]));
   }
   const id = opts.id ?? newId("cm");
   const now = deps.now();
-  const base = { id, orgId: a.orgId, channelId: ch.id, conversationId: c.id, direction: "out" as const, kind: "text", text: "", delivery: "pending" as const, sentByUserId: a.userId, date: now, createdAt: now, ...row };
+  const sentByAgentId = opts.agent ? (opts.agent.agentId ?? API_SENDER) : null;
+  const base = { id, orgId: a.orgId, channelId: ch.id, conversationId: c.id, direction: "out" as const, kind: "text", text: "", delivery: "pending" as const, sentByUserId: a.userId, sentByAgentId, date: now, createdAt: now, ...row };
+  if (draft) {
+    // An agent's reply waiting for a person: nothing reaches the customer until someone approves it.
+    const saved = { ...base, delivery: "draft" as const, draftPayload: JSON.stringify(draft.payload) };
+    await deps.db.insert(msgMessages).values(saved);
+    return toMessage({ ...saved, externalId: null, error: null, mediaB64: base.mediaB64 ? "1" : null } as MsgRow, await namesOf(deps, [a.userId], [sentByAgentId]));
+  }
   await deps.db.insert(msgMessages).values(base);
+  const { externalId, delivery, error } = await dispatch(deps, ch, id, send);
+  await deps.db.update(msgConversations).set({ lastMessageAt: now, snippet: snippetOf(base.kind, base.text || base.mediaName || ""), unreadCount: 0 }).where(eq(msgConversations.id, c.id));
+  const saved = { ...base, externalId, delivery, error, mediaB64: base.mediaB64 ? "1" : null } as MsgRow;
+  return toMessage(saved, await namesOf(deps, [a.userId], [sentByAgentId]));
+}
+
+/** Sends a stored outbound row and records what the provider said. */
+async function dispatch(deps: Deps, ch: ChannelRow, id: string, send: () => Promise<{ externalId: string }>) {
   let externalId: string | null = null, delivery: MsgRow["delivery"] = "sent", error: string | null = null;
   try {
     externalId = (await send()).externalId;
@@ -253,19 +295,28 @@ async function storeOutbound(deps: Deps, a: AuthContext, c: ConvRow, ch: Channel
     // An expired or revoked token (Meta error 190) will fail every send: show the channel as needing a reconnect.
     if (e instanceof ProviderError && e.code === 190) await markNeedsReconnect(deps, ch.id, e.message);
   }
-  await deps.db.update(msgMessages).set({ externalId, delivery, error }).where(eq(msgMessages.id, id));
-  await deps.db.update(msgConversations).set({ lastMessageAt: now, snippet: snippetOf(base.kind, base.text || base.mediaName || ""), unreadCount: 0 }).where(eq(msgConversations.id, c.id));
-  const saved = { ...base, externalId, delivery, error, mediaB64: base.mediaB64 ? "1" : null } as MsgRow;
-  return toMessage(saved, await namesOf(deps, [a.userId]));
+  await deps.db.update(msgMessages).set({ externalId, delivery, error, draftPayload: null }).where(eq(msgMessages.id, id));
+  return { externalId, delivery, error };
 }
 
-export async function sendMessage(deps: Deps, a: AuthContext, convId: string, b: { text?: string; file?: { name: string; contentType: string; dataB64: string } }, opts: { id?: string; retry?: boolean } = {}) {
+/** Agent replies wait as drafts unless the workspace lets agents send without review. */
+async function agentMustDraft(deps: Deps, orgId: string, opts: SendOpts) {
+  if (!opts.agent) return false;
+  const o = await deps.db.select({ auto: organizations.channelsAgentAutosend }).from(organizations).where(eq(organizations.id, orgId)).get();
+  return !o?.auto;
+}
+
+export async function sendMessage(deps: Deps, a: AuthContext, convId: string, b: { text?: string; file?: { name: string; contentType: string; dataB64: string } }, opts: SendOpts = {}) {
   const { c, ch } = await openConversation(deps, a, convId);
   const text = (b.text ?? "").trim();
   if (!text && !b.file) throw new HttpError(422, "validation_failed", "Write a message or attach a file.");
   if (text.length > TEXT_MAX) throw new HttpError(422, "validation_failed", `Keep a message under ${TEXT_MAX} characters.`);
   if (ch.status !== "active") throw new HttpError(409, "channel_disconnected", "This channel is disconnected. An admin can reconnect it in Settings.");
   if (!replyWindow(c.lastInboundAt, deps.now()).open) throw windowClosed();
+  if (opts.agent && b.file) throw new HttpError(422, "validation_failed", "Agents can reply with text or a template.");
+  if (await agentMustDraft(deps, a.orgId, opts)) {
+    return storeOutbound(deps, a, c, ch, opts, { kind: "text", text }, async () => ({ externalId: "" }), { payload: { type: "text" } });
+  }
   const adapter = adapterFor(deps, ch.provider);
   const creds = await credentialsOf(deps, ch);
   if (b.file) {
@@ -295,7 +346,7 @@ export async function listTemplates(deps: Deps, a: AuthContext, convId: string):
   }
 }
 
-export async function sendTemplate(deps: Deps, a: AuthContext, convId: string, b: { name: string; language: string; params: string[] }, opts: { id?: string; retry?: boolean } = {}) {
+export async function sendTemplate(deps: Deps, a: AuthContext, convId: string, b: { name: string; language: string; params: string[] }, opts: SendOpts = {}) {
   const { c, ch } = await openConversation(deps, a, convId);
   if (ch.status !== "active") throw new HttpError(409, "channel_disconnected", "This channel is disconnected. An admin can reconnect it in Settings.");
   const adapter = adapterFor(deps, ch.provider);
@@ -305,7 +356,52 @@ export async function sendTemplate(deps: Deps, a: AuthContext, convId: string, b
   if (b.params.length !== tpl.params || b.params.some((p) => !p.trim())) throw new HttpError(422, "validation_failed", `Fill in all ${tpl.params} blanks in the template.`);
   const values = b.params.map((p) => p.trim());
   const text = fillTemplateBody(tpl.body, values, tpl.paramNames);
+  const payload = { type: "template", language: tpl.language, params: values, paramNames: tpl.paramNames ?? null };
+  if (await agentMustDraft(deps, a.orgId, opts)) return storeOutbound(deps, a, c, ch, opts, { kind: "template", text, templateName: tpl.name }, async () => ({ externalId: "" }), { payload });
   return storeOutbound(deps, a, c, ch, opts, { kind: "template", text, templateName: tpl.name }, () => adapter.sendTemplate(creds, c.contactExternalId, { name: tpl.name, language: tpl.language, params: values, paramNames: tpl.paramNames }));
+}
+
+/**
+ * A person approves an agent's draft with one tap: it is sent as written (a text still needs the 24 hour window;
+ * a template is checked against the approved list again). Only one approval sends: the row moves from draft to
+ * pending in one guarded write first, so a second tap answers the message as it now stands.
+ */
+export async function approveDraft(deps: Deps, a: AuthContext & { agentId?: string | null; apiKeyId?: string }, messageId: string) {
+  if (a.agentId || a.apiKeyId) throw forbidden("A person approves agent replies in Multies.");
+  const m = await deps.db.select(MSG_COLS).from(msgMessages).where(and(eq(msgMessages.id, messageId), eq(msgMessages.orgId, a.orgId))).get() as MsgRow | undefined;
+  if (!m) throw notFound("Message");
+  const { c, ch } = await openConversation(deps, a, m.conversationId);
+  if (m.delivery !== "draft") return toMessage(m, await namesOf(deps, [m.sentByUserId], [m.sentByAgentId]));
+  if (ch.status !== "active") throw new HttpError(409, "channel_disconnected", "This channel is disconnected. An admin can reconnect it in Settings.");
+  const payload = JSON.parse(m.draftPayload ?? "{}") as { type?: string; language?: string; params?: string[]; paramNames?: string[] | null };
+  if (payload.type !== "template" && !replyWindow(c.lastInboundAt, deps.now()).open) throw windowClosed();
+  const adapter = adapterFor(deps, ch.provider);
+  const creds = await credentialsOf(deps, ch);
+  const claimed = await deps.db.update(msgMessages).set({ delivery: "pending" }).where(and(eq(msgMessages.id, m.id), eq(msgMessages.delivery, "draft"))).run();
+  if (!Number((claimed as { meta?: { changes?: number }; changes?: number }).meta?.changes ?? (claimed as { changes?: number }).changes ?? 0)) {
+    const now = await deps.db.select(MSG_COLS).from(msgMessages).where(eq(msgMessages.id, m.id)).get() as MsgRow;
+    return toMessage(now, await namesOf(deps, [now.sentByUserId], [now.sentByAgentId]));
+  }
+  const send = payload.type === "template"
+    ? () => adapter.sendTemplate(creds, c.contactExternalId, { name: m.templateName ?? "", language: payload.language ?? "en", params: payload.params ?? [], paramNames: payload.paramNames ?? undefined })
+    : () => adapter.sendText(creds, c.contactExternalId, m.text);
+  const r = await dispatch(deps, ch, m.id, send);
+  const now = deps.now();
+  await deps.db.update(msgMessages).set({ date: now }).where(eq(msgMessages.id, m.id));
+  await deps.db.update(msgConversations).set({ lastMessageAt: now, snippet: snippetOf(m.kind, m.text), unreadCount: 0 }).where(eq(msgConversations.id, c.id));
+  await audit(deps.db, { orgId: a.orgId, actorUserId: a.userId, actorEmail: a.email, action: "channels.draft_approved", targetType: "msg_message", targetId: m.id }).catch(() => undefined);
+  return toMessage({ ...m, ...r, date: now, draftPayload: null }, await namesOf(deps, [m.sentByUserId], [m.sentByAgentId]));
+}
+
+/** Throws an agent's draft away; nothing was sent. */
+export async function discardDraft(deps: Deps, a: AuthContext, messageId: string) {
+  const m = await deps.db.select({ id: msgMessages.id, conversationId: msgMessages.conversationId, delivery: msgMessages.delivery }).from(msgMessages)
+    .where(and(eq(msgMessages.id, messageId), eq(msgMessages.orgId, a.orgId))).get();
+  if (!m) throw notFound("Message");
+  await openConversation(deps, a, m.conversationId);
+  if (m.delivery !== "draft") throw new HttpError(409, "not_a_draft", "This message was already sent.");
+  await deps.db.delete(msgMessages).where(and(eq(msgMessages.id, m.id), eq(msgMessages.delivery, "draft")));
+  return { ok: true };
 }
 
 // ---- notes, tasks, media ---------------------------------------------------------------------------------

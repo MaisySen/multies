@@ -12,12 +12,12 @@ import { HttpError } from "../lib/errors";
 const svc = () => import("../services/channels/service");
 
 // Built once per isolate (zod schema construction is real CPU on a warm request).
-const SettingsBody = z.object({ enabled: z.boolean() });
+const SettingsBody = z.object({ enabled: z.boolean().optional(), agentAutoSend: z.boolean().optional() });
 const ConnectBody = z.object({ provider: z.literal("whatsapp"), code: z.string().min(1).max(2048), wabaId: z.string().regex(/^\d{1,32}$/), phoneNumberId: z.string().regex(/^\d{1,32}$/), coexistence: z.boolean().optional() });
 const MockConnectBody = z.object({ name: z.string().max(80).optional() });
 const ListQuery = z.object({
   channel: z.string().max(64).optional(), status: z.enum(["open", "waiting", "done"]).optional(),
-  assignee: z.string().max(64).optional(), q: z.string().max(200).optional(), limit: z.coerce.number().int().min(1).max(100).optional(),
+  assignee: z.string().max(64).optional(), q: z.string().max(200).optional(), unread: z.enum(["true", "false"]).optional(), limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 const PatchBody = z.object({ assigneeUserId: z.string().max(64).nullable().optional(), status: z.enum(["open", "waiting", "done"]).optional(), labels: z.array(z.string().max(40)).max(20).optional() });
 const SendBody = z.object({
@@ -41,7 +41,7 @@ export function channelRoutes() {
     .use("*", requireAuth)
     .use("*", idempotency(sessionIdempotencyScope))
     .get("/status", async (c) => c.json(await (await svc()).channelsStatus(c.var.deps, c.var.auth)))
-    .put("/settings", async (c) => c.json(await (await svc()).setEnabled(c.var.deps, c.var.auth, (await parseBody(c, SettingsBody)).enabled)))
+    .put("/settings", async (c) => { const b = await parseBody(c, SettingsBody); return c.json(await (await svc()).setEnabled(c.var.deps, c.var.auth, b.enabled, b.agentAutoSend)); })
     .post("/connect", async (c) => c.json({ channel: await (await svc()).connectWhatsApp(c.var.deps, c.var.auth, await parseBody(c, ConnectBody)) }, 201))
     .post("/connect-mock", async (c) => c.json({ channel: await (await svc()).connectMock(c.var.deps, c.var.auth, (await parseBody(c, MockConnectBody)).name) }, 201))
     .post("/:channelId/disconnect", async (c) => c.json({ channel: await (await svc()).disconnectChannel(c.var.deps, c.var.auth, c.req.param("channelId")) }))
@@ -63,6 +63,8 @@ export function channelRoutes() {
     .get("/conversations/:id/notes", async (c) => c.json(await (await svc()).listNotes(c.var.deps, c.var.auth, c.req.param("id"))))
     .post("/conversations/:id/notes", async (c) => c.json({ note: await (await svc()).addNote(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, NoteBody)).body) }, 201))
     .post("/messages/:id/task", async (c) => c.json({ task: await (await svc()).taskFromMessage(c.var.deps, c.var.auth, c.req.param("id"), { id: await idempotentId(c.req.raw, "tsk"), retry: idempotentRetry(c.req.raw) }) }, 201))
+    .post("/messages/:id/approve", async (c) => c.json({ message: await (await svc()).approveDraft(c.var.deps, c.var.auth, c.req.param("id")) }))
+    .post("/messages/:id/discard", async (c) => c.json(await (await svc()).discardDraft(c.var.deps, c.var.auth, c.req.param("id"))))
     .get("/media/:id", async (c) => {
       const f = await (await svc()).mediaOf(c.var.deps, c.var.auth, c.req.param("id"));
       // Served as an attachment unless it is a plain image, so a customer's file never runs as a page here.

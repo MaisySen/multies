@@ -1,4 +1,5 @@
 ALTER TABLE `organizations` ADD `channels_enabled` integer DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE `organizations` ADD `channels_agent_autosend` integer DEFAULT false NOT NULL;--> statement-breakpoint
 CREATE TABLE `msg_channels` (
 	`id` text PRIMARY KEY NOT NULL,
 	`org_id` text NOT NULL,
@@ -55,7 +56,9 @@ CREATE TABLE `msg_messages` (
 	`media_b64` text,
 	`media_key` text,
 	`template_name` text,
+	`draft_payload` text,
 	`sent_by_user_id` text,
+	`sent_by_agent_id` text,
 	`date` integer NOT NULL,
 	`created_at` integer NOT NULL,
 	FOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,

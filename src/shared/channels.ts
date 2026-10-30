@@ -8,7 +8,7 @@ export type ChannelStatus = "active" | "disconnected" | "error";
 export type ConversationStatus = "open" | "waiting" | "done";
 export type ChatDirection = "in" | "out";
 export type ChatMessageKind = "text" | "image" | "video" | "audio" | "document" | "sticker" | "location" | "contacts" | "template" | "reaction" | "unsupported";
-export type ChatDelivery = "pending" | "sent" | "delivered" | "read" | "failed" | "received";
+export type ChatDelivery = "draft" | "pending" | "sent" | "delivered" | "read" | "failed" | "received";
 
 /** Meta's customer service window: a free form reply is allowed until 24 h after the customer's last message. */
 export const REPLY_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -40,6 +40,8 @@ export interface ChannelsStatus {
   channels: ChannelSummary[];
   /** What the Embedded Signup button needs; null when the Meta app is not configured. */
   embeddedSignup: { appId: string; configId: string; graphVersion: string } | null;
+  /** Agents (MCP) may send chat replies without a person approving each one. Off: they wait as drafts. */
+  agentAutoSend: boolean;
   /** Today's inbound chat messages (UTC day) against the soft cap. */
   usage: { today: number; softCap: number; level: "ok" | "near" | "over" };
 }
@@ -73,6 +75,8 @@ export interface ChatMessage {
   /** Set when the message carries a file; url serves the stored copy (Meta's own link expires in minutes). */
   media: { filename: string; contentType: string; size: number; url: string | null } | null;
   sentBy: { userId: string; name: string } | null;
+  /** Written by an AI agent through the API (MCP): which agent, so the chat view can say so. */
+  agent: { id: string | null; name: string } | null;
   templateName: string | null;
 }
 
