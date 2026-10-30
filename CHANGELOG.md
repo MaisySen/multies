@@ -12,7 +12,7 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Changed: Edit pages, Fill a form, Compare, Share links, E-sign, AI helpers, Workflows, Document templates and Mail merge use the same Tools frame as the tool screens: the rail of every tool on wide screens, All tools on a phone, the tool's icon and the runs left line, with a plain note when runs are used up.
 - Changed: the editors' result card uses the tool screens' words (Attach to a new email, Start over) and stacks on a phone; page thumbnails are portrait and larger, and the page toolbar fits a 390 px screen.
 - Fixed: smart folders file a document headed Statement with an amount owing under Statements (staging only; the flag is off on production).
-- What's new drops "What's new, in the app" to stay at 14.
+- What's new drops "Tell the command menu what to do" to stay at 14 (the oldest entry after What's new itself).
 
 ### Round 65 (30 Oct 2026)
 

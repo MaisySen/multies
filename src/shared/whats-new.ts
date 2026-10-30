@@ -94,10 +94,10 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     body: "Open a thread in the shared inbox and press Reply or Reply all to answer the customer right there. Replies now save as a draft while you type, so a reload keeps them.",
   },
   {
-    id: "2026-10-28-command-menu-actions",
+    id: "2026-10-28-whats-new",
     date: "2026-10-28",
-    title: "Tell the command menu what to do",
-    body: "Type what you want in the command menu, like \"assign MB-12 to Asha due Friday\", check the preview, press Enter, and Undo if you change your mind.",
+    title: "What's new, in the app",
+    body: "The account menu has a What's new item, with a small dot when something new has shipped since you last looked. The same list is on the public changelog page.",
   },
 ];
 

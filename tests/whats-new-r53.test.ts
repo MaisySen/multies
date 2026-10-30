@@ -61,7 +61,8 @@ describe("R53 whats-new list", () => {
 
   it("keeps What's new itself; R55 pruned the entries nobody can see (they stay in CHANGELOG.md)", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-10-28-whats-new")).toBe(true);
-    expect(WHATS_NEW.some((e) => e.id === "2026-10-28-command-menu-actions")).toBe(true);
+    // R69: the list stays at 14, so the oldest entry after What's new itself ("Tell the command menu what to do") made room.
+    expect(WHATS_NEW.some((e) => e.id === "2026-10-28-command-menu-actions")).toBe(false);
     for (const id of ["2026-10-28-more-safe-retries", "2026-10-28-lighter-mail-sync", "2026-10-28-safe-retries", "2026-10-28-quicker-task-lists", "2026-10-27-steadier-my-work"]) {
       expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);
     }
