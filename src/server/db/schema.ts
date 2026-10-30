@@ -302,6 +302,9 @@ export const messages = sqliteTable("messages", {
   // Dedupe by Message-ID (connected mailbox sync, imports) and thread lookups by In-Reply-To.
   index("messages_mailbox_msgid_idx").on(t.mailboxId, t.messageIdHeader),
   index("messages_mailbox_provider_msgid_idx").on(t.mailboxId, t.providerMessageIdHeader).where(sql`${t.providerMessageIdHeader} IS NOT NULL`),
+  // R61 (0093): connected mailbox sync reads (flag window, oldest stored UID) and the header repair sweep.
+  index("messages_mailbox_remote_idx").on(t.mailboxId, t.remoteBox, t.remoteUid).where(sql`${t.remoteBox} IS NOT NULL`),
+  index("messages_mailbox_repair_idx").on(t.mailboxId, t.id).where(sql`${t.remoteUid} IS NOT NULL AND (${t.fromAddress} = 'unknown@invalid' OR (${t.sizeBytes} < 0 AND ${t.snippet} = ''))`),
 ]);
 
 export const attachments = sqliteTable("attachments", {

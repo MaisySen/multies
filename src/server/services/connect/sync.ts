@@ -15,7 +15,7 @@
  * - Nothing runs while the write budget reads warn or shed.
  * - Flag changes from the provider write only the rows that changed.
  */
-import { and, asc, eq, gt, gte, inArray, isNotNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, lte, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { runBatch } from "../../db";
 import { attachments, mailboxes, mailConnections, mailSyncOutbox, messages } from "../../db/schema";
@@ -23,7 +23,7 @@ import { newId, toB64 } from "../../lib/crypto";
 import { makeSnippet, parseMime, type ParsedEmail } from "../mail/mime";
 import { MAX_INLINE_ATTACHMENT_BYTES } from "../mail/store";
 import { PENDING_FROM } from "../mail/pending-from";
-import { writeBudget } from "../write-budget";
+import { D1_DAILY_READS, writeBudget } from "../write-budget";
 import { connectionSecret, imapConnector, type Connection } from ".";
 import { classifyProblem } from "./problems";
 import { headerEnd, pickFolders, type FetchedMessage, type FolderPaths, type ImapSession, type RemoteFolder } from "./imap";
@@ -129,6 +129,46 @@ type Box = BoxKey;
 /** Largest message copied whole; bigger ones keep their headers and a note. */
 const MAX_SYNC_BYTES = 10 * 1024 * 1024;
 const FLAG_WINDOW = 200;
+
+/**
+ * R61 D1 reads: the sync's reads on messages, each walking an index built for it (0093). Before 0093 the flag window
+ * and the oldest UID read every row of the mailbox through the mailbox prefix of another index (5,000 to 7,000 rows a
+ * call on a 10,500 row mailbox), and the repair sweep read and sorted the whole mailbox (9,300 rows a call).
+ * `remote_box = ?` satisfies the partial index's `remote_box IS NOT NULL`.
+ */
+type Db = Deps["db"];
+const flagCols = { id: messages.id, remoteUid: messages.remoteUid, isRead: messages.isRead, isStarred: messages.isStarred, folder: messages.folder };
+/** The copies of one folder's UID window lo..hi (messages_mailbox_remote_idx, a range). */
+export function flagWindowQuery(db: Db, mailboxId: string, box: string, lo: number, hi: number) {
+  return db.select(flagCols).from(messages).where(and(eq(messages.mailboxId, mailboxId), eq(messages.remoteBox, box), gte(messages.remoteUid, lo), lte(messages.remoteUid, hi)));
+}
+/** The copies of a few changed UIDs of one folder (messages_mailbox_remote_idx, one probe each). */
+export function flagRowsQuery(db: Db, mailboxId: string, box: string, uids: number[]) {
+  return db.select(flagCols).from(messages).where(and(eq(messages.mailboxId, mailboxId), eq(messages.remoteBox, box), inArray(messages.remoteUid, uids)));
+}
+/** The lowest UID stored from a folder (messages_mailbox_remote_idx: one index row). */
+export function oldestUidQuery(db: Db, mailboxId: string, box: string) {
+  return db.select({ lo: sql<number | null>`min(${messages.remoteUid})` }).from(messages).where(and(eq(messages.mailboxId, mailboxId), eq(messages.remoteBox, box)));
+}
+/**
+ * Rows still waiting for the header repair, in id order after `after` (messages_mailbox_repair_idx). The condition is
+ * written with literals, word for word the partial index's WHERE: SQLite only uses a partial index when the query
+ * carries its terms, and a bound parameter in place of 'unknown@invalid' or '' would not match.
+ */
+export const REPAIR_WHERE = sql.raw(`"messages"."remote_uid" IS NOT NULL AND ("messages"."from_address" = '${PENDING_FROM.replace(/'/g, "''")}' OR ("messages"."size_bytes" < 0 AND "messages"."snippet" = ''))`);
+export function repairRowsQuery(db: Db, mailboxId: string, after: string) {
+  return db.select({ id: messages.id, remoteBox: messages.remoteBox, remoteUid: messages.remoteUid, fromAddress: messages.fromAddress, snippet: messages.snippet, sizeBytes: messages.sizeBytes })
+    .from(messages).where(and(eq(messages.mailboxId, mailboxId), gt(messages.id, after), REPAIR_WHERE)).orderBy(asc(messages.id)).limit(REPAIR_BATCH);
+}
+
+/**
+ * R61: D1's free plan refuses every read once the account passes 5M rows read in a UTC day (an outage, not a slowdown).
+ * Older mail (backfill and repair sweep) waits once the day's reads reach `readStopPct` percent of that, as it already
+ * does for writes at `stopPct`. New mail and flag changes keep going. Unknown reads (no analytics) do not hold it.
+ */
+export function readsHold(reading: { rowsRead?: number }, readStopPct: number) {
+  return typeof reading.rowsRead === "number" && (reading.rowsRead / D1_DAILY_READS) * 100 >= readStopPct;
+}
 /** The provider's folder list is read again after this long. */
 export const FOLDER_LIST_TTL_MS = 6 * 3600_000;
 
@@ -430,13 +470,10 @@ async function pullFlags(deps: Deps, c: Connection, session: ImapSession, box: s
   if (incremental && remote.size === 0) { st.f = fp; return []; }
   const changedUids = incremental ? [...remote.keys()].filter((u) => u >= lo && u <= st.last) : [];
   if (incremental && changedUids.length === 0) { st.f = fp; return []; }
-  const local = await deps.db.select({ id: messages.id, remoteUid: messages.remoteUid, isRead: messages.isRead, isStarred: messages.isStarred, folder: messages.folder })
-    .from(messages).where(and(eq(messages.mailboxId, c.mailboxId), eq(messages.remoteBox, box),
-      incremental ? inArray(messages.remoteUid, changedUids.slice(0, 90)) : and(gte(messages.remoteUid, lo), lte(messages.remoteUid, st.last))));
+  const local = await (incremental ? flagRowsQuery(deps.db, c.mailboxId, box, changedUids.slice(0, 90)) : flagWindowQuery(deps.db, c.mailboxId, box, lo, st.last));
   if (incremental && changedUids.length > 90) {
     // Over 90 changed messages (the bound-parameter limit per statement): read the rest of the window the old way.
-    const rest = await deps.db.select({ id: messages.id, remoteUid: messages.remoteUid, isRead: messages.isRead, isStarred: messages.isStarred, folder: messages.folder })
-      .from(messages).where(and(eq(messages.mailboxId, c.mailboxId), eq(messages.remoteBox, box), gte(messages.remoteUid, lo), lte(messages.remoteUid, st.last)));
+    const rest = await flagWindowQuery(deps.db, c.mailboxId, box, lo, st.last);
     const have = new Set(local.map((m) => m.id));
     for (const m of rest) if (!have.has(m.id) && remote.has(m.remoteUid!)) local.push(m);
   }
@@ -612,11 +649,12 @@ export function looksLikeAttachments(m: FetchedMessage): boolean {
 }
 
 /** R57: why the backfill waits, or how many older messages it may store now (per connection, account wide, write level). */
-export async function backfillAllowance(deps: Deps, state: SyncState, reading: { rowsWritten: number; budget: number; level: string }, day: string) {
+export async function backfillAllowance(deps: Deps, state: SyncState, reading: { rowsWritten: number; budget: number; level: string; rowsRead?: number }, day: string) {
   const cfg = deps.config.mailConnect.backfill;
   if (!cfg.enabled) return { n: 0, wait: null as BackfillState["wait"] };
   if (state.bf?.paused) return { n: 0, wait: null as BackfillState["wait"] };
   if (reading.level !== "off" && reading.budget > 0 && (reading.rowsWritten / reading.budget) * 100 >= cfg.stopPct) return { n: 0, wait: "budget" as const };
+  if (readsHold(reading, cfg.readStopPct)) return { n: 0, wait: "budget" as const };
   const mine = state.bf?.day === day ? state.bf.n : 0;
   const perConn = Math.max(0, cfg.dailyCap - mine);
   if (perConn <= 0) return { n: 0, wait: "daily" as const };
@@ -635,7 +673,7 @@ export async function backfillAllowance(deps: Deps, state: SyncState, reading: {
  * Message-ID) keeps its header only and is skipped by the store step, so a restart or a UIDVALIDITY change never doubles
  * mail. Answers the fetched heads (marked partial) and whether more older mail may be taken right away.
  */
-export async function backfillStep(deps: Deps, c: Pick<Connection, "id" | "mailboxId">, session: ImapSession, state: SyncState, reading: { rowsWritten: number; budget: number; level: string }, day: string, passIds: Set<string>) {
+export async function backfillStep(deps: Deps, c: Pick<Connection, "id" | "mailboxId">, session: ImapSession, state: SyncState, reading: { rowsWritten: number; budget: number; level: string; rowsRead?: number }, day: string, passIds: Set<string>) {
   const fetched: { box: Box; m: FetchedMessage }[] = [];
   if (!session.uidsBefore || !session.fetchHeads) return { fetched, more: false };
   const keys = syncedKeys(state).filter((k) => { const st = cursor(state, k); return st && !st.done; });
@@ -663,8 +701,7 @@ export async function backfillStep(deps: Deps, c: Pick<Connection, "id" | "mailb
       if (opened.uidValidity !== st.v) continue; // renumbered since the new mail step: the next pass starts it again
       if (st.low === undefined) {
         // A folder synced before R57: start below the oldest copy already stored from it.
-        const r = await deps.db.select({ lo: sql<number | null>`min(${messages.remoteUid})` }).from(messages)
-          .where(and(eq(messages.mailboxId, c.mailboxId), eq(messages.remoteBox, box))).get();
+        const r = await oldestUidQuery(deps.db, c.mailboxId, box).get();
         st.low = r?.lo ? Number(r.lo) : st.last + 1;
       }
       const older = await session.uidsBefore(st.low);
@@ -697,17 +734,14 @@ export const REPAIR_BATCH = 100;
  * that already has a good sender only gets its preview). The sweep ends when a read finds fewer rows than a batch,
  * and starts again when a pass stores a new row without a sender. Cursors, caps and the backfill are not touched.
  */
-export async function repairStep(deps: Deps, c: Pick<Connection, "id" | "mailboxId">, session: ImapSession, state: SyncState, reading: { rowsWritten: number; budget: number; level: string }) {
+export async function repairStep(deps: Deps, c: Pick<Connection, "id" | "mailboxId">, session: ImapSession, state: SyncState, reading: { rowsWritten: number; budget: number; level: string; rowsRead?: number }) {
   const statements: PromiseLike<unknown>[] = [];
   const none = { statements, more: false, repaired: 0 };
   const cfg = deps.config.mailConnect.backfill;
   if (!session.fetchHeads || state.rp?.done || !cfg.enabled || state.bf?.paused) return none;
   if (reading.level !== "off" && reading.budget > 0 && (reading.rowsWritten / reading.budget) * 100 >= cfg.stopPct) return none;
-  const rows = await deps.db.select({ id: messages.id, remoteBox: messages.remoteBox, remoteUid: messages.remoteUid, fromAddress: messages.fromAddress, snippet: messages.snippet, sizeBytes: messages.sizeBytes })
-    .from(messages)
-    .where(and(eq(messages.mailboxId, c.mailboxId), gt(messages.id, state.rp?.at ?? ""), isNotNull(messages.remoteUid),
-      or(eq(messages.fromAddress, PENDING_FROM), and(lt(messages.sizeBytes, 0), eq(messages.snippet, "")))))
-    .orderBy(asc(messages.id)).limit(REPAIR_BATCH);
+  if (readsHold(reading, cfg.readStopPct)) return none;
+  const rows = await repairRowsQuery(deps.db, c.mailboxId, state.rp?.at ?? "");
   let repaired = 0;
   const byBox = new Map<string, typeof rows>();
   for (const r of rows) if (r.remoteBox) byBox.set(r.remoteBox, [...(byBox.get(r.remoteBox) ?? []), r]);

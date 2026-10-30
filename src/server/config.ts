@@ -173,7 +173,7 @@ export interface AppConfig {
     /** Minutes between scheduled syncs of one connection. */
     intervalMinutes: number;
     /** R57: full history backfill (header and snippet only; body on first open). */
-    backfill: { enabled: boolean; batch: number; dailyCap: number; globalDaily: number; stopPct: number; peekBytes: number };
+    backfill: { enabled: boolean; batch: number; dailyCap: number; globalDaily: number; stopPct: number; readStopPct: number; peekBytes: number };
     /** R57: Node only, the wait before the next chained pass (0, the default, chains nothing: the cron picks it up). */
     chainMs: number;
     /** Live mail while Multies is open (IDLE on the Inbox). MAIL_LIVE=off turns it off. */
@@ -321,6 +321,7 @@ const EnvSchema = z.object({
   MAIL_SYNC_BACKFILL_DAILY_CAP: z.string().optional(),
   MAIL_SYNC_BACKFILL_GLOBAL_DAILY: z.string().optional(),
   MAIL_SYNC_BACKFILL_STOP_PCT: z.string().optional(),
+  MAIL_SYNC_BACKFILL_READ_STOP_PCT: z.string().optional(),
   MAIL_SYNC_CHAIN_MS: z.string().optional(),
   MAIL_LIVE: z.string().optional(),
   MAIL_LIVE_MINUTES_PER_DAY: z.string().optional(),
@@ -560,6 +561,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
           dailyCap: num(env.MAIL_SYNC_BACKFILL_DAILY_CAP, 5000),
           globalDaily: num(env.MAIL_SYNC_BACKFILL_GLOBAL_DAILY, 7000),
           stopPct: Math.min(num(env.MAIL_SYNC_BACKFILL_STOP_PCT, 50), 85),
+          // R61: and none once the account's D1 reads reach this percent of the 5M a day (past 100% every read fails).
+          readStopPct: Math.min(num(env.MAIL_SYNC_BACKFILL_READ_STOP_PCT, 40), 60),
           peekBytes: 6144,
         },
         /** R57: Node only (no Durable Object alarm): the wait before the next chained pass while more mail is waiting. */
