@@ -37,7 +37,7 @@ export function sampleData(now = Date.now()) {
     msg({ id: "msg_4", threadId: "thr_4", from: a("jordan@sydneyfitout.com.au", "Jordan Blake"), subject: "Quote for the Surry Hills kiosk fit out", date: ago(60 * 3), isStarred: true,
       text: "Hi Mia,\n\nAttached is our quote for the kiosk fit out. We can start the week of 9 November if you confirm by Friday. All prices include GST.\n\nRegards,\nJordan" }),
     msg({ id: "msg_5", threadId: "thr_5", from: a("team@mymail.au", "Multies"), subject: "Your domain harbourcoffee.com.au is verified", date: ago(60 * 20),
-      text: "Good news. MX, SPF, DKIM and DMARC all check out for harbourcoffee.com.au, so mail is flowing.\n\nSee every record here: https://multies.si/settings/domains/harbourcoffee.com.au/records/verification-report-2026-10-29\n\nQuestions? Write to help@multies.si" }),
+      text: "Good news. MX, SPF, DKIM and DMARC all check out for harbourcoffee.com.au, so mail is flowing." }),
     msg({ id: "msg_6", threadId: "thr_6", from: a("bookings@marrickvillemarkets.org.au", "Marrickville Markets"), subject: "Stall confirmed for Sunday 1 November", date: ago(60 * 30),
       text: "Your stall (B14) is confirmed for Sunday 1 November. Bump in from 7 am. Please bring your public liability certificate." }),
     msg({ id: "msg_7", threadId: "thr_7", from: a("support-agent@harbourcoffee.com.au", "Support triage"), sentByAgentId: "agt_support", subject: "Re: Are you open on Melbourne Cup day?", date: ago(60 * 44), mailboxId: "mbx_hello", folder: "sent", to: [a("tom.r@example.com")],

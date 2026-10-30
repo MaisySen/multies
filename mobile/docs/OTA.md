@@ -117,14 +117,6 @@ They bundle with the same `EXPO_PUBLIC_*` values as the channel's build profile 
 runtime version, so one publish makes one update group per platform; every command above acts on
 both.
 
-### 1.9.9 must keep the workspace switcher (27 Oct 2026)
-
-On 27 Oct 2026 production got 1.9.8 plus Switch workspace (Settings, Workspace opens the Workspaces screen;
-mobile commit c796958 on 724e8e8, published critical at 100%) for an owner who could not reach his other
-workspaces from the phone. The switcher is folded into the ota branch, so 1.9.9 carries it. Before publishing
-1.9.9 (or anything after it), check that Settings, Workspace still opens the list and that
-`__tests__/workspaces-multiws.test.tsx` passes; an update without it takes the switch away from phones.
-
 ## Staged rollouts
 
 EAS Update rollouts (`eas update --rollout-percentage`, `eas update:edit --rollout-percentage`,

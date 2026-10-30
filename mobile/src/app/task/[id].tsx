@@ -6,12 +6,12 @@ import { GROUP, GroupRow, InsetGroup } from "@/components/grouped";
 import { ActionSheet, type SheetOption } from "@/components/action-sheet";
 import { SPRING, useReduceMotion } from "@/lib/motion";
 import { success, tick, warning } from "@/lib/haptics";
+import { recordTaskCompleted } from "@/lib/native-features";
 import { TaskTime } from "@/components/timer";
 import { StartMeetingButton } from "@/components/meetings";
 import { CustomFields } from "@/components/custom-fields";
 import { ChecklistSection } from "@/components/checklist";
 import { TaskRuns } from "@/components/runs";
-import { LinkedText } from "@/components/linked-text";
 import { useAssignees, useTask, useTaskMutations } from "@/lib/queries";
 import { useOffline } from "@/lib/offline";
 import { PRIORITIES, STATUSES, dayFrom, dayLabel, dueLabel, nextMonday, senderName } from "@/lib/tasks";
@@ -98,7 +98,7 @@ export default function TaskDetail() {
           onEndEditing={() => title.trim() && title !== t.title && save({ title: title.trim() }, true)} />
         <View accessibilityRole="radiogroup" accessibilityLabel="Status">
           <Segmented label="Status" value={t.status} options={STATUSES.map((s) => ({ id: s.id, label: s.label }))}
-            onChange={(v) => { if (v === t.status) return; if (v === "done") success(); else tick(); save({ status: v }); }} />
+            onChange={(v) => { if (v === t.status) return; if (v === "done") { success(); recordTaskCompleted(); } else tick(); save({ status: v }); }} />
         </View>
       </View>
 
@@ -178,7 +178,7 @@ export default function TaskDetail() {
                 <Text style={{ color: colors.fg, fontWeight: "600", fontSize: 15, flex: 1 }} numberOfLines={1}>{c.author.name ?? "Someone"}</Text>
                 <Text style={font.tiny}>{shortDate(c.createdAt)}</Text>
               </View>
-              <Text style={[font.body, { fontSize: 16 }]} selectable><LinkedText text={c.body} /></Text>
+              <Text style={[font.body, { fontSize: 16 }]}>{c.body}</Text>
             </View>
           </View>
         ))}

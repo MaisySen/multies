@@ -3,30 +3,7 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
-## 1.9.11 (OTA, runs on Android versionCode 15 and iOS build 17), 30 Oct 2026
-
-- Tappable links: web and email addresses in mail are blue and underlined, and a tap opens them in
-  your browser or mail app. This also covers quoted text, task comments and drafts waiting for your
-  approval.
-- Long links: a very long web address shows as the site and its last parts, for example
-  github.com/…/actions/runs/40926009018, and wraps between parts instead of in the middle of a word.
-  A tap still opens the full address.
-- Version: Settings, About shows the version of the app you are running.
-
-Carries everything in 1.9.10 and 1.9.9.
-
-## 1.9.10 (OTA, runs on Android versionCode 15 and iOS build 17), 29 Oct 2026
-
-Carries everything in 1.9.9, plus:
-
-- Links in mail are tappable: web addresses and email addresses in a message open with one tap, and
-  the angle brackets around them are gone.
-- Mail that only has a designed (HTML) version, like newsletters and receipts, now shows its text and
-  links instead of "This message has no plain text version".
-
 ## 1.9.9 (OTA, runs on Android versionCode 15 and iOS build 17), not published yet: ships after 1.9.8 reaches all phones
-
-Keeps Switch workspace, which reached phones with 1.9.8 on 27 Oct 2026 (see docs/OTA.md).
 
 - Report and block: press and hold a chat message to report it or block the person. Pick a reason,
   add a note if you like, and our team reviews reports within 24 hours. In a direct message, the
@@ -64,8 +41,6 @@ Keeps Switch workspace, which reached phones with 1.9.8 on 27 Oct 2026 (see docs
 
 ## 1.9.8 (OTA, runs on Android versionCode 15 and iOS build 17), 26 October 2026
 
-- Switch workspace: if you belong to more than one workspace, Settings, Workspace lists them all and
-  a tap opens another one on this phone. Your other devices stay where they are.
 - Stay signed in: when the connection drops or the server is slow, you stay signed in. The app
   only signs you out when your session has really ended, and it renews the session quietly first.
 - Swipes you choose: short and long swipes on mail and tasks, left and right, set in Settings,

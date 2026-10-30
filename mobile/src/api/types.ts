@@ -49,9 +49,6 @@ export interface Me {
   organization: { id: string; name: string; plan: string; isDemo: boolean; role: Role; timezone: string; country: string } | null;
 }
 
-/** Multiws: a workspace this person belongs to (GET /api/account/workspaces). */
-export interface WorkspaceSummary { id: string; name: string; plan: string; role: Role; isDemo: boolean }
-
 export interface SendInput {
   mailboxId: string;
   to: string[];
