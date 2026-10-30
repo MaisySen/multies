@@ -349,7 +349,7 @@ export function ToolsPage() {
     <label className={`relative block ${compact ? "" : "max-w-xl"}`}>
       <span className="sr-only">Search tools</span>
       <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" aria-hidden />
-      <input ref={compact ? undefined : search} type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={compact ? "Search tools" : "Search tools, like compress or sign"}
+      <input ref={compact ? undefined : search} type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={compact ? "Search tools" : "Search tools, like compress or merge"}
         onKeyDown={(e) => { if (e.key === "Enter") { const first = searchEntries(shownEntries, query)[0]; if (first) pick(first); } if (e.key === "Escape") setQuery(""); }}
         data-testid={compact ? "tools-search-rail" : "tools-search"}
         className={`w-full rounded-xl border border-line bg-surface pl-9 pr-9 text-[14px] placeholder:text-subtle ${ring} ${compact ? "h-9" : "h-11 max-sm:h-12 max-sm:text-[16px]"}`} />
@@ -378,7 +378,7 @@ export function ToolsPage() {
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <h1 className="large-title">Tools</h1>
-            <p className="mt-1 text-sm text-muted">Edit, convert, secure and sign files without leaving Multies.</p>
+            <p className="mt-1 text-sm text-muted">Edit, convert and secure files without leaving Multies.</p>
           </div>
           {usage}
         </div>
@@ -416,7 +416,7 @@ export function ToolsPage() {
               )}
               {found.length ? <div className="space-y-6" role="group" aria-label="Choose a tool">{sections(false)}</div> : (
                 <EmptyState icon={<IconSearch />} title={handName ? "No tool takes this file yet" : `No tool matches “${query}”`}
-                  body={handName ? "Try another file, or clear it to see every tool." : "Try a shorter word, like PDF, Word, sign or smaller."}
+                  body={handName ? "Try another file, or clear it to see every tool." : "Try a shorter word, like PDF, Word or smaller."}
                   action={<Button variant="secondary" onClick={() => { setQuery(""); setListFiles([]); }}>Show all tools</Button>} />
               )}
             </>
