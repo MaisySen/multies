@@ -7,6 +7,13 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 70 (30 Oct 2026)
+
+- Added: Compress PDF has a level picker, Light, Balanced (default) and Smallest, on the web and in the phone app, each with a plain line on what to expect; a level that cannot shrink a file says so and names the stronger one.
+- Added: a finished PDF on the Tools result card shows page 1, drawn in the browser from the result itself (no upload, no run counted; files over 15 MB keep the badge).
+- Fixed (MB-251): one send per composer (a double trigger no longer starts two holds and two toasts); command, notification and triage Undo toasts replace each other instead of stacking; the board card's move handle opens a Move to menu (another column or another project) on click or tap, while dragging works as before.
+- What's new drops "Reply straight from the shared inbox" to stay at 14.
+
 ### Round 69 (30 Oct 2026)
 
 - Changed: Edit pages, Fill a form, Compare, Share links, E-sign, AI helpers, Workflows, Document templates and Mail merge use the same Tools frame as the tool screens: the rail of every tool on wide screens, All tools on a phone, the tool's icon and the runs left line, with a plain note when runs are used up.

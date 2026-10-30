@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-compress-levels",
+    date: "2026-10-31",
+    title: "Pick how small, and see your result",
+    body: "Compress now has Light, Balanced and Smallest, each saying what to expect. Scanned PDFs shrink a lot more than before. A finished PDF shows a picture of its first page, so you can check it before you download.",
+  },
+  {
     id: "2026-10-31-tools-one-look",
     date: "2026-10-31",
     title: "Every tool, one look",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-29",
     title: "Your whole mailbox syncs by itself",
     body: "A connected mailbox now keeps copying older mail on its own until all of it is in, and shows how far it has got.",
-  },
-  {
-    id: "2026-10-29-inbox-reply",
-    date: "2026-10-29",
-    title: "Reply straight from the shared inbox",
-    body: "Open a thread in the shared inbox and press Reply or Reply all to answer the customer right there. Replies now save as a draft while you type, so a reload keeps them.",
   },
   {
     id: "2026-10-28-whats-new",
