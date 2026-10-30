@@ -66,6 +66,8 @@ describe("Tools UX list", () => {
     expect(savedLine(960 * 1024, 960 * 1024, "light")).toBe("960 KB, unchanged. Light could not make it smaller. Try Balanced or Smallest.");
     expect(savedLine(960 * 1024, 960 * 1024, "strong")).toBe("960 KB to 960 KB. This file was already small.");
     expect(savedLine(960 * 1024, 270 * 1024, "medium")).toBe("960 KB to 270 KB, 72% smaller");
+    expect(savedLine(941 * 1024, 940 * 1024, "light")).toBe("941 KB to 940 KB, about the same. Light could not make it smaller. Try Balanced or Smallest.");
+    expect(savedLine(941 * 1024, 940 * 1024)).toBe("941 KB to 940 KB, about the same. This file was already small.");
   });
 });
 

@@ -186,12 +186,14 @@ export const sizeLabel = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.r
 /** "27 KB to 3 KB, 89% smaller" for a compress result. */
 export function savedLine(before: number, after: number, level?: string): string | null {
   if (!before || !after) return null;
-  if (after >= before) {
-    // R70: the engine hands the file back unchanged when a level cannot make it smaller; say what to try next.
-    if (level === "light" || level === "medium") return `${sizeLabel(before)}, unchanged. ${level === "light" ? "Light" : "Balanced"} could not make it smaller. Try ${level === "light" ? "Balanced or Smallest" : "Smallest"}.`;
-    return `${sizeLabel(before)} to ${sizeLabel(after)}. This file was already small.`;
+  const pct = Math.round((1 - after / before) * 100);
+  if (pct < 2) {
+    // R70: the engine hands the file back unchanged (or a sliver smaller) when a level cannot shrink it; say what to try next.
+    const sizes = after >= before ? `${sizeLabel(before)}, unchanged.` : `${sizeLabel(before)} to ${sizeLabel(after)}, about the same.`;
+    if (level === "light" || level === "medium") return `${sizes} ${level === "light" ? "Light" : "Balanced"} could not make it smaller. Try ${level === "light" ? "Balanced or Smallest" : "Smallest"}.`;
+    return after >= before ? `${sizeLabel(before)} to ${sizeLabel(after)}. This file was already small.` : `${sizes} This file was already small.`;
   }
-  return `${sizeLabel(before)} to ${sizeLabel(after)}, ${Math.round((1 - after / before) * 100)}% smaller`;
+  return `${sizeLabel(before)} to ${sizeLabel(after)}, ${pct}% smaller`;
 }
 
 const RECENT_KEY = "multies.tools.recent";
