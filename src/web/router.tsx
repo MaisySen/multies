@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, type ReactNode } from "react";
+import { Suspense, useState, type ReactNode } from "react";
 import { createBrowserRouter } from "react-router";
 import { RouteError } from "./components/route-error";
 import { MarketingLayout } from "./layouts/marketing";
@@ -10,127 +10,128 @@ import { ToolFeatureGate } from "./components/tools/feature-gate"; // R66 (MB-25
 /** R66 (MB-259): the AI document pages show while any AI feature is on. */
 const AI_FEATURES = ["ask", "translate", "extract", "expenses", "contracts"] as const;
 import { AppSkeleton } from "./layouts/app-skeleton";
+import { lazyPage } from "@/web/components/lazy-page";
 
 // R25: sign-in and the other public pages load on their own, so the landing page carries none of the
 // auth client and the app carries none of the marketing pages.
-const StartupsPage = lazy(() => import("./pages/startups").then((m) => ({ default: m.StartupsPage }))); // R58 (MB-237)
+const StartupsPage = lazyPage(() => import("./pages/startups"), "StartupsPage"); // R58 (MB-237)
 const switchPages = () => import("./pages/switch"); // R58 (MB-237)
-const SwitchIndexPage = lazy(() => switchPages().then((m) => ({ default: m.SwitchIndexPage })));
-const SwitchPage = lazy(() => switchPages().then((m) => ({ default: m.SwitchPage })));
-const PricingPage = lazy(() => import("./pages/pricing").then((m) => ({ default: m.PricingPage })));
-const AgentsDevPage = lazy(() => import("./pages/agents").then((m) => ({ default: m.AgentsDevPage })));
-const McpDocsPage = lazy(() => import("./pages/mcp-docs").then((m) => ({ default: m.McpDocsPage }))); // R36
+const SwitchIndexPage = lazyPage(() => switchPages(), "SwitchIndexPage");
+const SwitchPage = lazyPage(() => switchPages(), "SwitchPage");
+const PricingPage = lazyPage(() => import("./pages/pricing"), "PricingPage");
+const AgentsDevPage = lazyPage(() => import("./pages/agents"), "AgentsDevPage");
+const McpDocsPage = lazyPage(() => import("./pages/mcp-docs"), "McpDocsPage"); // R36
 // R34 (perf2): the sign in page's module, kept once loaded. On a prerendered /login main.tsx loads it before the first
 // render, so the page renders straight away (no Suspense fallback over the card that is already on screen).
 let authModule: typeof import("./pages/auth") | null = null;
 const authPages = () => import("./pages/auth").then((m) => (authModule = m));
 export const preloadAuthPages = () => authPages();
-const LoginLazy = lazy(() => authPages().then((m) => ({ default: m.LoginPage })));
+const LoginLazy = lazyPage(() => authPages(), "LoginPage");
 function LoginPage() {
   // Chosen once per mount, so a module that arrives later never swaps the component (and loses what was typed).
   const [Loaded] = useState(() => authModule?.LoginPage ?? null);
   return Loaded ? <Loaded /> : <LoginLazy />;
 }
 // R35: sign up and forgot password are prerendered too, so they take the loaded module the same way.
-const SignupLazy = lazy(() => authPages().then((m) => ({ default: m.SignupPage })));
+const SignupLazy = lazyPage(() => authPages(), "SignupPage");
 function SignupPage() {
   const [Loaded] = useState(() => authModule?.SignupPage ?? null);
   return Loaded ? <Loaded /> : <SignupLazy />;
 }
-const ForgotLazy = lazy(() => authPages().then((m) => ({ default: m.ForgotPasswordPage })));
+const ForgotLazy = lazyPage(() => authPages(), "ForgotPasswordPage");
 function ForgotPasswordPage() {
   const [Loaded] = useState(() => authModule?.ForgotPasswordPage ?? null);
   return Loaded ? <Loaded /> : <ForgotLazy />;
 }
-const ResetPasswordPage = lazy(() => authPages().then((m) => ({ default: m.ResetPasswordPage })));
-const EmailVerifiedPage = lazy(() => authPages().then((m) => ({ default: m.EmailVerifiedPage })));
-const OAuthAuthorizePage = lazy(() => import("./pages/oauth-authorize").then((m) => ({ default: m.OAuthAuthorizePage })));
-const AppLayout = lazy(() => import("./layouts/app").then((m) => ({ default: m.AppLayout })));
-const ModerationPage = lazy(() => import("./pages/app/admin-moderation-r35").then((m) => ({ default: m.ModerationPage }))); // R35
-const AdminPage = lazy(() => import("./pages/app/admin").then((m) => ({ default: m.AdminPage })));
-const DashboardPage = lazy(() => import("./pages/app/dashboard").then((m) => ({ default: m.DashboardPage })));
-const DomainsPage = lazy(() => import("./pages/app/domains").then((m) => ({ default: m.DomainsPage })));
-const DomainDetailPage = lazy(() => import("./pages/app/domain-detail").then((m) => ({ default: m.DomainDetailPage })));
-const MailboxesPage = lazy(() => import("./pages/app/mailboxes").then((m) => ({ default: m.MailboxesPage })));
-const WebmailPage = lazy(() => import("./pages/app/webmail").then((m) => ({ default: m.WebmailPage })));
+const ResetPasswordPage = lazyPage(() => authPages(), "ResetPasswordPage");
+const EmailVerifiedPage = lazyPage(() => authPages(), "EmailVerifiedPage");
+const OAuthAuthorizePage = lazyPage(() => import("./pages/oauth-authorize"), "OAuthAuthorizePage");
+const AppLayout = lazyPage(() => import("./layouts/app"), "AppLayout");
+const ModerationPage = lazyPage(() => import("./pages/app/admin-moderation-r35"), "ModerationPage"); // R35
+const AdminPage = lazyPage(() => import("./pages/app/admin"), "AdminPage");
+const DashboardPage = lazyPage(() => import("./pages/app/dashboard"), "DashboardPage");
+const DomainsPage = lazyPage(() => import("./pages/app/domains"), "DomainsPage");
+const DomainDetailPage = lazyPage(() => import("./pages/app/domain-detail"), "DomainDetailPage");
+const MailboxesPage = lazyPage(() => import("./pages/app/mailboxes"), "MailboxesPage");
+const WebmailPage = lazyPage(() => import("./pages/app/webmail"), "WebmailPage");
 const agentPages = () => import("./pages/app/agents");
-const AgentsPage = lazy(() => agentPages().then((m) => ({ default: m.AgentsPage })));
-const AgentDetailPage = lazy(() => agentPages().then((m) => ({ default: m.AgentDetailPage })));
-const ApprovalsPage = lazy(() => import("./pages/app/approvals").then((m) => ({ default: m.ApprovalsPage })));
-const TeamInboxPage = lazy(() => import("./pages/app/inbox").then((m) => ({ default: m.TeamInboxPage })));
+const AgentsPage = lazyPage(() => agentPages(), "AgentsPage");
+const AgentDetailPage = lazyPage(() => agentPages(), "AgentDetailPage");
+const ApprovalsPage = lazyPage(() => import("./pages/app/approvals"), "ApprovalsPage");
+const TeamInboxPage = lazyPage(() => import("./pages/app/inbox"), "TeamInboxPage");
 const work = () => import("./pages/app/work/tasks");
-const TasksPage = lazy(() => work().then((m) => ({ default: m.TasksPage })));
+const TasksPage = lazyPage(() => work(), "TasksPage");
 const docsPages = () => import("./pages/app/work/docs");
-const DocsPage = lazy(() => docsPages().then((m) => ({ default: m.DocsPage })));
-const DocPage = lazy(() => docsPages().then((m) => ({ default: m.DocPage })));
+const DocsPage = lazyPage(() => docsPages(), "DocsPage");
+const DocPage = lazyPage(() => docsPages(), "DocPage");
 const contactPages = () => import("./pages/app/work/contacts");
-const ContactsPage = lazy(() => contactPages().then((m) => ({ default: m.ContactsPage })));
-const ContactPage = lazy(() => contactPages().then((m) => ({ default: m.ContactPage })));
-const DealsPage = lazy(() => import("./pages/app/work/deals").then((m) => ({ default: m.DealsPage })));
-const AutomationsPage = lazy(() => import("./pages/app/work/automations").then((m) => ({ default: m.AutomationsPage })));
-const TimesheetPage = lazy(() => import("./pages/app/work/time").then((m) => ({ default: m.TimesheetPage })));
+const ContactsPage = lazyPage(() => contactPages(), "ContactsPage");
+const ContactPage = lazyPage(() => contactPages(), "ContactPage");
+const DealsPage = lazyPage(() => import("./pages/app/work/deals"), "DealsPage");
+const AutomationsPage = lazyPage(() => import("./pages/app/work/automations"), "AutomationsPage");
+const TimesheetPage = lazyPage(() => import("./pages/app/work/time"), "TimesheetPage");
 const formPages = () => import("./pages/app/work/forms");
-const FormsPage = lazy(() => formPages().then((m) => ({ default: m.FormsPage })));
-const PublicFormPage = lazy(() => formPages().then((m) => ({ default: m.PublicFormPage })));
-const ReportsPage = lazy(() => import("./pages/app/work/reports").then((m) => ({ default: m.ReportsPage })));
-const DashboardsPage = lazy(() => import("./pages/app/work/dashboards").then((m) => ({ default: m.DashboardsPage }))); // R24.3
+const FormsPage = lazyPage(() => formPages(), "FormsPage");
+const PublicFormPage = lazyPage(() => formPages(), "PublicFormPage");
+const ReportsPage = lazyPage(() => import("./pages/app/work/reports"), "ReportsPage");
+const DashboardsPage = lazyPage(() => import("./pages/app/work/dashboards"), "DashboardsPage"); // R24.3
 const meetingPages = () => import("./pages/app/work/meetings");
-const MeetingsPage = lazy(() => meetingPages().then((m) => ({ default: m.MeetingsPage })));
-const MeetingPage = lazy(() => meetingPages().then((m) => ({ default: m.MeetingPage })));
-const GuestMeetingPage = lazy(() => meetingPages().then((m) => ({ default: m.GuestMeetingPage })));
-const PortfolioPage = lazy(() => import("./pages/app/work/portfolio").then((m) => ({ default: m.PortfolioPage })));
+const MeetingsPage = lazyPage(() => meetingPages(), "MeetingsPage");
+const MeetingPage = lazyPage(() => meetingPages(), "MeetingPage");
+const GuestMeetingPage = lazyPage(() => meetingPages(), "GuestMeetingPage");
+const PortfolioPage = lazyPage(() => import("./pages/app/work/portfolio"), "PortfolioPage");
 const guestPages = () => import("./pages/app/work/guest");
-const GuestAcceptPage = lazy(() => guestPages().then((m) => ({ default: m.GuestAcceptPage })));
-const GuestProjectPage = lazy(() => guestPages().then((m) => ({ default: m.GuestProjectPage })));
-const ChatPage = lazy(() => import("./pages/app/work/chat").then((m) => ({ default: m.ChatPage })));
+const GuestAcceptPage = lazyPage(() => guestPages(), "GuestAcceptPage");
+const GuestProjectPage = lazyPage(() => guestPages(), "GuestProjectPage");
+const ChatPage = lazyPage(() => import("./pages/app/work/chat"), "ChatPage");
 const notificationPages = () => import("./pages/app/notifications");
-const NotificationsPage = lazy(() => notificationPages().then((m) => ({ default: m.NotificationsPage })));
-const NotificationSettings = lazy(() => notificationPages().then((m) => ({ default: m.NotificationSettings })));
-const TemplatesPage = lazy(() => import("./pages/app/work/templates").then((m) => ({ default: m.TemplatesPage })));
-const IntegrationsPage = lazy(() => import("./pages/app/work/integrations").then((m) => ({ default: m.IntegrationsPage })));
-const ToolsPage = lazy(() => import("./pages/app/tools").then((m) => ({ default: m.ToolsPage })));
-const ToolsAiPage = lazy(() => import("./pages/app/tools-ai").then((m) => ({ default: m.ToolsAiPage }))); // Tools P2: AI documents
-const ToolsEditorRoute = lazy(() => import("./pages/app/tools-editors/route").then((m) => ({ default: m.ToolsEditorRoute }))); // Tools P2: editors
-const FilesPage = lazy(() => import("./pages/app/files").then((m) => ({ default: m.FilesPage }))); // Tools P2 (16)
-const ShareLinksPage = lazy(() => import("./pages/app/tools-share-sign/share-links").then((m) => ({ default: m.ShareLinksPage }))); // Tools P2: share links
-const SignPage = lazy(() => import("./pages/app/tools-share-sign/sign").then((m) => ({ default: m.SignPage }))); // Tools P2: e-sign
+const NotificationsPage = lazyPage(() => notificationPages(), "NotificationsPage");
+const NotificationSettings = lazyPage(() => notificationPages(), "NotificationSettings");
+const TemplatesPage = lazyPage(() => import("./pages/app/work/templates"), "TemplatesPage");
+const IntegrationsPage = lazyPage(() => import("./pages/app/work/integrations"), "IntegrationsPage");
+const ToolsPage = lazyPage(() => import("./pages/app/tools"), "ToolsPage");
+const ToolsAiPage = lazyPage(() => import("./pages/app/tools-ai"), "ToolsAiPage"); // Tools P2: AI documents
+const ToolsEditorRoute = lazyPage(() => import("./pages/app/tools-editors/route"), "ToolsEditorRoute"); // Tools P2: editors
+const FilesPage = lazyPage(() => import("./pages/app/files"), "FilesPage"); // Tools P2 (16)
+const ShareLinksPage = lazyPage(() => import("./pages/app/tools-share-sign/share-links"), "ShareLinksPage"); // Tools P2: share links
+const SignPage = lazyPage(() => import("./pages/app/tools-share-sign/sign"), "SignPage"); // Tools P2: e-sign
 // Tools P2: automation pages
-const WorkflowsPage = lazy(() => import("./pages/app/tools-automation/workflows").then((m) => ({ default: m.WorkflowsPage })));
-const DocTemplatesPage = lazy(() => import("./pages/app/tools-automation/templates").then((m) => ({ default: m.TemplatesPage })));
-const MergePage = lazy(() => import("./pages/app/tools-automation/merge").then((m) => ({ default: m.MergePage })));
-const SchedulingPage = lazy(() => import("./pages/app/work/scheduling").then((m) => ({ default: m.SchedulingPage })));
+const WorkflowsPage = lazyPage(() => import("./pages/app/tools-automation/workflows"), "WorkflowsPage");
+const DocTemplatesPage = lazyPage(() => import("./pages/app/tools-automation/templates"), "TemplatesPage");
+const MergePage = lazyPage(() => import("./pages/app/tools-automation/merge"), "MergePage");
+const SchedulingPage = lazyPage(() => import("./pages/app/work/scheduling"), "SchedulingPage");
 const bookPages = () => import("./pages/book");
-const BookingPage = lazy(() => bookPages().then((m) => ({ default: m.BookingPage })));
-const BookingCancelPage = lazy(() => bookPages().then((m) => ({ default: m.BookingCancelPage })));
-const GoalsPage = lazy(() => import("./pages/app/work/goals").then((m) => ({ default: m.GoalsPage })));
-const ActivityPage = lazy(() => import("./pages/app/activity").then((m) => ({ default: m.ActivityPage })));
+const BookingPage = lazyPage(() => bookPages(), "BookingPage");
+const BookingCancelPage = lazyPage(() => bookPages(), "BookingCancelPage");
+const GoalsPage = lazyPage(() => import("./pages/app/work/goals"), "GoalsPage");
+const ActivityPage = lazyPage(() => import("./pages/app/activity"), "ActivityPage");
 const settings = () => import("./pages/app/settings");
-const SettingsLayout = lazy(() => settings().then((m) => ({ default: m.SettingsLayout })));
-const GeneralSettings = lazy(() => settings().then((m) => ({ default: m.GeneralSettings })));
-const MailSettings = lazy(() => settings().then((m) => ({ default: m.MailSettings })));
-const AccountSettings = lazy(() => import("./pages/app/security").then((m) => ({ default: m.AccountSettings })));
-const TeamSettings = lazy(() => import("./pages/app/team").then((m) => ({ default: m.TeamSettings })));
-const BillingSettings = lazy(() => import("./pages/app/billing").then((m) => ({ default: m.BillingSettings })));
-const AuthEmailSettings = lazy(() => import("./pages/app/auth-email-settings").then((m) => ({ default: m.AuthEmailSettings }))); // R27
-const ChannelsSettings = lazy(() => import("./pages/app/channels-settings").then((m) => ({ default: m.ChannelsSettings }))); // C1
-const CalendarSettings = lazy(() => import("./pages/app/calendar-settings").then((m) => ({ default: m.CalendarSettings })));
-const ConnectionsSettings = lazy(() => import("./pages/app/connections").then((m) => ({ default: m.ConnectionsSettings })));
-const MailAppsSettings = lazy(() => import("./pages/app/mail-apps").then((m) => ({ default: m.MailAppsSettings })));
-const ImportSettings = lazy(() => import("./pages/app/data-move").then((m) => ({ default: m.ImportExportSettings }))); // R38 move your data
-const DeveloperSettings = lazy(() => import("./pages/app/developers").then((m) => ({ default: m.DeveloperSettings })));
-const DeliverabilityPage = lazy(() => import("./pages/app/deliverability").then((m) => ({ default: m.DeliverabilityPage })));
-const StatusPage = lazy(() => import("./pages/status").then((m) => ({ default: m.StatusPage })));
-const ChangelogPage = lazy(() => import("./pages/changelog").then((m) => ({ default: m.ChangelogPage }))); // R53 MB-133
-const ThanksPage = lazy(() => import("./pages/thanks").then((m) => ({ default: m.ThanksPage })));
-const CheckPage = lazy(() => import("./pages/check").then((m) => ({ default: m.CheckPage })));
-const TrustPage = lazy(() => import("./pages/trust").then((m) => ({ default: m.TrustPage })));
-const ContactUsPage = lazy(() => import("./pages/contact").then((m) => ({ default: m.ContactUsPage })));
-const SupportPage = lazy(() => import("./pages/support").then((m) => ({ default: m.SupportPage })));
-const DeleteAccountPage = lazy(() => import("./pages/support").then((m) => ({ default: m.DeleteAccountPage })));
-const LegalPage = lazy(() => import("./pages/legal").then((m) => ({ default: m.LegalPage })));
-const InvitePage = lazy(() => import("./pages/invite").then((m) => ({ default: m.InvitePage })));
-const MyWorkPage = lazy(() => import("./pages/app/my-work").then((m) => ({ default: m.MyWorkPage })));
-const TriagePage = lazy(() => import("./pages/app/work/triage").then((m) => ({ default: m.TriagePage })));
+const SettingsLayout = lazyPage(() => settings(), "SettingsLayout");
+const GeneralSettings = lazyPage(() => settings(), "GeneralSettings");
+const MailSettings = lazyPage(() => settings(), "MailSettings");
+const AccountSettings = lazyPage(() => import("./pages/app/security"), "AccountSettings");
+const TeamSettings = lazyPage(() => import("./pages/app/team"), "TeamSettings");
+const BillingSettings = lazyPage(() => import("./pages/app/billing"), "BillingSettings");
+const AuthEmailSettings = lazyPage(() => import("./pages/app/auth-email-settings"), "AuthEmailSettings"); // R27
+const ChannelsSettings = lazyPage(() => import("./pages/app/channels-settings"), "ChannelsSettings"); // C1
+const CalendarSettings = lazyPage(() => import("./pages/app/calendar-settings"), "CalendarSettings");
+const ConnectionsSettings = lazyPage(() => import("./pages/app/connections"), "ConnectionsSettings");
+const MailAppsSettings = lazyPage(() => import("./pages/app/mail-apps"), "MailAppsSettings");
+const ImportSettings = lazyPage(() => import("./pages/app/data-move"), "ImportExportSettings"); // R38 move your data
+const DeveloperSettings = lazyPage(() => import("./pages/app/developers"), "DeveloperSettings");
+const DeliverabilityPage = lazyPage(() => import("./pages/app/deliverability"), "DeliverabilityPage");
+const StatusPage = lazyPage(() => import("./pages/status"), "StatusPage");
+const ChangelogPage = lazyPage(() => import("./pages/changelog"), "ChangelogPage"); // R53 MB-133
+const ThanksPage = lazyPage(() => import("./pages/thanks"), "ThanksPage");
+const CheckPage = lazyPage(() => import("./pages/check"), "CheckPage");
+const TrustPage = lazyPage(() => import("./pages/trust"), "TrustPage");
+const ContactUsPage = lazyPage(() => import("./pages/contact"), "ContactUsPage");
+const SupportPage = lazyPage(() => import("./pages/support"), "SupportPage");
+const DeleteAccountPage = lazyPage(() => import("./pages/support"), "DeleteAccountPage");
+const LegalPage = lazyPage(() => import("./pages/legal"), "LegalPage");
+const InvitePage = lazyPage(() => import("./pages/invite"), "InvitePage");
+const MyWorkPage = lazyPage(() => import("./pages/app/my-work"), "MyWorkPage");
+const TriagePage = lazyPage(() => import("./pages/app/work/triage"), "TriagePage");
 
 const page = (node: ReactNode) => <Suspense fallback={null}>{node}</Suspense>;
 /** Public pages hold a full screen while their code loads, so the footer never jumps. */

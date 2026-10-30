@@ -3,6 +3,8 @@
  * window focus and every 10 minutes while the tab is visible. A different release shows a quiet pill;
  * a critical one reloads on the next route change.
  */
+import { noteOwnRelease } from "./page-load";
+
 export interface VersionInfo { release: string; critical: boolean }
 export const POLL_MS = 10 * 60_000;
 
@@ -31,7 +33,7 @@ export function watchRelease(d: WatchDeps) {
     if (stopped || d.isHidden()) return;
     const v = await d.fetchVersion().catch(() => null);
     if (!v || stopped) return;
-    if (!own) { own = v.release; return; }
+    if (!own) { own = v.release; noteOwnRelease(own); return; }
     d.onChange(compareRelease(own, v, d.dismissed()), v);
   };
   void check();

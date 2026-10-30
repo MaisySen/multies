@@ -5,7 +5,7 @@
  * or run another tool on it). P2 tools and pages show only when their flag is on (GET /api/tools features).
  * The work runs on Multies' own document engine (Singapore); files are deleted from it within an hour.
  */
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import {
@@ -30,9 +30,10 @@ import { ToolIcon } from "@/web/components/tools/tool-icon";
 import { PdfThumb, countPdfPages } from "@/web/components/tools/pdf-thumb"; // R70: page 1 of a PDF result; R71: page count before Run
 import { Dialog } from "@/web/components/ui/dialog";
 import { NoRunsNote } from "@/web/components/tools/tools-frame";
+import { lazyPage } from "@/web/components/lazy-page";
 
 // Tools UX: the auto redact flow is only loaded when someone opens it.
-const AutoRedactPanel = lazy(() => import("@/web/components/tools/auto-redact").then((m) => ({ default: m.AutoRedactPanel })));
+const AutoRedactPanel = lazyPage(() => import("@/web/components/tools/auto-redact"), "AutoRedactPanel");
 
 type Phase =
   | { kind: "idle" }

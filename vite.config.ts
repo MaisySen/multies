@@ -30,6 +30,9 @@ const VENDOR_GROUPS = [
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
+  // R73: the build's own release, so a page file that fails to load can tell a new release (reload once) from a bad
+  // connection (show Retry) by comparing with /version.json (src/web/lib/page-load.ts).
+  define: { __WEB_RELEASE__: JSON.stringify(process.env.RELEASE?.trim() ?? "") },
   // Hidden source maps: uploaded to Sentry by CI, never referenced or served.
   build: {
     outDir: "dist/web",

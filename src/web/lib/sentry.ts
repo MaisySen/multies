@@ -4,10 +4,22 @@
  */
 import { sentryPrivacy } from "../../shared/sentry-scrub";
 import { shouldHoldBack as slowConnection } from "./prefetch";
+import { isStaleChunkError } from "./stale-chunk";
 
 type SentryModule = typeof import("@sentry/react");
 let sdk: SentryModule | null = null;
-const early: unknown[] = [];
+type Queued = { err: unknown; warning?: { tags?: Record<string, string> } };
+const early: Queued[] = [];
+
+/**
+ * R73: a page file that could not load (offline, a flaky network, a tab open across a release) is a warning, not an
+ * error: the app shows its own Retry note. This also catches any such failure the app did not report itself.
+ */
+export function downgradePageLoadFailures<E extends { level?: string; exception?: { values?: { type?: string; value?: string }[] } }>(event: E): E {
+  const hit = (event.exception?.values ?? []).some((v) => v.type === "PageLoadError" || isStaleChunkError(`${v.type ?? ""} ${v.value ?? ""}`));
+  if (hit && (event.level === undefined || event.level === "error" || event.level === "fatal")) event.level = "warning";
+  return event;
+}
 
 export async function startSentry() {
   try {
@@ -24,9 +36,10 @@ export async function startSentry() {
       tracesSampleRate: config.sentry.tracesSampleRate ?? 0.1,
       tracePropagationTargets: [/^\/api\//],
       ...sentryPrivacy,
+      beforeSend: (event) => sentryPrivacy.beforeSend(downgradePageLoadFailures(event)),
     });
     sdk = mod;
-    for (const err of early.splice(0)) mod.captureException(err);
+    for (const q of early.splice(0)) mod.captureException(q.err, q.warning ? { level: "warning", tags: q.warning.tags } : undefined);
   } catch {
     // Error tracking must never break the app.
   }
@@ -73,7 +86,13 @@ export function scheduleSentry(win: Window & typeof globalThis = window) {
 /** Reports an error; errors raised before the SDK loads are queued (up to 10). */
 export function captureError(err: unknown) {
   if (sdk) sdk.captureException(err);
-  else if (early.length < 10) early.push(err);
+  else if (early.length < 10) early.push({ err });
+}
+
+/** R73: reports something the app handled (a page that could not load) at warning level. */
+export function captureWarning(err: unknown, tags?: Record<string, string>) {
+  if (sdk) sdk.captureException(err, { level: "warning", tags });
+  else if (early.length < 10) early.push({ err, warning: { tags } });
 }
 
 /** Sends one test event and waits for it to leave the browser. Returns the event id. */

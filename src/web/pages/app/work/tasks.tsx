@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PhoneFilters } from "@/web/components/phone-filters-r40"; // R40 (MB-209)
 import { useSearchParams } from "react-router";
@@ -40,11 +40,12 @@ import { ShareButton } from "./share-sheet"; // R26 (MB-87)
 import { LaneBoard, SWIMLANE_LABEL, assigneeKey, useBoardSettings, type LaneTarget } from "./board-lanes"; // R34 (MB-186)
 import { NO_LANE, SWIMLANES, boardViewKeys, lanesFrom, type Swimlanes } from "@/shared/board-lanes";
 import { ClashScope } from "./schedule-r38"; // R38: clash badges on list rows and board cards
+import { lazyPage } from "@/web/components/lazy-page";
 
-const TaskCalendar = lazy(() => import("./calendar").then((m) => ({ default: m.TaskCalendar })));
-const PlannedTimeline = lazy(() => import("./timeline-plan-r37")); // R37: timeline with dependency planning
-const SprintsView = lazy(() => import("./sprints").then((m) => ({ default: m.SprintsView })));
-const WorkloadView = lazy(() => import("./workload").then((m) => ({ default: m.WorkloadView })));
+const TaskCalendar = lazyPage(() => import("./calendar"), "TaskCalendar");
+const PlannedTimeline = lazyPage(() => import("./timeline-plan-r37"), "default"); // R37: timeline with dependency planning
+const SprintsView = lazyPage(() => import("./sprints"), "SprintsView");
+const WorkloadView = lazyPage(() => import("./workload"), "WorkloadView");
 
 const VIEWS: { id: ViewKind; label: string; icon: IconComponent }[] = [
   { id: "board", label: "Board", icon: IconBoard },

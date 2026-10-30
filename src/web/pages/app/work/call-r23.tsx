@@ -3,7 +3,7 @@
  * call window's state. The window itself and the room extras load with LiveKit (call-dock-r23.tsx),
  * only when a call is open, so chat and the app shell stay light.
  */
-import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { IconPhoneOff, IconVideo } from "@/web/components/ui/icon";
@@ -11,6 +11,7 @@ import { api } from "@/web/lib/api";
 import { mailDate } from "@/web/lib/format";
 import { useConfig } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
+import { lazyPage } from "@/web/components/lazy-page";
 
 export interface CallStatus {
   meetingId: string; title: string; channelId: string | null; state: "live" | "waiting" | "ended";
@@ -100,7 +101,7 @@ export function closeCallDock() { docked = null; emit(); }
 const subscribe = (f: () => void) => { listeners.add(f); return () => listeners.delete(f); };
 export const useCallDock = () => useSyncExternalStore(subscribe, () => docked, () => null);
 
-const CallDock = lazy(() => import("./call-dock-r23").then((m) => ({ default: m.CallDock })));
+const CallDock = lazyPage(() => import("./call-dock-r23"), "CallDock", { quiet: true });
 /** In the app shell: the docked call window, loaded only while a call is open. */
 export function CallDockHost() {
   const call = useCallDock();

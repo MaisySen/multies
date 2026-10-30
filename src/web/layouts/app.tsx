@@ -1,5 +1,5 @@
 import { setDisplayLocale } from "@/web/lib/date-input";
-import { lazy, Suspense, useEffect, useState, type ReactElement } from "react";
+import { Suspense, useEffect, useState, type ReactElement } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconActivity, IconAgent, IconAttachment, IconBell, IconBriefcase, IconCalendarClock, IconChart, IconChats, IconCheck, IconChevronsUpDown, IconClipboardCheck, IconClipboardList, IconClose, IconContacts, IconDashboard, IconDocs, IconFlask, IconGlobe, IconInbox, IconKeyboard, IconLogOut, IconMenu, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUserCog, IconVideo, IconWrench, IconZap, type IconComponent } from "@/web/components/ui/icon";
@@ -14,8 +14,8 @@ import { TimerChip } from "@/web/pages/app/work/time";
 import { PhoneTabBar } from "@/web/components/phone-tab-bar"; // R46 mobile web
 import { watchKeyboardInset } from "@/web/lib/keyboard-inset"; // R49 mobile web
 // R31: the call dock and onboarding load on demand (their code is not on the first paint path).
-const CallDockHost = lazy(() => import("@/web/pages/app/work/call-r23").then((m) => ({ default: m.CallDockHost })));
-const Onboarding = lazy(() => import("@/web/pages/app/onboarding").then((m) => ({ default: m.Onboarding })));
+const CallDockHost = lazyPage(() => import("@/web/pages/app/work/call-r23"), "CallDockHost", { quiet: true });
+const Onboarding = lazyPage(() => import("@/web/pages/app/onboarding"), "Onboarding");
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { useWhatsNew } from "@/web/lib/whats-new"; // R53 (MB-133)
 import { useConfig, useMe, useWorkspaces } from "@/web/lib/queries";
@@ -46,6 +46,7 @@ import { prefetchWhenIdle } from "@/web/lib/prefetch";
 import { useCollapsingTitle } from "@/web/lib/large-title";
 import { badgeTotal, useCounts, useTitleCount } from "@/web/lib/counts"; // R34: one counts query for every badge
 import { useOpenReportCount } from "@/web/lib/open-report-count"; // R35 (R45: its own module, not the moderation page)
+import { lazyPage } from "@/web/components/lazy-page";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 

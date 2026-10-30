@@ -3,11 +3,12 @@
  * the menu's code on first use (or when the browser is idle), and keeps the first keypress: the menu
  * opens as soon as its code arrives.
  */
-import { lazy, Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { OPEN_PALETTE_EVENT } from "@/web/lib/shortcuts";
+import { lazyPage } from "@/web/components/lazy-page";
 
 const load = () => import("./command-palette");
-const CommandPalette = lazy(load);
+const CommandPalette = lazyPage(load, "default", { quiet: true });
 
 export function PaletteHost({ onSignOut }: { onSignOut: () => void }) {
   const [open, setOpen] = useState(false);

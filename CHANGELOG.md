@@ -7,6 +7,11 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 73 (30 Oct 2026)
+
+- Fixed: a page whose code could not load (offline, a flaky network) no longer reloads the tab or lands on "Multies was updated" or the browser's offline page. Every lazily loaded page and panel retries once, reloads once only when version.json names a newer release, and otherwise shows "Could not load this page" with Retry inside the app frame; it opens by itself when the connection returns. Reload loops are guarded.
+- Fixed: a failed page file can no longer surface as "Cannot read properties of undefined (reading 'DocsPage')"; lazy pages name their export and the build checks it. Page load failures go to Sentry as warnings.
+
 ### Round 72 (30 Oct 2026)
 
 - Changed: Stamp page numbers have their own Number digits choice (1, 2, 3 or Nepali digits), default Latin. A Nepali stamp, header or footer on an English PDF no longer turns the page numbers Nepali (engine option number_digits: latin, devanagari, auto).
