@@ -2,7 +2,7 @@ import { and, eq, lt, notInArray } from "drizzle-orm";
 import type { Deps } from "../context";
 import { aliases, appSettings, auditLogs, deliveries, domains, mailboxes, mailConnections, members, messages, organizations, users } from "../db/schema";
 import { runBatch } from "../db";
-import { decryptSecret, encryptSecret, generateDkimKeyPair, newId, randomToken } from "../lib/crypto";
+import { decryptSecret, encryptSecret, generateDkimKeyPair, newId, randomToken, safeEqual } from "../lib/crypto";
 import { sql } from "drizzle-orm";
 import { authFor } from "../auth";
 import { createDomain } from "./domains";
@@ -84,8 +84,20 @@ async function seedSampleConnection(deps: Deps, orgId: string, domainId: string,
   });
 }
 
+/**
+ * R74 (MB-271): a demo our own smoke or QA check opened. Its workspace slug starts with this, so the daily demo cap
+ * (POST /api/account/demo) counts only visitors' demos. It is purged after a day like every demo.
+ */
+export const CHECK_DEMO_SLUG_PREFIX = "check-";
+
+/** Whether a request carries our own checks' token (QA_CHECK_TOKEN) in x-multies-check. Constant time. */
+export function isInternalCheck(token: string | null | undefined, sent: string | null | undefined): boolean {
+  if (!token || !sent) return false;
+  return safeEqual(sent.trim(), token);
+}
+
 /** Creates a throwaway workspace full of realistic sample data. Only reachable when DEMO_MODE is on. */
-export async function createDemoWorkspace(deps: Deps) {
+export async function createDemoWorkspace(deps: Deps, opts: { check?: boolean } = {}) {
   const suffix = randomToken(4).toLowerCase().replace(/[^a-z0-9]/g, "x").slice(0, 5);
   const domainName = `northwind-${suffix}.test`;
   const email = `alex@${domainName}`;
@@ -94,7 +106,7 @@ export async function createDemoWorkspace(deps: Deps) {
   const signup = await authFor(deps).api.demoSession({ body: { name: "Alex Rivera", email }, returnHeaders: true });
   const userId = signup.response.user.id;
   const orgId = newId("org");
-  await deps.db.insert(organizations).values({ id: orgId, name: "Northwind Labs", slug: orgId, isDemo: true, plan: "starter" });
+  await deps.db.insert(organizations).values({ id: orgId, name: "Northwind Labs", slug: opts.check ? `${CHECK_DEMO_SLUG_PREFIX}${orgId}` : orgId, isDemo: true, plan: "starter" });
   // Free plus the A$3 mailbox pack, so the sample's four mailboxes fit. Independent steps run together.
   const [dkimKey] = await Promise.all([
     sampleDkimKey(deps),

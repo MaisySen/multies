@@ -94,6 +94,11 @@ export interface AppConfig {
   /** New demo workspaces one IP address may open per 24 hours (DEMO_PER_IP_DAILY, default 10); 0 means no cap. */
   demoPerIpDaily: number;
   /**
+   * R74 (MB-271): our own smoke and QA checks send this in the x-multies-check header (QA_CHECK_TOKEN, a secret). Their
+   * demos are marked and kept out of the daily demo cap, so visitors still get the demo. Unset: no check is exempt.
+   */
+  qaCheckToken: string | null;
+  /**
    * The account wide D1 daily write budget (services/write-budget.ts). Read from Cloudflare analytics
    * with CF_ANALYTICS_TOKEN (read only) and CF_ACCOUNT_ID; without both the guard is off.
    * D1_DAILY_WRITE_BUDGET (default 100000), WRITE_BUDGET_WARN_PCT (60), WRITE_BUDGET_SHED_PCT (85, R32).
@@ -278,6 +283,7 @@ const EnvSchema = z.object({
   KEEP_DEMO_ORG_IDS: z.string().optional(),
   DEMO_DAILY_LIMIT: z.string().optional(),
   DEMO_PER_IP_DAILY: z.string().optional(),
+  QA_CHECK_TOKEN: z.string().optional(),
   CF_ANALYTICS_TOKEN: z.string().optional(),
   CF_ACCOUNT_ID: z.string().optional(),
   D1_DAILY_WRITE_BUDGET: z.string().optional(),
@@ -515,6 +521,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     keepDemoOrgIds: csv(env.KEEP_DEMO_ORG_IDS),
     demoDailyLimit: Math.max(0, Number.parseInt(env.DEMO_DAILY_LIMIT ?? "0", 10) || 0),
     demoPerIpDaily: Math.max(0, Number.parseInt(env.DEMO_PER_IP_DAILY ?? "10", 10) || 0),
+    qaCheckToken: env.QA_CHECK_TOKEN && env.QA_CHECK_TOKEN.trim().length >= 24 ? env.QA_CHECK_TOKEN.trim() : null,
     workspaceBudget: {
       daily: Math.max(0, Number.parseInt(env.WORKSPACE_DAILY_WRITES ?? "20000", 10) || 0),
       nearAt: pct(env.WORKSPACE_BUDGET_NEAR_PCT, 80),

@@ -46,8 +46,15 @@ code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'origin: https://evil.e
 # One demo a run (it purges itself after a day). SMOKE_DEMO=0 skips it; a "resting for today" answer (503,
 # the daily demo cap or the D1 write budget) is a warning, any other answer is a failure.
 if [ "${SMOKE_DEMO:-1}" != "0" ]; then
-  JAR=$(mktemp); trap 'rm -f "$JAR"' EXIT
-  code=$(curl -s -o "$JAR.body" -w '%{http_code}' -c "$JAR" -X POST -H "origin: $BASE" -H 'content-type: application/json' -d '{}' "$BASE/api/account/demo")
+  JAR=$(mktemp); trap 'rm -f "$JAR" "$JAR.check" "$JAR.tok"' EXIT
+  # R74 (MB-271): our own check's demo carries the checks' token (from CREDENTIALS.local.md through creds.mjs, in a
+  # mode 600 header file, never in argv), so it is marked and never uses up the visitors' daily demos.
+  CHECK_HDR=()
+  if node "$(dirname "$0")/creds.mjs" file QA_CHECK_TOKEN "$JAR.tok" >/dev/null 2>&1 && [ -s "$JAR.tok" ]; then
+    { printf 'x-multies-check: '; cat "$JAR.tok"; } > "$JAR.check"; chmod 600 "$JAR.check"; rm -f "$JAR.tok"
+    CHECK_HDR=(-H "@$JAR.check")
+  fi
+  code=$(curl -s -o "$JAR.body" -w '%{http_code}' -c "$JAR" -X POST -H "origin: $BASE" -H 'content-type: application/json' "${CHECK_HDR[@]}" -d '{}' "$BASE/api/account/demo")
   if [ "$code" = "503" ] && grep -q demo_paused "$JAR.body"; then
     echo "smoke warning: the demo is resting for today (503 demo_paused)"
   else

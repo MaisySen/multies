@@ -2,7 +2,7 @@ import { optionalWritesPaused } from "../services/write-budget";
 import { exportWorkspace, personalData } from "../services/privacy";
 import { Hono } from "hono";
 import { z } from "zod";
-import { and, count, eq, gt, isNotNull, ne, sql } from "drizzle-orm";
+import { and, count, eq, gt, isNotNull, ne, notLike, sql } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import type { DB } from "../db";
 import { parseBody, requireAuth } from "../middleware";
@@ -16,7 +16,7 @@ import { DbRateLimitStore, RateLimiter } from "../lib/rate-limit";
 import { audit } from "../services/audit";
 import { peekOrgCached } from "../services/plans";
 import { IsolateCache } from "../lib/isolate-cache";
-import { createDemoWorkspace } from "../services/demo";
+import { CHECK_DEMO_SLUG_PREFIX, createDemoWorkspace, isInternalCheck } from "../services/demo";
 import { runDueJobs } from "../services/jobs";
 import { createWorkspace, deleteWorkspace, listWorkspaces, switchWorkspace } from "../services/team";
 import { markWorkspace } from "../auth/workspace-mark";
@@ -115,24 +115,27 @@ export function accountRoutes() {
     /** Opens a sandbox workspace with sample data. Only when DEMO_MODE is on. */
     .post("/demo", async (c) => {
       if (!c.var.deps.config.demoEnabled) throw notFound("Demo");
-      if (!demoLimiter.take(c.var.ip)) throw tooMany();
+      // R74 (MB-271): our own smoke and QA checks are marked and never use up the visitors' daily demos.
+      const check = isInternalCheck(c.var.deps.config.qaCheckToken, c.req.header("x-multies-check"));
+      if (!check && !demoLimiter.take(c.var.ip)) throw tooMany();
       // A new demo costs about 2,000 D1 rows over its life (create, seed and purge; D1 counts each index).
       // It is the first writer to stop when the account's daily D1 budget runs low.
       if (await optionalWritesPaused(c.var.deps)) {
         return c.json({ error: { code: "demo_paused", message: "The demo is resting for today. Create a free account instead, or try the demo again tomorrow." } }, 503);
       }
       const cap = c.var.deps.config.demoDailyLimit;
-      if (cap > 0) {
+      if (cap > 0 && !check) {
         // One cheap read: each demo writes a few hundred rows, and the database has a daily write budget.
         const since = new Date(c.var.deps.now().getTime() - 24 * 3600_000);
-        const made = await c.var.deps.db.select({ n: count() }).from(organizations).where(and(eq(organizations.isDemo, true), gt(organizations.createdAt, since))).get();
+        const made = await c.var.deps.db.select({ n: count() }).from(organizations)
+          .where(and(eq(organizations.isDemo, true), gt(organizations.createdAt, since), notLike(organizations.slug, `${CHECK_DEMO_SLUG_PREFIX}%`))).get();
         if ((made?.n ?? 0) >= cap) {
           return c.json({ error: { code: "demo_paused", message: "The demo is resting for today. Create a free account instead, or try the demo again tomorrow." } }, 503);
         }
       }
       const ip = c.var.ip;
       const perIp = c.var.deps.config.demoPerIpDaily;
-      if (perIp > 0 && ip && !ip.startsWith("unknown")) {
+      if (perIp > 0 && ip && !ip.startsWith("unknown") && !check) {
         const db = c.var.deps.db;
         demoDb = () => db;
         const { totalHits } = await demoDayStore.increment(ip);
@@ -140,7 +143,7 @@ export function accountRoutes() {
           return c.json({ error: { code: "demo_limit", message: "You've opened the demo a few times today. Create a free account to keep going, or try the demo again tomorrow." } }, 429);
         }
       }
-      const { headers } = await createDemoWorkspace(c.var.deps);
+      const { headers } = await createDemoWorkspace(c.var.deps, { check });
       for (const cookie of headers.getSetCookie()) c.header("set-cookie", cookie, { append: true });
       return c.json({ ok: true }, 201);
     })
