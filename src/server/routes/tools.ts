@@ -1,12 +1,12 @@
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../context";
-import { requireAuth } from "../middleware";
+import { parseBody, requireAdmin, requireAuth } from "../middleware";
 import { HttpError, notFound, planLimit } from "../lib/errors";
 import { audit } from "../services/audit";
 import { engineFetch, type EngineConfig } from "../services/tools/engine-client";
 import { mintToken, readToken } from "../services/tools/tokens";
 import { readToolState, recordRun, toolLimits, toolsOnFor, type ToolState } from "../services/tools/usage";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { inIds } from "../lib/sql-chunks";
 import { z } from "zod";
 import { attachments, messages } from "../db/schema";
@@ -108,6 +108,21 @@ async function startJob(c: Context<AppEnv>, engine: EngineConfig, tokenKey: stri
 export function toolsRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
+    // R63: the workspace switch (organizations.tools_mode, migration 0092). Admins turn Tools off or back on in
+    // Settings, General. One small read or write, only when the settings page asks.
+    .get("/settings", async (c) => {
+      setup(c);
+      const r = await c.var.deps.db.get<{ mode: string | null }>(sql`select tools_mode as mode from organizations where id = ${c.var.auth.orgId}`);
+      return c.json({ on: r?.mode !== "off" });
+    })
+    .put("/settings", requireAdmin, async (c) => {
+      setup(c);
+      const { on } = await parseBody(c, z.object({ on: z.boolean() }));
+      const { auth, deps } = c.var;
+      await deps.db.run(sql`update organizations set tools_mode = ${on ? "on" : "off"} where id = ${auth.orgId}`);
+      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: on ? "tools.turned_on" : "tools.turned_off", ip: c.var.ip });
+      return c.json({ on });
+    })
     .get("/", async (c) => {
       setup(c);
       const s = await stateFor(c);

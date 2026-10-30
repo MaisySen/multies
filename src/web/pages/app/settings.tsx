@@ -12,7 +12,7 @@ import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
 import { authClient, unwrap } from "@/web/lib/auth-client";
 import { useConfig, useMe, useOrg, qk } from "@/web/lib/queries";
-import { Card, CopyButton, Kbd, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { Card, CopyButton, Kbd, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
 import { useUndoSeconds } from "@/web/lib/undo-send";
 import { UNDO_SEND_CHOICES } from "@/shared/undo-send";
 import { Button } from "@/web/components/ui/button";
@@ -31,7 +31,7 @@ import { COUNTRIES, DEFAULT_COUNTRY, DEFAULT_TIMEZONE, LANGUAGES, LOCALE, cleanL
 type Pane = { to: string; label: string; end?: boolean; icon: React.ComponentType<{ className?: string }>; tint: string; keywords: string };
 export const SETTINGS_GROUPS: { label: string; items: Pane[] }[] = [
   { label: "Workspace", items: [
-    { to: "/app/settings", label: "General", end: true, icon: IconSliders, tint: "#8E8E93", keywords: "time zone language country workspace name logo share links agents keys export delete workspace" },
+    { to: "/app/settings", label: "General", end: true, icon: IconSliders, tint: "#8E8E93", keywords: "time zone language country workspace name logo share links agents keys tools documents export delete workspace" },
     { to: "/app/settings/team", label: "Team", icon: IconTeam, tint: "#0071E3", keywords: "members invite roles admin agents guests remove" },
     { to: "/app/settings/channels", label: "Chat channels", icon: IconChats, tint: "#25D366", keywords: "whatsapp messenger instagram facebook meta chat channels connect number customers" }, // C1
     { to: "/app/settings/billing", label: "Billing", icon: IconCreditCard, tint: "#34C759", keywords: "plan invoices card upgrade receipts tax" },
@@ -187,10 +187,37 @@ export function GeneralSettings() {
       <WorkspaceSection />
       <Section id="share-links" title="Share links" description="Read only links to a doc or a board for people outside the workspace."><ShareLinksSetting /></Section>
       <AiSection />
+      <ToolsSection />
       <XeroSection />
       <WorkspaceExport />
       <DangerZone />
     </div>
+  );
+}
+
+/** R63: workspace admins turn document Tools off (or back on). Listed only where the deployment has Tools. */
+function ToolsSection() {
+  const config = useConfig();
+  const me = useMe();
+  const qc = useQueryClient();
+  const on = !!config.data?.tools;
+  const q = useQuery({ queryKey: ["tools-settings"], enabled: on, queryFn: () => api.get<{ on: boolean }>("/tools/settings") });
+  const m = useMutation({
+    mutationFn: (v: boolean) => api.put<{ on: boolean }>("/tools/settings", { on: v }),
+    onSuccess: (r) => { qc.setQueryData(["tools-settings"], r); qc.invalidateQueries({ queryKey: ["tools"] }); toast.success(r.on ? "Tools turned on" : "Tools turned off"); },
+    onError: (e) => showError(e),
+  });
+  if (!on) return null;
+  const isAdmin = me.data?.organization?.role !== "member";
+  return (
+    <Section id="tools" title="Tools" description="Compress, merge, convert and the other document tools. Files run through them are processed on our document engine in Singapore and deleted within 1 hour.">
+      {q.isPending ? <Skeleton className="h-6 w-64" /> : (
+        <div className="space-y-2 text-sm">
+          <Switch checked={!!q.data?.on} disabled={!isAdmin || m.isPending} onChange={(v) => m.mutate(v)} label="Let people in this workspace use Tools" />
+          {!isAdmin && <p className="text-muted">Only workspace admins can change this.</p>}
+        </div>
+      )}
+    </Section>
   );
 }
 

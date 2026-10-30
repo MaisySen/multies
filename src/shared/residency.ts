@@ -48,6 +48,7 @@ export const WHERE_DATA_LIVES: ResidencyRow[] = [
   { data: "Phone app push notifications", where: "United States", region: "outside", detail: "Only when turned on. A device token and message ids, no message text." },
   { data: "Encrypted database backups", where: "United States", region: "outside", detail: "Taken before releases that change the database, encrypted, and deleted after 30 days. Our provider's own point in time restore stays with the database." },
   { data: "An earlier copy of the database (data up to 24 October 2026)", where: "United States (North America region)", region: "outside", detail: "Kept idle while the move to the Oceania region settles, then deleted. Nothing new is written to it." },
+  { data: "Files you run through Tools (compress, merge, convert and the other document tools)", where: "Singapore", region: "outside", detail: "Processed on our document engine in Singapore. Each input file is deleted right after its job, and everything is deleted within 1 hour." },
   { data: "Your own AI provider, if you add a key", where: "Set by the provider you choose", region: "mixed", detail: "Off unless your workspace adds its own key. Only the thread you ask the assistant about is sent." },
 ];
 

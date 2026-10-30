@@ -55,6 +55,7 @@ export const PROVIDER_CATEGORIES: string[][] = [
   ["Our error monitoring provider", "Error and performance monitoring", "Error reports with account ids; no message content", "United States"],
   ["Our video meetings provider", "Video meetings, only while a meeting is running", "Meeting audio and video, display names", "United States"],
   ["Our push notification provider", "Notifications to the Multies phone apps, only when push notifications are turned on", "Device push token and message ids; no message text", "United States"],
+  ["Our document engine host", "Runs our document engine for Tools, only when you use a tool", "Files you run through Tools and their results, deleted within 1 hour", "Singapore"],
   ["A public DNS resolver", "Second resolver for domain checks when the first does not answer", "Domain names being checked; no personal information", "Worldwide"],
   ["Your chosen AI provider", "Only if your workspace adds its own API key: the assistant sends the thread you ask about to that provider, on your account with them", "The email thread you ask the assistant about", "Set by the provider you choose"],
 ];
@@ -69,6 +70,7 @@ export const SUBPROCESSORS: string[][] = [
   ["Sentry", "Error and performance monitoring", "Error reports with account ids; no message content", "United States"],
   ["LiveKit", "Video meetings, only while a meeting is running", "Meeting audio and video, display names", "United States"],
   ["Expo", "Push notifications to the Multies phone apps, only when push notifications are turned on", "Device push token and message ids; no message text", "United States"],
+  ["Render", "Runs our document engine for Tools, only when you use a tool", "Files you run through Tools and their results, deleted within 1 hour", "Singapore"],
   ["Google Public DNS", "Second resolver for domain checks when the first does not answer", "Domain names being checked; no personal information", "Worldwide"],
   ["Your chosen AI provider", "Only if your workspace adds its own API key: the assistant sends the thread you ask about to that provider, on your account with them", "The email thread you ask the assistant about", "Set by the provider you choose"],
 ];
@@ -139,7 +141,7 @@ export const PRIVACY: LegalDoc = {
       { table: [["Data", "Where", "Notes"], ...WHERE_DATA_LIVES.map((r) => [r.data, r.where, r.detail])] },
     ] },
     { id: "overseas", title: "Overseas disclosure (APP 8)", body: [
-      "Multies does not offer Australia only storage. Our primary database, which holds your workspace data including mail synced from connected mailboxes, is placed in our hosting provider's Oceania region, our app servers run in Sydney, and requests first reach the edge location nearest you. Our sign in provider holds accounts in Australia. Some providers listed above process data in the United States, and our encrypted backup copies are kept in the United States. Our Trust page (multies.si/trust) lists where each kind of data lives. We take reasonable steps, including contractual commitments and, for European data, Standard Contractual Clauses, so they handle it consistently with the APPs and the GDPR.",
+      "Multies does not offer Australia only storage. Our primary database, which holds your workspace data including mail synced from connected mailboxes, is placed in our hosting provider's Oceania region, our app servers run in Sydney, and requests first reach the edge location nearest you. Our sign in provider holds accounts in Australia. Files you run through Tools are processed on our document engine in Singapore and deleted within 1 hour. Some providers listed above process data in the United States, and our encrypted backup copies are kept in the United States. Our Trust page (multies.si/trust) lists where each kind of data lives. We take reasonable steps, including contractual commitments and, for European data, Standard Contractual Clauses, so they handle it consistently with the APPs and the GDPR.",
     ] },
     { id: "cookies", title: "Cookies", body: [
       "We use only cookies that are strictly necessary: a session cookie that keeps you signed in and a short lived cookie that protects sign in. There are no advertising or analytics cookies. If we turn on visitor analytics, it is cookieless and stores nothing on your device. Error monitoring does not set cookies. We show a short notice about this once; closing it saves a small note in your browser's local storage so it stays closed.",
@@ -150,6 +152,7 @@ export const PRIVACY: LegalDoc = {
         "Mail and content: until you or your workspace delete it.",
         "Connected mailbox passwords: until you remove the connection, then deleted straight away. Synced copies of its mail: until you remove the connection or delete them.",
         "Free address claim records: for the life of the account, so the one address per person limit holds.",
+        "Files you run through Tools: each input file is deleted right after its job, and everything is deleted within 1 hour.",
         "After you delete your account or workspace: removed from the live database straight away, and from backups within 30 days. Every backup copy is encrypted, and copies older than 30 days are deleted.",
         "Request logs: no more than 30 days. Audit logs: for the life of the workspace. Invoices: 7 years, as Australian tax law requires.",
       ] },
@@ -189,6 +192,7 @@ export const TERMS: LegalDoc = {
       "Multies is a workspace for email, tasks, chat, docs, calendar and meetings, with an API, webhooks and an MCP server, on the web and in the Multies apps for iPhone and Android. It gives you email in three ways: connect a mailbox you already have at another provider, take a free personal address on mail.multies.si, or host mailboxes and aliases on a domain you own.",
       "When you connect a mailbox from another provider, you confirm you are allowed to use it, and that provider's own terms still apply to it. Multies reads and sends that mailbox's mail over IMAP and SMTP with the app password or sign in you give us. We store it encrypted, use it only to sync and send that mailbox's mail, and delete it when you remove the connection. The original mail stays at your provider; the copy we sync into your workspace is deleted when you remove the connection. Our Privacy policy explains how we handle both.",
       "When you add your own domain, you must own or control it and keep its DNS records in place.",
+      "Tools (compress, merge, convert and the other document tools) are provided as is: check each result before you rely on it or send it. Redact blacks out the whole line that contains a match and turns those pages into images, so their text can no longer be selected or searched. Making scans searchable reads English text only for now.",
       "We work to keep Multies available and show its current status on our status page. We do not promise a level of availability.",
       "We improve Multies all the time. We may add, change or remove features; if we remove a feature you pay for, we will tell you first and refund the unused part of what you paid for it.",
     ] },

@@ -42,6 +42,7 @@ export const SUBPROCESSORS: Subprocessor[] = [
   { name: "Our video meetings provider", purpose: "Video meetings, only while a meeting is running", data: "Meeting audio and video, display names", where: "United States", when: "optional", env: ["LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"] },
   { name: "A public DNS resolver", purpose: "Second resolver for DNS lookups when our hosting provider's resolver does not answer (domain checks)", data: "Domain names being checked, no personal data", where: "Worldwide", when: "always", env: [] },
   { name: "Our push notification provider", purpose: "Notifications to the Multies phone apps, only when push notifications are turned on", data: "Device push token and message ids, no message text", where: "United States", when: "optional", env: ["PUSH_ENABLED"] },
+  { name: "Our document engine host", purpose: "Runs our document engine for Tools, only when you use a tool", data: "Files you run through Tools and their results, deleted within 1 hour", where: "Singapore", when: "optional", env: ["DOC_ENGINE_URL"] },
   { name: "Your AI provider", purpose: "Only when your workspace adds its own key: the assistant sends the thread you ask about to that provider", data: "The email thread you ask the assistant about", where: "Set by the provider you choose", when: "optional", env: [] },
 ];
 

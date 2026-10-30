@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-30-tools",
+    date: "2026-10-30",
+    title: "Tools for your documents",
+    body: "Compress, merge, split, rotate, redact, watermark, make scans searchable, and turn Word, Excel and PowerPoint into PDF, right inside Multies. Run them on an upload or straight from an email attachment. Files are deleted within 1 hour.",
+  },
+  {
     id: "2026-10-30-clearer-legal",
     date: "2026-10-30",
     title: "Clearer privacy and terms",

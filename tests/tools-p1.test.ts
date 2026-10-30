@@ -204,6 +204,30 @@ describe("Tools P1 API", () => {
     expect((await upload(app, c.cookie, "compress", [{ name: "a.pdf", body: PDF }])).status).toBe(404);
   });
 
+  it("lets a workspace admin switch Tools off and back on from Settings (R63), with an audit row each time", async () => {
+    const { c, db, orgId } = await setup();
+    expect((await c.get("/api/tools/settings")).body).toEqual({ on: true });
+    const off = await c.put("/api/tools/settings", { on: false });
+    expect(off.status).toBe(200);
+    expect(off.body).toEqual({ on: false });
+    expect((await c.get("/api/tools/settings")).body).toEqual({ on: false });
+    expect((await c.get("/api/tools")).status).toBe(404);
+    expect((await c.put("/api/tools/settings", { on: true })).body).toEqual({ on: true });
+    expect((await c.get("/api/tools")).status).toBe(200);
+    const rows = await db.all<{ action: string }>(sql`select action from audit_logs where org_id = ${orgId} and action like 'tools.turned_%' order by created_at`);
+    expect(rows.map((r) => r.action)).toEqual(["tools.turned_off", "tools.turned_on"]);
+    expect((await c.put("/api/tools/settings", { on: "no" })).status).toBe(422);
+  });
+
+  it("keeps the switch to admins, and the settings route is a 404 where the deployment has Tools off", async () => {
+    const { c, db, orgId } = await setup();
+    await db.run(sql`update members set role = 'member' where organization_id = ${orgId}`);
+    expect((await c.put("/api/tools/settings", { on: false })).status).toBe(403);
+    const off = await setup({});
+    expect((await off.c.get("/api/tools/settings")).status).toBe(404);
+    expect((await off.c.put("/api/tools/settings", { on: false })).status).toBe(404);
+  });
+
   it("refuses a tampered, expired or other workspace's token with 404", async () => {
     const { c, app, deps } = await setup();
     const up = await upload(app, c.cookie, "compress", [{ name: "a.pdf", body: PDF }]);

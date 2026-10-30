@@ -7,6 +7,12 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 63 (30 Oct 2026)
+
+- Added: Tools, 13 document tools on our private document engine (compress, merge, Office to PDF, PDF to images, images to PDF, split, rotate, remove hidden info, make searchable, redact, watermark, remove a known password, PDF to Word), from an upload or a mail attachment. Migrations 0091 (tool_usage) and 0092 (organizations.tools_mode). On in production (TOOLS_ENABLED, key id prod-1).
+- Added: workspace admins can turn Tools off or back on in Settings, General (GET and PUT /api/tools/settings, audited).
+- Changed: privacy policy, terms, trust table, DPA sub processors and llms.txt say Tools files are processed in Singapore and deleted within 1 hour; the terms say Tools output is as is, how redaction works and that OCR is English only for now.
+
 ### Round 61 (30 Oct 2026)
 
 - Fixed: opening the app could read over a million database rows per unread count for a workspace with a large synced mailbox (1,109,372 rows for 10,411 unread messages, measured on production), which took the account past its daily read limit. The Important rule in the unread counts and the Inbox tab counts is now written so its lookups run once per count (73,836 rows for the same count). MAIL_SPLIT_COUNTS=off turns the Important and Other counts off without a code change.

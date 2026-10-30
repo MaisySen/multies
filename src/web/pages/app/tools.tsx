@@ -203,7 +203,7 @@ export function ToolsPage() {
   if (!enabled || info.isError) {
     return (
       <div className="mx-auto max-w-4xl">
-        <EmptyState icon={<IconWrench />} title="Tools are not on for this workspace" body="Document tools are not available here yet." />
+        <EmptyState icon={<IconWrench />} title="Tools are not on for this workspace" body="Document tools are not available here. If your workspace turned them off, an admin can turn them back on in Settings, General." />
       </div>
     );
   }
