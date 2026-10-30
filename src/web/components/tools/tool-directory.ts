@@ -185,7 +185,7 @@ export const sizeLabel = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.r
 
 /**
  * "27 KB to 3 KB, 89% smaller" for a compress result. R71 (MB-263): a level that could not shrink the file names the
- * next level only when it can help: Light only tidies the file, so Balanced is worth a try when there are pictures;
+ * stronger level only when it can help: Light only tidies the file, so Balanced is worth a try when there are pictures;
  * Balanced already shrinks every large picture, so Smallest would change little and is not offered.
  */
 export function savedLine(before: number, after: number, level?: string): string | null {

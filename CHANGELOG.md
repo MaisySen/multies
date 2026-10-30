@@ -7,6 +7,16 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 71 (30 Oct 2026)
+
+- Fixed (MB-261): the board card's Move menu no longer closes the moment it opens; a card's footer wraps instead of overflowing its column, so focusing the handle no longer scrolls the column sideways, and only a scroll that takes the card off screen closes the menu.
+- Fixed (MB-262): when the live demo is resting, the demo buttons show a note with a link to create a free account, plus a longer toast, instead of a four second toast.
+- Changed (MB-263): a compress run that gives the file back unchanged (or under 2% smaller) is not counted, and Balanced no longer suggests Smallest; nothing found by Find sensitive info stays uncounted.
+- Changed (MB-264): a PDF over a tool's page limit (10 pages for Nepali and other heavy OCR languages) is caught on file pick with Split PDF one tap away; the OCR note names the 10 page limit.
+- Changed (MB-265, MB-266): the result preview is 96 px wide and opens page 1 larger on tap; tool screens put the header above the panel like the editors; the editors' drop zone matches; Edit pages on a phone show the pages near the top, and Save says when runs are used up.
+- Fixed (MB-267, MB-268): 44 px touch targets for shared inbox views, task filters and mail checkboxes on a phone, with fades on cut rows; old ?op= links to the editors open their pages; Nepali search finds stamp, watermark and fill a form; copy nits.
+- What's new drops "Your whole mailbox syncs by itself" to stay at 14.
+
 ### Round 70 (30 Oct 2026)
 
 - Added: Compress PDF has a level picker, Light, Balanced (default) and Smallest, on the web and in the phone app, each with a plain line on what to expect; a level that cannot shrink a file says so and names the stronger one.

@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-tools-smoother",
+    date: "2026-10-31",
+    title: "Tools that tell you sooner",
+    body: "A run that leaves your file unchanged no longer uses a run. Page limits show as soon as you pick a file, with Split PDF one tap away. Results show a bigger first page you can tap to see larger, and the board's Move menu now stays open.",
+  },
+  {
     id: "2026-10-31-compress-levels",
     date: "2026-10-31",
     title: "Pick how small, and see your result",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-29",
     title: "Free for a small team, and easy to move in",
     body: "See what Free includes on one page, and move your work over from eight tools, with a sample file to try first.",
-  },
-  {
-    id: "2026-10-29-full-mailbox-sync",
-    date: "2026-10-29",
-    title: "Your whole mailbox syncs by itself",
-    body: "A connected mailbox now keeps copying older mail on its own until all of it is in, and shows how far it has got.",
   },
   {
     id: "2026-10-28-whats-new",

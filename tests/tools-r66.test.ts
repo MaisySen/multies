@@ -117,7 +117,18 @@ describe("R66 MB-256: only finished runs with a result are counted", () => {
     engine.setNext({ status: "done", result: { matches: 0 } });
     const r = await upload("redact");
     expect((await c.get(`/api/tools/jobs/${r.token}`)).body).toMatchObject({ notCounted: true });
+    // R71 (MB-263): nothing found by Find sensitive info, and a compress that gave the file back, are not counted.
+    engine.setNext({ status: "done", result: { matches: 0 } });
+    const p = await upload("pii-find");
+    expect((await c.get(`/api/tools/jobs/${p.token}`)).body).toMatchObject({ notCounted: true });
+    engine.setNext({ status: "done", result: { in_bytes: 963_000, out_bytes: 962_000 } });
+    const z = await upload("compress");
+    expect((await c.get(`/api/tools/jobs/${z.token}`)).body).toMatchObject({ notCounted: true, result: { in_bytes: 963_000, out_bytes: 962_000 } });
     expect(await runs()).toBe(0);
+    engine.setNext({ status: "done", result: { in_bytes: 963_000, out_bytes: 276_000 } });
+    const k = await upload("compress");
+    expect((await c.get(`/api/tools/jobs/${k.token}`)).body).not.toHaveProperty("notCounted");
+    expect(await runs()).toBe(1);
   });
   it("marks each counted job once and prunes the marks with the day rows", async () => {
     const { db } = await setup();
