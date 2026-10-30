@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   IconArrowLeft, IconAssign, IconAttachment, IconCheck, IconCheckCircle, IconCheckDouble, IconCircleDot, IconClock, IconClose,
-  IconFile, IconHourglass, IconListPlus, IconSend, IconStickyNote, IconUserMinus, IconUserRound, IconWarning,
+  IconAgent, IconFile, IconHourglass, IconListPlus, IconSend, IconStickyNote, IconTrash, IconUserMinus, IconUserRound, IconWarning,
 } from "@/web/components/ui/icon";
 import { api, ApiError, errorMessage, newIdempotencyKey } from "@/web/lib/api";
 import { useMe, useTeam } from "@/web/lib/queries";
@@ -310,14 +310,17 @@ function Bubbles({ messages, pending, conversationId, onRetry }: { messages: Cha
 function Bubble({ m, active, onToggle, conversationId }: { m: ChatMessage; active: boolean; onToggle: () => void; conversationId: string }) {
   const out = m.direction === "out";
   const failed = m.delivery === "failed";
+  const draft = m.delivery === "draft";
   const isImage = m.media && m.media.url && (m.kind === "image" || m.kind === "sticker" || m.media.contentType.startsWith("image/"));
   return (
     <div className={cn("group flex items-end gap-1.5", out ? "flex-row-reverse" : "flex-row")}>
       <div onClick={onToggle} data-testid="chat-bubble" data-direction={m.direction} data-delivery={m.delivery}
         className={cn("max-w-[80%] rounded-[18px] px-3.5 py-2 text-[15px] leading-snug sm:max-w-[70%]",
-          out ? "rounded-br-md bg-[#0071E3] text-white" : "rounded-bl-md bg-fill text-fg",
+          out && draft ? "rounded-br-md border border-dashed border-[#0071E3]/60 bg-[#0071E3]/[0.06] text-fg"
+            : out ? "rounded-br-md bg-[#0071E3] text-white" : "rounded-bl-md bg-fill text-fg",
           failed && "bg-bad-soft text-fg ring-1 ring-bad/40")}>
-        {m.templateName && <span className={cn("mb-1 block text-[11px] font-medium uppercase tracking-wide", out && !failed ? "text-white/75" : "text-subtle")}>Template · {m.templateName}</span>}
+        {draft && <span className="mb-1 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-[#0071E3]" data-testid="draft-label"><IconAgent className="h-3.5 w-3.5" aria-hidden />Draft by {m.agent?.name ?? "an agent"}</span>}
+        {m.templateName && <span className={cn("mb-1 block text-[11px] font-medium uppercase tracking-wide", out && !failed && !draft ? "text-white/75" : "text-subtle")}>Template · {m.templateName}</span>}
         {isImage && (
           <a href={m.media!.url!} target="_blank" rel="noreferrer" className="-mx-1.5 -mt-0.5 mb-1 block overflow-hidden rounded-[12px]" onClick={(e) => e.stopPropagation()}>
             <img src={m.media!.url!} alt={m.text || m.media!.filename || "Image"} loading="lazy" className="max-h-64 w-full min-w-[160px] object-cover" />
@@ -332,15 +335,42 @@ function Bubble({ m, active, onToggle, conversationId }: { m: ChatMessage; activ
         )}
         {m.text && !(isImage && m.kind === "image" && !m.text) && <p className="whitespace-pre-wrap break-words">{m.text}</p>}
         {!m.text && !m.media && m.kind !== "text" && <p className="italic opacity-75">{m.kind === "unsupported" ? "A message this inbox can't show yet" : `A ${m.kind} message`}</p>}
-        <span className={cn("mt-0.5 flex items-center justify-end gap-1 text-[11px]", out && !failed ? "text-white/75" : "text-subtle")}>
-          {out && m.sentBy && <span className="truncate">{m.sentBy.name} ·</span>}
+        <span className={cn("mt-0.5 flex items-center justify-end gap-1 text-[11px]", out && !failed && !draft ? "text-white/75" : "text-subtle")}>
+          {out && !draft && m.agent && <span className="flex items-center gap-0.5 truncate"><IconAgent className="h-3 w-3" aria-hidden />{m.agent.name} ·</span>}
+          {out && !draft && !m.agent && m.sentBy && <span className="truncate">{m.sentBy.name} ·</span>}
           <time dateTime={m.date} title={fullDate(m.date)}>{clock(m.date)}</time>
-          {out && <Ticks m={m} />}
+          {out && !draft && <Ticks m={m} />}
         </span>
         {failed && <span className="mt-1 block text-[12px] font-medium text-bad" data-testid="bubble-error">Not delivered{m.error ? `: ${m.error}` : ""}</span>}
+        {draft && <DraftActions messageId={m.id} conversationId={conversationId} />}
       </div>
       <MessageTaskButton messageId={m.id} conversationId={conversationId} visible={active} />
     </div>
+  );
+}
+
+/** One tap sends an agent's draft as written; Discard throws it away. Nothing reaches the customer before Send. */
+function DraftActions({ messageId, conversationId }: { messageId: string; conversationId: string }) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState<"send" | "discard" | null>(null);
+  const act = async (what: "approve" | "discard") => {
+    setBusy(what === "approve" ? "send" : "discard");
+    try {
+      await api.post(`/channels/messages/${encodeURIComponent(messageId)}/${what}`, {});
+      if (what === "discard") toast.success("Draft discarded");
+    } catch (e) {
+      toast.error(errorMessage(e, what === "approve" ? "Couldn't send the draft. Try again." : "Couldn't discard the draft. Try again."));
+    } finally {
+      setBusy(null);
+      void qc.invalidateQueries({ queryKey: detailKey(conversationId) });
+      void qc.invalidateQueries({ queryKey: ["channels", "list"] });
+    }
+  };
+  return (
+    <span className="mt-2 flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+      <Button size="sm" variant="ghost" onClick={() => void act("discard")} loading={busy === "discard"} disabled={!!busy} data-testid="draft-discard"><IconTrash className="h-3.5 w-3.5" aria-hidden />Discard</Button>
+      <Button size="sm" onClick={() => void act("approve")} loading={busy === "send"} disabled={!!busy} data-testid="draft-send"><IconSend className="h-3.5 w-3.5" aria-hidden />Send</Button>
+    </span>
   );
 }
 

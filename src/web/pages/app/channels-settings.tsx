@@ -112,6 +112,11 @@ export function ChannelsSettings() {
   const connected = (c: ChannelSummary) => { toast.success(`${PROVIDER_LABEL[c.provider]} connected: ${c.name}`); refresh(); };
   const signup = useEmbeddedSignup(s, connected);
 
+  const agentToggle = useMutation({
+    mutationFn: (agentAutoSend: boolean) => api.put<ChannelsStatus>("/channels/settings", { agentAutoSend }),
+    onSuccess: (next) => { setStatus(next); refresh(); toast.success(next.agentAutoSend ? "Agents can send chat replies on their own" : "Agent replies now wait for a person to send them"); },
+    onError: (e) => toast.error(errorMessage(e, "Couldn't change the setting. Try again.")),
+  });
   const toggle = useMutation({
     mutationFn: (enabled: boolean) => api.put<ChannelsStatus>("/channels/settings", { enabled }),
     onSuccess: (next) => { setStatus(next); refresh(); toast.success(next.enabled ? "Chat channels are on" : "Chat channels are off"); },
@@ -167,8 +172,19 @@ export function ChannelsSettings() {
             <span>
               Today: {num(s.usage.today)} of {num(s.usage.softCap)} incoming chat messages.
               {s.usage.level === "near" && " You are close to today's limit."}
-              {s.usage.level === "over" && " Over today's limit. New messages are still saved, but write to us if this keeps happening."}
+              {s.usage.level === "over" && " Over today's limit. New messages are still saved, but photos and files are not copied until tomorrow. Write to us if this keeps happening."}
             </span>
+          </div>
+        )}
+        {s.enabled && (
+          <div className="flex items-start gap-4 border-t border-line p-5 md:px-6" data-testid="agent-autosend">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-[14px] font-medium">Agents may send chat replies without review</h3>
+              <p className="mt-1 text-[13px] leading-relaxed text-muted">Off: a reply written by an AI agent waits in the chat as a draft, and anyone on the team sends it with one tap.</p>
+            </div>
+            <div className="pt-0.5">
+              <Switch checked={s.agentAutoSend} onChange={(v) => agentToggle.mutate(v)} label="Agents may send chat replies without review" disabled={!s.canManage || agentToggle.isPending} />
+            </div>
           </div>
         )}
       </Card>

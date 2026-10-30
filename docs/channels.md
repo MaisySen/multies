@@ -58,6 +58,12 @@ Sends carry an `Idempotency-Key`; a retry of the same key answers the message th
 
 Settings, Channels, Connect WhatsApp opens Meta's Embedded Signup (v4; v2 and v3 were retired on 15 Oct 2026) in a popup with the app id and configuration id. When it finishes, the page sends the one time code with the phone number id and WhatsApp Business Account id to `POST /api/channels/connect`. The code lives 30 seconds, so the page posts it as soon as both the code and the ids are in. The server exchanges it for a business token (the app secret never reaches the browser), subscribes the app to that account's webhooks and registers the number for the Cloud API (Meta allows 14 days for that). A number that is also used in the WhatsApp Business app (coexistence: event `FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING`, or `is_on_biz_app` in the v5 shape) is already registered; the page sends `coexistence: true` and that step is skipped. After connecting, the business adds a payment method in WhatsApp Manager; Meta bills each business directly.
 
+## AI agents on chats (MCP)
+
+Agents connected to the Multies MCP server get seven chat tools, under the same API key scopes as the mail tools (area mail): `list_chat_conversations` (filter by channel, status, assignee, unread, search), `get_chat_conversation` (messages and the reply window), `reply_chat`, `list_chat_templates`, `send_chat_template`, `update_chat_conversation` (assign, status, labels) and `add_chat_note`. Sends use the same path as the app: the 24 hour window (`window_closed` outside it), templates checked against the approved list, and the Idempotency-Key.
+
+Settings, Channels has "Agents may send chat replies without review", off by default. While it is off, an agent's reply or template is saved as a draft (`delivery: "draft"`) and shows in the chat with Send and Discard; one tap sends it as written. Only a person signed in to Multies can approve (`POST /api/channels/messages/:id/approve`, `.../discard`); an API key cannot. Approving moves the row from draft to pending in one guarded write first, so a double tap sends once. Replies written through the API show the agent's name in the chat.
+
 ## What the owner sets
 
 Server settings (names only; values go in as Cloudflare secrets, never in chat or in the repo):
@@ -77,8 +83,8 @@ The step by step owner checklist (business verification, the Meta app, Tech Prov
 
 ## Testing locally
 
-`CHANNELS_MOCK=on` (set for E2E in `playwright.config.ts`) turns on a test channel: Settings, Channels, Connect test channel. `POST /api/channels/mock/inbound` makes a test customer write in through the real signed webhook path, and `POST /api/channels/mock/age` moves the reply window back so the template picker can be tested. Tests: `tests/channels-unit.test.ts`, `tests/channels-api.test.ts`, `tests/channels-ingest.test.ts`, `e2e/channels-c1.spec.ts`.
+`CHANNELS_MOCK=on` (set for E2E in `playwright.config.ts`) turns on a test channel: Settings, Channels, Connect test channel. `POST /api/channels/mock/inbound` makes a test customer write in through the real signed webhook path, and `POST /api/channels/mock/age` moves the reply window back so the template picker can be tested. Tests: `tests/channels-unit.test.ts`, `tests/channels-fixtures.test.ts` (Meta's own sample payloads), `tests/channels-api.test.ts`, `tests/channels-ingest.test.ts`, `tests/channels-mcp.test.ts`, `tests/chat-channels-ui-c1.test.ts`, `e2e/channels-c1.spec.ts`, `e2e/channels-c1-agent.spec.ts`.
 
 ## Phase 2 and later
 
-Template management in Multies, Messenger and Instagram sending (a second App Review), push notifications for new chats, chat identities on contacts, and the needs you ranking with draft replies.
+Template management in Multies (and templates with picture headers or header and link blanks, which phase 1 leaves out), Messenger and Instagram sending (a second App Review), coexistence history sync (24 hours after onboarding), push notifications for new chats, chat identities on contacts, and the needs you ranking with suggested replies.
