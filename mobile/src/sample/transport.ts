@@ -59,6 +59,11 @@ export class SampleTransport implements Transport {
       this.toolRuns += 1;
       return json(sampleJob(b.op ?? "compress", `sample.${b.op ?? "compress"}.${this.toolRuns}`, b.name ?? "Sample", false));
     }
+    if (path === "/tools/warm" && method === "GET") return json({ ok: true, ms: 0 });
+    if (path.startsWith("/tools/jobs/") && method === "DELETE") {
+      const [, op = "compress"] = decodeURIComponent(parts[2] ?? "").split(".");
+      return json({ token: parts[2] ?? "", op, status: "cancelled", name: "Sample" });
+    }
     if (path.startsWith("/tools/jobs/") && method === "GET") {
       const [, op = "compress"] = decodeURIComponent(parts[2] ?? "").split(".");
       return json(sampleJob(op, parts[2] ?? "", "Quarterly report", true));

@@ -109,6 +109,9 @@ export function endpoints(t: Transport) {
     toolJob: (token: string) => t.request<ToolJob>("GET", `/tools/jobs/${encodeURIComponent(token)}`),
     toolFromAttachments: (op: string, attachmentIds: string[], options: Record<string, string>) =>
       t.request<ToolJob>("POST", "/tools/jobs/from-attachments", { op, attachmentIds, options }),
+    // Tools P2: Cancel stops the job on the engine and frees its place (never counted); warm wakes a sleeping engine.
+    cancelToolJob: (token: string) => t.request<ToolJob>("DELETE", `/tools/jobs/${encodeURIComponent(token)}`),
+    toolsWarm: () => t.request<{ ok: boolean; ms: number }>("GET", "/tools/warm"),
     chatMessage: (id: string) => t.request<{ message: ChatMessage; channel: ChatChannel }>("GET", `/chat/messages/${encodeURIComponent(id)}`),
     chatThread: (id: string) => t.request<{ message: ChatMessage; replies: ChatMessage[] }>("GET", `/chat/messages/${encodeURIComponent(id)}/thread`),
     sendChat: (channelId: string, input: ChatSend, opts: { onUploadProgress?: (fraction: number) => void } = {}) =>

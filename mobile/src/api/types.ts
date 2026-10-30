@@ -59,6 +59,8 @@ export interface SendInput {
   subject: string;
   text: string;
   inReplyToId?: string;
+  /** Tools P2: finished Tools results attached by their download tokens (the server reads each one when sending). */
+  toolFiles?: string[];
 }
 
 export interface SendResult { messageId: string; status?: string; [k: string]: unknown }

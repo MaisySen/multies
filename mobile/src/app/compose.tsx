@@ -11,12 +11,16 @@ import { parkDraft, recipientsLabel, sendHold, takeParkedDraft, trackHeld, useUn
 import { EMAIL_RE, displayName, parseRecipients, quoteForReply } from "@/lib/format";
 import { replyAllCc } from "@/lib/quote";
 import { askAboutEmptySubject, needsSubjectPrompt } from "@/lib/subject-prompt";
+import { takePendingToolFiles, type ToolFileRef } from "@/lib/tool-run";
+import { FileChip } from "@/components/tool-ui";
 import { colors, radius, space } from "@/theme";
 
 export default function Compose() {
-  const params = useLocalSearchParams<{ replyTo?: string; forward?: string; to?: string; subject?: string; restore?: string; all?: string }>();
+  const params = useLocalSearchParams<{ replyTo?: string; forward?: string; to?: string; subject?: string; restore?: string; all?: string; tools?: string }>();
   // A message taken back with Undo comes back exactly as it was.
   const [parked] = useState(() => (params.restore ? takeParkedDraft() : null));
+  // Tools P2: results from Tools ("Attach to a new email") ride as the server's download tokens.
+  const [toolFiles, setToolFiles] = useState<ToolFileRef[]>(() => parked?.toolFiles ?? (params.tools ? takePendingToolFiles() : []));
   const sourceId = params.replyTo ?? params.forward ?? "";
   const source = useThread(sourceId, !!sourceId);
   const original = sourceId ? source.data?.thread.find((m) => m.id === sourceId) ?? source.data?.message : undefined;
@@ -70,12 +74,12 @@ export default function Compose() {
     if (!from) return setError("You need an email address to send from. Tap Add an email address above.");
     if (!toList.length) return setError("Add at least one recipient.");
     if (bad) return setError(`"${bad}" doesn't look like an email address.`);
-    if (!subject.trim() && !text.trim()) return setError("Write a subject or a message first.");
+    if (!subject.trim() && !text.trim() && !toolFiles.length) return setError("Write a subject or a message first.");
     // A gentle nudge, never a block: mail with no subject is more likely to go to spam.
     if (needsSubjectPrompt(subject) && Platform.OS !== "web" && !(await askAboutEmptySubject())) return subjectRef.current?.focus();
     // Undo send: close Compose now and post when the hold ends; the bar above the tabs offers Undo.
-    const draft: HeldDraft = { mailboxId: from, to, cc, subject, text, inReplyToId: replyTo, forwardOf };
-    const input = { mailboxId: from, to: toList, cc: ccList.length ? ccList : undefined, subject: subject.trim(), text, inReplyToId: replyTo };
+    const draft: HeldDraft = { mailboxId: from, to, cc, subject, text, inReplyToId: replyTo, forwardOf, toolFiles: toolFiles.length ? toolFiles : undefined };
+    const input = { mailboxId: from, to: toList, cc: ccList.length ? ccList : undefined, subject: subject.trim(), text, inReplyToId: replyTo, ...(toolFiles.length ? { toolFiles: toolFiles.map((f) => f.token) } : {}) };
     const idempotencyKey = Crypto.randomUUID();
     const hold = sendHold.hold({
       seconds: undoSeconds,
@@ -98,7 +102,7 @@ export default function Compose() {
   };
 
   const discard = () => {
-    if (!text.trim() && !to.trim()) return router.back();
+    if (!text.trim() && !to.trim() && !toolFiles.length) return router.back();
     if (Platform.OS === "web") return router.back();
     Alert.alert("Discard this message?", "What you've written will be lost.", [
       { text: "Keep writing", style: "cancel" },
@@ -132,6 +136,13 @@ export default function Compose() {
           <Button variant="ghost" label="Add Cc" icon="plus" onPress={() => setShowCc(true)} style={{ alignSelf: "flex-start", minHeight: 36 }} />
         )}
         <Field ref={subjectRef} label="Subject" testID="subject" value={subject} onChangeText={setSubject} />
+        {toolFiles.length ? (
+          <View style={{ gap: space.sm }} testID="compose-tool-files">
+            <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "500" }}>{toolFiles.length === 1 ? "Attachment" : `${toolFiles.length} attachments`}</Text>
+            {toolFiles.map((f) => <FileChip key={f.token} name={f.name} size={f.bytes} onRemove={() => setToolFiles((cur) => cur.filter((x) => x.token !== f.token))} />)}
+            <Text style={{ color: colors.subtle, fontSize: 12.5 }}>Tools results are kept for an hour, so send within the hour.</Text>
+          </View>
+        ) : null}
         <View style={{ gap: 6 }}>
           <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "500" }} nativeID="body-label">Message</Text>
           <TextInput testID="body" value={text} onChangeText={setText} multiline accessibilityLabel="Message" accessibilityLabelledBy="body-label"

@@ -3,6 +3,23 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.9.13 (OTA, runs on Android versionCode 15 and iOS build 17), 30 Oct 2026
+
+- New Tools: the same design as multies.si. Search, your recent tools, and five sections: Edit PDF,
+  Convert, Secure, Smart and Automate. New on the phone: add a password, stamp and number pages,
+  anything to PDF, PDF to text or Excel, PDF tables to Excel, merge and clean up spreadsheets, scan to
+  PDF, hide sensitive info, and OCR in Nepali, Hindi and more languages.
+- One screen per tool: add files from Files, Photos (Android) or straight from an email, see only the
+  options that matter, then follow Upload, Work and Done, with Cancel at any time.
+- Results: see how much smaller a file got, then open it, save or share it, attach it to a new email,
+  or use it in another tool.
+- Runs left: Tools shows how many runs you have left today or this month and when more arrive.
+- Nothing lost: a run keeps going when you leave the app, comes back when you open it again, and tries
+  again by itself when your connection drops.
+- Page editor, forms, compare, share links, workflows and document templates open the web page.
+
+Carries everything in 1.9.12.
+
 ## 1.9.12 (OTA, runs on Android versionCode 15 and iOS build 17), 30 Oct 2026
 
 - Tools on the phone: Settings, Tools (or Tools in the command sheet) has the same 13 document tools as

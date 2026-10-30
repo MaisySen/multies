@@ -10,8 +10,9 @@ import { concatBytes, makeBoundary, multipartParts, pickerTypes, safeFileName, t
 import type { FileAuth } from "@/api/transport";
 
 /** Picks files for a tool from Files (and, on Android, Photos and Drive through the same system picker). */
-export async function pickFiles(def: ToolDef, multiple: boolean): Promise<PickedFile[]> {
-  const res = await DocumentPicker.getDocumentAsync({ multiple, copyToCacheDirectory: true, type: pickerTypes(def) });
+export async function pickFiles(def: ToolDef, multiple: boolean, only?: "images"): Promise<PickedFile[]> {
+  const types = only === "images" ? pickerTypes(def).filter((t) => t.startsWith("image/")) : pickerTypes(def);
+  const res = await DocumentPicker.getDocumentAsync({ multiple, copyToCacheDirectory: true, type: types.length ? types : ["image/*"] });
   if (res.canceled) return [];
   return res.assets.map((a) => ({ uri: a.uri, name: a.name || "file", size: a.size ?? 0, type: a.mimeType || typeForName(a.name || "") }));
 }
@@ -30,12 +31,12 @@ function parse(body: string): unknown {
  * phone's own uploader sends it, so the server gets the size up front (it needs Content-Length) and large
  * files never cross the JavaScript bridge as text.
  */
-export async function uploadJob(auth: FileAuth, op: string, files: PickedFile[], options: Record<string, string>, onProgress?: (fraction: number) => void): Promise<ToolJob> {
+export async function uploadJob(auth: FileAuth, op: string, files: PickedFile[], options: Record<string, string>, onProgress?: (fraction: number) => void, typeOption?: { name: string; value: string }): Promise<ToolJob> {
   const boundary = makeBoundary();
   const contentType = `multipart/form-data; boundary=${boundary}`;
   const parts = multipartParts(boundary, options, await Promise.all(files.map(async (f) => ({ name: f.name, type: f.type || typeForName(f.name), bytes: await readBytes(f) }))));
   const body = concatBytes(parts);
-  const url = `${auth.base}/api/tools/jobs?${uploadQuery(op, files)}`;
+  const url = `${auth.base}/api/tools/jobs?${uploadQuery(op, files, typeOption)}`;
   const send = async (): Promise<{ status: number; body: string }> => {
     const headers = { ...auth.headers(), "x-multies-upload": "1", "content-type": contentType, accept: "application/json" };
     if (Platform.OS === "web") {
@@ -56,11 +57,13 @@ export async function uploadJob(auth: FileAuth, op: string, files: PickedFile[],
       try { if (tmp.exists) tmp.delete(); } catch { /* left for the system to clear */ }
     }
   };
+  // status 0 means the phone could not reach Multies (offline): the screen keeps the files and tries again.
+  const offline = () => Object.assign(new Error(toolErrorMessage(0, null)), { status: 0 });
   let r: { status: number; body: string };
-  try { r = await send(); } catch { throw new Error(toolErrorMessage(0, null)); }
+  try { r = await send(); } catch { throw offline(); }
   if (r.status === 401) {
     await auth.refresh().catch(() => undefined);
-    try { r = await send(); } catch { throw new Error(toolErrorMessage(0, null)); }
+    try { r = await send(); } catch { throw offline(); }
   }
   const json = parse(r.body);
   if (r.status !== 202) throw Object.assign(new Error(toolErrorMessage(r.status, json)), { status: r.status });
@@ -109,4 +112,21 @@ export async function saveToPhone(file: File, name: string, type: string): Promi
   const out = dir.createFile(safeFileName(name), type);
   out.write(await file.bytes());
   return true;
+}
+
+/** A small text result (auto redact's list of what it found) read straight into memory. */
+export async function readResultText(auth: FileAuth, job: ToolJob): Promise<string> {
+  if (!job.downloadUrl) throw new Error("This result has expired. Run the tool again.");
+  if (Platform.OS === "web") {
+    const r = await fetch(`${auth.base}${job.downloadUrl}`, { headers: auth.headers(), credentials: "omit" });
+    if (!r.ok) throw new Error(r.status === 404 ? "This result has expired. Run the tool again." : "Couldn't read the result. Try again.");
+    return r.text();
+  }
+  const f = await downloadResult(auth, job);
+  try { return await f.text(); } finally { try { f.delete(); } catch { /* the cache clears itself */ } }
+}
+
+/** The file as a picked file, ready for the next tool ("Use in another tool"). */
+export function asPicked(file: File, name: string, type: string): PickedFile {
+  return { uri: file.uri, name, size: file.size ?? 0, type };
 }

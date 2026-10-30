@@ -12,7 +12,8 @@ export type ToolGroup = "Organise" | "Convert" | "Protect" | "Scans" | (string &
 
 export interface ToolOption {
   name: string;
-  kind: "choice" | "int" | "text" | "password" | "ranges" | "phrases";
+  /** "json" is filled by the screen's own code (a page plan, the kinds to look for), never typed. */
+  kind: "choice" | "int" | "text" | "password" | "ranges" | "phrases" | "json";
   label: string;
   required?: boolean;
   default?: string | number;
@@ -22,6 +23,10 @@ export interface ToolOption {
   maxLen?: number;
   placeholder?: string;
   help?: string;
+  /** The shortest value accepted (a new password). */
+  minLen?: number;
+  /** Shown only while another option has one of these values (stamp words when the stamp is custom). */
+  when?: { option: string; is?: string[]; not?: string[] };
 }
 
 export interface ToolDef {
@@ -42,16 +47,38 @@ export interface ToolDef {
   slow?: { secondsPerPage: number };
   note?: string;
   ordered?: boolean;
+  /** Tools P2: the result type follows one option (PDF to: txt, md, csv, xlsx or png pages in a ZIP). */
+  extBy?: { option: string; exts: Record<string, string> };
+  /** Tools P2: the feature flag the tool sits behind (the server only lists tools that are on). */
+  feature?: string;
+  /** Tools P2: needs a desktop size screen. */
+  webOnly?: boolean;
+  /** Tools P2: a second slot of files (signature images). Not on the phone yet. */
+  extra?: { field: string; label: string; accept: string; min: number; max: number };
+  /** Tools P2: phones may take the files with the camera (scan to PDF). */
+  camera?: boolean;
+  /** Tools P2: runs only inside another flow. */
+  hidden?: boolean;
+  /** Tools P2: the tool is a page of its own on the web (the editors). */
+  path?: string;
+  /** Tools P2: the tool has its own two step screen (auto redact). */
+  flow?: string;
 }
 
 export interface ToolsLimits { runsMonthly: number; runsDaily: number; maxBytes: number; maxMergeFiles: number }
-export interface ToolsInfo { enabled: boolean; tools: ToolDef[]; usage: { month: number; day: number }; limits: ToolsLimits }
-export type ToolJobStatus = "queued" | "running" | "done" | "failed" | "expired";
-export interface ToolResultFacts { pages?: number; parts?: number; matches?: number; phrases?: number; verified?: boolean; pages_changed?: number; pages_with_text?: number }
+/** GET /api/tools. `features` (Tools P2) lists the advanced Tools features on for this server; older servers leave it out. */
+export interface ToolsInfo { enabled: boolean; tools: ToolDef[]; usage: { month: number; day: number }; limits: ToolsLimits; features?: string[] }
+export type ToolJobStatus = "queued" | "running" | "done" | "failed" | "expired" | "cancelled";
+export interface ToolResultFacts {
+  pages?: number; parts?: number; matches?: number; phrases?: number; verified?: boolean; pages_changed?: number; pages_with_text?: number;
+  tables?: number; rows?: number; rows_removed?: number; sheets?: number; fields?: number; fields_filled?: number; files?: number; chars?: number;
+}
 export interface ToolJob {
   token: string; op: ToolOp; status: ToolJobStatus; name: string; error?: string; bytes?: number; downloadUrl?: string;
   progress?: { done: number; total: number };
   result?: ToolResultFacts;
+  /** The run found nothing to do, so it was not counted against the plan. */
+  notCounted?: boolean;
 }
 
 /** A file picked on the phone (from Files or Photos) or a mail attachment, ready to send to a tool. */
@@ -79,6 +106,8 @@ export function groupTools(tools: ToolDef[]): { group: string; tools: ToolDef[] 
 export const toolExtensions = (def: ToolDef) => def.accept.split(",").map((x) => x.trim()).filter((x) => x.startsWith("."));
 /** The MIME types a tool takes, for the phone's file picker (Office files get their own types). */
 export function pickerTypes(def: ToolDef): string[] {
+  // Phones type Markdown, CSV, web pages and old Excel files loosely, so those tools see every file; the check after picking says plainly if one does not fit.
+  if (toolExtensions(def).some((x) => LOOSE_EXTS.includes(x.toLowerCase()))) return ["*/*"];
   const out = new Set<string>();
   for (const part of def.accept.split(",").map((x) => x.trim().toLowerCase())) {
     if (part.includes("/")) out.add(part);
@@ -86,6 +115,8 @@ export function pickerTypes(def: ToolDef): string[] {
   }
   return out.size ? [...out] : ["*/*"];
 }
+
+const LOOSE_EXTS = [".md", ".markdown", ".csv", ".html", ".htm", ".svg", ".xls", ".txt"];
 
 const EXT_TYPE: Record<string, string> = {
   ".pdf": "application/pdf",
@@ -97,6 +128,8 @@ const EXT_TYPE: Record<string, string> = {
   ".ods": "application/vnd.oasis.opendocument.spreadsheet",
   ".odp": "application/vnd.oasis.opendocument.presentation",
   ".zip": "application/zip",
+  ".xls": "application/vnd.ms-excel", ".csv": "text/csv", ".txt": "text/plain", ".md": "text/markdown", ".markdown": "text/markdown",
+  ".html": "text/html", ".htm": "text/html", ".webp": "image/webp", ".svg": "image/svg+xml", ".json": "application/json",
 };
 
 const extOf = (name: string) => /\.[A-Za-z0-9]{1,5}$/.exec(name)?.[0].toLowerCase() ?? "";
@@ -112,7 +145,33 @@ export function toolTakes(def: ToolDef, name: string, type?: string): boolean {
 }
 
 /** The tools a single mail attachment can go straight into (merge needs two files, so it is left out). */
-export const toolsForFile = (tools: ToolDef[], name: string, type?: string) => tools.filter((t) => t.minFiles <= 1 && toolTakes(t, name, type));
+export const toolsForFile = (tools: ToolDef[], name: string, type?: string) => tools.filter((t) => t.minFiles <= 1 && runsOnPhone(t) && toolTakes(t, name, type));
+
+/**
+ * Whether the phone runs this tool on its own screen. Tools with a page of their own on the web (page editor,
+ * forms, compare), a second slot of files, or an option only a page fills open on the web instead.
+ * Auto redact (flow "autoredact") has its own phone screen.
+ */
+export function runsOnPhone(t: ToolDef): boolean {
+  if (t.hidden || t.path || t.webOnly || t.extra) return false;
+  if (t.flow && t.flow !== "autoredact") return false;
+  return !t.options.some((o) => o.kind === "json" && o.required && !t.flow);
+}
+
+/** Whether an option shows, given the other values (the stamp's own words only when the stamp is custom). */
+export function optionShown(o: Pick<ToolOption, "when">, values: Record<string, string>): boolean {
+  if (!o.when) return true;
+  const v = values[o.when.option] ?? "";
+  if (o.when.is) return o.when.is.includes(v);
+  if (o.when.not) return !o.when.not.includes(v);
+  return true;
+}
+
+/** The result's extension for a tool, following its type option when it has one (PDF to). */
+export function resultExt(def: Pick<ToolDef, "ext" | "extBy">, options?: Record<string, string> | null): string {
+  if (def.extBy) { const v = options?.[def.extBy.option]; if (v && def.extBy.exts[v]) return def.extBy.exts[v]; }
+  return def.ext;
+}
 
 /** The most files a run of this tool takes on this plan. */
 export const maxFilesFor = (def: ToolDef, limits?: ToolsLimits | null) => (def.maxFiles === "plan" ? limits?.maxMergeFiles ?? 10 : def.maxFiles);
@@ -125,7 +184,9 @@ export const defaultsFor = (def: ToolDef | undefined): Record<string, string> =>
 export function optionProblem(o: ToolOption, v: string): string | null {
   const t = v.trim();
   if (!t) return o.required ? `${o.label} is needed.` : null;
+  if (o.kind === "json") return null;
   if (o.maxLen && v.length > o.maxLen) return `${o.label} is too long.`;
+  if (o.minLen && t.length < o.minLen) return `${o.label} needs at least ${o.minLen} characters.`;
   if (o.kind === "ranges" && !/^\s*\d+(\s*-\s*\d+)?(\s*,\s*\d+(\s*-\s*\d+)?)*\s*$/.test(t)) return "Use page numbers and ranges, like 1-3, 5.";
   if (o.kind === "int") {
     const n = Number(t);
@@ -165,6 +226,9 @@ export function resultLine(job: ToolJob): string {
   if (r.pages) bits.push(r.pages === 1 ? "1 page" : `${r.pages} pages`);
   if (r.parts) bits.push(r.parts === 1 ? "1 part" : `${r.parts} parts`);
   if (r.matches !== undefined) bits.push(r.matches === 1 ? "1 match covered" : `${r.matches} matches covered`);
+  if (r.tables !== undefined) bits.push(r.tables === 1 ? "1 table" : `${r.tables} tables`);
+  if (r.rows_removed) bits.push(r.rows_removed === 1 ? "1 row removed" : `${r.rows_removed} rows removed`);
+  if (r.sheets) bits.push(r.sheets === 1 ? "1 sheet" : `${r.sheets} sheets`);
   if (job.bytes) bits.push(job.bytes < 1024 * 1024 ? `${Math.max(1, Math.round(job.bytes / 1024))} KB` : mb(job.bytes));
   return bits.join(", ");
 }
@@ -175,8 +239,10 @@ export const pollDelay = (attempt: number) => (attempt < 5 ? 1000 : attempt < 20
 export const POLL_GIVE_UP_MS = 15 * 60 * 1000;
 
 /** The query string for an upload, the same as the web page sends. */
-export function uploadQuery(op: ToolOp, files: PickedFile[]): string {
-  return `op=${encodeURIComponent(op)}&files=${files.length}&name=${encodeURIComponent(files[0]?.name ?? "")}`;
+export function uploadQuery(op: ToolOp, files: PickedFile[], typeOption?: { name: string; value: string }): string {
+  const base = `op=${encodeURIComponent(op)}&files=${files.length}&name=${encodeURIComponent(files[0]?.name ?? "")}`;
+  // Tools P2: the upload streams through the server unread, so the option the result type follows rides in the query.
+  return typeOption?.value ? `${base}&${encodeURIComponent(typeOption.name)}=${encodeURIComponent(typeOption.value)}` : base;
 }
 
 /** A multipart boundary that will not appear in the files (random, long). */
@@ -229,6 +295,7 @@ export function toolErrorMessage(status: number, body: unknown): string {
   if (status === 404) return "Tools are off for this workspace.";
   if (status === 413) return "Those files are too big for your plan.";
   if (status === 429) return "Tools are busy. Try again in a minute.";
+  if (status === 503) return "Tools are still starting. Try again in a few seconds.";
   return "That didn't work. Try again.";
 }
 
