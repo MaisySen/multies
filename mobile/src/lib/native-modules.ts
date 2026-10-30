@@ -20,7 +20,6 @@ function load<T>(name: string, get: () => T): T | null {
 /* eslint-disable @typescript-eslint/no-require-imports */
 export const nativeSymbols = () => load("expo-symbols", () => require("expo-symbols") as typeof import("expo-symbols"));
 export const nativeBlur = () => load("expo-blur", () => require("expo-blur") as typeof import("expo-blur"));
-export const nativeContextMenu = () => load("zeego/context-menu", () => require("zeego/context-menu") as typeof import("zeego/context-menu"));
 export const nativeLocalAuth = () => load("expo-local-authentication", () => require("expo-local-authentication") as typeof import("expo-local-authentication"));
 export const nativeQuickActions = () => load("expo-quick-actions", () => require("expo-quick-actions") as typeof import("expo-quick-actions"));
 export const nativeStoreReview = () => load("expo-store-review", () => require("expo-store-review") as typeof import("expo-store-review"));

@@ -12,7 +12,7 @@
     "primaryColor": "#0071E3",
     "ios": {
       "bundleIdentifier": "au.fintex.multies",
-      "buildNumber": "18",
+      "buildNumber": "20",
       "supportsTablet": false,
       "config": {
         "usesNonExemptEncryption": false

@@ -3,6 +3,19 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.10.0 (store build: Android versionCode 16, iOS build 20), first build with native batch 1
+
+- iPhone symbols: tabs, buttons and rows draw the phone's own SF Symbols, with the filled symbol on
+  the selected tab.
+- Softer bars: the tab bar and the compact title bar use the iPhone's blurred material.
+- Unlock with Face ID: turn it on in Settings, Security. Multies then asks for Face ID, Touch ID or
+  your fingerprint when you open it and each time you come back to it. It is off until you turn it
+  on.
+- App icon shortcuts: press and hold the Multies icon for New task, Compose, Search and Inbox.
+- After you complete a few tasks, Multies asks once whether you would like to rate it.
+- The app icon badge shows what is unread, on more Android launchers too.
+- Smoother gestures underneath swipes and sheets.
+
 ## 1.9.9 (OTA, runs on Android versionCode 15 and iOS build 17), not published yet: ships after 1.9.8 reaches all phones
 
 - Report and block: press and hold a chat message to report it or block the person. Pick a reason,

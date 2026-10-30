@@ -1,8 +1,7 @@
 import { QUICK_ACTIONS, quickActionHref, shouldAskForReview, REVIEW_AFTER, biometricAvailable, recordTaskCompleted } from "@/lib/native-features";
 import { sfSymbolFor, SF_SYMBOLS } from "@/components/sf-symbols";
 import { ICON_NAMES } from "@/components/Icon";
-import { nativeSymbols, nativeBlur, nativeContextMenu, nativeLocalAuth, nativeQuickActions, nativeStoreReview } from "@/lib/native-modules";
-import { hasNativeMenu } from "@/components/native-menu";
+import { nativeSymbols, nativeBlur, nativeLocalAuth, nativeQuickActions, nativeStoreReview } from "@/lib/native-modules";
 import { hasBarBlur } from "@/components/chrome";
 
 jest.mock("expo-router", () => ({ router: { push: jest.fn() } }));
@@ -18,11 +17,12 @@ describe("R37 native batch 1 (store build 1.10.0)", () => {
   });
 
   it("adds the native packages and drops lucide-react-native", () => {
-    for (const p of ["expo-blur", "expo-symbols", "zeego", "react-native-ios-context-menu", "react-native-ios-utilities", "@react-native-menu/menu",
-      "react-native-gesture-handler", "react-native-reanimated", "react-native-worklets", "expo-local-authentication", "expo-quick-actions", "expo-store-review"]) {
+    for (const p of ["expo-blur", "expo-symbols", "react-native-gesture-handler", "react-native-reanimated", "react-native-worklets", "expo-local-authentication", "expo-quick-actions", "expo-store-review"]) {
       expect(pkg.dependencies[p]).toBeTruthy();
     }
     expect(pkg.dependencies["lucide-react-native"]).toBeUndefined();
+    // Item 3 (zeego context menus) was dropped from 1.10.0: its native menu pod does not build with React Native 0.88.
+    for (const p of ["zeego", "react-native-ios-context-menu", "react-native-ios-utilities", "@react-native-menu/menu"]) expect(pkg.dependencies[p]).toBeUndefined();
   });
 
   it("configures Face ID and biometrics permissions", () => {
@@ -58,8 +58,7 @@ describe("R37 native batch 1 (store build 1.10.0)", () => {
   });
 
   it("fails soft when the native modules are missing (tests, web, older binaries)", async () => {
-    for (const f of [nativeSymbols, nativeBlur, nativeContextMenu, nativeLocalAuth, nativeQuickActions, nativeStoreReview]) expect(f()).toBeNull();
-    expect(hasNativeMenu()).toBe(false);
+    for (const f of [nativeSymbols, nativeBlur, nativeLocalAuth, nativeQuickActions, nativeStoreReview]) expect(f()).toBeNull();
     expect(hasBarBlur()).toBe(false);
     await expect(biometricAvailable()).resolves.toBe(false);
     await expect(recordTaskCompleted()).resolves.toBeUndefined();
