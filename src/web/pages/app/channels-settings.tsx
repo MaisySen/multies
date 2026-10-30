@@ -6,6 +6,8 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Navigate } from "react-router";
+import { useConfig } from "@/web/lib/queries";
 import { toast } from "sonner";
 import { IconCheckCircle, IconClock, IconLock, IconPlug, IconWarning } from "@/web/components/ui/icon";
 import { api, errorMessage } from "@/web/lib/api";
@@ -103,7 +105,15 @@ function useEmbeddedSignup(status: ChannelsStatus | undefined, onConnected: (c: 
 
 /* ---------- The page ---------- */
 
+/** R59: with the server switch off (CHAT_CHANNELS) the pane does not exist: an old link lands on Settings. */
 export function ChannelsSettings() {
+  const config = useConfig();
+  if (config.isPending) return <div className="space-y-4" data-testid="channels-settings"><Skeleton className="h-28 rounded-xl" /></div>;
+  if (!config.data?.chatChannels) return <Navigate to="/app/settings" replace />;
+  return <ChannelsSettingsPane />;
+}
+
+function ChannelsSettingsPane() {
   const qc = useQueryClient();
   const status = useChannelsStatus();
   const s = status.data;

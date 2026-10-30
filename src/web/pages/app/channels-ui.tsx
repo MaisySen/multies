@@ -6,6 +6,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { IconInstagram, IconMessageCircle, IconMessenger, IconWhatsapp } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
+import { useConfig } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
 import { PROVIDER_LABEL, type ChannelProvider, type ChannelsStatus } from "@/shared/channels";
 
@@ -13,7 +14,13 @@ export const channelsStatusKey = ["channels", "status"] as const;
 
 /** The workspace's channel state. Quiet on failure: a server without the route just means mail only. */
 export function useChannelsStatus() {
-  return useQuery({ queryKey: channelsStatusKey, queryFn: () => api.get<ChannelsStatus>("/channels/status"), staleTime: 60_000, retry: false });
+  const on = useChatChannelsOn();
+  return useQuery({ queryKey: channelsStatusKey, queryFn: () => api.get<ChannelsStatus>("/channels/status"), staleTime: 60_000, retry: false, enabled: on });
+}
+
+/** R59: the server switch (CHAT_CHANNELS, read from /api/config). Off: no status call, no pane, no chat rows. */
+export function useChatChannelsOn() {
+  return !!useConfig().data?.chatChannels;
 }
 
 /** Provider colours: the glyph colour and a soft tint behind it. Instagram gets its gradient as a soft wash. */

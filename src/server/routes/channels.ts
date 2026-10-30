@@ -2,7 +2,7 @@
  * C1: chat channels. /api/channels (session, the web app) and /api/webhooks/meta (public, Meta signed).
  * The services load on first use, so these routes add nothing to a cold start.
  */
-import { Hono } from "hono";
+import { Hono, type MiddlewareHandler } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, parseQuery, requireAuth } from "../middleware";
@@ -30,6 +30,15 @@ const NoteBody = z.object({ body: z.string().min(1).max(4000) });
 const MockInbound = z.object({ channelId: z.string().max(64), from: z.string().regex(/^\d{6,20}$/), name: z.string().max(100).optional(), text: z.string().max(4096).optional(), image: z.boolean().optional() });
 const MockAge = z.object({ conversationId: z.string().max(64), hours: z.number().min(0).max(24 * 30) });
 
+/**
+ * R59: the master switch (CHAT_CHANNELS=on). Off, every channel path answers exactly what an unknown endpoint answers
+ * (the app's own 404 body) before auth, parsing or any service import, so nothing is read, stored or fetched.
+ */
+const channelsGate: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (!c.var.deps.config.channels.enabled) return c.json({ error: { code: "not_found", message: "No such endpoint." } }, 404);
+  await next();
+};
+
 async function runLater(c: { executionCtx: { waitUntil(p: Promise<unknown>): void } }, work: Promise<unknown>) {
   let waitUntil: ((p: Promise<unknown>) => void) | undefined;
   try { const ctx = c.executionCtx; waitUntil = ctx.waitUntil.bind(ctx); } catch { waitUntil = undefined; }
@@ -38,6 +47,7 @@ async function runLater(c: { executionCtx: { waitUntil(p: Promise<unknown>): voi
 
 export function channelRoutes() {
   return new Hono<AppEnv>()
+    .use("*", channelsGate)
     .use("*", requireAuth)
     .use("*", idempotency(sessionIdempotencyScope))
     .get("/status", async (c) => c.json(await (await svc()).channelsStatus(c.var.deps, c.var.auth)))
@@ -99,6 +109,7 @@ const WEBHOOK_MAX_BYTES = 3 * 1024 * 1024;
 
 export function metaWebhookRoutes() {
   return new Hono<AppEnv>()
+    .use("*", channelsGate)
     .get("/", async (c) => {
       const { verifyChallenge } = await import("../services/channels/webhook");
       const ok = verifyChallenge({ mode: c.req.query("hub.mode"), token: c.req.query("hub.verify_token"), challenge: c.req.query("hub.challenge") }, c.var.deps.config.channels.meta?.verifyToken);

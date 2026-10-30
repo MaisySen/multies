@@ -22,7 +22,7 @@ const call = async (m: McpClient, name: string, args: Record<string, unknown>) =
 };
 
 beforeEach(async () => {
-  ctx = await makeTestApp({ CHANNELS_MOCK: "on" });
+  ctx = await makeTestApp({ CHAT_CHANNELS: "on", CHANNELS_MOCK: "on" });
   owner = new Client(ctx.app);
   await owner.signup("owner@acme.io", "Olive Owner");
   await owner.put("/api/channels/settings", { enabled: true });

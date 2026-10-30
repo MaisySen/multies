@@ -70,6 +70,7 @@ Server settings (names only; values go in as Cloudflare secrets, never in chat o
 
 | Name | What it is |
 | --- | --- |
+| `CHAT_CHANNELS` | R59: the master switch, `on` to turn the whole feature on. Off (the default): /api/channels and /api/webhooks/meta answer 404 and do nothing, no MCP chat tools, no Settings pane, menu entry or chat rows |
 | `META_APP_ID` | The Meta app's id |
 | `META_APP_SECRET` | The Meta app's secret (signs webhooks, exchanges codes) |
 | `META_VERIFY_TOKEN` | Any long random string; typed into the app's webhook settings too |

@@ -307,7 +307,7 @@ Registered in src/server/routes/mcp-r32-triage.ts. Same service as the Triage pa
 
 ### Chat channels (C1)
 
-Registered in src/server/routes/mcp-c1-chat.ts, under the mail area scopes. Customer chats from WhatsApp (and later Messenger and Instagram) in the shared inbox; see docs/channels.md. Unless the workspace turns on "Agents may send chat replies without review" (Settings, Channels; off by default), a reply or template sent through these tools is saved as a draft that a person sends or discards in the chat with one tap. Replies written through the API carry the agent's name.
+Registered in src/server/routes/mcp-c1-chat.ts, under the mail area scopes, and listed only when the server runs with CHAT_CHANNELS=on (R59; off by default). Customer chats from WhatsApp (and later Messenger and Instagram) in the shared inbox; see docs/channels.md. Unless the workspace turns on "Agents may send chat replies without review" (Settings, Channels; off by default), a reply or template sent through these tools is saved as a draft that a person sends or discards in the chat with one tap. Replies written through the API carry the agent's name.
 
 | Tool | What it does |
 | --- | --- |

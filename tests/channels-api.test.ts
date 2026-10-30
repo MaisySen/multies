@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 let ctx: Awaited<ReturnType<typeof makeTestApp>>;
 let owner: Client;
 
-async function setup(env: Record<string, string> = { CHANNELS_MOCK: "on" }) {
+async function setup(env: Record<string, string> = { CHAT_CHANNELS: "on", CHANNELS_MOCK: "on" }) {
   ctx = await makeTestApp(env);
   owner = new Client(ctx.app);
   await owner.signup("owner@acme.io", "Olive Owner");
@@ -26,7 +26,7 @@ async function customerWrites(channelId: string, text: string, from = "614001112
 }
 
 describe("channels: server without Meta config", () => {
-  beforeEach(() => setup({}));
+  beforeEach(() => setup({ CHAT_CHANNELS: "on" }));
   it("says Coming soon and refuses to switch on", async () => {
     const s = await owner.get("/api/channels/status");
     expect(s.status).toBe(200);
@@ -44,7 +44,7 @@ describe("channels: server without Meta config", () => {
 
 describe("channels: Meta app configured", () => {
   const META = { META_APP_ID: "1234", META_APP_SECRET: "app-secret-for-tests", META_VERIFY_TOKEN: "verify-me", META_ES_CONFIG_ID: "5678" };
-  beforeEach(() => setup(META));
+  beforeEach(() => setup({ CHAT_CHANNELS: "on", ...META }));
   it("status hands the Embedded Signup values (never the secret)", async () => {
     const s = await owner.get("/api/channels/status");
     expect(s.body.available).toBe(true);
@@ -241,7 +241,7 @@ describe("channels: the inbox on the test provider", () => {
     expect(row!.lastError).toContain("Connect it again");
   });
   it("past the daily soft cap text still lands, files are not copied, and admins see the level", async () => {
-    await setup({ CHANNELS_MOCK: "on", CHANNELS_DAILY_SOFT_CAP: "2" });
+    await setup({ CHAT_CHANNELS: "on", CHANNELS_MOCK: "on", CHANNELS_DAILY_SOFT_CAP: "2" });
     const channelId = await connectAndEnable();
     await customerWrites(channelId, "one");
     expect((await owner.get("/api/channels/status")).body.usage).toEqual({ today: 1, softCap: 2, level: "ok" });

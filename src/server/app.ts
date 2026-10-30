@@ -372,6 +372,8 @@ export function createApp(deps: Deps) {
       plans: Object.values(PLANS),
       meetings: !!deps.config.meetings,
       scheduling: deps.config.schedulingEnabled,
+      // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
+      chatChannels: deps.config.channels.enabled,
       // R43: whether the import pages say a run carries on after the page closes (BACKGROUND_COPY).
       backgroundCopy: !!deps.config.backgroundCopy,
       // Round 25: provider connections shown as sign in buttons (AUTH0_SOCIAL_CONNECTIONS).

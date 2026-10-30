@@ -291,7 +291,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string, call?:
   registerR10Tools(server, deps, actor, writable);
   registerR20ChatTools(server, deps, actor, writable);
   registerMailScheduleTools(server, deps, actor, writable, agentFor, tool);
-  registerChatChannelTools(server, deps, actor, writable, tool); // C1: WhatsApp chats in the shared inbox
+  if (deps.config.channels.enabled) registerChatChannelTools(server, deps, actor, writable, tool); // C1: WhatsApp chats in the shared inbox (R59: only with CHAT_CHANNELS=on)
   registerTaskTypeTools(server, deps, actor, writable, tool);
   registerSprintTools(server, deps, actor, writable, tool);
   registerTriageTools(server, deps, actor, writable, tool);

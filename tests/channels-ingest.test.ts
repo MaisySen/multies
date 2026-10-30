@@ -22,7 +22,7 @@ function spy(db: unknown) {
 
 describe("channels webhook durability", () => {
   it("stores before answering: a database failure answers 500 so Meta retries, and the retry lands once", async () => {
-    const ctx = await makeTestApp({ CHANNELS_MOCK: "on" });
+    const ctx = await makeTestApp({ CHAT_CHANNELS: "on", CHANNELS_MOCK: "on" });
     const owner = new Client(ctx.app);
     await owner.signup("owner@acme.io", "Olive Owner");
     const channelId = (await owner.post("/api/channels/connect-mock", {})).body.channel.id;
@@ -38,7 +38,7 @@ describe("channels webhook durability", () => {
     expect(rows.map((r) => r.text)).toEqual(["are you open today?"]);
   });
   it("a photo is stored with the message before the answer and its bytes are copied after it", async () => {
-    const ctx = await makeTestApp({ CHANNELS_MOCK: "on" });
+    const ctx = await makeTestApp({ CHAT_CHANNELS: "on", CHANNELS_MOCK: "on" });
     const owner = new Client(ctx.app);
     await owner.signup("owner@acme.io", "Olive Owner");
     const channelId = (await owner.post("/api/channels/connect-mock", {})).body.channel.id;
@@ -58,7 +58,7 @@ describe("channels webhook durability", () => {
 
 describe("channels ingest cost", () => {
   it("one new text message: 3 writes and 2 reads; a duplicate: 1 read and no write", async () => {
-    const ctx = await makeTestApp({ CHANNELS_MOCK: "on" });
+    const ctx = await makeTestApp({ CHAT_CHANNELS: "on", CHANNELS_MOCK: "on" });
     const owner = new Client(ctx.app);
     await owner.signup("owner@acme.io", "Olive Owner");
     await owner.put("/api/channels/settings", { enabled: true });

@@ -25,6 +25,8 @@ export interface PublicConfig {
   billingEnabled: boolean;
   /** Booking pages (SCHEDULING_ENABLED). */
   scheduling?: boolean;
+  /** R59: chat channels (WhatsApp, Messenger, Instagram) in the shared inbox (CHAT_CHANNELS). Off unless set. */
+  chatChannels?: boolean;
   /** Round 25: identity provider connections shown as sign in buttons ("google-oauth2", "windowslive"). */
   socialConnections?: string[];
   /** R43: the import pages say a run carries on after the page closes (BACKGROUND_COPY, set once proven live). */

@@ -57,6 +57,10 @@ export function paneFor(path: string): Pane {
   const clean = path.replace(/\/+$/, "") || "/app/settings";
   return ALL_PANES.find((p) => p.to !== "/app/settings" && (clean === p.to || clean.startsWith(p.to + "/"))) ?? ALL_PANES[0];
 }
+/** R59: panes tied to a server switch (chat channels, CHAT_CHANNELS) are listed only while it is on. */
+export function panesFor(config: { chatChannels?: boolean } | undefined): (p: Pane) => boolean {
+  return (p) => p.to !== "/app/settings/channels" || !!config?.chatChannels;
+}
 export function matchPanes(q: string): Pane[] {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return ALL_PANES;
@@ -94,7 +98,8 @@ export function SettingsLayout() {
   const pane = paneFor(loc.pathname);
   const atHub = (loc.pathname.replace(/\/+$/, "") === "/app/settings") && !loc.hash;
   useEffect(() => { const prev = document.title; document.title = `${pane.label} · Settings | Multies`; return () => { document.title = prev; }; }, [pane.label]);
-  const shown = matchPanes(q);
+  const config = useConfig();
+  const shown = matchPanes(q).filter(panesFor(config.data));
   const groups = SETTINGS_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => shown.includes(i)) })).filter((g) => g.items.length);
   const go = () => { if (shown[0]) { navigate(shown[0].to); setQ(""); } };
   return (

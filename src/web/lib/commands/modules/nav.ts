@@ -29,7 +29,7 @@ export const navCommands: Command[] = PALETTE_PAGES.map((p): Command => {
     group: "Go to", scope: "global", icon: p.icon, to: p.to,
     keys: g ? ["G", g.key.toUpperCase()] : undefined, sequence: g ? true : undefined,
     keywords: [p.label, ...(p.keywords ?? []), "navigate", "open"],
-    palette: true, handler: "run", run: (c) => c.navigate(p.to),
+    palette: true, handler: "run", run: (c) => c.navigate(p.to), flag: p.flag,
   };
 });
 

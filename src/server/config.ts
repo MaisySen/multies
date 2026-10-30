@@ -124,8 +124,11 @@ export interface AppConfig {
    * (CHANNELS_MOCK=on) is the local test provider for unit and E2E runs and is refused in production.
    * `dailySoftCap` (CHANNELS_DAILY_SOFT_CAP, default 2000) is the inbound messages per workspace per UTC day
    * after which admins are warned and media is no longer copied (text still lands).
+   * R59: `enabled` (CHAT_CHANNELS=on) is the master switch for the whole feature, off unless set. Off: /api/channels
+   * and /api/webhooks/meta answer a plain 404 and do nothing, the MCP chat tools are not listed, and the web app shows
+   * no Settings pane, command menu entry or chat rows (it reads chatChannels from /api/config).
    */
-  channels: { meta?: { appId: string; appSecret: string; verifyToken: string; configId: string; graphVersion: string }; mock: boolean; dailySoftCap: number };
+  channels: { enabled: boolean; meta?: { appId: string; appSecret: string; verifyToken: string; configId: string; graphVersion: string }; mock: boolean; dailySoftCap: number };
   /**
    * Free addresses (round 17): a Multies-owned domain that every workspace can take an address on
    * (name@FREE_MAIL_DOMAIN) with no domain of its own. One shared domain, already verified with the
@@ -218,6 +221,7 @@ const EnvSchema = z.object({
   META_ES_CONFIG_ID: z.string().optional(),
   META_GRAPH_VERSION: z.string().optional(),
   CHANNELS_MOCK: z.string().optional(),
+  CHAT_CHANNELS: z.string().optional(),
   CHANNELS_DAILY_SOFT_CAP: z.string().optional(),
   DNS_RESOLVER: z.enum(["doh", "node"]).optional(),
   MAIL_MX_HOSTS: z.string().optional(),
@@ -399,7 +403,9 @@ function channelsConfig(env: z.infer<typeof EnvSchema>, mode: AppConfig["mode"])
   const mockAsked = env.CHANNELS_MOCK === "on" || env.CHANNELS_MOCK === "1" || env.CHANNELS_MOCK === "true";
   if (mockAsked && mode === "production") throw new ConfigError("CHANNELS_MOCK is for local tests only and cannot be on in production.");
   const cap = Number(env.CHANNELS_DAILY_SOFT_CAP);
+  const enabled = env.CHAT_CHANNELS === "on" || env.CHAT_CHANNELS === "1" || env.CHAT_CHANNELS === "true";
   return {
+    enabled,
     meta: id && secret && verify && cfg ? { appId: id, appSecret: secret, verifyToken: verify, configId: cfg, graphVersion: version } : undefined,
     mock: mockAsked,
     dailySoftCap: Number.isFinite(cap) && cap > 0 ? Math.floor(cap) : 2000,
