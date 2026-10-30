@@ -158,8 +158,10 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
     const saved = typed.resolved.preview.replace(": ", " updated: ");
     close();
     qc.removeQueries({ queryKey: ["task-ref"] });
+    // R70 (MB-251): one Undo toast at a time; the newest command replaces the one before it.
     applyChange(t, c.patch, c.view, () => toast.success(saved, {
-      action: { label: "Undo", onClick: () => applyChange(t, c.undoPatch, c.undoView, () => toast.success(`${t.ref} put back`)) },
+      id: "typed-undo",
+      action: { label: "Undo", onClick: () => applyChange(t, c.undoPatch, c.undoView, () => toast.success(`${t.ref} put back`, { id: "typed-undo" })) },
     }));
   };
   const pickerItems: Item[] = picker && task

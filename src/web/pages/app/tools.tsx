@@ -27,6 +27,7 @@ import {
   savedLine, searchEntries, sizeLabel, takeCarried, warmEngine, type Entry,
 } from "@/web/components/tools/tool-directory";
 import { ToolIcon } from "@/web/components/tools/tool-icon";
+import { PdfThumb } from "@/web/components/tools/pdf-thumb"; // R70: page 1 of a PDF result
 
 // Tools UX: the auto redact flow is only loaded when someone opens it.
 const AutoRedactPanel = lazy(() => import("@/web/components/tools/auto-redact").then((m) => ({ default: m.AutoRedactPanel })));
@@ -565,7 +566,7 @@ export function ToolsPage() {
             {tool.note && <p className="flex gap-2 rounded-lg bg-fill/60 px-3 py-2 text-[13px] text-muted" data-testid="tools-note"><IconAlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />{tool.note}</p>}
 
             {phase.kind === "done" && phase.job.downloadUrl && (!tool.flow || tool.flow === "autoredact") ? (
-              <ResultCard job={phase.job} tool={tool} before={tool.op === "compress" ? before ?? files[0]?.size ?? null : null}
+              <ResultCard job={phase.job} tool={tool} before={tool.op === "compress" ? before ?? files[0]?.size ?? null : null} level={tool.op === "compress" ? options.level : undefined}
                 onAttach={() => attachToNewEmail(navigate, { jobs: [phase.job] })} onChain={() => chain(phase.job)} chaining={chaining}
                 onAgain={runAgain} onStartOver={startOver} />
             ) : (
@@ -805,18 +806,20 @@ function MidName({ name, phone, desk }: { name: string; phone: number; desk: num
   return <><span className="sm:hidden">{middleTruncate(name, phone)}</span><span className="max-sm:hidden">{middleTruncate(name, desk)}</span></>;
 }
 
-function ResultCard({ job, tool, before, onAttach, onChain, chaining, onAgain, onStartOver }: {
-  job: ToolJob; tool: ToolDef; before: number | null; onAttach: () => void; onChain: () => void; chaining: boolean; onAgain: () => void; onStartOver: () => void;
+function ResultCard({ job, tool, before, level, onAttach, onChain, chaining, onAgain, onStartOver }: {
+  job: ToolJob; tool: ToolDef; before: number | null; level?: string; onAttach: () => void; onChain: () => void; chaining: boolean; onAgain: () => void; onStartOver: () => void;
 }) {
   const facts = resultLine(job);
-  const saved = before && job.bytes ? savedLine(before, job.bytes) : null;
+  const saved = before && job.bytes ? savedLine(before, job.bytes, level) : null;
   const ext = /\.([a-z0-9]{1,5})$/i.exec(job.name)?.[1]?.toLowerCase();
   const pct = before && job.bytes && job.bytes < before ? Math.round((job.bytes / before) * 100) : null;
   return (
     <div className="space-y-4" data-testid="tools-result">
       <div className="flex items-center gap-2 text-[14px] font-semibold text-ok"><IconCheckCircle className="h-5 w-5" aria-hidden />Done</div>
       <div className="flex items-center gap-3.5 rounded-xl border border-line bg-bg/40 p-3.5">
-        <FileBadge name={job.name} big />
+        {ext === "pdf" && job.downloadUrl
+          ? <PdfThumb url={job.downloadUrl} bytes={job.bytes} width={48} fallback={<FileBadge name={job.name} big />} />
+          : <FileBadge name={job.name} big />}
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold" title={job.name}><MidName name={job.name} phone={26} desk={44} /></p>
           {job.notCounted && <p className="mt-0.5 text-[13px] text-muted" data-testid="tools-not-counted">Nothing was found, so this run was not counted.</p>}

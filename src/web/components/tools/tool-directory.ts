@@ -184,9 +184,13 @@ export function middleTruncate(name: string, max = 34): string {
 export const sizeLabel = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / (1024 * 1024)).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`);
 
 /** "27 KB to 3 KB, 89% smaller" for a compress result. */
-export function savedLine(before: number, after: number): string | null {
+export function savedLine(before: number, after: number, level?: string): string | null {
   if (!before || !after) return null;
-  if (after >= before) return `${sizeLabel(before)} to ${sizeLabel(after)}. This file was already small.`;
+  if (after >= before) {
+    // R70: the engine hands the file back unchanged when a level cannot make it smaller; say what to try next.
+    if (level === "light" || level === "medium") return `${sizeLabel(before)}, unchanged. ${level === "light" ? "Light" : "Balanced"} could not make it smaller. Try ${level === "light" ? "Balanced or Smallest" : "Smallest"}.`;
+    return `${sizeLabel(before)} to ${sizeLabel(after)}. This file was already small.`;
+  }
   return `${sizeLabel(before)} to ${sizeLabel(after)}, ${Math.round((1 - after / before) * 100)}% smaller`;
 }
 

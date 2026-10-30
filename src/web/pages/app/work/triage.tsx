@@ -95,7 +95,7 @@ export function TriagePage() {
       const r = await api.post<{ comment?: { id: string } }>(`/triage/${it.id}/action`, body);
       // R33: one Undo takes back the status change and the comment written with it.
       const commentId = r?.comment?.id;
-      toast.success(done, { action: { label: "Undo", onClick: () => void undo(it, undoKind, commentId) } });
+      toast.success(done, { id: "triage-undo", action: { label: "Undo", onClick: () => void undo(it, undoKind, commentId) } });
       await refresh();
     } catch (e) { rollback(); showError(e as Error); } finally { setBusy(false); }
   };

@@ -78,7 +78,7 @@ export function NotificationsPage() {
     const ok = await optimistic((p) => moveOut(p, view, n.id, "done"), () => api.post(`/notifications/${n.id}/done`, {}));
     if (ok) {
       lastDone.current = [n.id, ...lastDone.current].slice(0, 20);
-      toast.success("Marked done", { action: { label: "Undo", onClick: () => void undone(n.id) } });
+      toast.success("Marked done", { id: "notif-undo", action: { label: "Undo", onClick: () => void undone(n.id) } });
     }
   }, [view, ids, optimistic, undone]);
 
@@ -86,7 +86,7 @@ export function NotificationsPage() {
     setSnoozeFor(null);
     setFocus(nextFocus(ids, n.id));
     const ok = await optimistic((p) => (view === "later" ? p : moveOut(p, view, n.id, "later")), () => api.post(`/notifications/${n.id}/snooze`, body));
-    if (ok) toast.success("Snoozed", { action: { label: "Undo", onClick: () => void undone(n.id) } });
+    if (ok) toast.success("Snoozed", { id: "notif-undo", action: { label: "Undo", onClick: () => void undone(n.id) } });
   }, [ids, optimistic, view, undone]);
 
   const toggleRead = useCallback(async (n: InboxItem) => {
@@ -135,7 +135,7 @@ export function NotificationsPage() {
       () => api.post("/notifications/done", { ids: shown }));
     if (ok) {
       lastDone.current = [...shown, ...lastDone.current].slice(0, 200);
-      toast.success(`${shown.length} marked done`, { action: { label: "Undo", onClick: () => void Promise.all(shown.map((id) => api.post(`/notifications/${id}/undone`, {}))).then(refresh, (e: Error) => showError(e)) } });
+      toast.success(`${shown.length} marked done`, { id: "notif-undo", action: { label: "Undo", onClick: () => void Promise.all(shown.map((id) => api.post(`/notifications/${id}/undone`, {}))).then(refresh, (e: Error) => showError(e)) } });
     }
   };
   const counts = q.data?.counts;

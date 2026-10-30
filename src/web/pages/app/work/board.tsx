@@ -13,7 +13,7 @@ import { cn } from "@/web/lib/cn";
 import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, positionBetween, type CustomField, type Project, type Task, isAgentLike } from "./data";
 import { ChecklistChip } from "./task-checklist"; // R26 (MB-85)
 import { ClashBadge } from "./schedule-r38"; // R38: date clash badge
-import { CardQuickEdits, CardTitle } from "./board-card-edit"; // R36
+import { CardQuickEdits, CardTitle, MoveHandle } from "./board-card-edit"; // R36
 import { tone } from "@/web/components/app-bits";
 import { TypeIcon } from "./task-type";
 import { LimitChip, LimitMenu, overLimitToast } from "./board-lanes"; // R34 (MB-186)
@@ -61,8 +61,9 @@ export function SortableCard({ t, onOpen, project, win, pinTop }: { t: Task; onO
       className={cn("touch-none rounded-lg", isDragging && "opacity-40")} data-testid="board-card" data-task-id={t.id}
       {...(win && !pinned ? { "data-win-row": win.index, "data-win-key": t.id } : {})}
       {...(win ? { "aria-posinset": win.index + 1, "aria-setsize": win.size } : {})}>
-      <TaskCard t={t} onOpen={onOpen} project={project} handle={
-        <button type="button" {...attributes} {...listeners} aria-roledescription="Draggable task" aria-label={`Move ${t.title}`}
+      <TaskCard t={t} onOpen={onOpen} project={project} handle={project
+        ? <MoveHandle t={t} project={project} dragProps={{ ...attributes, ...listeners }}><IconGrip className="h-3.5 w-3.5" aria-hidden /></MoveHandle>
+        : <button type="button" {...attributes} {...listeners} aria-roledescription="Draggable task" aria-label={`Move ${t.title}`}
           className="grid h-6 w-6 place-items-center rounded text-subtle hover:bg-surface hover:text-fg"><IconGrip className="h-3.5 w-3.5" aria-hidden /></button>
       } />
     </li>

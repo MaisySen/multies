@@ -59,7 +59,7 @@ function reportSent(r: SendResult) {
         : `${n} queued: outside delivery starts once an email provider is connected.`}`,
     });
   }
-  else toast.success("Message sent");
+  else toast.success("Message sent", { id: "mail-sent" });
 }
 
 const splitAddrs = (s?: string) => (s ?? "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
@@ -104,15 +104,20 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
   /** The draft this compose saved on its own, taken over by a send, a manual save or a discard. */
   const takeAutoDraft = () => { forgetOpenReply(d.threadId); return auto.current?.stop(); };
   const [undoSeconds, setUndoSeconds] = useUndoSeconds();
+  const sentOnce = useRef(false);
   // Round 20: "remind me if no reply" (days, 0 is off) and send later, both through the same hold as Send.
   const [remindDays, setRemindDays] = useState(0);
   // Send holds the message in the browser for a few seconds (Undo send), then posts it.
   // Compose closes at once; the hold lives outside this component, so it keeps counting after it unmounts.
   const send = (anyway = false, later?: When) => {
+    // R70 (MB-251): one hold per composer. A second trigger in the same moment (Enter in a field plus the button,
+    // or a double tap on a phone) used to start a second hold and a second toast.
+    if (sentOnce.current) return;
     if (!d.to.trim()) { toRef.current?.focus(); return; }
     // A gentle nudge, once: Send again (or "Send anyway") sends it without a subject.
     if (!anyway && shouldAskForSubject(d.subject, askedSubject)) { setAskedSubject(true); return; }
     if (later && att.count) { toast.error("Scheduled sends can't carry attachments yet.", { description: "Send it now, or remove the files to schedule it." }); return; }
+    sentOnce.current = true;
     const files = att.forSend();
     const snapshot = { ...d, files, toolFiles: att.tools, draftId: takeAutoDraft() ?? d.draftId };
     const to = [...splitAddrs(d.to), ...splitAddrs(d.cc), ...splitAddrs(d.bcc)];

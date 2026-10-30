@@ -61,6 +61,11 @@ describe("Tools UX list", () => {
   it("says how much smaller a compressed file got", () => {
     expect(savedLine(27 * 1024, 3 * 1024)).toBe("27 KB to 3 KB, 89% smaller");
     expect(savedLine(3 * 1024, 3 * 1024)).toBe("3 KB to 3 KB. This file was already small.");
+    // R70: a level that could not shrink the file says so and names the stronger level to try.
+    expect(savedLine(960 * 1024, 960 * 1024, "medium")).toBe("960 KB, unchanged. Balanced could not make it smaller. Try Smallest.");
+    expect(savedLine(960 * 1024, 960 * 1024, "light")).toBe("960 KB, unchanged. Light could not make it smaller. Try Balanced or Smallest.");
+    expect(savedLine(960 * 1024, 960 * 1024, "strong")).toBe("960 KB to 960 KB. This file was already small.");
+    expect(savedLine(960 * 1024, 270 * 1024, "medium")).toBe("960 KB to 270 KB, 72% smaller");
   });
 });
 

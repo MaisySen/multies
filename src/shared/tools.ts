@@ -46,7 +46,8 @@ export interface ToolOption {
   required?: boolean;
   /** The engine's default when the field is left out. */
   default?: string | number;
-  choices?: { value: string; label: string }[];
+  /** R70: a choice can carry one plain line shown while it is picked (what to expect from it). */
+  choices?: { value: string; label: string; hint?: string }[];
   min?: number;
   max?: number;
   maxLen?: number;
@@ -120,6 +121,15 @@ export const OCR_LANGUAGES: { value: string; label: string }[] = [
   { value: "jpn", label: "Japanese" }, { value: "kor", label: "Korean" }, { value: "spa", label: "Spanish" }, { value: "fra", label: "French" }, { value: "deu", label: "German" },
 ];
 
+/** R70: compress levels (the engine's light, medium, strong). Hints use what real files did on the engine: a 960 KB
+ * scan went to about 280 KB on Balanced and 130 KB on Smallest; Light leaves pictures alone. */
+export const COMPRESS_LEVELS: { value: string; label: string; hint: string }[] = [
+  { value: "light", label: "Light", hint: "Pictures stay as they are. Removes unused data only, so scans usually stay about the same size." },
+  { value: "medium", label: "Balanced", hint: "Pictures at screen quality. Scans often end up about a third of their size. Text only files change little." },
+  { value: "strong", label: "Smallest", hint: "Pictures at lower quality, still easy to read. Scans often end up about a sixth of their size. Text only files change little." },
+];
+export const COMPRESS_LEVEL_LABEL = (v: string | undefined): string => COMPRESS_LEVELS.find((l) => l.value === v)?.label ?? "Balanced";
+
 /** R68: the engine reads up to this many pages a run in the non Latin OCR languages (each page is slower). */
 export const HEAVY_OCR_MAX_PAGES = 10;
 export const HEAVY_OCR_LANGUAGES = ["nep", "hin", "eng+nep", "eng+hin", "chi_sim", "chi_tra", "jpn", "kor", "ara", "tha"] as const;
@@ -134,7 +144,8 @@ export const TOOLS: ToolDef[] = [
       { name: "angle", kind: "choice", label: "Turn", default: "90", choices: [{ value: "90", label: "Right" }, { value: "180", label: "Upside down" }, { value: "270", label: "Left" }] },
       { name: "ranges", kind: "ranges", label: "Pages", maxLen: 200, placeholder: "All pages", help: "Leave empty for every page. " + RANGES_HELP },
     ] },
-  { op: "compress", group: "Convert", label: "Compress PDF", blurb: "Make a PDF smaller so it is easier to send.", accept: PDF, acceptLabel: "a PDF", minFiles: 1, maxFiles: 1, suffix: "-compressed", ext: "pdf", contentType: PDF_TYPE, options: [] },
+  { op: "compress", group: "Convert", label: "Compress PDF", blurb: "Make a PDF smaller so it is easier to send.", accept: PDF, acceptLabel: "a PDF", minFiles: 1, maxFiles: 1, suffix: "-compressed", ext: "pdf", contentType: PDF_TYPE,
+    options: [{ name: "level", kind: "choice", label: "How small", default: "medium", choices: COMPRESS_LEVELS }] },
   { op: "convert", group: "Convert", label: "Convert to PDF", blurb: "Turn a Word, Excel, PowerPoint or OpenDocument file into a PDF.", accept: ".docx,.xlsx,.pptx,.odt,.ods,.odp", acceptLabel: "a Word, Excel, PowerPoint or OpenDocument file", minFiles: 1, maxFiles: 1, suffix: "", ext: "pdf", contentType: PDF_TYPE, options: [] },
   { op: "to-jpeg", group: "Convert", label: "PDF to images", blurb: "Save every page as a JPEG image, in one ZIP.", accept: PDF, acceptLabel: "a PDF", minFiles: 1, maxFiles: 1, suffix: "-pages", ext: "zip", contentType: ZIP_TYPE, maxPages: 100, slow: { secondsPerPage: 1 },
     options: [{ name: "dpi", kind: "choice", label: "Quality", default: "150", choices: [{ value: "72", label: "Small" }, { value: "150", label: "Standard" }, { value: "300", label: "Sharp" }] }] },

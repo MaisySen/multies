@@ -87,6 +87,7 @@ export function OptionField({ o, value, onChange, disabled, idPrefix = "tools-op
         <input id={id} data-testid={id} type={o.kind === "password" ? "password" : "text"} autoComplete={o.kind === "password" ? "new-password" : undefined} className={field}
           value={value} disabled={disabled} maxLength={o.maxLen} placeholder={o.placeholder} onChange={(e) => onChange(e.target.value)} />
       )}
+      {(() => { const hint = o.kind === "choice" ? o.choices?.find((ch) => ch.value === value)?.hint : undefined; return hint ? <p className="text-[12.5px] text-muted" data-testid={`${id}-hint`} aria-live="polite">{hint}</p> : null; })()}
       {o.help && <p className="text-[12.5px] text-muted">{o.help}</p>}
     </div>
   );
