@@ -1,12 +1,14 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PhoneFilters } from "@/web/components/phone-filters-r40"; // R40 (MB-209)
-import { useSearchParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMediaQuery } from "@/web/lib/use-compact";
 import { PHONE_QUERY } from "@/web/lib/phone";
 import { PhoneTaskList } from "./tasks-phone-r41";
-import { IconAssign, IconBoard, IconMore, IconBookmark, IconCalendarDays, IconChevronDown, IconChevronUp, IconClose, IconList, IconMountain, IconPlus, IconSettings2, IconSliders, IconSprint, IconTeam, IconTimeline, IconTrash, type IconComponent } from "@/web/components/ui/icon";
+import { SaveViewDialog, TagsDialog, ViewTabs, WorkspaceFieldsDialog } from "./tasks-r84"; // R84
+import { GROUP_LABEL, isGroupBy, type GroupBy } from "@/web/lib/task-groups-r84"; // R84
+import { IconAssign, IconBoard, IconMore, IconBookmark, IconCalendarDays, IconChevronDown, IconChevronUp, IconClose, IconList, IconMountain, IconPlus, IconSettings2, IconSliders, IconSprint, IconTeam, IconTimeline, IconTrash, IconTag, IconRows, type IconComponent } from "@/web/components/ui/icon";
 
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
 import { emptyTasksCopy, hasTaskFilters } from "@/web/lib/empty-states";
@@ -36,7 +38,7 @@ import { useTaskListFocus } from "@/web/lib/commands/use-task-focus";
 import { useCommandHandlers } from "@/web/lib/commands/use-commands"; // R34
 import { TaskQueryBox } from "./task-query-box"; // R26 (MB-86)
 import { EpicsDialog, TYPE_META, TASK_TYPES, TypePicker, type TaskType } from "./task-type";
-import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type ViewKind, type Task, isAgentLike } from "./data";
+import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, useTags, useWorkspaceFields, type CustomField, type SavedView, type Category, type Priority, type Project, type ViewKind, type Task, isAgentLike } from "./data";
 import { tone } from "@/web/components/app-bits";
 import { isPhoneWidth, pickTaskView, readStoredTaskView, storeTaskView } from "@/web/lib/phone";
 import { ShareButton } from "./share-sheet"; // R26 (MB-87)
@@ -61,7 +63,7 @@ const VIEWS: { id: ViewKind; label: string; icon: IconComponent }[] = [
 const FILTER_KEYS = ["q", "assignee", "priority", "label", "status", "type"] as const;
 
 export function TasksPage() {
-  const { prompt, dialogs } = useDialogs();
+  const { prompt, confirm, dialogs } = useDialogs();
   const [params, setParams] = useSearchParams();
   const projects = useProjects();
   const people = useAssignees();
@@ -86,7 +88,19 @@ export function TasksPage() {
   const fieldDefs = useFields(projectId || undefined);
   const allFields = fieldDefs.data ?? [];
   const fields = taskFields(allFields); // R24.1: project rollups show in the header, not as columns
+  // R84: in the all projects list the workspace fields are the columns, filters and bulk edit fields (their key is the id).
+  const wsFields = useWorkspaceFields();
+  const listFields: CustomField[] = project ? fields : (wsFields.data ?? []).map((f, i) => ({ id: f.key, projectId: "", name: f.name, type: f.type, options: f.options, position: i }));
+  const tagList = useTags();
   const fieldFilters = [...params.entries()].filter(([k]) => k.startsWith("field."));
+  // R84: list grouping and sort live in the address (?group=, ?sort=, ?dir=) so a saved view or a shared link keeps them.
+  const groupParam = params.get("group");
+  const listGroup: GroupBy | null = view === "list" && isGroupBy(groupParam) && (!groupParam.startsWith("field:") || listFields.some((f) => `field:${f.id}` === groupParam)) ? groupParam : null;
+  const sortParam = params.get("sort");
+  const listSort = sortParam ? { id: sortParam, desc: params.get("dir") === "desc" } : null;
+  const activeViewId = params.get("v");
+  const [saveOpen, setSaveOpen] = useState(false);
+  const manage = params.get("manage");
   const groupField = view === "board" ? fields.find((f) => f.id === params.get("group") && f.type === "select") : undefined;
   const groupEpic = view === "board" && params.get("group") === "epic";
   // R34 (MB-186): swimlanes and WIP limits saved with the board (one read, one write per change).
@@ -190,14 +204,57 @@ export function TasksPage() {
   const activeFilters = FILTER_KEYS.filter((k) => filters[k]);
   const moreFilterCount = (filters.priority ? 1 : 0) + (filters.type ? 1 : 0); // R75: shown on the Filters button
 
-  const saveView = async () => {
-    const name = (await prompt({ title: "Save view", label: "View name", initial: activeFilters.length ? activeFilters.map((k) => filters[k]).join(", ") : `${project?.name ?? "All tasks"} ${view}`, confirmLabel: "Save view", validate: requireText("a name") }))?.trim();
-    if (!name) return;
+  // R84: what a saved view keeps: the filters, field filters, and the list's sort and grouping (or the board's lanes and group).
+  const viewFilters = () => ({
+    ...Object.fromEntries(activeFilters.map((k) => [k, filters[k]!])),
+    ...Object.fromEntries(fieldFilters),
+    ...(view === "board" ? boardViewKeys(view, lanes, params.get("group")) : {}),
+    ...(view === "list" && listGroup ? { group: listGroup } : {}),
+    ...(view === "list" && listSort ? { sort: listSort.id, dir: listSort.desc ? "desc" : "asc" } : {}),
+  });
+  const viewSummary = (): string[] => {
+    const out: string[] = [VIEWS.find((v) => v.id === view)?.label ?? view, project?.name ?? "All projects"];
+    const n = activeFilters.length + fieldFilters.length;
+    if (n) out.push(`${n} ${n === 1 ? "filter" : "filters"}`);
+    if (listGroup) out.push(`Grouped by ${groupName(listGroup)}`);
+    if (listSort) out.push(`Sorted by ${listSort.id.startsWith("field:") ? listFields.find((f) => `field:${f.id}` === listSort.id)?.name ?? "a field" : listSort.id}`);
+    return out;
+  };
+  const groupOptions = [{ value: "", label: "None" }, ...(["status", "assignee", "priority", "due", "tag"] as const).map((g) => ({ value: g, label: GROUP_LABEL[g]! })),
+    ...(project ? [] : [{ value: "project", label: "Project" }]),
+    ...listFields.filter((f) => ["select", "multiselect", "checkbox", "person", "text", "number", "date", "url", "currency"].includes(f.type)).map((f) => ({ value: `field:${f.id}`, label: f.name }))];
+  const groupName = (g: string) => (g.startsWith("field:") ? listFields.find((f) => `field:${f.id}` === g)?.name ?? "field" : GROUP_LABEL[g] ?? g).toLowerCase();
+  const saveView = async (v: { name: string; shared: boolean; pinned: boolean }) => {
     setSaving(true);
     try {
-      await api.post("/tasks/views", { name, view, projectId: projectId || null, filters: { ...Object.fromEntries(activeFilters.map((k) => [k, filters[k]!])), ...boardViewKeys(view, lanes, params.get("group")) } });
+      const r = await api.post<{ view: SavedView }>("/tasks/views", { name: v.name, view, projectId: projectId || null, shared: v.shared, pinned: v.pinned, filters: viewFilters() });
       await qc.invalidateQueries({ queryKey: sk.views });
-    } catch (e) { showError(e as Error); } finally { setSaving(false); }
+      if (r?.view?.id) set({ v: r.view.id });
+      toast(`Saved ${v.name}`);
+    } finally { setSaving(false); }
+  };
+  const activeView = (views.data ?? []).find((v) => v.id === activeViewId);
+  const updateActiveView = async () => {
+    if (!activeView) return;
+    try { await api.patch(`/tasks/views/${activeView.id}`, { view, projectId: projectId || null, filters: viewFilters() }); await qc.invalidateQueries({ queryKey: sk.views }); toast(`Updated ${activeView.name}`); }
+    catch (e) { showError(e as Error); }
+  };
+  const applyView = (v: SavedView) => {
+    const clear = Object.fromEntries([...FILTER_KEYS.map((k) => [k, null]), ...fieldFilters.map(([k]) => [k, null]), ["lanes", null], ["group", null], ["sort", null], ["dir", null]]);
+    const fromView = Object.fromEntries(Object.entries(v.filters).filter(([k]) => (FILTER_KEYS as readonly string[]).includes(k) || k.startsWith("field.") || ["lanes", "group", "sort", "dir"].includes(k)));
+    storeTaskView(v.view);
+    set({ ...clear, ...fromView, view: v.view, project: v.projectId, v: v.id });
+  };
+  const editView = async (v: SavedView, patch: Partial<Pick<SavedView, "shared" | "pinned" | "name">>) => {
+    try { await api.patch(`/tasks/views/${v.id}`, patch); await qc.invalidateQueries({ queryKey: sk.views }); } catch (e) { showError(e as Error); }
+  };
+  const renameView = async (v: SavedView) => {
+    const name = (await prompt({ title: "Rename view", label: "View name", initial: v.name, confirmLabel: "Rename", validate: requireText("a name") }))?.trim();
+    if (name && name !== v.name) await editView(v, { name });
+  };
+  const deleteView = async (v: SavedView) => {
+    if (!(await confirm({ title: `Delete the view ${v.name}?`, description: v.shared ? "It goes for everyone in the workspace. Tasks are not touched." : "Tasks are not touched.", confirmLabel: "Delete view" }))) return;
+    try { await api.del(`/tasks/views/${v.id}`); await qc.invalidateQueries({ queryKey: sk.views }); if (activeViewId === v.id) set({ v: null }); } catch (e) { showError(e as Error); }
   };
 
   if (projects.isPending) return <div className="space-y-3"><Skeleton className="h-8 w-48" /><Skeleton className="h-64" /></div>;
@@ -220,6 +277,9 @@ export function TasksPage() {
             {project && <MenuItem icon={<IconAssign />} onSelect={() => setGuestsOpen(true)}>Guests</MenuItem>}
             {project && <MenuItem icon={<IconMountain />} onSelect={() => setEpicsOpen(true)}>Epics</MenuItem>}
             {project && <div className="my-1 border-t border-line" />}
+            <MenuItem icon={<IconTag />} onSelect={() => set({ manage: "tags" })}>Tags</MenuItem>
+            <MenuItem icon={<IconRows />} onSelect={() => set({ manage: "fields" })}>Workspace fields</MenuItem>
+            <div className="my-1 border-t border-line" />
             <MenuItem icon={<IconPlus />} onSelect={() => setEditing("new")}>New project</MenuItem>
           </Menu>
         </div>
@@ -242,6 +302,9 @@ export function TasksPage() {
         <div aria-hidden className="hidden basis-full max-sm:order-2 max-sm:block" />
       </div>
 
+      <ViewTabs views={(views.data ?? []).filter((v) => !v.projectId || !project || v.projectId === project.id)} activeId={activeViewId} onOpen={applyView}
+        onAll={() => set({ v: null, ...Object.fromEntries([...FILTER_KEYS.map((k) => [k, null]), ...fieldFilters.map(([k]) => [k, null]), ["group", null], ["sort", null], ["dir", null], ["lanes", null]]) })}
+        onEdit={(v, patch) => void editView(v, patch)} onDelete={(v) => void deleteView(v)} onRename={(v) => void renameView(v)} />
       {project && <ProjectRollups projectId={project.id} fields={allFields} />}
       <div className="-mx-4 mb-4 flex items-center gap-2 overflow-x-auto overscroll-x-contain px-4 pb-1 [scrollbar-width:none] max-sm:pr-10 max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" aria-label="Filters">
         <TaskQueryBox value={filters.q ?? ""} onApply={(q) => set({ q })} values={queryValues} />
@@ -250,6 +313,8 @@ export function TasksPage() {
           { key: "priority", label: "Priority", value: filters.priority ?? "", onChange: (v) => set({ priority: v || null }), options: [{ value: "", label: "Any" }, ...(["urgent", "high", "medium", "low"] as Priority[]).map((p) => ({ value: p, label: PRIORITY_LABEL[p] }))] },
           { key: "status", label: "Status", value: filters.status ?? "", onChange: (v) => set({ status: v || null }), options: [{ value: "", label: "Any" }, { value: "todo", label: "To do" }, { value: "doing", label: "Doing" }, { value: "done", label: "Done" }] },
           { key: "type", label: "Type", value: filters.type ?? "", onChange: (v) => set({ type: v || null }), options: [{ value: "", label: "Any" }, ...TASK_TYPES.map((k) => ({ value: k, label: TYPE_META[k].label }))] },
+          { key: "label", label: "Tag", value: filters.label ?? "", onChange: (v) => set({ label: v || null }), options: [{ value: "", label: "Any" }, ...(tagList.data ?? []).map((t) => ({ value: t.name, label: t.name }))] },
+          ...(view === "list" ? [{ key: "group", label: "Group", value: listGroup ?? "", onChange: (v: string) => set({ group: v || null }), options: groupOptions }] : []),
         ]} />
         {/* R79: light toolbar controls that say their setting; colour only when a filter is on. */}
         <ChipSelect label="Assignee" aria-label="Assignee filter" active={!!filters.assignee} value={filters.assignee ?? ""} onChange={(e) => set({ assignee: e.target.value || null })} className="max-sm:hidden">
@@ -259,6 +324,17 @@ export function TasksPage() {
         <ChipSelect label="Status" aria-label="Status filter" active={!!filters.status} value={filters.status ?? ""} onChange={(e) => set({ status: e.target.value || null })} className="max-sm:hidden">
           <option value="">Any</option><option value="todo">To do</option><option value="doing">Doing</option><option value="done">Done</option>
         </ChipSelect>
+        {(tagList.data?.length ?? 0) > 0 && (
+          <ChipSelect label="Tag" aria-label="Tag filter" active={!!filters.label} value={filters.label ?? ""} onChange={(e) => set({ label: e.target.value || null })} className="max-sm:hidden">
+            <option value="">Any</option>
+            {tagList.data!.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+          </ChipSelect>
+        )}
+        {view === "list" && (
+          <ChipSelect label="Group" aria-label="Group list by" data-testid="list-group-select" active={!!listGroup} value={listGroup ?? ""} onChange={(e) => set({ group: e.target.value || null })} className="max-sm:hidden">
+            {groupOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </ChipSelect>
+        )}
         {/* R75: the filters people reach for less often sit in one Filters panel, so the toolbar stays one row. */}
         <div className="max-sm:hidden">
           <Popover label="More filters" testId="tasks-more-filters" className="w-[22rem]" button={({ open }) => (
@@ -279,13 +355,13 @@ export function TasksPage() {
                   {TASK_TYPES.map((k) => <option key={k} value={k}>{TYPE_META[k].label}</option>)}
                 </Select>
               )}</Field>
-              {project && <div className="[&_[role=group]]:flex-wrap"><FieldFilterPicker fields={fields.filter((f) => !isComputed(f))} people={people.data ?? []} onAdd={(id, raw) => set({ [`field.${id}`]: raw })} /></div>}
+              {listFields.length > 0 && <div className="[&_[role=group]]:flex-wrap"><FieldFilterPicker fields={listFields.filter((f) => !isComputed(f))} people={people.data ?? []} onAdd={(id, raw) => set({ [`field.${id}`]: raw })} /></div>}
             </div>
           </Popover>
         </div>
         {fieldFilters.map(([k, v]) => (
           <span key={k} className="inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-elevated px-2 text-[12.5px]">
-            {describeFilter(fields.find((f) => f.id === k.slice(6)), v, people.data ?? [])}
+            {describeFilter(listFields.find((f) => f.id === k.slice(6)), v, people.data ?? [])}
             <button aria-label="Remove this filter" onClick={() => set({ [k]: null })} className="text-subtle hover:text-fg"><IconClose className="h-3 w-3" /></button>
           </span>
         ))}
@@ -305,14 +381,18 @@ export function TasksPage() {
         <div className="sm:ml-auto"><Menu align="end" trigger={<Button variant="ghost" size="sm" aria-label="Saved views" title="Saved views"><IconBookmark className="h-3.5 w-3.5" /><span className="max-xl:sr-only">Saved views</span><IconChevronDown className="h-3.5 w-3.5" /></Button>}>
           <MenuLabel>Saved views</MenuLabel>
           {(views.data ?? []).map((v) => (
-            <MenuItem key={v.id} onSelect={() => set({ view: v.view, project: v.projectId, ...Object.fromEntries(FILTER_KEYS.map((k) => [k, v.filters[k] ?? null])), lanes: v.filters.lanes ?? null, group: v.filters.group ?? null })}>{v.name}{v.filters.lanes && v.filters.lanes !== "none" ? <span className="ml-auto pl-3 text-[11.5px] text-subtle">Lanes: {SWIMLANE_LABEL[v.filters.lanes as Exclude<Swimlanes, "none">] ?? v.filters.lanes}</span> : null}</MenuItem>
+            <MenuItem key={v.id} checked={v.id === activeViewId} onSelect={() => applyView(v)} hint={v.pinned ? "Pinned" : v.shared ? undefined : "Only you"}>{v.name}</MenuItem>
           ))}
-          {!views.data?.length && <p className="px-2.5 py-1.5 text-[12.5px] text-subtle">None yet</p>}
+          {!views.data?.length && <p className="px-2.5 py-1.5 text-[12.5px] text-subtle">None yet. Set filters, sort or grouping, then save them here.</p>}
           <div className="my-1 border-t border-line" />
-          <MenuItem icon={<IconPlus />} onSelect={() => void saveView()}>{saving ? "Saving" : "Save this view"}</MenuItem>
+          {activeView && activeView.canEdit !== false && <MenuItem icon={<IconBookmark />} onSelect={() => void updateActiveView()}>Update {activeView.name}</MenuItem>}
+          <MenuItem icon={<IconPlus />} onSelect={() => setSaveOpen(true)}>{saving ? "Saving" : "Save as new view"}</MenuItem>
         </Menu></div>
       </div>
 
+      <SaveViewDialog open={saveOpen} onClose={() => setSaveOpen(false)} onSave={saveView} summary={viewSummary()} />
+      <TagsDialog open={manage === "tags"} onClose={() => set({ manage: null })} />
+      <WorkspaceFieldsDialog open={manage === "fields"} onClose={() => set({ manage: null })} />
       {project && fieldsOpen && <FieldsDialog projectId={project.id} fields={allFields} open onClose={() => setFieldsOpen(false)} />}
       {project && guestsOpen && <GuestsDialog project={project} onClose={() => setGuestsOpen(false)} />}
       {project && epicsOpen && <EpicsDialog project={project} onClose={() => setEpicsOpen(false)} onOpen={(id) => { setEpicsOpen(false); open(id); }} />}
@@ -342,8 +422,9 @@ export function TasksPage() {
           <Suspense fallback={<PanelListSkeleton label="Loading sprints" />}><SprintsView project={project} onOpen={open} /></Suspense>
         ) : view === "list" || ((view === "board" || view === "sprints") && !project) ? (
           <>
-            {phone ? <PhoneTaskList tasks={tasks.data ?? []} projects={list} onOpen={open} /> /* R41 (MB-226) */
-              : <TaskTable tasks={tasks.data ?? []} projects={list} onOpen={open} fields={project ? fields : []} people={people.data ?? []} projectId={projectId || undefined} onAdd={() => setNewTask({})} />}
+            {phone ? <PhoneTaskList tasks={tasks.data ?? []} projects={list} onOpen={open} groupBy={listGroup} fields={listFields} people={people.data ?? []} /> /* R41 (MB-226) */
+              : <TaskTable tasks={tasks.data ?? []} projects={list} onOpen={open} fields={listFields} people={people.data ?? []} projectId={projectId || undefined} onAdd={() => setNewTask({})}
+                groupBy={listGroup} sort={listSort} onSort={(next) => set({ sort: next?.id ?? null, dir: next ? (next.desc ? "desc" : "asc") : null })} />}
             {/* R42: the board's rapid add at the foot of the list; into the picked project, else the first one. */}
             {(project ?? list[0]) && <ColumnComposer variant="list" title={(project ?? list[0])!.name}
               onQuickAdd={async (title) => { await create.mutateAsync({ title, projectId: (project ?? list[0])!.id }); await qc.invalidateQueries({ queryKey: ["tasks"] }); }} />}
@@ -514,5 +595,21 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
         </>}
       </div>
     </Dialog>
+  );
+}
+
+/** R84: the full task page (/app/tasks/OPS-12): the same task view as the side panel, in two columns, with a link back. */
+export function TaskPageRoute() {
+  const { ref = "" } = useParams();
+  const navigate = useNavigate();
+  return (
+    <div className="mx-auto w-full max-w-[1200px]">
+      <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-1.5 text-[13px] text-muted">
+        <Link to="/app/tasks" className="rounded-md px-1 py-0.5 hover:bg-hover hover:text-fg max-sm:py-2.5">Tasks</Link>
+        <span aria-hidden>/</span>
+        <span className="font-mono text-fg" aria-current="page">{ref.toUpperCase()}</span>
+      </nav>
+      <TaskPanel id={ref} page onClose={() => navigate("/app/tasks")} />
+    </div>
   );
 }

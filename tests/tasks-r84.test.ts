@@ -98,6 +98,22 @@ describe("several assignees", () => {
     expect((await c.patch(`/api/tasks/${t.id}`, { assignees: ["boss"] })).status).toBe(422);
   });
 
+  it("people on the task hear comments; a new @mention in the description notifies once", async () => {
+    const mia = await teammate("mia@acme.io", "Mia Member");
+    const sam = await teammate("sam@acme.io", "Sam Smith");
+    const t = await newTask("Brief");
+    await c.patch(`/api/tasks/${t.id}`, { assignees: [`member:${mia.id}`, `member:${sam.id}`] });
+    await c.post(`/api/tasks/${t.id}/comments`, { body: "Draft is up" });
+    const commented = async (id: string) => (await ctx.db.select().from(notifications).where(eq(notifications.userId, id)).all()).filter((n) => n.type === "task.commented");
+    expect(await commented(mia.id)).toHaveLength(1);
+    expect(await commented(sam.id)).toHaveLength(1);
+    const mentions = async (id: string) => (await ctx.db.select().from(notifications).where(eq(notifications.userId, id)).all()).filter((n) => n.type === "task.mentioned");
+    await c.patch(`/api/tasks/${t.id}`, { notes: "Over to @Sam for the photos" });
+    await c.patch(`/api/tasks/${t.id}`, { notes: "Over to @Sam for the photos, due Friday" });
+    expect(await mentions(sam.id)).toHaveLength(1);
+    expect(await mentions(mia.id)).toHaveLength(0);
+  });
+
   it("bulk adds people: the first becomes main where there is none; each person hears once", async () => {
     const mia = await teammate("mia@acme.io", "Mia Member");
     const sam = await teammate("sam@acme.io", "Sam Smith");

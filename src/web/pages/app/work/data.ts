@@ -15,6 +15,8 @@ export interface Task {
   id: string; ref: string; projectId: string; number: number; title: string; notes: string;
   statusId: string; statusName: string; statusColor: string; status: Category;
   assignee: Assignee | null; assigneeId: string | null; priority: Priority; labels: string[];
+  /** R84: everyone on the task, the main assignee first. */
+  assignees?: Assignee[];
   start: string | null; due: string | null; parentId: string | null; position: number;
   source: { threadId: string | null; messageId: string | null; from: string; subject: string } | null;
   subtasks: { total: number; done: number }; commentCount: number; completedAt: string | null;
@@ -50,7 +52,11 @@ export interface TaskDetail {
 export interface AssigneeOption { id: string; type: "member" | "agent"; name: string; email: string | null; /** R26: an AI agent member (type member). */ isAgent?: boolean; paused?: boolean }
 /** R26 (DF-3): agent inboxes and AI agent members both get the Agent badge. */
 export const isAgentLike = (p: { type: string; isAgent?: boolean }) => p.type === "agent" || !!p.isAgent;
-export interface SavedView { id: string; projectId: string | null; name: string; view: ViewKind; filters: Record<string, string>; shared: boolean }
+export interface SavedView { id: string; projectId: string | null; name: string; view: ViewKind; filters: Record<string, string>; shared: boolean; /** R84 */ pinned?: boolean; position?: number; canEdit?: boolean }
+/** R84: a workspace tag and its colour. */
+export interface Tag { id: string; name: string; color: string; position: number; count?: number }
+/** R84: a field defined once for the workspace (key), shown in every project. */
+export interface WorkspaceField { key: string; name: string; type: FieldType; options: FieldOption[]; projects: number }
 export type ViewKind = "board" | "list" | "calendar" | "timeline" | "sprints" | "workload";
 
 export const PRIORITY_LABEL: Record<Priority, string> = { none: "No priority", low: "Low", medium: "Medium", high: "High", urgent: "Urgent" };
@@ -68,6 +74,9 @@ export const useProjects = () => useQuery({ queryKey: sk.projects, networkMode: 
 export const useAssignees = () => useQuery({ queryKey: sk.assignees, queryFn: async () => (await api.get<{ assignees: AssigneeOption[] }>("/tasks/assignees")).assignees.filter((p) => !p.paused), staleTime: 120_000 });
 export const useFields = (projectId: string | undefined) =>
   useQuery({ queryKey: ["fields", projectId ?? ""], enabled: !!projectId, staleTime: 30_000, queryFn: async () => (await api.get<{ fields: CustomField[] }>(`/fields?projectId=${projectId}`)).fields });
+/** R84: the workspace's tags with colours (one small read, kept for a minute). */
+export const useTags = (counts = false) => useQuery({ queryKey: ["task-tags", counts], staleTime: 60_000, queryFn: async () => (await api.get<{ tags: Tag[] }>(`/tasks/tags${counts ? "?counts=1" : ""}`)).tags });
+export const useWorkspaceFields = () => useQuery({ queryKey: ["workspace-fields"], staleTime: 60_000, queryFn: async () => (await api.get<{ fields: WorkspaceField[] }>("/fields/workspace")).fields });
 export const useViews = () => useQuery({ queryKey: sk.views, queryFn: async () => (await api.get<{ views: SavedView[] }>("/tasks/views")).views });
 
 export function useTasks(f: Record<string, string | undefined>, opts: { enabled?: boolean } = {}) {

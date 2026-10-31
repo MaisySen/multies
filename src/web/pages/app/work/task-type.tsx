@@ -48,7 +48,7 @@ export function TypePicker({ value, onChange, disabled }: { value: TaskType; onC
         return (
           <button key={k} type="button" role="radio" aria-checked={on} disabled={disabled?.includes(k)} onClick={() => !on && onChange(k)}
             className={cn("inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[12.5px] transition-colors disabled:opacity-40",
-              on ? "border-[#0071E3] bg-[#0071E3]/10 font-medium text-[#0071E3]" : "border-line text-muted hover:border-line-strong hover:text-fg")}>
+              on ? "border-brand bg-brand-soft font-medium text-brand-hover" : "border-line text-muted hover:border-line-strong hover:text-fg")}>
             <Icon className="h-3.5 w-3.5" style={{ color: on ? "#0071E3" : color }} aria-hidden />{label}
           </button>
         );

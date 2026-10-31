@@ -69,6 +69,7 @@ const ApprovalsPage = lazyPage(() => import("./pages/app/approvals"), "Approvals
 const TeamInboxPage = lazyPage(() => import("./pages/app/inbox"), "TeamInboxPage");
 const work = () => import("./pages/app/work/tasks");
 const TasksPage = lazyPage(() => work(), "TasksPage");
+const TaskPageRoute = lazyPage(() => work(), "TaskPageRoute"); // R84: the full task page
 const docsPages = () => import("./pages/app/work/docs");
 const DocsPage = lazyPage(() => docsPages(), "DocsPage");
 const DocPage = lazyPage(() => docsPages(), "DocPage");
@@ -208,6 +209,7 @@ export const router = createBrowserRouter([
       { path: "approvals", element: page(<ApprovalsPage />) },
       { path: "activity", element: page(<ActivityPage />) },
       { path: "tasks", element: page(<TasksPage />) },
+      { path: "tasks/:ref", element: page(<TaskPageRoute />) }, // R84
       { path: "docs", element: page(<DocsPage />) },
       { path: "docs/:id", element: page(<DocPage />) },
       { path: "contacts", element: page(<ContactsPage />) },

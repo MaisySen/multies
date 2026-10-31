@@ -16,6 +16,7 @@ import { ClashBadge } from "./schedule-r38"; // R38: date clash badge
 import { CardQuickEdits, CardTitle, MoveHandle } from "./board-card-edit"; // R36
 import { tone } from "@/web/components/app-bits";
 import { TypeIcon } from "./task-type";
+import { TagChips } from "./tasks-r84"; // R84: coloured workspace tags
 import { LimitChip, LimitMenu, overLimitToast } from "./board-lanes"; // R34 (MB-186)
 import { limitState, wouldExceed, type BoardLimits, type ColumnLimit } from "@/shared/board-lanes";
 
@@ -24,7 +25,7 @@ export function TaskCard({ t, onOpen, dragging, handle, project }: { t: Task; on
     <div className={cn("group rounded-lg border border-line bg-elevated p-3 text-left shadow-sm transition-colors hover:border-line-strong", dragging && "rotate-1 border-brand/40 shadow-pop")}>
       {project ? <CardTitle t={t} onOpen={onOpen} /> : <button type="button" onClick={onOpen} className="block min-h-6 w-full text-left text-[13.5px] font-medium leading-snug text-fg outline-none focus-visible:underline">{t.title}</button>}
       {t.labels.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">{t.labels.slice(0, 3).map((l) => <span key={l} className="rounded bg-fill px-1.5 py-px text-[11px] text-muted">{l}</span>)}</div>
+        <TagChips labels={t.labels} max={3} className="mt-2" />
       )}
       <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[11.5px] text-subtle">
         <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap"><TypeIcon type={t.type} /><span className="font-mono">{t.ref}</span></span>

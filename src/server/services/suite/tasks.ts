@@ -790,6 +790,15 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
   if (Object.keys(changed).length || patch.position !== undefined) {
     await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "update", version: task.version, verb, data: changed, event: "task.updated", eventData: { task, changed: Object.keys(changed) } });
   }
+  // R84: people newly @mentioned in the description hear it once (not on every save of the same text).
+  if (patch.notes !== undefined && patch.notes.includes("@") && patch.notes !== t.notes) {
+    const was = new Set(await mentionedMembers(deps, actor.orgId, t.notes));
+    const now2 = (await mentionedMembers(deps, actor.orgId, patch.notes)).filter((u) => !was.has(u) && u !== actor.userId);
+    if (now2.length) {
+      const { notify } = await import("./notify");
+      for (const u of now2) await notify(deps, actor.orgId, u, { type: "task.mentioned", entityType: "task", entityId: t.id, title: `${actor.name || actor.email} mentioned you on ${task.title}`, actorName: actor.name || actor.email });
+    }
+  }
   // R84: every member newly put on the task hears it once (not the person who did it); they start watching.
   const addedMembers = added.filter((a) => a.type === "member").map((a) => a.id);
   if (addedMembers.length) {
@@ -878,13 +887,16 @@ export async function addComment(deps: Deps, actor: SuiteActor, idOrRef: string,
   const { notify } = await import("./notify");
   const mentioned = await mentionedMembers(deps, actor.orgId, text);
   for (const u of mentioned) if (u !== actor.userId) await notify(deps, actor.orgId, u, { type: "task.mentioned", entityType: "task", entityId: t.id, title: `${actor.name || actor.email} mentioned you on ${t.title}`, actorName: actor.name || actor.email });
-  if (t.assigneeType === "member" && t.assigneeId && t.assigneeId !== actor.userId && !mentioned.includes(t.assigneeId)) {
-    await notify(deps, actor.orgId, t.assigneeId, { type: "task.commented", entityType: "task", entityId: t.id, title: `New comment on ${t.title}`, actorName: actor.name || actor.email });
+  // R84: every member on the task (the main assignee and the people beside them) hears about a new comment.
+  const onTask = [...new Set([...(t.assigneeType === "member" && t.assigneeId ? [t.assigneeId] : []), ...coAssigneesOf(t).filter((a) => a.type === "member").map((a) => a.id)])];
+  for (const u of onTask) {
+    if (u === actor.userId || mentioned.includes(u)) continue;
+    await notify(deps, actor.orgId, u, { type: "task.commented", entityType: "task", entityId: t.id, title: `New comment on ${t.title}`, actorName: actor.name || actor.email });
   }
   // R27: watchers hear about the comment (not its author, nor anyone told above); the author starts watching.
   const w = await import("./task-watchers-r27");
   await w.notifyWatchers(deps, actor.orgId, t.id, { type: "task.watch_comment", title: `${actor.name || actor.email} commented on ${t.title}`, actorName: actor.name || actor.email },
-    [w.memberOf(actor), ...mentioned, t.assigneeType === "member" ? t.assigneeId : null]);
+    [w.memberOf(actor), ...mentioned, ...onTask]);
   await w.autoWatch(deps, actor.orgId, t.id, [w.memberOf(actor)]);
   return comment;
 }
@@ -1078,7 +1090,7 @@ export async function removeDependency(deps: Deps, actor: SuiteActor, taskIdOrRe
 export type ViewKind = "board" | "list" | "calendar" | "timeline" | "sprints" | "workload";
 /** R84: what a view may group its list by. */
 export const VIEW_GROUPS = ["status", "assignee", "priority", "due", "tag", "project"] as const;
-export const VIEW_SORTS = ["manual", "title", "status", "assignee", "priority", "due", "updated", "created"] as const;
+export const VIEW_SORTS = ["manual", "title", "status", "assignee", "priority", "due", "updated", "created", "key", "type", "labels", "start", "points", "project"] as const;
 
 /** R84: a view's sort and grouping ride in its filters (sort, dir, group); anything else the list does not know is dropped. */
 export function cleanViewFilters(view: ViewKind, f: Record<string, string>): Record<string, string> {

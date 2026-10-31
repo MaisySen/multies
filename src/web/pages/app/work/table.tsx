@@ -6,24 +6,27 @@
  *
  * Columns live in TABLE_COLUMNS: adding one (a Type or Points column) is one entry there.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { DateInput } from "@/web/components/ui/input"; // R67 (MB-250)
 import { useQueryClient } from "@tanstack/react-query";
 import { SwipeTr } from "@/web/components/ui/swipe-row";
 import { useRevealRow, useWindowedList } from "@/web/lib/use-windowed-list"; // R43 (MB-210)
-import { IconAgent, IconArrowDown, IconArrowUp, IconCalendarDays, IconCheck, IconCircleDot, IconClose, IconMail, IconMove, IconShapes, IconSprint, IconTag, IconTrash, IconUserRound, IconCheckCircle, IconMore, IconFlag, IconPlus } from "@/web/components/ui/icon";
+import { IconAgent, IconArrowDown, IconArrowUp, IconCalendarDays, IconCheck, IconCircleDot, IconClose, IconMail, IconMove, IconShapes, IconSprint, IconTag, IconTrash, IconUserRound, IconCheckCircle, IconMore, IconFlag, IconPlus, IconTable } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { tone } from "@/web/components/app-bits";
-import { dueLabel, isOverdue, PRIORITY_COLOR, PRIORITY_LABEL, sk, type AssigneeOption, type CustomField, type Priority, type Project, type Status, type Task, isAgentLike } from "./data";
+import { dueLabel, isOverdue, PRIORITY_COLOR, PRIORITY_LABEL, sk, type AssigneeOption, type CustomField, type FieldValue, type Priority, type Project, type Status, type Task, isAgentLike } from "./data";
 import { FieldCell } from "./fields";
 import { TASK_TYPES, TYPE_META, TypeIcon, typeOf, type TaskType } from "./task-type";
 import { useSprints } from "./sprint-fields";
 import { ClashBadge } from "./schedule-r38"; // R38: date clash badge
 import { ChecklistChip } from "./task-checklist"; // R26 (MB-85)
+import { AvatarStack, TagChips, TagChip } from "./tasks-r84"; // R84
+import { collapsedKey, groupTasks, type GroupBy, type GroupContext, type TaskGroup } from "@/web/lib/task-groups-r84"; // R84
+import { useTags } from "./data";
 
 const PRIORITIES: Priority[] = ["urgent", "high", "medium", "low", "none"];
 const PRIORITY_RANK: Record<Priority, number> = { urgent: 0, high: 1, medium: 2, low: 3, none: 4 };
@@ -80,7 +83,9 @@ export const TABLE_COLUMNS: TableColumn[] = [
   },
   {
     id: "assignee", header: "Assignee", width: "w-[150px]", editor: "assignee", hideOnPhone: true, sortKey: (t) => t.assignee?.name.toLowerCase() ?? "\uffff",
-    render: (t) => t.assignee
+    render: (t) => t.assignee && (t.assignees?.length ?? 0) > 1
+      ? <span className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap"><AvatarStack people={t.assignees!} /><span className="truncate">{t.assignee.name}</span><span className="text-subtle">+{t.assignees!.length - 1}</span></span>
+      : t.assignee
       ? <span className="inline-flex min-w-0 items-center gap-1 whitespace-nowrap">{isAgentLike(t.assignee) && <IconAgent className="h-3.5 w-3.5 shrink-0 text-brand-hover" />}<span className="truncate">{t.assignee.name}</span></span>
       : <span className="inline-flex items-center" title="Nobody"><IconUserRound className="mm-faint h-4 w-4" aria-hidden /><span className="sr-only">Nobody</span></span>, // R79: a faint icon, not a word
   },
@@ -93,8 +98,8 @@ export const TABLE_COLUMNS: TableColumn[] = [
     render: (t) => t.due ? <span className={cn("whitespace-nowrap", isOverdue(t) && "text-bad")}>{dueLabel(t.due) ?? ""}</span> : <span className="inline-flex items-center" title="No due date"><IconCalendarDays className="mm-faint h-4 w-4" aria-hidden /><span className="sr-only">No due date</span></span>,
   },
   {
-    id: "labels", header: "Labels", width: "w-[180px]", editor: "labels", hideOnPhone: true, sortKey: (t) => t.labels.join(",").toLowerCase() || "\uffff",
-    render: (t) => <span className="flex min-w-0 flex-nowrap gap-1 overflow-hidden">{t.labels.map((l) => <span key={l} className="shrink-0 whitespace-nowrap rounded-md bg-fill px-1.5 py-0.5 text-[11.5px] text-muted">{l}</span>)}</span>,
+    id: "labels", header: "Tags", width: "w-[180px]", editor: "labels", hideOnPhone: true, sortKey: (t) => t.labels.join(",").toLowerCase() || "\uffff",
+    render: (t) => <TagChips labels={t.labels} max={2} className="flex-nowrap overflow-hidden" />,
   },
   {
     id: "start", header: "Start", width: "w-[96px]", editor: "date", field: "start", hideOnPhone: true, sortKey: (t) => t.start ?? "9999",
@@ -241,22 +246,57 @@ function LabelEditor({ value, onSave, onCancel }: { value: string[]; onSave: (v:
 
 interface Cell { r: number; c: number }
 
-export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], projectId, onAdd }: {
+export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], projectId, onAdd, groupBy, sort: sortProp, onSort }: {
   tasks: Task[]; projects: Project[]; onOpen: (id: string) => void; fields?: CustomField[]; people?: AssigneeOption[]; projectId?: string;
   /** R79: the "+ Add task" row under the list. */
   onAdd?: () => void;
+  /** R84: group the rows under collapsible headers (one table, so selection and the bulk bar work across groups). */
+  groupBy?: GroupBy | null;
+  /** R84: the sort, owned by the page so a saved view keeps it. */
+  sort?: { id: string; desc: boolean } | null; onSort?: (s: { id: string; desc: boolean } | null) => void;
 }) {
   const writes = useTableWrites();
   const pmap = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
   const ctx = useMemo<TableContext>(() => ({ projects: pmap, people, statusesFor: (t) => pmap.get(t.projectId)?.statuses ?? [] }), [pmap, people]);
   const columns = useMemo(() => [...TABLE_COLUMNS, ...(projectId ? [] : [PROJECT_COLUMN]), ...fields.map(fieldColumn)], [projectId, fields]);
-  const [sort, setSort] = useState<{ id: string; desc: boolean } | null>(null);
-  const rows = useMemo(() => {
+  const [ownSort, setOwnSort] = useState<{ id: string; desc: boolean } | null>(null);
+  const sort = onSort ? (sortProp ?? null) : ownSort;
+  const setSort = (fn: (s: { id: string; desc: boolean } | null) => { id: string; desc: boolean } | null) => (onSort ? onSort(fn(sort)) : setOwnSort(fn));
+  const sorted = useMemo(() => {
     const col = sort && columns.find((c) => c.id === sort.id);
     if (!col?.sortKey) return tasks;
     const key = col.sortKey;
     return [...tasks].sort((a, b) => { const x = key(a, ctx), y = key(b, ctx); const n = x < y ? -1 : x > y ? 1 : 0; return sort!.desc ? -n : n; });
   }, [tasks, sort, columns, ctx]);
+  // R84: groups. Collapsed groups are remembered on this device for each grouping.
+  const tagList = useTags();
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!groupBy) return;
+    try { setCollapsed(new Set(JSON.parse(localStorage.getItem(collapsedKey(groupBy)) ?? "[]") as string[])); } catch { setCollapsed(new Set()); }
+  }, [groupBy]);
+  const toggleGroup = (key: string) => setCollapsed((c) => {
+    const n = new Set(c);
+    if (n.has(key)) n.delete(key); else n.add(key);
+    try { if (groupBy) localStorage.setItem(collapsedKey(groupBy), JSON.stringify([...n])); } catch { /* private mode */ }
+    return n;
+  });
+  const groups = useMemo<TaskGroup<Task>[] | null>(() => {
+    if (!groupBy) return null;
+    const gctx: GroupContext = { projects, tags: tagList.data ?? [], fields, people: people.map((p) => ({ id: p.id, name: p.name })) };
+    return groupTasks(sorted, groupBy, gctx);
+  }, [groupBy, sorted, projects, tagList.data, fields, people]);
+  // rows: the tasks in display order (collapsed groups left out); headersAt: the group headers drawn before row i.
+  const { rows, headersAt } = useMemo(() => {
+    if (!groups) return { rows: sorted, headersAt: new Map<number, TaskGroup<Task>[]>() };
+    const out: Task[] = [];
+    const at = new Map<number, TaskGroup<Task>[]>();
+    for (const g of groups) {
+      at.set(out.length, [...(at.get(out.length) ?? []), g]);
+      if (!collapsed.has(g.key)) out.push(...g.tasks);
+    }
+    return { rows: out, headersAt: at };
+  }, [groups, sorted, collapsed]);
   const [focus, setFocus] = useState<Cell | null>(null);
   const [editing, setEditing] = useState<Cell | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -341,7 +381,7 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
 
   // R43 (MB-210): long lists render only the rows on screen; arrow keys and J/K bring a row in before focusing it.
   const bodyRef = useRef<HTMLTableSectionElement>(null);
-  const win = useWindowedList({ count: rows.length, estimate: 41, listRef: bodyRef, scrollRef: gridRef });
+  const win = useWindowedList({ count: rows.length, estimate: 41, listRef: bodyRef, scrollRef: gridRef, ...(groups ? { minCount: Number.MAX_SAFE_INTEGER } : {}) });
   const rowIds = useMemo(() => rows.map((t) => t.id), [rows]);
   useRevealRow(rowIds, win, bodyRef);
   const { windowed, scrollToIndex } = win;
@@ -349,6 +389,33 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
   const span = columns.length + 1;
 
   const allPicked = rows.length > 0 && rows.every((t) => selected.has(t.id));
+  // R84: a row's aria-rowindex counts the group headers above it.
+  const headersBefore = useMemo(() => {
+    const out: number[] = [];
+    let n = 0;
+    for (let i = 0; i <= rows.length; i++) { n += headersAt.get(i)?.length ?? 0; out.push(n); }
+    return out;
+  }, [rows.length, headersAt]);
+  const groupHeader = (g: TaskGroup<Task>) => {
+    const open = !collapsed.has(g.key);
+    const ids = g.tasks.map((t) => t.id);
+    const all = ids.length > 0 && ids.every((id) => selected.has(id));
+    return (
+      <tr key={`g:${g.key}`} data-testid="group-header" className="bg-surface">
+        <td className="border-b border-line px-3 py-1.5">
+          <input type="checkbox" aria-label={`Select all in ${g.label}`} checked={all} onChange={() => setSelected((s) => { const n = new Set(s); for (const id of ids) { if (all) n.delete(id); else n.add(id); } return n; })} className="h-3.5 w-3.5 accent-[var(--color-brand)]" />
+        </td>
+        <td colSpan={span - 1} className="border-b border-line px-1 py-1">
+          <button type="button" aria-expanded={open} onClick={() => toggleGroup(g.key)} className="inline-flex min-h-8 items-center gap-2 rounded-md px-2 text-[12.5px] font-semibold text-fg hover:bg-hover max-sm:min-h-11">
+            <svg aria-hidden viewBox="0 0 16 16" className={cn("h-3.5 w-3.5 text-muted transition-transform motion-reduce:transition-none", open && "rotate-90")}><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            {g.color && <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: g.key.startsWith("status:") ? tone(g.color) : g.color }} />}
+            <span>{g.label}</span>
+            <span className="font-normal tabular-nums text-subtle">{g.tasks.length}</span>
+          </button>
+        </td>
+      </tr>
+    );
+  };
   const picked = rows.filter((t) => selected.has(t.id));
 
   return (
@@ -357,7 +424,7 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
       <div ref={gridRef} role="region" aria-label="Tasks table" tabIndex={0} onKeyDown={onKeyDown}
         onFocus={(e) => { if (e.target === gridRef.current && !focus && rows.length) setFocus({ r: 0, c: 1 }); }}
         className="max-h-[calc(100dvh-13rem)] overflow-auto rounded-xl border border-line outline-none focus-visible:ring-2 focus-visible:ring-brand/30" data-testid="task-table">
-        <table role="grid" aria-label="Tasks" aria-multiselectable="true" aria-rowcount={rows.length + 1} className="w-full border-separate border-spacing-0 text-[13px]">
+        <table role="grid" aria-label="Tasks" aria-multiselectable="true" aria-rowcount={rows.length + 1 + (headersBefore[rows.length] ?? 0)} className="w-full border-separate border-spacing-0 text-[13px]">
           <thead className="text-left text-[12px] text-subtle">
             <tr>
               <th className="sticky top-0 z-20 w-9 border-b border-line bg-surface/95 px-3 py-2 backdrop-blur">
@@ -383,7 +450,9 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
               const isPicked = selected.has(t.id);
               const doneStatus = ctx.statusesFor(t).find((s) => s.category === "done");
               return (
-                <SwipeTr key={t.id} aria-selected={isPicked} aria-rowindex={r + 2} data-win-row={String(r)} data-task={t.ref} data-task-id={t.id} className={cn("group", isPicked ? "bg-brand/[0.06]" : "hover:bg-hover")}
+                <Fragment key={t.id}>
+                {headersAt.get(r)?.map(groupHeader)}
+                <SwipeTr aria-selected={isPicked} aria-rowindex={r + 2 + (headersBefore[r] ?? 0)} data-win-row={String(r)} data-task={t.ref} data-task-id={t.id} className={cn("group", isPicked ? "bg-brand/[0.06]" : "hover:bg-hover")}
                   disabled={selected.size > 0 || editing !== null}
                   right={doneStatus && t.status !== "done" ? { label: "Done", icon: IconCheckCircle, tone: "green", onCommit: () => void writes.edit(t, { statusId: doneStatus.id }, statusDisplay(doneStatus)) } : undefined}
                   left={{ label: "More", icon: IconMore, tone: "grey", onCommit: () => onOpen(t.id) }}
@@ -398,7 +467,7 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
                     const isEdit = editing?.r === r && editing.c === c;
                     const inlineEditor = col.editor === "text" || col.editor === "date" || col.editor === "labels" || col.editor === "points";
                     return (
-                      <td key={col.id} role="gridcell" aria-label={col.header}
+                      <td key={col.id} role="gridcell"
                         onClick={(e) => {
                           if (e.shiftKey) { toggleRow(r, true); return; }
                           setFocus({ r, c });
@@ -416,10 +485,12 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
                     );
                   })}
                   </>)} />
+                </Fragment>
               );
             })}
+            {groups && headersAt.get(rows.length)?.map(groupHeader)}
             {win.padBottom > 0 && <tr aria-hidden="true" data-testid="win-pad-bottom" style={{ height: win.padBottom }}><td colSpan={span} className="p-0" /></tr>}
-            {rows.length === 0 && <tr><td colSpan={columns.length + 1} className="px-3 py-10 text-center text-muted">No tasks match these filters.</td></tr>}
+            {rows.length === 0 && !groups?.length && <tr><td colSpan={columns.length + 1} className="px-3 py-10 text-center text-muted">No tasks match these filters.</td></tr>}
             {onAdd && <tr><td colSpan={columns.length + 1} className="p-0">
               <button type="button" onClick={onAdd} data-testid="table-add-task" className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-[13px] text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand motion-reduce:transition-none">
                 <IconPlus className="h-3.5 w-3.5" aria-hidden />Add task</button>
@@ -427,16 +498,18 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
           </tbody>
         </table>
       </div>
-      {picked.length > 0 && <BulkBar tasks={picked} projects={projects} people={people} writes={writes} onClear={() => setSelected(new Set())} />}
+      {picked.length > 0 && <BulkBar tasks={picked} projects={projects} people={people} fields={fields.filter((f) => f.type !== "formula" && f.type !== "rollup")} writes={writes} onClear={() => setSelected(new Set())} />}
     </div>
   );
 }
 
 // ---------------------------------------------------------------- the bulk bar
 
-type Pop = "status" | "assignee" | "due" | "labels" | "type" | "sprint" | "project" | null;
+type Pop = "status" | "assignee" | "due" | "labels" | "type" | "sprint" | "project" | "field" | null;
 
-function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; projects: Project[]; people: AssigneeOption[]; writes: ReturnType<typeof useTableWrites>; onClear: () => void }) {
+function BulkBar({ tasks, projects, people, fields, writes, onClear }: { tasks: Task[]; projects: Project[]; people: AssigneeOption[]; fields: CustomField[]; writes: ReturnType<typeof useTableWrites>; onClear: () => void }) {
+  const [assignMode, setAssignMode] = useState<"set" | "add">("set"); // R84: replace the main assignee, or add people beside
+  const tagList = useTags();
   const [pop, setPop] = useState<Pop>(null);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -492,7 +565,7 @@ function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; 
   return (
     <>
       <div ref={barRef} role="toolbar" aria-label="Bulk actions" data-testid="bulk-bar"
-        className="fixed bottom-[calc(1.5rem+var(--tabbar-h,0px))] left-1/2 z-40 flex -translate-x-1/2 animate-pop-in items-center gap-1 rounded-2xl border border-line bg-elevated/95 p-1.5 pl-3.5 shadow-pop backdrop-blur-xl">
+        className="fixed bottom-[calc(1.5rem+var(--tabbar-h,0px))] left-1/2 z-40 flex -translate-x-1/2 animate-pop-in items-center gap-1 rounded-2xl border border-line bg-elevated/95 p-1.5 pl-3.5 shadow-pop backdrop-blur-xl max-sm:w-[calc(100vw-1rem)] max-sm:flex-wrap max-sm:justify-center max-sm:pl-1.5">
         <span className="mr-1 whitespace-nowrap text-[13px] font-medium tabular-nums" aria-live="polite">{tasks.length} selected</span>
         <span className="mx-1 h-5 w-px bg-line" />
         <div className="relative">
@@ -504,8 +577,20 @@ function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; 
         <div className="relative">
           {barButton("assignee", <IconUserRound className="h-4 w-4" />, "Assign to")}
           {pop === "assignee" && panel([
-            item("none", <span className="text-muted">Nobody</span>, () => void run({ assignee: null }, assigneeDisplay(people, null))),
-            ...people.map((p) => item(p.id, <>{isAgentLike(p) ? <IconAgent className="h-3.5 w-3.5 text-brand-hover" /> : <IconUserRound className="h-3.5 w-3.5 text-subtle" />}{p.name}</>, () => void run({ assignee: p.id }, assigneeDisplay(people, p.id)))),
+            <div key="mode" role="group" aria-label="How to assign" className="mb-1 grid grid-cols-2 gap-1 rounded-lg bg-fill p-0.5 text-[12px]">
+              {(["set", "add"] as const).map((m) => (
+                <button key={m} type="button" aria-pressed={assignMode === m} onClick={() => setAssignMode(m)} className={cn("rounded-md px-2 py-1 font-medium max-sm:py-2", assignMode === m ? "bg-surface text-fg shadow-sm" : "text-muted")}>{m === "set" ? "Assign to" : "Add person"}</button>
+              ))}
+            </div>,
+            ...(assignMode === "set" ? [item("none", <span className="text-muted">Nobody</span>, () => void run({ assignee: null }, assigneeDisplay(people, null)))] : []),
+            ...people.map((p) => item(p.id, <>{isAgentLike(p) ? <IconAgent className="h-3.5 w-3.5 text-brand-hover" /> : <IconUserRound className="h-3.5 w-3.5 text-subtle" />}{p.name}</>, () => void (assignMode === "set"
+              ? run({ assignee: p.id }, assigneeDisplay(people, p.id))
+              : run({ addAssignees: [p.id] }, (t) => {
+                const who = { type: p.type, id: p.id.split(":")[1]!, name: p.name, email: p.email };
+                if (!t.assignee) return { ...t, assigneeId: p.id, assignee: who, assignees: [who] };
+                const list = t.assignees ?? [t.assignee];
+                return list.some((a) => `${a.type}:${a.id}` === p.id) ? t : { ...t, assignees: [...list, who] };
+              })))),
           ], "Assign to")}
         </div>
         <div className="relative">
@@ -520,23 +605,39 @@ function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; 
             </div>, "Due date")}
         </div>
         <div className="relative">
-          {barButton("labels", <IconTag className="h-4 w-4" />, "Labels")}
+          {barButton("labels", <IconTag className="h-4 w-4" />, "Tags")}
           {pop === "labels" && panel(
             <div className="space-y-2 p-2">
-              <input autoFocus aria-label="Label" placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={40}
+              <input autoFocus aria-label="Tag" placeholder="Find or type a tag" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={40}
                 onKeyDown={(e) => { if (e.key === "Enter" && label.trim()) { const l = label.trim(); setLabel(""); void run({ addLabels: [l] }, (t) => ({ ...t, labels: t.labels.includes(l) ? t.labels : [...t.labels, l] })); } }}
                 className="h-8 w-full rounded-md border border-line bg-surface px-2 text-[13px]" />
               <div className="flex gap-1.5">
-                <Button size="sm" disabled={!label.trim()} onClick={() => { const l = label.trim(); setLabel(""); void run({ addLabels: [l] }, (t) => ({ ...t, labels: t.labels.includes(l) ? t.labels : [...t.labels, l] })); }}>Add label</Button>
+                <Button size="sm" disabled={!label.trim()} onClick={() => { const l = label.trim(); setLabel(""); void run({ addLabels: [l] }, (t) => ({ ...t, labels: t.labels.includes(l) ? t.labels : [...t.labels, l] })); }}>Add tag</Button>
                 <Button size="sm" variant="secondary" disabled={!label.trim()} onClick={() => { const l = label.trim(); setLabel(""); void run({ removeLabels: [l] }, (t) => ({ ...t, labels: t.labels.filter((x) => x !== l) })); }}>Remove</Button>
               </div>
-              {(() => { const used = [...new Set(tasks.flatMap((t) => t.labels))]; return used.length ? (
-                <div className="flex flex-wrap gap-1 border-t border-line pt-2">
-                  {used.slice(0, 12).map((l) => <button key={l} type="button" onClick={() => setLabel(l)} className="rounded-md bg-fill px-1.5 py-0.5 text-[11.5px] text-muted hover:text-fg">{l}</button>)}
-                </div>
-              ) : null; })()}
-            </div>, "Labels")}
+              {(() => {
+                const add = (l: string) => void run({ addLabels: [l] }, (t) => ({ ...t, labels: t.labels.includes(l) ? t.labels : [...t.labels, l] }));
+                const drop = (l: string) => void run({ removeLabels: [l] }, (t) => ({ ...t, labels: t.labels.filter((x) => x !== l) }));
+                const used = [...new Set(tasks.flatMap((t) => t.labels))];
+                const colourOf = (l: string) => tagList.data?.find((x) => x.name.toLowerCase() === l.toLowerCase())?.color ?? "#8a8f98";
+                const quick = (tagList.data ?? []).filter((x) => x.name.toLowerCase().includes(label.trim().toLowerCase())).slice(0, 12);
+                return (<>
+                  {quick.length > 0 && <div className="border-t border-line pt-2"><p className="mb-1 text-[11px] text-subtle">Add a tag</p><div className="flex flex-wrap gap-1">
+                    {quick.map((x) => <button key={x.id} type="button" onClick={() => add(x.name)} aria-label={`Add tag ${x.name}`} className="rounded-full"><TagChip name={x.name} color={x.color} /></button>)}
+                  </div></div>}
+                  {used.length > 0 && <div className="border-t border-line pt-2"><p className="mb-1 text-[11px] text-subtle">On these tasks</p><div className="flex flex-wrap gap-1">
+                    {used.slice(0, 12).map((l) => <TagChip key={l} name={l} color={colourOf(l)} onRemove={() => drop(l)} />)}
+                  </div></div>}
+                </>);
+              })()}
+            </div>, "Tags")}
         </div>
+        {fields.length > 0 && (
+          <div className="relative">
+            {barButton("field", <IconTable className="h-4 w-4" />, "Field")}
+            {pop === "field" && panel(<BulkFieldPanel fields={fields} people={people} onSet={(id, v) => void run({ fields: { [id]: v } }, (t) => ({ ...t, fields: { ...(t.fields ?? {}), [id]: v as FieldValue } }))} />, "Set a field")}
+          </div>
+        )}
         <div className="relative">
           {barButton("type", <IconShapes className="h-4 w-4" />, "Type")}
           {pop === "type" && panel((["task", "story", "bug"] as const).map((k) => item(k, <><TypeIcon type={k} />{TYPE_META[k].label}</>, () => void run({ type: k }, (t) => ({ ...t, type: k })))), "Set type")}
@@ -569,5 +670,52 @@ function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; 
           <Button variant="danger" onClick={async () => { setConfirm(false); if (await writes.remove(ids)) onClear(); }}>Delete</Button>
         </>} />
     </>
+  );
+}
+
+/** R84: set one custom field on every picked task (or clear it). */
+function BulkFieldPanel({ fields, people, onSet }: { fields: CustomField[]; people: AssigneeOption[]; onSet: (fieldId: string, value: unknown) => void }) {
+  const [id, setId] = useState(fields[0]?.id ?? "");
+  const [value, setValue] = useState<string>("");
+  const f = fields.find((x) => x.id === id) ?? fields[0];
+  if (!f) return null;
+  const cls = "h-8 w-full rounded-md border border-line bg-surface px-2 text-[13px] max-sm:h-11 max-sm:text-base";
+  const parsed = (): unknown => {
+    if (f.type === "number" || f.type === "currency") return value === "" ? null : Number(value);
+    if (f.type === "checkbox") return value === "yes";
+    if (f.type === "multiselect") return value ? [value] : [];
+    return value || null;
+  };
+  return (
+    <div className="w-64 space-y-2 p-2">
+      <select aria-label="Field" value={f.id} onChange={(e) => { setId(e.target.value); setValue(""); }} className={cls}>
+        {fields.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+      </select>
+      {f.type === "select" || f.type === "multiselect" ? (
+        <select aria-label={`Value for ${f.name}`} value={value} onChange={(e) => setValue(e.target.value)} className={cls}>
+          <option value="">Pick an option</option>
+          {f.options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+        </select>
+      ) : f.type === "checkbox" ? (
+        <select aria-label={`Value for ${f.name}`} value={value} onChange={(e) => setValue(e.target.value)} className={cls}>
+          <option value="">Pick one</option><option value="yes">Ticked</option><option value="no">Not ticked</option>
+        </select>
+      ) : f.type === "person" ? (
+        <select aria-label={`Value for ${f.name}`} value={value} onChange={(e) => setValue(e.target.value)} className={cls}>
+          <option value="">Pick a person</option>
+          {people.filter((p) => p.type === "member").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      ) : f.type === "date" ? (
+        <DateInput aria-label={`Value for ${f.name}`} value={value} onChange={(e) => setValue(e.target.value)} className={cls} />
+      ) : (
+        <input aria-label={`Value for ${f.name}`} value={value} onChange={(e) => setValue(e.target.value)} inputMode={f.type === "number" || f.type === "currency" ? "decimal" : f.type === "url" ? "url" : undefined}
+          placeholder={f.type === "url" ? "https://" : f.type === "number" || f.type === "currency" ? "0" : "Value"} className={cls}
+          onKeyDown={(e) => { if (e.key === "Enter" && value !== "") onSet(f.id, parsed()); }} />
+      )}
+      <div className="flex gap-1.5">
+        <Button size="sm" disabled={value === ""} onClick={() => onSet(f.id, parsed())}>Set {f.name}</Button>
+        <Button size="sm" variant="secondary" onClick={() => onSet(f.id, null)}>Clear</Button>
+      </div>
+    </div>
   );
 }
