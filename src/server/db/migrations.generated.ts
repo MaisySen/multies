@@ -1041,6 +1041,23 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0105_links",
+    "statements": [
+      "-- R87: Links in Tools. Short links (/l/<code>), their clicks (no address stored: a visitor hash with a daily salt), one\n-- bio page per workspace and per person (/bio/<slug>), team go links (go/<name>) and a workspace's own link domain.\n-- Additive only. The public pages read one row by its unique key (code, slug or host).\nCREATE TABLE `short_links` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`code` text NOT NULL,\n\t`url` text NOT NULL,\n\t`title` text,\n\t`tags` text DEFAULT '[]' NOT NULL,\n\t`enabled` integer DEFAULT 1 NOT NULL,\n\t`expires_at` integer,\n\t`max_clicks` integer,\n\t`password_hash` text,\n\t`clicks` integer DEFAULT 0 NOT NULL,\n\t`bot_clicks` integer DEFAULT 0 NOT NULL,\n\t`last_click_at` integer,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `short_links_code_uq` ON `short_links` (`code`);",
+      "CREATE INDEX `short_links_org_idx` ON `short_links` (`org_id`,`created_at`);",
+      "CREATE TABLE `link_clicks` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`org_id` text NOT NULL,\n\t`link_id` text NOT NULL,\n\t`day` text NOT NULL,\n\t`at` integer NOT NULL,\n\t`country` text,\n\t`referrer` text,\n\t`device` text,\n\t`browser` text,\n\t`os` text,\n\t`visitor` text,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `link_clicks_link_day_idx` ON `link_clicks` (`link_id`,`day`);",
+      "CREATE TABLE `link_bio_pages` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text,\n\t`slug` text NOT NULL,\n\t`title` text NOT NULL,\n\t`bio` text,\n\t`avatar` text DEFAULT 'logo' NOT NULL,\n\t`avatar_url` text,\n\t`theme` text DEFAULT 'brand' NOT NULL,\n\t`brand_color` text,\n\t`items` text DEFAULT '[]' NOT NULL,\n\t`socials` text DEFAULT '[]' NOT NULL,\n\t`published` integer DEFAULT 0 NOT NULL,\n\t`views` integer DEFAULT 0 NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `link_bio_pages_slug_uq` ON `link_bio_pages` (`slug`);",
+      "CREATE INDEX `link_bio_pages_org_idx` ON `link_bio_pages` (`org_id`,`user_id`);",
+      "CREATE TABLE `go_links` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`target_kind` text NOT NULL,\n\t`target_id` text,\n\t`url` text,\n\t`label` text,\n\t`description` text,\n\t`clicks` integer DEFAULT 0 NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `go_links_org_name_uq` ON `go_links` (`org_id`,`name`);",
+      "CREATE TABLE `link_hosts` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`host` text NOT NULL,\n\t`domain_id` text,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`checked_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `link_hosts_host_uq` ON `link_hosts` (`host`);"
+    ]
+  },
+  {
     "name": "0106_social_post_sync",
     "statements": [
       "-- Oct 31: posts checked against their network, and deleted there from Multies. Additive only.\nALTER TABLE `social_post_targets` ADD `remote_id` text;",

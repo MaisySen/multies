@@ -16,6 +16,8 @@ export interface AppConfig {
    * Tools P1: document tools on the private document engine. On only when TOOLS_ENABLED=true and the
    * engine address and both keys are set (DOC_ENGINE_URL, DOC_ENGINE_KEY_ID, DOC_ENGINE_KEY, TOOLS_TOKEN_KEY).
    */
+  /** R87: Links (short links, bio pages): how long an isolate gathers clicks before one batched write (LINK_CLICK_FLUSH_MS). */
+  links?: { flushMs: number };
   tools: { enabled: boolean; engine: { url: string; keyId: string; key: string } | null; tokenKey: string | null; /** Tools P2: the advanced features switched on (TOOLS_FEATURES). */ features: ToolFeature[] };
   appName: string;
   /** Where people reach support (support page, store listings). SUPPORT_EMAIL. */
@@ -274,6 +276,7 @@ const EnvSchema = z.object({
   CHANNELS_DAILY_SOFT_CAP: z.string().optional(),
   TOOLS_ENABLED: z.string().optional(),
   TOOLS_FEATURES: z.string().optional(),
+  LINK_CLICK_FLUSH_MS: z.string().optional(), // R87
   DOC_ENGINE_URL: z.string().optional(),
   DOC_ENGINE_KEY_ID: z.string().optional(),
   DOC_ENGINE_KEY: z.string().optional(),
@@ -546,6 +549,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     demoEnabled: env.DEMO_MODE === "true" || env.DEMO_MODE === "1",
     schedulingEnabled: env.SCHEDULING_ENABLED === "true" || env.SCHEDULING_ENABLED === "1",
     tools: toolsConfig(env),
+    links: { flushMs: Math.max(0, Math.min(20_000, Number(env.LINK_CLICK_FLUSH_MS ?? 4000) || 0)) },
     appName: env.APP_NAME ?? "Multies",
     supportEmail: env.SUPPORT_EMAIL?.trim() || "support@multies.si",
     cfBeaconToken: /^[a-f0-9]{32}$/i.test(env.CF_BEACON_TOKEN?.trim() ?? "") ? env.CF_BEACON_TOKEN!.trim() : null,

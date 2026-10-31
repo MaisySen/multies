@@ -33,6 +33,7 @@ import { toolsAiRoutes } from "./routes/tools-ai"; // Tools P2: AI documents
 import { mailMergeUnsubscribeRoutes, toolsAutomationRoutes } from "./routes/tools-automation"; // Tools P2: automation
 import { sharePublicRoutes, toolsShareRoutes } from "./routes/tools-share";
 import { requestPublicRoutes, secretPublicRoutes, toolsRequestRoutes, toolsSecretRoutes } from "./routes/secure-share"; // R88 // Tools P2: share links
+import { bioPublicRoutes, linkPublicRoutes, linksRoutes } from "./routes/links"; // R87: Links in Tools
 import { esignPublicRoutes, toolsEsignRoutes } from "./routes/tools-esign"; // Tools P2: e-sign
 import { attachmentIndexRoutes } from "./routes/attachment-index"; // Tools P2: attachment index and smart folders
 import { connectionRoutes } from "./routes/connections";
@@ -428,6 +429,7 @@ export function createApp(deps: Deps) {
   app.route("/api/tools/share", toolsShareRoutes()); // Tools P2: share links
   app.route("/api/tools/requests", toolsRequestRoutes()); // R88: file requests
   app.route("/api/tools/secrets", toolsSecretRoutes()); // R88: secret links
+  app.route("/api/links", linksRoutes()); // R87: short links, bio pages, go links, link domain
   app.route("/api/tools/esign", toolsEsignRoutes()); // Tools P2: e-sign
   app.route("/api/tools", toolsRoutes()); // Tools P1: document tools (off unless TOOLS_ENABLED)
   app.route("/api/tools", toolsAutomationRoutes()); // Tools P2: automation (rules, workflows, templates, mail merge)
@@ -539,6 +541,8 @@ export function createApp(deps: Deps) {
   app.route("/d", sharePublicRoutes()); // Tools P2: share links, the public page /d/<token>
   app.route("/u", requestPublicRoutes()); // R88: file requests, the public upload page /u/<token>
   app.route("/x", secretPublicRoutes()); // R88: secret links, the public page /x/<token>#key
+  app.route("/l", linkPublicRoutes()); // R87: short links /l/<code>
+  app.route("/bio", bioPublicRoutes()); // R87: link in bio pages /bio/<slug>
   app.route("/sign", esignPublicRoutes()); // Tools P2: e-sign, the public signing page /sign/<token>
   app.route("/r/o", openPixelRoutes()); // R31: read status open image /r/o/<token>.gif (public)
   // The public API is the biggest part of the app to build (about 150 OpenAPI routes, roughly

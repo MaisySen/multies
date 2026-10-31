@@ -2623,3 +2623,85 @@ export const directSocialPublishes = sqliteTable("direct_social_publishes", {
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
 }, (t) => [index("direct_social_publishes_org_idx").on(t.orgId, t.createdAt), uniqueIndex("direct_social_publishes_pub_uq").on(t.provider, t.publishId)]);
+
+
+/** R87: a short link (/l/<code>). The code is unique across Multies; tags are a JSON array. */
+export const shortLinks = sqliteTable("short_links", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  code: text("code").notNull(),
+  url: text("url").notNull(),
+  title: text("title"),
+  tags: text("tags").notNull().default("[]"),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  expiresAt: ts("expires_at"),
+  maxClicks: integer("max_clicks"),
+  passwordHash: text("password_hash"),
+  clicks: integer("clicks").notNull().default(0),
+  botClicks: integer("bot_clicks").notNull().default(0),
+  lastClickAt: ts("last_click_at"),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [uniqueIndex("short_links_code_uq").on(t.code), index("short_links_org_idx").on(t.orgId, t.createdAt)]);
+
+/** R87: one counted click on a short link or a bio page link. No address: visitor is a salted hash for the day. */
+export const linkClicks = sqliteTable("link_clicks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  linkId: text("link_id").notNull(),
+  day: text("day").notNull(),
+  at: ts("at").notNull(),
+  country: text("country"),
+  referrer: text("referrer"),
+  device: text("device"),
+  browser: text("browser"),
+  os: text("os"),
+  visitor: text("visitor"),
+}, (t) => [index("link_clicks_link_day_idx").on(t.linkId, t.day)]);
+
+/** R87: a link in bio page (/bio/<slug>): the workspace's (user_id null) or one person's. */
+export const linkBioPages = sqliteTable("link_bio_pages", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id"),
+  slug: text("slug").notNull(),
+  title: text("title").notNull(),
+  bio: text("bio"),
+  avatar: text("avatar", { enum: ["logo", "photo", "none"] }).notNull().default("logo"),
+  avatarUrl: text("avatar_url"),
+  theme: text("theme", { enum: ["brand", "light", "dark"] }).notNull().default("brand"),
+  brandColor: text("brand_color"),
+  items: text("items").notNull().default("[]"),
+  socials: text("socials").notNull().default("[]"),
+  published: integer("published", { mode: "boolean" }).notNull().default(false),
+  views: integer("views").notNull().default(0),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [uniqueIndex("link_bio_pages_slug_uq").on(t.slug), index("link_bio_pages_org_idx").on(t.orgId, t.userId)]);
+
+/** R87: a team go link (go/<name>): a doc, task, project or web address, for workspace members only. */
+export const goLinks = sqliteTable("go_links", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  targetKind: text("target_kind", { enum: ["url", "doc", "task", "project"] }).notNull(),
+  targetId: text("target_id"),
+  url: text("url"),
+  label: text("label"),
+  description: text("description"),
+  clicks: integer("clicks").notNull().default(0),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [uniqueIndex("go_links_org_name_uq").on(t.orgId, t.name)]);
+
+/** R87: a workspace's own link domain (a name under one of its verified domains). */
+export const linkHosts = sqliteTable("link_hosts", {
+  orgId: text("org_id").primaryKey().references(() => organizations.id, { onDelete: "cascade" }),
+  host: text("host").notNull(),
+  domainId: text("domain_id"),
+  status: text("status", { enum: ["pending", "dns_ok", "live", "failed"] }).notNull().default("pending"),
+  checkedAt: ts("checked_at"),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("link_hosts_host_uq").on(t.host)]);
