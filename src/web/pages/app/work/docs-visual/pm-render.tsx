@@ -3,13 +3,14 @@
  * React, so nothing in a doc can inject markup. Diagrams draw through the same strict renderer as the editor;
  * whiteboards show their saved drawing.
  */
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { lazyPage } from "@/web/components/lazy-page";
 import { calloutVariant } from "@/web/lib/docs-callout";
 import { isSafeImageSrc } from "@/web/lib/docs-blocks-schema";
 import type { PMNode } from "@/web/lib/mindmap-tree";
 import { readTokens, useThemeKey } from "./theme";
 
-const BoardPicture = lazy(() => import("./board-picture"));
+const BoardPicture = lazyPage(() => import("./board-picture"), "default", { quiet: true });
 
 type Mark = { type: string; attrs?: Record<string, unknown> };
 

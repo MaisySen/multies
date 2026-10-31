@@ -20,7 +20,7 @@ import {
 import { downloadBlob, pngToPdf, safeName, svgBlob, svgToPng } from "./export-file";
 import { readTokens, useThemeKey } from "./theme";
 
-const COL = 280, ROW = 44, NODE_H = 34, PAD = 24, MAX_W = 240;
+const GAP = 40, ROW = 44, NODE_H = 34, PAD = 24, MAX_W = 240;
 
 interface Box { id: string; node: MindNode; x: number; y: number; w: number; depth: number; folded: boolean; hidden: number }
 
@@ -37,12 +37,18 @@ function layout(tree: MindNode, folded: Set<string>): { boxes: Box[]; links: [Bo
     const y = childBoxes.length ? (childBoxes[0].y + childBoxes[childBoxes.length - 1].y) / 2 : PAD + (row++) * ROW;
     const text = n.text || (n.kind === "root" ? "Untitled" : "");
     const hidden = countHidden(n);
-    const b: Box = { id: n.id, node: n, x: PAD + depth * COL, y, w: textWidth(text || "New idea", n.kind !== "item", hidden > 0 && n.kind !== "root"), depth, folded: folded.has(n.id) && visible(n).length > 0, hidden };
+    const b: Box = { id: n.id, node: n, x: 0, y, w: textWidth(text || "New idea", n.kind !== "item", hidden > 0 && n.kind !== "root"), depth, folded: folded.has(n.id) && visible(n).length > 0, hidden };
     boxes.push(b);
     for (const c of childBoxes) links.push([b, c]);
     return b;
   };
   walk(tree, 0);
+  // Each column is as wide as its widest node, so short parents do not leave a wide gap and the map fits more often.
+  const colW: number[] = [];
+  for (const b of boxes) colW[b.depth] = Math.max(colW[b.depth] ?? 0, b.w + 22);
+  const colX: number[] = [PAD];
+  for (let d = 1; d < colW.length; d++) colX[d] = colX[d - 1] + colW[d - 1] + GAP;
+  for (const b of boxes) b.x = colX[b.depth];
   const width = Math.max(...boxes.map((b) => b.x + b.w)) + PAD;
   const height = Math.max(PAD * 2 + ROW, row * ROW + PAD * 2);
   return { boxes, links, width, height };
@@ -79,7 +85,7 @@ export function MindMapView({ editor, title, readOnly, onRenameTitle }: { editor
   const [editing, setEditing] = useState<{ id: string; text: string; fresh: boolean } | null>(null);
   const [drag, setDrag] = useState<string | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
-  const { confirm, dialogs } = useDialogs();
+  const { confirm: askConfirm, dialogs } = useDialogs();
 
   // The doc is the source: redraw on every change, local or from a co-editor.
   useEffect(() => {
@@ -169,7 +175,7 @@ export function MindMapView({ editor, title, readOnly, onRenameTitle }: { editor
       const f = find(tree, id);
       const many = f ? f.node.children.length : 0;
       if (many) {
-        void confirm({ title: `Delete "${f!.node.text || "this idea"}"?`, description: `The ${many} ${many === 1 ? "item" : "items"} under it go too. Undo in Doc view brings them back.`, confirmLabel: "Delete", tone: "danger" })
+        void askConfirm({ title: `Delete "${f!.node.text || "this idea"}"?`, description: `The ${many} ${many === 1 ? "item" : "items"} under it go too. Undo in Doc view brings them back.`, confirmLabel: "Delete", tone: "danger" })
           .then((ok) => { if (ok) apply(remove(tree, id)); });
       } else apply(remove(tree, id));
     }

@@ -1,5 +1,6 @@
 import { NoDocsArt, NoSearchResultsArt } from "@/web/components/illustrations";
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazyPage } from "@/web/components/lazy-page";
 import { toast } from "sonner";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { CatchupCard } from "@/web/components/catchup-card"; // R31
@@ -31,9 +32,9 @@ import { docKindOf, whiteboardDocContent } from "@/shared/docs-visual"; // R89: 
 import { pageBoardExport } from "./docs-visual/whiteboard-view";
 import type { PMNode } from "@/web/lib/mindmap-tree";
 
-const MindMapView = lazy(() => import("./docs-visual/mindmap-view").then((m) => ({ default: m.MindMapView })));
-const PresentOverlay = lazy(() => import("./docs-visual/present").then((m) => ({ default: m.PresentOverlay })));
-const PresenterWindow = lazy(() => import("./docs-visual/present").then((m) => ({ default: m.PresenterWindow })));
+const MindMapView = lazyPage(() => import("./docs-visual/mindmap-view"), "MindMapView");
+const PresentOverlay = lazyPage(() => import("./docs-visual/present"), "PresentOverlay");
+const PresenterWindow = lazyPage(() => import("./docs-visual/present"), "PresenterWindow");
 
 interface DocSummary { id: string; title: string; excerpt: string; updatedAt: string; projectId: string | null; kind?: "doc" | "whiteboard" }
 interface Doc extends DocSummary { content: Record<string, unknown>; text: string; version: number; links: { type: string; id: string }[] }

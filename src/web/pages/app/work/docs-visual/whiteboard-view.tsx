@@ -3,7 +3,8 @@
  * itself loads in its own chunk once the block comes near the screen, so a doc without a board stays as light as
  * before.
  */
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, Component, type MutableRefObject, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, Component, type MutableRefObject, type ReactNode } from "react";
+import { lazyPage } from "@/web/components/lazy-page";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { IconDownload, IconEye, IconMaximize, IconMinimize, IconShapes } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
@@ -17,7 +18,7 @@ const loadCanvas = () => {
   if (typeof window !== "undefined") window.EXCALIDRAW_ASSET_PATH = "/board-assets/";
   return import("./whiteboard-canvas");
 };
-const WhiteboardCanvas = lazy(loadCanvas);
+const WhiteboardCanvas = lazyPage(loadCanvas, "default", { quiet: true });
 
 export interface VisualOptions {
   session: CollabSession | null;
