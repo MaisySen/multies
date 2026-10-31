@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import { criticalIconFiles } from "./scripts/critical-icons";
+import { boardFonts } from "./scripts/board-fonts";
 
 // R25: big libraries get chunks of their own, so an app release does not change their hashes (they stay
 // cached) and a page downloads only the libraries it uses. Only libraries the pages already load lazily
@@ -17,7 +18,8 @@ const VENDOR_GROUPS = [
   // R32: fast-equals (used by @tiptap/react) belongs here too; left out, it landed in an app chunk that imports
   // the editor, the two chunks imported each other, and the docs blocks crashed on load (Node undefined).
   { name: "vendor-editor", test: lib("@tiptap|prosemirror-[a-z-]+|linkifyjs|orderedmap|rope-sequence|w3c-keyname|yjs|lib0|y-protocols|y-websocket|fast-equals"), priority: 20 },
-  { name: "vendor-charts", test: lib("recharts|d3-[a-z-]+|victory-vendor|decimal\\.js-light|@reduxjs|react-redux|redux|immer|reselect|es-toolkit"), priority: 20 },
+  // R89: only the d3 modules the charts use; the diagram block brings the rest, and they stay in its own chunks.
+  { name: "vendor-charts", test: lib("recharts|d3-(?:array|color|ease|format|interpolate|path|scale|shape|time|time-format|timer)|victory-vendor|decimal\\.js-light|@reduxjs|react-redux|redux|immer|reselect|es-toolkit"), priority: 20 },
   { name: "vendor-calls", test: lib("livekit-client|@livekit"), priority: 20 },
   // R35: FullCalendar 7 brings its headless core and the Temporal polyfill; all three in one chunk, or their
   // imports run across chunks out of order ("is not a constructor" on load).
@@ -35,8 +37,9 @@ const VENDOR_GROUPS = [
 ];
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
+  plugins: [react(), tailwindcss(), boardFonts()],
+  // R89: one React for the drawing library too.
+  resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") }, dedupe: ["react", "react-dom"] },
   // R73: the build's own release, so a page file that fails to load can tell a new release (reload once) from a bad
   // connection (show Retry) by comparing with /version.json (src/web/lib/page-load.ts).
   define: { __WEB_RELEASE__: JSON.stringify(process.env.RELEASE?.trim() ?? "") },

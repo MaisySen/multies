@@ -144,3 +144,42 @@ source and licence are listed in the engine's own NOTICE. The EPUB and MOBI read
 Settings, Connections and Social posts reach outside apps through Composio (https://composio.dev), a hosted service: the
 sign in for each connected account happens on its pages and its tokens stay with it. Multies calls its REST API from the
 server only and ships none of its code. App names and logos in the gallery belong to their owners.
+
+## Whiteboard drawing (@excalidraw/excalidraw)
+
+R89: the whiteboard in Docs draws with this library; it loads only when a board is on screen. Its hand drawn fonts
+(Excalifont, Virgil, Nunito, Lilita One, Comic Shanns, Cascadia Code, Liberation Sans, Assistant) are served from
+/board-assets/fonts under their own licences (SIL Open Font License 1.1, Apache 2.0 and MIT, listed in the package).
+
+```
+MIT License
+
+Copyright (c) 2020 Excalidraw
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## Diagrams from text (mermaid)
+
+R89: the diagram block in Docs draws flowcharts, sequence diagrams, org charts, data models and timelines with
+this library, in strict security mode; it loads only when a diagram is on screen.
+MIT License, Copyright (c) 2014 to 2022 Knut Sveidqvist. The full MIT text is the same as above.
+Its own dependencies used in the browser include d3 (ISC, Copyright 2010 to 2023 Mike Bostock), dagre-d3-es (MIT),
+khroma (MIT), DOMPurify (Apache 2.0 or MPL 2.0, Copyright Cure53), cytoscape (MIT), elkjs (EPL 2.0),
+katex (MIT) and dayjs (MIT).

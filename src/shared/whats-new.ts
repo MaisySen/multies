@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-docs-visual",
+    date: "2026-10-31",
+    title: "Whiteboards, diagrams, mind maps and slides in Docs",
+    body: "Start a whiteboard from Docs and draw on it together, with everyone's cursor showing, or add one inside any doc with /whiteboard. Type /flowchart for a diagram drawn from text, flip a doc to Mind map to see and edit it as a tree, and press Present to show it as slides with speaker notes and a timer.",
+  },
+  {
     id: "2026-10-31-links",
     date: "2026-10-31",
     title: "Short links, QR codes and a link in bio page",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "Make Multies look like your company",
     body: "Owners and admins can add your logo, pick colours, corners, density and a font, or start from a ready made theme, with a live preview in Settings, Brand. Everyone can set their own accent and light or dark look in Settings, Appearance. Tools has a bigger drop zone and clearer tool cards.",
-  },
-  {
-    id: "2026-10-31-developers-faster-pages",
-    date: "2026-10-31",
-    title: "A home for developers, a clearer timeline, and quicker pages",
-    body: "The new Developers page gathers the API, MCP tools, agent inboxes and webhooks in one place. Timeline shows Day, Week or Month with a Today button and bars coloured by status, and reads as a list by week on a phone. Pricing, legal, status and the other public pages now appear right away on a phone.",
   },
   {
     id: "2026-10-28-whats-new",
