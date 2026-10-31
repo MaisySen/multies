@@ -84,7 +84,7 @@ export function SocialLibrary() {
   const [adding, setAdding] = useState<LibraryKind | null>(null);
   const [editing, setEditing] = useState<LibraryItemView | null>(null);
   const [removing, setRemoving] = useState<LibraryItemView | null>(null);
-  const items = lib.data?.items ?? [];
+  const items = useMemo(() => lib.data?.items ?? [], [lib.data]);
   const campaigns = useMemo(() => [...new Set(items.map((i) => i.campaign).filter((c): c is string => !!c))].sort(), [items]);
   const shown = items.filter((i) => (kind === "all" || i.kind === kind) && (!campaign || i.campaign === campaign));
   const remove = useMutation({

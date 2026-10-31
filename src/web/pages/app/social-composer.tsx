@@ -130,7 +130,7 @@ function PreviewCard({ app, name, label, text, images, linkCard, poll, firstComm
         {link && (
           <div className="mx-3.5 mb-3 rounded-lg border border-line bg-fill px-3 py-2" data-testid="preview-link">
             <p className="text-[11.5px] uppercase tracking-wide text-subtle">{(() => { try { return new URL(link).hostname.replace(/^www\./, ""); } catch { return link; } })()}</p>
-            <p className="truncate text-[13px] font-medium">Link card from your first link</p>
+            <p className="truncate text-[13px] font-medium">{link.replace(/^https?:\/\//, "")}</p>
           </div>
         )}
         {poll && app === "linkedin" && (
@@ -471,7 +471,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
 
           <fieldset>
             <legend className="mb-2 text-[13px] font-medium">Post to</legend>
-            <ul className="grid gap-x-3 divide-y divide-line rounded-lg border border-line md:grid-cols-2 md:divide-y-0" data-testid="account-chips">
+            <ul className="divide-y divide-line rounded-lg border border-line" data-testid="account-chips">
               {accounts.map((a) => {
                 const on = a.id in picked;
                 const fit = formatFit(a.app, format);
@@ -482,11 +482,11 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
                 const greyed = !on && !!block;
                 const why = block ?? broken;
                 return (
-                  <li key={a.id} className={cn("flex flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-2.5 md:border-b md:border-line", greyed && "opacity-70")} data-testid={`pick-${a.app}`} data-blocked={greyed ? "true" : undefined}>
+                  <li key={a.id} className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2", greyed && "bg-fill/40")} data-testid={`pick-${a.app}`} data-blocked={greyed ? "true" : undefined}>
                     <label className={cn("flex min-h-8 min-w-0 flex-1 items-center gap-2.5 text-[13.5px]", greyed ? "cursor-not-allowed" : "cursor-pointer")}>
                       <input type="checkbox" className="h-4 w-4 shrink-0 accent-[var(--color-brand)]" checked={on} disabled={greyed} onChange={() => toggle(a)} aria-describedby={why ? `why-${a.id}` : undefined} />
                       <AppLogo slug={a.app} name={a.name} size="sm" />
-                      <span className="min-w-0 truncate font-medium">{a.name}{a.label ? <span className="font-normal text-muted">, {a.label}</span> : null}</span>
+                      <span className={cn("min-w-0 truncate font-medium", greyed && "text-muted")}>{a.name}{a.label ? <span className="font-normal text-muted">, {a.label}</span> : null}</span>
                     </label>
                     {on && a.needsTarget && a.account && <TargetField account={a.account} value={picked[a.id] ?? ""} onChange={(v, name) => { setPicked((p) => ({ ...p, [a.id]: v })); setNames((n) => ({ ...n, [a.id]: name ?? v })); }} />}
                     {why && <p id={`why-${a.id}`} className="basis-full pl-[26px] text-[12.5px] text-muted" data-testid="pick-why">{why}</p>}

@@ -79,7 +79,7 @@ test("social p2 screenshots and axe", async ({ page, context, baseURL }) => {
   const pages: [string, string, () => Promise<void>][] = [
     ["composer", "/app/social/new", () => composer(page)],
     ["planner-week", "/app/social?view=week", async () => { await page.goto("/app/social?view=week"); await expect(page.getByTestId("planner-v2")).toBeVisible(); }],
-    ["planner-month", "/app/social?view=month", async () => { await page.goto("/app/social?view=month"); await expect(page.getByTestId("month-grid")).toBeVisible(); }],
+    ["planner-month", "/app/social?view=month", async () => { await page.goto("/app/social?view=month"); await expect(page.getByTestId((page.viewportSize()?.width ?? 1280) >= 768 ? "month-grid" : "month-agenda")).toBeVisible(); }],
     ["planner-list", "/app/social?view=list", async () => { await page.goto("/app/social?view=list"); await expect(page.getByTestId("list-view")).toBeVisible(); }],
     ["library", "/app/social/library", async () => { await page.goto("/app/social/library"); await expect(page.getByTestId("library-item").first()).toBeVisible(); }],
     ["approvals", "/app/approvals", async () => { await page.goto("/app/approvals"); await expect(page.getByTestId("social-approval").first()).toBeVisible(); }],

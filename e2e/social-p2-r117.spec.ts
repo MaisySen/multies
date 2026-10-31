@@ -48,7 +48,7 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     await page.getByTestId("slots-save").click();
     await expect(page.getByText("Time slots saved")).toBeVisible();
     await expect(page.getByTestId("no-slots")).toHaveCount(0);
-    if (w >= 1024) await expect(page.getByTestId("week-grid").getByTestId("free-slot").first()).toBeVisible();
+    if (w >= 1024) await expect(page.getByTestId("planner-grid").getByTestId("free-slot").first()).toBeVisible();
 
     // Composer v2: formats grey out networks with the reason.
     await page.goto("/app/social/new");

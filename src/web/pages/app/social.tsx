@@ -45,7 +45,8 @@ export function SocialSwitcher() {
   return (
     <nav aria-label="Social" className="-mx-1 mb-4 overflow-x-auto px-1 lg:hidden" data-testid="social-switcher">
       <ul className="flex w-max gap-1 rounded-lg border border-line bg-fill/50 p-1">
-        {SOCIAL_TABS.filter((t) => p2 || t.to !== "/app/social/library").map((t) => {
+        {/* R117: with Library the phone switcher keeps four tabs that fit; New post stays one tap away in each page header. */}
+        {SOCIAL_TABS.filter((t) => (p2 ? t.to !== "/app/social/new" || pathname.startsWith("/app/social/new") : t.to !== "/app/social/library")).map((t) => {
           const on = t.end ? pathname === t.to || pathname === `${t.to}/` : pathname.startsWith(t.to);
           return (
             <li key={t.to}>

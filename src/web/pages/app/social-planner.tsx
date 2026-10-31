@@ -68,17 +68,19 @@ function useMove() {
 }
 const undo: { current: ((v: { id: string; runAt: string; from: string; quiet?: boolean }) => void) | null } = { current: null };
 
-function PostChip({ p, draggable, onMove }: { p: SocialPostView; draggable: boolean; onMove?: (p: SocialPostView) => void }) {
+function PostChip({ p, draggable, onMove, stacked }: { p: SocialPostView; draggable: boolean; onMove?: (p: SocialPostView) => void; stacked?: boolean }) {
   const st = POST_STATUS[p.status];
   return (
     <div className="group flex min-w-0 items-center gap-1" data-testid="planner-post" data-status={p.status} data-id={p.id}>
       <Link to={`/app/social/posts#post-${p.id}`} draggable={draggable} title={`${st.label}: ${p.text}`}
         onDragStart={(e) => { e.dataTransfer.setData("text/x-post", p.id); e.dataTransfer.effectAllowed = "move"; }}
-        className={cn("flex min-w-0 flex-1 items-center gap-1.5 rounded-md bg-fill px-1.5 py-1 text-[12px] leading-tight transition-colors duration-150 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 motion-reduce:transition-none",
-          draggable && "cursor-grab active:cursor-grabbing")}>
-        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", TONE_DOT[st.tone])} aria-hidden />
-        <span className="shrink-0 tabular-nums text-muted">{timeText(p.runAt)}</span>
-        <span className="min-w-0 truncate">{p.text || "(image only)"}</span>
+        className={cn("min-w-0 flex-1 rounded-md bg-fill px-1.5 py-1 text-[12px] leading-tight transition-colors duration-150 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 motion-reduce:transition-none",
+          stacked ? "block" : "flex items-center gap-1.5", draggable && "cursor-grab active:cursor-grabbing")}>
+        <span className="flex shrink-0 items-center gap-1.5">
+          <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", TONE_DOT[st.tone])} aria-hidden />
+          <span className="tabular-nums text-muted">{timeText(p.runAt)}</span>
+        </span>
+        <span className={cn("min-w-0", stacked ? "mt-0.5 line-clamp-2 break-words" : "truncate")}>{p.text || "(image only)"}</span>
         <span className="sr-only">, {st.label}{p.campaign ? `, ${p.campaign}` : ""}</span>
       </Link>
       {draggable && onMove && (
@@ -203,8 +205,7 @@ export function PlannerV2({ canManage, accounts }: { canManage: boolean; account
   const [filters, setFilters] = useState<Filters>({ account: "", campaign: "", status: "" });
   const [moving, setMoving] = useState<SocialPostView | null>(null);
   const [dropDay, setDropDay] = useState<string | null>(null);
-  const [phoneDay, setPhoneDay] = useState(() => dayKey(new Date()));
-  const all = posts.data ?? [];
+    const all = useMemo(() => posts.data ?? [], [posts.data]);
   const shown = useMemo(() => all.filter((p) => matches(p, filters)).sort((a, b) => Date.parse(a.runAt) - Date.parse(b.runAt)), [all, filters]);
   const campaigns = useMemo(() => [...new Set(all.map((p) => p.campaign).filter((c): c is string => !!c))].sort(), [all]);
   const rules = (slots.data ?? []) as SlotRule[];
@@ -251,12 +252,31 @@ export function PlannerV2({ canManage, accounts }: { canManage: boolean; account
   const step = (n: number) => setAnchor((a) => (view === "month" ? new Date(a.getFullYear(), a.getMonth() + n, 1) : addDays(a, 7 * n)));
   const tab = "inline-flex min-h-9 items-center rounded-md px-3 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 max-sm:min-h-11";
 
-  const dayCell = (d: Date, compact: boolean) => {
+  const dayCell = (d: Date, compact: boolean, stacked = false) => {
     const k = dayKey(d);
     const items = byDay.get(k) ?? [];
     const free = freeByDay.get(k) ?? [];
     const merged = [...items.map((p) => ({ t: new Date(p.runAt).getTime(), p })), ...free.map((f) => ({ t: f.getTime(), f }))].sort((a, b) => a.t - b.t);
-    return merged.map((x) => ("p" in x && x.p ? <PostChip key={x.p.id} p={x.p} draggable={canMove(x.p)} onMove={setMoving} /> : <FreeSlot key={`f${x.t}`} at={(x as { f: Date }).f} account={filters.account} />)).slice(0, compact ? 4 : 50);
+    return merged.map((x) => ("p" in x && x.p ? <PostChip key={x.p.id} p={x.p} draggable={canMove(x.p)} onMove={setMoving} stacked={stacked} /> : <FreeSlot key={`f${x.t}`} at={(x as { f: Date }).f} account={filters.account} />)).slice(0, compact ? 4 : 50);
+  };
+
+  /** Phones: days stacked as a list (every day of the week, or only the month's days that have something). */
+  const agenda = (days: Date[], everyDay: boolean) => {
+    const shownDays = everyDay ? days : days.filter((d) => (byDay.get(dayKey(d)) ?? []).length > 0);
+    if (!shownDays.length) return <p className="rounded-lg bg-fill px-3 py-4 text-center text-[13px] text-muted">Nothing planned this month.</p>;
+    return (
+      <ul className="space-y-3">
+        {shownDays.map((d) => {
+          const cells = dayCell(d, false);
+          return (
+            <li key={dayKey(d)} {...dropProps(d)} data-testid="agenda-day">
+              <h3 className={cn("mb-1.5 px-1 text-[13px] font-semibold", dayKey(d) === today ? "text-brand-hover" : "text-muted")}>{dayKey(d) === today ? "Today, " : ""}{d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })}</h3>
+              {cells.length ? <Card className="space-y-1.5 p-2">{cells}</Card> : <p className="px-1 text-[12.5px] text-subtle">Nothing planned</p>}
+            </li>
+          );
+        })}
+      </ul>
+    );
   };
 
   return (
@@ -286,7 +306,7 @@ export function PlannerV2({ canManage, accounts }: { canManage: boolean; account
               <option value="">All campaigns</option>{campaigns.map((c) => <option key={c} value={c}>{c}</option>)}
             </Select>
           )}
-          <Select aria-label="Status" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="h-9 w-auto text-sm">
+          <Select aria-label="Status" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="h-9 w-auto max-w-[12rem] text-sm">
             <option value="">Every status</option><option value="scheduled">Scheduled</option><option value="drafts">Drafts and waiting</option><option value="sent">Sent</option><option value="failed">Failed</option>
           </Select>
           {canManage && <Button variant="outline" size="sm" onClick={() => setSlotsOpen(true)} data-testid="open-slots"><IconClock className="h-4 w-4" aria-hidden />Time slots</Button>}
@@ -298,42 +318,35 @@ export function PlannerV2({ canManage, accounts }: { canManage: boolean; account
           <Card className="p-5"><p className="text-sm text-bad" role="alert">{errorMessage(posts.error, "Couldn't load posts.")}</p>
             <Button variant="outline" size="sm" className="mt-3" onClick={() => void posts.refetch()}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button></Card>
         ) : (<>
+          {!all.length && (
+            <Card className="mb-4" data-testid="planner-empty">
+              <EmptyState icon={<IconCalendarDays />} title="Nothing planned yet" body="Write a post and schedule it, and it shows here on its day. Weekly time slots show as dashed boxes you can fill." action={<Button onClick={() => navigate("/app/social/new")}><IconPlus className="h-4 w-4" aria-hidden />New post</Button>} />
+            </Card>
+          )}
           {!rules.length && canManage && view !== "list" && (
             <p className="mb-3 rounded-lg bg-fill px-3 py-2.5 text-[13px] text-muted" data-testid="no-slots">Add weekly time slots and free ones show here as dashed boxes. <button type="button" className="font-medium text-fg underline underline-offset-2" onClick={() => setSlotsOpen(true)}>Set time slots</button></p>
           )}
           {view === "week" && (<>
-            <div className="hidden gap-2 lg:grid lg:grid-cols-7" data-testid="week-grid">
+            <div className="hidden gap-2 lg:grid lg:grid-cols-7" data-testid="planner-grid">
               {weekDays.map((d) => (
                 <section key={dayKey(d)} aria-label={d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })} {...dropProps(d)} data-testid="week-day" data-day={dayKey(d)}
                   className={cn("min-h-[16rem] min-w-0 rounded-xl border border-line bg-surface p-2 transition-colors duration-150", dropDay === dayKey(d) && "border-brand bg-brand-soft/40")}>
                   <h3 className={cn("mb-2 flex items-baseline gap-1.5 px-1 text-[12.5px] font-medium", dayKey(d) === today ? "text-brand-hover" : "text-muted")}>
                     <span>{d.toLocaleDateString(undefined, { weekday: "short" })}</span><span className="text-[15px] font-semibold tabular-nums text-fg">{d.getDate()}</span>
                   </h3>
-                  <div className="space-y-1.5">{dayCell(d, false)}</div>
+                  <div className="space-y-1.5">{dayCell(d, false, true)}</div>
                 </section>
               ))}
             </div>
-            <div className="lg:hidden" data-testid="day-list">
-              <div className="-mx-1 mb-3 flex gap-1 overflow-x-auto px-1" role="tablist" aria-label="Day">
-                {weekDays.map((d) => {
-                  const k = dayKey(d); const n = (byDay.get(k) ?? []).length;
-                  return (
-                    <button key={k} type="button" role="tab" aria-selected={phoneDay === k} onClick={() => setPhoneDay(k)}
-                      className={cn("flex min-h-14 min-w-12 flex-col items-center justify-center rounded-lg border px-2 text-[12px]", phoneDay === k ? "border-brand bg-brand-soft text-fg" : "border-line text-muted")}>
-                      <span>{d.toLocaleDateString(undefined, { weekday: "short" })}</span><span className="text-[15px] font-semibold tabular-nums text-fg">{d.getDate()}</span>
-                      <span className={cn("mt-0.5 h-1 w-1 rounded-full", n ? "bg-brand" : "bg-transparent")} aria-hidden />
-                    </button>
-                  );
-                })}
-              </div>
-              {(() => { const d = weekDays.find((x) => dayKey(x) === phoneDay) ?? weekDays[0]!; const cells = dayCell(d, false); return cells.length ? <Card className="space-y-1.5 p-2">{cells}</Card> : <p className="rounded-lg bg-fill px-3 py-4 text-center text-[13px] text-muted">Nothing on {d.toLocaleDateString(undefined, { weekday: "long" })}. <Link to="/app/social/new" className="font-medium text-fg underline underline-offset-2">Write a post</Link></p>; })()}
-            </div>
+            <div className="lg:hidden" data-testid="planner-agenda">{agenda(weekDays, true)}</div>
           </>)}
           {view === "month" && (() => {
             const cells = monthGrid(anchor.getFullYear(), anchor.getMonth());
             return (
-              <div className="overflow-x-auto">
-                <div className="grid min-w-[720px] grid-cols-7 gap-px overflow-hidden rounded-xl border border-line bg-line" data-testid="month-grid">
+              <>
+              <div className="md:hidden" data-testid="month-agenda">{agenda(cells.filter((d) => d.getMonth() === anchor.getMonth()), false)}</div>
+              <div className="hidden md:block">
+                <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-line bg-line" data-testid="month-grid">
                   {cells.slice(0, 7).map((d) => <div key={`h${d.getDay()}`} className="bg-fill px-2 py-1.5 text-[12px] font-medium text-muted">{d.toLocaleDateString(undefined, { weekday: "short" })}</div>)}
                   {cells.map((d) => (
                     <div key={dayKey(d)} {...dropProps(d)} data-testid="month-day" className={cn("min-h-[6.5rem] min-w-0 bg-surface p-1.5", d.getMonth() !== anchor.getMonth() && "bg-fill/60", dropDay === dayKey(d) && "bg-brand-soft/50")}>
@@ -344,6 +357,7 @@ export function PlannerV2({ canManage, accounts }: { canManage: boolean; account
                   ))}
                 </div>
               </div>
+              </>
             );
           })()}
           {view === "list" && (() => {
