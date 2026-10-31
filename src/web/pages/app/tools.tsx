@@ -27,6 +27,7 @@ import {
   savedLine, searchEntries, sizeLabel, takeCarried, warmEngine, type Entry,
 } from "@/web/components/tools/tool-directory";
 import { ToolIcon } from "@/web/components/tools/tool-icon";
+import { WorkspaceWideLogo } from "@/web/lib/brand"; // R77: the workspace logo on the result header
 import { PdfThumb, countPdfPages } from "@/web/components/tools/pdf-thumb"; // R70: page 1 of a PDF result; R71: page count before Run
 import { Dialog } from "@/web/components/ui/dialog";
 import { NoRunsNote } from "@/web/components/tools/tools-frame";
@@ -86,14 +87,15 @@ function EntryButton({ e, compact, active, onPick, testId }: { e: Entry; compact
     );
   }
   return (
+    // R77: a first class tool card: a large icon on its section colour, the name and a two line description, a lift on hover.
     <button type="button" onClick={() => onPick(e)} data-testid={id}
-      className={`group flex h-full w-full items-center gap-3 rounded-xl border border-line bg-surface px-3 py-3 text-left transition-[border-color,background-color,box-shadow] duration-150 hover:border-line-strong hover:bg-hover/50 hover:shadow-[0_1px_3px_rgb(0_0_0/0.06)] max-sm:min-h-[60px] ${ring}`}>
-      <ToolIcon e={e} />
+      className={`group flex h-full w-full items-center gap-3 rounded-2xl border border-line bg-surface p-3 text-left shadow-card transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-px hover:border-brand/40 hover:shadow-[var(--shadow-e2)] motion-reduce:hover:translate-y-0 max-sm:min-h-[64px] sm:items-start sm:gap-3.5 sm:p-4 ${ring}`}>
+      <ToolIcon e={e} size="lg" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-semibold leading-tight">{e.name}</span>
-        <span className="mt-0.5 block truncate text-[13px] text-muted sm:line-clamp-2 sm:whitespace-normal">{e.line}</span>
+        <span className="flex items-center gap-1.5"><span className="truncate text-[15px] font-semibold leading-tight">{e.name}</span>
+          <IconArrowRight className="ml-auto h-4 w-4 shrink-0 text-brand-hover opacity-0 transition-opacity group-hover:opacity-100 max-sm:hidden" aria-hidden /></span>
+        <span className="mt-1 block truncate text-[13px] leading-snug text-muted sm:line-clamp-2 sm:min-h-[2.4em] sm:whitespace-normal">{e.line}</span>
       </span>
-      <IconArrowRight className="h-4 w-4 shrink-0 text-subtle opacity-0 transition-opacity group-hover:opacity-100 max-sm:hidden" aria-hidden />
     </button>
   );
 }
@@ -836,13 +838,14 @@ function ToolSkeleton() {
 function DropAny({ onFiles, dragging }: { onFiles: (f: File[]) => void; dragging: boolean }) {
   const ref = useRef<HTMLInputElement>(null);
   return (
-    <div className={`flex items-center gap-3 rounded-2xl border-2 border-dashed px-4 py-3.5 transition-colors ${dragging ? "border-brand bg-brand/5" : "border-line"}`} data-testid="tools-drop-any">
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand [&_svg]:h-5 [&_svg]:w-5" aria-hidden><IconFileUp /></span>
-      <div className="min-w-0 flex-1">
-        <p className="text-[14.5px] font-semibold"><span className="max-sm:hidden">Drop any file here</span><span className="sm:hidden">Start with a file</span></p>
-        <p className="text-[13px] text-muted">See only the tools that work on it.</p>
+    // R77: a big drop zone (the whole page takes a drop too): the first thing on Tools, in the workspace's colours.
+    <div className={`flex items-center gap-3 rounded-2xl border-2 border-dashed px-4 py-3.5 transition-[border-color,background-color] duration-150 sm:flex-col sm:justify-center sm:gap-2 sm:px-6 sm:py-9 sm:text-center ${dragging ? "border-brand bg-brand-soft" : "border-line-strong bg-surface hover:border-brand/50"}`} data-testid="tools-drop-any">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-hover sm:h-14 sm:w-14 sm:rounded-2xl [&_svg]:h-5 [&_svg]:w-5 sm:[&_svg]:h-7 sm:[&_svg]:w-7" aria-hidden><IconFileUp /></span>
+      <div className="min-w-0 flex-1 sm:flex-none">
+        <p className="text-[14.5px] font-semibold sm:text-[17px]"><span className="max-sm:hidden">Drop any file here</span><span className="sm:hidden">Start with a file</span></p>
+        <p className="text-[13px] text-muted">See only the tools that work on it. PDF, Word, Excel, images and more.</p>
       </div>
-      <Button type="button" variant="secondary" onClick={() => ref.current?.click()}>Choose a file</Button>
+      <Button type="button" variant="secondary" className="sm:mt-1" onClick={() => ref.current?.click()}>Choose a file</Button>
       <input ref={ref} type="file" className="sr-only" aria-label="Choose a file to see its tools" data-testid="tools-any-input" onChange={(e) => { if (e.target.files?.length) onFiles([...e.target.files]); e.target.value = ""; }} />
     </div>
   );
@@ -915,7 +918,7 @@ function ResultCard({ job, tool, before, level, onAttach, onChain, chaining, onA
           {preview && <div className="flex justify-center px-6 pb-6" data-testid="tools-preview-big"><PdfThumb url={job.downloadUrl} bytes={job.bytes} width={big} fallback={<FileBadge name={job.name} big />} /></div>}
         </Dialog>
       )}
-      <div className="flex items-center gap-2 text-[14px] font-semibold text-ok"><IconCheckCircle className="h-5 w-5" aria-hidden />Done</div>
+      <div className="flex items-center gap-2 text-[14px] font-semibold text-ok"><IconCheckCircle className="h-5 w-5" aria-hidden />Done<WorkspaceWideLogo className="ml-auto h-5 opacity-90" /></div>
       <div className="flex items-center gap-3.5 rounded-xl border border-line bg-bg/40 p-3.5">
         {ext === "pdf" && job.downloadUrl
           ? (
