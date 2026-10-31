@@ -109,7 +109,7 @@ test("a rule made in the editor: test on recent mail, save, run on new mail, run
   await ed.getByLabel("Action 1 setting").fill("Billing r85");
   await ed.getByRole("button", { name: "Add action" }).click();
   // A new action defaults to one the rule doesn't use yet, and single use actions already in it are greyed out.
-  await expect(ed.getByLabel("Action 2", { exact: true })).not.toHaveValue("label");
+  await expect(ed.getByLabel("Action 2", { exact: true })).toHaveValue("mark_read");
   await ed.getByLabel("Action 2", { exact: true }).selectOption("mark_read");
   await ed.getByRole("button", { name: "Add action" }).click();
   await expect(ed.getByLabel("Action 3", { exact: true }).locator("option[value=mark_read]")).toBeDisabled();
@@ -173,6 +173,5 @@ test("rules page and Inbox at 390 wide: no sideways scroll, menus reachable", as
   await expect(page.getByTestId("rule-editor")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   // Cancel and Make rule sit fully on screen while the form scrolls.
-  const box = (await page.getByTestId("rule-save").boundingBox())!;
-  expect(box.y + box.height).toBeLessThanOrEqual(844);
+  await expect.poll(async () => { const b = (await page.getByTestId("rule-save").boundingBox())!; return b.y + b.height; }, { timeout: 5000 }).toBeLessThanOrEqual(844);
 });

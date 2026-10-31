@@ -34,10 +34,10 @@ const useRules = () => useQuery({ queryKey: KEY, queryFn: async () => (await api
 interface TestResult { scanned: number; matched: number; sample: { id: string; from: string; subject: string; snippet: string; date: string }[] }
 interface Draft { id?: string; name: string; mailboxId: string; match: "all" | "any"; conditions: MailRuleConditionT[]; actions: MailRuleActionT[]; enabled: boolean }
 
-function blankAction(kind: RuleActionKind): MailRuleActionT {
+function blankAction(kind: RuleActionKind, firstTab = "other"): MailRuleActionT {
   switch (kind) {
     case "label": return { kind, label: "" };
-    case "move_to_tab": return { kind, tab: "other" };
+    case "move_to_tab": return { kind, tab: firstTab };
     case "forward": return { kind, to: "" };
     case "auto_reply": return { kind, snippetId: "" };
     case "create_task": return { kind };
@@ -203,7 +203,10 @@ function RuleEditor({ draft, setDraft, mailboxes, onClose }: { draft: Draft; set
   // Each action can be used once in a rule: Add action picks the next unused one and the picker greys out the rest.
   const used = new Set(draft.actions.map((a) => a.kind));
   const once = (k: RuleActionKind) => k !== "label" && k !== "forward";
-  const unused = [...RULE_ACTIONS.filter((k) => !used.has(k)), ...(["label", "forward"] as const).filter((k) => used.has(k))];
+  // Actions that need no setting come first, so a new one can be saved as it is.
+  const ORDER: RuleActionKind[] = ["mark_read", "star", "notify", "archive", "label", "move_to_tab", "create_task", "forward", "auto_reply"];
+  const unused = [...ORDER.filter((k) => !used.has(k)), ...(["label", "forward"] as const).filter((k) => used.has(k))];
+  const firstTab = tabs[0]?.id;
 
   return (
     <Dialog open onClose={onClose} title={draft.id ? "Edit rule" : "New rule"} className="max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain sm:max-w-2xl max-sm:max-h-[calc(100dvh-0.5rem)]">
@@ -266,7 +269,7 @@ function RuleEditor({ draft, setDraft, mailboxes, onClose }: { draft: Draft; set
             {draft.actions.map((a, i) => (
               <li key={i} className="flex flex-wrap items-center gap-2 rounded-xl border border-line p-2 sm:flex-nowrap" data-testid="rule-action">
                 <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-fill text-[11px] tabular-nums text-muted" aria-hidden>{i + 1}</span>
-                <Select aria-label={`Action ${i + 1}`} value={a.kind} onChange={(e) => setAction(i, blankAction(e.target.value as RuleActionKind))} className="min-w-0 flex-1 sm:w-52 sm:flex-none">
+                <Select aria-label={`Action ${i + 1}`} value={a.kind} onChange={(e) => setAction(i, blankAction(e.target.value as RuleActionKind, firstTab))} className="min-w-0 flex-1 sm:w-52 sm:flex-none">
                   {RULE_ACTIONS.map((k) => <option key={k} value={k} disabled={k !== a.kind && once(k) && used.has(k)}>{RULE_ACTION_LABEL[k]}</option>)}
                 </Select>
                 <div className="order-last w-full sm:order-none sm:w-auto sm:flex-1">
@@ -280,7 +283,7 @@ function RuleEditor({ draft, setDraft, mailboxes, onClose }: { draft: Draft; set
               </li>
             ))}
           </ol>
-          {draft.actions.length < RULE_ACTIONS_MAX && unused.length > 0 && <Button variant="ghost" size="sm" className="mt-2" onClick={() => set({ actions: [...draft.actions, blankAction(unused[0])] })}><IconPlus className="h-4 w-4" />Add action</Button>}
+          {draft.actions.length < RULE_ACTIONS_MAX && unused.length > 0 && <Button variant="ghost" size="sm" className="mt-2" onClick={() => set({ actions: [...draft.actions, blankAction(unused[0], firstTab)] })}><IconPlus className="h-4 w-4" />Add action</Button>}
           {sends && <p className="mt-2 text-[12px] text-subtle">Replies skip newsletters, robots and your own team, go once a day per sender, and stop after {RULE_SENDS_PER_DAY} a day.</p>}
         </section>
 
