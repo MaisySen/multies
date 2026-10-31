@@ -57,7 +57,7 @@ export function LinksPage() {
 
   return (
     <ToolsFrame entryKey="links" title="Links" wide usage={false} testId="links-page"
-      description="Short links with QR codes and click stats, a link in bio page, and go links for your team."
+      description="Short links, QR codes, a bio page and go links."
       actions={tab === "links" ? <Button onClick={() => setCreating(true)} data-testid="links-new" title="New link (N)"><IconPlus className="h-4 w-4" />New link</Button> : undefined}>
       <div role="tablist" aria-label="Links" className="-mx-1 flex gap-1 overflow-x-auto border-b border-line px-1">
         {TABS.map(([k, label], i) => (

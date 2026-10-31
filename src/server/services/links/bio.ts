@@ -19,7 +19,7 @@ export type BioScope = "workspace" | "me";
 type Row = typeof linkBioPages.$inferSelect;
 
 const appBase = (deps: Deps) => deps.config.appUrl.replace(/\/+$/, "");
-const slugify = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "").slice(0, 30);
+const slugify = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30).replace(/-+$/, "");
 
 async function rowFor(deps: Deps, auth: AuthContext, scope: BioScope): Promise<Row | undefined> {
   return deps.db.select().from(linkBioPages).where(and(eq(linkBioPages.orgId, auth.orgId), scope === "workspace" ? isNull(linkBioPages.userId) : eq(linkBioPages.userId, auth.userId))).get();

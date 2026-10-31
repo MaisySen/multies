@@ -184,7 +184,7 @@ describe("bio page", () => {
   it("drafts, publishes and counts link clicks; members cannot edit the workspace page", async () => {
     const draft = await owner.get("/api/links/bio?scope=workspace");
     expect(draft.body.page.id).toBeNull();
-    expect(draft.body.page.slug).toBe("harbourcoffee");
+    expect(draft.body.page.slug).toBe("harbour-coffee");
     const save = await owner.put("/api/links/bio?scope=workspace", {
       slug: "harbour", title: "Harbour Coffee", bio: "Small batch roasters", avatar: "none", theme: "brand", published: false,
       items: [{ title: "Order online", url: "https://harbour.example/order", icon: "shop" }, { title: "Email us", url: "hello@harbour.example", icon: "mail" }],
