@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-help-center",
+    date: "2026-11-01",
+    title: "A public help center for your customers",
+    body: "Docs, Help center publishes chosen docs as articles with categories and search, lets visitors ask questions that you approve and answer, and turns a solved ticket into a public answer with the customer's details taken out.",
+  },
+  {
     id: "2026-10-31-esign-v2",
     date: "2026-10-31",
     title: "Signing with an email code, templates and a check page",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "Inbox tabs, mail rules and a helpdesk",
     body: "Pick how Inbox is sorted: Important and Other, Primary, Updates and Promotions, or one list. Mail rules label, sort, forward, reply, make a task or notify you as new mail arrives. Turn a shared inbox into a helpdesk in Shared inbox, Helpdesk: tickets with owners, priorities and reply times in business hours, macros, a short survey after you solve, and a chat for your website.",
-  },
-  {
-    id: "2026-10-31-one-place-connections",
-    date: "2026-10-31",
-    title: "One place for everything you connect",
-    body: "Settings, Connections now holds your apps, other mail accounts and webhooks as tabs, and Compose tells you before you write when a From address needs its domain verified. Every page has its own name in the browser tab, and every page, download and setup step now says Multies. Email Workers you set up before keep working with no change.",
   },
   {
     id: "2026-10-28-whats-new",

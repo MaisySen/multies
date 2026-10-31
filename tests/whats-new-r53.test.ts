@@ -106,7 +106,7 @@ describe("R53 whats-new list", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-10-31-workspace-brand")).toBe(false);
     // R107: "A calmer layout you can shape" (the oldest after What's new itself) made room for signing v2.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-31-calm-layout")).toBe(false);
-    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-10-31-esign-v2", "2026-10-31-tools-round-c", "2026-10-31-crm-timeline", "2026-10-31-social-planner-library", "2026-10-31-automation-flows", "2026-10-31-docs-visual", "2026-10-31-links", "2026-10-31-secure-share", "2026-10-31-tools-round-b", "2026-10-31-social-home", "2026-10-31-tasks-views-tags", "2026-10-31-inbox-tabs-rules", "2026-10-31-one-place-connections", "2026-10-28-whats-new"]);
+    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-01-help-center", "2026-10-31-esign-v2", "2026-10-31-tools-round-c", "2026-10-31-crm-timeline", "2026-10-31-social-planner-library", "2026-10-31-automation-flows", "2026-10-31-docs-visual", "2026-10-31-links", "2026-10-31-secure-share", "2026-10-31-tools-round-b", "2026-10-31-social-home", "2026-10-31-tasks-views-tags", "2026-10-31-inbox-tabs-rules", "2026-10-28-whats-new"]); // R122: help center in, 2026-10-31-one-place-connections out (cap 14)
     for (const id of ["2026-10-28-more-safe-retries", "2026-10-28-lighter-mail-sync", "2026-10-28-safe-retries", "2026-10-28-quicker-task-lists", "2026-10-27-steadier-my-work"]) {
       expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);
     }
