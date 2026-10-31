@@ -88,6 +88,10 @@ test.describe("R84 tasks", () => {
     await tags.getByLabel("Name of tag blocked").fill("waiting");
     await tags.getByLabel("Name of tag blocked").press("Enter");
     await expect(tags.getByLabel("Name of tag waiting")).toBeVisible();
+    // R84F: a name that is already a tag says so.
+    await tags.getByLabel("New tag name").fill("Waiting");
+    await tags.getByRole("button", { name: "Add tag" }).click();
+    await expect(tags.getByRole("status")).toHaveText("waiting is already a tag.");
     await page.keyboard.press("Escape");
     // Bulk: pick two rows, add the tag from the bar.
     await page.locator("[data-task-id]").nth(0).getByRole("checkbox").click();

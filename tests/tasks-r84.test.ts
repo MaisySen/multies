@@ -186,3 +186,23 @@ describe("workspace fields", () => {
     expect((await c.get(`/api/tasks/${a.id}`)).body.task.fields).toEqual({});
   });
 });
+
+describe("R84F: workspace wide changes are for admins", () => {
+  it("members add tags but only admins rename, recolour or delete them, and only admins manage workspace fields", async () => {
+    const { client: m } = await teammate("mia@acme.io", "Mia Member");
+    const tag = (await m.post("/api/tasks/tags", { name: "client" })).body.tag as { id: string };
+    expect(tag.id).toBeTruthy();
+    expect((await m.patch(`/api/tasks/tags/${tag.id}`, { name: "customer" })).status).toBe(403);
+    expect((await m.patch(`/api/tasks/tags/${tag.id}`, { color: "#ef4444" })).status).toBe(403);
+    expect((await m.del(`/api/tasks/tags/${tag.id}`)).status).toBe(403);
+    expect((await c.patch(`/api/tasks/tags/${tag.id}`, { name: "customer" })).status).toBe(200);
+    expect((await m.post("/api/fields/workspace", { name: "Client", type: "text" })).status).toBe(403);
+    const made = await c.post("/api/fields/workspace", { name: "Client", type: "text" });
+    expect(made.status).toBe(201);
+    const key = made.body.field.key as string;
+    expect((await m.get("/api/fields/workspace")).status).toBe(200);
+    expect((await m.patch(`/api/fields/workspace/${key}`, { name: "Customer" })).status).toBe(403);
+    expect((await m.del(`/api/fields/workspace/${key}`)).status).toBe(403);
+    expect((await c.del(`/api/tasks/tags/${tag.id}`)).status).toBe(200);
+  });
+});

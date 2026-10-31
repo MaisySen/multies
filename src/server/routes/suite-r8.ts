@@ -7,7 +7,7 @@ import { Hono, type Context, type MiddlewareHandler } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { z } from "zod";
 import type { AppEnv } from "../context";
-import { parseBody, parseQuery, requireAuth } from "../middleware";
+import { parseBody, parseQuery, requireAdmin, requireAuth } from "../middleware";
 import { HttpError } from "../lib/errors";
 import { fromB64 } from "../lib/crypto";
 import { createField, createWorkspaceField, deleteField, deleteWorkspaceField, listFields, listWorkspaceFields, updateField, updateWorkspaceField } from "../services/suite/fields";
@@ -50,9 +50,10 @@ export function fieldRoutes() {
     .use("*", requireAuth)
     // R84: fields defined once for the whole workspace (a copy in every project).
     .get("/workspace", async (c) => c.json({ fields: await listWorkspaceFields(c.var.deps, c.var.auth.orgId) }))
-    .post("/workspace", async (c) => c.json({ field: await createWorkspaceField(c.var.deps, c.var.auth, await parseBody(c, WorkspaceFieldCreate)) }, 201))
-    .patch("/workspace/:key", async (c) => c.json({ field: await updateWorkspaceField(c.var.deps, c.var.auth, c.req.param("key"), await parseBody(c, WorkspaceFieldPatch)) }))
-    .delete("/workspace/:key", async (c) => c.json(await deleteWorkspaceField(c.var.deps, c.var.auth, c.req.param("key"))))
+    // R84F: a workspace field lands on every project, so admins add, change and delete them; members use them.
+    .post("/workspace", requireAdmin, async (c) => c.json({ field: await createWorkspaceField(c.var.deps, c.var.auth, await parseBody(c, WorkspaceFieldCreate)) }, 201))
+    .patch("/workspace/:key", requireAdmin, async (c) => c.json({ field: await updateWorkspaceField(c.var.deps, c.var.auth, c.req.param("key"), await parseBody(c, WorkspaceFieldPatch)) }))
+    .delete("/workspace/:key", requireAdmin, async (c) => c.json(await deleteWorkspaceField(c.var.deps, c.var.auth, c.req.param("key"))))
     .get("/", async (c) => {
       const { projectId } = parseQuery(c, Q_SUITE_R8_1);
       return c.json({ fields: await listFields(c.var.deps, c.var.auth.orgId, projectId) });

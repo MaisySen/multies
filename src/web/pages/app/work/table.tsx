@@ -475,7 +475,7 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
                           if (col.id === "key") onOpen(t.id);
                           else if (col.editor && !isEdit) setEditing({ r, c });
                         }}
-                        className={cn("relative border-b border-line px-3 py-1.5", col.width, col.hideOnPhone && "hidden md:table-cell", col.id === "title" && "max-w-[420px]",
+                        className={cn("relative border-b border-line px-3 py-1.5", col.width, col.hideOnPhone && "hidden md:table-cell", col.id === "title" && "max-w-[420px] md:min-w-[240px]" /* R84F: the title keeps room beside the clash badge */,
                           col.id === "key" && "cursor-pointer hover:text-brand", col.editor && "cursor-text",
                           isFocus && !isEdit && "shadow-[inset_0_0_0_2px_#0071E3] rounded-[4px]")}>
                         {isEdit && inlineEditor ? editor(t, col) : (

@@ -7,6 +7,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
+import { useMe } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -165,15 +166,24 @@ export function TagsDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const qc = useQueryClient();
   const { confirm, dialogs } = useDialogs();
   const [name, setName] = useState("");
+  const [note, setNote] = useState("");
+  const role = useMe().data?.organization?.role;
+  const admin = role === "owner" || role === "admin"; // R84F: only admins rename, recolour or delete workspace tags
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["task-tags"] }); void qc.invalidateQueries({ queryKey: ["tasks"] }); void qc.invalidateQueries({ queryKey: ["task"] }); };
   const patch = async (t: Tag, body: Partial<Tag>) => { try { await api.patch(`/tasks/tags/${t.id}`, body); refresh(); } catch (e) { showError(e as Error); } };
-  const add = async () => { if (!name.trim()) return; try { await api.post("/tasks/tags", { name }); setName(""); refresh(); } catch (e) { showError(e as Error); } };
+  const add = async () => {
+    const clean = name.trim();
+    if (!clean) return;
+    const same = tags.data?.find((t) => t.name.toLowerCase() === clean.toLowerCase());
+    if (same) { setNote(`${same.name} is already a tag.`); return; } // R84F: say so instead of doing nothing
+    try { await api.post("/tasks/tags", { name: clean }); setName(""); setNote(""); refresh(); } catch (e) { showError(e as Error); }
+  };
   const remove = async (t: Tag) => {
     if (!(await confirm({ title: `Delete the tag ${t.name}?`, description: t.count ? `It comes off ${t.count} ${t.count === 1 ? "task" : "tasks"}. The tasks stay.` : "No tasks use it.", confirmLabel: "Delete tag" }))) return;
     try { await api.del(`/tasks/tags/${t.id}`); refresh(); } catch (e) { showError(e as Error); }
   };
   return (
-    <Dialog open={open} onClose={onClose} title="Tags" description="Tags are shared across the workspace. Renaming one renames it on every task.">
+    <Dialog open={open} onClose={onClose} title="Tags" description={admin ? "Tags are shared across the workspace. Renaming one renames it on every task." : "Tags are shared across the workspace. You can add tags; workspace admins rename, recolour and delete them."}>
       {dialogs}
       {tags.error ? (
         <div className="flex items-center gap-2 text-[13px] text-muted">Tags did not load. <Button size="sm" variant="secondary" onClick={() => void tags.refetch()}>Try again</Button></div>
@@ -182,25 +192,27 @@ export function TagsDialog({ open, onClose }: { open: boolean; onClose: () => vo
           {tags.isLoading && [0, 1, 2].map((i) => <li key={i}><Skeleton className="h-9" /></li>)}
           {tags.data?.map((t) => (
             <li key={t.id} className="flex items-center gap-2" data-testid="tag-row">
-              <Menu label={`Colour of ${t.name}`} align="start" trigger={<button type="button" className="grid h-8 w-8 place-items-center rounded-md hover:bg-hover max-sm:h-11 max-sm:w-11"><span className="h-4 w-4 rounded-full" style={{ background: t.color }} /></button>}>
+              {admin ? <Menu label={`Colour of ${t.name}`} align="start" trigger={<button type="button" className="grid h-8 w-8 place-items-center rounded-md hover:bg-hover max-sm:h-11 max-sm:w-11"><span className="h-4 w-4 rounded-full" style={{ background: t.color }} /></button>}>
                 {TAG_PALETTE.map((c, i) => (
                   <MenuItem key={c} checked={c === t.color} onSelect={() => void patch(t, { color: c })} icon={<span className="h-3.5 w-3.5 rounded-full" style={{ background: c }} />}>{COLOUR_NAMES[i]}</MenuItem>
                 ))}
-              </Menu>
-              <Input aria-label={`Name of tag ${t.name}`} defaultValue={t.name} key={t.name} className="h-8 flex-1 text-[13px] max-sm:h-11 max-sm:text-base"
-                onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== t.name) void patch(t, { name: v }); else e.target.value = t.name; }}
+              </Menu> : <span className="grid h-8 w-8 place-items-center max-sm:h-11 max-sm:w-11" aria-hidden><span className="h-4 w-4 rounded-full" style={{ background: t.color }} /></span>}
+              <Input aria-label={`Name of tag ${t.name}`} defaultValue={t.name} key={t.name} readOnly={!admin} className="h-8 flex-1 text-[13px] max-sm:h-11 max-sm:text-base"
+                onBlur={(e) => { if (!admin) return; const v = e.target.value.trim(); if (v && v !== t.name) void patch(t, { name: v }); else e.target.value = t.name; }}
                 onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
               <span className="w-16 shrink-0 text-right text-[12px] tabular-nums text-subtle">{t.count ?? 0} {t.count === 1 ? "task" : "tasks"}</span>
-              <Button variant="ghost" size="icon" aria-label={`Delete tag ${t.name}`} onClick={() => void remove(t)}><IconTrash className="h-4 w-4" aria-hidden /></Button>
+              {admin && <Button variant="ghost" size="icon" aria-label={`Delete tag ${t.name}`} onClick={() => void remove(t)}><IconTrash className="h-4 w-4" aria-hidden /></Button>}
             </li>
           ))}
           {tags.data && !tags.data.length && <li className="flex items-center gap-2 rounded-lg border border-dashed border-line p-3 text-[13px] text-muted"><IconTag className="h-4 w-4" aria-hidden />No tags yet. Add launch, client or blocked below.</li>}
         </ul>
       )}
       <form className="mt-4 flex gap-2" onSubmit={(e) => { e.preventDefault(); void add(); }}>
-        <Input aria-label="New tag name" placeholder="New tag" value={name} onChange={(e) => setName(e.target.value)} className="h-9 flex-1 text-[13px] max-sm:h-11 max-sm:text-base" maxLength={40} />
+        <Input aria-label="New tag name" placeholder="New tag" value={name} onChange={(e) => { setName(e.target.value); setNote(""); }} className="h-9 flex-1 text-[13px] max-sm:h-11 max-sm:text-base" maxLength={40}
+          aria-describedby={note ? "tag-add-note" : undefined} />
         <Button type="submit" disabled={!name.trim()}><IconPlus className="h-4 w-4" aria-hidden />Add tag</Button>
       </form>
+      {note && <p id="tag-add-note" role="status" className="mt-1.5 text-[12px] text-muted">{note}</p>}
     </Dialog>
   );
 }
@@ -223,6 +235,8 @@ export function WorkspaceFieldsDialog({ open, onClose }: { open: boolean; onClos
   const [type, setType] = useState<FieldType>("text");
   const [options, setOptions] = useState("");
   const [busy, setBusy] = useState(false);
+  const role = useMe().data?.organization?.role;
+  const admin = role === "owner" || role === "admin"; // R84F: a workspace field lands on every project, so admins manage them
   const refresh = () => { for (const k of [["workspace-fields"], ["fields"], ["tasks"], ["task"]]) void qc.invalidateQueries({ queryKey: k }); };
   const add = async () => {
     if (!name.trim()) return;
@@ -239,7 +253,7 @@ export function WorkspaceFieldsDialog({ open, onClose }: { open: boolean; onClos
   };
   const choice = type === "select" || type === "multiselect";
   return (
-    <Dialog open={open} onClose={onClose} title="Workspace fields" description="These fields show on every project, as columns in the task list, in filters and in bulk edit.">
+    <Dialog open={open} onClose={onClose} title="Workspace fields" description={admin ? "These fields show on every project, as columns in the task list, in filters and in bulk edit." : "These fields show on every project, as columns in the task list, in filters and in bulk edit. Workspace admins add and change them."}>
       {dialogs}
       {fields.error ? (
         <div className="flex items-center gap-2 text-[13px] text-muted">Fields did not load. <Button size="sm" variant="secondary" onClick={() => void fields.refetch()}>Try again</Button></div>
@@ -249,14 +263,15 @@ export function WorkspaceFieldsDialog({ open, onClose }: { open: boolean; onClos
           {fields.data?.map((f) => (
             <li key={f.key} className="rounded-lg border border-line p-2.5" data-testid="ws-field-row">
               <div className="flex items-center gap-2">
-                <Input aria-label={`Name of ${f.name}`} defaultValue={f.name} key={f.name} className="h-8 flex-1 text-[13px] max-sm:h-11 max-sm:text-base"
-                  onBlur={(e) => e.target.value.trim() && e.target.value !== f.name && void patch(f, { name: e.target.value.trim() })} />
+                <Input aria-label={`Name of ${f.name}`} defaultValue={f.name} key={f.name} readOnly={!admin} className="h-8 flex-1 text-[13px] max-sm:h-11 max-sm:text-base"
+                  onBlur={(e) => admin && e.target.value.trim() && e.target.value !== f.name && void patch(f, { name: e.target.value.trim() })} />
                 <span className="whitespace-nowrap text-[12px] text-subtle">{wsTypeLabel(f.type)}</span>
-                <Button variant="ghost" size="icon" aria-label={`Delete ${f.name}`} onClick={() => void remove(f)}><IconTrash className="h-4 w-4" aria-hidden /></Button>
+                {admin && <Button variant="ghost" size="icon" aria-label={`Delete ${f.name}`} onClick={() => void remove(f)}><IconTrash className="h-4 w-4" aria-hidden /></Button>}
               </div>
               {(f.type === "select" || f.type === "multiselect") && (
-                <Input aria-label={`Options for ${f.name}`} defaultValue={f.options.map((o) => o.label).join(", ")} placeholder="Options, separated by commas" className="mt-2 h-8 text-[12.5px] max-sm:h-11 max-sm:text-base"
+                <Input aria-label={`Options for ${f.name}`} defaultValue={f.options.map((o) => o.label).join(", ")} readOnly={!admin} placeholder="Options, separated by commas" className="mt-2 h-8 text-[12.5px] max-sm:h-11 max-sm:text-base"
                   onBlur={(e) => {
+                    if (!admin) return;
                     const labels = e.target.value.split(",").map((x) => x.trim()).filter(Boolean);
                     if (labels.join(",") === f.options.map((o) => o.label).join(",")) return;
                     void patch(f, { options: labels.map((label) => ({ id: f.options.find((o) => o.label === label)?.id, label })) });
@@ -265,17 +280,17 @@ export function WorkspaceFieldsDialog({ open, onClose }: { open: boolean; onClos
               <p className="mt-1 text-[11.5px] text-subtle">On {f.projects} {f.projects === 1 ? "project" : "projects"}</p>
             </li>
           ))}
-          {fields.data && !fields.data.length && <li className="rounded-lg border border-dashed border-line p-3 text-[13px] text-muted">No workspace fields yet. Add Client, Budget or Stage below and every project gets it.</li>}
+          {fields.data && !fields.data.length && <li className="rounded-lg border border-dashed border-line p-3 text-[13px] text-muted">{admin ? "No workspace fields yet. Add Client, Budget or Stage below and every project gets it." : "No workspace fields yet. A workspace admin can add Client, Budget or Stage for every project."}</li>}
         </ul>
       )}
-      <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+      {admin && <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
         <Input aria-label="New workspace field name" placeholder="Field name, e.g. Client" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void add()} className="h-9 text-[13px] max-sm:h-11 max-sm:text-base" maxLength={60} />
         <Select aria-label="New workspace field type" value={type} onChange={(e) => setType(e.target.value as FieldType)} className="h-9 text-[13px]">
           {WS_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
         </Select>
         {choice && <Input aria-label="New workspace field options" placeholder="Options, separated by commas" value={options} onChange={(e) => setOptions(e.target.value)} className="h-9 text-[13px] sm:col-span-2 max-sm:h-11 max-sm:text-base" />}
         <Button onClick={() => void add()} disabled={busy || !name.trim()} className="sm:col-span-2"><IconPlus className="h-4 w-4" aria-hidden />Add to every project</Button>
-      </div>
+      </div>}
     </Dialog>
   );
 }
@@ -534,7 +549,9 @@ export function SaveViewDialog({ open, onClose, onSave, summary, initial }: {
       footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={() => void save()} loading={busy} disabled={!name.trim()}>Save view</Button></>}>
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void save(); }}>
         <label className="block text-[13px] font-medium">Name
-          <Input data-autofocus autoFocus value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="e.g. My week, Client work" className="mt-1 h-9 max-sm:h-11 max-sm:text-base" />
+          <Input data-autofocus autoFocus value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="e.g. My week, Client work" className="mt-1 h-9 max-sm:h-11 max-sm:text-base"
+            aria-describedby={name.length >= 50 ? "view-name-left" : undefined} />
+          {name.length >= 50 && <span id="view-name-left" className="mt-1 block text-[12px] font-normal text-muted">{name.length >= 60 ? "View names can be up to 60 characters." : `${60 - name.length} characters left`}</span>}
         </label>
         {summary.length > 0 && <p className="text-[12.5px] text-muted">{summary.join(" · ")}</p>}
         <fieldset>

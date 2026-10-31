@@ -116,8 +116,9 @@ export function taskRoutes() {
     // R84: workspace tags with colours.
     .get("/tags", async (c) => c.json({ tags: await listTags(c.var.deps, c.var.auth.orgId, { counts: c.req.query("counts") === "1" }) }))
     .post("/tags", async (c) => c.json({ tag: await createTag(c.var.deps, c.var.auth, await parseBody(c, TagCreate)) }, 201))
-    .patch("/tags/:tagId", async (c) => c.json(await updateTag(c.var.deps, c.var.auth, c.req.param("tagId"), await parseBody(c, TagPatch))))
-    .delete("/tags/:tagId", async (c) => c.json(await deleteTag(c.var.deps, c.var.auth, c.req.param("tagId"))))
+    // R84F: renaming, recolouring and deleting a workspace tag changes every task, so admins only; anyone can add one.
+    .patch("/tags/:tagId", requireAdmin, async (c) => c.json(await updateTag(c.var.deps, c.var.auth, c.req.param("tagId"), await parseBody(c, TagPatch))))
+    .delete("/tags/:tagId", requireAdmin, async (c) => c.json(await deleteTag(c.var.deps, c.var.auth, c.req.param("tagId"))))
     .get("/views", async (c) => c.json({ views: await listViews(c.var.deps, c.var.auth, c.req.query("projectId")) }))
     .post("/views", async (c) => c.json({ view: await createView(c.var.deps, c.var.auth, await parseBody(c, ViewCreate)) }, 201))
     .patch("/views/:id", async (c) => c.json({ view: await updateView(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, ViewPatch)) })) // R84
