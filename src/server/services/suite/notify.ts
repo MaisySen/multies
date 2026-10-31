@@ -19,6 +19,7 @@ export type Category = (typeof CATEGORIES)[number];
 
 /** Which category each notification type belongs to. Unknown types count as status. */
 export const TYPE_CATEGORY: Record<string, Category> = {
+  "portal.message": "chat", // R120: a client wrote in their portal
   "chat.mention": "mention",
   "task.mentioned": "mention",
   "task.assigned": "assignment",
@@ -160,6 +161,7 @@ export function linkFor(n: { entityType: string; entityId: string; type: string 
     case "thread": return `/app/inbox?thread=${encodeURIComponent(n.entityId)}`;
     case "goal": return `/app/goals?goal=${encodeURIComponent(n.entityId)}`;
     case "meeting": return `/app/meetings/${encodeURIComponent(n.entityId)}`;
+    case "client_portal": return `/app/contacts/portals/${encodeURIComponent(n.entityId)}`; // R120
     case "file_request": return `/app/tools/share?tab=requests&request=${encodeURIComponent(n.entityId)}`; // R88
     case "secret": return "/app/tools/share?tab=secrets"; // R88
     case "share": return "/app/tools/share"; // R88

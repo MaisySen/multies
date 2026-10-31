@@ -19,6 +19,8 @@ export interface AppConfig {
   socialP2b?: boolean;
   /** R118: the staging only test network (SOCIAL_TEST_NETWORK=on and a staging or local APP_URL; refused on multies.si). */
   socialTestNetwork?: boolean;
+  /** R120: client portals in Contacts and the public /p pages (CLIENT_PORTAL=on). Off unless set. */
+  clientPortal?: boolean;
   /** Public booking pages and the scheduling API (SCHEDULING_ENABLED=true). Off unless set. */
   schedulingEnabled: boolean;
   /** R94: CRM_TIMELINE (paged contact and company timeline, logged calls and notes, segments, CSV import, deal forecast). Off unless set. */
@@ -279,6 +281,7 @@ const EnvSchema = z.object({
   SCHEDULING_ENABLED: z.string().optional(),
   /** R91: dashboards plus (public links, emailed reports, question builder, alerts, data sources). */
   DASHBOARDS_PLUS: z.string().optional(),
+  CLIENT_PORTAL: z.string().optional(),
   COMPOSIO_API_KEY: z.string().optional(),
   // R83: own sign in for TikTok (Login Kit and Content Posting) and Threads.
   TIKTOK_CLIENT_KEY: z.string().optional(),
@@ -595,6 +598,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     dashboardsPlus: ["1", "true", "on", "test"].includes(String(env.DASHBOARDS_PLUS ?? "").toLowerCase()),
     // R91: DASHBOARDS_PLUS=test (e2e only) also opens POST /api/dashboards-plus/test/run, which runs the due reports, alerts and refreshes now.
     dashboardsPlusTestHook: String(env.DASHBOARDS_PLUS ?? "").toLowerCase() === "test",
+    clientPortal: ["on", "true", "1"].includes(String(env.CLIENT_PORTAL ?? "").toLowerCase()),
     tools: toolsConfig(env),
     links: { flushMs: Math.max(0, Math.min(20_000, Number(env.LINK_CLICK_FLUSH_MS ?? 4000) || 0)) },
     appName: env.APP_NAME ?? "Multies",

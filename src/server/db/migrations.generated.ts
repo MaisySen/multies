@@ -1195,6 +1195,26 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0116_client_portal",
+    "statements": [
+      "-- R120: client portal. A login free space per contact or company: shared files (kept files store), docs and tasks the\n-- workspace chooses, R88 file requests, a messages thread, and email link sign in with its own scoped session.\n-- Additive only.\nCREATE TABLE `client_portals` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`key` text NOT NULL,\n\t`name` text NOT NULL,\n\t`contact_id` text,\n\t`company_id` text,\n\t`welcome` text,\n\t`show_brand` integer DEFAULT 1 NOT NULL,\n\t`created_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`last_client_at` integer,\n\t`team_seen_at` integer,\n\t`team_notified_at` integer,\n\t`client_notified_at` integer,\n\t`archived_at` integer\n);",
+      "CREATE UNIQUE INDEX `client_portals_key_idx` ON `client_portals` (`key`);",
+      "CREATE INDEX `client_portals_org_idx` ON `client_portals` (`org_id`, `updated_at`);",
+      "CREATE INDEX `client_portals_contact_idx` ON `client_portals` (`org_id`, `contact_id`);",
+      "CREATE INDEX `client_portals_company_idx` ON `client_portals` (`org_id`, `company_id`);",
+      "CREATE TABLE `client_portal_people` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`portal_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`email` text NOT NULL,\n\t`name` text,\n\t`contact_id` text,\n\t`added_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`last_seen_at` integer,\n\t`removed_at` integer\n);",
+      "CREATE UNIQUE INDEX `client_portal_people_email_idx` ON `client_portal_people` (`portal_id`, `email`);",
+      "CREATE TABLE `client_portal_items` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`portal_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`ref_id` text NOT NULL,\n\t`title` text NOT NULL,\n\t`folder` text,\n\t`bytes` integer,\n\t`content_type` text,\n\t`token_enc` text,\n\t`added_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`removed_at` integer\n);",
+      "CREATE INDEX `client_portal_items_portal_idx` ON `client_portal_items` (`portal_id`, `created_at`);",
+      "CREATE TABLE `client_portal_messages` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`portal_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`from_client` integer NOT NULL,\n\t`user_id` text,\n\t`person_id` text,\n\t`author` text NOT NULL,\n\t`body` text NOT NULL,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX `client_portal_messages_portal_idx` ON `client_portal_messages` (`portal_id`, `created_at`);",
+      "CREATE TABLE `client_portal_links` (\n\t`token_hash` text PRIMARY KEY NOT NULL,\n\t`portal_id` text NOT NULL,\n\t`person_id` text NOT NULL,\n\t`expires_at` integer NOT NULL,\n\t`used_at` integer,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX `client_portal_links_person_idx` ON `client_portal_links` (`person_id`, `created_at`);",
+      "CREATE TABLE `client_portal_sessions` (\n\t`token_hash` text PRIMARY KEY NOT NULL,\n\t`portal_id` text NOT NULL,\n\t`person_id` text NOT NULL,\n\t`expires_at` integer NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`revoked_at` integer\n);",
+      "CREATE INDEX `client_portal_sessions_person_idx` ON `client_portal_sessions` (`person_id`);"
+    ]
+  },
+  {
     "name": "0118_help_center",
     "statements": [
       "-- R122: help center (public knowledge base and Q&A). Additive only. Public pages read only rows a workspace published.\nCREATE TABLE `hc_settings` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`on` integer DEFAULT 0 NOT NULL,\n\t`slug` text NOT NULL,\n\t`name` text DEFAULT '' NOT NULL,\n\t`intro` text DEFAULT '' NOT NULL,\n\t`qa_on` integer DEFAULT 1 NOT NULL,\n\t`moderate` integer DEFAULT 1 NOT NULL,\n\t`suggest_in_chat` integer DEFAULT 1 NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",

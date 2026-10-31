@@ -40,8 +40,8 @@ binding = "ASSETS"
 not_found_handling = "none"
 # robots.txt goes through the Worker so a NOINDEX host (the preview) can answer Disallow: /.
 # Tools P2: /d/* (share link pages) and /sign/* (signing pages) are answered by the Worker. Staging inherits this.
-# R87: /l/* (short links) and /bio/* (link in bio pages) too. R119: /csat/* (survey) and /widget.js (website chat).
-run_worker_first = ["/api/*", "/.well-known/*", "/robots.txt", "/cal/*", "/s/*", "/r/*", "/d/*", "/u/*", "/x/*", "/l/*", "/bio/*", "/sign/*", "/health", "/healthz", "/delete-account", "/csat/*", "/widget.js", "/help/*"]
+# R87: /l/* (short links) and /bio/* (link in bio pages) too. R119: /csat/* (survey) and /widget.js (website chat). R120: /p/* (client portal pages).
+run_worker_first = ["/api/*", "/.well-known/*", "/robots.txt", "/cal/*", "/s/*", "/r/*", "/d/*", "/u/*", "/x/*", "/l/*", "/bio/*", "/p/*", "/sign/*", "/health", "/healthz", "/delete-account", "/csat/*", "/widget.js", "/help/*"]
 
 # Workers AI (Tools P2): document features (ask, translate, invoice reading) use the workspace's own
 # AI key first and otherwise this binding, only inside the account's free daily allocation: the AI meter
@@ -317,6 +317,7 @@ TOOLS_ENABLED = "true"
 # R94: CRM timeline on staging.
 CRM_TIMELINE = "on"
 TOOLS_FEATURES = "all"
+CLIENT_PORTAL = "on" # R120: client portals (prod after the verifier passes)
 DOC_ENGINE_URL = "https://doctool.multies.si"
 DOC_ENGINE_KEY_ID = "stg-1"
 # R43b: imports carry on after their page closes (the upload is kept, the 15 minute pass finishes it and sends one
