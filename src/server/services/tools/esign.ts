@@ -509,8 +509,8 @@ export function auditFor(r: RequestRow, events: EventRow[]) {
     title: r.title,
     document_sha256: r.source_sha256,
     // R107: the record page also shows a short IP reference (a keyed hash, never the IP) beside the country.
-    events: events.filter((e) => e.action !== "code_sent" && e.action !== "code_wrong").map((e) => ({ at: new Date(e.at).toISOString(), who: e.name, email: e.email, what: actionText(e.action).slice(0, 60),
-      ip_country: [e.ip_country ?? "", e.ip_hash ? `IP ref ${e.ip_hash.slice(0, 8)}` : ""].filter(Boolean).join(", ").slice(0, 60) })),
+    events: events.filter((e) => !r.v2 || (e.action !== "code_sent" && e.action !== "code_wrong")).map((e) => ({ at: new Date(e.at).toISOString(), who: e.name, email: e.email, what: actionText(e.action).slice(0, 60),
+      ip_country: r.v2 ? [e.ip_country ?? "", e.ip_hash ? `IP ref ${e.ip_hash.slice(0, 8)}` : ""].filter(Boolean).join(", ").slice(0, 60) : e.ip_country ?? "" })),
   };
 }
 

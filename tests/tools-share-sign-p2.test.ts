@@ -15,7 +15,8 @@ import { runSignPass, mediaBoxes, pageListFromZip } from "@/server/services/tool
 import { agentFamily } from "@/server/services/tools/kept-files";
 
 const ENGINE_KEY = "k".repeat(40);
-const ON = { TOOLS_ENABLED: "true", DOC_ENGINE_URL: "https://engine.test", DOC_ENGINE_KEY_ID: "stg-1", DOC_ENGINE_KEY: ENGINE_KEY, TOOLS_TOKEN_KEY: "t".repeat(40), TOOLS_FEATURES: "share,esign", APP_URL: "http://localhost" };
+// R107: these pin the original flow (ESIGN_V2 off), which older links keep; tests/esign-v2-r107.test.ts covers v2.
+const ON = { ESIGN_V2: "off", TOOLS_ENABLED: "true", DOC_ENGINE_URL: "https://engine.test", DOC_ENGINE_KEY_ID: "stg-1", DOC_ENGINE_KEY: ENGINE_KEY, TOOLS_TOKEN_KEY: "t".repeat(40), TOOLS_FEATURES: "share,esign", APP_URL: "http://localhost" };
 const JPG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0xff, 0xd9]);
 const PDF = "%PDF-1.4\n1 0 obj << /Type /Page /MediaBox [0 0 595.28 841.89] >> endobj\n2 0 obj << /Type /Page /MediaBox [0 0 612 792] >> endobj\n";
 const SIGNED = "%PDF-1.4 signed copy";
