@@ -333,6 +333,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
   const [previewOpen, setPreviewOpen] = useState(false);
   const [tiktokOpen, setTiktokOpen] = useState(false);
   const [postedId, setPostedId] = useState<string | null>(null);
+  const [tiktokAfter, setTiktokAfter] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(!!(draft?.extras || draft?.campaign || draft?.evergreen));
   const file = useRef<HTMLInputElement>(null);
 
@@ -396,7 +397,10 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
       setServerProblems({});
       if (mode === "draft") { toast.success("Draft saved"); navigate("/app/social/posts?status=drafts"); return; }
       if (mode === "submit") { toast.success("Sent for approval. Owners and admins see it in Approvals."); navigate("/app/social/posts?status=waiting"); return; }
-      if (later) { toast.success(`Scheduled for ${whenText(r.post.runAt)}`); navigate("/app/social"); return; }
+      if (later) { toast.success(`Scheduled for ${whenText(r.post.runAt)}`); navigate("/app/social/posts"); return; }
+      // The composer clears behind the sheet; TikTok (when picked) opens after it.
+      setTiktokAfter(tiktokPicked ? textOf("tiktok") : null);
+      resetAfterPost();
       setPostedId(r.post.id);
     },
     onError: (e) => {
@@ -467,38 +471,29 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
 
           <fieldset>
             <legend className="mb-2 text-[13px] font-medium">Post to</legend>
-            <ul className="flex flex-wrap gap-2" data-testid="account-chips">
+            <ul className="grid gap-x-3 divide-y divide-line rounded-lg border border-line md:grid-cols-2 md:divide-y-0" data-testid="account-chips">
               {accounts.map((a) => {
                 const on = a.id in picked;
                 const fit = formatFit(a.app, format);
                 const broken = brokenText(a.id);
-                const why = fit.fit === "no" ? fit.why : broken;
-                const greyed = !on && !!why;
+                const max = NETWORK_RULES[a.app]?.maxChars;
+                const tooLong = !on && max !== undefined && charCount(textOf(a.app)) > max ? `Too long for ${a.name}: ${max.toLocaleString()} characters at most.` : null;
+                const block = fit.fit === "no" ? fit.why : tooLong;
+                const greyed = !on && !!block;
+                const why = block ?? broken;
                 return (
-                  <li key={a.id} className="max-w-full">
-                    <label className={cn("flex min-h-11 max-w-full items-center gap-2 rounded-full border py-1 pl-1.5 pr-3 text-[13px] transition-colors duration-150 sm:min-h-9",
-                      on ? "border-brand bg-brand-soft" : "border-line hover:bg-hover", greyed ? "cursor-not-allowed opacity-60" : "cursor-pointer")} title={why ?? undefined} data-testid={`chip-${a.app}`} data-greyed={greyed ? "true" : undefined}>
-                      <input type="checkbox" className="sr-only" checked={on} disabled={greyed} onChange={() => toggle(a)} aria-describedby={why ? `chip-why-${a.id}` : undefined} />
+                  <li key={a.id} className={cn("flex flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-2.5 md:border-b md:border-line", greyed && "opacity-70")} data-testid={`pick-${a.app}`} data-blocked={greyed ? "true" : undefined}>
+                    <label className={cn("flex min-h-8 min-w-0 flex-1 items-center gap-2.5 text-[13.5px]", greyed ? "cursor-not-allowed" : "cursor-pointer")}>
+                      <input type="checkbox" className="h-4 w-4 shrink-0 accent-[var(--color-brand)]" checked={on} disabled={greyed} onChange={() => toggle(a)} aria-describedby={why ? `why-${a.id}` : undefined} />
                       <AppLogo slug={a.app} name={a.name} size="sm" />
-                      <span className="truncate font-medium">{a.name}{a.label ? <span className="font-normal text-muted">, {a.label}</span> : null}</span>
-                      {on && <IconCheckCircle className="h-4 w-4 shrink-0 text-brand-hover" aria-hidden />}
+                      <span className="min-w-0 truncate font-medium">{a.name}{a.label ? <span className="font-normal text-muted">, {a.label}</span> : null}</span>
                     </label>
-                    {why && <span id={`chip-why-${a.id}`} className="sr-only">{why}</span>}
+                    {on && a.needsTarget && a.account && <TargetField account={a.account} value={picked[a.id] ?? ""} onChange={(v, name) => { setPicked((p) => ({ ...p, [a.id]: v })); setNames((n) => ({ ...n, [a.id]: name ?? v })); }} />}
+                    {why && <p id={`why-${a.id}`} className="basis-full pl-[26px] text-[12.5px] text-muted" data-testid="pick-why">{why}</p>}
                   </li>
                 );
               })}
             </ul>
-            {accounts.some((a) => !(a.id in picked) && formatFit(a.app, format).fit === "no") && (
-              <p className="mt-2 text-[12.5px] text-muted" data-testid="greyed-reasons">
-                {[...new Set(accounts.filter((a) => !(a.id in picked) && formatFit(a.app, format).fit === "no").map((a) => (formatFit(a.app, format) as { why: string }).why))].join(" ")}
-              </p>
-            )}
-            {chosen.filter((a) => a.needsTarget).map((a) => (
-              <div key={a.id} className="mt-2 flex flex-wrap items-center gap-2 text-[13px]">
-                <span className="text-muted">{a.name}:</span>
-                {a.account && <TargetField account={a.account} value={picked[a.id] ?? ""} onChange={(v, name) => { setPicked((p) => ({ ...p, [a.id]: v })); setNames((n) => ({ ...n, [a.id]: name ?? v })); }} />}
-              </div>
-            ))}
           </fieldset>
 
           <div>
@@ -660,8 +655,8 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
       <LibraryPicker open={libOpen} onClose={() => setLibOpen(false)}
         onImage={(img) => { setImages((c) => (format === "carousel" ? [...c, img].slice(0, 10) : [img])); if (format === "text") setFormat("image"); }}
         onText={(t, kind) => { const join = (cur: string) => (cur.trim() ? `${cur.trimEnd()}${kind === "hashtags" ? " " : "\n\n"}${t}` : t); if (tabApp) setTexts((m) => ({ ...m, [tabApp]: join(m[tabApp] ?? text) })); else setText(join); }} />
-      <TikTokPostDialog open={tiktokOpen} onClose={() => setTiktokOpen(false)} caption={textOf("tiktok")} />
-      {postedId && <PostedSheet postId={postedId} onClose={() => { setPostedId(null); resetAfterPost(); if (tiktokPicked) setTiktokOpen(true); requestAnimationFrame(() => document.getElementById("social-text")?.focus()); }} />}
+      <TikTokPostDialog open={tiktokOpen} onClose={() => { setTiktokOpen(false); setTiktokAfter(null); }} caption={tiktokAfter ?? textOf("tiktok")} />
+      {postedId && <PostedSheet postId={postedId} onClose={() => { setPostedId(null); if (tiktokAfter !== null) setTiktokOpen(true); requestAnimationFrame(() => document.getElementById("social-text")?.focus()); }} />}
     </div>
   );
 }

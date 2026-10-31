@@ -121,6 +121,7 @@ function MoveDialog({ post, onClose, onMove, rules, posts }: { post: SocialPostV
 
 /* ---------------------------------------------------------------- time slots dialog */
 
+let lineSeq = 0;
 interface SlotLine { key: string; account: string; minute: number; days: number[] }
 function toLines(slots: SlotView[]): SlotLine[] {
   const m = new Map<string, SlotLine>();
@@ -177,7 +178,7 @@ export function SlotsDialog({ open, onClose, accounts }: { open: boolean; onClos
               </div>
             </div>
           ))}
-          <Button variant="outline" size="sm" data-testid="slot-add" onClick={() => setLines([...cur, { key: `new${Date.now()}`, account: "", minute: 9 * 60, days: [1, 2, 3, 4, 5] }])}><IconPlus className="h-4 w-4" aria-hidden />Add a time</Button>
+          <Button variant="outline" size="sm" data-testid="slot-add" onClick={() => setLines([...cur, { key: `new${++lineSeq}`, account: "", minute: 9 * 60, days: [1, 2, 3, 4, 5] }])}><IconPlus className="h-4 w-4" aria-hidden />Add a time</Button>
         </div>
       )}
     </Dialog>
