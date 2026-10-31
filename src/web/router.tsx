@@ -140,6 +140,7 @@ const MergePage = lazyPage(() => import("./pages/app/tools-automation/merge"), "
 const SchedulingPage = lazyPage(() => import("./pages/app/work/scheduling"), "SchedulingPage");
 const bookPages = () => import("./pages/book");
 const BookingPage = lazyPage(() => bookPages(), "BookingPage");
+const PublicDashboardPage = lazyPage(() => import("./pages/public-dashboard"), "PublicDashboardPage"); // R91
 const BookingCancelPage = lazyPage(() => bookPages(), "BookingCancelPage");
 const GoalsPage = lazyPage(() => import("./pages/app/work/goals"), "GoalsPage");
 const ActivityPage = lazyPage(() => import("./pages/app/activity"), "ActivityPage");
@@ -333,6 +334,7 @@ export const router = createBrowserRouter([
   { path: "/f/:slug", element: publicPage(<PublicFormPage />), errorElement: <RouteError /> },
   { path: "/m/:token", element: publicPage(<GuestMeetingPage />), errorElement: <RouteError /> },
   { path: "/book/:slug", element: publicPage(<BookingPage />), errorElement: <RouteError /> },
+  { path: "/d/:token", element: publicPage(<PublicDashboardPage />), errorElement: <RouteError /> }, // R91: public dashboard link
   { path: "/book/:slug/cancel/:id", element: publicPage(<BookingCancelPage />), errorElement: <RouteError /> },
   // A project guest (a client): the invite link, then the one project they can see.
   { path: "/g/:token", element: publicPage(<GuestAcceptPage />), errorElement: <RouteError /> },

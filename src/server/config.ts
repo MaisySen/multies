@@ -20,6 +20,7 @@ export interface AppConfig {
   crmTimeline?: boolean;
   /** R91: DASHBOARDS_PLUS (public links, emailed reports, question builder, alerts, data sources). Off unless set. */
   dashboardsPlus?: boolean;
+  dashboardsPlusTestHook?: boolean;
   /**
    * Tools P1: document tools on the private document engine. On only when TOOLS_ENABLED=true and the
    * engine address and both keys are set (DOC_ENGINE_URL, DOC_ENGINE_KEY_ID, DOC_ENGINE_KEY, TOOLS_TOKEN_KEY).
@@ -579,7 +580,9 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     socialP2: env.SOCIAL_P2 !== "off",
     schedulingEnabled: env.SCHEDULING_ENABLED === "true" || env.SCHEDULING_ENABLED === "1",
     crmTimeline: ["1", "true", "on"].includes(String(env.CRM_TIMELINE ?? "").toLowerCase()),
-    dashboardsPlus: ["1", "true", "on"].includes(String(env.DASHBOARDS_PLUS ?? "").toLowerCase()),
+    dashboardsPlus: ["1", "true", "on", "test"].includes(String(env.DASHBOARDS_PLUS ?? "").toLowerCase()),
+    // R91: DASHBOARDS_PLUS=test (e2e only) also opens POST /api/dashboards-plus/test/run, which runs the due reports, alerts and refreshes now.
+    dashboardsPlusTestHook: String(env.DASHBOARDS_PLUS ?? "").toLowerCase() === "test",
     tools: toolsConfig(env),
     links: { flushMs: Math.max(0, Math.min(20_000, Number(env.LINK_CLICK_FLUSH_MS ?? 4000) || 0)) },
     appName: env.APP_NAME ?? "Multies",

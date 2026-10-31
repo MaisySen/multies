@@ -29,6 +29,10 @@ export function dashboardsPlusRoutes() {
   return new Hono<AppEnv>()
     .use("*", flagged)
     .use("*", requireAuth)
+    .post("/test/run", async (c) => {
+      if (!c.var.deps.config.dashboardsPlusTestHook) return c.json({ error: { code: "not_found", message: "Not found." } }, 404);
+      return c.json(await (await import("../services/suite/dash-r91-cron")).runDashboardsPlus(c.var.deps));
+    })
     .get("/question/catalog", (c) => c.json(questionCatalog()))
     .post("/question/preview", async (c) => {
       const raw = (await body(c)) as { question?: unknown; tz?: string };
