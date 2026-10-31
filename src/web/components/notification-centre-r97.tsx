@@ -33,9 +33,15 @@ export function useSaveSettings() {
   const qc = useQueryClient();
   return async (body: { settings?: Record<string, Partial<ChannelPrefs>>; delivery?: DeliveryPatch }, done?: string) => {
     const prev = qc.getQueryData<SettingsAnswer>(SETTINGS_KEY);
-    if (prev && body.settings) {
-      const next = { ...prev, settings: { ...prev.settings } };
-      for (const [k, v] of Object.entries(body.settings)) next.settings[k] = { ...next.settings[k], ...v } as ChannelPrefs;
+    // Optimistic: quick taps (days, switches) build on the last choice, not on the answer still on its way.
+    if (prev && (body.settings || body.delivery)) {
+      const next: SettingsAnswer = { ...prev, settings: { ...prev.settings } };
+      for (const [k, v] of Object.entries(body.settings ?? {})) next.settings[k] = { ...next.settings[k], ...v } as ChannelPrefs;
+      const p = body.delivery;
+      if (p && prev.delivery) {
+        next.delivery = { ...prev.delivery, quiet: { ...prev.delivery.quiet, ...(p.quiet ?? {}) }, digest: { ...prev.delivery.digest, ...(p.digest ?? {}) },
+          ...(p.timezone ? { timezone: p.timezone } : {}), ...(p.newMail !== undefined ? { newMail: p.newMail } : {}) };
+      }
       qc.setQueryData(SETTINGS_KEY, next);
     }
     try {
@@ -127,9 +133,9 @@ export function DeliverySettings({ delivery, anyMail }: { delivery: Delivery; an
           <Row label="Days" hint="The day a quiet period starts.">
             <div role="group" aria-label="Quiet days" className="flex flex-wrap gap-1">
               {DAYS.map((n, i) => (
-                <button key={n} type="button" aria-pressed={d.quiet.days.includes(i)} aria-label={DAY_NAMES[i]} onClick={() => setDays(i)}
+                <button key={n} type="button" aria-pressed={d.quiet.days.includes(i)} onClick={() => setDays(i)}
                   className={cn("h-8 min-w-10 rounded-lg border px-2 text-[12.5px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-10",
-                    d.quiet.days.includes(i) ? "border-brand bg-brand text-white" : "border-line-strong text-muted hover:text-fg")}>{n}</button>
+                    d.quiet.days.includes(i) ? "border-brand bg-brand text-white" : "border-line-strong text-muted hover:text-fg")}><span aria-hidden="true">{n}</span><span className="sr-only">{DAY_NAMES[i]}</span></button>
               ))}
             </div>
           </Row>
@@ -185,7 +191,7 @@ export function AlertStatusLine() {
     <div role="status" data-testid="alert-status" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-fill px-3 py-2 text-[13px]">
       <IconBell className="h-4 w-4 shrink-0 text-muted" />
       <span className="min-w-0 flex-1">{paused ? `Alerts paused until ${formatClock(d.pausedUntil!, d.timezone)}. New items still arrive here.` : `Quiet hours until ${d.quiet.end}. New items still arrive here.`}</span>
-      {paused && <Button size="sm" variant="ghost" onClick={() => void save({ delivery: { pause: "resume" } }, "Alerts are back on")}>Resume</Button>}
+      {paused && <Button size="sm" variant="secondary" onClick={() => void save({ delivery: { pause: "resume" } }, "Alerts are back on")}>Resume</Button>}
     </div>
   );
 }
