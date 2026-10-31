@@ -54,7 +54,7 @@ import { panelStorage, setLayoutUser, sidebarHiddenOn, useLayout, useLayoutGener
 import { setInspectorEl, useInspectorOpen } from "@/web/lib/inspector"; // R79
 import { useMediaQuery } from "@/web/lib/use-compact";
 import { Breadcrumbs, ContextSidebar, CreateMenu, IconRail, SearchEntry, ViewMenu, useSidebarShortcut, type NavCounts } from "./shell"; // R79
-import { sectionFor, visibleSections } from "./shell-nav"; // R79
+import { pageTitle, sectionFor, visibleSections } from "./shell-nav"; // R79; R82F (MB-283) titles
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -84,7 +84,7 @@ const nav: NavItem[] = [
   { to: "/app/deliverability", label: "Deliverability", icon: IconShieldCheck, group: "mail" },
   { to: "/app/agents", label: "Agents", icon: IconAgent, group: "admin" },
   { to: "/app/approvals", label: "Approvals", icon: IconClipboardCheck, group: "admin" },
-  { to: "/app/integrations", label: "Integrations", icon: IconPlug, group: "admin" },
+  { to: "/app/settings/apps", label: "Connections", icon: IconPlug, group: "admin" }, // R82F (MB-279): the one home for outside apps
   { to: "/app/activity", label: "Activity", icon: IconActivity, group: "admin" },
   { to: "/app/settings", label: "Settings", icon: IconSettings, group: "admin" },
 ];
@@ -152,6 +152,8 @@ export function AppLayout() {
   useEffect(() => setDrawer(false), [loc.pathname]);
   // R25: the likely next pages load once the browser is idle (links warm their own page on hover, see main.tsx).
   useEffect(() => prefetchWhenIdle(), []);
+  // R82F (MB-283): every app page names itself in the browser tab ("Tasks · Multies"); the unread count keeps its "(n) ".
+  useEffect(() => { document.title = pageTitle(loc.pathname, loc.search); }, [loc.pathname, loc.search]);
   // Assigned during render so the first paint already uses the person's zone: their own, their browser's, else the workspace's.
   setDisplayTimeZone(me.data?.user?.timezone, browserTimeZone(), me.data?.organization?.timezone);
   // R67 (MB-250): date fields follow the workspace's country (dd/mm/yyyy in Australia), in the person's language.
@@ -282,8 +284,10 @@ export function AppLayout() {
     "/app/chat": { n: chatUnread.data?.total ?? 0, label: `${chatUnread.data?.total ?? 0} unread messages` },
     "/app/admin": { n: openReports.data ?? 0, label: `${openReports.data ?? 0} reports to review`, alert: true },
   };
-  const accountButton = accountMenu(<button className="relative grid h-10 w-10 place-items-center rounded-full hover:bg-hover" data-testid="sidebar-account" aria-label={`Account: ${user.name}`}>
-      <Avatar label={initials(user.name)} className="h-8 w-8" />{whatsNew.unread && <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-surface" aria-hidden data-testid="whats-new-unread" />}
+  // R82F (MB-281): the button's name is its words ("Account, Dana Lee"); the initials beside them are decoration, so
+  // the name never disagrees with what is shown (axe label in name).
+  const accountButton = accountMenu(<button className="relative grid h-10 w-10 place-items-center rounded-full hover:bg-hover" data-testid="sidebar-account">
+      <span aria-hidden><Avatar label={initials(user.name)} className="h-8 w-8" /></span><span className="sr-only">{`Account, ${user.name}`}</span>{whatsNew.unread && <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-surface" aria-hidden data-testid="whats-new-unread" />}
     </button>, "start");
   const demoNote = organization?.isDemo && (
     <div className="mx-2.5 mb-2.5 shrink-0 rounded-lg bg-fill p-3 text-[12.5px]">
@@ -334,20 +338,24 @@ export function AppLayout() {
       {/* R79 (MB-278): the first Tab stop jumps past the navigation to the page. */}
       <a href="#main" data-testid="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}
         className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-md focus:bg-fg focus:px-3 focus:py-2 focus:text-[13px] focus:font-medium focus:text-bg">Skip to content</a>
+      {/* R82F (MB-282): the second Tab stop opens Create (it sat 24 stops in, behind the rail and the sidebar). */}
+      {desktop && <a href="#create" data-testid="skip-create" onClick={(e) => { e.preventDefault(); const b = document.querySelector<HTMLElement>("[data-testid=create-menu]"); b?.focus(); b?.click(); }}
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-md focus:bg-fg focus:px-3 focus:py-2 focus:text-[13px] focus:font-medium focus:text-bg">Create something</a>}
       {desktop ? (<>
         <IconRail sections={sections} active={section.id} counts={navCounts} footer={accountButton} />
         <Group key={layoutGen} id="shell" orientation="horizontal" className="min-w-0 flex-1" defaultLayout={shellLayout.defaultLayout} onLayoutChanged={shellLayout.onLayoutChanged}>
           {!sidebarHidden && <>
             <Panel id="shell-sidebar" defaultSize="248px" minSize="200px" maxSize="420px" className="glass-sidebar">
               <aside aria-label="Sidebar" className="h-full">
-                <ContextSidebar section={section} counts={navCounts} logo={<Link to="/app" aria-label="Multies overview"><WorkspaceWideLogo onSidebar markName={me.data?.organization?.name ?? ""} fallback={<Logo className="h-6" />} /></Link>} header={<WorkspaceSwitcher current={organization} />} footer={demoNote} />
+                <ContextSidebar section={section} counts={navCounts} logo={<Link to="/app" aria-label={`${me.data?.organization?.name || "Multies"} overview`}><WorkspaceWideLogo onSidebar markName={me.data?.organization?.name ?? ""} fallback={<Logo className="h-6" />} /></Link>} header={<WorkspaceSwitcher current={organization} />} footer={demoNote} />
               </aside>
             </Panel>
-            <Separator className="shell-separator" aria-label="Resize sidebar" />
+            {/* R82F: named by title (still read out), so axe does not count the handle as page content outside a landmark. */}
+            <Separator className="shell-separator" title="Resize sidebar" />
           </>}
           <Panel id="shell-main" minSize="480px">{content}</Panel>
           {inspectorOpen && <>
-            <Separator className="shell-separator" aria-label="Resize details panel" />
+            <Separator className="shell-separator" title="Resize details panel" />
             <Panel id="shell-inspector" defaultSize="420px" minSize="340px" maxSize="760px">
               <div ref={setInspectorEl} className="h-full min-w-0 overflow-hidden" />
             </Panel>

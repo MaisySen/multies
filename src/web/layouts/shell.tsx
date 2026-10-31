@@ -6,7 +6,7 @@
 import { useEffect, useMemo, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { IconMegaphone, IconPlugZap,
+import { IconArrowRightLeft, IconMegaphone, IconPlugZap,
   IconActivity, IconAgent, IconApprovals, IconAttachment, IconBell, IconBriefcase, IconCalendarClock, IconCalendarPlus, IconChart, IconChats,
   IconChevronDown, IconChevronRight, IconClipboardList, IconCompose, IconContacts, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHome,
   IconInbox, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconSidebar, IconSliders,
@@ -29,7 +29,7 @@ export const NAV_ICONS: Record<IconKey, IconComponent> = {
   today: IconToday, overview: IconDashboard, bell: IconBell, triage: IconTodo, approvals: IconApprovals, activity: IconActivity, sharedInbox: IconChats,
   mailboxes: IconTeam, domains: IconGlobe, deliverability: IconShieldCheck, goals: IconTarget, portfolio: IconBriefcase, timesheet: IconTimer,
   templates: IconTemplate, automations: IconZap, files: IconAttachment, forms: IconClipboardList, meetings: IconVideo, booking: IconCalendarClock,
-  contacts: IconContacts, reports: IconChart, agents: IconAgent, integrations: IconPlug, connections: IconPlugZap, settings: IconSettings, operator: IconShield,
+  contacts: IconContacts, reports: IconChart, agents: IconAgent, integrations: IconPlug, connections: IconPlugZap, settings: IconSettings, operator: IconShield, convert: IconArrowRightLeft,
 };
 
 /** Counts the shell shows, keyed by page path. "alert" counts use the brand colour; the rest stay neutral. */
@@ -232,7 +232,7 @@ export function CreateMenu({ flags }: { flags: NavFlags }) {
   const items = useMemo(() => createItems(flags), [flags]);
   return (
     <Menu label="Create" align="end" trigger={
-      <button type="button" data-testid="create-menu" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-2.5 text-[13px] font-medium text-brand-fg shadow-[var(--shadow-e1)] transition-colors hover:bg-brand/90">
+      <button type="button" id="create" data-testid="create-menu" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-2.5 text-[13px] font-medium text-brand-fg shadow-[var(--shadow-e1)] transition-colors hover:bg-brand/90">
         <IconPlus className="h-4 w-4" aria-hidden />Create<IconChevronDown className="h-3.5 w-3.5 opacity-80" aria-hidden />
       </button>}>
       <MenuLabel>Create</MenuLabel>
@@ -246,6 +246,8 @@ export function ViewMenu() {
   const layout = useLayout();
   const loc = useLocation();
   const onTasks = loc.pathname.startsWith("/app/tasks");
+  // R82F (MB-285): density lives only here now; with no choice of your own it shows what the workspace look uses.
+  const density = layout.density ?? workspaceDensity();
   return (
     <Menu label="View" align="end" trigger={
       <button type="button" data-testid="view-menu" className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-muted transition-colors hover:bg-hover hover:text-fg">
@@ -264,19 +266,27 @@ export function ViewMenu() {
       {onTasks && <MenuItem checked={layout.timelinePeople} onSelect={() => setLayout({ timelinePeople: !layout.timelinePeople })}>Assignee column on Timeline</MenuItem>}
       <div className="my-1 border-t border-line" />
       <MenuLabel>Density</MenuLabel>
-      <MenuItem checked={layout.density !== "compact"} onSelect={() => setLayout({ density: "comfortable" })}>Comfortable</MenuItem>
-      <MenuItem checked={layout.density === "compact"} onSelect={() => setLayout({ density: "compact" })}>Compact</MenuItem>
+      <MenuItem checked={density !== "compact"} onSelect={() => setLayout({ density: "comfortable" })}>Comfortable</MenuItem>
+      <MenuItem checked={density === "compact"} onSelect={() => setLayout({ density: "compact" })}>Compact</MenuItem>
       <div className="my-1 border-t border-line" />
       <MenuItem onSelect={resetLayout}>Reset layout</MenuItem>
     </Menu>
   );
 }
 
+/** The workspace's density (an older branding choice may have made it compact): read from the painted spacing. */
+function workspaceDensity(): "compact" | "comfortable" {
+  if (typeof document === "undefined") return "comfortable";
+  const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--spacing"));
+  return v > 0 && v < 0.24 ? "compact" : "comfortable";
+}
+
 /** The search entry: opens the command menu (search everything, jump anywhere). */
 export function SearchEntry() {
   return (
     <button type="button" onClick={() => openPalette()} data-testid="topbar-search-entry"
-      aria-label="Search" title={`Search (${MOD} K)`}
+      // R82F (MB-281): the name comes from the visible words ("Search Ctrl K"); title names it when they fold away.
+      title={`Search (${MOD} K)`} aria-keyshortcuts={isMac ? "Meta+K" : "Control+K"}
       className="flex h-8 items-center gap-2 rounded-lg bg-fill px-2.5 text-[13px] text-subtle transition-colors hover:bg-hover hover:text-muted @[52rem]:w-[22rem]">
       <IconSearch className="h-4 w-4" aria-hidden /><span className="hidden flex-1 text-left @[52rem]:inline">Search</span><span className="hidden @[52rem]:inline-flex"><Kbd>{MOD} K</Kbd></span>
     </button>

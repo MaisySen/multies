@@ -10,7 +10,8 @@ export function Menu({ trigger, children, align = "end", label, sheet }: { trigg
     if (!open) return;
     const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      // R82F (MB-282): Escape puts focus back on the button that opened the menu, so keyboard users keep their place.
+      if (e.key === "Escape") { setOpen(false); ref.current?.querySelector<HTMLElement>("[aria-haspopup=menu]")?.focus(); }
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
         const items = [...(ref.current?.querySelectorAll<HTMLElement>("[role^=menuitem]") ?? [])];
