@@ -64,6 +64,7 @@ const GROUP_ORDER = ["Numbers", "Charts", "Lists", "Time and mail", "Text"];
 export function PreviewArt({ type }: { type: WidgetType }) {
   const C = "currentColor";
   const body: Record<WidgetType, ReactNode> = {
+    question: <><circle cx="24" cy="21" r="11" fill="none" stroke={C} strokeOpacity="0.85" strokeWidth="4" /><path d="M32 29l9 9" stroke={C} strokeWidth="4" strokeLinecap="round" opacity="0.85" /><rect x="44" y="10" width="12" height="4" rx="2" fill={C} opacity="0.3" /></>,
     count: <><rect x="14" y="12" width="36" height="14" rx="3" fill={C} opacity="0.85" /><rect x="20" y="30" width="24" height="4" rx="2" fill={C} opacity="0.3" /></>,
     calculation: <><circle cx="20" cy="22" r="10" fill="none" stroke={C} strokeOpacity="0.2" strokeWidth="4" /><path d="M20 12a10 10 0 0 1 9.5 13" fill="none" stroke={C} strokeWidth="4" strokeLinecap="round" /><rect x="36" y="14" width="18" height="8" rx="2" fill={C} opacity="0.85" /><path d="M37 30l5-4 4 3 6-5" fill="none" stroke={GREEN} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></>,
     battery: <><rect x="6" y="15" width="52" height="12" rx="6" fill={C} opacity="0.12" /><rect x="6" y="15" width="24" height="12" rx="6" fill={GREEN} /><rect x="28" y="15" width="12" height="12" fill={C} opacity="0.85" /></>,

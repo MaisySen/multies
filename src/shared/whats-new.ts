@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-dashboards-plus",
+    date: "2026-11-01",
+    title: "Share dashboards, email reports, ask your own questions",
+    body: "Share a dashboard by link, with an expiry and an optional password, so clients see the numbers without an account. Email it daily, weekly or monthly with a PDF. Build your own card from tasks, deals, form responses, bookings, time, mail or a CSV, and get an alert once when a number crosses a line.",
+  },
+  {
     id: "2026-11-01-notification-centre",
     date: "2026-11-01",
     title: "Quiet hours, digests and mail for notifications",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "Social has its own place",
     body: "Social now sits in the left rail with a Planner calendar, Posts with how each account did, New post and Accounts. Connect Facebook Pages, Instagram, LinkedIn, Pinterest or Reddit, write one post and send it now or later; networks that can't take it are greyed out with the reason. Agents moved to the rail too, and Workspace is now called Settings, with one sidebar.",
-  },
-  {
-    id: "2026-10-31-tasks-views-tags",
-    date: "2026-10-31",
-    title: "Saved views, tags and a full task page",
-    body: "Save the filters, sort and grouping you use as a view, keep it for yourself or share it, and pin it as a tab above Tasks. Group the list by status, person, priority, due date, tag or any field, put several people on a task, and give tags their own colours. Every task opens as a full page too, with a description you can format and @mention people in.",
   },
   {
     id: "2026-10-28-whats-new",

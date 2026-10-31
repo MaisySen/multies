@@ -69,8 +69,8 @@ export function ShareDialog({ dashboardId, open, onClose }: { dashboardId: strin
             ) : (
               <Section title="New link">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Expires"><Select value={expires} onChange={(e) => setExpires(e.target.value)}><option value="7">In 7 days</option><option value="30">In 30 days</option><option value="90">In 90 days</option><option value="never">Never</option></Select></Field>
-                  <Field label="Password" hint="Optional, at least 6 characters"><Input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
+                  <Field label="Expires">{(fp) => (<><Select {...fp} value={expires} onChange={(e) => setExpires(e.target.value)}><option value="7">In 7 days</option><option value="30">In 30 days</option><option value="90">In 90 days</option><option value="never">Never</option></Select></>)}</Field>
+                  <Field label="Password" hint="Optional, at least 6 characters">{(fp) => (<><Input {...fp} type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} /></>)}</Field>
                 </div>
                 <Switch checked={brand} onChange={setBrand} label="Show the workspace name" />
                 <div className="flex justify-end"><Button onClick={() => create.mutate()} disabled={create.isPending || (password.length > 0 && password.length < 6)}>{create.isPending ? "Creating" : "Create link"}</Button></div>
@@ -173,11 +173,11 @@ function ReportForm({ dashboardId, report, onDone, onCancel }: { dashboardId: st
   return (
     <div className="space-y-5" data-testid="report-form">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="How often"><Select value={f.frequency} onChange={(e) => setF({ ...f, frequency: e.target.value as Report["frequency"] })}><option value="daily">Every day</option><option value="weekly">Every week</option><option value="monthly">Every month</option></Select></Field>
-        {f.frequency === "weekly" && <Field label="On"><Select value={f.weekday} onChange={(e) => setF({ ...f, weekday: Number(e.target.value) })}>{DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}</Select></Field>}
-        {f.frequency === "monthly" && <Field label="On day" hint="Day 31 sends on the last day of shorter months"><Select value={f.monthDay} onChange={(e) => setF({ ...f, monthDay: Number(e.target.value) })}>{Array.from({ length: 31 }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}</Select></Field>}
-        <Field label="At"><Select value={f.hour} onChange={(e) => setF({ ...f, hour: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hourLabel(h)}</option>)}</Select></Field>
-        <Field label="Time zone"><Select value={f.timeZone} onChange={(e) => setF({ ...f, timeZone: e.target.value })}>{tzs.map((z) => <option key={z} value={z}>{z.replace(/_/g, " ")}</option>)}</Select></Field>
+        <Field label="How often">{(fp) => (<><Select {...fp} value={f.frequency} onChange={(e) => setF({ ...f, frequency: e.target.value as Report["frequency"] })}><option value="daily">Every day</option><option value="weekly">Every week</option><option value="monthly">Every month</option></Select></>)}</Field>
+        {f.frequency === "weekly" && <Field label="On">{(fp) => (<><Select {...fp} value={f.weekday} onChange={(e) => setF({ ...f, weekday: Number(e.target.value) })}>{DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}</Select></>)}</Field>}
+        {f.frequency === "monthly" && <Field label="On day" hint="Day 31 sends on the last day of shorter months">{(fp) => (<><Select {...fp} value={f.monthDay} onChange={(e) => setF({ ...f, monthDay: Number(e.target.value) })}>{Array.from({ length: 31 }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}</Select></>)}</Field>}
+        <Field label="At">{(fp) => (<><Select {...fp} value={f.hour} onChange={(e) => setF({ ...f, hour: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hourLabel(h)}</option>)}</Select></>)}</Field>
+        <Field label="Time zone">{(fp) => (<><Select {...fp} value={f.timeZone} onChange={(e) => setF({ ...f, timeZone: e.target.value })}>{tzs.map((z) => <option key={z} value={z}>{z.replace(/_/g, " ")}</option>)}</Select></>)}</Field>
       </div>
       <Switch checked={f.withPdf} onChange={(v) => setF({ ...f, withPdf: v })} label="Include a PDF of the dashboard" />
       <Section title="Send to">
@@ -190,15 +190,15 @@ function ReportForm({ dashboardId, report, onDone, onCancel }: { dashboardId: st
           ))}</ul>
         )}
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Add a member">
-            <Select value="" onChange={(e) => { const m = members.find((x) => x.userId === e.target.value); if (m?.email && people.length < 20) setPeople([...people, { email: m.email.toLowerCase(), userId: m.userId }]); }}>
+          <Field label="Add a member">{(fp) => (<>
+            <Select {...fp} value="" onChange={(e) => { const m = members.find((x) => x.userId === e.target.value); if (m?.email && people.length < 20) setPeople([...people, { email: m.email.toLowerCase(), userId: m.userId }]); }}>
               <option value="">{members.length ? "Pick someone" : "Everyone is added"}</option>
               {members.map((m) => <option key={m.userId} value={m.userId}>{m.name || m.email}</option>)}
             </Select>
-          </Field>
-          <Field label="Add an email" error={err ?? undefined}>
-            <div className="flex gap-2"><Input type="email" value={email} placeholder="name@company.com" onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addEmail(); } }} className="min-w-0 flex-1" /><Button variant="secondary" onClick={addEmail}>Add</Button></div>
-          </Field>
+          </>)}</Field>
+          <Field label="Add an email" error={err ?? undefined}>{(fp) => (<>
+            <div className="flex gap-2"><Input {...fp} type="email" value={email} placeholder="name@company.com" onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addEmail(); } }} className="min-w-0 flex-1" /><Button variant="secondary" onClick={addEmail}>Add</Button></div>
+          </>)}</Field>
         </div>
         <p className="text-[12.5px] text-muted">People outside the workspace get a read only link; members open the dashboard in the app.</p>
       </Section>
@@ -234,16 +234,16 @@ export function AlertsDialog({ dashboardId, cards, open, presetCard, onClose }: 
         {!cards.length ? <Note>Alerts work on cards that show one number, like a count or a question with no grouping. Add one first.</Note> : (
           <Section title="New alert">
             <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="Card" className="sm:col-span-3"><Select value={f.widgetId} onChange={(e) => setF({ ...f, widgetId: e.target.value })}>{cards.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}</Select></Field>
-              <Field label="When it goes"><Select value={f.direction} onChange={(e) => setF({ ...f, direction: e.target.value as "above" | "below" })}><option value="above">Above</option><option value="below">Below</option></Select></Field>
-              <Field label="This number" className="sm:col-span-2"><Input type="number" inputMode="decimal" value={f.threshold} onChange={(e) => setF({ ...f, threshold: e.target.value })} placeholder="10" /></Field>
+              <Field label="Card" className="sm:col-span-3">{(fp) => (<><Select {...fp} value={f.widgetId} onChange={(e) => setF({ ...f, widgetId: e.target.value })}>{cards.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}</Select></>)}</Field>
+              <Field label="When it goes">{(fp) => (<><Select {...fp} value={f.direction} onChange={(e) => setF({ ...f, direction: e.target.value as "above" | "below" })}><option value="above">Above</option><option value="below">Below</option></Select></>)}</Field>
+              <Field label="This number" className="sm:col-span-2">{(fp) => (<><Input {...fp} type="number" inputMode="decimal" value={f.threshold} onChange={(e) => setF({ ...f, threshold: e.target.value })} placeholder="10" /></>)}</Field>
             </div>
             <Switch checked={f.byMail} onChange={(v) => setF({ ...f, byMail: v })} label="Email me too" />
             <Switch checked={f.quiet} onChange={(v) => setF({ ...f, quiet: v })} label="Quiet hours" />
             {f.quiet && (
               <div className="grid grid-cols-2 gap-3">
-                <Field label="From"><Select value={f.quietStart} onChange={(e) => setF({ ...f, quietStart: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hourLabel(h)}</option>)}</Select></Field>
-                <Field label="Until"><Select value={f.quietEnd} onChange={(e) => setF({ ...f, quietEnd: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hourLabel(h)}</option>)}</Select></Field>
+                <Field label="From">{(fp) => (<><Select {...fp} value={f.quietStart} onChange={(e) => setF({ ...f, quietStart: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hourLabel(h)}</option>)}</Select></>)}</Field>
+                <Field label="Until">{(fp) => (<><Select {...fp} value={f.quietEnd} onChange={(e) => setF({ ...f, quietEnd: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hourLabel(h)}</option>)}</Select></>)}</Field>
               </div>
             )}
             <div className="flex justify-end"><Button onClick={() => create.mutate()} disabled={!valid || create.isPending}>{create.isPending ? "Saving" : "Set alert"}</Button></div>
@@ -309,14 +309,14 @@ export function SourcesDialog({ open, onClose }: { open: boolean; onClose: () =>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {mode === "csv" ? (
-              <Field label="File"><input ref={fileRef} type="file" accept=".csv,text/csv" onChange={(e) => void pickFile(e.target.files?.[0])} className="block w-full text-[13px] text-muted file:mr-3 file:rounded-md file:border-0 file:bg-fill file:px-3 file:py-1.5 file:text-[13px] file:text-fg" /></Field>
+              <Field label="File">{(fp) => (<><input {...fp} ref={fileRef} type="file" accept=".csv,text/csv" onChange={(e) => void pickFile(e.target.files?.[0])} className="block w-full text-[13px] text-muted file:mr-3 file:rounded-md file:border-0 file:bg-fill file:px-3 file:py-1.5 file:text-[13px] file:text-fg" /></>)}</Field>
             ) : (
               <>
-                <Field label="Link" hint="A published sheet or any public https CSV link" className="sm:col-span-2"><Input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" /></Field>
-                <Field label="Refresh"><Select value={refreshEvery} onChange={(e) => setRefreshEvery(e.target.value)}><option value="hourly">Every hour</option><option value="daily">Every day</option><option value="manual">Only when I ask</option></Select></Field>
+                <Field label="Link" hint="A published sheet or any public https CSV link" className="sm:col-span-2">{(fp) => (<><Input {...fp} type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" /></>)}</Field>
+                <Field label="Refresh">{(fp) => (<><Select {...fp} value={refreshEvery} onChange={(e) => setRefreshEvery(e.target.value)}><option value="hourly">Every hour</option><option value="daily">Every day</option><option value="manual">Only when I ask</option></Select></>)}</Field>
               </>
             )}
-            <Field label="Name"><Input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder={mode === "csv" ? "Sales by month" : "Leads sheet"} /></Field>
+            <Field label="Name">{(fp) => (<><Input {...fp} value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder={mode === "csv" ? "Sales by month" : "Leads sheet"} /></>)}</Field>
           </div>
           {err && <p role="alert" className="text-[13px] text-danger">{err}</p>}
           <div className="flex justify-end"><Button onClick={() => add.mutate()} disabled={!ready || add.isPending}>{add.isPending ? "Reading" : "Add source"}</Button></div>
@@ -393,12 +393,12 @@ export function QuestionBuilder({ open, initial, onClose, onSave, renderResult }
         <div className="min-w-0 space-y-5">
           {catalog.isPending ? <Skeleton className="h-64" /> : (
             <>
-              <Field label="Data">
-                <Select value={q.table === "source" ? `source:${q.sourceId ?? ""}` : q.table} onChange={(e) => setTable(e.target.value)} aria-label="Data">
+              <Field label="Data">{(fp) => (<>
+                <Select {...fp} value={q.table === "source" ? `source:${q.sourceId ?? ""}` : q.table} onChange={(e) => setTable(e.target.value)} aria-label="Data">
                   <optgroup label="Multies">{catalog.data?.tables.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</optgroup>
                   {!!sources.data?.sources.length && <optgroup label="Data sources">{sources.data.sources.map((s) => <option key={s.id} value={`source:${s.id}`}>{s.name}</option>)}</optgroup>}
                 </Select>
-              </Field>
+              </>)}</Field>
               <Section title="Filters">
                 {!q.filters.length && <p className="text-[13px] text-muted">Everything you can see. Add a filter to narrow it down.</p>}
                 <ul className="space-y-2">{q.filters.map((f, i) => {
@@ -420,27 +420,27 @@ export function QuestionBuilder({ open, initial, onClose, onSave, renderResult }
                 <Button variant="secondary" size="sm" onClick={() => fields[0] && setQ({ ...q, filters: [...q.filters, { field: fields[0].id, op: (OPS_BY_KIND[fields[0].kind] ?? OPS_BY_KIND.text!)[0]!.op, value: "" }] })} disabled={q.filters.length >= 8 || !fields.length}><IconPlus className="h-4 w-4" />Add filter</Button>
               </Section>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Measure">
-                  <Select value={q.measure.op} onChange={(e) => setQ({ ...q, measure: { op: e.target.value as Question["measure"]["op"], field: e.target.value === "count" ? undefined : (q.measure.field ?? numberFields[0]?.id) } })}>
+                <Field label="Measure">{(fp) => (<>
+                  <Select {...fp} value={q.measure.op} onChange={(e) => setQ({ ...q, measure: { op: e.target.value as Question["measure"]["op"], field: e.target.value === "count" ? undefined : (q.measure.field ?? numberFields[0]?.id) } })}>
                     <option value="count">Count</option>
                     {!countOnly && <><option value="sum">Total of</option><option value="avg">Average of</option><option value="min">Lowest</option><option value="max">Highest</option></>}
                   </Select>
-                </Field>
-                {q.measure.op !== "count" && <Field label="Of"><Select value={q.measure.field ?? ""} onChange={(e) => setQ({ ...q, measure: { ...q.measure, field: e.target.value } })}>{numberFields.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}</Select></Field>}
-                <Field label="Group by">
-                  <Select value={q.groupBy ?? ""} onChange={(e) => { const v = e.target.value || null; setQ({ ...q, groupBy: v, bucket: field(v)?.kind === "date" ? (q.bucket ?? "week") : null }); }}>
+                </>)}</Field>
+                {q.measure.op !== "count" && <Field label="Of">{(fp) => (<><Select {...fp} value={q.measure.field ?? ""} onChange={(e) => setQ({ ...q, measure: { ...q.measure, field: e.target.value } })}>{numberFields.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}</Select></>)}</Field>}
+                <Field label="Group by">{(fp) => (<>
+                  <Select {...fp} value={q.groupBy ?? ""} onChange={(e) => { const v = e.target.value || null; setQ({ ...q, groupBy: v, bucket: field(v)?.kind === "date" ? (q.bucket ?? "week") : null }); }}>
                     <option value="">Nothing, one number</option>
                     {fields.filter((f) => f.kind !== "number" && f.kind !== "text" || q.table === "source").map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
                   </Select>
-                </Field>
-                {g?.kind === "date" && <Field label="Per"><Select value={q.bucket ?? "week"} onChange={(e) => setQ({ ...q, bucket: e.target.value as "day" | "week" | "month" })}><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option></Select></Field>}
+                </>)}</Field>
+                {g?.kind === "date" && <Field label="Per">{(fp) => (<><Select {...fp} value={q.bucket ?? "week"} onChange={(e) => setQ({ ...q, bucket: e.target.value as "day" | "week" | "month" })}><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option></Select></>)}</Field>}
               </div>
-              <Field label="Show as">
-                <div role="radiogroup" aria-label="Show as" className="flex flex-wrap gap-1.5">
+              <Field label="Show as">{(fp) => (<>
+                <div {...fp} role="radiogroup" aria-label="Show as" className="flex flex-wrap gap-1.5">
                   {charts.map((c) => <button key={c.id} type="button" role="radio" aria-checked={chart === c.id} onClick={() => setChart(c.id)} className={cn("rounded-full px-3 py-1 text-[13px]", chart === c.id ? "bg-brand text-on-brand" : "bg-fill text-muted hover:text-fg")}>{c.label}</button>)}
                 </div>
-              </Field>
-              <Field label="Card title" hint="Leave empty to describe the question"><Input value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} placeholder={preview.data?.result.label ?? "Question"} /></Field>
+              </>)}</Field>
+              <Field label="Card title" hint="Leave empty to describe the question">{(fp) => (<><Input {...fp} value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} placeholder={preview.data?.result.label ?? "Question"} /></>)}</Field>
             </>
           )}
         </div>

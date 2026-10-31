@@ -55,7 +55,7 @@ export function PublicDashboardPage() {
           <Card className="mx-auto mt-16 max-w-sm p-6">
             <form onSubmit={submit} className="space-y-4" data-testid="public-password">
               <div><h1 className="text-lg font-semibold">This dashboard has a password</h1><p className="mt-1 text-[13px] text-muted">Enter the password you were given to see it.</p></div>
-              <Field label="Password" error={state.wrong ? "That password isn't right." : undefined}><Input type="password" autoFocus autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
+              <Field label="Password" error={state.wrong ? "That password isn't right." : undefined}>{(fp) => (<><Input {...fp} type="password" autoFocus autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></>)}</Field>
               <Button type="submit" className="w-full" disabled={!password || busy}>{busy ? "Opening" : "Open dashboard"}</Button>
             </form>
           </Card>
