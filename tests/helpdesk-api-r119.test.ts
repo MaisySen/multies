@@ -24,7 +24,7 @@ async function inbound(subject: string, text: string, from = "grace@example.com"
   return deliverInbound(ctx.deps, {
     envelopeFrom: from, rcptTo: "support@acme.io", sizeBytes: text.length + 200, via: "test",
     email: { messageId: `<${Math.random().toString(36).slice(2)}@example.com>`, from: { address: from, name: "Grace Hopper" }, to: [{ address: "support@acme.io" }], cc: [], subject, text, date: new Date(Date.now() + 1000), attachments: [], authResults: {} },
-  } as Parameters<typeof deliverInbound>[1]);
+  } as unknown as Parameters<typeof deliverInbound>[1]);
 }
 async function member() {
   const invite = await owner.post("/api/team/invites", { email: "mate@acme.io", role: "member" });

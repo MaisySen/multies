@@ -23,6 +23,9 @@ import { ThreadCollab } from "./inbox-presence";
 import { InboxZeroArt } from "@/web/components/illustrations"; // R36
 import { useChannelsStatus } from "./channels-ui"; // C1
 import { ChannelFilterControl, ChatRow, ChatView, mergeByDate, useChannelFilter, useChatConversations } from "./inbox-chat"; // C1
+import { HelpdeskViewBar, TicketListBody, TicketPanel, WebChatView, useHelpdeskSettings, useTicketView, useTickets, type Ticket } from "./helpdesk"; // R119
+import { Link } from "react-router";
+import { IconSettings } from "@/web/components/ui/icon";
 
 interface ThreadSummary {
   id: string; mailboxId: string; subject: string; snippet: string; lastMessageAt: string; messageCount: number; unreadCount: number;
@@ -42,7 +45,17 @@ export function TeamInboxPage() {
   const [params, setParams] = useSearchParams();
   const selected = params.get("thread");
   const selectedConv = params.get("conv"); // C1: an open chat
+  const selectedTicket = params.get("ticket"); // R119: an open website chat
   const iv = useInboxView();
+  // R119: helpdesk mode. When a workspace turns it on, the list shows tickets (mail, chats, website chats) with their clocks.
+  const hds = useHelpdeskSettings();
+  const hdOn = !!hds.data?.on;
+  const [mode, setModeState] = useState<"tickets" | "all">(() => { try { return sessionStorage.getItem("mq.inbox.mode") === "all" ? "all" : "tickets"; } catch { return "tickets"; } });
+  const setMode = (m: "tickets" | "all") => { setModeState(m); try { sessionStorage.setItem("mq.inbox.mode", m); } catch { /* private mode */ } };
+  const ticketsMode = hdOn && mode === "tickets";
+  const tv = useTicketView();
+  const tlist = useTickets(ticketsMode, tv.query);
+  const openTicket = (t: Ticket) => setParams(t.kind === "mail" ? { thread: t.refId } : t.kind === "chat" ? { conv: t.refId } : { ticket: t.id }, { replace: false });
   const threads = useQuery({ queryKey: ["team-inbox", "list", iv.query], queryFn: () => api.get<{ data: ThreadSummary[] }>(`/agents/threads${iv.query}`), refetchInterval: 20_000 });
   const noteCounts = useNoteCounts(threads.data?.data.map((t) => t.id) ?? []);
   const mailboxes = useMailboxes();
@@ -65,16 +78,25 @@ export function TeamInboxPage() {
   const mail = filter === "all" || filter === "email" ? threads.data?.data ?? [] : [];
   const chatRows = chatOn && filter !== "email" ? (chats.data ?? []).filter((c) => filter === "all" || c.provider === filter) : [];
   const rows = mergeByDate(mail, chatRows);
-  const anySelected = !!(selected || selectedConv);
+  const anySelected = !!(selected || selectedConv || selectedTicket);
   const pending = threads.isPending || (chatOn && chats.isPending && filter !== "email");
   return (
     <>
-      <PageHeader title="Shared inbox" description={chatOn ? "Mail and customer chats in one place, with your team and your agents. Agent replies are labelled." : "Your team and your agents on the same threads. Agent replies are labelled, and anything waiting for approval shows in place."} />
-      <InboxViewBar {...iv} />
-      {chatOn && <div className="-mt-1 mb-4"><ChannelFilterControl filter={filter} set={cf.set} providers={providers} /></div>}
+      <PageHeader title="Shared inbox" actions={(hdOn || hds.data?.canManage) ? <Link to="/app/inbox/helpdesk" className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium text-muted transition-colors hover:bg-hover hover:text-fg max-sm:min-h-11" data-testid="helpdesk-settings-link"><IconSettings className="h-4 w-4" aria-hidden />Helpdesk</Link> : undefined} description={ticketsMode ? "Every customer conversation as a ticket, with an owner, a priority and reply times." : chatOn ? "Mail and customer chats in one place, with your team and your agents. Agent replies are labelled." : "Your team and your agents on the same threads. Agent replies are labelled, and anything waiting for approval shows in place."} />
+      {hdOn && (
+        <div role="group" aria-label="Show" className="mb-3 inline-flex gap-0.5 rounded-lg bg-fill p-0.5" data-testid="inbox-mode">
+          {(["tickets", "all"] as const).map((m) => (
+            <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)}
+              className={cn("h-7 rounded-md px-3 text-[13px] font-medium transition-colors duration-150 max-sm:h-11", mode === m ? "bg-elevated text-fg shadow-sm" : "text-muted hover:text-fg")}>{m === "tickets" ? "Tickets" : "All conversations"}</button>
+          ))}
+        </div>
+      )}
+      {ticketsMode ? <HelpdeskViewBar {...tv} counts={tlist.data?.counts} /> : <InboxViewBar {...iv} />}
+      {chatOn && !ticketsMode && <div className="-mt-1 mb-4"><ChannelFilterControl filter={filter} set={cf.set} providers={providers} /></div>}
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">{/* R67 (MB-252): one column never grows past the phone width */}
         <Card className={cn("overflow-hidden lg:max-h-[calc(100dvh-11rem)] lg:overflow-y-auto", anySelected && "hidden lg:block")}>
-          {pending ? <div className="space-y-3 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
+          {ticketsMode ? <TicketListBody list={tlist} view={tv.view} selectedId={tlist.data?.tickets.find((t) => (t.kind === "mail" && t.refId === selected) || (t.kind === "chat" && t.refId === selectedConv) || t.id === selectedTicket)?.id ?? null} onOpen={openTicket} />
+            : pending ? <div className="space-y-3 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
             : threads.error ? <p className="p-6 text-sm text-bad">{threads.error.message}</p>
             : !rows.length ? (filter === "all" || filter === "email"
               ? <EmptyState icon={<IconInbox />} art={<InboxZeroArt />} title={filter === "email" ? "No email here" : "No threads yet"} body={chatOn ? "Mail and customer chats show up here." : "Mail to your mailboxes and agent inboxes shows up here."} />
@@ -105,8 +127,9 @@ export function TeamInboxPage() {
             )}
         </Card>
         <div className={cn("min-w-0 lg:sticky lg:top-6 lg:self-start", !anySelected && "hidden lg:block")}>
-          {selectedConv && chatOn ? <ChatView id={selectedConv} onBack={() => open(null)} />
-            : selected ? <ThreadView id={selected} onBack={() => open(null)} canReply={(mailboxId) => sendable.some((m) => m.id === mailboxId)} own={sendable.map((m) => m.address)} onReply={setCompose} />
+          {selectedTicket && hdOn ? <WebChatView ticketId={selectedTicket} onBack={() => open(null)} />
+            : selectedConv && chatOn ? <div className="space-y-3">{hdOn && <TicketPanel kind="chat" refId={selectedConv} />}<ChatView id={selectedConv} onBack={() => open(null)} /></div>
+            : selected ? <ThreadView helpdesk={hdOn} id={selected} onBack={() => open(null)} canReply={(mailboxId) => sendable.some((m) => m.id === mailboxId)} own={sendable.map((m) => m.address)} onReply={setCompose} />
             : <Card><EmptyState icon={<IconInbox />} title={chatOn ? "Pick a thread or a chat" : "Pick a thread"} body={chatOn ? "See every message, who wrote it, and reply from here." : "See every message, who wrote it, and what an agent wants to send next."} /></Card>}
         </div>
       </div>
@@ -115,7 +138,7 @@ export function TeamInboxPage() {
   );
 }
 
-function ThreadView({ id, onBack, canReply, own, onReply }: { id: string; onBack: () => void; canReply: (mailboxId: string) => boolean; own: string[]; onReply: (d: ComposeDraft) => void }) {
+function ThreadView({ id, onBack, canReply, own, onReply, helpdesk }: { id: string; onBack: () => void; canReply: (mailboxId: string) => boolean; own: string[]; onReply: (d: ComposeDraft) => void; helpdesk?: boolean }) {
   const thread = useQuery({ queryKey: ["team-inbox", id], queryFn: () => api.get<Thread>(`/agents/threads/${id}`) });
   // R67 (MB-244): a reply that was open here when the page reloaded opens again, with its saved draft.
   const resumed = useRef<string | null>(null);
@@ -142,6 +165,7 @@ function ThreadView({ id, onBack, canReply, own, onReply }: { id: string; onBack
         <h2 className="min-w-0 flex-1 basis-[12rem] break-words text-lg font-semibold tracking-tight">{t.subject || "(no subject)"}</h2>
         <ThreadAssignControls threadId={t.id} />
       </div>
+      {helpdesk && <TicketPanel kind="mail" refId={t.id} onReplyText={canReply(t.mailboxId) && t.messages.length ? (text) => onReply({ ...replyDraftFor(t, own, false), text }) : undefined} />}
       <ThreadCollab threadId={t.id} />
       {t.messages.length > 0 && <MakeTask messageId={t.messages[t.messages.length - 1].id} threadId={t.id} />}
       {t.messages.map((m) => (

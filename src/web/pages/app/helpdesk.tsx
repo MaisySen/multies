@@ -52,8 +52,8 @@ const KIND_ICON: Record<TicketKind, typeof IconMail> = { mail: IconMail, chat: I
 
 /** The most urgent live clock in a few words, for a row. */
 export function SlaChip({ sla, compact }: { sla: Ticket["sla"]; compact?: boolean }) {
-  const part = sla.first.level === "warn" || sla.first.level === "breached" || (sla.first.level === "ok" && sla.resolve.level !== "breached" && sla.resolve.level !== "warn")
-    ? (sla.first.level === "none" || sla.first.level === "met" ? sla.resolve : sla.first) : sla.resolve;
+  const hot = (l: SlaLevel) => l === "warn" || l === "breached";
+  const part = hot(sla.first.level) ? sla.first : hot(sla.resolve.level) ? sla.resolve : sla.first.level === "ok" ? sla.first : sla.resolve;
   const what = part === sla.first ? "First reply" : "Resolve";
   const text = slaLabel(part, what);
   if (!text || part.level === "met" || part.level === "none") return null;
