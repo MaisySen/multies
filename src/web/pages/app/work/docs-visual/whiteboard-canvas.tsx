@@ -40,6 +40,9 @@ const SNAPSHOT_MS = 1100;
 
 export default function WhiteboardCanvas(p: CanvasProps) {
   const apiRef = useRef<Api>(null);
+  const host = useRef<HTMLDivElement>(null);
+  /** The count of drawn elements on the wrapper: a cheap, visible fact for tests and for screen readers' summary. */
+  const mark = (els: readonly BoardElement[]) => { const n = els.filter((e) => !e.isDeleted).length; host.current?.setAttribute("data-element-count", String(n)); host.current?.setAttribute("aria-label", n ? `Whiteboard with ${n} ${n === 1 ? "shape" : "shapes"}` : "Empty whiteboard"); };
   const [api, setApi] = useState<Api>(null);
   const sent = useRef(new Map<string, number>());
   const snapTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -81,6 +84,7 @@ export default function WhiteboardCanvas(p: CanvasProps) {
     const els = restoreElements(start as any, null, { refreshDimensions: false, repairBindings: true });
     sent.current = new Map(els.map((e: BoardElement) => [e.id, e.version]));
     api.updateScene({ elements: els, captureUpdate: CaptureUpdateAction.NEVER });
+    mark(els);
     if (els.length) setTimeout(() => api.scrollToContent(undefined, { fitToContent: true, animate: false }), 30);
     p.onReady?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -103,6 +107,7 @@ export default function WhiteboardCanvas(p: CanvasProps) {
       }
       for (const e of next) sent.current.set(e.id, e.version);
       api.updateScene({ elements: next, captureUpdate: CaptureUpdateAction.NEVER });
+      mark(next);
       snapshotSoon();
     };
     ymap.observe(onChange);
@@ -143,6 +148,7 @@ export default function WhiteboardCanvas(p: CanvasProps) {
   }, []);
 
   const onChange = useCallback((elements: readonly BoardElement[]) => {
+    mark(elements);
     if (props.current.readOnly) return;
     const changed = changedSince(sent.current, elements);
     if (!changed.length) return;
@@ -190,6 +196,7 @@ export default function WhiteboardCanvas(p: CanvasProps) {
   }, [all]);
 
   return (
+    <div ref={host} className="h-full w-full" role="region" aria-label="Whiteboard" data-testid="board-host" data-element-count="0">
     <Excalidraw
       excalidrawAPI={(a: Api) => { apiRef.current = a; setApi(a); }}
       onChange={onChange as any}
@@ -220,5 +227,6 @@ export default function WhiteboardCanvas(p: CanvasProps) {
         </WelcomeScreen.Center>
       </WelcomeScreen>
     </Excalidraw>
+    </div>
   );
 }
