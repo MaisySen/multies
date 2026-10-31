@@ -199,7 +199,7 @@ export function remoteIdOf(t: { app: string; remoteId?: string | null; url: stri
 
 /** Facebook says this for an id that is gone (and, sadly, for one it will not show; we only ask with the Page's own token). */
 function facebookGone(err: unknown): boolean {
-  return err instanceof PublishError && /does not exist|has been deleted|Unsupported (get|delete) request/i.test(err.message);
+  return err instanceof PublishError && /does not exist|has been deleted/i.test(err.message);
 }
 
 async function pageToken(ctx: PublishCtx, page: string, cache: Map<string, Promise<string | null>>): Promise<string | null> {
@@ -287,11 +287,15 @@ export async function deletePost(deps: Deps, auth: AuthContext, id: string, ip?:
   const tokens = new Map<string, Promise<string | null>>();
   const cp = deps.config.integrations.composio ? platform(deps) : null;
   const userId = cp ? platformUserId(cp, auth.orgId) : "";
+  // An account disconnected since posting can't delete there any more: the post stays on that network and leaves Multies.
+  let connected: Set<string> | null = null;
+  if (cp) { try { connected = new Set((await cp.accounts(userId)).map((a) => a.id)); } catch { connected = null; } }
   const results = await Promise.all(targets.map(async (t) => {
     let outcome: DeleteOutcome;
     if (t.status !== "sent") outcome = "not_sent";
     else if (t.networkState === "removed") outcome = "already_gone";
     else if (!(SOCIAL_CAN_DELETE as readonly string[]).includes(t.app)) outcome = "not_supported";
+    else if (connected && !connected.has(t.accountId)) outcome = "not_supported";
     else {
       const remoteId = remoteIdOf(t);
       if (!remoteId || !cp) outcome = "failed";

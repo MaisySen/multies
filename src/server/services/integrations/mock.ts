@@ -37,6 +37,8 @@ export interface MockComposioState {
   goneRemote?: Set<string>;
   /** A network refuses to delete (tests the partial delete). */
   deleteRefused?: boolean;
+  /** Facebook answers the post check with this error (a permission problem, not a deleted post). */
+  fbGetError?: string;
 }
 
 export function newMockState(): MockComposioState {
@@ -101,6 +103,7 @@ function proxy(state: MockComposioState, body: { connected_account_id?: string; 
     const objId = decodeURIComponent(u.pathname.split("/").pop() ?? "");
     if ((method === "GET" && u.searchParams.get("fields") === "id") || method === "DELETE") {
       if (u.searchParams.get("access_token") !== "mock-page-token") return net(403, { error: { message: "(#200) Requires the Page token", code: 200 } });
+      if (method === "GET" && state.fbGetError) return net(400, { error: { message: state.fbGetError, code: 100 } });
       if (gone.has(objId)) return net(400, { error: { message: "(#10) Object does not exist, cannot be loaded due to missing permission or reviewable feature, or does not support this operation.", code: 10 } });
       if (method === "GET") return net(200, { id: objId });
       if (state.deleteRefused) return net(500, { error: { message: "An unexpected error has occurred.", code: 2 } });

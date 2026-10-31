@@ -173,6 +173,26 @@ describe("Oct 31: network state and delete", () => {
     expect(mock.proxied.some((p) => p.method === "DELETE")).toBe(false);
   });
 
+  it("an account disconnected since posting does not block delete: the post stays there and leaves Multies", async () => {
+    const { id, li } = await postBoth();
+    expect((await owner.del(`/api/apps/accounts/${li}`)).status).toBe(200);
+    const d = await owner.del(`/api/social/posts/${id}`);
+    expect(d.body.deleted).toBe(true);
+    expect(d.body.results.find((r: { app: string }) => r.app === "linkedin").outcome).toBe("not_supported");
+    expect(d.body.results.find((r: { app: string }) => r.app === "facebook").outcome).toBe("deleted");
+  });
+
+  it("a Facebook permission error is not read as removed", async () => {
+    const { id } = await postBoth();
+    await age(id);
+    mock.fbGetError = "(#100) Unsupported get request. Please read the Graph API documentation";
+    const s = await owner.post("/api/social/posts/sync", { ids: [id] });
+    expect(s.status).toBe(200);
+    const fb = s.body.posts[0].targets.find((t: { app: string }) => t.app === "facebook");
+    expect(fb.networkState).not.toBe("removed");
+    expect(fb.url).toMatch(/facebook\.com/);
+  });
+
   it("Instagram cannot be deleted from Multies: not_supported, still removed from the list", async () => {
     const ig = await connect(owner, "instagram");
     const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";

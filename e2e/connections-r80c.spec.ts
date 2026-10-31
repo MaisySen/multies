@@ -134,6 +134,7 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/delete-confirm-${w}-light.png` });
     await confirm.getByRole("button", { name: "Delete from Facebook" }).click();
     await expect(page.getByText("Post deleted from Facebook")).toBeVisible();
+    await expect(page.locator("#posts-title")).toBeFocused(); // focus lands on the list, not the page body
     await expect(page.getByTestId("social-post").filter({ hasText: "Delete me after the check" })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 

@@ -265,7 +265,7 @@ export function Composer({ accounts, onPosted, heading = true }: { accounts: Con
           </Button>
         </div>
       </form>
-      {postedId && <PostedSheet postId={postedId} onClose={() => setPostedId(null)} onViewPosts={onPosted ? (p) => { setPostedId(null); onPosted(p); } : undefined} />}
+      {postedId && <PostedSheet postId={postedId} onClose={() => { setPostedId(null); requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('[data-testid="social-text"]')?.focus()); }} onViewPosts={onPosted ? (p) => { setPostedId(null); onPosted(p); } : undefined} />}
     </Card>
   );
 }
@@ -431,7 +431,9 @@ function useNetworkSync(posts: SocialPostView[] | undefined) {
   const key = ids.join(",");
   const run = useMutation({
     mutationFn: (list: string[]) => api.post<{ posts: SocialPostView[] }>("/social/posts/sync", { ids: list }),
-    onSuccess: (r) => {
+    onSuccess: async (r) => {
+      // A list read that started before the check would bring back the old state: drop it, then apply the check.
+      await qc.cancelQueries({ queryKey: postsKey });
       const byId = new Map(r.posts.map((p) => [p.id, p]));
       qc.setQueryData<SocialPostView[]>(postsKey, (old) => old?.map((p) => byId.get(p.id) ?? p));
     },
@@ -445,7 +447,12 @@ function useNetworkSync(posts: SocialPostView[] | undefined) {
     document.addEventListener("visibilitychange", onFocus);
     return () => document.removeEventListener("visibilitychange", onFocus);
   }, [key]);
-  return { syncing: run.isPending, sync: () => { if (key) run.mutate(key.split(",")); } };
+  // Refresh checks first, then reloads the list, so the reload always carries what the check found.
+  const refresh = () => {
+    if (key) run.mutate(key.split(","), { onSettled: () => void qc.invalidateQueries({ queryKey: postsKey }) });
+    else void qc.invalidateQueries({ queryKey: postsKey });
+  };
+  return { syncing: run.isPending, refresh };
 }
 
 
@@ -474,6 +481,8 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
       else toast.error(`${done.length ? `Deleted from ${andList(done)}. ` : ""}${andList(failed)} didn't delete it. Try again in a minute.`);
       setToDelete(null);
       void qc.invalidateQueries({ queryKey: postsKey });
+      // The row that held focus may be gone: land on the list heading, not the page body.
+      if (r.deleted) requestAnimationFrame(() => document.getElementById("posts-title")?.focus());
     },
     onError: (e) => toast.error(errorMessage(e, "Couldn't delete the post. Try again.")),
   });
@@ -487,9 +496,9 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
   return (
     <section aria-labelledby="posts-title">
       <div className="mb-2 flex items-center justify-between gap-2 px-1">
-        <h2 id="posts-title" className={cn("text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle", !heading && "sr-only")}>Posts</h2>
+        <h2 id="posts-title" tabIndex={-1} className={cn("outline-none text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle", !heading && "sr-only")}>Posts</h2>
         {!!posts.data?.length && (
-          <Button variant="ghost" size="sm" className="ml-auto" loading={net.syncing || posts.isRefetching} onClick={() => { void posts.refetch(); net.sync(); }} data-testid="posts-refresh">
+          <Button variant="ghost" size="sm" className="ml-auto" loading={net.syncing || posts.isRefetching} onClick={net.refresh} data-testid="posts-refresh">
             <IconRefresh className="h-4 w-4" aria-hidden />Refresh
           </Button>
         )}
