@@ -8,8 +8,8 @@ describe("known routes (R36)", () => {
     expect(isKnownPage("/developers/mcp")).toBe(true);
     expect(isKnownPage("/developers/mcp/")).toBe(true);
   });
-  it("keeps unknown developer paths a real 404", () => {
-    expect(isKnownPage("/developers")).toBe(false);
+  it("keeps unknown developer paths a real 404 (R76: /developers is now the developer hub)", () => {
+    expect(isKnownPage("/developers")).toBe(true);
     expect(isKnownPage("/developers/nope")).toBe(false);
   });
 });

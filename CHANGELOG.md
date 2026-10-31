@@ -15,7 +15,7 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Fixed: the agents, developers and MCP pages use the site address in their examples, so the prerendered page and the app agree; the status page's Check again button no longer starts spinning before the first check; the delete account page asks for the session without a 401 in the console when signed out.
 - Security (review 2026-10-31 M1, M2, L1): our check token no longer skips every demo limit. Check demos keep the burst and per address limits (10 an hour) and have their own cap of 30 a day. The header now carries a signed, timestamped value (v1.<time>.<HMAC>, five minutes of skew) instead of the raw token, staging has its own token, scripts/check-header.mjs makes the value for QA scripts, and x-multies-check is scrubbed from Sentry events.
 - Added: e2e/sitemap-walk-r76.spec.ts walks every sitemap page at 1280 and 390 and fails on a non 200, a not found page or title, noindex, sideways scroll, a broken image or a console error, then checks every internal link on the main public pages and that unknown paths answer 404.
-- What's new drops "What's new, in the app" to stay at 14.
+- What's new drops "Share a guest invite yourself" to stay at 14.
 
 ### Round 74 (30 Oct 2026)
 
