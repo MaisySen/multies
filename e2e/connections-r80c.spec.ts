@@ -75,6 +75,15 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     await expect(failed.getByText("The sign in for this account has expired. Reconnect it, then try again.")).toBeVisible();
     await expect(failed.getByRole("button", { name: "Reconnect LinkedIn" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    if (process.env.SHOTS_DIR) {
+      for (const scheme of ["light", "dark"] as const) {
+        await page.emulateMedia({ colorScheme: scheme });
+        await failed.scrollIntoViewIfNeeded();
+        await failed.screenshot({ path: `${process.env.SHOTS_DIR}/failed-post-${w}-${scheme}.png` });
+        await page.getByTestId("social-composer").screenshot({ path: `${process.env.SHOTS_DIR}/composer-${w}-${scheme}.png` });
+      }
+      await page.emulateMedia({ colorScheme: "light" });
+    }
 
     // Disconnect LinkedIn, with the confirm step.
     await page.getByRole("link", { name: "Apps", exact: true }).click();

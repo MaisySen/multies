@@ -177,7 +177,19 @@ export const SOCIAL_ERROR_COPY: Record<string, string> = {
 };
 
 /** Error codes where reconnecting the account is the next step. */
-export const SOCIAL_RECONNECT_ERRORS = new Set(["reconnect", "no_permission", "not_page_admin", "account_gone"]);
+export const SOCIAL_RECONNECT_ERRORS = new Set(["reconnect", "no_permission", "not_page_admin", "account_gone", "not_finished"]);
+
+/** What the account check says before anyone writes a post (words for the account list in the composer). */
+export const SOCIAL_HEALTH_COPY: Record<string, string> = {
+  reconnect: "Sign in expired. Reconnect to post here.",
+  no_permission: "Posting isn't allowed for this account yet. Reconnect and allow posting.",
+  not_page_admin: "This profile can't post to any Page. Check you are a Page admin, then reconnect.",
+  not_finished: "Sign in was not finished. Reconnect to post here.",
+  check_failed: "We couldn't check this account just now. You can still post.",
+};
+
+/** One account's check, from GET /api/social/health. */
+export interface SocialAccountHealth { accountId: string; app: string; ok: boolean; code: string | null; text: string | null }
 
 /** Splits a stored target error ("code" or "rejected:the network's words") into plain words to show. */
 export function socialErrorText(stored: string | null | undefined): { code: string; text: string } {

@@ -12,11 +12,11 @@ import { inIds } from "../../lib/sql-chunks";
 import { HttpError, forbidden, notFound } from "../../lib/errors";
 import { audit } from "../audit";
 import {
-  SOCIAL_IMAGE_MAX_BYTES, SOCIAL_MAX_AHEAD_DAYS, SOCIAL_NETWORKS, SOCIAL_TEXT_MAX,
+  SOCIAL_ERROR_COPY, SOCIAL_HEALTH_COPY, SOCIAL_IMAGE_MAX_BYTES, SOCIAL_MAX_AHEAD_DAYS, SOCIAL_NETWORKS, SOCIAL_TEXT_MAX,
   type PostStatus, type SocialPostView, type TargetStatus,
 } from "@/shared/integrations";
 import { appLabel, isAdmin, limitWrite, platform, platformUserId, statusOf, toHttp } from "./service";
-import { IntegrationError, type Composio } from "./composio";
+import { IntegrationError, type Composio, type CpAccount } from "./composio";
 
 /** Due posts one cron pass takes; the rest wait for the next pass. */
 export const SOCIAL_PASS_LIMIT = 10;
@@ -441,3 +441,68 @@ export async function readMedia(deps: Deps, id: string, token: string) {
   return { bytes: fromB64(m.contentB64), contentType: m.contentType };
 }
 
+/* ------------------------------------------------------------- account health (Oct 31) */
+
+export interface AccountHealthView { accountId: string; app: string; ok: boolean; code: string | null; text: string | null }
+
+const HEALTH_TTL_MS = 5 * 60_000;
+const healthCache = new Map<string, { at: number; rows: AccountHealthView[] }>();
+
+/** Facebook: the sign in works, posting is allowed, and at least one Page lets this profile create content. */
+async function facebookHealth(ctx: PublishCtx): Promise<string | null> {
+  const perms = await graph(ctx, "GET", "me/permissions");
+  const granted = new Set(((perms.data as { permission?: string; status?: string }[] | undefined) ?? []).filter((p) => p.status === "granted").map((p) => p.permission));
+  if (!granted.has("pages_manage_posts") || !granted.has("pages_show_list")) return "no_permission";
+  const pages = await graph(ctx, "GET", "me/accounts?fields=id,tasks&limit=100");
+  const list = (pages.data as { id?: string; tasks?: string[] }[] | undefined) ?? [];
+  if (!list.some((p) => !p.tasks || p.tasks.includes("CREATE_CONTENT") || p.tasks.includes("MANAGE"))) return "not_page_admin";
+  return null;
+}
+
+/** LinkedIn: the sign in works and it allows posting as the member. */
+async function linkedinHealth(ctx: PublishCtx, scope: string | null): Promise<string | null> {
+  await linkedinCall(ctx, "GET", "https://api.linkedin.com/v2/userinfo");
+  if (scope && !/w_member_social/.test(scope)) return "no_permission";
+  return null;
+}
+
+/**
+ * Checks every social account of the workspace without posting anything: the sign in still works, posting is allowed,
+ * and (Facebook) a Page can be posted to. Answers are kept 5 minutes per workspace; fresh=true asks again.
+ */
+export async function accountHealth(deps: Deps, auth: AuthContext, opts: { fresh?: boolean } = {}): Promise<AccountHealthView[]> {
+  const hit = healthCache.get(auth.orgId);
+  const now = deps.now().getTime();
+  // A fresh check is still held back 30 seconds, so a page that asks often does not hammer the networks.
+  if (hit && now - hit.at < (opts.fresh ? 30_000 : HEALTH_TTL_MS)) return hit.rows;
+  const cp = platform(deps);
+  const userId = platformUserId(cp, auth.orgId);
+  let accounts: CpAccount[];
+  try { accounts = await cp.accounts(userId); } catch (err) { return toHttp(err); }
+  const social = accounts.filter((a) => (a.user_id === undefined || a.user_id === userId) && (a.toolkit?.slug ?? "") in SOCIAL_NETWORKS);
+  const rows = await Promise.all(social.map(async (a): Promise<AccountHealthView> => {
+    const app = a.toolkit?.slug ?? "";
+    let code: string | null = null;
+    const st = (a.status ?? "").toUpperCase();
+    if (st && st !== "ACTIVE") code = st === "INITIATED" || st === "INITIALIZING" ? "not_finished" : "reconnect";
+    else {
+      const ctx: PublishCtx = { cp, userId, accountId: a.id, text: "", imageUrl: null, image: null, target: null, now: deps.now() };
+      try {
+        if (app === "facebook") code = await facebookHealth(ctx);
+        else if (app === "linkedin") {
+          const raw = a as unknown as { state?: { val?: { scope?: unknown; scopes?: unknown } } };
+          const sc = raw.state?.val?.scope ?? raw.state?.val?.scopes;
+          code = await linkedinHealth(ctx, typeof sc === "string" ? sc : Array.isArray(sc) ? sc.join(",") : null);
+        }
+      } catch (err) {
+        code = err instanceof PublishError ? (err.code === "rejected" || err.code === "network_changed" ? "check_failed" : err.code) : "check_failed";
+        deps.log?.warn("social.health_failed", { app, code, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+      }
+    }
+    // A network that did not answer is not the person's problem to fix: show it as fine, posting will say if not.
+    if (code === "unavailable" || code === "rate_limited") code = null;
+    return { accountId: a.id, app, ok: !code, code, text: code ? (SOCIAL_HEALTH_COPY[code] ?? SOCIAL_ERROR_COPY[code] ?? null) : null };
+  }));
+  healthCache.set(auth.orgId, { at: now, rows });
+  return rows;
+}

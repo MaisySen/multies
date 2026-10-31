@@ -328,3 +328,38 @@ describe("Hotfix Oct 31: Facebook and LinkedIn posting and clear errors", () => 
     expect(socialErrorText("something_new").code).toBe("something_new");
   });
 });
+
+describe("Oct 31: account health before posting", () => {
+  it("checks each social account without posting, and says what to fix", async () => {
+    const fb = await connect(owner, "facebook");
+    const li = await connect(owner, "linkedin");
+    const li2 = await connect(owner, "linkedin");
+    mock.accounts.get(li2)!.data.expired = true;
+    const before = mock.proxied.length;
+    const r = await owner.get("/api/social/health");
+    expect(r.status).toBe(200);
+    const byId = Object.fromEntries(r.body.accounts.map((a: { accountId: string }) => [a.accountId, a]));
+    expect(byId[fb]).toMatchObject({ app: "facebook", ok: true, code: null });
+    expect(byId[li]).toMatchObject({ app: "linkedin", ok: true });
+    expect(byId[li2]).toMatchObject({ app: "linkedin", ok: false, code: "reconnect" });
+    expect(byId[li2].text).toMatch(/Reconnect/);
+    // Nothing was posted: only reads.
+    expect(mock.proxied.slice(before).every((p) => p.method === "GET")).toBe(true);
+    expect(JSON.stringify(r.body)).not.toContain("mock-page-token");
+    // Kept for a while: a second read asks no network.
+    const n = mock.proxied.length;
+    await owner.get("/api/social/health");
+    expect(mock.proxied.length).toBe(n);
+  });
+
+  it("a Facebook sign in without posting permission says so", async () => {
+    const fb = await connect(owner, "facebook");
+    mock.accounts.get(fb)!.data.noPostPerm = true;
+    const r = await owner.get("/api/social/health?fresh=1");
+    expect(r.body.accounts[0]).toMatchObject({ ok: false, code: "no_permission" });
+  });
+
+  it("needs a session", async () => {
+    expect((await new Client(ctx.app).get("/api/social/health")).status).toBe(401);
+  });
+});

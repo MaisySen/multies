@@ -73,6 +73,8 @@ export function socialRoutes() {
     })
     .use("*", requireAuth)
     .get("/posts", async (c) => c.json({ posts: await (await social()).listPosts(c.var.deps, c.var.auth) }))
+    // Oct 31: each social account checked without posting (sign in works, posting allowed, a Page reachable).
+    .get("/health", async (c) => c.json({ accounts: await (await social()).accountHealth(c.var.deps, c.var.auth, { fresh: c.req.query("fresh") === "1" }) }))
     .get("/posts/:id", async (c) => c.json({ post: await (await social()).getPost(c.var.deps, c.var.auth.orgId, c.req.param("id")) }))
     .post("/posts", async (c) => {
       const b = await parseBody(c, PostBody);

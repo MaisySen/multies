@@ -15,7 +15,7 @@ import { Input, Select, Textarea } from "@/web/components/ui/input";
 import { IconCheckCircle, IconClock, IconClose, IconExternalLink, IconImage, IconMegaphone, IconPlug, IconRefresh, IconSend, IconWarning, IconXCircle } from "@/web/components/ui/icon";
 import {
   SOCIAL_ERROR_COPY, SOCIAL_RECONNECT_ERRORS, socialErrorText, SOCIAL_IMAGE_MAX_BYTES, SOCIAL_MAX_AHEAD_DAYS, SOCIAL_NETWORKS, SOCIAL_TEXT_MAX,
-  type ConnectedAccountView, type PostStatus, type SocialPostView,
+  type ConnectedAccountView, type PostStatus, type SocialAccountHealth, type SocialPostView,
 } from "@/shared/integrations";
 import { AppLogo, useAppAccounts } from "./apps-settings";
 
@@ -112,6 +112,9 @@ function Composer({ accounts }: { accounts: ConnectedAccountView[] }) {
   const [problems, setProblems] = useState<Record<string, string>>({});
   const file = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
+  const health = useAccountHealth();
+  /** An account whose check says it can't post right now (a check that could not run does not block). */
+  const broken = (id: string) => { const h = health.data?.get(id); return h && !h.ok && h.code !== "check_failed" ? h : null; };
 
   const ids = Object.keys(picked);
   const chosen = accounts.filter((a) => ids.includes(a.id));
@@ -123,12 +126,15 @@ function Composer({ accounts }: { accounts: ConnectedAccountView[] }) {
     const out: Record<string, string> = {};
     for (const a of chosen) {
       const n = SOCIAL_NETWORKS[a.app]!;
-      if (n.image === "required" && !image) out[a.id] = SOCIAL_ERROR_COPY.needs_image!;
+      const h = broken(a.id);
+      if (h) out[a.id] = h.text ?? SOCIAL_ERROR_COPY.reconnect!;
+      else if (n.image === "required" && !image) out[a.id] = SOCIAL_ERROR_COPY.needs_image!;
       else if (text.trim().length > n.maxChars) out[a.id] = SOCIAL_ERROR_COPY.too_long!;
       else if (n.target && !(picked[a.id] ?? "").trim()) out[a.id] = SOCIAL_ERROR_COPY.needs_target!;
     }
     return out;
-  }, [chosen, image, text, picked]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chosen, image, text, picked, health.data]);
 
   const whenIso = later ? new Date(at).toISOString() : null;
   const tooSoon = later && new Date(at).getTime() < Date.now() + 60_000;
@@ -170,7 +176,9 @@ function Composer({ accounts }: { accounts: ConnectedAccountView[] }) {
           <ul className="divide-y divide-line rounded-lg border border-line">
             {accounts.map((a) => {
               const on = a.id in picked;
+              const h = broken(a.id);
               const err = on ? problems[a.id] ?? local[a.id] : null;
+              const textOnly = on && !err && image && SOCIAL_NETWORKS[a.app]!.image === "none";
               return (
                 <li key={a.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5" data-testid={`pick-${a.app}`}>
                   <label className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-3 sm:min-h-9">
@@ -179,7 +187,10 @@ function Composer({ accounts }: { accounts: ConnectedAccountView[] }) {
                     <span className="min-w-0 truncate text-sm">{a.appName}{a.label ? <span className="text-muted">, {a.label}</span> : null}</span>
                   </label>
                   {on && <TargetPicker account={a} value={picked[a.id] ?? ""} onChange={(v, name) => { setPicked((p) => ({ ...p, [a.id]: v })); setNames((n) => ({ ...n, [a.id]: name ?? v })); }} />}
-                  {err && <p className="basis-full pl-7 text-[12.5px] text-warn" data-testid="pick-problem"><IconWarning className="mr-1 inline h-3.5 w-3.5" aria-hidden />{err}</p>}
+                  {h && !on && <span className="text-[12.5px] text-warn max-sm:hidden" data-testid="pick-health">Needs attention</span>}
+                  {h && <ReconnectButton accountId={a.id} appName={a.appName} />}
+                  {(err ?? (h ? h.text : null)) && <p className="basis-full pl-7 text-[12.5px] text-warn" data-testid="pick-problem" data-code={h?.code ?? undefined}><IconWarning className="mr-1 inline h-3.5 w-3.5" aria-hidden />{err ?? h?.text}</p>}
+                  {textOnly && <p className="basis-full pl-7 text-[12.5px] text-muted" data-testid="pick-note">{a.appName} gets the text only; the image is left off.</p>}
                 </li>
               );
             })}
@@ -236,24 +247,41 @@ function Composer({ accounts }: { accounts: ConnectedAccountView[] }) {
   );
 }
 
-/** Why one account did not post, in plain words, with Reconnect when signing in again is the fix. */
-function TargetError({ error, accountId, appName, canManage }: { error: string | null; accountId: string; appName: string; canManage: boolean }) {
-  const { code, text } = socialErrorText(error);
+/** Starts a fresh sign in for one account and goes to the network's page. */
+function ReconnectButton({ accountId, appName }: { accountId: string; appName: string }) {
   const reconnect = useMutation({
     mutationFn: () => api.post<{ redirectUrl: string }>(`/apps/accounts/${encodeURIComponent(accountId)}/reconnect`),
     onSuccess: (r) => { window.location.assign(r.redirectUrl); },
     onError: (e) => toast.error(errorMessage(e, "Couldn't reconnect. Try again.")),
   });
   return (
+    <Button type="button" variant="outline" size="sm" loading={reconnect.isPending} onClick={() => reconnect.mutate()} aria-label={`Reconnect ${appName}`}>
+      <IconPlug className="h-4 w-4" aria-hidden />Reconnect
+    </Button>
+  );
+}
+
+/** Why one account did not post, in plain words, with Reconnect when signing in again is the fix. */
+function TargetError({ error, accountId, appName, canManage }: { error: string | null; accountId: string; appName: string; canManage: boolean }) {
+  const { code, text } = socialErrorText(error);
+  return (
     <span className="flex basis-full flex-wrap items-center gap-x-2 gap-y-1 pl-9" data-testid="post-target-error" data-code={code}>
       <span className="inline-flex min-w-0 items-start gap-1.5 text-bad"><IconXCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /><span className="min-w-0 break-words">{text}</span></span>
-      {canManage && SOCIAL_RECONNECT_ERRORS.has(code) && (
-        <Button variant="outline" size="sm" loading={reconnect.isPending} onClick={() => reconnect.mutate()} aria-label={`Reconnect ${appName}`}>
-          <IconPlug className="h-4 w-4" aria-hidden />Reconnect
-        </Button>
-      )}
+      {canManage && SOCIAL_RECONNECT_ERRORS.has(code) && <ReconnectButton accountId={accountId} appName={appName} />}
     </span>
   );
+}
+
+const healthKey = ["social", "health"] as const;
+
+/** Each account checked without posting, so a broken sign in shows before anyone writes. */
+function useAccountHealth() {
+  return useQuery({
+    queryKey: healthKey,
+    queryFn: () => api.get<{ accounts: SocialAccountHealth[] }>("/social/health").then((r) => new Map(r.accounts.map((a) => [a.accountId, a]))),
+    staleTime: 60_000,
+    retry: false,
+  });
 }
 
 function PostList({ canManage }: { canManage: boolean }) {
