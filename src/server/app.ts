@@ -97,6 +97,8 @@ import { SECURITY_EMAIL } from "@/shared/trust";
 import { authEmailSettingsRoutes } from "./routes/auth-email-settings-r27";
 import { formRoutes, meetingRoutes, publicRoutes, reportRoutes, timeRoutes } from "./routes/suite-r7";
 import { formResultsRoutes } from "./routes/forms-r31";
+import { helpdeskRoutes, surveyRoutes, widgetRoutes, WIDGET_JS_HEADERS } from "./routes/helpdesk"; // R119
+import { WIDGET_JS } from "./routes/widget-script"; // R119
 import { meetingRecordingRoutes } from "./routes/meeting-recordings";
 import { checkRoutes } from "./routes/check";
 import { guestSearchRoutes, myWorkRoutes, searchRoutes } from "./routes/search";
@@ -211,6 +213,7 @@ export function createApp(deps: Deps) {
   app.use("*", async (c, next) => {
     await next();
     const p = c.req.path;
+    if (p === "/widget.js") return; // R119: the chat script loads on other sites (its own headers)
     const set = p === "/api/v1/reference" ? docsHeaders : p.startsWith("/api/") || p.startsWith("/.well-known/") ? apiHeaders : p.startsWith("/f/") ? formPageHeaders : pageHeaders;
     for (const [k, v] of Object.entries(set)) c.res.headers.set(k, v);
   });
@@ -259,12 +262,13 @@ export function createApp(deps: Deps) {
     const p = c.req.path;
     if (p.startsWith("/api/auth/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/connections/webhooks/") || p.startsWith("/api/inbound/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/") || isOAuthPublic(p)) return next();
     // Incoming hooks and the booking page limit themselves in memory, so a public call costs no limiter write.
-    if (p.startsWith("/api/hooks/in/") || p.startsWith("/api/hooks/agent-runs/") || p.startsWith("/api/book/") || p.startsWith("/api/check/")) return next();
+    if (p.startsWith("/api/hooks/in/") || p.startsWith("/api/hooks/agent-runs/") || p.startsWith("/api/book/") || p.startsWith("/api/widget/") || p.startsWith("/api/check/")) return next();
     return appLimiter(c, next);
   });
   app.use("/api/*", async (c, next) => {
     // Signed webhooks, the API-key REST API and the import runner (token) never use cookies, so CSRF does not apply.
     const p = c.req.path;
+    if (p.startsWith("/api/widget/")) return next(); // R119: the website chat is public and cookie free (origin checked per key)
     if (p.startsWith("/api/inbound/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/connections/webhooks/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/") || p.startsWith("/api/hooks/in/") || p.startsWith("/api/hooks/agent-runs/") || isOAuthPublic(p)) return next();
     return csrfGuard(c, next);
   });
@@ -446,6 +450,13 @@ export function createApp(deps: Deps) {
   app.route("/api/org", orgRoutes());
   app.route("/api/branding", brandingRoutes()); // R77: workspace branding and personal themes
   app.route("/api/channels", channelRoutes()); // C1: chat channels in the shared inbox
+  if (deps.config.helpdesk !== false) {
+    // R119: helpdesk mode, the website chat (public, CORS for the workspace's own domains) and the one tap survey.
+    app.route("/api/helpdesk", helpdeskRoutes());
+    app.route("/api/widget", widgetRoutes());
+    app.get("/widget.js", (c) => c.body(WIDGET_JS, 200, WIDGET_JS_HEADERS));
+    app.route("/csat", surveyRoutes());
+  }
   app.route("/api/mail/snippets", mailSnippetRoutes()); // Round 22: saved replies
   app.route("/api/mail/splits", mailSplitRoutes()); // R31: split inbox
   app.route("/api/mail/rules", mailRuleRoutes()); // R85: mail rules with several actions

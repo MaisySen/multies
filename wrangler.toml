@@ -40,8 +40,8 @@ binding = "ASSETS"
 not_found_handling = "none"
 # robots.txt goes through the Worker so a NOINDEX host (the preview) can answer Disallow: /.
 # Tools P2: /d/* (share link pages) and /sign/* (signing pages) are answered by the Worker. Staging inherits this.
-# R87: /l/* (short links) and /bio/* (link in bio pages) too.
-run_worker_first = ["/api/*", "/.well-known/*", "/robots.txt", "/cal/*", "/s/*", "/r/*", "/d/*", "/u/*", "/x/*", "/l/*", "/bio/*", "/sign/*", "/health", "/healthz", "/delete-account"]
+# R87: /l/* (short links) and /bio/* (link in bio pages) too. R119: /csat/* (survey) and /widget.js (website chat).
+run_worker_first = ["/api/*", "/.well-known/*", "/robots.txt", "/cal/*", "/s/*", "/r/*", "/d/*", "/u/*", "/x/*", "/l/*", "/bio/*", "/sign/*", "/health", "/healthz", "/delete-account", "/csat/*", "/widget.js"]
 
 # Workers AI (Tools P2): document features (ask, translate, invoice reading) use the workspace's own
 # AI key first and otherwise this binding, only inside the account's free daily allocation: the AI meter

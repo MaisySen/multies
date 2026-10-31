@@ -163,6 +163,8 @@ export interface AppConfig {
     tiktok?: { clientKey: string; clientSecret: string; sandbox: boolean; secrets: string[]; apiBase: string; authUrl: string; /** TIKTOK_SCOPES: the scopes the app has (comma list); unset asks for all four. */ scopes?: string[] };
     threads?: { appId: string; appSecret: string; apiBase: string; authUrl: string };
   };
+  /** R119: helpdesk mode on the shared inbox and the website chat (HELPDESK, on unless "off"; each workspace turns it on itself). */
+  helpdesk?: boolean;
   channels: { enabled: boolean; meta?: { appId: string; appSecret: string; verifyToken: string; configId: string; graphVersion: string }; mock: boolean; dailySoftCap: number };
   /**
    * Free addresses (round 17): a Multies-owned domain that every workspace can take an address on
@@ -273,6 +275,7 @@ const EnvSchema = z.object({
   META_GRAPH_VERSION: z.string().optional(),
   CHANNELS_MOCK: z.string().optional(),
   CHAT_CHANNELS: z.string().optional(),
+  HELPDESK: z.string().optional(),
   CHANNELS_DAILY_SOFT_CAP: z.string().optional(),
   TOOLS_ENABLED: z.string().optional(),
   TOOLS_FEATURES: z.string().optional(),
@@ -630,6 +633,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     integrations: integrationsConfig(env),
     direct: directConfig(env),
     channels: channelsConfig(env, mode),
+    helpdesk: env.HELPDESK !== "off",
     operatorInbox: operatorInbox(env.SUPPORT_EMAIL?.trim() || "support@multies.si", env.OPERATOR_INBOX_ORG_ID, env.OPERATOR_INBOX_ADDRESSES),
     freeMail: {
       domain: freeMailDomain(env.FREE_MAIL_DOMAIN, env.APP_URL),

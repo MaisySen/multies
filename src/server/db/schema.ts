@@ -2772,7 +2772,7 @@ export const hdWebMessages = sqliteTable("hd_web_messages", {
   id: text("id").primaryKey(),
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   ticketId: text("ticket_id").notNull().references(() => hdTickets.id, { onDelete: "cascade" }),
-  author: text("author", { enum: ["visitor", "agent", "bot", "system"] }).notNull(),
+  author: text("author", { enum: ["visitor", "agent", "bot", "system", "note"] }).notNull(),
   authorUserId: text("author_user_id"),
   text: text("text").notNull(),
   /** "mail" when the reply also went out by email. */
