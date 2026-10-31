@@ -247,7 +247,7 @@ export function ViewMenu() {
   return (
     <Menu label="View" align="end" trigger={
       <button type="button" data-testid="view-menu" className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-muted transition-colors hover:bg-hover hover:text-fg">
-        <IconSliders className="h-4 w-4" aria-hidden />View
+        <IconSliders className="h-4 w-4" aria-hidden /><span className="@max-[40rem]:sr-only">View</span>
       </button>}>
       <MenuItem checked={!sidebarHiddenOn(layout, loc.pathname)} hint={`${MOD} \\`} onSelect={() => toggleSidebar(loc.pathname)}>Sidebar</MenuItem>
       <div className="my-1 border-t border-line" />
@@ -274,8 +274,9 @@ export function ViewMenu() {
 export function SearchEntry() {
   return (
     <button type="button" onClick={() => openPalette()} data-testid="topbar-search-entry"
-      className="flex h-8 w-full max-w-[22rem] items-center gap-2 rounded-lg bg-fill px-2.5 text-[13px] text-subtle transition-colors hover:bg-hover hover:text-muted">
-      <IconSearch className="h-4 w-4" aria-hidden /><span className="flex-1 text-left">Search</span><Kbd>{MOD} K</Kbd>
+      aria-label="Search" title={`Search (${MOD} K)`}
+      className="flex h-8 items-center gap-2 rounded-lg bg-fill px-2.5 text-[13px] text-subtle transition-colors hover:bg-hover hover:text-muted @[52rem]:w-[22rem]">
+      <IconSearch className="h-4 w-4" aria-hidden /><span className="hidden flex-1 text-left @[52rem]:inline">Search</span><span className="hidden @[52rem]:inline-flex"><Kbd>{MOD} K</Kbd></span>
     </button>
   );
 }

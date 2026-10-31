@@ -295,10 +295,10 @@ export function AppLayout() {
   const content = (
     <div className="flex h-full min-w-0 flex-1 flex-col">
         {desktop && (
-          <header className="hairline-b flex h-12 shrink-0 items-center gap-3 px-4" data-desktop-topbar>
+          <header className="@container hairline-b flex h-12 shrink-0 items-center gap-3 px-4" data-desktop-topbar>
             <Breadcrumbs projectName={projectName} />
-            <div className="flex flex-1 justify-center"><SearchEntry /></div>
-            <div className="flex flex-1 items-center justify-end gap-1.5"><ViewMenu /><CreateMenu flags={navFlags} /></div>
+            <div className="flex shrink-0 justify-center @[52rem]:flex-1"><SearchEntry /></div>
+            <div className="flex shrink-0 items-center justify-end gap-1.5 @[52rem]:flex-1"><ViewMenu /><CreateMenu flags={navFlags} /></div>
           </header>
         )}
         <header className="sticky top-0 z-20 flex h-[calc(3rem+env(safe-area-inset-top))] shrink-0 items-center gap-1 glass hairline-b pl-[max(0.375rem,env(safe-area-inset-left))] pr-[max(0.375rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)] lg:hidden" data-topbar>
@@ -348,7 +348,7 @@ export function AppLayout() {
           <Panel id="main" minSize="480px">{content}</Panel>
           {inspectorOpen && <>
             <Separator className="shell-separator" aria-label="Resize details panel" />
-            <Panel id="inspector" defaultSize="460px" minSize="340px" maxSize="760px">
+            <Panel id="inspector" defaultSize="420px" minSize="340px" maxSize="760px">
               <div ref={setInspectorEl} className="h-full min-w-0 overflow-hidden" />
             </Panel>
           </>}
