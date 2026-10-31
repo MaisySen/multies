@@ -164,6 +164,8 @@ const SocialPostsPage = lazyPage(() => social(), "SocialPostsPage");
 const SocialNewPostPage = lazyPage(() => social(), "SocialNewPostPage");
 const SocialAccountsPage = lazyPage(() => social(), "SocialAccountsPage");
 const SocialLibraryPage = lazyPage(() => social(), "SocialLibraryPage"); // R117
+const SocialInboxPage = lazyPage(() => import("./pages/app/social-inbox"), "SocialInboxPage"); // R118
+const SocialAnalyticsPage = lazyPage(() => import("./pages/app/social-analytics"), "SocialAnalyticsPage"); // R118
 const MailAppsSettings = lazyPage(() => import("./pages/app/mail-apps"), "MailAppsSettings");
 const ImportSettings = lazyPage(() => import("./pages/app/data-move"), "ImportExportSettings"); // R38 move your data
 const DeveloperSettings = lazyPage(() => import("./pages/app/developers"), "DeveloperSettings");
@@ -246,6 +248,8 @@ export const router = createBrowserRouter([
       { path: "social/new", element: page(<SocialNewPostPage />) },
       { path: "social/accounts", element: page(<SocialAccountsPage />) },
       { path: "social/library", element: page(<SocialLibraryPage />) },
+      { path: "social/inbox", element: page(<SocialInboxPage />) }, // R118
+      { path: "social/analytics", element: page(<SocialAnalyticsPage />) }, // R118
       { path: "social/planner", element: <Moved to="/app/social" /> },
       { path: "social/compose", element: <Moved to="/app/social/new" /> },
       { path: "agents", element: page(<AgentsPage />) },

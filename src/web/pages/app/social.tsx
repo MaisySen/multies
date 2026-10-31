@@ -6,7 +6,7 @@
  * No new server calls: the same /api/social, /api/apps and /api/direct the Connections tab used.
  */
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/web/lib/api";
@@ -16,9 +16,10 @@ import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/
 import { Button, ButtonLink } from "@/web/components/ui/button";
 import { ConfirmDialog } from "@/web/components/ui/confirm";
 import {
-  IconBack, IconCalendarDays, IconChevronRight, IconCompose, IconLock, IconMegaphone, IconPlug, IconPlus, IconRefresh, IconTrash,
+  IconBack, IconCalendarDays, IconChevronRight, IconCompose, IconFlask, IconLock, IconMegaphone, IconPlug, IconPlus, IconRefresh, IconTrash, IconWarning,
 } from "@/web/components/ui/icon";
 import { SOCIAL_NETWORKS, type ConnectedAccountView, type SocialPostView } from "@/shared/integrations";
+import { capList, capsOf } from "@/shared/social-p2b";
 import { AppLogo, appsKeys, useAppAccounts, useAppsStatus, useConnect, useConnectReturn } from "./apps-settings";
 import { Composer, POST_STATUS, PostList, ReconnectButton, useAccountHealth, useSocialPosts, type PostFilter } from "./apps-social";
 import { DirectAccounts } from "./apps-direct";
@@ -29,24 +30,30 @@ import { SocialLibrary } from "./social-library";
 
 /** R117: Social P2 (composer v2, planner v2, drafts and approvals, library) sits behind its own flag. */
 export const useSocialP2 = () => !!useConfig().data?.socialP2;
+/** R118: Social inbox, analytics and account health alerts (on with P2 unless SOCIAL_P2B is off). */
+export const useSocialP2b = () => { const c = useConfig().data; return !!c?.socialP2 && c?.socialP2b !== false; };
 
 /** Phones and small tablets have no shell sidebar, so Social's four pages switch here, under the title. */
 const SOCIAL_TABS = [
+  { to: "/app/social/inbox", label: "Inbox", end: false },
   { to: "/app/social", label: "Planner", end: true },
   { to: "/app/social/posts", label: "Posts", end: false },
   { to: "/app/social/new", label: "New post", end: false },
   { to: "/app/social/library", label: "Library", end: false },
+  { to: "/app/social/analytics", label: "Analytics", end: false },
   { to: "/app/social/accounts", label: "Accounts", end: false },
 ] as const;
 
 export function SocialSwitcher() {
   const { pathname } = useLocation();
   const p2 = useSocialP2();
+  const p2b = useSocialP2b();
   return (
     <nav aria-label="Social" className="-mx-1 mb-4 overflow-x-auto px-1 lg:hidden" data-testid="social-switcher">
       <ul className="flex w-max gap-1 rounded-lg border border-line bg-fill/50 p-1">
         {/* R117: with Library the phone switcher keeps four tabs that fit; New post stays one tap away in each page header. */}
-        {SOCIAL_TABS.filter((t) => (p2 ? t.to !== "/app/social/new" || pathname.startsWith("/app/social/new") : t.to !== "/app/social/library")).map((t) => {
+        {SOCIAL_TABS.filter((t) => (p2 ? t.to !== "/app/social/new" || pathname.startsWith("/app/social/new") : t.to !== "/app/social/library"))
+          .filter((t) => p2b || (t.to !== "/app/social/inbox" && t.to !== "/app/social/analytics")).map((t) => {
           const on = t.end ? pathname === t.to || pathname === `${t.to}/` : pathname.startsWith(t.to);
           return (
             <li key={t.to}>
@@ -68,11 +75,11 @@ const NETWORK_NAMES: Record<string, string> = { facebook: "Facebook Pages", inst
 const NETWORKS = Object.keys(NETWORK_NAMES);
 const postable = (accounts: ConnectedAccountView[] | undefined) => (accounts ?? []).filter((a) => a.status === "active" && a.app in SOCIAL_NETWORKS);
 
-function NewPostButton() {
+export function NewPostButton() {
   return <ButtonLink to="/app/social/new" size="sm" data-testid="new-post"><IconCompose className="h-4 w-4" aria-hidden />New post</ButtonLink>;
 }
 
-function LoadError({ error, retry, what }: { error: unknown; retry: () => void; what: string }) {
+export function LoadError({ error, retry, what }: { error: unknown; retry: () => void; what: string }) {
   return (
     <Card className="p-5">
       <p className="text-sm text-bad" role="alert">{errorMessage(error, `Couldn't load ${what}.`)}</p>
@@ -346,6 +353,56 @@ function SocialNewPostV1() {
 
 /* ---------------------------------------------------------------- Accounts */
 
+/** R118: what each account can do, so nobody wonders why its messages or results are missing. */
+function AccountCaps({ app }: { app: string }) {
+  const list = capList(app);
+  const c = capsOf(app);
+  const only = list.length === 1;
+  return (
+    <p className="mt-1 text-[12.5px] text-muted" data-testid={`account-caps-${app}`}>
+      {only ? <span className="font-medium text-fg">Posting only.</span> : <span>Can do: {list.join(", ")}.</span>}
+      {c.note && !only ? <span> {c.note}</span> : c.note ? <span> {c.note.replace(/^Posting only\.\s*/, "")}</span> : null}
+    </p>
+  );
+}
+
+/** R118: the staging only test network: add it, act signed out to try the warnings, remove it. */
+function TestNetworkCard({ canManage }: { canManage: boolean }) {
+  const qc = useQueryClient();
+  const st = useQuery({ queryKey: ["social-test-network"], queryFn: () => api.get<{ available: boolean; account: { id: string; name: string; broken: boolean } | null }>("/social/test-network") });
+  const done = () => { for (const k of [["social-test-network"], ["social-health"], ["direct-status"], ["social-inbox"]]) void qc.invalidateQueries({ queryKey: k }); void qc.invalidateQueries(); };
+  const act = useMutation({
+    mutationFn: (what: "add" | "out" | "in" | "remove") => what === "add" ? api.post("/social/test-network", {}) : what === "remove" ? api.del("/social/test-network") : api.post("/social/test-network/signed-out", { broken: what === "out" }),
+    onSuccess: (_r, what) => { toast.success(what === "add" ? "Test network added" : what === "remove" ? "Test network removed" : what === "out" ? "Test network now acts signed out" : "Signed in again"); done(); },
+    onError: (e) => toast.error(errorMessage(e, "Couldn't change the test network.")),
+  });
+  if (!st.data?.available) return null;
+  const a = st.data.account;
+  return (
+    <section aria-labelledby="acc-test">
+      <h2 id="acc-test" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">Test network</h2>
+      <Card className="flex flex-wrap items-center gap-3 p-4 md:px-5" data-testid="test-network-card" data-health={a ? (a.broken ? "bad" : "ok") : "none"}>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-fill" aria-hidden><IconFlask className="h-4 w-4" /></span>
+        <div className="min-w-0 flex-1">
+          <p className="flex flex-wrap items-center gap-2 text-[15px] font-medium">Test network <Badge tone="brand">Staging only</Badge></p>
+          <p className="text-[13px] text-muted">{!a ? "A pretend network for trying posts, approvals, the inbox and analytics. It never reaches a real network." : a.broken ? "Acting signed out, so you can see the warnings." : "Connected. Posts to it show as sent; replies and results are made up."}</p>
+          {a && <AccountCaps app="testnet" />}
+        </div>
+        {canManage && (
+          <div className="flex flex-wrap gap-2">
+            {!a ? <Button size="sm" variant="outline" onClick={() => act.mutate("add")} loading={act.isPending} data-testid="test-network-add"><IconPlus className="h-4 w-4" aria-hidden />Add</Button> : <>
+              {a.broken
+                ? <Button size="sm" variant="outline" onClick={() => act.mutate("in")} loading={act.isPending} data-testid="test-network-signin">Sign in again</Button>
+                : <Button size="sm" variant="ghost" onClick={() => act.mutate("out")} loading={act.isPending} data-testid="test-network-signout">Act signed out</Button>}
+              <Button size="sm" variant="ghost" className="text-bad hover:text-bad" onClick={() => act.mutate("remove")} loading={act.isPending} aria-label="Remove the test network"><IconTrash className="h-4 w-4" aria-hidden />Remove</Button>
+            </>}
+          </div>
+        )}
+      </Card>
+    </section>
+  );
+}
+
 export function SocialAccountsPage() {
   useConnectReturn();
   const qc = useQueryClient();
@@ -355,7 +412,11 @@ export function SocialAccountsPage() {
   const connect = useConnect();
   const [removing, setRemoving] = useState<ConnectedAccountView | null>(null);
   const canManage = !!status.data?.canManage;
-  const social = (accounts.data ?? []).filter((a) => a.app in SOCIAL_NETWORKS);
+  const p2b = useSocialP2b();
+  const isBad = (a: ConnectedAccountView) => { const h = health.data?.get(a.id); return a.status !== "active" || (!!h && !h.ok && h.code !== "check_failed"); };
+  // R118: a broken account goes to the top, so a lost sign in is the first thing seen here.
+  const social = (accounts.data ?? []).filter((a) => a.app in SOCIAL_NETWORKS && a.app !== "testnet").sort((x, y) => (p2b ? Number(isBad(y)) - Number(isBad(x)) : 0));
+  const broken = p2b ? social.filter((a) => isBad(a) && a.status !== "pending") : [];
   const connectedApps = new Set(social.filter((a) => a.status === "active").map((a) => a.app));
   const disconnect = useMutation({
     mutationFn: (a: ConnectedAccountView) => api.del<{ ok: true }>(`/apps/accounts/${encodeURIComponent(a.id)}`),
@@ -378,6 +439,19 @@ export function SocialAccountsPage() {
       <PageHeader title="Accounts" description="The profiles Multies posts to, checked before you write. Connect, reconnect or remove them here." actions={<NewPostButton />} />
       <SocialSwitcher />
       {!status.isPending && !canManage && <p className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-subtle"><IconLock className="h-3.5 w-3.5" aria-hidden />Only owners and admins can connect accounts or post.</p>}
+      {broken.length > 0 && (
+        <Card className="mb-5 border-warn/40 p-4 md:px-5" data-testid="accounts-broken" role="region" aria-label="Sign in again">
+          <h2 className="flex items-center gap-2 text-[15px] font-semibold"><IconWarning className="h-4 w-4 text-warn" aria-hidden />Sign in again</h2>
+          <ul className="mt-2 space-y-2">
+            {broken.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center gap-3 text-[13.5px]">
+                <span className="min-w-0 flex-1">{a.appName}{a.label ? `, ${a.label}` : ""} lost its sign in. Planned posts to it won't go out until you reconnect.</span>
+                {canManage ? <ReconnectButton accountId={a.id} appName={a.appName} /> : <span className="text-[12.5px] text-muted">Ask an owner or admin to reconnect it.</span>}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
       <div className="space-y-7">
         <section aria-labelledby="acc-connected">
           <h2 id="acc-connected" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">Connected</h2>
@@ -400,6 +474,7 @@ export function SocialAccountsPage() {
                         <p className="truncate text-[15px] font-medium">{a.appName}{a.label ? <span className="text-muted">, {a.label}</span> : null}</p>
                         <p className="flex flex-wrap items-center gap-2 text-[13px] text-muted">{healthLine(a)}<span>Connected {timeAgo(a.createdAt)}</span></p>
                         {bad && h?.text && <p className="mt-1 text-[12.5px] text-warn" data-testid="account-health-text">{h.text}</p>}
+                        {p2b && <AccountCaps app={a.app} />}
                       </div>
                       {canManage && (
                         <div className="flex gap-2 max-sm:w-full max-sm:pl-[52px]">
@@ -413,6 +488,9 @@ export function SocialAccountsPage() {
               </Card>
             )}
         </section>
+
+        {/* R118: staging only. */}
+        {useConfig().data?.socialTestNetwork && <TestNetworkCard canManage={canManage} />}
 
         {/* TikTok and Threads carry their own heading (and hide while neither is offered). */}
         <section aria-label="TikTok and Threads"><DirectAccounts /></section>

@@ -8,9 +8,9 @@ export type IconKey =
   | "today" | "overview" | "bell" | "triage" | "approvals" | "activity" | "sharedInbox" | "mailboxes" | "domains" | "deliverability"
   | "goals" | "portfolio" | "timesheet" | "templates" | "automations" | "files" | "forms" | "meetings" | "booking" | "contacts"
   | "reports" | "agents" | "integrations" | "connections" | "settings" | "operator" | "convert"
-  | "social" | "planner" | "posts" | "accounts" | "library" | "help";
+  | "social" | "planner" | "posts" | "accounts" | "library" | "help" | "socialInbox" | "analytics";
 
-export interface NavPage { to: string; label: string; icon: IconKey; end?: boolean; flag?: "tools" | "files" | "scheduling" | "operator" | "flows" | "socialP2" | "helpCenter" }
+export interface NavPage { to: string; label: string; icon: IconKey; end?: boolean; flag?: "tools" | "files" | "scheduling" | "operator" | "flows" | "socialP2" | "helpCenter" | "socialP2b" }
 export interface Section { id: SectionId; label: string; icon: IconKey; to: string; pages: NavPage[] }
 
 export const SECTIONS: Section[] = [
@@ -42,9 +42,11 @@ export const SECTIONS: Section[] = [
   ] },
   // P1 layout: posting is a daily tool, so it has its own place (it lived in Settings, Connections, Social posts).
   { id: "social", label: "Social", icon: "social", to: "/app/social", pages: [
+    { to: "/app/social/inbox", label: "Inbox", icon: "socialInbox", flag: "socialP2b" }, // R118
     { to: "/app/social", label: "Planner", icon: "planner", end: true },
     { to: "/app/social/posts", label: "Posts", icon: "posts" },
     { to: "/app/social/library", label: "Library", icon: "library", flag: "socialP2" }, // R117
+    { to: "/app/social/analytics", label: "Analytics", icon: "analytics", flag: "socialP2b" }, // R118
     { to: "/app/social/accounts", label: "Accounts", icon: "accounts" },
   ] },
   { id: "tools", label: "Tools", icon: "tools", to: "/app/tools", pages: [
@@ -78,7 +80,7 @@ export const SECTIONS: Section[] = [
   ] },
 ];
 
-export interface NavFlags { /** R122: the help center in Docs. */ helpCenter?: boolean; /** R90: the automation builder is on. */ flows?: boolean; tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts (R117: members too, sent for approval, with Social P2). */ social?: boolean; socialP2?: boolean; /** R87: Tools > Links is on. */ links?: boolean }
+export interface NavFlags { /** R122: the help center in Docs. */ helpCenter?: boolean; /** R90: the automation builder is on. */ flows?: boolean; tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts (R117: members too, sent for approval, with Social P2). */ social?: boolean; socialP2?: boolean; /** R118: Social inbox and analytics. */ socialP2b?: boolean; /** R87: Tools > Links is on. */ links?: boolean }
 
 /** The sections and pages this person can open (switched off features leave no dead links). */
 export function visibleSections(flags: NavFlags): Section[] {

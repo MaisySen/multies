@@ -31,7 +31,7 @@ export const NAV_ICONS: Record<IconKey, IconComponent> = {
   mailboxes: IconTeam, domains: IconGlobe, deliverability: IconShieldCheck, goals: IconTarget, portfolio: IconBriefcase, timesheet: IconTimer,
   templates: IconTemplate, automations: IconZap, files: IconAttachment, forms: IconClipboardList, meetings: IconVideo, booking: IconCalendarClock,
   contacts: IconContacts, reports: IconChart, agents: IconAgent, integrations: IconPlug, connections: IconPlugZap, settings: IconSettings, operator: IconShield, convert: IconArrowRightLeft,
-  social: IconMegaphone, planner: IconCalendarDays, posts: IconSend, accounts: IconUserRoundCheck, library: IconBookmark, // P1 layout
+  social: IconMegaphone, planner: IconCalendarDays, posts: IconSend, accounts: IconUserRoundCheck, library: IconBookmark, socialInbox: IconInbox, analytics: IconChart, // P1 layout, R118
   help: IconHelp, // R122
 };
 

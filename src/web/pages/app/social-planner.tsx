@@ -18,6 +18,7 @@ import type { SocialPostView } from "@/shared/integrations";
 import { freeSlots, networkLabel, slotTimes, type SlotRule, type SlotView } from "@/shared/social-p2";
 import { POST_STATUS, postsKey, useSocialPosts, whenText } from "./apps-social";
 import { monthGrid } from "./social";
+import { PlannedHealthNote } from "./social-health"; // R118
 
 export const slotsKey = ["social", "slots"] as const;
 export function useSlots() {
@@ -378,6 +379,7 @@ export function PlannerV2({ canManage, accounts }: { canManage: boolean; account
                             <span className="min-w-0 flex-1 truncate">{p.text || "(image only)"}</span>
                             <span className="text-[12px] text-muted">{[...new Set(p.targets.map((t) => networkLabel(t.app)))].join(", ")}</span>
                             <span className="text-[12px] font-medium">{POST_STATUS[p.status].label}</span>
+                            <PlannedHealthNote post={p} compact />
                             {canMove(p) && <Button variant="ghost" size="sm" onClick={() => setMoving(p)} aria-label={`Move post: ${p.text.slice(0, 40)}`}><IconMove className="h-4 w-4" aria-hidden /></Button>}
                           </div>
                         ))}

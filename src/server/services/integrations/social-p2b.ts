@@ -43,7 +43,7 @@ export function requireP2b(deps: Deps) {
 }
 const isManager = (role: Role) => role === "owner" || role === "admin";
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
-const clip = (s: string | null | undefined, n: number) => (s ?? "").replace(/\u0000/g, "").trim().slice(0, n);
+const clip = (s: string | null | undefined, n: number) => (s ?? "").split(String.fromCharCode(0)).join("").trim().slice(0, n);
 
 /* ---------------------------------------------------------------- accounts */
 
@@ -319,7 +319,7 @@ export async function listInbox(deps: Deps, auth: AuthContext, q: Record<string,
     app ? eq(socialInboxItems.app, app) : undefined,
     search ? or(sql`instr(lower(${socialInboxItems.text}), ${search.toLowerCase()}) > 0`, sql`instr(lower(coalesce(${socialInboxItems.authorName}, '')), ${search.toLowerCase()}) > 0`) : undefined,
   );
-  const [rows, countRows, states, test] = await Promise.all([
+  const [rows, countRows, states, test, people] = await Promise.all([
     deps.db.select().from(socialInboxItems).where(where).orderBy(desc(socialInboxItems.receivedAt)).limit(INBOX_PAGE).all(),
     deps.db.select({
       status: socialInboxItems.status,
@@ -329,6 +329,8 @@ export async function listInbox(deps: Deps, auth: AuthContext, q: Record<string,
     }).from(socialInboxItems).where(and(eq(socialInboxItems.orgId, auth.orgId), testFilter(deps))).groupBy(socialInboxItems.status).all(),
     deps.db.select().from(socialAccountState).where(eq(socialAccountState.orgId, auth.orgId)).limit(50).all(),
     testAccount(deps, auth.orgId),
+    deps.db.select({ id: users.id, name: users.name }).from(members).innerJoin(users, eq(users.id, members.userId))
+      .where(and(eq(members.organizationId, auth.orgId), eq(members.kind, "human"))).orderBy(users.name).limit(100).all(),
   ]);
   const open = countRows.find((c) => c.status === "open");
   const counts: InboxCounts = { open: Number(open?.n ?? 0), mine: Number(open?.mine ?? 0), unassigned: Number(open?.none ?? 0), done: Number(countRows.find((c) => c.status === "done")?.n ?? 0) };
@@ -345,6 +347,7 @@ export async function listInbox(deps: Deps, auth: AuthContext, q: Record<string,
   return {
     items: rows.map((r) => viewOf(r, labels, names)), counts, sources, syncedAt: iso(syncedAt),
     stale: !syncedAt || deps.now().getTime() - syncedAt.getTime() > INBOX_STALE_MS, canManage: isManager(auth.role), test: !!test,
+    me: auth.userId, people,
   };
 }
 

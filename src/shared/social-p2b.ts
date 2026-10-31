@@ -83,7 +83,7 @@ export interface InboxItemView {
 export interface InboxNoteView { id: string; kind: "note" | "reply"; text: string; authorId: string | null; authorName: string | null; status: "sent" | "failed"; error: string | null; createdAt: string }
 export interface InboxSourceView { accountId: string; app: string; label: string; state: "ok" | "error" | "posting_only" | "waiting"; text: string | null; syncedAt: string | null }
 export interface InboxCounts { open: number; mine: number; unassigned: number; done: number }
-export interface InboxListResponse { items: InboxItemView[]; counts: InboxCounts; sources: InboxSourceView[]; syncedAt: string | null; stale: boolean; canManage: boolean; test: boolean }
+export interface InboxListResponse { items: InboxItemView[]; counts: InboxCounts; sources: InboxSourceView[]; syncedAt: string | null; stale: boolean; canManage: boolean; test: boolean; me: string; people: { id: string; name: string }[] }
 export interface InboxThreadResponse { item: InboxItemView; notes: InboxNoteView[] }
 export interface SavedReplyView { id: string; title: string; body: string }
 
@@ -182,7 +182,7 @@ export const TEST_NETWORK_LABEL = "Test network";
 export function testNetworkAllowed(env: { SOCIAL_TEST_NETWORK?: string; APP_URL?: string; SENTRY_ENVIRONMENT?: string }): boolean {
   if ((env.SOCIAL_TEST_NETWORK ?? "").trim().toLowerCase() !== "on") return false;
   if ((env.SENTRY_ENVIRONMENT ?? "").trim().toLowerCase() === "production") return false;
-  let host = "";
+  let host: string;
   try { host = new URL(env.APP_URL ?? "").hostname.toLowerCase(); } catch { return false; }
   if (host === "multies.si" || host === "www.multies.si" || host === "app.multies.si") return false;
   return host === "preview.multies.si" || host === "localhost" || host === "127.0.0.1" || /^[a-z0-9-]+-staging\.[a-z0-9-]+\.workers\.dev$/.test(host);

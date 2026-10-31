@@ -24,6 +24,10 @@ export interface PublicConfig {
   demoEnabled: boolean;
   /** R117: Social composer v2, planner views and slots, drafts and approvals, library. */
   socialP2?: boolean;
+  /** R118: Social inbox, analytics and account health alerts. */
+  socialP2b?: boolean;
+  /** R118: the staging only test network is allowed here. */
+  socialTestNetwork?: boolean;
   supportEmail?: string;
   outboundDriver: string;
   billingEnabled: boolean;

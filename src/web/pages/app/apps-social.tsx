@@ -21,6 +21,7 @@ import {
 } from "@/shared/integrations";
 import { AppLogo, useAppAccounts } from "./apps-settings";
 import { useMe } from "@/web/lib/queries";
+import { PlannedHealthNote } from "./social-health"; // R118
 
 export const postsKey = ["social", "posts"] as const;
 
@@ -562,6 +563,7 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
                           <span>{p.status === "scheduled" ? `Goes out ${whenText(p.runAt)}` : whenText(p.runAt)}</span>
                         </p>
                         <p className={cn("mt-2 line-clamp-4 whitespace-pre-line break-words text-sm leading-relaxed", gone && "text-muted")}>{p.text}</p>
+                        <PlannedHealthNote post={p} />
                       </div>
                     </div>
                     <ul className="mt-3.5 divide-y divide-line rounded-lg border border-line" aria-label="Accounts">
