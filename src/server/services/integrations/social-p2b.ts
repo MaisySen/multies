@@ -690,7 +690,8 @@ export async function syncStats(deps: Deps, orgId: string) {
   const targets = await deps.db.select({ postId: socialPostTargets.postId, accountId: socialPostTargets.accountId, app: socialPostTargets.app, remoteId: socialPostTargets.remoteId, target: socialPostTargets.target, sentAt: socialPostTargets.sentAt, fetchedAt: socialPostStats.fetchedAt })
     .from(socialPostTargets).innerJoin(socialPosts, eq(socialPosts.id, socialPostTargets.postId))
     .leftJoin(socialPostStats, and(eq(socialPostStats.postId, socialPostTargets.postId), eq(socialPostStats.accountId, socialPostTargets.accountId)))
-    .where(and(eq(socialPosts.orgId, orgId), eq(socialPostTargets.status, "sent"), gte(socialPostTargets.sentAt, since), inArray(socialPostTargets.app, apps),
+    .where(and(eq(socialPosts.orgId, orgId), eq(socialPostTargets.status, "sent"), gte(socialPostTargets.sentAt, since), inArray(socialPostTargets.app, apps), // D1: a fixed list of at most 5 networks
+     
       or(isNull(socialPostStats.fetchedAt), lt(socialPostStats.fetchedAt, new Date(now.getTime() - STATS_TTL_MS)))))
     .orderBy(desc(socialPostTargets.sentAt)).limit(STATS_PER_PASS).all();
   if (!targets.length) return { fetched: 0 };
@@ -760,7 +761,7 @@ export async function runSocialP2bPass(deps: Deps) {
     .where(lt(socialAccountState.inboxSyncedAt, new Date(now - CRON_INBOX_MS))).limit(3).all();
   for (const d of due) await syncInbox(deps, d.orgId).catch((err) => deps.log?.warn("social.inbox_pass_failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) }));
   const statsDue = await deps.db.selectDistinct({ orgId: socialAccountState.orgId }).from(socialAccountState)
-    .where(and(inArray(socialAccountState.app, ANALYTICS_APPS), lt(socialAccountState.statsSyncedAt, new Date(now - STATS_TTL_MS)))).limit(2).all();
+    .where(and(inArray(socialAccountState.app, ANALYTICS_APPS) /* D1: fixed list of 5 networks */, lt(socialAccountState.statsSyncedAt, new Date(now - STATS_TTL_MS)))).limit(2).all();
   for (const d of statsDue) await syncStats(deps, d.orgId).catch(() => undefined);
   return { inbox: due.length, stats: statsDue.length };
 }

@@ -89,6 +89,8 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-social-new", label: "New social post", to: "/app/social/new", icon: IconCompose, keywords: ["write a post", "compose", "social", "publish", "schedule", "facebook", "instagram", "linkedin"] },
   { id: "p-social-posts", label: "Social posts", to: "/app/social/posts", icon: IconMegaphone, keywords: ["post", "schedule", "social media", "facebook", "instagram", "linkedin", "share", "failed", "sent"] },
   { id: "p-social-library", label: "Social library", to: "/app/social/library", icon: IconBookmark, keywords: ["social", "library", "images", "captions", "hashtags", "campaign"] }, // R117
+  { id: "p-social-inbox", label: "Social inbox", to: "/app/social/inbox", icon: IconInbox, keywords: ["social", "inbox", "comments", "messages", "mentions", "replies"] }, // R118
+  { id: "p-social-analytics", label: "Social analytics", to: "/app/social/analytics", icon: IconChart, keywords: ["social", "analytics", "reach", "engagement", "clicks", "best time"] }, // R118
   { id: "p-social-accounts", label: "Social accounts", to: "/app/social/accounts", icon: IconPlugZap, keywords: ["social", "connect", "reconnect", "tiktok", "threads", "facebook", "instagram", "linkedin", "pinterest", "reddit"] },
   { id: "p-branding", label: "Branding", to: "/app/settings/branding", icon: IconSettings, keywords: ["brand", "theme", "logo", "colours", "colors", "font", "company look"] }, // R77
   { id: "p-appearance", label: "Appearance", to: "/app/settings/appearance", icon: IconMoon, keywords: ["dark mode", "light mode", "theme", "accent", "my colour"] }, // R77

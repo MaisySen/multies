@@ -20,7 +20,7 @@ describe("P1 rail", () => {
   it("has Social after Docs and Agents then Settings last", () => {
     expect(nav.SECTIONS.map((s) => s.id)).toEqual(["home", "mail", "tasks", "docs", "social", "tools", "chat", "dashboards", "agents", "workspace"]);
     expect(nav.SECTIONS.find((s) => s.id === "workspace")!.label).toBe("Settings");
-    expect(nav.SECTIONS.find((s) => s.id === "social")!.pages.map((p) => p.label)).toEqual(["Planner", "Posts", "Library", "Accounts"]); // R117: Library (behind the Social P2 flag)
+    expect(nav.SECTIONS.find((s) => s.id === "social")!.pages.map((p) => p.label)).toEqual(["Inbox", "Planner", "Posts", "Library", "Analytics", "Accounts"]); // R117: Library (Social P2 flag); R118: Inbox and Analytics (Social P2b flag)
   });
   it("Agents is no longer a Settings page", () => {
     const ws = nav.SECTIONS.find((s) => s.id === "workspace")!;
