@@ -34,9 +34,23 @@ interface AppsStatus { available: boolean; canManage: boolean }
 
 export const appsKeys = { status: ["apps", "status"] as const, accounts: ["apps", "accounts"] as const, catalog: ["apps", "catalog"] as const };
 
-export function useAppsStatus() { return useQuery({ queryKey: appsKeys.status, queryFn: () => api.get<AppsStatus>("/apps/status"), staleTime: 60_000 }); }
+/**
+ * R82F (MB-280): opened straight on Connections, the two calls start as soon as this file runs (it is fetched beside
+ * the settings frame), and the first query takes that answer instead of asking again. Used once; a failure asks again.
+ */
+const early: { status?: Promise<AppsStatus>; accounts?: Promise<{ accounts: ConnectedAccountView[] }> } = {};
+if (typeof window !== "undefined" && window.location.pathname.startsWith("/app/settings/apps")) {
+  early.status = api.get<AppsStatus>("/apps/status"); early.status.catch(() => {});
+  early.accounts = api.get<{ accounts: ConnectedAccountView[] }>("/apps/accounts"); early.accounts.catch(() => {});
+}
+function takeEarly<K extends keyof typeof early>(k: K): (typeof early)[K] { const p = early[k]; early[k] = undefined; return p; }
+
+export function useAppsStatus() {
+  return useQuery({ queryKey: appsKeys.status, queryFn: () => takeEarly("status")?.catch(() => api.get<AppsStatus>("/apps/status")) ?? api.get<AppsStatus>("/apps/status"), staleTime: 60_000 });
+}
 export function useAppAccounts(enabled = true) {
-  return useQuery({ queryKey: appsKeys.accounts, queryFn: () => api.get<{ accounts: ConnectedAccountView[] }>("/apps/accounts").then((r) => r.accounts), enabled, staleTime: 15_000 });
+  const get = () => api.get<{ accounts: ConnectedAccountView[] }>("/apps/accounts");
+  return useQuery({ queryKey: appsKeys.accounts, queryFn: () => (takeEarly("accounts")?.catch(get) ?? get()).then((r) => r.accounts), enabled, staleTime: 15_000 });
 }
 /**
  * R82F (MB-280): the first screen reads a short list (social networks and the most used apps, about 5 KB); the whole
