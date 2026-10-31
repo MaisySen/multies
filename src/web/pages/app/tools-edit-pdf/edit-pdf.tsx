@@ -331,7 +331,7 @@ function PageCard({ pdf, idx, pos, count, turn, tool, items, selected, textSize,
                 {it.kind === "sign" && it.image && <img src={it.image} alt="Signature" className="h-full w-full object-contain" draggable={false} />}
                 {(selected === it.id) && (
                   <button type="button" onClick={(e) => { e.stopPropagation(); onRemove(it.id); }} aria-label="Remove"
-                    className={`absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-surface text-fg shadow ring-1 ring-line max-sm:h-9 max-sm:w-9 ${ring}`} data-testid="edit-pdf-remove-item"><IconClose className="h-3.5 w-3.5" aria-hidden /></button>
+                    className={`absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-surface text-fg shadow ring-1 ring-line max-sm:-top-11 max-sm:right-0 max-sm:h-9 max-sm:w-9 ${ring}`} data-testid="edit-pdf-remove-item"><IconClose className="h-3.5 w-3.5" aria-hidden /></button>
                 )}
               </div>
             ))}
