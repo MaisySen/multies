@@ -101,7 +101,8 @@ function takeNonce(c: Context<AppEnv>, p: "tiktok" | "threads") {
 
 /** Sign in start and return for both networks. Mounted inside connectionRoutes (session already checked). */
 export function directOAuthRoutes() {
-  const back = (q: Record<string, string>) => `/app/settings/apps/social?${new URLSearchParams(q)}`;
+  // P1 layout: TikTok and Threads live in Social, Accounts now (the old Connections tab redirects there too).
+  const back = (q: Record<string, string>) => `/app/social/accounts?${new URLSearchParams(q)}`;
   return new Hono<AppEnv>()
     .get("/oauth/tiktok/start", async (c) => {
       (await store()).requireManager(c.var.auth);

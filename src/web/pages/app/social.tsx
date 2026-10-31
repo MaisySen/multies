@@ -1,0 +1,323 @@
+/**
+ * P1 layout: Social, a daily tool with its own place in the rail (it lived in Settings, Connections, Social posts).
+ * Planner (/app/social): a month of scheduled and sent posts. Posts (/app/social/posts): every post with each account's
+ * result, filtered by Scheduled, Sent and Failed. New post (/app/social/new): the one composer. Accounts
+ * (/app/social/accounts): connected profiles with their health, TikTok and Threads, and Connect for the rest.
+ * No new server calls: the same /api/social, /api/apps and /api/direct the Connections tab used.
+ */
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
+import { toast } from "sonner";
+import { api, errorMessage } from "@/web/lib/api";
+import { cn } from "@/web/lib/cn";
+import { timeAgo } from "@/web/lib/format";
+import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { Button, ButtonLink } from "@/web/components/ui/button";
+import { ConfirmDialog } from "@/web/components/ui/confirm";
+import {
+  IconBack, IconCalendarDays, IconChevronRight, IconCompose, IconLock, IconMegaphone, IconPlug, IconPlus, IconRefresh, IconTrash,
+} from "@/web/components/ui/icon";
+import { SOCIAL_NETWORKS, type ConnectedAccountView, type SocialPostView } from "@/shared/integrations";
+import { AppLogo, appsKeys, useAppAccounts, useAppsStatus, useConnect, useConnectReturn } from "./apps-settings";
+import { Composer, POST_STATUS, PostList, ReconnectButton, useAccountHealth, useSocialPosts, type PostFilter } from "./apps-social";
+import { DirectAccounts } from "./apps-direct";
+
+/** The networks the one composer posts to, in the order people look for them. */
+const NETWORKS = Object.keys(SOCIAL_NETWORKS);
+const NETWORK_NAMES: Record<string, string> = { facebook: "Facebook Pages", instagram: "Instagram", linkedin: "LinkedIn", pinterest: "Pinterest", reddit: "Reddit" };
+const postable = (accounts: ConnectedAccountView[] | undefined) => (accounts ?? []).filter((a) => a.status === "active" && a.app in SOCIAL_NETWORKS);
+
+function NewPostButton() {
+  return <ButtonLink to="/app/social/new" size="sm" data-testid="new-post"><IconCompose className="h-4 w-4" aria-hidden />New post</ButtonLink>;
+}
+
+function LoadError({ error, retry, what }: { error: unknown; retry: () => void; what: string }) {
+  return (
+    <Card className="p-5">
+      <p className="text-sm text-bad" role="alert">{errorMessage(error, `Couldn't load ${what}.`)}</p>
+      <Button variant="outline" size="sm" className="mt-3" onClick={retry}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button>
+    </Card>
+  );
+}
+
+/* ---------------------------------------------------------------- Planner */
+
+const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+const timeText = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+const TONE_DOT: Record<string, string> = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad", brand: "bg-brand", neutral: "bg-subtle" };
+
+/** The weeks shown for a month, Monday first, as whole weeks. */
+export function monthGrid(year: number, month: number): Date[] {
+  const first = new Date(year, month, 1);
+  const lead = (first.getDay() + 6) % 7;
+  const start = new Date(year, month, 1 - lead);
+  const last = new Date(year, month + 1, 0);
+  const cells = Math.ceil((lead + last.getDate()) / 7) * 7;
+  return Array.from({ length: cells }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+}
+
+/** Posts by local day. */
+export function postsByDay(posts: SocialPostView[]): Map<string, SocialPostView[]> {
+  const m = new Map<string, SocialPostView[]>();
+  for (const p of [...posts].sort((a, b) => Date.parse(a.runAt) - Date.parse(b.runAt))) {
+    if (p.status === "canceled") continue;
+    const k = dayKey(new Date(p.runAt));
+    m.set(k, [...(m.get(k) ?? []), p]);
+  }
+  return m;
+}
+
+function PostChip({ p }: { p: SocialPostView }) {
+  const st = POST_STATUS[p.status];
+  return (
+    <Link to={`/app/social/posts#post-${p.id}`} data-testid="planner-post" data-status={p.status} title={`${st.label}: ${p.text}`}
+      className="flex min-w-0 items-center gap-1.5 rounded-md bg-fill px-1.5 py-1 text-[12px] leading-tight transition-colors duration-150 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 motion-reduce:transition-none">
+      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", TONE_DOT[st.tone])} aria-hidden />
+      <span className="shrink-0 tabular-nums text-muted">{timeText(p.runAt)}</span>
+      <span className="min-w-0 truncate">{p.text}</span>
+      <span className="sr-only">, {st.label}</span>
+    </Link>
+  );
+}
+
+export function SocialPlannerPage() {
+  const posts = useSocialPosts();
+  const [cursor, setCursor] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
+  const cells = useMemo(() => monthGrid(cursor.y, cursor.m), [cursor]);
+  const byDay = useMemo(() => postsByDay(posts.data ?? []), [posts.data]);
+  const today = dayKey(new Date());
+  const monthName = new Date(cursor.y, cursor.m, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const move = (n: number) => setCursor((c) => { const d = new Date(c.y, c.m + n, 1); return { y: d.getFullYear(), m: d.getMonth() }; });
+  const weekdays = cells.slice(0, 7).map((d) => ({ short: d.toLocaleDateString(undefined, { weekday: "short" }), long: d.toLocaleDateString(undefined, { weekday: "long" }) }));
+  const inMonth = cells.filter((d) => d.getMonth() === cursor.m);
+  const agenda = inMonth.filter((d) => byDay.has(dayKey(d)));
+  const scheduled = (posts.data ?? []).filter((p) => p.status === "scheduled").length;
+
+  return (
+    <div data-testid="social-planner">
+      <PageHeader title="Planner" description={scheduled ? `${scheduled} ${scheduled === 1 ? "post is" : "posts are"} waiting to go out.` : "Scheduled and sent posts on a calendar."} actions={<NewPostButton />} />
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <h2 className="mr-auto text-[17px] font-semibold tracking-[-0.01em]" aria-live="polite" data-testid="planner-month">{monthName}</h2>
+        <Button variant="outline" size="sm" onClick={() => { const d = new Date(); setCursor({ y: d.getFullYear(), m: d.getMonth() }); }}>Today</Button>
+        <Button variant="ghost" size="sm" onClick={() => move(-1)} aria-label="Previous month"><IconBack className="h-4 w-4" aria-hidden /></Button>
+        <Button variant="ghost" size="sm" onClick={() => move(1)} aria-label="Next month"><IconChevronRight className="h-4 w-4" aria-hidden /></Button>
+      </div>
+      {posts.isPending ? <Skeleton className="h-[560px] rounded-xl max-sm:h-72" />
+        : posts.error ? <LoadError error={posts.error} retry={() => void posts.refetch()} what="the planner" />
+        : (<>
+          {!posts.data?.length && (
+            <Card className="mb-4" data-testid="planner-empty">
+              <EmptyState icon={<IconCalendarDays />} title="Nothing planned yet" body="Write a post and pick a time. It shows here on its day, and in Posts with how each account did." action={<NewPostButton />} />
+            </Card>
+          )}
+          {/* Desktop and tablet: the month grid. */}
+          <Card className="overflow-hidden max-sm:hidden" data-testid="planner-grid">
+            <div className="grid grid-cols-7 border-b border-line bg-fill/50" role="row">
+              {weekdays.map((w) => <div key={w.long} className="px-2 py-1.5 text-[11.5px] font-semibold uppercase tracking-[0.04em] text-subtle" role="columnheader"><abbr title={w.long} className="no-underline">{w.short}</abbr></div>)}
+            </div>
+            <div className="grid grid-cols-7" role="grid" aria-label={monthName}>
+              {cells.map((d, i) => {
+                const k = dayKey(d);
+                const list = byDay.get(k) ?? [];
+                const out = d.getMonth() !== cursor.m;
+                return (
+                  <div key={k} role="gridcell" aria-label={d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
+                    className={cn("min-h-[104px] min-w-0 space-y-1 p-1.5", i % 7 !== 6 && "border-r border-line", i < cells.length - 7 && "border-b border-line", out && "bg-fill/40")} data-day={k}>
+                    <div className="flex items-center justify-between px-0.5">
+                      <span className={cn("grid h-6 min-w-6 place-items-center rounded-full px-1 text-[12px] tabular-nums", k === today ? "bg-brand font-semibold text-brand-fg" : out ? "text-subtle" : "text-muted")}>{d.getDate()}</span>
+                    </div>
+                    {list.slice(0, 3).map((p) => <PostChip key={p.id} p={p} />)}
+                    {list.length > 3 && <Link to="/app/social/posts" className="block px-1.5 text-[12px] font-medium text-muted hover:text-fg">{list.length - 3} more</Link>}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+          {/* Phone: the month as a list of the days that have posts. */}
+          <div className="sm:hidden" data-testid="planner-agenda">
+            {posts.data?.length ? (agenda.length ? (
+              <ul className="space-y-4">
+                {agenda.map((d) => (
+                  <li key={dayKey(d)}>
+                    <h3 className={cn("mb-1.5 px-1 text-[13px] font-semibold", dayKey(d) === today ? "text-brand-hover" : "text-muted")}>{d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })}</h3>
+                    <Card className="space-y-1.5 p-2">{(byDay.get(dayKey(d)) ?? []).map((p) => <PostChip key={p.id} p={p} />)}</Card>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="rounded-lg bg-fill px-3 py-3 text-[14px] text-muted">No posts in {monthName}.</p>) : null}
+          </div>
+        </>)}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- Posts */
+
+const FILTERS: { id: PostFilter; label: string }[] = [
+  { id: "all", label: "All" }, { id: "scheduled", label: "Scheduled" }, { id: "sent", label: "Sent" }, { id: "failed", label: "Failed" },
+];
+
+export function SocialPostsPage() {
+  const status = useAppsStatus();
+  const posts = useSocialPosts();
+  const [params, setParams] = useSearchParams();
+  const loc = useLocation();
+  const raw = params.get("status");
+  const filter: PostFilter = FILTERS.some((f) => f.id === raw) ? (raw as PostFilter) : "all";
+  const failed = (posts.data ?? []).filter((p) => p.status === "failed" || p.status === "partial").length;
+  // A post opened from the planner: scroll to it once the list is here.
+  useEffect(() => {
+    if (!loc.hash || !posts.data) return;
+    const el = document.getElementById(loc.hash.slice(1));
+    el?.scrollIntoView({ block: "center" });
+    el?.querySelector<HTMLElement>("[data-testid=social-post]")?.focus({ preventScroll: true });
+  }, [loc.hash, posts.data]);
+  const tab = "inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 max-sm:min-h-11 max-sm:px-2.5 motion-reduce:transition-none";
+  return (
+    <div data-testid="social-posts-page">
+      <PageHeader title="Posts" description="Every post, with how each account did. Fix a failed one right here." actions={<NewPostButton />} />
+      <div className="mb-4 -mx-1 max-w-full overflow-x-auto px-1 [scrollbar-width:none]">
+        <div className="inline-flex gap-1 rounded-lg bg-fill p-1" role="group" aria-label="Show posts" data-testid="posts-filter">
+          {FILTERS.map((f) => (
+            <button key={f.id} type="button" aria-pressed={filter === f.id} onClick={() => setParams((p) => { const n = new URLSearchParams(p); if (f.id === "all") n.delete("status"); else n.set("status", f.id); return n; }, { replace: true })}
+              className={cn(tab, filter === f.id ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg")}>
+              {f.label}
+              {f.id === "failed" && failed > 0 && <span className="min-w-[18px] rounded-full bg-bad-soft px-1.5 text-center text-[11px] font-semibold tabular-nums leading-[18px] text-bad" aria-label={`${failed} need attention`}>{failed}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+      <PostList canManage={!!status.data?.canManage} filter={filter} heading={false} />
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- New post */
+
+export function SocialNewPostPage() {
+  const status = useAppsStatus();
+  const accounts = useAppAccounts();
+  const navigate = useNavigate();
+  const list = postable(accounts.data);
+  return (
+    <div data-testid="social-new">
+      <PageHeader title="New post" description="Write once and send it to every account you pick. Networks that can't take the post are greyed out with the reason." />
+      {status.isPending || accounts.isPending ? <div className="space-y-4" aria-busy="true"><Skeleton className="h-72 rounded-xl" /></div>
+        : status.error ? <LoadError error={status.error} retry={() => void status.refetch()} what="Social" />
+        : accounts.error ? <LoadError error={accounts.error} retry={() => void accounts.refetch()} what="your accounts" />
+        : !status.data?.canManage ? (
+          <Card data-testid="social-locked"><EmptyState icon={<IconLock />} title="Only owners and admins can post" body="You can see every post and how it did in Posts. Ask an owner or admin to post for the team." action={<ButtonLink to="/app/social/posts" variant="outline" size="sm">See posts</ButtonLink>} /></Card>
+        ) : !list.length ? (
+          <Card data-testid="social-empty"><EmptyState icon={<IconMegaphone />} title="Connect a social account first" body="Connect Facebook Pages, Instagram, LinkedIn, Pinterest or Reddit, then write one post and send it to all of them." action={<ButtonLink to="/app/social/accounts" size="sm"><IconPlug className="h-4 w-4" aria-hidden />Connect an account</ButtonLink>} /></Card>
+        ) : (
+          <div className="space-y-3">
+            <Composer accounts={list} heading={false} onPosted={() => navigate("/app/social/posts")} />
+            <p className="px-1 text-[13px] text-muted">TikTok videos and Threads posts are written from their cards in <Link to="/app/social/accounts" className="font-medium text-fg underline underline-offset-2 hover:text-muted">Accounts</Link>.</p>
+          </div>
+        )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- Accounts */
+
+export function SocialAccountsPage() {
+  useConnectReturn();
+  const qc = useQueryClient();
+  const status = useAppsStatus();
+  const accounts = useAppAccounts();
+  const health = useAccountHealth();
+  const connect = useConnect();
+  const [removing, setRemoving] = useState<ConnectedAccountView | null>(null);
+  const canManage = !!status.data?.canManage;
+  const social = (accounts.data ?? []).filter((a) => a.app in SOCIAL_NETWORKS);
+  const connectedApps = new Set(social.filter((a) => a.status === "active").map((a) => a.app));
+  const disconnect = useMutation({
+    mutationFn: (a: ConnectedAccountView) => api.del<{ ok: true }>(`/apps/accounts/${encodeURIComponent(a.id)}`),
+    onSuccess: (_r, a) => { toast.success(`${a.appName} disconnected`); setRemoving(null); void qc.invalidateQueries({ queryKey: appsKeys.accounts }); },
+    onError: (e) => toast.error(errorMessage(e, "Couldn't disconnect. Try again.")),
+  });
+
+  const healthLine = (a: ConnectedAccountView) => {
+    if (a.status === "pending") return <Badge tone="warn" dot>Sign in not finished</Badge>;
+    if (a.status !== "active") return <Badge tone="warn" dot>Needs attention</Badge>;
+    if (health.isPending) return <span className="text-subtle">Checking</span>;
+    const h = health.data?.get(a.id);
+    if (!h || h.ok) return <Badge tone="ok" dot>Ready to post</Badge>;
+    if (h.code === "check_failed") return <Badge tone="neutral" dot>Not checked</Badge>;
+    return <Badge tone="warn" dot>Needs attention</Badge>;
+  };
+
+  return (
+    <div data-testid="social-accounts">
+      <PageHeader title="Accounts" description="The profiles Multies posts to, checked before you write. Connect, reconnect or remove them here." actions={<NewPostButton />} />
+      {!status.isPending && !canManage && <p className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-subtle"><IconLock className="h-3.5 w-3.5" aria-hidden />Only owners and admins can connect accounts or post.</p>}
+      <div className="space-y-7">
+        <section aria-labelledby="acc-connected">
+          <h2 id="acc-connected" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">Connected</h2>
+          {accounts.isPending ? <Card className="space-y-3 p-4" aria-busy="true"><Skeleton className="h-10 rounded-lg" /><Skeleton className="h-10 rounded-lg" /></Card>
+            : accounts.error ? <LoadError error={accounts.error} retry={() => void accounts.refetch()} what="your accounts" />
+            : !social.length ? (
+              <Card className="flex items-center gap-3 p-4 text-sm text-muted" data-testid="accounts-none">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-fill" aria-hidden><IconPlug className="h-4 w-4" /></span>
+                <p>No social accounts yet. Connect one below to start posting.</p>
+              </Card>
+            ) : (
+              <Card className="divide-y divide-line" data-testid="accounts-list">
+                {social.map((a) => {
+                  const h = health.data?.get(a.id);
+                  const bad = h && !h.ok && h.code !== "check_failed";
+                  return (
+                    <div key={a.id} className="flex flex-wrap items-center gap-3 p-4 md:px-5" data-testid={`social-account-${a.app}`} data-health={bad ? "bad" : h?.ok ? "ok" : "unknown"}>
+                      <AppLogo slug={a.app} name={a.appName} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[15px] font-medium">{a.appName}{a.label ? <span className="text-muted">, {a.label}</span> : null}</p>
+                        <p className="flex flex-wrap items-center gap-2 text-[13px] text-muted">{healthLine(a)}<span>Connected {timeAgo(a.createdAt)}</span></p>
+                        {bad && h?.text && <p className="mt-1 text-[12.5px] text-warn" data-testid="account-health-text">{h.text}</p>}
+                      </div>
+                      {canManage && (
+                        <div className="flex gap-2 max-sm:w-full [&>*]:max-sm:flex-1">
+                          {(bad || a.status !== "active") && <ReconnectButton accountId={a.id} appName={a.appName} />}
+                          <Button variant="ghost" size="sm" className="text-bad hover:text-bad" onClick={() => setRemoving(a)} aria-label={`Disconnect ${a.appName}`}><IconTrash className="h-4 w-4" aria-hidden />Disconnect</Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </Card>
+            )}
+        </section>
+
+        <section aria-labelledby="acc-own">
+          <h2 id="acc-own" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">TikTok and Threads</h2>
+          <DirectAccounts />
+        </section>
+
+        <section aria-labelledby="acc-add">
+          <h2 id="acc-add" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">Connect a network</h2>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="accounts-add">
+            {NETWORKS.map((app) => (
+              <Card key={app} className="flex items-center gap-3 p-4" data-testid={`connect-${app}`}>
+                <AppLogo slug={app} name={NETWORK_NAMES[app] ?? app} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px] font-medium">{NETWORK_NAMES[app] ?? app}</p>
+                  <p className="text-[12.5px] text-muted">{connectedApps.has(app) ? "Connected. Add another account." : SOCIAL_NETWORKS[app]!.image === "required" ? "Posts need an image." : "Text and image posts."}</p>
+                </div>
+                {canManage && (
+                  <Button variant="outline" size="sm" loading={connect.isPending && connect.variables === app} onClick={() => connect.mutate(app)} aria-label={`Connect ${NETWORK_NAMES[app] ?? app}`}>
+                    <IconPlus className="h-4 w-4" aria-hidden />Connect
+                  </Button>
+                )}
+              </Card>
+            ))}
+          </div>
+          <p className="mt-3 px-1 text-[13px] text-muted">Other apps, mail accounts and webhooks are in <Link to="/app/settings/apps" className="font-medium text-fg underline underline-offset-2 hover:text-muted">Settings, Connections</Link>.</p>
+        </section>
+      </div>
+      <ConfirmDialog open={!!removing} onClose={() => setRemoving(null)} onConfirm={() => removing && disconnect.mutate(removing)} busy={disconnect.isPending}
+        title={removing ? `Disconnect ${removing.appName}?` : "Disconnect"} confirmLabel="Disconnect"
+        description="Scheduled posts to this account will not go out. You can connect it again any time." />
+    </div>
+  );
+}

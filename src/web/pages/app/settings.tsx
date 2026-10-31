@@ -7,7 +7,7 @@ import { AttachmentIndexSection } from "./attachment-index-settings"; // Tools P
 import { ShareLinksSetting } from "./work/share-sheet"; // R26 (MB-87)
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconBack, IconBell, IconCalendar, IconCheck, IconChevronRight, IconCode, IconCreditCard, IconDownload, IconKey, IconMail, IconMailCheck, IconPlugZap, IconPlus, IconSearch, IconSend, IconShieldCheck, IconChats, IconSliders, IconSmartphone, IconSparkle, IconMoon, IconTeam, IconTrash, IconWarning } from "@/web/components/ui/icon";
+import { IconActivity, IconShield, IconBack, IconBell, IconCalendar, IconCheck, IconChevronRight, IconCode, IconCreditCard, IconDownload, IconKey, IconMail, IconMailCheck, IconPlugZap, IconPlus, IconSearch, IconSend, IconShieldCheck, IconChats, IconSliders, IconSmartphone, IconSparkle, IconMoon, IconTeam, IconTrash, IconWarning } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
@@ -54,6 +54,11 @@ export const SETTINGS_GROUPS: { label: string; items: Pane[] }[] = [
   ] },
   { label: "Build", items: [
     { to: "/app/settings/developers", label: "Developers", icon: IconCode, tint: "#1C1C1E", keywords: "api keys scopes mcp webhooks oauth apps tokens" },
+  ] },
+  // P1 layout: one sidebar. The pages the old Workspace sidebar listed beside Settings are here now.
+  { label: "Admin", items: [
+    { to: "/app/activity", label: "Activity", icon: IconActivity, tint: "#8E8E93", keywords: "log audit history changes messages who did what" },
+    { to: "/app/admin", label: "Operator", icon: IconShield, tint: "#1C1C1E", keywords: "operator platform admin moderation reports" },
   ] },
 ];
 const ALL_PANES = SETTINGS_GROUPS.flatMap((g) => g.items);
@@ -103,7 +108,8 @@ export function SettingsLayout() {
   const atHub = (loc.pathname.replace(/\/+$/, "") === "/app/settings") && !loc.hash;
   // R82F (MB-283): the tab title comes from the app shell (pageTitle), the same for every page.
   const config = useConfig();
-  const shown = matchPanes(q).filter(panesFor(config.data));
+  const me = useMe();
+  const shown = matchPanes(q).filter(panesFor(config.data)).filter((p) => p.to !== "/app/admin" || !!me.data?.user.platformAdmin);
   const groups = SETTINGS_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => shown.includes(i)) })).filter((g) => g.items.length);
   const go = () => { if (shown[0]) { navigate(shown[0].to); setQ(""); } };
   return (

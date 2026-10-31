@@ -11,7 +11,7 @@ import type { AuthContext, Deps } from "../../context";
 import { audit } from "../audit";
 import { HttpError, forbidden, tooMany } from "../../lib/errors";
 import { RateLimiter } from "../../lib/rate-limit";
-import { APP_NAME_OVERRIDES, type AccountStatus, type ConnectedAccountView } from "@/shared/integrations";
+import { APP_NAME_OVERRIDES, canPostTo, type AccountStatus, type ConnectedAccountView } from "@/shared/integrations";
 import { composioFrom, IntegrationError, type Composio, type CpAccount, type CpToolkit } from "./composio";
 
 export const isAdmin = (a: Pick<AuthContext, "role">) => a.role === "owner" || a.role === "admin";
@@ -122,7 +122,9 @@ async function authConfigFor(cp: Composio, app: string, scheme: Scheme): Promise
 const APP_SLUG = /^[a-z0-9_]{1,64}$/;
 
 export function callbackUrl(deps: Deps, app: string) {
-  return `${deps.config.appUrl}/app/settings/apps?app=${encodeURIComponent(app)}`;
+  // P1 layout: a network you can post to comes back to Social, Accounts; every other app to Settings, Connections.
+  const page = canPostTo(app) ? "/app/social/accounts" : "/app/settings/apps";
+  return `${deps.config.appUrl}${page}?app=${encodeURIComponent(app)}`;
 }
 
 export async function startConnect(deps: Deps, auth: AuthContext, app: string, ip?: string | null): Promise<{ redirectUrl: string; accountId: string }> {

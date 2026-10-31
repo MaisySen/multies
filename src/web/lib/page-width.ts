@@ -14,6 +14,7 @@ const FULL = [
 const READING = [
   /^\/app\/settings(\/|$)/,
   /^\/app\/(docs|contacts|meetings|domains|agents)\/[^/]+$/,
+  /^\/app\/social\/(new|posts|accounts)$/, // P1 layout: the composer, the posts list and accounts read best at a line length
   /^\/app\/(integrations|deliverability|notifications|activity|approvals|admin|scheduling|mailboxes|domains|agents)(\/|$)/,
 ];
 /** Tools editors and docs pages that are themselves wide surfaces stay full even under a reading prefix. */

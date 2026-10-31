@@ -13,6 +13,14 @@ function Moved({ to }: { to: string }) {
   return <Navigate to={`${to}${loc.search}${loc.hash}`} replace />;
 }
 
+/** P1 layout: the old Social posts tab of Connections. A sign in coming back lands on Accounts, the rest on New post. */
+function SocialMoved() {
+  const loc = useLocation();
+  const q = new URLSearchParams(loc.search);
+  const back = ["connected", "error", "status", "connected_account_id", "app", "provider"].some((k) => q.has(k));
+  return <Navigate to={`${back ? "/app/social/accounts" : "/app/social/new"}${loc.search}${loc.hash}`} replace />;
+}
+
 /** R66 (MB-259): the AI document pages show while any AI feature is on. */
 const AI_FEATURES = ["ask", "translate", "extract", "expenses", "contracts"] as const;
 import { AppSkeleton } from "./layouts/app-skeleton";
@@ -128,6 +136,11 @@ const BrandingSettings = lazyPage(() => brandingSettings(), "BrandingSettings");
 const AppearanceSettings = lazyPage(() => brandingSettings(), "AppearanceSettings");
 const CalendarSettings = lazyPage(() => import("./pages/app/calendar-settings"), "CalendarSettings");
 const AppsSettings = lazyPage(() => import("./pages/app/apps-settings"), "AppsSettings"); // R80C: Connections hub
+const social = () => import("./pages/app/social"); // P1 layout: Social, out of Settings
+const SocialPlannerPage = lazyPage(() => social(), "SocialPlannerPage");
+const SocialPostsPage = lazyPage(() => social(), "SocialPostsPage");
+const SocialNewPostPage = lazyPage(() => social(), "SocialNewPostPage");
+const SocialAccountsPage = lazyPage(() => social(), "SocialAccountsPage");
 const MailAppsSettings = lazyPage(() => import("./pages/app/mail-apps"), "MailAppsSettings");
 const ImportSettings = lazyPage(() => import("./pages/app/data-move"), "ImportExportSettings"); // R38 move your data
 const DeveloperSettings = lazyPage(() => import("./pages/app/developers"), "DeveloperSettings");
@@ -204,6 +217,12 @@ export const router = createBrowserRouter([
       { path: "mail", element: page(<WebmailPage />) },
       { path: "mail/rules", element: page(<MailRulesPage />) }, // R85
       { path: "inbox", element: page(<TeamInboxPage />) },
+      { path: "social", element: page(<SocialPlannerPage />) }, // P1 layout
+      { path: "social/posts", element: page(<SocialPostsPage />) },
+      { path: "social/new", element: page(<SocialNewPostPage />) },
+      { path: "social/accounts", element: page(<SocialAccountsPage />) },
+      { path: "social/planner", element: <Moved to="/app/social" /> },
+      { path: "social/compose", element: <Moved to="/app/social/new" /> },
       { path: "agents", element: page(<AgentsPage />) },
       { path: "agents/:id", element: page(<AgentDetailPage />) },
       { path: "approvals", element: page(<ApprovalsPage />) },
@@ -255,7 +274,7 @@ export const router = createBrowserRouter([
           { path: "team", element: page(<TeamSettings />) },
           { path: "channels", element: page(<ChannelsSettings />) }, // C1
           { path: "apps", element: page(<AppsSettings />) }, // R80C: Connections hub
-          { path: "apps/social", element: page(<AppsSettings />) }, // R80C: social posts
+          { path: "apps/social", element: <SocialMoved /> }, // P1 layout: Social posts moved to Social
           { path: "apps/mail", element: page(<AppsSettings />) }, // R82F (MB-279): mail accounts, was Connected accounts
           { path: "apps/webhooks", element: page(<AppsSettings />) }, // R82F (MB-279): webhooks, was Integrations
           { path: "billing", element: page(<BillingSettings />) },

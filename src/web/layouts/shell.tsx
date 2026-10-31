@@ -6,20 +6,21 @@
 import { useEffect, useMemo, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { IconArrowRightLeft, IconMegaphone, IconPlugZap,
+import { IconArrowRightLeft, IconMegaphone, IconPlugZap, IconCalendarDays, IconSend, IconUserRoundCheck,
   IconActivity, IconAgent, IconApprovals, IconAttachment, IconBell, IconBriefcase, IconCalendarClock, IconCalendarPlus, IconChart, IconChats,
   IconChevronDown, IconChevronRight, IconClipboardList, IconCompose, IconContacts, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHome,
   IconInbox, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconSidebar, IconSliders,
   IconSquarePlus, IconStar, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconVideo, IconWrench, IconZap,
   type IconComponent,
 } from "@/web/components/ui/icon";
+import { buttonClass } from "@/web/components/ui/button";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { Kbd } from "@/web/components/ui/misc";
 import { api } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
 import { openPalette } from "@/web/lib/shortcuts";
-import { isFavourite, resetLayout, setLayout, sidebarHiddenOn, toggleFavourite, toggleSidebar, useLayout, type Favourite } from "@/web/lib/layout-prefs";
-import { breadcrumbs, createItems, pageFor, type IconKey, type NavFlags, type Section, type SectionId } from "./shell-nav";
+import { isFavourite, ownsSidebar, resetLayout, setLayout, sidebarHiddenOn, toggleFavourite, toggleSidebar, useLayout, type Favourite } from "@/web/lib/layout-prefs";
+import { breadcrumbs, createItems, pageFor, SOCIAL_NEW, type IconKey, type NavFlags, type Section, type SectionId } from "./shell-nav";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 export const MOD = isMac ? "⌘" : "Ctrl";
@@ -30,6 +31,7 @@ export const NAV_ICONS: Record<IconKey, IconComponent> = {
   mailboxes: IconTeam, domains: IconGlobe, deliverability: IconShieldCheck, goals: IconTarget, portfolio: IconBriefcase, timesheet: IconTimer,
   templates: IconTemplate, automations: IconZap, files: IconAttachment, forms: IconClipboardList, meetings: IconVideo, booking: IconCalendarClock,
   contacts: IconContacts, reports: IconChart, agents: IconAgent, integrations: IconPlug, connections: IconPlugZap, settings: IconSettings, operator: IconShield, convert: IconArrowRightLeft,
+  social: IconMegaphone, planner: IconCalendarDays, posts: IconSend, accounts: IconUserRoundCheck, // P1 layout
 };
 
 /** Counts the shell shows, keyed by page path. "alert" counts use the brand colour; the rest stay neutral. */
@@ -50,7 +52,9 @@ export function IconRail({ sections, active, counts, footer }: { sections: Secti
   const layout = useLayout();
   const loc = useLocation();
   const hidden = sidebarHiddenOn(layout, loc.pathname);
-  const main = sections.filter((s) => s.id !== "workspace");
+  // P1 layout: Agents and Settings sit together at the bottom, under a hairline.
+  const main = sections.filter((s) => s.id !== "workspace" && s.id !== "agents");
+  const ag = sections.find((s) => s.id === "agents");
   const ws = sections.find((s) => s.id === "workspace");
   const sectionCount = (s: Section) => {
     const alert = s.pages.reduce((a, p) => a + (counts[p.to]?.alert ? counts[p.to].n : 0), 0);
@@ -76,12 +80,12 @@ export function IconRail({ sections, active, counts, footer }: { sections: Secti
   return (
     <nav aria-label="Sections" className="glass-sidebar hairline-r flex h-full w-[72px] shrink-0 flex-col items-center gap-1 py-2" data-testid="icon-rail">
       <button type="button" onClick={() => toggleSidebar(loc.pathname)} aria-pressed={!hidden} data-testid="sidebar-toggle"
-        title={`${hidden ? "Show" : "Hide"} sidebar (${MOD} \\)`} aria-label={hidden ? "Show sidebar" : "Hide sidebar"}
+        title={`${hidden ? "Show" : "Hide"} sidebar (${MOD} \\)`} aria-label={hidden ? "Show sidebar" : "Hide sidebar"} hidden={ownsSidebar(loc.pathname)}
         className="mb-1 grid h-9 w-9 place-items-center rounded-lg text-muted transition-colors hover:bg-hover hover:text-fg">
         <IconSidebar className="h-[18px] w-[18px]" aria-hidden />
       </button>
       <div className="flex min-h-0 flex-1 flex-col items-center gap-0.5 overflow-y-auto [scrollbar-width:none]">{main.map(item)}</div>
-      {ws && item(ws)}
+      <div className="hairline-t mt-1 flex w-14 flex-col items-center gap-0.5 pt-1.5" data-testid="rail-bottom">{ag && item(ag)}{ws && item(ws)}</div>
       <div className="mt-1">{footer}</div>
     </nav>
   );
@@ -121,6 +125,13 @@ export function ContextSidebar({ section, counts, logo, header, footer }: { sect
       {logo && <div className="flex h-12 shrink-0 items-center px-4" data-testid="sidebar-logo">{logo}</div>}
       <div className="shrink-0 px-2.5 pt-1">{header}</div>
       <div className="px-4 pb-1 pt-3 text-[15px] font-semibold tracking-[-0.01em]">{section.label}</div>
+      {/* P1 layout: one tap to write a post from anywhere in Social. */}
+      {section.id === "social" && (
+        <div className="px-2.5 pb-1.5 pt-1">
+          <Link to={SOCIAL_NEW} data-testid="sidebar-new-post" aria-current={loc.pathname === SOCIAL_NEW ? "page" : undefined}
+            className={buttonClass("primary", "sm", "w-full justify-start")}><IconCompose className="h-4 w-4" aria-hidden />New post</Link>
+        </div>
+      )}
       <nav aria-label={section.label} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-3">
         <div className="space-y-px">
           {section.pages.map((p) => {

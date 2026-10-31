@@ -3,7 +3,7 @@ import { pageFrameClass, pageWidth } from "@/web/lib/page-width"; // R75: page w
 import { Suspense, useEffect, useState, type ReactElement } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconActivity, IconAgent, IconAttachment, IconBell, IconBriefcase, IconCalendarClock, IconChart, IconChats, IconCheck, IconChevronsUpDown, IconClipboardCheck, IconClipboardList, IconClose, IconContacts, IconDashboard, IconDocs, IconFlask, IconGlobe, IconInbox, IconKeyboard, IconLogOut, IconMenu, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUserCog, IconVideo, IconWrench, IconZap, type IconComponent } from "@/web/components/ui/icon";
+import { IconActivity, IconAgent, IconAttachment, IconMegaphone, IconBell, IconBriefcase, IconCalendarClock, IconChart, IconChats, IconCheck, IconChevronsUpDown, IconClipboardCheck, IconClipboardList, IconClose, IconContacts, IconDashboard, IconDocs, IconFlask, IconGlobe, IconInbox, IconKeyboard, IconLogOut, IconMenu, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUserCog, IconVideo, IconWrench, IconZap, type IconComponent } from "@/web/components/ui/icon";
 import { Logo } from "@/web/components/logo";
 import { BrandTokens, WorkspaceMark, WorkspaceWideLogo } from "@/web/lib/brand"; // R77: workspace brand
 import { AppearanceControl } from "@/web/components/theme";
@@ -67,6 +67,8 @@ const nav: NavItem[] = [
   { to: "/app/tasks", label: "Tasks", icon: IconTasks, group: "work" },
   { to: "/app/triage", label: "Triage", icon: IconTodo, group: "work" },
   { to: "/app/docs", label: "Docs", icon: IconDocs, group: "work" },
+  { to: "/app/social", label: "Social", icon: IconMegaphone, group: "work" }, // P1 layout: posting left Settings
+  { to: "/app/agents", label: "Agents", icon: IconAgent, group: "work" }, // P1 layout: a daily tool, not a setting
   { to: "/app/meetings", label: "Meetings", icon: IconVideo, group: "work" },
   { to: "/app/goals", label: "Goals", icon: IconTarget, group: "work" },
   { to: "/app/contacts", label: "Contacts", icon: IconContacts, group: "work" },
@@ -82,14 +84,14 @@ const nav: NavItem[] = [
   { to: "/app/mailboxes", label: "Mailboxes", icon: IconTeam, group: "mail" },
   { to: "/app/domains", label: "Domains", icon: IconGlobe, group: "mail" },
   { to: "/app/deliverability", label: "Deliverability", icon: IconShieldCheck, group: "mail" },
-  { to: "/app/agents", label: "Agents", icon: IconAgent, group: "admin" },
   { to: "/app/approvals", label: "Approvals", icon: IconClipboardCheck, group: "admin" },
   { to: "/app/settings/apps", label: "Connections", icon: IconPlug, group: "admin" }, // R82F (MB-279): the one home for outside apps
   { to: "/app/activity", label: "Activity", icon: IconActivity, group: "admin" },
   { to: "/app/settings", label: "Settings", icon: IconSettings, group: "admin" },
 ];
 // "Workspace", not "Admin": everyone sees this group (settings, people, billing); the operator's console is gated separately.
-const GROUP_LABEL = { work: "Work", mail: "Mail", admin: "Workspace" } as const;
+// P1 layout: the group is called Settings, like the rail.
+const GROUP_LABEL = { work: "Work", mail: "Mail", admin: "Settings" } as const;
 
 /** Nav items in their groups, in the order the groups first appear. */
 function navGroups(items: NavItem[]): { group: NavItem["group"]; items: NavItem[] }[] {

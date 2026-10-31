@@ -19,9 +19,9 @@ import {
 } from "@/shared/integrations";
 import { AppLogo, useAppAccounts } from "./apps-settings";
 
-const postsKey = ["social", "posts"] as const;
+export const postsKey = ["social", "posts"] as const;
 
-const POST_STATUS: Record<PostStatus, { label: string; tone: "ok" | "warn" | "bad" | "neutral" | "brand" }> = {
+export const POST_STATUS: Record<PostStatus, { label: string; tone: "ok" | "warn" | "bad" | "neutral" | "brand" }> = {
   scheduled: { label: "Scheduled", tone: "brand" },
   sending: { label: "Posting", tone: "neutral" },
   done: { label: "Posted", tone: "ok" },
@@ -30,7 +30,7 @@ const POST_STATUS: Record<PostStatus, { label: string; tone: "ok" | "warn" | "ba
   canceled: { label: "Canceled", tone: "neutral" },
 };
 
-function whenText(iso: string) {
+export function whenText(iso: string) {
   return new Date(iso).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 }
 
@@ -73,6 +73,18 @@ function TargetPicker({ account, value, onChange }: { account: ConnectedAccountV
   );
 }
 
+/**
+ * P1 layout: why a network cannot take the post as it stands (needs an image, text too long), or null. A broken sign
+ * in has its own line from the account check, so it only greys the row here.
+ */
+export function cannotTake(a: ConnectedAccountView, post: { image: boolean; length: number; broken: boolean }): string | null {
+  const n = SOCIAL_NETWORKS[a.app];
+  if (!n || post.broken) return null;
+  if (n.image === "required" && !post.image) return `${a.appName} needs an image. Add one below to post here.`;
+  if (post.length > n.maxChars) return `Too long for ${a.appName}: ${n.maxChars.toLocaleString()} characters at most.`;
+  return null;
+}
+
 export function SocialPanel({ canManage }: { canManage: boolean }) {
   const accounts = useAppAccounts();
   const navigate = useNavigate();
@@ -92,7 +104,7 @@ export function SocialPanel({ canManage }: { canManage: boolean }) {
         <Card data-testid="social-empty">
           <EmptyState icon={<IconMegaphone />} title="Connect a social account first"
             body="Connect Facebook Pages, Instagram, LinkedIn, Pinterest or Reddit, then write one post and send it to all of them."
-            action={<Button onClick={() => navigate("/app/settings/apps?group=social")}><IconPlug className="h-4 w-4" aria-hidden />Connect an account</Button>} />
+            action={<Button onClick={() => navigate("/app/social/accounts")}><IconPlug className="h-4 w-4" aria-hidden />Connect an account</Button>} />
         </Card>
       ) : canManage ? <Composer accounts={postable} /> : null}
       <PostList canManage={canManage} />
@@ -100,7 +112,7 @@ export function SocialPanel({ canManage }: { canManage: boolean }) {
   );
 }
 
-function Composer({ accounts }: { accounts: ConnectedAccountView[] }) {
+export function Composer({ accounts, onPosted, heading = true }: { accounts: ConnectedAccountView[]; onPosted?: (post: SocialPostView) => void; heading?: boolean }) {
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const [picked, setPicked] = useState<Record<string, string | null>>({});
@@ -152,6 +164,7 @@ function Composer({ accounts }: { accounts: ConnectedAccountView[] }) {
       toast.success(r.post.status === "scheduled" && later ? `Scheduled for ${whenText(r.post.runAt)}` : `Posting to ${chosen.length} ${chosen.length === 1 ? "account" : "accounts"}`);
       setText(""); setImage(null); setPicked({}); setLater(false); setProblems({});
       void qc.invalidateQueries({ queryKey: postsKey });
+      onPosted?.(r.post);
     },
     onError: (e) => {
       const d = e instanceof ApiError ? (e.details as { problems?: { accountId: string; code: string }[] } | undefined) : undefined;
@@ -166,7 +179,7 @@ function Composer({ accounts }: { accounts: ConnectedAccountView[] }) {
   return (
     <Card>
       <form ref={form} onSubmit={submit} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); }} className="space-y-5 p-5 md:p-6" data-testid="social-composer" aria-labelledby="composer-title">
-        <div>
+        <div className={cn(!heading && "sr-only")}>
           <h2 id="composer-title" className="text-[15px] font-semibold">New post</h2>
           <p className="mt-1 text-[13px] text-muted">One post, sent to every account you pick. Each account shows its own result below.</p>
         </div>
@@ -179,13 +192,18 @@ function Composer({ accounts }: { accounts: ConnectedAccountView[] }) {
               const h = broken(a.id);
               const err = on ? problems[a.id] ?? local[a.id] : null;
               const textOnly = on && !err && image && SOCIAL_NETWORKS[a.app]!.image === "none";
+              // P1 layout: a network that cannot take this post is greyed out, with the reason, until it can.
+              const cannot = on ? null : cannotTake(a, { image: !!image, length: text.trim().length, broken: !!h });
               return (
-                <li key={a.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5" data-testid={`pick-${a.app}`}>
-                  <label className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-3 sm:min-h-9">
-                    <input type="checkbox" checked={on} onChange={() => toggle(a)} className="h-4 w-4 shrink-0 accent-[var(--color-brand)]" />
-                    <AppLogo slug={a.app} name={a.appName} size="sm" />
-                    <span className="min-w-0 truncate text-sm">{a.appName}{a.label ? <span className="text-muted">, {a.label}</span> : null}</span>
+                <li key={a.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5" data-testid={`pick-${a.app}`} data-blocked={cannot ? "true" : undefined}>
+                  <label className={cn("flex min-h-11 min-w-0 flex-1 items-center gap-3 sm:min-h-9", cannot ? "cursor-not-allowed" : "cursor-pointer")}>
+                    <input type="checkbox" checked={on} disabled={!!cannot || !!(h && !on)} onChange={() => toggle(a)} aria-describedby={cannot ? `why-${a.id}` : undefined} className="h-4 w-4 shrink-0 accent-[var(--color-brand)] disabled:cursor-not-allowed" />
+                    <span className={cn("flex min-w-0 items-center gap-3", (cannot || (h && !on)) && "opacity-55")}>
+                      <AppLogo slug={a.app} name={a.appName} size="sm" />
+                      <span className="min-w-0 truncate text-sm">{a.appName}{a.label ? <span className="text-muted">, {a.label}</span> : null}</span>
+                    </span>
                   </label>
+                  {cannot && <p id={`why-${a.id}`} className="basis-full pl-7 text-[12.5px] text-muted" data-testid="pick-why">{cannot}</p>}
                   {on && <TargetPicker account={a} value={picked[a.id] ?? ""} onChange={(v, name) => { setPicked((p) => ({ ...p, [a.id]: v })); setNames((n) => ({ ...n, [a.id]: name ?? v })); }} />}
                   {h && !on && <span className="text-[12.5px] text-warn max-sm:hidden" data-testid="pick-health">Needs attention</span>}
                   {h && <ReconnectButton accountId={a.id} appName={a.appName} />}
@@ -248,7 +266,7 @@ function Composer({ accounts }: { accounts: ConnectedAccountView[] }) {
 }
 
 /** Starts a fresh sign in for one account and goes to the network's page. */
-function ReconnectButton({ accountId, appName }: { accountId: string; appName: string }) {
+export function ReconnectButton({ accountId, appName }: { accountId: string; appName: string }) {
   const reconnect = useMutation({
     mutationFn: () => api.post<{ redirectUrl: string }>(`/apps/accounts/${encodeURIComponent(accountId)}/reconnect`),
     onSuccess: (r) => { window.location.assign(r.redirectUrl); },
@@ -275,7 +293,7 @@ function TargetError({ error, accountId, appName, canManage }: { error: string |
 const healthKey = ["social", "health"] as const;
 
 /** Each account checked without posting, so a broken sign in shows before anyone writes. */
-function useAccountHealth() {
+export function useAccountHealth() {
   return useQuery({
     queryKey: healthKey,
     queryFn: () => api.get<{ accounts: SocialAccountHealth[] }>("/social/health").then((r) => new Map(r.accounts.map((a) => [a.accountId, a]))),
@@ -284,14 +302,35 @@ function useAccountHealth() {
   });
 }
 
-function PostList({ canManage }: { canManage: boolean }) {
-  const qc = useQueryClient();
-  const posts = useQuery({
+/** P1 layout: the Posts page filters the one list. */
+export type PostFilter = "all" | "scheduled" | "sent" | "failed";
+export function postMatches(p: SocialPostView, f: PostFilter): boolean {
+  if (f === "scheduled") return p.status === "scheduled" || p.status === "sending";
+  if (f === "sent") return p.status === "done" || p.status === "partial";
+  if (f === "failed") return p.status === "failed" || p.status === "partial";
+  return true;
+}
+const FILTER_EMPTY: Record<PostFilter, { title: string; body: string }> = {
+  all: { title: "No posts yet", body: "Posts you send or schedule show here, with how each account did." },
+  scheduled: { title: "Nothing scheduled", body: "Posts set for later wait here until they go out." },
+  sent: { title: "Nothing sent yet", body: "Posts that went out show here, with a link to each one." },
+  failed: { title: "Nothing failed", body: "When a network turns a post down, it shows here with the reason and a fix." },
+};
+
+/** The social posts list, shared by the Social Posts page; one query for every filter. */
+export function useSocialPosts() {
+  return useQuery({
     queryKey: postsKey,
     queryFn: () => api.get<{ posts: SocialPostView[] }>("/social/posts").then((r) => r.posts),
     // While something is going out, look again every few seconds.
     refetchInterval: (q) => ((q.state.data ?? []).some((p) => p.status === "sending" || (p.status === "scheduled" && Date.parse(p.runAt) <= Date.now() + 5_000)) ? 3_000 : false),
   });
+}
+
+export function PostList({ canManage, filter = "all", heading = true }: { canManage: boolean; filter?: PostFilter; heading?: boolean }) {
+  const qc = useQueryClient();
+  const posts = useSocialPosts();
+  const shown = (posts.data ?? []).filter((p) => postMatches(p, filter));
   const cancel = useMutation({
     mutationFn: (id: string) => api.post<{ post: SocialPostView }>(`/social/posts/${id}/cancel`),
     onSuccess: () => { toast.success("Post canceled"); void qc.invalidateQueries({ queryKey: postsKey }); },
@@ -305,18 +344,18 @@ function PostList({ canManage }: { canManage: boolean }) {
 
   return (
     <section aria-labelledby="posts-title">
-      <h2 id="posts-title" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">Posts</h2>
+      <h2 id="posts-title" className={cn("mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle", !heading && "sr-only")}>Posts</h2>
       {posts.isPending ? <div className="space-y-3"><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-24 rounded-xl" /></div>
         : posts.error ? (
           <Card className="p-5">
             <p className="text-sm text-bad" role="alert">{errorMessage(posts.error, "Couldn't load posts.")}</p>
             <Button variant="outline" size="sm" className="mt-3" onClick={() => void posts.refetch()}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button>
           </Card>
-        ) : !posts.data?.length ? (
-          <Card><EmptyState icon={<IconMegaphone />} title="No posts yet" body="Posts you send or schedule show here, with how each account did." /></Card>
+        ) : !shown.length ? (
+          <Card data-testid="posts-empty"><EmptyState icon={<IconMegaphone />} title={FILTER_EMPTY[filter].title} body={FILTER_EMPTY[filter].body} /></Card>
         ) : (
           <ul className="space-y-3" data-testid="social-posts">
-            {posts.data.map((p) => {
+            {shown.map((p) => {
               const st = POST_STATUS[p.status];
               return (
                 <li key={p.id}>

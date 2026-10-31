@@ -127,8 +127,11 @@ export const isFavourite = (p: LayoutPrefs, kind: Favourite["kind"], id: string)
 
 const onMailPath = (pathname: string) => /^\/app\/mail(\/|$)/.test(pathname);
 /** Is the shell sidebar folded on this page? */
-export const sidebarHiddenOn = (p: LayoutPrefs, pathname: string) => (onMailPath(pathname) ? !p.sidebarOnMail : p.sidebarCollapsed);
+/** P1 layout: Settings has one sidebar, its own grouped list, so the shell's section sidebar stays away there. */
+export const ownsSidebar = (pathname: string) => /^\/app\/settings(\/|$)/.test(pathname);
+export const sidebarHiddenOn = (p: LayoutPrefs, pathname: string) => (ownsSidebar(pathname) ? true : onMailPath(pathname) ? !p.sidebarOnMail : p.sidebarCollapsed);
 export function toggleSidebar(pathname = typeof location === "undefined" ? "/app" : location.pathname) {
+  if (ownsSidebar(pathname)) return;
   const p = readLayout();
   if (onMailPath(pathname)) setLayout({ sidebarOnMail: !p.sidebarOnMail });
   else setLayout({ sidebarCollapsed: !p.sidebarCollapsed });

@@ -1,6 +1,6 @@
 /**
  * R80C: Settings, Connections. The workspace's outside apps (social networks first, then everything else in the
- * catalog) and the Social posts panel, as two tabs of one pane: /app/settings/apps and /app/settings/apps/social.
+ * catalog). P1 layout: the Social posts tab moved out to Social (/app/social); its old address redirects there.
  * R82F (MB-279): the one home for outside apps. Mail accounts (was Settings, Connected accounts) and Webhooks (was
  * Workspace, Integrations) are tabs here too: /app/settings/apps/mail and /app/settings/apps/webhooks; the old
  * addresses redirect.
@@ -23,10 +23,6 @@ import { ConfirmDialog } from "@/web/components/ui/confirm";
 import { IconClock, IconKey, IconLock, IconMegaphone, IconPlug, IconRefresh, IconSearch, IconTrash } from "@/web/components/ui/icon";
 import { APP_GROUPS, SOCIAL_FIRST, type AppAvailability, type AppGroup, type ConnectedAccountView } from "@/shared/integrations";
 import { DIRECT_NAMES, type DirectAccountView, type DirectStatusResponse } from "@/shared/direct-social";
-// R82F (MB-280): the Social posts panel loads with its own tab.
-const SocialPanel = lazyPage(() => import("./apps-social"), "SocialPanel", { quiet: true });
-// R83: TikTok and Threads through our own sign in, at the top of the Social posts tab.
-const DirectAccounts = lazyPage(() => import("./apps-direct"), "DirectAccounts", { quiet: true });
 
 // R82F (MB-279, MB-280): the two older panes load only when their tab opens, so the Apps tab stays light.
 const MailAccounts = lazyPage(() => import("./connections"), "ConnectionsSettings", { quiet: true });
@@ -122,17 +118,16 @@ const STATUS_COPY: Record<ConnectedAccountView["status"], { label: string; tone:
   disabled: { label: "Turned off", tone: "neutral" },
 };
 
-export type ConnectionsTab = "apps" | "social" | "mail" | "webhooks";
-/** `short` is the phone label, so all four tabs fit at 390 px without a cut off last tab. */
+export type ConnectionsTab = "apps" | "mail" | "webhooks";
+/** `short` is the phone label, so all tabs fit at 390 px without a cut off last tab. P1 layout: Social posts left for Social. */
 export const CONNECTION_TABS: { id: ConnectionsTab; label: string; short: string; to: string }[] = [
   { id: "apps", label: "Apps", short: "Apps", to: "/app/settings/apps" },
-  { id: "social", label: "Social posts", short: "Social", to: "/app/settings/apps/social" },
   { id: "mail", label: "Mail accounts", short: "Mail", to: "/app/settings/apps/mail" },
   { id: "webhooks", label: "Webhooks", short: "Webhooks", to: "/app/settings/apps/webhooks" },
 ];
 export function connectionsTabFor(pathname: string): ConnectionsTab {
   const last = pathname.replace(/\/+$/, "").split("/").pop();
-  return last === "social" || last === "mail" || last === "webhooks" ? last : "apps";
+  return last === "mail" || last === "webhooks" ? last : "apps";
 }
 
 function Tabs({ current }: { current: ConnectionsTab }) {
@@ -158,13 +153,12 @@ export function AppsSettings() {
       <Tabs current={current} />
       {current === "mail" ? <Suspense fallback={<TabFallback />}><MailAccounts /></Suspense>
         : current === "webhooks" ? <Suspense fallback={<TabFallback />}><Webhooks embedded /></Suspense>
-        : current === "social" ? <><Suspense fallback={null}><DirectAccounts /></Suspense><OutsideApps social /></>
-        : <OutsideApps social={false} />}
+        : <OutsideApps />}
     </div>
   );
 }
 
-function OutsideApps({ social }: { social: boolean }) {
+function OutsideApps() {
   const status = useAppsStatus();
   useAppAccounts(); // R82F (MB-280): asked at the same time as the status, not after it
   if (status.isPending) return <div className="space-y-4" data-testid="apps-settings"><Skeleton className="h-11 rounded-lg" /><GridSkeleton /></div>;
@@ -186,8 +180,20 @@ function OutsideApps({ social }: { social: boolean }) {
   return (
     <div className="space-y-5" data-testid="apps-settings">
       {!status.data.canManage && <p className="inline-flex items-center gap-1.5 text-[13px] text-subtle"><IconLock className="h-3.5 w-3.5" aria-hidden />Only owners and admins can connect apps or post.</p>}
-      {social ? <Suspense fallback={<TabFallback />}><SocialPanel canManage={status.data.canManage} /></Suspense> : <AppsGallery canManage={status.data.canManage} />}
+      <SocialPointer />
+      <AppsGallery canManage={status.data.canManage} />
     </div>
+  );
+}
+
+/** P1 layout: one line that says where posting went, so nobody looks for it here. */
+function SocialPointer() {
+  return (
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-fill px-3 py-2.5 text-[13px] text-muted" data-testid="social-pointer">
+      <IconMegaphone className="h-4 w-4 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1">Writing, planning and checking social posts now lives in Social.</span>
+      <NavLink to="/app/social" className="inline-flex min-h-8 items-center font-medium text-fg underline underline-offset-2 hover:text-muted">Open Social</NavLink>
+    </p>
   );
 }
 
@@ -200,7 +206,7 @@ function GridSkeleton() {
 }
 
 /** Coming back from the provider's sign in page: confirm the account, say so, and tidy the address bar. */
-function useConnectReturn() {
+export function useConnectReturn() {
   const [params, setParams] = useSearchParams();
   const qc = useQueryClient();
   const done = useRef(false);
@@ -358,14 +364,14 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
                   {a.connectedAt && <span>Connected {timeAgo(a.connectedAt)}</span>}
                 </p>
               </div>
-              <Button variant="outline" size="sm" className="max-sm:w-full" onClick={() => navigate("/app/settings/apps/social")} aria-label={`Manage ${DIRECT_NAMES[a.provider]}`}>
+              <Button variant="outline" size="sm" className="max-sm:w-full" onClick={() => navigate("/app/social/accounts")} aria-label={`Manage ${DIRECT_NAMES[a.provider]}`}>
                 <IconMegaphone className="h-4 w-4" aria-hidden />Manage and post
               </Button>
             </div>
           ))}
         </Card>
         {connected.some((a) => a.status === "active" && a.app in { facebook: 1, instagram: 1, linkedin: 1, pinterest: 1, reddit: 1 }) && (
-          <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate("/app/settings/apps/social")}>
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate("/app/social/new")}>
             <IconMegaphone className="h-4 w-4" aria-hidden />Write a social post
           </Button>
         )}
