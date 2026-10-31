@@ -173,6 +173,8 @@ export interface AppConfig {
   helpdesk?: boolean;
   /** R107: e-sign v2 (ESIGN_V2, on unless "off"): email code identity, richer signing record, seal, templates, bulk send. Stamped per request, so older links keep their flow. */
   esignV2?: boolean;
+  /** R122: the help center in Docs and the public /help pages (HELP_CENTER=on). Off unless set; each workspace turns its own on. */
+  helpCenter?: boolean;
   channels: { enabled: boolean; meta?: { appId: string; appSecret: string; verifyToken: string; configId: string; graphVersion: string }; mock: boolean; dailySoftCap: number };
   /**
    * Free addresses (round 17): a Multies-owned domain that every workspace can take an address on
@@ -288,6 +290,7 @@ const EnvSchema = z.object({
   CHAT_CHANNELS: z.string().optional(),
   HELPDESK: z.string().optional(),
   ESIGN_V2: z.string().optional(),
+  HELP_CENTER: z.string().optional(),
   CHANNELS_DAILY_SOFT_CAP: z.string().optional(),
   TOOLS_ENABLED: z.string().optional(),
   CRM_TIMELINE: z.string().optional(),
@@ -653,6 +656,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     channels: channelsConfig(env, mode),
     helpdesk: env.HELPDESK !== "off",
     esignV2: env.ESIGN_V2 !== "off",
+    helpCenter: ["on", "true", "1"].includes(String(env.HELP_CENTER ?? "").toLowerCase()),
     operatorInbox: operatorInbox(env.SUPPORT_EMAIL?.trim() || "support@multies.si", env.OPERATOR_INBOX_ORG_ID, env.OPERATOR_INBOX_ADDRESSES),
     freeMail: {
       domain: freeMailDomain(env.FREE_MAIL_DOMAIN, env.APP_URL),

@@ -17,6 +17,8 @@ export interface Me {
 }
 
 export interface PublicConfig {
+  /** R122: the help center in Docs. */
+  helpCenter?: boolean;
   appName: string;
   mode: "production" | "development";
   demoEnabled: boolean;

@@ -100,6 +100,7 @@ import { authEmailSettingsRoutes } from "./routes/auth-email-settings-r27";
 import { formRoutes, meetingRoutes, publicRoutes, reportRoutes, timeRoutes } from "./routes/suite-r7";
 import { formResultsRoutes } from "./routes/forms-r31";
 import { helpdeskRoutes, surveyRoutes, widgetRoutes, WIDGET_JS_HEADERS } from "./routes/helpdesk"; // R119
+import { helpCenterRoutes, helpPublicRoutes } from "./routes/help-center"; // R122
 import { WIDGET_JS } from "./routes/widget-script"; // R119
 import { meetingRecordingRoutes } from "./routes/meeting-recordings";
 import { checkRoutes } from "./routes/check";
@@ -408,6 +409,8 @@ export function createApp(deps: Deps) {
       tools: deps.config.tools.enabled,
       // Tools P2: the P2 features on here (TOOLS_FEATURES), so menus can follow each flag without another request.
       toolFeatures: deps.config.tools.enabled ? activeToolFeatures(deps) : [],
+      // R122: the help center in Docs (HELP_CENTER=on).
+      helpCenter: !!deps.config.helpCenter,
       // R43: whether the import pages say a run carries on after the page closes (BACKGROUND_COPY).
       backgroundCopy: !!deps.config.backgroundCopy,
       // R89: whiteboards, diagrams, mind map and Present in Docs (DOCS_VISUAL; on unless "off").
@@ -465,6 +468,11 @@ export function createApp(deps: Deps) {
     app.route("/api/widget", widgetRoutes());
     app.get("/widget.js", (c) => c.body(WIDGET_JS, 200, WIDGET_JS_HEADERS));
     app.route("/csat", surveyRoutes());
+  }
+  if (deps.config.helpCenter) {
+    // R122: the help center (team API) and its public pages /help/<slug> (only what a workspace published).
+    app.route("/api/help-center", helpCenterRoutes());
+    app.route("/help", helpPublicRoutes());
   }
   app.route("/api/mail/snippets", mailSnippetRoutes()); // Round 22: saved replies
   app.route("/api/mail/splits", mailSplitRoutes()); // R31: split inbox

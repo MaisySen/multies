@@ -1178,6 +1178,30 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0118_help_center",
+    "statements": [
+      "-- R122: help center (public knowledge base and Q&A). Additive only. Public pages read only rows a workspace published.\nCREATE TABLE `hc_settings` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`on` integer DEFAULT 0 NOT NULL,\n\t`slug` text NOT NULL,\n\t`name` text DEFAULT '' NOT NULL,\n\t`intro` text DEFAULT '' NOT NULL,\n\t`qa_on` integer DEFAULT 1 NOT NULL,\n\t`moderate` integer DEFAULT 1 NOT NULL,\n\t`suggest_in_chat` integer DEFAULT 1 NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `hc_settings_slug_uq` ON `hc_settings` (`slug`);",
+      "CREATE TABLE `hc_categories` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`slug` text NOT NULL,\n\t`description` text DEFAULT '' NOT NULL,\n\t`position` real DEFAULT 0 NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `hc_categories_slug_uq` ON `hc_categories` (`org_id`,`slug`);",
+      "CREATE TABLE `hc_articles` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`category_id` text,\n\t`doc_id` text,\n\t`doc_version` integer,\n\t`slug` text NOT NULL,\n\t`title` text NOT NULL,\n\t`summary` text DEFAULT '' NOT NULL,\n\t`body_html` text DEFAULT '' NOT NULL,\n\t`body_text` text DEFAULT '' NOT NULL,\n\t`status` text DEFAULT 'draft' NOT NULL,\n\t`position` real DEFAULT 0 NOT NULL,\n\t`helpful_yes` integer DEFAULT 0 NOT NULL,\n\t`helpful_no` integer DEFAULT 0 NOT NULL,\n\t`views` integer DEFAULT 0 NOT NULL,\n\t`published_at` integer,\n\t`created_by` text,\n\t`updated_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `hc_articles_slug_uq` ON `hc_articles` (`org_id`,`slug`);",
+      "CREATE INDEX `hc_articles_org_status_idx` ON `hc_articles` (`org_id`,`status`,`category_id`,`position`);",
+      "CREATE INDEX `hc_articles_doc_idx` ON `hc_articles` (`org_id`,`doc_id`);",
+      "CREATE TABLE `hc_questions` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`category_id` text,\n\t`title` text NOT NULL,\n\t`body` text DEFAULT '' NOT NULL,\n\t`author_name` text DEFAULT '' NOT NULL,\n\t`source` text DEFAULT 'public' NOT NULL,\n\t`ticket_id` text,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`votes` integer DEFAULT 0 NOT NULL,\n\t`answer_count` integer DEFAULT 0 NOT NULL,\n\t`accepted_answer_id` text,\n\t`visitor_hash` text,\n\t`published_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `hc_questions_org_status_idx` ON `hc_questions` (`org_id`,`status`,`created_at`);",
+      "CREATE INDEX `hc_questions_org_votes_idx` ON `hc_questions` (`org_id`,`status`,`votes`);",
+      "CREATE TABLE `hc_answers` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`question_id` text NOT NULL,\n\t`body` text NOT NULL,\n\t`author_kind` text DEFAULT 'visitor' NOT NULL,\n\t`author_user_id` text,\n\t`author_name` text DEFAULT '' NOT NULL,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`votes` integer DEFAULT 0 NOT NULL,\n\t`visitor_hash` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`question_id`) REFERENCES `hc_questions`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `hc_answers_question_idx` ON `hc_answers` (`question_id`,`status`,`created_at`);",
+      "CREATE INDEX `hc_answers_org_status_idx` ON `hc_answers` (`org_id`,`status`,`created_at`);",
+      "CREATE TABLE `hc_votes` (\n\t`org_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`item_id` text NOT NULL,\n\t`voter_hash` text NOT NULL,\n\t`value` integer NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`kind`, `item_id`, `voter_hash`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE TABLE `hc_feedback` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`article_id` text NOT NULL,\n\t`helpful` integer NOT NULL,\n\t`comment` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`article_id`) REFERENCES `hc_articles`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `hc_feedback_org_idx` ON `hc_feedback` (`org_id`,`created_at`);",
+      "CREATE TABLE `hc_terms` (\n\t`org_id` text NOT NULL,\n\t`term` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`item_id` text NOT NULL,\n\t`weight` integer DEFAULT 1 NOT NULL,\n\tPRIMARY KEY(`org_id`, `term`, `kind`, `item_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `hc_terms_item_idx` ON `hc_terms` (`item_id`);"
+    ]
+  },
+  {
     "name": "0119_r107_esign_v2",
     "statements": [
       "-- R107 (Oct 31): e-sign upgrade. Additive only: new columns, two tables, one index, one trigger.\n-- Identity codes per signer, a richer append only signing record, a per workspace seal key, templates and bulk send.\nALTER TABLE `sign_requests` ADD `v2` integer DEFAULT 0 NOT NULL;",

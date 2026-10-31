@@ -31,6 +31,8 @@ export class IsolateCache<V> {
   }
   /** Drops every key that starts with `prefix` (keys are "<userId>:..."). */
   forgetPrefix(prefix: string) { for (const k of this.map.keys()) if (k.startsWith(prefix)) this.map.delete(k); }
+  /** R122: drops one entry (a changed setting must not wait out the TTL in this isolate). */
+  delete(key: string) { this.map.delete(key); }
   clear() { this.map.clear(); }
 }
 

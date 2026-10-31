@@ -304,6 +304,7 @@ simple = { limit = 300, period = 60 }
 binding = "AI"
 
 [env.staging.vars]
+HELP_CENTER = "on" # R122: help center (prod after the verifier passes)
 TIKTOK_SCOPES = "user.info.basic,video.upload,video.publish"
 # Tools P1: document tools on staging, through the document engine with the staging key id.
 TOOLS_ENABLED = "true"

@@ -3013,3 +3013,124 @@ export const flowDigestItems = sqliteTable("flow_digest_items", {
   sentAt: ts("sent_at"),
   createdAt: createdAt(),
 }, (t) => [index("flow_digest_due_idx").on(t.sentAt, t.sendAt), index("flow_digest_flow_idx").on(t.flowId, t.nodeId)]);
+// ---------------------------------------------------------------------------------------------------------------
+// R122: help center. Public pages read only rows a workspace published (status "published" while hc_settings.on).
+// ---------------------------------------------------------------------------------------------------------------
+export const hcSettings = sqliteTable("hc_settings", {
+  orgId: text("org_id").primaryKey().references(() => organizations.id, { onDelete: "cascade" }),
+  on: integer("on", { mode: "boolean" }).notNull().default(false),
+  slug: text("slug").notNull(),
+  name: text("name").notNull().default(""),
+  intro: text("intro").notNull().default(""),
+  qaOn: integer("qa_on", { mode: "boolean" }).notNull().default(true),
+  moderate: integer("moderate", { mode: "boolean" }).notNull().default(true),
+  suggestInChat: integer("suggest_in_chat", { mode: "boolean" }).notNull().default(true),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [uniqueIndex("hc_settings_slug_uq").on(t.slug)]);
+
+export const hcCategories = sqliteTable("hc_categories", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  description: text("description").notNull().default(""),
+  position: real("position").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [uniqueIndex("hc_categories_slug_uq").on(t.orgId, t.slug)]);
+
+/** A published snapshot of a doc: editing the doc changes nothing public until someone presses Update. */
+export const hcArticles = sqliteTable("hc_articles", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  categoryId: text("category_id"),
+  docId: text("doc_id"),
+  docVersion: integer("doc_version"),
+  slug: text("slug").notNull(),
+  title: text("title").notNull(),
+  summary: text("summary").notNull().default(""),
+  bodyHtml: text("body_html").notNull().default(""),
+  bodyText: text("body_text").notNull().default(""),
+  status: text("status", { enum: ["draft", "published"] }).notNull().default("draft"),
+  position: real("position").notNull().default(0),
+  helpfulYes: integer("helpful_yes").notNull().default(0),
+  helpfulNo: integer("helpful_no").notNull().default(0),
+  views: integer("views").notNull().default(0),
+  publishedAt: integer("published_at"),
+  createdBy: text("created_by"),
+  updatedBy: text("updated_by"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [
+  uniqueIndex("hc_articles_slug_uq").on(t.orgId, t.slug),
+  index("hc_articles_org_status_idx").on(t.orgId, t.status, t.categoryId, t.position),
+  index("hc_articles_doc_idx").on(t.orgId, t.docId),
+]);
+
+export const hcQuestions = sqliteTable("hc_questions", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  categoryId: text("category_id"),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  authorName: text("author_name").notNull().default(""),
+  source: text("source", { enum: ["public", "ticket", "team"] }).notNull().default("public"),
+  ticketId: text("ticket_id"),
+  status: text("status", { enum: ["pending", "published", "hidden"] }).notNull().default("pending"),
+  votes: integer("votes").notNull().default(0),
+  answerCount: integer("answer_count").notNull().default(0),
+  acceptedAnswerId: text("accepted_answer_id"),
+  visitorHash: text("visitor_hash"),
+  publishedAt: integer("published_at"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [
+  index("hc_questions_org_status_idx").on(t.orgId, t.status, t.createdAt),
+  index("hc_questions_org_votes_idx").on(t.orgId, t.status, t.votes),
+]);
+
+export const hcAnswers = sqliteTable("hc_answers", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  questionId: text("question_id").notNull().references(() => hcQuestions.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  authorKind: text("author_kind", { enum: ["team", "visitor"] }).notNull().default("visitor"),
+  authorUserId: text("author_user_id"),
+  authorName: text("author_name").notNull().default(""),
+  status: text("status", { enum: ["pending", "published", "hidden"] }).notNull().default("pending"),
+  votes: integer("votes").notNull().default(0),
+  visitorHash: text("visitor_hash"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [
+  index("hc_answers_question_idx").on(t.questionId, t.status, t.createdAt),
+  index("hc_answers_org_status_idx").on(t.orgId, t.status, t.createdAt),
+]);
+
+/** One vote per visitor per item (kind q, a or f for article feedback); the visitor is a keyed hash, no address is kept. */
+export const hcVotes = sqliteTable("hc_votes", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  itemId: text("item_id").notNull(),
+  voterHash: text("voter_hash").notNull(),
+  value: integer("value").notNull(),
+  createdAt: integer("created_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.kind, t.itemId, t.voterHash] })]);
+
+export const hcFeedback = sqliteTable("hc_feedback", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  articleId: text("article_id").notNull().references(() => hcArticles.id, { onDelete: "cascade" }),
+  helpful: integer("helpful", { mode: "boolean" }).notNull(),
+  comment: text("comment"),
+  createdAt: integer("created_at").notNull(),
+}, (t) => [index("hc_feedback_org_idx").on(t.orgId, t.createdAt)]);
+
+/** Search: a small term index per workspace (prefix range on term), written when an item is published. */
+export const hcTerms = sqliteTable("hc_terms", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  term: text("term").notNull(),
+  kind: text("kind", { enum: ["a", "q"] }).notNull(),
+  itemId: text("item_id").notNull(),
+  weight: integer("weight").notNull().default(1),
+}, (t) => [primaryKey({ columns: [t.orgId, t.term, t.kind, t.itemId] }), index("hc_terms_item_idx").on(t.itemId)]);
