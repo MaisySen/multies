@@ -160,7 +160,7 @@ export interface MailRule {
   id: string; name: string; mailboxId: string; match: "all" | "any"; conditions: MailRuleConditionT[]; actions: MailRuleActionT[];
   enabled: boolean; position: number; runCount: number; lastRunAt: string | null; lastError: string | null; createdAt: string; updatedAt: string;
 }
-export interface MailRuleRun { id: string; messageId: string | null; from: string | null; subject: string | null; status: "ok" | "partial" | "failed" | "skipped"; steps: { action: RuleActionKind; ok: boolean; detail?: string }[]; createdAt: string }
+export interface MailRuleRun { id: string; messageId: string | null; from: string | null; subject: string | null; status: "ok" | "partial" | "failed" | "skipped"; steps: { action: RuleActionKind; ok: boolean; detail?: string; skipped?: true }[]; createdAt: string }
 
 export interface RuleMessage { from: string; fromName?: string; to: string[]; subject: string; hasAttachments: boolean }
 

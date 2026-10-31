@@ -160,7 +160,7 @@ export async function testRule(deps: Deps, a: RuleActor, scope: string[] | null,
 // ---------------------------------------------------------------- running
 
 interface Ctx { deps: Deps; rule: Row; owner: { userId: string; email: string; name: string; role: AuthContext["role"] }; msg: typeof messages.$inferSelect; quiet?: boolean }
-type Step = { action: RuleActionKind; ok: boolean; detail?: string };
+type Step = { action: RuleActionKind; ok: boolean; detail?: string; skipped?: true };
 
 async function ownAddresses(deps: Deps, orgId: string) {
   return new Set((await deps.db.select({ address: mailboxes.address }).from(mailboxes).where(eq(mailboxes.orgId, orgId))).map((r) => r.address.toLowerCase()));
@@ -206,7 +206,7 @@ async function runAction(c: Ctx, act: MailRuleActionT, guard: { own: Set<string>
       return step(true);
     }
     case "forward": case "auto_reply": {
-      if (c.quiet) return step(false, "Not sent: replies and forwards only run on new mail.");
+      if (c.quiet) return { action: act.kind, ok: true, skipped: true, detail: "Skipped: replies and forwards only go to new mail." };
       const from = msg.fromAddress.toLowerCase();
       if (guard.own.has(from)) return step(false, "Not sent: the mail came from this workspace.");
       if (guard.sends && guard.sends.total >= RULE_SENDS_PER_DAY) return step(false, `Not sent: this rule already sent ${RULE_SENDS_PER_DAY} today.`);
@@ -271,8 +271,10 @@ export async function runRuleOn(deps: Deps, rule: Row, msg: typeof messages.$inf
           steps.push({ action: act.kind, ok: false, detail: (err instanceof Error ? err.message : "Failed").slice(0, 200) });
         }
       }
-      const ok = steps.filter((s) => s.ok).length;
-      status = ok === steps.length ? "ok" : ok ? "partial" : "failed";
+      // A send left out on purpose ("Run on recent mail") is neither done nor a problem.
+      const counted = steps.filter((s) => !s.skipped);
+      const ok = counted.filter((s) => s.ok).length;
+      status = !counted.length ? "skipped" : ok === counted.length ? "ok" : ok ? "partial" : "failed";
     }
   }
   const now = deps.now();

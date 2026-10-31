@@ -140,12 +140,14 @@ function RuleRow({ rule, box, replyName, onToggle, onEdit, onLog, onDelete, onRu
         <p className="mt-1 text-[12px] text-subtle">{box && <>{box} · </>}{rule.runCount ? `Ran ${rule.runCount} ${rule.runCount === 1 ? "time" : "times"}, last ${timeAgo(rule.lastRunAt)}` : "Hasn't run yet"}</p>
       </div>
       <div className="flex shrink-0 items-center gap-0.5">
-        <Button variant="ghost" size="icon" onClick={onLog} aria-label="Run log" title="Run log"><IconHistory className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" onClick={onLog} aria-label="Run log" title="Run log" className="max-sm:hidden"><IconHistory className="h-4 w-4" /></Button>
         <Button variant="ghost" size="icon" onClick={onRun} loading={running} aria-label="Run on recent mail" title="Run on recent mail" className="max-sm:hidden"><IconPlay className="h-4 w-4" /></Button>
-        <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Edit" title="Edit"><IconEdit className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Edit" title="Edit" className="max-sm:hidden"><IconEdit className="h-4 w-4" /></Button>
         <Button variant="ghost" size="icon" onClick={onDelete} aria-label={`Delete ${rule.name}`} title="Delete" className="max-sm:hidden"><IconTrash className="h-4 w-4" /></Button>
         <div className="sm:hidden">
           <Menu label={`More for ${rule.name}`} sheet trigger={<Button variant="ghost" size="icon"><IconMore className="h-4 w-4" /></Button>}>
+            <MenuItem icon={<IconEdit />} onSelect={onEdit}>Edit</MenuItem>
+            <MenuItem icon={<IconHistory />} onSelect={onLog}>Run log</MenuItem>
             <MenuItem icon={<IconPlay />} onSelect={onRun}>Run on recent mail</MenuItem>
             <MenuItem icon={<IconTrash />} danger onSelect={onDelete}>Delete</MenuItem>
           </Menu>
@@ -325,8 +327,9 @@ function RunLog({ rule, onClose }: { rule: MailRule | null; onClose: () => void 
                   <div className="mt-0.5 flex gap-2 text-[12px] text-subtle"><span className="min-w-0 flex-1 truncate">{r.from}</span><time dateTime={r.createdAt}>{timeAgo(r.createdAt)}</time></div>
                   <ul className="mt-1 flex flex-wrap gap-1">
                     {r.steps.map((s, j) => (
-                      <li key={j} className={cn("inline-flex items-center gap-1 rounded-md px-1.5 text-[11.5px] leading-5", s.ok ? "bg-ok-soft text-ok" : "bg-bad-soft text-bad")} title={s.detail}>
-                        {s.ok ? <IconCheck className="h-3 w-3" aria-hidden /> : <IconWarning className="h-3 w-3" aria-hidden />}{RULE_ACTION_LABEL[s.action]}{s.detail && !s.ok ? `: ${s.detail}` : ""}
+                      <li key={j} className={cn("inline-flex max-w-full items-center gap-1 rounded-md px-1.5 text-[11.5px] leading-5", s.skipped ? "bg-fill text-muted" : s.ok ? "bg-ok-soft text-ok" : "bg-bad-soft text-bad")} title={s.detail}>
+                        {s.skipped ? null : s.ok ? <IconCheck className="h-3 w-3 shrink-0" aria-hidden /> : <IconWarning className="h-3 w-3 shrink-0" aria-hidden />}
+                        <span className="truncate">{RULE_ACTION_LABEL[s.action]}{s.skipped ? ": skipped on recent mail" : s.detail && !s.ok ? `: ${s.detail}` : ""}</span>
                       </li>
                     ))}
                   </ul>

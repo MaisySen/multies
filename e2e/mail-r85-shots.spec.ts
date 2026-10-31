@@ -87,13 +87,19 @@ test("mail screenshots and axe", async ({ page, context, baseURL }) => {
       await shot(page, `mail-after-rules-${size}-${scheme}`);
       if (!(await noSideways(page))) bad.push(`${scheme} ${w} rules: sideways scroll`);
       bad.push(...(await axe(page, `${scheme} ${w} rules`)));
-      await page.getByTestId(`rule-${rule.rule.id}`).getByRole("button", { name: /Edit/ }).click();
+      const rowAct = async (name: string) => {
+        const row = page.getByTestId(`rule-${rule.rule.id}`);
+        if (w === 1280) return row.getByRole("button", { name }).click();
+        await row.getByRole("button", { name: /^More for/ }).click();
+        await page.getByRole("menuitem", { name }).click();
+      };
+      await rowAct("Edit");
       await page.getByRole("button", { name: "Test on recent mail" }).click();
       await expect(page.getByTestId("rule-test-result")).toBeVisible();
       await shot(page, `mail-after-rule-editor-${size}-${scheme}`);
       bad.push(...(await axe(page, `${scheme} ${w} rule editor`)));
       await page.keyboard.press("Escape");
-      await page.getByTestId(`rule-${rule.rule.id}`).getByRole("button", { name: /Run log/ }).click();
+      await rowAct("Run log");
       await expect(page.getByTestId("rule-runs")).toBeVisible();
       await shot(page, `mail-after-rule-log-${size}-${scheme}`);
       await page.keyboard.press("Escape");

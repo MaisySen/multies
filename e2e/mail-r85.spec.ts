@@ -62,7 +62,7 @@ test("tab style, move to tab with Undo, and labels", async ({ page, baseURL }) =
   await page.request.put("/api/mail/splits/style", { headers: { origin: new URL(baseURL!).origin }, data: { style: "off" } });
   await page.goto(`/app/mail?mailbox=${mb.id}`);
   await expect(page.getByRole("tablist", { name: "Inbox tabs" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Edit tabs" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Turn on tabs" })).toBeVisible();
 
   // A label from the reader shows as a chip, in the list and in the Labels list.
   await page.goto(`/app/mail?mailbox=${mb.id}&m=${pick.id}`);

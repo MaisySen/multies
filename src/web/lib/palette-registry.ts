@@ -2,7 +2,7 @@
  * R30: what the command menu can jump to and do, in one list, plus its fuzzy matching.
  * tests/palette-r30.test.ts checks every app page in router.tsx has an entry here.
  */
-import { IconPlugZap, IconMegaphone, IconWrench, IconPenLine, IconActivity, IconAgent, IconAssign, IconBell, IconBook, IconBriefcase, IconCalendarClock, IconCalendarDays, IconChart, IconChats, IconClipboardCheck, IconClipboardList, IconCompose, IconContacts, IconCreditCard, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHandshake, IconInbox, IconKey, IconKeyboard, IconLink, IconMail, IconMention, IconMessageCircle, IconMoon, IconPlug, IconPlus, IconSettings, IconShieldCheck, IconSmartphone, IconSquarePlus, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconUserCog, IconVideo, IconZap, IconAttachment } from "@/web/components/ui/icon";
+import { IconPlugZap, IconMegaphone, IconWrench, IconPenLine, IconActivity, IconAgent, IconAssign, IconBell, IconBook, IconBriefcase, IconCalendarClock, IconCalendarDays, IconChart, IconChats, IconClipboardCheck, IconClipboardList, IconCompose, IconContacts, IconCreditCard, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHandshake, IconInbox, IconKey, IconKeyboard, IconLink, IconMail, IconMention, IconMessageCircle, IconMoon, IconPlug, IconPlus, IconSettings, IconShieldCheck, IconSmartphone, IconSquarePlus, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconUserCog, IconVideo, IconZap, IconAttachment, IconWorkflow } from "@/web/components/ui/icon";
 
 export type PaletteIcon = React.ComponentType<{ className?: string }>;
 /**
@@ -47,6 +47,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-templates", label: "Project templates", to: "/app/templates", icon: IconTemplate, keywords: ["blueprints", "templates"] },
   { id: "p-automations", label: "Automations", to: "/app/automations", icon: IconZap, keywords: ["rules", "workflows", "recipes"] },
   { id: "p-mail", label: "Mail", to: "/app/mail", icon: IconInbox, keywords: ["inbox", "webmail", "email"] },
+  { id: "p-mail-rules", label: "Mail rules", to: "/app/mail/rules", icon: IconWorkflow, keywords: ["filters", "labels", "auto reply", "forward", "sort mail", "inbox tabs"] }, // R85
   { id: "p-shared-inbox", label: "Shared inbox", to: "/app/inbox", icon: IconChats, keywords: ["team inbox", "support", "assign"] },
   { id: "p-mailboxes", label: "Mailboxes and aliases", to: "/app/mailboxes", icon: IconTeam, keywords: ["addresses", "alias"] },
   { id: "p-domains", label: "Domains", to: "/app/domains", icon: IconGlobe, keywords: ["dns"] },

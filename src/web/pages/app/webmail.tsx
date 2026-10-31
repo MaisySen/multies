@@ -6,7 +6,7 @@ import { FreeAddressCard, useFreeAddress } from "@/web/components/free-address";
 import { MailSyncBanner } from "@/web/components/mail-sync-progress";
 import { folderEmpty } from "@/web/lib/empty-copy-r36"; // R36
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { applyMailAction, type MailAction, type MailListData } from "@/web/lib/optimistic-mail"; // R30
 import { SwipeRow } from "@/web/components/ui/swipe-row";
@@ -473,7 +473,7 @@ export function WebmailPage() {
         {splitsOn && splitTabs.length > 0 && <SplitTabs tabs={splitTabs} active={split} onChange={setSplit} onEdit={() => setEditSplits(true)} onDropMessage={(id, tab) => teach.mutate({ messageId: id, tab })} />}
         {splitsOn && splits.data && splitTabs.length === 0 && (
           <div className="flex items-center justify-end border-b border-line px-2 py-1">
-            <button type="button" onClick={() => setEditSplits(true)} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[12px] text-subtle hover:bg-hover hover:text-fg max-sm:h-10" aria-label="Edit tabs">Turn on tabs</button>
+            <button type="button" onClick={() => setEditSplits(true)} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[12px] text-subtle hover:bg-hover hover:text-fg max-sm:h-10">Turn on tabs</button>
           </div>
         )}
         <div className="flex items-center justify-between px-4 py-2 text-xs text-subtle">
@@ -576,7 +576,7 @@ export function WebmailPage() {
             </div>
           )}
           <div className="pt-3">
-            <ButtonLink to={`/app/mail/rules?mailbox=${mailboxId}`} variant="ghost" className="w-full justify-start gap-2.5 px-2.5 text-[13.5px] font-normal text-muted" data-testid="mail-rules-link"><IconWorkflow className="h-4 w-4" />Rules</ButtonLink>
+            <Link to={`/app/mail/rules?mailbox=${mailboxId}`} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] text-muted transition-colors hover:bg-hover hover:text-fg" data-testid="mail-rules-link"><IconWorkflow className="h-4 w-4" />Rules</Link>
           </div>
         </nav>
         <div className="border-t border-line p-3 text-[11px] text-subtle">

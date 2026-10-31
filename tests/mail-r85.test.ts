@@ -203,7 +203,10 @@ describe("mail rules", () => {
     expect(ctx.outbound.sent.length).toBe(before);
     expect(await subjects("promotions")).toEqual(["Old one"]);
     const runs = (await owner.get(`/api/mail/rules/${r.id}/runs`)).body.runs;
-    expect(runs[0].status).toBe("partial");
+    // The forward is left out on purpose, so the run counts as done and the rule shows no problem.
+    expect(runs[0].status).toBe("ok");
+    expect(runs[0].steps[1]).toMatchObject({ action: "forward", skipped: true });
+    expect((await owner.get(`/api/mail/rules/${r.id}`)).body.rule.lastError).toBeNull();
   });
 
   it("keeps rules to their owner", async () => {
