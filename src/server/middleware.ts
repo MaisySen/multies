@@ -29,7 +29,7 @@ export const csrfGuard: MiddlewareHandler<AppEnv> = async (c, next) => {
   // custom upload header, which a cross-site form cannot send without a CORS preflight (the Origin check above still runs).
   // Tools P2: the same for every upload under /api/tools/ (AI documents, share, sign), each with the header.
   // R77: a workspace logo upload (raw image bytes) under /api/branding/logo/ with the same header.
-  if (hasBody && c.req.header("x-multies-upload") === "1" && ((m === "POST" && c.req.path.startsWith("/api/tools/")) || (m === "PUT" && c.req.path.startsWith("/api/branding/logo/")))) return next();
+  if (hasBody && c.req.header("x-multies-upload") === "1" && ((m === "POST" && c.req.path.startsWith("/api/tools/")) || (m === "PUT" && c.req.path.startsWith("/api/branding/logo/")) || (m === "POST" && c.req.path === "/api/direct/tiktok/videos" /* R83: a TikTok video upload */))) return next();
   if (hasBody && !isJsonContentType(c.req.header("content-type"))) throw new HttpError(403, "bad_content_type", "Requests must be JSON.");
   await next();
 };

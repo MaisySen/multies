@@ -33,6 +33,8 @@ export async function tiktokStart(deps: Deps, auth: AuthContext) {
     client_key: t.clientKey, response_type: "code", scope: TIKTOK_SCOPES.join(","), redirect_uri: redirectUri(deps, "tiktok"), state,
     code_challenge: await challengeHex(verifier), code_challenge_method: "S256",
   });
+  // Local stand in only (mock.ts): no consent page, straight back with a code.
+  if (new URL(t.authUrl).hostname === "tiktok.mock") return `${redirectUri(deps, "tiktok")}?${new URLSearchParams({ code: "mock-code", state, scopes: TIKTOK_SCOPES.join(",") })}`;
   return `${t.authUrl}?${q}`;
 }
 

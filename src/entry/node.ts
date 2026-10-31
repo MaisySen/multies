@@ -46,6 +46,7 @@ import { decryptSecret } from "../server/lib/crypto";
 import { eq } from "drizzle-orm";
 import { fakeAiAllowed, fakeAiFetch } from "../server/services/ai/fake-fetch";
 import { mockComposioAllowed, mockComposioFetch } from "../server/services/integrations/mock"; // R80C: local stand in only
+import { mockDirectAllowed, mockDirectFetch } from "../server/services/direct-social/mock"; // R83: local stand in only
 import { AUTH_SHELL_PATHS, BRAND_CACHE, AUTH_CARD_PATH, loginHtmlFor, originHintsFor, withOriginHints, type LoginPrerender } from "../shared/prerender-shell";
 import { loginVariant } from "../server/auth/config";
 
@@ -80,7 +81,7 @@ const dns = config.dnsResolver === "node" ? new NodeResolver() : new DohResolver
 const deps = {
   db, indexDb, config, dns, outbound, now: () => new Date(),
   // Round 23: AI_FAKE=1 on a localhost APP_URL answers the AI providers locally (end to end tests only).
-  fetch: ((f: typeof fetch) => (mockComposioAllowed(process.env) ? mockComposioFetch(f) : f))(fakeAiAllowed(process.env) ? fakeAiFetch(globalThis.fetch.bind(globalThis)) : globalThis.fetch.bind(globalThis)),
+  fetch: ((f: typeof fetch) => (mockDirectAllowed(process.env) ? mockDirectFetch(f) : f))(((f: typeof fetch) => (mockComposioAllowed(process.env) ? mockComposioFetch(f) : f))(fakeAiAllowed(process.env) ? fakeAiFetch(globalThis.fetch.bind(globalThis)) : globalThis.fetch.bind(globalThis))),
   log: jsonLogger({ service: "mymail-api", release: config.release, env: config.sentry.environment }),
   authenticate: mailauthAuthenticator(),
   bodyStore: config.bodyStore ? new S3BodyStore(config.bodyStore) : undefined,

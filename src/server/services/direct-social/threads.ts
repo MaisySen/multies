@@ -28,6 +28,7 @@ export async function threadsStart(deps: Deps, auth: AuthContext) {
   const t = cfg(deps);
   const state = await makeState(deps, auth, "threads", randomToken(8));
   const q = new URLSearchParams({ client_id: t.appId, redirect_uri: redirectUri(deps, "threads"), scope: THREADS_SCOPES.join(","), response_type: "code", state });
+  if (new URL(t.authUrl).hostname === "threads.mock") return `${redirectUri(deps, "threads")}?${new URLSearchParams({ code: "mock-code", state })}`;
   return `${t.authUrl}?${q}`;
 }
 
