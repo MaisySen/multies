@@ -76,7 +76,7 @@ export function HelpCenterPage() {
     <div className="mx-auto max-w-5xl">
       <PageHeader
         title="Help center"
-        description={s.on ? <span className="inline-flex flex-wrap items-center gap-2">Live at <a className="font-medium text-brand hover:underline break-all" href={c.url ?? "#"} target="_blank" rel="noreferrer">{c.url?.replace(/^https?:\/\//, "")}</a>{c.url && <CopyButton value={c.url} label="Copy link" toastText="Link copied" />}</span> : "Turned off: visitors see nothing until you turn it on in Settings."}
+        description={s.on ? <span className="inline-flex flex-wrap items-center gap-2">Live at <a className="break-all font-medium text-fg underline underline-offset-2 hover:text-brand" href={c.url ?? "#"} target="_blank" rel="noreferrer">{c.url?.replace(/^https?:\/\//, "")}</a>{c.url && <CopyButton value={c.url} label="Copy link" toastText="Link copied" />}</span> : "Turned off: visitors see nothing until you turn it on in Settings."}
         actions={<>
           {c.url && s.on && <a className="inline-flex h-9 items-center gap-2 rounded-lg border border-line-strong px-4 text-sm font-medium hover:bg-hover max-sm:min-h-11" href={c.url} target="_blank" rel="noreferrer"><IconExternalLink className="h-4 w-4" aria-hidden />View help center</a>}
           {c.canEdit && <Button onClick={() => setPublishOpen(true)}><IconPlus className="h-4 w-4" aria-hidden />Publish a doc</Button>}
@@ -164,13 +164,13 @@ function ArticlesTab({ c, onPublish }: { c: CenterOut; onPublish: () => void }) 
   return (
     <>
       <Card className="overflow-hidden max-md:hidden">
-        <table className="w-full text-sm">
-          <thead className="border-b border-line text-left text-xs font-medium text-muted"><tr><th className="px-4 py-2.5">Title</th><th className="px-3 py-2.5">Category</th><th className="px-3 py-2.5">Status</th><th className="px-3 py-2.5">Helpful</th><th className="px-3 py-2.5 text-right">Views</th><th className="px-4 py-2.5"><span className="sr-only">Actions</span></th></tr></thead>
+        <table className="w-full table-fixed text-sm">
+          <thead className="border-b border-line text-left text-xs font-medium text-muted"><tr><th className="w-[38%] px-4 py-2.5">Title</th><th className="w-[14%] px-3 py-2.5">Category</th><th className="w-[16%] px-3 py-2.5">Status</th><th className="w-[12%] px-3 py-2.5">Helpful</th><th className="w-[7%] px-3 py-2.5 text-right">Views</th><th className="w-[13%] px-4 py-2.5"><span className="sr-only">Actions</span></th></tr></thead>
           <tbody className="divide-y divide-line">
             {rows.map((a) => (
               <tr key={a.id} className="transition-colors hover:bg-hover/50">
                 <td className="max-w-0 px-4 py-3"><a className="line-clamp-2 font-medium hover:underline" href={link(a)} target="_blank" rel="noreferrer">{a.title}</a>{a.summary && <p className="truncate text-xs text-muted">{a.summary}</p>}</td>
-                <td className="px-3 py-3 text-muted">{a.categoryId ? catName.get(a.categoryId) ?? "" : <span className="text-subtle">None</span>}</td>
+                <td className="truncate px-3 py-3 text-muted">{a.categoryId ? catName.get(a.categoryId) ?? "" : <span className="text-subtle">None</span>}</td>
                 <td className="px-3 py-3">{status(a)}</td>
                 <td className="px-3 py-3 whitespace-nowrap text-muted">{helpful(a)}</td>
                 <td className="px-3 py-3 text-right tabular-nums text-muted">{a.views}</td>
@@ -281,7 +281,7 @@ function QuestionDialog({ id, c, onClose }: { id: string; c: CenterOut; onClose:
   const d = q.data?.question;
   return (
     <Dialog open onClose={onClose} title={d?.title ?? "Question"} className="sm:max-w-2xl"
-      description={d ? <span className="inline-flex flex-wrap items-center gap-2"><Badge tone={d.status === "published" ? "ok" : d.status === "pending" ? "warn" : "neutral"}>{POST_STATUS_LABEL[d.status]}</Badge>{d.authorName && <span>Asked by {d.authorName}</span>}{d.url && d.status === "published" && c.settings?.on && <a className="text-brand hover:underline" href={d.url} target="_blank" rel="noreferrer">Open public page</a>}</span> : undefined}
+      description={d ? <span className="inline-flex flex-wrap items-center gap-2"><Badge tone={d.status === "published" ? "ok" : d.status === "pending" ? "warn" : "neutral"}>{POST_STATUS_LABEL[d.status]}</Badge>{d.authorName && <span>Asked by {d.authorName}</span>}{d.url && d.status === "published" && c.settings?.on && <a className="text-fg underline underline-offset-2 hover:text-brand" href={d.url} target="_blank" rel="noreferrer">Open public page</a>}</span> : undefined}
       footer={d && c.canEdit ? <>
         <Button variant="danger" onClick={() => setConfirmDel(true)} className="mr-auto"><IconTrash className="h-4 w-4" aria-hidden />Delete</Button>
         {d.status !== "hidden" && <Button variant="ghost" onClick={() => m.mutate({ op: "status", status: "hidden" })}>Hide</Button>}

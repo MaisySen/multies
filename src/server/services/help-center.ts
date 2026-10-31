@@ -187,7 +187,7 @@ export async function getArticle(deps: Deps, a: AuthContext, id: string) {
 async function snapshotOfDoc(deps: Deps, orgId: string, docId: string) {
   const d = await deps.db.select().from(docs).where(and(eq(docs.id, docId), eq(docs.orgId, orgId), isNull(docs.deletedAt))).get();
   if (!d) throw notFound("Doc");
-  let html = "";
+  let html: string;
   try { html = renderDocHtml(JSON.parse(d.content), base(deps)); } catch { html = ""; }
   return { title: d.title.trim() || "Untitled", html, text: d.plainText, version: d.version };
 }

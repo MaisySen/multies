@@ -47,7 +47,8 @@ describe("search terms", () => {
   it("keeps at most 6 distinct query words; the prefix range is exclusive", () => {
     expect(queryTerms("one two three four five six seven eight one")).toEqual(["one", "two", "three", "four", "five", "six"]);
     expect(prefixEnd("bill")).toBe("bilm");
-    expect("billing" >= "bill" && "billing" < prefixEnd("bill")).toBe(true);
+    const word = "billing";
+    expect(word >= "bill" && word < prefixEnd("bill")).toBe(true);
     expect("bilm" < prefixEnd("bill")).toBe(false);
   });
 });
