@@ -112,7 +112,7 @@ describe("snooze a thread", () => {
     const take = meter(ctx.db);
     const s = await c.post("/api/mail-schedules/snooze", { messageId: m.id, preset: "tomorrow" });
     expect(s.status).toBe(201);
-    expect(take("mail_schedules")).toBe(2); // the row and its one index
+    expect(take("mail_schedules")).toBe(3); // the row and its two indexes (R133: due, and thread for the per inbound reply check)
     expect(await inboxIds(hello.id)).not.toContain(m.id);
     const snoozed = (await c.get(`/api/mail-schedules?view=snoozed&mailboxId=${hello.id}`)).body.items;
     expect(snoozed).toHaveLength(1);
@@ -127,7 +127,7 @@ describe("snooze a thread", () => {
     const due = new Date(new Date(s.body.dueAt).getTime() + 1000);
     const [a, b] = await Promise.all([runMailSchedules(ctx.deps, { now: due }), runMailSchedules(ctx.deps, { now: due })]);
     expect(a.returned + b.returned).toBe(1);
-    expect(take("mail_schedules")).toBe(2);
+    expect(take("mail_schedules")).toBe(3);
     expect(await inboxIds(hello.id)).toContain(m.id);
     const returned = (await c.get(`/api/mail-schedules?view=returned&mailboxId=${hello.id}`)).body.items;
     expect(returned).toHaveLength(1);
@@ -137,7 +137,7 @@ describe("snooze a thread", () => {
     // Opening it clears the marker (2 rows); opening again writes nothing.
     take();
     expect((await c.post("/api/mail-schedules/opened", { messageId: m.id })).body.cleared).toBe(1);
-    expect(take("mail_schedules")).toBe(2);
+    expect(take("mail_schedules")).toBe(3);
     expect((await c.post("/api/mail-schedules/opened", { messageId: m.id })).body.cleared).toBe(0);
     expect(take("mail_schedules")).toBe(0);
   });
@@ -188,7 +188,7 @@ describe("send later", () => {
     const take = meter(ctx.db);
     const r = await c.post("/api/mail-schedules/send", { message: { mailboxId: hello.id, to: ["bob@example.com"], subject: "Later", text: "Sent later" }, ...later() });
     expect(r.status).toBe(201);
-    expect(take("mail_schedules")).toBe(2);
+    expect(take("mail_schedules")).toBe(3);
     expect(ctx.outbound.sent.find((m) => m.subject === "Later")).toBeUndefined();
     const items = (await c.get("/api/mail-schedules?view=scheduled")).body.items;
     expect(items).toHaveLength(1);
@@ -211,7 +211,7 @@ describe("send later", () => {
     expect(moved.status).toBe(200);
     const take = meter(ctx.db);
     expect((await c.del(`/api/mail-schedules/${r.body.id}`)).status).toBe(200);
-    expect(take("mail_schedules")).toBe(2);
+    expect(take("mail_schedules")).toBe(3);
     expect((await runMailSchedules(ctx.deps, { now: new Date(Date.now() + 2 * DAY) })).sent).toBe(0);
     expect(ctx.outbound.sent.find((m) => m.subject === "Never")).toBeUndefined();
     expect((await c.del(`/api/mail-schedules/${r.body.id}`)).status).toBe(404);
@@ -271,11 +271,11 @@ describe("remind me if no reply", () => {
     const take = meter(ctx.db);
     const r = await c.post("/api/mail-schedules/remind", { messageId: sent.body.messageId, days: 2 });
     expect(r.status).toBe(201);
-    expect(take("mail_schedules")).toBe(2);
+    expect(take("mail_schedules")).toBe(3);
     expect((await runMailSchedules(ctx.deps, { now: new Date(Date.now() + DAY) })).reminded).toBe(0);
     const res = await runMailSchedules(ctx.deps, { now: new Date(Date.now() + 2 * DAY + 60_000) });
     expect(res.reminded).toBe(1);
-    expect(take("mail_schedules")).toBe(2);
+    expect(take("mail_schedules")).toBe(3);
     const returned = (await c.get(`/api/mail-schedules?view=returned&mailboxId=${hello.id}`)).body.items;
     expect(returned[0]).toMatchObject({ kind: "remind", status: "returned", message: { subject: "Following up" } });
   });
