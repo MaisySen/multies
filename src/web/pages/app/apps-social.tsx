@@ -30,6 +30,10 @@ export const POST_STATUS: Record<PostStatus, { label: string; tone: "ok" | "warn
   partial: { label: "Partly posted", tone: "warn" },
   failed: { label: "Not posted", tone: "bad" },
   canceled: { label: "Canceled", tone: "neutral" },
+  draft: { label: "Draft", tone: "neutral" },
+  review: { label: "Waiting for approval", tone: "brand" },
+  changes: { label: "Changes asked", tone: "warn" },
+  rejected: { label: "Rejected", tone: "neutral" },
 };
 
 export function whenText(iso: string) {

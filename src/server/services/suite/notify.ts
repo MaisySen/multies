@@ -83,6 +83,7 @@ export function linkFor(n: { entityType: string; entityId: string; type: string 
     case "task": return `/app/tasks?task=${encodeURIComponent(n.entityId)}`;
     case "chat_message": return chatChannelId ? `/app/chat/${encodeURIComponent(chatChannelId)}?m=${encodeURIComponent(n.entityId)}` : "/app/chat";
     case "approval": return "/app/approvals";
+    case "social_post": return n.type === "social.post_review" ? "/app/approvals" : `/app/social/posts#post-${encodeURIComponent(n.entityId)}`;
     case "message": return `/app/mail?m=${encodeURIComponent(n.entityId)}`;
     case "thread": return `/app/inbox?thread=${encodeURIComponent(n.entityId)}`;
     case "goal": return `/app/goals?goal=${encodeURIComponent(n.entityId)}`;

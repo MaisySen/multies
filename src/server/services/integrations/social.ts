@@ -6,7 +6,7 @@
  */
 import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
-import { socialMedia, socialPostTargets, socialPosts } from "../../db/schema";
+import { directSocialLinks, socialMedia, socialPostTargets, socialPosts } from "../../db/schema";
 import { newId, randomToken, toB64, fromB64 } from "../../lib/crypto";
 import { inIds } from "../../lib/sql-chunks";
 import { HttpError, forbidden, notFound } from "../../lib/errors";
@@ -18,6 +18,10 @@ import {
 } from "@/shared/integrations";
 import { appLabel, isAdmin, limitWrite, platform, platformUserId, statusOf, toHttp } from "./service";
 import { IntegrationError, type Composio, type CpAccount } from "./composio";
+import {
+  canPublish, cleanCampaign, composerChecks, formatFit, NETWORK_RULES, pollProblem, SOCIAL_FORMATS, textFor,
+  type PostExtras, type SocialFormat,
+} from "@/shared/social-p2";
 
 /** Due posts one cron pass takes; the rest wait for the next pass. */
 export const SOCIAL_PASS_LIMIT = 10;
@@ -32,7 +36,23 @@ export interface CreatePostInput {
   targets: { accountId: string; target?: string | null; targetName?: string | null }[];
   /** ISO instant; missing or in the past means now. */
   runAt?: string | null;
+  /** R117: composer v2. Images beyond the first make a carousel; an image can be a library image (kept media id). */
+  images?: ({ contentType: string; dataB64: string } | { mediaId: string })[] | null;
+  format?: SocialFormat | null;
+  /** Per network text (key = network), inherits the main text when missing. */
+  texts?: Record<string, string> | null;
+  extras?: PostExtras | null;
+  campaign?: string | null;
+  evergreen?: boolean;
+  /** send (owners and admins), draft (anyone) or submit (anyone: waits for approval). */
+  mode?: "send" | "draft" | "submit";
 }
+
+/** R117: the id a TikTok or Threads account has in a post (our own sign in, not Connections). */
+export const DIRECT_ACCOUNT = (p: "threads" | "tiktok") => `direct:${p}`;
+const directOf = (accountId: string): "threads" | "tiktok" | null => (accountId === "direct:threads" ? "threads" : accountId === "direct:tiktok" ? "tiktok" : null);
+/** Most images one post carries (a carousel). */
+export const SOCIAL_MAX_IMAGES = 10;
 
 export interface TargetProblem { accountId: string; code: string }
 
@@ -52,25 +72,72 @@ function sniff(bytes: Uint8Array): "image/png" | "image/jpeg" | null {
   return null;
 }
 
-export async function createPost(deps: Deps, auth: AuthContext, input: CreatePostInput, opts: { ip?: string | null } = {}): Promise<SocialPostView> {
-  if (!isAdmin(auth)) throw forbidden("Only owners and admins can post.");
-  const cp = platform(deps);
-  limitWrite(auth.orgId);
+interface PreparedPost {
+  text: string; format: SocialFormat; texts: Record<string, string> | null; extras: PostExtras | null; campaign: string | null; evergreen: boolean;
+  runAt: Date; rows: { accountId: string; app: string; label: string; target: string | null; targetName: string | null }[];
+  uploads: { id: string; token: string; contentType: string; bytes: Uint8Array }[]; mediaIds: string[];
+}
+
+function cleanTexts(main: string, texts: Record<string, string> | null | undefined): Record<string, string> | null {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(texts ?? {})) {
+    if (!(k in NETWORK_RULES) || typeof v !== "string") continue;
+    const t = v.trim();
+    if (!t || t === main) continue;
+    if (t.length > SOCIAL_TEXT_MAX) throw new HttpError(422, "too_long", "That post is too long.");
+    out[k] = t;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+function cleanExtras(x: PostExtras | null | undefined, strict: boolean): PostExtras | null {
+  if (!x) return null;
+  const firstComment = (x.firstComment ?? "").trim().slice(0, 2000) || null;
+  let poll = x.poll ?? null;
+  if (poll) {
+    poll = { question: (poll.question ?? "").trim(), options: (poll.options ?? []).map((o) => String(o).trim()).filter(Boolean), days: Number(poll.days) };
+    const bad = pollProblem(poll);
+    if (bad && strict) throw new HttpError(422, "bad_poll", bad);
+  }
+  const out: PostExtras = { ...(firstComment ? { firstComment } : {}), ...(poll ? { poll } : {}), ...(x.linkCard ? { linkCard: true } : {}) };
+  return Object.keys(out).length ? out : null;
+}
+
+/** Reads, checks and shapes what a post will be. Drafts skip the account checks (they are checked on submit). */
+async function preparePost(deps: Deps, auth: AuthContext, input: CreatePostInput, mode: "send" | "draft" | "submit"): Promise<PreparedPost> {
   const text = input.text.trim();
-  if (!text) throw new HttpError(422, "empty", "Write something to post.");
   if (text.length > SOCIAL_TEXT_MAX) throw new HttpError(422, "too_long", "That post is too long.");
-  if (!input.targets.length) throw new HttpError(422, "no_targets", "Pick at least one account.");
+  const strict = mode !== "draft";
+  const list = [...(input.image ? [input.image] : []), ...(input.images ?? [])];
+  if (list.length > SOCIAL_MAX_IMAGES) throw new HttpError(422, "too_many_images", `A post can carry ${SOCIAL_MAX_IMAGES} images at most.`);
+  if (!text && !list.length) throw new HttpError(422, "empty", "Write something to post.");
+  if (strict && !input.targets.length) throw new HttpError(422, "no_targets", "Pick at least one account.");
   const uniqueIds = [...new Set(input.targets.map((t) => t.accountId))];
   if (uniqueIds.length !== input.targets.length || uniqueIds.length > 20) throw new HttpError(422, "bad_targets", "Pick each account once, 20 at most.");
 
-  let bytes: Uint8Array | null = null;
-  let contentType: string | null = null;
-  if (input.image) {
-    try { bytes = fromB64(input.image.dataB64); } catch { throw new HttpError(422, "bad_image", "That image could not be read."); }
+  const uploads: PreparedPost["uploads"] = [];
+  const mediaIds: string[] = [];
+  const libIds = list.filter((m): m is { mediaId: string } => "mediaId" in m).map((m) => m.mediaId);
+  const kept = libIds.length ? await deps.db.select({ id: socialMedia.id }).from(socialMedia).where(and(eq(socialMedia.orgId, auth.orgId), eq(socialMedia.kept, true), inIds(socialMedia.id, libIds))).all() : [];
+  const keptSet = new Set(kept.map((k) => k.id));
+  for (const m of list) {
+    if ("mediaId" in m) {
+      if (!keptSet.has(m.mediaId)) throw new HttpError(422, "bad_image", "That library image is no longer there. Pick another.");
+      mediaIds.push(m.mediaId);
+      continue;
+    }
+    let bytes: Uint8Array;
+    try { bytes = fromB64(m.dataB64); } catch { throw new HttpError(422, "bad_image", "That image could not be read."); }
     if (bytes.length > SOCIAL_IMAGE_MAX_BYTES) throw new HttpError(422, "image_too_big", "Images can be up to 1 MB.");
-    contentType = sniff(bytes);
+    const contentType = sniff(bytes);
     if (!contentType) throw new HttpError(422, "bad_image", "Use a JPEG or PNG image.");
+    const id = newId("sm");
+    uploads.push({ id, token: randomToken(18), contentType, bytes });
+    mediaIds.push(id);
   }
+  const format: SocialFormat = input.format && (SOCIAL_FORMATS as readonly string[]).includes(input.format) ? input.format : mediaIds.length > 1 ? "carousel" : mediaIds.length ? "image" : "text";
+  const texts = cleanTexts(text, input.texts);
+  const extras = cleanExtras(input.extras, strict);
 
   const now = deps.now();
   let runAt = now;
@@ -81,32 +148,108 @@ export async function createPost(deps: Deps, auth: AuthContext, input: CreatePos
     if (t.getTime() > now.getTime()) runAt = t;
   }
 
-  // Every account must belong to this workspace and be live: one platform read for all of them.
-  let accounts;
-  try { accounts = await cp.accounts(platformUserId(cp, auth.orgId)); } catch (err) { return toHttp(err); }
+  // Every account must belong to this workspace and be live: one platform read for all of them, one read for TikTok and Threads.
+  const viaPlatform = input.targets.filter((t) => !directOf(t.accountId));
+  const viaDirect = input.targets.filter((t) => directOf(t.accountId));
+  let accounts: CpAccount[] = [];
+  if (strict && viaPlatform.length) {
+    const cp = platform(deps);
+    try { accounts = await cp.accounts(platformUserId(cp, auth.orgId)); } catch (err) { return toHttp(err); }
+    accounts = accounts.filter((a) => a.user_id === platformUserId(cp, auth.orgId));
+  } else if (!strict && viaPlatform.length) {
+    try { const cp = platform(deps); accounts = await cp.accounts(platformUserId(cp, auth.orgId)); } catch { accounts = []; }
+  }
+  const links = viaDirect.length ? await deps.db.select({ provider: directSocialLinks.provider, username: directSocialLinks.username, status: directSocialLinks.status }).from(directSocialLinks).where(eq(directSocialLinks.orgId, auth.orgId)).all() : [];
   const byId = new Map(accounts.map((a) => [a.id, a]));
-  const problems: TargetProblem[] = [];
+  const problems: (TargetProblem & { text?: string })[] = [];
   const rows = input.targets.map((t) => {
-    const a = byId.get(t.accountId);
-    const app = a?.toolkit?.slug ?? "";
-    const code = !a || a.user_id !== platformUserId(cp, auth.orgId) || statusOf(a.status) !== "active" ? "account_gone" : checkTarget(app, text, !!bytes, t.target);
-    if (code) problems.push({ accountId: t.accountId, code });
-    return { accountId: t.accountId, app, label: a?.alias?.trim() || appLabel(app), target: (t.target ?? "").trim() || null, targetName: (t.targetName ?? "").trim().slice(0, 200) || null };
+    const direct = directOf(t.accountId);
+    const link = direct ? links.find((l) => l.provider === direct) : undefined;
+    const a = direct ? undefined : byId.get(t.accountId);
+    const app = direct ?? a?.toolkit?.slug ?? "";
+    const label = direct ? (link?.username ? `@${link.username}` : appLabel(direct)) : a?.alias?.trim() || appLabel(app);
+    const row = { accountId: t.accountId, app, label, target: (t.target ?? "").trim() || null, targetName: (t.targetName ?? "").trim().slice(0, 200) || null };
+    if (!strict) return row;
+    const live = direct ? !!link && link.status !== "expired" : !!a && statusOf(a.status) === "active";
+    if (!live || direct === "tiktok") { problems.push({ accountId: t.accountId, code: direct === "tiktok" ? "not_supported" : "account_gone" }); return row; }
+    const legacy = checkTarget(app, textFor(text, texts, app), mediaIds.length > 0, t.target);
+    if (legacy) { problems.push({ accountId: t.accountId, code: legacy }); return row; }
+    const chk = composerChecks({ format, main: text, texts, images: mediaIds.map(() => ({ w: 1, h: 1 })), extras, accounts: [{ id: t.accountId, app, target: row.target, needsTarget: !!SOCIAL_NETWORKS[app]?.target }], scheduled: runAt > now })[0]!;
+    if (chk.state === "out") problems.push({ accountId: t.accountId, code: "check", text: chk.notes[0] });
+    return row;
   });
   if (problems.length) throw new HttpError(422, "target_problems", "Some accounts can't take this post.", { problems });
+  return { text, format, texts, extras, campaign: cleanCampaign(input.campaign), evergreen: !!input.evergreen, runAt, rows, uploads, mediaIds };
+}
 
+async function writeUploads(deps: Deps, orgId: string, uploads: PreparedPost["uploads"]) {
+  for (const u of uploads) await deps.db.insert(socialMedia).values({ id: u.id, orgId, token: u.token, contentType: u.contentType, sizeBytes: u.bytes.length, contentB64: toB64(u.bytes), createdAt: deps.now() });
+}
+
+const STATUS_FOR_MODE = { send: "scheduled", draft: "draft", submit: "review" } as const;
+
+export async function createPost(deps: Deps, auth: AuthContext, input: CreatePostInput, opts: { ip?: string | null } = {}): Promise<SocialPostView> {
+  const mode = input.mode ?? "send";
+  if (mode === "send" && !canPublish(auth.role)) throw forbidden("Only owners and admins can post. Submit it for approval instead.");
+  limitWrite(auth.orgId);
+  const pp = await preparePost(deps, auth, input, mode);
+  const now = deps.now();
   const postId = newId("sp");
-  let mediaId: string | null = null;
+  await writeUploads(deps, auth.orgId, pp.uploads);
+  await deps.db.insert(socialPosts).values({
+    id: postId, orgId: auth.orgId, createdBy: auth.userId, text: pp.text, mediaId: pp.mediaIds[0] ?? null, status: STATUS_FOR_MODE[mode], runAt: pp.runAt, createdAt: now, updatedAt: now,
+    format: pp.format, texts: pp.texts ? JSON.stringify(pp.texts) : null, extras: pp.extras ? JSON.stringify(pp.extras) : null,
+    mediaIds: pp.mediaIds.length > 1 ? JSON.stringify(pp.mediaIds.slice(1)) : null, campaign: pp.campaign, evergreen: pp.evergreen,
+    submittedBy: mode === "submit" ? auth.userId : null,
+  });
   const writes: Promise<unknown>[] = [];
-  if (bytes && contentType) {
-    mediaId = newId("sm");
-    await deps.db.insert(socialMedia).values({ id: mediaId, orgId: auth.orgId, token: randomToken(18), contentType, sizeBytes: bytes.length, contentB64: toB64(bytes), createdAt: now });
-  }
-  await deps.db.insert(socialPosts).values({ id: postId, orgId: auth.orgId, createdBy: auth.userId, text, mediaId, status: "scheduled", runAt, createdAt: now, updatedAt: now });
-  writes.push(deps.db.insert(socialPostTargets).values(rows.map((r) => ({ postId, accountId: r.accountId, app: r.app, label: r.label, target: r.target, targetName: r.targetName, status: "pending" as const }))));
-  writes.push(audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: runAt > now ? "social.post_scheduled" : "social.post_created", targetType: "social_post", targetId: postId, metadata: { accounts: rows.length, apps: [...new Set(rows.map((r) => r.app))], image: !!mediaId }, ip: opts.ip ?? null }));
+  if (pp.rows.length) writes.push(deps.db.insert(socialPostTargets).values(pp.rows.map((r) => ({ postId, accountId: r.accountId, app: r.app, label: r.label, target: r.target, targetName: r.targetName, status: "pending" as const }))));
+  const action = mode === "draft" ? "social.post_drafted" : mode === "submit" ? "social.post_submitted" : pp.runAt > now ? "social.post_scheduled" : "social.post_created";
+  writes.push(audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action, targetType: "social_post", targetId: postId, metadata: { accounts: pp.rows.length, apps: [...new Set(pp.rows.map((r) => r.app))], image: pp.mediaIds.length > 0, images: pp.mediaIds.length, format: pp.format }, ip: opts.ip ?? null }));
   await Promise.all(writes);
   return getPost(deps, auth.orgId, postId);
+}
+
+/**
+ * R117: changes a post that has not gone out (a draft, one sent back, one waiting, or a scheduled one). The mode says
+ * where it goes next. The update is guarded by the status it was read with, so two people never both win.
+ */
+export async function updatePost(deps: Deps, auth: AuthContext, id: string, input: CreatePostInput, opts: { ip?: string | null } = {}): Promise<SocialPostView> {
+  const mode = input.mode ?? "send";
+  if (mode === "send" && !canPublish(auth.role)) throw forbidden("Only owners and admins can post. Submit it for approval instead.");
+  limitWrite(auth.orgId);
+  const post = await deps.db.select().from(socialPosts).where(and(eq(socialPosts.id, id), eq(socialPosts.orgId, auth.orgId))).get();
+  if (!post) throw notFound("Post");
+  const editable = ["draft", "changes", "review", "scheduled", "rejected"].includes(post.status);
+  const mayEdit = ["draft", "changes"].includes(post.status) ? post.createdBy === auth.userId || canPublish(auth.role) : canPublish(auth.role);
+  if (!editable) throw new HttpError(409, "not_editable", "This post has already gone out, so it can't be changed.");
+  if (!mayEdit) throw forbidden("Only the person who wrote it, an owner or an admin can change this post.");
+  const pp = await preparePost(deps, auth, input, mode);
+  const now = deps.now();
+  await writeUploads(deps, auth.orgId, pp.uploads);
+  const r = await deps.db.update(socialPosts).set({
+    text: pp.text, mediaId: pp.mediaIds[0] ?? null, status: STATUS_FOR_MODE[mode], runAt: pp.runAt, updatedAt: now,
+    format: pp.format, texts: pp.texts ? JSON.stringify(pp.texts) : null, extras: pp.extras ? JSON.stringify(pp.extras) : null,
+    mediaIds: pp.mediaIds.length > 1 ? JSON.stringify(pp.mediaIds.slice(1)) : null, campaign: pp.campaign, evergreen: pp.evergreen,
+    ...(mode === "submit" ? { submittedBy: auth.userId, reviewNote: null, reviewedBy: null, reviewedAt: null } : {}),
+  }).where(and(eq(socialPosts.id, id), eq(socialPosts.status, post.status))).returning({ id: socialPosts.id });
+  if (!r.length) throw new HttpError(409, "changed", "Someone changed this post at the same time. Open it again.");
+  await deps.db.delete(socialPostTargets).where(eq(socialPostTargets.postId, id));
+  if (pp.rows.length) await deps.db.insert(socialPostTargets).values(pp.rows.map((t) => ({ postId: id, accountId: t.accountId, app: t.app, label: t.label, target: t.target, targetName: t.targetName, status: "pending" as const })));
+  // Images the post no longer uses go (library images are kept).
+  const before = [post.mediaId, ...parseIds(post.mediaIds)].filter((x): x is string => !!x).filter((m) => !pp.mediaIds.includes(m));
+  if (before.length) await deps.db.delete(socialMedia).where(and(inIds(socialMedia.id, before), eq(socialMedia.kept, false)));
+  await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: mode === "submit" ? "social.post_submitted" : "social.post_changed", targetType: "social_post", targetId: id, ip: opts.ip ?? null });
+  return getPost(deps, auth.orgId, id);
+}
+
+export function parseIds(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try { const v = JSON.parse(raw) as unknown; return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []; } catch { return []; }
+}
+export function parseJson<T>(raw: string | null | undefined): T | null {
+  if (!raw) return null;
+  try { return JSON.parse(raw) as T; } catch { return null; }
 }
 
 export async function getPost(deps: Deps, orgId: string, id: string): Promise<SocialPostView> {
@@ -119,37 +262,66 @@ function mediaUrl(deps: Deps, m: { id: string; token: string } | undefined) {
   return m ? `${deps.config.appUrl}/api/social/media/${m.id}/${m.token}` : null;
 }
 
-async function viewsFor(deps: Deps, orgId: string, ids?: string[], limit = 50): Promise<SocialPostView[]> {
-  const where = ids ? and(eq(socialPosts.orgId, orgId), inIds(socialPosts.id, ids)) : eq(socialPosts.orgId, orgId);
-  const posts = await deps.db.select().from(socialPosts).where(where).orderBy(desc(socialPosts.runAt)).limit(limit).all();
+async function viewsFor(deps: Deps, orgId: string, ids?: string[], limit = 50, opts: { all?: boolean; from?: Date; to?: Date; statuses?: string[] } = {}): Promise<SocialPostView[]> {
+  const conds = [eq(socialPosts.orgId, orgId)];
+  if (ids) conds.push(inIds(socialPosts.id, ids));
+  // R117: drafts and posts waiting for approval only reach callers that ask for them (the phone app 1.10.6 never does).
+  if (!ids && !opts.all) conds.push(sql`${socialPosts.status} not in ('draft','review','changes','rejected')`);
+  if (opts.statuses?.length) conds.push(inArray(socialPosts.status, opts.statuses as PostStatus[]));
+  if (opts.from) conds.push(sql`${socialPosts.runAt} >= ${opts.from.getTime()}`);
+  if (opts.to) conds.push(sql`${socialPosts.runAt} < ${opts.to.getTime()}`);
+  const posts = await deps.db.select().from(socialPosts).where(and(...conds)).orderBy(desc(socialPosts.runAt)).limit(limit).all();
   if (!posts.length) return [];
   const pIds = posts.map((p) => p.id);
-  const mIds = posts.map((p) => p.mediaId).filter((x): x is string => !!x);
+  const mIds = [...new Set(posts.flatMap((p) => [p.mediaId, ...parseIds(p.mediaIds)]).filter((x): x is string => !!x))];
   const [targets, media] = await Promise.all([
     deps.db.select().from(socialPostTargets).where(inIds(socialPostTargets.postId, pIds)).all(),
     mIds.length ? deps.db.select({ id: socialMedia.id, token: socialMedia.token }).from(socialMedia).where(inIds(socialMedia.id, mIds)).all() : Promise.resolve([]),
   ]);
   const mById = new Map(media.map((m) => [m.id, m]));
-  return posts.map((p) => ({
-    id: p.id,
-    text: p.text,
-    imageUrl: p.mediaId ? mediaUrl(deps, mById.get(p.mediaId)) : null,
-    status: p.status as PostStatus,
-    runAt: p.runAt.toISOString(),
-    createdAt: p.createdAt.toISOString(),
-    createdBy: p.createdBy,
-    targets: targets.filter((t) => t.postId === p.id).map((t) => ({
-      accountId: t.accountId, app: t.app, label: t.label, target: t.target, targetName: t.targetName, status: t.status as TargetStatus,
-      url: t.networkState === "removed" ? null : openableFacebookUrl(t.url), error: t.error,
-      sentAt: t.sentAt ? t.sentAt.toISOString() : null,
-      networkState: t.networkState ?? null, checkedAt: t.checkedAt ? t.checkedAt.toISOString() : null,
-      canCheck: (SOCIAL_CAN_CHECK as readonly string[]).includes(t.app), canDelete: (SOCIAL_CAN_DELETE as readonly string[]).includes(t.app),
-    })),
-  }));
+  return posts.map((p) => {
+    const all = [p.mediaId, ...parseIds(p.mediaIds)].filter((x): x is string => !!x);
+    return {
+      id: p.id,
+      text: p.text,
+      imageUrl: p.mediaId ? mediaUrl(deps, mById.get(p.mediaId)) : null,
+      status: p.status as PostStatus,
+      runAt: p.runAt.toISOString(),
+      createdAt: p.createdAt.toISOString(),
+      createdBy: p.createdBy,
+      targets: targets.filter((t) => t.postId === p.id).map((t) => ({
+        accountId: t.accountId, app: t.app, label: t.label, target: t.target, targetName: t.targetName, status: t.status as TargetStatus,
+        url: t.networkState === "removed" ? null : openableFacebookUrl(t.url), error: t.error,
+        sentAt: t.sentAt ? t.sentAt.toISOString() : null,
+        networkState: t.networkState ?? null, checkedAt: t.checkedAt ? t.checkedAt.toISOString() : null,
+        canCheck: (SOCIAL_CAN_CHECK as readonly string[]).includes(t.app), canDelete: (SOCIAL_CAN_DELETE as readonly string[]).includes(t.app),
+        note: t.note ?? null,
+      })),
+      // R117 (all optional for older readers).
+      format: (p.format as SocialFormat | null) ?? null,
+      texts: parseJson<Record<string, string>>(p.texts),
+      extras: parseJson<PostExtras>(p.extras),
+      images: all.map((id) => ({ mediaId: id, url: mediaUrl(deps, mById.get(id)) })).filter((x): x is { mediaId: string; url: string } => !!x.url),
+      campaign: p.campaign ?? null,
+      evergreen: !!p.evergreen,
+      evergreenOf: p.evergreenOf ?? null,
+      submittedBy: p.submittedBy ?? null,
+      reviewNote: p.reviewNote ?? null,
+      reviewedBy: p.reviewedBy ?? null,
+      reviewedAt: p.reviewedAt ? p.reviewedAt.toISOString() : null,
+      updatedAt: p.updatedAt.toISOString(),
+    };
+  });
 }
 
-export async function listPosts(deps: Deps, auth: AuthContext): Promise<SocialPostView[]> {
-  return viewsFor(deps, auth.orgId, undefined, 50);
+export interface ListOptions { all?: boolean; from?: string | null; to?: string | null; status?: string | null }
+
+export async function listPosts(deps: Deps, auth: AuthContext, opts: ListOptions = {}): Promise<SocialPostView[]> {
+  const from = opts.from ? new Date(opts.from) : undefined;
+  const to = opts.to ? new Date(opts.to) : undefined;
+  const ranged = !!(from && to && !Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime()) && to.getTime() - from.getTime() <= 62 * 86_400_000);
+  const statuses = opts.status ? opts.status.split(",").filter((x) => /^[a-z]{3,12}$/.test(x)).slice(0, 10) : undefined;
+  return viewsFor(deps, auth.orgId, undefined, ranged ? 300 : 50, { all: !!opts.all || !!statuses?.length, from: ranged ? from : undefined, to: ranged ? to : undefined, statuses });
 }
 
 export async function cancelPost(deps: Deps, auth: AuthContext, id: string, ip?: string | null): Promise<SocialPostView> {
@@ -321,8 +493,12 @@ export async function deletePost(deps: Deps, auth: AuthContext, id: string, ip?:
 
 /* ---------------------------------------------------------------- publishing */
 
-interface PublishCtx { cp: Composio; userId: string; accountId: string; text: string; imageUrl: string | null; image: { b64: string; type: string } | null; target: string | null; now?: Date }
-interface PublishResult { status: "sent" | "failed" | "skipped"; url?: string | null; error?: string | null; remoteId?: string | null }
+interface PublishCtx {
+  cp: Composio; userId: string; accountId: string; text: string; imageUrl: string | null; image: { b64: string; type: string } | null; target: string | null; now?: Date;
+  /** R117: every image of a carousel (the first is imageUrl), and the post's extras. */
+  imageUrls?: string[]; extras?: PostExtras | null;
+}
+interface PublishResult { status: "sent" | "failed" | "skipped"; url?: string | null; error?: string | null; remoteId?: string | null; note?: string | null }
 
 function str(v: unknown): string | null { return typeof v === "string" && v ? v : typeof v === "number" ? String(v) : null; }
 
@@ -462,6 +638,12 @@ async function linkedinCall(ctx: PublishCtx, method: "GET" | "POST", endpoint: s
 }
 
 
+/** R117: LinkedIn's poll content for the Posts API (question up to 140, 2 to 4 options up to 30, a set duration). */
+export function linkedinPoll(p: { question: string; options: string[]; days: number }) {
+  const duration = p.days <= 1 ? "ONE_DAY" : p.days <= 3 ? "THREE_DAYS" : p.days <= 7 ? "SEVEN_DAYS" : "FOURTEEN_DAYS";
+  return { question: p.question.trim().slice(0, 140), options: p.options.map((o) => o.trim()).filter(Boolean).slice(0, 4).map((text) => ({ text: text.slice(0, 30) })), settings: { duration } };
+}
+
 export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResult>> = {
   async facebook(ctx) {
     // Hotfix Oct 31: a Page post must be made with the Page's own token. The platform's ready made tools post with
@@ -472,11 +654,33 @@ export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResu
     const pageToken = str((tok as { access_token?: unknown }).access_token);
     if (!pageToken) throw new PublishError("not_page_admin", "no page token");
     const link = firstUrl(ctx.text);
-    const data = ctx.imageUrl
-      ? await graph(ctx, "POST", `${page}/photos`, { url: ctx.imageUrl, caption: ctx.text, published: true, access_token: pageToken })
-      : await graph(ctx, "POST", `${page}/feed`, { message: ctx.text, ...(link ? { link } : {}), published: true, access_token: pageToken });
+    const urls = (ctx.imageUrls?.length ? ctx.imageUrls : ctx.imageUrl ? [ctx.imageUrl] : []).slice(0, NETWORK_RULES.facebook!.maxImages);
+    let data: Record<string, unknown>;
+    if (urls.length > 1) {
+      // R117: a carousel is a multi photo Page post: each photo uploaded unpublished, then one feed post with all of them.
+      const photoIds: string[] = [];
+      for (const url of urls) {
+        const ph = await graph(ctx, "POST", `${page}/photos`, { url, published: false, access_token: pageToken });
+        const pid = dig(ph, ["id"]);
+        if (!pid) throw new PublishError("bad_image", "photo not taken");
+        photoIds.push(pid);
+      }
+      data = await graph(ctx, "POST", `${page}/feed`, { message: ctx.text, attached_media: photoIds.map((media_fbid) => ({ media_fbid })), published: true, access_token: pageToken });
+    } else if (urls.length === 1) {
+      data = await graph(ctx, "POST", `${page}/photos`, { url: urls[0], caption: ctx.text, published: true, access_token: pageToken });
+    } else {
+      data = await graph(ctx, "POST", `${page}/feed`, { message: ctx.text, ...(link && ctx.extras?.linkCard !== false ? { link } : {}), published: true, access_token: pageToken });
+    }
     const id = dig(data, ["post_id", "id"]);
-    return { status: "sent", url: id ? await facebookPermalink(ctx, ctx.target, id, pageToken) : null, remoteId: id };
+    let note: string | null = null;
+    const comment = ctx.extras?.firstComment?.trim();
+    if (id && comment) {
+      // The post is up either way; a first comment that does not go is a note, never a failed post.
+      try { await graph(ctx, "POST", `${encodeURIComponent(id)}/comments`, { message: comment, access_token: pageToken }); } catch (err) {
+        note = `First comment didn't go: ${err instanceof PublishError ? (SOCIAL_ERROR_COPY[err.code] ?? err.message) : "the network did not answer"}`;
+      }
+    }
+    return { status: "sent", url: id ? await facebookPermalink(ctx, ctx.target, id, pageToken) : null, remoteId: id, note };
   },
   async instagram(ctx) {
     if (!ctx.imageUrl) return { status: "skipped", error: "needs_image" };
@@ -500,6 +704,7 @@ export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResu
       author, commentary: linkedinText(ctx.text), visibility: "PUBLIC",
       distribution: { feedDistribution: "MAIN_FEED", targetEntities: [], thirdPartyDistributionChannels: [] },
       lifecycleState: "PUBLISHED", isReshareDisabledByAuthor: false,
+      ...(ctx.extras?.poll ? { content: { poll: linkedinPoll(ctx.extras.poll) } } : {}),
     });
     const id = r.headers["x-restli-id"] ?? r.headers["x-linkedin-id"] ?? dig(r.data, ["id"]);
     return { status: "sent", url: id ? `https://www.linkedin.com/feed/update/${id}` : null, remoteId: id };
@@ -535,34 +740,72 @@ export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResu
 export async function publishPost(deps: Deps, postId: string): Promise<PostStatus> {
   const post = await deps.db.select().from(socialPosts).where(eq(socialPosts.id, postId)).get();
   if (!post || post.status !== "sending") return (post?.status ?? "failed") as PostStatus;
-  const cp = platform(deps);
-  const [targets, media] = await Promise.all([
+  const allIds = [post.mediaId, ...parseIds(post.mediaIds)].filter((x): x is string => !!x);
+  const [targets, mediaRows] = await Promise.all([
     deps.db.select().from(socialPostTargets).where(eq(socialPostTargets.postId, postId)).all(),
-    post.mediaId ? deps.db.select().from(socialMedia).where(eq(socialMedia.id, post.mediaId)).get() : Promise.resolve(undefined),
+    allIds.length ? deps.db.select().from(socialMedia).where(inIds(socialMedia.id, allIds)).all() : Promise.resolve([]),
   ]);
-  const userId = platformUserId(cp, post.orgId);
+  const ordered = allIds.map((id) => mediaRows.find((m) => m.id === id)).filter((m): m is NonNullable<typeof m> => !!m);
+  const media = ordered[0];
+  const imageUrls = ordered.map((m) => mediaUrl(deps, m)!).filter(Boolean);
+  const pending = targets.filter((t) => t.status === "pending");
+  const needsPlatform = pending.some((t) => !directOf(t.accountId));
+  const cp = needsPlatform ? platform(deps) : (null as unknown as Composio);
+  const userId = needsPlatform ? platformUserId(cp, post.orgId) : "";
   const imageUrl = media ? mediaUrl(deps, media) : null;
   const image = media ? { b64: media.contentB64, type: media.contentType } : null;
+  const texts = parseJson<Record<string, string>>(post.texts);
+  const extras = parseJson<PostExtras>(post.extras);
+  const format = (post.format as SocialFormat | null) ?? (allIds.length > 1 ? "carousel" : allIds.length ? "image" : "text");
   // Accounts post one after another per post (networks rate limit by account), different accounts in parallel.
-  await Promise.all(targets.filter((t) => t.status === "pending").map(async (t) => {
+  await Promise.all(pending.map(async (t) => {
     let res: PublishResult;
-    const pre = checkTarget(t.app, post.text, !!media, t.target);
-    if (pre) res = { status: pre === "not_supported" ? "skipped" : "failed", error: pre };
+    const text = textFor(post.text, texts, t.app);
+    const fit = formatFit(t.app, format);
+    // A network that takes the text only gets no image; one that takes one image gets the first.
+    const takesImages = fit.fit !== "changed" || !fit.how.startsWith("Text only");
+    const maxImages = NETWORK_RULES[t.app]?.maxImages ?? 1;
+    const pre = checkTarget(t.app, text, !!media && takesImages, t.target);
+    if (pre && !(pre === "needs_image" && fit.fit === "no")) res = { status: pre === "not_supported" ? "skipped" : "failed", error: pre };
+    else if (fit.fit === "no") res = { status: "failed", error: "not_supported" };
     else {
-      try { res = await PUBLISHERS[t.app]!({ cp, userId, accountId: t.accountId, text: post.text, imageUrl, image, target: t.target, now: deps.now() }); } catch (err) {
-        const code = err instanceof PublishError ? err.code : (err instanceof HttpError && err.status === 404) ? "account_gone" : "unavailable";
+      try {
+        const direct = directOf(t.accountId);
+        if (direct === "threads") {
+          const { threadsPost } = await import("../direct-social/threads");
+          const r = await threadsPost(deps, { orgId: post.orgId, userId: post.createdBy ?? "", role: "owner" } as AuthContext, { text, imageUrl: takesImages ? imageUrl : null });
+          res = { status: "sent", url: r.permalink, remoteId: r.id };
+        } else if (direct) {
+          res = { status: "skipped", error: "not_supported" };
+        } else {
+          res = await PUBLISHERS[t.app]!({
+            cp, userId, accountId: t.accountId, text, imageUrl: takesImages ? imageUrl : null, image: takesImages ? image : null, target: t.target, now: deps.now(),
+            imageUrls: takesImages ? imageUrls.slice(0, Math.max(1, maxImages)) : [], extras,
+          });
+        }
+      } catch (err) {
+        const code = err instanceof PublishError ? err.code : (err instanceof HttpError && err.status === 404) ? "account_gone" : (err instanceof HttpError && err.code === "not_connected") ? "account_gone" : "unavailable";
         deps.log?.warn("social.publish_failed", { app: t.app, code, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
         res = { status: "failed", error: err instanceof PublishError ? storedError(err) : code };
       }
     }
-    await deps.db.update(socialPostTargets).set({ status: res.status, url: res.url ?? null, error: res.error ?? null, sentAt: res.status === "sent" ? deps.now() : null, remoteId: res.remoteId ?? null, networkState: res.status === "sent" ? "live" : null, checkedAt: res.status === "sent" ? deps.now() : null })
-      .where(and(eq(socialPostTargets.postId, postId), eq(socialPostTargets.accountId, t.accountId)));
+    await deps.db.update(socialPostTargets).set({ status: res.status, url: res.url ?? null, error: res.error ?? null, sentAt: res.status === "sent" ? deps.now() : null, remoteId: res.remoteId ?? null, networkState: res.status === "sent" ? "live" : null, checkedAt: res.status === "sent" ? deps.now() : null, note: res.note ?? null })
+      .where(and(eq(socialPostTargets.postId, postId), eq(socialPostTargets.accountId, t.accountId), eq(socialPostTargets.status, "pending")));
   }));
   const after = await deps.db.select({ status: socialPostTargets.status }).from(socialPostTargets).where(eq(socialPostTargets.postId, postId)).all();
   const sent = after.filter((t) => t.status === "sent").length;
-  const status: PostStatus = sent === after.length ? "done" : sent > 0 ? "partial" : "failed";
-  await deps.db.update(socialPosts).set({ status, updatedAt: deps.now(), attempts: sql`${socialPosts.attempts} + 1` }).where(eq(socialPosts.id, postId));
+  const status: PostStatus = sent === after.length && after.length > 0 ? "done" : sent > 0 ? "partial" : "failed";
+  await deps.db.update(socialPosts).set({ status, updatedAt: deps.now(), attempts: sql`${socialPosts.attempts} + 1` }).where(and(eq(socialPosts.id, postId), eq(socialPosts.status, "sending")));
+  if (status !== "done") await notifyFailed(deps, post, status).catch(() => undefined);
   return status;
+}
+
+/** R117: nothing silent. A scheduled post that did not fully go tells the person who made it (in app). */
+async function notifyFailed(deps: Deps, post: { id: string; orgId: string; createdBy: string | null; text: string }, status: PostStatus) {
+  if (!post.createdBy) return;
+  const { notify } = await import("../suite/notify");
+  const snippet = post.text.length > 60 ? `${post.text.slice(0, 57)}...` : post.text;
+  await notify(deps, post.orgId, post.createdBy, { type: "social.post_failed", entityType: "social_post", entityId: post.id, title: `${status === "partial" ? "Posted to some accounts only" : "Not posted"}: ${snippet}. Open Posts to see why and try again.` });
 }
 
 /** Claims a post for sending (exactly once: the update is guarded by its status). */
@@ -598,13 +841,17 @@ export async function runDueSocialPosts(deps: Deps, opts: { now?: Date; orgId?: 
 export async function pruneSocialMedia(deps: Deps, opts: { now?: Date; orgId?: string } = {}) {
   const now = opts.now ?? deps.now();
   const scope = opts.orgId ? eq(socialPosts.orgId, opts.orgId) : undefined;
-  const old = await deps.db.select({ mediaId: socialPosts.mediaId }).from(socialPosts)
-    .where(and(scope, inArray(socialPosts.status, ["done", "partial", "failed", "canceled"]), lt(socialPosts.updatedAt, new Date(now.getTime() - MEDIA_TTL_MS)), sql`${socialPosts.mediaId} is not null`)).limit(50).all();
-  const mIds = old.map((o) => o.mediaId!).filter(Boolean);
-  if (mIds.length) {
-    await deps.db.delete(socialMedia).where(inIds(socialMedia.id, mIds));
-    await deps.db.update(socialPosts).set({ mediaId: null }).where(inIds(socialPosts.mediaId, mIds));
-  }
+  // R117: evergreen posts keep their images (they come back), and library images are kept (kept = 1).
+  const old = await deps.db.select({ id: socialPosts.id, mediaId: socialPosts.mediaId, mediaIds: socialPosts.mediaIds }).from(socialPosts)
+    .where(and(scope, inArray(socialPosts.status, ["done", "partial", "failed", "canceled", "rejected"]), eq(socialPosts.evergreen, false), lt(socialPosts.updatedAt, new Date(now.getTime() - MEDIA_TTL_MS)), sql`${socialPosts.mediaId} is not null`)).limit(50).all();
+  const candidates = [...new Set(old.flatMap((o) => [o.mediaId, ...parseIds(o.mediaIds)]).filter((x): x is string => !!x))];
+  // An evergreen copy shares its source's images, so an image still used by a live or evergreen post stays.
+  const inUse = candidates.length ? await deps.db.select({ mediaId: socialPosts.mediaId }).from(socialPosts)
+    .where(and(inIds(socialPosts.mediaId, candidates), sql`(${socialPosts.evergreen} = 1 or ${socialPosts.status} in ('scheduled','sending','draft','review','changes'))`)).all() : [];
+  const busy = new Set(inUse.map((u) => u.mediaId));
+  const mIds = candidates.filter((id) => !busy.has(id));
+  if (mIds.length) await deps.db.delete(socialMedia).where(and(inIds(socialMedia.id, mIds), eq(socialMedia.kept, false)));
+  if (old.length) await deps.db.update(socialPosts).set({ mediaId: null, mediaIds: null }).where(inIds(socialPosts.id, old.map((o) => o.id)));
   return { mediaPruned: mIds.length };
 }
 

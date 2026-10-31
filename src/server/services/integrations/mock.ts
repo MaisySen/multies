@@ -27,6 +27,8 @@ export interface MockComposioState {
   executed: { slug: string; accountId: string; args: Record<string, unknown> }[];
   /** Raw network calls made through the platform's proxy (hotfix Oct 31). */
   proxied: { method: string; endpoint: string; accountId: string; body: Record<string, unknown>; headers: Record<string, string> }[];
+  /** R117: Facebook turns first comments down. */
+  commentRefused?: boolean;
   /** Calls seen, "METHOD /path", for tests. */
   calls: string[];
   /** Every request carried the key header. */
@@ -114,6 +116,8 @@ function proxy(state: MockComposioState, body: { connected_account_id?: string; 
       if (state.permalinkDown || u.searchParams.get("access_token") !== "mock-page-token") return net(400, { error: { message: "Unsupported get request.", code: 100 } });
       return net(200, { id: decodeURIComponent(u.pathname.split("/").pop() ?? ""), permalink_url: `https://www.facebook.com/61500000000001/posts/${encodeURIComponent(decodeURIComponent(u.pathname.split("/").pop() ?? ""))}` });
     }
+    // R117: a first comment under a post.
+    if (method === "POST" && /\/comments$/.test(u.pathname)) return state.commentRefused ? net(400, { error: { message: "(#200) Comments are turned off for this post.", code: 200 } }) : net(200, { id: nid("cm") });
     if (/EXPIRED/.test(text)) return net(400, { error: { message: "Error validating access token: Session has expired.", type: "OAuthException", code: 190 } });
     if (/FAIL/.test(text)) return net(400, { error: { message: "The network turned this post down.", type: "OAuthException", code: 100 } });
     if (args.access_token !== "mock-page-token") return net(403, { error: { message: "(#200) Unpublished posts must be posted to a page as the page itself.", code: 200 } });

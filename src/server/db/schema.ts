@@ -2555,12 +2555,27 @@ export const socialPosts = sqliteTable("social_posts", {
   createdBy: text("created_by"),
   text: text("text").notNull(),
   mediaId: text("media_id"),
-  status: text("status", { enum: ["scheduled", "sending", "done", "partial", "failed", "canceled"] }).notNull().default("scheduled"),
+  status: text("status", { enum: ["scheduled", "sending", "done", "partial", "failed", "canceled", "draft", "review", "changes", "rejected"] }).notNull().default("scheduled"),
   runAt: ts("run_at").notNull(),
   attempts: integer("attempts").notNull().default(0),
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
-}, (t) => [index("social_posts_due_idx").on(t.status, t.runAt), index("social_posts_org_idx").on(t.orgId, t.runAt)]);
+  /** R117 (0109): format, per network text (JSON), extras (JSON: first comment, poll, link card), carousel images (JSON ids). */
+  format: text("format"),
+  texts: text("texts"),
+  extras: text("extras"),
+  mediaIds: text("media_ids"),
+  campaign: text("campaign"),
+  /** R117: evergreen posts come back into free slots; a recycled copy names its source. */
+  evergreen: integer("evergreen", { mode: "boolean" }).notNull().default(false),
+  evergreenOf: text("evergreen_of"),
+  /** R117: drafts and approvals. */
+  submittedBy: text("submitted_by"),
+  reviewNote: text("review_note"),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: ts("reviewed_at"),
+}, (t) => [index("social_posts_due_idx").on(t.status, t.runAt), index("social_posts_org_idx").on(t.orgId, t.runAt),
+  index("social_posts_org_status_idx").on(t.orgId, t.status), index("social_posts_evergreen_idx").on(t.evergreen, t.orgId)]);
 
 export const socialPostTargets = sqliteTable("social_post_targets", {
   postId: text("post_id").notNull().references(() => socialPosts.id, { onDelete: "cascade" }),
@@ -2577,6 +2592,8 @@ export const socialPostTargets = sqliteTable("social_post_targets", {
   remoteId: text("remote_id"),
   networkState: text("network_state", { enum: ["live", "removed"] }),
   checkedAt: ts("checked_at"),
+  /** R117: a note on this account's result (the first comment did not go). */
+  note: text("note"),
 }, (t) => [primaryKey({ columns: [t.postId, t.accountId] })]);
 
 export const socialMedia = sqliteTable("social_media", {
@@ -2587,7 +2604,34 @@ export const socialMedia = sqliteTable("social_media", {
   sizeBytes: integer("size_bytes").notNull(),
   contentB64: text("content_b64").notNull(),
   createdAt: createdAt(),
+  /** R117: kept for the library or an evergreen post, so the cleanup pass leaves it. */
+  kept: integer("kept", { mode: "boolean" }).notNull().default(false),
 });
+
+/** R117 (0109): weekly time slots, for one account or all (account_id null), in the zone they were set in. */
+export const socialSlots = sqliteTable("social_slots", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  accountId: text("account_id"),
+  weekday: integer("weekday").notNull(),
+  minute: integer("minute").notNull(),
+  tz: text("tz").notNull(),
+  createdAt: createdAt(),
+}, (t) => [index("social_slots_org_idx").on(t.orgId)]);
+
+/** R117 (0109): the Social library: images (a kept social_media row), saved captions and hashtag sets. */
+export const socialLibrary = sqliteTable("social_library", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: ["image", "caption", "hashtags"] }).notNull(),
+  name: text("name").notNull(),
+  body: text("body"),
+  mediaId: text("media_id"),
+  campaign: text("campaign"),
+  sizeBytes: integer("size_bytes").notNull().default(0),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+}, (t) => [index("social_library_org_idx").on(t.orgId, t.createdAt)]);
 
 /**
  * R83: own sign in for TikTok and Threads (0102). One linked account per network per workspace; the tokens are

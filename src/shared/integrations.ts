@@ -123,7 +123,7 @@ export const SOCIAL_NETWORKS: Record<string, SocialNetwork> = {
 
 export const canPostTo = (app: string) => app in SOCIAL_NETWORKS;
 
-export type PostStatus = "scheduled" | "sending" | "done" | "partial" | "failed" | "canceled";
+export type PostStatus = "scheduled" | "sending" | "done" | "partial" | "failed" | "canceled" | "draft" | "review" | "changes" | "rejected";
 export type TargetStatus = "pending" | "sent" | "failed" | "skipped";
 
 export interface PostTargetView {
@@ -146,6 +146,8 @@ export interface PostTargetView {
   checkedAt?: string | null;
   canCheck?: boolean;
   canDelete?: boolean;
+  /** R117: a note on this result, for example a first comment that did not go. */
+  note?: string | null;
 }
 
 /** Networks Multies can ask whether a sent post is still up, and networks it can delete a post on. */
@@ -164,6 +166,19 @@ export interface SocialPostView {
   createdAt: string;
   createdBy: string | null;
   targets: PostTargetView[];
+  /** R117 (composer v2, drafts and approvals, evergreen). Optional: older servers do not send them. */
+  format?: "text" | "image" | "carousel" | "video" | "story" | null;
+  texts?: Record<string, string> | null;
+  extras?: { firstComment?: string | null; poll?: { question: string; options: string[]; days: number } | null; linkCard?: boolean } | null;
+  images?: { mediaId: string; url: string }[];
+  campaign?: string | null;
+  evergreen?: boolean;
+  evergreenOf?: string | null;
+  submittedBy?: string | null;
+  reviewNote?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  updatedAt?: string;
 }
 
 /** Biggest image a post may carry (bytes). The stored copy is base64, under the database's row limit. */

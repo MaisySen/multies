@@ -20,6 +20,8 @@ export interface PublicConfig {
   appName: string;
   mode: "production" | "development";
   demoEnabled: boolean;
+  /** R117: Social composer v2, planner views and slots, drafts and approvals, library. */
+  socialP2?: boolean;
   supportEmail?: string;
   outboundDriver: string;
   billingEnabled: boolean;

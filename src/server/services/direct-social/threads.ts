@@ -118,7 +118,7 @@ export async function threadsProfile(deps: Deps, auth: AuthContext) {
   };
 }
 
-export interface ThreadsPostInput { text: string; image?: { bytes: Uint8Array<ArrayBuffer>; type: string } | null }
+export interface ThreadsPostInput { text: string; /** R117: an image already served from our media link (scheduled posts). */ imageUrl?: string | null; image?: { bytes: Uint8Array<ArrayBuffer>; type: string } | null }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -127,10 +127,10 @@ export async function threadsPost(deps: Deps, auth: AuthContext, input: ThreadsP
   const link = await linkOrThrow(deps, auth);
   const t = cfg(deps);
   const text = input.text.trim();
-  if (!text && !input.image) throw new HttpError(400, "empty", "Write something or add an image.");
+  if (!text && !input.image && !input.imageUrl) throw new HttpError(400, "empty", "Write something or add an image.");
   if ([...text].length > THREADS_TEXT_MAX) throw new HttpError(400, "too_long", `Threads allows ${THREADS_TEXT_MAX} characters.`);
-  let imageUrl: string | null = null;
-  if (input.image) {
+  let imageUrl: string | null = input.imageUrl ?? null;
+  if (input.image && !imageUrl) {
     if (!(SOCIAL_IMAGE_TYPES as readonly string[]).includes(input.image.type)) throw new HttpError(400, "bad_file", "Pick a JPG or PNG image.");
     if (input.image.bytes.byteLength > SOCIAL_IMAGE_MAX_BYTES) throw new HttpError(413, "too_big", "That image is over 1 MB.");
     const id = newId("sm"); const tokenStr = randomToken(18);

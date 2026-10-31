@@ -12,6 +12,8 @@ export interface AppConfig {
   demoEnabled: boolean;
   /** R90: automation builder: flows, runs, page and feed watches, digests (FLOWS, on unless "off"). */
   flows?: boolean;
+  /** R117: Social composer v2, planner views and slots, drafts and approvals, library, evergreen (SOCIAL_P2, on unless "off"). */
+  socialP2?: boolean;
   /** Public booking pages and the scheduling API (SCHEDULING_ENABLED=true). Off unless set. */
   schedulingEnabled: boolean;
   /**
@@ -285,6 +287,7 @@ const EnvSchema = z.object({
   TOOLS_ENABLED: z.string().optional(),
   TOOLS_FEATURES: z.string().optional(),
   LINK_CLICK_FLUSH_MS: z.string().optional(), // R87
+  SOCIAL_P2: z.string().optional(),
   DOC_ENGINE_URL: z.string().optional(),
   DOC_ENGINE_KEY_ID: z.string().optional(),
   DOC_ENGINE_KEY: z.string().optional(),
@@ -557,6 +560,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     mode,
     demoEnabled: env.DEMO_MODE === "true" || env.DEMO_MODE === "1",
     flows: env.FLOWS !== "off",
+    socialP2: env.SOCIAL_P2 !== "off",
     schedulingEnabled: env.SCHEDULING_ENABLED === "true" || env.SCHEDULING_ENABLED === "1",
     tools: toolsConfig(env),
     links: { flushMs: Math.max(0, Math.min(20_000, Number(env.LINK_CLICK_FLUSH_MS ?? 4000) || 0)) },

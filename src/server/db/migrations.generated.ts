@@ -1094,6 +1094,30 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0109_social_p2",
+    "statements": [
+      "-- R117: Social P2a. Formats, per network text, extras, carousels, campaigns, evergreen, drafts and approvals on posts;\n-- a note per account (first comment result); images kept for the library and evergreen posts; weekly time slots;\n-- the library (images, saved captions, hashtag sets). Additive only.\nALTER TABLE `social_posts` ADD `format` text;",
+      "ALTER TABLE `social_posts` ADD `texts` text;",
+      "ALTER TABLE `social_posts` ADD `extras` text;",
+      "ALTER TABLE `social_posts` ADD `media_ids` text;",
+      "ALTER TABLE `social_posts` ADD `campaign` text;",
+      "ALTER TABLE `social_posts` ADD `evergreen` integer DEFAULT 0 NOT NULL;",
+      "ALTER TABLE `social_posts` ADD `evergreen_of` text;",
+      "ALTER TABLE `social_posts` ADD `submitted_by` text;",
+      "ALTER TABLE `social_posts` ADD `review_note` text;",
+      "ALTER TABLE `social_posts` ADD `reviewed_by` text;",
+      "ALTER TABLE `social_posts` ADD `reviewed_at` integer;",
+      "ALTER TABLE `social_post_targets` ADD `note` text;",
+      "ALTER TABLE `social_media` ADD `kept` integer DEFAULT 0 NOT NULL;",
+      "CREATE INDEX `social_posts_org_status_idx` ON `social_posts` (`org_id`,`status`);",
+      "CREATE INDEX `social_posts_evergreen_idx` ON `social_posts` (`evergreen`,`org_id`);",
+      "CREATE TABLE `social_slots` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`account_id` text,\n\t`weekday` integer NOT NULL,\n\t`minute` integer NOT NULL,\n\t`tz` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `social_slots_org_idx` ON `social_slots` (`org_id`);",
+      "CREATE TABLE `social_library` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`name` text NOT NULL,\n\t`body` text,\n\t`media_id` text,\n\t`campaign` text,\n\t`size_bytes` integer DEFAULT 0 NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `social_library_org_idx` ON `social_library` (`org_id`,`created_at`);"
+    ]
+  },
+  {
     "name": "0110_r90_flows",
     "statements": [
       "-- R90 (Oct 31): automation builder. Flows, their runs and steps, page and feed watches, digest items. Additive only.\nCREATE TABLE `flows` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`description` text,\n\t`trigger_kind` text NOT NULL,\n\t`graph` text DEFAULT '{\"nodes\":[],\"edges\":[]}' NOT NULL,\n\t`enabled` integer DEFAULT false NOT NULL,\n\t`run_count` integer DEFAULT 0 NOT NULL,\n\t`last_run_at` integer,\n\t`last_status` text,\n\t`created_by_type` text DEFAULT 'member' NOT NULL,\n\t`created_by_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`version` integer DEFAULT 1 NOT NULL,\n\t`deleted_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",

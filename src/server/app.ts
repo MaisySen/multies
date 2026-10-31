@@ -389,6 +389,8 @@ export function createApp(deps: Deps) {
       release: deps.config.release,
       cfBeaconToken: deps.config.cfBeaconToken,
       demoEnabled: deps.config.demoEnabled,
+      // R117: Social composer v2, planner views and slots, drafts and approvals, library (SOCIAL_P2; on unless "off").
+      socialP2: deps.config.socialP2 !== false,
       supportEmail: deps.config.supportEmail,
       outboundDriver: deps.outbound.name,
       billingEnabled: deps.config.billing.enabled,
