@@ -63,6 +63,19 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     await expect(page.getByTestId("social-post").first().getByTestId("post-target")).toHaveCount(2);
     await expect(page.getByTestId("social-post").first().getByText("Posted").first()).toBeVisible();
 
+    // Hotfix Oct 31: a refused post says the real reason in plain words, with Reconnect when that is the fix.
+    await page.getByTestId("pick-linkedin").getByRole("checkbox").check();
+    await page.getByTestId("social-text").fill("EXPIRED sign in check");
+    await page.getByRole("radio", { name: "Now" }).click();
+    await page.getByTestId("social-submit").click();
+    await page.reload(); // the list refreshes on its own while sending; a reload keeps the check quick
+    const failed = page.getByTestId("social-post").filter({ hasText: "EXPIRED sign in check" });
+    await expect(failed).toHaveAttribute("data-status", "failed", { timeout: 15_000 });
+    await expect(failed.getByTestId("post-target-error")).toHaveAttribute("data-code", "reconnect");
+    await expect(failed.getByText("The sign in for this account has expired. Reconnect it, then try again.")).toBeVisible();
+    await expect(failed.getByRole("button", { name: "Reconnect LinkedIn" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+
     // Disconnect LinkedIn, with the confirm step.
     await page.getByRole("link", { name: "Apps", exact: true }).click();
     await page.getByRole("button", { name: "Disconnect LinkedIn" }).click();
