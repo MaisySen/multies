@@ -117,7 +117,7 @@ function ConnectionRow({ c }: { c: ConnectionView }) {
           {plain.next && <p className="mt-2 flex items-start gap-1.5 rounded-[10px] bg-warn-soft px-3 py-2 text-[13px] text-fg" data-testid="connection-next"><IconArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" aria-hidden /><span><span className="font-semibold">Next step: </span>{plain.next}</span></p>}
           <div className="mt-3 flex flex-wrap gap-2">
           <ButtonLink size="sm" variant="secondary" to={`/app/mail?mailbox=${c.mailboxId}`}>Open inbox <IconArrowRight className="h-4 w-4" /></ButtonLink>
-          <Button size="sm" variant="secondary" loading={sync.isPending} onClick={() => sync.mutate()} aria-label={`Sync ${c.email} now`}><IconRefresh className="h-4 w-4" />Sync now</Button>
+          <Button size="sm" variant="secondary" loading={sync.isPending} onClick={() => sync.mutate()} aria-label={`Sync now ${c.email}`}><IconRefresh className="h-4 w-4" />Sync now</Button>
           {c.sample
             ? <Button size="sm" variant={c.status === "active" ? "secondary" : "primary"} loading={resetSample.isPending} onClick={() => resetSample.mutate()} data-testid="sample-reconnect"><IconRefresh className="h-4 w-4" />Reconnect</Button>
             : <Button size="sm" variant={c.status === "auth_failed" ? "primary" : "secondary"} onClick={() => { setError(null); setReconnecting(true); }}><IconKey className="h-4 w-4" />Reconnect</Button>}

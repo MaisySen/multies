@@ -640,7 +640,7 @@ export function ToolsPage() {
         </nav>
 
         <div className="min-w-0">
-          <button type="button" onClick={backToList} className={`mb-3 flex min-h-11 items-center gap-1.5 rounded-lg pr-2 text-[14px] font-medium text-brand lg:hidden ${ring}`} data-testid="tools-back"><IconArrowLeft className="h-4 w-4" aria-hidden />All tools</button>
+          <button type="button" onClick={backToList} className={`mb-3 flex min-h-11 items-center gap-1.5 rounded-lg pr-2 text-[14px] font-medium text-brand-hover lg:hidden ${ring}`} data-testid="tools-back"><IconArrowLeft className="h-4 w-4" aria-hidden />All tools</button>
           {/* R71 (MB-266): one frame with the pages that have their own address: the header above the panel, the runs
               used up note right under it, then the tool in its card. */}
           <header className="mb-5 flex items-start gap-3.5" data-testid="tools-frame-header">
@@ -962,9 +962,9 @@ function ResultCard({ job, tool, before, level, onAttach, onChain, chaining, onA
         <ShareResultLinks job={job} />{/* Tools P2: share links and e-sign */}
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-line pt-3 text-[13.5px]">
-        {ext !== "zip" && <button type="button" onClick={onChain} disabled={chaining} data-testid="tools-chain" className={`inline-flex min-h-9 items-center gap-1.5 font-medium text-brand hover:underline disabled:opacity-50 max-sm:min-h-11 ${ring}`}>{chaining ? "Opening" : "Use in another tool"}<IconArrowRight className="h-3.5 w-3.5" aria-hidden /></button>}
-        {tool.options.some((o) => o.kind !== "json") && <button type="button" onClick={onAgain} className={`min-h-9 font-medium text-brand hover:underline max-sm:min-h-11 ${ring}`}>Change options and run again</button>}
-        <button type="button" onClick={onStartOver} className={`min-h-9 font-medium text-brand hover:underline max-sm:min-h-11 ${ring}`} data-testid="tools-start-over">Start over</button>
+        {ext !== "zip" && <button type="button" onClick={onChain} disabled={chaining} data-testid="tools-chain" className={`inline-flex min-h-9 items-center gap-1.5 font-medium text-brand-hover hover:underline disabled:opacity-50 max-sm:min-h-11 ${ring}`}>{chaining ? "Opening" : "Use in another tool"}<IconArrowRight className="h-3.5 w-3.5" aria-hidden /></button>}
+        {tool.options.some((o) => o.kind !== "json") && <button type="button" onClick={onAgain} className={`min-h-9 font-medium text-brand-hover hover:underline max-sm:min-h-11 ${ring}`}>Change options and run again</button>}
+        <button type="button" onClick={onStartOver} className={`min-h-9 font-medium text-brand-hover hover:underline max-sm:min-h-11 ${ring}`} data-testid="tools-start-over">Start over</button>
       </div>
     </div>
   );

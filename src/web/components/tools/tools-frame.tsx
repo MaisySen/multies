@@ -96,7 +96,7 @@ export function ToolsFrame({ entryKey, title, description, testId, actions, usag
       <div className="lg:grid lg:grid-cols-[236px_minmax(0,1fr)] lg:gap-6">
         <ToolsRail entries={entries} active={entryKey} />
         <div className="min-w-0 space-y-5">
-          <Link to="/app/tools" className={`-mb-2 flex min-h-11 w-fit items-center gap-1.5 rounded-lg pr-2 text-[14px] font-medium text-brand lg:hidden ${ring}`} data-testid="tools-back"><IconArrowLeft className="h-4 w-4" aria-hidden />All tools</Link>
+          <Link to="/app/tools" className={`-mb-2 flex min-h-11 w-fit items-center gap-1.5 rounded-lg pr-2 text-[14px] font-medium text-brand-hover lg:hidden ${ring}`} data-testid="tools-back"><IconArrowLeft className="h-4 w-4" aria-hidden />All tools</Link>
           <header className="flex items-start gap-3.5" data-testid="tools-frame-header">
             {entry ? <ToolIcon e={entry} size="lg" /> : <span className="h-11 w-11 shrink-0 rounded-xl bg-fill" aria-hidden />}
             <div className="min-w-0 flex-1">
