@@ -107,9 +107,10 @@ for (const scheme of ["light", "dark"] as const) {
       await expect(input).toBeHidden();
       await expect(add).toBeVisible();
       // Exactly one of each landed (the create is idempotent, a retry is never doubled).
-      const tasks = (await (await page.request.get("/api/tasks")).json()).tasks as { title: string }[];
-      expect(tasks.filter((t) => t.title === `R42 rapid one ${tag}`)).toHaveLength(1);
-      expect(tasks.filter((t) => t.title === `R42 rapid two ${tag}`)).toHaveLength(1);
+      // The second add shows as a pending row at once, so wait for the server to hold both (each exactly once).
+      const count = async (title: string) => ((await (await page.request.get("/api/tasks")).json()).tasks as { title: string }[]).filter((t) => t.title === title).length;
+      await expect.poll(() => count(`R42 rapid two ${tag}`), { timeout: 10_000 }).toBe(1);
+      expect(await count(`R42 rapid one ${tag}`)).toBe(1);
       if (where === "phone") {
         const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
         expect(sideways).toBeLessThanOrEqual(1);

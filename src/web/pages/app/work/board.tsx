@@ -184,7 +184,7 @@ export function ColumnComposer({ title, onQuickAdd, variant = "column" }: {
           className="h-11 w-full rounded-lg border border-brand bg-surface px-3 text-[14px] text-fg outline-none ring-4 ring-brand/15 placeholder:text-subtle max-sm:text-base sm:h-10" />
       ) : (
         list ? (
-          <button type="button" onClick={() => setOpen(true)} aria-label="Add task" title={`Add a task to ${title}`}
+          <button type="button" onClick={() => setOpen(true)} title={`Add a task to ${title}`}
             className="group flex min-h-12 w-full items-center gap-2.5 rounded-xl border border-dashed border-line-strong px-3.5 text-left text-[15px] text-muted transition-colors duration-150 hover:border-brand/50 hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 motion-reduce:transition-none sm:min-h-10 sm:text-[13.5px]">
             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-soft text-brand-hover transition-transform duration-150 group-active:scale-90 motion-reduce:transition-none" aria-hidden><IconPlus className="h-3.5 w-3.5" /></span>
             <span>Add task</span><span className="ml-auto truncate text-[12px] text-subtle">{title}</span>

@@ -53,13 +53,14 @@ export function TagChip({ name, color, onRemove, className }: { name: string; co
   );
 }
 
-export function TagChips({ labels, max = 3, className }: { labels: string[]; max?: number; className?: string }) {
+export function TagChips({ labels, max = 3, className, oneLine }: { labels: string[]; max?: number; className?: string; oneLine?: boolean }) {
   const colour = useTagColour();
   if (!labels.length) return null;
+  // R84F: one line in table cells (cn does not merge classes, so wrap and nowrap never meet in one list).
   return (
-    <span className={cn("inline-flex min-w-0 flex-wrap items-center gap-1", className)}>
+    <span className={cn("inline-flex min-w-0 items-center gap-1", oneLine ? "flex-nowrap overflow-hidden" : "flex-wrap", className)}>
       {labels.slice(0, max).map((l) => <TagChip key={l} name={l} color={colour(l)} />)}
-      {labels.length > max && <span className="text-[11.5px] text-subtle" title={labels.slice(max).join(", ")}>+{labels.length - max}</span>}
+      {labels.length > max && <span className="shrink-0 text-[11.5px] text-subtle" title={labels.slice(max).join(", ")}>+{labels.length - max}</span>}
     </span>
   );
 }

@@ -99,7 +99,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
   },
   {
     id: "labels", header: "Tags", width: "w-[180px]", editor: "labels", hideOnPhone: true, sortKey: (t) => t.labels.join(",").toLowerCase() || "\uffff",
-    render: (t) => <TagChips labels={t.labels} max={2} className="flex-nowrap overflow-hidden" />,
+    render: (t) => <TagChips labels={t.labels} max={2} oneLine />,
   },
   {
     id: "start", header: "Start", width: "w-[96px]", editor: "date", field: "start", hideOnPhone: true, sortKey: (t) => t.start ?? "9999",
