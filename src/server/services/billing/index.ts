@@ -154,6 +154,27 @@ export async function billingOverview(deps: Deps, orgId: string) {
   };
 }
 
+/** True when Stripe says an object doesn't exist, e.g. a test mode id after the switch to live keys. */
+export function isMissingInStripe(err: unknown) {
+  const e = err as { code?: string; raw?: { code?: string } } | null;
+  return e?.code === "resource_missing" || e?.raw?.code === "resource_missing";
+}
+
+/**
+ * Runs `fn` with the workspace's Stripe customer. A stored customer id Stripe no longer knows (a test mode
+ * customer once the keys are live) is replaced by a fresh customer once, then `fn` runs again.
+ */
+async function withCustomer<T>(deps: Deps, auth: AuthContext, fn: (customer: string) => Promise<T>): Promise<T> {
+  const customer = await ensureCustomer(deps, auth);
+  try {
+    return await fn(customer);
+  } catch (err) {
+    if (!isMissingInStripe(err)) throw err;
+    await deps.db.update(organizations).set({ stripeCustomerId: null }).where(eq(organizations.id, auth.orgId));
+    return fn(await ensureCustomer(deps, auth));
+  }
+}
+
 async function ensureCustomer(deps: Deps, auth: AuthContext) {
   const org = await getOrg(deps.db, auth.orgId);
   if (org.stripeCustomerId) return org.stripeCustomerId;
@@ -210,9 +231,8 @@ export async function startAddonCheckout(deps: Deps, auth: AuthContext, input: R
   const stripe = client(deps);
   const interval = intervalFor(addons, 0, opts.interval);
   const items = await addonItems(deps, stripe, addons, interval);
-  const customer = await ensureCustomer(deps, auth);
   const base = `${deps.config.appUrl}/app/settings/billing`;
-  const session = await stripe.checkout.sessions.create({
+  const session = await withCustomer(deps, auth, (customer) => stripe.checkout.sessions.create({
     mode: "subscription", customer, client_reference_id: auth.orgId,
     line_items: items.map((i) => ({ price: i.price, quantity: i.quantity })),
     subscription_data: { metadata: { orgId: auth.orgId } },
@@ -223,7 +243,7 @@ export async function startAddonCheckout(deps: Deps, auth: AuthContext, input: R
     // Charge exactly the AUD price everywhere instead of converting to the visitor's currency.
     adaptive_pricing: { enabled: false },
     success_url: `${base}?checkout=success&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${base}?checkout=cancelled`,
-  });
+  }));
   return { applied: false as const, url: session.url, id: session.id, interval };
 }
 
@@ -341,8 +361,11 @@ export async function changePlan(deps: Deps, auth: AuthContext, plan: PlanId) {
 export async function openPortal(deps: Deps, auth: AuthContext) {
   if (auth.role !== "owner") throw forbidden("Only the workspace owner can change billing.");
   const stripe = client(deps);
-  const customer = await ensureCustomer(deps, auth);
-  const portal = await stripe.billingPortal.sessions.create({ customer, return_url: `${deps.config.appUrl}/app/settings/billing` });
+  // STRIPE_PORTAL_CONFIG: Multies' own portal settings, so a Stripe account shared with other businesses keeps its default.
+  const configuration = deps.config.billing.portalConfigId;
+  const portal = await withCustomer(deps, auth, (customer) => stripe.billingPortal.sessions.create({
+    customer, return_url: `${deps.config.appUrl}/app/settings/billing`, ...(configuration ? { configuration } : {}),
+  }));
   return { url: portal.url };
 }
 
@@ -350,7 +373,11 @@ export async function listInvoices(deps: Deps, orgId: string) {
   if (!deps.config.billing.enabled) return [];
   const org = await getOrg(deps.db, orgId);
   if (!org.stripeCustomerId) return [];
-  const res = await client(deps).invoices.list({ customer: org.stripeCustomerId, limit: 24 });
+  // A customer from the other Stripe mode (test before the live switch) has no invoices here.
+  const res = await client(deps).invoices.list({ customer: org.stripeCustomerId, limit: 24 }).catch((err) => {
+    if (isMissingInStripe(err)) return { data: [] as Stripe.Invoice[] };
+    throw err;
+  });
   return res.data.map((i) => ({
     id: i.id, number: i.number, status: i.status, total: i.total, currency: i.currency,
     createdAt: new Date(i.created * 1000), periodStart: new Date(i.period_start * 1000), periodEnd: new Date(i.period_end * 1000),

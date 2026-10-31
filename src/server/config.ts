@@ -135,6 +135,8 @@ export interface AppConfig {
     enabled: boolean;
     testMode: boolean;
     publishableKey?: string;
+    /** A Stripe Customer Portal configuration (bpc_...) for portal sessions; the account default when unset. */
+    portalConfigId?: string;
     stripeSecretKey?: string;
     stripeWebhookSecret?: string;
     prices: { pro?: string; business?: string };
@@ -368,6 +370,7 @@ const EnvSchema = z.object({
   MAIL_SPLIT_COUNTS: z.string().optional(),
   OPS_ALERT_EMAIL: z.string().optional(),
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
+  STRIPE_PORTAL_CONFIG: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_PRO: z.string().optional(),
   PUSH_ENABLED: z.string().optional(),
@@ -661,6 +664,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       testMode: /^(sk|rk)_test_/.test(env.STRIPE_SECRET_KEY ?? ""),
       stripeSecretKey: env.STRIPE_SECRET_KEY, stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET,
       publishableKey: env.STRIPE_PUBLISHABLE_KEY,
+      portalConfigId: env.STRIPE_PORTAL_CONFIG || undefined,
       prices: { pro: env.STRIPE_PRICE_PRO, business: env.STRIPE_PRICE_BUSINESS },
       missing: env.STRIPE_SECRET_KEY ? [] : ["STRIPE_SECRET_KEY"],
     },

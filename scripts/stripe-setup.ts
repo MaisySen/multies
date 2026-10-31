@@ -65,8 +65,14 @@ for (const id of ADDON_ORDER) {
 }
 
 // The portal can change add-on quantities and cancel; it never offers the retired plans.
-const configs = await stripe.billingPortal.configurations.list({ is_default: true, limit: 1 });
-const portal = configs.data[0];
+// STRIPE_PORTAL_CONFIG names Multies' own portal settings. The live account is shared with other businesses,
+// so its default portal settings are never edited there: without STRIPE_PORTAL_CONFIG the step only runs in test mode.
+const portalConfigId = process.env.STRIPE_PORTAL_CONFIG;
+const isLive = !/^(sk|rk)_test_/.test(key);
+const portal = portalConfigId
+  ? await stripe.billingPortal.configurations.retrieve(portalConfigId)
+  : isLive ? undefined : (await stripe.billingPortal.configurations.list({ is_default: true, limit: 1 })).data[0];
+if (!portal && isLive) console.log("portal: skipped (set STRIPE_PORTAL_CONFIG to Multies' own portal configuration; the account default is shared)");
 if (portal) {
   await stripe.billingPortal.configurations.update(portal.id, {
     features: {
@@ -101,8 +107,13 @@ for await (const c of stripe.coupons.list({ limit: 100 })) {
 }
 
 // R62: referral credits need refunds. Adds charge.refunded to endpoints already sending Multies' billing events.
+// Only Multies' own hosts: other businesses on the same Stripe account use the same path.
+const isMultiesHost = (url: string) => {
+  const host = new URL(url).hostname;
+  return host === "multies.si" || host.endsWith(".multies.si") || (host.startsWith("mymail") && host.endsWith(".workers.dev"));
+};
 for await (const ep of stripe.webhookEndpoints.list({ limit: 100 })) {
-  if (!ep.url.endsWith("/api/webhooks/stripe") || ep.enabled_events.includes("*") || ep.enabled_events.includes("charge.refunded")) continue;
+  if (!ep.url.endsWith("/api/webhooks/stripe") || !isMultiesHost(ep.url) || ep.enabled_events.includes("*") || ep.enabled_events.includes("charge.refunded")) continue;
   await stripe.webhookEndpoints.update(ep.id, { enabled_events: [...ep.enabled_events, "charge.refunded"] as Stripe.WebhookEndpointUpdateParams.EnabledEvent[] });
   console.log(`webhook ${ep.id} ${ep.url}: added charge.refunded`);
 }
