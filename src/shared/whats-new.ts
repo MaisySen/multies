@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-tools-round-c",
+    date: "2026-10-31",
+    title: "Fix a PDF, codes on a PDF and everyday utilities",
+    body: "Tools, Fix a PDF repairs a damaged PDF, makes it open fast on the web, or locks it with a password. You can also put a QR code or barcode on any page, read every comment and highlight in a PDF, and use quick utilities for JSON, YAML and CSV, Base64, hashes, UUIDs, colours, units, timestamps, text diff and regex. All of it runs on your device.",
+  },
+  {
     id: "2026-10-31-crm-timeline",
     date: "2026-10-31",
     title: "A timeline for every contact and company",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "A calmer layout you can shape",
     body: "A slim icon rail and a sidebar for each area, with your favourite projects on top. Drag to size the sidebar, the Mail reading pane (right, below or off) and task details, and pick Comfortable or Compact under View. Create and search live in the top bar, and Ctrl \\ (Cmd \\ on a Mac) hides the sidebar.",
-  },
-  {
-    id: "2026-10-31-convert-any-file",
-    date: "2026-10-31",
-    title: "Convert any file, most of them right on your device",
-    body: "Tools, Convert any file: drop one file or fifty and pick what they should become. Photos, PDFs and spreadsheets convert in your browser with nothing uploaded, and you can download each result or all of them as one ZIP. Merge, split, rotate and number PDF pages there too.",
   },
   {
     id: "2026-10-28-whats-new",

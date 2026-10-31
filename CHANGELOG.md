@@ -21,6 +21,14 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Added: Social, Library for images, videos, saved captions and hashtag sets by campaign, with clear storage limits, and a pick from library in the composer. Evergreen posts are reused in free slots, with a cap.
 - Added: a failed scheduled post keeps its reason and a Try again button, and its author gets a notice. The social API only gains fields, so the phone app keeps working.
 - Changed: What's new folds "Post to TikTok and Threads" into "Plan social posts by the week" to stay at 14.
+### Round 100 (31 Oct 2026)
+
+- Added: Tools C (feature flag `tools_c`). Fix a PDF on the device: repair, fast web view and lock with a password (AES 256); a locked PDF asks for its current password.
+- Added: QR codes and Code 128 barcodes on a PDF, with page choice, size, nine positions and a live preview.
+- Added: Read comments lists a PDF's comments and highlights by page, with author, date, the marked words and reply counts, and Copy all.
+- Added: Utilities on the device: JSON, YAML and CSV; Base64; hashes; UUID v4 and v7; QR maker; colour with a contrast check; units; timestamps; text diff; regex tester. Every answer has Copy.
+- Changed: the file request arrival notice reads "New file for <request>" and opens it in Secure share; admins and members each get their own.
+- Fixed: the Tools hub has a heading in every state, and a tools page keeps picked files when the window crosses 1024 px.
 
 ### Round 87 (31 Oct 2026)
 
