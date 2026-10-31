@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-automation-flows",
+    date: "2026-10-31",
+    title: "Flows: automations you can see",
+    body: "Automations has a new home under Agents, where you build a flow on a canvas from a trigger, conditions with yes and no paths, waits, an approval step and actions. Flows can watch a web page or a news feed, gather items into a morning digest, or send signed events to a webhook. Every run shows each step with what went in and what came out, and a failed run can be tried again from that step.",
+  },
+  {
     id: "2026-10-31-docs-visual",
     date: "2026-10-31",
     title: "Whiteboards, diagrams, mind maps and slides in Docs",
@@ -67,13 +73,7 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     id: "2026-10-31-one-place-connections",
     date: "2026-10-31",
     title: "One place for everything you connect",
-    body: "Settings, Connections now holds your apps, other mail accounts and webhooks as tabs, so there is one place to look. Compose tells you before you write when a From address needs its domain verified, and every page now has its own name in the browser tab.",
-  },
-  {
-    id: "2026-10-31-multies-everywhere",
-    date: "2026-10-31",
-    title: "Multies everywhere",
-    body: "Every page, download, code sample and setup step now says Multies. The Email Worker setup in Settings, Mail routing shows MULTIES names, and workers you set up before keep working with no change.",
+    body: "Settings, Connections now holds your apps, other mail accounts and webhooks as tabs, and Compose tells you before you write when a From address needs its domain verified. Every page has its own name in the browser tab, and every page, download and setup step now says Multies. Email Workers you set up before keep working with no change.",
   },
   {
     id: "2026-10-31-calm-layout",
