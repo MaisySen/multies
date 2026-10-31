@@ -7,7 +7,7 @@
  * Columns live in TABLE_COLUMNS: adding one (a Type or Points column) is one entry there.
  */
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
-import { DateInput } from "@/web/components/ui/input"; // R67 (MB-250)
+import { DateInput, Select } from "@/web/components/ui/input"; // R67 (MB-250), R84 shared Select
 import { useQueryClient } from "@tanstack/react-query";
 import { SwipeTr } from "@/web/components/ui/swipe-row";
 import { useRevealRow, useWindowedList } from "@/web/lib/use-windowed-list"; // R43 (MB-210)
@@ -680,6 +680,7 @@ function BulkFieldPanel({ fields, people, onSet }: { fields: CustomField[]; peop
   const [value, setValue] = useState<string>("");
   const f = fields.find((x) => x.id === id) ?? fields[0];
   if (!f) return null;
+  const selCls = "h-8 w-full text-[13px] max-sm:h-11 max-sm:text-base";
   const cls = "h-8 w-full rounded-md border border-line bg-surface px-2 text-[13px] max-sm:h-11 max-sm:text-base";
   const parsed = (): unknown => {
     if (f.type === "number" || f.type === "currency") return value === "" ? null : Number(value);
@@ -689,23 +690,23 @@ function BulkFieldPanel({ fields, people, onSet }: { fields: CustomField[]; peop
   };
   return (
     <div className="w-64 space-y-2 p-2">
-      <select aria-label="Field" value={f.id} onChange={(e) => { setId(e.target.value); setValue(""); }} className={cls}>
+      <Select aria-label="Field" value={f.id} onChange={(e) => { setId(e.target.value); setValue(""); }} className={selCls}>
         {fields.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-      </select>
+      </Select>
       {f.type === "select" || f.type === "multiselect" ? (
-        <select aria-label={`Value for ${f.name}`} value={value} onChange={(e) => setValue(e.target.value)} className={cls}>
+        <Select aria-label={`Value for ${f.name}`} value={value} onChange={(e) => setValue(e.target.value)} className={selCls}>
           <option value="">Pick an option</option>
           {f.options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-        </select>
+        </Select>
       ) : f.type === "checkbox" ? (
-        <select aria-label={`Value for ${f.name}`} value={value} onChange={(e) => setValue(e.target.value)} className={cls}>
+        <Select aria-label={`Value for ${f.name}`} value={value} onChange={(e) => setValue(e.target.value)} className={selCls}>
           <option value="">Pick one</option><option value="yes">Ticked</option><option value="no">Not ticked</option>
-        </select>
+        </Select>
       ) : f.type === "person" ? (
-        <select aria-label={`Value for ${f.name}`} value={value} onChange={(e) => setValue(e.target.value)} className={cls}>
+        <Select aria-label={`Value for ${f.name}`} value={value} onChange={(e) => setValue(e.target.value)} className={selCls}>
           <option value="">Pick a person</option>
           {people.filter((p) => p.type === "member").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+        </Select>
       ) : f.type === "date" ? (
         <DateInput aria-label={`Value for ${f.name}`} value={value} onChange={(e) => setValue(e.target.value)} className={cls} />
       ) : (
