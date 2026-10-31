@@ -7,6 +7,15 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 117 (31 Oct 2026)
+
+- Added: Social composer v2 on New post (flag `SOCIAL_P2`, on unless set to off; off keeps the old composer; migration 0109). Pick a format first (text, image, carousel, video, story or reel), give each network its own text (it follows the main text until edited), counters per network limit, a live preview per network (side panel at 1280, a sheet on phones) and checks before send that list each account as ready, changed (and how) or left out (and why). Carousels, first comment where allowed, link card, campaign tag, LinkedIn polls, TikTok and Threads in the same composer.
+- Added: Planner week, month and list views, drag to move a scheduled post with undo, weekly time slots per account (fill a free slot, or schedule into the next free one), campaigns and tags, filters by account, campaign and status. Phones get a day list.
+- Added: drafts and approvals. Members save drafts and send posts for approval; owners and admins see them in Home, Approvals and approve, ask for changes with a note, or reject. Approved posts go out as scheduled.
+- Added: Social, Library for images, videos, saved captions and hashtag sets by campaign, with clear storage limits, and a pick from library in the composer. Evergreen posts are reused in free slots, with a cap.
+- Added: a failed scheduled post keeps its reason and a Try again button, and its author gets a notice. The social API only gains fields, so the phone app keeps working.
+- Changed: What's new folds "Post to TikTok and Threads" into "Plan social posts by the week" to stay at 14.
+
 ### Round 87 (31 Oct 2026)
 
 - Added: Tools, Links (feature flag `links`, migration 0105). Short links with an auto or custom back half, a public address check on the destination (no private hosts, no loops), end date, password (form token, same site POST, rate limited), click limit (atomic, previews do not count), tags, on and off, edit the destination later, UTM builder and CSV import of up to 500 rows. QR codes in PNG or SVG with the brand colour, the workspace mark and four sizes.
