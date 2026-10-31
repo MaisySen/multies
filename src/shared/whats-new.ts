@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-calm-layout",
+    date: "2026-10-31",
+    title: "A calmer layout you can shape",
+    body: "A slim icon rail and a sidebar for each area, with your favourite projects on top. Drag to size the sidebar, the Mail reading pane (right, below or off) and task details, and pick Comfortable or Compact under View. Create and search live in the top bar, and Ctrl \\ (Cmd \\ on a Mac) hides the sidebar.",
+  },
+  {
     id: "2026-10-31-convert-any-file",
     date: "2026-10-31",
     title: "Convert any file, most of them right on your device",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-30",
     title: "Pay yearly, get two months free",
     body: "Billing has a Monthly or Yearly switch: a year of add ons costs ten months. New customers can use the code LAUNCH30 for 30% off their first 3 months on monthly billing, and every workspace has a referral link in Billing that gives both sides a month of credit.",
-  },
-  {
-    id: "2026-10-30-tools",
-    date: "2026-10-30",
-    title: "Tools for your documents",
-    body: "Compress, merge, split, rotate, redact, watermark, make scans searchable, and turn Word, Excel and PowerPoint into PDF, right inside Multies. Run them on an upload or straight from an email attachment. Files are deleted within 1 hour.",
   },
   {
     id: "2026-10-28-whats-new",

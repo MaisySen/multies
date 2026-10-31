@@ -77,8 +77,11 @@ describe("R53 whats-new list", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-10-29-workspace-tabs")).toBe(false);
     // R77: "Older mail shows its sender and subject" made room for workspace branding.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-30-older-mail-headers")).toBe(false);
-    expect(WHATS_NEW[0].id).toBe("2026-10-31-convert-any-file");
-    expect(WHATS_NEW[1].id).toBe("2026-10-31-workspace-brand");
+    // R79: "Tools for your documents" made room for the calmer layout.
+    expect(WHATS_NEW.some((e) => e.id === "2026-10-30-tools")).toBe(false);
+    expect(WHATS_NEW[0].id).toBe("2026-10-31-calm-layout");
+    expect(WHATS_NEW[1].id).toBe("2026-10-31-convert-any-file");
+    expect(WHATS_NEW[2].id).toBe("2026-10-31-workspace-brand");
     for (const id of ["2026-10-28-more-safe-retries", "2026-10-28-lighter-mail-sync", "2026-10-28-safe-retries", "2026-10-28-quicker-task-lists", "2026-10-27-steadier-my-work"]) {
       expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);
     }

@@ -7,6 +7,17 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 79 (31 Oct 2026)
+
+- Changed: the app shell on a computer is a calm icon rail (Home, Mail, Tasks, Docs, Tools, Chat, Dashboards, Workspace) plus a sidebar for the open area with its pages, counts, Favourites and the projects tree (star a project or a page to keep it on top). Ctrl or Cmd backslash folds the sidebar; Mail keeps its own folder list, so the shell sidebar stays folded there unless you show it.
+- Added: a top bar with breadcrumbs, a search entry (Ctrl K), one Create menu (Task, Doc, Email, Meeting, File) and a View menu: sidebar, Mail reading pane Right, Bottom or Off, task details in a side panel or over the page, an Assignee column on Timeline, Comfortable or Compact density, and Reset layout. Layout is saved per person in this browser.
+- Added: resizable panes (react-resizable-panels, MIT): sidebar width, the Mail list and reader divider (right or bottom), and the task details side panel beside the list, board or timeline.
+- Changed: Tasks toolbar filters, Group and Lanes are light text controls that say their setting; empty assignee, priority and due cells show a faint icon; the list gains an Add task row.
+- Fixed (MB-273): Tab in Mail always moves focus; Inbox splits step with ] and [.
+- Fixed (MB-278): a Skip to content link is the first Tab stop in the app.
+- Fixed: the task table's grid role sits on the table (axe), and timeline rows are numbered from 1 for screen readers.
+- Changed: animations and transitions step aside under reduced motion across the app shell.
+- What's new drops "Tools for your documents" to stay at 14.
 ### Round 77B (31 Oct 2026)
 
 - Fixed: Settings, Branding. A square logo now shows at the top of the sidebar (before, only a wide logo did, so an upload looked like it did nothing). Picking a theme, colour, corners or font repaints the whole app at once for the admin; others see it after Save. Discard and leaving the page put the saved look back.
