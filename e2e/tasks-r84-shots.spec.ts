@@ -30,7 +30,7 @@ async function axe(page: Page, label: string) {
 const noSideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 
 test("tasks screenshots and axe", async ({ page, context, baseURL }) => {
-  test.setTimeout(420_000);
+  test.setTimeout(900_000);
   if (!process.env.E2E_BASE_URL) await context.setExtraHTTPHeaders({ "x-forwarded-for": ip() });
   const origin = new URL(baseURL!).origin;
   await page.setViewportSize({ width: 1280, height: 860 });

@@ -94,7 +94,11 @@ test.describe("R84 tasks", () => {
     await page.locator("[data-task-id]").nth(1).getByRole("checkbox").click();
     await page.getByTestId("bulk-bar").getByRole("button", { name: "Tags" }).click();
     await page.getByRole("button", { name: "Add tag waiting" }).click();
-    await expect(page.locator("[data-task-id]").nth(1).getByTestId("tag-chip").filter({ hasText: "waiting" })).toBeVisible();
+    await expect(page.locator("[data-task-id]").nth(0).getByTestId("tag-chip").filter({ hasText: "waiting" })).toBeVisible();
+    // The second row may fold extra tags into "+1", so check both through the tag filter.
+    await page.keyboard.press("Escape");
+    await page.getByLabel("Tag filter").selectOption({ label: "waiting" });
+    await expect(page.locator("[data-task-id]")).toHaveCount(2);
   });
 
   test("full task page: several people, description with formatting and a mention, comment mention list", async ({ page }) => {
