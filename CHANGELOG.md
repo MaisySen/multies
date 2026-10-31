@@ -7,6 +7,16 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 84 (31 Oct 2026)
+
+- Added: saved views on Tasks keep filters, field filters, sort and grouping; private or shared with the workspace; pinned views show as tabs above the list (rename, share, unpin, delete from the tab menu; arrow keys move between tabs). PATCH /api/tasks/views/:id; views carry pinned, position and canEdit (migration 0104).
+- Added: list group by status, assignee, priority, due date, tag, project or a custom field, with folding headers inside the one table so selection and the bulk bar work across groups; the phone list shows the same groups as sections.
+- Added: several people on a task (tasks.co_assignees, `assignees` on PATCH and in the v1 API, at most 10); everyone newly put on a task is told once and starts watching; people on the task hear about comments; a new @mention in the description notifies through the existing notifications.
+- Added: the full task page at /app/tasks/:ref, two columns (title, description, subtasks, checklist, files, comments and history; properties beside), one tap from the side panel and back. The description reads formatted, with a toolbar (bold, italic, heading, lists, checklist, link, code), keyboard shortcuts and @mention suggestions; comments suggest people after @.
+- Added: workspace tags with colours (GET/POST /api/tasks/tags, PATCH/DELETE /api/tasks/tags/:id; rename and delete rewrite the tasks), a tag picker with inline create, and a Tags dialog. Workspace custom fields (text, number, money, date, dropdown, multi select, checkbox, person, link) defined once for every project (/api/fields/workspace), shown as columns, filters and groups in the all projects list.
+- Added: bulk edit for tags (add from the workspace list, remove), people (assign or add beside) and any custom field.
+- Fixed: list cells no longer carry a forced name that hid their text from screen readers; the task type picker uses theme colours with enough contrast in dark mode.
+
 ### Round 85 (31 Oct 2026)
 
 - Added: Inbox tab style per person: Important and Other (as before), Primary, Updates and Promotions, or no tabs (one Inbox list). Existing accounts keep Important and Other; accounts made from 16:00 UTC on 31 Oct 2026 (after this release is live) start on Primary, Updates and Promotions. Categories are worked out when the list is read (bulk mail split by an offers check), nothing is stored per message. Tab counts as before.

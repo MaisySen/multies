@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-tasks-views-tags",
+    date: "2026-10-31",
+    title: "Saved views, tags and a full task page",
+    body: "Save the filters, sort and grouping you use as a view, keep it for yourself or share it, and pin it as a tab above Tasks. Group the list by status, person, priority, due date, tag or any field, put several people on a task, and give tags their own colours. Every task opens as a full page too, with a description you can format and @mention people in.",
+  },
+  {
     id: "2026-10-31-inbox-tabs-rules",
     date: "2026-10-31",
     title: "Inbox tabs, labels and mail rules",
@@ -84,14 +90,8 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
     id: "2026-10-31-tools-smoother",
     date: "2026-10-31",
-    title: "Tools that tell you sooner",
-    body: "A run that leaves your file unchanged no longer uses a run. Page limits show as soon as you pick a file, with Split PDF one tap away. Results show a bigger first page you can tap to see larger, and the board's Move menu now stays open.",
-  },
-  {
-    id: "2026-10-31-compress-levels",
-    date: "2026-10-31",
-    title: "Pick how small, and see your result",
-    body: "Compress now has Light, Balanced and Smallest, each saying what to expect. Scanned PDFs shrink a lot more than before. A finished PDF shows a picture of its first page, so you can check it before you download.",
+    title: "Tools that tell you sooner, and Compress levels",
+    body: "A run that leaves your file unchanged no longer uses a run, and page limits show as soon as you pick a file. Compress has Light, Balanced and Smallest, scanned PDFs shrink a lot more, and a finished PDF shows its first page so you can check it before you download.",
   },
   {
     id: "2026-10-28-whats-new",
