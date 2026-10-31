@@ -120,14 +120,14 @@ function hostsOf(deps: Deps): string[] {
 
 // ---------------------------------------------------------------- tree
 
-export interface TreeRow { id: string; title: string; parentId: string | null; position: number; projectId: string | null; updatedAt: Date }
-export interface TreeNode { id: string; title: string; parentId: string | null; position: number; projectId: string | null; updatedAt: string; depth: number; children: TreeNode[] }
+export interface TreeRow { id: string; title: string; parentId: string | null; position: number; projectId: string | null; updatedAt: Date; kind?: string | null }
+export interface TreeNode { id: string; title: string; parentId: string | null; position: number; projectId: string | null; updatedAt: string; depth: number; children: TreeNode[]; /** R89: shown only when not a plain doc. */ kind?: "whiteboard" }
 
 /** Who is reading: a workspace member or key (orgId), or a guest limited to one project. */
 export interface DocViewer { orgId: string; projectId?: string }
 
 async function treeRows(deps: Deps, v: DocViewer): Promise<TreeRow[]> {
-  return deps.db.select({ id: docs.id, title: docs.title, parentId: docs.parentId, position: docs.position, projectId: docs.projectId, updatedAt: docs.updatedAt })
+  return deps.db.select({ id: docs.id, title: docs.title, parentId: docs.parentId, position: docs.position, projectId: docs.projectId, updatedAt: docs.updatedAt, kind: docs.kind })
     .from(docs).where(and(eq(docs.orgId, v.orgId), isNull(docs.deletedAt), v.projectId ? eq(docs.projectId, v.projectId) : undefined))
     .orderBy(desc(docs.updatedAt)).limit(MAX_TREE);
 }
@@ -137,7 +137,7 @@ const order = (a: { position: number; id: string }, b: { position: number; id: s
 /** Nests rows; a page whose parent is gone or out of view sits at the top. */
 export function buildTree(rows: TreeRow[]): TreeNode[] {
   const nodes = new Map<string, TreeNode>();
-  for (const r of rows) nodes.set(r.id, { id: r.id, title: r.title, parentId: r.parentId, position: r.position, projectId: r.projectId, updatedAt: new Date(r.updatedAt).toISOString(), depth: 1, children: [] });
+  for (const r of rows) nodes.set(r.id, { id: r.id, title: r.title, parentId: r.parentId, position: r.position, projectId: r.projectId, updatedAt: new Date(r.updatedAt).toISOString(), depth: 1, children: [], ...(r.kind === "whiteboard" ? { kind: "whiteboard" as const } : {}) });
   const roots: TreeNode[] = [];
   for (const n of nodes.values()) {
     const p = n.parentId ? nodes.get(n.parentId) : undefined;

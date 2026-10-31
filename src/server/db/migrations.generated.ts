@@ -1088,6 +1088,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0108_r89_doc_kind",
+    "statements": [
+      "-- R89: docs visual. Additive only.\n-- docs.kind: \"whiteboard\" for a doc that is one board, so the list and the page tree show its icon and the page opens the\n-- canvas. Written by the server from the content on every create and update; every existing doc stays \"doc\".\nALTER TABLE `docs` ADD `kind` text DEFAULT 'doc' NOT NULL;"
+    ]
+  },
+  {
     "name": "0111_helpdesk",
     "statements": [
       "-- R119: helpdesk mode on the shared inbox (tickets, SLA clocks, macros, survey) and the website chat. Additive only.\nCREATE TABLE `hd_settings` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`settings` text DEFAULT '{}' NOT NULL,\n\t`widget_key` text NOT NULL,\n\t`ticket_seq` integer DEFAULT 1000 NOT NULL,\n\t`sync_cursor` integer DEFAULT 0 NOT NULL,\n\t`synced_at` integer DEFAULT 0 NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",

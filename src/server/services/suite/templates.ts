@@ -15,6 +15,7 @@ import { normaliseRule, type RepeatRule } from "./recurrence";
 import { createProject, createTask, getProject, getTask, resolveTaskId, type Category, type Priority } from "./tasks";
 import { emitEvent } from "../developer/webhooks";
 import { checklistTitles, copyChecklist } from "./checklists"; // R26 (MB-85)
+import { VISUAL_STARTERS } from "../../../shared/docs-visual-templates";
 
 export interface TemplateTask {
   title: string; notes?: string; status?: string; priority?: Priority; labels?: string[];
@@ -190,6 +191,7 @@ export const STARTERS: Starter[] = [
     description: "One page on the why, the scope, the dates and how you will know it worked.",
     data: { title: "Project brief", text: "# Why\nThe problem and who has it.\n# Scope\n- In:\n- Out:\n# Dates\n- Start:\n- Launch:\n# Success\nHow we will measure it.\n# Team\n- Owner:" },
   },
+  ...VISUAL_STARTERS, // R89: starter whiteboards and a diagram
 ];
 
 const notFound = () => new HttpError(404, "not_found", "Template not found.");

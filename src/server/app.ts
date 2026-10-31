@@ -403,6 +403,8 @@ export function createApp(deps: Deps) {
       toolFeatures: deps.config.tools.enabled ? activeToolFeatures(deps) : [],
       // R43: whether the import pages say a run carries on after the page closes (BACKGROUND_COPY).
       backgroundCopy: !!deps.config.backgroundCopy,
+      // R89: whiteboards, diagrams, mind map and Present in Docs (DOCS_VISUAL; on unless "off").
+      docsVisual: deps.config.docsVisual !== false,
       // Round 25: provider connections shown as sign in buttons (AUTH0_SOCIAL_CONNECTIONS).
       socialConnections: deps.config.auth.socialConnections ?? [],
       // R32: the VAPID public key a browser subscribes with (absent when web push is off).

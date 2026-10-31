@@ -189,6 +189,8 @@ export interface AppConfig {
   importStepCapOrgs?: string[];
   /** R43: the import pages say a run carries on after the page closes. */
   backgroundCopy?: boolean;
+  /** R89: whiteboards, diagrams, mind map mode and Present in Docs (DOCS_VISUAL, on unless "off"). */
+  docsVisual?: boolean;
   /** Mail import runners authenticate with this (IMPORT_RUNNER_TOKEN). Import is off without it. */
   importRunnerToken?: string;
   /**
@@ -373,6 +375,7 @@ const EnvSchema = z.object({
   IMPORT_STEP_CAP_ORGS: z.string().regex(/^(org_[a-z0-9]{6,40})(,org_[a-z0-9]{6,40}){0,4}$/).optional(),
   /** R43: "true" once imports that finish after the page closes are proven live; the import pages then say so. */
   BACKGROUND_COPY: z.string().optional(),
+  DOCS_VISUAL: z.string().optional(),
   MAIL_CONNECT: z.string().optional(),
   MAIL_CONNECT_ALLOW_SELF_SIGNED: z.string().optional(),
   MAIL_CONNECT_ALLOW_PRIVATE_HOSTS: z.string().optional(),
@@ -654,6 +657,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     importStepMaxItems: env.IMPORT_STEP_MAX_ITEMS ? Number(env.IMPORT_STEP_MAX_ITEMS) : undefined,
     importStepCapOrgs: env.IMPORT_STEP_CAP_ORGS ? env.IMPORT_STEP_CAP_ORGS.split(",") : undefined,
     backgroundCopy: env.BACKGROUND_COPY === "true",
+    docsVisual: env.DOCS_VISUAL !== "off",
     mailConnect: (() => {
       const on = (v: string | undefined) => v === "1" || v === "true" || v === "on";
       const testOnly = (key: string, v: string | undefined) => {

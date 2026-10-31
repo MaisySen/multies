@@ -8,6 +8,7 @@ import { mergeAttributes } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
 import { TableKit } from "@tiptap/extension-table";
 import { Callout } from "./docs-callout";
+import { Diagram, Whiteboard } from "./docs-visual-schema"; // R89
 
 export const IMAGE_SIZES = ["fit", "wide", "full"] as const;
 export type ImageSize = (typeof IMAGE_SIZES)[number];
@@ -86,5 +87,7 @@ export function docBlockSchemaExtensions() {
     TableKit.configure({ table: { resizable: false, HTMLAttributes: { class: "mm-table" } } }),
     DocImage,
     Callout,
+    Whiteboard, // R89
+    Diagram, // R89
   ];
 }

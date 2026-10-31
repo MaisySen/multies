@@ -6,6 +6,7 @@ import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, recordWrite, sortableId, type SuiteActor } from "./common";
 import { link, linked } from "./tasks";
 import { liftChildren, placeNewDoc, syncDocLinks } from "./doc-tree";
+import { boardTextOf, docKindOf } from "../../../shared/docs-visual"; // R89
 import { markdownToDoc } from "./markdown-doc";
 import { editorShape } from "./doc-editor-shape";
 import { inIds } from "../../lib/sql-chunks";
@@ -14,13 +15,14 @@ import { snapshotBeforeEdit } from "./doc-versions-r39"; // R39: page history
 export type LinkTarget = { type: "project" | "task" | "thread" | "contact" | "deal"; id: string };
 interface PMNode { type?: string; text?: string; content?: PMNode[]; attrs?: Record<string, unknown> }
 
-const BLOCKS = new Set(["paragraph", "heading", "listItem", "blockquote", "codeBlock", "taskItem", "tableCell", "tableHeader"]); // R32: one line per table cell
+const BLOCKS = new Set(["paragraph", "heading", "listItem", "blockquote", "codeBlock", "taskItem", "tableCell", "tableHeader", "diagram"]); // R32: one line per table cell
 
 /** Plain text of a ProseMirror document, one line per block. */
 export function plainTextOf(node: PMNode): string {
   const out: string[] = [];
   const walk = (n: PMNode, line: string[]): void => {
     if (n.type === "text" && n.text) { line.push(n.text); return; }
+    if (n.type === "whiteboard") { const s = boardTextOf(n.attrs?.scene); if (s) out.push(s); return; } // R89: words on a board
     if (n.type === "hardBreak") { line.push("\n"); return; }
     if (n.content) {
       if (n.type && BLOCKS.has(n.type)) {
@@ -93,7 +95,7 @@ export function excerptOf(title: string, plain: string): string {
 }
 function presentDoc(d: DocRow, full = false) {
   return {
-    id: d.id, title: d.title, projectId: d.projectId, parentId: d.parentId, position: d.position, excerpt: excerptOf(d.title, d.plainText),
+    id: d.id, title: d.title, kind: d.kind ?? "doc", projectId: d.projectId, parentId: d.parentId, position: d.position, excerpt: excerptOf(d.title, d.plainText),
     ...(full ? { content: JSON.parse(d.content) as PMNode, text: d.plainText } : {}),
     createdBy: { type: d.createdByType, id: d.createdById }, createdAt: d.createdAt.toISOString(), updatedAt: d.updatedAt.toISOString(), version: d.version,
   };
@@ -141,7 +143,7 @@ export async function createDoc(deps: Deps, actor: SuiteActor, input: { title: s
   const place = await placeNewDoc(deps, actor.orgId, input.parentId); // R24: tree position
   const now = deps.now();
   const id = opts.id ?? sortableId("doc", now.getTime()); // R51 (MB-239): the same id on an Idempotency-Key retry
-  await deps.db.insert(docs).values({ id, orgId: actor.orgId, title: input.title.trim() || "Untitled", content: JSON.stringify(body), plainText: plainTextOf(body), projectId: input.projectId ?? null, ...place, ...createdBy(actor), createdAt: now, updatedAt: now });
+  await deps.db.insert(docs).values({ id, orgId: actor.orgId, title: input.title.trim() || "Untitled", content: JSON.stringify(body), plainText: plainTextOf(body), kind: docKindOf(body), projectId: input.projectId ?? null, ...place, ...createdBy(actor), createdAt: now, updatedAt: now });
   await syncDocLinks(deps, actor.orgId, id, body); // R24: backlinks
   for (const l of [...(input.links ?? []), ...(input.projectId ? [{ type: "project" as const, id: input.projectId }] : [])]) await link(deps, actor.orgId, { type: "doc", id }, l);
   await recordWrite(deps, actor, { entityType: "doc", entityId: id, op: "create", verb: "created", data: { title: input.title }, event: "doc.created", eventData: { id, title: input.title } });
@@ -162,7 +164,7 @@ export async function updateDoc(deps: Deps, actor: SuiteActor, id: string, patch
   if (changesPage && opts.history !== false) await snapshotBeforeEdit(deps, actor, d);
   const written = await deps.db.update(docs).set({
     ...(patch.title !== undefined ? { title: patch.title.trim() || "Untitled" } : {}),
-    ...(body ? { content: JSON.stringify(body), plainText: plainTextOf(body) } : {}),
+    ...(body ? { content: JSON.stringify(body), plainText: plainTextOf(body), kind: docKindOf(body) } : {}),
     updatedAt: deps.now(), version: d.version + 1,
   }).where(and(eq(docs.id, id), eq(docs.version, d.version))).returning({ id: docs.id }); // R28: no lost update between the read and this write
   if (!written.length) throw versionConflict((await docRow(deps, actor.orgId, id)).version);

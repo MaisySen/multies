@@ -35,6 +35,8 @@ export interface PublicConfig {
   socialConnections?: string[];
   /** R43: the import pages say a run carries on after the page closes (BACKGROUND_COPY, set once proven live). */
   backgroundCopy?: boolean;
+  /** R89: whiteboards, diagrams, mind map mode and Present in Docs (DOCS_VISUAL, on unless "off"). */
+  docsVisual?: boolean;
   mxHosts: { host: string; priority: number }[];
   plans: Plan[];
   sentry: { dsn: string; environment: string; release?: string; tracesSampleRate?: number } | null;

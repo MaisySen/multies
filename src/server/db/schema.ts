@@ -1001,6 +1001,8 @@ export const docs = sqliteTable("docs", {
   parentId: text("parent_id"),
   /** R24: order among siblings, fractional so a move writes one row. */
   position: real("position").notNull().default(0),
+  /** R89: "doc", or "whiteboard" for a doc that is one board (set by the server from the content, never sent). */
+  kind: text("kind", { enum: ["doc", "whiteboard"] }).notNull().default("doc"),
   ...suiteCols(),
 }, (t) => [index("docs_org_idx").on(t.orgId, t.updatedAt)]);
 
