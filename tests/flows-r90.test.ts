@@ -63,9 +63,12 @@ describe("branch routing", () => {
     expect(nextNode(g, "a", "next")).toBeNull();
     expect(nextNode(g, "b", "next")).toBeNull();
   });
-  it("a valid graph has no problems; every starter template is valid", () => {
+  it("a valid graph has no problems; a starter template's only problems are the blanks it asks you to fill", () => {
     expect(validateGraph(g)).toEqual([]);
-    for (const t of FLOW_TEMPLATES) expect(validateGraph(t.graph), t.key).toEqual([]);
+    for (const t of FLOW_TEMPLATES) for (const p of validateGraph(t.graph)) expect(p.message, t.key).toMatch(/address to watch|Pick a channel|Pick a webhook/);
+    const page = FLOW_TEMPLATES.find((t) => t.key === "page_alert")!.graph;
+    const filled = { ...page, nodes: page.nodes.map((n) => (n.kind === "trigger" ? { ...n, config: { ...n.config, url: "https://example.com" } } : n)) };
+    expect(validateGraph(filled)).toEqual([]);
   });
   it("finds loops, loose steps, wrong branches and task only actions on other triggers", () => {
     const loop = { ...g, edges: [...g.edges, { id: "5", from: "b", to: "c", branch: "next" as const }] };

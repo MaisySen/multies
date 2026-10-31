@@ -236,3 +236,18 @@ describe("page and feed watches", () => {
     expect((await messages()).filter((x) => x.startsWith("New: ")).sort()).toEqual(["New: Post b", "New: Post c"]);
   });
 });
+
+describe("templates", () => {
+  it("every template saves as a draft with its blanks, and stays off until they are filled", async () => {
+    const { FLOW_TEMPLATES } = await import("@/shared/flows");
+    for (const t of FLOW_TEMPLATES) {
+      const r = await c.post("/api/flows", { name: t.name, graph: t.graph });
+      expect(r.status, `${t.key} ${JSON.stringify(r.body)}`).toBe(201);
+      expect(r.body.flow.enabled).toBe(false);
+    }
+    const page = (await c.get("/api/flows")).body.flows.find((f: { name: string }) => f.name === "Web page changed alert");
+    const on = await c.patch(`/api/flows/${page.id}`, { enabled: true });
+    expect(on.status).toBe(422);
+    expect(JSON.stringify(on.body)).toContain("page address");
+  });
+});

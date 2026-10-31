@@ -187,6 +187,7 @@ export function validateGraph(g: FlowGraph): GraphProblem[] {
   if (triggers.length !== 1) out.push({ message: triggers.length ? "A flow has one trigger." : "Pick a trigger to start the flow." });
   const t = triggers[0];
   if (t && !FLOW_TRIGGERS.includes(t.config.trigger as FlowTrigger)) out.push({ nodeId: t.id, message: "Pick what starts the flow." });
+  if (t && (t.config.trigger === "page_changed" || t.config.trigger === "feed_item") && !String(t.config.url ?? "").trim()) out.push({ nodeId: t.id, message: t.config.trigger === "feed_item" ? "Add the feed address to watch." : "Add the page address to watch." });
   for (const e of g.edges) {
     if (!ids.has(e.from) || !ids.has(e.to)) out.push({ message: "A link points at a missing step." });
     if (e.from === e.to) out.push({ nodeId: e.from, message: "A step cannot lead to itself." });
@@ -209,6 +210,8 @@ export function validateGraph(g: FlowGraph): GraphProblem[] {
       const a = n.config.action as FlowAction;
       if (!FLOW_ACTIONS.includes(a)) out.push({ nodeId: n.id, message: "Pick what this step does." });
       else if (TASK_ONLY_ACTIONS.includes(a) && t && !TASK_TRIGGERS.includes(t.config.trigger as FlowTrigger)) out.push({ nodeId: n.id, message: `${ACTION_LABEL[a]} works only when a task starts the flow.` });
+      if (a === "post_to_channel" && !n.config.channelId) out.push({ nodeId: n.id, message: "Pick a channel to post in." });
+      if (a === "send_webhook" && !n.config.endpointId) out.push({ nodeId: n.id, message: "Pick a webhook to send to, or add one in Settings, Connections, Webhooks." });
     }
     if (n.kind === "condition") {
       const rules = (n.config.rules as ConditionRule[] | undefined) ?? [];

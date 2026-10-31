@@ -85,19 +85,20 @@ async function checkReferences(deps: Deps, orgId: string, g: FlowGraph) {
       const t = c.trigger as FlowTrigger;
       if (t === "page_changed" || t === "feed_item") {
         const { checkWatchUrl } = await import("./flow-watch");
-        checkWatchUrl(deps, String(c.url ?? ""));
+        // A blank address is a draft (a template just added); validateGraph keeps the flow off until it is filled.
+        if (String(c.url ?? "").trim()) checkWatchUrl(deps, String(c.url));
         if (c.every !== undefined && !(WATCH_EVERY as readonly number[]).includes(Number(c.every))) throw bad("Pick how often to check.");
       }
     }
     if (n.kind === "action") {
       const a = c.action as FlowAction;
       if (a === "post_to_channel") {
-        if (!c.channelId) throw bad("Pick a channel to post in.");
+        if (!c.channelId) continue;
         const ch = await deps.db.select({ id: chatChannels.id }).from(chatChannels).where(and(eq(chatChannels.id, String(c.channelId)), eq(chatChannels.orgId, orgId), eq(chatChannels.isPrivate, false))).get();
         if (!ch) throw bad("That channel is gone or private.");
       }
       if (a === "send_webhook") {
-        if (!c.endpointId) throw bad("Pick a webhook to send to, or add one in Settings, Connections, Webhooks.");
+        if (!c.endpointId) continue;
         const e = await deps.db.select({ id: webhookEndpoints.id }).from(webhookEndpoints).where(and(eq(webhookEndpoints.id, String(c.endpointId)), eq(webhookEndpoints.orgId, orgId))).get();
         if (!e) throw bad("That webhook is gone.");
       }
