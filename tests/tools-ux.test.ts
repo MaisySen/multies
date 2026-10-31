@@ -27,7 +27,7 @@ describe("Tools UX list", () => {
 
   it("shows only P1 tools and no pages when no P2 feature is on", () => {
     const entries = buildEntries(catalogueFor([]), []);
-    expect(entries.every((e) => !!e.tool)).toBe(true);
+    expect(entries.every((e) => !!e.tool || e.key === "convert-any")).toBe(true); // R78: the Convert hub is always on
     expect(entries.map((e) => e.key)).toContain("compress");
     expect(entries.map((e) => e.key)).not.toContain("protect");
   });

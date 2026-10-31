@@ -25,6 +25,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-scheduling", label: "Booking page", to: "/app/scheduling", icon: IconCalendarClock, keywords: ["scheduling", "book", "calendar link"] },
   // Tools P1: shown only when the server has Tools on (flag "tools").
   { id: "p-tools", label: "Tools", to: "/app/tools", icon: IconWrench, keywords: ["pdf", "compress", "merge", "convert", "documents", "word to pdf"], flag: "tools" },
+  { id: "p-tools-convert", label: "Convert files", to: "/app/tools/convert", icon: IconWrench, keywords: ["convert", "heic", "webp", "avif", "png", "jpg", "image to pdf", "csv to excel", "excel to csv", "split pdf", "rotate pdf", "page numbers"], flag: "tools" }, // R78
   { id: "p-tools-ai", label: "AI document helpers", to: "/app/tools/ai", icon: IconWrench, keywords: ["ask a document", "summary", "translate", "invoice", "receipt", "expense report", "contract dates"], flag: "tools", toolFeature: ["ask", "translate", "extract", "expenses", "contracts"] }, // Tools P2
   // Tools P2: share links and e-sign, each shown only while its feature is on.
   { id: "p-tools-share", label: "Share links", to: "/app/tools/share", icon: IconLink, keywords: ["send large file", "share file", "download link", "expiring link"], flag: "tools", toolFeature: ["share"] },
