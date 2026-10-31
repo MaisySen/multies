@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-notification-centre",
+    date: "2026-11-01",
+    title: "Quiet hours, digests and mail for notifications",
+    body: "In Settings, Notifications, choose mail as well as the inbox and your phone for each kind of notification, and get it as it happens or in one daily or weekly digest. Set quiet hours in your own time zone, or pause alerts for a while from the Notifications page.",
+  },
+  {
     id: "2026-11-01-help-center",
     date: "2026-11-01",
     title: "A public help center for your customers",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "Saved views, tags and a full task page",
     body: "Save the filters, sort and grouping you use as a view, keep it for yourself or share it, and pin it as a tab above Tasks. Group the list by status, person, priority, due date, tag or any field, put several people on a task, and give tags their own colours. Every task opens as a full page too, with a description you can format and @mention people in.",
-  },
-  {
-    id: "2026-10-31-inbox-tabs-rules",
-    date: "2026-10-31",
-    title: "Inbox tabs, mail rules and a helpdesk",
-    body: "Pick how Inbox is sorted: Important and Other, Primary, Updates and Promotions, or one list. Mail rules label, sort, forward, reply, make a task or notify you as new mail arrives. Turn a shared inbox into a helpdesk in Shared inbox, Helpdesk: tickets with owners, priorities and reply times in business hours, macros, a short survey after you solve, and a chat for your website.",
   },
   {
     id: "2026-10-28-whats-new",

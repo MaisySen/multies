@@ -22,6 +22,7 @@ import { BrowserNotifications } from "@/web/components/browser-notifications-r32
 import { CaughtUpArt } from "@/web/components/illustrations"; // R36
 import { KindTile } from "@/web/components/premium4-r39"; // R39 premium pass 4
 import { NOTIFICATION_FILTER_KEY, readStoredFilter } from "@/web/lib/premium4-r39";
+import { AlertStatusLine, DeliverySettings, PauseMenu, useNotificationSettings, useSaveSettings, type ChannelPrefs } from "@/web/components/notification-centre-r97"; // R97
 
 export type NotificationCategory = "mention" | "assignment" | "comment" | "approval" | "due_soon" | "chat" | "email" | "status";
 export interface InboxItem { id: string; type: string; category: NotificationCategory; entityType: string; entityId: string; title: string; actor: { name: string } | null; read: boolean; createdAt: string; link: string; doneAt: string | null; snoozedUntil: string | null }
@@ -39,6 +40,7 @@ export function useUnreadNotifications(enabled: boolean) {
 }
 
 export function NotificationsPage() {
+  const centreQ = useNotificationSettings(); // R97: pause menu and status line when the centre is on
   const [view, setView] = useState<TriageView>("inbox");
   // R39: the chosen filter chip sticks per device.
   const [filter, setFilterState] = useState<NotificationCategory | "all">(() => readStoredFilter(FILTERS, "all"));
@@ -141,12 +143,14 @@ export function NotificationsPage() {
   const counts = q.data?.counts;
   const vc = q.data?.viewCounts;
   const groups = groupByDay(items, view);
+  const centre = !!centreQ.data?.delivery; // R97
   return (
     <div>
       <PageHeader title="Notifications" description="Mentions, work assigned to you, comments, approvals and anything due soon. Mark each one done or snooze it until later."
-        actions={<div className="flex gap-2"><Link to="/app/settings/notifications" className="inline-flex h-8 items-center rounded-lg px-3 text-[13px] text-muted transition-colors duration-150 hover:bg-elevated hover:text-fg max-sm:min-h-11">Settings</Link>
+        actions={<div className="flex flex-wrap gap-2">{centre && <PauseMenu />}<Link to="/app/settings/notifications" className="inline-flex h-8 items-center rounded-lg px-3 text-[13px] text-muted transition-colors duration-150 hover:bg-elevated hover:text-fg max-sm:min-h-11">Settings</Link>
           <Button size="sm" variant="secondary" onClick={markAll} disabled={!q.data?.unread}><IconCheckDouble className="h-4 w-4" />Mark all read</Button>
           {view === "inbox" && <Button size="sm" variant="secondary" onClick={() => void doneAll()} disabled={!items.length}><IconCheck className="h-4 w-4" />Mark all done</Button>}</div>} />
+      <AlertStatusLine />
       <div className="mb-3 inline-flex rounded-lg bg-fill p-0.5" role="tablist" aria-label="Notification views">
         {TRIAGE_VIEWS.map((v) => (
           <button key={v} role="tab" aria-selected={view === v} data-testid={`triage-tab-${v}`} onClick={() => { setView(v); setFocus(null); }}
@@ -256,33 +260,42 @@ function SnoozeMenu({ onPick, onClose }: { onPick: (b: { preset: SnoozePreset } 
 
 /** Settings, Notifications: per category, show in the inbox and push to my phone. */
 export function NotificationSettings() {
-  const qc = useQueryClient();
-  const q = useQuery({ queryKey: ["notifications", "settings"], queryFn: async () => (await api.get<{ settings: Record<NotificationCategory, { inApp: boolean; push: boolean }> }>("/notifications/settings")).settings });
-  const save = async (c: NotificationCategory, patch: { inApp?: boolean; push?: boolean }) => {
-    try { const r = await api.put<{ settings: Record<NotificationCategory, { inApp: boolean; push: boolean }> }>("/notifications/settings", { settings: { [c]: patch } }); qc.setQueryData(["notifications", "settings"], r.settings); }
-    catch (e) { showError(e as Error); }
-  };
+  // R97: one query for the switches and the delivery settings; Mail column and delivery cards only when the server has them.
+  const q = useNotificationSettings();
+  const saveAll = useSaveSettings();
+  const save = (c: NotificationCategory, patch: Partial<ChannelPrefs>) => void saveAll({ settings: { [c]: patch } });
+  const delivery = q.data?.delivery;
+  const s = q.data?.settings;
+  const cols = delivery ? "grid-cols-[minmax(0,1fr)_52px_52px_52px] sm:grid-cols-[minmax(0,1fr)_96px_96px_96px]" : "grid-cols-[minmax(0,1fr)_64px_64px] sm:grid-cols-[minmax(0,1fr)_96px_96px]";
+  const anyMail = !!s && Object.values(s).some((v) => v.mail);
   return (
     <div className="space-y-4">
-      <div><h2 className="text-[15px] font-semibold">Notifications</h2><p className="text-[13.5px] text-muted">Choose what shows in your inbox and what buzzes your phone. Phone alerts carry no message text, only what to open.</p></div>
+      <div><h2 className="text-[15px] font-semibold">Notifications</h2><p className="text-[13.5px] text-muted">{delivery ? "Choose what shows in your inbox, what buzzes your phone and what reaches you by mail. Phone alerts carry no message text, only what to open." : "Choose what shows in your inbox and what buzzes your phone. Phone alerts carry no message text, only what to open."}</p></div>
       <BrowserNotifications />
-      {q.isPending ? <Card className="p-0"><SkeletonRows rows={8} label="Loading notification settings" /></Card> : (
+      {q.isPending ? <Card className="p-0"><SkeletonRows rows={8} label="Loading notification settings" /></Card> : q.isError ? (
+        <Card className="p-4 text-[13.5px]"><p className="mb-2">Notification settings did not load.</p><Button size="sm" variant="secondary" onClick={() => void q.refetch()}>Try again</Button></Card>
+      ) : (<>
         <Card className="p-0">
           {/* R39 premium pass 4: a grouped list with a kind tile per row instead of a bare table. */}
           <div data-testid="notification-settings" role="table" aria-label="Notification settings" className="text-[13.5px]">
-            <div role="row" className="grid grid-cols-[minmax(0,1fr)_64px_64px] items-center border-b border-line px-4 py-2 text-[12px] font-medium text-subtle sm:grid-cols-[minmax(0,1fr)_96px_96px]">
-              <span role="columnheader">Category</span><span role="columnheader" className="text-center">In the inbox</span><span role="columnheader" className="text-center">Phone</span>
+            <div role="row" className={cn("grid items-center border-b border-line px-4 py-2 text-[12px] font-medium text-subtle", cols)}>
+              <span role="columnheader">Category</span>
+              <span role="columnheader" className="text-center"><span className="sm:hidden">Inbox</span><span className="max-sm:hidden">In the inbox</span></span>
+              <span role="columnheader" className="text-center">Phone</span>
+              {delivery && <span role="columnheader" className="text-center">Mail</span>}
             </div>
             {(Object.keys(CATEGORY_LABELS) as NotificationCategory[]).map((c) => (
-              <div role="row" key={c} className="grid grid-cols-[minmax(0,1fr)_64px_64px] items-center border-b border-line px-4 py-2.5 last:border-0 sm:grid-cols-[minmax(0,1fr)_96px_96px]">
+              <div role="row" key={c} className={cn("grid items-center border-b border-line px-4 py-2.5 last:border-0", cols)}>
                 <span role="cell" className="flex min-w-0 items-center gap-3"><KindTile kind={c} size="sm" /><span className="truncate font-medium">{CATEGORY_LABELS[c]}</span></span>
-                <span role="cell" className="flex justify-center"><Switch label={`${CATEGORY_LABELS[c]} in the inbox`} checked={q.data?.[c]?.inApp ?? true} onChange={(v) => void save(c, { inApp: v })} /></span>
-                <span role="cell" className="flex justify-center"><Switch label={`${CATEGORY_LABELS[c]} on my phone`} checked={q.data?.[c]?.push ?? true} onChange={(v) => void save(c, { push: v })} /></span>
+                <span role="cell" className="flex justify-center"><Switch label={`${CATEGORY_LABELS[c]} in the inbox`} checked={s?.[c]?.inApp ?? true} onChange={(v) => save(c, { inApp: v })} /></span>
+                <span role="cell" className="flex justify-center"><Switch label={`${CATEGORY_LABELS[c]} on my phone`} checked={s?.[c]?.push ?? true} onChange={(v) => save(c, { push: v })} /></span>
+                {delivery && <span role="cell" className="flex justify-center"><Switch label={`${CATEGORY_LABELS[c]} by mail`} checked={s?.[c]?.mail ?? false} onChange={(v) => save(c, { mail: v })} /></span>}
               </div>
             ))}
           </div>
         </Card>
-      )}
+        {delivery && <DeliverySettings delivery={delivery} anyMail={anyMail} />}
+      </>)}
     </div>
   );
 }
