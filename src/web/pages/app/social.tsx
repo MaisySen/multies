@@ -23,9 +23,9 @@ import { AppLogo, appsKeys, useAppAccounts, useAppsStatus, useConnect, useConnec
 import { Composer, POST_STATUS, PostList, ReconnectButton, useAccountHealth, useSocialPosts, type PostFilter } from "./apps-social";
 import { DirectAccounts } from "./apps-direct";
 
-/** The networks the one composer posts to, in the order people look for them. */
-const NETWORKS = Object.keys(SOCIAL_NETWORKS);
+/** The networks the one composer connects to here (TikTok and Threads have their own cards; X is not offered). */
 const NETWORK_NAMES: Record<string, string> = { facebook: "Facebook Pages", instagram: "Instagram", linkedin: "LinkedIn", pinterest: "Pinterest", reddit: "Reddit" };
+const NETWORKS = Object.keys(NETWORK_NAMES);
 const postable = (accounts: ConnectedAccountView[] | undefined) => (accounts ?? []).filter((a) => a.status === "active" && a.app in SOCIAL_NETWORKS);
 
 function NewPostButton() {
