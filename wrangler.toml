@@ -160,6 +160,7 @@ AUTH0_SOCIAL_CONNECTIONS = "google-oauth2"
 # Public booking pages and the scheduling API (migration 0021).
 SCHEDULING_ENABLED = "true"
 DASHBOARDS_PLUS = "on" # R91: public links, emailed reports, question builder, alerts, data sources
+CLIENT_PORTAL = "on" # R120: client portals, verifier v7 PASS WITH BUGS 23:42 UTC Oct 31
 # The app's public address. The workers.dev address keeps working (same Worker, same data);
 # www.multies.si redirects to the apex and app.multies.si serves the app too.
 APP_URL = "https://multies.si"
