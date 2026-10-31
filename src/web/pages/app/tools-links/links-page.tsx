@@ -2,12 +2,13 @@
  * R87: Tools > Links. Short links (with QR and click stats), a link in bio page, team go links and the link domain, as
  * four tabs on one page. Hidden unless GET /api/tools lists the "links" feature.
  */
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/web/lib/api";
 import { ToolsFrame } from "@/web/components/tools/tools-frame";
+import { lazyPage } from "@/web/components/lazy-page";
 import { Button } from "@/web/components/ui/button";
 import { Select } from "@/web/components/ui/input";
 import { Badge, Card, CopyButton, EmptyState, Skeleton } from "@/web/components/ui/misc";
@@ -22,9 +23,9 @@ import { QrPanel } from "./qr-panel";
 import { StatsView } from "./stats";
 import { ImportDialog } from "./import-dialog";
 
-const BioEditor = lazy(() => import("./bio-editor").then((m) => ({ default: m.BioEditor })));
-const GoLinksTab = lazy(() => import("./go-links").then((m) => ({ default: m.GoLinksTab })));
-const DomainTab = lazy(() => import("./domain").then((m) => ({ default: m.DomainTab })));
+const BioEditor = lazyPage(() => import("./bio-editor"), "BioEditor");
+const GoLinksTab = lazyPage(() => import("./go-links"), "GoLinksTab");
+const DomainTab = lazyPage(() => import("./domain"), "DomainTab");
 
 const TABS = [["links", "Short links"], ["bio", "Bio page"], ["go", "Go links"], ["domain", "Domain"]] as const;
 type Tab = (typeof TABS)[number][0];

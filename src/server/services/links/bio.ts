@@ -2,7 +2,8 @@
  * R87: link in bio pages. One for the workspace (admins edit it) and one per person. The brand colour and the avatar
  * address are copied onto the row when it is saved, so the public page is one keyed read by slug.
  */
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { inIds } from "../../lib/sql-chunks";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { linkBioPages, linkClicks, organizations, users } from "../../db/schema";
 import { newId } from "../../lib/crypto";
@@ -49,7 +50,7 @@ export async function getBio(deps: Deps, auth: AuthContext, scope: BioScope): Pr
   const items = parseList<BioItem>(row.items);
   const ids = items.map((i) => i.id).filter(Boolean).slice(0, MAX_BIO_ITEMS);
   const counts = ids.length
-    ? await deps.db.select({ id: linkClicks.linkId, n: sql<number>`count(*)` }).from(linkClicks).where(and(eq(linkClicks.orgId, auth.orgId), inArray(linkClicks.linkId, ids))).groupBy(linkClicks.linkId)
+    ? await deps.db.select({ id: linkClicks.linkId, n: sql<number>`count(*)` }).from(linkClicks).where(and(eq(linkClicks.orgId, auth.orgId), inIds(linkClicks.linkId, ids))).groupBy(linkClicks.linkId)
     : [];
   const by = new Map(counts.map((c) => [c.id, Number(c.n)]));
   return {

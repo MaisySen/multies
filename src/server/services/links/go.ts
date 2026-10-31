@@ -1,7 +1,8 @@
 /**
  * R87: team go links. go/<name> opens a doc, a task, a project or a web address; members of the workspace only.
  */
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { inIds } from "../../lib/sql-chunks";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { docs, goLinks, projects, tasks, users } from "../../db/schema";
 import { newId } from "../../lib/crypto";
@@ -22,7 +23,7 @@ function present(r: Row, auth: AuthContext, names: Map<string, string>): GoLinkI
 export async function listGo(deps: Deps, auth: AuthContext): Promise<GoLinkInfo[]> {
   const rows = await deps.db.select().from(goLinks).where(eq(goLinks.orgId, auth.orgId)).orderBy(asc(goLinks.name)).limit(1000);
   const ids = [...new Set(rows.map((r) => r.createdBy).filter((x): x is string => !!x))].slice(0, 90);
-  const names = ids.length ? new Map((await deps.db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, ids))).map((u) => [u.id, u.name])) : new Map<string, string>();
+  const names = ids.length ? new Map((await deps.db.select({ id: users.id, name: users.name }).from(users).where(inIds(users.id, ids))).map((u) => [u.id, u.name])) : new Map<string, string>();
   return rows.map((r) => present(r, auth, names));
 }
 

@@ -2,7 +2,8 @@
  * R87: short links in Tools > Links. A link belongs to the workspace; every member sees the list, the person who made a
  * link and the admins can change it. The public side (/l/<code>) is in public.ts and reads one row by its code.
  */
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { inIds } from "../../lib/sql-chunks";
+import { and, desc, eq, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { linkClicks, linkHosts, shortLinks, users } from "../../db/schema";
 import { hashPassword, newId, randomBytes } from "../../lib/crypto";
@@ -79,7 +80,7 @@ function present(r: Row, base: string, auth: AuthContext, now: Date, names: Map<
 async function namesOf(deps: Deps, ids: (string | null)[]): Promise<Map<string, string>> {
   const list = [...new Set(ids.filter((x): x is string => !!x))].slice(0, 90);
   if (!list.length) return new Map();
-  const rows = await deps.db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, list));
+  const rows = await deps.db.select({ id: users.id, name: users.name }).from(users).where(inIds(users.id, list));
   return new Map(rows.map((r) => [r.id, r.name]));
 }
 
@@ -217,7 +218,7 @@ export const dayOf = (d: Date) => d.toISOString().slice(0, 10);
 /** Stats for one link (or bio page item ids) over the last `days` days, read with the link and day index. */
 export async function statsFor(deps: Deps, orgId: string, linkIds: string[], days: number, botClicks = 0): Promise<LinkStats> {
   const since = dayOf(new Date(deps.now().getTime() - (days - 1) * DAY_MS));
-  const where = and(inArray(linkClicks.linkId, linkIds), sql`${linkClicks.day} >= ${since}`, eq(linkClicks.orgId, orgId));
+  const where = and(inIds(linkClicks.linkId, linkIds), sql`${linkClicks.day} >= ${since}`, eq(linkClicks.orgId, orgId));
   type TextCol = typeof linkClicks.country | typeof linkClicks.referrer | typeof linkClicks.device | typeof linkClicks.browser | typeof linkClicks.os;
   const top = (col: TextCol) => deps.db.select({ key: sql<string>`coalesce(${col}, 'Unknown')`, n: sql<number>`count(*)` }).from(linkClicks).where(where).groupBy(col).orderBy(sql`count(*) desc`).limit(10);
   const [perDay, countries, referrers, devices, browsers, os] = await Promise.all([
