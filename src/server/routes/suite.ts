@@ -13,7 +13,7 @@ import { parseBody, parseQuery, requireAdmin, requireAuth } from "../middleware"
 import { changesSince } from "../services/suite/common";
 import { PageQuery, splitIds } from "./page-query-r46";
 import {
-  addComment, assignees, createProject, createTask, createTaskFromThread, createView, defaultProject, deleteProject, deleteTask, deleteView, getProject, listProjects, listTasks, listTasksPage, listViews,
+  addComment, assignees, createProject, createTask, createTaskFromThread, createView, defaultProject, deleteProject, deleteTask, deleteView, updateView, getProject, listProjects, listTasks, listTasksPage, listViews,
   parseAssignee, taskDetail, updateProject, updateTask, addDependency, removeDependency, dependencyLinks, setDependencyLag,
 } from "../services/suite/tasks";
 import { createDoc, deleteDoc, getDoc, listDocs, updateDoc } from "../services/suite/docs";
@@ -26,7 +26,7 @@ import { markDone, markManyDone, markUndone, snooze, SNOOZE_PRESETS, TRIAGE_VIEW
 import { listDevices, registerDevice, unregisterDevice } from "../services/suite/push";
 import {
   AutomationCreate, AutomationPatch, CommentCreate, ContactCreate, ContactPatch, DealCreate, DealPatch, DocCreate, DocPatch, ProjectCreate, ProjectPatch, PushDevice,
-  TaskCreate, TaskFromEmail, TaskPatch, TaskQuery, ViewCreate,
+  TaskCreate, TaskFromEmail, TaskPatch, TaskQuery, ViewCreate, ViewPatch,
 } from "./suite-schemas";
 import { runDueJobs } from "../services/jobs";
 import { parseFieldFilters } from "../services/suite/fields";
@@ -114,6 +114,7 @@ export function taskRoutes() {
     .get("/assignees", async (c) => c.json({ assignees: await assignees(c.var.deps, c.var.auth.orgId) }))
     .get("/views", async (c) => c.json({ views: await listViews(c.var.deps, c.var.auth, c.req.query("projectId")) }))
     .post("/views", async (c) => c.json({ view: await createView(c.var.deps, c.var.auth, await parseBody(c, ViewCreate)) }, 201))
+    .patch("/views/:id", async (c) => c.json({ view: await updateView(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, ViewPatch)) })) // R84
     .delete("/views/:id", async (c) => c.json(await deleteView(c.var.deps, c.var.auth, c.req.param("id"))))
     // R37: date clashes along "blocks" links, and moving a task with the tasks that wait on it.
     .get("/dependencies/check", async (c) => c.json(await scheduleCheck(c.var.deps, c.var.auth.orgId, c.req.query("projectId"))))
@@ -129,7 +130,7 @@ export function taskRoutes() {
       // R40 (MB-204): If-Match carries the version the client last saw (same as the body's version field).
       const ifMatch = Number((c.req.header("if-match") ?? "").replace(/[^0-9]/g, ""));
       const version = b.version ?? (ifMatch > 0 ? ifMatch : undefined);
-      return c.json({ task: await updateTask(c.var.deps, c.var.auth, c.req.param("id"), { ...b, version, assignee: assigneeOf(b) }) });
+      return c.json({ task: await updateTask(c.var.deps, c.var.auth, c.req.param("id"), { ...b, version, assignee: assigneeOf(b), assignees: b.assignees?.map((x) => parseAssignee(x)!) }) });
     })
     .delete("/:id", async (c) => c.json(await deleteTask(c.var.deps, c.var.auth, c.req.param("id"))))
     .post("/:id/comments", async (c) => c.json({ comment: await addComment(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, CommentCreate)).body) }, 201));

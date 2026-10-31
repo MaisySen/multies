@@ -55,7 +55,9 @@ const Assignee = z.object({ type: z.enum(["member", "agent"]), id: z.string(), n
 const Task = z.object({
   id: z.string(), ref: z.string().openapi({ example: "OPS-12" }), projectId: z.string(), number: z.number().int(), title: z.string(), notes: z.string(),
   statusId: z.string(), statusName: z.string(), statusColor: z.string(), status: z.enum(["todo", "doing", "done"]),
-  assignee: Assignee, assigneeId: z.string().nullable(), priority: z.enum(["none", "low", "medium", "high", "urgent"]), labels: z.array(z.string()),
+  assignee: Assignee, assigneeId: z.string().nullable(),
+  assignees: z.array(z.object({ type: z.enum(["member", "agent"]), id: z.string(), name: z.string() }).passthrough()).optional().openapi({ description: "R84: everyone on the task, the main assignee first." }),
+  priority: z.enum(["none", "low", "medium", "high", "urgent"]), labels: z.array(z.string()),
   type: z.enum(["task", "story", "bug", "epic"]).openapi({ description: "task, story, bug or epic." }),
   start: z.string().nullable(), due: z.string().nullable(), parentId: z.string().nullable(), position: z.number(),
   source: z.object({ threadId: z.string().nullable(), messageId: z.string().nullable(), from: z.string(), subject: z.string() }).nullable(),
@@ -139,7 +141,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "patch", path: "/tasks/{id}", tags: tag("Tasks"), summary: "Update a task", security: secured,
     description: "Change any field, move it to another status or project, or reorder it with position. Send version to reject the write if the task changed since you read it.",
     request: { params: Id, ...body(TaskPatch) }, responses: { 200: json(z.object({ task: Task }), "The task."), 401: errors[401], 404: errors[404], 409: errors[409], 422: errors[422] } }),
-  async (c) => { const b = c.req.valid("json"); return send(c, { task: await updateTask(c.var.deps, actor(c), c.req.valid("param").id, { ...b, assignee: assigneeOf(b) }) }); });
+  async (c) => { const b = c.req.valid("json"); return send(c, { task: await updateTask(c.var.deps, actor(c), c.req.valid("param").id, { ...b, assignee: assigneeOf(b), assignees: b.assignees?.map((x) => parseAssignee(x)!) }) }); });
 
   api.openapi(createRoute({ method: "delete", path: "/tasks/{id}", tags: tag("Tasks"), summary: "Delete a task and its subtasks", security: secured,
     request: { params: Id }, responses: { 200: json(z.object({ ok: z.boolean() }), "Deleted."), 401: errors[401], 404: errors[404] } }),

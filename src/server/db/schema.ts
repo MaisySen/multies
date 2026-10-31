@@ -881,6 +881,8 @@ export const tasks = sqliteTable("tasks", {
   dueAt: ts("due_at"),
   /** JSON string[] */
   labels: text("labels").notNull().default("[]"),
+  /** R84 (0104): people beside the main assignee, JSON ["member:<id>", "agent:<id>"]; lists read no other table. */
+  coAssignees: text("co_assignees").notNull().default("[]"),
   parentId: text("parent_id"),
   /** Order inside a status column (fractional, so a move writes one row). */
   position: real("position").notNull().default(0),
@@ -966,10 +968,24 @@ export const savedViews = sqliteTable("saved_views", {
   userId: text("user_id"),
   name: text("name").notNull(),
   view: text("view", { enum: ["board", "list", "calendar", "timeline", "sprints", "workload"] }).notNull().default("list"),
-  /** JSON: { assignee?, status?, priority?, label?, due?, q? } */
+  /** JSON: { assignee?, status?, priority?, label?, due?, q? } plus R84 sort, dir and group. */
   filters: text("filters").notNull().default("{}"),
+  /** R84 (0104): shown as a tab on Tasks (a shared view for everyone, a private one for its owner), in `position` order. */
+  pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
+  position: real("position").notNull().default(0),
   ...suiteCols(),
 }, (t) => [index("saved_views_org_idx").on(t.orgId, t.projectId)]);
+
+/** R84 (0104): the workspace's tags and their colours. tasks.labels keeps the names; a name with no row here shows grey. */
+export const workspaceTags = sqliteTable("workspace_tags", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  color: text("color").notNull().default("#64748b"),
+  position: real("position").notNull().default(0),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [uniqueIndex("workspace_tags_org_name_uq").on(t.orgId, t.name)]);
 
 /** Rich text docs (Tiptap JSON), linked to projects, tasks, threads or contacts. */
 export const docs = sqliteTable("docs", {
@@ -1310,8 +1326,13 @@ export const customFields = sqliteTable("custom_fields", {
   /** R24.1: formula ({ expression }) and rollup ({ source, field, fn }) settings as JSON. */
   config: text("config"),
   position: integer("position").notNull().default(0),
+  /** R84 (0104): set on a workspace field: one row per project with the same key and option ids. */
+  workspaceKey: text("workspace_key"),
   ...suiteCols(),
-}, (t) => [index("custom_fields_project_idx").on(t.projectId, t.position)]);
+}, (t) => [
+  index("custom_fields_project_idx").on(t.projectId, t.position),
+  index("custom_fields_workspace_key_idx").on(t.orgId, t.workspaceKey).where(sql`${t.workspaceKey} IS NOT NULL`),
+]);
 
 /**
  * One value per task and field. Numbers, currency (AUD) and checkboxes use `value_num`;

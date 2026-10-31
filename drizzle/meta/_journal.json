@@ -666,6 +666,13 @@
       "when": 1793480000000,
       "tag": "0103_mail_rules_tabs",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "6",
+      "when": 1793490000000,
+      "tag": "0104_r84_tasks",
+      "breakpoints": true
     }
   ]
 }

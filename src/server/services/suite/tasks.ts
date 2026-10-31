@@ -273,8 +273,10 @@ export { inChunks, SQL_IN_CHUNK };
 /** Names for assignees and statuses, loaded once per response. */
 async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
   const statusIds = [...new Set(rows.map((r) => r.statusId))];
-  const memberIds = [...new Set(rows.filter((r) => r.assigneeType === "member" && r.assigneeId).map((r) => r.assigneeId!))];
-  const agentIds = [...new Set(rows.filter((r) => r.assigneeType === "agent" && r.assigneeId).map((r) => r.assigneeId!))];
+  // R84: people beside the main assignee are named in the same reads.
+  const co = rows.flatMap((r) => coAssigneesOf(r));
+  const memberIds = [...new Set([...rows.filter((r) => r.assigneeType === "member" && r.assigneeId).map((r) => r.assigneeId!), ...co.filter((a) => a.type === "member").map((a) => a.id)])];
+  const agentIds = [...new Set([...rows.filter((r) => r.assigneeType === "agent" && r.assigneeId).map((r) => r.assigneeId!), ...co.filter((a) => a.type === "agent").map((a) => a.id)])];
   // R48 (0087): subtask, comment and checklist counts come from the task row (kept by triggers), so a list reads no
   // other table for them; field values are read only for tasks that have some (fieldCount > 0).
   const withFields = rows.filter((r) => (r.fieldCount ?? 0) > 0).map((r) => r.id);
@@ -306,6 +308,16 @@ async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
 }
 type Lookups = Awaited<ReturnType<typeof lookups>>;
 
+/** R84 (0104): the people beside the main assignee, read from the row (bad entries are skipped). */
+export function coAssigneesOf(t: { coAssignees?: string | null }): Assignee[] {
+  if (!t.coAssignees || t.coAssignees === "[]") return [];
+  try {
+    const list = JSON.parse(t.coAssignees) as unknown;
+    if (!Array.isArray(list)) return [];
+    return list.flatMap((v) => { const a = typeof v === "string" ? v.split(":") : []; return (a[0] === "member" || a[0] === "agent") && a[1] ? [{ type: a[0] as Assignee["type"], id: a[1] }] : []; });
+  } catch { return []; }
+}
+
 /** R26 (DF-3): an AI agent member assignee shows no internal address and carries isAgent for the badge. */
 const memberEmail = (email: string | null | undefined) => (email && isAgentEmail(email) ? { email: null, isAgent: true as const } : { email: email ?? null });
 
@@ -317,11 +329,16 @@ function presentTask(t: TaskRow, l: Lookups) {
       ? { type: "member" as const, id: t.assigneeId, name: l.members.get(t.assigneeId)?.name ?? "Former member", ...memberEmail(l.members.get(t.assigneeId)?.email) }
       : { type: "agent" as const, id: t.assigneeId, name: l.agents.get(t.assigneeId)?.name ?? "Removed agent", email: null }
     : null;
+  const person = (a: Assignee) => a.type === "member"
+    ? { type: "member" as const, id: a.id, name: l.members.get(a.id)?.name ?? "Former member", ...memberEmail(l.members.get(a.id)?.email) }
+    : { type: "agent" as const, id: a.id, name: l.agents.get(a.id)?.name ?? "Removed agent", email: null };
   return {
     id: t.id, ref: `${pr?.key ?? "TSK"}-${t.number}`, projectId: t.projectId, number: t.number,
     title: t.title, notes: t.notes,
     statusId: t.statusId, statusName: st?.name ?? "", statusColor: st?.color ?? "#8a8f98", status: t.status,
     assignee, assigneeId: assignee ? `${assignee.type}:${assignee.id}` : null,
+    /** R84: everyone on the task, the main assignee first. */
+    assignees: assignee ? [assignee, ...coAssigneesOf(t).map(person)] : [],
     priority: t.priority, labels: JSON.parse(t.labels) as string[], type: t.type ?? "task",
     start: iso(t.startAt), due: iso(t.dueAt), parentId: t.parentId, position: t.position,
     source: t.threadId || t.messageId ? { threadId: t.threadId, messageId: t.messageId, from: t.sourceFrom ?? "", subject: t.sourceSubject ?? "" } : null,
@@ -385,7 +402,9 @@ async function listConds(deps: Deps, actor: SuiteActor, f: TaskFilters): Promise
     if (f.assignee === "none") conds.push(isNull(tasks.assigneeId));
     else {
       const [type, id] = f.assignee === "me" ? (actor.agentId ? ["agent", actor.agentId] : ["member", actor.userId]) : f.assignee.split(":");
-      conds.push(and(eq(tasks.assigneeType, type as "member" | "agent"), eq(tasks.assigneeId, id)));
+      // R84: a person beside the main assignee matches too (the JSON list on the row, no other table).
+      conds.push(or(and(eq(tasks.assigneeType, type as "member" | "agent"), eq(tasks.assigneeId, id)),
+        sql`(${tasks.coAssignees} <> '[]' and ${tasks.coAssignees} like ${`%"${type}:${String(id).replace(/[%_"\\]/g, "")}"%`})`));
     }
   }
   if (f.label) conds.push(like(tasks.labels, `%${JSON.stringify(f.label).slice(1, -1)}%`));
@@ -646,10 +665,26 @@ export async function createTaskFromThread(deps: Deps, actor: SuiteActor, input:
   return createTask(deps, actor, { ...input, title, notes, source: { messageId: m.id, threadId: m.threadId }, triage }, opts); // R53: same id on a retry
 }
 
+/** R84: at most 10 people on a task, each once, in the order given. */
+export function cleanAssignees(list: Assignee[]): Assignee[] {
+  const seen = new Set<string>();
+  const out: Assignee[] = [];
+  for (const a of list) {
+    if (!a || (a.type !== "member" && a.type !== "agent") || !a.id) throw new HttpError(422, "invalid_assignee", "Assignee looks like member:<userId> or agent:<agentId>.");
+    const k = `${a.type}:${a.id}`;
+    if (seen.has(k)) continue;
+    seen.add(k); out.push(a);
+  }
+  if (out.length > 10) throw new HttpError(422, "too_many_assignees", "A task can have up to 10 assignees.");
+  return out;
+}
+
 const normaliseLabels = (l?: string[]) => [...new Set((l ?? []).map((x) => x.trim()).filter(Boolean).map((x) => x.slice(0, 40)))].slice(0, 20);
 
 export interface UpdateTaskInput {
   title?: string; notes?: string; projectId?: string; statusId?: string; status?: Category; assignee?: Assignee | null; priority?: Priority;
+  /** R84: everyone on the task, main assignee first; [] unassigns. Wins over `assignee` when both are sent. */
+  assignees?: Assignee[];
   start?: string | null; due?: string | null; labels?: string[]; parentId?: string | null; position?: number; version?: number;
   /** Custom field values by field id (or name); null clears one. */
   fields?: Record<string, unknown>;
@@ -687,10 +722,29 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
     await checkTypeRules(deps, actor.orgId, { type: patch.type ?? t.type, parentId: patch.parentId !== undefined ? patch.parentId : t.parentId }, t);
     if (patch.type !== undefined && patch.type !== t.type) { set.type = patch.type; changed.type = patch.type; }
   }
-  if (patch.assignee !== undefined) {
+  // R84: who was on the task before, so only people newly added hear about it.
+  const before = new Set([...(t.assigneeType && t.assigneeId ? [`${t.assigneeType}:${t.assigneeId}`] : []), ...coAssigneesOf(t).map((a) => `${a.type}:${a.id}`)]);
+  let added: Assignee[] = [];
+  if (patch.assignees !== undefined) {
+    const list = cleanAssignees(patch.assignees);
+    for (const a of list) await validateAssignee(deps, actor.orgId, a);
+    const main = list[0] ?? null;
+    const co = JSON.stringify(list.slice(1).map((a) => `${a.type}:${a.id}`));
+    if ((main ? `${main.type}:${main.id}` : null) !== (t.assigneeType && t.assigneeId ? `${t.assigneeType}:${t.assigneeId}` : null)) {
+      set.assigneeType = main?.type ?? null; set.assigneeId = main?.id ?? null;
+      changed.assignee = main ? `${main.type}:${main.id}` : null;
+    }
+    if (co !== (t.coAssignees ?? "[]")) { set.coAssignees = co; changed.assignees = list.map((a) => `${a.type}:${a.id}`); }
+    added = list.filter((a) => !before.has(`${a.type}:${a.id}`));
+  } else if (patch.assignee !== undefined) {
     await validateAssignee(deps, actor.orgId, patch.assignee);
     set.assigneeType = patch.assignee?.type ?? null; set.assigneeId = patch.assignee?.id ?? null;
     changed.assignee = patch.assignee ? `${patch.assignee.type}:${patch.assignee.id}` : null;
+    // The main assignee leaves the people beside them in place; unassigning clears everyone; nobody is listed twice.
+    const co = patch.assignee ? coAssigneesOf(t).filter((a) => !(a.type === patch.assignee!.type && a.id === patch.assignee!.id)) : [];
+    const coJson = JSON.stringify(co.map((a) => `${a.type}:${a.id}`));
+    if (coJson !== (t.coAssignees ?? "[]")) set.coAssignees = coJson;
+    added = patch.assignee && !before.has(`${patch.assignee.type}:${patch.assignee.id}`) ? [patch.assignee] : [];
   }
   let projectId = t.projectId;
   if (patch.projectId && patch.projectId !== t.projectId) {
@@ -730,18 +784,20 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
   if (patch.fields && Object.keys(patch.fields).length) changed.fields = await setTaskFieldValues(deps, actor.orgId, { id: t.id, projectId }, patch.fields);
   const task = await getTask(deps, actor, t.id);
   const statusChanged = !!changed.status;
-  const verb = changed.triage ? "triage_accepted" : statusChanged ? "moved" : changed.assignee !== undefined ? "assigned" : "updated";
+  const verb = changed.triage ? "triage_accepted" : statusChanged ? "moved" : changed.assignee !== undefined || changed.assignees !== undefined ? "assigned" : "updated";
   if (Object.keys(changed).length || patch.position !== undefined) {
     await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "update", version: task.version, verb, data: changed, event: "task.updated", eventData: { task, changed: Object.keys(changed) } });
   }
-  if (changed.assignee && task.assignee?.type === "member" && task.assignee.id !== actor.userId) {
+  // R84: every member newly put on the task hears it once (not the person who did it); they start watching.
+  const addedMembers = added.filter((a) => a.type === "member").map((a) => a.id);
+  if (addedMembers.length) {
     const { notify } = await import("./notify");
-    await notify(deps, actor.orgId, task.assignee.id, { type: "task.assigned", entityType: "task", entityId: t.id, title: `${task.ref} assigned to you: ${task.title}`, actorName: actor.name || actor.email });
+    for (const id of addedMembers) if (id !== actor.userId) await notify(deps, actor.orgId, id, { type: "task.assigned", entityType: "task", entityId: t.id, title: `${task.ref} assigned to you: ${task.title}`, actorName: actor.name || actor.email });
   }
   // R27: a new member assignee starts watching; watchers hear about a status change (not the person who made it).
-  if ((changed.assignee && task.assignee?.type === "member") || statusChanged) {
+  if (addedMembers.length || statusChanged) {
     const w = await import("./task-watchers-r27");
-    if (changed.assignee && task.assignee?.type === "member") await w.autoWatch(deps, actor.orgId, t.id, [task.assignee.id]);
+    if (addedMembers.length) await w.autoWatch(deps, actor.orgId, t.id, addedMembers);
     if (statusChanged) await w.notifyWatchers(deps, actor.orgId, t.id, { type: "task.watch_status", title: `${task.ref} moved to ${task.statusName}: ${task.title}`, actorName: actor.name || actor.email }, [w.memberOf(actor)]);
   }
   let out = task;
@@ -1017,13 +1073,39 @@ export async function removeDependency(deps: Deps, actor: SuiteActor, taskIdOrRe
 
 // ---------------------------------------------------------------- saved views and people
 
-export async function listViews(deps: Deps, actor: SuiteActor, projectId?: string) {
-  const rows = await deps.db.select().from(savedViews).where(and(eq(savedViews.orgId, actor.orgId), isNull(savedViews.deletedAt), projectId ? eq(savedViews.projectId, projectId) : undefined,
-    or(isNull(savedViews.userId), eq(savedViews.userId, actor.userId)))).orderBy(asc(savedViews.createdAt));
-  return rows.map((v) => ({ id: v.id, projectId: v.projectId, name: v.name, view: v.view, filters: JSON.parse(v.filters) as Record<string, string>, shared: !v.userId }));
+export type ViewKind = "board" | "list" | "calendar" | "timeline" | "sprints" | "workload";
+/** R84: what a view may group its list by. */
+export const VIEW_GROUPS = ["status", "assignee", "priority", "due", "tag", "project"] as const;
+export const VIEW_SORTS = ["manual", "title", "status", "assignee", "priority", "due", "updated", "created"] as const;
+
+/** R84: a view's sort and grouping ride in its filters (sort, dir, group); anything else the list does not know is dropped. */
+export function cleanViewFilters(view: ViewKind, f: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(f)) {
+    if (typeof v !== "string" || !v) continue;
+    if (k === "sort") { if ((VIEW_SORTS as readonly string[]).includes(v) || /^field:[A-Za-z0-9_-]{1,64}$/.test(v)) out.sort = v; continue; }
+    if (k === "dir") { if (v === "asc" || v === "desc") out.dir = v; continue; }
+    if (k === "group" && view !== "board") { if ((VIEW_GROUPS as readonly string[]).includes(v) || /^field:[A-Za-z0-9_-]{1,64}$/.test(v)) out.group = v; continue; }
+    out[k] = v;
+  }
+  return out;
 }
 
-export async function createView(deps: Deps, actor: SuiteActor, input: { projectId?: string | null; name: string; view: "board" | "list" | "calendar" | "timeline" | "sprints" | "workload"; filters: Record<string, string>; shared?: boolean }, opts: { id?: string; retry?: boolean } = {}) {
+const presentView = (v: typeof savedViews.$inferSelect, actor: SuiteActor) => ({
+  id: v.id, projectId: v.projectId, name: v.name, view: v.view, filters: JSON.parse(v.filters) as Record<string, string>, shared: !v.userId,
+  pinned: !!v.pinned, position: v.position ?? 0,
+  /** R84: who may change it: the owner of a private view; for a shared view its maker or a workspace admin. */
+  // API keys and agents keep the rule they had (a writable key may change shared views).
+  canEdit: v.userId ? v.userId === actor.userId : (!!(actor.apiKeyId || actor.agentId || actor.system) || v.createdById === actor.userId || actor.role === "owner" || actor.role === "admin"),
+});
+
+export async function listViews(deps: Deps, actor: SuiteActor, projectId?: string) {
+  const rows = await deps.db.select().from(savedViews).where(and(eq(savedViews.orgId, actor.orgId), isNull(savedViews.deletedAt), projectId ? eq(savedViews.projectId, projectId) : undefined,
+    or(isNull(savedViews.userId), eq(savedViews.userId, actor.userId)))).orderBy(asc(savedViews.position), asc(savedViews.createdAt));
+  return rows.map((v) => presentView(v, actor));
+}
+
+export async function createView(deps: Deps, actor: SuiteActor, input: { projectId?: string | null; name: string; view: ViewKind; filters: Record<string, string>; shared?: boolean; pinned?: boolean }, opts: { id?: string; retry?: boolean } = {}) {
   assertWritable(actor);
   if (input.projectId) await projectRow(deps, actor.orgId, input.projectId);
   // R53 (MB-239): a retry under the same Idempotency-Key returns the view the first attempt saved (one read, only on a retry).
@@ -1033,15 +1115,43 @@ export async function createView(deps: Deps, actor: SuiteActor, input: { project
   }
   const now = deps.now();
   const id = opts.id ?? sortableId("viw", now.getTime());
-  await deps.db.insert(savedViews).values({ id, orgId: actor.orgId, projectId: input.projectId ?? null, userId: input.shared ? null : actor.userId || null, name: input.name.trim(), view: input.view, filters: JSON.stringify(input.filters), ...createdBy(actor), createdAt: now, updatedAt: now });
+  // R84: a new view goes after the others (one small read of positions).
+  const last = await deps.db.select({ p: sql<number>`coalesce(max(${savedViews.position}), 0)` }).from(savedViews).where(and(eq(savedViews.orgId, actor.orgId), isNull(savedViews.deletedAt))).get();
+  await deps.db.insert(savedViews).values({ id, orgId: actor.orgId, projectId: input.projectId ?? null, userId: input.shared ? null : actor.userId || null, name: input.name.trim(), view: input.view,
+    filters: JSON.stringify(cleanViewFilters(input.view, input.filters)), pinned: !!input.pinned, position: Number(last?.p ?? 0) + 1, ...createdBy(actor), createdAt: now, updatedAt: now });
   return (await listViews(deps, actor, input.projectId ?? undefined)).find((v) => v.id === id)!;
+}
+
+async function viewForWrite(deps: Deps, actor: SuiteActor, id: string) {
+  const v = await deps.db.select().from(savedViews).where(and(eq(savedViews.id, id), eq(savedViews.orgId, actor.orgId), isNull(savedViews.deletedAt))).get();
+  // Someone else's private view is not there for this person.
+  if (!v || (v.userId && v.userId !== actor.userId)) throw notFound("Saved view");
+  if (!presentView(v, actor).canEdit) throw new HttpError(403, "forbidden", "Only the person who made this shared view or a workspace admin can change it.");
+  return v;
+}
+
+/** R84: rename, refilter, share or keep private, pin as a tab, reorder. */
+export async function updateView(deps: Deps, actor: SuiteActor, id: string, patch: { name?: string; view?: ViewKind; filters?: Record<string, string>; shared?: boolean; pinned?: boolean; position?: number; projectId?: string | null }) {
+  assertWritable(actor);
+  const v = await viewForWrite(deps, actor, id);
+  const set: Partial<typeof savedViews.$inferInsert> = { updatedAt: deps.now(), version: v.version + 1 };
+  const kind = patch.view ?? v.view;
+  if (patch.name !== undefined) set.name = patch.name.trim() || v.name;
+  if (patch.view !== undefined) set.view = patch.view;
+  if (patch.filters !== undefined) set.filters = JSON.stringify(cleanViewFilters(kind, patch.filters));
+  if (patch.shared !== undefined) set.userId = patch.shared ? null : (v.userId ?? v.createdById ?? actor.userId);
+  if (patch.pinned !== undefined) set.pinned = patch.pinned;
+  if (patch.position !== undefined) set.position = patch.position;
+  if (patch.projectId !== undefined) { if (patch.projectId) await projectRow(deps, actor.orgId, patch.projectId); set.projectId = patch.projectId; }
+  await deps.db.update(savedViews).set(set).where(eq(savedViews.id, v.id));
+  const row = await deps.db.select().from(savedViews).where(eq(savedViews.id, v.id)).get();
+  return presentView(row!, actor);
 }
 
 export async function deleteView(deps: Deps, actor: SuiteActor, id: string) {
   assertWritable(actor);
-  const v = await deps.db.select().from(savedViews).where(and(eq(savedViews.id, id), eq(savedViews.orgId, actor.orgId))).get();
-  if (!v) throw notFound("Saved view");
-  await deps.db.update(savedViews).set({ deletedAt: deps.now() }).where(eq(savedViews.id, id));
+  const v = await viewForWrite(deps, actor, id);
+  await deps.db.update(savedViews).set({ deletedAt: deps.now() }).where(eq(savedViews.id, v.id));
   return { ok: true };
 }
 

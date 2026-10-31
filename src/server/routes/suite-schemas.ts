@@ -72,6 +72,8 @@ export const TaskFromEmail = z.object({
 export const TaskPatch = z.object({
   title: z.string().trim().min(1).max(300).optional(), notes: z.string().max(50_000).optional(), projectId: z.string().optional(),
   statusId: z.string().optional(), status: Category.optional(), assignee: AssigneeRef, assigneeId: AssigneeRef,
+  assignees: z.array(z.string().max(80).regex(/^(member|agent):[A-Za-z0-9_-]{1,64}$/)).max(10).optional()
+    .openapi({ description: "R84: everyone on the task, main assignee first (member:<id> or agent:<id>); [] unassigns. Wins over assignee." }),
   priority: Priority.optional(), start: date, due: date, labels: z.array(z.string().max(40)).max(20).optional(),
   parentId: z.string().nullable().optional(), position: z.number().finite().optional(),
   fields: FieldValues.optional(),
@@ -103,6 +105,15 @@ export const ViewCreate = z.object({
     // R35: a board view may carry its own swimlanes ("lanes") and grouping ("group") beside the filters.
     .refine((f) => f.lanes === undefined || (SWIMLANES as readonly string[]).includes(f.lanes), { message: `lanes must be one of ${SWIMLANES.join(", ")}.` }),
   shared: z.boolean().optional(),
+  /** R84: show it as a tab on Tasks. */
+  pinned: z.boolean().optional(),
+});
+/** R84: change a saved view. */
+export const ViewPatch = z.object({
+  name: z.string().trim().min(1).max(60).optional(), view: z.enum(["board", "list", "calendar", "timeline", "sprints", "workload"]).optional(),
+  filters: z.record(z.string(), z.string().max(200)).optional()
+    .refine((f) => !f || f.lanes === undefined || (SWIMLANES as readonly string[]).includes(f.lanes), { message: `lanes must be one of ${SWIMLANES.join(", ")}.` }),
+  shared: z.boolean().optional(), pinned: z.boolean().optional(), position: z.number().finite().optional(), projectId: z.string().nullable().optional(),
 });
 
 const LinkTarget = z.object({ type: z.enum(["project", "task", "thread", "contact", "deal"]), id: z.string().min(1) });

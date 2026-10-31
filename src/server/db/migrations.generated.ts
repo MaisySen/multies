@@ -1027,5 +1027,17 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `mail_thread_labels` (\n\t`org_id` text NOT NULL,\n\t`thread_id` text NOT NULL,\n\t`label` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `thread_id`, `label`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;",
       "CREATE INDEX `mail_thread_labels_label_idx` ON `mail_thread_labels` (`org_id`,`label`);"
     ]
+  },
+  {
+    "name": "0104_r84_tasks",
+    "statements": [
+      "-- R84: tasks round. Additive only.\n-- saved_views: a view can be pinned as a tab on Tasks (shared views for everyone, private ones for their owner), in order.\n-- tasks.co_assignees: people beside the main assignee (assignee_id), as JSON [\"member:<id>\", \"agent:<id>\"], so lists\n-- read no other table for them. workspace_tags: the workspace's tags with their colours; tasks.labels keeps the names.\n-- custom_fields.workspace_key: a field defined once for the workspace is kept as one row per project with the same key\n-- and the same option ids, so values, filters, formulas and the project tables keep working per project.\nALTER TABLE `saved_views` ADD `pinned` integer DEFAULT 0 NOT NULL;",
+      "ALTER TABLE `saved_views` ADD `position` real DEFAULT 0 NOT NULL;",
+      "ALTER TABLE `tasks` ADD `co_assignees` text DEFAULT '[]' NOT NULL;",
+      "CREATE TABLE `workspace_tags` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`color` text DEFAULT '#64748b' NOT NULL,\n\t`position` real DEFAULT 0 NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `workspace_tags_org_name_uq` ON `workspace_tags` (`org_id`,`name`);",
+      "ALTER TABLE `custom_fields` ADD `workspace_key` text;",
+      "CREATE INDEX `custom_fields_workspace_key_idx` ON `custom_fields` (`org_id`,`workspace_key`) WHERE `workspace_key` IS NOT NULL;"
+    ]
   }
 ];
