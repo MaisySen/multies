@@ -270,7 +270,7 @@ export async function previewSplit(deps: Deps, a: SplitActor, input: { rules: Sp
 // ---------------------------------------------------------------- R85: tab styles and pins
 
 /** Accounts made from this moment open on Primary, Updates and Promotions; older accounts keep Important and Other until they choose. */
-export const CATEGORIES_DEFAULT_FROM = Date.parse("2026-10-31T10:00:00Z");
+export const CATEGORIES_DEFAULT_FROM = Date.parse("2026-10-31T16:00:00Z");
 const CATEGORY_TAB_IDS = ["primary", "updates", "promotions"];
 
 export interface TabsState { style: TabStyle; pins: TabPins; chosen: boolean }
