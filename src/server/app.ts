@@ -57,6 +57,7 @@ import { sprintRoutes } from "./routes/sprints";
 import { shareLinkRoutes, sharePageRoutes } from "./routes/share-links"; // R26 (MB-87): share links
 import { workloadRoutes } from "./routes/workload";
 import { automationRecipeRoutes } from "./routes/automation-recipes";
+import { flowRoutes } from "./routes/flows";
 import { docTreeRoutes, guestDocTreeRoutes, taskBacklinkRoutes } from "./routes/doc-tree";
 import { docVersionRoutes } from "./routes/doc-versions-r39"; // R39: page history
 import { savedDashboardRoutes } from "./routes/dashboards";
@@ -509,6 +510,7 @@ export function createApp(deps: Deps) {
   app.route("/api/deals", dealRoutes());
   app.route("/api/automations/recipes", automationRecipeRoutes()); // R24.4: automation recipes
   app.route("/api/automations", automationRoutes());
+  app.route("/api/flows", flowRoutes()); // R90: automation builder
   app.route("/api/notifications", notificationRoutes());
   app.route("/api/catchup", catchupRoutes()); // R31
   app.route("/api/push/web", webPushRoutes()); // R32: browser notifications (web push)

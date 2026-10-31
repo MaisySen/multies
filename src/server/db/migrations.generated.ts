@@ -1094,6 +1094,26 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0110_r90_flows",
+    "statements": [
+      "-- R90 (Oct 31): automation builder. Flows, their runs and steps, page and feed watches, digest items. Additive only.\nCREATE TABLE `flows` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`description` text,\n\t`trigger_kind` text NOT NULL,\n\t`graph` text DEFAULT '{\"nodes\":[],\"edges\":[]}' NOT NULL,\n\t`enabled` integer DEFAULT false NOT NULL,\n\t`run_count` integer DEFAULT 0 NOT NULL,\n\t`last_run_at` integer,\n\t`last_status` text,\n\t`created_by_type` text DEFAULT 'member' NOT NULL,\n\t`created_by_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`version` integer DEFAULT 1 NOT NULL,\n\t`deleted_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `flows_org_trigger_idx` ON `flows` (`org_id`,`trigger_kind`,`enabled`);",
+      "CREATE TABLE `flow_runs` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`flow_id` text NOT NULL,\n\t`status` text DEFAULT 'running' NOT NULL,\n\t`dedupe_key` text NOT NULL,\n\t`trigger_data` text DEFAULT '{}' NOT NULL,\n\t`current_node` text,\n\t`resume_at` integer,\n\t`error` text,\n\t`started_at` integer NOT NULL,\n\t`finished_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`flow_id`) REFERENCES `flows`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `flow_runs_dedupe_idx` ON `flow_runs` (`flow_id`,`dedupe_key`);",
+      "CREATE INDEX `flow_runs_due_idx` ON `flow_runs` (`status`,`resume_at`);",
+      "CREATE INDEX `flow_runs_org_idx` ON `flow_runs` (`org_id`,`started_at`);",
+      "CREATE INDEX `flow_runs_flow_idx` ON `flow_runs` (`flow_id`,`started_at`);",
+      "CREATE TABLE `flow_run_steps` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`run_id` text NOT NULL,\n\t`node_id` text NOT NULL,\n\t`attempt` integer DEFAULT 1 NOT NULL,\n\t`kind` text NOT NULL,\n\t`label` text DEFAULT '' NOT NULL,\n\t`status` text DEFAULT 'running' NOT NULL,\n\t`input` text,\n\t`output` text,\n\t`error` text,\n\t`started_at` integer NOT NULL,\n\t`finished_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`run_id`) REFERENCES `flow_runs`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `flow_run_steps_once_idx` ON `flow_run_steps` (`run_id`,`node_id`,`attempt`);",
+      "CREATE TABLE `flow_watches` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`flow_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`url` text NOT NULL,\n\t`selector` text,\n\t`every_minutes` integer DEFAULT 360 NOT NULL,\n\t`next_check_at` integer,\n\t`last_checked_at` integer,\n\t`last_hash` text,\n\t`last_text` text,\n\t`seen` text DEFAULT '[]' NOT NULL,\n\t`last_error` text,\n\t`fail_count` integer DEFAULT 0 NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`flow_id`) REFERENCES `flows`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `flow_watches_flow_idx` ON `flow_watches` (`flow_id`);",
+      "CREATE INDEX `flow_watches_due_idx` ON `flow_watches` (`next_check_at`);",
+      "CREATE TABLE `flow_digest_items` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`flow_id` text NOT NULL,\n\t`node_id` text NOT NULL,\n\t`title` text NOT NULL,\n\t`link` text,\n\t`summary` text,\n\t`send_at` integer NOT NULL,\n\t`sent_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`flow_id`) REFERENCES `flows`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `flow_digest_due_idx` ON `flow_digest_items` (`sent_at`,`send_at`);",
+      "CREATE INDEX `flow_digest_flow_idx` ON `flow_digest_items` (`flow_id`,`node_id`);"
+    ]
+  },
+  {
     "name": "0111_helpdesk",
     "statements": [
       "-- R119: helpdesk mode on the shared inbox (tickets, SLA clocks, macros, survey) and the website chat. Additive only.\nCREATE TABLE `hd_settings` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`settings` text DEFAULT '{}' NOT NULL,\n\t`widget_key` text NOT NULL,\n\t`ticket_seq` integer DEFAULT 1000 NOT NULL,\n\t`sync_cursor` integer DEFAULT 0 NOT NULL,\n\t`synced_at` integer DEFAULT 0 NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",

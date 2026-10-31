@@ -62,6 +62,8 @@ function ruleActor(orgId: string, name: string, depth: number): SuiteActor {
   depthOf.set(a, depth);
   return a;
 }
+/** R90: flows run their actions as this actor (the same loop guard as rules). */
+export function ruleActorAt(orgId: string, name: string, depth: number): SuiteActor { return ruleActor(orgId, name, depth); }
 export const depthFor = (actor?: SuiteActor | null) => (actor ? depthOf.get(actor) ?? 0 : 0);
 
 /** One rule acts on one thing at most once a minute in this isolate. */
@@ -393,9 +395,19 @@ async function enabledRules(deps: Deps, orgId: string, trigger: string) {
 export async function runTaskEvent(deps: Deps, actor: SuiteActor, trigger: TaskTrigger, task: Task, opts: { from?: Category | null; rules?: AutomationRow[] } = {}) {
   if (task.triage) return 0;
   if (depthFor(actor) >= MAX_DEPTH) return 0;
+  // R90: flows on "a task is made" (flows never start flows, so a flow that makes a task cannot loop).
+  if (trigger === "task_created") { const fl = await import("./flows"); if (!fl.isFlowActor(actor)) await fl.fireFlows(deps, actor.orgId, "task_created", fl.taskData(deps, task), `${task.id}`); }
   const rules = opts.rules ?? (await enabledRules(deps, actor.orgId, trigger)).filter((r) => trigger !== "status_changed" || isR24Rule({ trigger: r.trigger, action: r.action, conditions: JSON.parse(r.conditions), actionConfig: JSON.parse(r.actionConfig) }));
   if (!rules.length) return 0;
   return runRules(deps, actor.orgId, rules, { actor, task, from: opts.from }, task.id, (c) => matchesTask(trigger, c, task, opts.from));
+}
+
+/** R90: a flow step that changes the task that started it (set_status, set_priority, add_label), the same way a rule does. */
+export async function runRuleAction(deps: Deps, orgId: string, name: string, action: "set_status" | "set_priority" | "add_label", actionConfig: Record<string, unknown>, taskId: string, actor: SuiteActor) {
+  const { getTask } = await import("./tasks");
+  const task = await getTask(deps, actor, taskId);
+  const row = { id: `flow:${name}`, orgId, name, action, actionConfig: JSON.stringify(actionConfig) } as unknown as AutomationRow;
+  return actOne(deps, row, { actor, task }, depthFor(actor));
 }
 
 /** A meeting was marked ended. */

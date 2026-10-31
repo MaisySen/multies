@@ -260,6 +260,8 @@ export async function bookSlot(deps: Deps, slug: string, input: { startsAt: stri
   const cancelUrl = `${deps.config.appUrl}/book/${p.slug}/cancel/${id}?t=${cancelToken}`;
   const icsUrl = `${deps.config.appUrl}/api/book/bookings/${id}/ics?t=${cancelToken}`;
   await emitEvent(deps, p.orgId, "booking.created", { id, pageId: p.id, meetingId, startsAt: start.toISOString(), durationMin: p.slotMin, name, email, title });
+  // R90: flows on "someone books a time".
+  await (await import("./flows")).fireFlows(deps, p.orgId, "booking_made", { bookingId: id, title, name, email, start: start.toISOString(), minutes: p.slotMin, link: `${deps.config.appUrl}/app/booking` }, id);
   const host = await deps.db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, p.userId)).get();
   const tz = input.timezone && validTimezone(input.timezone) ? input.timezone : p.timezone;
   const { sendSystemEmail } = await import("../system-mail");

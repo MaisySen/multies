@@ -9,7 +9,7 @@ import type { DB } from "../db";
 import { appSettings } from "../db/schema";
 import { migrationDriver, pendingMigrations } from "../db";
 import { lt } from "drizzle-orm";
-import { agentTriggers, automations, dataMoves, jobs, mailConnections, mailSchedules, organizations, sendApprovals, sessions, socialPosts, verifications, webhookDeliveries } from "../db/schema";
+import { agentTriggers, automations, dataMoves, flowDigestItems, flowRuns, flowWatches, jobs, mailConnections, mailSchedules, organizations, sendApprovals, sessions, socialPosts, verifications, webhookDeliveries } from "../db/schema";
 import { purgeDemoWorkspaces } from "./demo";
 import { recheckStaleDomains } from "./domains";
 import { checkWriteBudget } from "./write-budget";
@@ -81,6 +81,13 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
   // R80C: social posts that are due go out (one read on (status, run_at) when none); old post images go once an hour.
   const socialRun = !has.social || !deps.config.integrations.composio ? undefined : await step("social_posts", async () => (await import("./integrations/social")).runDueSocialPosts(deps));
   if (inSlot(1) && deps.config.integrations.composio) await step("social_media_prune", async () => (await import("./integrations/social")).pruneSocialMedia(deps));
+  // R90: flows. Waits that are over carry on, a few due page and feed watches are checked, due digests go out. Idle: three reads in the probe, nothing here.
+  if (deps.config.flows !== false && (has.flowRuns || has.flowWatches || has.flowDigests)) await step("flows", async () => {
+    const fl = await import("./suite/flows");
+    if (has.flowRuns) await fl.resumeDueRuns(deps);
+    if (has.flowWatches) await (await import("./suite/flow-watch")).runDueWatches(deps);
+    if (has.flowDigests) await fl.sendDueDigests(deps);
+  });
   // R35 (Apple 1.2): mails the operator about open reports at most once per 15 minutes. One read when none are open.
   if (inSlot(3)) await step("ugc_reports_mail", async () => (await import("./suite/reports-r35")).mailOperator(deps));
   // Independent deletes on different tables, sent together rather than one after another.
@@ -94,6 +101,7 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
     await Promise.all([
       pruneRateLimits(deps.db, deps.now().getTime()), pruneIdempotencyKeys(deps.db, deps.now()), pruneLockouts(deps.db, deps.now()),
       pruneJobs(deps), pruneAgentEvents(deps), pruneImports(deps),
+      import("./suite/flows").then((m) => m.pruneFlowRuns(deps)),
     ]);
   });
   // Tools P1: keep the document engine's free host awake (no D1), and prune old usage rows once an hour.
@@ -104,8 +112,8 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
   return { ...legacy, socialPosts: socialRun, jobs: jobsRun, mailSync, mailSchedules, agentTriggers: agentTriggersRun, uptime, crossChecks, dunning, approvalsExpired, reminders, writes: writes ? { level: writes.level, rowsWritten: writes.rowsWritten } : undefined };
 }
 
-type Waiting = { moves: boolean; jobs: boolean; webhooks: boolean; approvals: boolean; dueSoon: boolean; duePassed: boolean; mailSync: boolean; mailSchedules: boolean; agentTriggers: boolean; social: boolean };
-const ALL_WAITING: Waiting = { moves: true, jobs: true, webhooks: true, approvals: true, dueSoon: true, duePassed: true, mailSync: true, mailSchedules: true, agentTriggers: true, social: true };
+type Waiting = { moves: boolean; jobs: boolean; webhooks: boolean; approvals: boolean; dueSoon: boolean; duePassed: boolean; mailSync: boolean; mailSchedules: boolean; agentTriggers: boolean; social: boolean; flowRuns: boolean; flowWatches: boolean; flowDigests: boolean };
+const ALL_WAITING: Waiting = { moves: true, jobs: true, webhooks: true, approvals: true, dueSoon: true, duePassed: true, mailSync: true, mailSchedules: true, agentTriggers: true, social: true, flowRuns: true, flowWatches: true, flowDigests: true };
 
 /**
  * R51 (CPU): one statement that answers, for each step of the maintenance pass that can be idle, whether it has
@@ -135,6 +143,10 @@ export async function probeWaiting(deps: Deps): Promise<Waiting> {
     agentTriggers: db.select(one).from(agentTriggers).where(and(eq(agentTriggers.enabled, true), eq(agentTriggers.kind, "schedule"), lte(agentTriggers.nextRunAt, now))).limit(1),
     // R80C: social posts that are due, or stuck mid send for 15 minutes.
     social: db.select(one).from(socialPosts).where(or(and(eq(socialPosts.status, "scheduled"), lte(socialPosts.runAt, now)), and(eq(socialPosts.status, "sending"), lt(socialPosts.updatedAt, new Date(now.getTime() - 15 * 60_000))))).limit(1),
+    // R90: flow runs whose wait is over, page and feed watches that are due, digests that are due.
+    flowRuns: db.select(one).from(flowRuns).where(and(eq(flowRuns.status, "waiting"), lte(flowRuns.resumeAt, now))).limit(1),
+    flowWatches: db.select(one).from(flowWatches).where(lte(flowWatches.nextCheckAt, now)).limit(1),
+    flowDigests: db.select(one).from(flowDigestItems).where(and(isNull(flowDigestItems.sentAt), lte(flowDigestItems.sendAt, now))).limit(1),
   };
   const keys = Object.keys(parts) as (keyof Waiting)[];
   try {

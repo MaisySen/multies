@@ -7,7 +7,7 @@ import { Webhook } from "standardwebhooks";
 import type { Deps } from "../../context";
 import { members, users, webhookDeliveries, webhookEndpoints } from "../../db/schema";
 import { sendSystemEmail } from "../system-mail";
-import { decryptSecret, encryptSecret, newId, randomBytes, toB64 } from "../../lib/crypto";
+import { decryptSecret, encryptSecret, newId, randomBytes, sha256Hex, toB64 } from "../../lib/crypto";
 import { isPublicHost } from "../../lib/ssrf";
 import { badRequest, conflict, notFound } from "../../lib/errors";
 import { inIds } from "../../lib/sql-chunks";
@@ -321,6 +321,25 @@ export async function emitEvent(deps: Deps, orgId: string, type: WebhookEvent | 
     deps.reportError?.(err, { where: "emitEvent", type: types.join(",") });
     return [];
   }
+}
+
+/**
+ * R90: one delivery to one endpoint from a flow step, regardless of its event filter (the person picked
+ * the endpoint). Signed, retried with backoff and replayable like every delivery. The key keeps one
+ * delivery per flow step: asking again returns the first one.
+ */
+export async function queueDelivery(deps: Deps, orgId: string, endpointId: string, type: string, data: Record<string, unknown>, key: string) {
+  const e = await deps.db.select().from(webhookEndpoints).where(and(eq(webhookEndpoints.id, endpointId), eq(webhookEndpoints.orgId, orgId))).get();
+  if (!e || !e.enabled) return null;
+  const id = `msg_flow_${(await sha256Hex(key)).slice(0, 24)}`;
+  const existing = await deps.db.select({ status: webhookDeliveries.status }).from(webhookDeliveries).where(eq(webhookDeliveries.id, id)).get();
+  if (!existing) {
+    const payload = JSON.stringify({ type, timestamp: deps.now().toISOString(), data });
+    await deps.db.insert(webhookDeliveries).values({ id, orgId, endpointId: e.id, eventType: type, payload, nextAttemptAt: deps.now() }).onConflictDoNothing();
+    await attempt(deps, id);
+  }
+  const d = await deps.db.select({ status: webhookDeliveries.status }).from(webhookDeliveries).where(eq(webhookDeliveries.id, id)).get();
+  return { id, url: e.url, status: d?.status ?? "pending" };
 }
 
 /** Sends a `webhook.test` event to one endpoint, regardless of its event filter. */

@@ -204,6 +204,8 @@ export async function runEmailAutomations(deps: Deps, orgId: string, m: { messag
 
 /** A task changed status: rules with trigger status_changed. */
 export async function runStatusAutomations(deps: Deps, orgId: string, task: Task, from: Category | null, actor?: SuiteActor) {
+  // R90: flows on "a task changes status" (one per task, status and minute; flows never start flows).
+  { const fl = await import("./flows"); if (!fl.isFlowActor(actor)) await fl.fireFlows(deps, orgId, "status_changed", { ...fl.taskData(deps, task), from }, `${task.id}:${(task as { statusId?: string }).statusId ?? ""}:${Math.floor(deps.now().getTime() / 60_000)}`); }
   const rules = await deps.db.select().from(automations).where(and(eq(automations.orgId, orgId), eq(automations.trigger, "status_changed"), eq(automations.enabled, true), isNull(automations.deletedAt)));
   // R24.4: rules with the newer conditions or actions run in automations-r24.ts, with the loop guard.
   const r24 = await import("./automations-r24");

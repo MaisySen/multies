@@ -10,6 +10,8 @@ export interface AppConfig {
   mode: "production" | "development";
   /** When true, visitors can open a sandbox workspace filled with sample data. */
   demoEnabled: boolean;
+  /** R90: automation builder: flows, runs, page and feed watches, digests (FLOWS, on unless "off"). */
+  flows?: boolean;
   /** Public booking pages and the scheduling API (SCHEDULING_ENABLED=true). Off unless set. */
   schedulingEnabled: boolean;
   /**
@@ -253,6 +255,7 @@ const EnvSchema = z.object({
   APP_URL: z.string().url().optional(),
   APP_SECRET: z.string().optional(),
   DEMO_MODE: z.string().optional(),
+  FLOWS: z.string().optional(),
   SCHEDULING_ENABLED: z.string().optional(),
   COMPOSIO_API_KEY: z.string().optional(),
   // R83: own sign in for TikTok (Login Kit and Content Posting) and Threads.
@@ -553,6 +556,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
   return {
     mode,
     demoEnabled: env.DEMO_MODE === "true" || env.DEMO_MODE === "1",
+    flows: env.FLOWS !== "off",
     schedulingEnabled: env.SCHEDULING_ENABLED === "true" || env.SCHEDULING_ENABLED === "1",
     tools: toolsConfig(env),
     links: { flushMs: Math.max(0, Math.min(20_000, Number(env.LINK_CLICK_FLUSH_MS ?? 4000) || 0)) },

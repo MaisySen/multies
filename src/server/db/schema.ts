@@ -2792,3 +2792,96 @@ export const hdMacros = sqliteTable("hd_macros", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (t) => [index("hd_macros_org_idx").on(t.orgId)]);
+
+
+// R90: automation builder. Flows are a graph of steps (trigger, conditions, waits, approvals, actions);
+// every run keeps each step with its input and output; watchers check web pages and feeds on a schedule.
+export const flows = sqliteTable("flows", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  /** The trigger node's kind, copied out of the graph so events find their flows with one indexed read. */
+  triggerKind: text("trigger_kind").notNull(),
+  /** JSON: the graph { nodes, edges } (shared/flows.ts FlowGraph). */
+  graph: text("graph").notNull().default("{\"nodes\":[],\"edges\":[]}"),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  runCount: integer("run_count").notNull().default(0),
+  lastRunAt: ts("last_run_at"),
+  lastStatus: text("last_status"),
+  ...suiteCols(),
+}, (t) => [index("flows_org_trigger_idx").on(t.orgId, t.triggerKind, t.enabled)]);
+
+export const flowRuns = sqliteTable("flow_runs", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  flowId: text("flow_id").notNull().references(() => flows.id, { onDelete: "cascade" }),
+  status: text("status", { enum: ["running", "waiting", "waiting_approval", "succeeded", "failed", "cancelled"] }).notNull().default("running"),
+  /** One run per trigger event: the same event (a task id and change, a feed item id) never starts a second run. */
+  dedupeKey: text("dedupe_key").notNull(),
+  /** JSON: what the trigger handed over, secret looking keys redacted. */
+  triggerData: text("trigger_data").notNull().default("{}"),
+  currentNode: text("current_node"),
+  resumeAt: ts("resume_at"),
+  error: text("error"),
+  startedAt: ts("started_at").notNull().$defaultFn(() => new Date()),
+  finishedAt: ts("finished_at"),
+}, (t) => [
+  uniqueIndex("flow_runs_dedupe_idx").on(t.flowId, t.dedupeKey),
+  index("flow_runs_due_idx").on(t.status, t.resumeAt),
+  index("flow_runs_org_idx").on(t.orgId, t.startedAt),
+  index("flow_runs_flow_idx").on(t.flowId, t.startedAt),
+]);
+
+export const flowRunSteps = sqliteTable("flow_run_steps", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  runId: text("run_id").notNull().references(() => flowRuns.id, { onDelete: "cascade" }),
+  nodeId: text("node_id").notNull(),
+  /** A retry adds attempt 2, 3; the unique index means a step attempt is claimed, and so run, once. */
+  attempt: integer("attempt").notNull().default(1),
+  kind: text("kind").notNull(),
+  label: text("label").notNull().default(""),
+  status: text("status", { enum: ["running", "succeeded", "failed", "waiting", "skipped"] }).notNull().default("running"),
+  input: text("input"),
+  output: text("output"),
+  error: text("error"),
+  startedAt: ts("started_at").notNull().$defaultFn(() => new Date()),
+  finishedAt: ts("finished_at"),
+}, (t) => [uniqueIndex("flow_run_steps_once_idx").on(t.runId, t.nodeId, t.attempt)]);
+
+/** A page or feed a flow watches. One per flow; checked on a schedule by the maintenance pass. */
+export const flowWatches = sqliteTable("flow_watches", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  flowId: text("flow_id").notNull().references(() => flows.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: ["page", "feed"] }).notNull(),
+  url: text("url").notNull(),
+  selector: text("selector"),
+  everyMinutes: integer("every_minutes").notNull().default(360),
+  nextCheckAt: ts("next_check_at"),
+  lastCheckedAt: ts("last_checked_at"),
+  lastHash: text("last_hash"),
+  /** The page text at the last check (capped), so the next change can show what changed. */
+  lastText: text("last_text"),
+  /** JSON string[]: feed item ids already seen (newest 300). */
+  seen: text("seen").notNull().default("[]"),
+  lastError: text("last_error"),
+  failCount: integer("fail_count").notNull().default(0),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("flow_watches_flow_idx").on(t.flowId), index("flow_watches_due_idx").on(t.nextCheckAt)]);
+
+/** Items waiting for a flow's email digest step; sent together daily or weekly. */
+export const flowDigestItems = sqliteTable("flow_digest_items", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  flowId: text("flow_id").notNull().references(() => flows.id, { onDelete: "cascade" }),
+  nodeId: text("node_id").notNull(),
+  title: text("title").notNull(),
+  link: text("link"),
+  summary: text("summary"),
+  /** When the digest that holds this item goes out (the step's next daily or weekly time). */
+  sendAt: ts("send_at").notNull(),
+  sentAt: ts("sent_at"),
+  createdAt: createdAt(),
+}, (t) => [index("flow_digest_due_idx").on(t.sentAt, t.sendAt), index("flow_digest_flow_idx").on(t.flowId, t.nodeId)]);
