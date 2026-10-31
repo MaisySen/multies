@@ -1,0 +1,1 @@
+qpdf 11 compiled to WebAssembly (qpdf: Apache License 2.0, https://github.com/qpdf/qpdf; wasm build and loader: @neslinesli93/qpdf-wasm 0.3.0, ISC). Loaded only by Tools, Fix a PDF. See THIRD_PARTY_NOTICES.
