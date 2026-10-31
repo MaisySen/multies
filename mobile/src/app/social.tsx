@@ -252,18 +252,21 @@ function AccountPick({ account, on, why, note, choice, onToggle, onTarget, onRec
   const fixable = !!why && /Reconnect/.test(why);
   return (
     <View>
-      <Pressable onPress={why ? undefined : onToggle} disabled={!!why} accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: !!why }}
-        accessibilityLabel={[label, account.label, why].filter(Boolean).join(", ")} testID={`pick-${account.app}`}
-        style={({ pressed }) => [g.row, { opacity: why ? 0.6 : 1 }, pressed && { backgroundColor: colors.hover }]}>
-        <View style={[styles.check, on && { backgroundColor: colors.brandFill, borderColor: colors.brandFill }]}>{on ? <Icon name="check" size={14} color={colors.brandFg} /> : null}</View>
-        <View style={{ flex: 1, paddingVertical: 10 }}>
-          <Text style={g.label} numberOfLines={1}>{label}</Text>
-          {account.label ? <Text style={g.sub} numberOfLines={1}>{account.label}</Text> : null}
-          {why ? <Text style={[g.sub, { color: colors.warn }]} testID={`why-${account.app}`}>{why}</Text> : null}
-          {note ? <Text style={g.sub}>{note}</Text> : null}
-        </View>
+      <View style={[g.row, { paddingHorizontal: 0, paddingRight: 16 }]}>
+        <Pressable onPress={why ? undefined : onToggle} disabled={!!why} role="checkbox" aria-checked={on} aria-disabled={!!why}
+          accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: !!why }}
+          accessibilityLabel={[label, account.label, why].filter(Boolean).join(", ")} testID={`pick-${account.app}`}
+          style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", gap: space.md, paddingLeft: 16, minHeight: 48, opacity: why ? 0.6 : 1 }, pressed && { backgroundColor: colors.hover }]}>
+          <View style={[styles.check, on && { backgroundColor: colors.brandFill, borderColor: colors.brandFill }]}>{on ? <Icon name="check" size={14} color={colors.brandFg} /> : null}</View>
+          <View style={{ flex: 1, paddingVertical: 10 }}>
+            <Text style={g.label} numberOfLines={1}>{label}</Text>
+            {account.label ? <Text style={g.sub} numberOfLines={1}>{account.label}</Text> : null}
+            {why ? <Text style={[g.sub, { color: colors.warn }]} testID={`why-${account.app}`}>{why}</Text> : null}
+            {note ? <Text style={g.sub}>{note}</Text> : null}
+          </View>
+        </Pressable>
         {fixable ? <Button label="Reconnect" variant="secondary" loading={reconnecting} onPress={onReconnect} testID={`reconnect-${account.app}`} style={{ minHeight: 36, paddingHorizontal: 12 }} /> : null}
-      </Pressable>
+      </View>
       {needsTarget ? <TargetPicker accountId={account.id} kind={net!.target!} choice={choice} onTarget={onTarget} /> : null}
     </View>
   );
@@ -273,7 +276,7 @@ function TargetPicker({ accountId, kind, choice, onTarget }: { accountId: string
   const q = useSocialTargets(kind.kind === "subreddit" ? null : accountId);
   if (kind.kind === "subreddit") {
     return (
-      <View style={{ paddingHorizontal: space.lg, paddingBottom: space.md }}>
+      <View style={{ paddingLeft: 52, paddingRight: space.lg, paddingBottom: space.md }}>
         <TextInput value={choice?.target ?? ""} onChangeText={(v) => { const n = v.replace(/^r\//, "").trim(); onTarget(n || null, n ? `r/${n}` : null); }}
           placeholder="Community name, for example smallbusiness" placeholderTextColor={colors.subtle} autoCapitalize="none" autoCorrect={false}
           accessibilityLabel="Community" style={styles.input} testID="target-subreddit" />
@@ -281,7 +284,7 @@ function TargetPicker({ accountId, kind, choice, onTarget }: { accountId: string
     );
   }
   return (
-    <View style={{ paddingHorizontal: space.lg, paddingBottom: space.md, gap: space.xs }}>
+    <View style={{ paddingLeft: 52, paddingRight: space.lg, paddingBottom: space.md, gap: space.xs }}>
       {q.isPending ? <Text style={font.tiny}>Finding your {kind.label.toLowerCase()}s</Text>
         : q.error ? <Text style={[font.tiny, { color: colors.bad }]}>{q.error.message}</Text>
         : q.data.length ? (
@@ -317,7 +320,7 @@ function AccountsTab({ canManage }: { canManage: boolean }) {
               testID={`account-${a.app}`}
               right={needsReconnect(a) && canManage
                 ? <Button label="Reconnect" variant="secondary" loading={reconnect.isPending && reconnect.variables === a.id} onPress={() => doReconnect(a.id)} testID={`account-reconnect-${a.app}`} style={{ minHeight: 36, paddingHorizontal: 12 }} />
-                : <Badge label={needsReconnect(a) ? "Needs reconnect" : a.status === "disabled" ? "Off" : "Connected"} tone={needsReconnect(a) ? "warn" : a.status === "disabled" ? "neutral" : "ok"} />} />
+                : <Centered><Badge label={needsReconnect(a) ? "Needs reconnect" : a.status === "disabled" ? "Off" : "Connected"} tone={needsReconnect(a) ? "warn" : a.status === "disabled" ? "neutral" : "ok"} /></Centered>} />
           ))}
         </InsetGroup>
       ) : null}
@@ -331,7 +334,7 @@ function AccountsTab({ canManage }: { canManage: boolean }) {
       {canManage && toConnect.length ? (
         <InsetGroup header="Connect" footer="You sign in with the network in your browser, then come back here.">
           {toConnect.map((app) => (
-            <GroupRow key={app} label={appName(app)} sub={SOCIAL_NETWORKS[app]?.target ? `Posts to your ${SOCIAL_NETWORKS[app]!.target!.label.toLowerCase()}s` : "Posts to your profile"}
+            <GroupRow key={app} label={appName(app)} sub={postsTo(app)}
               testID={`connect-${app}`}
               right={<Button label="Connect" variant="secondary" loading={connect.isPending && connect.variables === app} onPress={() => doConnect(app)} style={{ minHeight: 36, paddingHorizontal: 12 }} />} />
           ))}
@@ -354,11 +357,18 @@ function DirectRow({ d, canManage }: { d: DirectAccountView; canManage: boolean 
   return (
     <GroupRow label={name} sub={sub} testID={`direct-${d.provider}`}
       right={d.connected && !expired
-        ? <Badge label="Connected" tone="ok" />
+        ? <Centered><Badge label="Connected" tone="ok" /></Centered>
         : canManage ? <Button label={expired ? "Reconnect" : "Connect"} variant="secondary" onPress={() => { void openWebSocialAccounts(); }} testID={`direct-connect-${d.provider}`} style={{ minHeight: 36, paddingHorizontal: 12 }} />
-        : <Badge label={expired ? "Needs reconnect" : "Not connected"} tone={expired ? "warn" : "neutral"} />} />
+        : <Centered><Badge label={expired ? "Needs reconnect" : "Not connected"} tone={expired ? "warn" : "neutral"} /></Centered>} />
   );
 }
+
+function Centered({ children }: { children: React.ReactNode }) {
+  return <View style={{ alignSelf: "center", justifyContent: "center" }}>{children}</View>;
+}
+
+const PLURAL: Record<string, string> = { page: "Pages", board: "boards", subreddit: "communities" };
+const postsTo = (app: string) => { const t = SOCIAL_NETWORKS[app]?.target; return t ? `Posts to your ${PLURAL[t.kind] ?? "pages"}` : "Posts to your profile"; };
 
 const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: space.lg, gap: space.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line },
