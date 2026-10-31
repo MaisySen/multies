@@ -7,6 +7,15 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 80C (31 Oct 2026)
+
+- Added: Settings, Connections (/app/settings/apps), also in the Workspace sidebar and the command menu: a gallery of about 1,680 outside apps with search and categories, social networks first; connect, reconnect and disconnect, and more than one account per app. Owners and admins connect and post; members see what is connected. The app list loads as its own file when the pane opens.
+- Added: a Social posts tab (/app/settings/apps/social) and "Social post" in the Create menu for owners and admins: one post with an optional JPEG or PNG (up to 1 MB) to Facebook Pages (pick a page), Instagram (image needed), LinkedIn, Pinterest (pick a board, image needed) or Reddit (name a community), now or at a set time up to 180 days ahead; each account keeps its own result with a link, Try again sends only the accounts that failed, and a scheduled post can be canceled.
+- Added: /api/apps (status, accounts, connect, confirm, reconnect, disconnect, targets, app logos through our own origin) and /api/social (posts, cancel, retry, the post image at an unguessable public address). Sign in tokens stay with the integration platform: one platform user per workspace and host, nothing of the account in D1 but its id on a post target, and no key or token in any answer. Rate limits per workspace (20 changes and 120 reads a minute) and an audit row for every connect, reconnect, disconnect, post, schedule and cancel.
+- Added: migration 0101 (social_posts, social_post_targets, social_media). The cron pass sends due posts (10 a pass, one read when none, posts stuck mid send for 15 minutes are taken again) and drops post images a week after the post is done.
+- Left: X, TikTok, Threads, Snapchat and Google Business Profile show "Coming soon" until we have our own developer apps with those networks; the phone app has no Connections screen yet; account names (the page or profile behind a connection) are not shown yet; posts go from workspace accounts only.
+- What's new drops "More tools" to stay at 14.
+
 ### Round 81B (31 Oct 2026)
 
 - Changed: nothing a person, a search engine or an API client reads says the old name any more: landing and pricing questions, the DNS example (mail._domainkey), API and MCP code samples ($MULTIES_* keys, MCP server name "multies"), the webhook example URL, download names (multies-*.json, multies-backup-codes.txt), new meeting room names, the service worker's names, and the saved light or dark choice (multies-theme; the old saved choice carries over once).

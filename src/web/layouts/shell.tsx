@@ -6,7 +6,7 @@
 import { useEffect, useMemo, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import {
+import { IconMegaphone, IconPlugZap,
   IconActivity, IconAgent, IconApprovals, IconAttachment, IconBell, IconBriefcase, IconCalendarClock, IconCalendarPlus, IconChart, IconChats,
   IconChevronDown, IconChevronRight, IconClipboardList, IconCompose, IconContacts, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHome,
   IconInbox, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconSidebar, IconSliders,
@@ -29,7 +29,7 @@ export const NAV_ICONS: Record<IconKey, IconComponent> = {
   today: IconToday, overview: IconDashboard, bell: IconBell, triage: IconTodo, approvals: IconApprovals, activity: IconActivity, sharedInbox: IconChats,
   mailboxes: IconTeam, domains: IconGlobe, deliverability: IconShieldCheck, goals: IconTarget, portfolio: IconBriefcase, timesheet: IconTimer,
   templates: IconTemplate, automations: IconZap, files: IconAttachment, forms: IconClipboardList, meetings: IconVideo, booking: IconCalendarClock,
-  contacts: IconContacts, reports: IconChart, agents: IconAgent, integrations: IconPlug, settings: IconSettings, operator: IconShield,
+  contacts: IconContacts, reports: IconChart, agents: IconAgent, integrations: IconPlug, connections: IconPlugZap, settings: IconSettings, operator: IconShield,
 };
 
 /** Counts the shell shows, keyed by page path. "alert" counts use the brand colour; the rest stay neutral. */
@@ -224,7 +224,7 @@ export function Breadcrumbs({ projectName }: { projectName?: string | null }) {
   );
 }
 
-const CREATE_ICON: Record<string, IconComponent> = { task: IconSquarePlus, doc: IconFilePlus, mail: IconCompose, event: IconCalendarPlus, file: IconUpload };
+const CREATE_ICON: Record<string, IconComponent> = { task: IconSquarePlus, doc: IconFilePlus, mail: IconCompose, event: IconCalendarPlus, file: IconUpload, post: IconMegaphone };
 
 /** One Create menu for everything new. */
 export function CreateMenu({ flags }: { flags: NavFlags }) {

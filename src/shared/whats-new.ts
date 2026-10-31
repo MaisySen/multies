@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-connections",
+    date: "2026-10-31",
+    title: "Connect your social accounts and post once",
+    body: "Settings, Connections lists the apps your workspace can connect, with social networks first, and you can add more than one account per app. Connect Facebook Pages, Instagram, LinkedIn, Pinterest or Reddit, then write one post with an image and send it now or at a set time. Each account shows its own result.",
+  },
+  {
     id: "2026-10-31-multies-everywhere",
     date: "2026-10-31",
     title: "Multies everywhere",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-30",
     title: "Share links, workflows and templates",
     body: "Send a big file as a link that expires, with an optional password and download limit. Chain tools into a saved workflow, fill an invoice, quote or letter from a template with GST worked out, and let rules compress big PDFs as you attach them.",
-  },
-  {
-    id: "2026-10-30-tools-more",
-    date: "2026-10-30",
-    title: "More document tools",
-    body: "Add a password, stamps, page numbers, headers and footers, find and hide sensitive info, convert more file types, use the Excel tools, scan paper to PDF and make scans searchable in Nepali, Hindi and 11 more languages. Run a tool on every attachment in a thread at once, or from your own app with the API.",
   },
   {
     id: "2026-10-28-whats-new",

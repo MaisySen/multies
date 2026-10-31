@@ -111,3 +111,9 @@ Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0):
 - @jsquash/avif and @jsquash/webp, Copyright jSquash contributors, built from the Squoosh codecs (Copyright Google LLC)
 
 The AVIF and WebP encoders compiled into those packages are libavif and libaom (BSD 2 Clause, Copyright Joe Drago and the Alliance for Open Media) and libwebp (BSD 3 Clause, Copyright Google Inc.). Their licence texts ship in the packages' wasm builds and are reproduced at https://github.com/AOMediaCodec/libavif/blob/main/LICENSE, https://aomedia.googlesource.com/aom/+/refs/heads/main/LICENSE and https://chromium.googlesource.com/webm/libwebp/+/refs/heads/main/COPYING.
+
+## Integration platform (Composio)
+
+Settings, Connections and Social posts reach outside apps through Composio (https://composio.dev), a hosted service: the
+sign in for each connected account happens on its pages and its tokens stay with it. Multies calls its REST API from the
+server only and ships none of its code. App names and logos in the gallery belong to their owners.

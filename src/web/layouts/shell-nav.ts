@@ -7,7 +7,7 @@ export type IconKey =
   | "home" | "mail" | "tasks" | "docs" | "tools" | "chat" | "dashboards" | "workspace"
   | "today" | "overview" | "bell" | "triage" | "approvals" | "activity" | "sharedInbox" | "mailboxes" | "domains" | "deliverability"
   | "goals" | "portfolio" | "timesheet" | "templates" | "automations" | "files" | "forms" | "meetings" | "booking" | "contacts"
-  | "reports" | "agents" | "integrations" | "settings" | "operator";
+  | "reports" | "agents" | "integrations" | "connections" | "settings" | "operator";
 
 export interface NavPage { to: string; label: string; icon: IconKey; end?: boolean; flag?: "tools" | "files" | "scheduling" | "operator" }
 export interface Section { id: SectionId; label: string; icon: IconKey; to: string; pages: NavPage[] }
@@ -55,6 +55,7 @@ export const SECTIONS: Section[] = [
   ] },
   { id: "workspace", label: "Workspace", icon: "workspace", to: "/app/settings", pages: [
     { to: "/app/settings", label: "Settings", icon: "settings" },
+    { to: "/app/settings/apps", label: "Connections", icon: "connections" }, // R80C
     { to: "/app/agents", label: "Agents", icon: "agents" },
     { to: "/app/integrations", label: "Integrations", icon: "integrations" },
     { to: "/app/activity", label: "Activity", icon: "activity" },
@@ -62,7 +63,7 @@ export const SECTIONS: Section[] = [
   ] },
 ];
 
-export interface NavFlags { tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean }
+export interface NavFlags { tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts. */ social?: boolean }
 
 /** The sections and pages this person can open (switched off features leave no dead links). */
 export function visibleSections(flags: NavFlags): Section[] {
@@ -108,12 +109,13 @@ export function breadcrumbs(pathname: string, search: string, ctx: { projectName
   if (hit.page.to === "/app/tasks" && params.get("project") && ctx.projectName) out.push({ label: ctx.projectName });
   const rest = pathname.slice(hit.page.to.length).split("/").filter(Boolean);
   if (hit.page.to === "/app/settings" && rest[0]) out.push({ label: SUB_LABEL[rest[0]] ?? titleCase(rest[0]) });
+  if (hit.page.to === "/app/settings/apps" && rest[0] === "social") out.push({ label: "Social posts" }); // R80C
   // The last crumb is where you are: it is text, not a link.
   if (out.length) out[out.length - 1] = { label: out[out.length - 1].label };
   return out;
 }
 
-export type CreateKind = "task" | "doc" | "mail" | "event" | "file";
+export type CreateKind = "task" | "doc" | "mail" | "event" | "file" | "post";
 export const CREATE_ITEMS: { kind: CreateKind; label: string; to: string; hint: string }[] = [
   { kind: "task", label: "Task", to: "/app/tasks?new=1", hint: "T" },
   { kind: "doc", label: "Doc", to: "/app/docs?new=1", hint: "D" },
@@ -124,5 +126,7 @@ export const CREATE_ITEMS: { kind: CreateKind; label: string; to: string; hint: 
 
 /** Create items this workspace can use: a file opens Tools, else Docs (where files can be added to a doc). */
 export function createItems(flags: NavFlags) {
-  return CREATE_ITEMS.map((c) => (c.kind === "file" && !flags.tools ? { ...c, to: "/app/docs" } : c));
+  const items = CREATE_ITEMS.map((c) => (c.kind === "file" && !flags.tools ? { ...c, to: "/app/docs" } : c));
+  // R80C: a social post, for the people who can send one.
+  return flags.social ? [...items, { kind: "post" as const, label: "Social post", to: "/app/settings/apps/social", hint: "" }] : items;
 }
