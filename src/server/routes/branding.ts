@@ -17,21 +17,15 @@ import {
   type Brand, type LogoKind, type Personal,
 } from "@/shared/branding";
 
-const CACHE_MS = 60_000;
-const cache = new Map<string, { at: number; brand: Brand }>();
 const isKind = (k: string): k is LogoKind => (LOGO_KINDS as string[]).includes(k);
 
-/** The brand for a workspace, from a copy up to a minute old in this isolate (two primary key reads otherwise). */
-export async function getBrand(db: DB, orgId: string, fresh = false): Promise<Brand> {
-  const hit = cache.get(orgId);
-  if (!fresh && hit && Date.now() - hit.at < CACHE_MS) return hit.brand;
+/** The brand for a workspace: two primary key reads, always fresh (an isolate copy went stale across isolates after a change). */
+export async function getBrand(db: DB, orgId: string): Promise<Brand> {
   const [row, logos] = await Promise.all([
     db.select({ brand: workspaceBranding.brand }).from(workspaceBranding).where(eq(workspaceBranding.orgId, orgId)).get(),
     db.select({ kind: workspaceBrandLogos.kind, version: workspaceBrandLogos.version }).from(workspaceBrandLogos).where(eq(workspaceBrandLogos.orgId, orgId)).all(),
   ]);
   const brand = readBrand(row?.brand, Object.fromEntries(logos.map((l) => [l.kind, l.version])));
-  cache.set(orgId, { at: Date.now(), brand });
-  if (cache.size > 500) cache.delete(cache.keys().next().value as string);
   return brand;
 }
 
@@ -76,14 +70,13 @@ export function brandingRoutes() {
     .put("/", requireAuth, requireAdmin, async (c) => {
       const patch = await parseBody(c, BrandPatchSchema);
       const { auth, deps } = c.var;
-      const before = await getBrand(deps.db, auth.orgId, true);
+      const before = await getBrand(deps.db, auth.orgId);
       const next: Brand = { ...before, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) };
       const now = deps.now();
       await deps.db.insert(workspaceBranding).values({ orgId: auth.orgId, brand: stored(next), updatedBy: auth.userId, updatedAt: now })
         .onConflictDoUpdate({ target: workspaceBranding.orgId, set: { brand: stored(next), updatedBy: auth.userId, updatedAt: now } });
       const changed = Object.keys(patch).filter((k) => JSON.stringify((before as unknown as Record<string, unknown>)[k]) !== JSON.stringify((next as unknown as Record<string, unknown>)[k]));
       if (changed.length) await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "workspace.branding_changed", targetType: "workspace", targetId: auth.orgId, metadata: { changed, ...Object.fromEntries(changed.map((k) => [k, (next as unknown as Record<string, unknown>)[k]])) }, ip: c.var.ip });
-      cache.set(auth.orgId, { at: Date.now(), brand: next });
       return c.json({ brand: next, css: brandCss(next, await personalFor(deps.db, auth.userId, auth.orgId)), checks: checkBrand(next) });
     })
     // Reset to Multies' own look: the brand row and every logo go.
@@ -92,8 +85,7 @@ export function brandingRoutes() {
       await deps.db.delete(workspaceBranding).where(eq(workspaceBranding.orgId, auth.orgId));
       await deps.db.delete(workspaceBrandLogos).where(eq(workspaceBrandLogos.orgId, auth.orgId));
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "workspace.branding_reset", targetType: "workspace", targetId: auth.orgId, ip: c.var.ip });
-      cache.delete(auth.orgId);
-      const brand = await getBrand(deps.db, auth.orgId, true);
+      const brand = await getBrand(deps.db, auth.orgId);
       return c.json({ brand, css: brandCss(brand, await personalFor(deps.db, auth.userId, auth.orgId)), checks: checkBrand(brand) });
     })
     // A logo upload: the raw image bytes as the body (PNG, JPEG or WebP, 512 KB at most).
@@ -114,7 +106,7 @@ export function brandingRoutes() {
       await deps.db.insert(workspaceBrandLogos).values({ orgId: auth.orgId, kind, ...row })
         .onConflictDoUpdate({ target: [workspaceBrandLogos.orgId, workspaceBrandLogos.kind], set: row });
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "workspace.logo_changed", targetType: "workspace", targetId: auth.orgId, metadata: { kind, bytes: bytes.byteLength, type }, ip: c.var.ip });
-      const brand = await getBrand(deps.db, auth.orgId, true);
+      const brand = await getBrand(deps.db, auth.orgId);
       return c.json({ brand });
     })
     .delete("/logo/:kind", requireAuth, requireAdmin, async (c) => {
@@ -123,7 +115,7 @@ export function brandingRoutes() {
       const { auth, deps } = c.var;
       await deps.db.delete(workspaceBrandLogos).where(and(eq(workspaceBrandLogos.orgId, auth.orgId), eq(workspaceBrandLogos.kind, kind)));
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "workspace.logo_removed", targetType: "workspace", targetId: auth.orgId, metadata: { kind }, ip: c.var.ip });
-      const brand = await getBrand(deps.db, auth.orgId, true);
+      const brand = await getBrand(deps.db, auth.orgId);
       return c.json({ brand });
     })
     // A person's own theme in this workspace.
