@@ -119,7 +119,7 @@ async function entrySource(deps: Deps, a: Actor, s: Subject, cur: Cursor | null,
   const me = actorOf(a).id;
   const rows = await deps.db.select().from(crmEntries).where(and(
     eq(crmEntries.orgId, a.orgId), target, isNull(crmEntries.deletedAt),
-    want.length < 3 ? inArray(crmEntries.kind, want) : undefined,
+    want.length < 3 ? inArray(crmEntries.kind, want) : undefined, // D1: at most two literal kinds
     me ? or(eq(crmEntries.private, false), eq(crmEntries.createdById, me)) : eq(crmEntries.private, false),
     afterCur(crmEntries.occurredAt, crmEntries.id, cur),
   )).orderBy(desc(crmEntries.occurredAt), desc(crmEntries.id)).limit(n + 1);

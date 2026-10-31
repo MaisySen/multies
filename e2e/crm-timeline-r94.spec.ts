@@ -100,8 +100,8 @@ test("company by hand: its own page, timeline and a contact joined to it", async
   await expect(page.getByTestId("crm-entry").filter({ hasText: "Head office moved" })).toBeVisible();
   const companyUrl = page.url();
   // Join a contact to it from the contact page.
-  if (!contactUrl) contactUrl = await firstContact(page);
-  await page.goto(contactUrl);
+  // Each demo is its own workspace, so pick a contact here.
+  await firstContact(page);
   await page.getByTestId("company-picker").selectOption({ label: "Bondi Beans" });
   await expect(page.getByRole("link", { name: "Bondi Beans" })).toBeVisible();
   await page.goto(companyUrl);
