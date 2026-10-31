@@ -840,7 +840,7 @@ function DropAny({ onFiles, dragging }: { onFiles: (f: File[]) => void; dragging
   return (
     // R77: a big drop zone (the whole page takes a drop too): the first thing on Tools, in the workspace's colours.
     <div className={`flex items-center gap-3 rounded-2xl border-2 border-dashed px-4 py-3.5 transition-[border-color,background-color] duration-150 sm:flex-col sm:justify-center sm:gap-2 sm:px-6 sm:py-9 sm:text-center ${dragging ? "border-brand bg-brand-soft" : "border-line-strong bg-surface hover:border-brand/50"}`} data-testid="tools-drop-any">
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-hover sm:h-14 sm:w-14 sm:rounded-2xl [&_svg]:h-5 [&_svg]:w-5 sm:[&_svg]:h-7 sm:[&_svg]:w-7" aria-hidden><IconFileUp /></span>
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand sm:h-14 sm:w-14 sm:rounded-2xl [&_svg]:h-5 [&_svg]:w-5 sm:[&_svg]:h-7 sm:[&_svg]:w-7" aria-hidden><IconFileUp /></span>
       <div className="min-w-0 flex-1 sm:flex-none">
         <p className="text-[14.5px] font-semibold sm:text-[17px]"><span className="max-sm:hidden">Drop any file here</span><span className="sm:hidden">Start with a file</span></p>
         <p className="text-[13px] text-muted">See only the tools that work on it. PDF, Word, Excel, images and more.</p>

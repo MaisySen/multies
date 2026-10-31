@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
 import { useAppearance } from "@/web/components/theme";
 import { cn } from "@/web/lib/cn";
-import { logoUrl, pickLogo, type Appearance, type Brand, type ContrastCheck, type Personal } from "@/shared/branding";
+import { logoUrl, logoScheme, pickLogo, type Appearance, type Brand, type ContrastCheck, type Personal } from "@/shared/branding";
 
 export interface BrandingData { orgId: string; brand: Brand; personal: Personal; canEdit: boolean; css: string; checks: ContrastCheck[] }
 
@@ -78,11 +78,11 @@ export function BrandTokens({ orgId }: { orgId: string | undefined }) {
 }
 
 /** The workspace's square logo, or its initial on the brand colour when there is none. */
-export function WorkspaceMark({ name, className, rounded = "rounded-md" }: { name: string | undefined; className?: string; rounded?: string }) {
+export function WorkspaceMark({ name, className, rounded = "rounded-md", onSidebar }: { name: string | undefined; className?: string; rounded?: string; onSidebar?: boolean }) {
   const q = useBranding();
   const { resolved } = useAppearance();
   const b = q.data?.brand;
-  const kind = b ? pickLogo(b, "mark", resolved) : null;
+  const kind = b ? pickLogo(b, "mark", logoScheme(b, resolved, onSidebar)) : null;
   if (b && kind && q.data) {
     return <img src={logoUrl(q.data.orgId, kind, b.logos[kind]!)} alt="" aria-hidden className={cn("shrink-0 object-contain", rounded, className)} />;
   }
@@ -90,11 +90,11 @@ export function WorkspaceMark({ name, className, rounded = "rounded-md" }: { nam
 }
 
 /** The wide logo when the workspace has one (for headers that already exist, like Tools results). */
-export function WorkspaceWideLogo({ className, fallback = null }: { className?: string; fallback?: ReactNode }) {
+export function WorkspaceWideLogo({ className, fallback = null, onSidebar }: { className?: string; fallback?: ReactNode; onSidebar?: boolean }) {
   const q = useBranding();
   const { resolved } = useAppearance();
   const b = q.data?.brand;
-  const kind = b ? pickLogo(b, "wide", resolved) : null;
+  const kind = b ? pickLogo(b, "wide", logoScheme(b, resolved, onSidebar)) : null;
   if (!b || !kind || !q.data) return <>{fallback}</>;
   return <img src={logoUrl(q.data.orgId, kind, b.logos[kind]!)} alt="" aria-hidden className={cn("h-6 w-auto max-w-[160px] object-contain", className)} data-testid="workspace-wide-logo" />;
 }

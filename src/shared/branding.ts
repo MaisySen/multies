@@ -244,6 +244,8 @@ export function brandCss(b: Brand, personal: Personal | null = null): string {
     block(':root[data-theme="dark"]', dark),
     Object.keys(dark).length ? `@media (prefers-color-scheme:dark){${block(':root:not([data-theme="light"])', dark)}}` : "",
     block(".glass-sidebar,[data-brand-sidebar]", side),
+    // Text that inherits its colour (no text class of its own) follows the sidebar too.
+    b.sidebar ? `.glass-sidebar,[data-brand-sidebar]{color:${readableOn(b.sidebar)}}` : "",
   ].join("");
 }
 
@@ -263,6 +265,12 @@ export function pickLogo(b: Brand, shape: "mark" | "wide", scheme: "light" | "da
     ? (scheme === "dark" ? ["mark_dark", "mark_light"] : ["mark_light", "mark_dark"])
     : (scheme === "dark" ? ["wide_dark", "wide_light"] : ["wide_light", "wide_dark"]);
   return order.find((k) => b.logos[k]) ?? null;
+}
+
+/** The logo variant for a place: on a coloured sidebar the sidebar's own lightness decides, elsewhere the scheme. */
+export function logoScheme(b: Pick<Brand, "sidebar">, scheme: "light" | "dark", onSidebar = false): "light" | "dark" {
+  if (onSidebar && b.sidebar) return readableOn(b.sidebar) === "#ffffff" ? "dark" : "light";
+  return scheme;
 }
 
 /** Sniffs the real image type from the first bytes (the browser's word is not trusted). */

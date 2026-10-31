@@ -200,7 +200,7 @@ export function AppLayout() {
   const sidebar = (
     <div className="flex h-full flex-col">
       <div className="flex h-14 shrink-0 items-center justify-between px-4">
-        <Link to="/app" aria-label="Multies overview"><WorkspaceWideLogo fallback={<Logo className="h-6" />} /></Link>
+        <Link to="/app" aria-label="Multies overview"><WorkspaceWideLogo onSidebar fallback={<Logo className="h-6" />} /></Link>
         <button className="grid h-11 w-11 place-items-center rounded-full text-muted transition-colors hover:bg-hover hover:text-fg lg:hidden" onClick={() => setDrawer(false)} aria-label="Close navigation"><IconClose className="h-5 w-5" /></button>
       </div>
       <div className="shrink-0 px-3">
@@ -338,7 +338,7 @@ function WorkspaceSwitcher({ current, variant = "sidebar", compact = false }: { 
         </button>
       ) : (
         <button className="flex w-full items-center gap-2.5 rounded-lg border border-line bg-elevated/60 px-2.5 py-2 text-left transition-colors hover:border-line-strong">
-          <WorkspaceMark name={current?.name} className="h-6 w-6 text-[11px]" />
+          <WorkspaceMark name={current?.name} className="h-6 w-6 text-[11px]" onSidebar />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[13px] font-medium">{current?.name}</span>
             <span className="block text-[11px] text-subtle">{current ? PLANS[current.plan].name : ""} plan</span>

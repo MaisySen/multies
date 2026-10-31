@@ -65,7 +65,7 @@ function Swatch({ primary, accent, sidebar, label, selected, onClick, disabled, 
         )}
         {selected && <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-white text-black shadow"><IconCheck className="h-3.5 w-3.5" /></span>}
       </span>
-      <span className="truncate px-0.5 text-[12px] text-muted group-aria-pressed:font-medium group-aria-pressed:text-fg">{label}</span>
+      <span className="line-clamp-2 px-0.5 text-[12px] leading-tight text-muted group-aria-pressed:font-medium group-aria-pressed:text-fg">{label}</span>
     </button>
   );
 }
@@ -282,10 +282,10 @@ export function BrandingSettings() {
     <div className="space-y-4" data-testid="branding-settings">
       {dialogs}
       {ro && <p className="flex items-center gap-2 rounded-xl border border-line bg-fill px-3 py-2 text-[13px] text-muted"><IconLock className="h-4 w-4" aria-hidden />Only workspace owners and admins can change the brand.</p>}
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-        <div className="order-2 space-y-4 xl:order-1">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="order-2 min-w-0 space-y-4 xl:order-1">
           <Panel title="Theme" description="Start from a ready made theme, or take the colours from your logo." testId="brand-presets">
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 xl:grid-cols-3 2xl:grid-cols-4">
               {PRESETS.map((p) => (
                 <Swatch key={p.id} primary={p.primary} accent={p.accent} sidebar={p.sidebar} label={p.name} disabled={ro}
                   selected={draft.preset === p.id || (!draft.preset && p.id === "multies" && !draft.primary)}
@@ -301,7 +301,7 @@ export function BrandingSettings() {
           </Panel>
 
           <Panel title="Logo" description="Shown in the sidebar, on shared links and on Tools results. PNG, JPEG or WebP, up to 512 KB." testId="brand-logos">
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
               {LOGO_SLOTS.map((s) => <LogoSlot key={s.kind} data={q.data} {...s} canEdit={canEdit} onChanged={logoChanged} />)}
             </div>
           </Panel>
