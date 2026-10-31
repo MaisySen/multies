@@ -209,13 +209,15 @@ function loadPdfjs(): Promise<Pdfjs> {
   return pdfjs;
 }
 
-async function openPdf(file: Blob, name: string) {
+async function openPdf(file: Blob, _name: string) {
   const { PDFDocument } = await loadPdfLib();
   try {
-    return await PDFDocument.load(await file.arrayBuffer(), { updateMetadata: false });
+    const doc = await PDFDocument.load(await file.arrayBuffer(), { updateMetadata: false });
+    if (doc.getPageCount() < 1) throw new Error("no pages");
+    return doc;
   } catch (err) {
-    if (/encrypt/i.test(String((err as Error)?.message))) throw new ConvertError(`${name} is locked with a password. Remove the password first.`);
-    throw new ConvertError(`${name} could not be read as a PDF.`);
+    if (/encrypt/i.test(String((err as Error)?.message))) throw new ConvertError("This PDF is locked with a password. Unlock it with Remove password first, then convert.");
+    throw new ConvertError(`This PDF can't be opened. It may be damaged.`);
   }
 }
 

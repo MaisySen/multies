@@ -21,6 +21,7 @@ import {
 import { measureCaps } from "@/web/lib/convert/caps";
 import { downloadName, loadOps, runRoute, type Progress } from "@/web/lib/convert/run";
 import { saveFile } from "@/web/lib/tool-jobs";
+import { toast } from "sonner";
 
 const ring = "outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface";
 const MAX_FILES = 50;
@@ -32,6 +33,20 @@ interface Job {
   id: string; title: string; status: JobStatus; progress: number; label: string; local: boolean;
   outputs: File[]; error?: string; to?: FormatId; thumb?: string; startedAt?: number; ms?: number;
 }
+
+/** Plain words for what went wrong; a converter that could not load is a connection problem, not a code. */
+function friendly(err: unknown): string {
+  const m = (err as Error)?.message ?? "";
+  if (/dynamically imported module|Failed to fetch|Loading chunk|NetworkError|Load failed/i.test(m)) return "Couldn't load the converter. Check your connection, then try again.";
+  if (/encrypted/i.test(m)) return "This PDF is locked with a password. Unlock it with Remove password first, then convert.";
+  if (/Failed to parse|No PDF header|Invalid PDF|PDFParse|Expected instance of PDF/i.test(m)) return "This PDF can't be opened. It may be damaged.";
+  if (/could not be decoded|decode|InvalidStateError/i.test(m)) return "This image can't be opened. It may be damaged, or in a format this browser doesn't read.";
+  if (/out of memory|allocation failed|RangeError/i.test(m)) return "This file is too big for your device to convert here. Try a smaller one.";
+  // Anything that reads like code is a fault on our side, not something the person can act on.
+  if (!m || /undefined|null|is not a function|properties of|Unexpected token|TypeError|ReferenceError/.test(m)) return "Something went wrong converting this file. Try again, or pick another format.";
+  return m;
+}
+const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "\u2318" : "Ctrl";
 
 let seq = 0;
 const nextId = () => `c${Date.now().toString(36)}${(seq++).toString(36)}`;
@@ -63,6 +78,12 @@ export function ConvertHubPage() {
   const [zipping, setZipping] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const thumbs = useRef<string[]>([]);
+  const runners = useRef(new Map<string, () => Promise<void>>());
+  const trayRef = useRef<HTMLElement>(null);
+  const [announce, setAnnounce] = useState("");
+  const jobsRef = useRef<Job[]>([]);
+  jobsRef.current = jobs;
+  const startRef = useRef<() => void>(() => {});
 
   const caps: BrowserCaps = useMemo(() => measureCaps(heicOk), [heicOk]);
   const left = info.data ? runsLeft(info.data.usage, info.data.limits) : null;
@@ -97,6 +118,38 @@ export function ConvertHubPage() {
 
   // A file handed over from the Tools list (dropped there) arrives here.
   useEffect(() => { const c = takeCarried(); if (c.length) add(c); }, [add]);
+
+  // Paste a copied image or file straight in (Ctrl V), unless the person is typing in a field.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const list = [...(e.clipboardData?.files ?? [])];
+      if (!list.length) return;
+      e.preventDefault();
+      add(list.map((f, i) => (f.name && f.name !== "image.png" ? f : new File([f], `pasted-${i + 1}.${(f.type.split("/")[1] || "png").replace("jpeg", "jpg")}`, { type: f.type }))));
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [add]);
+
+  // A drag that ends outside the page never sends dragleave here; reset on any drop or drag end.
+  useEffect(() => {
+    const reset = () => setDragging(false);
+    window.addEventListener("drop", reset); window.addEventListener("dragend", reset);
+    return () => { window.removeEventListener("drop", reset); window.removeEventListener("dragend", reset); };
+  }, []);
+
+  // Ctrl (or Cmd) Enter converts; Ctrl O chooses files.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+      if (e.key === "Enter") { e.preventDefault(); startRef.current(); }
+      else if (e.key.toLowerCase() === "o") { e.preventDefault(); inputRef.current?.click(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const onDrop = (e: DragEvent) => { e.preventDefault(); setDragging(false); add([...e.dataTransfer.files]); };
   const move = (id: string, by: -1 | 1) => setFiles((cur) => {
@@ -139,7 +192,8 @@ export function ConvertHubPage() {
       const units = def.combine ? [list] : list.map((p) => [p]);
       const made: Job[] = units.map((u) => ({ id: nextId(), title: def.combine ? `${def.label}: ${u.length} files` : u[0].file.name, status: "waiting", progress: 0, label: "Waiting", local: true, outputs: [] }));
       setJobs((cur) => [...made, ...cur]);
-      await pool(units.map((u, i) => ({ u, job: made[i] })), 2, async ({ u, job }) => {
+      showTray();
+      const work = async (u: Picked[], job: Job) => {
         const t0 = performance.now();
         patch(job.id, { status: "running", label: `${def.label} on your device`, progress: 0.15, startedAt: Date.now() });
         try {
@@ -157,15 +211,19 @@ export function ConvertHubPage() {
           else if (def.id === "numbers") outputs = [await o.numberPdf(first, { style: numStyle, position: numPos })];
           patch(job.id, { status: "done", progress: 1, label: "Done on your device", outputs, ms: Math.round(performance.now() - t0) });
         } catch (err) {
-          patch(job.id, { status: "failed", progress: 1, label: "Not done", error: (err as Error).message || "That didn't work." });
+          patch(job.id, { status: "failed", progress: 1, label: "Not done", error: friendly(err) });
         }
-      });
+      };
+      made.forEach((job, i) => runners.current.set(job.id, () => work(units[i], job)));
+      await pool(units.map((u, i) => ({ u, job: made[i] })), 2, ({ u, job }) => work(u, job));
+      finished(made.map((j) => j.id));
       return;
     }
     const to = target!;
     const made: Job[] = list.map((p) => ({ id: nextId(), title: p.file.name, status: "waiting", progress: 0, label: "Waiting", local: p.fmt === to || !!routeTo(p.fmt!, to, plan)?.local, outputs: [], to }));
     setJobs((cur) => [...made, ...cur]);
-    await pool(list.map((p, i) => ({ p, job: made[i] })), 2, async ({ p, job }) => {
+    showTray();
+    const work = async (p: Picked, job: Job) => {
       const t0 = performance.now();
       if (p.fmt === to) { patch(job.id, { status: "done", progress: 1, label: `Already ${formatDef(to).label}, kept as it is`, outputs: [p.file] }); return; }
       const route = routeTo(p.fmt!, to, plan);
@@ -175,10 +233,37 @@ export function ConvertHubPage() {
         const outputs = await runRoute(route, p.file, { quality: IMAGE_OUT.has(to) ? quality : undefined, onProgress: (pr: Progress) => patch(job.id, { progress: Math.max(0.03, pr.fraction), label: pr.label }) });
         patch(job.id, { status: "done", progress: 1, label: route.local ? "Done on your device" : "Done", outputs, thumb: makeThumb(outputs), ms: Math.round(performance.now() - t0) });
       } catch (err) {
-        patch(job.id, { status: "failed", progress: 1, label: "Not done", error: (err as Error).message || "That didn't work." });
+        patch(job.id, { status: "failed", progress: 1, label: "Not done", error: friendly(err) });
       }
-    });
+    };
+    made.forEach((job, i) => runners.current.set(job.id, () => work(list[i], job)));
+    await pool(list.map((p, i) => ({ p, job: made[i] })), 2, ({ p, job }) => work(p, job));
+    finished(made.map((j) => j.id));
     void info.refetch();
+  }
+
+  function showTray() {
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    requestAnimationFrame(() => trayRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "nearest" }));
+  }
+  function finished(ids: string[]) {
+    // Read the tray after React has applied the last patches.
+    setTimeout(() => {
+      const mine = jobsRef.current.filter((j) => ids.includes(j.id));
+      const failed = mine.filter((j) => j.status === "failed").length, n = mine.length;
+      setAnnounce(failed ? `${n - failed} of ${n} ready. ${failed} not done.` : `${n} ${n === 1 ? "result" : "results"} ready to download.`);
+    }, 0);
+  }
+  async function retry(j: Job) {
+    const run = runners.current.get(j.id);
+    if (!run) return;
+    patch(j.id, { status: "waiting", progress: 0, label: "Trying again", error: undefined });
+    await run();
+  }
+  function clearFiles() {
+    const before = files;
+    setFiles([]);
+    toast("Files cleared", { action: { label: "Undo", onClick: () => setFiles(before) } });
   }
 
   async function downloadJob(j: Job) {
@@ -196,24 +281,36 @@ export function ConvertHubPage() {
   }
   const clearTray = () => { thumbs.current.forEach((u) => URL.revokeObjectURL(u)); thumbs.current = []; setJobs((cur) => cur.filter((j) => j.status === "running" || j.status === "waiting")); };
 
+  startRef.current = () => { void start(); };
   const runLabel = action
     ? `${ACTIONS.find((a) => a.id === action)!.label}`
     : target ? `Convert ${usable.length} ${usable.length === 1 ? "file" : "files"} to ${formatDef(target).label}` : "Choose what to make";
 
   return (
     <ToolsFrame entryKey="convert-any" title="Convert any file" description="Drop files first. Multies shows what each one can become, and most jobs never leave your device." wide testId="convert-hub">
-      <div onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false); }} onDrop={onDrop} className="space-y-5">
+      <div onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false); }} onDrop={onDrop} className="relative space-y-5">
         <button type="button" onClick={() => inputRef.current?.click()} data-testid="convert-drop"
           className={`group flex w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 text-center transition-[background-color,border-color,padding] duration-200 ${files.length ? "py-6" : "py-12 sm:py-16"} ${dragging ? "border-brand bg-brand/10" : "border-line-strong bg-surface hover:border-brand/60 hover:bg-brand/5"} ${ring}`}>
           <span className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/10 text-brand transition-transform duration-200 motion-safe:group-hover:-translate-y-0.5 ${dragging ? "motion-safe:scale-110" : ""}`}><IconUpload className="h-6 w-6" aria-hidden /></span>
           <span className="text-[16px] font-semibold text-fg">{dragging ? "Drop to add" : files.length ? "Add more files" : "Drop any files here, or choose files"}</span>
           <span className="max-w-xl text-[13.5px] text-muted">Many at once. Photos, PDFs, spreadsheets, Word and PowerPoint files. Up to {MAX_FILES} files.</span>
         </button>
-        <input ref={inputRef} type="file" multiple accept={ACCEPT} className="sr-only" data-testid="convert-input" onChange={(e) => { add([...(e.target.files ?? [])]); e.target.value = ""; }} />
+        <input ref={inputRef} type="file" multiple accept={ACCEPT} className="sr-only" tabIndex={-1} aria-label="Choose files to convert" data-testid="convert-input" onChange={(e) => { add([...(e.target.files ?? [])]); e.target.value = ""; }} />
 
         {!files.length && (
-          <div className="flex flex-wrap justify-center gap-1.5" aria-label="Formats Multies reads" data-testid="convert-formats">
-            {FORMATS.map((f) => <span key={f.id} className="rounded-full border border-line px-2.5 py-1 text-[12px] font-medium text-muted">{f.label}</span>)}
+          <div className="space-y-4" data-testid="convert-empty">
+            <ol className="grid gap-2 sm:grid-cols-3" aria-label="How it works">
+              {[["Drop files", "One or fifty, any mix."], ["Pick what to make", "Only formats that work are shown."], ["Download", "One by one, or all as a ZIP."]].map(([t, d], i) => (
+                <li key={t} className="flex items-start gap-3 rounded-xl border border-line bg-surface px-3 py-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[12px] font-semibold text-brand" aria-hidden>{i + 1}</span>
+                  <span className="min-w-0"><span className="block text-[13.5px] font-medium">{t}</span><span className="block text-[12.5px] text-muted">{d}</span></span>
+                </li>
+              ))}
+            </ol>
+            <div className="flex flex-wrap justify-center gap-1.5" aria-label="Formats Multies reads" data-testid="convert-formats">
+              {FORMATS.map((f) => <span key={f.id} className="rounded-full border border-line px-2.5 py-1 text-[12px] font-medium text-muted">{f.label}</span>)}
+            </div>
+            <p className="text-center text-[12.5px] text-subtle max-sm:hidden">Tip: paste a copied image with <Kbd>{MOD}</Kbd> <Kbd>V</Kbd>, or press <Kbd>{MOD}</Kbd> <Kbd>O</Kbd> to choose files.</p>
           </div>
         )}
 
@@ -221,9 +318,9 @@ export function ConvertHubPage() {
           <section aria-labelledby="cv-files" className="rounded-2xl border border-line bg-surface">
             <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
               <h2 id="cv-files" className="text-[14px] font-semibold">Your files <span className="font-normal text-muted">{files.length}</span></h2>
-              <button type="button" onClick={() => setFiles([])} className={`rounded-lg px-2 py-1 text-[13px] text-muted hover:text-fg ${ring}`} data-testid="convert-clear-files">Clear</button>
+              <button type="button" onClick={clearFiles} className={`rounded-lg px-2.5 py-1.5 text-[13px] text-muted transition-colors hover:bg-hover hover:text-fg max-sm:min-h-11 ${ring}`} data-testid="convert-clear-files">Clear</button>
             </div>
-            <ul className="max-h-72 divide-y divide-line overflow-y-auto" data-testid="convert-file-list">
+            <ul className="divide-y divide-line sm:max-h-72 sm:overflow-y-auto" data-testid="convert-file-list">
               {files.map((p, i) => {
                 const Icon = familyIcon(p.fmt);
                 return (
@@ -252,11 +349,11 @@ export function ConvertHubPage() {
             <div>
               <h2 id="cv-make" className="text-[14px] font-semibold">Turn {usable.length === 1 ? "it" : "them"} into</h2>
               {targets.length ? (
-                <div role="radiogroup" aria-label="Turn into" className="mt-2.5 flex flex-wrap gap-2" data-testid="convert-targets">
+                <div role="group" aria-labelledby="cv-make" className="mt-2.5 flex flex-wrap gap-2" data-testid="convert-targets">
                   {targets.map((t) => {
                     const on = target === t.to;
                     return (
-                      <button key={t.to} type="button" role="radio" aria-checked={on} onClick={() => { setTarget(on ? null : t.to); setAction(null); }} data-testid={`convert-to-${t.to}`}
+                      <button key={t.to} type="button" aria-pressed={on} onClick={() => { setTarget(on ? null : t.to); setAction(null); }} data-testid={`convert-to-${t.to}`}
                         className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-[13.5px] font-medium transition-colors max-sm:min-h-11 ${on ? "border-brand bg-brand text-brand-fg" : "border-line-strong text-fg hover:border-brand/60 hover:bg-brand/5"} ${ring}`}
                         title={t.local ? "Runs on your device" : `Uses the Multies engine (${t.engineRuns} ${t.engineRuns === 1 ? "run" : "runs"})`}>
                         {formatDef(t.to).label}
@@ -310,26 +407,30 @@ export function ConvertHubPage() {
                   {allLocal
                     ? <p><span className="font-semibold">Stays on your device.</span> Nothing is uploaded and no run is used.</p>
                     : <p><span className="font-semibold">Part of this uses the Multies engine</span> ({engineRuns} {engineRuns === 1 ? "run" : "runs"}). Files are sent over a secure connection and deleted from the engine within an hour.</p>}
-                  {!action && chosenRoutes.some((r) => r.steps.length > 1 || !r.local) && <p className="mt-0.5 text-muted" data-testid="convert-route">{chosenRoutes.filter((r) => r.steps.length > 1 || !r.local).map((r) => `${formatDef(r.from).label}: ${routeLine(r)}`).join(". ")}.</p>}
+                  {!action && chosenRoutes.some((r) => r.steps.length > 1 || !r.local) && <p className="mt-0.5 text-muted" data-testid="convert-route">{chosenRoutes.filter((r) => r.steps.length > 1 || !r.local).map((r) => (chosenRoutes.length > 1 ? `${formatDef(r.from).label}: ${routeLine(r)}` : routeLine(r))).join(". ")}.</p>}
                 </div>
               </div>
             )}
             {tooBigLocal && <p className="flex items-center gap-2 text-[13px] text-warn"><IconWarning className="h-4 w-4" aria-hidden />A file is over {sizeLabel(MAX_LOCAL_BYTES)}, too large to convert here.</p>}
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3 max-sm:sticky max-sm:bottom-0 max-sm:z-20 max-sm:-mx-4 max-sm:-mb-4 max-sm:rounded-b-2xl max-sm:border-t max-sm:border-line max-sm:bg-surface/95 max-sm:px-4 max-sm:pb-[max(12px,env(safe-area-inset-bottom))] max-sm:pt-3 max-sm:backdrop-blur" data-testid="convert-actions-bar">
               <Button size="lg" onClick={() => void start()} disabled={!ready} data-testid="convert-run" className="max-sm:w-full">{runLabel}</Button>
-              {busy && <span className="text-[13px] text-muted" role="status">Working. You can add more files while this runs.</span>}
+              {busy ? <span className="text-[13px] text-muted" role="status">Working. You can add more files while this runs.</span>
+                : ready ? <span className="text-[12.5px] text-subtle max-sm:hidden"><Kbd>{MOD}</Kbd> <Kbd>Enter</Kbd></span> : null}
             </div>
           </section>
         )}
 
         {!!jobs.length && (
-          <section aria-labelledby="cv-tray" className="rounded-2xl border border-line bg-surface" data-testid="convert-tray">
+          <section ref={trayRef} aria-labelledby="cv-tray" className="scroll-mt-4 rounded-2xl border border-line bg-surface" data-testid="convert-tray">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
-              <h2 id="cv-tray" className="text-[14px] font-semibold">Results <span className="font-normal text-muted" data-testid="convert-tray-count">{done.length} of {jobs.length} ready</span></h2>
+              <h2 id="cv-tray" className="flex items-center gap-2 text-[14px] font-semibold">
+                {!busy && done.length === jobs.length ? <IconCheckCircle className="h-4 w-4 text-ok" aria-hidden /> : null}
+                Results <span className="font-normal text-muted" data-testid="convert-tray-count">{!busy && done.length === jobs.length ? `all ${jobs.length} ready` : `${done.length} of ${jobs.length} ready`}</span>
+              </h2>
               <div className="flex items-center gap-2">
-                {done.length > 1 && <Button size="sm" onClick={() => void downloadAll()} loading={zipping} data-testid="convert-download-all"><IconDownload className="h-4 w-4" aria-hidden />Download all as ZIP</Button>}
-                {!busy && <Button size="sm" variant="ghost" onClick={clearTray} data-testid="convert-clear-tray">Clear</Button>}
+                {done.length > 1 && <Button size="sm" onClick={() => void downloadAll()} loading={zipping} className="max-sm:min-h-11" data-testid="convert-download-all"><IconDownload className="h-4 w-4" aria-hidden />Download all as ZIP</Button>}
+                {!busy && <Button size="sm" variant="ghost" onClick={clearTray} className="max-sm:min-h-11" data-testid="convert-clear-tray">Clear</Button>}
               </div>
             </div>
             <ul className="divide-y divide-line" aria-live="polite">
@@ -349,8 +450,11 @@ export function ConvertHubPage() {
                       </div>
                     )}
                   </div>
+                  {j.status === "failed" && runners.current.has(j.id) && (
+                    <Button size="sm" variant="outline" onClick={() => void retry(j)} className="max-sm:min-h-11" data-testid="convert-retry">Try again</Button>
+                  )}
                   {j.status === "done" && (
-                    <Button size="sm" variant="secondary" onClick={() => void downloadJob(j)} data-testid="convert-download" aria-label={`Download ${j.outputs.length > 1 ? downloadName(j.title, j.outputs, j.to) : j.outputs[0]?.name}`}>
+                    <Button size="sm" variant="secondary" className="max-sm:min-h-11" onClick={() => void downloadJob(j)} data-testid="convert-download" aria-label={`Download ${j.outputs.length > 1 ? downloadName(j.title, j.outputs, j.to) : j.outputs[0]?.name}`}>
                       <IconDownload className="h-4 w-4" aria-hidden /><span className="max-sm:sr-only">{j.outputs.length > 1 ? "ZIP" : "Download"}</span>
                     </Button>
                   )}
@@ -359,6 +463,7 @@ export function ConvertHubPage() {
             </ul>
           </section>
         )}
+        <p className="sr-only" role="status" aria-live="polite" data-testid="convert-announce">{announce}</p>
       </div>
     </ToolsFrame>
   );
@@ -371,9 +476,13 @@ function Choice({ label, value, onChange, options, testId }: { label: string; va
       <div className="mt-1.5 inline-flex rounded-xl border border-line p-0.5">
         {options.map((o) => (
           <button key={o.value} type="button" aria-pressed={value === o.value} onClick={() => onChange(o.value)}
-            className={`h-8 rounded-[10px] px-3 text-[13px] font-medium transition-colors max-sm:min-h-10 ${value === o.value ? "bg-brand text-brand-fg" : "text-muted hover:text-fg"} ${ring}`}>{o.label}</button>
+            className={`h-8 rounded-[10px] px-3 text-[13px] font-medium transition-colors duration-150 max-sm:min-h-11 ${value === o.value ? "bg-brand text-brand-fg" : "text-muted hover:text-fg"} ${ring}`}>{o.label}</button>
         ))}
       </div>
     </fieldset>
   );
+}
+
+function Kbd({ children }: { children: string }) {
+  return <kbd className="rounded-md border border-line bg-fill px-1.5 py-0.5 font-sans text-[11px] font-medium text-muted">{children}</kbd>;
 }
