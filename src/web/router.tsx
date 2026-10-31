@@ -81,6 +81,7 @@ const AgentsPage = lazyPage(() => agentPages(), "AgentsPage");
 const AgentDetailPage = lazyPage(() => agentPages(), "AgentDetailPage");
 const ApprovalsPage = lazyPage(() => import("./pages/app/approvals"), "ApprovalsPage");
 const TeamInboxPage = lazyPage(() => import("./pages/app/inbox"), "TeamInboxPage");
+const HelpdeskSettingsPage = lazyPage(() => import("./pages/app/helpdesk-settings"), "HelpdeskSettingsPage"); // R119
 const work = () => import("./pages/app/work/tasks");
 const TasksPage = lazyPage(() => work(), "TasksPage");
 const TaskPageRoute = lazyPage(() => work(), "TaskPageRoute"); // R84: the full task page
@@ -226,6 +227,7 @@ export const router = createBrowserRouter([
       { path: "mail", element: page(<WebmailPage />) },
       { path: "mail/rules", element: page(<MailRulesPage />) }, // R85
       { path: "inbox", element: page(<TeamInboxPage />) },
+      { path: "inbox/helpdesk", element: page(<HelpdeskSettingsPage />) }, // R119
       { path: "social", element: page(<SocialPlannerPage />) }, // P1 layout
       { path: "social/posts", element: page(<SocialPostsPage />) },
       { path: "social/new", element: page(<SocialNewPostPage />) },
