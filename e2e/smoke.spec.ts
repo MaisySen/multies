@@ -16,7 +16,8 @@ test("sign up, add a domain, see its DNS records, create a mailbox", async ({ pa
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Erin/ })).toBeVisible({ timeout: 15_000 });
   await expect(page).toHaveURL(/\/app\/my-work$/);
 
-  await page.getByRole("link", { name: "Domains" }).first().click();
+  // R79 moved Domains into the Mail section of the sidebar; open it directly.
+  await page.goto("/app/domains");
   await page.getByRole("button", { name: "Add domain" }).first().click();
   await page.getByRole("textbox", { name: "Domain", exact: true }).fill(domain);
   await page.getByRole("dialog").getByRole("button", { name: "Add domain" }).click();
@@ -31,7 +32,7 @@ test("sign up, add a domain, see its DNS records, create a mailbox", async ({ pa
   await page.getByRole("dialog").getByRole("button", { name: "Create mailbox" }).click();
   await expect(page.getByText(`hello@${domain}`, { exact: true })).toBeVisible();
 
-  await page.getByRole("link", { name: "Mail", exact: true }).click();
+  await page.getByRole("link", { name: "Mail", exact: true }).first().click();
   await expect(page.getByText("Inbox zero")).toBeVisible();
 });
 
