@@ -19,11 +19,19 @@ import { IconClose, IconDownload, IconFileUp, IconPenLine, IconPlus, IconSend } 
 import { ESIGN_NOTE, type SignField, type SignPage, type SignRequestInfo, type SignerStatus } from "@/shared/share-sign";
 import type { ToolsInfo } from "@/shared/tools";
 import { SignaturePad, type FieldKind, type SignaturePadHandle } from "./signature-pad";
+import { TemplatesPanel } from "./templates";
 
+/** R107: an event time in the signer's own time zone, when the signing page sent one. */
+const localAt = (iso: string, tz?: string | null) => {
+  if (!tz) return "";
+  try { return new Date(iso).toLocaleString("en-AU", { timeZone: tz, day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZoneName: "short" }); } catch { return ""; }
+};
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "");
 const SIGNER_COLORS = ["#0071E3", "#AF52DE", "#FF9500", "#34C759", "#FF2D55", "#5AC8FA", "#A2845E", "#5856D6", "#FF3B30", "#30B0C7"];
-const DEFAULT_SIZE: Record<FieldKind, { w: number; h: number }> = { signature: { w: 180, h: 50 }, initials: { w: 70, h: 36 }, date: { w: 110, h: 22 } };
-const KIND_LABEL: Record<FieldKind, string> = { signature: "Signature", initials: "Initials", date: "Date" };
+/** R107 adds text and checkbox fields for signers (requests only). */
+type PlaceKind = SignField["kind"];
+const DEFAULT_SIZE: Record<PlaceKind, { w: number; h: number }> = { signature: { w: 180, h: 50 }, initials: { w: 70, h: 36 }, date: { w: 110, h: 22 }, text: { w: 160, h: 24 }, checkbox: { w: 20, h: 20 } };
+const KIND_LABEL: Record<PlaceKind, string> = { signature: "Signature", initials: "Initials", date: "Date", text: "Text", checkbox: "Checkbox" };
 
 function uploadPdf(file: File): Promise<SignRequestInfo> {
   return new Promise((resolve, reject) => {
@@ -160,7 +168,7 @@ function NewDocument() {
     return () => clearTimeout(t);
   }, [selfDone]);
 
-  const add = (kind: FieldKind, signer = 0) => {
+  const add = (kind: PlaceKind, signer = 0) => {
     const p = pages?.find((x) => x.page === page) ?? pages?.[0];
     if (!p) return;
     const s = DEFAULT_SIZE[kind];
@@ -177,7 +185,23 @@ function NewDocument() {
       el?.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
     });
   };
-  const labelOf = (f: SignField) => (mode === "request" ? `${KIND_LABEL[f.kind]}: ${signers[f.signer]?.name || `Signer ${f.signer + 1}`}` : KIND_LABEL[f.kind]);
+  const labelOf = (f: SignField) => (mode === "request" ? `${f.label || KIND_LABEL[f.kind]}: ${signers[f.signer]?.name || `Signer ${f.signer + 1}`}` : KIND_LABEL[f.kind]);
+  // R107: templates (ESIGN_V2): the signers' names become the template's roles.
+  const esign = useQuery({ queryKey: ["tools-esign"], queryFn: () => api.get<{ requests: SignRequestInfo[]; v2?: boolean }>("/tools/esign") });
+  const v2 = !!esign.data?.v2;
+  const [tplName, setTplName] = useState<string | null>(null);
+  const saveTemplate = async () => {
+    if (!draft || !tplName?.trim()) return;
+    setBusy(true); setError(null);
+    try {
+      await api.post(`/tools/esign/${draft.id}/template`, { name: tplName.trim(), roles: signers.map((s, i) => s.name.trim() || `Signer ${i + 1}`), fields, order, message: message.trim() || undefined, expiresDays: days, remindDays: remind });
+      toast.success("Template saved");
+      setTplName(null);
+      await qc.invalidateQueries({ queryKey: ["tools-esign-templates"] });
+    } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+  };
+  const sel = selected !== null ? fields[selected] : undefined;
+  const templateReady = signers.every((_, i) => fields.some((f) => f.signer === i && f.kind === "signature"));
   const colorOf = (f: SignField) => SIGNER_COLORS[mode === "request" ? f.signer % SIGNER_COLORS.length : 0];
 
   const signSelf = async () => {
@@ -185,7 +209,7 @@ function NewDocument() {
     setBusy(true); setError(null);
     try {
       const own = fields.map((f) => ({ ...f, signer: 0 }));
-      const images = own.map((f) => pad.current!.makeImage(f.kind, f.w, f.h));
+      const images = own.map((f) => pad.current!.makeImage(f.kind as FieldKind, f.w, f.h));
       setSelfDone(await api.post<SignRequestInfo>(`/tools/esign/${draft.id}/self`, { fields: own, images }));
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   };
@@ -275,14 +299,22 @@ function NewDocument() {
                     {signers.length > 1 && <button type="button" className="ml-auto text-muted hover:text-fg" aria-label={`Remove signer ${i + 1}`} onClick={() => { setSigners(signers.filter((_, j) => j !== i)); setFields(fields.filter((f) => f.signer !== i).map((f) => (f.signer > i ? { ...f, signer: f.signer - 1 } : f))); }}><IconClose className="h-3.5 w-3.5" /></button>}</div>
                   <input className={field} placeholder="Name" value={s.name} maxLength={120} onChange={(e) => setSigners(signers.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} aria-label={`Signer ${i + 1} name`} />
                   <input className={field} placeholder="Email" type="email" value={s.email} maxLength={254} onChange={(e) => setSigners(signers.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} aria-label={`Signer ${i + 1} email`} />
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button size="sm" variant="outline" onClick={() => add("signature", i)} disabled={!pages}><IconPlus className="h-3.5 w-3.5" />Signature</Button>
                     <Button size="sm" variant="ghost" onClick={() => add("date", i)} disabled={!pages}><IconPlus className="h-3.5 w-3.5" />Date</Button>
+                    {v2 && <Button size="sm" variant="ghost" onClick={() => add("text", i)} disabled={!pages} data-testid="sign-add-text"><IconPlus className="h-3.5 w-3.5" />Text</Button>}
+                    {v2 && <Button size="sm" variant="ghost" onClick={() => add("checkbox", i)} disabled={!pages} data-testid="sign-add-checkbox"><IconPlus className="h-3.5 w-3.5" />Checkbox</Button>}
                   </div>
                 </div>
               ))}
               {signers.length < 10 && <Button size="sm" variant="ghost" onClick={() => setSigners([...signers, { name: "", email: "" }])}><IconPlus className="h-3.5 w-3.5" />Add a signer</Button>}
             </div>
+            {sel && selected !== null && (sel.kind === "text" || sel.kind === "checkbox") && (
+              <label className="block space-y-1 text-[13px] font-medium">What the signer sees beside this {sel.kind === "text" ? "text field" : "checkbox"}
+                <input className={field} maxLength={40} value={sel.label ?? ""} placeholder={sel.kind === "text" ? "For example: Job title" : "For example: I accept the terms"} data-testid="sign-field-label"
+                  onChange={(e) => setFields(fields.map((f, j) => (j === selected ? { ...f, label: e.target.value } : f)))} />
+              </label>
+            )}
             {signers.length > 1 && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={order === "sequence"} onChange={(e) => setOrder(e.target.checked ? "sequence" : "any")} />Sign in this order</label>}
             <label className="block space-y-1 text-[13px] font-medium">Message <span className="font-normal text-muted">(optional)</span><textarea className={field} rows={3} maxLength={2000} value={message} onChange={(e) => setMessage(e.target.value)} /></label>
             {!attachment && (
@@ -300,6 +332,13 @@ function NewDocument() {
             </div>
             {error && <p role="alert" className="text-sm text-bad">{error}</p>}
             <Button className="w-full" onClick={send} loading={busy} disabled={!fieldsReady || (!attachment && !mailboxId)} data-testid="sign-send"><IconSend className="h-4 w-4" />Send for signing</Button>
+            {v2 && (tplName === null
+              ? <Button className="w-full" variant="outline" onClick={() => setTplName(draft?.title.replace(/\.pdf$/i, "") ?? "")} disabled={!templateReady || !pages} data-testid="sign-save-template">Save as template</Button>
+              : <div className="space-y-2 rounded-lg border border-line p-3">
+                  <label className="block space-y-1 text-[13px] font-medium">Template name<input className={field} maxLength={80} value={tplName} autoFocus onChange={(e) => setTplName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void saveTemplate(); if (e.key === "Escape") setTplName(null); }} data-testid="sign-template-name" /></label>
+                  <p className="text-[12px] text-muted">Each signer&apos;s name becomes a role, like Client or Manager. People are added when you use it.</p>
+                  <div className="flex gap-2"><Button size="sm" onClick={saveTemplate} loading={busy} disabled={!tplName.trim()} data-testid="sign-template-save">Save template</Button><Button size="sm" variant="ghost" onClick={() => setTplName(null)}>Cancel</Button></div>
+                </div>)}
           </Card>
         )}
         <p className="text-[12px] text-muted">{ESIGN_NOTE}</p>
@@ -344,16 +383,24 @@ function RequestDetail({ id }: { id: string }) {
         </ul>
         <div className="flex flex-wrap gap-2">
           {r.downloadUrl && <a className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand px-4 text-sm font-medium text-brand-fg" href={`/api${r.downloadUrl.replace(/^\/api/, "")}`} download><IconDownload className="h-4 w-4" />Download signed copy</a>}
+          {r.recordUrl && <a className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-4 text-sm font-medium hover:bg-hover" href={`/api${r.recordUrl.replace(/^\/api/, "")}`} download data-testid="sign-record-download"><IconDownload className="h-4 w-4" />Download record</a>}
           {(r.status === "out" || r.status === "failed") && <Button variant="danger" onClick={() => cancel.mutate()} loading={cancel.isPending}>Cancel request</Button>}
         </div>
       </Card>
       <Card className="p-5">
         <h3 className="mb-2 text-[15px] font-semibold">Signing record</h3>
+        {(r.v2 || r.sealed) && (
+          <div className="mb-3 flex flex-wrap gap-2" data-testid="sign-v2-badges">
+            {r.v2 && <Badge tone="neutral">Signers checked by email code</Badge>}
+            {r.sealed && <Badge tone="ok">Sealed with workspace key {r.sealKeyId}</Badge>}
+            {r.sealed && <a className="text-[12px] text-brand underline-offset-2 hover:underline" href="/sign/verify" target="_blank" rel="noopener">Check a copy</a>}
+          </div>
+        )}
         <p className="mb-3 text-[12px] text-muted">Fingerprint before signing (SHA-256): <span className="break-all font-mono">{r.sourceSha256}</span>{r.finalSha256 && <><br />Signed copy (SHA-256): <span className="break-all font-mono">{r.finalSha256}</span></>}</p>
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]" data-testid="sign-record">
-            <thead><tr className="text-left text-muted"><th className="py-1 pr-3 font-medium">Time (UTC)</th><th className="pr-3 font-medium">Name</th><th className="pr-3 font-medium">Email</th><th className="pr-3 font-medium">Action</th><th className="font-medium">Country</th></tr></thead>
-            <tbody>{(r.events ?? []).map((e, i) => <tr key={i} className="border-t border-line"><td className="py-1.5 pr-3 tabular-nums">{e.at.replace("T", " ").slice(0, 19)}</td><td className="pr-3">{e.name}</td><td className="pr-3">{e.email}</td><td className="pr-3">{actionLabel(e.action)}</td><td>{e.ipCountry ?? ""}</td></tr>)}</tbody>
+            <thead><tr className="text-left text-muted"><th className="py-1 pr-3 font-medium">Time (UTC)</th><th className="pr-3 font-medium">Name</th><th className="pr-3 font-medium">Email</th><th className="pr-3 font-medium">Action</th><th className="pr-3 font-medium">Country</th>{r.v2 && <th className="font-medium">Signer time and device</th>}</tr></thead>
+            <tbody>{(r.events ?? []).map((e, i) => <tr key={i} className="border-t border-line"><td className="py-1.5 pr-3 tabular-nums">{e.at.replace("T", " ").slice(0, 19)}</td><td className="pr-3">{e.name}</td><td className="pr-3">{e.email}</td><td className="pr-3">{actionLabel(e.action)}</td><td className="pr-3">{e.ipCountry ?? ""}</td>{r.v2 && <td className="text-muted">{[localAt(e.at, e.tz), e.device].filter(Boolean).join(", ")}</td>}</tr>)}</tbody>
           </table>
         </div>
       </Card>
@@ -390,16 +437,17 @@ export function SignPage() {
   const on = !!tools.data?.features?.includes("esign");
   if (config.data && (!config.data.tools || (tools.data && !on))) return <EmptyState title="E-sign is not available" body="Ask your workspace admin about Tools." />;
   const request = params.get("request");
-  const tab = request ? "requests" : params.get("tab") === "requests" ? "requests" : "new";
+  const t = params.get("tab");
+  const tab = request ? "requests" : t === "requests" ? "requests" : t === "templates" ? "templates" : "new";
   return (
     <ToolsFrame entryKey="esign" title="E-sign" description="Sign a PDF yourself, or send it for others to sign from your own mailbox." wide testId="sign-page">
       <div className="flex gap-2" role="tablist">
-        {([["new", "Sign a document"], ["requests", "Requests"]] as const).map(([k, label]) => (
-          <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setParams(k === "new" ? {} : { tab: "requests" })}
+        {([["new", "Sign a document"], ["requests", "Requests"], ["templates", "Templates"]] as const).map(([k, label]) => (
+          <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setParams(k === "new" ? {} : { tab: k })} data-testid={`sign-tab-${k}`}
             className={`rounded-lg border px-3 py-1.5 text-sm ${tab === k ? "border-brand bg-brand/5 font-medium" : "border-line hover:bg-hover"}`}>{label}</button>
         ))}
       </div>
-      {!on ? <Skeleton className="h-40 w-full" /> : request ? <RequestDetail id={request} /> : tab === "requests" ? <RequestList /> : <NewDocument />}
+      {!on ? <Skeleton className="h-40 w-full" /> : request ? <RequestDetail id={request} /> : tab === "requests" ? <RequestList /> : tab === "templates" ? <TemplatesPanel /> : <NewDocument />}
     </ToolsFrame>
   );
 }
