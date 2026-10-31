@@ -423,7 +423,7 @@ export function BrandingSettings() {
             <Panel title="Logo" description="PNG, JPEG or WebP, up to 512 KB. Drop a file on a row or choose one. Logos save at once." testId="brand-logos">
               <ul className="grid gap-2 @min-[560px]/panel:grid-cols-2">
                 {LOGO_SLOTS.map((s) => <LogoSlot key={s.kind} data={q.data} {...s} canEdit={canEdit} onChanged={logoChanged}
-                  confirmRemove={() => confirm({ title: `Remove the ${s.label.toLowerCase()} for ${s.mode.toLowerCase()}?`, description: "It is taken off for everyone in this workspace. You can upload it again any time.", confirmLabel: "Remove", tone: "danger" })} />)}
+                  confirmRemove={async () => await confirm({ title: `Remove the ${s.label.toLowerCase()} for ${s.mode.toLowerCase()}?`, description: "It is taken off for everyone in this workspace. You can upload it again any time.", confirmLabel: "Remove", tone: "danger" })} />)}
               </ul>
             </Panel>
           </div>
