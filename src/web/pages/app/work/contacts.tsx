@@ -163,7 +163,7 @@ export function ContactPage() {
         </div>
       </div>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-        {crm.on ? <div className="order-2 min-w-0 lg:order-1"><CrmTimeline type="contact" id={c.id} /></div> : (
+        {crm.on ? <div className="min-w-0"><CrmTimeline type="contact" id={c.id} /></div> : (
         <section aria-label="Timeline">
           <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-subtle">Timeline</h2>
           {!timeline.length ? <p className="text-sm text-muted">Nothing yet.</p> : (
@@ -194,7 +194,7 @@ export function ContactPage() {
           )}
         </section>
         )}
-        <aside className={cn("space-y-4", crm.on && "order-1 lg:order-2")}>
+        <aside className="space-y-4">
           <Card className="p-4 text-[13px]">
             <dl className="grid grid-cols-[90px_1fr] gap-y-2">
               <dt className="text-subtle">Emails</dt><dd>{c.messageCount}</dd>

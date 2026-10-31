@@ -268,8 +268,8 @@ export function CompanyPage() {
         <Button variant="secondary" onClick={() => setEditing(true)}>Rename</Button>
       </div>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="order-2 lg:order-1"><CrmTimeline type="company" id={c.id} /></div>
-        <aside className="order-1 space-y-4 lg:order-2">
+        <div className="min-w-0"><CrmTimeline type="company" id={c.id} /></div>
+        <aside className="space-y-4">
           <Card className="p-4">
             <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-subtle">People</h2>
             {!contacts.length ? <p className="text-[13px] text-muted">Nobody yet. Open a contact and pick this company.</p> : (

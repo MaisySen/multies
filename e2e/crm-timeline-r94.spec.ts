@@ -7,7 +7,6 @@ import { mkdirSync } from "node:fs";
  * company by hand with its own timeline, CSV import with dedupe and a saved segment, deal chance and forecast, the
  * error state. SHOTS_DIR writes shots at 1280 and 390, light, dark and Forest, and runs axe.
  */
-test.describe.configure({ mode: "serial" });
 const DIR = process.env.SHOTS_DIR;
 let visitor = 0;
 const ip = () => `10.194.${test.info().workerIndex % 200}.${++visitor}`;
@@ -54,13 +53,15 @@ test("contact timeline: log a note and a call, filter, set a next step, delete w
   await page.getByTestId("crm-save").click();
   await expect(page.getByTestId("crm-entry").filter({ hasText: "Left a voicemail" })).toBeVisible();
   // Filter to calls only.
-  await page.getByRole("tab", { name: "Calls" }).click();
+  await page.getByRole("tab", { name: "Calls", exact: true }).click();
   await expect(page.getByTestId("crm-entry")).toHaveCount(1);
   await expect(page.getByTestId("crm-entry").first()).toContainText("3 min");
-  await page.getByRole("tab", { name: "All" }).click();
+  await page.getByRole("tab", { name: "All", exact: true }).click();
   // Next step.
-  await page.getByTestId("set-next-step").click();
+  await page.getByTestId("set-next-step").or(page.getByTestId("next-step").getByRole("button", { name: "New step" })).click();
   await page.getByLabel("What happens next").fill("Send the spring quote");
+  // The card shows the soonest open step, so date this one before any demo task.
+  await page.getByLabel("Due").fill("2026-01-02");
   await page.getByRole("button", { name: "Set next step" }).click();
   await expect(page.getByTestId("next-step")).toContainText("Send the spring quote");
   // Delete the note, then undo.
@@ -99,6 +100,7 @@ test("company by hand: its own page, timeline and a contact joined to it", async
   await expect(page.getByTestId("crm-entry").filter({ hasText: "Head office moved" })).toBeVisible();
   const companyUrl = page.url();
   // Join a contact to it from the contact page.
+  if (!contactUrl) contactUrl = await firstContact(page);
   await page.goto(contactUrl);
   await page.getByTestId("company-picker").selectOption({ label: "Bondi Beans" });
   await expect(page.getByRole("link", { name: "Bondi Beans" })).toBeVisible();
@@ -134,9 +136,9 @@ test("CSV import: preview counts, dedupe, import, then a saved segment of import
   await page.getByTestId("save-segment").click();
   await page.getByLabel("Name").fill("From the import");
   await page.getByRole("button", { name: "Save segment" }).click();
-  await expect(page.getByTestId("segment-bar").getByRole("button", { name: "From the import" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("segment-bar").getByRole("button", { name: "From the import", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId("segment-bar").getByRole("button", { name: "Everyone" }).click();
-  await page.getByTestId("segment-bar").getByRole("button", { name: "From the import" }).click();
+  await page.getByTestId("segment-bar").getByRole("button", { name: "From the import", exact: true }).click();
   await expect(page.getByTestId("contact-list")).toContainText("ivy@e2e-import.io");
 });
 
