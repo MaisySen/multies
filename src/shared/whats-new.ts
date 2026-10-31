@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-multies-everywhere",
+    date: "2026-10-31",
+    title: "Multies everywhere",
+    body: "Every page, download, code sample and setup step now says Multies. The Email Worker setup in Settings, Mail routing shows MULTIES names, and workers you set up before keep working with no change.",
+  },
+  {
     id: "2026-10-31-calm-layout",
     date: "2026-10-31",
     title: "A calmer layout you can shape",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-30",
     title: "More document tools",
     body: "Add a password, stamps, page numbers, headers and footers, find and hide sensitive info, convert more file types, use the Excel tools, scan paper to PDF and make scans searchable in Nepali, Hindi and 11 more languages. Run a tool on every attachment in a thread at once, or from your own app with the API.",
-  },
-  {
-    id: "2026-10-30-yearly-and-referrals",
-    date: "2026-10-30",
-    title: "Pay yearly, get two months free",
-    body: "Billing has a Monthly or Yearly switch: a year of add ons costs ten months. New customers can use the code LAUNCH30 for 30% off their first 3 months on monthly billing, and every workspace has a referral link in Billing that gives both sides a month of credit.",
   },
   {
     id: "2026-10-28-whats-new",

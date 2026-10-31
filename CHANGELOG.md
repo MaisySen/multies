@@ -7,6 +7,18 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 81B (31 Oct 2026)
+
+- Changed: nothing a person, a search engine or an API client reads says the old name any more: landing and pricing questions, the DNS example (mail._domainkey), API and MCP code samples ($MULTIES_* keys, MCP server name "multies"), the webhook example URL, download names (multies-*.json, multies-backup-codes.txt), new meeting room names, the service worker's names, and the saved light or dark choice (multies-theme; the old saved choice carries over once).
+- Changed: outgoing webhooks send User-Agent Multies-Webhooks/1 (was the old name). A receiver that filtered on the old agent string needs the new one.
+- Changed: Email Worker settings are MULTIES_WEBHOOK_URL, MULTIES_KEY_ID, MULTIES_KEY_SECRET and MULTIES_ROUTES; a worker deployed with the old MYMAIL_* names keeps working unchanged. Wire headers between the worker and the API are unchanged.
+- Changed: domain ownership checks accept the new _multies TXT record (multies-verify=) and still accept the old record, so verified domains stay verified.
+- Added: X-Robots-Tag noindex on the workers.dev hosts so search engines index only multies.si; sitemap lastmod refreshed; an IndexNow key file.
+- Added: e2e/old-name-r81b.spec.ts walks every sitemap page, robots, llms, OpenAPI, the docs pages and every script and style they load (and the chunks those load) and fails on the old name; copy lint catches every spelling.
+- Phone app 1.10.4 (over the air): the sample inbox shows team@multies.si.
+- Left as is (internal, never shown): database and worker names, cookie names, calendar UIDs, Stripe lookup keys, the DKIM selector stored per domain, the app's URL scheme and project slug (a store build would be needed).
+- What's new drops "Pay yearly, get two months free" to stay at 14.
+
 ### Round 79 (31 Oct 2026)
 
 - Changed: the app shell on a computer is a calm icon rail (Home, Mail, Tasks, Docs, Tools, Chat, Dashboards, Workspace) plus a sidebar for the open area with its pages, counts, Favourites and the projects tree (star a project or a page to keep it on top). Ctrl or Cmd backslash folds the sidebar; Mail keeps its own folder list, so the shell sidebar stays folded there unless you show it.
