@@ -408,3 +408,23 @@
 
 /* R75: card galleries fill the room next to the sidebar: as many 260 px (or wider) columns as fit, equal heights. */
 .mm-card-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); align-items: stretch; }
+
+/* R75 timeline: bars coloured by status with white text (AA), rounded; the row under the pointer lit across both panes;
+   weekends a quiet tint; header type on the 8 px grid. Values only; the chart core keeps its own layout. */
+.mm-gantt-r75 .wx-gantt { position: relative; }
+/* The chart core paints its grid lines into an image from this value and reads only the part from "#" on, so the
+   colour must be hex (anything else came out solid black in light mode). */
+.mm-gantt-r75 .wx-willow-theme { --wx-gantt-border-color: rgba(0,0,0,0.08); --wx-border: 1px solid rgba(0,0,0,0.08); --wx-gantt-border: 1px solid #00000014; --wx-gantt-bar-border-radius: 8px; }
+.mm-gantt-r75 .wx-willow-dark-theme { --wx-gantt-border-color: rgba(255,255,255,0.07); --wx-border: 1px solid rgba(255,255,255,0.07); --wx-gantt-border: 1px solid #ffffff12; --wx-gantt-bar-border-radius: 8px; }
+.mm-gantt-r75 .wx-grid .wx-body .wx-row { border-bottom: 1px solid var(--color-line); }
+.mm-gantt-r75 .wx-bar.wx-task { --mm-bar: #56627a; background-color: var(--mm-bar) !important; border: 0 !important; border-radius: 8px !important; color: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 0.18); transition: box-shadow 150ms ease, filter 150ms ease; }
+.mm-gantt-r75 .wx-bar.wx-task:hover { filter: brightness(1.08); box-shadow: 0 2px 8px rgb(0 0 0 / 0.22); }
+.mm-gantt-r75 .wx-bar .wx-progress-percent { background: rgb(0 0 0 / 0.16) !important; }
+.mm-gantt-r75 .wx-bar .mm-bar-in { color: #fff; font-weight: 500; font-size: 12.5px; }
+.mm-gantt-r75 .mm-bar-out { font-size: 12.5px; color: var(--color-fg); }
+.mm-gantt-r75 .wx-scale .wx-cell, .mm-gantt-r75 .wx-grid .wx-header .wx-cell { font-size: 12px; font-weight: 500; color: var(--color-muted); }
+.mm-gantt-r75 .wx-scale .wx-row:first-child .wx-cell { font-weight: 600; color: var(--color-fg); }
+.mm-gantt-r75 .wx-weekend { background: color-mix(in srgb, var(--color-fg) 4%, transparent) !important; }
+.mm-gantt-r75 .wx-grid .wx-row .wx-cell { border-color: var(--color-line); }
+.mm-row-band { position: absolute; left: 0; right: 0; z-index: 1; pointer-events: none; background: color-mix(in srgb, var(--color-brand) 7%, transparent); }
+@media (prefers-reduced-motion: reduce) { .mm-gantt-r75 .wx-bar.wx-task { transition: none; } }

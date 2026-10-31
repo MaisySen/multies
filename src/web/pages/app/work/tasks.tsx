@@ -345,7 +345,7 @@ export function TasksPage() {
           <Suspense fallback={view === "calendar" ? <CalendarSkeleton label="Loading the task calendar" /> : <TimelineSkeleton />}>
             {view === "calendar"
               ? <TaskCalendar tasks={tasks.data ?? []} onOpen={open} onDue={(id, due) => update.mutate({ id, patch: { due } })} />
-              : <PlannedTimeline tasks={tasks.data ?? []} projectId={projectId || undefined} onOpen={open} onDates={(id, start, due) => update.mutate({ id, patch: { start, due } })} />}
+              : <PlannedTimeline tasks={tasks.data ?? []} projectId={projectId || undefined} onOpen={open} onAdd={() => setNewTask({})} onDates={(id, start, due) => update.mutate({ id, patch: { start, due } })} />}
           </Suspense>
         )}
         </ClashScope>

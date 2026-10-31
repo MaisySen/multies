@@ -17,8 +17,10 @@ import { useCommandHandlers } from "@/web/lib/commands/use-commands";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Switch } from "@/web/components/ui/misc";
-import { IconArrowRight, IconCheckCircle, IconWarning } from "@/web/components/ui/icon";
-import { TaskTimeline } from "./timeline";
+import { IconArrowRight, IconCalendarDays, IconCheckCircle, IconInfo, IconSettings2, IconWarning } from "@/web/components/ui/icon";
+import { TaskTimeline, ZOOM_LABEL, defaultZoom, savedZoom, storeZoom, type Zoom } from "./timeline";
+import { Popover } from "@/web/components/ui/popover"; // R75
+import { cn } from "@/web/lib/cn";
 import { LagChip, MoveMode, ScheduleRules, clashText, useScheduleRules } from "./schedule-r38"; // R38
 import type { Task } from "./data";
 
@@ -29,6 +31,12 @@ interface Moved { id: string; ref: string; title: string; from: { start: string 
 interface Plan { preview: boolean; task: Moved; moved: Moved[]; mode?: "strict" | "flexible"; workingDaysOnly?: boolean }
 
 const PREF = "mm.timeline.moveDependents";
+const DATES_PREF = "mm.timeline.datesColumn";
+/** Days from the first dated task's start to the last one's end (for the default zoom). */
+export function spanOf(tasks: Pick<Task, "start" | "due">[]): number {
+  const t = tasks.flatMap((x) => [x.start, x.due]).filter(Boolean).map((d) => new Date(d!).getTime());
+  return t.length ? Math.round((Math.max(...t) - Math.min(...t)) / 86_400_000) + 1 : 0;
+}
 const fmt = (d: string | null) => (d ? new Date(`${d.slice(0, 10)}T00:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" }) : "No date");
 const range = (x: { start: string | null; due: string | null }) => (x.start && x.due && x.start.slice(0, 10) !== x.due.slice(0, 10) ? `${fmt(x.start)} to ${fmt(x.due)}` : fmt(x.due ?? x.start));
 const days = (n: number) => (n === 1 ? "1 day" : `${n} days`);
@@ -38,7 +46,11 @@ export function usePlanPref(): [boolean, (v: boolean) => void] {
   return [on, (v) => { setOn(v); try { localStorage.setItem(PREF, v ? "on" : "off"); } catch { /* private mode */ } }];
 }
 
-export function PlannedTimeline({ tasks, projectId, onOpen, onDates }: { tasks: Task[]; projectId?: string; onOpen: (id: string) => void; onDates: (id: string, start: string, due: string) => void }) {
+export function PlannedTimeline({ tasks, projectId, onOpen, onDates, onAdd }: { tasks: Task[]; projectId?: string; onOpen: (id: string) => void; onDates: (id: string, start: string, due: string) => void; onAdd?: () => void }) {
+  // R75: zoom (remembered on this device; Week by default, Month for long plans), the Today button, the dates column.
+  const [zoom, setZoom] = useState<Zoom>(() => savedZoom() ?? defaultZoom(spanOf(tasks)));
+  const [todaySignal, setTodaySignal] = useState(0);
+  const [showDates, setShowDates] = useState(() => { try { return localStorage.getItem(DATES_PREF) === "on"; } catch { return false; } });
   const qc = useQueryClient();
   const check = useQuery({ queryKey: ["task-schedule", projectId ?? ""], queryFn: () => api.get<Check>(`/tasks/dependencies/check${projectId ? `?projectId=${projectId}` : ""}`) });
   const [moveOn, setMoveOn] = usePlanPref();
@@ -104,29 +116,54 @@ export function PlannedTimeline({ tasks, projectId, onOpen, onDates }: { tasks: 
   };
 
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className="flex flex-col gap-3">
+      {/* R75: one toolbar row. Zoom and Today on the left; on the right only what needs attention (a clash), a short
+          hint behind an info button, and the schedule settings in one panel. */}
       <div className="flex flex-wrap items-center gap-2" data-testid="schedule-bar">
-        {check.isPending ? <span className="h-7 w-32 animate-pulse rounded-full bg-fill motion-reduce:animate-none" aria-label="Checking dates" />
-          : clashes.length ? (
-            <button type="button" onClick={() => setClashesOpen(true)} data-testid="schedule-clash-pill"
-              className="inline-flex h-7 items-center gap-1.5 rounded-full border border-bad/20 bg-bad-soft px-3 text-[12.5px] font-medium text-bad shadow-sm transition-transform duration-150 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand motion-reduce:transition-none motion-reduce:hover:scale-100">
-              <IconWarning className="h-3.5 w-3.5" />{clashes.length === 1 ? "1 date clash" : `${clashes.length} date clashes`}
-            </button>
-          ) : (
-            <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-ok/20 bg-ok-soft px-3 text-[12.5px] font-medium text-ok" data-testid="schedule-ok-pill">
-              <IconCheckCircle className="h-3.5 w-3.5" />{check.data?.links.length ? "Dates line up" : "No dependencies yet"}
+        <div role="radiogroup" aria-label="Zoom" className="inline-flex rounded-lg bg-fill p-0.5" data-testid="timeline-zoom">
+          {(["day", "week", "month"] as Zoom[]).map((z) => (
+            <button key={z} type="button" role="radio" aria-checked={zoom === z} onClick={() => { setZoom(z); storeZoom(z); }} data-testid={`timeline-zoom-${z}`}
+              className={cn("h-8 rounded-md px-3 text-[13px] transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand motion-reduce:transition-none max-sm:h-10", zoom === z ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>{ZOOM_LABEL[z]}</button>
+          ))}
+        </div>
+        <Button variant="secondary" size="sm" onClick={() => setTodaySignal((n) => n + 1)} data-testid="timeline-today-btn"><IconCalendarDays className="h-3.5 w-3.5" />Today</Button>
+        <span className="ml-auto inline-flex flex-wrap items-center gap-2 max-sm:ml-0">
+          {check.isPending ? <span className="h-8 w-28 animate-pulse rounded-full bg-fill motion-reduce:animate-none" aria-label="Checking dates" />
+            : clashes.length ? (
+              <button type="button" onClick={() => setClashesOpen(true)} data-testid="schedule-clash-pill"
+                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-bad/20 bg-bad-soft px-3 text-[12.5px] font-medium text-bad transition-transform duration-150 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand motion-reduce:transition-none motion-reduce:hover:scale-100">
+                <IconWarning className="h-3.5 w-3.5" />{clashes.length === 1 ? "1 date clash" : `${clashes.length} date clashes`}
+              </button>
+            ) : check.data?.links.length ? (
+              <span className="inline-flex h-8 items-center gap-1.5 rounded-full px-2 text-[12.5px] font-medium text-ok" data-testid="schedule-ok-pill">
+                <IconCheckCircle className="h-3.5 w-3.5" />Dates line up
+              </span>
+            ) : null}
+          <span className="group relative inline-flex">
+            <button type="button" aria-label="How dependencies work" aria-describedby="timeline-dep-hint" className="grid h-8 w-8 place-items-center rounded-lg text-subtle transition-colors hover:bg-hover hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" data-testid="timeline-dep-info"><IconInfo className="h-4 w-4" /></button>
+            <span id="timeline-dep-hint" role="tooltip" className="pointer-events-none invisible absolute right-0 top-full z-50 mt-2 w-64 rounded-[var(--radius-r14)] border border-line bg-elevated p-3 text-[12.5px] leading-5 text-muted opacity-0 shadow-pop transition-opacity duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+              {check.data?.links.length ? `${check.data.links.length} ${check.data.links.length === 1 ? "task waits" : "tasks wait"} on another. ` : "No task waits on another yet. "}
+              To make one task wait for another, drag from the end of its bar to the start of the next.
             </span>
-          )}
-        <span className="hidden text-[12px] text-subtle md:inline">{check.data?.links.length ? `${check.data.links.length} ${check.data.links.length === 1 ? "link" : "links"}. Drag from the end of one bar to another to add one.` : "Drag from the end of one bar to another to make it wait."}</span>
-        <span className="ml-auto inline-flex flex-wrap items-center gap-x-3 gap-y-2 max-sm:ml-0 max-sm:w-full max-sm:justify-between">
-          <ScheduleRules projectId={projectId} />
-          <label className="inline-flex items-center gap-2 text-[12.5px] text-muted">
-            <span>Move tasks that wait</span>
-            <Switch checked={moveOn} onChange={setMoveOn} label="Move tasks that wait" />
-          </label>
+          </span>
+          <Popover label="Schedule settings" align="end" testId="timeline-settings" className="w-80" button={({ open }) => (
+            <span className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13px] transition-colors", open ? "border-brand/40 bg-brand-soft text-brand-hover" : "border-line bg-surface text-fg/90 hover:bg-hover")}><IconSettings2 className="h-3.5 w-3.5" />Schedule</span>
+          )}>
+            <div className="grid gap-4">
+              <label className="flex items-start justify-between gap-3">
+                <span className="text-[13px]"><span className="block font-medium text-fg">Auto shift dependent tasks</span><span className="mt-0.5 block text-[12px] leading-5 text-muted">When you move a task, the tasks waiting on it move with it so the order still holds.</span></span>
+                <Switch checked={moveOn} onChange={setMoveOn} label="Auto shift dependent tasks" />
+              </label>
+              <div className="border-t border-line pt-3"><ScheduleRules projectId={projectId} /></div>
+              <label className="flex items-center justify-between gap-3 border-t border-line pt-3 text-[13px] max-sm:hidden">
+                <span className="font-medium text-fg">Show dates column</span>
+                <Switch checked={showDates} onChange={(v) => { setShowDates(v); try { localStorage.setItem(DATES_PREF, v ? "on" : "off"); } catch { /* private mode */ } }} label="Show dates column" />
+              </label>
+            </div>
+          </Popover>
         </span>
       </div>
-      <TaskTimeline tasks={tasks} links={check.data?.links ?? []} late={late} daysOff={rules?.workingDaysOnly ? rules.daysOff : undefined} onLink={(a, b) => void addLink(a, b)} onOpen={onOpen} onDates={(id, s, d) => void dragged(id, s, d)} />
+      <TaskTimeline tasks={tasks} links={check.data?.links ?? []} late={late} daysOff={rules?.workingDaysOnly ? rules.daysOff : undefined} zoom={zoom} todaySignal={todaySignal} showDates={showDates} onAdd={onAdd} onLink={(a, b) => void addLink(a, b)} onOpen={onOpen} onDates={(id, s, d) => void dragged(id, s, d)} />
 
       <Dialog open={!!plan} onClose={cancelPlan} title={plan ? (plan.moved.length === 1 ? `Move 1 task that waits on ${plan.task.ref}?` : `Move ${plan.moved.length} tasks that wait on ${plan.task.ref}?`) : ""}
         description={plan ? (plan.mode === "strict"
