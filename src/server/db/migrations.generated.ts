@@ -1160,5 +1160,21 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- R133 (Oct 31): two read paths scanned the whole table. Additive only.\n-- The org's statuses (read cache, every Tasks page) and a thread's snoozes and reminders (every mail thread).\nCREATE INDEX IF NOT EXISTS `project_statuses_org_idx` ON `project_statuses` (`org_id`);",
       "CREATE INDEX IF NOT EXISTS `mail_schedules_thread_idx` ON `mail_schedules` (`mailbox_id`,`thread_id`);"
     ]
+  },
+  {
+    "name": "0115_crm_timeline",
+    "statements": [
+      "-- R94: CRM timeline. Logged notes, calls and meeting summaries per contact, company or deal; saved segments of\n-- contacts; deal probability, won and lost reasons and close date; indexes so a timeline with thousands of events\n-- pages fast. Additive only.\nCREATE TABLE `crm_entries` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`entity_type` text NOT NULL,\n\t`entity_id` text NOT NULL,\n\t`kind` text DEFAULT 'note' NOT NULL,\n\t`body` text DEFAULT '' NOT NULL,\n\t`outcome` text,\n\t`duration_min` integer,\n\t`occurred_at` integer NOT NULL,\n\t`private` integer DEFAULT false NOT NULL,\n\t`author_name` text,\n\t`created_by_type` text DEFAULT 'member' NOT NULL,\n\t`created_by_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`version` integer DEFAULT 1 NOT NULL,\n\t`deleted_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `crm_entries_entity_idx` ON `crm_entries` (`org_id`,`entity_type`,`entity_id`,`occurred_at`);",
+      "CREATE TABLE `crm_segments` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text,\n\t`name` text NOT NULL,\n\t`filters` text DEFAULT '{}' NOT NULL,\n\t`position` real DEFAULT 0 NOT NULL,\n\t`created_by_type` text DEFAULT 'member' NOT NULL,\n\t`created_by_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`version` integer DEFAULT 1 NOT NULL,\n\t`deleted_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `crm_segments_org_idx` ON `crm_segments` (`org_id`);",
+      "ALTER TABLE `deals` ADD `probability` integer;",
+      "ALTER TABLE `deals` ADD `close_reason` text;",
+      "ALTER TABLE `deals` ADD `closed_at` integer;",
+      "CREATE INDEX `deals_contact_idx` ON `deals` (`contact_id`) WHERE `contact_id` IS NOT NULL;",
+      "CREATE INDEX `deals_company_idx` ON `deals` (`company_id`) WHERE `company_id` IS NOT NULL;",
+      "CREATE INDEX `bookings_org_email_idx` ON `bookings` (`org_id`,`email`);",
+      "CREATE INDEX `form_submissions_entity_idx` ON `form_submissions` (`entity_type`,`entity_id`,`created_at`) WHERE `entity_id` IS NOT NULL;"
+    ]
   }
 ];

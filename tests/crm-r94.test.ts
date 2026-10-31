@@ -175,7 +175,7 @@ describe("R94 API", () => {
     const tl = await t.owner.get(`/api/crm/timeline?type=contact&id=${t.contact.id}`);
     expect(tl.body.nextStep).toMatchObject({ title: "Send the quote" });
     expect(tl.body.items.some((i: { kind: string }) => i.kind === "task")).toBe(true);
-    expect((await t.owner.post("/api/crm/next-step", { entityType: "contact", entityId: t.contact.id, title: "x", due: "soon" })).status).toBe(400);
+    expect((await t.owner.post("/api/crm/next-step", { entityType: "contact", entityId: t.contact.id, title: "x", due: "soon" })).status).toBe(422);
   });
 
   it("adds a company by hand and shows its people's activity on the company timeline", async () => {
@@ -241,6 +241,6 @@ describe("R94 API", () => {
     const upd = await t.owner.post("/api/crm/import/batch", { mode: "update", rows: [{ email: "sam@harbour.com.au", name: "Samuel", phone: "0400 000 000" }] });
     expect(upd.body).toMatchObject({ updated: 1 });
     expect((await t.owner.get(`/api/contacts/${t.contact.id}`)).body.contact).toMatchObject({ name: "Samuel", phone: "0400 000 000" });
-    expect((await t.owner.post("/api/crm/import/batch", { rows: Array.from({ length: 26 }, (_, i) => ({ email: `p${i}@x.io` })) })).status).toBe(400);
+    expect((await t.owner.post("/api/crm/import/batch", { rows: Array.from({ length: 26 }, (_, i) => ({ email: `p${i}@x.io` })) })).status).toBe(422);
   });
 });

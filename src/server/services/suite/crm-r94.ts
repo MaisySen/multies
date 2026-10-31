@@ -4,7 +4,7 @@
  * forecast. Every source is a bounded, indexed query merged newest first; a member sees only mail from mailboxes
  * they can open and only their own private notes.
  */
-import { and, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, like, or, sql, type SQLWrapper } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { bookings, changes, companies, contacts, crmEntries, crmSegments, deals, formSubmissions, forms, meetings, messages } from "../../db/schema";
 import { badRequest, forbidden, notFound } from "../../lib/errors";
@@ -49,6 +49,9 @@ const before = (i: Pick<TimelineItem, "at" | "id">, cur: { at: number; id: strin
   const t = new Date(i.at).getTime();
   return t < cur.at || (t === cur.at && i.id < cur.id);
 };
+/** Rows strictly after the cursor in (at desc, id desc) order, for sources whose item id is the row id. */
+const afterCur = (at: SQLWrapper, id: SQLWrapper, cur: Cursor | null) => (cur ? sql`(${at} < ${cur.at} or (${at} = ${cur.at} and ${id} < ${cur.id}))` : undefined);
+type Cursor = { at: number; id: string };
 const order = (x: TimelineItem, y: TimelineItem) => (x.at === y.at ? (x.id < y.id ? 1 : -1) : x.at < y.at ? 1 : -1);
 
 /** Merges each source's newest rows into one page. A source that filled its fetch means more may follow. */
@@ -78,7 +81,7 @@ async function loadSubject(deps: Deps, orgId: string, type: "contact" | "company
 const MAIL_SCAN = 2000;
 
 /** Threads with this person (or anyone at the company's domain), newest last message first, mailbox scope applied. */
-async function mailSource(deps: Deps, orgId: string, s: Subject, scope: string[] | null, cur: { at: number } | null, n: number): Promise<TimelineItem[]> {
+async function mailSource(deps: Deps, orgId: string, s: Subject, scope: string[] | null, cur: Cursor | null, n: number): Promise<TimelineItem[]> {
   const conds = [];
   for (const email of s.emails.slice(0, s.type === "company" && s.domain ? 0 : 20)) {
     const pattern = `%"address":"${email.replace(/[%_"]/g, "")}"%`;
@@ -101,25 +104,24 @@ async function mailSource(deps: Deps, orgId: string, s: Subject, scope: string[]
   }
   const out: TimelineItem[] = [];
   for (const [threadId, t] of byThread) {
-    if (cur && t.last.date.getTime() > cur.at) continue;
+    const item = { id: `mail:${threadId}`, at: t.last.date.toISOString() };
+    if (!before(item, cur)) continue;
     out.push({ kind: "mail", id: `mail:${threadId}`, at: t.last.date.toISOString(), mail: { threadId, subject: t.last.subject, count: t.count, lastDirection: t.last.folder === "sent" ? "outbound" : "inbound", snippet: t.last.snippet, messageId: t.last.id } });
     if (out.length > n) break;
   }
   return out;
 }
 
-async function entrySource(deps: Deps, a: Actor, s: Subject, cur: { at: number } | null, n: number, kinds: Set<TimelineKind>): Promise<TimelineItem[]> {
+async function entrySource(deps: Deps, a: Actor, s: Subject, cur: Cursor | null, n: number, kinds: Set<TimelineKind>): Promise<TimelineItem[]> {
   const want = (["note", "call", "meeting"] as const).filter((k) => kinds.has(k));
   if (!want.length) return [];
-  const who = or(eq(crmEntries.entityType, s.type), and(eq(crmEntries.entityType, "contact"), s.contactIds.length ? inIds(crmEntries.entityId, s.contactIds.slice(0, 200)) : sql`0`));
   const target = s.type === "contact" ? and(eq(crmEntries.entityType, "contact"), eq(crmEntries.entityId, s.id)) : or(and(eq(crmEntries.entityType, "company"), eq(crmEntries.entityId, s.id)), s.contactIds.length ? and(eq(crmEntries.entityType, "contact"), inIds(crmEntries.entityId, s.contactIds.slice(0, 200))) : undefined);
-  void who;
   const me = actorOf(a).id;
   const rows = await deps.db.select().from(crmEntries).where(and(
     eq(crmEntries.orgId, a.orgId), target, isNull(crmEntries.deletedAt),
     want.length < 3 ? inArray(crmEntries.kind, want) : undefined,
     me ? or(eq(crmEntries.private, false), eq(crmEntries.createdById, me)) : eq(crmEntries.private, false),
-    cur ? sql`${crmEntries.occurredAt} <= ${cur.at}` : undefined,
+    afterCur(crmEntries.occurredAt, crmEntries.id, cur),
   )).orderBy(desc(crmEntries.occurredAt), desc(crmEntries.id)).limit(n + 1);
   return rows.map((r) => ({
     kind: r.kind, id: r.id, at: r.occurredAt.toISOString(),
@@ -134,30 +136,28 @@ function presentEntry(r: EntryRow, a: Actor) {
   return { id: r.id, kind: r.kind, body: r.body, outcome: r.outcome, durationMin: r.durationMin, private: r.private, authorName: r.authorName, mine, canEdit: mine || isAdmin(a), entityType: r.entityType, entityId: r.entityId, occurredAt: r.occurredAt.toISOString() };
 }
 
-async function meetingSource(deps: Deps, orgId: string, s: Subject, cur: { at: number } | null, n: number): Promise<TimelineItem[]> {
+async function meetingSource(deps: Deps, orgId: string, s: Subject, cur: Cursor | null, n: number): Promise<TimelineItem[]> {
   if (!s.contactIds.length) return [];
   const rows = await deps.db.select({ id: meetings.id, title: meetings.title, startsAt: meetings.startsAt, durationMin: meetings.durationMin, status: meetings.status, sourceId: meetings.sourceId })
-    .from(meetings).where(and(eq(meetings.orgId, orgId), eq(meetings.sourceType, "contact"), inIds(meetings.sourceId, s.contactIds.slice(0, 200)), isNull(meetings.deletedAt), cur ? sql`${meetings.startsAt} <= ${cur.at}` : undefined))
+    .from(meetings).where(and(eq(meetings.orgId, orgId), eq(meetings.sourceType, "contact"), inIds(meetings.sourceId, s.contactIds.slice(0, 200)), isNull(meetings.deletedAt), afterCur(meetings.startsAt, meetings.id, cur)))
     .orderBy(desc(meetings.startsAt)).limit(n + 1);
   return rows.map((m) => ({ kind: "meeting" as const, id: m.id, at: m.startsAt.toISOString(), meeting: { id: m.id, title: m.title, startsAt: m.startsAt.toISOString(), durationMin: m.durationMin, status: m.status }, ...person(s, m.sourceId) }));
 }
 const person = (s: Subject, contactId: string | null | undefined) => (s.type === "company" && contactId ? { person: { id: contactId, name: s.people.get(contactId) ?? "" } } : {});
 
-async function bookingSource(deps: Deps, orgId: string, s: Subject, cur: { at: number } | null, n: number): Promise<TimelineItem[]> {
+async function bookingSource(deps: Deps, orgId: string, s: Subject, cur: Cursor | null, n: number): Promise<TimelineItem[]> {
   if (!s.emails.length) return [];
   const rows = await deps.db.select().from(bookings)
-    .where(and(eq(bookings.orgId, orgId), inIds(bookings.email, s.emails.slice(0, 200)), cur ? sql`${bookings.createdAt} <= ${cur.at}` : undefined))
+    .where(and(eq(bookings.orgId, orgId), inIds(bookings.email, s.emails.slice(0, 200)), afterCur(bookings.createdAt, bookings.id, cur)))
     .orderBy(desc(bookings.createdAt)).limit(n + 1);
-  const byEmail = new Map([...s.people.entries()].map(([id]) => [id, id]));
-  void byEmail;
   return rows.map((b) => ({ kind: "booking" as const, id: b.id, at: b.createdAt.toISOString(), booking: { id: b.id, startsAt: b.startsAt.toISOString(), durationMin: b.durationMin, status: b.status, note: b.note.slice(0, 300) } }));
 }
 
-async function formSource(deps: Deps, orgId: string, s: Subject, cur: { at: number } | null, n: number): Promise<TimelineItem[]> {
+async function formSource(deps: Deps, orgId: string, s: Subject, cur: Cursor | null, n: number): Promise<TimelineItem[]> {
   if (!s.contactIds.length) return [];
   const rows = await deps.db.select({ id: formSubmissions.id, data: formSubmissions.data, createdAt: formSubmissions.createdAt, formId: formSubmissions.formId, entityId: formSubmissions.entityId, name: forms.name, fields: forms.fields })
     .from(formSubmissions).innerJoin(forms, eq(forms.id, formSubmissions.formId))
-    .where(and(eq(formSubmissions.entityType, "contact"), inIds(formSubmissions.entityId, s.contactIds.slice(0, 200)), eq(formSubmissions.orgId, orgId), cur ? sql`${formSubmissions.createdAt} <= ${cur.at}` : undefined))
+    .where(and(eq(formSubmissions.entityType, "contact"), inIds(formSubmissions.entityId, s.contactIds.slice(0, 200)), eq(formSubmissions.orgId, orgId), afterCur(formSubmissions.createdAt, formSubmissions.id, cur)))
     .orderBy(desc(formSubmissions.createdAt)).limit(n + 1);
   return rows.map((r) => ({ kind: "form" as const, id: r.id, at: r.createdAt.toISOString(), form: { id: r.id, formId: r.formId, formName: r.name, fields: formFields(r.fields, r.data) }, ...person(s, r.entityId) }));
 }
@@ -178,7 +178,7 @@ export function formFields(fieldsJson: string, dataJson: string, max = 3) {
   return out;
 }
 
-async function dealSource(deps: Deps, orgId: string, s: Subject, cur: { at: number } | null, n: number): Promise<TimelineItem[]> {
+async function dealSource(deps: Deps, orgId: string, s: Subject, cur: Cursor | null, n: number): Promise<TimelineItem[]> {
   const where = s.type === "contact" ? eq(deals.contactId, s.id) : eq(deals.companyId, s.id);
   const rows = await deps.db.select().from(deals).where(and(eq(deals.orgId, orgId), where, isNull(deals.deletedAt))).orderBy(desc(deals.createdAt)).limit(200);
   const out: TimelineItem[] = [];
@@ -187,10 +187,10 @@ async function dealSource(deps: Deps, orgId: string, s: Subject, cur: { at: numb
     out.push({ kind: "deal", id: `deal:${d.id}:c`, at: d.createdAt.toISOString(), deal: { ...base, event: "created", reason: null } });
     if ((d.stage === "won" || d.stage === "lost") && d.closedAt) out.push({ kind: "deal", id: `deal:${d.id}:${d.stage}`, at: d.closedAt.toISOString(), deal: { ...base, event: d.stage, reason: d.closeReason ?? null } });
   }
-  return out.filter((i) => !cur || new Date(i.at).getTime() <= cur.at).sort(order).slice(0, n + 1);
+  return out.filter((i) => before(i, cur)).sort(order).slice(0, n + 1);
 }
 
-async function taskSource(deps: Deps, a: Actor, s: Subject, cur: { at: number } | null, n: number) {
+async function taskSource(deps: Deps, a: Actor, s: Subject, cur: Cursor | null, n: number) {
   const { linked, listTasks } = await import("./tasks");
   const ids = new Set(await linked(deps, a.orgId, s.type, s.id, "task"));
   if (!ids.size) return { items: [] as TimelineItem[], nextStep: null };
@@ -200,7 +200,7 @@ async function taskSource(deps: Deps, a: Actor, s: Subject, cur: { at: number } 
   const nextStep = open[0] ? { id: open[0].id, ref: open[0].ref, title: open[0].title, due: open[0].due } : null;
   const items = visible
     .map((t) => ({ kind: "task" as const, id: t.id, at: t.createdAt, task: { id: t.id, ref: t.ref, title: t.title, statusName: t.statusName, done: t.status === "done", due: t.due ?? null } }))
-    .filter((i) => !cur || new Date(i.at).getTime() <= cur.at).sort(order).slice(0, n + 1);
+    .filter((i) => before(i, cur)).sort(order).slice(0, n + 1);
   return { items, nextStep };
 }
 
