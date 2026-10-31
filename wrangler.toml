@@ -141,7 +141,7 @@ TOOLS_ENABLED = "true"
 # Tools P2 features (src/shared/tool-features.ts): "all" on staging, only shipped ones on production.
 # Off on production until a lawyer checks the wording (files/plans legal review): esign, merge_mail, the AI
 # features (ask, translate, extract, expenses, contracts) and the attachment index (index, folders).
-TOOLS_FEATURES = "editor,forms,compare,ocr_langs,scan,protect,stamps,convert_plus,excel,autoredact,batch,share,rules,workflows,templates,api"
+TOOLS_FEATURES = "editor,forms,compare,ocr_langs,scan,protect,stamps,convert_plus,excel,autoredact,batch,share,rules,workflows,templates,api,file_requests,secrets"
 DOC_ENGINE_URL = "https://doctool.multies.si"
 DOC_ENGINE_KEY_ID = "prod-1"
 # R43b: imports carry on after their page closes (the upload is kept, the 15 minute pass finishes it and sends one
