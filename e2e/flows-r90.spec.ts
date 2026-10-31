@@ -22,6 +22,8 @@ async function shot(page: Page, name: string) {
   await page.screenshot({ path: `${DIR}/${name}.png`, fullPage: false });
 }
 async function axe(page: Page, label: string) {
+  await page.locator("main").first().waitFor();
+  await page.waitForLoadState("networkidle", { timeout: 4000 }).catch(() => undefined);
   const { violations } = await new AxeBuilder({ page }).include("main").analyze();
   return violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `${label}: ${v.id} ${v.nodes.slice(0, 3).map((n) => n.target).join(" | ")}`);
 }
