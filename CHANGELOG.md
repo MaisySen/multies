@@ -7,6 +7,11 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 77B (31 Oct 2026)
+
+- Fixed: Settings, Branding. A square logo now shows at the top of the sidebar (before, only a wide logo did, so an upload looked like it did nothing). Picking a theme, colour, corners or font repaints the whole app at once for the admin; others see it after Save. Discard and leaving the page put the saved look back.
+- Changed: Branding and Appearance use the full width: the form on the left and a large live preview on the right that stays in view (on top on phones). Save and Discard sit in a bar at the top of the pane with the save state; Reset moved to its own section. Logo slots are rows with drop to upload, uploading, error with Try again and saved states. Switch rows are 44 px tall on phones; the preview button label no longer wraps.
+
 ### Round 78 (31 Oct 2026)
 
 - Added: Tools, Convert any file (/app/tools/convert, first in the Convert section and in Popular, and "Convert files" in the command menu): drop one file or up to 50, Multies reads each one and shows only the formats every file can become. A data driven route planner (src/shared/convert-routes.ts) chains up to 3 steps over 21 formats, prefers steps on the device, and uses at most one engine run per file.
