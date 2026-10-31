@@ -43,13 +43,18 @@ interface Job {
 function friendly(err: unknown): string {
   const m = (err as Error)?.message ?? "";
   if (/dynamically imported module|Failed to fetch|Loading chunk|NetworkError|Load failed/i.test(m)) return "Couldn't load the converter. Check your connection, then try again.";
-  if (/encrypted/i.test(m)) return "This PDF is locked with a password. Take the password off with Remove password, then convert it here.";
+  if (/encrypted/i.test(m)) return "This PDF is locked with a password. Take the password off with Remove password, then try again here.";
   if (/Failed to parse|No PDF header|Invalid PDF|PDFParse|Expected instance of PDF/i.test(m)) return "This PDF can't be opened. It may be damaged.";
   if (/could not be decoded|decode|InvalidStateError/i.test(m)) return "This image can't be opened. It may be damaged, or in a format this browser doesn't read.";
   if (/out of memory|allocation failed|RangeError/i.test(m)) return "This file is too big for your device to convert here. Try a smaller one.";
   // Anything that reads like code is a fault on our side, not something the person can act on.
   if (!m || /undefined|null|is not a function|properties of|Unexpected token|TypeError|ReferenceError/.test(m)) return "Something went wrong converting this file. Try again, or pick another format.";
   return m;
+}
+/** True when the PDF's trailer names an /Encrypt dictionary (read from the start and the end, never the whole file). */
+async function pdfLooksLocked(f: File): Promise<boolean> {
+  const look = async (b: Blob) => /\/Encrypt\b/.test(new TextDecoder("latin1").decode(await b.arrayBuffer()));
+  return (await look(f.slice(Math.max(0, f.size - 262144)))) || (await look(f.slice(0, 65536)));
 }
 const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "\u2318" : "Ctrl";
 
@@ -268,6 +273,8 @@ export function ConvertHubPage() {
           else if (def.id === "numbers") outputs = [await o.numberPdf(first, { style: numStyle, position: numPos })];
           else if (def.id === "compress") {
             if (onEngine) {
+              // A password protected PDF can't be made smaller; say so before it goes to the engine.
+              if (fmt === "pdf" && (await pdfLooksLocked(first))) throw new Error("encrypted");
               const op = engineOpFor("compress", fmt);
               const run = await runEngine(op, first, { level }, `Making ${formatDef(fmt).label} smaller on the Multies engine`, engineProgress);
               const after = run.result?.out_bytes ?? run.file.size;
@@ -393,7 +400,7 @@ export function ConvertHubPage() {
             <ol className="grid gap-2 sm:grid-cols-3" aria-label="How it works">
               {[["Drop files", "One or fifty, any mix."], ["Pick what to make", "Only formats that work are shown."], ["Download", "One by one, or all as a ZIP."]].map(([t, d], i) => (
                 <li key={t} className="flex items-start gap-3 rounded-xl border border-line bg-surface px-3 py-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[12px] font-semibold text-brand" aria-hidden>{i + 1}</span>
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[12px] font-semibold text-brand-hover" aria-hidden>{i + 1}</span>
                   <span className="min-w-0"><span className="block text-[13.5px] font-medium">{t}</span><span className="block text-[12.5px] text-muted">{d}</span></span>
                 </li>
               ))}
@@ -555,7 +562,7 @@ export function ConvertHubPage() {
                       : <p className="truncate text-[12.5px] text-muted">{j.status === "done" ? `${j.outputs.length > 1 ? `${j.outputs.length} files` : j.outputs[0] ? `${j.outputs[0].name} · ${sizeLabel(j.outputs[0].size)}` : ""}${j.local ? " · on your device" : ""}${j.ms != null ? ` · ${j.ms < 1000 ? `${j.ms} ms` : `${(j.ms / 1000).toFixed(1)} s`}` : ""}` : j.label}</p>}
                     {j.status === "done" && j.outputs.length > 1 && j.outputs.length <= 300 && (
                       <details className="mt-1" data-testid="convert-job-files">
-                        <summary className={`cursor-pointer rounded text-[12.5px] font-medium text-brand max-sm:py-2 ${ring}`}>Show the {j.outputs.length} files</summary>
+                        <summary className={`cursor-pointer rounded text-[12.5px] font-medium text-brand-hover max-sm:py-2 ${ring}`}>Show the {j.outputs.length} files</summary>
                         <ul className="mt-1 max-h-56 space-y-0.5 overflow-y-auto pr-1">
                           {j.outputs.map((f, k) => (
                             <li key={k} className="flex items-center gap-2 text-[12.5px]">

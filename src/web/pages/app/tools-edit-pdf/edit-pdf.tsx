@@ -205,7 +205,7 @@ export function EditPdfPage() {
             {error && <p role="alert" className="text-[13px] text-bad" data-testid="edit-pdf-error">{error}</p>}
           </div>
           <p className="text-[13px] text-muted"><span className="font-medium text-fg">{file.name}</span> · {order.length} {order.length === 1 ? "page" : "pages"} · {sizeLabel(file.size)}
-            <button type="button" onClick={() => void closeFile()} className={`ml-2 rounded font-medium text-brand underline-offset-2 hover:underline ${ring}`} data-testid="edit-pdf-close">Open another</button>
+            <button type="button" onClick={() => void closeFile()} className={`ml-2 rounded font-medium text-brand-hover underline-offset-2 hover:underline ${ring}`} data-testid="edit-pdf-close">Open another</button>
           </p>
           <ol className="space-y-6" data-testid="edit-pdf-pages">
             {pdf && order.map((idx, k) => (
@@ -302,6 +302,7 @@ function PageCard({ pdf, idx, pos, count, turn, tool, items, selected, textSize,
   }
 
   const label = `Page ${pos + 1} of ${count}`;
+  const sideways = turn % 180 !== 0;
   return (
     <li className="space-y-2" data-testid="edit-pdf-page" data-page={idx}>
       <div className="flex items-center gap-1.5">
@@ -312,7 +313,12 @@ function PageCard({ pdf, idx, pos, count, turn, tool, items, selected, textSize,
         <IconBtn label={`Delete ${label.toLowerCase()}`} onClick={onDelete} testId="edit-pdf-delete-page"><IconTrash className="h-4 w-4" aria-hidden /></IconBtn>
       </div>
       <div className="flex justify-center rounded-2xl bg-fill p-2 sm:p-4">
-        <div style={{ transform: turn ? `rotate(${turn}deg)` : undefined }} className="w-full max-w-[820px] transition-transform">
+        {/* A page turned sideways keeps inside its card: the outer box takes the turned shape and the page turns in its middle. */}
+        <div className="relative w-full max-w-[820px]" style={sideways ? { aspectRatio: `${size.height} / ${size.width}` } : undefined} data-testid="edit-pdf-page-frame">
+        <div style={sideways
+            ? { position: "absolute", left: "50%", top: "50%", width: `${(size.width / size.height) * 100}%`, transform: `translate(-50%, -50%) rotate(${turn}deg)` }
+            : { transform: turn ? `rotate(${turn}deg)` : undefined }}
+          className="w-full transition-transform">
           <div ref={wrap} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
             className={`relative w-full touch-none select-none overflow-hidden bg-white shadow-sm ${tool === "move" ? "cursor-default" : "cursor-crosshair"}`}
             style={{ aspectRatio: `${size.width} / ${size.height}` }} aria-label={label} role="group">
@@ -337,6 +343,7 @@ function PageCard({ pdf, idx, pos, count, turn, tool, items, selected, textSize,
             ))}
             {draft && <div className="pointer-events-none absolute bg-black/80" style={{ left: `${draft.x * 100}%`, top: `${draft.y * 100}%`, width: `${draft.w * 100}%`, height: `${draft.h * 100}%` }} />}
           </div>
+        </div>
         </div>
       </div>
     </li>

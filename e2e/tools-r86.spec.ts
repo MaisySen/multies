@@ -309,3 +309,38 @@ test("11. phone width: compress with sizes, unpack, and Edit a PDF with a text b
   await noSeriousAxe(page);
   await shots(page, "phone-edit", ["390"]);
 });
+
+test("12. a turned page stays inside its card, dark colours pass axe with a file open, a locked PDF says so on compress", async ({ page }) => {
+  await signIn(page);
+  for (const [w, h] of [[1280, 900], [390, 844]] as const) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto("/app/tools/edit-pdf");
+    await page.getByTestId("edit-pdf-input").setInputFiles(join(TOOLS, "sample-a.pdf"));
+    const card = page.getByTestId("edit-pdf-page").first();
+    await expect(card.getByText("Loading page")).toHaveCount(0, { timeout: 20_000 });
+    await page.getByTestId("edit-pdf-turn").first().click();
+    await expect(card).toContainText("turned 90");
+    await page.waitForTimeout(400);
+    const frame = (await card.getByTestId("edit-pdf-page-frame").boundingBox())!;
+    const turned = (await card.getByRole("group").boundingBox())!;
+    const li = (await card.boundingBox())!;
+    // The turned page sits inside its frame and its card, and the frame is wider than tall like the turned page.
+    expect(frame.width).toBeGreaterThan(frame.height);
+    expect(turned.x).toBeGreaterThanOrEqual(frame.x - 2); expect(turned.x + turned.width).toBeLessThanOrEqual(frame.x + frame.width + 2);
+    expect(turned.y).toBeGreaterThanOrEqual(frame.y - 2); expect(turned.y + turned.height).toBeLessThanOrEqual(frame.y + frame.height + 2);
+    expect(turned.y + turned.height).toBeLessThanOrEqual(li.y + li.height + 2);
+    await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+    await noSeriousAxe(page);
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, `r86-edit-turned-${w}-dark.png`) });
+    await page.emulateMedia({ colorScheme: "light", reducedMotion: "no-preference" });
+    await page.getByTestId("edit-pdf-close").click();
+    await page.getByRole("button", { name: "Close without saving" }).click();
+    await expect(page.getByTestId("edit-pdf-input")).toBeAttached();
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await open(page);
+  await add(page, [join(TOOLS, "locked.pdf")]);
+  await page.getByTestId("convert-action-compress").click();
+  await page.getByTestId("convert-run").click();
+  await expect(page.locator('[data-testid="convert-job"][data-status="failed"]')).toContainText("locked with a password", { timeout: 30_000 });
+});
