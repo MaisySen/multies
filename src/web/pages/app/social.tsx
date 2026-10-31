@@ -113,26 +113,27 @@ export function SocialPlannerPage() {
           )}
           {/* Desktop and tablet: the month grid. */}
           <Card className="overflow-hidden max-sm:hidden" data-testid="planner-grid">
-            <div className="grid grid-cols-7 border-b border-line bg-fill/50" role="row">
-              {weekdays.map((w) => <div key={w.long} className="px-2 py-1.5 text-[11.5px] font-semibold uppercase tracking-[0.04em] text-subtle" role="columnheader"><abbr title={w.long} className="no-underline">{w.short}</abbr></div>)}
+            <div className="grid grid-cols-7 border-b border-line bg-fill/50" aria-hidden>
+              {weekdays.map((w) => <div key={w.long} className="px-2 py-1.5 text-[11.5px] font-semibold uppercase tracking-[0.04em] text-subtle">{w.short}</div>)}
             </div>
-            <div className="grid grid-cols-7" role="grid" aria-label={monthName}>
+            <ol className="grid grid-cols-7" aria-label={monthName}>
               {cells.map((d, i) => {
                 const k = dayKey(d);
                 const list = byDay.get(k) ?? [];
                 const out = d.getMonth() !== cursor.m;
                 return (
-                  <div key={k} role="gridcell" aria-label={d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
-                    className={cn("min-h-[104px] min-w-0 space-y-1 p-1.5", i % 7 !== 6 && "border-r border-line", i < cells.length - 7 && "border-b border-line", out && "bg-fill/40")} data-day={k}>
+                  <li key={k} className={cn("min-h-[104px] min-w-0 space-y-1 p-1.5", i % 7 !== 6 && "border-r border-line", i < cells.length - 7 && "border-b border-line", out && "bg-fill/40")} data-day={k}>
                     <div className="flex items-center justify-between px-0.5">
-                      <span className={cn("grid h-6 min-w-6 place-items-center rounded-full px-1 text-[12px] tabular-nums", k === today ? "bg-brand font-semibold text-brand-fg" : out ? "text-subtle" : "text-muted")}>{d.getDate()}</span>
+                      <span className={cn("grid h-6 min-w-6 place-items-center rounded-full px-1 text-[12px] tabular-nums", k === today ? "bg-brand font-semibold text-brand-fg" : out ? "text-subtle" : "text-muted")}>
+                        <span aria-hidden>{d.getDate()}</span><span className="sr-only">{d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}{k === today ? ", today" : ""}{list.length ? `, ${list.length} ${list.length === 1 ? "post" : "posts"}` : ""}</span>
+                      </span>
                     </div>
                     {list.slice(0, 3).map((p) => <PostChip key={p.id} p={p} />)}
                     {list.length > 3 && <Link to="/app/social/posts" className="block px-1.5 text-[12px] font-medium text-muted hover:text-fg">{list.length - 3} more</Link>}
-                  </div>
+                  </li>
                 );
               })}
-            </div>
+            </ol>
           </Card>
           {/* Phone: the month as a list of the days that have posts. */}
           <div className="sm:hidden" data-testid="planner-agenda">
@@ -277,7 +278,7 @@ export function SocialAccountsPage() {
                         {bad && h?.text && <p className="mt-1 text-[12.5px] text-warn" data-testid="account-health-text">{h.text}</p>}
                       </div>
                       {canManage && (
-                        <div className="flex gap-2 max-sm:w-full [&>*]:max-sm:flex-1">
+                        <div className="flex gap-2 max-sm:w-full max-sm:pl-[52px]">
                           {(bad || a.status !== "active") && <ReconnectButton accountId={a.id} appName={a.appName} />}
                           <Button variant="ghost" size="sm" className="text-bad hover:text-bad" onClick={() => setRemoving(a)} aria-label={`Disconnect ${a.appName}`}><IconTrash className="h-4 w-4" aria-hidden />Disconnect</Button>
                         </div>

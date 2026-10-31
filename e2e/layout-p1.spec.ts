@@ -102,8 +102,9 @@ test("P1 desktop: rail, Social pages, Create and P, one Settings sidebar, redire
   await page.getByTestId("create-menu").click();
   await page.getByRole("menuitem", { name: "Social post" }).click();
   await expect(page).toHaveURL(/\/app\/social\/new$/);
-  await page.goto("/app/docs");
-  await page.locator("body").click({ position: { x: 5, y: 400 } }).catch(() => undefined);
+  await page.goto("/app");
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("heading", { name: "Overview", level: 1 }).click();
   await page.keyboard.press("p");
   await expect(page).toHaveURL(/\/app\/social\/new$/);
 

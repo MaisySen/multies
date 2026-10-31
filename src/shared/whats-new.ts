@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-social-home",
+    date: "2026-10-31",
+    title: "Social has its own place",
+    body: "Social now sits in the left rail with a Planner calendar, Posts with how each account did, New post and Accounts. Connect Facebook Pages, Instagram, LinkedIn, Pinterest or Reddit, write one post and send it now or later; networks that can't take it are greyed out with the reason. Agents moved to the rail too, and Workspace is now called Settings, with one sidebar.",
+  },
+  {
     id: "2026-10-31-tasks-views-tags",
     date: "2026-10-31",
     title: "Saved views, tags and a full task page",
@@ -31,19 +37,13 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     id: "2026-10-31-tiktok-threads",
     date: "2026-10-31",
     title: "Post to TikTok and Threads",
-    body: "Connect your TikTok and Threads accounts on Settings, Connections, Social posts. Post a video to TikTok, choosing who can see it and whether people can comment, duet or stitch, and post text or a picture to Threads. Your latest videos and posts show right there.",
+    body: "Connect your TikTok and Threads accounts in Social, Accounts. Post a video to TikTok, choosing who can see it and whether people can comment, duet or stitch, and post text or a picture to Threads. Your latest videos and posts show right there.",
   },
   {
     id: "2026-10-31-one-place-connections",
     date: "2026-10-31",
     title: "One place for everything you connect",
-    body: "Settings, Connections now holds your apps, social posts, other mail accounts and webhooks as tabs, so there is one place to look. Compose tells you before you write when a From address needs its domain verified, and every page now has its own name in the browser tab.",
-  },
-  {
-    id: "2026-10-31-connections",
-    date: "2026-10-31",
-    title: "Connect your social accounts and post once",
-    body: "Settings, Connections lists the apps your workspace can connect, with social networks first, and you can add more than one account per app. Connect Facebook Pages, Instagram, LinkedIn, Pinterest or Reddit, then write one post with an image and send it now or at a set time. Each account shows its own result.",
+    body: "Settings, Connections now holds your apps, other mail accounts and webhooks as tabs, so there is one place to look. Compose tells you before you write when a From address needs its domain verified, and every page now has its own name in the browser tab.",
   },
   {
     id: "2026-10-31-multies-everywhere",

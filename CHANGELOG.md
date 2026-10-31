@@ -7,6 +7,12 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### P1 layout (31 Oct 2026)
+
+- Changed: Social is a top level area in the rail (after Docs): Planner (/app/social, a month of scheduled and sent posts; a day list on phones), Posts (/app/social/posts, filters All, Scheduled, Sent, Failed with each account's result, Try again, Cancel, Reconnect), New post (/app/social/new, the composer moved out of Settings; networks that cannot take the post are greyed out with the reason) and Accounts (/app/social/accounts, connected profiles with the account check, Reconnect, Disconnect, the TikTok and Threads cards, Connect for each network). No new server calls.
+- Changed: Create, Social post and the P key open New post. Command menu entries for each Social page. Social network sign ins (shared platform and our own TikTok and Threads) come back to Social, Accounts.
+- Changed: Agents has its own rail item at the bottom; Workspace is called Settings; Settings shows one sidebar (its own grouped list, now with Admin: Activity and Operator). Connections keeps Apps, Mail accounts and Webhooks, with one line pointing to Social.
+- Redirects: /app/settings/apps/social goes to /app/social/new (a sign in return to /app/social/accounts); /app/social/planner and /app/social/compose go to their pages.
 ### Round 84 (31 Oct 2026)
 
 - Added: saved views on Tasks keep filters, field filters, sort and grouping; private or shared with the workspace; pinned views show as tabs above the list (rename, share, unpin, delete from the tab menu; arrow keys move between tabs). PATCH /api/tasks/views/:id; views carry pinned, position and canEdit (migration 0104).
