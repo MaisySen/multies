@@ -144,7 +144,7 @@ TOOLS_ENABLED = "true"
 # features (ask, translate, extract, expenses, contracts) and the attachment index (index, folders).
 # R94: CRM timeline. On after the verifier PASS on staging d006dfd83822 (31 Oct 19:27 UTC).
 CRM_TIMELINE = "on"
-TOOLS_FEATURES = "editor,forms,compare,ocr_langs,scan,protect,stamps,convert_plus,excel,autoredact,batch,share,rules,workflows,templates,api,file_requests,secrets,links"
+TOOLS_FEATURES = "editor,forms,compare,ocr_langs,scan,protect,stamps,convert_plus,excel,autoredact,batch,share,rules,workflows,templates,api,file_requests,secrets,links,tools_c"
 DOC_ENGINE_URL = "https://doctool.multies.si"
 DOC_ENGINE_KEY_ID = "prod-1"
 # R43b: imports carry on after their page closes (the upload is kept, the 15 minute pass finishes it and sends one
