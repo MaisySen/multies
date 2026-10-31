@@ -5,7 +5,7 @@
  * at once for the admin (others see it after Save); a square logo shows in the sidebar; Save and Discard live in a
  * bar at the top of the pane that never covers a field; logo rows never overlap at any width.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
@@ -19,8 +19,8 @@ import { AppearanceControl, useAppearance } from "@/web/components/theme";
 import { applyBrand, brandQueryKey, paintBrandCss, useBranding, type BrandingData } from "@/web/lib/brand";
 import { useMe } from "@/web/lib/queries";
 import {
-  FONTS, LOGO_MAX_BYTES, PRESETS, brandCss, checkBrand, logoUrl, paletteFromPixels, pickLogo, previewTokens,
-  type Appearance, type Brand, type BrandPatch, type Density, type FontId, type LogoKind, type Personal, type Radius,
+  FONTS, LOGO_MAX_BYTES, PRESETS, brandCss, checkBrand, logoUrl, paletteFromPixels, parseHex, pickLogo, previewTokens,
+  type Appearance, type Brand, type BrandPatch, type FontId, type LogoKind, type Personal, type Radius,
 } from "@/shared/branding";
 
 type Draft = Omit<Brand, "logos">;
@@ -100,8 +100,15 @@ function Swatch({ primary, accent, sidebar, label, selected, onClick, disabled, 
 
 function ColourField({ label, value, onChange, placeholder, allowNone, disabled, testId }: { label: string; value: string | null; onChange: (v: string | null) => void; placeholder: string; allowNone?: boolean; disabled?: boolean; testId?: string }) {
   const [text, setText] = useState(value ?? "");
-  useEffect(() => setText(value ?? ""), [value]);
-  const commit = (s: string) => { const v = s.trim().toLowerCase(); if (/^#[0-9a-f]{6}$/.test(v)) onChange(v); else if (!v && allowNone) onChange(null); };
+  const [bad, setBad] = useState(false);
+  useEffect(() => { setText(value ?? ""); setBad(false); }, [value]);
+  const errId = useId();
+  const commit = (s: string) => {
+    const v = parseHex(s);
+    if (v) { setBad(false); onChange(v); return; }
+    if (!s.trim()) { if (allowNone) { setBad(false); onChange(null); } else { setText(value ?? ""); setBad(false); } return; }
+    setBad(true);
+  };
   return (
     <div className="flex min-w-0 items-center gap-3" data-testid={testId}>
       <label className={cn("relative grid h-9 w-9 max-sm:h-11 max-sm:w-11 shrink-0 place-items-center rounded-full ring-1 ring-line-strong transition-transform duration-150 focus-within:ring-2 focus-within:ring-brand", !disabled && "cursor-pointer hover:scale-105 motion-reduce:transform-none")} style={{ background: value ?? placeholder }}>
@@ -112,10 +119,14 @@ function ColourField({ label, value, onChange, placeholder, allowNone, disabled,
         <div className="text-[13px] font-medium">{label}</div>
         <div className="mt-0.5 flex items-center gap-1">
           <input aria-label={`${label} hex`} value={text} disabled={disabled} placeholder={allowNone ? "None" : placeholder} maxLength={7}
-            onChange={(e) => { setText(e.target.value); if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) commit(e.target.value); }} onBlur={(e) => commit(e.target.value)}
-            className="w-28 rounded-md border border-line bg-bg px-2 py-1 font-mono text-[12.5px] uppercase outline-none transition-colors focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-60 max-sm:w-32 max-sm:py-2.5 max-sm:text-[16px]" />
+            aria-invalid={bad || undefined} aria-describedby={bad ? errId : undefined}
+            onChange={(e) => { setText(e.target.value); const v = /^#?[0-9a-fA-F]{6}$/.test(e.target.value.trim()) ? parseHex(e.target.value) : null; if (v) commit(v); else if (bad && parseHex(e.target.value)) setBad(false); }}
+            onBlur={(e) => commit(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit((e.target as HTMLInputElement).value); } }}
+            className={cn("w-28 rounded-md border bg-bg px-2 py-1 font-mono text-[12.5px] uppercase outline-none transition-colors focus-visible:ring-2 disabled:opacity-60 max-sm:w-32 max-sm:py-2.5 max-sm:text-[16px]",
+              bad ? "border-bad focus:border-bad focus-visible:ring-bad/30" : "border-line focus:border-brand focus-visible:ring-brand/40")} />
           {allowNone && value && !disabled && <Button variant="ghost" size="sm" onClick={() => onChange(null)} aria-label={`Clear ${label.toLowerCase()}`}>Clear</Button>}
         </div>
+        {bad && <p id={errId} role="alert" data-testid={testId ? `${testId}-error` : undefined} className="mt-1 text-[12.5px] text-bad">Use a hex colour like {placeholder.startsWith("#") ? placeholder : "#0066cc"}.</p>}
       </div>
     </div>
   );
@@ -447,7 +458,7 @@ export function BrandingSettings() {
           <Panel title="Shape and type" testId="brand-shape">
             <div className="space-y-4">
               <Row label="Corners"><Segmented<Radius> label="Corners" value={draft.radius} disabled={ro} onChange={(radius) => set({ radius })} options={[{ id: "sharp", label: "Sharp" }, { id: "default", label: "Default" }, { id: "round", label: "Round" }]} /></Row>
-              <Row label="Density"><Segmented<Density> label="Density" value={draft.density} disabled={ro} onChange={(density) => set({ density })} options={[{ id: "comfortable", label: "Comfortable" }, { id: "compact", label: "Compact" }]} /></Row>
+              {/* R82F (MB-285): density is each person's own choice, in the View menu only (it was here too). */}
               <div>
                 <span className="text-[13px] font-medium">Font</span>
                 <div role="radiogroup" aria-label="Font" className="mt-2 grid grid-cols-2 gap-2 @min-[420px]/panel:grid-cols-3 @min-[720px]/panel:grid-cols-6">

@@ -111,7 +111,8 @@ function HeldToast({ h, label }: { h: HeldSend; label: string }) {
           <div className="whitespace-nowrap font-medium" aria-hidden>{sending ? "Sending" : `Sending in ${left} s`}</div>
           {label && <div className="truncate text-[12px] text-muted">{label}</div>}
           {/* R73 (MB-272): the address is read once (above), and phones are not told about a keyboard key. */}
-          <span className="sr-only">{`Held for ${h.seconds} seconds. ${coarsePointer() ? "Tap Undo" : "Press Z or use Undo"} to take it back.`}</span>
+          {/* R82F (MB-272): no second number here; it disagreed with the countdown ("9 s" beside "10 seconds"). */}
+          <span className="sr-only">{`Held for a few seconds before it sends. ${coarsePointer() ? "Tap Undo" : "Press Z or use Undo"} to take it back.`}</span>
         </div>
         {!sending && (
           <div className="flex shrink-0 items-center gap-1">

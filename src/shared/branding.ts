@@ -309,3 +309,12 @@ export function paletteFromPixels(data: ArrayLike<number>, max = 5): string[] {
   }
   return [...buckets.values()].sort((x, y) => y.n - x.n).slice(0, max).map((e) => toHex([e.r / e.n, e.g / e.n, e.b / e.n]));
 }
+
+/** R82F (MB-285): "0066cc", "#06c" and "#0066CC" are all read as #0066cc; anything else says so under the box. */
+export function parseHex(s: string): string | null {
+  let v = s.trim().toLowerCase();
+  if (!v.startsWith("#")) v = `#${v}`;
+  if (/^#[0-9a-f]{3}$/.test(v)) v = `#${v[1]}${v[1]}${v[2]}${v[2]}${v[3]}${v[3]}`;
+  return /^#[0-9a-f]{6}$/.test(v) ? v : null;
+}
+

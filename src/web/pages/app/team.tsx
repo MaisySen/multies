@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router";
 import { IconAgent, IconAssign, IconClock, IconTeam, IconUserCheck, IconCrown, IconEdit, IconKey, IconLink, IconLock, IconMail, IconMore, IconPause, IconPlay, IconPlus, IconRefresh, IconShield, IconTrash, IconUserMinus, IconZap } from "@/web/components/ui/icon";
 import { AgentTriggersDialog } from "./agent-triggers"; // R28 (DF-3 slice 3)
 import { toast } from "sonner";
@@ -82,6 +83,13 @@ export function TeamSettings() {
           <div>
             <h2 className="text-[15px] font-semibold">Members</h2>
             <p className="mt-1 text-sm text-muted">People who can sign in to this workspace. Members only see the mailboxes you give them.</p>
+            {/* R82F (MB-277): at the seat limit, say so in words anyone can see (a hover title never shows on a phone). */}
+            {!isDemo && canManage && used >= seats.limit && (
+              <p id="seats-full" role="status" className="mt-2 inline-flex flex-wrap items-start gap-x-1.5 gap-y-1 rounded-lg bg-warn-soft px-2.5 py-1.5 text-[12.5px] text-fg" data-testid="seats-full">
+                <IconLock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" aria-hidden />
+                <span>All {seats.limit} seats are in use{seats.pendingInvites ? `, ${seats.pendingInvites} by pending ${seats.pendingInvites === 1 ? "invite" : "invites"}` : ""}. To invite someone, {seats.pendingInvites ? "cancel an invite or remove someone" : "remove someone"}, or <Link to="/app/settings/billing" className="font-medium text-brand-hover underline-offset-2 hover:underline">see plans with more seats</Link>.</span>
+              </p>
+            )}
             {isDemo && canManage && <p id="demo-invites-off" className="mt-2 inline-flex items-start gap-1.5 rounded-lg bg-fill px-2.5 py-1.5 text-[12.5px] text-muted" data-testid="demo-invites-off"><IconLock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />{DEMO_INVITES_OFF_COPY}</p>}
           </div>
           <div className="flex items-center gap-4">
@@ -90,7 +98,7 @@ export function TeamSettings() {
               <Meter value={used} max={seats.limit} />
               <div className="mt-1.5 text-xs text-subtle tabular-nums" data-testid="agent-seats">{agentMembers.length} agent{agentMembers.length === 1 ? "" : "s"}, no seat needed</div>
             </div>
-            {canManage && <Button onClick={() => setInviting(true)} disabled={isDemo || used >= seats.limit} aria-describedby={isDemo ? "demo-invites-off" : undefined} title={isDemo ? DEMO_INVITES_OFF_COPY : used >= seats.limit ? "All seats are in use" : undefined} data-testid="team-invite-button"><IconAssign className="h-4 w-4" />Invite</Button>}
+            {canManage && <Button onClick={() => setInviting(true)} disabled={isDemo || used >= seats.limit} aria-describedby={isDemo ? "demo-invites-off" : used >= seats.limit ? "seats-full" : undefined} title={isDemo ? DEMO_INVITES_OFF_COPY : used >= seats.limit ? "All seats are in use" : undefined} data-testid="team-invite-button"><IconAssign className="h-4 w-4" />Invite</Button>}
           </div>
         </div>
         <ul className="divide-y divide-line" aria-label="Members">

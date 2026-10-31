@@ -32,6 +32,7 @@ import { PdfThumb, countPdfPages } from "@/web/components/tools/pdf-thumb"; // R
 import { Dialog } from "@/web/components/ui/dialog";
 import { NoRunsNote } from "@/web/components/tools/tools-frame";
 import { SplitPresets } from "@/web/components/tools/split-presets"; // R74
+import { parseRanges } from "@/shared/split-presets"; // R82F (MB-276)
 import { lazyPage } from "@/web/components/lazy-page";
 import { toast } from "sonner";
 import { forgetFiles, keepFiles, keptFiles } from "@/web/lib/kept-files"; // R74: a picked file survives a reload
@@ -110,6 +111,18 @@ function useWarmEngine(enabled: boolean): boolean {
     return () => { live = false; };
   }, [enabled]);
   return cold;
+}
+
+/** R82F (MB-276): a tool's options are kept for this tab beside its kept files, so a reload brings both back. */
+const OPTS_KEY = (op: string) => `tools:opts:${op}`;
+function keepOptions(op: string, options: Record<string, string>) { try { sessionStorage.setItem(OPTS_KEY(op), JSON.stringify(options)); } catch { /* storage full or off */ } }
+function forgetOptions(op: string) { try { sessionStorage.removeItem(OPTS_KEY(op)); } catch { /* off */ } }
+function keptOptions(op: string): Record<string, string> | null {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(OPTS_KEY(op)) ?? "null") as unknown;
+    if (!v || typeof v !== "object") return null;
+    return Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([, x]) => typeof x === "string")) as Record<string, string>;
+  } catch { return null; }
 }
 
 export function ToolsPage() {
@@ -206,9 +219,9 @@ export function ToolsPage() {
   useEffect(() => {
     if (!tool || restoring.current || filesFor.current !== tool.op) return;
     const key = `tools:${tool.op}`;
-    if (phase.kind === "done" || !files.length) void forgetFiles(key);
-    else if (phase.kind === "idle") void keepFiles(key, files);
-  }, [tool, files, phase.kind]);
+    if (phase.kind === "done" || !files.length) { void forgetFiles(key); forgetOptions(tool.op); }
+    else if (phase.kind === "idle") { void keepFiles(key, files); keepOptions(tool.op, options); }
+  }, [tool, files, phase.kind, options]);
   const leaveGuard = useLeaveGuard(!!tool && files.length > 0 && (phase.kind === "idle" || phase.kind === "failed"), files.length > 1 ? "your files" : "your file");
   const tooManyPages = !!firstPdf && !!pageLimit && pageCount?.file === firstPdf && pageCount.pages > pageLimit ? pageCount.pages : 0;
 
@@ -255,6 +268,9 @@ export function ToolsPage() {
       void keptFiles(`tools:${want.op}`).then((back) => {
         restoring.current = false;
         if (!back?.length || toolRef.current?.op !== want.op) return;
+        // R82F (MB-276): the choices made for the file (a Split range, a quality) come back with it.
+        const opts = keptOptions(want.op);
+        if (opts) setOptions((cur) => ({ ...cur, ...opts }));
         add(back, want);
         toast(RESTORED_LINE);
       });
@@ -595,7 +611,9 @@ export function ToolsPage() {
   const extraOk = !tool.extra || (extraFiles.length >= tool.extra.min && extraFiles.length <= tool.extra.max);
   const mailFits = !!fromMail && tool.minFiles <= 1 && toolTakes(tool, fromMail.name);
   const haveFiles = fromMail ? mailFits : files.length >= tool.minFiles;
-  const ready = haveFiles && !tooBig && !tooManyPages && !busy && !problem && extraOk && !noneLeft;
+  // R82F (MB-276): a Split range the preview already marks as wrong ("3-1", a page past the end) keeps Run off.
+  const badRange = tool.op === "split" && !!splitPages && !!options.ranges?.trim() && !!parseRanges(options.ranges, splitPages.pages).error;
+  const ready = haveFiles && !tooBig && !tooManyPages && !busy && !problem && !badRange && extraOk && !noneLeft;
   const shown = visibleOptions(tool, options);
   const folded = shown.length >= 4 ? (ADVANCED[tool.op] ?? []) : [];
   const essential = shown.filter((o) => !folded.includes(o.name));

@@ -21,6 +21,7 @@ import {
 import { measureCaps } from "@/web/lib/convert/caps";
 import { downloadName, loadOps, runRoute, type Progress } from "@/web/lib/convert/run";
 import { saveFile } from "@/web/lib/tool-jobs";
+import { useLeaveGuard } from "@/web/components/tools/leave-guard"; // R82F (MB-286)
 import { toast } from "sonner";
 
 const ring = "outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface";
@@ -76,6 +77,7 @@ export function ConvertHubPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [dragging, setDragging] = useState(false);
   const [zipping, setZipping] = useState(false);
+  const [saved, setSaved] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const thumbs = useRef<string[]>([]);
   const runners = useRef(new Map<string, () => Promise<void>>());
@@ -107,6 +109,7 @@ export function ConvertHubPage() {
       return { id: nextId(), file, fmt, note };
     });
     setFiles((cur) => [...cur, ...picked].slice(0, MAX_FILES));
+    setSaved(false);
     const heic = picked.find((p) => p.fmt === "heic");
     if (heic) {
       void loadOps().then((o) => o.browserOpensHeic(heic.file)).then((ok) => {
@@ -225,7 +228,8 @@ export function ConvertHubPage() {
     showTray();
     const work = async (p: Picked, job: Job) => {
       const t0 = performance.now();
-      if (p.fmt === to) { patch(job.id, { status: "done", progress: 1, label: `Already ${formatDef(to).label}, kept as it is`, outputs: [p.file] }); return; }
+      // R82F (R78 leftover): a file already in the chosen format shows its own picture too, not only a tick.
+      if (p.fmt === to) { patch(job.id, { status: "done", progress: 1, label: `Already ${formatDef(to).label}, kept as it is`, outputs: [p.file], thumb: makeThumb([p.file]) }); return; }
       const route = routeTo(p.fmt!, to, plan);
       if (!route) { patch(job.id, { status: "failed", progress: 1, label: "Not done", error: `${formatDef(p.fmt!).label} can't become ${formatDef(to).label} here.` }); return; }
       patch(job.id, { status: "running", startedAt: Date.now() });
@@ -267,12 +271,14 @@ export function ConvertHubPage() {
   }
 
   async function downloadJob(j: Job) {
+    setSaved(true);
     if (j.outputs.length === 1) { saveFile(j.outputs[0], j.outputs[0].name); return; }
     const o = await loadOps();
     saveFile(await o.zipFiles(j.outputs), downloadName(j.title, j.outputs, j.to));
   }
   const done = jobs.filter((j) => j.status === "done");
   async function downloadAll() {
+    setSaved(true);
     setZipping(true);
     try {
       const o = await loadOps();
@@ -282,12 +288,16 @@ export function ConvertHubPage() {
   const clearTray = () => { thumbs.current.forEach((u) => URL.revokeObjectURL(u)); thumbs.current = []; setJobs((cur) => cur.filter((j) => j.status === "running" || j.status === "waiting")); };
 
   startRef.current = () => { void start(); };
+  // R82F (MB-286): files picked here live only in this tab. Reloading or leaving before anything is downloaded asks
+  // first (the browser's own question on reload, ours on a link inside Multies).
+  const leaveGuard = useLeaveGuard(files.length > 0 && !saved, files.length > 1 ? "your files" : "your file");
   const runLabel = action
     ? `${ACTIONS.find((a) => a.id === action)!.label}`
     : target ? `Convert ${usable.length} ${usable.length === 1 ? "file" : "files"} to ${formatDef(target).label}` : "Choose what to make";
 
   return (
     <ToolsFrame entryKey="convert-any" title="Convert any file" description="Drop files first. Multies shows what each one can become, and most jobs never leave your device." wide testId="convert-hub">
+      {leaveGuard}
       <div onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false); }} onDrop={onDrop} className="relative space-y-5">
         <button type="button" onClick={() => inputRef.current?.click()} data-testid="convert-drop"
           className={`group flex w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 text-center transition-[background-color,border-color,padding] duration-200 ${files.length ? "py-6" : "py-12 sm:py-16"} ${dragging ? "border-brand bg-brand/10" : "border-line-strong bg-surface hover:border-brand/60 hover:bg-brand/5"} ${ring}`}>

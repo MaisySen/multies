@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { IconClose, IconInfo, IconMinus, IconSend, IconTrash, IconUndo } from "@/web/components/ui/icon";
+import { IconClose, IconInfo, IconMinus, IconSend, IconTrash, IconUndo, IconWarning } from "@/web/components/ui/icon";
+import { Link } from "react-router";
+import { useDomains, useMe } from "@/web/lib/queries";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
@@ -76,6 +78,14 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
   useEffect(() => { (initial.to ? bodyRef : toRef).current?.focus(); if (initial.to) bodyRef.current?.setSelectionRange(0, 0); }, [initial.to]);
   const set = (k: keyof ComposeDraft) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setD((x) => ({ ...x, [k]: e.target.value }));
   const att = useComposeFiles(initial.files, initial.toolFiles);
+  // R82F (MB-274): say up front when the From address is on a domain that isn't verified yet. The server refuses that
+  // send (domain_unverified), and before this you only learned it after the undo hold ran out.
+  const domains = useDomains();
+  const me = useMe();
+  const from = mailboxes.find((m) => m.id === d.mailboxId);
+  const fromDomain = from?.address.split("@")[1]?.toLowerCase();
+  const unverified = !me.data?.organization?.isDemo && !(from && "connected" in from && from.connected)
+    ? domains.data?.find((x) => x.name.toLowerCase() === fromDomain && x.status !== "verified") ?? null : null;
   const dirty = d.to !== initial.to || d.subject !== initial.subject || d.text !== initial.text || att.count !== (initial.files?.length ?? 0) + (initial.toolFiles?.length ?? 0);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["mail"] });
@@ -114,6 +124,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
     // or a double tap on a phone) used to start a second hold and a second toast.
     if (sentOnce.current) return;
     if (!d.to.trim()) { toRef.current?.focus(); return; }
+    if (unverified) { toast.error(`Verify ${unverified.name} before sending from it.`, { description: "Pick another From address, or verify the domain first." }); return; }
     // A gentle nudge, once: Send again (or "Send anyway") sends it without a subject.
     if (!anyway && shouldAskForSubject(d.subject, askedSubject)) { setAskedSubject(true); return; }
     if (later && att.count) { toast.error("Scheduled sends can't carry attachments yet.", { description: "Send it now, or remove the files to schedule it." }); return; }
@@ -195,7 +206,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
           <button className="hidden rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg sm:block" onClick={() => setMinimized((m) => !m)} aria-label={minimized ? "Expand" : "Minimize"}><IconMinus className="h-4 w-4" /></button>
           <button className="inline-flex items-center justify-center rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:rounded-full" onClick={close} aria-label="Close and save draft"><IconClose className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>
           {/* R48 mobile: Send sits top right on a phone, the way native mail apps put it, so the foot row stays one line. */}
-          {!minimized && <button type="button" data-testid="compose-send-phone" disabled={!d.to.trim()} onClick={() => send()} aria-label="Send"
+          {!minimized && <button type="button" data-testid="compose-send-phone" disabled={!d.to.trim() || !!unverified} onClick={() => send()} aria-label="Send"
             className="ml-1 hidden h-11 w-11 place-items-center rounded-full transition-opacity duration-150 disabled:opacity-40 max-sm:grid">
             <span className="grid h-9 w-9 place-items-center rounded-full bg-[#0071E3] text-white"><IconSend className="h-[18px] w-[18px]" aria-hidden /></span>
           </button>}
@@ -209,6 +220,13 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
               {mailboxes.map((m) => <option key={m.id} value={m.id}>{m.displayName} &lt;{m.address}&gt;</option>)}
             </Select>
           </Row>
+          {unverified && (
+            <div role="alert" data-testid="compose-unverified" className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-line bg-warn-soft px-4 py-2 text-[13px]">
+              <IconWarning className="h-4 w-4 shrink-0 text-warn" aria-hidden />
+              <span className="min-w-0 flex-1">{unverified.name} isn't verified yet, so mail from {from?.address} can't go out. Verify the domain or pick another From address.</span>
+              <Link to={`/app/domains/${unverified.id}`} onClick={() => close()} className="shrink-0 rounded-md px-2 py-1 font-medium text-brand-hover hover:bg-hover max-sm:min-h-11 max-sm:inline-flex max-sm:items-center">Verify domain</Link>
+            </div>
+          )}
           <Row label="To">
             <input ref={toRef} value={d.to} onChange={set("to")} className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-subtle" placeholder="name@example.com" aria-label="To" autoComplete="off" spellCheck={false} />
             {!showCc && <button type="button" className="shrink-0 text-xs text-muted hover:text-fg" onClick={() => setShowCc(true)}>Cc Bcc</button>}
@@ -232,10 +250,10 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
           <div data-testid="compose-foot" className="flex items-center justify-between gap-2 border-t border-line px-4 py-3 max-sm:px-1.5 max-sm:py-1 max-sm:pb-[max(0.25rem,env(safe-area-inset-bottom))]">
             {/* R48 mobile: on a phone Send is in the header, so this row is one line of 44 px controls even at 360 px. */}
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 max-sm:flex-nowrap max-sm:gap-x-0.5">
-              <Button type="submit" disabled={!d.to.trim()} className="max-sm:hidden"><IconSend className="h-4 w-4" />Send</Button>
+              <Button type="submit" disabled={!d.to.trim() || !!unverified} className="max-sm:hidden"><IconSend className="h-4 w-4" />Send</Button>
               {saveState && <span className="text-[12px] text-subtle" role="status" data-testid="draft-autosave">{saveState === "saving" ? "Saving" : saveState === "saved" ? "Saved" : "Not saved yet"}</span>}
               {/* Tools P2: attachments go now, not later (Tools results are kept for an hour; scheduled sends carry no files yet). */}
-              <SendLaterMenu disabled={!d.to.trim() || att.count > 0} onPick={(when) => send(true, when)} />
+              <SendLaterMenu disabled={!d.to.trim() || att.count > 0 || !!unverified} onPick={(when) => send(true, when)} />
               <AttachButton c={att} />
               <span className="hidden items-center gap-1 text-[11px] text-subtle sm:flex"><Kbd>⌘</Kbd><Kbd>↵</Kbd></span>
               <label className="ml-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted hover:bg-hover max-sm:ml-0 max-sm:min-h-11 max-sm:px-2" title="How long you have to undo after pressing Send">
