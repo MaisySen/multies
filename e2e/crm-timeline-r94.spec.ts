@@ -165,7 +165,7 @@ test("shots and axe", async ({ page }) => {
   test.skip(!DIR, "screenshots only with SHOTS_DIR");
   test.setTimeout(300_000);
   await demo(page);
-  contactUrl = contactUrl || await firstContact(page);
+  const contactUrl = await firstContact(page);
   await page.goto("/app/contacts?tab=companies");
   await page.getByTestId("new-company").click();
   await page.getByLabel("Name").fill("Shots Company");
