@@ -1,5 +1,5 @@
 #!/bin/sh
-# Nightly encrypted, deduplicated backups of MyMail's database and Stalwart's store.
+# Nightly encrypted, deduplicated backups of Multies' database and Stalwart's store.
 # Keeps 14 daily, 8 weekly and 12 monthly snapshots. Restore: see deploy/au/README.md.
 set -eu
 restic snapshots >/dev/null 2>&1 || restic init

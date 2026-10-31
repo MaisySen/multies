@@ -1,26 +1,26 @@
-# MyMail inbound Email Worker
+# Multies inbound Email Worker
 
-Bridges **Cloudflare Email Routing** to MyMail. Cloudflare receives the SMTP
-conversation; this worker forwards each raw message to MyMail over HTTPS with an
-HMAC signature, and accepts or bounces based on MyMail's answer.
+Bridges **Cloudflare Email Routing** to Multies. Cloudflare receives the SMTP
+conversation; this worker forwards each raw message to Multies over HTTPS with an
+HMAC signature, and accepts or bounces based on Multies' answer.
 
 ## Setup (5 minutes)
 
-1. In MyMail: **Settings → Inbound** → *Create key*. Copy the key id and secret (shown once).
+1. In Multies: **Settings → Inbound** → *Create key*. Copy the key id and secret (shown once).
 2. In Cloudflare, add your domain as a zone and enable **Email → Email Routing**.
-   Cloudflare publishes the MX and SPF records for you; MyMail's DNS check will see them.
+   Cloudflare publishes the MX and SPF records for you; Multies' DNS check will see them.
 3. Deploy the worker:
    ```bash
    cd email-worker
-   # edit wrangler.toml: MYMAIL_WEBHOOK_URL and MYMAIL_KEY_ID
+   # edit wrangler.toml: MULTIES_WEBHOOK_URL and MULTIES_KEY_ID (the older MYMAIL_* names still work)
    npx wrangler deploy
-   npx wrangler secret put MYMAIL_KEY_SECRET
+   npx wrangler secret put MULTIES_KEY_SECRET
    ```
 4. Email Routing → **Routes** → *Catch-all address* → action **Send to a Worker** → `mymail-inbound`.
 
 ## Protocol
 
-`POST {MYMAIL_WEBHOOK_URL}` with the raw RFC 5322 message as the body and:
+`POST {MULTIES_WEBHOOK_URL}` with the raw RFC 5322 message as the body and:
 
 | Header | Value |
 | --- | --- |

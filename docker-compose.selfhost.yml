@@ -1,4 +1,4 @@
-# MyMail on your own computer: the web app and API, the mail bridge, and Stalwart for real mail.
+# Multies on your own computer: the web app and API, the mail bridge, and Stalwart for real mail.
 # Full guide: docs/self-host.md. Quick start (Linux, macOS, or Windows with PowerShell):
 #
 #   scripts/selfhost/setup.sh          (Windows: powershell -File scripts\selfhost\setup.ps1)
@@ -6,7 +6,7 @@
 #
 # What runs:
 #   mymail       web app and API (Node, SQLite on the mymail-data volume), sends mail through Stalwart
-#   mail-bridge  takes mail Stalwart receives on port 25 and hands it to MyMail (like email-worker/ on Cloudflare)
+#   mail-bridge  takes mail Stalwart receives on port 25 and hands it to Multies (like email-worker/ on Cloudflare)
 #   stalwart     unmodified Stalwart mail server: SMTP in (25), submission (465, 587), IMAP (993)
 #   setup, tools one-off jobs (profiles "setup" and "tools")
 name: mymail
@@ -67,7 +67,7 @@ services:
       MAX_MESSAGE_BYTES: ${MAX_MESSAGE_BYTES:-10485760}
     depends_on: [mymail]
 
-  # One-off: wires Stalwart to MyMail. scripts/selfhost/setup.* runs it with Stalwart in recovery mode.
+  # One-off: wires Stalwart to Multies. scripts/selfhost/setup.* runs it with Stalwart in recovery mode.
   setup:
     image: mymail:local
     profiles: ["setup"]

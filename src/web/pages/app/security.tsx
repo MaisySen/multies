@@ -101,7 +101,7 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
   const text = codes.join("\n");
   const download = () => {
     const url = URL.createObjectURL(new Blob([`Multies backup codes\nEach code works once.\n\n${text}\n`], { type: "text/plain" }));
-    const a = Object.assign(document.createElement("a"), { href: url, download: "mymail-backup-codes.txt" });
+    const a = Object.assign(document.createElement("a"), { href: url, download: "multies-backup-codes.txt" });
     a.click();
     URL.revokeObjectURL(url);
   };

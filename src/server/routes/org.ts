@@ -84,7 +84,7 @@ export function orgRoutes() {
       return new Response(body, {
         headers: {
           "content-type": q.format === "csv" ? "text/csv; charset=utf-8" : "application/json; charset=utf-8",
-          "content-disposition": `attachment; filename="mymail-audit-${day}.${q.format}"`, "cache-control": "no-store",
+          "content-disposition": `attachment; filename="multies-audit-${day}.${q.format}"`, "cache-control": "no-store",
         },
       });
     })

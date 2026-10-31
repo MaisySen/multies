@@ -217,5 +217,5 @@ test("download a copy of my data", async ({ page }) => {
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: "Download my data" }).click();
   const file = await download;
-  expect(file.suggestedFilename()).toMatch(/^mymail-account-.*\.json$/);
+  expect(file.suggestedFilename()).toMatch(/^multies-account-.*\.json$/);
 });

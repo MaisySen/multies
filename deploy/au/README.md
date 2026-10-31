@@ -1,7 +1,7 @@
-# Hosting MyMail in Australia (groundwork)
+# Hosting Multies in Australia (groundwork)
 
-Today MyMail runs on Cloudflare Workers with its database (D1) placed in Cloudflare's Oceania
-region. That placement is a location hint: Cloudflare does not commit to a country, so MyMail
+Today Multies runs on Cloudflare Workers with its database (D1) placed in Cloudflare's Oceania
+region. That placement is a location hint: Cloudflare does not commit to a country, so Multies
 does not say it is hosted in Australia. This folder is the groundwork for a setup where that
 claim can be made honestly: the app, its database, the mail server and backups on a VPS in a
 Sydney data centre, with large attachments in an S3 bucket in Sydney.

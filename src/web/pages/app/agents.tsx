@@ -142,7 +142,7 @@ function Snippet({ label, value }: { label: string; value: string }) {
 export function ConnectSnippets({ secret, agentId }: { secret: string; agentId: string }) {
   const key = secret || "mm_live_YOUR_AGENT_KEY";
   const origin = window.location.origin;
-  const mcp = JSON.stringify({ mcpServers: { mymail: { url: mcpUrl(), headers: { Authorization: `Bearer ${key}` } } } }, null, 2);
+  const mcp = JSON.stringify({ mcpServers: { multies: { url: mcpUrl(), headers: { Authorization: `Bearer ${key}` } } } }, null, 2);
   return (
     <div className="space-y-3">
       {secret && <Snippet label="Agent key" value={secret} />}

@@ -42,9 +42,9 @@ const faqs = [
   { q: "Can I send mail too?", a: "Yes. Outbound mail goes through a transactional email provider with your domain's SPF, DKIM and DMARC in place, so it lands in inboxes rather than spam." },
   { q: "What happens if I already use Google Workspace?", a: "We'll spot your existing MX and SPF records and show you exactly what to change, including a merged SPF record, so nothing breaks during the move." },
   { q: "Do I still need Monday or ClickUp?", a: "For many small teams, no. Multies has tasks with boards, lists, a calendar and a timeline with dependencies, custom fields (text, number, AUD currency, date, select, multi select, person, checkbox and link) you can filter, sort and group a board by, repeating tasks, project templates, goals with key results, team chat with threads, a notifications inbox, free guests for your clients, a portfolio of every project with its health, docs that two people can edit at once, contacts, deals, time tracking, public forms, report dashboards, sprints with a burndown, a triage queue, a shared inbox with assignments and team notes, video calls in chat with screen share, meeting notes whose action items become tasks, calendar sync, a workload view of who has what each week, and simple automations, all built around your mail. It is still simpler than those tools: no app marketplace, no formula or rollup fields, and fewer automation recipes. If you rely on those, keep them and connect Multies with webhooks, the API and MCP." },
-  { q: "Where is my mail stored?", a: RESIDENCY_ANSWER },
+  { q: "Where is my email stored?", a: RESIDENCY_ANSWER },
   { q: "Can I try it without connecting a client mailbox?", a: "Yes. Open the live demo, a sample workspace with made up mail and no sign up, deleted after 24 hours. Or take a free test address like yourname@mail.multies.si. Connect a real mailbox only when you are ready; removing it deletes our copy." },
-  { q: "Is my mail private?", a: "Workspaces are fully isolated, sessions are server-side, passwords are hashed, and signing keys and webhook secrets are encrypted at rest. Every admin action is in your audit log." },
+  { q: "Is my email private?", a: "Workspaces are fully isolated, sessions are server-side, passwords are hashed, and signing keys and webhook secrets are encrypted at rest. Every admin action is in your audit log." },
 ];
 
 export function Landing() {
@@ -118,7 +118,7 @@ export function Landing() {
             </div>
           </div>
           <pre tabIndex={0} className="overflow-x-auto rounded-xl border border-line bg-surface p-4 font-mono text-[12px] leading-relaxed text-fg/85" aria-label="Example: create an agent inbox">{`curl https://multies.si/api/v1/agents \\
-  -H "Authorization: Bearer $MYMAIL_KEY" \\
+  -H "Authorization: Bearer $MULTIES_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"name": "Invoice bot", "localPart": "invoices"}'
 
@@ -218,7 +218,7 @@ function DnsSnippet() {
   const lines = [
     { t: "MX", h: "@", v: "route1.mx.cloudflare.net", s: "ok" },
     { t: "TXT", h: "@", v: "v=spf1 include:_spf.mx.cloudflare.net ~all", s: "ok" },
-    { t: "TXT", h: "mymail._domainkey", v: "v=DKIM1; k=rsa; p=MIIBIjANBgkq…", s: "ok" },
+    { t: "TXT", h: "mail._domainkey", v: "v=DKIM1; k=rsa; p=MIIBIjANBgkq…", s: "ok" },
     { t: "TXT", h: "_dmarc", v: "v=DMARC1; p=quarantine; rua=mailto:…", s: "warn" },
   ];
   return (

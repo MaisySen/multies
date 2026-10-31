@@ -40,7 +40,7 @@ describe("privacy: data export and account deletion", () => {
     const res = await ctx.app.request("/api/account/workspace/export", { headers: { cookie: owner.cookie, host: "localhost" } });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/zip");
-    expect(res.headers.get("content-disposition")).toMatch(/attachment; filename="mymail-workspace-/);
+    expect(res.headers.get("content-disposition")).toMatch(/attachment; filename="multies-workspace-/);
     const files = unzipSync(new Uint8Array(await res.arrayBuffer()));
     // R38: the export also carries the work data (data/*.json, csv/, docs/, calendar/, contacts/), a README and mbox mail.
     expect(Object.keys(files)).toEqual(expect.arrayContaining(["README.txt", "audit-log.csv", "mail/ada@acme.io.jsonl", "mail/ada@acme.io.mbox", "members.csv", "workspace.json", "data/tasks.json", "csv/tasks.csv", "calendar/meetings.ics", "contacts/contacts.vcf"]));

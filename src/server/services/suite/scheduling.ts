@@ -252,7 +252,7 @@ export async function bookSlot(deps: Deps, slug: string, input: { startsAt: stri
     throw new HttpError(409, "slot_taken", "That time was just booked. Pick another.");
   }
   await deps.db.insert(meetings).values({
-    id: meetingId, orgId: p.orgId, title, room: `mymail-${meetingId.slice(4)}`, guestToken, startsAt: start, durationMin: p.slotMin, status: "scheduled",
+    id: meetingId, orgId: p.orgId, title, room: `multies-${meetingId.slice(4)}`, guestToken, startsAt: start, durationMin: p.slotMin, status: "scheduled",
     sourceType: "contact", sourceId: null, invitees: JSON.stringify([email]), createdByType: "member", createdById: p.userId, createdAt: now, updatedAt: now,
   });
   const booking = (await deps.db.select().from(bookings).where(eq(bookings.id, id)).get())!;

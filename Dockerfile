@@ -1,4 +1,4 @@
-# MyMail on Node (API + web app in one process). For Cloudflare Workers see wrangler.toml.
+# Multies on Node (API + web app in one process). For Cloudflare Workers see wrangler.toml.
 # Self-hosting on your own computer: docker-compose.selfhost.yml and docs/self-host.md.
 FROM node:22-bookworm-slim AS build
 # better-sqlite3 compiles from source when no prebuilt binary matches this Node version.

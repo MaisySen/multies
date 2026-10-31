@@ -1,5 +1,5 @@
 #!/bin/sh
-# Direct IMAP to IMAP copy with imapsync, for when MyMail's mail server (Stalwart) is the store
+# Direct IMAP to IMAP copy with imapsync, for when Multies' mail server (Stalwart) is the store
 # of record, for example on the Australian VPS in deploy/au. It copies into the mailbox's IMAP
 # account; use the runner (runner.mjs) instead while mail is stored in the app's database.
 #

@@ -1,5 +1,5 @@
 /**
- * Small polyfills for older phone browsers (Sentry MYMAIL-WEB-2, Chrome Mobile 90: "this.o.at is not a
+ * Small polyfills for older phone browsers (Sentry issue WEB-2, Chrome Mobile 90: "this.o.at is not a
  * function"). Array, string and typed array .at() arrived in Chrome 92 and Safari 15.4. Imported first in
  * main.tsx so it runs before any library code.
  */

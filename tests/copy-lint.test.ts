@@ -17,7 +17,7 @@ describe("copy lint", () => {
     expect(findIssues("src/web/pages/x.tsx", "Welcome to MyMail")[0]).toMatchObject({ rule: "name" });
     expect(findIssues("src/web/pages/x.tsx", "Welcome to Multies")).toHaveLength(0);
     expect(findIssues("src/server/services/developer/webhooks.ts", '"MyMail-Webhooks/1"')).toHaveLength(0);
-    expect(findIssues("docs/x.md", "styles/MyMail/Slop.yml")).toHaveLength(0);
+    expect(findIssues("docs/x.md", "styles/Multies/Slop.yml")).toHaveLength(0);
   });
   it("flags any tab.bot host in any file", () => {
     expect(findIssues("src/server/x.ts", 'const u = "https://preview.sites.tab' + '.bot/"')[0]).toMatchObject({ rule: "host" });

@@ -440,19 +440,19 @@ function InboundSection() {
         </Step>
         <Step n={3} title="Deploy the Email Worker">
           From the repository's <code className="font-mono text-[12.5px]">email-worker/</code> folder, set the webhook URL and key, then route your catch-all to the worker.
-          <pre tabIndex={0} aria-label="Email Worker settings" className="mt-2 overflow-x-auto rounded-lg border border-line bg-bg/60 p-3 font-mono text-[12px] leading-relaxed text-fg/85">{`MYMAIL_WEBHOOK_URL = "${webhook}"
-MYMAIL_KEY_ID      = "${keys.data?.[0]?.id ?? "ink_…"}"
+          <pre tabIndex={0} aria-label="Email Worker settings" className="mt-2 overflow-x-auto rounded-lg border border-line bg-bg/60 p-3 font-mono text-[12px] leading-relaxed text-fg/85">{`MULTIES_WEBHOOK_URL = "${webhook}"
+MULTIES_KEY_ID      = "${keys.data?.[0]?.id ?? "ink_…"}"
 npx wrangler deploy
-npx wrangler secret put MYMAIL_KEY_SECRET`}</pre>
+npx wrangler secret put MULTIES_KEY_SECRET`}</pre>
         </Step>
       </ol>
       <Dialog open={!!created} onClose={() => setCreated(null)} title="Your new signing key" description="Copy the secret now. It won't be shown again."
         footer={<Button onClick={() => setCreated(null)}><IconCheck className="h-4 w-4" />I've saved it</Button>}>
         {created && (
           <div className="space-y-3 text-sm">
-            <Secret label="MYMAIL_KEY_ID" value={created.id} />
-            <Secret label="MYMAIL_KEY_SECRET" value={created.secret} />
-            <Secret label="MYMAIL_WEBHOOK_URL" value={webhook} />
+            <Secret label="MULTIES_KEY_ID" value={created.id} />
+            <Secret label="MULTIES_KEY_SECRET" value={created.secret} />
+            <Secret label="MULTIES_WEBHOOK_URL" value={webhook} />
           </div>
         )}
       </Dialog>

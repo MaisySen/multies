@@ -1,7 +1,7 @@
-// MyMail import runner: copies mail from Gmail, Outlook or any IMAP server into MyMail.
+// Multies import runner: copies mail from Gmail, Outlook or any IMAP server into Multies.
 //
-// It asks MyMail for a queued import, reads the old mailbox over IMAP (imapflow) with the
-// app password the customer gave, and posts each message to MyMail, which stores it once
+// It asks Multies for a queued import, reads the old mailbox over IMAP (imapflow) with the
+// app password the customer gave, and posts each message to Multies, which stores it once
 // (duplicates by Message-ID are skipped). Run it anywhere with outbound internet:
 //
 //   MYMAIL_URL=https://mymail.example IMPORT_RUNNER_TOKEN=... node runner.mjs

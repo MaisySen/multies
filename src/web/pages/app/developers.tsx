@@ -250,7 +250,7 @@ function Webhooks() {
         footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button loading={create.isPending} disabled={!url.trim() || !picked.length} onClick={() => create.mutate()}>Add endpoint</Button></>}>
         <div className="space-y-4">
           <Field label="URL" hint="Must be https and reachable from the internet." error={create.error instanceof ApiError ? create.error.message : undefined}>
-            {(p) => <Input {...p} autoFocus inputMode="url" placeholder="https://example.com/webhooks/mymail" value={url} onChange={(e) => setUrl(e.target.value)} />}
+            {(p) => <Input {...p} autoFocus inputMode="url" placeholder="https://example.com/webhooks/multies" value={url} onChange={(e) => setUrl(e.target.value)} />}
           </Field>
           <fieldset>
             <legend className="mb-2 text-[13px] font-medium">Events</legend>

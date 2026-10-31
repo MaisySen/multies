@@ -3,7 +3,7 @@
  *  1. No em dashes or en dashes anywhere in tracked text files.
  *  2. No stock AI-marketing phrases in user-facing copy (web app, emails, docs).
  *  3. No tab.bot host and no old build mailbox name anywhere (code, config, docs): every Multies address lives on multies.si.
- * The phrase list is shared with Vale (styles/MyMail/Slop.yml) so editors flag the same words.
+ * The phrase list is shared with Vale (styles/Multies/Slop.yml) so editors flag the same words.
  */
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -28,7 +28,7 @@ export function isUserFacing(file: string) {
 }
 
 /** The product's old name. People see "Multies"; internal names (the worker, hosts, headers) are not prose. */
-const OLD_NAME = /\bMyMail\b(?![-/])/;
+const OLD_NAME = /\bMy ?Mail\b(?![-/])|\bMail ?Forge\b/;
 
 /** Hosts and the old build mailbox name that must never ship: Multies lives on multies.si only. */
 export const FOREIGN_HOST = /\btab\.bot\b|\bmymail\.builder\b/i;
@@ -43,13 +43,13 @@ export function findIssues(file: string, text: string): Issue[] {
     if (DASHES.test(line)) out.push({ file, line: i + 1, rule: "dash", text: line.trim() });
     const m = facing ? line.match(SLOP_RE) : null;
     if (m) out.push({ file, line: i + 1, rule: "slop", text: m[0] });
-    if (facing && OLD_NAME.test(line)) out.push({ file, line: i + 1, rule: "name", text: "MyMail" });
+    if (facing && OLD_NAME.test(line)) out.push({ file, line: i + 1, rule: "name", text: line.match(OLD_NAME)?.[0] ?? "old name" });
     if (FOREIGN_HOST.test(line)) out.push({ file, line: i + 1, rule: "host", text: line.trim() });
   });
   return out;
 }
 
-const SKIP = /(^|\/)(package-lock\.json|scripts\/check-copy\.ts|tests\/copy-lint\.test\.ts|styles\/MyMail\/Slop\.yml)$|\.(png|jpe?g|gif|webp|ico|woff2?|ttf|pdf|zip)$/i;
+const SKIP = /(^|\/)(package-lock\.json|scripts\/check-copy\.ts|tests\/copy-lint\.test\.ts|styles\/Multies\/Slop\.yml)$|\.(png|jpe?g|gif|webp|ico|woff2?|ttf|pdf|zip)$/i;
 
 function main() {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");

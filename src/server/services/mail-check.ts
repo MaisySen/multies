@@ -8,7 +8,7 @@
 import type { AppConfig } from "../config";
 import type { DnsResolver } from "./dns/resolver";
 import { IMPORT_PROVIDERS } from "./import";
-import { OWNERSHIP_LABEL } from "./dns/checks";
+import { isVerifyValue, ownershipTxt } from "./dns/checks";
 import { detectMailProvider, type DomainCheckItem, type DomainMailCheck, type MailProviderInfo, type SwitchStep } from "@/shared/mail-check";
 
 export function spfItem(txt: string[]): DomainCheckItem {
@@ -74,8 +74,8 @@ export function switchSteps(domain: string, provider: MailProviderInfo, spf: Dom
 }
 
 export async function checkDomainMail(dns: DnsResolver, config: AppConfig, domain: string, now: Date): Promise<DomainMailCheck> {
-  const [mx, txt, dmarcTxt, ownership] = await Promise.all([dns.mx(domain), dns.txt(domain), dns.txt(`_dmarc.${domain}`), dns.txt(`${OWNERSHIP_LABEL}.${domain}`)]);
-  const multiesOwned = ownership.some((v) => v.trim().startsWith("mymail-verify="));
+  const [mx, txt, dmarcTxt, ownership] = await Promise.all([dns.mx(domain), dns.txt(domain), dns.txt(`_dmarc.${domain}`), ownershipTxt(dns, domain).catch(() => [] as string[])]);
+  const multiesOwned = ownership.some(isVerifyValue);
   const provider = detectMailProvider(mx, { multiesOwned, multiesMx: config.mail.mxHosts.map((m) => m.host) });
   const spf = spfItem(txt);
   const dmarc = dmarcItem(dmarcTxt);

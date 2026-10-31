@@ -174,7 +174,7 @@ export function ReadStatusLine({ status, className }: { status?: ReadStatus | nu
   );
 }
 
-/** Settings > Mail: "Show when people open my mail", off by default. */
+/** Settings > Mail: "Show when people open my email", off by default. */
 export function ReadStatusSection({ Section }: { Section: (p: { id?: string; title: string; description: React.ReactNode; children: React.ReactNode }) => React.ReactElement }) {
   const qc = useQueryClient();
   const prefs = useQuery({ queryKey: ["mail", "prefs"], queryFn: () => api.get<{ prefs: { readStatus: boolean } }>("/mail/prefs") });
@@ -187,8 +187,8 @@ export function ReadStatusSection({ Section }: { Section: (p: { id?: string; tit
   return (
     <Section id="read-status" title="Read status" description="See when people open the mail you send. Mail you send carries a tiny image that tells Multies when it is shown. Some mail apps block images, so a message can be read without showing as opened.">
       <label className="flex items-center gap-3 text-sm">
-        <Switch checked={on} disabled={prefs.isPending || set.isPending} onChange={(v) => set.mutate(v)} label="Show when people open my mail" />
-        <span>Show when people open my mail</span>
+        <Switch checked={on} disabled={prefs.isPending || set.isPending} onChange={(v) => set.mutate(v)} label="Show when people open my email" />
+        <span>Show when people open my email</span>
       </label>
       <p className="mt-2 text-xs text-subtle">Off by default. Only you see it, and only on mail sent while it is on.</p>
     </Section>

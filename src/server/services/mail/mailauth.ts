@@ -15,7 +15,7 @@ const result = (v: unknown) => ((v as Verdict | false | undefined) || undefined)
 export function mailauthAuthenticator(opts: { resolver?: DNSResolver; mta?: string } = {}): Authenticator {
   return async (raw, ctx) => {
     const res = await mailauth(Buffer.from(raw), {
-      sender: ctx.sender, ip: ctx.ip, helo: ctx.helo, mta: ctx.mta ?? opts.mta ?? "mymail",
+      sender: ctx.sender, ip: ctx.ip, helo: ctx.helo, mta: ctx.mta ?? opts.mta ?? "multies",
       resolver: opts.resolver, disableBimi: true, trustReceived: false,
     });
     const dkimResults = (res.dkim?.results ?? []) as Verdict[];

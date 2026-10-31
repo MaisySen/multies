@@ -81,7 +81,7 @@ const TIMEOUT_MS = 5_000;
 
 export function validateEndpointUrl(deps: Deps, raw: string): string {
   let u: URL;
-  try { u = new URL(raw); } catch { throw badRequest("Enter a full URL, like https://example.com/webhooks/mymail."); }
+  try { u = new URL(raw); } catch { throw badRequest("Enter a full URL, like https://example.com/webhooks/multies."); }
   const dev = deps.config.mode === "development";
   if (u.protocol !== "https:" && !(dev && u.protocol === "http:")) throw badRequest("Webhook URLs must use https.");
   if (!dev && !isPublicHost(u.hostname)) throw badRequest("Webhook URLs must point to a public address.");
@@ -181,7 +181,7 @@ async function attempt(deps: Deps, deliveryId: string) {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "user-agent": "MyMail-Webhooks/1",
+        "user-agent": "Multies-Webhooks/1",
         "webhook-id": d.id,
         "webhook-timestamp": String(Math.floor(now.getTime() / 1000)),
         "webhook-signature": signature,

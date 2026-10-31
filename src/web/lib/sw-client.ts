@@ -1,8 +1,8 @@
 /**
  * R32: the page side of the service worker (public/ built from src/web/sw/sw.ts) and browser notifications.
  *  - registerServiceWorker: production builds only, on https or localhost, after load. Automated browsers
- *    skip it unless localStorage "mymail-sw" is "1" (the E2E sets it).
- *  - A new worker waits; "mymail:sw-update" fires on window so the update prompt can offer a reload, and
+ *    skip it unless localStorage "multies-sw" is "1" (the E2E sets it).
+ *  - A new worker waits; "multies:sw-update" fires on window so the update prompt can offer a reload, and
  *    applyServiceWorkerUpdate() tells it to take over (SKIP_WAITING), then the page reloads once.
  *  - clearOfflineData() runs on sign out: this browser's push subscription is removed and every Multies
  *    cache is deleted, so the next person on this device sees nothing of the last one's.
@@ -12,9 +12,9 @@ import { api } from "./api";
 import { clearMeCache } from "./me-cache";
 import { wipeOfflineLists } from "./offline-lists"; // R33
 
-export const SW_UPDATE_EVENT = "mymail:sw-update";
+export const SW_UPDATE_EVENT = "multies:sw-update";
 /** R33: fired on window when the worker skipped a notification because this page is already showing it. */
-export const PUSH_ON_PAGE_EVENT = "mymail:push-on-page";
+export const PUSH_ON_PAGE_EVENT = "multies:push-on-page";
 const CACHE_PREFIX = "multies-";
 
 function allowedHere(): boolean {
@@ -22,7 +22,7 @@ function allowedHere(): boolean {
   const { protocol, hostname } = window.location;
   if (protocol !== "https:" && hostname !== "localhost" && hostname !== "127.0.0.1") return false;
   let forced = false;
-  try { forced = localStorage.getItem("mymail-sw") === "1"; } catch { /* storage blocked */ }
+  try { forced = localStorage.getItem("multies-sw") === "1"; } catch { /* storage blocked */ }
   if (navigator.webdriver && !forced) return false;
   return true;
 }

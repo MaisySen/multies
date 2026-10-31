@@ -167,7 +167,7 @@ export async function createMeeting(deps: Deps, actor: SuiteActor, input: Meetin
   const series = await recurrenceColumns(deps, actor.orgId, input.recurrence, startsAt);
   await deps.db.insert(meetings).values({
     ...(series ?? {}),
-    id, orgId: actor.orgId, title, room: `mymail-${id.slice(4)}`, guestToken: urlToken(18), startsAt, durationMin, status: "scheduled",
+    id, orgId: actor.orgId, title, room: `multies-${id.slice(4)}`, guestToken: urlToken(18), startsAt, durationMin, status: "scheduled",
     sourceType: input.source?.type ?? null, sourceId: suggested.sourceId ?? null, invitees: JSON.stringify(invitees), mailboxId: input.mailboxId ?? suggested.mailboxId ?? null, channelId: input.channelId ?? null,
     ...createdBy(actor), createdAt: now, updatedAt: now,
   });

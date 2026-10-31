@@ -1,4 +1,4 @@
-# MyMail with mail app access (IMAP and SMTP) on one host.
+# Multies with mail app access (IMAP and SMTP) on one host.
 #
 #   cp .env.example .env            # fill APP_SECRET, APP_URL, MAIL_OPS_DOMAIN, STALWART_* (see docs/mail-server.md)
 #   docker compose up -d stalwart   # first start runs in recovery mode, see STALWART_RECOVERY_MODE below
@@ -23,7 +23,7 @@ services:
       - "587:587"   # SMTP submission, STARTTLS
       - "993:993"   # IMAP, TLS
       - "443:443"   # Stalwart's own HTTPS (ACME certificates, autoconfig)
-    # Port 8080 (management API) stays on the internal network; MyMail reaches it as http://stalwart:8080.
+    # Port 8080 (management API) stays on the internal network; Multies reaches it as http://stalwart:8080.
 
   setup:
     image: node:22-alpine

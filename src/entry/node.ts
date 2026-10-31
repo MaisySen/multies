@@ -129,7 +129,7 @@ if (existsSync(webRoot)) {
 const port = Number(process.env.PORT ?? 8787);
 // One Better Auth request state per request (see src/server/lib/request-state.ts).
 const server = serve({ fetch: (req, env) => withAuthRequestState(() => Promise.resolve(app.fetch(req, env))), port }, () => {
-  console.log(`[mymail] ${config.mode} · http://localhost:${port} · outbound=${outbound.name} · dns=${config.dnsResolver} · demo=${config.demoEnabled}`);
+  console.log(`[multies] ${config.mode} · http://localhost:${port} · outbound=${outbound.name} · dns=${config.dnsResolver} · demo=${config.demoEnabled}`);
 });
 // Doc co-editing: GET /api/docs/:id/collab upgrades to a WebSocket (in-memory rooms).
 attachCollab(server as unknown as import("node:http").Server, app, deps as never);

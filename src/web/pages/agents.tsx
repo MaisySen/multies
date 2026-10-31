@@ -22,7 +22,7 @@ const STEPS = [
     title: "Create the inbox",
     body: "Use a workspace key from Settings, Developers. One call makes the agent, its address on your domain and an agent key, shown once.",
     code: `curl ${BASE}/api/v1/agents \\
-  -H "Authorization: Bearer $MYMAIL_WORKSPACE_KEY" \\
+  -H "Authorization: Bearer $MULTIES_WORKSPACE_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"name": "Signup bot", "localPart": "signups"}'`,
   },
@@ -30,17 +30,17 @@ const STEPS = [
     title: "Read mail as JSON",
     body: "Each message comes with its new text (quoted history removed), one-time codes and links pulled out, attachment URLs, and who wrote it.",
     code: `curl ${BASE}/api/v1/agents/$AGENT_ID/threads \\
-  -H "Authorization: Bearer $MYMAIL_AGENT_KEY"
+  -H "Authorization: Bearer $MULTIES_AGENT_KEY"
 
 curl ${BASE}/api/v1/threads/$THREAD_ID \\
-  -H "Authorization: Bearer $MYMAIL_AGENT_KEY"
+  -H "Authorization: Bearer $MULTIES_AGENT_KEY"
 # { "messages": [{ "latestText": "Your code is 482913.", "codes": ["482913"], ... }] }`,
   },
   {
     title: "Reply in the thread",
     body: "Replies thread properly with a Re: subject. With approval on (the default), the answer is pending_approval and a person decides in the app.",
     code: `curl ${BASE}/api/v1/agents/$AGENT_ID/threads/$THREAD_ID/reply \\
-  -H "Authorization: Bearer $MYMAIL_AGENT_KEY" \\
+  -H "Authorization: Bearer $MULTIES_AGENT_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"text": "Thanks, that works. See you Thursday."}'
 # 202 { "status": "pending_approval", "approval": { "id": "apr_..." } }`,
@@ -150,7 +150,7 @@ export function AgentsDevPage() {
             </ul>
           </div>
           <Code label="Stream" code={`curl -N ${BASE}/api/v1/agents/$AGENT_ID/events/stream \\
-  -H "Authorization: Bearer $MYMAIL_AGENT_KEY"
+  -H "Authorization: Bearer $MULTIES_AGENT_KEY"
 
 event: message.received
 id: 41

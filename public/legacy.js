@@ -1,4 +1,4 @@
-/* Multies: .at() for older browsers (Sentry MYMAIL-WEB-2, Chrome Mobile 90 and Safari before 15.4).
+/* Multies: .at() for older browsers (Sentry issue WEB-2, Chrome Mobile 90 and Safari before 15.4).
    A classic script, so it runs before any module and any shared chunk, whatever order the bundle uses. */
 (function () {
   function at(index) {

@@ -1,10 +1,10 @@
 # Import runner
 
-Moves old mail from Gmail, Google Workspace, Outlook, Microsoft 365 or any IMAP server into MyMail.
+Moves old mail from Gmail, Google Workspace, Outlook, Microsoft 365 or any IMAP server into Multies.
 
-Importing is off until you set `IMPORT_RUNNER_TOKEN` (24+ random characters) on MyMail and run at
+Importing is off until you set `IMPORT_RUNNER_TOKEN` (24+ random characters) on Multies and run at
 least one runner with the same token. Customers then start an import from Settings, Mail, Import:
-they pick a mailbox, their old address and an app password. MyMail queues the job; the runner
+they pick a mailbox, their old address and an app password. Multies queues the job; the runner
 claims it, reads the old mailbox over IMAP and posts each message back. Messages already imported
 (same Message-ID) are skipped, so a second run only adds new mail. The app password is stored
 encrypted and wiped when the job ends.
@@ -28,7 +28,7 @@ Logs are JSON lines: `import.started`, `import.finished`, `import.failed`.
 ## What gets copied
 
 - Gmail: Inbox, Sent Mail and All Mail (archived mail). Spam, Trash and Drafts are skipped.
-  Labels aren't folders in MyMail, so labelled mail lands in Archive.
+  Labels aren't folders in Multies, so labelled mail lands in Archive.
 - Outlook and IMAP: every folder except Junk, Deleted Items and Drafts. Sent goes to Sent, the
   rest to Inbox or Archive.
 
@@ -41,5 +41,5 @@ Logs are JSON lines: `import.started`, `import.finished`, `import.failed`.
 ## imapsync
 
 `imapsync.sh` wraps the official `gilleslamiral/imapsync` image for a direct IMAP to IMAP copy.
-Use it when MyMail's mail server is the store of record (the Australian VPS layout in
+Use it when Multies' mail server is the store of record (the Australian VPS layout in
 `deploy/au`); while mail lives in the app's database, use the runner so webmail sees it.

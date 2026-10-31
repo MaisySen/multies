@@ -369,7 +369,7 @@ async function insertMeetings(deps: Deps, actor: SuiteActor, list: EventIn[], ke
     const past = !e.recurrence && e.startsAt.getTime() + e.durationMin * 60_000 < now.getTime();
     // Essential write: one meeting row. No invites are sent for imported events.
     await deps.db.insert(meetings).values({
-      id, orgId: actor.orgId, title: e.title, room: `mymail-${id.slice(4)}`, guestToken: randomToken(18).replace(/[^A-Za-z0-9]/g, "").slice(0, 24),
+      id, orgId: actor.orgId, title: e.title, room: `multies-${id.slice(4)}`, guestToken: randomToken(18).replace(/[^A-Za-z0-9]/g, "").slice(0, 24),
       startsAt: e.startsAt, durationMin: e.durationMin, status: past ? "ended" : "scheduled", invitees: JSON.stringify(e.invitees),
       recurrence: e.recurrence, recurrenceTz: e.recurrence ? "UTC" : null, ...createdBy(actor), createdAt: now, updatedAt: now,
     } as typeof meetings.$inferInsert).onConflictDoNothing();

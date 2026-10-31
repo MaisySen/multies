@@ -289,7 +289,7 @@ export function accountRoutes() {
     .get("/export", async (c) => {
       const data = await personalData(c.var.deps, c.var.auth.userId);
       return new Response(JSON.stringify(data, null, 2), {
-        headers: { "content-type": "application/json; charset=utf-8", "content-disposition": `attachment; filename="mymail-account-${data.exportedAt.slice(0, 10)}.json"`, "cache-control": "no-store" },
+        headers: { "content-type": "application/json; charset=utf-8", "content-disposition": `attachment; filename="multies-account-${data.exportedAt.slice(0, 10)}.json"`, "cache-control": "no-store" },
       });
     })
     // Privacy: the whole workspace as a streamed ZIP (owners and admins).
@@ -297,7 +297,7 @@ export function accountRoutes() {
       const stream = exportWorkspace(c.var.deps, c.var.auth);
       const day = c.var.deps.now().toISOString().slice(0, 10);
       return new Response(stream, {
-        headers: { "content-type": "application/zip", "content-disposition": `attachment; filename="mymail-workspace-${day}.zip"`, "cache-control": "no-store" },
+        headers: { "content-type": "application/zip", "content-disposition": `attachment; filename="multies-workspace-${day}.zip"`, "cache-control": "no-store" },
       });
     })
     /**

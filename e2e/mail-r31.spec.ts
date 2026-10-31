@@ -72,7 +72,7 @@ test("read status: turn it on, send, the open image is fetched, Sent shows Opene
   test.setTimeout(150_000);
   await demo(page);
   await page.goto("/app/settings/mail");
-  const sw = page.getByRole("switch", { name: "Show when people open my mail" });
+  const sw = page.getByRole("switch", { name: "Show when people open my email" });
   await expect(sw).toHaveAttribute("aria-checked", "false");
   await sw.click();
   await expect(sw).toHaveAttribute("aria-checked", "true");

@@ -26,7 +26,20 @@ function mxTargets(d: DomainDnsInput, config: AppConfig) {
   return [...config.mail.mxHosts].sort((a, b) => a.priority - b.priority);
 }
 
-export const OWNERSHIP_LABEL = "_mymail";
+/** R81B: new records use the Multies names. Domains verified with the names from before the rename keep working:
+ *  every check also reads LEGACY_OWNERSHIP_LABEL and accepts the LEGACY_VERIFY_PREFIX value. */
+export const OWNERSHIP_LABEL = "_multies";
+export const VERIFY_PREFIX = "multies-verify=";
+export const LEGACY_OWNERSHIP_LABEL = "_mymail";
+export const LEGACY_VERIFY_PREFIX = "mymail-verify=";
+/** Both ownership names, new first. One lookup each, in parallel. */
+export async function ownershipTxt(dns: { txt(name: string): Promise<string[]> }, domain: string): Promise<string[]> {
+  const settled = await Promise.allSettled([dns.txt(`${OWNERSHIP_LABEL}.${domain}`), dns.txt(`${LEGACY_OWNERSHIP_LABEL}.${domain}`)]);
+  const ok = settled.filter((r): r is PromiseFulfilledResult<string[]> => r.status === "fulfilled");
+  if (!ok.length) throw (settled[0] as PromiseRejectedResult).reason;
+  return ok.flatMap((r) => r.value);
+}
+export const isVerifyValue = (v: string) => v.trim().startsWith(VERIFY_PREFIX) || v.trim().startsWith(LEGACY_VERIFY_PREFIX);
 
 export function dmarcValue(domain: string, config: AppConfig): string {
   const rua = config.mail.dmarcRua ?? `dmarc@${domain}`;
@@ -76,7 +89,7 @@ export function expectedRecords(d: DomainDnsInput, config: AppConfig): ExpectedR
   return [
     {
       id: "ownership", type: "TXT", host: OWNERSHIP_LABEL, fqdn: `${OWNERSHIP_LABEL}.${d.name}`,
-      value: `mymail-verify=${d.verificationToken}`, required: true,
+      value: `${VERIFY_PREFIX}${d.verificationToken}`, required: true,
       title: "Ownership",
       why: "Proves this domain is yours. Nothing else reads it, and it is safe to keep forever.",
     },
@@ -110,10 +123,10 @@ function lookupError(id: RecordCheck["id"], err: unknown): RecordCheck {
 }
 
 async function checkOwnership(dns: DnsResolver, d: DomainDnsInput): Promise<RecordCheck> {
-  const want = `mymail-verify=${d.verificationToken}`;
-  const found = await dns.txt(`${OWNERSHIP_LABEL}.${d.name}`);
-  if (found.some((v) => v.trim() === want)) return { id: "ownership", status: "pass", found, message: "Ownership confirmed." };
-  if (found.some((v) => v.startsWith("mymail-verify="))) {
+  const wanted = [`${VERIFY_PREFIX}${d.verificationToken}`, `${LEGACY_VERIFY_PREFIX}${d.verificationToken}`];
+  const found = await ownershipTxt(dns, d.name);
+  if (found.some((v) => wanted.includes(v.trim()))) return { id: "ownership", status: "pass", found, message: "Ownership confirmed." };
+  if (found.some(isVerifyValue)) {
     return { id: "ownership", status: "fail", found, message: "A verification record exists but the token doesn't match this workspace." };
   }
   return { id: "ownership", status: "fail", found, message: "Ownership record not found yet. DNS changes can take a few minutes to appear." };

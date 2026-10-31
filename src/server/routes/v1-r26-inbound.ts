@@ -33,7 +33,7 @@ export function registerInboundKeyRoutes(api: OpenAPIHono<AppEnv>) {
 
   api.openapi(createRoute({
     method: "post", path: "/inbound-keys", tags: ["Mailboxes"], summary: "Make an inbound key", security: [{ bearerAuth: [] }],
-    description: "Makes a key for the Email Worker (email-worker/, MYMAIL_ROUTES). Returns { key: { id, secret }, webhookUrl }; the secret is shown only this once. One row plus one audit row.",
+    description: "Makes a key for the Email Worker (email-worker/, MULTIES_ROUTES). Returns { key: { id, secret }, webhookUrl }; the secret is shown only this once. One row plus one audit row.",
     responses,
   }), async (c) => {
     adminOnly(c);

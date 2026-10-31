@@ -3,7 +3,7 @@ import { test, expect, type Page } from "@playwright/test";
 /**
  * R32: offline app shell and browser notifications.
  * Needs a production build (npm run build:web): the service worker registers only in production builds, and
- * automated browsers only when localStorage "mymail-sw" is "1".
+ * automated browsers only when localStorage "multies-sw" is "1".
  */
 const SHOTS = process.env.R32_SHOTS_DIR ?? "test-results";
 
@@ -22,7 +22,7 @@ test("the app opens offline after one online visit, with a quiet offline strip",
   expect(sw.status()).toBe(200);
   expect(sw.headers()["cache-control"]).toBe("no-cache");
 
-  await page.addInitScript(() => localStorage.setItem("mymail-sw", "1"));
+  await page.addInitScript(() => localStorage.setItem("multies-sw", "1"));
   await signUp(page, "Paula Offline");
   // R33: one overdue task of hers, so My Work has a row to keep for offline.
   const me = await (await page.request.get("/api/account/me")).json() as { user: { id: string } };

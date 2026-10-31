@@ -1,4 +1,4 @@
-# Australian hosting groundwork: MyMail, its mail server and backups on one Sydney VPS.
+# Australian hosting groundwork: Multies, its mail server and backups on one Sydney VPS.
 #
 #   docker compose -f docker-compose.yml -f deploy/au/compose.au.yml up -d
 #

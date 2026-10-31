@@ -55,6 +55,7 @@ import { ThreadPresence as ThreadPresenceClass } from "../server/collab/thread-p
 import { ChatHub as ChatHubClass } from "../server/realtime/chat-hub-do";
 import { bindTestSessionEnv } from "../server/test-session-env-r45";
 import { OPENAPI_ORIGIN_PLACEHOLDER } from "../server/routes/v1"; // R46
+import { isWorkersDevHost, withRobotsHeader } from "@/server/lib/robots-host";
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -551,7 +552,7 @@ export function wwwRedirect(request: Request): Response | null {
  * response carries X-Robots-Tag, so search engines never list them.
  */
 export async function withNoindex(request: Request, noindex: boolean, next: () => Promise<Response>): Promise<Response> {
-  if (!noindex) return next();
+  if (!noindex) return isWorkersDevHost(request.url) ? withRobotsHeader(await next()) : next();
   if (new URL(request.url).pathname === "/robots.txt") {
     return new Response("User-agent: *\nDisallow: /\n", { headers: { "content-type": "text/plain; charset=utf-8", "x-robots-tag": "noindex, nofollow" } });
   }
