@@ -2414,3 +2414,40 @@ export const socialMedia = sqliteTable("social_media", {
   contentB64: text("content_b64").notNull(),
   createdAt: createdAt(),
 });
+
+/**
+ * R83: own sign in for TikTok and Threads (0102). One linked account per network per workspace; the tokens are
+ * encrypted with APP_SECRET. Publishes track each TikTok video until the network reports it is up.
+ */
+export const directSocialLinks = sqliteTable("direct_social_links", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  provider: text("provider", { enum: ["tiktok", "threads"] }).notNull(),
+  providerUserId: text("provider_user_id").notNull(),
+  username: text("username"),
+  displayName: text("display_name"),
+  avatarUrl: text("avatar_url"),
+  accessTokenEnc: text("access_token_enc").notNull(),
+  refreshTokenEnc: text("refresh_token_enc"),
+  accessExpiresAt: ts("access_expires_at"),
+  refreshExpiresAt: ts("refresh_expires_at"),
+  scopes: text("scopes"),
+  status: text("status", { enum: ["active", "expired"] }).notNull().default("active"),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [uniqueIndex("direct_social_links_org_provider_uq").on(t.orgId, t.provider), index("direct_social_links_user_idx").on(t.provider, t.providerUserId)]);
+
+export const directSocialPublishes = sqliteTable("direct_social_publishes", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  publishId: text("publish_id").notNull(),
+  title: text("title"),
+  status: text("status", { enum: ["processing", "published", "failed", "removed"] }).notNull().default("processing"),
+  postId: text("post_id"),
+  error: text("error"),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("direct_social_publishes_org_idx").on(t.orgId, t.createdAt), uniqueIndex("direct_social_publishes_pub_uq").on(t.provider, t.publishId)]);

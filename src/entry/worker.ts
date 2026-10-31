@@ -462,7 +462,7 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
     const spec = await builtOpenApi(env, url);
     if (spec) return withSecurityHeaders(spec, apiHeaders);
   }
-  if (url.pathname.startsWith("/api/") || WEB_META_PATHS.has(url.pathname) || url.pathname === "/health" || url.pathname === "/healthz" || url.pathname.startsWith("/cal/") || url.pathname.startsWith("/s/") || url.pathname.startsWith("/d/") || (url.pathname.startsWith("/sign/") && await esignOn(env)) /* Tools P2: share and signing pages (R66: /sign is a plain not found page while e-sign is off) */ || url.pathname === "/.well-known/security.txt" || url.pathname.startsWith("/.well-known/oauth-") || url.pathname === "/.well-known/openid-configuration") {
+  if (url.pathname.startsWith("/api/") || (url.pathname === "/delete-account" && request.method === "POST") /* R83: Threads uninstall and delete callbacks */ || WEB_META_PATHS.has(url.pathname) || url.pathname === "/health" || url.pathname === "/healthz" || url.pathname.startsWith("/cal/") || url.pathname.startsWith("/s/") || url.pathname.startsWith("/d/") || (url.pathname.startsWith("/sign/") && await esignOn(env)) /* Tools P2: share and signing pages (R66: /sign is a plain not found page while e-sign is off) */ || url.pathname === "/.well-known/security.txt" || url.pathname.startsWith("/.well-known/oauth-") || url.pathname === "/.well-known/openid-configuration") {
     const { app, deps } = await getReady(env);
     // Hosts without a cron trigger (the hosted preview) run maintenance from requests.
     // Production and staging have cron triggers and must not: every new isolate used to

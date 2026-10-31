@@ -1002,5 +1002,16 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `social_post_targets` (\n\t`post_id` text NOT NULL,\n\t`account_id` text NOT NULL,\n\t`app` text NOT NULL,\n\t`label` text,\n\t`target` text,\n\t`target_name` text,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`url` text,\n\t`error` text,\n\t`sent_at` integer,\n\tPRIMARY KEY(`post_id`, `account_id`),\n\tFOREIGN KEY (`post_id`) REFERENCES `social_posts`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;",
       "CREATE TABLE `social_media` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`token` text NOT NULL,\n\t`content_type` text NOT NULL,\n\t`size_bytes` integer NOT NULL,\n\t`content_b64` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);"
     ]
+  },
+  {
+    "name": "0102_direct_social",
+    "statements": [
+      "-- R83: own sign in for two networks (short videos and short text posts), next to the platform route. One linked\n-- account per network per workspace. Tokens are encrypted with APP_SECRET before they are written. publishes keeps\n-- each video sent to the short video network until the network says it is up (its webhook or a status check).\nCREATE TABLE `direct_social_links` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`provider` text NOT NULL,\n\t`provider_user_id` text NOT NULL,\n\t`username` text,\n\t`display_name` text,\n\t`avatar_url` text,\n\t`access_token_enc` text NOT NULL,\n\t`refresh_token_enc` text,\n\t`access_expires_at` integer,\n\t`refresh_expires_at` integer,\n\t`scopes` text,\n\t`status` text DEFAULT 'active' NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `direct_social_links_org_provider_uq` ON `direct_social_links` (`org_id`,`provider`);",
+      "CREATE INDEX `direct_social_links_user_idx` ON `direct_social_links` (`provider`,`provider_user_id`);",
+      "CREATE TABLE `direct_social_publishes` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`provider` text NOT NULL,\n\t`publish_id` text NOT NULL,\n\t`title` text,\n\t`status` text DEFAULT 'processing' NOT NULL,\n\t`post_id` text,\n\t`error` text,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `direct_social_publishes_org_idx` ON `direct_social_publishes` (`org_id`,`created_at`);",
+      "CREATE UNIQUE INDEX `direct_social_publishes_pub_uq` ON `direct_social_publishes` (`provider`,`publish_id`);"
+    ]
   }
 ];

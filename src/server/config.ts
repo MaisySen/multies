@@ -151,6 +151,16 @@ export interface AppConfig {
    * tests at a local stand in. `userPrefix` keeps each host's workspaces apart inside the one shared project.
    */
   integrations: { composio?: { apiKey: string; baseUrl: string; userPrefix: string } };
+  /**
+   * R83: our own sign in for TikTok and Threads, beside the platform route. `tiktok` is set when a client key and
+   * secret are present (TIKTOK_MODE=sandbox picks the sandbox pair); `secrets` lists every client secret we hold, so
+   * a webhook signed by either app verifies. `threads` needs THREADS_APP_ID and THREADS_APP_SECRET. The base URLs
+   * point tests at a local stand in.
+   */
+  direct: {
+    tiktok?: { clientKey: string; clientSecret: string; sandbox: boolean; secrets: string[]; apiBase: string; authUrl: string };
+    threads?: { appId: string; appSecret: string; apiBase: string; authUrl: string };
+  };
   channels: { enabled: boolean; meta?: { appId: string; appSecret: string; verifyToken: string; configId: string; graphVersion: string }; mock: boolean; dailySoftCap: number };
   /**
    * Free addresses (round 17): a Multies-owned domain that every workspace can take an address on
@@ -239,6 +249,19 @@ const EnvSchema = z.object({
   DEMO_MODE: z.string().optional(),
   SCHEDULING_ENABLED: z.string().optional(),
   COMPOSIO_API_KEY: z.string().optional(),
+  // R83: own sign in for TikTok (Login Kit and Content Posting) and Threads.
+  TIKTOK_CLIENT_KEY: z.string().optional(),
+  TIKTOK_CLIENT_SECRET: z.string().optional(),
+  TIKTOK_SANDBOX_CLIENT_KEY: z.string().optional(),
+  TIKTOK_SANDBOX_CLIENT_SECRET: z.string().optional(),
+  /** "sandbox" uses the sandbox keys even when production keys are set (until the network approves the app). */
+  TIKTOK_MODE: z.enum(["production", "sandbox"]).optional(),
+  TIKTOK_API_BASE: z.string().optional(),
+  TIKTOK_AUTH_URL: z.string().optional(),
+  THREADS_APP_ID: z.string().optional(),
+  THREADS_APP_SECRET: z.string().optional(),
+  THREADS_API_BASE: z.string().optional(),
+  THREADS_AUTH_URL: z.string().optional(),
   COMPOSIO_BASE_URL: z.string().url().optional(),
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
@@ -442,6 +465,32 @@ function integrationsConfig(env: z.infer<typeof EnvSchema>): AppConfig["integrat
   return { composio: { apiKey, baseUrl: (env.COMPOSIO_BASE_URL ?? "https://backend.composio.dev").replace(/\/$/, ""), userPrefix: host } };
 }
 
+/** R83: TikTok and Threads sign in settings. Values are trimmed; a half set pair counts as not set. */
+function directConfig(env: z.infer<typeof EnvSchema>): AppConfig["direct"] {
+  const t = (v: string | undefined) => v?.trim() || undefined;
+  const out: AppConfig["direct"] = {};
+  const prod = t(env.TIKTOK_CLIENT_KEY) && t(env.TIKTOK_CLIENT_SECRET) ? { key: t(env.TIKTOK_CLIENT_KEY)!, secret: t(env.TIKTOK_CLIENT_SECRET)! } : undefined;
+  const sand = t(env.TIKTOK_SANDBOX_CLIENT_KEY) && t(env.TIKTOK_SANDBOX_CLIENT_SECRET) ? { key: t(env.TIKTOK_SANDBOX_CLIENT_KEY)!, secret: t(env.TIKTOK_SANDBOX_CLIENT_SECRET)! } : undefined;
+  const useSandbox = !prod || env.TIKTOK_MODE === "sandbox";
+  const pick = useSandbox ? (sand ?? prod) : prod;
+  if (pick) {
+    out.tiktok = {
+      clientKey: pick.key, clientSecret: pick.secret, sandbox: pick === sand,
+      secrets: [prod?.secret, sand?.secret].filter((s): s is string => !!s),
+      apiBase: (t(env.TIKTOK_API_BASE) ?? "https://open.tiktokapis.com").replace(/\/$/, ""),
+      authUrl: t(env.TIKTOK_AUTH_URL) ?? "https://www.tiktok.com/v2/auth/authorize/",
+    };
+  }
+  if (t(env.THREADS_APP_ID) && t(env.THREADS_APP_SECRET)) {
+    out.threads = {
+      appId: t(env.THREADS_APP_ID)!, appSecret: t(env.THREADS_APP_SECRET)!,
+      apiBase: (t(env.THREADS_API_BASE) ?? "https://graph.threads.net").replace(/\/$/, ""),
+      authUrl: t(env.THREADS_AUTH_URL) ?? "https://threads.net/oauth/authorize",
+    };
+  }
+  return out;
+}
+
 function channelsConfig(env: z.infer<typeof EnvSchema>, mode: AppConfig["mode"]): AppConfig["channels"] {
   const id = env.META_APP_ID?.trim(), secret = env.META_APP_SECRET?.trim(), verify = env.META_VERIFY_TOKEN?.trim(), cfg = env.META_ES_CONFIG_ID?.trim();
   const version = /^v\d{1,3}\.\d$/.test(env.META_GRAPH_VERSION?.trim() ?? "") ? env.META_GRAPH_VERSION!.trim() : "v26.0";
@@ -573,6 +622,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     // unless the deployment names a separate one.
     agents: { sharedDomain: (env.AGENT_MAIL_DOMAIN ?? env.FREE_MAIL_DOMAIN)?.toLowerCase() },
     integrations: integrationsConfig(env),
+    direct: directConfig(env),
     channels: channelsConfig(env, mode),
     operatorInbox: operatorInbox(env.SUPPORT_EMAIL?.trim() || "support@multies.si", env.OPERATOR_INBOX_ORG_ID, env.OPERATOR_INBOX_ADDRESSES),
     freeMail: {

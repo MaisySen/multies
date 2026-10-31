@@ -35,6 +35,7 @@ import { sharePublicRoutes, toolsShareRoutes } from "./routes/tools-share"; // T
 import { esignPublicRoutes, toolsEsignRoutes } from "./routes/tools-esign"; // Tools P2: e-sign
 import { attachmentIndexRoutes } from "./routes/attachment-index"; // Tools P2: attachment index and smart folders
 import { connectionRoutes } from "./routes/connections";
+import { deleteAccountCallbackRoutes, directSocialRoutes, directWebhookRoutes } from "./routes/direct-social"; // R83
 import { appConnectionRoutes, socialRoutes } from "./routes/integrations"; // R80C: Connections hub and social posts
 import { fxRoutes } from "./routes/fx";
 import { orgRoutes } from "./routes/org";
@@ -244,6 +245,7 @@ export function createApp(deps: Deps) {
   });
   app.use("/api/auth/*", rateLimit("auth", ipKey));
   app.use("/api/webhooks/*", rateLimit("webhooks", ipKey));
+  app.use("/api/connections/webhooks/*", rateLimit("webhooks", ipKey)); // R83: TikTok webhook (signed)
   app.use("/api/inbound/*", rateLimit("webhooks", ipKey));
   // OAuth for MCP (round 20): registration and token calls come from AI apps, not from a session.
   const isOAuthPublic = (p: string) => p === "/api/oauth/register" || p === "/api/oauth/token" || p === "/api/oauth/revoke";
@@ -252,7 +254,7 @@ export function createApp(deps: Deps) {
   const appLimiter = rateLimit("app", (c) => c.req.header("cookie")?.match(/mymail\.session_token=([^;.]+)/)?.[1]?.slice(0, 24) ?? c.var.ip);
   app.use("/api/*", async (c, next) => {
     const p = c.req.path;
-    if (p.startsWith("/api/auth/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/inbound/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/") || isOAuthPublic(p)) return next();
+    if (p.startsWith("/api/auth/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/connections/webhooks/") || p.startsWith("/api/inbound/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/") || isOAuthPublic(p)) return next();
     // Incoming hooks and the booking page limit themselves in memory, so a public call costs no limiter write.
     if (p.startsWith("/api/hooks/in/") || p.startsWith("/api/hooks/agent-runs/") || p.startsWith("/api/book/") || p.startsWith("/api/check/")) return next();
     return appLimiter(c, next);
@@ -260,7 +262,7 @@ export function createApp(deps: Deps) {
   app.use("/api/*", async (c, next) => {
     // Signed webhooks, the API-key REST API and the import runner (token) never use cookies, so CSRF does not apply.
     const p = c.req.path;
-    if (p.startsWith("/api/inbound/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/") || p.startsWith("/api/hooks/in/") || p.startsWith("/api/hooks/agent-runs/") || isOAuthPublic(p)) return next();
+    if (p.startsWith("/api/inbound/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/connections/webhooks/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/") || p.startsWith("/api/hooks/in/") || p.startsWith("/api/hooks/agent-runs/") || isOAuthPublic(p)) return next();
     return csrfGuard(c, next);
   });
 
@@ -427,7 +429,10 @@ export function createApp(deps: Deps) {
   app.route("/api/tools", toolsAutomationRoutes()); // Tools P2: automation (rules, workflows, templates, mail merge)
   app.route("/api/mail-merge", mailMergeUnsubscribeRoutes()); // Tools P2: automation (public mail merge unsubscribe)
   app.route("/api/attachment-files", attachmentIndexRoutes()); // Tools P2: attachment index and smart folders
+  app.route("/api/connections/webhooks", directWebhookRoutes()); // R83: before the session routes below
   app.route("/api/connections", connectionRoutes());
+  app.route("/api/direct", directSocialRoutes()); // R83: own TikTok and Threads connections
+  app.route("/", deleteAccountCallbackRoutes()); // R83: POST /delete-account (Threads uninstall and delete callbacks)
   app.route("/api/apps", appConnectionRoutes()); // R80C: Connections hub
   app.route("/api/social", socialRoutes()); // R80C: social posts
   app.route("/api/fx", fxRoutes());

@@ -12,6 +12,7 @@ import { ConnectFailed } from "../services/connect/problems";
 import { setBackfillPaused, syncAndChain, syncConnection } from "../services/connect/sync";
 import { LIVE_WINDOW_SECONDS, localLiveMail, type LiveMode } from "../services/connect/live";
 import { listFolders, setFolderSync } from "../services/connect/folders";
+import { directOAuthRoutes } from "./direct-social";
 import { oauthAvailable, oauthFinish, oauthStart, type OAuthProvider } from "../services/connect/oauth";
 import { PRESET_ORDER } from "@/shared/mail-connect";
 
@@ -160,6 +161,7 @@ export function connectionRoutes() {
       return c.json({ connection: await run(() => reconnect(c.var.deps, c.var.auth, c.req.param("id"), b as never)) });
     })
     .delete("/:id", async (c) => c.json(await removeConnection(c.var.deps, c.var.auth, c.req.param("id"))))
+    .route("/", directOAuthRoutes()) // R83: TikTok and Threads sign in, before the mail providers
     .get("/oauth/:provider/start", async (c) => {
       const p = c.req.param("provider") as OAuthProvider;
       if (p !== "google" && p !== "microsoft") throw new HttpError(404, "not_found", "No such provider.");
