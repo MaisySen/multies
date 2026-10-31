@@ -96,17 +96,9 @@ describe("R53 whats-new list", () => {
     // P1 layout: "Connections" folded into "Social has its own place" (still in CHANGELOG.md).
     expect(WHATS_NEW.some((e) => e.id === "2026-10-31-connections")).toBe(false);
     // R86: "Tools that tell you sooner" made room for Video, sound, ebooks, archives and Edit a PDF.
-    expect(WHATS_NEW.some((e) => e.id === "2026-10-31-tools-smoother")).toBe(false);
-    expect(WHATS_NEW[0].id).toBe("2026-10-31-tools-round-b");
-    expect(WHATS_NEW[1].id).toBe("2026-10-31-social-home");
-    expect(WHATS_NEW[2].id).toBe("2026-10-31-tasks-views-tags");
-    expect(WHATS_NEW[3].id).toBe("2026-10-31-inbox-tabs-rules");
-    expect(WHATS_NEW[4].id).toBe("2026-10-31-tiktok-threads");
-    expect(WHATS_NEW[5].id).toBe("2026-10-31-one-place-connections");
-    expect(WHATS_NEW[6].id).toBe("2026-10-31-multies-everywhere");
-    expect(WHATS_NEW[7].id).toBe("2026-10-31-calm-layout");
-    expect(WHATS_NEW[8].id).toBe("2026-10-31-convert-any-file");
-    expect(WHATS_NEW[9].id).toBe("2026-10-31-workspace-brand");
+    // R88: "Split in one tap" made room for secure share (the list stays at 14).
+    for (const id of ["2026-10-31-tools-smoother", "2026-10-31-split-keep-faster"]) expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);
+    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-10-31-secure-share", "2026-10-31-tools-round-b", "2026-10-31-social-home", "2026-10-31-tasks-views-tags", "2026-10-31-inbox-tabs-rules", "2026-10-31-tiktok-threads", "2026-10-31-one-place-connections", "2026-10-31-multies-everywhere", "2026-10-31-calm-layout", "2026-10-31-convert-any-file", "2026-10-31-workspace-brand", "2026-10-31-developers-faster-pages", "2026-10-31-timeline-views", "2026-10-28-whats-new"]);
     for (const id of ["2026-10-28-more-safe-retries", "2026-10-28-lighter-mail-sync", "2026-10-28-safe-retries", "2026-10-28-quicker-task-lists", "2026-10-27-steadier-my-work"]) {
       expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);
     }
