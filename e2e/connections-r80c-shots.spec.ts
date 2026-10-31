@@ -47,6 +47,10 @@ test("connections screenshots and axe", async ({ page, context, baseURL }) => {
   await page.setViewportSize({ width: 1280, height: 860 });
   await demo(page);
 
+  // After shot of the Settings hub (the before shot is round 79's, with no Connections entry).
+  await page.goto("/app/settings");
+  await shot(page, "b00-after-settings-1280-light");
+
   // Empty states first.
   await page.goto("/app/settings/apps");
   await expect(page.getByTestId("apps-none")).toBeVisible();
