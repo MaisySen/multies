@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazyPage } from "@/web/components/lazy-page";
 import { Link, useNavigate, useParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -21,7 +22,7 @@ import { BRANCH_LABEL, addStepAfter, branchesOf, readingOrder, removeStep, tidy,
 import { useIsAdmin } from "./hub";
 import { RunsList } from "./runs";
 
-const FlowCanvas = lazy(() => import("./canvas"));
+const FlowCanvas = lazyPage(() => import("./canvas"), "FlowCanvas");
 const ADDABLE: { kind: NodeKind; label: string; body: string; Icon: typeof IconZap }[] = [
   { kind: "action", label: "Action", body: "Make a task, notify, post, send to a webhook or a digest.", Icon: IconWorkflow },
   { kind: "condition", label: "Condition", body: "Go one way when something is true, another when not.", Icon: IconBranch },

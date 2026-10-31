@@ -51,6 +51,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-templates", label: "Project templates", to: "/app/templates", icon: IconTemplate, keywords: ["blueprints", "templates"] },
   { id: "p-automations", label: "Automations", to: "/app/automations", icon: IconZap, keywords: ["rules", "workflows", "recipes", "flows"] },
   // R90: the automation builder.
+  { id: "p-automation-rules", label: "Automation rules", to: "/app/automations/rules", icon: IconZap, keywords: ["rules", "recipes", "when this then that"] },
   { id: "p-flow-runs", label: "Automation runs", to: "/app/automations/runs", icon: IconZap, keywords: ["flows", "runs", "log", "failed"] },
   { id: "p-flow-templates", label: "New flow from a template", to: "/app/automations", icon: IconZap, keywords: ["flow", "automation", "template", "watch page", "feed", "digest"] },
   { id: "p-mail", label: "Mail", to: "/app/mail", icon: IconInbox, keywords: ["inbox", "webmail", "email"] },

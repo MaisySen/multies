@@ -1,4 +1,5 @@
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
+import { lazyPage } from "@/web/components/lazy-page";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -13,7 +14,8 @@ import { FLOW_TEMPLATES, TRIGGER_LABEL, emptyGraph, type FlowTemplate } from "@/
 import { flowKeys, RUN_STATUS, useFlows, type FlowDto, type RunStatus } from "./api";
 import { RunsList } from "./runs";
 
-const RulesPage = lazy(() => import("../work/automations").then((m) => ({ default: () => <m.AutomationsPage embedded /> })));
+const RulesPageLazy = lazyPage(() => import("../work/automations"), "AutomationsPage");
+const RulesPage = () => <RulesPageLazy embedded />;
 
 type Tab = "flows" | "rules" | "runs";
 const TABS: { key: Tab; label: string }[] = [{ key: "flows", label: "Flows" }, { key: "rules", label: "Rules" }, { key: "runs", label: "Runs" }];

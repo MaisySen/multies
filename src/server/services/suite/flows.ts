@@ -5,6 +5,7 @@
  * resumes due waits, a person decides approvals, and a failed run can be retried from its failed step.
  * Each run counts against the plan's monthly automation allowance, like rules.
  */
+import { inIds } from "@/server/lib/sql-chunks";
 import { and, desc, eq, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { chatChannels, flowDigestItems, flowRuns, flowRunSteps, flows, flowWatches, members, organizations, users, webhookEndpoints } from "../../db/schema";
@@ -584,13 +585,13 @@ export async function sendDueDigests(deps: Deps, limit = 300) {
     const ids = list.map((x) => x.id);
     if (f && node && !f.deletedAt) {
       const to = node.config.to && node.config.to !== "admins" ? [String(node.config.to)] : await admins(deps, f.orgId);
-      const people = to.length ? await deps.db.select({ email: users.email }).from(users).innerJoin(members, and(eq(members.userId, users.id), eq(members.organizationId, f.orgId))).where(inArray(users.id, to)) : [];
+      const people = to.length ? await deps.db.select({ email: users.email }).from(users).innerJoin(members, and(eq(members.userId, users.id), eq(members.organizationId, f.orgId))).where(inIds(users.id, to)) : [];
       const subject = String(node.config.subject ?? "").trim() || `${f.name}: ${list.length} new ${list.length === 1 ? "item" : "items"}`;
       const text = list.map((x, i) => `${i + 1}. ${x.title}${x.link ? `\n   ${x.link}` : ""}${x.summary ? `\n   ${x.summary.slice(0, 300)}` : ""}`).join("\n\n");
       for (const p of people) await sendSystemEmail(deps, { to: p.email, orgId: f.orgId, template: "flow-digest", subject: subject.slice(0, 160), text: `${text}\n\nSent by the flow "${f.name}". Change it in Automations.`, action: { label: "Open the flow", url: `${deps.config.appUrl}/app/automations/flows/${f.id}` } }).catch((err) => deps.reportError?.(err, { where: "flow_digest" }));
       sent++;
     }
-    await deps.db.update(flowDigestItems).set({ sentAt: deps.now() }).where(inArray(flowDigestItems.id, ids));
+    await deps.db.update(flowDigestItems).set({ sentAt: deps.now() }).where(inIds(flowDigestItems.id, ids));
   }
   return sent;
 }

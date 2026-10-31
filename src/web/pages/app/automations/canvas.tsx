@@ -91,6 +91,6 @@ function Inner({ graph, selected, problems, readOnly, onSelect, onChange, onDele
   );
 }
 
-export default function FlowCanvas(props: CanvasProps) {
+export function FlowCanvas(props: CanvasProps) {
   return <ReactFlowProvider><Inner {...props} /></ReactFlowProvider>;
 }
