@@ -31,6 +31,8 @@ export interface MockComposioState {
   calls: string[];
   /** Every request carried the key header. */
   keyMissing: number;
+  /** Facebook answers the permalink read with an error (tests the fallback). */
+  permalinkDown?: boolean;
 }
 
 export function newMockState(): MockComposioState {
@@ -91,6 +93,10 @@ function proxy(state: MockComposioState, body: { connected_account_id?: string; 
     if (method === "GET" && u.pathname.endsWith("/me/permissions")) return net(200, { data: acct.data.noPostPerm ? [{ permission: "pages_show_list", status: "granted" }] : [{ permission: "pages_show_list", status: "granted" }, { permission: "pages_manage_posts", status: "granted" }] });
     if (method === "GET" && u.pathname.endsWith("/me/accounts")) return net(200, { data: [{ id: "pg_100", tasks: ["CREATE_CONTENT", "MANAGE"] }, { id: "pg_200", tasks: ["CREATE_CONTENT"] }] });
     if (method === "GET" && u.searchParams.get("fields") === "access_token") return net(200, u.pathname.endsWith("/pg_noadmin") ? { id: "pg_noadmin" } : { id: "pg", access_token: "mock-page-token" });
+    if (method === "GET" && u.searchParams.get("fields") === "permalink_url") {
+      if (state.permalinkDown || u.searchParams.get("access_token") !== "mock-page-token") return net(400, { error: { message: "Unsupported get request.", code: 100 } });
+      return net(200, { id: decodeURIComponent(u.pathname.split("/").pop() ?? ""), permalink_url: `https://www.facebook.com/61500000000001/posts/${encodeURIComponent(decodeURIComponent(u.pathname.split("/").pop() ?? ""))}` });
+    }
     if (/EXPIRED/.test(text)) return net(400, { error: { message: "Error validating access token: Session has expired.", type: "OAuthException", code: 190 } });
     if (/FAIL/.test(text)) return net(400, { error: { message: "The network turned this post down.", type: "OAuthException", code: 100 } });
     if (args.access_token !== "mock-page-token") return net(403, { error: { message: "(#200) Unpublished posts must be posted to a page as the page itself.", code: 200 } });

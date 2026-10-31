@@ -138,7 +138,7 @@ async function viewsFor(deps: Deps, orgId: string, ids?: string[], limit = 50): 
     createdAt: p.createdAt.toISOString(),
     createdBy: p.createdBy,
     targets: targets.filter((t) => t.postId === p.id).map((t) => ({
-      accountId: t.accountId, app: t.app, label: t.label, target: t.target, targetName: t.targetName, status: t.status as TargetStatus, url: t.url, error: t.error,
+      accountId: t.accountId, app: t.app, label: t.label, target: t.target, targetName: t.targetName, status: t.status as TargetStatus, url: openableFacebookUrl(t.url), error: t.error,
       sentAt: t.sentAt ? t.sentAt.toISOString() : null,
     })),
   }));
@@ -267,6 +267,31 @@ async function graph(ctx: PublishCtx, method: "GET" | "POST", path: string, body
   return data as Record<string, unknown>;
 }
 
+/** facebook.com/<page>_<post> opens "This isn't available" in the Facebook app; this is the address that opens. */
+export function facebookFallbackUrl(pageId: string, postId: string): string {
+  const i = postId.indexOf("_");
+  const page = i > 0 ? postId.slice(0, i) : pageId;
+  const post = i > 0 ? postId.slice(i + 1) : postId;
+  return `https://www.facebook.com/${encodeURIComponent(page)}/posts/${encodeURIComponent(post)}`;
+}
+
+/** Rewrites a stored facebook.com/<digits>_<digits> address (posts made before Oct 31) to one that opens. */
+export function openableFacebookUrl(url: string | null): string | null {
+  if (!url) return url;
+  const m = url.match(/^https?:\/\/(?:www\.|m\.)?facebook\.com\/(\d+)_(\d+)\/?$/i);
+  return m ? `https://www.facebook.com/${m[1]}/posts/${m[2]}` : url;
+}
+
+/** Asks Facebook for the post's own permalink; if that fails, builds /<page>/posts/<id>. Never the underscore form. */
+export async function facebookPermalink(ctx: PublishCtx, pageId: string, postId: string, pageToken: string): Promise<string> {
+  try {
+    const r = await graph(ctx, "GET", `${encodeURIComponent(postId)}?fields=permalink_url&access_token=${encodeURIComponent(pageToken)}`);
+    const link = str((r as { permalink_url?: unknown }).permalink_url);
+    if (link && /^https:\/\/(?:www\.)?facebook\.com\//i.test(link)) return openableFacebookUrl(link) ?? link;
+  } catch { /* fall back below */ }
+  return facebookFallbackUrl(pageId, postId);
+}
+
 /** LinkedIn API versions to try, newest first: last month, the month before, this month. */
 export function linkedinVersions(now: Date): string[] {
   const v = (back: number) => { const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1)); return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}`; };
@@ -301,7 +326,7 @@ export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResu
       ? await graph(ctx, "POST", `${page}/photos`, { url: ctx.imageUrl, caption: ctx.text, published: true, access_token: pageToken })
       : await graph(ctx, "POST", `${page}/feed`, { message: ctx.text, ...(link ? { link } : {}), published: true, access_token: pageToken });
     const id = dig(data, ["post_id", "id"]);
-    return { status: "sent", url: id ? `https://www.facebook.com/${id}` : null };
+    return { status: "sent", url: id ? await facebookPermalink(ctx, ctx.target, id, pageToken) : null };
   },
   async instagram(ctx) {
     if (!ctx.imageUrl) return { status: "skipped", error: "needs_image" };
