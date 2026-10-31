@@ -21,6 +21,8 @@ export const ROUTE_LOADERS: [prefix: string, load: Loader][] = [
   ["/app/contacts", () => import("../pages/app/work/contacts")],
   ["/app/notifications", () => import("../pages/app/notifications")],
   ["/app/triage", () => import("../pages/app/work/triage")],
+  // R82F (MB-280): Connections loads its own page file beside the settings frame instead of after it.
+  ["/app/settings/apps", () => import("../pages/app/apps-settings")],
   ["/app/settings", () => import("../pages/app/settings")],
   ["/app", () => import("../pages/app/dashboard")],
   ["/login", () => import("../pages/auth")],

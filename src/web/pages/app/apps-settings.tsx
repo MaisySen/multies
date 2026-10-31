@@ -42,10 +42,15 @@ export function useAppAccounts(enabled = true) {
  * R82F (MB-280): the first screen reads a short list (social networks and the most used apps, about 5 KB); the whole
  * catalog (about 90 KB) loads once you search, pick a category, ask for more, or after the page has settled.
  */
+// Started once, when this file loads, so the short list arrives with the page rather than after the status call.
+let topLoad: Promise<{ total: number; apps: CatalogApp[] }> | null = null;
+const loadTop = () => (topLoad ??= import("@/shared/connections-catalog-top.json").then((m) => m.default as { total: number; apps: CatalogApp[] }).catch((e) => { topLoad = null; throw e; }));
+if (typeof window !== "undefined") void loadTop().catch(() => {});
+
 export function useCatalog(wantAll: boolean) {
   const top = useQuery({
     queryKey: [...appsKeys.catalog, "top"],
-    queryFn: async () => (await import("@/shared/connections-catalog-top.json")).default as { total: number; apps: CatalogApp[] },
+    queryFn: loadTop,
     staleTime: Infinity,
   });
   const [idle, setIdle] = useState(false);
@@ -142,6 +147,7 @@ export function AppsSettings() {
 
 function OutsideApps({ social }: { social: boolean }) {
   const status = useAppsStatus();
+  useAppAccounts(); // R82F (MB-280): asked at the same time as the status, not after it
   if (status.isPending) return <div className="space-y-4" data-testid="apps-settings"><Skeleton className="h-11 rounded-lg" /><GridSkeleton /></div>;
   if (status.error || !status.data) {
     return (
