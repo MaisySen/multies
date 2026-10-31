@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-tools-round-b",
+    date: "2026-10-31",
+    title: "Video, sound, ebooks, archives and Edit a PDF",
+    body: "Convert any file now handles videos and sound (MP4, MOV, MP3, WAV, GIF and more), EPUB and MOBI ebooks, HEIC photos in any browser, and ZIP, 7Z and TAR archives. It also makes files smaller with the size before and after, and reads scans into searchable PDFs or text. Tools, Edit a PDF adds text, a signature, black out boxes, a watermark and page numbers, all on your device.",
+  },
+  {
     id: "2026-10-31-social-home",
     date: "2026-10-31",
     title: "Social has its own place",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "Split in one tap, and your file stays put",
     body: "Split PDF offers Every page, Every few pages or Two halves, and shows the parts before you run it. A picked file in Tools comes back after a reload, and leaving with it unsaved asks first. The app also opens faster on a slow phone signal.",
-  },
-  {
-    id: "2026-10-31-tools-smoother",
-    date: "2026-10-31",
-    title: "Tools that tell you sooner, and Compress levels",
-    body: "A run that leaves your file unchanged no longer uses a run, and page limits show as soon as you pick a file. Compress has Light, Balanced and Smallest, scanned PDFs shrink a lot more, and a finished PDF shows its first page so you can check it before you download.",
   },
   {
     id: "2026-10-28-whats-new",

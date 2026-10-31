@@ -524,7 +524,9 @@ export async function extractArchive(file: File, onProgress?: (done: number, tot
     await reader.extractFiles((entry) => {
       done += 1;
       onProgress?.(done, list.length);
-      const path = safeArchivePath(entry.path + entry.file.name);
+      // The reader hands over the full path ("photos/a.jpg"); older builds gave the folder only.
+      const full = entry.path.endsWith(entry.file.name) ? entry.path : entry.path + entry.file.name;
+      const path = safeArchivePath(full);
       if (!path) return;
       const slash = path.lastIndexOf("/");
       const f = new File([entry.file], path.slice(slash + 1), { type: guessType(path) });

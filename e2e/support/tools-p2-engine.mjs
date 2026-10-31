@@ -21,9 +21,19 @@ const MATCHES = { matches: [
   { kind: "medicare", text: "2123 45670 1", page: 3, rect: [72, 260, 170, 272] },
 ] };
 const XLSX = Buffer.from(zipSync({ "[Content_Types].xml": Buffer.from("<Types/>"), "xl/workbook.xml": Buffer.from("<workbook/>") }, { level: 0 }));
-const TYPES = { pdf: "application/pdf", json: "application/json", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", csv: "text/csv", txt: "text/plain", md: "text/markdown", zip: "application/zip" };
+const TYPES = { pdf: "application/pdf", json: "application/json", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", csv: "text/csv", txt: "text/plain", md: "text/markdown", zip: "application/zip",
+  // R86: video, audio and photo results.
+  mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm", mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4", gif: "image/gif", jpg: "image/jpeg", png: "image/png" };
+const CLIP = readFileSync(new URL("../fixtures/convert/clip.mp4", import.meta.url));
+const JPG = readFileSync(new URL("../fixtures/convert/photo-b.jpg", import.meta.url));
+const PNG = readFileSync(new URL("../fixtures/convert/photo-a.png", import.meta.url));
+const AUDIO = new Set(["mp3", "wav", "m4a", "ogg", "flac", "aac", "opus", "oga"]);
 
-function output(op, fields) {
+function output(op, fields, name = "") {
+  // R86: media and photos come back as the type asked for; compress halves a PDF or video.
+  if (op === "media-convert") { const t = fields.to || "mp4"; return [t, t === "gif" ? PNG : CLIP.subarray(0, Math.max(1000, CLIP.length >> 1))]; }
+  if (op === "media-compress") return [AUDIO.has(name.split(".").pop().toLowerCase()) ? "m4a" : "mp4", CLIP.subarray(0, CLIP.length >> 1)];
+  if (op === "photo-convert") return [fields.to === "png" ? "png" : "jpg", fields.to === "png" ? PNG : JPG];
   if (op === "pii-find") return ["json", Buffer.from(JSON.stringify(MATCHES))];
   if (op === "pdf-tables" || op === "excel-merge" || op === "excel-clean") return ["xlsx", XLSX];
   if (op === "pdf-to") {
@@ -34,8 +44,11 @@ function output(op, fields) {
   }
   return ["pdf", PDF];
 }
-function facts(op) {
+function facts(op, job) {
   switch (op) {
+    case "compress": case "media-compress": return { in_bytes: job.inBytes, out_bytes: Math.round(job.inBytes / 2), level: "medium" };
+    case "media-convert": return { seconds: 3, copied: false };
+    case "ebook-to-pdf": return { chapters: 4, pages: 9 };
     case "pii-find": return { matches: MATCHES.matches.length };
     case "redact": return { matches: 5, phrases: 5, verified: true };
     case "pdf-tables": return { tables: 3 };
@@ -61,8 +74,9 @@ const server = http.createServer(async (req, res) => {
     for (const [k, v] of fd.entries()) if (typeof v === "string") fields[k] = v;
     const op = url.searchParams.get("op");
     const id = Math.random().toString(16).slice(2).padEnd(16, "c") + "beef";
-    const [ext, bytes] = output(op, fields);
-    jobs.set(id, { id, ws: req.headers["x-multies-ws"], op, ext, bytes, at: Date.now() });
+    const upload = [...fd.values()].find((v) => typeof v !== "string");
+    const [ext, bytes] = output(op, fields, upload?.name ?? "");
+    jobs.set(id, { id, ws: req.headers["x-multies-ws"], op, ext, bytes, at: Date.now(), inBytes: upload?.size ?? 0 });
     return send(202, JSON.stringify({ id, status: "queued" }));
   }
   const m = url.pathname.match(/^\/internal\/v1\/jobs\/([a-f0-9]+)(\/output)?$/);
@@ -70,6 +84,8 @@ const server = http.createServer(async (req, res) => {
   if (!job || job.ws !== req.headers["x-multies-ws"]) return send(404, JSON.stringify({ error: "not_found" }));
   if (m[2]) return send(200, job.bytes, TYPES[job.ext]);
   const done = Date.now() - job.at > 1200;
-  return send(200, JSON.stringify({ id: job.id, status: done ? "done" : "running", result: done ? facts(job.op) : undefined, output: done ? { name: `out.${job.ext}`, bytes: job.bytes.length, content_type: TYPES[job.ext] } : undefined }));
+  // R86: long jobs say how far they are (seconds of video done of total).
+  const progress = done ? undefined : { done: Math.min(9, Math.round((Date.now() - job.at) / 130)), total: 10 };
+  return send(200, JSON.stringify({ id: job.id, status: done ? "done" : "running", progress, result: done ? facts(job.op, job) : undefined, output: done ? { name: `out.${job.ext}`, bytes: job.bytes.length, content_type: TYPES[job.ext] } : undefined }));
 });
 server.listen(PORT, "127.0.0.1", () => console.log(`tools p2 engine on ${PORT}`));

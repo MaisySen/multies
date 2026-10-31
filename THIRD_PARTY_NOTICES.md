@@ -112,6 +112,33 @@ Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0):
 
 The AVIF and WebP encoders compiled into those packages are libavif and libaom (BSD 2 Clause, Copyright Joe Drago and the Alliance for Open Media) and libwebp (BSD 3 Clause, Copyright Google Inc.). Their licence texts ship in the packages' wasm builds and are reproduced at https://github.com/AOMediaCodec/libavif/blob/main/LICENSE, https://aomedia.googlesource.com/aom/+/refs/heads/main/LICENSE and https://chromium.googlesource.com/webm/libwebp/+/refs/heads/main/COPYING.
 
+## Archive reader (public/vendor/libarchive, src/web/lib/convert/vendor) (R86)
+
+libarchive.js 2.0.2, MIT License, Copyright (c) 2018 Nika Begiashvili. Used unchanged to open ZIP, 7Z, TAR,
+TAR.GZ and RAR archives in the browser (read only; Multies writes ZIP with fflate and TAR itself).
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice
+and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS
+PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+
+The WebAssembly module inside it is built from:
+- libarchive, BSD 2 Clause License, Copyright (c) 2003 to 2023 Tim Kientzle and the libarchive contributors
+  (its RAR and 7Z readers are its own BSD code).
+- zlib, zlib License, Copyright (c) 1995 to 2024 Jean-loup Gailly and Mark Adler.
+- bzip2, BSD style License, Copyright (c) 1996 to 2019 Julian R Seward.
+- liblzma (XZ Utils), public domain and 0BSD.
+- OpenSSL, Apache License 2.0 (hashing only).
+- comlink, Apache License 2.0, Copyright 2019 Google LLC (bundled in the main module and the worker).
+
+## Multies engine: video, audio, HEIC photos and e-books (R86)
+
+Run on the Multies document engine server, not in the browser: FFmpeg 8.1 in its LGPL 2.1 build (no GPL or nonfree
+parts; the build checks this), run as a separate program, the same way the engine runs LibreOffice (MPL 2.0). Its
+source and licence are listed in the engine's own NOTICE. The EPUB and MOBI readers are Multies' own code.
+
 ## Integration platform (Composio)
 
 Settings, Connections and Social posts reach outside apps through Composio (https://composio.dev), a hosted service: the
