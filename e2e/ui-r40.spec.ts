@@ -29,7 +29,7 @@ for (const size of [{ name: "desktop", width: 1280, height: 800 }, { name: "phon
       await demo(page);
       const screens: [string, string, () => Promise<void>][] = [
         ["connections", "/app/settings/connections", async () => {
-          await expect(page.getByRole("heading", { name: "Connected accounts" }).first()).toBeVisible();
+          await expect(page.getByRole("heading", { name: "Mail accounts" }).first()).toBeVisible();
           if (SHOTS === "after") await expect(page.getByText(/personal\.example/).first()).toBeVisible({ timeout: 10_000 });
         }],
         ["mailboxes", "/app/mailboxes", async () => { await expect(page.getByRole("heading", { name: "Mailboxes", level: 1 })).toBeVisible(); }],

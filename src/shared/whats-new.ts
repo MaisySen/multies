@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-one-place-connections",
+    date: "2026-10-31",
+    title: "One place for everything you connect",
+    body: "Settings, Connections now holds your apps, social posts, other mail accounts and webhooks as tabs, so there is one place to look. Compose tells you before you write when a From address needs its domain verified, and every page now has its own name in the browser tab.",
+  },
+  {
     id: "2026-10-31-connections",
     date: "2026-10-31",
     title: "Connect your social accounts and post once",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-30",
     title: "Edit pages, fill forms and compare PDFs",
     body: "Drag to reorder, turn or delete the pages of a PDF, fill PDF forms and flatten them, and compare two versions of a PDF page by page. Tools also has a new look, with search, clear groups and progress you can follow and cancel.",
-  },
-  {
-    id: "2026-10-30-tools-share-workflows",
-    date: "2026-10-30",
-    title: "Share links, workflows and templates",
-    body: "Send a big file as a link that expires, with an optional password and download limit. Chain tools into a saved workflow, fill an invoice, quote or letter from a template with GST worked out, and let rules compress big PDFs as you attach them.",
   },
   {
     id: "2026-10-28-whats-new",

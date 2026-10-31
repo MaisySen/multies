@@ -46,7 +46,7 @@ for (const size of [{ name: "desktop", width: 1280, height: 800 }, { name: "phon
         const factors = page.getByTestId("health-factor");
         if (await factors.count()) await expect(factors.first().getByTestId("plain-status")).toBeVisible();
       }],
-      ["/app/settings/connections", async () => { await expect(page.getByRole("heading", { name: "Connected accounts" }).first()).toBeVisible(); }],
+      ["/app/settings/connections", async () => { await expect(page.getByRole("heading", { name: "Mail accounts" }).first()).toBeVisible(); }],
     ];
     for (const [path, check] of screens) {
       await page.goto(path);

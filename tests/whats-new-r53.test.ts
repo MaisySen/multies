@@ -83,11 +83,14 @@ describe("R53 whats-new list", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-10-30-yearly-and-referrals")).toBe(false);
     // R80C: "More tools" made room for Connections.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-30-tools-more")).toBe(false);
-    expect(WHATS_NEW[0].id).toBe("2026-10-31-connections");
-    expect(WHATS_NEW[1].id).toBe("2026-10-31-multies-everywhere");
-    expect(WHATS_NEW[2].id).toBe("2026-10-31-calm-layout");
-    expect(WHATS_NEW[3].id).toBe("2026-10-31-convert-any-file");
-    expect(WHATS_NEW[4].id).toBe("2026-10-31-workspace-brand");
+    // R82F: "Share links, workflows and templates" made room for One place for everything you connect.
+    expect(WHATS_NEW.some((e) => e.id === "2026-10-30-tools-share-workflows")).toBe(false);
+    expect(WHATS_NEW[0].id).toBe("2026-10-31-one-place-connections");
+    expect(WHATS_NEW[1].id).toBe("2026-10-31-connections");
+    expect(WHATS_NEW[2].id).toBe("2026-10-31-multies-everywhere");
+    expect(WHATS_NEW[3].id).toBe("2026-10-31-calm-layout");
+    expect(WHATS_NEW[4].id).toBe("2026-10-31-convert-any-file");
+    expect(WHATS_NEW[5].id).toBe("2026-10-31-workspace-brand");
     for (const id of ["2026-10-28-more-safe-retries", "2026-10-28-lighter-mail-sync", "2026-10-28-safe-retries", "2026-10-28-quicker-task-lists", "2026-10-27-steadier-my-work"]) {
       expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);
     }

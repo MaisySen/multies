@@ -31,7 +31,7 @@ test("the app opens offline after one online visit, with a quiet offline strip",
   const made = await page.request.post("/api/tasks", { data: { projectId: projects[0].id, title: "Send the offline report", assignee: `member:${me.user.id}`, due } });
   expect(made.ok()).toBe(true);
   await page.goto("/app/my-work");
-  await expect(page.getByText("Send the offline report")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Send the offline report").first()).toBeVisible({ timeout: 15_000 });
   // The worker installs after load and claims this page; the shell is precached by then.
   await page.waitForFunction(async () => !!(await navigator.serviceWorker.getRegistration())?.active, null, { timeout: 30_000 });
   await page.reload();
@@ -45,10 +45,10 @@ test("the app opens offline after one online visit, with a quiet offline strip",
   // The page itself comes from the stored chunks: the frame, the greeting (account from the offline copy).
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Paula/ })).toBeVisible({ timeout: 15_000 });
   // R33: My Work shows its last stored copy (not the empty or error state) and says from when.
-  await expect(page.getByText("Send the offline report")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Send the offline report").first()).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("offline-copy-at")).toContainText(/Offline\. Showing your last copy from \d{1,2}:\d{2}/);
   await page.reload();
-  await expect(page.getByText("Send the offline report")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Send the offline report").first()).toBeVisible({ timeout: 15_000 });
   await page.screenshot({ path: `${SHOTS}/pwa-offline.png` });
 
   // An /app page this browser never opened still opens from the same shell.

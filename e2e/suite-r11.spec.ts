@@ -18,9 +18,11 @@ test.beforeAll(async ({ browser }) => {
 test.afterAll(async () => { await ctx?.close(); });
 
 test("connects Slack from the catalogue, pauses it and removes it", async () => {
+  // R82F (MB-279): the old address opens the Webhooks tab of Connections, the one home for outside apps.
   await page.goto("/app/integrations");
-  await expect(page.getByRole("heading", { name: "Integrations", level: 1 })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Integrations" })).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/settings\/apps\/webhooks$/);
+  await expect(page.getByTestId("webhooks-pane")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Webhooks" })).toHaveAttribute("aria-current", "page");
   await page.getByRole("button", { name: "Connect Slack", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Connect Slack" });
   await dialog.getByLabel("Webhook URL").fill("https://hooks.slack.com/services/T000/B000/e2etest");

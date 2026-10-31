@@ -99,10 +99,10 @@ test("start on Free, then buy an add-on and see the new limits", async ({ page }
   await expect(page.getByText("Free", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("A$0, nothing to pay")).toBeVisible();
   await expect(page.getByText("0 / 1").first()).toBeVisible(); // Free includes 1 domain
-  // Two extra domains: A$2 a month in total, under A$5, so it bills A$24 a year.
+  // Two extra domains: A$2 a month in total, under A$5, so it bills yearly: ten months for twelve (R62), A$20 a year.
   await page.getByRole("button", { name: "One more extra domain" }).click();
   await page.getByRole("button", { name: "One more extra domain" }).click();
-  await expect(page.getByText("A$24 a year").first()).toBeVisible();
+  await expect(page.getByText("A$20 a year").first()).toBeVisible();
   await page.getByRole("button", { name: "Apply add-ons" }).click();
   await expect(page.getByText("Add-ons updated")).toBeVisible();
   await expect(page.getByText("0 / 3").first()).toBeVisible();

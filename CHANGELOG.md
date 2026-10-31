@@ -7,6 +7,23 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 82F (31 Oct 2026)
+
+- Changed (MB-279): one home for outside apps. Settings, Connections has four tabs: Apps, Social posts, Mail accounts (was Settings, Connected accounts) and Webhooks (was Workspace, Integrations). /app/settings/connections and /app/integrations redirect to their tab, query included; the Workspace sidebar and the Settings list each have one Connections entry.
+- Added (MB-274): Compose says up front when the From address is on a domain that isn't verified yet, links to the domain, and keeps Send off (before, the send failed after the undo hold).
+- Changed (MB-282): Escape on a menu (Create, View, any menu) puts focus back on its button; a second skip link, Create something, opens Create in two Tab presses.
+- Fixed (MB-281): the account button and the search entry no longer have a name that disagrees with their words (axe label in name, every desktop page); the resize handles are named by title so axe does not count them as content outside a landmark.
+- Added (MB-283): every app page has its own tab title ("Tasks · Multies", "Branding · Settings · Multies"); Convert files is in the Tools sidebar and a tool's own page names itself in the breadcrumb.
+- Changed (MB-284): our own short lines for the apps people look for first (the doubled "named for" on X is gone), tidier platform text for the rest; Connect an account on Social posts opens the Social category; search and category stay in the address so Back and reload keep them; an abandoned sign in reads "Sign in not finished" with a Finish sign in button.
+- Changed (MB-285): a hex colour that isn't one says so under the box (and #06c or 0066cc are read as #0066cc); Density is only in the View menu now.
+- Added (MB-286): Convert asks before a reload or a link loses picked files that were not downloaded yet.
+- Added (MB-275): Ctrl K finds Split PDF, Rotate PDF pages and PDF to images by name; a query in Nepali (or any script) filters the list instead of showing everything.
+- Fixed (MB-276): Split keeps Run off while the range has an error, and the range (and the other choices) come back with the file after a reload.
+- Added (MB-277): at the seat limit, Team says so in words with what to do (cancel an invite, remove someone, or see plans), on phones too.
+- Changed (MB-280): the first Connections screen loads a short list (about 5 KB) and only the logos it shows; the full catalog loads on search, category, Show more, or after a few seconds. 24 apps a page.
+- Fixed: the R78 PNG to PNG result shows the picture, not only a tick; the undo send toast reads no second number (MB-272); two stale e2e checks (yearly add on price is A$20 since R62, the offline report task shows twice on My Work).
+- What's new drops "Share links, workflows and templates" to stay at 14.
+
 ### Round 80C (31 Oct 2026)
 
 - Added: Settings, Connections (/app/settings/apps), also in the Workspace sidebar and the command menu: a gallery of about 1,680 outside apps with search and categories, social networks first; connect, reconnect and disconnect, and more than one account per app. Owners and admins connect and post; members see what is connected. The app list loads as its own file when the pane opens.
