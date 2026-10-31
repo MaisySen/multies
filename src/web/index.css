@@ -456,3 +456,24 @@ html[data-density="comfortable"] { --spacing: 0.25rem; }
 /* R79: unset fields on rows and cards show a faint icon, solid on hover or focus. */
 .mm-faint { color: var(--color-subtle); opacity: 0.55; }
 .group:hover .mm-faint, .mm-faint:focus-visible { opacity: 1; }
+
+/* R89: whiteboards, diagrams, Present */
+.mm-board-doc { height: 100%; }
+.mm-board-doc > p, .mm-board-doc > .ProseMirror-trailingBreak { display: none; }
+.mm-board-doc > .react-renderer { height: 100%; }
+.mm-board-page { height: 100%; overflow: hidden; border-radius: 14px; border: 1px solid var(--color-line); background: var(--color-surface); }
+.mm-board-full { position: fixed; inset: 0; z-index: 70; margin: 0; border-radius: 0; display: flex; flex-direction: column; }
+.mm-board-full > .mm-board-canvas { flex: 1; min-height: 0; }
+.mm-board .excalidraw { --color-primary: var(--color-brand); --color-primary-darker: var(--color-brand-hover); --color-primary-darkest: var(--color-brand-hover); --color-primary-light: var(--color-brand-soft); }
+.mm-board .excalidraw .sidebar-trigger, .mm-board .excalidraw .default-sidebar-trigger, .mm-board .excalidraw .help-icon { display: none !important; }
+.mm-board .excalidraw .layer-ui__wrapper__footer-right { display: none; }
+.mm-diagram-code { tab-size: 2; caret-color: var(--color-brand); }
+.mm-diagram-svg svg { font-family: inherit; }
+.mm-present { color-scheme: dark; }
+.mm-present-btn { display: inline-grid; place-items: center; min-width: 40px; height: 40px; border-radius: 9999px; color: #fff; transition: background-color 150ms ease-out; }
+.mm-present-btn:hover:not(:disabled) { background: rgb(255 255 255 / 0.14); }
+.mm-present-btn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.mm-present-btn:disabled { opacity: 0.35; }
+.mm-present-btn-light { color: var(--color-fg); }
+.mm-present-btn-light:hover:not(:disabled) { background: var(--color-hover); }
+@media (max-width: 639px) { .mm-present-btn { min-width: 44px; height: 44px; } }

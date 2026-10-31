@@ -1,12 +1,12 @@
 import { NoDocsArt, NoSearchResultsArt } from "@/web/components/illustrations";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { CatchupCard } from "@/web/components/catchup-card"; // R31
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Transaction } from "@tiptap/pm/state";
-import { IconArrowLeft, IconBold, IconDocs, IconHeading2, IconItalic, IconLink, IconList, IconListOrdered, IconPlus, IconQuote, IconTasks, IconTemplate, IconTrash, IconUser } from "@/web/components/ui/icon";
+import { IconArrowLeft, IconBold, IconDocs, IconDownload, IconHeading2, IconItalic, IconLink, IconList, IconListOrdered, IconPlay, IconPlus, IconQuote, IconShapes, IconTasks, IconTemplate, IconTrash, IconUser } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -15,7 +15,7 @@ import { Input } from "@/web/components/ui/input";
 import { EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
-import { useMe } from "@/web/lib/queries";
+import { useConfig, useMe } from "@/web/lib/queries";
 import { colourFor, meta, type CollabSession } from "./doc-collab";
 import { docExtensions, liveDomEvents, liveKeyDown, useCollabDoc, useCollabSession } from "./collab-editor";
 import { tone } from "@/web/components/app-bits";
@@ -27,39 +27,52 @@ import { ImageInsertDialog, ImageToolbar, TableMenu } from "./doc-block-menus";
 import { DocBreadcrumbs, DocTreeSidebar, LinkedFrom, PageLinkPicker, deleteDocConfirm, useBracketTrigger, useDocTree } from "./doc-tree";
 import { recordRecent } from "@/web/lib/palette-recents"; // R36
 import { DocHistoryButton, DocHistoryPanel } from "./doc-history-r39"; // R39: page history
+import { docKindOf, whiteboardDocContent } from "@/shared/docs-visual"; // R89: whiteboards, mind map, Present
+import { pageBoardExport } from "./docs-visual/whiteboard-view";
+import type { PMNode } from "@/web/lib/mindmap-tree";
 
-interface DocSummary { id: string; title: string; excerpt: string; updatedAt: string; projectId: string | null }
+const MindMapView = lazy(() => import("./docs-visual/mindmap-view").then((m) => ({ default: m.MindMapView })));
+const PresentOverlay = lazy(() => import("./docs-visual/present").then((m) => ({ default: m.PresentOverlay })));
+const PresenterWindow = lazy(() => import("./docs-visual/present").then((m) => ({ default: m.PresenterWindow })));
+
+interface DocSummary { id: string; title: string; excerpt: string; updatedAt: string; projectId: string | null; kind?: "doc" | "whiteboard" }
 interface Doc extends DocSummary { content: Record<string, unknown>; text: string; version: number; links: { type: string; id: string }[] }
+type DocMode = "doc" | "mindmap";
 
 export function DocsPage() {
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const docs = useQuery({ queryKey: ["docs", q], queryFn: async () => (await api.get<{ docs: DocSummary[] }>(`/docs${q ? `?q=${encodeURIComponent(q)}` : ""}`)).docs });
-  const create = async () => {
-    try { const r = await api.post<{ doc: Doc }>("/docs", { title: "Untitled", text: "" }); navigate(`/app/docs/${r.doc.id}`); } catch (e) { showError(e as Error); }
+  const visual = useConfig().data?.docsVisual !== false; // R89
+  const create = async (kind: "doc" | "whiteboard" = "doc") => {
+    try {
+      const r = await api.post<{ doc: Doc }>("/docs", kind === "whiteboard" ? { title: "Untitled whiteboard", content: whiteboardDocContent() } : { title: "Untitled", text: "" });
+      navigate(`/app/docs/${r.doc.id}`);
+    } catch (e) { showError(e as Error); }
   };
-  // R30: /app/docs?new=1 (from the command menu) starts a new doc once, then opens it.
+  // R30: /app/docs?new=1 (from the command menu) starts a new doc once, then opens it. R89: ?new=whiteboard.
   const [params] = useSearchParams();
   const started = useRef(false);
   useEffect(() => {
-    if (params.get("new") !== "1" || started.current) return;
+    const n = params.get("new");
+    if ((n !== "1" && n !== "whiteboard") || started.current) return;
     started.current = true;
-    void create();
+    void create(n === "whiteboard" ? "whiteboard" : "doc");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
   return (
     <div className="flex gap-6">
       <DocTreeSidebar />
       <div className="min-w-0 flex-1">
-      <PageHeader title="Docs" description="Briefs, meeting notes and plans, linked to tasks, projects, threads and contacts. Agents can read and add to them too." actions={<Button onClick={create}><IconPlus className="h-4 w-4" />New doc</Button>} />
+      <PageHeader title="Docs" description="Briefs, meeting notes and plans, linked to tasks, projects, threads and contacts. Agents can read and add to them too." actions={<div className="flex gap-2">{visual && <Button variant="secondary" onClick={() => void create("whiteboard")} data-testid="new-whiteboard"><IconShapes className="h-4 w-4" />New whiteboard</Button>}<Button onClick={() => void create()}><IconPlus className="h-4 w-4" />New doc</Button></div>} />
       <Input aria-label="Search docs" placeholder="Search docs" value={q} onChange={(e) => setQ(e.target.value)} className="mb-4 max-w-sm" />
       {docs.isPending ? <Skeleton className="h-40" /> : !docs.data?.length ? (
-        <EmptyState icon={<IconDocs />} art={q ? <NoSearchResultsArt /> : <NoDocsArt />} title={q ? "No docs match" : "No docs yet"} body="Write a brief or notes and link it to the work it belongs to." action={!q && <Button onClick={create}>New doc</Button>} />
+        <EmptyState icon={<IconDocs />} art={q ? <NoSearchResultsArt /> : <NoDocsArt />} title={q ? "No docs match" : "No docs yet"} body="Write a brief or notes and link it to the work it belongs to." action={!q && <Button onClick={() => void create()}>New doc</Button>} />
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="doc-list">
           {docs.data.map((d) => (
             <li key={d.id}><Link to={`/app/docs/${d.id}`} className="block h-full rounded-xl border border-line bg-surface p-4 transition-colors hover:border-line-strong">
-              <div className="flex items-center gap-2 text-[14px] font-medium"><IconDocs className="h-4 w-4 text-muted" />{d.title}</div>
+              <div className="flex items-center gap-2 text-[14px] font-medium">{d.kind === "whiteboard" ? <IconShapes className="h-4 w-4 text-muted" aria-label="Whiteboard" /> : <IconDocs className="h-4 w-4 text-muted" />}{d.title}</div>
               <p className="mt-2 line-clamp-3 whitespace-pre-line text-[13px] leading-relaxed text-muted">{d.excerpt || "Empty"}</p>
               <p className="mt-3 text-[12px] text-subtle">Edited {timeAgo(d.updatedAt)}</p>
             </Link></li>
@@ -77,6 +90,20 @@ function ToolButton({ on, label, active, children }: { on: () => void; label: st
 }
 
 export function DocPage() {
+  // R89: the presenter's second window shows only the presenter view (and never joins the room, so it can not
+  // become the client that saves).
+  const [sp] = useSearchParams();
+  return sp.get("present") === "presenter" ? <PresenterDoc start={Number(sp.get("slide")) || 0} /> : <DocPageMain />;
+}
+
+function PresenterDoc({ start }: { start: number }) {
+  const { id = "" } = useParams();
+  const q = useQuery({ queryKey: ["doc", id], queryFn: async () => (await api.get<{ doc: Doc }>(`/docs/${id}`)).doc, refetchOnWindowFocus: false });
+  if (!q.data) return <div className="p-6"><Skeleton className="h-64" /></div>;
+  return <Suspense fallback={null}><PresenterWindow docId={id} doc={q.data.content as unknown as PMNode} title={q.data.title} start={start} /></Suspense>;
+}
+
+function DocPageMain() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const q = useQuery({ queryKey: ["doc", id], queryFn: async () => (await api.get<{ doc: Doc }>(`/docs/${id}`)).doc, refetchOnWindowFocus: false });
@@ -98,6 +125,12 @@ const EDITOR_PROPS = { attributes: { class: "mm-prose min-h-[50vh] outline-none"
 
 const LIVE_EDITOR_PROPS = { ...EDITOR_PROPS, handleKeyDown: liveKeyDown, handleDOMEvents: liveDomEvents };
 
+// R89: a whiteboard doc is one board; typing outside the board (into the hidden lines around it) is ignored, and
+// keys can not delete the board itself.
+const BOARD_KEYS = new Set(["Enter", "Backspace", "Delete"]);
+const BOARD_PROPS = { attributes: { class: "mm-board-doc outline-none", "aria-label": "Whiteboard" }, handleTextInput: () => true, handlePaste: () => true, handleDrop: () => true, handleKeyDown: (_v: unknown, e: KeyboardEvent) => BOARD_KEYS.has(e.key) };
+const LIVE_BOARD_PROPS = { ...BOARD_PROPS, handleDOMEvents: liveDomEvents };
+
 function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSession | null; onReplaced: (d: Doc) => void }) {
   // R36: an opened doc joins "Recently opened" in the command menu (device only, no server write).
   useEffect(() => { recordRecent({ kind: "item", id: `/app/docs/${doc.id}`, label: doc.title || "Untitled", url: `/app/docs/${doc.id}`, hint: "Doc" }); }, [doc.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -112,13 +145,19 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
   const userColour = colourFor(me.data?.user.id ?? userName);
   // Stable options: a new extensions array or editorProps object on a render makes Tiptap
   // reconfigure the view, which redraws the shared document and drops the cursor.
-  const extensions = useMemo(() => docExtensions(session, { upload: (f: File) => uploadDocImage(id, f), onError: showError }), [session, id]);
+  // R89: boards and diagrams read the title (file names) and the person's name and colour (cursors) through refs.
+  const titleRef = useRef(title);
+  titleRef.current = title;
+  const userRef = useRef({ name: userName, color: userColour });
+  userRef.current = { name: userName, color: userColour };
+  const extensions = useMemo(() => docExtensions(session, { upload: (f: File) => uploadDocImage(id, f), onError: showError }, { title: () => titleRef.current, user: () => userRef.current }), [session, id]);
+  const isBoard = (doc.kind ?? docKindOf(doc.content)) === "whiteboard";
   const editor = useEditor({
     extensions,
     // No content key at all in a live session: the room is the content, and an option
     // that differs from the editor's own makes Tiptap reconfigure on every render.
     ...(session ? {} : { content: doc.content as never }),
-    editorProps: session ? LIVE_EDITOR_PROPS : EDITOR_PROPS,
+    editorProps: isBoard ? (session ? LIVE_BOARD_PROPS : BOARD_PROPS) : session ? LIVE_EDITOR_PROPS : EDITOR_PROPS,
     onUpdate: ({ transaction }) => onUpdate.current(transaction),
     immediatelyRender: true,
   });
@@ -162,9 +201,15 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
   useBracketTrigger(editor, openPicker);
   const [history, setHistory] = useState(false); // R39: page history panel
   const openHistory = useCallback(() => setHistory(true), []);
+  // R89: mind map mode (?mode=mindmap) and Present (?present=1), both off the same editor.
+  const visual = useConfig().data?.docsVisual !== false;
+  const [sp, setSp] = useSearchParams();
+  const mode: DocMode = visual && !isBoard && sp.get("mode") === "mindmap" ? "mindmap" : "doc";
+  const presenting = visual && !isBoard && sp.get("present") === "1";
+  const setParam = (k: string, v: string | null) => setSp((p) => { const n = new URLSearchParams(p); if (v === null) n.delete(k); else n.set(k, v); return n; }, { replace: true });
   const status = state === "saving" ? "Saving" : state === "unsaved" ? "Unsaved changes" : state === "conflict" ? "Changed elsewhere. Reload to see the latest." : "Saved";
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className={cn("mx-auto", isBoard ? "max-w-none" : mode === "mindmap" ? "max-w-6xl" : "max-w-3xl")} data-doc-kind={isBoard ? "whiteboard" : "doc"} data-mode={mode}>
       {dialogs}
       <div className="mb-3 flex items-center gap-2 text-[12.5px] text-subtle max-sm:-mx-2 max-sm:-mt-3 max-sm:mb-1 max-sm:gap-0" data-testid="doc-bar">
         <Link to="/app/docs" className="inline-flex items-center gap-1 hover:text-fg max-sm:h-11 max-sm:shrink-0 max-sm:gap-0.5 max-sm:rounded-lg max-sm:pl-1 max-sm:pr-2 max-sm:text-[16px] max-sm:text-brand-hover max-sm:active:bg-hover"><IconArrowLeft className="h-3.5 w-3.5 max-sm:h-5 max-sm:w-5" />Docs</Link>
@@ -179,6 +224,26 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
           </div>
         )}
         <span className={cn(!session && "ml-auto", "max-sm:mr-1 max-sm:whitespace-nowrap", state === "saved" && "max-sm:sr-only", state === "conflict" && "max-sm:order-last max-sm:basis-full max-sm:whitespace-normal max-sm:px-2 max-sm:pt-1 max-sm:text-bad")} role="status">{status}</span>
+        {visual && !isBoard && (
+          <div role="group" aria-label="View" className="inline-flex shrink-0 rounded-lg border border-line p-0.5 max-sm:hidden" data-testid="doc-mode">
+            {(["doc", "mindmap"] as DocMode[]).map((m) => (
+              <button key={m} type="button" aria-pressed={mode === m} onClick={() => setParam("mode", m === "doc" ? null : "mindmap")}
+                className={cn("rounded-md px-2 py-0.5 text-[12.5px] transition-colors duration-150", mode === m ? "bg-brand-soft font-medium text-brand-hover" : "text-muted hover:text-fg")}>{m === "doc" ? "Doc" : "Mind map"}</button>
+            ))}
+          </div>
+        )}
+        {visual && !isBoard && (
+          <button type="button" aria-label="Present" title="Present" data-testid="present-button" onClick={() => setParam("present", "1")}
+            className="inline-flex shrink-0 items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg">
+            <IconPlay className="h-4 w-4 max-sm:h-5 max-sm:w-5" /><span className="max-sm:hidden">Present</span>
+          </button>
+        )}
+        {isBoard && (
+          <>
+            <button type="button" aria-label="Download as PNG" onClick={() => void pageBoardExport.current?.("png")} className="inline-flex shrink-0 items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg"><IconDownload className="h-4 w-4" /><span className="max-sm:hidden">PNG</span></button>
+            <button type="button" aria-label="Download as SVG" onClick={() => void pageBoardExport.current?.("svg")} className="inline-flex shrink-0 items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:hidden"><IconDownload className="h-4 w-4" />SVG</button>
+          </>
+        )}
         <ShareButton kind="doc" targetId={id} />
         <DocHistoryButton onOpen={openHistory} />
         <button aria-label="Save as template" title="Save as template" className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg"
@@ -196,10 +261,10 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
       <input aria-label="Doc title" value={title}
         onChange={(ev) => { setTitle(ev.target.value); if (session) meta(session.ydoc).set("title", ev.target.value); }}
         onBlur={() => void saveTitle()}
-        className="w-full bg-transparent text-[26px] font-semibold tracking-tight outline-none" placeholder="Untitled" />
-      <MeetingNotesBacklink docId={doc.id} />
-      <CatchupCard key={`catchup-${doc.id}`} type="doc" id={doc.id} className="mx-0" />
-      {doc.links.length > 0 && (
+        className={cn("w-full bg-transparent font-semibold tracking-tight outline-none", isBoard ? "text-[20px]" : "text-[26px]")} placeholder="Untitled" />
+      {!isBoard && <MeetingNotesBacklink docId={doc.id} />}
+      {!isBoard && mode === "doc" && <CatchupCard key={`catchup-${doc.id}`} type="doc" id={doc.id} className="mx-0" />}
+      {!isBoard && doc.links.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {doc.links.map((l) => (
             <Link key={`${l.type}:${l.id}`} to={l.type === "task" ? `/app/tasks?view=list&task=${l.id}` : l.type === "contact" ? `/app/contacts/${l.id}` : l.type === "project" ? `/app/tasks?project=${l.id}` : "#"}
@@ -209,7 +274,15 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
           ))}
         </div>
       )}
-      {e && (
+      {visual && !isBoard && (
+        <div role="group" aria-label="View" className="mt-3 inline-flex rounded-lg border border-line p-0.5 sm:hidden">
+          {(["doc", "mindmap"] as DocMode[]).map((m) => (
+            <button key={m} type="button" aria-pressed={mode === m} onClick={() => setParam("mode", m === "doc" ? null : "mindmap")}
+              className={cn("min-h-10 rounded-md px-3 text-[14px]", mode === m ? "bg-brand-soft font-medium text-brand-hover" : "text-muted")}>{m === "doc" ? "Doc" : "Mind map"}</button>
+          ))}
+        </div>
+      )}
+      {e && !isBoard && mode === "doc" && (
         <div className="sticky top-0 z-10 mt-4 flex flex-wrap gap-0.5 rounded-lg border border-line bg-surface/95 p-1 shadow-card backdrop-blur max-sm:-mx-1 max-sm:mt-3 max-sm:flex-nowrap max-sm:justify-between max-sm:gap-0 max-sm:rounded-xl max-sm:p-0.5" role="toolbar" aria-label="Formatting" data-testid="doc-toolbar">
           <ToolButton label="Bold" active={e.isActive("bold")} on={() => e.chain().focus().toggleBold().run()}><IconBold /></ToolButton>
           <ToolButton label="Italic" active={e.isActive("italic")} on={() => e.chain().focus().toggleItalic().run()}><IconItalic /></ToolButton>
@@ -221,12 +294,24 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
           <PageLinkPicker editor={e} open={picker} onClose={() => setPicker(false)} selfId={id} />
         </div>
       )}
-      <div className="mt-4"><EditorContent editor={editor} /></div>
+      {mode === "mindmap" && editor && (
+        <div className="mt-4 flex h-[calc(100dvh-220px)] min-h-[420px] flex-col">
+          <Suspense fallback={<Skeleton className="h-full" />}>
+            <MindMapView editor={editor} title={title} readOnly={!editor.isEditable} onRenameTitle={(t) => { setTitle(t); if (session) meta(session.ydoc).set("title", t); void (async () => { try { saved((await api.patch<{ doc: Doc }>(`/docs/${id}`, { title: t })).doc); } catch (err) { showError(err as Error); } })(); }} />
+          </Suspense>
+        </div>
+      )}
+      <div className={cn(isBoard ? "mt-2 h-[calc(100dvh-170px)] min-h-[420px] max-sm:h-[calc(100dvh-150px)]" : "mt-4", mode === "mindmap" && "hidden")}><EditorContent editor={editor} className={isBoard ? "h-full" : undefined} /></div>
+      {presenting && editor && (
+        <Suspense fallback={null}>
+          <PresentOverlay docId={id} doc={editor.getJSON() as PMNode} title={title} start={Number(sp.get("slide")) || 0} onClose={() => setParam("present", null)} />
+        </Suspense>
+      )}
       <SlashMenu editor={editor} onLinkPicker={openPicker} onImage={openImageDialog} />
       <TableMenu editor={editor} />
       <ImageToolbar editor={editor} />
       <ImageInsertDialog editor={editor} open={imageDialog} onClose={() => setImageDialog(false)} upload={uploadImage} />
-      <div className="pb-24"><LinkedFrom docId={id} /></div>
+      {!isBoard && <div className="pb-24"><LinkedFrom docId={id} /></div>}
       <DocHistoryPanel docId={id} open={history} onClose={() => setHistory(false)} currentText={editor?.getText({ blockSeparator: "\n" }) ?? doc.text}
         beforeChange={async () => { if (state === "unsaved") { clearTimeout(timer.current); await save(); } }} onRestored={(d) => onReplaced(d as Doc)} />
     </div>

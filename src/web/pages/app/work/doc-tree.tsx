@@ -7,7 +7,7 @@ import { Link, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import type { Editor } from "@tiptap/react";
-import { IconArrowDown, IconArrowUp, IconChevronRight, IconDocs, IconIndent, IconLink, IconMore, IconOutdent, IconPlus, IconTasks } from "@/web/components/ui/icon";
+import { IconArrowDown, IconArrowUp, IconChevronRight, IconDocs, IconIndent, IconLink, IconMore, IconOutdent, IconPlus, IconShapes, IconTasks } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -15,7 +15,7 @@ import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { cn } from "@/web/lib/cn";
 
 export const MAX_DEPTH = 6;
-export interface TreeNode { id: string; title: string; parentId: string | null; position: number; depth: number; children: TreeNode[] }
+export interface TreeNode { id: string; title: string; parentId: string | null; position: number; depth: number; children: TreeNode[]; kind?: "whiteboard" }
 interface TreeAnswer { tree: TreeNode[]; count: number; truncated: boolean }
 interface Backlink { id: string; title: string; snippet: string; updatedAt: string }
 
@@ -182,7 +182,7 @@ function TreeItem({ node, siblings, index, parent, currentId, collapsed, toggle,
           <IconChevronRight className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-90")} />
         </button>
         <Link to={`/app/docs/${node.id}`} draggable={false} className={cn("flex min-w-0 flex-1 items-center gap-1.5 py-0.5", active && "font-medium")}>
-          <IconDocs className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{node.title || "Untitled"}</span>
+          {node.kind === "whiteboard" ? <IconShapes className="h-3.5 w-3.5 shrink-0" aria-label="Whiteboard" /> : <IconDocs className="h-3.5 w-3.5 shrink-0" />}<span className="truncate">{node.title || "Untitled"}</span>
         </Link>
         <div className="opacity-0 focus-within:opacity-100 group-hover:opacity-100" onPointerDown={(e) => e.stopPropagation()}>
           <Menu align="end" trigger={<button type="button" aria-label={`Page actions for ${node.title}`} className="rounded p-0.5 text-subtle hover:text-fg"><IconMore className="h-4 w-4" /></button>}>

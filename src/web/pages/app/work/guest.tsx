@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
+import { docsVisualViewExtensions } from "./docs-visual/extensions"; // R89: boards and diagrams, read only
 import { docBlockSchemaExtensions } from "@/web/lib/docs-blocks-schema"; // R32: tables, images, callouts read here too
 import { IconChat, IconCheckCircle, IconCircle, IconClose, IconLogOut, IconTodo, IconWarning } from "@/web/components/ui/icon";
 import { api, ApiError } from "@/web/lib/api";
@@ -64,7 +65,7 @@ export function GuestAcceptPage() {
 
 function DocView({ id, onClose, onOpen }: { id: string; onClose: () => void; onOpen: (id: string) => void }) {
   const q = useQuery({ queryKey: ["guest-doc", id], queryFn: async () => (await api.get<{ doc: { title: string; content: unknown } }>(`/guest/docs/${id}`)).doc });
-  const editor = useEditor({ extensions: [StarterKit, TaskList, TaskItem.configure({ nested: true }), ...docBlockSchemaExtensions()], editable: false, content: null }, []);
+  const editor = useEditor({ extensions: [StarterKit, TaskList, TaskItem.configure({ nested: true }), ...docBlockSchemaExtensions().filter((x) => x.name !== "whiteboard" && x.name !== "diagram"), ...docsVisualViewExtensions({ readOnly: true })], editable: false, content: null }, []);
   useEffect(() => { if (editor && q.data) editor.commands.setContent(q.data.content as never); }, [editor, q.data]);
   return (
     <Card className="p-5" aria-label="Doc">

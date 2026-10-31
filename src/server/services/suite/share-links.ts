@@ -257,6 +257,16 @@ export function renderDocHtml(doc: unknown, appUrl: string, depth = 0): string {
       const size = ["fit", "wide", "full"].includes(String(n.attrs?.size)) ? String(n.attrs?.size) : "fit";
       return `<img src="${esc(src)}" alt="${esc(alt)}" data-size="${size}" loading="lazy" referrerpolicy="no-referrer">`;
     }
+    // R89: a diagram shows its text; a whiteboard shows the words written on it (the drawing needs the app).
+    case "diagram": return `<pre class="diagram"><code>${kids()}</code></pre>`;
+    case "whiteboard": {
+      let words = "";
+      try {
+        const els = JSON.parse(typeof n.attrs?.scene === "string" ? n.attrs.scene : "[]") as { type?: string; text?: string; isDeleted?: boolean }[];
+        if (Array.isArray(els)) words = els.filter((e) => e && e.type === "text" && !e.isDeleted && typeof e.text === "string").map((e) => `<li>${esc(String(e.text).slice(0, 300))}</li>`).slice(0, 200).join("");
+      } catch { words = ""; }
+      return `<div class="callout" role="note"><p><strong>Whiteboard</strong></p>${words ? `<ul>${words}</ul>` : "<p>Open it in the app to see the drawing.</p>"}</div>`;
+    }
     default: return kids();
   }
 }
