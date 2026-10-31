@@ -27,7 +27,7 @@ const MEDIA_TTL_MS = 7 * 86_400_000;
 export interface CreatePostInput {
   text: string;
   image?: { contentType: string; dataB64: string } | null;
-  targets: { accountId: string; target?: string | null }[];
+  targets: { accountId: string; target?: string | null; targetName?: string | null }[];
   /** ISO instant; missing or in the past means now. */
   runAt?: string | null;
 }
@@ -89,7 +89,7 @@ export async function createPost(deps: Deps, auth: AuthContext, input: CreatePos
     const app = a?.toolkit?.slug ?? "";
     const code = !a || a.user_id !== platformUserId(cp, auth.orgId) || statusOf(a.status) !== "active" ? "account_gone" : checkTarget(app, text, !!bytes, t.target);
     if (code) problems.push({ accountId: t.accountId, code });
-    return { accountId: t.accountId, app, label: a?.alias?.trim() || appLabel(app), target: (t.target ?? "").trim() || null };
+    return { accountId: t.accountId, app, label: a?.alias?.trim() || appLabel(app), target: (t.target ?? "").trim() || null, targetName: (t.targetName ?? "").trim().slice(0, 200) || null };
   });
   if (problems.length) throw new HttpError(422, "target_problems", "Some accounts can't take this post.", { problems });
 
@@ -101,7 +101,7 @@ export async function createPost(deps: Deps, auth: AuthContext, input: CreatePos
     await deps.db.insert(socialMedia).values({ id: mediaId, orgId: auth.orgId, token: randomToken(18), contentType, sizeBytes: bytes.length, contentB64: toB64(bytes), createdAt: now });
   }
   await deps.db.insert(socialPosts).values({ id: postId, orgId: auth.orgId, createdBy: auth.userId, text, mediaId, status: "scheduled", runAt, createdAt: now, updatedAt: now });
-  writes.push(deps.db.insert(socialPostTargets).values(rows.map((r) => ({ postId, accountId: r.accountId, app: r.app, label: r.label, target: r.target, status: "pending" as const }))));
+  writes.push(deps.db.insert(socialPostTargets).values(rows.map((r) => ({ postId, accountId: r.accountId, app: r.app, label: r.label, target: r.target, targetName: r.targetName, status: "pending" as const }))));
   writes.push(audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: runAt > now ? "social.post_scheduled" : "social.post_created", targetType: "social_post", targetId: postId, metadata: { accounts: rows.length, apps: [...new Set(rows.map((r) => r.app))], image: !!mediaId }, ip: opts.ip ?? null }));
   await Promise.all(writes);
   return getPost(deps, auth.orgId, postId);
@@ -137,7 +137,7 @@ async function viewsFor(deps: Deps, orgId: string, ids?: string[], limit = 50): 
     createdAt: p.createdAt.toISOString(),
     createdBy: p.createdBy,
     targets: targets.filter((t) => t.postId === p.id).map((t) => ({
-      accountId: t.accountId, app: t.app, label: t.label, target: t.target, status: t.status as TargetStatus, url: t.url, error: t.error,
+      accountId: t.accountId, app: t.app, label: t.label, target: t.target, targetName: t.targetName, status: t.status as TargetStatus, url: t.url, error: t.error,
       sentAt: t.sentAt ? t.sentAt.toISOString() : null,
     })),
   }));

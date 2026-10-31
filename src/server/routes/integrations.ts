@@ -19,7 +19,7 @@ const PostBody = z.object({
   text: z.string().max(6000),
   // 1 MB of image is about 1.34 MB of base64.
   image: z.object({ contentType: z.string().max(64), dataB64: z.string().min(1).max(1_400_000) }).nullable().optional(),
-  targets: z.array(z.object({ accountId: z.string().min(3).max(64), target: z.string().max(200).nullable().optional() })).min(1).max(20),
+  targets: z.array(z.object({ accountId: z.string().min(3).max(64), target: z.string().max(200).nullable().optional(), targetName: z.string().max(200).nullable().optional() })).min(1).max(20),
   runAt: z.string().max(40).nullable().optional(),
 });
 const LOGO_HOST = "https://logos.composio.dev/api/";

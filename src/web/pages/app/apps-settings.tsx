@@ -100,7 +100,7 @@ export function AppsSettings() {
 
 function GridSkeleton() {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true" aria-label="Loading apps">
+    <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3" aria-busy="true" aria-label="Loading apps">
       {Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-[104px] rounded-xl" />)}
     </div>
   );
@@ -236,9 +236,9 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
           })}
         </Card>
         {connected.some((a) => a.status === "active" && a.app in { facebook: 1, instagram: 1, linkedin: 1, pinterest: 1, reddit: 1 }) && (
-          <button type="button" onClick={() => navigate("/app/settings/apps/social")} className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-md px-1 text-[13px] font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40">
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate("/app/settings/apps/social")}>
             <IconMegaphone className="h-4 w-4" aria-hidden />Write a social post
-          </button>
+          </Button>
         )}
       </section>
 
@@ -276,7 +276,7 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
           <Card><EmptyState icon={<IconSearch />} title="No apps match" body={`Nothing matches "${q.trim()}". Try a shorter word or another category.`} action={<Button variant="outline" size="sm" onClick={() => { setQ(""); setGroup("all"); }}>Clear search</Button>} /></Card>
         ) : (
           <>
-            <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="apps-grid">
+            <ul className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3" data-testid="apps-grid">
               {matches.slice(0, limit).map((a) => (
                 <AppCard key={a.slug} app={a} count={byApp.get(a.slug)?.length ?? 0} canManage={canManage} busy={connect.isPending && connect.variables === a.slug} onConnect={() => connect.mutate(a.slug)} />
               ))}
@@ -310,13 +310,13 @@ function AppCard({ app, count, canManage, busy, onConnect }: { app: CatalogApp; 
         </div>
       </div>
       <div className="mt-auto flex items-center justify-between gap-2">
-        <span className="text-[12px] text-subtle">
+        <span className="min-w-0 truncate whitespace-nowrap text-[12px] text-subtle">
           {app.availability === "key" ? <span className="inline-flex items-center gap-1"><IconKey className="h-3.5 w-3.5" aria-hidden />Uses your own key</span>
             : app.availability === "soon" ? <span className="inline-flex items-center gap-1"><IconClock className="h-3.5 w-3.5" aria-hidden />Coming soon</span>
             : app.canPost ? <span className="inline-flex items-center gap-1"><IconMegaphone className="h-3.5 w-3.5" aria-hidden />Post from Multies</span> : null}
         </span>
         {app.availability !== "soon" && canManage && (
-          <Button size="sm" variant={count ? "outline" : "primary"} loading={busy} onClick={onConnect} aria-label={`${count ? "Connect another" : "Connect"} ${app.name}`}>
+          <Button size="sm" variant={count ? "outline" : "primary"} loading={busy} onClick={onConnect} aria-label={count ? `Add account for ${app.name}` : `Connect ${app.name}`}>
             <IconPlug className="h-4 w-4" aria-hidden />{count ? "Add account" : "Connect"}
           </Button>
         )}

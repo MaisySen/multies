@@ -2398,6 +2398,7 @@ export const socialPostTargets = sqliteTable("social_post_targets", {
   app: text("app").notNull(),
   label: text("label"),
   target: text("target"),
+  targetName: text("target_name"),
   status: text("status", { enum: ["pending", "sent", "failed", "skipped"] }).notNull().default("pending"),
   url: text("url"),
   error: text("error"),

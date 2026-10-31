@@ -26,6 +26,7 @@ CREATE TABLE `social_post_targets` (
 	`app` text NOT NULL,
 	`label` text,
 	`target` text,
+	`target_name` text,
 	`status` text DEFAULT 'pending' NOT NULL,
 	`url` text,
 	`error` text,

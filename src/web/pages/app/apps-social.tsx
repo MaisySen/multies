@@ -48,7 +48,7 @@ async function readImage(file: File): Promise<{ contentType: string; dataB64: st
 }
 
 /** Pages or boards for one account, loaded when it is picked. */
-function TargetPicker({ account, value, onChange }: { account: ConnectedAccountView; value: string; onChange: (v: string) => void }) {
+function TargetPicker({ account, value, onChange }: { account: ConnectedAccountView; value: string; onChange: (v: string, name?: string) => void }) {
   const net = SOCIAL_NETWORKS[account.app]!;
   const listed = net.target?.kind === "page" || net.target?.kind === "board";
   const q = useQuery({
@@ -56,7 +56,7 @@ function TargetPicker({ account, value, onChange }: { account: ConnectedAccountV
     queryFn: () => api.get<{ targets: { id: string; name: string }[] }>(`/apps/accounts/${encodeURIComponent(account.id)}/targets`).then((r) => r.targets),
     enabled: listed, staleTime: 300_000,
   });
-  useEffect(() => { if (listed && !value && q.data?.length === 1) onChange(q.data[0]!.id); }, [listed, value, q.data, onChange]);
+  useEffect(() => { if (listed && !value && q.data?.length === 1) onChange(q.data[0]!.id, q.data[0]!.name); }, [listed, value, q.data, onChange]);
   if (!net.target) return null;
   const label = `${net.target.label} for ${account.appName}`;
   if (!listed) {
@@ -66,7 +66,7 @@ function TargetPicker({ account, value, onChange }: { account: ConnectedAccountV
   if (q.error) return <p className="text-[13px] text-bad">Couldn't load your {net.target.label.toLowerCase()}s. <button type="button" className="underline" onClick={() => void q.refetch()}>Try again</button></p>;
   if (!q.data?.length) return <p className="text-[13px] text-muted">No {net.target.label.toLowerCase()}s found on this account.</p>;
   return (
-    <Select aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} className="h-9 max-w-xs text-sm">
+    <Select aria-label={label} value={value} onChange={(e) => onChange(e.target.value, q.data?.find((t) => t.id === e.target.value)?.name)} className="h-9 max-w-xs text-sm">
       <option value="">Pick a {net.target.label.toLowerCase()}</option>
       {q.data.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
     </Select>
@@ -104,6 +104,7 @@ function Composer({ accounts }: { accounts: ConnectedAccountView[] }) {
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const [picked, setPicked] = useState<Record<string, string | null>>({});
+  const [names, setNames] = useState<Record<string, string>>({});
   const [image, setImage] = useState<{ contentType: string; dataB64: string; preview: string } | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [later, setLater] = useState(false);
@@ -138,7 +139,7 @@ function Composer({ accounts }: { accounts: ConnectedAccountView[] }) {
     mutationFn: () => api.create<{ post: SocialPostView }>("/social/posts", {
       text: text.trim(),
       image: image ? { contentType: image.contentType, dataB64: image.dataB64 } : null,
-      targets: chosen.map((a) => ({ accountId: a.id, target: picked[a.id] || null })),
+      targets: chosen.map((a) => ({ accountId: a.id, target: picked[a.id] || null, targetName: names[a.id] || null })),
       runAt: whenIso,
     }),
     onSuccess: (r) => {
@@ -177,7 +178,7 @@ function Composer({ accounts }: { accounts: ConnectedAccountView[] }) {
                     <AppLogo slug={a.app} name={a.appName} size="sm" />
                     <span className="min-w-0 truncate text-sm">{a.appName}{a.label ? <span className="text-muted">, {a.label}</span> : null}</span>
                   </label>
-                  {on && <TargetPicker account={a} value={picked[a.id] ?? ""} onChange={(v) => setPicked((p) => ({ ...p, [a.id]: v }))} />}
+                  {on && <TargetPicker account={a} value={picked[a.id] ?? ""} onChange={(v, name) => { setPicked((p) => ({ ...p, [a.id]: v })); setNames((n) => ({ ...n, [a.id]: name ?? v })); }} />}
                   {err && <p className="basis-full pl-7 text-[12.5px] text-warn" data-testid="pick-problem"><IconWarning className="mr-1 inline h-3.5 w-3.5" aria-hidden />{err}</p>}
                 </li>
               );
@@ -293,10 +294,10 @@ function PostList({ canManage }: { canManage: boolean }) {
                       {p.targets.map((t) => (
                         <li key={t.accountId} className="flex flex-wrap items-center gap-2 px-3 py-2 text-[13px]" data-testid="post-target" data-status={t.status}>
                           <AppLogo slug={t.app} name={t.label ?? t.app} size="sm" />
-                          <span className="min-w-0 flex-1 truncate">{t.label ?? t.app}{t.target ? <span className="text-muted">, {t.target}</span> : null}</span>
+                          <span className="min-w-0 flex-1 truncate">{t.label ?? t.app}{t.target ? <span className="text-muted">, {t.targetName ?? t.target}</span> : null}</span>
                           {t.status === "sent" ? (
                             <span className="inline-flex items-center gap-1.5 text-ok"><IconCheckCircle className="h-4 w-4" aria-hidden />Posted
-                              {t.url && <a href={t.url} target="_blank" rel="noopener noreferrer" className="ml-1 inline-flex min-h-8 items-center gap-1 text-brand hover:underline">View<IconExternalLink className="h-3.5 w-3.5" aria-hidden /></a>}
+                              {t.url && <a href={t.url} target="_blank" rel="noopener noreferrer" className="ml-1 inline-flex min-h-8 items-center gap-1 font-medium text-fg underline underline-offset-2 hover:text-muted">View<IconExternalLink className="h-3.5 w-3.5" aria-hidden /></a>}
                             </span>
                           ) : t.status === "failed" || t.status === "skipped" ? (
                             <span className="inline-flex basis-full items-center gap-1.5 pl-9 text-bad sm:basis-auto sm:pl-0"><IconXCircle className="h-4 w-4 shrink-0" aria-hidden />{SOCIAL_ERROR_COPY[t.error ?? "rejected"] ?? SOCIAL_ERROR_COPY.rejected}</span>

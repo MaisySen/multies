@@ -131,6 +131,8 @@ export interface PostTargetView {
   app: string;
   label: string | null;
   target: string | null;
+  /** The page, board or community name shown to people (target is the id the network takes). */
+  targetName: string | null;
   status: TargetStatus;
   url: string | null;
   error: string | null;
