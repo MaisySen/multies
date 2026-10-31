@@ -516,7 +516,7 @@ export function taskData(deps: Deps, task: Record<string, unknown> | { id: strin
   const status = t.status && typeof t.status === "object" ? t.status as { name?: string; category?: string } : null;
   const project = t.project && typeof t.project === "object" ? (t.project as { name?: string }).name : undefined;
   return {
-    taskId: t.id, ref: t.ref, title: t.title, priority: t.priority, status: status?.name ?? t.statusName ?? t.status ?? "", category: status?.category ?? t.category ?? "",
+    taskId: t.id, ref: t.ref, title: t.title, priority: t.priority, status: status?.name ?? t.statusName ?? "", category: typeof t.status === "string" ? t.status : status?.category ?? "",
     project: project ?? t.projectName ?? "", projectId: t.projectId, assigneeId: t.assignee?.type === "member" ? t.assignee.id : null, labels: t.labels,
     link: `${deps.config.appUrl}/app/tasks/${String(t.ref ?? t.id)}`,
   };
