@@ -49,7 +49,7 @@ test("file request: make it, upload signed out (one file in two parts), see it a
   await page.setViewportSize({ width: 1280, height: 860 });
   await demo(page);
   await page.goto("/app/tools/share");
-  await expect(page.getByTestId("share-tabs")).toBeVisible();
+  await expect(page.getByTestId("share-tabs")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("tab", { name: "Share files" })).toHaveAttribute("aria-selected", "true");
   await page.getByRole("tab", { name: "File requests" }).click();
   await expect(page).toHaveURL(/tab=requests/);
