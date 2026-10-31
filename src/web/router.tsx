@@ -93,6 +93,11 @@ const ContactsPage = lazyPage(() => contactPages(), "ContactsPage");
 const ContactPage = lazyPage(() => contactPages(), "ContactPage");
 const DealsPage = lazyPage(() => import("./pages/app/work/deals"), "DealsPage");
 const AutomationsPage = lazyPage(() => import("./pages/app/work/automations"), "AutomationsPage");
+// R90: one Automations home (flows, rules, runs), the flow editor and the run log.
+const AutomationsHubPage = lazyPage(() => import("./pages/app/automations/hub"), "AutomationsHubPage");
+const FlowEditorPage = lazyPage(() => import("./pages/app/automations/editor"), "FlowEditorPage");
+const RunsPage = lazyPage(() => import("./pages/app/automations/runs"), "RunsPage");
+const RunDetailPage = lazyPage(() => import("./pages/app/automations/runs"), "RunDetailPage");
 const TimesheetPage = lazyPage(() => import("./pages/app/work/time"), "TimesheetPage");
 const formPages = () => import("./pages/app/work/forms");
 const FormsPage = lazyPage(() => formPages(), "FormsPage");
@@ -245,7 +250,11 @@ export const router = createBrowserRouter([
       { path: "contacts", element: page(<ContactsPage />) },
       { path: "contacts/:id", element: page(<ContactPage />) },
       { path: "deals", element: page(<DealsPage />) },
-      { path: "automations", element: page(<AutomationsPage />) },
+      { path: "automations", element: page(<AutomationsHubPage />) },
+      { path: "automations/rules", element: page(<AutomationsPage />) },
+      { path: "automations/flows/:id", element: page(<FlowEditorPage />) },
+      { path: "automations/runs", element: page(<RunsPage />) },
+      { path: "automations/runs/:id", element: page(<RunDetailPage />) },
       { path: "integrations", element: <Moved to="/app/settings/apps/webhooks" /> }, // R82F (MB-279): now a tab of Connections
       { path: "time", element: page(<TimesheetPage />) },
       { path: "forms", element: page(<FormsPage />) },

@@ -12,6 +12,7 @@ import { Field, Input, Textarea } from "@/web/components/ui/input";
 import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { useAgents } from "./agents";
+import { FlowApprovalsSection } from "./automations/approvals-section"; // R90
 
 export interface Approval {
   id: string; agentId: string; mailboxId: string; threadId: string | null; status: "pending" | "sent" | "rejected" | "failed" | "expired";
@@ -35,6 +36,7 @@ export function ApprovalsPage() {
   return (
     <>
       <PageHeader title="Approvals" description="Messages your agents want to send. Nothing leaves until someone approves it. Edit before you approve if it needs a better word." />
+      <FlowApprovalsSection />
       <div className="mb-4 flex gap-1 rounded-lg bg-fill p-0.5 text-sm sm:w-fit" role="tablist" aria-label="Approvals">
         {(["pending", "decided"] as const).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cn("flex-1 rounded-md px-3 py-1.5 sm:flex-none", tab === t ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>

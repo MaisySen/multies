@@ -396,6 +396,7 @@ export function createApp(deps: Deps) {
       plans: Object.values(PLANS),
       meetings: !!deps.config.meetings,
       scheduling: deps.config.schedulingEnabled,
+      flows: deps.config.flows !== false, // R90
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
       chatChannels: deps.config.channels.enabled,
       // Tools P1: whether the Tools page and its menu entries show (TOOLS_ENABLED with an engine configured).

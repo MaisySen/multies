@@ -10,7 +10,7 @@ export type IconKey =
   | "reports" | "agents" | "integrations" | "connections" | "settings" | "operator" | "convert"
   | "social" | "planner" | "posts" | "accounts";
 
-export interface NavPage { to: string; label: string; icon: IconKey; end?: boolean; flag?: "tools" | "files" | "scheduling" | "operator" }
+export interface NavPage { to: string; label: string; icon: IconKey; end?: boolean; flag?: "tools" | "files" | "scheduling" | "operator" | "flows" }
 export interface Section { id: SectionId; label: string; icon: IconKey; to: string; pages: NavPage[] }
 
 export const SECTIONS: Section[] = [
@@ -34,7 +34,6 @@ export const SECTIONS: Section[] = [
     { to: "/app/portfolio", label: "Portfolio", icon: "portfolio" },
     { to: "/app/time", label: "Timesheet", icon: "timesheet" },
     { to: "/app/templates", label: "Project templates", icon: "templates" },
-    { to: "/app/automations", label: "Automations", icon: "automations" },
   ] },
   { id: "docs", label: "Docs", icon: "docs", to: "/app/docs", pages: [
     { to: "/app/docs", label: "Docs", icon: "docs" },
@@ -64,6 +63,9 @@ export const SECTIONS: Section[] = [
   // P1 layout: Agents is a daily tool with its own place at the bottom of the rail, above Settings.
   { id: "agents", label: "Agents", icon: "agents", to: "/app/agents", pages: [
     { to: "/app/agents", label: "Agents", icon: "agents" },
+    // R90 (layout plan: one Automations home under Agents): flows, rules and their runs.
+    { to: "/app/automations", label: "Automations", icon: "automations", end: true },
+    { to: "/app/automations/runs", label: "Runs", icon: "activity", flag: "flows" },
   ] },
   // P1 layout: "Workspace" is called Settings; it holds only wiring (connect, keys, people, billing, the log).
   { id: "workspace", label: "Settings", icon: "workspace", to: "/app/settings", pages: [
@@ -74,7 +76,7 @@ export const SECTIONS: Section[] = [
   ] },
 ];
 
-export interface NavFlags { tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts. */ social?: boolean; /** R87: Tools > Links is on. */ links?: boolean }
+export interface NavFlags { /** R90: the automation builder is on. */ flows?: boolean; tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts. */ social?: boolean; /** R87: Tools > Links is on. */ links?: boolean }
 
 /** The sections and pages this person can open (switched off features leave no dead links). */
 export function visibleSections(flags: NavFlags): Section[] {

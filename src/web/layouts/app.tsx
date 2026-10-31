@@ -275,7 +275,7 @@ export function AppLayout() {
 
   // R79: the desktop shell: icon rail, a resizable sidebar for the open section (Cmd or Ctrl + backslash folds it),
   // and a top bar with breadcrumbs, search, Create and View. Tablets and phones keep their own bars (R46).
-  const navFlags = { tools: !!config.data?.tools, files: !!config.data?.tools && !!config.data?.toolFeatures?.includes("folders"), scheduling: !!config.data?.scheduling, links: !!config.data?.tools && !!config.data?.toolFeatures?.includes("links"), operator: !!me.data?.user.platformAdmin, social: me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin" };
+  const navFlags = { flows: (config.data as { flows?: boolean } | undefined)?.flows !== false, tools: !!config.data?.tools, files: !!config.data?.tools && !!config.data?.toolFeatures?.includes("folders"), scheduling: !!config.data?.scheduling, links: !!config.data?.tools && !!config.data?.toolFeatures?.includes("links"), operator: !!me.data?.user.platformAdmin, social: me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin" };
   const sections = visibleSections(navFlags);
   const section = sectionFor(loc.pathname, sections);
   const navCounts: NavCounts = {
