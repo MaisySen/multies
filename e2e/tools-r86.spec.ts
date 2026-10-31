@@ -49,19 +49,20 @@ async function download(page: Page, click: () => Promise<void>): Promise<{ name:
 const firstDownload = (page: Page) => download(page, () => page.getByTestId("convert-download").first().click());
 const head = (b: Buffer, n = 12) => b.subarray(0, n).toString("latin1");
 
-async function shots(page: Page, name: string, themes: ("light" | "dark")[] = ["light", "dark"]) {
+async function shots(page: Page, name: string, widths: ("1280" | "390")[] = ["1280", "390"]) {
   if (!SHOTS) return;
   mkdirSync(SHOTS, { recursive: true });
-  for (const scheme of themes) {
-    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
-    for (const [vp, w, h] of [["1280", 1280, 900], ["390", 390, 844]] as const) {
-      await page.setViewportSize({ width: w, height: h });
+  // Crossing the 1024 px desktop shell breakpoint remounts the page (and drops picked files), so every 1280 shot is
+  // taken first and the 390 ones last; callers take shots at the end of a flow or at 1280 only mid flow.
+  for (const [vp, w, h] of ([["1280", 1280, 900], ["390", 390, 844]] as const).filter(([v]) => widths.includes(v))) {
+    await page.setViewportSize({ width: w, height: h });
+    for (const scheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
       await page.waitForTimeout(350);
       await page.screenshot({ path: join(SHOTS, `r86-${name}-${vp}-${scheme}.png`), fullPage: true });
     }
   }
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "no-preference" });
-  await page.setViewportSize({ width: 1280, height: 900 });
 }
 async function noSeriousAxe(page: Page) {
   const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
@@ -77,12 +78,13 @@ test("1. a video becomes MP3 on the engine, with its limits said and progress sh
   await page.getByTestId("convert-to-mp3").click();
   await expect(page.getByTestId("convert-engine-note")).toContainText("Multies engine");
   await expect(page.getByTestId("convert-engine-limit").first()).toContainText("3 minutes");
-  await shots(page, "video-chosen");
+  await shots(page, "video-chosen", ["1280"]);
   await page.getByTestId("convert-run").click();
   await expect(page.locator('[data-testid="convert-job"] [role="progressbar"]').first()).toBeVisible();
   await expect(page.locator('[data-testid="convert-job"][data-status="done"]')).toHaveCount(1, { timeout: 60_000 });
   const f = await firstDownload(page);
   expect(f.name).toBe("clip.mp3");
+  await shots(page, "video-done");
 });
 
 test("2. HEIC outside Safari goes to the engine and says so; 3. EPUB to PDF", async ({ page }) => {
@@ -113,7 +115,6 @@ test("4. ZIP and 7Z unpack on the device, each file listed, folders kept in the 
   const files = page.getByTestId("convert-job-files").first();
   await files.locator("summary").click();
   await expect(files.locator("li")).toHaveCount(2);
-  await shots(page, "unpacked");
   const z = await firstDownload(page);
   expect(z.name).toMatch(/\.zip$/);
   const entries = Object.keys(unzipSync(new Uint8Array(z.bytes))).sort();
@@ -122,6 +123,7 @@ test("4. ZIP and 7Z unpack on the device, each file listed, folders kept in the 
   // One file on its own.
   const one = await download(page, () => files.getByRole("button", { name: "Download a.txt" }).click());
   expect(one.bytes.toString()).toBe("hello\n");
+  await shots(page, "unpacked");
 });
 
 test("5. any files pack into one TAR.GZ, even a kind Multies can't convert", async ({ page }) => {
@@ -154,7 +156,7 @@ test("6. compress: a PDF and a video on the engine, a photo on the device, sizes
   await run(page, 2);
   await expect(page.getByTestId("convert-job-sizes")).toHaveCount(2);
   await expect(page.getByTestId("convert-job-sizes").first()).toContainText("% smaller");
-  await shots(page, "compressed");
+  await shots(page, "compressed", ["1280"]);
   await page.getByTestId("convert-clear-files").click();
   await add(page, [join(FIX, "photo-b.jpg")]);
   await page.getByTestId("convert-action-compress").click();
@@ -232,7 +234,6 @@ test("9. Edit a PDF: text, black out, signature, watermark, numbers, turn and de
   await page.getByTestId("edit-pdf-turn").first().click();
   if (n > 1) await page.getByTestId("edit-pdf-delete-page").last().click();
   await page.getByTestId("edit-pdf-tool-move").click();
-  await shots(page, "edit-pdf");
   await noSeriousAxe(page);
   const f = await download(page, () => page.getByTestId("edit-pdf-save").click());
   expect(f.name).toBe("sample-a-edited.pdf");
@@ -243,6 +244,7 @@ test("9. Edit a PDF: text, black out, signature, watermark, numbers, turn and de
   // The blacked out page is a picture now (its words are gone), the rest keeps text; text and numbers use Helvetica.
   expect(raw).toMatch(/\/Subtype\s*\/Image/);
   expect(raw).toMatch(/Helvetica/);
+  await shots(page, "edit-pdf");
 });
 
 test("10. Forest theme and phone width on the hub and Edit a PDF", async ({ page }) => {
