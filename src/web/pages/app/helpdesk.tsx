@@ -272,7 +272,7 @@ export function WebChatView({ ticketId, onBack }: { ticketId: string; onBack: ()
                 m.author === "agent" && "self-end rounded-br-md bg-brand text-brand-fg",
                 m.author === "bot" && "self-start rounded-bl-md border border-dashed border-line-strong",
                 m.author === "note" && "self-end rounded-br-md border border-warn/40 bg-warn-soft")}>
-                <p className={cn("mb-0.5 text-[11px]", m.author === "agent" ? "text-brand-fg/80" : "text-subtle")}>
+                <p className={cn("mb-0.5 text-[11px]", m.author === "agent" ? "text-brand-fg" : "text-muted")}>
                   {m.author === "visitor" ? "Visitor" : m.author === "bot" ? "Automatic answer" : m.author === "note" ? `Note by ${m.name}` : m.name}
                   {" · "}<time dateTime={m.at} title={fullDate(m.at)}>{mailDate(m.at)}</time>{m.via === "mail" ? " · also sent by email" : ""}
                 </p>
