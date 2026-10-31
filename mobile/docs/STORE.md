@@ -37,7 +37,7 @@ Expo needs macOS to build iOS. Free routes, none needing a new account:
    new repo with only `mobile/`, history checked for secrets first). Copy
    `ci/github/ios-testflight.yml` into `.github/workflows/`, set `APP_DIR: "."`, add the four
    secrets. Bidur decides; nothing has been made public.
-2. GitHub Actions macOS on the private MaisySen/mymail repo. Same workflow with `APP_DIR: mobile`.
+2. GitHub Actions macOS on the private MaisySen/multies repo. Same workflow with `APP_DIR: mobile`.
    Private repos pay for macOS minutes (billed at 10 times the Linux rate) and this account has
    no Actions minutes left until 1 November. Not free.
 3. EAS Build (Expo's cloud). Free tier with a monthly build limit, but needs an Expo account;

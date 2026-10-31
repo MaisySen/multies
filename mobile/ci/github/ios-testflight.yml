@@ -3,7 +3,7 @@
 #
 # Where this file goes: GitHub only runs workflows from .github/workflows/ at the repo root.
 # Copy it to .github/workflows/ios-testflight.yml in the repo that will run it:
-#   - MaisySen/mymail (private): the folder is mobile/, as below. macOS minutes are billed on a
+#   - MaisySen/multies (private): the folder is mobile/, as below. macOS minutes are billed on a
 #     private repo, so this route costs money once the free minutes run out.
 #   - A new public repo holding only the mobile app: set APP_DIR to "." (free macOS minutes,
 #     but the app code is public). Check history for secrets first (docs/SECURITY.md).
