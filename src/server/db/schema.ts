@@ -2374,3 +2374,42 @@ export const userThemes = sqliteTable("user_themes", {
   accent: text("accent"),
   updatedAt: ts("updated_at").notNull(),
 }, (t) => [primaryKey({ columns: [t.userId, t.orgId] })]);
+
+/**
+ * R80C: social posts from Connections (drizzle/0101). The connected accounts themselves live with the integration
+ * platform; a target row names one by its platform id and keeps that account's result.
+ */
+export const socialPosts = sqliteTable("social_posts", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  createdBy: text("created_by"),
+  text: text("text").notNull(),
+  mediaId: text("media_id"),
+  status: text("status", { enum: ["scheduled", "sending", "done", "partial", "failed", "canceled"] }).notNull().default("scheduled"),
+  runAt: ts("run_at").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("social_posts_due_idx").on(t.status, t.runAt), index("social_posts_org_idx").on(t.orgId, t.runAt)]);
+
+export const socialPostTargets = sqliteTable("social_post_targets", {
+  postId: text("post_id").notNull().references(() => socialPosts.id, { onDelete: "cascade" }),
+  accountId: text("account_id").notNull(),
+  app: text("app").notNull(),
+  label: text("label"),
+  target: text("target"),
+  status: text("status", { enum: ["pending", "sent", "failed", "skipped"] }).notNull().default("pending"),
+  url: text("url"),
+  error: text("error"),
+  sentAt: ts("sent_at"),
+}, (t) => [primaryKey({ columns: [t.postId, t.accountId] })]);
+
+export const socialMedia = sqliteTable("social_media", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  token: text("token").notNull(),
+  contentType: text("content_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  contentB64: text("content_b64").notNull(),
+  createdAt: createdAt(),
+});

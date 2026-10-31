@@ -35,6 +35,7 @@ import { sharePublicRoutes, toolsShareRoutes } from "./routes/tools-share"; // T
 import { esignPublicRoutes, toolsEsignRoutes } from "./routes/tools-esign"; // Tools P2: e-sign
 import { attachmentIndexRoutes } from "./routes/attachment-index"; // Tools P2: attachment index and smart folders
 import { connectionRoutes } from "./routes/connections";
+import { appConnectionRoutes, socialRoutes } from "./routes/integrations"; // R80C: Connections hub and social posts
 import { fxRoutes } from "./routes/fx";
 import { orgRoutes } from "./routes/org";
 import { brandingRoutes } from "./routes/branding"; // R77
@@ -427,6 +428,8 @@ export function createApp(deps: Deps) {
   app.route("/api/mail-merge", mailMergeUnsubscribeRoutes()); // Tools P2: automation (public mail merge unsubscribe)
   app.route("/api/attachment-files", attachmentIndexRoutes()); // Tools P2: attachment index and smart folders
   app.route("/api/connections", connectionRoutes());
+  app.route("/api/apps", appConnectionRoutes()); // R80C: Connections hub
+  app.route("/api/social", socialRoutes()); // R80C: social posts
   app.route("/api/fx", fxRoutes());
   app.route("/api/aliases", aliasRoutes());
   app.route("/api/org", orgRoutes());

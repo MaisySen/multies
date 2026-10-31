@@ -9,7 +9,7 @@ import type { DB } from "../db";
 import { appSettings } from "../db/schema";
 import { migrationDriver, pendingMigrations } from "../db";
 import { lt } from "drizzle-orm";
-import { agentTriggers, automations, dataMoves, jobs, mailConnections, mailSchedules, organizations, sendApprovals, sessions, verifications, webhookDeliveries } from "../db/schema";
+import { agentTriggers, automations, dataMoves, jobs, mailConnections, mailSchedules, organizations, sendApprovals, sessions, socialPosts, verifications, webhookDeliveries } from "../db/schema";
 import { purgeDemoWorkspaces } from "./demo";
 import { recheckStaleDomains } from "./domains";
 import { checkWriteBudget } from "./write-budget";
@@ -78,6 +78,9 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
   const mailSchedules = !has.mailSchedules ? undefined : await step("mail_schedules", async () => (await import("./mail/schedules")).runMailSchedules(deps));
   // R28 (DF-3 slice 3): schedule triggers that are due queue agent runs. One read on a partial index; idle writes nothing.
   const agentTriggersRun = !has.agentTriggers ? undefined : await step("agent_triggers", async () => (await import("./suite/agent-triggers")).runDueTriggers(deps));
+  // R80C: social posts that are due go out (one read on (status, run_at) when none); old post images go once an hour.
+  const socialRun = !has.social || !deps.config.integrations.composio ? undefined : await step("social_posts", async () => (await import("./integrations/social")).runDueSocialPosts(deps));
+  if (inSlot(1) && deps.config.integrations.composio) await step("social_media_prune", async () => (await import("./integrations/social")).pruneSocialMedia(deps));
   // R35 (Apple 1.2): mails the operator about open reports at most once per 15 minutes. One read when none are open.
   if (inSlot(3)) await step("ugc_reports_mail", async () => (await import("./suite/reports-r35")).mailOperator(deps));
   // Independent deletes on different tables, sent together rather than one after another.
@@ -98,11 +101,11 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
     const t = await import("./tools/maintenance");
     await t.toolsMaintenance(deps, inSlot(1));
   });
-  return { ...legacy, jobs: jobsRun, mailSync, mailSchedules, agentTriggers: agentTriggersRun, uptime, crossChecks, dunning, approvalsExpired, reminders, writes: writes ? { level: writes.level, rowsWritten: writes.rowsWritten } : undefined };
+  return { ...legacy, socialPosts: socialRun, jobs: jobsRun, mailSync, mailSchedules, agentTriggers: agentTriggersRun, uptime, crossChecks, dunning, approvalsExpired, reminders, writes: writes ? { level: writes.level, rowsWritten: writes.rowsWritten } : undefined };
 }
 
-type Waiting = { moves: boolean; jobs: boolean; webhooks: boolean; approvals: boolean; dueSoon: boolean; duePassed: boolean; mailSync: boolean; mailSchedules: boolean; agentTriggers: boolean };
-const ALL_WAITING: Waiting = { moves: true, jobs: true, webhooks: true, approvals: true, dueSoon: true, duePassed: true, mailSync: true, mailSchedules: true, agentTriggers: true };
+type Waiting = { moves: boolean; jobs: boolean; webhooks: boolean; approvals: boolean; dueSoon: boolean; duePassed: boolean; mailSync: boolean; mailSchedules: boolean; agentTriggers: boolean; social: boolean };
+const ALL_WAITING: Waiting = { moves: true, jobs: true, webhooks: true, approvals: true, dueSoon: true, duePassed: true, mailSync: true, mailSchedules: true, agentTriggers: true, social: true };
 
 /**
  * R51 (CPU): one statement that answers, for each step of the maintenance pass that can be idle, whether it has
@@ -130,6 +133,8 @@ export async function probeWaiting(deps: Deps): Promise<Waiting> {
     mailSync: db.select(one).from(mailConnections).where(and(sql`${mailConnections.status} in ('active', 'error', 'syncing')`, sql`coalesce(${mailConnections.nextSyncAt}, 0) <= ${now.getTime()}`)).limit(1),
     mailSchedules: db.select(one).from(mailSchedules).where(or(and(eq(mailSchedules.status, "pending"), lte(mailSchedules.dueAt, now)), and(eq(mailSchedules.status, "returned"), lte(mailSchedules.dueAt, returnedBefore)))).limit(1),
     agentTriggers: db.select(one).from(agentTriggers).where(and(eq(agentTriggers.enabled, true), eq(agentTriggers.kind, "schedule"), lte(agentTriggers.nextRunAt, now))).limit(1),
+    // R80C: social posts that are due, or stuck mid send for 15 minutes.
+    social: db.select(one).from(socialPosts).where(or(and(eq(socialPosts.status, "scheduled"), lte(socialPosts.runAt, now)), and(eq(socialPosts.status, "sending"), lt(socialPosts.updatedAt, new Date(now.getTime() - 15 * 60_000))))).limit(1),
   };
   const keys = Object.keys(parts) as (keyof Waiting)[];
   try {
@@ -140,6 +145,7 @@ export async function probeWaiting(deps: Deps): Promise<Waiting> {
     const out = {} as Waiting;
     for (const k of keys) out[k] = Number(row[k]) !== 0;
     if (!deps.config.mailConnect.enabled) out.mailSync = false;
+    if (!deps.config.integrations.composio) out.social = false;
     return out;
   } catch (err) {
     deps.log?.warn("maintenance.probe_failed", { error: err });

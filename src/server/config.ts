@@ -145,6 +145,12 @@ export interface AppConfig {
    * and /api/webhooks/meta answer a plain 404 and do nothing, the MCP chat tools are not listed, and the web app shows
    * no Settings pane, command menu entry or chat rows (it reads chatChannels from /api/config).
    */
+  /**
+   * R80C: Connections (outside apps, social first). `composio` is set only when COMPOSIO_API_KEY is present; without it
+   * Settings > Connections shows a calm "not switched on" card and every write answers 503. COMPOSIO_BASE_URL points
+   * tests at a local stand in. `userPrefix` keeps each host's workspaces apart inside the one shared project.
+   */
+  integrations: { composio?: { apiKey: string; baseUrl: string; userPrefix: string } };
   channels: { enabled: boolean; meta?: { appId: string; appSecret: string; verifyToken: string; configId: string; graphVersion: string }; mock: boolean; dailySoftCap: number };
   /**
    * Free addresses (round 17): a Multies-owned domain that every workspace can take an address on
@@ -232,6 +238,8 @@ const EnvSchema = z.object({
   APP_SECRET: z.string().optional(),
   DEMO_MODE: z.string().optional(),
   SCHEDULING_ENABLED: z.string().optional(),
+  COMPOSIO_API_KEY: z.string().optional(),
+  COMPOSIO_BASE_URL: z.string().url().optional(),
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
   META_VERIFY_TOKEN: z.string().optional(),
@@ -426,6 +434,14 @@ export function freeMailDomain(raw: string | undefined, appUrl: string | undefin
 }
 
 /** C1: the chat channel settings. The Meta app counts as configured only when all four values are set. */
+function integrationsConfig(env: z.infer<typeof EnvSchema>): AppConfig["integrations"] {
+  const apiKey = env.COMPOSIO_API_KEY?.trim();
+  if (!apiKey) return {};
+  let host = "local";
+  try { host = new URL(env.APP_URL ?? "http://localhost").hostname.toLowerCase(); } catch { /* no app URL */ }
+  return { composio: { apiKey, baseUrl: (env.COMPOSIO_BASE_URL ?? "https://backend.composio.dev").replace(/\/$/, ""), userPrefix: host } };
+}
+
 function channelsConfig(env: z.infer<typeof EnvSchema>, mode: AppConfig["mode"]): AppConfig["channels"] {
   const id = env.META_APP_ID?.trim(), secret = env.META_APP_SECRET?.trim(), verify = env.META_VERIFY_TOKEN?.trim(), cfg = env.META_ES_CONFIG_ID?.trim();
   const version = /^v\d{1,3}\.\d$/.test(env.META_GRAPH_VERSION?.trim() ?? "") ? env.META_GRAPH_VERSION!.trim() : "v26.0";
@@ -556,6 +572,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     // Agent inboxes for workspaces with no domain live on the same shared domain as free addresses
     // unless the deployment names a separate one.
     agents: { sharedDomain: (env.AGENT_MAIL_DOMAIN ?? env.FREE_MAIL_DOMAIN)?.toLowerCase() },
+    integrations: integrationsConfig(env),
     channels: channelsConfig(env, mode),
     operatorInbox: operatorInbox(env.SUPPORT_EMAIL?.trim() || "support@multies.si", env.OPERATOR_INBOX_ORG_ID, env.OPERATOR_INBOX_ADDRESSES),
     freeMail: {

@@ -645,6 +645,13 @@
       "when": 1793450000000,
       "tag": "0100_workspace_branding",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "6",
+      "when": 1793460000000,
+      "tag": "0101_social_posts",
+      "breakpoints": true
     }
   ]
 }
