@@ -46,9 +46,9 @@ export function SendSecurelyButton({ bodyRef, text, files, onText, onRemoveFile 
 
   return (
     <>
-      <button type="button" onClick={start} title="Send securely: lock text or a file as a link that deletes itself" aria-label="Send securely" data-testid="compose-send-securely"
+      <button type="button" onClick={start} title="Lock text or a small file as a secret link that deletes itself" data-testid="compose-send-securely"
         className="inline-flex items-center justify-center gap-1.5 rounded-md p-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11">
-        <IconLock className="h-4 w-4" aria-hidden /><span className="max-lg:hidden">Send securely</span>
+        <IconLock className="h-4 w-4" aria-hidden /><span className="max-lg:sr-only">Secure link</span>
       </button>
       <Dialog open={open} onClose={() => setOpen(false)} title="Send securely" description="It is locked on this device and goes as a link that deletes itself after it is opened. The secret is never in the email.">
         <div className="space-y-4 pb-1 pt-1">
