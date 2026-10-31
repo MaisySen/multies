@@ -295,7 +295,7 @@ export function TasksPage() {
           </Select>
         )}
         {(activeFilters.length > 0 || fieldFilters.length > 0) && <Button variant="ghost" size="sm" onClick={() => set(Object.fromEntries([...FILTER_KEYS.map((k) => [k, null]), ...fieldFilters.map(([k]) => [k, null])]))}><IconClose className="h-3.5 w-3.5" />Clear</Button>}
-        <div className="sm:ml-auto"><Menu align="end" trigger={<Button variant="ghost" size="sm"><IconBookmark className="h-3.5 w-3.5" />Saved views<IconChevronDown className="h-3.5 w-3.5" /></Button>}>
+        <div className="sm:ml-auto"><Menu align="end" trigger={<Button variant="ghost" size="sm" aria-label="Saved views" title="Saved views"><IconBookmark className="h-3.5 w-3.5" /><span className="max-xl:sr-only">Saved views</span><IconChevronDown className="h-3.5 w-3.5" /></Button>}>
           <MenuLabel>Saved views</MenuLabel>
           {(views.data ?? []).map((v) => (
             <MenuItem key={v.id} onSelect={() => set({ view: v.view, project: v.projectId, ...Object.fromEntries(FILTER_KEYS.map((k) => [k, v.filters[k] ?? null])), lanes: v.filters.lanes ?? null, group: v.filters.group ?? null })}>{v.name}{v.filters.lanes && v.filters.lanes !== "none" ? <span className="ml-auto pl-3 text-[11.5px] text-subtle">Lanes: {SWIMLANE_LABEL[v.filters.lanes as Exclude<Swimlanes, "none">] ?? v.filters.lanes}</span> : null}</MenuItem>

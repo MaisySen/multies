@@ -1,6 +1,6 @@
 /**
  * R37: dependencies that plan for you, on the timeline. Wraps the timeline with:
- * - a schedule bar: "Dates line up" or "2 date clashes" (opens the clash sheet), and the "Move tasks that wait" switch
+ * - a schedule bar: "Dates line up" or "2 date clashes" (opens the clash sheet), and (R75) the "Auto shift dependent tasks" switch in the Schedule panel
  *   (remembered on this device, on by default);
  * - clashing bars drawn in red;
  * - dragging a bar that pushes into the tasks waiting on it opens a sheet with each task's old and new dates:

@@ -55,9 +55,12 @@ test("timeline: a clash shows, Fix clears it, and a later blocker moves the task
   expect(await startOf(design.id)).toBe(day(7));
 
   // The switch is remembered on this device.
-  const sw = page.getByRole("switch", { name: "Move tasks that wait" });
+  // R75: the switch lives in the Schedule panel and reads "Auto shift dependent tasks".
+  await page.getByTestId("timeline-settings").click();
+  const sw = page.getByRole("switch", { name: "Auto shift dependent tasks" });
   await expect(sw).toHaveAttribute("aria-checked", "true");
   await sw.click();
   await page.reload();
-  await expect(page.getByRole("switch", { name: "Move tasks that wait" })).toHaveAttribute("aria-checked", "false");
+  await page.getByTestId("timeline-settings").click();
+  await expect(page.getByRole("switch", { name: "Auto shift dependent tasks" })).toHaveAttribute("aria-checked", "false");
 });

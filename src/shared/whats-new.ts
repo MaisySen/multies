@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-timeline-zoom",
+    date: "2026-10-31",
+    title: "A clearer timeline, and pages that use your screen",
+    body: "Timeline has Day, Week and Month zoom, a Today button, bars coloured by status and a card with dates and owner when you point at one. It is only as tall as your tasks, and on a phone it reads as a list by week. Tasks, boards and templates now use the full width next to the sidebar.",
+  },
+  {
     id: "2026-10-31-split-keep-faster",
     date: "2026-10-31",
     title: "Split in one tap, and your file stays put",
@@ -92,12 +98,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-29",
     title: "Share a guest invite yourself",
     body: "When an invite email doesn't reach a guest, copy their invite link and send it your own way. Get link on a waiting guest makes a fresh one.",
-  },
-  {
-    id: "2026-10-28-whats-new",
-    date: "2026-10-28",
-    title: "What's new, in the app",
-    body: "The account menu has a What's new item, with a small dot when something new has shipped since you last looked. The same list is on the public changelog page.",
   },
 ];
 

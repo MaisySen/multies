@@ -210,15 +210,19 @@ function Column({ id, title, color, count, children, onAdd, limit, onSetLimit, o
     <section aria-label={title} data-testid={`column-${title}`} data-over={over ? "true" : undefined}
       className={cn("flex w-[min(280px,85vw)] shrink-0 sm:w-auto sm:min-w-[264px] sm:max-w-[400px] sm:flex-1 sm:basis-0 snap-start snap-always flex-col rounded-xl max-sm:w-[calc(100vw-4.5rem)] max-sm:max-w-[340px] border border-t-2 border-line bg-surface/70 transition-colors duration-150 motion-reduce:transition-none", over ? "border-t-[#D70015]" : "border-t-transparent", isOver && "border-brand/40")}>
       <header className="flex min-w-0 items-center gap-2 px-3 py-2.5 max-sm:min-h-14 max-sm:py-1.5 max-sm:pr-1.5">
-        <span className="h-2 w-2 shrink-0 rounded-full max-sm:h-2.5 max-sm:w-2.5" style={{ background: tone(color) }} aria-hidden />
-        <h2 className="min-w-0 truncate text-[13px] font-semibold max-sm:text-[15px]">{title}</h2>
+        {/* R75: the status as a tinted pill with its dot, then the count, like a column header in a planning tool. */}
+        <h2 className="inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-[12.5px] font-semibold text-fg max-sm:text-[15px]" style={{ background: `color-mix(in srgb, ${tone(color)} 16%, transparent)` }} data-testid="column-pill">
+          <span className="h-2 w-2 shrink-0 rounded-full max-sm:h-2.5 max-sm:w-2.5" style={{ background: tone(color) }} aria-hidden />
+          <span className="truncate">{title}</span>
+        </h2>
         <LimitChip count={count} limit={limit} />
         {onSetLimit && <span className="ml-auto"><LimitMenu title={title} limit={limit} onSet={onSetLimit} /></span>}
         <button onClick={onAdd} className={cn(!onSetLimit && "ml-auto", "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-subtle hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:rounded sm:p-1")} aria-label={`Add a task to ${title}`}><IconPlus className="h-3.5 w-3.5 max-sm:h-5 max-sm:w-5" /></button>
       </header>
-      <ul ref={(el) => { setNodeRef(el); if (listRef) listRef.current = el; }} aria-label={`${title} cards`} data-testid="board-column-cards"
-        className={cn("relative flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2 [overflow-anchor:none]", onQuickAdd ? "pb-2" : "pb-3")}>{children}</ul>
+      {/* R75: quick add sits at the top of the column, where the eye lands, instead of under a long list. */}
       {onQuickAdd && <ColumnComposer title={title} onQuickAdd={onQuickAdd} />}
+      <ul ref={(el) => { setNodeRef(el); if (listRef) listRef.current = el; }} aria-label={`${title} cards`} data-testid="board-column-cards"
+        className="relative flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2 pb-3 [overflow-anchor:none]">{children}</ul>
     </section>
   );
 }
