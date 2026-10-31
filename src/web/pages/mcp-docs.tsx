@@ -5,7 +5,7 @@ import { SITE_URL } from "@/web/components/seo-meta";
  * one it has. Search, an anchor per tool (#tool-name), the scope each needs, a parameter table, and an
  * example call and result with copy buttons. Recipes (src/shared/mcp-recipes.ts) are checked by a test.
  */
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { startTransition, useEffect, useMemo, useState, type ComponentType } from "react";
 import { IconArrowRight, IconCalendar, IconChat, IconCode, IconDocs, IconKey, IconMail, IconSearch, IconShield, IconTasks, IconUser } from "@/web/components/ui/icon";
 import { CopyButton } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
@@ -143,7 +143,8 @@ export function McpDocsPage() {
   const [view, setView] = useState<KeyView>("all"); // R37: preview a key's scoped tool list
   useEffect(() => {
     let live = true;
-    fetch("/api/mcp-tools").then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status))))).then((b: { tools: Tool[] }) => { if (live) setTools(b.tools); }).catch(() => { if (live) setFailed(true); });
+    // R76: the list lands in a transition, so the ~60 cards render in slices instead of one long task.
+    fetch("/api/mcp-tools").then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status))))).then((b: { tools: Tool[] }) => { if (live) startTransition(() => setTools(b.tools)); }).catch(() => { if (live) setFailed(true); });
     return () => { live = false; };
   }, []);
   // Jump to the anchor once the list is there (the page loads it after first paint).

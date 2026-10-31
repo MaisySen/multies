@@ -34,6 +34,8 @@ export function StatusPage() {
   return (
     <section className="mx-auto max-w-3xl px-5 pb-24 pt-32 sm:pt-36">
       <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">System status</h1>
+      {/* R76: in the prerendered page from the first paint (before this, the cookie notice was the largest text and set LCP). */}
+      <p className="mt-3 max-w-xl text-[17px] leading-relaxed text-muted">Whether each part of Multies is working right now, and how it has done over the last 90 days.</p>
       <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-y border-line py-5" role="status" aria-live="polite">
         {s ? (
           <div className="flex items-center gap-3">
