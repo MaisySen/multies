@@ -206,7 +206,7 @@ function RuleEditor({ draft, setDraft, mailboxes, onClose }: { draft: Draft; set
   const unused = [...RULE_ACTIONS.filter((k) => !used.has(k)), ...(["label", "forward"] as const).filter((k) => used.has(k))];
 
   return (
-    <Dialog open onClose={onClose} title={draft.id ? "Edit rule" : "New rule"} className="sm:max-w-2xl">
+    <Dialog open onClose={onClose} title={draft.id ? "Edit rule" : "New rule"} className="max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain sm:max-w-2xl max-sm:max-h-[calc(100dvh-0.5rem)]">
       <div className="space-y-5" data-testid="rule-editor">
         <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
           <Field label="Name">{(p) => <Input {...p} value={draft.name} onChange={(e) => set({ name: e.target.value })} maxLength={RULE_NAME_MAX} placeholder="Invoices from Acme" autoFocus />}</Field>
