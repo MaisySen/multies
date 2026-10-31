@@ -51,7 +51,7 @@ export function SendSecurelyButton({ bodyRef, text, files, onText, onRemoveFile 
         <IconLock className="h-4 w-4" aria-hidden /><span className="max-lg:hidden">Send securely</span>
       </button>
       <Dialog open={open} onClose={() => setOpen(false)} title="Send securely" description="It is locked on this device and goes as a link that deletes itself after it is opened. The secret is never in the email.">
-        <div className="space-y-4 px-6 pb-6 pt-2">
+        <div className="space-y-4 pb-1 pt-1">
           {small.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 text-[13px]" role="group" aria-label="What to lock">
               <span className="text-muted">Lock:</span>

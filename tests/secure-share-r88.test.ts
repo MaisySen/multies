@@ -36,7 +36,7 @@ async function page(t: T, path: string, ua = UA) {
 async function pub(t: T, method: string, path: string, ft: string, body?: unknown, headers: Record<string, string> = {}) {
   const raw = body instanceof Uint8Array;
   const res = await t.app.request(path, {
-    method, body: raw ? (body as Uint8Array) : body !== undefined ? JSON.stringify(body) : undefined,
+    method, body: raw ? (body as Uint8Array<ArrayBuffer>) : body !== undefined ? JSON.stringify(body) : undefined,
     headers: { host: "localhost", origin: "http://localhost", "sec-fetch-site": "same-origin", "x-ft": ft, "user-agent": UA, "cf-ipcountry": "AU", ...(raw ? { "content-type": "application/octet-stream", "content-length": String((body as Uint8Array).byteLength) } : { "content-type": "application/json" }), ...headers },
   });
   const text = await res.text();

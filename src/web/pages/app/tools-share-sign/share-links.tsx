@@ -188,9 +188,9 @@ function ShareFilesTab() {
 
 type ShareTab = "files" | "requests" | "secrets";
 const TABS: { id: ShareTab; label: string; feature: string; line: string }[] = [
-  { id: "files", label: "Share files", feature: "share", line: "Send a big file as a link that expires. Add a password or a download limit, and see every view and download." },
-  { id: "requests", label: "File requests", feature: "file_requests", line: "Ask clients for files with a link. They upload without an account, and files land here." },
-  { id: "secrets", label: "Secret links", feature: "secrets", line: "Send a password or a small file that is locked on your device and deletes itself once it is opened." },
+  { id: "files", label: "Share files", feature: "share", line: "Send big files as links that expire, and see every view and download." },
+  { id: "requests", label: "File requests", feature: "file_requests", line: "Ask anyone for files with a link. No account needed." },
+  { id: "secrets", label: "Secret links", feature: "secrets", line: "Send a password or a file that deletes itself once opened." },
 ];
 
 /** R88: Secure share. One page, three tabs (each behind its own Tools feature), the tab in ?tab= so links and Back work. */

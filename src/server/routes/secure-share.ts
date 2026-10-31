@@ -144,15 +144,23 @@ async function brandBlock(c: Context<AppEnv>, v: PublicRequestView): Promise<{ h
   const b = await getBrand(c.var.deps.db, v.row.org_id).catch(() => null);
   const kind = b ? pickLogo(b, "wide", "light") ?? pickLogo(b, "mark", "light") : null;
   const logo = b && kind ? `<img class="logo" src="${esc(logoUrl(v.row.org_id, kind, b.logos[kind]!))}" alt="${ws}">` : "";
-  const colour = b?.primary && /^#[0-9a-fA-F]{6}$/.test(b.primary) ? b.primary : null;
+  // The workspace colour fills buttons with white text, so it is used only when white on it stays readable (4.5:1).
+  const colour = b?.primary && /^#[0-9a-fA-F]{6}$/.test(b.primary) && whiteContrast(b.primary) >= 4.5 ? b.primary : null;
   return {
     head: `<header class="top">${logo || `<span class="brand ws-name">${ws || "Multies"}</span>`}${logo && ws ? `<span class="ws">${ws}</span>` : ""}</header>`,
     style: colour ? `<style>:root{--brand:${colour}}</style>` : "",
   };
 }
 
+/** Contrast of white text on a #rrggbb colour (WCAG 2 relative luminance). */
+export function whiteContrast(hex: string): number {
+  const ch = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  const l = 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+  return 1.05 / (l + 0.05);
+}
+
 const PAGE_CSS = `<style>
-.center{text-align:center}.link{background:none;border:0;color:var(--brand);padding:4px 6px;min-height:32px;font-weight:500}
+.ws-name{color:var(--fg)}.center{text-align:center}.link{background:none;border:0;color:var(--brand);padding:4px 6px;min-height:32px;font-weight:500}
 .logo{max-height:32px;max-width:180px;display:block}.drop{border:1.5px dashed var(--line);border-radius:14px;padding:26px 16px;text-align:center;margin:16px 0;outline:none}
 .drop.over,.drop:focus-visible{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 6%,transparent)}
 .uploads{list-style:none;padding:0;margin:8px 0}.up{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0}
@@ -194,7 +202,7 @@ ${r.message ? `<p class="msg">${esc(r.message)}</p>` : ""}
 <div><label for="email">Your email <span class="muted">(optional)</span></label><input id="email" type="email" maxlength="200" autocomplete="email"></div></div>
 <label for="note">A note <span class="muted">(optional)</span></label><textarea id="note" maxlength="1000"></textarea>
 ${r.password_hash ? `<label for="pw">Password</label><input id="pw" data-testid="upload-password" type="password" maxlength="128" autocomplete="off" required>` : ""}
-<div class="drop" id="drop" data-testid="upload-drop" tabindex="0" role="button" aria-label="Choose files to send"><p style="margin:0 0 10px">Drop files here</p><button type="button" class="sec" id="pick">Choose files</button><input id="file" data-testid="upload-input" type="file" multiple hidden${accept}></div>
+<div class="drop" id="drop" data-testid="upload-drop"><p style="margin:0 0 10px">Drop files here</p><button type="button" class="sec" id="pick">Choose files</button><input id="file" data-testid="upload-input" type="file" multiple hidden${accept}></div>
 <ul class="uploads" id="list" aria-label="Files to send"></ul>
 <p id="status" role="status" aria-live="polite" class="muted"></p>
 <div class="row"><button type="button" id="send" data-testid="upload-submit" class="full" disabled>Send files</button></div>
