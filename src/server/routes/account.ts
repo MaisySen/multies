@@ -2,7 +2,7 @@ import { optionalWritesPaused } from "../services/write-budget";
 import { exportWorkspace, personalData } from "../services/privacy";
 import { Hono } from "hono";
 import { z } from "zod";
-import { and, count, eq, gt, isNotNull, ne, notLike, sql } from "drizzle-orm";
+import { and, count, eq, gt, isNotNull, like, ne, notLike, sql } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import type { DB } from "../db";
 import { parseBody, requireAuth } from "../middleware";
@@ -16,7 +16,7 @@ import { DbRateLimitStore, RateLimiter } from "../lib/rate-limit";
 import { audit } from "../services/audit";
 import { peekOrgCached } from "../services/plans";
 import { IsolateCache } from "../lib/isolate-cache";
-import { CHECK_DEMO_SLUG_PREFIX, createDemoWorkspace, isInternalCheck } from "../services/demo";
+import { CHECK_DEMO_DAILY_CAP, CHECK_DEMO_SLUG_PREFIX, createDemoWorkspace, isInternalCheck } from "../services/demo";
 import { runDueJobs } from "../services/jobs";
 import { createWorkspace, deleteWorkspace, listWorkspaces, switchWorkspace } from "../services/team";
 import { markWorkspace } from "../auth/workspace-mark";
@@ -101,6 +101,8 @@ export function accountRoutes() {
   const resendLimiter = new RateLimiter(3, 10 * 60_000);
   const resetLinkLimiter = new RateLimiter(3, 10 * 60_000);
   const demoLimiter = new RateLimiter(5, 60 * 60_000);
+  // R76 (M1): our checks keep a burst limit too, in their own bucket so they never eat a visitor's.
+  const checkDemoLimiter = new RateLimiter(10, 60 * 60_000);
   // R40 deploy 3 (MB-220): a per IP daily cap on new demos, counted in the database so every isolate shares it
   // (the limiter above is per isolate). An address the server cannot see (local tools) is not capped.
   let demoDb: () => DB = () => { throw new Error("no database yet"); };
@@ -116,12 +118,21 @@ export function accountRoutes() {
     .post("/demo", async (c) => {
       if (!c.var.deps.config.demoEnabled) throw notFound("Demo");
       // R74 (MB-271): our own smoke and QA checks are marked and never use up the visitors' daily demos.
-      const check = isInternalCheck(c.var.deps.config.qaCheckToken, c.req.header("x-multies-check"));
-      if (!check && !demoLimiter.take(c.var.ip)) throw tooMany();
+      const check = await isInternalCheck(c.var.deps.config.qaCheckToken, c.req.header("x-multies-check"), c.var.deps.now().getTime());
+      if (!(check ? checkDemoLimiter : demoLimiter).take(c.var.ip)) throw tooMany();
       // A new demo costs about 2,000 D1 rows over its life (create, seed and purge; D1 counts each index).
       // It is the first writer to stop when the account's daily D1 budget runs low.
       if (await optionalWritesPaused(c.var.deps)) {
         return c.json({ error: { code: "demo_paused", message: "The demo is resting for today. Create a free account instead, or try the demo again tomorrow." } }, 503);
+      }
+      if (check) {
+        // R76 (M1): checks have their own daily allowance (CHECK_DEMO_DAILY_CAP), counted the same cheap way.
+        const since = new Date(c.var.deps.now().getTime() - 24 * 3600_000);
+        const made = await c.var.deps.db.select({ n: count() }).from(organizations)
+          .where(and(eq(organizations.isDemo, true), gt(organizations.createdAt, since), like(organizations.slug, `${CHECK_DEMO_SLUG_PREFIX}%`))).get();
+        if ((made?.n ?? 0) >= CHECK_DEMO_DAILY_CAP) {
+          return c.json({ error: { code: "check_demo_limit", message: "Internal checks have used today's demo allowance." } }, 429);
+        }
       }
       const cap = c.var.deps.config.demoDailyLimit;
       if (cap > 0 && !check) {

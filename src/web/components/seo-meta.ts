@@ -22,6 +22,10 @@ export const PUBLIC_META: Record<string, PageMeta> = {
   "/": DEFAULT,
   "/pricing": { title: "Pricing | Multies", description: "Free for one domain and three mailboxes. Add-ons cost A$1 to A$5 a month for the whole business, never per person. Prices in AUD. Try it with the live demo or a free test address, no client mailbox needed." },
   "/agents": { title: "Email inboxes for AI agents | Multies", description: "Give each AI agent its own address with one API call. Mail arrives as clean JSON, replies stay in the thread, and a person approves what agents send." },
+  // R76: /developers/mcp shipped in R36 without an entry here, so its title, link previews and search results read
+  // "Page not found" and it carried noindex. A unit test now checks every page in known-routes.ts has an entry.
+  "/developers": { title: "Developers: API, MCP and webhooks | Multies", description: "Build on Multies with a REST API, an MCP server and signed webhooks for mail on your own domain, tasks, docs and agents. Scoped keys, an OpenAPI file and a generated tool list." },
+  "/developers/mcp": { title: "MCP tools | Multies", description: "Every tool the Multies MCP server offers, generated from the server itself: what each does, the key scope it needs, its parameters and an example call and result." },
   "/check": { title: "Check your domain's email | Multies", description: "Free check: see who hosts your domain's mail, whether SPF and DMARC are set, and the steps to switch to Multies without losing a message." },
   "/trust": TRUST_META,
   "/security": TRUST_META,

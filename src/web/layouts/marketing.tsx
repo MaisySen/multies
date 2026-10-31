@@ -75,7 +75,7 @@ export function MarketingLayout() {
       </header>
       <main id="main"><Outlet /></main>
       <footer className="border-t border-line">
-        <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:grid-cols-2 md:grid-cols-5">
+        <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:grid-cols-2 md:grid-cols-6">
           <div className="space-y-3 md:col-span-2">
             <Logo />
             <p className="max-w-xs text-sm text-muted">Professional email on the domain you already own, with tasks, chat and agents built in.</p>
@@ -92,8 +92,16 @@ export function MarketingLayout() {
               <li><Link to="/check" className="hover:text-fg">Check your domain</Link></li>
               <li><Link to="/status" className="hover:text-fg">System status</Link></li>
               <li><Link to="/changelog" className="hover:text-fg">What's new</Link></li>
-              <li><Link to="/agents" className="hover:text-fg">Agent inboxes</Link></li>
+            </ul>
+          </div>
+          <div>
+            <h2 className="text-[13px] font-medium text-fg">Developers</h2>
+            <ul className="mt-3 space-y-2 text-sm text-muted">
+              <li><Link to="/developers" className="hover:text-fg">Developer hub</Link></li>
               <li><a href="/api/v1/reference" className="hover:text-fg">API reference</a></li>
+              <li><Link to="/developers/mcp" className="hover:text-fg">MCP tools</Link></li>
+              <li><Link to="/agents" className="hover:text-fg">Agent inboxes</Link></li>
+              <li><Link to="/developers#webhooks" className="hover:text-fg">Webhooks</Link></li>
             </ul>
           </div>
           <div>

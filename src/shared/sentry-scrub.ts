@@ -4,7 +4,7 @@
  * (they can carry tokens); email addresses in messages and breadcrumbs are masked.
  * Plain object work only, so it adds nothing to cold start.
  */
-const SECRET_HEADERS = /^(authorization|cookie|set-cookie|proxy-authorization|x-api-key|x-mymail-signature|x-mymail-key|webhook-signature|stripe-signature|svix-signature|cf-access-jwt-assertion|x-forwarded-for|cf-connecting-ip|x-real-ip)$/i;
+const SECRET_HEADERS = /^(authorization|cookie|set-cookie|proxy-authorization|x-api-key|x-mymail-signature|x-mymail-key|x-multies-check|webhook-signature|stripe-signature|svix-signature|cf-access-jwt-assertion|x-forwarded-for|cf-connecting-ip|x-real-ip)$/i;
 const SECRET_KEYS = /(pass(word)?|secret|token|api[-_]?key|authorization|cookie|session|signature|otp|code|card|cvc)/i;
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const BEARER = /\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}/gi;

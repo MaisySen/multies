@@ -21,6 +21,7 @@ const SwitchPage = lazyPage(() => switchPages(), "SwitchPage");
 const PricingPage = lazyPage(() => import("./pages/pricing"), "PricingPage");
 const AgentsDevPage = lazyPage(() => import("./pages/agents"), "AgentsDevPage");
 const McpDocsPage = lazyPage(() => import("./pages/mcp-docs"), "McpDocsPage"); // R36
+const DevelopersPage = lazyPage(() => import("./pages/developers-hub"), "DevelopersPage"); // R76
 // R34 (perf2): the sign in page's module, kept once loaded. On a prerendered /login main.tsx loads it before the first
 // render, so the page renders straight away (no Suspense fallback over the card that is already on screen).
 let authModule: typeof import("./pages/auth") | null = null;
@@ -148,6 +149,7 @@ export const router = createBrowserRouter([
       { path: "/switch", element: publicPage(<SwitchIndexPage />) }, // R58 (MB-237)
       { path: "/switch/:source", element: publicPage(<SwitchPage />) }, // R58 (MB-237): one page per import source
       { path: "/agents", element: publicPage(<AgentsDevPage />) },
+      { path: "/developers", element: publicPage(<DevelopersPage />) }, // R76: the developer hub
       { path: "/developers/mcp", element: publicPage(<McpDocsPage />) }, // R36: MCP tool docs
       { path: "/status", element: publicPage(<StatusPage />) },
       { path: "/changelog", element: publicPage(<ChangelogPage />) }, // R53: What's new

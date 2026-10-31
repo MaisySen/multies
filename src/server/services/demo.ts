@@ -2,7 +2,7 @@ import { and, eq, lt, notInArray } from "drizzle-orm";
 import type { Deps } from "../context";
 import { aliases, appSettings, auditLogs, deliveries, domains, mailboxes, mailConnections, members, messages, organizations, users } from "../db/schema";
 import { runBatch } from "../db";
-import { decryptSecret, encryptSecret, generateDkimKeyPair, newId, randomToken, safeEqual } from "../lib/crypto";
+import { decryptSecret, encryptSecret, generateDkimKeyPair, hmacSha256Hex, newId, randomToken, safeEqual } from "../lib/crypto";
 import { sql } from "drizzle-orm";
 import { authFor } from "../auth";
 import { createDomain } from "./domains";
@@ -90,10 +90,29 @@ async function seedSampleConnection(deps: Deps, orgId: string, domainId: string,
  */
 export const CHECK_DEMO_SLUG_PREFIX = "check-";
 
-/** Whether a request carries our own checks' token (QA_CHECK_TOKEN) in x-multies-check. Constant time. */
-export function isInternalCheck(token: string | null | undefined, sent: string | null | undefined): boolean {
+/** R76 (security review M1): our own checks get their own daily demo allowance, not unlimited demos. */
+export const CHECK_DEMO_DAILY_CAP = 30;
+/** R76 (M2): how far a signed check header's time may be from the server's clock, either way. */
+export const CHECK_MAX_SKEW_S = 300;
+
+/** The x-multies-check value for a time: v1.<unix seconds>.<hex HMAC-SHA256 of "v1.<seconds>" keyed by QA_CHECK_TOKEN>. */
+export async function signInternalCheck(token: string, nowMs: number): Promise<string> {
+  const ts = Math.floor(nowMs / 1000);
+  return `v1.${ts}.${await hmacSha256Hex(token, `v1.${ts}`)}`;
+}
+
+/**
+ * Whether a request carries a valid signed check header (R76, security review M2). The raw token is never sent any
+ * more: a header seen in a log or a proxy works for five minutes at most, and staging and production hold different
+ * tokens, so one environment's header never opens the other. Constant time on the signature.
+ */
+export async function isInternalCheck(token: string | null | undefined, sent: string | null | undefined, nowMs: number): Promise<boolean> {
   if (!token || !sent) return false;
-  return safeEqual(sent.trim(), token);
+  const m = /^v1\.(\d{9,11})\.([0-9a-f]{64})$/.exec(sent.trim());
+  if (!m) return false;
+  const ts = Number(m[1]);
+  if (Math.abs(nowMs / 1000 - ts) > CHECK_MAX_SKEW_S) return false;
+  return safeEqual(m[2], await hmacSha256Hex(token, `v1.${ts}`));
 }
 
 /** Creates a throwaway workspace full of realistic sample data. Only reachable when DEMO_MODE is on. */
