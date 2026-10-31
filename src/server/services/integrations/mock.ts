@@ -3,7 +3,7 @@
  * uses it when COMPOSIO_BASE_URL is https://composio.mock AND APP_URL points at localhost; it is never wired into the
  * Workers entry. It keeps accounts in memory, finishes every connect at once (the hosted page sends the person
  * straight back to the callback), and answers the publishing tools with made up post ids. Text containing
- * "FAIL" is turned down by the network, so the per account error path can be tested.
+ * "FAIL" (or a Reddit community named closed) is turned down by the network, so the per account error path can be tested.
  */
 export const MOCK_COMPOSIO_HOST = "composio.mock";
 
@@ -57,7 +57,7 @@ function execute(state: MockComposioState, slug: string, body: { connected_accou
   const args = body.arguments ?? {};
   state.executed.push({ slug, accountId: acct.id, args });
   const text = String(args.message ?? args.commentary ?? args.caption ?? args.text ?? args.description ?? args.title ?? "");
-  if (/FAIL/.test(text)) return json({ data: {}, successful: false, error: "The network turned this post down." });
+  if (/FAIL/.test(text) || /closed/i.test(String(args.subreddit ?? ""))) return json({ data: {}, successful: false, error: "The network turned this post down." });
   const ok = (data: Record<string, unknown>) => json({ data, successful: true, error: null });
   switch (slug) {
     case "FACEBOOK_GET_USER_PAGES": return ok({ response_data: { data: [{ id: "pg_100", name: "Acme Studio" }, { id: "pg_200", name: "Acme Shop" }] } });
