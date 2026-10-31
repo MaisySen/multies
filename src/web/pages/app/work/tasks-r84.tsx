@@ -4,7 +4,7 @@
  * the Tags and Workspace fields dialogs, the pinned view tabs with their menu, the Save view dialog, the description
  * editor (formatting toolbar, preview, @mentions) and the @mention box for comments.
  */
-import { Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
@@ -92,9 +92,9 @@ function Pop({ label, trigger, children, open, setOpen, align = "start", testId,
   }, [open, setOpen]);
   return (
     <div ref={ref} className="relative min-w-0">
-      <button ref={btn} type="button" aria-label={label} aria-expanded={open} aria-controls={id} aria-haspopup="dialog" onClick={() => setOpen(!open)} data-testid={testId}
+      <button ref={btn} type="button" aria-expanded={open} aria-controls={id} aria-haspopup="dialog" onClick={() => setOpen(!open)} data-testid={testId}
         className="flex min-h-8 w-full min-w-0 items-center rounded-md px-1 text-left hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand max-sm:min-h-11">
-        {trigger}
+        <span className="sr-only">{label}: </span>{trigger}
       </button>
       {open && (
         <div id={id} role="dialog" aria-label={label} data-testid={testId ? `${testId}-panel` : undefined}
@@ -422,8 +422,11 @@ export function DescriptionEditor({ value, onSave, people }: { value: string; on
   if (!editing) {
     return (
       <div className="mt-4">
-        <h3 className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-subtle">Description</h3>
-        <div role="button" tabIndex={0} aria-label={value ? "Edit description" : "Add a description"} onClick={() => setEditing(true)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); setEditing(true); } }}
+        <div className="mb-1 flex items-center justify-between">
+          <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Description</h3>
+          <button type="button" onClick={() => setEditing(true)} className="rounded-md px-2 py-0.5 text-[12.5px] text-brand-hover hover:bg-hover max-sm:py-2.5" data-testid="edit-description">{value ? "Edit" : "Add"}</button>
+        </div>
+        <div onClick={(e) => { if (!(e.target as HTMLElement).closest("a")) setEditing(true); }}
           className="task-notes min-h-16 cursor-text [&_a]:text-brand-hover [&_a]:underline [&_code]:rounded [&_code]:bg-fill [&_code]:px-1 [&_code]:text-[12.5px] [&_h4]:mb-1 [&_h4]:mt-2 [&_h4]:font-semibold [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ul.checks]:list-none [&_ul.checks]:pl-0 [&_.mention]:font-medium [&_.mention]:text-brand-hover rounded-lg border border-transparent px-2.5 py-2 text-[13.5px] leading-relaxed hover:border-line focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" data-testid="description-view">
           {value ? <div dangerouslySetInnerHTML={{ __html: renderNotes(value) }} /> : <span className="text-subtle">Add a description. Use @ to mention someone.</span>}
         </div>
@@ -463,16 +466,20 @@ export function DescriptionEditor({ value, onSave, people }: { value: string; on
 
 // ---------------------------------------------------------------- saved views
 
-/** Pinned views as tabs above the list or board. "All tasks" clears the view. */
+/**
+ * Pinned views as a row of tabs above the list or board ("All tasks" clears the view). Arrow keys move between them.
+ * The options for the open view (rename, share, unpin, delete) sit in one menu after the row, outside the scrolling strip.
+ */
 export function ViewTabs({ views, activeId, onOpen, onAll, onEdit, onDelete, onRename }: {
   views: SavedView[]; activeId: string | null; onOpen: (v: SavedView) => void; onAll: () => void;
   onEdit: (v: SavedView, patch: Partial<Pick<SavedView, "shared" | "pinned" | "name">>) => void; onDelete: (v: SavedView) => void; onRename: (v: SavedView) => void;
 }) {
   const pinned = views.filter((v) => v.pinned).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   const ref = useRef<HTMLDivElement>(null);
+  const active = views.find((v) => v.id === activeId);
   const onKeyDown = (e: ReactKeyboardEvent) => {
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-    const tabs = [...(ref.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [])];
+    const tabs = [...(ref.current?.querySelectorAll<HTMLButtonElement>("[data-view-tab]") ?? [])];
     const i = tabs.indexOf(document.activeElement as HTMLButtonElement);
     if (i < 0) return;
     e.preventDefault();
@@ -480,35 +487,31 @@ export function ViewTabs({ views, activeId, onOpen, onAll, onEdit, onDelete, onR
   };
   if (!pinned.length) return null;
   return (
-    <div ref={ref} role="tablist" aria-label="Pinned views" onKeyDown={onKeyDown} className="-mx-1 mb-2 flex items-center gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none]" data-testid="view-tabs">
-      <Tab label="All tasks" active={!activeId} onClick={onAll} />
-      {pinned.map((v) => (
-        <Fragment key={v.id}>
-          <Tab label={v.name} active={activeId === v.id} onClick={() => onOpen(v)} icon={v.shared ? undefined : <IconLock className="h-3 w-3" aria-label="Only you" />}
-            menu={v.canEdit === false ? (
-              <Menu label={`${v.name} options`} trigger={<button type="button"><IconMore className="h-3.5 w-3.5" aria-hidden /></button>}><MenuItem onSelect={() => onEdit(v, { pinned: false })} icon={<IconPinOff className="h-4 w-4" />}>Unpin for everyone</MenuItem></Menu>
-            ) : (
-              <Menu label={`${v.name} options`} trigger={<button type="button"><IconMore className="h-3.5 w-3.5" aria-hidden /></button>}>
-                <MenuItem onSelect={() => onRename(v)} icon={<IconPencilLine className="h-4 w-4" />}>Rename</MenuItem>
-                <MenuItem onSelect={() => onEdit(v, { shared: !v.shared })} icon={v.shared ? <IconLock className="h-4 w-4" /> : <IconGlobe className="h-4 w-4" />}>{v.shared ? "Make private" : "Share with workspace"}</MenuItem>
-                <MenuItem onSelect={() => onEdit(v, { pinned: false })} icon={<IconPinOff className="h-4 w-4" />}>Unpin</MenuItem>
-                <MenuItem danger onSelect={() => onDelete(v)} icon={<IconTrash className="h-4 w-4" />}>Delete view</MenuItem>
-              </Menu>
-            )} />
-        </Fragment>
-      ))}
-    </div>
+    <nav aria-label="Pinned views" className="mb-2 flex min-w-0 items-center gap-1" data-testid="view-tabs">
+      <div ref={ref} onKeyDown={onKeyDown} className="-mx-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1 py-0.5 [scrollbar-width:none]">
+        <Tab label="All tasks" active={!activeId} onClick={onAll} />
+        {pinned.map((v) => <Tab key={v.id} label={v.name} active={activeId === v.id} onClick={() => onOpen(v)} icon={v.shared ? undefined : <IconLock className="h-3 w-3" aria-hidden />} hint={v.shared ? undefined : "only you"} />)}
+      </div>
+      {active && (
+        <Menu label="View options" trigger={<button type="button" title={`${active.name} options`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11"><IconMore className="h-4 w-4" aria-hidden /></button>}>
+          {active.canEdit !== false && <MenuItem onSelect={() => onRename(active)} icon={<IconPencilLine className="h-4 w-4" />}>Rename</MenuItem>}
+          {active.canEdit !== false && <MenuItem onSelect={() => onEdit(active, { shared: !active.shared })} icon={active.shared ? <IconLock className="h-4 w-4" /> : <IconGlobe className="h-4 w-4" />}>{active.shared ? "Make private" : "Share with workspace"}</MenuItem>}
+          {active.canEdit !== false && <MenuItem onSelect={() => onEdit(active, { pinned: !active.pinned })} icon={active.pinned ? <IconPinOff className="h-4 w-4" /> : <IconPin className="h-4 w-4" />}>{active.pinned ? "Unpin" : "Pin as a tab"}</MenuItem>}
+          {active.canEdit !== false && <MenuItem danger onSelect={() => onDelete(active)} icon={<IconTrash className="h-4 w-4" />}>Delete view</MenuItem>}
+          {active.canEdit === false && <MenuItem onSelect={() => undefined} icon={<IconLock className="h-4 w-4" />}>Shared by a teammate, only they or an admin can change it</MenuItem>}
+        </Menu>
+      )}
+    </nav>
   );
 }
 
-function Tab({ label, active, onClick, icon, menu }: { label: string; active: boolean; onClick: () => void; icon?: ReactNode; menu?: ReactNode }) {
+function Tab({ label, active, onClick, icon, hint }: { label: string; active: boolean; onClick: () => void; icon?: ReactNode; hint?: string }) {
   return (
-    <span className={cn("group inline-flex shrink-0 items-center rounded-lg text-[13px] transition-colors", active ? "bg-brand-soft text-brand-hover" : "text-muted hover:bg-hover hover:text-fg")}>
-      <button type="button" role="tab" aria-selected={active} tabIndex={active ? 0 : -1} onClick={onClick} className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap px-2.5 font-medium max-sm:h-11">
-        {icon}{label}
-      </button>
-      {menu && <span className={cn("-ml-1.5 pr-1 [&_button]:grid [&_button]:h-6 [&_button]:w-6 [&_button]:place-items-center [&_button]:rounded-md max-sm:[&_button]:h-10 max-sm:[&_button]:w-8", !active && "sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100")}>{menu}</span>}
-    </span>
+    <button type="button" data-view-tab aria-current={active ? "page" : undefined} onClick={onClick}
+      className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-[13px] font-medium transition-colors duration-150 motion-reduce:transition-none max-sm:h-11",
+        active ? "bg-brand-soft text-brand-hover" : "text-muted hover:bg-hover hover:text-fg")}>
+      {icon}{label}{hint && <span className="sr-only">, {hint}</span>}
+    </button>
   );
 }
 
