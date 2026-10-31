@@ -22,12 +22,13 @@ import {
 } from "@/shared/direct-social";
 import { AppLogo } from "./apps-settings";
 
-const keys = {
+export const directKeys = {
   status: ["direct", "status"] as const,
   videos: ["direct", "tiktok", "videos"] as const,
   creator: ["direct", "tiktok", "creator"] as const,
   threads: ["direct", "threads", "profile"] as const,
 };
+const keys = directKeys;
 
 const BLURB: Record<DirectProvider, string> = {
   tiktok: "Post videos to your TikTok and see your latest ones.",
@@ -231,12 +232,14 @@ function useVideoDuration(file: File | null) {
   return { url, sec, onMeta: (e: React.SyntheticEvent<HTMLVideoElement>) => setSec(Math.round(e.currentTarget.duration)) };
 }
 
-function TikTokPostDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** R117: also opened from the composer (Video or Story or reel with TikTok picked), with the caption carried over. */
+export function TikTokPostDialog({ open, onClose, caption }: { open: boolean; onClose: () => void; caption?: string }) {
   const qc = useQueryClient();
   const creator = useQuery({ queryKey: keys.creator, queryFn: () => api.get<{ creator: TikTokCreatorInfo }>("/direct/tiktok/creator").then((r) => r.creator), staleTime: 0, gcTime: 0 });
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(caption ?? "");
+  useEffect(() => { if (open && caption !== undefined) setTitle(caption); }, [open, caption]);
   const [privacy, setPrivacy] = useState<TikTokPrivacy | "">("");
   const [allowComment, setAllowComment] = useState(false);
   const [allowDuet, setAllowDuet] = useState(false);

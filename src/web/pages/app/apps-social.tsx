@@ -20,6 +20,7 @@ import {
   type ConnectedAccountView, type DeleteOutcome, type PostStatus, type PostTargetView, type SocialAccountHealth, type SocialPostView,
 } from "@/shared/integrations";
 import { AppLogo, useAppAccounts } from "./apps-settings";
+import { useMe } from "@/web/lib/queries";
 
 export const postsKey = ["social", "posts"] as const;
 
@@ -312,25 +313,32 @@ export function useAccountHealth() {
 }
 
 /** P1 layout: the Posts page filters the one list. */
-export type PostFilter = "all" | "scheduled" | "sent" | "failed";
+export type PostFilter = "all" | "scheduled" | "sent" | "failed" | "drafts" | "waiting";
+/** R117: drafts and posts waiting for approval have their own filters and stay out of All. */
+export const isDraftLike = (p: SocialPostView) => p.status === "draft" || p.status === "changes" || p.status === "rejected";
 export function postMatches(p: SocialPostView, f: PostFilter): boolean {
   if (f === "scheduled") return p.status === "scheduled" || p.status === "sending";
   if (f === "sent") return p.status === "done" || p.status === "partial";
   if (f === "failed") return p.status === "failed" || p.status === "partial";
-  return true;
+  if (f === "drafts") return isDraftLike(p);
+  if (f === "waiting") return p.status === "review";
+  return !isDraftLike(p) && p.status !== "review";
 }
 const FILTER_EMPTY: Record<PostFilter, { title: string; body: string }> = {
   all: { title: "No posts yet", body: "Posts you send or schedule show here, with how each account did." },
   scheduled: { title: "Nothing scheduled", body: "Posts set for later wait here until they go out." },
   sent: { title: "Nothing sent yet", body: "Posts that went out show here, with a link to each one." },
   failed: { title: "Nothing failed", body: "When a network turns a post down, it shows here with the reason and a fix." },
+  drafts: { title: "No drafts", body: "Save a post as a draft from New post and finish it later." },
+  waiting: { title: "Nothing waiting for approval", body: "Posts sent for approval wait here until an owner or admin approves them." },
 };
 
 /** The social posts list, shared by the Social Posts page; one query for every filter. */
 export function useSocialPosts() {
   return useQuery({
     queryKey: postsKey,
-    queryFn: () => api.get<{ posts: SocialPostView[] }>("/social/posts").then((r) => r.posts),
+    // R117: the web asks for drafts and posts waiting for approval too (the phone app's list stays as it was).
+    queryFn: () => api.get<{ posts: SocialPostView[] }>("/social/posts?all=1").then((r) => r.posts),
     // While something is going out, look again every few seconds.
     refetchInterval: (q) => ((q.state.data ?? []).some((p) => p.status === "sending" || (p.status === "scheduled" && Date.parse(p.runAt) <= Date.now() + 5_000)) ? 3_000 : false),
   });
@@ -346,10 +354,18 @@ export function andList(items: string[]): string {
   return u.length <= 1 ? (u[0] ?? "") : `${u.slice(0, -1).join(", ")} and ${u[u.length - 1]}`;
 }
 
-/** Where a delete reaches: networks it is deleted on, and networks where the post stays. */
-export function deleteReach(p: SocialPostView): { on: string[]; stays: string[] } {
+/**
+ * Where a delete reaches: networks it is deleted on, and networks where the post stays. A post on an account that is
+ * no longer connected stays there (Multies can't reach it), so only networks Multies will really delete from are
+ * named, Facebook first.
+ */
+export function deleteReach(p: SocialPostView, connected?: Set<string> | null): { on: string[]; stays: string[] } {
   const sent = p.targets.filter((t) => t.status === "sent" && t.networkState !== "removed");
-  return { on: sent.filter((t) => t.canDelete).map((t) => networkName(t.app)), stays: sent.filter((t) => !t.canDelete).map((t) => networkName(t.app)) };
+  const reachable = (t: PostTargetView) => !!t.canDelete && (!connected || connected.has(t.accountId));
+  const order = (a: string, b: string) => (a === "Facebook" ? -1 : b === "Facebook" ? 1 : 0);
+  const on = [...new Set(sent.filter(reachable).map((t) => networkName(t.app)))].sort(order);
+  const stays = [...new Set(sent.filter((t) => !reachable(t)).map((t) => networkName(t.app)))].filter((n) => !on.includes(n));
+  return { on, stays };
 }
 
 /** Every network that had the post has since removed it. */
@@ -463,6 +479,17 @@ function useNetworkSync(posts: SocialPostView[] | undefined) {
 export function PostList({ canManage, filter = "all", heading = true }: { canManage: boolean; filter?: PostFilter; heading?: boolean }) {
   const qc = useQueryClient();
   const posts = useSocialPosts();
+  const navigate = useNavigate();
+  const me = useMe();
+  const myId = me.data?.user.id;
+  const linked = useAppAccounts();
+  const connected = useMemo(() => (linked.data ? new Set(linked.data.filter((a) => a.status === "active").map((a) => a.id)) : null), [linked.data]);
+  const [toDiscard, setToDiscard] = useState<SocialPostView | null>(null);
+  const discard = useMutation({
+    mutationFn: (id: string) => api.post<{ discarded: boolean }>(`/social/posts/${id}/discard`),
+    onSuccess: () => { toast.success("Draft discarded"); setToDiscard(null); void qc.invalidateQueries({ queryKey: postsKey }); requestAnimationFrame(() => document.getElementById("posts-title")?.focus()); },
+    onError: (e) => toast.error(errorMessage(e, "Couldn't discard it. Try again.")),
+  });
   const shown = (posts.data ?? []).filter((p) => postMatches(p, filter));
   const net = useNetworkSync(posts.data);
   const [toDelete, setToDelete] = useState<SocialPostView | null>(null);
@@ -490,10 +517,10 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
     },
     onError: (e) => toast.error(errorMessage(e, "Couldn't delete the post. Try again.")),
   });
-  const reach = toDelete ? deleteReach(toDelete) : { on: [], stays: [] };
+  const reach = toDelete ? deleteReach(toDelete, connected) : { on: [], stays: [] };
   const deleteText = !toDelete ? "" : [
     reach.on.length ? `It will also be deleted from ${andList(reach.on)}.` : toDelete.status === "scheduled" ? "It won't go out." : "",
-    reach.stays.length ? `${andList(reach.stays)} doesn't let Multies delete posts, so it stays there.` : "",
+    reach.stays.length ? `It stays on ${andList(reach.stays)}, because Multies can't delete it there.` : "",
     reach.on.length ? "You can't undo this." : "",
   ].filter(Boolean).join(" ");
 
@@ -540,7 +567,20 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
                     <ul className="mt-3.5 divide-y divide-line rounded-lg border border-line" aria-label="Accounts">
                       {p.targets.map((t) => <TargetRow key={t.accountId} t={t} p={p} canManage={canManage} />)}
                     </ul>
-                    {canManage && p.status !== "sending" && (
+                    {(p.campaign || p.evergreen || p.reviewNote) && (
+                      <p className="mt-3 flex flex-wrap items-center gap-2 text-[12.5px] text-muted" data-testid="post-meta">
+                        {p.campaign && <Badge tone="neutral">{p.campaign}</Badge>}
+                        {p.evergreen && <span>Evergreen</span>}
+                        {p.reviewNote && (p.status === "changes" || p.status === "rejected") && <span className="basis-full text-warn" data-testid="post-review-note">{p.status === "changes" ? "Changes asked" : "Rejected"}: {p.reviewNote}</span>}
+                      </p>
+                    )}
+                    {(isDraftLike(p) || p.status === "review") && (canManage || p.createdBy === myId) && (
+                      <div className="mt-3 flex flex-wrap justify-end gap-2" data-testid="draft-actions">
+                        <Button variant="ghost" size="sm" className="text-bad hover:text-bad max-sm:flex-1" onClick={() => setToDiscard(p)} data-testid="post-discard"><IconTrash className="h-4 w-4" aria-hidden />Discard</Button>
+                        {(p.status !== "review" || canManage) && <Button variant="outline" size="sm" className="max-sm:flex-1" onClick={() => navigate(`/app/social/new?draft=${encodeURIComponent(p.id)}`)} data-testid="post-edit">Edit</Button>}
+                      </div>
+                    )}
+                    {canManage && p.status !== "sending" && !isDraftLike(p) && p.status !== "review" && (
                       <div className="mt-3 flex flex-wrap justify-end gap-2">
                         {p.status === "scheduled" && <Button variant="ghost" size="sm" className="max-sm:flex-1" loading={cancel.isPending && cancel.variables === p.id} onClick={() => cancel.mutate(p.id)}>Cancel post</Button>}
                         {(p.status === "failed" || p.status === "partial") && <Button variant="outline" size="sm" className="max-sm:flex-1" loading={retry.isPending && retry.variables === p.id} onClick={() => retry.mutate(p.id)}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button>}
@@ -556,6 +596,8 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
       <ConfirmDialog open={!!toDelete} onClose={() => setToDelete(null)} onConfirm={() => toDelete && del.mutate(toDelete.id)} busy={del.isPending}
         title="Delete this post?" description={deleteText || "It leaves your list in Multies."}
         confirmLabel={reach.on.length ? `Delete from ${andList(reach.on)}` : "Delete post"} />
+      <ConfirmDialog open={!!toDiscard} onClose={() => setToDiscard(null)} onConfirm={() => toDiscard && discard.mutate(toDiscard.id)} busy={discard.isPending}
+        title="Discard this draft?" description="It leaves Multies. Nothing was posted, so no network is touched." confirmLabel="Discard draft" />
     </section>
   );
 }

@@ -104,7 +104,7 @@ function cleanExtras(x: PostExtras | null | undefined, strict: boolean): PostExt
 }
 
 /** Reads, checks and shapes what a post will be. Drafts skip the account checks (they are checked on submit). */
-async function preparePost(deps: Deps, auth: AuthContext, input: CreatePostInput, mode: "send" | "draft" | "submit"): Promise<PreparedPost> {
+async function preparePost(deps: Deps, auth: AuthContext, input: CreatePostInput, mode: "send" | "draft" | "submit", ownMedia: string[] = []): Promise<PreparedPost> {
   const text = input.text.trim();
   if (text.length > SOCIAL_TEXT_MAX) throw new HttpError(422, "too_long", "That post is too long.");
   const strict = mode !== "draft";
@@ -119,7 +119,8 @@ async function preparePost(deps: Deps, auth: AuthContext, input: CreatePostInput
   const mediaIds: string[] = [];
   const libIds = list.filter((m): m is { mediaId: string } => "mediaId" in m).map((m) => m.mediaId);
   const kept = libIds.length ? await deps.db.select({ id: socialMedia.id }).from(socialMedia).where(and(eq(socialMedia.orgId, auth.orgId), eq(socialMedia.kept, true), inIds(socialMedia.id, libIds))).all() : [];
-  const keptSet = new Set(kept.map((k) => k.id));
+  // A library image, or one this post already carries (editing a draft keeps its images).
+  const keptSet = new Set([...kept.map((k) => k.id), ...ownMedia]);
   for (const m of list) {
     if ("mediaId" in m) {
       if (!keptSet.has(m.mediaId)) throw new HttpError(422, "bad_image", "That library image is no longer there. Pick another.");
@@ -224,7 +225,7 @@ export async function updatePost(deps: Deps, auth: AuthContext, id: string, inpu
   const mayEdit = ["draft", "changes"].includes(post.status) ? post.createdBy === auth.userId || canPublish(auth.role) : canPublish(auth.role);
   if (!editable) throw new HttpError(409, "not_editable", "This post has already gone out, so it can't be changed.");
   if (!mayEdit) throw forbidden("Only the person who wrote it, an owner or an admin can change this post.");
-  const pp = await preparePost(deps, auth, input, mode);
+  const pp = await preparePost(deps, auth, input, mode, [post.mediaId, ...parseIds(post.mediaIds)].filter((x): x is string => !!x));
   const now = deps.now();
   await writeUploads(deps, auth.orgId, pp.uploads);
   const r = await deps.db.update(socialPosts).set({
