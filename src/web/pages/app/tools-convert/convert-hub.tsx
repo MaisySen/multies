@@ -119,10 +119,10 @@ export function ConvertHubPage() {
   const fmts = usable.map((f) => f.fmt!) as FormatId[];
   const targets = useMemo(() => commonTargets(fmts, plan), [fmts.join(","), plan]); // eslint-disable-line react-hooks/exhaustive-deps
   const actions = useMemo(() => {
-    const fit = actionsFor(fmts, { engine: plan.engine });
+    const fit = actionsFor(fmts, { engine: plan.engine, features: plan.features });
     if (!fmts.length && packable.length) return ACTIONS.filter((a) => a.anyFile);
     return fit;
-  }, [fmts.join(","), plan.engine, packable.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fmts.join(","), plan.engine, plan.features, packable.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const ocrChoices = useMemo(() => catalogueFor(info.data?.features ?? []).find((t) => t.op === "ocr")?.options.find((o) => o.name === "language")?.choices ?? [{ value: "eng", label: "English" }], [info.data?.features]);
 
   // Keep the choice valid as files come and go.

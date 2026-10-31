@@ -171,8 +171,8 @@ const AUDIO_TO: FormatId[] = ["mp3", "m4a", "wav"];
 /** R86: video and audio on the engine (media-convert, one run each). Nothing chains after them. */
 function mediaConverters(): ConverterDef[] {
   const out: ConverterDef[] = [];
-  for (const from of VIDEO_FORMATS) for (const to of VIDEO_TO) if (from !== to) out.push({ id: `eng:media:${from}:${to}`, from, to, where: "engine", op: "media-convert", options: { to }, final: true });
-  for (const from of AUDIO_FORMATS) for (const to of AUDIO_TO) if (from !== to) out.push({ id: `eng:media:${from}:${to}`, from, to, where: "engine", op: "media-convert", options: { to }, final: true });
+  for (const from of VIDEO_FORMATS) for (const to of VIDEO_TO) if (from !== to) out.push({ id: `eng:media:${from}:${to}`, from, to, where: "engine", op: "media-convert", options: { to }, final: true, feature: "convert_plus" });
+  for (const from of AUDIO_FORMATS) for (const to of AUDIO_TO) if (from !== to) out.push({ id: `eng:media:${from}:${to}`, from, to, where: "engine", op: "media-convert", options: { to }, final: true, feature: "convert_plus" });
   return out;
 }
 
@@ -202,8 +202,8 @@ export const CONVERTERS: ConverterDef[] = [
   ...(["txt", "md", "csv", "xlsx"] as FormatId[]).map((to): ConverterDef => ({ id: `eng:pdf-to:${to}`, from: "pdf", to, where: "engine", op: "pdf-to", options: { target: to }, feature: "convert_plus" })),
   ...mediaConverters(),
   // R86: HEIC on the engine for browsers that cannot open it (Chrome, Edge, Firefox). The device route wins where it works.
-  ...(["jpg", "png"] as FormatId[]).map((to): ConverterDef => ({ id: `eng:photo:heic:${to}`, from: "heic", to, where: "engine", op: "photo-convert", options: { to } })),
-  ...(["epub", "mobi"] as FormatId[]).map((from): ConverterDef => ({ id: `eng:ebook:${from}`, from, to: "pdf", where: "engine", op: "ebook-to-pdf" })),
+  ...(["jpg", "png"] as FormatId[]).map((to): ConverterDef => ({ id: `eng:photo:heic:${to}`, from: "heic", to, where: "engine", op: "photo-convert", options: { to }, feature: "convert_plus" })),
+  ...(["epub", "mobi"] as FormatId[]).map((from): ConverterDef => ({ id: `eng:ebook:${from}`, from, to: "pdf", where: "engine", op: "ebook-to-pdf", feature: "convert_plus" })),
   ...archiveConverters(),
 ];
 
@@ -331,6 +331,8 @@ export interface ActionDef {
   engine?: (f: FormatId) => boolean;
   /** R86: takes every file, even kinds Multies cannot convert (an archive holds anything). */
   anyFile?: boolean;
+  /** R86: the Tools feature a file's engine run needs, if any (video compress runs on convert_plus). */
+  needs?: (f: FormatId) => string | undefined;
 }
 
 const isImage = (f: FormatId) => formatDef(f).family === "image";
@@ -341,7 +343,7 @@ export const OCR_IMAGES: FormatId[] = ["jpg", "png", "webp", "bmp", "gif"];
 export const ACTIONS: ActionDef[] = [
   { id: "merge", label: "Merge into one PDF", line: "Join the PDFs in the order shown", takes: (f) => f === "pdf", min: 2, combine: true },
   { id: "images-pdf", label: "Images into one PDF", line: "One image per page, in the order shown", takes: isImage, min: 2, combine: true },
-  { id: "compress", label: "Make smaller", line: "Shrink PDFs, photos and videos, and see the size before and after", takes: (f) => f === "pdf" || COMPRESS_IMAGES.includes(f) || isMedia(f), min: 1, engine: (f) => f === "pdf" || isMedia(f) },
+  { id: "compress", label: "Make smaller", line: "Shrink PDFs, photos and videos, and see the size before and after", takes: (f) => f === "pdf" || COMPRESS_IMAGES.includes(f) || isMedia(f), min: 1, engine: (f) => f === "pdf" || isMedia(f), needs: (f) => (isMedia(f) ? "convert_plus" : undefined) },
   { id: "ocr-pdf", label: "Make searchable", line: "Read the words in scans and photos, so you can search and copy them", takes: (f) => f === "pdf" || OCR_IMAGES.includes(f), min: 1, engine: () => true },
   { id: "ocr-text", label: "Copy out the text", line: "Read the words in scans and photos into a text file", takes: (f) => f === "pdf" || OCR_IMAGES.includes(f), min: 1, engine: () => true },
   { id: "extract", label: "Unpack", line: "Take every file out of the archive", takes: (f) => ARCHIVE_READ.includes(f), min: 1 },
@@ -353,9 +355,10 @@ export const ACTIONS: ActionDef[] = [
 
 /** The actions that fit the chosen files: every file must be one the action takes. Pass engine: false to leave out
  * actions that need the engine for these files (Tools off, or no runs left). */
-export function actionsFor(froms: FormatId[], opts: { engine?: boolean } = {}): ActionDef[] {
+export function actionsFor(froms: FormatId[], opts: { engine?: boolean; features?: readonly string[] } = {}): ActionDef[] {
   if (!froms.length) return [];
-  return ACTIONS.filter((a) => froms.length >= a.min && froms.every(a.takes) && (opts.engine !== false || !a.engine || !froms.some(a.engine)));
+  const featureOk = (a: ActionDef) => !opts.features || !a.needs || froms.every((f) => { const n = a.needs!(f); return !n || opts.features!.includes(n); });
+  return ACTIONS.filter((a) => froms.length >= a.min && froms.every(a.takes) && (opts.engine !== false || !a.engine || !froms.some(a.engine)) && featureOk(a));
 }
 
 /** R86: how many engine runs an action uses for these files. */

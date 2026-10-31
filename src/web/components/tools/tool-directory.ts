@@ -78,8 +78,8 @@ export interface Entry {
 /** Pages that are not catalogue tools, each behind its feature. */
 const PAGES: (Omit<Entry, "section" | "icon"> & { feature: string; section: Section; icon: Icon })[] = [
   // R78: the Convert hub ships with Tools itself (no feature): drop any file, see what it can become.
-  // R86: Edit PDF ships with Tools itself: pages, text, signature, black out, watermark and numbers on the device.
-  { key: "edit-pdf", feature: "", section: "Edit PDF", icon: IconEdit, name: "Edit a PDF", line: "Add text, sign, black out, move pages", words: "edit pdf add text type write sign signature redact black out hide box watermark page numbers reorder rotate delete pages annotate", to: "/app/tools/edit-pdf", takes: /\.pdf$/i },
+  // R86: Edit PDF sits with the editors (feature editor): pages, text, signature, black out, watermark and numbers on the device.
+  { key: "edit-pdf", feature: "editor", section: "Edit PDF", icon: IconEdit, name: "Edit a PDF", line: "Add text, sign, black out, move pages", words: "edit pdf add text type write sign signature redact black out hide box watermark page numbers reorder rotate delete pages annotate", to: "/app/tools/edit-pdf", takes: /\.pdf$/i },
   { key: "convert-any", feature: "", section: "Convert", icon: IconArrowRightLeft, name: "Convert any file", line: "Drop files, pick what they become", words: "convert change format heic webp avif png jpg gif bmp image photo csv excel xlsx json tsv pdf batch many zip 7z tar rar extract archive video audio mp4 mov mp3 wav epub mobi ebook compress ocr", to: "/app/tools/convert", takes: /./ },
   { key: "esign", feature: "esign", section: "Secure", icon: IconPenLine, name: "Sign", line: "Sign a PDF or ask others to sign it", words: "sign signature esign request", to: "/app/tools/sign", takesAttachment: true, takes: /\.pdf$/i },
   { key: "share", feature: "share", section: "Secure", icon: IconLink, name: "Share as a link", line: "Send a big file as a link with expiry", words: "share link expiry password large file send", to: "/app/tools/share", takesAttachment: true, takes: /./ },

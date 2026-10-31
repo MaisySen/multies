@@ -97,10 +97,11 @@ describe("R78 convert routes: batches and actions", () => {
     expect(mixed.engineRuns).toBe(1);
   });
   it("actions fit the files", () => {
-    expect(actionsFor(["pdf", "pdf"]).map((a) => a.id)).toEqual(["merge", "split", "rotate", "numbers"]);
-    expect(actionsFor(["pdf"]).map((a) => a.id)).toEqual(["split", "rotate", "numbers"]);
-    expect(actionsFor(["png", "jpg"]).map((a) => a.id)).toEqual(["images-pdf"]);
-    expect(actionsFor(["png", "pdf"])).toEqual([]);
+    // R86 adds compress, OCR and packing into an archive beside the R78 actions.
+    expect(actionsFor(["pdf", "pdf"]).map((a) => a.id)).toEqual(["merge", "compress", "ocr-pdf", "ocr-text", "archive", "split", "rotate", "numbers"]);
+    expect(actionsFor(["pdf"]).map((a) => a.id)).toEqual(["compress", "ocr-pdf", "ocr-text", "archive", "split", "rotate", "numbers"]);
+    expect(actionsFor(["png", "jpg"]).map((a) => a.id)).toEqual(["images-pdf", "compress", "ocr-pdf", "ocr-text", "archive"]);
+    expect(actionsFor(["png", "pdf"]).map((a) => a.id)).toEqual(["compress", "ocr-pdf", "ocr-text", "archive"]);
     expect(ACTIONS.every((a) => a.label && a.line)).toBe(true);
   });
 });
