@@ -62,7 +62,7 @@ async function confirmEmail(req: APIRequestContext, address: string) {
 
 async function signUp(req: APIRequestContext, email: string, name: string, company: string) {
   expect((await req.post("/api/auth/sign-up/email", { data: { name, email, password: "a-strong-password" } })).status()).toBe(200);
-  if (company) await confirmEmail(req, email);
+  await confirmEmail(req, email);
   if (company) expect((await req.post("/api/account/onboarding", { data: { name, timezone: "Australia/Sydney", locale: "en-AU", company, workspaceTimezone: "Australia/Sydney" } })).status()).toBeLessThan(300);
 }
 async function draft(req: APIRequestContext) {
@@ -192,7 +192,8 @@ test("parallel: both get links at once; decline closes it for the other; another
   await s.locator("#reason").fill("The amount on page 1 is wrong");
   await s.setViewportSize({ width: 390, height: 844 });
   await shot(s, "signer-decline-390-light");
-  await s.getByRole("button", { name: "Decline", exact: true }).click();
+  await s.locator("#decline").click();
+  await expect(s.locator("body")).toContainText(/declined/i, { timeout: 10_000 });
   await expect.poll(async () => (await (await page.request.get(`/api/tools/esign/${id}`)).json()).status, { timeout: 10_000 }).toBe("declined");
   await s.goto(linksTo(cara)[0]);
   await expect(s.locator("body")).toContainText(/no longer|declined|closed/i);
@@ -216,21 +217,26 @@ test("templates: an admin saves and can delete; a member sees and uses it but ca
   const mctx = await browser.newContext({ baseURL });
   const m = await mctx.newPage();
   await signUp(m.request, mEmail, "Mo Member", "");
-  expect((await m.request.post(`/api/invites/${link.split("/invite/")[1]}/accept`)).status()).toBe(200);
-  await m.goto("/app/tools/sign");
-  await m.getByRole("button", { name: "Templates" }).or(m.getByRole("tab", { name: "Templates" })).first().click();
+  // Signing up with the invited address may already join the workspace; then the link reads as used.
+  expect([200, 410]).toContain((await m.request.post(`/api/invites/${link.split("/invite/")[1]}/accept`)).status());
+  expect((await (await m.request.get("/api/account/me")).json()).organization?.name).toBe("Template Co");
+  await m.request.post("/api/account/onboarding", { data: { name: "Mo Member", timezone: "Australia/Sydney", locale: "en-AU" } });
+  await m.goto("/app/tools/sign?tab=templates");
+  await m.waitForLoadState("networkidle");
+  expect(m.url()).toContain("/app/tools/sign");
   await expect(m.getByTestId("tpl-row")).toHaveCount(2);
   await expect(m.getByTestId("tpl-delete")).toHaveCount(0);
   await expect(m.getByTestId("tpl-use").first()).toBeVisible();
   const bad = await views(m, "templates-member");
-  await page.goto("/app/tools/sign");
-  await page.getByRole("button", { name: "Templates" }).or(page.getByRole("tab", { name: "Templates" })).first().click();
+  await page.goto("/app/tools/sign?tab=templates");
   await expect(page.getByTestId("tpl-delete")).toHaveCount(2);
   bad.push(...(await views(page, "templates-admin")));
   // Send to a list dialog with a pasted list.
   await page.getByTestId("tpl-row").filter({ hasText: "Contractor onboarding" }).getByTestId("tpl-bulk").click();
   await page.getByTestId("tpl-bulk-text").fill("Name, Email\nAlex Wu, alex.wu@example.com\nPriya Shah, priya.shah@example.com\nno address");
-  await expect(page.getByTestId("tpl-bulk-preview")).toContainText("priya.shah@example.com");
+  await expect(page.getByTestId("tpl-bulk-preview")).toContainText("Line 4 has no email address");
+  await page.getByTestId("tpl-bulk-text").fill("Name, Email\nAlex Wu, alex.wu@example.com\nPriya Shah, priya.shah@example.com");
+  await expect(page.getByTestId("tpl-bulk-preview")).toContainText("2 people ready");
   await shot(page, "templates-bulk-1280-light");
   bad.push(...(await axe(page, "bulk dialog", "body")));
   await page.keyboard.press("Escape");
@@ -239,15 +245,14 @@ test("templates: an admin saves and can delete; a member sees and uses it but ca
   await page.getByRole("button", { name: "Forest", exact: true }).click();
   await page.getByRole("button", { name: "Save brand" }).click();
   await page.waitForTimeout(800);
-  await page.goto("/app/tools/sign");
-  await page.getByRole("button", { name: "Templates" }).or(page.getByRole("tab", { name: "Templates" })).first().click();
+  await page.goto("/app/tools/sign?tab=templates");
   await shot(page, "templates-1280-forest");
   bad.push(...(await axe(page, "templates forest")));
   await page.setViewportSize({ width: 390, height: 844 });
   await shot(page, "templates-390-forest");
   bad.push(...(await axe(page, "templates forest 390")));
   await page.setViewportSize({ width: 1280, height: 860 });
-  await page.getByRole("button", { name: "Sign a document" }).or(page.getByRole("tab", { name: "Sign a document" })).first().click();
+  await page.getByTestId("sign-tab-new").click();
   await shot(page, "new-1280-forest");
   await mctx.close();
   expect(bad).toEqual([]);
