@@ -38,7 +38,7 @@ interface Job {
 function friendly(err: unknown): string {
   const m = (err as Error)?.message ?? "";
   if (/dynamically imported module|Failed to fetch|Loading chunk|NetworkError|Load failed/i.test(m)) return "Couldn't load the converter. Check your connection, then try again.";
-  if (/encrypted/i.test(m)) return "This PDF is locked with a password. Unlock it with Remove password first, then convert.";
+  if (/encrypted/i.test(m)) return "This PDF is locked with a password. Take the password off with Remove password, then convert it here.";
   if (/Failed to parse|No PDF header|Invalid PDF|PDFParse|Expected instance of PDF/i.test(m)) return "This PDF can't be opened. It may be damaged.";
   if (/could not be decoded|decode|InvalidStateError/i.test(m)) return "This image can't be opened. It may be damaged, or in a format this browser doesn't read.";
   if (/out of memory|allocation failed|RangeError/i.test(m)) return "This file is too big for your device to convert here. Try a smaller one.";

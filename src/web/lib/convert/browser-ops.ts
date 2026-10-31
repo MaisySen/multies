@@ -216,7 +216,7 @@ async function openPdf(file: Blob, _name: string) {
     if (doc.getPageCount() < 1) throw new Error("no pages");
     return doc;
   } catch (err) {
-    if (/encrypt/i.test(String((err as Error)?.message))) throw new ConvertError("This PDF is locked with a password. Unlock it with Remove password first, then convert.");
+    if (/encrypt/i.test(String((err as Error)?.message))) throw new ConvertError("This PDF is locked with a password. Take the password off with Remove password, then convert it here.");
     throw new ConvertError(`This PDF can't be opened. It may be damaged.`);
   }
 }
