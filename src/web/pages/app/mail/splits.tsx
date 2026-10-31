@@ -46,9 +46,20 @@ export function SplitTabs({ tabs, active, onChange, onEdit, onDropMessage }: { t
   const [over, setOver] = useState<string | null>(null);
   return (
     <div className="flex items-center gap-1 border-b border-line px-2" data-testid="split-tabs">
-      <div role="tablist" aria-label="Inbox tabs" className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto py-1.5 [scrollbar-width:none]">
+      {/* R85: arrow keys, Home and End move between tabs (the tabs pattern); only the open tab is in the Tab order. */}
+      <div role="tablist" aria-label="Inbox tabs" className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto py-1.5 [scrollbar-width:none]"
+        onKeyDown={(e) => {
+          const keys: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1, Home: -Infinity, End: Infinity };
+          if (!(e.key in keys) || !tabs.length) return;
+          e.preventDefault();
+          const i = Math.max(0, tabs.findIndex((t) => t.id === active));
+          const by = keys[e.key];
+          const next = by === -Infinity ? 0 : by === Infinity ? tabs.length - 1 : (i + by + tabs.length) % tabs.length;
+          onChange(tabs[next].id);
+          e.currentTarget.querySelectorAll<HTMLElement>("[role=tab]")[next]?.focus();
+        }}>
         {tabs.map((t) => (
-          <button key={t.id} role="tab" type="button" aria-selected={t.id === active} onClick={() => onChange(t.id)} data-testid={`split-tab-${t.builtIn ? t.id : t.name}`}
+          <button key={t.id} role="tab" type="button" aria-selected={t.id === active} tabIndex={t.id === active ? 0 : -1} onClick={() => onChange(t.id)} data-testid={`split-tab-${t.builtIn ? t.id : t.name}`}
             onDragOver={onDropMessage ? (e) => { if (e.dataTransfer.types.includes(MAIL_DRAG_TYPE) && t.id !== active) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setOver(t.id); } } : undefined}
             onDragLeave={() => setOver((o) => (o === t.id ? null : o))}
             onDrop={onDropMessage ? (e) => { const id = e.dataTransfer.getData(MAIL_DRAG_TYPE); setOver(null); if (id && t.id !== active) { e.preventDefault(); onDropMessage(id, t); } } : undefined}

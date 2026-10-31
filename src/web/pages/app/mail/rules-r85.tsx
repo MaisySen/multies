@@ -83,8 +83,16 @@ export function MailRulesPage() {
     onSuccess: () => { toast.success("Rule deleted"); setDeleting(null); void qc.invalidateQueries({ queryKey: KEY }); },
     onError: (e) => showError(e),
   });
+  // Run on recent mail asks first, with how many messages will change.
+  const [confirmRun, setConfirmRun] = useState<{ rule: MailRule; matched: number } | null>(null);
+  const countRecent = useMutation({
+    mutationFn: (r: MailRule) => api.post<TestResult>("/mail/rules/test", { mailboxId: r.mailboxId, match: r.match, conditions: r.conditions }),
+    onSuccess: (t, r) => { if (t.matched) setConfirmRun({ rule: r, matched: Math.min(t.matched, 50) }); else toast.info("No recent mail matches this rule"); },
+    onError: (e) => showError(e),
+  });
   const runRecent = useMutation({
     mutationFn: (id: string) => api.post<{ ran: number; matched: number }>(`/mail/rules/${id}/run-recent`, {}),
+    onSettled: () => setConfirmRun(null),
     onSuccess: (r) => { toast.success(r.ran ? `Ran on ${r.ran} recent ${r.ran === 1 ? "message" : "messages"}` : "No recent mail matched", { description: r.ran ? "Replies and forwards only go to new mail." : undefined }); void qc.invalidateQueries({ queryKey: ["mail"] }); },
     onError: (e) => showError(e),
   });
@@ -110,12 +118,15 @@ export function MailRulesPage() {
               onToggle={(v) => patch.mutate({ id: r.id, enabled: v })}
               onEdit={() => setDraft({ id: r.id, name: r.name, mailboxId: r.mailboxId, match: r.match, conditions: r.conditions, actions: r.actions, enabled: r.enabled })}
               onLog={() => setLogFor(r)} onDelete={() => setDeleting(r)}
-              onRun={() => runRecent.mutate(r.id)} running={runRecent.isPending && runRecent.variables === r.id} />
+              onRun={() => countRecent.mutate(r)} running={countRecent.isPending && countRecent.variables?.id === r.id} />
           ))}
         </Card>
       )}
       {draft && <RuleEditor draft={draft} setDraft={setDraft} mailboxes={mailboxes} onClose={() => setDraft(null)} />}
       <RunLog rule={logFor} onClose={() => setLogFor(null)} />
+      <ConfirmDialog open={!!confirmRun} onClose={() => setConfirmRun(null)} onConfirm={() => confirmRun && runRecent.mutate(confirmRun.rule.id)} busy={runRecent.isPending}
+        tone="primary" confirmLabel="Run now" title={confirmRun ? `Run ${confirmRun.rule.name} on ${confirmRun.matched} recent ${confirmRun.matched === 1 ? "message" : "messages"}?` : "Run on recent mail?"}
+        description="They get this rule's labels, tabs, stars and other changes now. Replies and forwards are not sent." />
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={() => deleting && remove.mutate(deleting.id)} busy={remove.isPending}
         title={`Delete the rule ${deleting?.name ?? ""}?`} description="Mail it already sorted stays where it is. Its run log goes with it." />
     </div>
@@ -189,13 +200,13 @@ function RuleEditor({ draft, setDraft, mailboxes, onClose }: { draft: Draft; set
   const setAction = (i: number, a: MailRuleActionT) => set({ actions: draft.actions.map((x, j) => (j === i ? a : x)) });
   const moveAction = (i: number, by: number) => { const a = [...draft.actions]; const [x] = a.splice(i, 1); a.splice(i + by, 0, x); set({ actions: a }); };
   const sends = draft.actions.some((a) => a.kind === "forward" || a.kind === "auto_reply");
+  // Each action can be used once in a rule: Add action picks the next unused one and the picker greys out the rest.
+  const used = new Set(draft.actions.map((a) => a.kind));
+  const once = (k: RuleActionKind) => k !== "label" && k !== "forward";
+  const unused = [...RULE_ACTIONS.filter((k) => !used.has(k)), ...(["label", "forward"] as const).filter((k) => used.has(k))];
 
   return (
-    <Dialog open onClose={onClose} title={draft.id ? "Edit rule" : "New rule"} className="sm:max-w-2xl"
-      footer={<>
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={submit} loading={save.isPending} data-testid="rule-save">{draft.id ? "Save rule" : "Make rule"}</Button>
-      </>}>
+    <Dialog open onClose={onClose} title={draft.id ? "Edit rule" : "New rule"} className="sm:max-w-2xl">
       <div className="space-y-5" data-testid="rule-editor">
         <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
           <Field label="Name">{(p) => <Input {...p} value={draft.name} onChange={(e) => set({ name: e.target.value })} maxLength={RULE_NAME_MAX} placeholder="Invoices from Acme" autoFocus />}</Field>
@@ -256,7 +267,7 @@ function RuleEditor({ draft, setDraft, mailboxes, onClose }: { draft: Draft; set
               <li key={i} className="flex flex-wrap items-center gap-2 rounded-xl border border-line p-2 sm:flex-nowrap" data-testid="rule-action">
                 <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-fill text-[11px] tabular-nums text-muted" aria-hidden>{i + 1}</span>
                 <Select aria-label={`Action ${i + 1}`} value={a.kind} onChange={(e) => setAction(i, blankAction(e.target.value as RuleActionKind))} className="min-w-0 flex-1 sm:w-52 sm:flex-none">
-                  {RULE_ACTIONS.map((k) => <option key={k} value={k}>{RULE_ACTION_LABEL[k]}</option>)}
+                  {RULE_ACTIONS.map((k) => <option key={k} value={k} disabled={k !== a.kind && once(k) && used.has(k)}>{RULE_ACTION_LABEL[k]}</option>)}
                 </Select>
                 <div className="order-last w-full sm:order-none sm:w-auto sm:flex-1">
                   <ActionConfig a={a} i={i} onChange={(x) => setAction(i, x)} tabs={tabs} replies={replies.data?.snippets ?? []} projects={(projects.data ?? []).filter((p) => !p.archived)} />
@@ -269,7 +280,7 @@ function RuleEditor({ draft, setDraft, mailboxes, onClose }: { draft: Draft; set
               </li>
             ))}
           </ol>
-          {draft.actions.length < RULE_ACTIONS_MAX && <Button variant="ghost" size="sm" className="mt-2" onClick={() => set({ actions: [...draft.actions, blankAction("mark_read")] })}><IconPlus className="h-4 w-4" />Add action</Button>}
+          {draft.actions.length < RULE_ACTIONS_MAX && unused.length > 0 && <Button variant="ghost" size="sm" className="mt-2" onClick={() => set({ actions: [...draft.actions, blankAction(unused[0])] })}><IconPlus className="h-4 w-4" />Add action</Button>}
           {sends && <p className="mt-2 text-[12px] text-subtle">Replies skip newsletters, robots and your own team, go once a day per sender, and stop after {RULE_SENDS_PER_DAY} a day.</p>}
         </section>
 
@@ -278,6 +289,11 @@ function RuleEditor({ draft, setDraft, mailboxes, onClose }: { draft: Draft; set
           <span>Rule on<span className="block text-[12px] text-subtle">Turn it off to keep the rule without running it.</span></span>
         </label>
         {error && <p className="text-[13px] text-bad" role="alert">{error}</p>}
+      </div>
+      {/* The buttons stay on screen while the form scrolls, above the home bar on a phone. */}
+      <div className="sticky bottom-0 z-10 -mx-6 -mb-5 mt-5 flex justify-end gap-2 border-t border-line bg-elevated px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]" data-testid="rule-editor-actions">
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button onClick={submit} loading={save.isPending} data-testid="rule-save">{draft.id ? "Save rule" : "Make rule"}</Button>
       </div>
     </Dialog>
   );

@@ -41,6 +41,14 @@ test("tab style, move to tab with Undo, and labels", async ({ page, baseURL }) =
   await expect(tabs.getByRole("tab", { name: /^Updates/ })).toBeVisible();
   await expect(tabs.getByRole("tab", { name: /^Promotions/ })).toBeVisible();
 
+  // Arrow keys move between tabs.
+  await tabs.getByRole("tab", { name: /^Primary/ }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(tabs.getByRole("tab", { name: /^Updates/ })).toBeFocused();
+  await expect(tabs.getByRole("tab", { name: /^Updates/ })).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Home");
+  await expect(tabs.getByRole("tab", { name: /^Primary/ })).toBeFocused();
+
   // Every Inbox thread is in exactly one of the three.
   const all = await list(page, mb.id, "folder=inbox");
   const parts = await Promise.all(["primary", "updates", "promotions"].map((s) => list(page, mb.id, `folder=inbox&split=${s}`)));
@@ -100,8 +108,11 @@ test("a rule made in the editor: test on recent mail, save, run on new mail, run
   await ed.getByLabel("Condition 1 value").fill("invoice r85");
   await ed.getByLabel("Action 1 setting").fill("Billing r85");
   await ed.getByRole("button", { name: "Add action" }).click();
-  await expect(ed.getByLabel("Action 2", { exact: true })).toHaveValue("mark_read");
+  // A new action defaults to one the rule doesn't use yet, and single use actions already in it are greyed out.
+  await expect(ed.getByLabel("Action 2", { exact: true })).not.toHaveValue("label");
+  await ed.getByLabel("Action 2", { exact: true }).selectOption("mark_read");
   await ed.getByRole("button", { name: "Add action" }).click();
+  await expect(ed.getByLabel("Action 3", { exact: true }).locator("option[value=mark_read]")).toBeDisabled();
   await ed.getByLabel("Action 3", { exact: true }).selectOption("star");
   await ed.getByRole("button", { name: "Move action 3 up" }).click();
   await expect(ed.getByLabel("Action 2", { exact: true })).toHaveValue("star");
@@ -136,6 +147,12 @@ test("a rule made in the editor: test on recent mail, save, run on new mail, run
   await expect(page.getByTestId("rule-runs")).toContainText("Done");
   await page.keyboard.press("Escape");
 
+  // Run on recent mail asks first, with the count.
+  await row.getByRole("button", { name: "Run on recent mail" }).click();
+  await expect(page.getByTestId("confirm-dialog")).toBeVisible();
+  await expect(page.getByRole("dialog").filter({ has: page.getByTestId("confirm-dialog") })).toContainText(/Run Invoices r85 on \d+ recent message/);
+  await page.getByRole("button", { name: "Cancel" }).click();
+
   // Off: the next one is left alone.
   await row.getByRole("switch").click();
   await expect(page.getByText("Invoices r85 is off")).toBeVisible();
@@ -155,4 +172,7 @@ test("rules page and Inbox at 390 wide: no sideways scroll, menus reachable", as
   await page.getByTestId("rule-new").click();
   await expect(page.getByTestId("rule-editor")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  // Cancel and Make rule sit fully on screen while the form scrolls.
+  const box = (await page.getByTestId("rule-save").boundingBox())!;
+  expect(box.y + box.height).toBeLessThanOrEqual(844);
 });
