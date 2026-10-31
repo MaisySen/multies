@@ -124,7 +124,7 @@ function AccountRow({ a, canManage }: { a: DirectAccountView; canManage: boolean
           <p className="mt-0.5 flex min-w-0 items-center gap-1.5 truncate text-[13px] text-muted">
             {a.displayName && <span className="truncate">{a.displayName}</span>}
             {a.username && (a.profileUrl
-              ? <a href={a.profileUrl} target="_blank" rel="noreferrer" className="truncate text-accent hover:underline">@{a.username}</a>
+              ? <a href={a.profileUrl} target="_blank" rel="noreferrer" className="truncate text-brand-hover hover:underline">@{a.username}</a>
               : <span className="truncate">@{a.username}</span>)}
           </p>
         ) : (
@@ -280,8 +280,8 @@ function TikTokPostDialog({ open, onClose }: { open: boolean; onClose: () => voi
   };
   const canPost = !!file && !!privacy && !tooLong && !discloseIncomplete && !brandedPrivate && !post.isPending;
   const consent = disclose && branded
-    ? <>By posting, you agree to TikTok&apos;s <a className="text-accent underline" href="https://www.tiktok.com/legal/page/global/bc-policy/en" target="_blank" rel="noreferrer">Branded Content Policy</a> and <a className="text-accent underline" href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noreferrer">Music Usage Confirmation</a>.</>
-    : <>By posting, you agree to TikTok&apos;s <a className="text-accent underline" href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noreferrer">Music Usage Confirmation</a>.</>;
+    ? <>By posting, you agree to TikTok&apos;s <a className="text-brand-hover underline" href="https://www.tiktok.com/legal/page/global/bc-policy/en" target="_blank" rel="noreferrer">Branded Content Policy</a> and <a className="text-brand-hover underline" href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noreferrer">Music Usage Confirmation</a>.</>
+    : <>By posting, you agree to TikTok&apos;s <a className="text-brand-hover underline" href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noreferrer">Music Usage Confirmation</a>.</>;
 
   return (
     <Dialog open={open} onClose={onClose} title="Post a video to TikTok" className="sm:max-w-xl"
@@ -398,7 +398,7 @@ function ThreadsFeed() {
             <Avatar url={q.data.profile.avatarUrl} name={q.data.profile.name ?? q.data.profile.username ?? "T"} />
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold text-fg" data-testid="threads-profile-name">{q.data.profile.name ?? q.data.profile.username}</div>
-              {q.data.profile.username && <a href={`https://www.threads.net/@${encodeURIComponent(q.data.profile.username)}`} target="_blank" rel="noreferrer" className="truncate text-[13px] text-accent hover:underline">@{q.data.profile.username}</a>}
+              {q.data.profile.username && <a href={`https://www.threads.net/@${encodeURIComponent(q.data.profile.username)}`} target="_blank" rel="noreferrer" className="truncate text-[13px] text-brand-hover hover:underline">@{q.data.profile.username}</a>}
             </div>
           </div>
           {q.data.profile.bio && <p className="mb-3 text-[13px] text-muted">{q.data.profile.bio}</p>}
