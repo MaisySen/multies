@@ -313,7 +313,7 @@ function RegexTool() {
   return (
     <Two
       left={<Pane label="Pattern and text" id="util-in">
-        <div className="flex gap-2"><Input value={pattern} onChange={(e) => setPattern(e.target.value)} aria-label="Pattern" className={`${mono} flex-1`} spellCheck={false} data-testid="regex-pattern" /><Input value={flags} onChange={(e) => setFlags(e.target.value.trim())} aria-label="Flags" className={`${mono} w-20`} data-testid="regex-flags" /></div>
+        <div className="flex gap-2"><div className="min-w-0 flex-1"><Input value={pattern} onChange={(e) => setPattern(e.target.value)} aria-label="Pattern" className={mono} spellCheck={false} data-testid="regex-pattern" /></div><div className="w-20 shrink-0"><Input value={flags} onChange={(e) => setFlags(e.target.value.trim())} aria-label="Flags" className={mono} data-testid="regex-flags" /></div></div>
         <ErrorLine text={r.error} />
         <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={8} aria-label="Text to test" className={`${mono} w-full`} data-testid="regex-text" />
       </Pane>}
@@ -350,7 +350,7 @@ export function UtilitiesPage() {
   }
   const View = TOOL_VIEW[def.id];
   return (
-    <ToolsFrame entryKey={`util-${def.id}`} title={def.name} description={`${def.line}. Nothing you type leaves your device.`} usage={false} wide testId={`utility-page-${def.id}`}>
+    <ToolsFrame entryKey="utilities" title={def.name} description={`${def.line}. Nothing you type leaves your device.`} usage={false} wide testId={`utility-page-${def.id}`}>
       <View />
     </ToolsFrame>
   );
