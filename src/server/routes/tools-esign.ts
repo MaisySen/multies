@@ -142,6 +142,8 @@ const fontCss = FONTS.map((f) => `@font-face{font-family:'${f}';src:url(/fonts/s
   + ".steps{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:12px 0 4px}.steps li{font-size:13px;padding:4px 12px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}"
   + ".steps li[aria-current]{border-color:var(--brand);color:var(--fg);font-weight:600}.steps li.done{color:var(--good)}.steps li.done::before{content:'\\2713  '}"
   + "#code{font-size:24px;letter-spacing:6px;max-width:220px;font-variant-numeric:tabular-nums}"
+  // R107 (verifier 20:45): the check page never scrolls sideways on phones (long fingerprints wrap, the file picker fits).
+  + "#result p,#result h2{overflow-wrap:anywhere;word-break:break-word}#vf{display:block;width:100%;max-width:100%;box-sizing:border-box}"
   + "@media (max-width:480px){#sign-app button,#idv-app button,.check input{min-height:44px}.check input{min-width:24px}}";
 
 function shell(title: string, inner: string, script: boolean | string = false) {
