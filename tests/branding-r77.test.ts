@@ -85,7 +85,7 @@ describe("R77 brand colour maths", () => {
     const inApp = run("/app/my-work", { "multies-brand": cached });
     expect(inApp.theme).toBe("dark");
     expect(inApp.appended[0]).toMatchObject({ id: "brand-tokens", textContent: ":root{--color-brand:#be185d}" });
-    expect(run("/app", { "multies-brand": cached, "mymail-theme": "light" }).theme).toBe("light");
+    expect(run("/app", { "multies-brand": cached, "multies-theme": "light" }).theme).toBe("light");
     const outside = run("/pricing", { "multies-brand": cached });
     expect(outside.theme).toBeUndefined();
     expect(outside.appended).toHaveLength(0);

@@ -6,7 +6,7 @@
 import { useEffect, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
-import { useAppearance } from "@/web/components/theme";
+import { THEME_KEY, useAppearance } from "@/web/components/theme";
 import { cn } from "@/web/lib/cn";
 import { logoUrl, logoScheme, pickLogo, type Appearance, type Brand, type ContrastCheck, type Personal } from "@/shared/branding";
 
@@ -37,7 +37,7 @@ export function paintBrandCss(css: string) {
 /** The workspace default appearance applies only while the person has not picked light or dark themselves. */
 function applyDefaultAppearance(a: Appearance) {
   let own: string | null = null;
-  try { own = localStorage.getItem("mymail-theme"); } catch { /* storage blocked */ }
+  try { own = localStorage.getItem(THEME_KEY); } catch { /* storage blocked */ }
   if (own === "light" || own === "dark") return;
   const root = document.documentElement;
   if (a === "light" || a === "dark") root.dataset.theme = a; else delete root.dataset.theme;

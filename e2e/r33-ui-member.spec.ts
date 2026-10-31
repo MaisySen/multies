@@ -35,7 +35,7 @@ for (const scheme of ["light", "dark"] as const) {
     test(`member screens ${scheme} ${width}`, async ({ browser }) => {
       const ctx = await browser.newContext({ baseURL: test.info().project.use.baseURL, viewport: { width, height: width === 390 ? 844 : 900 }, colorScheme: scheme, reducedMotion: "reduce" });
       await ctx.setExtraHTTPHeaders({ "x-forwarded-for": `10.133.${width % 200}.${scheme === "light" ? 1 : 2}` });
-      await ctx.addInitScript((s) => { try { localStorage.setItem("mymail-theme", s); } catch { /* blocked */ } }, scheme);
+      await ctx.addInitScript((s) => { try { localStorage.setItem("multies-theme", s); } catch { /* blocked */ } }, scheme);
       const overflow: Record<string, { doc: number; main: number; vw: number }> = {};
       const page = await ctx.newPage();
       page.setDefaultTimeout(8000);

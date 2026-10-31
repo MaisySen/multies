@@ -84,3 +84,15 @@ describe("the workers.dev address is never indexed", () => {
     expect(src).toContain("if (!noindex) return isWorkersDevHost(request.url) ? withRobotsHeader(await next()) : next();");
   });
 });
+
+describe("saved light or dark choice uses the Multies key", () => {
+  it("the inline script, public/theme.js and the CSP hash read multies-theme only", async () => {
+    const { THEME_SCRIPT, THEME_SCRIPT_HASH } = await import("@/server/lib/security-headers");
+    const { createHash } = await import("node:crypto");
+    expect(THEME_SCRIPT).toContain('localStorage.getItem("multies-theme")');
+    expect(THEME_SCRIPT).not.toMatch(/my ?mail/i);
+    expect(THEME_SCRIPT_HASH).toBe(`'sha256-${createHash("sha256").update(THEME_SCRIPT).digest("base64")}'`);
+    expect(readFileSync("index.html", "utf8")).toContain(THEME_SCRIPT);
+    expect(readFileSync("public/theme.js", "utf8")).not.toMatch(/my ?mail/i);
+  });
+});

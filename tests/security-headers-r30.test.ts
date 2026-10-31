@@ -25,9 +25,9 @@ describe("page CSP", () => {
 
   it("allows each external service exactly where it is needed", () => {
     // Cloudflare Web Analytics: the beacon script and its reporting host, only with a token.
-    expect(d["script-src"]).toEqual(["'self'", "'sha256-H7IyFghRVKP9oghvs1j+pAVtwPfyVlZ2L1BUd9xT7PA='", "'wasm-unsafe-eval'", "https://static.cloudflareinsights.com"]);
+    expect(d["script-src"]).toEqual(["'self'", "'sha256-tTjXVFtiGiMpAU0jVWic+HURQaoh9Btt7O5R4TAwLWs='", "'wasm-unsafe-eval'", "https://static.cloudflareinsights.com"]);
     expect(d["connect-src"]).toContain("https://cloudflareinsights.com");
-    expect(directives(appCsp())["script-src"]).toEqual(["'self'", "'sha256-H7IyFghRVKP9oghvs1j+pAVtwPfyVlZ2L1BUd9xT7PA='", "'wasm-unsafe-eval'"]);
+    expect(directives(appCsp())["script-src"]).toEqual(["'self'", "'sha256-tTjXVFtiGiMpAU0jVWic+HURQaoh9Btt7O5R4TAwLWs='", "'wasm-unsafe-eval'"]);
     expect(directives(appCsp())["connect-src"]).not.toContain("https://cloudflareinsights.com");
     // Sentry browser SDK posts to its ingest hosts.
     expect(d["connect-src"]).toEqual(expect.arrayContaining(["https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io", "https://*.ingest.de.sentry.io"]));

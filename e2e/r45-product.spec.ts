@@ -78,7 +78,7 @@ test.describe("Archive older mail at phone width (MB-137)", () => {
   for (const theme of ["light", "dark"] as const) {
     test(`the sheet fits a phone (${theme})`, async ({ page }) => {
       test.setTimeout(120_000);
-      await page.addInitScript((t) => { try { localStorage.setItem("mymail-theme", t); } catch { /* private mode */ } }, theme);
+      await page.addInitScript((t) => { try { localStorage.setItem("multies-theme", t); } catch { /* private mode */ } }, theme);
       await demo(page);
       const mailboxId = await seedOld(page, `r45ph${theme}`, 3);
       await page.goto(`/app/mail?mailbox=${mailboxId}`);

@@ -4,7 +4,23 @@ import { IconMonitor, IconMoon, IconToday, type IconComponent } from "@/web/comp
 import { cn } from "@/web/lib/cn";
 
 export type Appearance = "system" | "light" | "dark";
-const KEY = "mymail-theme";
+export const THEME_KEY = "multies-theme";
+const KEY = THEME_KEY;
+/** R81B: a light or dark choice saved under the key from before the rename moves to THEME_KEY once, on the first
+ *  load of the app code; public/theme.js and the inline script read THEME_KEY only. Remove after 30 Nov 2026. */
+const LEGACY_KEY = "mymail-theme";
+(function carryOverLegacyChoice() {
+  try {
+    if (typeof localStorage === "undefined") return;
+    const old = localStorage.getItem(LEGACY_KEY);
+    if (old === null) return;
+    if (localStorage.getItem(KEY) === null && (old === "light" || old === "dark")) {
+      localStorage.setItem(KEY, old);
+      document.documentElement.dataset.theme = old;
+    }
+    localStorage.removeItem(LEGACY_KEY);
+  } catch { /* storage blocked */ }
+})();
 const media = () => window.matchMedia("(prefers-color-scheme: dark)");
 
 function read(): Appearance {

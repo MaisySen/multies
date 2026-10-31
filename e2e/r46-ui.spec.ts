@@ -176,7 +176,7 @@ for (const scheme of ["light", "dark"] as const) {
   test(`shots: sprint header and backlog with 3 selected, desktop and phone (${scheme})`, async ({ page }) => {
     test.skip(!SHOTS, "screenshots only");
     await page.emulateMedia({ colorScheme: scheme });
-    await page.addInitScript((t) => { try { localStorage.setItem("mymail-theme", t); } catch { /* private mode */ } }, scheme);
+    await page.addInitScript((t) => { try { localStorage.setItem("multies-theme", t); } catch { /* private mode */ } }, scheme);
     for (const [w, h, kind] of [[1280, 800, "desktop"], [390, 844, "phone"]] as const) {
       await page.setViewportSize({ width: w, height: h });
       await page.context().clearCookies();

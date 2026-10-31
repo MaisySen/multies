@@ -22,7 +22,7 @@ const shot = async (page: Page, name: string) => {
   await page.screenshot({ path: `${DIR}/${SHOTS}-${name}.png` });
 };
 const setTheme = (page: Page, theme: "light" | "dark") => page.evaluate((t) => {
-  localStorage.setItem("mymail-theme", t);
+  localStorage.setItem("multies-theme", t);
   document.documentElement.dataset.theme = t;
 }, theme);
 const overflowX = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
