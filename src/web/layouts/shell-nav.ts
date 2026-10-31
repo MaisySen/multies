@@ -7,7 +7,7 @@ export type IconKey =
   | "home" | "mail" | "tasks" | "docs" | "tools" | "chat" | "dashboards" | "workspace"
   | "today" | "overview" | "bell" | "triage" | "approvals" | "activity" | "sharedInbox" | "mailboxes" | "domains" | "deliverability"
   | "goals" | "portfolio" | "timesheet" | "templates" | "automations" | "files" | "forms" | "meetings" | "booking" | "contacts"
-  | "reports" | "agents" | "integrations" | "connections" | "settings" | "operator";
+  | "reports" | "agents" | "integrations" | "connections" | "settings" | "operator" | "convert";
 
 export interface NavPage { to: string; label: string; icon: IconKey; end?: boolean; flag?: "tools" | "files" | "scheduling" | "operator" }
 export interface Section { id: SectionId; label: string; icon: IconKey; to: string; pages: NavPage[] }
@@ -41,6 +41,7 @@ export const SECTIONS: Section[] = [
   ] },
   { id: "tools", label: "Tools", icon: "tools", to: "/app/tools", pages: [
     { to: "/app/tools", label: "Tools", icon: "tools", flag: "tools" },
+    { to: "/app/tools/convert", label: "Convert files", icon: "convert", flag: "tools" }, // R82F (MB-283)
     { to: "/app/files", label: "Files", icon: "files", flag: "files" },
   ] },
   { id: "chat", label: "Chat", icon: "chat", to: "/app/chat", pages: [
@@ -57,7 +58,6 @@ export const SECTIONS: Section[] = [
     { to: "/app/settings", label: "Settings", icon: "settings" },
     { to: "/app/settings/apps", label: "Connections", icon: "connections" }, // R80C
     { to: "/app/agents", label: "Agents", icon: "agents" },
-    { to: "/app/integrations", label: "Integrations", icon: "integrations" },
     { to: "/app/activity", label: "Activity", icon: "activity" },
     { to: "/app/admin", label: "Operator", icon: "operator", flag: "operator" },
   ] },
@@ -94,6 +94,11 @@ const SUB_LABEL: Record<string, string> = {
 };
 const titleCase = (slug: string) => { const s = decodeURIComponent(slug).replace(/[-_]+/g, " ").trim(); return s ? s[0].toUpperCase() + s.slice(1) : s; };
 
+const TOOL_SUB: Record<string, string> = {
+  ai: "AI document helpers", share: "Share links", sign: "E-sign", workflows: "Tool workflows", templates: "Invoice and letter templates",
+  merge: "Mail merge", pages: "Page editor", forms: "Fill a PDF form", compare: "Compare documents", organize: "Organise pages",
+};
+
 export interface Crumb { label: string; to?: string }
 
 /**
@@ -109,10 +114,39 @@ export function breadcrumbs(pathname: string, search: string, ctx: { projectName
   if (hit.page.to === "/app/tasks" && params.get("project") && ctx.projectName) out.push({ label: ctx.projectName });
   const rest = pathname.slice(hit.page.to.length).split("/").filter(Boolean);
   if (hit.page.to === "/app/settings" && rest[0]) out.push({ label: SUB_LABEL[rest[0]] ?? titleCase(rest[0]) });
-  if (hit.page.to === "/app/settings/apps" && rest[0] === "social") out.push({ label: "Social posts" }); // R80C
+  // R82F (MB-283): a tool's own page names itself (an editor slug reads as words).
+  if (hit.page.to === "/app/tools" && rest[0]) out.push({ label: TOOL_SUB[rest[0]] ?? titleCase(rest[0]) });
+  // R80C, R82F (MB-279): the tabs of Connections.
+  const CONNECTION_SUB: Record<string, string> = { social: "Social posts", mail: "Mail accounts", webhooks: "Webhooks" };
+  if (hit.page.to === "/app/settings/apps" && rest[0] && CONNECTION_SUB[rest[0]]) out.push({ label: CONNECTION_SUB[rest[0]] });
   // The last crumb is where you are: it is text, not a link.
   if (out.length) out[out.length - 1] = { label: out[out.length - 1].label };
   return out;
+}
+
+/** Pages with no sidebar entry still get a real tab title. */
+const OTHER_TITLES: Record<string, string> = {
+  deals: "Deals", templates: "Project templates", admin: "Operator", agents: "Agents", meetings: "Meetings", docs: "Docs", contacts: "Contacts",
+  integrations: "Webhooks", time: "Timesheet", dashboards: "Dashboards", chat: "Chat", inbox: "Shared inbox",
+};
+
+/**
+ * R82F (MB-283): the browser tab title for an app page, "Tasks · Multies", "Branding · Settings · Multies": the page you
+ * are on, then its parent when it sits inside Settings or Connections. Built from the same map as the breadcrumbs.
+ */
+export function pageTitle(pathname: string, search = "", sections: Section[] = SECTIONS): string {
+  const crumbs = breadcrumbs(pathname, search, {}, sections);
+  const hit = pageFor(pathname, sections);
+  const parts: string[] = [];
+  if (crumbs.length && hit) {
+    const last = crumbs[crumbs.length - 1].label;
+    parts.push(last === "All tasks" ? "Tasks" : last);
+    if (crumbs.length > 2 && (hit.page.to === "/app/settings" || hit.page.to === "/app/settings/apps")) parts.push(crumbs[crumbs.length - 2].label);
+  } else {
+    const seg = pathname.replace(/^\/app\/?/, "").split("/")[0];
+    if (seg) parts.push(OTHER_TITLES[seg] ?? titleCase(seg));
+  }
+  return [...parts, "Multies"].join(" · ");
 }
 
 export type CreateKind = "task" | "doc" | "mail" | "event" | "file" | "post";

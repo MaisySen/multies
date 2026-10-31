@@ -20,11 +20,66 @@ export function availabilityOf(t: Toolkit): AppAvailability | null {
   return "soon";
 }
 
-function clean(s: string, max: number): string {
-  const t = s.replace(/\s+/g, " ").replace(/[\u2013\u2014]/g, ",").trim();
-  if (t.length <= max) return t;
+/**
+ * R82F (MB-284): our own short lines for the apps people look for first, instead of the platform's raw marketing text
+ * (which had a doubled "named for named for" on X and cut off mid sentence).
+ */
+export const DESCRIPTIONS: Record<string, string> = {
+  facebook: "Post to your Facebook Pages and see how each post went.",
+  instagram: "Share photos and posts to Instagram business and creator accounts.",
+  linkedin: "Post updates to your LinkedIn profile or company page.",
+  twitter: "Post to X and keep an eye on replies.",
+  youtube: "Manage your channel, videos and playlists on YouTube.",
+  tiktok: "Share short videos to your TikTok account.",
+  pinterest: "Pin images to your boards and find ideas on Pinterest.",
+  threads: "Publish posts and replies on Threads.",
+  reddit: "Post to communities and follow discussions on Reddit.",
+  google_business_profile: "Keep your business listing, reviews and posts on Google up to date.",
+  telegram: "Send messages to your chats and channels through your own bot.",
+  discord: "Send messages and updates to your Discord server.",
+  whatsapp: "Message customers from your WhatsApp Business number.",
+  snapchat: "Run and track Snapchat ad campaigns.",
+  gmail: "Read, send and sort mail in your Gmail account.",
+  github: "Work with repositories, issues and pull requests on GitHub.",
+  googlecalendar: "See and create events in Google Calendar.",
+  notion: "Read and update pages and databases in Notion.",
+  googlesheets: "Read and write rows in Google Sheets.",
+  slack: "Post messages and read channels in Slack.",
+  outlook: "Read and send mail and manage events in Outlook.",
+  googledrive: "Find, upload and share files in Google Drive.",
+  googledocs: "Create and edit documents in Google Docs.",
+  hubspot: "Work with contacts, companies and deals in HubSpot.",
+  airtable: "Read and update records in your Airtable bases.",
+  jira: "Create and update issues in Jira.",
+  googletasks: "See and add tasks in Google Tasks.",
+  figma: "Open files and read comments in Figma.",
+  microsoft_teams: "Post messages to channels and chats in Microsoft Teams.",
+};
+
+/** Tidies a platform description: one line, no long dashes, no doubled words, a whole first sentence when it fits. */
+export function tidyDescription(s: string, max = 140): string {
+  let t = s.replace(/\s+/g, " ").replace(/[\u2013\u2014]/g, ",").replace(/\s[+-]\s/g, ", ").trim();
+  // "named for named for", "the the": a phrase of up to three words said twice in a row.
+  t = t.replace(/\b((?:[\p{L}\p{N}']+\s){0,2}[\p{L}\p{N}']+)\s+\1\b/giu, "$1");
+  t = t.replace(/…$/, "").replace(/\s+$/, "");
+  const first = t.match(/^(.{30,}?[.!?])(\s|$)/u)?.[1];
+  if (first && first.length <= max) return first;
+  if (t.length <= max && !/…$/.test(s)) return t;
   const cut = t.slice(0, max);
   return cut.slice(0, cut.lastIndexOf(" ") > 40 ? cut.lastIndexOf(" ") : max).replace(/[,.;:]$/, "") + "…";
+}
+
+const clean = (s: string, max: number) => tidyDescription(s, max);
+
+/**
+ * R82F (MB-280): the first screen of Connections loads only this short list (the social networks, then the most used
+ * apps that connect in one step), and the whole catalog follows when you search, filter or scroll. Same order as the
+ * full list, so the first page looks the same either way.
+ */
+export function topEntries<T extends { slug: string; availability: AppAvailability }>(all: T[], n = 72): T[] {
+  const social = all.filter((e) => (SOCIAL_FIRST as readonly string[]).includes(e.slug));
+  const rest = all.filter((e) => !(SOCIAL_FIRST as readonly string[]).includes(e.slug) && e.availability === "ready").slice(0, n);
+  return [...social, ...rest];
 }
 
 export function toEntries(items: Toolkit[]): CatalogEntry[] {
@@ -38,7 +93,7 @@ export function toEntries(items: Toolkit[]): CatalogEntry[] {
     out.push({
       slug: t.slug,
       name: APP_NAME_OVERRIDES[t.slug] ?? t.name,
-      description: clean(t.meta?.description ?? "", 140),
+      description: DESCRIPTIONS[t.slug] ?? clean(t.meta?.description ?? "", 140),
       group: social >= 0 ? "social" : groupFor(cats),
       availability,
       canPost: canPostTo(t.slug),
@@ -68,6 +123,8 @@ async function main() {
   const entries = toEntries(items);
   const file = path.resolve(import.meta.dirname, "../src/shared/connections-catalog.json");
   writeFileSync(file, JSON.stringify({ builtAt: new Date().toISOString().slice(0, 10), apps: entries.map(({ rank: _r, ...e }) => e) }) + "\n");
+  const top = topEntries(entries);
+  writeFileSync(file.replace(/\.json$/, "-top.json"), JSON.stringify({ builtAt: new Date().toISOString().slice(0, 10), total: entries.length, apps: top.map(({ rank: _r, ...e }) => e) }) + "\n");
   const by = (a: AppAvailability) => entries.filter((e) => e.availability === a).length;
   console.log(`apps ${entries.length}: ready ${by("ready")}, key ${by("key")}, soon ${by("soon")}`);
 }

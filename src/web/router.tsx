@@ -1,11 +1,17 @@
 import { Suspense, useState, type ReactNode } from "react";
-import { createBrowserRouter } from "react-router";
+import { Navigate, createBrowserRouter, useLocation } from "react-router";
 import { RouteError } from "./components/route-error";
 import { MarketingLayout } from "./layouts/marketing";
 import { AuthLayout } from "./layouts/auth";
 import { Landing } from "./pages/landing";
 import { NotFound } from "./pages/not-found";
 import { ToolFeatureGate } from "./components/tools/feature-gate"; // R66 (MB-259)
+
+/** R82F (MB-279): an old address that moved; the query and hash ride along (a mailbox sign in comes back with ?connected=). */
+function Moved({ to }: { to: string }) {
+  const loc = useLocation();
+  return <Navigate to={`${to}${loc.search}${loc.hash}`} replace />;
+}
 
 /** R66 (MB-259): the AI document pages show while any AI feature is on. */
 const AI_FEATURES = ["ask", "translate", "extract", "expenses", "contracts"] as const;
@@ -89,7 +95,6 @@ const notificationPages = () => import("./pages/app/notifications");
 const NotificationsPage = lazyPage(() => notificationPages(), "NotificationsPage");
 const NotificationSettings = lazyPage(() => notificationPages(), "NotificationSettings");
 const TemplatesPage = lazyPage(() => import("./pages/app/work/templates"), "TemplatesPage");
-const IntegrationsPage = lazyPage(() => import("./pages/app/work/integrations"), "IntegrationsPage");
 const ToolsPage = lazyPage(() => import("./pages/app/tools"), "ToolsPage");
 const ToolsAiPage = lazyPage(() => import("./pages/app/tools-ai"), "ToolsAiPage"); // Tools P2: AI documents
 const ToolsEditorRoute = lazyPage(() => import("./pages/app/tools-editors/route"), "ToolsEditorRoute"); // Tools P2: editors
@@ -120,7 +125,6 @@ const brandingSettings = () => import("./pages/app/branding-settings"); // R77
 const BrandingSettings = lazyPage(() => brandingSettings(), "BrandingSettings");
 const AppearanceSettings = lazyPage(() => brandingSettings(), "AppearanceSettings");
 const CalendarSettings = lazyPage(() => import("./pages/app/calendar-settings"), "CalendarSettings");
-const ConnectionsSettings = lazyPage(() => import("./pages/app/connections"), "ConnectionsSettings");
 const AppsSettings = lazyPage(() => import("./pages/app/apps-settings"), "AppsSettings"); // R80C: Connections hub
 const MailAppsSettings = lazyPage(() => import("./pages/app/mail-apps"), "MailAppsSettings");
 const ImportSettings = lazyPage(() => import("./pages/app/data-move"), "ImportExportSettings"); // R38 move your data
@@ -208,7 +212,7 @@ export const router = createBrowserRouter([
       { path: "contacts/:id", element: page(<ContactPage />) },
       { path: "deals", element: page(<DealsPage />) },
       { path: "automations", element: page(<AutomationsPage />) },
-      { path: "integrations", element: page(<IntegrationsPage />) },
+      { path: "integrations", element: <Moved to="/app/settings/apps/webhooks" /> }, // R82F (MB-279): now a tab of Connections
       { path: "time", element: page(<TimesheetPage />) },
       { path: "forms", element: page(<FormsPage />) },
       { path: "reports", element: page(<ReportsPage />) },
@@ -248,12 +252,14 @@ export const router = createBrowserRouter([
           { path: "channels", element: page(<ChannelsSettings />) }, // C1
           { path: "apps", element: page(<AppsSettings />) }, // R80C: Connections hub
           { path: "apps/social", element: page(<AppsSettings />) }, // R80C: social posts
+          { path: "apps/mail", element: page(<AppsSettings />) }, // R82F (MB-279): mail accounts, was Connected accounts
+          { path: "apps/webhooks", element: page(<AppsSettings />) }, // R82F (MB-279): webhooks, was Integrations
           { path: "billing", element: page(<BillingSettings />) },
           { path: "account", element: page(<AccountSettings />) },
           { path: "notifications", element: page(<NotificationSettings />) },
           { path: "calendar", element: page(<CalendarSettings />) },
           { path: "mail", element: page(<MailSettings />) },
-          { path: "connections", element: page(<ConnectionsSettings />) },
+          { path: "connections", element: <Moved to="/app/settings/apps/mail" /> }, // R82F (MB-279)
           { path: "mail-apps", element: page(<MailAppsSettings />) },
           { path: "developers", element: page(<DeveloperSettings />) },
           { path: "sign-up-emails", element: page(<AuthEmailSettings />) }, // R27

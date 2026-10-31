@@ -168,7 +168,7 @@ export function connectionRoutes() {
     .get("/oauth/:provider/callback", async (c) => {
       const p = c.req.param("provider") as OAuthProvider;
       if (p !== "google" && p !== "microsoft") throw new HttpError(404, "not_found", "No such provider.");
-      const back = (q: Record<string, string>) => c.redirect(`/app/settings/connections?${new URLSearchParams(q)}`);
+      const back = (q: Record<string, string>) => c.redirect(`/app/settings/apps/mail?${new URLSearchParams(q)}`);
       const code = c.req.query("code");
       const state = c.req.query("state");
       if (!code || !state) return back({ error: c.req.query("error") === "access_denied" ? "You cancelled the sign in." : "The sign in didn't finish." });

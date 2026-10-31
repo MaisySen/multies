@@ -92,7 +92,7 @@ export function SocialPanel({ canManage }: { canManage: boolean }) {
         <Card data-testid="social-empty">
           <EmptyState icon={<IconMegaphone />} title="Connect a social account first"
             body="Connect Facebook Pages, Instagram, LinkedIn, Pinterest or Reddit, then write one post and send it to all of them."
-            action={<Button onClick={() => navigate("/app/settings/apps")}><IconPlug className="h-4 w-4" aria-hidden />Connect an account</Button>} />
+            action={<Button onClick={() => navigate("/app/settings/apps?group=social")}><IconPlug className="h-4 w-4" aria-hidden />Connect an account</Button>} />
         </Card>
       ) : canManage ? <Composer accounts={postable} /> : null}
       <PostList canManage={canManage} />

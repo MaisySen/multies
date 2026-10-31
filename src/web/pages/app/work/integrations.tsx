@@ -29,7 +29,8 @@ const EVENT_LABEL: Record<string, string> = {
 const hostOf = (u: string) => { try { return new URL(u).host; } catch { return u; } };
 const time = (s: string) => new Date(s).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
-export function IntegrationsPage() {
+/** R82F (MB-279): `embedded` is the Webhooks tab of Settings, Connections (no page title of its own). */
+export function IntegrationsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["connectors"], queryFn: () => api.get<{ catalogue: Connector[]; connections: Connection[] }>("/connectors") });
   const hooks = useQuery({ queryKey: ["incoming-hooks"], queryFn: async () => (await api.get<{ hooks: Hook[] }>("/incoming-hooks")).hooks });
@@ -56,8 +57,10 @@ export function IntegrationsPage() {
   };
 
   return (
-    <div className="max-w-5xl space-y-8">
-      <PageHeader title="Integrations" description="Send workspace events to the apps you already use, and turn posts from other tools into tasks, chat messages and contacts. No paid plans or app installs needed." />
+    <div className="max-w-5xl space-y-8" data-testid="webhooks-pane">
+      {embedded
+        ? <p className="max-w-2xl text-[13.5px] leading-5 text-muted">Send workspace events to the apps you already use with a webhook, and turn posts from other tools into tasks, chat messages and contacts. No paid plans or app installs needed.</p>
+        : <PageHeader title="Webhooks" description="Send workspace events to the apps you already use, and turn posts from other tools into tasks, chat messages and contacts. No paid plans or app installs needed." />}
 
       <section aria-labelledby="int-connected" className="space-y-3">
         <h2 id="int-connected" className="text-[15px] font-semibold">Connected</h2>

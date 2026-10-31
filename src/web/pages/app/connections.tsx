@@ -27,7 +27,7 @@ const STATUS: Record<ConnectionView["status"], { label: string; tone: "ok" | "wa
   paused: { label: "Paused", tone: "neutral" },
 };
 
-/** Settings, Connected accounts: mailboxes at other providers, their sync, and their stored password. */
+/** Settings, Connections, Mail accounts (R82F; was Connected accounts): mailboxes at other providers, their sync, and their stored password. */
 export function ConnectionsSettings() {
   const info = useConnections();
   const [params, setParams] = useSearchParams();
@@ -42,13 +42,13 @@ export function ConnectionsSettings() {
 
   if (info.isPending) return <Skeleton className="h-48" />;
   if (!info.data?.enabled) {
-    return <Section title="Connected accounts" description="Use a mailbox you already have inside Multies."><p className="text-sm text-muted">Connecting an existing mailbox isn't switched on for this server.</p></Section>;
+    return <Section title="Mail accounts" description="Use a mailbox you already have inside Multies."><p className="text-sm text-muted">Connecting an existing mailbox isn't switched on for this server.</p></Section>;
   }
   const list = info.data.connections;
   return (
     <div className="space-y-6">
       <Section
-        title="Connected accounts"
+        title="Mail accounts"
         description={<>Your Gmail, Outlook, Yahoo, iCloud, Zoho, Fastmail, GMX or any other mailbox, inside Multies with your real address. New mail syncs every few minutes and replies go out through your own provider, so they land in its Sent folder too.</>}
       >
         {list.length === 0 && !adding ? (

@@ -129,7 +129,7 @@ export function OtherCalendarsSection() {
         )}
         <div className="space-y-2">
           <div className="text-[13px] font-medium">Connect a calendar</div>
-          {(options.data ?? []).length === 0 && <p className="text-[13px] text-muted">Connect a mailbox from Fastmail, iCloud, Zoho, Yahoo or GMX in Connected accounts and its calendar can show here too.</p>}
+          {(options.data ?? []).length === 0 && <p className="text-[13px] text-muted">Connect a mailbox from Fastmail, iCloud, Zoho, Yahoo or GMX in Connections, Mail accounts and its calendar can show here too.</p>}
           {(options.data ?? []).map((o) => (
             <div key={o.connectionId} className="flex flex-wrap items-center gap-2 text-sm">
               <IconMail className="size-4 text-muted" />

@@ -53,7 +53,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-deliverability", label: "Deliverability", to: "/app/deliverability", icon: IconShieldCheck, keywords: ["dmarc", "bounces", "suppression", "health"] },
   { id: "p-agents", label: "Agents", to: "/app/agents", icon: IconAgent, keywords: ["assistants", "runs", "triggers"] },
   { id: "p-approvals", label: "Approvals", to: "/app/approvals", icon: IconClipboardCheck, keywords: ["review", "pending"] },
-  { id: "p-integrations", label: "Integrations", to: "/app/integrations", icon: IconPlug, keywords: ["apps", "connect", "slack", "github"] },
+  { id: "p-integrations", label: "Webhooks", to: "/app/settings/apps/webhooks", icon: IconPlug, keywords: ["integrations", "apps", "connect", "slack", "github", "zapier"] },
   { id: "p-activity", label: "Activity", to: "/app/activity", icon: IconActivity, keywords: ["log", "audit"] },
   { id: "p-settings", label: "Settings", to: "/app/settings", icon: IconSettings, keywords: ["workspace", "preferences"] },
   { id: "p-settings-general", label: "General settings", to: "/app/settings/general", icon: IconSettings, keywords: ["workspace name", "logo", "time zone", "preferences"] },
@@ -63,7 +63,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-notification-settings", label: "Notification settings", to: "/app/settings/notifications", icon: IconBell, keywords: ["email alerts", "push"] },
   { id: "p-calendar-settings", label: "Calendar settings", to: "/app/settings/calendar", icon: IconCalendarDays, keywords: ["caldav", "ics", "google calendar"] },
   { id: "p-mail-settings", label: "Mail settings", to: "/app/settings/mail", icon: IconMail, keywords: ["signature", "saved replies", "vacation"] },
-  { id: "p-connections", label: "Connected mailboxes", to: "/app/settings/connections", icon: IconLink, keywords: ["gmail", "outlook", "imap", "connections"] },
+  { id: "p-connections", label: "Mail accounts", to: "/app/settings/apps/mail", icon: IconLink, keywords: ["gmail", "outlook", "imap", "connections", "connected accounts", "mailboxes"] },
   { id: "p-mail-apps", label: "Mail apps", to: "/app/settings/mail-apps", icon: IconSmartphone, keywords: ["imap", "smtp", "app password", "outlook", "apple mail"] },
   { id: "p-chat-channels", label: "Chat channels", to: "/app/settings/channels", icon: IconChats, keywords: ["whatsapp", "messenger", "instagram", "chat", "connect"], flag: "chatChannels" },
   { id: "p-developers", label: "Developers", to: "/app/settings/developers", icon: IconKey, keywords: ["api", "webhooks", "keys", "mcp"] },
@@ -87,6 +87,10 @@ export const PALETTE_ACTIONS: PaletteAction[] = [
   { id: "app-password", label: "Set up Outlook or Apple Mail", icon: IconSmartphone, kind: "navigate", to: "/app/settings/mail-apps", keywords: ["imap", "smtp", "app password", "thunderbird", "phone"] },
   { id: "tools-compress", label: "Compress PDF", icon: IconWrench, kind: "navigate", to: "/app/tools?op=compress", keywords: ["smaller pdf", "reduce size", "tools"], flag: "tools" },
   { id: "tools-merge", label: "Merge PDFs", icon: IconWrench, kind: "navigate", to: "/app/tools?op=merge", keywords: ["combine pdf", "join pdf", "tools"], flag: "tools" },
+  // R82F (MB-275): the PDF jobs people type by name go straight to the tool.
+  { id: "tools-split", label: "Split PDF", icon: IconWrench, kind: "navigate", to: "/app/tools?op=split", keywords: ["split pdf", "extract pages", "separate pages", "page ranges", "tools"], flag: "tools" },
+  { id: "tools-rotate", label: "Rotate PDF pages", icon: IconWrench, kind: "navigate", to: "/app/tools?op=rotate", keywords: ["rotate pdf", "turn pages", "tools"], flag: "tools" },
+  { id: "tools-to-images", label: "PDF to images", icon: IconWrench, kind: "navigate", to: "/app/tools?op=to-jpeg", keywords: ["pdf to jpg", "pdf to png", "pages as images", "tools"], flag: "tools" },
   { id: "tools-convert", label: "Convert to PDF", icon: IconWrench, kind: "navigate", to: "/app/tools?op=convert", keywords: ["word to pdf", "docx", "excel", "powerpoint", "tools"], flag: "tools" },
   { id: "shortcuts", label: "Keyboard shortcuts", icon: IconKeyboard, kind: "shortcuts", keywords: ["keys", "help", "hotkeys"] },
   { id: "theme", label: "Switch light or dark appearance", icon: IconMoon, kind: "theme", keywords: ["theme", "dark mode", "light mode", "appearance"] },
@@ -94,7 +98,8 @@ export const PALETTE_ACTIONS: PaletteAction[] = [
 ];
 
 const norm = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").trim();
-const words = (s: string) => norm(s).split(/[^a-z0-9#/]+/).filter(Boolean);
+// R82F (MB-275): words in any script (Nepali in Devanagari included, with its vowel signs), not only a to z.
+const words = (s: string) => norm(s).split(/[^\p{L}\p{M}\p{N}#/]+/u).filter(Boolean);
 
 /** At most one edit apart (insert, delete, replace or swap two letters). */
 export function withinOneEdit(a: string, b: string): boolean {
@@ -147,7 +152,8 @@ export function paletteScore(value: string, search: string, keywords: string[] =
   const all = [...labelWords, ...words(kw)];
   if (qWords.length > 1 && qWords.every((qw) => all.some((w) => w.startsWith(qw)))) return 0.7;
   const typo = (qw: string, w: string) => [w, w.slice(0, qw.length), w.slice(0, qw.length + 1), w.slice(0, qw.length - 1)].some((p) => withinOneEdit(qw, p));
-  if (qWords.every((qw) => qw.length >= 4 && all.some((w) => typo(qw, w)))) return 0.5;
+  // R82F (MB-275): a query with no words at all (punctuation only) matched everything here before.
+  if (qWords.length && qWords.every((qw) => qw.length >= 4 && all.some((w) => typo(qw, w)))) return 0.5;
   const spread = isSubsequence(compact, label.replace(/\s+/g, ""));
   if (compact.length >= 2 && spread >= 0 && spread <= 4) return 0.3 - spread * 0.05;
   return 0;

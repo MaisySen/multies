@@ -1,11 +1,15 @@
 /**
  * R80C: Settings, Connections. The workspace's outside apps (social networks first, then everything else in the
  * catalog) and the Social posts panel, as two tabs of one pane: /app/settings/apps and /app/settings/apps/social.
+ * R82F (MB-279): the one home for outside apps. Mail accounts (was Settings, Connected accounts) and Webhooks (was
+ * Workspace, Integrations) are tabs here too: /app/settings/apps/mail and /app/settings/apps/webhooks; the old
+ * addresses redirect.
  * The big app list loads as its own file when the pane opens. Connecting opens the provider's sign in page and comes
  * back here (?connected_account_id=...), where we confirm it with the server. Server: /api/apps and /api/social
  * (contract in src/shared/integrations.ts). Sign in tokens never reach the browser.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazyPage } from "@/web/components/lazy-page";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -18,7 +22,12 @@ import { Input } from "@/web/components/ui/input";
 import { ConfirmDialog } from "@/web/components/ui/confirm";
 import { IconClock, IconKey, IconLock, IconMegaphone, IconPlug, IconRefresh, IconSearch, IconTrash } from "@/web/components/ui/icon";
 import { APP_GROUPS, SOCIAL_FIRST, type AppAvailability, type AppGroup, type ConnectedAccountView } from "@/shared/integrations";
-import { SocialPanel } from "./apps-social";
+// R82F (MB-280): the Social posts panel loads with its own tab.
+const SocialPanel = lazyPage(() => import("./apps-social"), "SocialPanel", { quiet: true });
+
+// R82F (MB-279, MB-280): the two older panes load only when their tab opens, so the Apps tab stays light.
+const MailAccounts = lazyPage(() => import("./connections"), "ConnectionsSettings", { quiet: true });
+const Webhooks = lazyPage(() => import("./work/integrations"), "IntegrationsPage", { quiet: true });
 
 export interface CatalogApp { slug: string; name: string; description: string; group: AppGroup; availability: AppAvailability; canPost: boolean }
 interface AppsStatus { available: boolean; canManage: boolean }
@@ -29,49 +38,111 @@ export function useAppsStatus() { return useQuery({ queryKey: appsKeys.status, q
 export function useAppAccounts(enabled = true) {
   return useQuery({ queryKey: appsKeys.accounts, queryFn: () => api.get<{ accounts: ConnectedAccountView[] }>("/apps/accounts").then((r) => r.accounts), enabled, staleTime: 15_000 });
 }
-export function useCatalog() {
-  return useQuery({
+/**
+ * R82F (MB-280): the first screen reads a short list (social networks and the most used apps, about 5 KB); the whole
+ * catalog (about 90 KB) loads once you search, pick a category, ask for more, or after the page has settled.
+ */
+export function useCatalog(wantAll: boolean) {
+  const top = useQuery({
+    queryKey: [...appsKeys.catalog, "top"],
+    queryFn: async () => (await import("@/shared/connections-catalog-top.json")).default as { total: number; apps: CatalogApp[] },
+    staleTime: Infinity,
+  });
+  const [idle, setIdle] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setIdle(true), 4000); return () => clearTimeout(t); }, []);
+  const full = useQuery({
     queryKey: appsKeys.catalog,
     queryFn: async () => ((await import("@/shared/connections-catalog.json")).default as { apps: CatalogApp[] }).apps,
     staleTime: Infinity,
+    enabled: wantAll || idle || top.isError,
   });
+  const data = full.data ?? top.data?.apps;
+  return {
+    data,
+    total: full.data?.length ?? top.data?.total ?? 0,
+    complete: !!full.data,
+    loadingMore: !full.data && full.isFetching,
+    isPending: !data && (top.isPending || full.isPending),
+    error: data ? null : full.error ?? (top.isError && !full.isFetching ? top.error : null),
+    refetch: () => { void top.refetch(); void full.refetch(); },
+  };
 }
 
 /** App logo through our own origin, with the first letter as a stand in while it loads or when there is none. */
 export function AppLogo({ slug, name, size = "md" }: { slug: string; name: string; size?: "sm" | "md" | "lg" }) {
   const [failed, setFailed] = useState(false);
-  const box = size === "sm" ? "h-7 w-7 rounded-md text-[12px]" : size === "lg" ? "h-12 w-12 rounded-xl text-lg" : "h-10 w-10 rounded-lg text-[15px]";
+  // R82F (MB-280): a logo is fetched only when its card is about to show (the browser's own lazy loading starts
+  // thousands of pixels early on a slow connection, which fetched every logo on the page at once).
+  const box = useRef<HTMLSpanElement>(null);
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    const el = box.current;
+    if (!el || near) return;
+    if (typeof IntersectionObserver === "undefined") { setNear(true); return; }
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { setNear(true); io.disconnect(); } }, { rootMargin: "200px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [near]);
+  const dims = size === "sm" ? "h-7 w-7 rounded-md text-[12px]" : size === "lg" ? "h-12 w-12 rounded-xl text-lg" : "h-10 w-10 rounded-lg text-[15px]";
   return (
-    <span className={cn("relative grid shrink-0 place-items-center overflow-hidden border border-line bg-surface font-semibold text-muted", box)} aria-hidden>
+    <span ref={box} className={cn("relative grid shrink-0 place-items-center overflow-hidden border border-line bg-surface font-semibold text-muted", dims)} aria-hidden>
       {name.slice(0, 1).toUpperCase()}
-      {!failed && <img src={`/api/apps/logo/${slug}`} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} className="absolute inset-0 h-full w-full bg-surface object-contain p-1.5" />}
+      {!failed && near && <img src={`/api/apps/logo/${slug}`} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} className="absolute inset-0 h-full w-full bg-surface object-contain p-1.5" />}
     </span>
   );
 }
 
 const STATUS_COPY: Record<ConnectedAccountView["status"], { label: string; tone: "ok" | "warn" | "bad" | "neutral" }> = {
   active: { label: "Connected", tone: "ok" },
-  pending: { label: "Waiting for sign in", tone: "neutral" },
+  pending: { label: "Sign in not finished", tone: "warn" }, // R82F (MB-284): an abandoned sign in must not read as connected
   expired: { label: "Sign in expired", tone: "warn" },
   failed: { label: "Needs attention", tone: "bad" },
   disabled: { label: "Turned off", tone: "neutral" },
 };
 
-function Tabs() {
-  const tab = "relative inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-muted transition-colors duration-150 hover:text-fg max-sm:min-h-11";
+export type ConnectionsTab = "apps" | "social" | "mail" | "webhooks";
+export const CONNECTION_TABS: { id: ConnectionsTab; label: string; to: string }[] = [
+  { id: "apps", label: "Apps", to: "/app/settings/apps" },
+  { id: "social", label: "Social posts", to: "/app/settings/apps/social" },
+  { id: "mail", label: "Mail accounts", to: "/app/settings/apps/mail" },
+  { id: "webhooks", label: "Webhooks", to: "/app/settings/apps/webhooks" },
+];
+export function connectionsTabFor(pathname: string): ConnectionsTab {
+  const last = pathname.replace(/\/+$/, "").split("/").pop();
+  return last === "social" || last === "mail" || last === "webhooks" ? last : "apps";
+}
+
+function Tabs({ current }: { current: ConnectionsTab }) {
+  const tab = "relative inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-md px-3 text-sm font-medium text-muted transition-colors duration-150 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 max-sm:min-h-11 max-sm:px-2.5";
   return (
-    <nav aria-label="Connections" className="inline-flex gap-1 rounded-lg bg-fill p-1" data-testid="apps-tabs">
-      <NavLink to="/app/settings/apps" end className={({ isActive }) => cn(tab, isActive && "bg-surface text-fg shadow-card")}>Apps</NavLink>
-      <NavLink to="/app/settings/apps/social" className={({ isActive }) => cn(tab, isActive && "bg-surface text-fg shadow-card")}>Social posts</NavLink>
+    <nav aria-label="Connections" className="-mx-1 max-w-full overflow-x-auto px-1 [scrollbar-width:none]">
+      <div className="inline-flex gap-1 rounded-lg bg-fill p-1" data-testid="apps-tabs">
+        {CONNECTION_TABS.map((t) => (
+          <NavLink key={t.id} to={t.to} end aria-current={current === t.id ? "page" : undefined} className={() => cn(tab, current === t.id && "bg-surface text-fg shadow-card")}>{t.label}</NavLink>
+        ))}
+      </div>
     </nav>
   );
 }
 
+function TabFallback() { return <div className="space-y-3" aria-busy="true"><Skeleton className="h-11 rounded-lg" /><Skeleton className="h-40 rounded-xl" /></div>; }
+
 export function AppsSettings() {
-  const status = useAppsStatus();
   const loc = useLocation();
-  const social = loc.pathname.replace(/\/+$/, "").endsWith("/social");
-  if (status.isPending) return <div className="space-y-4" data-testid="apps-settings"><Skeleton className="h-9 w-52 rounded-lg" /><Skeleton className="h-11 rounded-lg" /><GridSkeleton /></div>;
+  const current = connectionsTabFor(loc.pathname);
+  return (
+    <div className="space-y-5" data-testid="connections-hub" data-tab={current}>
+      <Tabs current={current} />
+      {current === "mail" ? <Suspense fallback={<TabFallback />}><MailAccounts /></Suspense>
+        : current === "webhooks" ? <Suspense fallback={<TabFallback />}><Webhooks embedded /></Suspense>
+        : <OutsideApps social={current === "social"} />}
+    </div>
+  );
+}
+
+function OutsideApps({ social }: { social: boolean }) {
+  const status = useAppsStatus();
+  if (status.isPending) return <div className="space-y-4" data-testid="apps-settings"><Skeleton className="h-11 rounded-lg" /><GridSkeleton /></div>;
   if (status.error || !status.data) {
     return (
       <Card className="p-6" data-testid="apps-settings">
@@ -89,11 +160,8 @@ export function AppsSettings() {
   }
   return (
     <div className="space-y-5" data-testid="apps-settings">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs />
-        {!status.data.canManage && <p className="inline-flex items-center gap-1.5 text-[13px] text-subtle"><IconLock className="h-3.5 w-3.5" aria-hidden />Only owners and admins can connect apps or post.</p>}
-      </div>
-      {social ? <SocialPanel canManage={status.data.canManage} /> : <AppsGallery canManage={status.data.canManage} />}
+      {!status.data.canManage && <p className="inline-flex items-center gap-1.5 text-[13px] text-subtle"><IconLock className="h-3.5 w-3.5" aria-hidden />Only owners and admins can connect apps or post.</p>}
+      {social ? <Suspense fallback={<TabFallback />}><SocialPanel canManage={status.data.canManage} /></Suspense> : <AppsGallery canManage={status.data.canManage} />}
     </div>
   );
 }
@@ -137,19 +205,30 @@ export function useConnect() {
   });
 }
 
-const PAGE = 48;
+const PAGE = 24; // R82F (MB-280): a lighter first screen; "Show more apps" adds more
 
 function AppsGallery({ canManage }: { canManage: boolean }) {
   useConnectReturn();
   const qc = useQueryClient();
   const accounts = useAppAccounts();
-  const catalog = useCatalog();
   const connect = useConnect();
-  const [q, setQ] = useState("");
-  const [group, setGroup] = useState<AppGroup | "all">("all");
+  // R82F (MB-284): the search and the category live in the address, so Back from a sign in page (or a link to
+  // ?group=social) lands on the same list.
+  const [params, setParams] = useSearchParams();
+  const [q, setQ] = useState(() => params.get("q") ?? "");
+  const [group, setGroup] = useState<AppGroup | "all">(() => { const g = params.get("group"); return APP_GROUPS.some((x) => x.id === g) ? (g as AppGroup) : "all"; });
+  useEffect(() => {
+    setParams((p) => {
+      const next = new URLSearchParams(p);
+      if (q.trim()) next.set("q", q); else next.delete("q");
+      if (group !== "all") next.set("group", group); else next.delete("group");
+      return next.toString() === p.toString() ? p : next;
+    }, { replace: true });
+  }, [q, group, setParams]);
   const [limit, setLimit] = useState(PAGE);
   const [removing, setRemoving] = useState<ConnectedAccountView | null>(null);
   const search = useRef<HTMLInputElement>(null);
+  const catalog = useCatalog(!!q.trim() || group !== "all" || limit > PAGE);
   const navigate = useNavigate();
 
   // "/" jumps to search, the way it does in lists across the app.
@@ -191,6 +270,9 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
   }, [apps, group, q]);
   const counts = useMemo(() => { const c = new Map<string, number>(); for (const a of apps) c.set(a.group, (c.get(a.group) ?? 0) + 1); return c; }, [apps]);
   useEffect(() => { setLimit(PAGE); }, [q, group]);
+  // Until the whole catalog is here, the first screen still says how many apps there are in all.
+  const shownCount = !catalog.complete && !q.trim() && group === "all" ? catalog.total : matches.length;
+  const more = matches.length > limit || (!catalog.complete && !q.trim() && group === "all" && catalog.total > limit);
 
   const connected = accounts.data ?? [];
   return (
@@ -223,8 +305,8 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
                 </div>
                 {canManage && (
                   <div className="flex gap-2 max-sm:w-full">
-                    <Button variant={a.status === "active" ? "ghost" : "outline"} size="sm" className="max-sm:flex-1" loading={reconnect.isPending && reconnect.variables === a.id} onClick={() => reconnect.mutate(a.id)} aria-label={`Reconnect ${a.appName}`}>
-                      <IconRefresh className="h-4 w-4" aria-hidden />Reconnect
+                    <Button variant={a.status === "active" ? "ghost" : "outline"} size="sm" className="max-sm:flex-1" loading={reconnect.isPending && reconnect.variables === a.id} onClick={() => reconnect.mutate(a.id)} aria-label={a.status === "pending" ? `Finish sign in to ${a.appName}` : `Reconnect ${a.appName}`}>
+                      <IconRefresh className="h-4 w-4" aria-hidden />{a.status === "pending" ? "Finish sign in" : "Reconnect"}
                     </Button>
                     <Button variant="ghost" size="sm" className="text-bad hover:text-bad max-sm:flex-1" onClick={() => setRemoving(a)} aria-label={`Disconnect ${a.appName}`}>
                       <IconTrash className="h-4 w-4" aria-hidden />Disconnect
@@ -245,7 +327,7 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
       <section aria-labelledby="apps-all" className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <h2 id="apps-all" className="px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">Add an app</h2>
-          {catalog.data && <p className="px-1 text-[12.5px] text-subtle" aria-live="polite">{matches.length} {matches.length === 1 ? "app" : "apps"}</p>}
+          {catalog.data && <p className="px-1 text-[12.5px] text-subtle" aria-live="polite">{catalog.loadingMore && (q.trim() || group !== "all") ? "Looking through every app" : `${shownCount} ${shownCount === 1 ? "app" : "apps"}`}</p>}
         </div>
         <label className="relative block">
           <span className="sr-only">Search apps</span>
@@ -254,8 +336,8 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
         </label>
         <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]" role="group" aria-label="Categories" data-testid="apps-groups">
           {[{ id: "all" as const, label: "All" }, ...APP_GROUPS].map((g) => {
-            const n = g.id === "all" ? apps.length : counts.get(g.id) ?? 0;
-            if (g.id !== "all" && catalog.data && !n) return null;
+            const n = g.id === "all" ? catalog.total : counts.get(g.id) ?? 0;
+            if (g.id !== "all" && catalog.complete && !n) return null;
             const on = group === g.id;
             return (
               <button key={g.id} type="button" aria-pressed={on} onClick={() => setGroup(g.id)}
@@ -267,7 +349,7 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
           })}
         </div>
 
-        {catalog.isPending ? <GridSkeleton /> : catalog.error ? (
+        {catalog.isPending || (!matches.length && !catalog.complete && !catalog.error) ? <GridSkeleton /> : catalog.error ? (
           <Card className="p-6">
             <p className="text-sm text-bad" role="alert">Couldn't load the list of apps.</p>
             <Button variant="outline" size="sm" className="mt-3" onClick={() => void catalog.refetch()}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button>
@@ -281,7 +363,7 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
                 <AppCard key={a.slug} app={a} count={byApp.get(a.slug)?.filter((x) => x.status === "active").length ?? 0} canManage={canManage} busy={connect.isPending && connect.variables === a.slug} onConnect={() => connect.mutate(a.slug)} />
               ))}
             </ul>
-            {matches.length > limit && (
+            {more && (
               <div className="flex justify-center"><Button variant="outline" onClick={() => setLimit((l) => l + PAGE * 2)}>Show more apps</Button></div>
             )}
           </>

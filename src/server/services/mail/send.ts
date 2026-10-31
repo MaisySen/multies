@@ -76,7 +76,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   const { connectionForMailbox } = await import("../connect");
   const conn = await connectionForMailbox(deps, mb.id);
   if (conn?.status === "auth_failed") {
-    throw new HttpError(409, "connection_auth_failed", `${mb.address} stopped accepting its password. Reconnect it in Settings, Connected accounts, then send again.`);
+    throw new HttpError(409, "connection_auth_failed", `${mb.address} stopped accepting its password. Reconnect it in Settings, Connections, Mail accounts, then send again.`);
   }
   if (!conn && domain.status !== "verified" && !org.isDemo) {
     throw new HttpError(409, "domain_unverified", `Verify ${domain.name} before sending from it, so your mail isn't rejected as spoofed.`);
