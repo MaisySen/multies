@@ -12,6 +12,11 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - CRM timeline: one paged timeline per contact and per company of email, logged notes, calls and meetings, meetings, bookings, form submissions, deal moves and tasks, with filters and a next step kept as a linked task.
 - Companies can be added by hand and have their own page. Contacts can be imported from a CSV file (up to 5,000 rows, matched by email so nobody is added twice) and filtered into saved segments, private or shared with the team.
 - Deals have a chance to win (a stage default or set by hand), a won or lost reason, the date they closed, and a weighted forecast above the board. Behind CRM_TIMELINE.
+### Round 97 (1 Nov 2026)
+
+- Added: notification centre (flag `NOTIFICATION_CENTRE`, on unless set to off; off answers the old settings shape; migration 0121). Mail as a third channel per category (off by default), mail as it happens or one daily or weekly digest at a time and weekday in the member's own time zone, quiet hours (days, own zone, optional mentions and approvals through), pause for 1 hour, 3 hours or until tomorrow morning, and a New mail alert switch. Settings, Notifications gains a Mail column and three cards; Notifications gains a Pause menu and a status line with Resume.
+- Changed: every phone and browser alert passes one check (`alertRecipients`, `decide`): new mail alerts and bulk watcher alerts now respect pause, quiet hours and the person's switches. `GET/PUT /api/notifications/settings` add `delivery` and a `mail` field per category (add only).
+- Added: digest pass on the 15 minute cron reads only due rows (index on `digest_due_at`, 50 a run); instant mail goes through the job queue (`notify.mail`).
 
 ### Round 117 (31 Oct 2026)
 

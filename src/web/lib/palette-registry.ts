@@ -75,7 +75,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-team", label: "Team", to: "/app/settings/team", icon: IconTeam, keywords: ["members", "people", "invite"] },
   { id: "p-billing", label: "Billing", to: "/app/settings/billing", icon: IconCreditCard, keywords: ["plan", "upgrade", "invoice"] },
   { id: "p-account", label: "Account and security", to: "/app/settings/account", icon: IconUserCog, keywords: ["profile", "password", "two factor", "sessions"] },
-  { id: "p-notification-settings", label: "Notification settings", to: "/app/settings/notifications", icon: IconBell, keywords: ["email alerts", "push"] },
+  { id: "p-notification-settings", label: "Notification settings", to: "/app/settings/notifications", icon: IconBell, keywords: ["email alerts", "push", "quiet hours", "digest", "pause", "do not disturb"] },
   { id: "p-calendar-settings", label: "Calendar settings", to: "/app/settings/calendar", icon: IconCalendarDays, keywords: ["caldav", "ics", "google calendar"] },
   { id: "p-mail-settings", label: "Mail settings", to: "/app/settings/mail", icon: IconMail, keywords: ["signature", "saved replies", "vacation"] },
   { id: "p-connections", label: "Mail accounts", to: "/app/settings/apps/mail", icon: IconLink, keywords: ["gmail", "outlook", "imap", "connections", "connected accounts", "mailboxes"] },
