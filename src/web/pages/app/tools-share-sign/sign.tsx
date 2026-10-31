@@ -397,7 +397,7 @@ function RequestDetail({ id }: { id: string }) {
           </div>
         )}
         <p className="mb-3 text-[12px] text-muted">Fingerprint before signing (SHA-256): <span className="break-all font-mono">{r.sourceSha256}</span>{r.finalSha256 && <><br />Signed copy (SHA-256): <span className="break-all font-mono">{r.finalSha256}</span></>}</p>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Signing record">
           <table className="w-full text-[13px]" data-testid="sign-record">
             <thead><tr className="text-left text-muted"><th className="py-1 pr-3 font-medium">Time (UTC)</th><th className="pr-3 font-medium">Name</th><th className="pr-3 font-medium">Email</th><th className="pr-3 font-medium">Action</th><th className="pr-3 font-medium">Country</th>{r.v2 && <th className="font-medium">Signer time and device</th>}</tr></thead>
             <tbody>{(r.events ?? []).map((e, i) => <tr key={i} className="border-t border-line"><td className="py-1.5 pr-3 tabular-nums">{e.at.replace("T", " ").slice(0, 19)}</td><td className="pr-3">{e.name}</td><td className="pr-3">{e.email}</td><td className="pr-3">{actionLabel(e.action)}</td><td className="pr-3">{e.ipCountry ?? ""}</td>{r.v2 && <td className="text-muted">{[localAt(e.at, e.tz), e.device].filter(Boolean).join(", ")}</td>}</tr>)}</tbody>

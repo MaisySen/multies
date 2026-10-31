@@ -69,8 +69,9 @@ export function httpErrorPage(e: unknown) {
 }
 
 const PUBLIC_CSS = `
-:root{color-scheme:light dark;--bg:#f5f5f7;--fg:#1d1d1f;--muted:#6e6e73;--line:#d2d2d7;--card:#fff;--brand:#0071E3;--bad:#d70015;--good:#248a3d}
+:root{color-scheme:light dark;--bg:#f5f5f7;--fg:#1d1d1f;--muted:#6e6e73;--line:#d2d2d7;--card:#fff;--brand:#0071E3;--bad:#d70015;--good:#1e7b34}
 @media (prefers-color-scheme:dark){:root{--bg:#000;--fg:#f5f5f7;--muted:#a1a1a6;--line:#38383a;--card:#1c1c1e;--bad:#ff453a;--good:#30d158}}
+@media (prefers-color-scheme:dark){:root .tabs button[aria-selected=true]{color:#64a8ff;border-color:#64a8ff}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
 .top{display:flex;align-items:center;gap:12px;padding:14px 24px;border-bottom:1px solid var(--line)}.brand{font-weight:600;color:var(--fg);letter-spacing:-.01em}.ws{color:var(--muted);font-size:13px}
 main{max-width:560px;margin:8vh auto;padding:0 20px 60px}main.wide{max-width:760px;margin-top:4vh}

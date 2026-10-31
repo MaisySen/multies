@@ -391,7 +391,7 @@ describe("R107 e-sign v2: seal and public check", () => {
     expect((await t.app.request(`/sign/verify/nothex`, { headers: { host: "localhost" } })).status).toBe(400);
     // A changed seal or completion time no longer checks out.
     await t.db.run(sql`update sign_requests set completed_at = completed_at + 1000 where id = ${id}`);
-    expect((await verifyByHash(t.deps, row!.final_sha256)).sealValid).toBe(false);
+    expect(await verifyByHash(t.deps, row!.final_sha256)).toMatchObject({ found: true, sealValid: false });
     const page = await openPage(t, "/sign/verify");
     expect(page.status).toBe(200);
     expect(page.html).toContain("Check a signed document");
