@@ -8,6 +8,7 @@ import { z } from "zod";
 import type { AppEnv } from "../context";
 import { clientIp, parseBody, requireAuth } from "../middleware";
 import { HttpError } from "../lib/errors";
+import { getOrg } from "../services/plans";
 
 const svc = () => import("../services/integrations/service");
 const social = () => import("../services/integrations/social");
@@ -83,6 +84,18 @@ export function socialRoutes() {
         void runLater(c, () => s.sendNow(deps, post.id));
       }
       return c.json({ post }, 201);
+    })
+    // Test clock for end to end runs: the cron pass for the caller's own demo workspace at a chosen time. Only with
+    // the local stand in for the platform (never against the real one) and only inside a demo workspace.
+    .post("/test-clock", async (c) => {
+      const { deps, auth } = c.var;
+      const cfg = deps.config.integrations.composio;
+      const org = await getOrg(deps.db, auth.orgId);
+      if (!cfg || new URL(cfg.baseUrl).hostname !== "composio.mock" || !deps.config.demoEnabled || !org.isDemo) throw new HttpError(404, "not_found", "Not found.");
+      const b = await parseBody(c, z.object({ now: z.string().max(40) }));
+      const now = new Date(b.now);
+      if (Number.isNaN(now.getTime())) throw new HttpError(422, "bad_time", "That time isn't valid.");
+      return c.json(await (await social()).runDueSocialPosts(deps, { now, orgId: auth.orgId }));
     })
     .post("/posts/:id/cancel", async (c) => c.json({ post: await (await social()).cancelPost(c.var.deps, c.var.auth, c.req.param("id"), clientIp(c)) }))
     .post("/posts/:id/retry", async (c) => {

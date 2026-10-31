@@ -7,7 +7,7 @@ import { AttachmentIndexSection } from "./attachment-index-settings"; // Tools P
 import { ShareLinksSetting } from "./work/share-sheet"; // R26 (MB-87)
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconBack, IconBell, IconCalendar, IconCheck, IconChevronRight, IconCode, IconCreditCard, IconDownload, IconKey, IconMail, IconMailCheck, IconPlug, IconPlus, IconSearch, IconSend, IconShieldCheck, IconChats, IconSliders, IconSmartphone, IconSparkle, IconMoon, IconTeam, IconTrash, IconWarning } from "@/web/components/ui/icon";
+import { IconBack, IconBell, IconCalendar, IconCheck, IconChevronRight, IconCode, IconCreditCard, IconDownload, IconKey, IconMail, IconMailCheck, IconPlug, IconPlugZap, IconPlus, IconSearch, IconSend, IconShieldCheck, IconChats, IconSliders, IconSmartphone, IconSparkle, IconMoon, IconTeam, IconTrash, IconWarning } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
@@ -37,6 +37,7 @@ export const SETTINGS_GROUPS: { label: string; items: Pane[] }[] = [
     { to: "/app/settings/branding", label: "Branding", icon: IconSparkle, tint: "#FF2D55", keywords: "brand theme logo colours colors company font corners dark light preset accent sidebar" }, // R77
     { to: "/app/settings/team", label: "Team", icon: IconTeam, tint: "#0071E3", keywords: "members invite roles admin agents guests remove" },
     { to: "/app/settings/channels", label: "Chat channels", icon: IconChats, tint: "#25D366", keywords: "whatsapp messenger instagram facebook meta chat channels connect number customers" }, // C1
+    { to: "/app/settings/apps", label: "Connections", icon: IconPlugZap, tint: "#5E5CE6", keywords: "apps integrations social media post schedule facebook instagram linkedin pinterest reddit youtube slack notion hubspot connect" }, // R80C
     { to: "/app/settings/billing", label: "Billing", icon: IconCreditCard, tint: "#34C759", keywords: "plan invoices card upgrade receipts tax" },
   ] },
   { label: "You", items: [

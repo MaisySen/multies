@@ -121,6 +121,7 @@ const BrandingSettings = lazyPage(() => brandingSettings(), "BrandingSettings");
 const AppearanceSettings = lazyPage(() => brandingSettings(), "AppearanceSettings");
 const CalendarSettings = lazyPage(() => import("./pages/app/calendar-settings"), "CalendarSettings");
 const ConnectionsSettings = lazyPage(() => import("./pages/app/connections"), "ConnectionsSettings");
+const AppsSettings = lazyPage(() => import("./pages/app/apps-settings"), "AppsSettings"); // R80C: Connections hub
 const MailAppsSettings = lazyPage(() => import("./pages/app/mail-apps"), "MailAppsSettings");
 const ImportSettings = lazyPage(() => import("./pages/app/data-move"), "ImportExportSettings"); // R38 move your data
 const DeveloperSettings = lazyPage(() => import("./pages/app/developers"), "DeveloperSettings");
@@ -245,6 +246,8 @@ export const router = createBrowserRouter([
           { path: "appearance", element: page(<AppearanceSettings />) }, // R77
           { path: "team", element: page(<TeamSettings />) },
           { path: "channels", element: page(<ChannelsSettings />) }, // C1
+          { path: "apps", element: page(<AppsSettings />) }, // R80C: Connections hub
+          { path: "apps/social", element: page(<AppsSettings />) }, // R80C: social posts
           { path: "billing", element: page(<BillingSettings />) },
           { path: "account", element: page(<AccountSettings />) },
           { path: "notifications", element: page(<NotificationSettings />) },
