@@ -128,21 +128,27 @@ test("upload arrival notice reaches the request's owner, admin or member, and op
   expect([200, 410]).toContain((await ben.page.request.post(`/api/invites/${invite.link.split("/invite/")[1]}/accept`, { headers: ben.headers })).status());
   const made: Record<string, { id: string; url: string }> = {};
   for (const [who, p] of [["ada", ada], ["ben", ben]] as const) {
-    const r = await p.page.request.post("/api/tools/requests", { headers: p.headers, data: { title: `Papers for ${who}`, message: "Please send your papers.", maxFileBytes: 10 * 1024 * 1024, maxTotalBytes: 20 * 1024 * 1024, allowed: "any", keepDays: 30, expiresInDays: 14 } });
+    const r = await p.page.request.post("/api/tools/requests", { headers: p.headers, data: { title: `Papers for ${who}`, message: "Please send your papers.", maxFileBytes: 25 * 1024 * 1024, maxTotalBytes: 50 * 1024 * 1024, allowed: "any", keepDays: 30, expiresInDays: 14 } });
     expect(r.status(), await r.text()).toBe(201);
     made[who] = (await r.json()).request;
   }
   await sendOne(browser, made.ada.url, "Kim Client", "for-ada.pdf");
   await sendOne(browser, made.ben.url, "Lee Client", "for-ben.pdf");
-  for (const [who, p, mine, other] of [["ada", ada, "for-ada.pdf", "for-ben.pdf"], ["ben", ben, "for-ben.pdf", "for-ada.pdf"]] as const) {
-    await p.page.goto("/app/notifications");
-    const item = p.page.getByRole("main").getByText(`New file for Papers for ${who}: ${who === "ada" ? "Kim" : "Lee"} Client uploaded ${mine}`);
-    await expect(item).toBeVisible({ timeout: 20_000 });
-    await expect(p.page.getByRole("main")).toContainText("Secure share");
-    await expect(p.page.getByRole("main").getByText(other)).toHaveCount(0);
-    await item.click();
-    await expect(p.page).toHaveURL(new RegExp(`/app/tools/share\\?tab=requests&request=${made[who].id}`));
+  // Each owner, admin or member, holds only the notice for their own request.
+  for (const [who, p, mine, other] of [["ada", ada, "Kim Client uploaded for-ada.pdf", "for-ben.pdf"], ["ben", ben, "Lee Client uploaded for-ben.pdf", "for-ada.pdf"]] as const) {
+    const j = await (await p.page.request.get("/api/notifications?view=inbox&limit=100")).json() as { notifications: { title: string; link: string }[] };
+    const mineN = j.notifications.filter((n) => n.title === `New file for Papers for ${who}: ${mine}`);
+    expect(mineN).toHaveLength(1);
+    expect(mineN[0].link).toBe(`/app/tools/share?tab=requests&request=${made[who].id}`);
+    expect(j.notifications.some((n) => n.title.includes(other))).toBe(false);
   }
+  // In the app (admin): the notice shows with its place and opens the request.
+  await ada.page.goto("/app/notifications");
+  const item = ada.page.getByText("New file for Papers for ada: Kim Client uploaded for-ada.pdf");
+  await expect(item).toBeVisible({ timeout: 20_000 });
+  await expect(ada.page.getByText(/in Secure share/).first()).toBeVisible();
+  await item.click();
+  await expect(ada.page).toHaveURL(new RegExp(`/app/tools/share\\?tab=requests&request=${made.ada.id}`));
   await ada.ctx.close(); await ben.ctx.close();
 });
 

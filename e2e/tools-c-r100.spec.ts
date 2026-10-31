@@ -174,10 +174,11 @@ test("6. Utilities: data, Base64, hash and regex, each with Copy and the Copied 
 
   await page.goto("/app/tools/utilities/data");
   await page.getByTestId("data-input").fill('{"b":1,"a":[1,2]}');
-  await expect(page.getByTestId("util-output")).toHaveValue(/"b": 1/);
+  // JSON in, YAML out by default.
+  await expect(page.getByTestId("util-output")).toHaveValue(/^b: 1\na:/);
   await copied();
   await page.getByTestId("data-input").fill('{"b":1,');
-  await expect(page.getByRole("main")).toContainText(/not valid|could not|check/i);
+  await expect(page.getByRole("main")).toContainText("This is not valid JSON");
   await noSeriousAxe(page);
   await shots(page, "util-data");
 

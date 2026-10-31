@@ -317,7 +317,7 @@ function RegexTool() {
         <ErrorLine text={r.error} />
         <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={8} aria-label="Text to test" className={`${mono} w-full`} data-testid="regex-text" />
       </Pane>}
-      right={<Pane label={r.value ? `${r.value.matches.length}${r.value.capped ? "+" : ""} ${r.value.matches.length === 1 ? "match" : "matches"}` : "Matches"} id="util-out">
+      right={<Pane label={r.value ? `${r.value.matches.length}${r.value.capped ? "+" : ""} ${r.value.matches.length === 1 ? "match" : "matches"}` : "Matches"} id="util-out" actions={r.value && r.value.matches.length > 0 ? <CopyButton value={r.value.matches.map((m) => m.text).join("\n")} label="Copy matches" toastText="Copied" /> : undefined}>
         <div className={`${mono} whitespace-pre-wrap break-words rounded-lg bg-fill/40 p-3`} data-testid="regex-marked">{marked}</div>
         {r.value && r.value.matches.length > 0 && (
           <ol className="space-y-1.5" data-testid="regex-matches">{r.value.matches.slice(0, 50).map((m, i) => (
