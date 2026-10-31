@@ -27,7 +27,7 @@ export function FlowApprovalsSection() {
             <IconWorkflow className="h-4 w-4 shrink-0 text-muted" aria-hidden />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[14px] font-medium">{r.asked || "OK to go on?"}</p>
-              <p className="text-[12px] text-subtle"><Link className="underline-offset-2 hover:underline" to={`/app/automations/runs/${r.id}`}>{r.flowName}</Link> · {timeAgo(r.startedAt)}</p>
+              <p className="text-[12px] text-subtle"><Link className="underline underline-offset-2 hover:text-fg" to={`/app/automations/runs/${r.id}`}>{r.flowName}</Link> · {timeAgo(r.startedAt)}</p>
             </div>
             <div className="flex gap-2"><Button size="sm" onClick={() => void decide(r.id, "approve")}>Approve</Button><Button size="sm" variant="outline" onClick={() => void decide(r.id, "reject")}>Reject</Button></div>
           </div>

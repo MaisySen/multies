@@ -130,9 +130,9 @@ function FlowsTab({ isAdmin }: { isAdmin: boolean }) {
         <Card className="p-4 text-[13px]">
           <p className="font-medium">Other automations</p>
           <ul className="mt-2 space-y-2 text-muted">
-            <li><Link className="text-fg underline-offset-2 hover:underline" to="/app/tools/workflows">Tool workflows</Link>: turn files into PDFs, compress and more.</li>
-            <li><Link className="text-fg underline-offset-2 hover:underline" to="/app/agents">Agent triggers</Link>: on each agent's page.</li>
-            <li><Link className="text-fg underline-offset-2 hover:underline" to="/app/settings/apps/webhooks">Webhooks</Link>: send events to other systems.</li>
+            <li><Link className="text-fg underline underline-offset-2 hover:text-brand-hover" to="/app/tools/workflows">Tool workflows</Link>: turn files into PDFs, compress and more.</li>
+            <li><Link className="text-fg underline underline-offset-2 hover:text-brand-hover" to="/app/agents">Agent triggers</Link>: on each agent's page.</li>
+            <li><Link className="text-fg underline underline-offset-2 hover:text-brand-hover" to="/app/settings/apps/webhooks">Webhooks</Link>: send events to other systems.</li>
           </ul>
         </Card>
       </aside>
