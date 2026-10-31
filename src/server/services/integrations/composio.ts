@@ -17,6 +17,8 @@ export interface CpToolkit {
   meta?: { logo?: string; description?: string; categories?: { id?: string; name?: string }[] };
   auth_schemes?: string[];
   composio_managed_auth_schemes?: string[];
+  /** Only on the single toolkit read: one entry per way to sign in. */
+  auth_config_details?: { mode?: string }[];
   no_auth?: boolean;
   deprecated?: unknown;
   is_local_toolkit?: boolean;

@@ -97,11 +97,15 @@ export async function ownAccount(cp: Composio, orgId: string, id: string): Promi
 
 type Scheme = { managed: true } | { scheme: string };
 
-/** How an app connects: the platform's managed sign in, a self registering sign in, or the person's own key. */
-export function schemeFor(t: Pick<CpToolkit, "auth_schemes" | "composio_managed_auth_schemes" | "no_auth">): Scheme | null {
-  const schemes = t.auth_schemes ?? [];
-  if (t.no_auth || !schemes.length || schemes.every((s) => s === "NO_AUTH")) return null;
-  if ((t.composio_managed_auth_schemes ?? []).length) return { managed: true };
+/** How an app connects: the platform's managed sign in, a self registering sign in, or the person's own key.
+ * The toolkit list carries auth_schemes; the single toolkit read does not, it carries composio_managed_auth_schemes
+ * and auth_config_details[].mode, so every source counts. */
+export function schemeFor(t: Pick<CpToolkit, "auth_schemes" | "composio_managed_auth_schemes" | "no_auth" | "auth_config_details">): Scheme | null {
+  if (t.no_auth) return null;
+  const managed = (t.composio_managed_auth_schemes ?? []).filter((s) => s && s !== "NO_AUTH");
+  if (managed.length) return { managed: true };
+  const schemes = [...(t.auth_schemes ?? []), ...(t.auth_config_details ?? []).map((d) => d?.mode ?? "")].map((s) => s.toUpperCase());
+  if (!schemes.length || schemes.every((s) => s === "NO_AUTH" || !s)) return null;
   for (const s of ["DCR_OAUTH", "API_KEY", "BEARER_TOKEN", "BASIC"]) if (schemes.includes(s)) return { scheme: s };
   return null;
 }

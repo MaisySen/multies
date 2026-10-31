@@ -82,7 +82,9 @@ export function handleMockComposio(state: MockComposioState, req: { method: stri
   let m: RegExpMatchArray | null;
   if (method === "GET" && (m = path.match(/^\/toolkits\/([\w-]+)$/))) {
     const t = TOOLKITS[m[1]!];
-    return t ? json({ slug: m[1], name: m[1], ...t }) : json({ error: "not found" }, 404);
+    // Shaped like the live single toolkit read (checked 31 Oct 2026): no auth_schemes field, the ways to sign in
+    // come as composio_managed_auth_schemes and auth_config_details[].mode.
+    return t ? json({ slug: m[1], name: m[1], composio_managed_auth_schemes: t.composio_managed_auth_schemes, auth_config_details: t.auth_schemes.map((mode) => ({ mode })) }) : json({ error: "not found" }, 404);
   }
   if (method === "GET" && path === "/auth_configs") {
     const slug = url.searchParams.get("toolkit_slug");

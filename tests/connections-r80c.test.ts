@@ -234,6 +234,10 @@ describe("R80C pure parts", () => {
     expect(schemeFor({ auth_schemes: ["OAUTH2", "API_KEY"], composio_managed_auth_schemes: [] })).toEqual({ scheme: "API_KEY" });
     expect(schemeFor({ auth_schemes: ["OAUTH2"], composio_managed_auth_schemes: [] })).toBeNull();
     expect(schemeFor({ auth_schemes: ["NO_AUTH"] })).toBeNull();
+    // The live single toolkit read has no auth_schemes field (LinkedIn answered 409 needs_setup on staging before this).
+    expect(schemeFor({ composio_managed_auth_schemes: ["OAUTH2"], auth_config_details: [{ mode: "OAUTH2" }] })).toEqual({ managed: true });
+    expect(schemeFor({ composio_managed_auth_schemes: [], auth_config_details: [{ mode: "API_KEY" }] })).toEqual({ scheme: "API_KEY" });
+    expect(schemeFor({ composio_managed_auth_schemes: [], auth_config_details: [{ mode: "OAUTH2" }] })).toBeNull();
   });
   it("maps status words and checks targets", () => {
     expect(statusOf("ACTIVE")).toBe("active");
