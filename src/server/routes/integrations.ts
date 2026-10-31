@@ -99,6 +99,13 @@ export function socialRoutes() {
       if (Number.isNaN(now.getTime())) throw new HttpError(422, "bad_time", "That time isn't valid.");
       return c.json(await (await social()).runDueSocialPosts(deps, { now, orgId: auth.orgId }));
     })
+    // Oct 31: the posts on screen asked against their network (Facebook; at most once per post per 5 minutes).
+    .post("/posts/sync", async (c) => {
+      const b = await parseBody(c, z.object({ ids: z.array(z.string().min(3).max(64)).max(50) }));
+      return c.json({ posts: await (await social()).syncPosts(c.var.deps, c.var.auth, b.ids) });
+    })
+    // Oct 31: delete from Multies and, where the network allows, from the network too.
+    .delete("/posts/:id", async (c) => c.json(await (await social()).deletePost(c.var.deps, c.var.auth, c.req.param("id"), clientIp(c))))
     .post("/posts/:id/cancel", async (c) => c.json({ post: await (await social()).cancelPost(c.var.deps, c.var.auth, c.req.param("id"), clientIp(c)) }))
     .post("/posts/:id/retry", async (c) => {
       const s = await social();

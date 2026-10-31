@@ -12,6 +12,7 @@ import { inIds } from "../../lib/sql-chunks";
 import { HttpError, forbidden, notFound } from "../../lib/errors";
 import { audit } from "../audit";
 import {
+  SOCIAL_CAN_CHECK, SOCIAL_CAN_DELETE, type DeleteOutcome,
   SOCIAL_ERROR_COPY, SOCIAL_HEALTH_COPY, SOCIAL_IMAGE_MAX_BYTES, SOCIAL_MAX_AHEAD_DAYS, SOCIAL_NETWORKS, SOCIAL_TEXT_MAX,
   type PostStatus, type SocialPostView, type TargetStatus,
 } from "@/shared/integrations";
@@ -138,8 +139,11 @@ async function viewsFor(deps: Deps, orgId: string, ids?: string[], limit = 50): 
     createdAt: p.createdAt.toISOString(),
     createdBy: p.createdBy,
     targets: targets.filter((t) => t.postId === p.id).map((t) => ({
-      accountId: t.accountId, app: t.app, label: t.label, target: t.target, targetName: t.targetName, status: t.status as TargetStatus, url: openableFacebookUrl(t.url), error: t.error,
+      accountId: t.accountId, app: t.app, label: t.label, target: t.target, targetName: t.targetName, status: t.status as TargetStatus,
+      url: t.networkState === "removed" ? null : openableFacebookUrl(t.url), error: t.error,
       sentAt: t.sentAt ? t.sentAt.toISOString() : null,
+      networkState: t.networkState ?? null, checkedAt: t.checkedAt ? t.checkedAt.toISOString() : null,
+      canCheck: (SOCIAL_CAN_CHECK as readonly string[]).includes(t.app), canDelete: (SOCIAL_CAN_DELETE as readonly string[]).includes(t.app),
     })),
   }));
 }
@@ -169,10 +173,152 @@ export async function retryPost(deps: Deps, auth: AuthContext, id: string): Prom
   return getPost(deps, auth.orgId, id);
 }
 
+/* ---------------------------------------------------------------- network state and delete (Oct 31) */
+
+/** A post is asked about again at most this often. */
+export const SYNC_EVERY_MS = 5 * 60_000;
+/** Only posts sent this recently are asked about. */
+export const SYNC_WINDOW_MS = 30 * 86_400_000;
+/** Most posts one sync call asks about (the posts on screen). */
+export const SYNC_MAX_POSTS = 20;
+
+/** The network's id for a sent post: stored since Oct 31, worked out from the address for older posts. */
+export function remoteIdOf(t: { app: string; remoteId?: string | null; url: string | null; target: string | null }): string | null {
+  if (t.remoteId) return t.remoteId;
+  const url = t.url ?? "";
+  if (t.app === "facebook") {
+    const under = url.match(/facebook\.com\/(\d+_\d+)\/?$/);
+    if (under) return under[1]!;
+    const posts = url.match(/facebook\.com\/(\d+)\/posts\/(\d+)\/?$/);
+    if (posts) return t.target ? `${t.target}_${posts[2]}` : posts[2]!;
+    return null;
+  }
+  if (t.app === "linkedin") return url.match(/feed\/update\/(urn:li:(?:share|ugcPost|activity):\d+)/)?.[1] ?? null;
+  return null;
+}
+
+/** Facebook says this for an id that is gone (and, sadly, for one it will not show; we only ask with the Page's own token). */
+function facebookGone(err: unknown): boolean {
+  return err instanceof PublishError && /does not exist|has been deleted|Unsupported (get|delete) request/i.test(err.message);
+}
+
+async function pageToken(ctx: PublishCtx, page: string, cache: Map<string, Promise<string | null>>): Promise<string | null> {
+  const key = `${ctx.accountId}:${page}`;
+  if (!cache.has(key)) cache.set(key, graph(ctx, "GET", `${encodeURIComponent(page)}?fields=access_token`).then((r) => str((r as { access_token?: unknown }).access_token)).catch(() => null));
+  return cache.get(key)!;
+}
+
+/**
+ * Asks each network whether the posts on screen are still up (Facebook only: LinkedIn does not let us read posts
+ * back). At most once per post per 5 minutes, only posts sent in the last 30 days. Answers the posts as they now read.
+ */
+export async function syncPosts(deps: Deps, auth: AuthContext, ids: string[]): Promise<SocialPostView[]> {
+  const wanted = [...new Set(ids)].slice(0, SYNC_MAX_POSTS);
+  if (!wanted.length) return [];
+  const posts = await deps.db.select({ id: socialPosts.id }).from(socialPosts).where(and(eq(socialPosts.orgId, auth.orgId), inIds(socialPosts.id, wanted))).all();
+  const own = posts.map((p) => p.id);
+  if (!own.length) return [];
+  const now = deps.now();
+  const targets = await deps.db.select().from(socialPostTargets).where(inIds(socialPostTargets.postId, own)).all();
+  const due = targets.filter((t) => t.status === "sent" && t.networkState !== "removed" && (SOCIAL_CAN_CHECK as readonly string[]).includes(t.app)
+    && t.sentAt && now.getTime() - t.sentAt.getTime() <= SYNC_WINDOW_MS && (!t.checkedAt || now.getTime() - t.checkedAt.getTime() >= SYNC_EVERY_MS));
+  if (due.length && deps.config.integrations.composio) {
+    const cp = platform(deps);
+    const userId = platformUserId(cp, auth.orgId);
+    const tokens = new Map<string, Promise<string | null>>();
+    await Promise.all(due.map(async (t) => {
+      const remoteId = remoteIdOf(t);
+      let state: "live" | "removed" | null = null;
+      if (remoteId && t.target) {
+        const ctx: PublishCtx = { cp, userId, accountId: t.accountId, text: "", imageUrl: null, image: null, target: t.target, now };
+        const pt = await pageToken(ctx, t.target, tokens);
+        if (pt) {
+          try { await graph(ctx, "GET", `${encodeURIComponent(remoteId)}?fields=id&access_token=${encodeURIComponent(pt)}`); state = "live"; } catch (err) {
+            if (facebookGone(err)) state = "removed";
+            else deps.log?.warn("social.sync_failed", { app: t.app, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+          }
+        }
+      }
+      // Asked either way, so a network that will not answer is not asked again for 5 minutes.
+      await deps.db.update(socialPostTargets).set({ checkedAt: now, ...(state ? { networkState: state } : {}), ...(remoteId && !t.remoteId ? { remoteId } : {}) })
+        .where(and(eq(socialPostTargets.postId, t.postId), eq(socialPostTargets.accountId, t.accountId)));
+    }));
+  }
+  return viewsFor(deps, auth.orgId, own, SYNC_MAX_POSTS);
+}
+
+/** Deletes one sent post on its network. */
+async function deleteOnNetwork(ctx: PublishCtx, app: string, remoteId: string, tokens: Map<string, Promise<string | null>>): Promise<DeleteOutcome> {
+  if (app === "facebook") {
+    if (!ctx.target) return "failed";
+    const pt = await pageToken(ctx, ctx.target, tokens);
+    if (!pt) return "failed";
+    try { await graph(ctx, "DELETE", `${encodeURIComponent(remoteId)}?access_token=${encodeURIComponent(pt)}`); return "deleted"; } catch (err) {
+      return facebookGone(err) ? "already_gone" : "failed";
+    }
+  }
+  if (app === "linkedin") {
+    const versions = linkedinVersions(ctx.now ?? new Date());
+    for (const version of versions) {
+      const r = await proxy(ctx, { endpoint: `https://api.linkedin.com/rest/posts/${encodeURIComponent(remoteId)}`, method: "DELETE", headers: { "LinkedIn-Version": version, "X-Restli-Protocol-Version": "2.0.0", "X-RestLi-Method": "DELETE" } });
+      if (r.status < 300) return "deleted";
+      if (r.status === 404 || r.status === 410) return "already_gone";
+      if (r.status !== 426) return "failed";
+    }
+    return "failed";
+  }
+  return "not_supported";
+}
+
+export interface DeleteResult { deleted: boolean; results: { accountId: string; app: string; outcome: DeleteOutcome }[]; post: SocialPostView | null }
+
+/**
+ * Deletes a post from Multies and, where the network allows it, from the network too. If a network will not delete
+ * it, the post stays in the list (marked removed where it went) so nothing is lost and the person can try again.
+ */
+export async function deletePost(deps: Deps, auth: AuthContext, id: string, ip?: string | null): Promise<DeleteResult> {
+  if (!isAdmin(auth)) throw forbidden("Only owners and admins can delete posts.");
+  limitWrite(auth.orgId);
+  const post = await deps.db.select().from(socialPosts).where(and(eq(socialPosts.id, id), eq(socialPosts.orgId, auth.orgId))).get();
+  if (!post) throw notFound("Post");
+  if (post.status === "sending") throw new HttpError(409, "sending", "This post is going out right now. Try again in a minute.");
+  const targets = await deps.db.select().from(socialPostTargets).where(eq(socialPostTargets.postId, id)).all();
+  const now = deps.now();
+  const tokens = new Map<string, Promise<string | null>>();
+  const cp = deps.config.integrations.composio ? platform(deps) : null;
+  const userId = cp ? platformUserId(cp, auth.orgId) : "";
+  const results = await Promise.all(targets.map(async (t) => {
+    let outcome: DeleteOutcome;
+    if (t.status !== "sent") outcome = "not_sent";
+    else if (t.networkState === "removed") outcome = "already_gone";
+    else if (!(SOCIAL_CAN_DELETE as readonly string[]).includes(t.app)) outcome = "not_supported";
+    else {
+      const remoteId = remoteIdOf(t);
+      if (!remoteId || !cp) outcome = "failed";
+      else {
+        try { outcome = await deleteOnNetwork({ cp, userId, accountId: t.accountId, text: "", imageUrl: null, image: null, target: t.target, now }, t.app, remoteId, tokens); } catch (err) {
+          deps.log?.warn("social.delete_failed", { app: t.app, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+          outcome = "failed";
+        }
+      }
+      if (outcome === "deleted" || outcome === "already_gone") {
+        await deps.db.update(socialPostTargets).set({ networkState: "removed", checkedAt: now })
+          .where(and(eq(socialPostTargets.postId, id), eq(socialPostTargets.accountId, t.accountId)));
+      }
+    }
+    return { accountId: t.accountId, app: t.app, outcome };
+  }));
+  const failed = results.some((r) => r.outcome === "failed");
+  await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: failed ? "social.post_delete_partial" : "social.post_deleted", targetType: "social_post", targetId: id, ip: ip ?? null });
+  if (failed) return { deleted: false, results, post: await getPost(deps, auth.orgId, id) };
+  await deps.db.delete(socialPosts).where(and(eq(socialPosts.id, id), eq(socialPosts.orgId, auth.orgId)));
+  return { deleted: true, results, post: null };
+}
+
 /* ---------------------------------------------------------------- publishing */
 
 interface PublishCtx { cp: Composio; userId: string; accountId: string; text: string; imageUrl: string | null; image: { b64: string; type: string } | null; target: string | null; now?: Date }
-interface PublishResult { status: "sent" | "failed" | "skipped"; url?: string | null; error?: string | null }
+interface PublishResult { status: "sent" | "failed" | "skipped"; url?: string | null; error?: string | null; remoteId?: string | null }
 
 function str(v: unknown): string | null { return typeof v === "string" && v ? v : typeof v === "number" ? String(v) : null; }
 
@@ -260,7 +406,7 @@ async function proxy(ctx: PublishCtx, req: Parameters<Composio["proxy"]>[2]) {
   }
 }
 
-async function graph(ctx: PublishCtx, method: "GET" | "POST", path: string, body?: Record<string, unknown>) {
+async function graph(ctx: PublishCtx, method: "GET" | "POST" | "DELETE", path: string, body?: Record<string, unknown>) {
   const r = await proxy(ctx, { endpoint: `${GRAPH}/${path}`, method, body });
   const data = (r.data ?? {}) as { error?: { message?: string; code?: number; error_subcode?: number } };
   if (r.status >= 400 || data.error) throw facebookError(r.status, data.error);
@@ -326,7 +472,7 @@ export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResu
       ? await graph(ctx, "POST", `${page}/photos`, { url: ctx.imageUrl, caption: ctx.text, published: true, access_token: pageToken })
       : await graph(ctx, "POST", `${page}/feed`, { message: ctx.text, ...(link ? { link } : {}), published: true, access_token: pageToken });
     const id = dig(data, ["post_id", "id"]);
-    return { status: "sent", url: id ? await facebookPermalink(ctx, ctx.target, id, pageToken) : null };
+    return { status: "sent", url: id ? await facebookPermalink(ctx, ctx.target, id, pageToken) : null, remoteId: id };
   },
   async instagram(ctx) {
     if (!ctx.imageUrl) return { status: "skipped", error: "needs_image" };
@@ -352,7 +498,7 @@ export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResu
       lifecycleState: "PUBLISHED", isReshareDisabledByAuthor: false,
     });
     const id = r.headers["x-restli-id"] ?? r.headers["x-linkedin-id"] ?? dig(r.data, ["id"]);
-    return { status: "sent", url: id ? `https://www.linkedin.com/feed/update/${id}` : null };
+    return { status: "sent", url: id ? `https://www.linkedin.com/feed/update/${id}` : null, remoteId: id };
   },
   async pinterest(ctx) {
     if (!ctx.image) return { status: "skipped", error: "needs_image" };
@@ -405,7 +551,7 @@ export async function publishPost(deps: Deps, postId: string): Promise<PostStatu
         res = { status: "failed", error: err instanceof PublishError ? storedError(err) : code };
       }
     }
-    await deps.db.update(socialPostTargets).set({ status: res.status, url: res.url ?? null, error: res.error ?? null, sentAt: res.status === "sent" ? deps.now() : null })
+    await deps.db.update(socialPostTargets).set({ status: res.status, url: res.url ?? null, error: res.error ?? null, sentAt: res.status === "sent" ? deps.now() : null, remoteId: res.remoteId ?? null, networkState: res.status === "sent" ? "live" : null, checkedAt: res.status === "sent" ? deps.now() : null })
       .where(and(eq(socialPostTargets.postId, postId), eq(socialPostTargets.accountId, t.accountId)));
   }));
   const after = await deps.db.select({ status: socialPostTargets.status }).from(socialPostTargets).where(eq(socialPostTargets.postId, postId)).all();

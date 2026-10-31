@@ -673,6 +673,13 @@
       "when": 1793490000000,
       "tag": "0104_r84_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "6",
+      "when": 1793500000000,
+      "tag": "0106_social_post_sync",
+      "breakpoints": true
     }
   ]
 }

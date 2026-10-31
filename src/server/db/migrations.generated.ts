@@ -1039,5 +1039,13 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `custom_fields` ADD `workspace_key` text;",
       "CREATE INDEX `custom_fields_workspace_key_idx` ON `custom_fields` (`org_id`,`workspace_key`) WHERE `workspace_key` IS NOT NULL;"
     ]
+  },
+  {
+    "name": "0106_social_post_sync",
+    "statements": [
+      "-- Oct 31: posts checked against their network, and deleted there from Multies. Additive only.\nALTER TABLE `social_post_targets` ADD `remote_id` text;",
+      "ALTER TABLE `social_post_targets` ADD `network_state` text;",
+      "ALTER TABLE `social_post_targets` ADD `checked_at` integer;"
+    ]
   }
 ];

@@ -2472,6 +2472,10 @@ export const socialPostTargets = sqliteTable("social_post_targets", {
   url: text("url"),
   error: text("error"),
   sentAt: ts("sent_at"),
+  /** Oct 31 (0106): the network's own id for the post, what it said when last asked, and when that was. */
+  remoteId: text("remote_id"),
+  networkState: text("network_state", { enum: ["live", "removed"] }),
+  checkedAt: ts("checked_at"),
 }, (t) => [primaryKey({ columns: [t.postId, t.accountId] })]);
 
 export const socialMedia = sqliteTable("social_media", {

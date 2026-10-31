@@ -33,6 +33,10 @@ export interface MockComposioState {
   keyMissing: number;
   /** Facebook answers the permalink read with an error (tests the fallback). */
   permalinkDown?: boolean;
+  /** Post ids deleted on the network (by Multies or by the person there). */
+  goneRemote?: Set<string>;
+  /** A network refuses to delete (tests the partial delete). */
+  deleteRefused?: boolean;
 }
 
 export function newMockState(): MockComposioState {
@@ -93,6 +97,16 @@ function proxy(state: MockComposioState, body: { connected_account_id?: string; 
     if (method === "GET" && u.pathname.endsWith("/me/permissions")) return net(200, { data: acct.data.noPostPerm ? [{ permission: "pages_show_list", status: "granted" }] : [{ permission: "pages_show_list", status: "granted" }, { permission: "pages_manage_posts", status: "granted" }] });
     if (method === "GET" && u.pathname.endsWith("/me/accounts")) return net(200, { data: [{ id: "pg_100", tasks: ["CREATE_CONTENT", "MANAGE"] }, { id: "pg_200", tasks: ["CREATE_CONTENT"] }] });
     if (method === "GET" && u.searchParams.get("fields") === "access_token") return net(200, u.pathname.endsWith("/pg_noadmin") ? { id: "pg_noadmin" } : { id: "pg", access_token: "mock-page-token" });
+    const gone = state.goneRemote ?? (state.goneRemote = new Set());
+    const objId = decodeURIComponent(u.pathname.split("/").pop() ?? "");
+    if ((method === "GET" && u.searchParams.get("fields") === "id") || method === "DELETE") {
+      if (u.searchParams.get("access_token") !== "mock-page-token") return net(403, { error: { message: "(#200) Requires the Page token", code: 200 } });
+      if (gone.has(objId)) return net(400, { error: { message: "(#10) Object does not exist, cannot be loaded due to missing permission or reviewable feature, or does not support this operation.", code: 10 } });
+      if (method === "GET") return net(200, { id: objId });
+      if (state.deleteRefused) return net(500, { error: { message: "An unexpected error has occurred.", code: 2 } });
+      gone.add(objId);
+      return net(200, { success: true });
+    }
     if (method === "GET" && u.searchParams.get("fields") === "permalink_url") {
       if (state.permalinkDown || u.searchParams.get("access_token") !== "mock-page-token") return net(400, { error: { message: "Unsupported get request.", code: 100 } });
       return net(200, { id: decodeURIComponent(u.pathname.split("/").pop() ?? ""), permalink_url: `https://www.facebook.com/61500000000001/posts/${encodeURIComponent(decodeURIComponent(u.pathname.split("/").pop() ?? ""))}` });
@@ -106,6 +120,14 @@ function proxy(state: MockComposioState, body: { connected_account_id?: string; 
   }
   if (u.hostname === "api.linkedin.com") {
     if (u.pathname === "/v2/userinfo") return acct.data.expired ? net(401, { status: 401, code: "REVOKED_ACCESS_TOKEN", message: "The token used in the request has been revoked by the user" }) : net(200, { sub: "mock1", name: "Ada" });
+    if (u.pathname.startsWith("/rest/posts/") && method === "DELETE") {
+      const urn = decodeURIComponent(u.pathname.slice("/rest/posts/".length));
+      const gone = state.goneRemote ?? (state.goneRemote = new Set());
+      if (gone.has(urn)) return net(404, { status: 404, message: "Not found" });
+      gone.add(urn);
+      return net(204, "");
+    }
+    if (u.pathname.startsWith("/rest/posts/") && method === "GET") return net(403, { status: 403, message: "Not enough permissions to access: partnerApiPostsExternal.GET" });
     if (u.pathname === "/rest/posts" && method === "POST") {
       // Only a recent version is live, as on LinkedIn: anything a year old is retired.
       if (!/^20\d{4}$/.test(headers["LinkedIn-Version"] ?? "") || headers["LinkedIn-Version"]! < "202501") return net(426, { status: 426, code: "NONEXISTENT_VERSION", message: `Requested version ${headers["LinkedIn-Version"]}01 is not active` });

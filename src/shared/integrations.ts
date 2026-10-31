@@ -137,7 +137,23 @@ export interface PostTargetView {
   url: string | null;
   error: string | null;
   sentAt: string | null;
+  /**
+   * Oct 31: what the network said when last asked. "removed" = gone there (url is then null); "live" = still up;
+   * null = not asked yet. canCheck is false where the network does not tell us (LinkedIn), canDelete where Multies
+   * can delete the post on the network too.
+   */
+  networkState?: "live" | "removed" | null;
+  checkedAt?: string | null;
+  canCheck?: boolean;
+  canDelete?: boolean;
 }
+
+/** Networks Multies can ask whether a sent post is still up, and networks it can delete a post on. */
+export const SOCIAL_CAN_CHECK = ["facebook"] as const;
+export const SOCIAL_CAN_DELETE = ["facebook", "linkedin"] as const;
+
+/** Per network result of deleting a post from Multies. */
+export type DeleteOutcome = "deleted" | "already_gone" | "not_supported" | "not_sent" | "failed";
 
 export interface SocialPostView {
   id: string;
