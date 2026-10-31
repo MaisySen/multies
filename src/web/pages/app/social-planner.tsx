@@ -71,7 +71,7 @@ const undo: { current: ((v: { id: string; runAt: string; from: string; quiet?: b
 function PostChip({ p, draggable, onMove, stacked }: { p: SocialPostView; draggable: boolean; onMove?: (p: SocialPostView) => void; stacked?: boolean }) {
   const st = POST_STATUS[p.status];
   return (
-    <div className="group flex min-w-0 items-center gap-1" data-testid="planner-post" data-status={p.status} data-id={p.id}>
+    <div className={cn("group relative min-w-0", !stacked && "flex items-center gap-1")} data-testid="planner-post" data-status={p.status} data-id={p.id}>
       <Link to={`/app/social/posts#post-${p.id}`} draggable={draggable} title={`${st.label}: ${p.text}`}
         onDragStart={(e) => { e.dataTransfer.setData("text/x-post", p.id); e.dataTransfer.effectAllowed = "move"; }}
         className={cn("min-w-0 flex-1 rounded-md bg-fill px-1.5 py-1 text-[12px] leading-tight transition-colors duration-150 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 motion-reduce:transition-none",
@@ -85,7 +85,7 @@ function PostChip({ p, draggable, onMove, stacked }: { p: SocialPostView; dragga
       </Link>
       {draggable && onMove && (
         <button type="button" onClick={() => onMove(p)} aria-label={`Move post: ${p.text.slice(0, 40)}`} data-testid="planner-move"
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted opacity-0 transition-opacity duration-150 hover:bg-hover hover:text-fg focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 group-hover:opacity-100 max-lg:opacity-100">
+          className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted opacity-0 transition-opacity duration-150 hover:bg-hover hover:text-fg focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 group-hover:opacity-100 max-lg:opacity-100", stacked && "absolute right-0.5 top-0.5 bg-surface")}>
           <IconMove className="h-3.5 w-3.5" aria-hidden />
         </button>
       )}
@@ -297,18 +297,18 @@ export function PlannerV2({ canManage, accounts }: { canManage: boolean; account
             <h2 className="ml-1 text-[15px] font-semibold" aria-live="polite" data-testid="planner-range">{label}</h2>
           </div>
         )}
-        <div className="ml-auto flex flex-wrap items-center gap-2" data-testid="planner-filters">
-          <Select aria-label="Account" value={filters.account} onChange={(e) => setFilters({ ...filters, account: e.target.value })} className="h-9 w-auto max-w-[12rem] text-sm">
+        <div className="flex w-full flex-wrap items-center gap-2 xl:ml-auto xl:w-auto" data-testid="planner-filters">
+          <div className="w-40"><Select aria-label="Account" value={filters.account} onChange={(e) => setFilters({ ...filters, account: e.target.value })} className="h-9 w-auto max-w-[12rem] text-sm">
             <option value="">All accounts</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </Select>
+          </Select></div>
           {campaigns.length > 0 && (
-            <Select aria-label="Campaign" value={filters.campaign} onChange={(e) => setFilters({ ...filters, campaign: e.target.value })} className="h-9 w-auto max-w-[12rem] text-sm" data-testid="filter-campaign">
+            <div className="w-40"><Select aria-label="Campaign" value={filters.campaign} onChange={(e) => setFilters({ ...filters, campaign: e.target.value })} className="h-9 w-auto max-w-[12rem] text-sm" data-testid="filter-campaign">
               <option value="">All campaigns</option>{campaigns.map((c) => <option key={c} value={c}>{c}</option>)}
-            </Select>
+            </Select></div>
           )}
-          <Select aria-label="Status" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="h-9 w-auto max-w-[12rem] text-sm">
+          <div className="w-40"><Select aria-label="Status" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="h-9 w-auto max-w-[12rem] text-sm">
             <option value="">Every status</option><option value="scheduled">Scheduled</option><option value="drafts">Drafts and waiting</option><option value="sent">Sent</option><option value="failed">Failed</option>
-          </Select>
+          </Select></div>
           {canManage && <Button variant="outline" size="sm" onClick={() => setSlotsOpen(true)} data-testid="open-slots"><IconClock className="h-4 w-4" aria-hidden />Time slots</Button>}
         </div>
       </div>
