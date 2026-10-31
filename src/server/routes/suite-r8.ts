@@ -10,14 +10,14 @@ import type { AppEnv } from "../context";
 import { parseBody, parseQuery, requireAuth } from "../middleware";
 import { HttpError } from "../lib/errors";
 import { fromB64 } from "../lib/crypto";
-import { createField, deleteField, listFields, updateField } from "../services/suite/fields";
+import { createField, createWorkspaceField, deleteField, deleteWorkspaceField, listFields, listWorkspaceFields, updateField, updateWorkspaceField } from "../services/suite/fields";
 import { portfolio } from "../services/suite/portfolio";
 import {
   acceptInvite, addFile, GUEST_COOKIE, GUEST_SESSION_DAYS, guestComment, guestDoc, guestHome, guestTaskDetail, inviteGuest, listFiles, listGuests, newGuestLink, readFile, resolveGuest, revokeGuest,
   type GuestContext,
 } from "../services/suite/guests";
 import { resolveTaskId } from "../services/suite/tasks";
-import { CommentCreate, FieldCreate, FieldPatch, GuestInvite } from "./suite-schemas";
+import { CommentCreate, FieldCreate, FieldPatch, GuestInvite, WorkspaceFieldCreate, WorkspaceFieldPatch } from "./suite-schemas";
 
 // R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
 const Q_SUITE_R8_1 = z.object({ projectId: z.string().min(1) });
@@ -48,6 +48,11 @@ function decodeUpload(b: z.infer<typeof FileUpload>) {
 export function fieldRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
+    // R84: fields defined once for the whole workspace (a copy in every project).
+    .get("/workspace", async (c) => c.json({ fields: await listWorkspaceFields(c.var.deps, c.var.auth.orgId) }))
+    .post("/workspace", async (c) => c.json({ field: await createWorkspaceField(c.var.deps, c.var.auth, await parseBody(c, WorkspaceFieldCreate)) }, 201))
+    .patch("/workspace/:key", async (c) => c.json({ field: await updateWorkspaceField(c.var.deps, c.var.auth, c.req.param("key"), await parseBody(c, WorkspaceFieldPatch)) }))
+    .delete("/workspace/:key", async (c) => c.json(await deleteWorkspaceField(c.var.deps, c.var.auth, c.req.param("key"))))
     .get("/", async (c) => {
       const { projectId } = parseQuery(c, Q_SUITE_R8_1);
       return c.json({ fields: await listFields(c.var.deps, c.var.auth.orgId, projectId) });

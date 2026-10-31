@@ -22,6 +22,10 @@ export const BulkPatch = z.object({
   addLabels: z.array(label).max(20).optional(), removeLabels: z.array(label).max(20).optional(),
   projectId: z.string().max(80).optional().openapi({ description: "Move the tasks to this project; each status maps to the same group there." }),
   type: z.enum(["task", "story", "bug"]).optional().openapi({ description: "Round 21: set the type. Epics are changed one at a time." }),
+  addAssignees: z.array(z.string().max(80).regex(/^(member|agent):[A-Za-z0-9_-]{1,64}$/)).max(10).optional()
+    .openapi({ description: "R84: people to add (member:<id> or agent:<id>); the first becomes the main assignee of a task with none." }),
+  fields: z.record(z.string().max(80), z.unknown()).optional()
+    .openapi({ description: "R84: custom field values by field id or workspace field key, in each task's own project; null clears." }),
 }).strict().openapi("TaskBulkPatch");
 
 // The cap (500) is the service's, so the answer above it is a plain 413 rather than a schema error.

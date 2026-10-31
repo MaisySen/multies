@@ -26,9 +26,10 @@ import { markDone, markManyDone, markUndone, snooze, SNOOZE_PRESETS, TRIAGE_VIEW
 import { listDevices, registerDevice, unregisterDevice } from "../services/suite/push";
 import {
   AutomationCreate, AutomationPatch, CommentCreate, ContactCreate, ContactPatch, DealCreate, DealPatch, DocCreate, DocPatch, ProjectCreate, ProjectPatch, PushDevice,
-  TaskCreate, TaskFromEmail, TaskPatch, TaskQuery, ViewCreate, ViewPatch,
+  TaskCreate, TaskFromEmail, TaskPatch, TaskQuery, ViewCreate, ViewPatch, TagCreate, TagPatch,
 } from "./suite-schemas";
 import { runDueJobs } from "../services/jobs";
+import { createTag, deleteTag, listTags, updateTag } from "../services/suite/tags-r84"; // R84
 import { parseFieldFilters } from "../services/suite/fields";
 import { applyTaskQuery, wantsSubtasks } from "../services/suite/task-query"; // R26 (MB-86)
 import { QUERY_MAX_LENGTH } from "../../shared/task-query";
@@ -112,6 +113,11 @@ export function taskRoutes() {
       return c.json({ task: await createTaskFromThread(c.var.deps, c.var.auth, { ...b, assignee: parseAssignee(b.assignee) }) }, 201);
     })
     .get("/assignees", async (c) => c.json({ assignees: await assignees(c.var.deps, c.var.auth.orgId) }))
+    // R84: workspace tags with colours.
+    .get("/tags", async (c) => c.json({ tags: await listTags(c.var.deps, c.var.auth.orgId, { counts: c.req.query("counts") === "1" }) }))
+    .post("/tags", async (c) => c.json({ tag: await createTag(c.var.deps, c.var.auth, await parseBody(c, TagCreate)) }, 201))
+    .patch("/tags/:tagId", async (c) => c.json(await updateTag(c.var.deps, c.var.auth, c.req.param("tagId"), await parseBody(c, TagPatch))))
+    .delete("/tags/:tagId", async (c) => c.json(await deleteTag(c.var.deps, c.var.auth, c.req.param("tagId"))))
     .get("/views", async (c) => c.json({ views: await listViews(c.var.deps, c.var.auth, c.req.query("projectId")) }))
     .post("/views", async (c) => c.json({ view: await createView(c.var.deps, c.var.auth, await parseBody(c, ViewCreate)) }, 201))
     .patch("/views/:id", async (c) => c.json({ view: await updateView(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, ViewPatch)) })) // R84

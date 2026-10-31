@@ -161,3 +161,13 @@ export const AutomationCreate = z.object({
 export const AutomationPatch = AutomationCreate.extend({ conditions: z.record(z.string(), z.unknown()).optional(), actionConfig: z.record(z.string(), z.unknown()).optional() }).partial();
 
 export const PushDevice = z.object({ token: z.string().min(10).max(200), platform: z.enum(["ios", "android"]) }).openapi("PushDevice");
+
+/** R84: workspace tags. */
+export const TagCreate = z.object({ name: z.string().trim().min(1).max(40), color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional() });
+export const TagPatch = z.object({ name: z.string().trim().min(1).max(40).optional(), color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), position: z.number().finite().optional() });
+/** R84: a field defined once for the whole workspace. */
+export const WorkspaceFieldCreate = z.object({
+  name: z.string().trim().min(1).max(60), type: z.enum(["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url"]),
+  options: z.array(z.object({ id: z.string().max(40).optional(), label: z.string().trim().min(1).max(60), color: z.string().max(9).optional() })).max(50).optional(),
+});
+export const WorkspaceFieldPatch = WorkspaceFieldCreate.pick({ name: true, options: true }).partial();

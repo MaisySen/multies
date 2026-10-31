@@ -137,6 +137,8 @@ export async function createProject(deps: Deps, actor: SuiteActor, input: { name
   await deps.db.insert(projects).values({ id, orgId: actor.orgId, name: input.name.trim(), description: input.description ?? "", key, color: input.color ?? "#ff5a36", ...createdBy(actor), createdAt: now, updatedAt: now });
   const list = input.statuses?.length ? input.statuses : DEFAULT_STATUSES;
   if (!list.some((s) => s.category === "done")) throw new HttpError(422, "validation_failed", "Add at least one status in the Done group.");
+  // R84: the workspace's own fields show in the new project too.
+  await (await import("./fields")).copyWorkspaceFields(deps, actor, id);
   await deps.db.insert(projectStatuses).values(list.map((s, i) => ({
     id: sortableId("sts", now.getTime() + i), orgId: actor.orgId, projectId: id, name: s.name.trim(), category: s.category, color: s.color ?? "#8a8f98", position: i, ...createdBy(actor), createdAt: now, updatedAt: now,
   })));
@@ -404,7 +406,7 @@ async function listConds(deps: Deps, actor: SuiteActor, f: TaskFilters): Promise
       const [type, id] = f.assignee === "me" ? (actor.agentId ? ["agent", actor.agentId] : ["member", actor.userId]) : f.assignee.split(":");
       // R84: a person beside the main assignee matches too (the JSON list on the row, no other table).
       conds.push(or(and(eq(tasks.assigneeType, type as "member" | "agent"), eq(tasks.assigneeId, id)),
-        sql`(${tasks.coAssignees} <> '[]' and ${tasks.coAssignees} like ${`%"${type}:${String(id).replace(/[%_"\\]/g, "")}"%`})`));
+        sql`(${tasks.coAssignees} <> '[]' and ${tasks.coAssignees} like ${`%"${type}:${String(id).replace(/"/g, "").replace(/[\\%_]/g, (ch) => `\\${ch}`)}"%`} escape '\\')`));
     }
   }
   if (f.label) conds.push(like(tasks.labels, `%${JSON.stringify(f.label).slice(1, -1)}%`));

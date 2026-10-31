@@ -28,9 +28,11 @@ export const OPTION_COLOURS = ["#ff5a36", "#2563eb", "#16a34a", "#d97706", "#933
 
 export function presentField(f: FieldRow) {
   const config = f.config ? (JSON.parse(f.config) as ComputedConfig) : undefined;
-  return { id: f.id, projectId: f.projectId, name: f.name, type: f.type as FieldType, options: JSON.parse(f.options) as FieldOption[], position: f.position, ...(config ? { config } : {}) };
+  return { id: f.id, projectId: f.projectId, name: f.name, type: f.type as FieldType, options: JSON.parse(f.options) as FieldOption[], position: f.position, ...(config ? { config } : {}),
+    /** R84: set when the field is defined once for the whole workspace (the same key in every project). */
+    workspaceKey: (f.workspaceKey ?? null) as string | null };
 }
-export type Field = ReturnType<typeof presentField>;
+export type Field = Omit<ReturnType<typeof presentField>, "workspaceKey"> & { workspaceKey?: string | null };
 
 const optionId = () => `opt_${Array.from(randomBytes(5), (b) => b.toString(16).padStart(2, "0")).join("")}`;
 
@@ -247,12 +249,14 @@ export async function valuesForTasks(deps: Deps, orgId: string, taskIds: string[
   const chunks: string[][] = [];
   for (let i = 0; i < taskIds.length; i += 90) chunks.push(taskIds.slice(i, i + 90));
   const parts = await Promise.all(chunks.map((ids) => deps.db
-    .select({ taskId: taskFieldValues.taskId, fieldId: taskFieldValues.fieldId, valueText: taskFieldValues.valueText, valueNum: taskFieldValues.valueNum, type: customFields.type })
+    .select({ taskId: taskFieldValues.taskId, fieldId: taskFieldValues.fieldId, valueText: taskFieldValues.valueText, valueNum: taskFieldValues.valueNum, type: customFields.type, wk: customFields.workspaceKey })
     .from(taskFieldValues).innerJoin(customFields, eq(customFields.id, taskFieldValues.fieldId))
     .where(and(eq(taskFieldValues.orgId, orgId), inIds(taskFieldValues.taskId, ids), isNull(customFields.deletedAt)))));
   for (const r of parts.flat()) {
     const m = out.get(r.taskId) ?? {};
     m[r.fieldId] = decodeValue(r.type as FieldType, r);
+    // R84: a workspace field's value also answers to its key, so lists across projects read one column.
+    if (r.wk) m[r.wk] = m[r.fieldId];
     out.set(r.taskId, m);
   }
   return out;
@@ -311,17 +315,36 @@ export function parseFieldFilters(query: Record<string, string | undefined>): Fi
 
 /** A LIKE pattern with the user's text matched literally. */
 const likeText = (s: string) => s.replace(/[\\%_]/g, (ch) => `\\${ch}`);
-const has = (fieldId: string, cond: SQL) => sql`exists (select 1 from task_field_values v where v.task_id = ${tasks.id} and v.field_id = ${fieldId} and ${cond})`;
+const has = (fieldId: string | string[], cond: SQL) => Array.isArray(fieldId)
+  ? sql`exists (select 1 from task_field_values v where v.task_id = ${tasks.id} and v.field_id in (${sql.join(fieldId.map((id) => sql`${id}`), sql`, `)}) and ${cond})`
+  : sql`exists (select 1 from task_field_values v where v.task_id = ${tasks.id} and v.field_id = ${fieldId} and ${cond})`;
+
+/** R84: a filter or sort may name a workspace field key; it reads every project's copy (at most 80 at a time). */
+async function defsFor(deps: Deps, orgId: string, ids: string[]) {
+  const keys = ids.filter(isWorkspaceKey);
+  const plain = ids.filter((x) => !isWorkspaceKey(x));
+  const [byId, byKey] = await Promise.all([
+    plain.length ? deps.db.select().from(customFields).where(and(eq(customFields.orgId, orgId), inIds(customFields.id, plain), isNull(customFields.deletedAt))) : [],
+    keys.length ? deps.db.select().from(customFields).where(and(eq(customFields.orgId, orgId), inIds(customFields.workspaceKey, keys), isNull(customFields.deletedAt))) : [],
+  ]);
+  const out = new Map<string, { field: Field; ids: string | string[] }>();
+  for (const d of byId) out.set(d.id, { field: presentField(d), ids: d.id });
+  for (const k of keys) {
+    const rows = byKey.filter((d) => d.workspaceKey === k).slice(0, 80);
+    if (rows.length) out.set(k, { field: presentField(rows[0]), ids: rows.map((r) => r.id) });
+  }
+  return out;
+}
 
 /** SQL conditions for the filters; field ids are checked against the workspace. */
 export async function fieldFilterConditions(deps: Deps, orgId: string, filters: FieldFilter[]): Promise<SQL[]> {
   if (!filters.length) return [];
-  const defs = await deps.db.select().from(customFields).where(and(eq(customFields.orgId, orgId), inIds(customFields.id, filters.map((f) => f.fieldId)), isNull(customFields.deletedAt)));
-  const byId = new Map(defs.map((d) => [d.id, presentField(d)]));
+  const byId = await defsFor(deps, orgId, filters.map((f) => f.fieldId));
   const out: SQL[] = [];
   for (const f of filters) {
-    const field = byId.get(f.fieldId);
-    if (!field) throw new HttpError(422, "unknown_field", `No field "${f.fieldId}" in this workspace.`);
+    const hit = byId.get(f.fieldId);
+    if (!hit) throw new HttpError(422, "unknown_field", `No field "${f.fieldId}" in this workspace.`);
+    const field = { ...hit.field, id: hit.ids };
     if (isComputedType(field.type)) throw new HttpError(422, "computed_field", `${field.name} is computed when read, so it can't be used as a filter.`);
     const anyValue = sql`(v.value_text is not null or v.value_num is not null)`;
     if (f.op === "empty") { out.push(sql`not ${has(field.id, anyValue)}`); continue; }
@@ -355,15 +378,119 @@ export async function fieldFilterConditions(deps: Deps, orgId: string, filters: 
 
 /** An ORDER BY expression for a field: empty values last. Select fields sort by option order. */
 export async function fieldOrderBy(deps: Deps, orgId: string, fieldId: string, dir: "asc" | "desc"): Promise<SQL[]> {
-  const row = await deps.db.select().from(customFields).where(and(eq(customFields.orgId, orgId), eq(customFields.id, fieldId), isNull(customFields.deletedAt))).get();
-  if (!row) throw new HttpError(422, "unknown_field", `No field "${fieldId}" in this workspace.`);
-  const field = presentField(row);
+  const hit = (await defsFor(deps, orgId, [fieldId])).get(fieldId);
+  if (!hit) throw new HttpError(422, "unknown_field", `No field "${fieldId}" in this workspace.`);
+  const field = { ...hit.field, id: hit.ids };
+  const inField = Array.isArray(field.id) ? sql`v.field_id in (${sql.join(field.id.map((id) => sql`${id}`), sql`, `)})` : sql`v.field_id = ${field.id}`;
   if (isComputedType(field.type)) throw new HttpError(422, "computed_field", `${field.name} is computed when read, so it can't be used to sort.`);
   const col = field.type === "number" || field.type === "currency" || field.type === "checkbox" ? sql.raw("v.value_num") : sql.raw("v.value_text");
-  let expr = sql`(select ${col} from task_field_values v where v.task_id = ${tasks.id} and v.field_id = ${field.id})`;
+  let expr = sql`(select ${col} from task_field_values v where v.task_id = ${tasks.id} and ${inField})`;
   if (field.type === "select" && field.options.length) {
     const cases = sql.join(field.options.map((o, i) => sql`when ${o.id} then ${i}`), sql` `);
-    expr = sql`(select case v.value_text ${cases} end from task_field_values v where v.task_id = ${tasks.id} and v.field_id = ${field.id})`;
+    expr = sql`(select case v.value_text ${cases} end from task_field_values v where v.task_id = ${tasks.id} and ${inField})`;
   }
   return [sql`${expr} is null`, dir === "desc" ? sql`${expr} desc` : sql`${expr} asc`];
+}
+
+// ---------------------------------------------------------------- R84: workspace fields
+
+/** Types a workspace field can be (computed fields stay per project: they read that project's other fields). */
+export const WORKSPACE_FIELD_TYPES = ["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url"] as const;
+export const isWorkspaceKey = (v: string) => v.startsWith("wfd_");
+
+export interface WorkspaceField { key: string; name: string; type: FieldType; options: FieldOption[]; projects: number }
+
+/** One entry per workspace field (its projects' copies share name, type and option ids). */
+export async function listWorkspaceFields(deps: Deps, orgId: string): Promise<WorkspaceField[]> {
+  const rows = await deps.db.select().from(customFields)
+    .where(and(eq(customFields.orgId, orgId), sql`${customFields.workspaceKey} is not null`, isNull(customFields.deletedAt)))
+    .orderBy(asc(customFields.createdAt));
+  const out = new Map<string, WorkspaceField>();
+  for (const r of rows) {
+    const hit = out.get(r.workspaceKey!);
+    if (hit) { hit.projects++; continue; }
+    out.set(r.workspaceKey!, { key: r.workspaceKey!, name: r.name, type: r.type as FieldType, options: JSON.parse(r.options) as FieldOption[], projects: 1 });
+  }
+  return [...out.values()];
+}
+
+async function liveProjectIds(deps: Deps, orgId: string) {
+  return (await deps.db.select({ id: projects.id }).from(projects).where(and(eq(projects.orgId, orgId), isNull(projects.deletedAt)))).map((p) => p.id);
+}
+
+/** Defines a field once for the workspace: one copy in every project, same key and option ids. */
+export async function createWorkspaceField(deps: Deps, actor: SuiteActor, input: { name: string; type: FieldType; options?: { id?: string; label: string; color?: string }[] }) {
+  assertWritable(actor);
+  if (!(WORKSPACE_FIELD_TYPES as readonly string[]).includes(input.type)) throw new HttpError(422, "validation_failed", "Formula and rollup fields belong to one project.");
+  const name = input.name.trim().slice(0, 60);
+  if (!name) throw new HttpError(422, "validation_failed", "Give the field a name.");
+  const existing = await listWorkspaceFields(deps, actor.orgId);
+  if (existing.some((f) => f.name.toLowerCase() === name.toLowerCase())) throw new HttpError(409, "field_exists", `There is already a workspace field called ${name}.`);
+  if (existing.length >= 30) throw new HttpError(422, "too_many_fields", "A workspace can have up to 30 workspace fields.");
+  const ids = await liveProjectIds(deps, actor.orgId);
+  const counts = ids.length ? await deps.db.select({ projectId: customFields.projectId, n: sql<number>`count(*)`, p: sql<number>`coalesce(max(${customFields.position}), -1)` }).from(customFields)
+    .where(and(eq(customFields.orgId, actor.orgId), isNull(customFields.deletedAt))).groupBy(customFields.projectId) : [];
+  const byProject = new Map(counts.map((c) => [c.projectId, c]));
+  const full = ids.filter((id) => Number(byProject.get(id)?.n ?? 0) >= 50);
+  if (full.length) throw new HttpError(422, "too_many_fields", "A project already has 50 custom fields. Remove one there first.");
+  const now = deps.now();
+  const key = sortableId("wfd", now.getTime());
+  const options = JSON.stringify(mergeOptions(input.type, input.options ?? (input.type === "select" || input.type === "multiselect" ? [] : undefined)));
+  const rows = ids.map((projectId, i) => ({
+    id: sortableId("fld", now.getTime() + i), orgId: actor.orgId, projectId, name, type: input.type, config: null, options, workspaceKey: key,
+    position: Number(byProject.get(projectId)?.p ?? -1) + 1, ...createdBy(actor), createdAt: now, updatedAt: now,
+  }));
+  for (let i = 0; i < rows.length; i += 8) await deps.db.insert(customFields).values(rows.slice(i, i + 8));
+  invalidateFieldDefs(deps, actor.orgId);
+  const field: WorkspaceField = { key, name, type: input.type, options: JSON.parse(options) as FieldOption[], projects: rows.length };
+  await recordWrite(deps, actor, { entityType: "custom_field", entityId: key, op: "create", verb: "created", data: { name, type: input.type, workspace: true }, event: "custom_field.created", eventData: { field } });
+  return field;
+}
+
+async function copiesOf(deps: Deps, orgId: string, key: string) {
+  const rows = await deps.db.select().from(customFields).where(and(eq(customFields.orgId, orgId), eq(customFields.workspaceKey, key), isNull(customFields.deletedAt)));
+  if (!rows.length) throw notFound("Field");
+  return rows;
+}
+
+/** Renames a workspace field or changes its options in every project at once (option ids are kept). */
+export async function updateWorkspaceField(deps: Deps, actor: SuiteActor, key: string, patch: { name?: string; options?: { id?: string; label: string; color?: string }[] }) {
+  assertWritable(actor);
+  const rows = await copiesOf(deps, actor.orgId, key);
+  const first = rows[0];
+  const set: Partial<typeof customFields.$inferInsert> = { updatedAt: deps.now() };
+  if (patch.name !== undefined) set.name = patch.name.trim().slice(0, 60) || first.name;
+  if (patch.options !== undefined) set.options = JSON.stringify(mergeOptions(first.type as FieldType, patch.options, JSON.parse(first.options) as FieldOption[]));
+  await deps.db.update(customFields).set({ ...set, version: sql`${customFields.version} + 1` }).where(and(eq(customFields.orgId, actor.orgId), eq(customFields.workspaceKey, key), isNull(customFields.deletedAt)));
+  invalidateFieldDefs(deps, actor.orgId);
+  if (set.name !== undefined && set.name !== first.name) for (const r of rows) await renameInFormulas(deps, actor.orgId, r.projectId, r.id, first.name, set.name);
+  if (patch.options !== undefined) for (const r of rows) await dropMissingOptions(deps, presentField({ ...r, options: set.options! }));
+  const field: WorkspaceField = { key, name: set.name ?? first.name, type: first.type as FieldType, options: JSON.parse(set.options ?? first.options) as FieldOption[], projects: rows.length };
+  await recordWrite(deps, actor, { entityType: "custom_field", entityId: key, op: "update", verb: "updated", data: { name: field.name, workspace: true }, event: "custom_field.updated", eventData: { field } });
+  return field;
+}
+
+/** Removes a workspace field and its values from every project. */
+export async function deleteWorkspaceField(deps: Deps, actor: SuiteActor, key: string) {
+  assertWritable(actor);
+  const rows = await copiesOf(deps, actor.orgId, key);
+  const now = deps.now();
+  await deps.db.update(customFields).set({ deletedAt: now, updatedAt: now }).where(and(eq(customFields.orgId, actor.orgId), eq(customFields.workspaceKey, key), isNull(customFields.deletedAt)));
+  invalidateFieldDefs(deps, actor.orgId);
+  for (let i = 0; i < rows.length; i += 80) await deps.db.delete(taskFieldValues).where(inArray(taskFieldValues.fieldId, rows.slice(i, i + 80).map((r) => r.id)));
+  await recordWrite(deps, actor, { entityType: "custom_field", entityId: key, op: "delete", verb: "deleted", data: { name: rows[0].name, workspace: true }, event: "custom_field.deleted", eventData: { field: { key, name: rows[0].name } } });
+  return { ok: true as const };
+}
+
+/** A new project gets a copy of every workspace field (called when a project is made). */
+export async function copyWorkspaceFields(deps: Deps, actor: SuiteActor, projectId: string) {
+  const list = await listWorkspaceFields(deps, actor.orgId);
+  if (!list.length) return;
+  const now = deps.now();
+  const rows = list.map((f, i) => ({
+    id: sortableId("fld", now.getTime() + i), orgId: actor.orgId, projectId, name: f.name, type: f.type, config: null, options: JSON.stringify(f.options), workspaceKey: f.key,
+    position: i, ...createdBy(actor), createdAt: now, updatedAt: now,
+  }));
+  for (let i = 0; i < rows.length; i += 8) await deps.db.insert(customFields).values(rows.slice(i, i + 8));
+  invalidateFieldDefs(deps, actor.orgId);
 }

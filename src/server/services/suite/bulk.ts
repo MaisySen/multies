@@ -24,7 +24,7 @@ import { activity, automations, changes, projectStatuses, projects, taskFieldVal
 import { HttpError } from "../../lib/errors";
 import { writeBudget } from "../write-budget";
 import { actorOf, assertWritable, parseDate, sortableId, type SuiteActor } from "./common";
-import { parseAssignee, presentTaskRows, updateTask, validateAssignee, type Assignee, type Category, type Priority, type Task } from "./tasks";
+import { coAssigneesOf, parseAssignee, presentTaskRows, updateTask, validateAssignee, type Assignee, type Category, type Priority, type Task } from "./tasks";
 import { inIds } from "../../lib/sql-chunks";
 import { claimNumbers } from "./project-counter";
 
@@ -51,6 +51,10 @@ export interface BulkPatch {
   projectId?: string;
   /** Round 21: task, story or bug. Epics change type one at a time (their rules need the items). */
   type?: "task" | "story" | "bug";
+  /** R84: people to add ("member:<id>" or "agent:<id>"): the first becomes the main assignee of a task that has none. */
+  addAssignees?: string[];
+  /** R84: custom field values by field id or workspace field key (null clears), in each task's own project. */
+  fields?: Record<string, unknown>;
 }
 
 export interface BulkResult { updated: number; unchanged: number; ids: string[]; tasks: Task[]; /** R24 polish: assignee_changed rule runs, and tasks skipped over the cap or while paused. */ automationRuns?: { runs: number; skipped: number } }
@@ -121,7 +125,7 @@ function caseOn(ids: string[], values: Map<string, unknown>): SQL {
   return sql`case ${tasks.id} ${sql.join(parts, sql` `)} end`;
 }
 
-type Cols = Partial<Pick<TaskRow, "statusId" | "status" | "completedAt" | "position" | "assigneeType" | "assigneeId" | "priority" | "type" | "dueAt" | "reminderSentFor" | "startAt" | "labels" | "projectId" | "number">>;
+type Cols = Partial<Pick<TaskRow, "statusId" | "status" | "completedAt" | "position" | "assigneeType" | "assigneeId" | "priority" | "type" | "dueAt" | "reminderSentFor" | "startAt" | "labels" | "projectId" | "number" | "coAssignees">>;
 
 /**
  * UPDATE statements for a set of per task changes: tasks that change the same columns share
@@ -179,7 +183,7 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
   assertWritable(actor);
   const ids = capIds(idsOrRefs);
   const keys = Object.entries(patch).filter(([, v]) => v !== undefined).map(([k]) => k);
-  if (!keys.length) throw new HttpError(422, "validation_failed", "Say what to change: status, assignee, due date, start date, priority, labels, type or project.");
+  if (!keys.length) throw new HttpError(422, "validation_failed", "Say what to change: status, assignee, due date, start date, priority, labels, type, project, people or fields.");
   if (patch.statusId && patch.status) throw new HttpError(422, "validation_failed", "Send status or statusId, not both.");
   const level = await assertBudget(deps);
   const rows = await loadTasks(deps, actor.orgId, ids);
@@ -212,6 +216,11 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
   };
   const dueAt = patch.dueAt === undefined ? undefined : parseDate(patch.dueAt);
   const startAt = patch.startAt === undefined ? undefined : parseDate(patch.startAt);
+  // R84: people to add, checked once.
+  const addPeople = [...new Set(patch.addAssignees ?? [])].map((x) => parseAssignee(x)!).filter(Boolean);
+  if (addPeople.length > 10) throw new HttpError(422, "too_many_assignees", "A task can have up to 10 assignees.");
+  for (const a of addPeople) await validateAssignee(deps, actor.orgId, a);
+  const peopleAdded = new Map<string, string[]>();
   const add = [...new Set((patch.addLabels ?? []).map(cleanLabel).filter(Boolean))];
   const remove = new Set((patch.removeLabels ?? []).map(cleanLabel).filter(Boolean));
 
@@ -234,6 +243,23 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
     const assigneeDiffers = assignee !== undefined && ((t.assigneeType ?? null) !== (assignee?.type ?? null) || (t.assigneeId ?? null) !== (assignee?.id ?? null));
     if (assigneeDiffers) {
       s.assigneeType = assignee?.type ?? null; s.assigneeId = assignee?.id ?? null;
+      // R84: unassigning clears the people beside them too; a new main assignee is not listed twice.
+      const co = assignee ? coAssigneesOf(t).filter((a) => !(a.type === assignee.type && a.id === assignee.id)) : [];
+      const coJson = JSON.stringify(co.map((a) => `${a.type}:${a.id}`));
+      if (coJson !== (t.coAssignees ?? "[]")) s.coAssignees = coJson;
+    }
+    if (addPeople.length) {
+      const mainKey = assigneeDiffers ? (assignee ? `${assignee.type}:${assignee.id}` : null) : (t.assigneeType && t.assigneeId ? `${t.assigneeType}:${t.assigneeId}` : null);
+      const co = coAssigneesOf(t).map((a) => `${a.type}:${a.id}`);
+      const all = [...(mainKey ? [mainKey] : []), ...co];
+      const fresh = addPeople.map((a) => `${a.type}:${a.id}`).filter((k) => !all.includes(k));
+      const next = [...all, ...fresh].slice(0, 10);
+      if (fresh.length) {
+        if (!mainKey) { const [type, id] = next[0].split(":"); s.assigneeType = type as "member" | "agent"; s.assigneeId = id; }
+        const nextCo = JSON.stringify(next.slice(1));
+        if (nextCo !== (t.coAssignees ?? "[]")) s.coAssignees = nextCo;
+        peopleAdded.set(t.id, fresh.filter((k) => next.includes(k)));
+      }
     }
     if (patch.priority !== undefined && t.priority !== patch.priority) s.priority = patch.priority;
     if (patch.type !== undefined && (t.type ?? "task") !== patch.type) {
@@ -303,6 +329,35 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
     if (Object.values(rest).some((v) => v !== undefined)) await bulkUpdateTasks(deps, actor, [t.id], rest);
   }
 
+  // R84: field values, each task in its own project (a workspace field key finds that project's copy).
+  const fieldChanged: string[] = [];
+  if (patch.fields && Object.keys(patch.fields).length) {
+    const { listFields, setTaskFieldValues } = await import("./fields");
+    const defsByProject = new Map<string, Awaited<ReturnType<typeof listFields>>>();
+    for (const t of rows) {
+      const pid = sets.get(t.id)?.projectId ?? t.projectId;
+      if (!defsByProject.has(pid)) defsByProject.set(pid, await listFields(deps, actor.orgId, pid));
+      const defs = defsByProject.get(pid)!;
+      const values: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(patch.fields)) {
+        const f = defs.find((d) => d.id === k || (d.workspaceKey && d.workspaceKey === k));
+        if (!f) throw new HttpError(422, "unknown_field", `No field "${k}" in the project of ${t.id}. Pick tasks from one project, or use a workspace field.`);
+        values[f.id] = v;
+      }
+      await setTaskFieldValues(deps, actor.orgId, { id: t.id, projectId: pid }, values);
+      if (!sets.has(t.id)) fieldChanged.push(t.id);
+    }
+    if (fieldChanged.length) {
+      const { runBatch } = await import("../../db");
+      await runBatch(deps.db, [
+        ...chunk(fieldChanged, ID_CHUNK).map((part) => deps.db.update(tasks).set({ updatedAt: now, version: sql`${tasks.version} + 1` }).where(inIds(tasks.id, part))),
+        ...changeRows(deps, actor.orgId, fieldChanged.map((id) => ({ id, version: byId.get(id)!.version + 1 })), "update", now),
+      ]);
+      await notifyLiveChanges(deps, actor.orgId, 0);
+      changedIds.push(...fieldChanged);
+    }
+  }
+
   const out = changedIds.length || repeatToDone.length ? await present(deps, actor.orgId, [...changedIds, ...repeatToDone.map((t) => t.id)]) : [];
   const outById = new Map(out.map((t) => [t.id, t]));
 
@@ -312,7 +367,7 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
     const a = actorOf(actor);
     for (const id of changedIds) {
       const task = outById.get(id);
-      if (task) await emitEvent(deps, actor.orgId, "task.updated", { task, changed: Object.keys(sets.get(id)!), bulk: true, actor: { type: a.type, id: a.id, name: a.name } });
+      if (task) await emitEvent(deps, actor.orgId, "task.updated", { task, changed: sets.has(id) ? Object.keys(sets.get(id)!) : ["fields"], bulk: true, actor: { type: a.type, id: a.id, name: a.name } });
     }
   }
   const movedNow = moved.filter((m) => sets.has(m.row.id));
@@ -325,7 +380,7 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
   }
   // R29: a new member assignee starts watching each reassigned task, like a single reassign.
   if (assignee?.type === "member") {
-    const reassignedIds = changedIds.filter((id) => sets.get(id)!.assigneeId !== undefined);
+    const reassignedIds = changedIds.filter((id) => sets.get(id)?.assigneeId !== undefined);
     if (reassignedIds.length) await (await import("./task-watchers-bulk-assign-r29")).autoWatchBulk(deps, actor.orgId, reassignedIds, assignee.id);
   }
   // R28: watchers hear about a bulk move the way they hear about a single one (not the person who made it).
@@ -340,11 +395,11 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
   // R24 polish: assignee_changed recipes for the tasks whose assignee changed, capped per request.
   let automationRuns: { runs: number; skipped: number } | undefined;
   if (assignee) {
-    const reassigned = changedIds.filter((id) => sets.get(id)!.assigneeId !== undefined).map((id) => outById.get(id)).filter((t): t is NonNullable<typeof t> => !!t);
+    const reassigned = changedIds.filter((id) => sets.get(id)?.assigneeId !== undefined).map((id) => outById.get(id)).filter((t): t is NonNullable<typeof t> => !!t);
     if (reassigned.length) automationRuns = await (await import("./automations-r24-events")).runBulkAssigneeChanged(deps, actor, reassigned);
   }
   if (assignee?.type === "member" && assignee.id !== actor.userId && level !== "warn") {
-    const newly = changedIds.filter((id) => sets.get(id)!.assigneeId !== undefined);
+    const newly = changedIds.filter((id) => sets.get(id)?.assigneeId !== undefined);
     if (newly.length) {
       const { notify } = await import("./notify");
       const first = outById.get(newly[0]);
@@ -352,6 +407,20 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
         type: "task.assigned", entityType: "task", entityId: newly[0],
         title: newly.length === 1 && first ? `${first.ref} assigned to you: ${first.title}` : `${newly.length} tasks assigned to you`, actorName: actor.name || actor.email,
       });
+    }
+  }
+  // R84: each member added to tasks hears it once for the whole action, and starts watching those tasks.
+  if (peopleAdded.size && level !== "warn") {
+    const byPerson = new Map<string, string[]>();
+    for (const [taskId, keys] of peopleAdded) for (const k of keys) if (k.startsWith("member:")) byPerson.set(k.slice(7), [...(byPerson.get(k.slice(7)) ?? []), taskId]);
+    const { notify } = await import("./notify");
+    const { autoWatchBulk } = await import("./task-watchers-bulk-assign-r29");
+    for (const [userId, taskIds] of byPerson) {
+      await autoWatchBulk(deps, actor.orgId, taskIds, userId);
+      if (userId === actor.userId) continue;
+      const first = outById.get(taskIds[0]);
+      await notify(deps, actor.orgId, userId, { type: "task.assigned", entityType: "task", entityId: taskIds[0],
+        title: taskIds.length === 1 && first ? `${first.ref} assigned to you: ${first.title}` : `${taskIds.length} tasks assigned to you`, actorName: actor.name || actor.email });
     }
   }
   return { updated: changedIds.length + repeatToDone.length, unchanged: rows.length - changedIds.length - repeatToDone.length, ids: out.map((t) => t.id), tasks: out, ...(automationRuns?.runs || automationRuns?.skipped ? { automationRuns } : {}) };
