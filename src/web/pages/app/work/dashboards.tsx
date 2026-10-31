@@ -11,7 +11,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { IconArrowDown, IconArrowUp, IconBack, IconClose, IconDashboard, IconEdit, IconGrip, IconMore, IconPlus, IconSparkle, IconTeam, IconTrash } from "@/web/components/ui/icon";
+import { IconArrowDown, IconArrowUp, IconBack, IconClose, IconDashboard, IconEdit, IconGrip, IconMore, IconPlus, IconSparkle, IconTeam, IconTrash, IconShare, IconMail, IconBell, IconUpload } from "@/web/components/ui/icon";
 import { moveWidget } from "./dashboard-move";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -22,9 +22,11 @@ import { Card, EmptyState, PageHeader, Skeleton, Switch } from "@/web/components
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input } from "@/web/components/ui/input";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
+import { useConfig } from "@/web/lib/queries";
+import { AlertsDialog, QuestionBuilder, ReportsDialog, ShareDialog, SourcesDialog, type Question, type QuestionResult } from "./dashboards-plus-r91";
 import { AddWidgetSheet, CATALOG, isR38, R38WidgetBody, SKELETON_H, WidgetChips, WidgetEmpty, type Chart, type Source, type WidgetSettings, type WidgetType } from "./dashboard-widgets-r38";
 
-export interface Widget extends WidgetSettings { id: string; type: WidgetType; title: string; source: Source; groupBy: string | null; chart: Chart; size: 1 | 2; position: number }
+export interface Widget extends WidgetSettings { id: string; type: WidgetType; title: string; source: Source; groupBy: string | null; chart: Chart; size: 1 | 2; position: number; question?: Question }
 export interface DashboardDoc { id: string; name: string; shared: boolean; mine: boolean; widgets: Widget[]; version: number; updatedAt: string }
 interface DashboardRow { id: string; name: string; shared: boolean; mine: boolean; widgetCount: number; updatedAt: string }
 interface DataResp { dashboard: DashboardDoc; timeZone: string; weekStart: string; widgets: { id: string; type: WidgetType; data: unknown; error: string | null }[] }
@@ -105,6 +107,11 @@ function DashboardView({ id }: { id: string }) {
   const [order, setOrder] = useState<Widget[] | null>(null);
   const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  // R91: dashboards plus dialogs (DASHBOARDS_PLUS).
+  const plus = !!useConfig().data?.dashboardsPlus;
+  const [plusOpen, setPlusOpen] = useState<null | "share" | "reports" | "alerts" | "sources" | "question">(null);
+  const [alertCard, setAlertCard] = useState<string | null>(null);
+  const [editingQ, setEditingQ] = useState<Widget | null>(null);
   useEffect(() => { setOrder(null); }, [doc.data?.version]);
   const widgets = order ?? doc.data?.widgets ?? [];
   const byId = useMemo(() => new Map((data.data?.widgets ?? []).map((w) => [w.id, w])), [data.data]);
@@ -140,9 +147,15 @@ function DashboardView({ id }: { id: string }) {
         actions={d && <div className="flex items-center gap-3">
           <Switch checked={d.shared} label="Shared with the workspace" disabled={!d.mine} onChange={(v) => save.mutate({ shared: v })} />
           <span className="text-[12.5px] text-muted">{d.shared ? "Shared" : "Only you"}</span>
+          {plus && <Button variant="secondary" onClick={() => setPlusOpen("share")}><IconShare className="h-4 w-4" />Share</Button>}
+          {plus && <Button variant="secondary" className="hidden sm:inline-flex" onClick={() => { setEditingQ(null); setPlusOpen("question"); }} disabled={widgets.length >= 24}><IconSparkle className="h-4 w-4" />New question</Button>}
           <Button onClick={() => setAdding(true)} disabled={widgets.length >= 24}><IconPlus className="h-4 w-4" />Add widget</Button>
           <Menu trigger={<Button variant="secondary" size="sm" aria-label="More"><IconMore className="h-4 w-4" /></Button>}>
             <MenuItem icon={<IconEdit className="h-4 w-4" />} onSelect={() => setRenaming(true)}>Rename</MenuItem>
+            {plus && <MenuItem icon={<IconSparkle className="h-4 w-4" />} onSelect={() => { setEditingQ(null); setPlusOpen("question"); }}>New question</MenuItem>}
+            {plus && <MenuItem icon={<IconMail className="h-4 w-4" />} onSelect={() => setPlusOpen("reports")}>Emailed reports</MenuItem>}
+            {plus && <MenuItem icon={<IconBell className="h-4 w-4" />} onSelect={() => { setAlertCard(null); setPlusOpen("alerts"); }}>Alerts</MenuItem>}
+            {plus && <MenuItem icon={<IconUpload className="h-4 w-4" />} onSelect={() => setPlusOpen("sources")}>Data sources</MenuItem>}
             <MenuItem danger icon={<IconTrash className="h-4 w-4" />} onSelect={async () => { if (await confirm({ title: `Remove the dashboard ${d.name}?`, description: "The widgets go with it; your tasks and mail stay as they are.", confirmLabel: "Remove dashboard" })) remove.mutate(); }}>Remove dashboard</MenuItem>
           </Menu>
         </div>} />
@@ -157,6 +170,8 @@ function DashboardView({ id }: { id: string }) {
                   <WidgetCard key={w.id} w={w} result={byId.get(w.id)} loading={data.isPending}
                     onMove={(dir) => { const next = moveWidget(widgets, w.id, dir); if (next === widgets) return; setOrder(next); save.mutate({ widgets: next }); }}
                     canUp={i > 0} canDown={i < widgets.length - 1}
+                    onEditQuestion={plus && w.type === "question" ? () => { setEditingQ(w); setPlusOpen("question"); } : undefined}
+                    onAlert={plus && isNumberCard(w) ? () => { setAlertCard(w.id); setPlusOpen("alerts"); } : undefined}
                     onChange={(patch) => { const next = widgets.map((x) => (x.id === w.id ? { ...x, ...patch } : x)); setOrder(next); save.mutate({ widgets: next }); }}
                     onRemove={() => { const next = widgets.filter((x) => x.id !== w.id); setOrder(next); save.mutate({ widgets: next }); }} />
                 ))}
@@ -165,12 +180,26 @@ function DashboardView({ id }: { id: string }) {
           </DndContext>
         )}
       <AddWidgetSheet open={adding} onClose={() => setAdding(false)} onAdd={(w) => { setAdding(false); save.mutate({ widgets: [...widgets, w] }); }} />
+      {plus && d && <>
+        <ShareDialog dashboardId={id} open={plusOpen === "share"} onClose={() => setPlusOpen(null)} />
+        <ReportsDialog dashboardId={id} open={plusOpen === "reports"} onClose={() => setPlusOpen(null)} />
+        <AlertsDialog dashboardId={id} open={plusOpen === "alerts"} presetCard={alertCard} cards={widgets.filter(isNumberCard).map((w) => ({ id: w.id, title: w.title }))} onClose={() => setPlusOpen(null)} />
+        <SourcesDialog open={plusOpen === "sources"} onClose={() => setPlusOpen(null)} />
+        <QuestionBuilder open={plusOpen === "question"} onClose={() => setPlusOpen(null)}
+          initial={editingQ?.question ? { question: editingQ.question, chart: editingQ.chart, title: editingQ.title } : null}
+          renderResult={(chart, r) => <QuestionChart chart={chart} r={r} />}
+          onSave={(q) => {
+            setPlusOpen(null);
+            if (editingQ) save.mutate({ widgets: widgets.map((x) => (x.id === editingQ.id ? { ...x, question: q.question, chart: q.chart, ...(q.title ? { title: q.title } : {}) } : x)) });
+            else save.mutate({ widgets: [...widgets, { type: "question", question: q.question, chart: q.chart, ...(q.title ? { title: q.title } : {}) }] });
+          }} />
+      </>}
       <NameDialog open={renaming} title="Rename dashboard" initial={d?.name ?? ""} onClose={() => setRenaming(false)} onSave={(name) => { setRenaming(false); save.mutate({ name }); }} />
     </div>
   );
 }
 
-function WidgetCard({ w, result, loading, onRemove, onMove, onChange, canUp, canDown }: { w: Widget; result?: DataResp["widgets"][number]; loading: boolean; onRemove: () => void; onMove: (dir: -1 | 1) => void; onChange: (patch: Partial<Widget>) => void; canUp: boolean; canDown: boolean }) {
+function WidgetCard({ w, result, loading, onRemove, onMove, onChange, canUp, canDown, onEditQuestion, onAlert }: { onEditQuestion?: () => void; onAlert?: () => void; w: Widget; result?: DataResp["widgets"][number]; loading: boolean; onRemove: () => void; onMove: (dir: -1 | 1) => void; onChange: (patch: Partial<Widget>) => void; canUp: boolean; canDown: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: w.id });
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cn(w.size === 2 && "md:col-span-2", isDragging && "z-10 opacity-80")}>
@@ -180,6 +209,8 @@ function WidgetCard({ w, result, loading, onRemove, onMove, onChange, canUp, can
           <h2 className="truncate text-[13px] font-semibold">{w.title}</h2>
           <div className="ml-auto flex items-center">
             <Menu trigger={<button type="button" aria-label={`Options for ${w.title}`} className="rounded p-0.5 text-subtle hover:bg-hover hover:text-fg"><IconMore className="h-4 w-4" /></button>}>
+              {onEditQuestion && <MenuItem icon={<IconEdit className="h-4 w-4" />} onSelect={onEditQuestion}>Edit question</MenuItem>}
+              {onAlert && <MenuItem icon={<IconBell className="h-4 w-4" />} onSelect={onAlert}>Alert me</MenuItem>}
               {canUp && <MenuItem icon={<IconArrowUp className="h-4 w-4" />} onSelect={() => onMove(-1)}>Move up</MenuItem>}
               {canDown && <MenuItem icon={<IconArrowDown className="h-4 w-4" />} onSelect={() => onMove(1)}>Move down</MenuItem>}
               <MenuItem danger icon={<IconTrash className="h-4 w-4" />} onSelect={onRemove}>Remove widget</MenuItem>
@@ -243,10 +274,11 @@ function Table({ rows }: { rows: { label: string; value: string | number; muted?
   return <ul className="divide-y divide-line text-[13px]">{rows.map((r, i) => <li key={i} className="flex items-center gap-2 py-2"><span className="line-clamp-2 [overflow-wrap:anywhere]" title={r.label}>{r.label}</span>{r.muted && <span className="text-[12px] text-subtle">{r.muted}</span>}<span className="ml-auto tabular-nums text-muted">{r.value}</span></li>)}</ul>;
 }
 
-function WidgetBody({ w, data }: { w: Widget; data: unknown }) {
+export function WidgetBody({ w, data }: { w: Widget; data: unknown }) {
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const d = data as any;
   if (isR38(w.type)) return <>{R38WidgetBody({ w, data })}</>;
+  if (w.type === "question") return <QuestionChart chart={w.chart} r={d as QuestionResult} />;
   switch (w.type) {
     case "count": return <Big value={d.value} sub={d.value === d.open ? "all open" : `${d.open} open`} />;
     case "breakdown": {
@@ -307,4 +339,19 @@ function WidgetBody({ w, data }: { w: Widget; data: unknown }) {
     }
   }
   /* eslint-enable @typescript-eslint/no-explicit-any */
+}
+
+/** R91: a number card is one the alerts can watch: a count, a calculation, or a question with no grouping. */
+const isNumberCard = (w: Widget) => w.type === "count" || w.type === "calculation" || (w.type === "question" && !w.question?.groupBy);
+
+/** R91: a question card's answer as a number, bars, a line, a donut or a table. */
+export function QuestionChart({ chart, r }: { chart: Chart; r: QuestionResult }) {
+  const f = (n: number) => (r.format === "money" ? `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : r.format === "hours" ? `${n.toLocaleString(undefined, { maximumFractionDigits: 1 })} h` : n.toLocaleString(undefined, { maximumFractionDigits: 2 }));
+  if (!r || (!r.rows && r.value === null)) return <Empty text="Nothing to show yet." />;
+  if (!r.rows) return <Big value={f(r.value ?? 0)} />;
+  if (!r.rows.length) return <Empty text="Nothing matches this question yet." />;
+  if (chart === "donut") return <Donut rows={r.rows.map((x) => ({ label: x.label, count: x.value }))} />;
+  if (chart === "table") return <Table rows={r.rows.map((x) => ({ label: x.label, value: f(x.value) }))} />;
+  if (chart === "line") return <Lines rows={r.rows} x="label" lines={[{ key: "value", name: r.label, color: BRAND }]} />;
+  return <Bars rows={r.rows} x="label" y="value" horizontal={r.rows.length > 6} />;
 }

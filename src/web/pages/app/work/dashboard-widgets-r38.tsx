@@ -20,7 +20,7 @@ import { cn } from "@/web/lib/cn";
 import { useProjects, useViews } from "./data";
 
 export type WidgetType = "count" | "breakdown" | "due" | "completed" | "burndown" | "goals" | "reply_times" | "mail_volume" | "workload"
-  | "calculation" | "battery" | "pivot" | "created_completed" | "task_list" | "time_tracked" | "note";
+  | "calculation" | "battery" | "pivot" | "created_completed" | "task_list" | "time_tracked" | "note" | "question";
 export type Chart = "number" | "bar" | "donut" | "line" | "table";
 export type Range = "7d" | "30d" | "90d" | "180d";
 export interface Source { savedViewId?: string; projectId?: string; filters?: Record<string, string>; mailboxId?: string }

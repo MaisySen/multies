@@ -29,6 +29,8 @@ export interface PublicConfig {
   billingEnabled: boolean;
   /** Booking pages (SCHEDULING_ENABLED). */
   scheduling?: boolean;
+  /** R91: dashboards plus (share by link, emailed reports, question builder, alerts, data sources). */
+  dashboardsPlus?: boolean;
   /** R59: chat channels (WhatsApp, Messenger, Instagram) in the shared inbox (CHAT_CHANNELS). Off unless set. */
   chatChannels?: boolean;
   /** Tools P1: document tools (TOOLS_ENABLED with an engine configured). */
