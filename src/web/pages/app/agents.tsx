@@ -46,7 +46,7 @@ export function AgentsPage() {
         : agents.error ? <Card className="p-6 text-sm text-bad">{agents.error.message}</Card>
         : !agents.data.length ? (
           <Card><EmptyState icon={<IconAgent />} title="Give an agent its own inbox"
-            body={<>Create one here, or with one API call. Your agent gets an address, a key that only works for that inbox, and mail as clean JSON. <Link className="text-brand-hover hover:underline" to="/agents">See the quickstart</Link>.</>}
+            body={<>Create one here, or with one API call. Your agent gets an address, a key that only works for that inbox, and mail as clean JSON. <Link className="text-brand-hover underline underline-offset-2" to="/agents">See the quickstart</Link>.</>}
             action={canManage ? <Button onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />New agent inbox</Button> : undefined} /></Card>
         ) : (
           <Card className="divide-y divide-line overflow-hidden">

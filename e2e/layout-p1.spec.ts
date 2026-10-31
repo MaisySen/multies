@@ -74,6 +74,7 @@ test("P1 desktop: rail, Social pages, Create and P, one Settings sidebar, redire
   await rail.getByTestId("rail-social").click();
   await expect(page).toHaveURL(/\/app\/social$/);
   await expect(page.getByTestId("planner-grid")).toBeVisible();
+  await expect(page.getByTestId("social-switcher")).toBeHidden(); // the shell sidebar switches pages at 1280
   await expect(page.getByTestId("planner-post").first()).toBeVisible();
   const side = page.getByTestId("context-sidebar");
   for (const l of ["Planner", "Posts", "Accounts"]) await expect(side.getByRole("link", { name: l, exact: true })).toBeVisible();
@@ -192,6 +193,16 @@ test("P1 phone 390: drawer lists Social and Agents, pages fit, planner is a list
   await expect(page.getByTestId("planner-agenda")).toBeVisible();
   await expect(page.getByTestId("planner-grid")).toBeHidden();
   await expect(page.getByTestId("planner-agenda").getByTestId("planner-post").first()).toBeVisible();
+  // With no sidebar on a phone, the switcher under the title moves between Social's pages.
+  const sw = page.getByTestId("social-switcher");
+  await expect(sw.getByRole("link", { name: "Planner" })).toHaveAttribute("aria-current", "page");
+  await sw.getByRole("link", { name: "Posts" }).click();
+  await expect(page).toHaveURL(/\/app\/social\/posts$/);
+  await expect(sw.getByRole("link", { name: "Posts" })).toHaveAttribute("aria-current", "page");
+  await sw.getByRole("link", { name: "Accounts" }).click();
+  await expect(page).toHaveURL(/\/app\/social\/accounts$/);
+  const tap = await sw.getByRole("link", { name: "Accounts" }).boundingBox();
+  expect(tap && tap.height >= 44).toBe(true);
   for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     for (const [path, name] of [["/app/social", "planner"], ["/app/social/posts", "posts"], ["/app/social/new", "new-post"], ["/app/social/accounts", "accounts"], ["/app/settings", "settings"], ["/app/settings/apps", "connections"]] as const) {

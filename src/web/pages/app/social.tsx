@@ -23,6 +23,36 @@ import { AppLogo, appsKeys, useAppAccounts, useAppsStatus, useConnect, useConnec
 import { Composer, POST_STATUS, PostList, ReconnectButton, useAccountHealth, useSocialPosts, type PostFilter } from "./apps-social";
 import { DirectAccounts } from "./apps-direct";
 
+/** Phones and small tablets have no shell sidebar, so Social's four pages switch here, under the title. */
+const SOCIAL_TABS = [
+  { to: "/app/social", label: "Planner", end: true },
+  { to: "/app/social/posts", label: "Posts", end: false },
+  { to: "/app/social/new", label: "New post", end: false },
+  { to: "/app/social/accounts", label: "Accounts", end: false },
+] as const;
+
+export function SocialSwitcher() {
+  const { pathname } = useLocation();
+  return (
+    <nav aria-label="Social" className="-mx-1 mb-4 overflow-x-auto px-1 lg:hidden" data-testid="social-switcher">
+      <ul className="flex w-max gap-1 rounded-lg border border-line bg-fill/50 p-1">
+        {SOCIAL_TABS.map((t) => {
+          const on = t.end ? pathname === t.to || pathname === `${t.to}/` : pathname.startsWith(t.to);
+          return (
+            <li key={t.to}>
+              <Link to={t.to} aria-current={on ? "page" : undefined}
+                className={cn("flex min-h-11 items-center rounded-md px-3.5 text-[13.5px] font-medium transition-colors duration-150",
+                  on ? "bg-surface text-fg elev-1" : "text-muted hover:bg-hover hover:text-fg")}>
+                {t.label}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
 /** The networks the one composer connects to here (TikTok and Threads have their own cards; X is not offered). */
 const NETWORK_NAMES: Record<string, string> = { facebook: "Facebook Pages", instagram: "Instagram", linkedin: "LinkedIn", pinterest: "Pinterest", reddit: "Reddit" };
 const NETWORKS = Object.keys(NETWORK_NAMES);
@@ -97,6 +127,7 @@ export function SocialPlannerPage() {
   return (
     <div data-testid="social-planner">
       <PageHeader title="Planner" description={scheduled ? `${scheduled} ${scheduled === 1 ? "post is" : "posts are"} waiting to go out.` : "Scheduled and sent posts on a calendar."} actions={<NewPostButton />} />
+      <SocialSwitcher />
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h2 className="mr-auto text-[17px] font-semibold tracking-[-0.01em]" aria-live="polite" data-testid="planner-month">{monthName}</h2>
         <Button variant="outline" size="sm" onClick={() => { const d = new Date(); setCursor({ y: d.getFullYear(), m: d.getMonth() }); }}>Today</Button>
@@ -178,6 +209,7 @@ export function SocialPostsPage() {
   return (
     <div data-testid="social-posts-page">
       <PageHeader title="Posts" description="Every post, with how each account did. Fix a failed one right here." actions={<NewPostButton />} />
+      <SocialSwitcher />
       <div className="mb-4 -mx-1 max-w-full overflow-x-auto px-1 [scrollbar-width:none]">
         <div className="inline-flex gap-1 rounded-lg bg-fill p-1" role="group" aria-label="Show posts" data-testid="posts-filter">
           {FILTERS.map((f) => (
@@ -204,6 +236,7 @@ export function SocialNewPostPage() {
   return (
     <div data-testid="social-new">
       <PageHeader title="New post" description="Write once and send it to every account you pick. Networks that can't take the post are greyed out with the reason." />
+      <SocialSwitcher />
       {status.isPending || accounts.isPending ? <div className="space-y-4" aria-busy="true"><Skeleton className="h-72 rounded-xl" /></div>
         : status.error ? <LoadError error={status.error} retry={() => void status.refetch()} what="Social" />
         : accounts.error ? <LoadError error={accounts.error} retry={() => void accounts.refetch()} what="your accounts" />
@@ -253,6 +286,7 @@ export function SocialAccountsPage() {
   return (
     <div data-testid="social-accounts">
       <PageHeader title="Accounts" description="The profiles Multies posts to, checked before you write. Connect, reconnect or remove them here." actions={<NewPostButton />} />
+      <SocialSwitcher />
       {!status.isPending && !canManage && <p className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-subtle"><IconLock className="h-3.5 w-3.5" aria-hidden />Only owners and admins can connect accounts or post.</p>}
       <div className="space-y-7">
         <section aria-labelledby="acc-connected">
