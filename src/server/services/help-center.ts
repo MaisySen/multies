@@ -521,9 +521,8 @@ export async function publicSearch(deps: Deps, c: LiveCenter, q: string, page: n
   if (!terms.length) return { hits: [], more: false, terms };
   const range = (t: string) => sql`(${hcTerms.term} >= ${t} AND ${hcTerms.term} < ${prefixEnd(t)})`;
   const hits = sql.join(terms.map((t) => sql`MAX(CASE WHEN ${range(t)} THEN 1 ELSE 0 END)`), sql` + `);
-  const kinds: ("a" | "q")[] = c.s.qaOn ? ["a", "q"] : ["a"];
   const rows = await deps.db.select({ kind: hcTerms.kind, itemId: hcTerms.itemId, hits: sql<number>`${hits}`, score: sql<number>`sum(${hcTerms.weight})` }).from(hcTerms)
-    .where(and(eq(hcTerms.orgId, c.orgId), inArray(hcTerms.kind, kinds), or(...terms.map(range)) as SQL))
+    .where(and(eq(hcTerms.orgId, c.orgId), c.s.qaOn ? inArray(hcTerms.kind, ["a", "q"]) : eq(hcTerms.kind, "a"), or(...terms.map(range)) as SQL))
     .groupBy(hcTerms.kind, hcTerms.itemId).orderBy(desc(sql`${hits}`), desc(sql`sum(${hcTerms.weight})`)).limit(HC_PAGE_SIZE + 1).offset((page - 1) * HC_PAGE_SIZE);
   const page1 = rows.slice(0, HC_PAGE_SIZE);
   const aIds = page1.filter((r) => r.kind === "a").map((r) => r.itemId), qIds = page1.filter((r) => r.kind === "q").map((r) => r.itemId);
