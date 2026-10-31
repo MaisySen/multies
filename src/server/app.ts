@@ -1,4 +1,5 @@
 import { docsMarkdown, DOCS_MD_PATHS, llmsFullTxt, llmsTxt, MCP_TOOLS_MD_PATH, versionJson } from "./routes/web-meta-r32";
+import { crmRoutes } from "./routes/crm-r94"; // R94: CRM timeline
 import { recordWorkspaceWrites, runMetered, workspaceHealthView } from "./services/workspace-budget";
 import { Hono, type Context } from "hono";
 import { isD1LimitError, READ_ONLY_BODY } from "./lib/d1-limit";
@@ -399,6 +400,8 @@ export function createApp(deps: Deps) {
       meetings: !!deps.config.meetings,
       scheduling: deps.config.schedulingEnabled,
       flows: deps.config.flows !== false, // R90
+      // R94: CRM timeline (CRM_TIMELINE): paged timeline, logged calls and notes, segments, CSV import, deal forecast.
+      crmTimeline: !!deps.config.crmTimeline,
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
       chatChannels: deps.config.channels.enabled,
       // Tools P1: whether the Tools page and its menu entries show (TOOLS_ENABLED with an engine configured).
@@ -511,6 +514,7 @@ export function createApp(deps: Deps) {
   app.route("/api/contacts", contactRoutes());
   app.route("/api/companies", companyRoutes());
   app.route("/api/deals", dealRoutes());
+  app.route("/api/crm", crmRoutes()); // R94: CRM timeline (404 unless CRM_TIMELINE)
   app.route("/api/automations/recipes", automationRecipeRoutes()); // R24.4: automation recipes
   app.route("/api/automations", automationRoutes());
   app.route("/api/flows", flowRoutes()); // R90: automation builder

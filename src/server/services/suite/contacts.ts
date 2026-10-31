@@ -41,7 +41,7 @@ async function isOwnAddress(deps: Deps, orgId: string, address: string, own?: Se
   return !!mb || !!al;
 }
 
-async function ensureCompany(deps: Deps, a: SuiteActor, domain: string) {
+export async function ensureCompany(deps: Deps, a: SuiteActor, domain: string) {
   const d = domain.toLowerCase();
   if (!d || isFreeMail(d)) return null;
   const existing = await deps.db.select({ id: companies.id }).from(companies).where(and(eq(companies.orgId, a.orgId), eq(companies.domain, d))).get();
@@ -152,7 +152,7 @@ export async function backfillContacts(deps: Deps, orgId: string, opts: { force?
 type ContactRow = typeof contacts.$inferSelect;
 type CompanyRow = typeof companies.$inferSelect;
 
-function presentContact(c: ContactRow, company?: Pick<CompanyRow, "id" | "name" | "domain"> | null) {
+export function presentContact(c: ContactRow, company?: Pick<CompanyRow, "id" | "name" | "domain"> | null) {
   return {
     id: c.id, name: c.name, email: c.email, phone: c.phone, title: c.title, notes: c.notes, source: c.source,
     company: company ? { id: company.id, name: company.name, domain: company.domain } : null, companyId: c.companyId,
@@ -168,10 +168,18 @@ async function companyMap(deps: Deps, ids: (string | null)[]) {
   return new Map((await deps.db.select().from(companies).where(inIds(companies.id, list))).map((c) => [c.id, c]));
 }
 
-export async function listContacts(deps: Deps, orgId: string, q: { q?: string; companyId?: string; limit?: number; offset?: number } = {}) {
+/** R94: extra filters for saved segments. Every one is optional, so older callers read exactly as before. */
+export interface ContactSegmentFilters { source?: "mail" | "manual" | "import" | "agent"; noCompany?: boolean; lastWithinDays?: number; lastOlderThanDays?: number; hasOpenDeal?: boolean }
+export async function listContacts(deps: Deps, orgId: string, q: { q?: string; companyId?: string; limit?: number; offset?: number } & ContactSegmentFilters = {}) {
   await backfillContacts(deps, orgId);
   const conds = [eq(contacts.orgId, orgId), isNull(contacts.deletedAt)];
   if (q.companyId) conds.push(eq(contacts.companyId, q.companyId));
+  if (q.source) conds.push(eq(contacts.source, q.source));
+  if (q.noCompany) conds.push(isNull(contacts.companyId));
+  const day = 86_400_000;
+  if (q.lastWithinDays) conds.push(sql`${contacts.lastContactAt} >= ${deps.now().getTime() - q.lastWithinDays * day}`);
+  if (q.lastOlderThanDays) conds.push(sql`(${contacts.lastContactAt} is null or ${contacts.lastContactAt} < ${deps.now().getTime() - q.lastOlderThanDays * day})`);
+  if (q.hasOpenDeal) conds.push(sql`exists (select 1 from ${deals} where ${deals.contactId} = ${contacts.id} and ${deals.deletedAt} is null and ${deals.stage} not in ('won','lost'))`);
   if (q.q) conds.push(or(like(contacts.name, `%${q.q}%`), like(contacts.email, `%${q.q}%`))!);
   // One round trip for the page with its companies, and the count beside it.
   const [rows, total] = await Promise.all([
@@ -317,10 +325,17 @@ export const DEAL_STAGES = [
   { id: "lost", name: "Lost" },
 ] as const;
 export type DealStage = (typeof DEAL_STAGES)[number]["id"];
+/** R94: the win chance a deal gets from its stage unless someone sets its own. */
+export const DEAL_PROBABILITY: Record<DealStage, number> = { lead: 10, qualified: 30, proposal: 60, won: 100, lost: 0 };
+/** R94: the chance used for the forecast. Won and lost are always 100 and 0; open stages use the deal's own value when set. */
+export function dealProbability(stage: DealStage, own: number | null | undefined) {
+  if (stage === "won" || stage === "lost") return DEAL_PROBABILITY[stage];
+  return own === null || own === undefined ? DEAL_PROBABILITY[stage] : Math.max(0, Math.min(100, Math.round(own)));
+}
 
 type DealRow = typeof deals.$inferSelect;
 function presentDeal(d: DealRow) {
-  return { id: d.id, title: d.title, stage: d.stage, value: d.valueCents / 100, valueCents: d.valueCents, currency: "AUD", contactId: d.contactId, companyId: d.companyId, ownerUserId: d.ownerUserId, expectedClose: iso(d.expectedCloseAt), position: d.position, createdAt: d.createdAt.toISOString(), updatedAt: d.updatedAt.toISOString(), version: d.version };
+  return { id: d.id, title: d.title, stage: d.stage, value: d.valueCents / 100, valueCents: d.valueCents, currency: "AUD", contactId: d.contactId, companyId: d.companyId, ownerUserId: d.ownerUserId, expectedClose: iso(d.expectedCloseAt), position: d.position, createdAt: d.createdAt.toISOString(), updatedAt: d.updatedAt.toISOString(), version: d.version, probability: dealProbability(d.stage, d.probability), probabilitySet: d.probability !== null && d.probability !== undefined, closeReason: d.closeReason ?? null, closedAt: iso(d.closedAt) };
 }
 export type Deal = ReturnType<typeof presentDeal>;
 
@@ -340,7 +355,7 @@ async function dealRow(deps: Deps, orgId: string, id: string) {
   return d;
 }
 
-export async function createDeal(deps: Deps, actor: SuiteActor, input: { title: string; stage?: DealStage; value?: number; contactId?: string | null; companyId?: string | null; expectedClose?: string | null }, opts: { id?: string; retry?: boolean } = {}) {
+export async function createDeal(deps: Deps, actor: SuiteActor, input: { title: string; stage?: DealStage; value?: number; contactId?: string | null; companyId?: string | null; expectedClose?: string | null; probability?: number | null; closeReason?: string | null }, opts: { id?: string; retry?: boolean } = {}) {
   assertWritable(actor);
   if (opts.id && opts.retry && await deps.db.select({ id: deals.id }).from(deals).where(and(eq(deals.id, opts.id), eq(deals.orgId, actor.orgId))).get()) return presentDeal(await dealRow(deps, actor.orgId, opts.id)); // R52 (MB-239): a retry under the same Idempotency-Key returns what the first attempt made
   let companyId = input.companyId ?? null;
@@ -348,14 +363,28 @@ export async function createDeal(deps: Deps, actor: SuiteActor, input: { title: 
   const now = deps.now();
   const id = opts.id ?? sortableId("del", now.getTime()); // R51 (MB-239)
   const max = await deps.db.select({ p: sql<number>`coalesce(max(${deals.position}), 0)` }).from(deals).where(and(eq(deals.orgId, actor.orgId), eq(deals.stage, input.stage ?? "lead"))).get();
-  await deps.db.insert(deals).values({ id, orgId: actor.orgId, title: input.title.trim(), stage: input.stage ?? "lead", valueCents: Math.round((input.value ?? 0) * 100), contactId: input.contactId ?? null, companyId, ownerUserId: actor.userId || null, expectedCloseAt: parseDate(input.expectedClose), position: Number(max?.p ?? 0) + 1024, ...createdBy(actor), createdAt: now, updatedAt: now });
+  const closing = input.stage === "won" || input.stage === "lost";
+  await deps.db.insert(deals).values({ id, orgId: actor.orgId, title: input.title.trim(), probability: input.probability ?? null, closeReason: closing ? input.closeReason?.trim() || null : null, closedAt: closing ? now : null, stage: input.stage ?? "lead", valueCents: Math.round((input.value ?? 0) * 100), contactId: input.contactId ?? null, companyId, ownerUserId: actor.userId || null, expectedCloseAt: parseDate(input.expectedClose), position: Number(max?.p ?? 0) + 1024, ...createdBy(actor), createdAt: now, updatedAt: now });
   const deal = presentDeal(await dealRow(deps, actor.orgId, id));
   await recordWrite(deps, actor, { entityType: "deal", entityId: id, op: "create", verb: "created", data: { title: deal.title }, event: "deal.created", eventData: { deal } });
   if (deal.contactId) await recordWrite(deps, actor, { entityType: "contact", entityId: deal.contactId, op: "update", verb: "deal_created", data: { dealId: id, title: deal.title } });
   return deal;
 }
 
-export async function updateDeal(deps: Deps, actor: SuiteActor, id: string, patch: { title?: string; stage?: DealStage; value?: number; contactId?: string | null; companyId?: string | null; expectedClose?: string | null; position?: number }) {
+/** R94: moving into Won or Lost stamps the close date (and keeps a reason when given); moving out clears both. */
+export function dealCloseFields(d: { stage: DealStage; closedAt: Date | null }, patch: { stage?: DealStage; closeReason?: string | null }, now: Date) {
+  const closed = (s: DealStage) => s === "won" || s === "lost";
+  const next = patch.stage ?? d.stage;
+  if (!closed(next)) return patch.stage !== undefined && closed(d.stage) ? { closedAt: null, closeReason: null } : {};
+  const out: { closedAt?: Date; closeReason?: string | null } = {};
+  if (patch.stage !== undefined && patch.stage !== d.stage) out.closedAt = now;
+  else if (!d.closedAt) out.closedAt = now;
+  if (patch.closeReason !== undefined) out.closeReason = patch.closeReason?.trim() || null;
+  else if (patch.stage !== undefined && patch.stage !== d.stage) out.closeReason = null;
+  return out;
+}
+
+export async function updateDeal(deps: Deps, actor: SuiteActor, id: string, patch: { title?: string; stage?: DealStage; value?: number; contactId?: string | null; companyId?: string | null; expectedClose?: string | null; position?: number; probability?: number | null; closeReason?: string | null }) {
   assertWritable(actor);
   const d = await dealRow(deps, actor.orgId, id);
   await deps.db.update(deals).set({
@@ -366,6 +395,8 @@ export async function updateDeal(deps: Deps, actor: SuiteActor, id: string, patc
     ...(patch.companyId !== undefined ? { companyId: patch.companyId } : {}),
     ...(patch.expectedClose !== undefined ? { expectedCloseAt: parseDate(patch.expectedClose) } : {}),
     ...(patch.position !== undefined ? { position: patch.position } : {}),
+    ...(patch.probability !== undefined ? { probability: patch.probability === null ? null : Math.max(0, Math.min(100, Math.round(patch.probability))) } : {}),
+    ...dealCloseFields(d, patch, deps.now()),
     updatedAt: deps.now(), version: d.version + 1,
   }).where(eq(deals.id, id));
   const deal = presentDeal(await dealRow(deps, actor.orgId, id));

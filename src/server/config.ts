@@ -16,6 +16,8 @@ export interface AppConfig {
   socialP2?: boolean;
   /** Public booking pages and the scheduling API (SCHEDULING_ENABLED=true). Off unless set. */
   schedulingEnabled: boolean;
+  /** R94: CRM_TIMELINE (paged contact and company timeline, logged calls and notes, segments, CSV import, deal forecast). Off unless set. */
+  crmTimeline?: boolean;
   /**
    * Tools P1: document tools on the private document engine. On only when TOOLS_ENABLED=true and the
    * engine address and both keys are set (DOC_ENGINE_URL, DOC_ENGINE_KEY_ID, DOC_ENGINE_KEY, TOOLS_TOKEN_KEY).
@@ -285,6 +287,7 @@ const EnvSchema = z.object({
   HELPDESK: z.string().optional(),
   CHANNELS_DAILY_SOFT_CAP: z.string().optional(),
   TOOLS_ENABLED: z.string().optional(),
+  CRM_TIMELINE: z.string().optional(),
   TOOLS_FEATURES: z.string().optional(),
   LINK_CLICK_FLUSH_MS: z.string().optional(), // R87
   SOCIAL_P2: z.string().optional(),
@@ -562,6 +565,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     flows: env.FLOWS !== "off",
     socialP2: env.SOCIAL_P2 !== "off",
     schedulingEnabled: env.SCHEDULING_ENABLED === "true" || env.SCHEDULING_ENABLED === "1",
+    crmTimeline: ["1", "true", "on"].includes(String(env.CRM_TIMELINE ?? "").toLowerCase()),
     tools: toolsConfig(env),
     links: { flushMs: Math.max(0, Math.min(20_000, Number(env.LINK_CLICK_FLUSH_MS ?? 4000) || 0)) },
     appName: env.APP_NAME ?? "Multies",

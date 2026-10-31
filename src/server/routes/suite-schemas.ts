@@ -148,6 +148,8 @@ export const DealStage = z.enum(["lead", "qualified", "proposal", "won", "lost"]
 export const DealCreate = z.object({
   title: z.string().trim().min(1).max(200), stage: DealStage.optional(), value: z.number().min(0).max(1e10).optional().openapi({ description: "AUD, ex GST." }),
   contactId: z.string().nullable().optional(), companyId: z.string().nullable().optional(), expectedClose: date,
+  // R94: win chance (null = the stage default) and the reason it was won or lost.
+  probability: z.number().int().min(0).max(100).nullable().optional(), closeReason: z.string().trim().max(200).nullable().optional(),
 }).openapi("DealCreate");
 export const DealPatch = DealCreate.partial().extend({ position: z.number().finite().optional() }).openapi("DealPatch");
 

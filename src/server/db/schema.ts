@@ -1073,8 +1073,42 @@ export const deals = sqliteTable("deals", {
   ownerUserId: text("owner_user_id"),
   expectedCloseAt: ts("expected_close_at"),
   position: real("position").notNull().default(0),
+  /** R94 (0115): win chance 0 to 100; null means the stage's default (see DEAL_PROBABILITY). */
+  probability: integer("probability"),
+  /** R94 (0115): why it was won or lost, asked when the deal lands in Won or Lost. */
+  closeReason: text("close_reason"),
+  /** R94 (0115): when it moved into Won or Lost; cleared when reopened. */
+  closedAt: ts("closed_at"),
   ...suiteCols(),
-}, (t) => [index("deals_org_stage_idx").on(t.orgId, t.stage, t.position)]);
+}, (t) => [index("deals_org_stage_idx").on(t.orgId, t.stage, t.position), index("deals_contact_idx").on(t.contactId).where(sql`${t.contactId} IS NOT NULL`), index("deals_company_idx").on(t.companyId).where(sql`${t.companyId} IS NOT NULL`)]);
+
+/** R94 (0115): a note, call or meeting summary logged on a contact, company or deal. Private ones show only to their author. */
+export const crmEntries = sqliteTable("crm_entries", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  entityType: text("entity_type", { enum: ["contact", "company", "deal"] }).notNull(),
+  entityId: text("entity_id").notNull(),
+  kind: text("kind", { enum: ["note", "call", "meeting"] }).notNull().default("note"),
+  body: text("body").notNull().default(""),
+  /** Calls only: connected, no_answer, voicemail, busy, wrong_number. */
+  outcome: text("outcome"),
+  durationMin: integer("duration_min"),
+  occurredAt: ts("occurred_at").notNull(),
+  private: integer("private", { mode: "boolean" }).notNull().default(false),
+  authorName: text("author_name"),
+  ...suiteCols(),
+}, (t) => [index("crm_entries_entity_idx").on(t.orgId, t.entityType, t.entityId, t.occurredAt)]);
+
+/** R94 (0115): a saved filter on the contacts list. user_id null = shared with the team. */
+export const crmSegments = sqliteTable("crm_segments", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id"),
+  name: text("name").notNull(),
+  filters: text("filters").notNull().default("{}"),
+  position: real("position").notNull().default(0),
+  ...suiteCols(),
+}, (t) => [index("crm_segments_org_idx").on(t.orgId)]);
 
 /** The glue: any item linked to any item (a doc to a task, a contact to a thread). */
 export const entityLinks = sqliteTable("entity_links", {
