@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-esign-v2",
+    date: "2026-10-31",
+    title: "Signing with an email code, templates and a check page",
+    body: "Tools, Sign now emails each signer a one time code and asks them to agree to sign electronically, and keeps a full signing record with time, time zone, device and document fingerprints that you can download. Save a request as a template and send it again, or send a one signer template to a list of up to 50 people. Anyone can check a signed copy on the public check page, which reads only the file's fingerprint.",
+  },
+  {
     id: "2026-10-31-tools-round-c",
     date: "2026-10-31",
     title: "Fix a PDF, codes on a PDF and everyday utilities",
@@ -61,7 +67,7 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     id: "2026-10-31-tools-round-b",
     date: "2026-10-31",
     title: "Video, sound, ebooks, archives and Edit a PDF",
-    body: "Convert any file now handles videos and sound (MP4, MOV, MP3, WAV, GIF and more), EPUB and MOBI ebooks, HEIC photos in any browser, and ZIP, 7Z and TAR archives. It also makes files smaller with the size before and after, and reads scans into searchable PDFs or text. Tools, Edit a PDF adds text, a signature, black out boxes, a watermark and page numbers, all on your device.",
+    body: "Tools, Convert any file takes one file or fifty, converts photos, PDFs and spreadsheets in your browser, and now handles videos, sound, EPUB and MOBI ebooks, HEIC photos and ZIP, 7Z and TAR archives. It also makes files smaller and reads scans into searchable PDFs or text. Tools, Edit a PDF adds text, a signature, black out boxes, a watermark and page numbers, all on your device.",
   },
   {
     id: "2026-10-31-social-home",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "One place for everything you connect",
     body: "Settings, Connections now holds your apps, other mail accounts and webhooks as tabs, and Compose tells you before you write when a From address needs its domain verified. Every page has its own name in the browser tab, and every page, download and setup step now says Multies. Email Workers you set up before keep working with no change.",
-  },
-  {
-    id: "2026-10-31-calm-layout",
-    date: "2026-10-31",
-    title: "A calmer layout you can shape",
-    body: "A slim icon rail and a sidebar for each area, with your favourite projects on top. Drag to size the sidebar, the Mail reading pane (right, below or off) and task details, and pick Comfortable or Compact under View. Create and search live in the top bar, and Ctrl \\ (Cmd \\ on a Mac) hides the sidebar.",
   },
   {
     id: "2026-10-28-whats-new",
