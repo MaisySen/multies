@@ -27,6 +27,7 @@ const pk = { catalog: ["dash-plus", "catalog"], sources: ["dash-plus", "sources"
 const zone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "never");
 const hourLabel = (h: number) => new Date(2026, 0, 1, h).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+const lc = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const Section = ({ title, children, className }: { title: string; children: ReactNode; className?: string }) => (
   <section className={cn("space-y-3", className)}><h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">{title}</h3>{children}</section>
@@ -123,10 +124,10 @@ export function ReportsDialog({ dashboardId, open, onClose }: { dashboardId: str
                   <Row key={r.id} testid="report-row">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-medium">{describeReport(r)}</p>
-                      <p className="truncate text-[12.5px] text-muted">{r.recipients.length} {r.recipients.length === 1 ? "person" : "people"}{r.unsubscribed.length ? `, ${r.unsubscribed.length} unsubscribed` : ""} · next {when(r.nextRunAt)}</p>
+                      <p className="truncate text-[12.5px] text-muted">{r.recipients.length} {r.recipients.length === 1 ? "person" : "people"}{r.unsubscribed.length ? `, ${r.unsubscribed.length} unsubscribed` : ""} · next {when(r.nextRunAt)}{r.lastRunAt ? ` · last sent ${when(r.lastRunAt)}` : ""}</p>
                       {r.lastError && <p className="text-[12.5px] text-danger">{r.lastError}</p>}
                     </div>
-                    <Switch checked={r.enabled} onChange={() => toggle.mutate(r)} label={`Send ${describeReport(r).toLowerCase()}`} />
+                    <Switch checked={r.enabled} onChange={() => toggle.mutate(r)} label={`Send ${lc(describeReport(r))}`} />
                     <Button variant="secondary" size="sm" onClick={() => send.mutate(r.id)} disabled={send.isPending}>Send now</Button>
                     <Button variant="secondary" size="sm" onClick={() => setEditing(r)}>Edit</Button>
                     <button type="button" aria-label="Remove report" className="rounded p-1 text-subtle hover:bg-hover hover:text-fg" onClick={() => del.mutate(r.id)}><IconTrash className="h-4 w-4" /></button>
@@ -167,7 +168,7 @@ function ReportForm({ dashboardId, report, onDone, onCancel }: { dashboardId: st
       const body = { ...f, weekday: f.frequency === "weekly" ? f.weekday : null, monthDay: f.frequency === "monthly" ? f.monthDay : null, recipients: people };
       return report ? api.patch(`/dashboards-plus/reports/${report.id}`, body) : api.post(`/dashboards-plus/${dashboardId}/reports`, body);
     },
-    onSuccess: () => { toast(report ? "Report saved" : `Report scheduled: ${describeReport(f).toLowerCase()}`); onDone(); },
+    onSuccess: () => { toast(report ? "Report saved" : `Report scheduled: ${lc(describeReport(f))}`); onDone(); },
     onError: (e) => showError(e as Error),
   });
   return (

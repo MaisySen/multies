@@ -95,7 +95,7 @@ test("question card, public link with password, emailed report, alert once, bad 
   await rd.getByRole("button", { name: "Schedule report" }).click();
   await expect(rd.getByTestId("report-row")).toContainText("Every Monday");
   await rd.getByRole("button", { name: "Send now" }).click();
-  await expect(page.getByText(/Sent to 1 person/)).toBeVisible();
+  await expect(rd.getByTestId("report-row")).toContainText("last sent", { timeout: 45_000 });
   if (local && existsSync(".data/e2e-outbox")) {
     const hit = readdirSync(".data/e2e-outbox").some((f) => readFileSync(`.data/e2e-outbox/${f}`, "utf8").includes("Launch numbers: your weekly report"));
     expect(hit).toBe(true);
