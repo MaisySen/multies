@@ -1086,5 +1086,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `tool_shares` ADD `views` integer DEFAULT 0 NOT NULL;",
       "ALTER TABLE `tool_shares` ADD `reports` integer DEFAULT 0 NOT NULL;"
     ]
+  },
+  {
+    "name": "0113_r133_indexes",
+    "statements": [
+      "-- R133 (Oct 31): two read paths scanned the whole table. Additive only.\n-- The org's statuses (read cache, every Tasks page) and a thread's snoozes and reminders (every mail thread).\nCREATE INDEX IF NOT EXISTS `project_statuses_org_idx` ON `project_statuses` (`org_id`);",
+      "CREATE INDEX IF NOT EXISTS `mail_schedules_thread_idx` ON `mail_schedules` (`mailbox_id`,`thread_id`);"
+    ]
   }
 ];

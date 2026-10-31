@@ -862,7 +862,7 @@ export const projectStatuses = sqliteTable("project_statuses", {
   color: text("color").notNull().default("#8a8f98"),
   position: integer("position").notNull(),
   ...suiteCols(),
-}, (t) => [index("project_statuses_project_idx").on(t.projectId, t.position)]);
+}, (t) => [index("project_statuses_project_idx").on(t.projectId, t.position), index("project_statuses_org_idx").on(t.orgId)]);
 
 export const tasks = sqliteTable("tasks", {
   id: text("id").primaryKey(),
@@ -1664,7 +1664,7 @@ export const mailSchedules = sqliteTable("mail_schedules", {
   payload: text("payload"),
   error: text("error"),
   createdAt: createdAt(),
-}, (t) => [index("mail_schedules_due_idx").on(t.status, t.dueAt)]);
+}, (t) => [index("mail_schedules_due_idx").on(t.status, t.dueAt), index("mail_schedules_thread_idx").on(t.mailboxId, t.threadId)]);
 
 /**
  * Round 21: sprints (cycles) per project. One active sprint per project at a time. The burndown is
