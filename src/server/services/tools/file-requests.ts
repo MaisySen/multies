@@ -39,6 +39,7 @@ export interface NewRequest {
 
 const DAY = 86_400_000;
 const iso = (n: number | null) => (n === null ? null : new Date(n).toISOString());
+// eslint-disable-next-line no-control-regex -- strips control characters from names and notes
 const oneLine = (s: string | null | undefined, max: number) => (s ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, max);
 
 export function requestStatus(r: RequestRow, now: number): FileRequestInfo["status"] {

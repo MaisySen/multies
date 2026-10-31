@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-secure-share",
+    date: "2026-10-31",
+    title: "Ask for files, and send secrets that delete themselves",
+    body: "In Tools, Secure share lets clients upload big files to you through a request link, no account needed. Secret links lock a password or a small file on your device and delete it once opened, and Send securely in a new email does it in one step. Share links now show views as well as downloads.",
+  },
+  {
     id: "2026-10-31-tools-round-b",
     date: "2026-10-31",
     title: "Video, sound, ebooks, archives and Edit a PDF",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "A clearer timeline, and pages that use your screen",
     body: "Timeline shows Day, Week or Month, a Today button, bars coloured by status and a card with dates and owner when you point at one. It is only as tall as your tasks, and on a phone it reads as a list by week. Tasks, boards and templates now use the full width next to the sidebar.",
-  },
-  {
-    id: "2026-10-31-split-keep-faster",
-    date: "2026-10-31",
-    title: "Split in one tap, and your file stays put",
-    body: "Split PDF offers Every page, Every few pages or Two halves, and shows the parts before you run it. A picked file in Tools comes back after a reload, and leaving with it unsaved asks first. The app also opens faster on a slow phone signal.",
   },
   {
     id: "2026-10-28-whats-new",

@@ -13,6 +13,15 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Changed: Create, Social post and the P key open New post. Command menu entries for each Social page. Social network sign ins (shared platform and our own TikTok and Threads) come back to Social, Accounts.
 - Changed: Agents has its own rail item at the bottom; Workspace is called Settings; Settings shows one sidebar (its own grouped list, now with Admin: Activity and Operator). Connections keeps Apps, Mail accounts and Webhooks, with one line pointing to Social.
 - Redirects: /app/settings/apps/social goes to /app/social/new (a sign in return to /app/social/accounts); /app/social/planner and /app/social/compose go to their pages.
+### Round 88 (31 Oct 2026)
+
+- Added: Tools > Secure share, one page with Share files, File requests and Secret links tabs (?tab=), each behind its own Tools feature (share, file_requests, secrets).
+- Added: file requests. A link at /u/<token> lets anyone upload without an account: chunked 8 MB uploads that pause, resume after a dropped connection or a reload, and retry; optional password, allowed kinds of files, a size cap per file and in total, a file count, expiry and a keep time; programs refused by name and by their first bytes; the workspace logo and colour on the page. The owner gets a notification for each file (and at most one email every 15 minutes), sees who sent what with their note, and downloads or deletes (migration 0107, tool_file_requests and tool_request_files). No virus scan yet.
+- Added: secret links at /x/<token>. Text or a file up to 5 MB is encrypted in the browser (AES GCM, the key only in the link after #, an optional passphrase through PBKDF2); the server keeps ciphertext only, gives it out after a warning page, and deletes it after the last allowed open, at expiry or when turned off. Opens are logged (time, region, browser) and the sender is told (migration 0107, tool_secrets and tool_secret_opens).
+- Added: Send securely in Mail compose swaps the selected text, or locks a small attachment, for a secret link.
+- Added: share links log views as well as downloads, with region; link preview bots are not counted. Report this link on every public share, request and secret page; three reports pause the link and tell its owner (tool_link_reports).
+- Fixed: the workspace name on public share pages uses the text colour, and a light brand colour no longer fills buttons whose white text it would hide.
+
 ### Round 84 (31 Oct 2026)
 
 - Added: saved views on Tasks keep filters, field filters, sort and grouping; private or shared with the workspace; pinned views show as tabs above the list (rename, share, unpin, delete from the tab menu; arrow keys move between tabs). PATCH /api/tasks/views/:id; views carry pinned, position and canEdit (migration 0104).

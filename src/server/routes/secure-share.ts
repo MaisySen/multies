@@ -113,10 +113,10 @@ function message(title: string, body: string, status = 200) {
 
 /** "Report this link": a closed details box with a reason and a note; a form POST, so it works without the page's script. */
 export function reportBox(ft: string, action: string) {
-  return `<details class="report"><summary>Report this link</summary><form method="post" action="${esc(action)}"><input type="hidden" name="ft" value="${ft}">
+  return `<details class="report" data-testid="report-link"><summary>Report this link</summary><form method="post" action="${esc(action)}"><input type="hidden" name="ft" value="${ft}">
 <label for="rr">What is wrong?</label><select id="rr" name="reason">${REPORT_REASONS.map((r) => `<option value="${r.value}">${esc(r.label)}</option>`).join("")}</select>
 <label for="rd">Anything else <span class="muted">(optional)</span></label><textarea id="rd" name="detail" maxlength="500"></textarea>
-<div class="row"><button type="submit" class="sec">Send report</button></div></form></details>`;
+<div class="row"><button type="submit" class="sec" data-testid="report-send">Send report</button></div></form></details>`;
 }
 
 /** One report: a row, a count on the link (3 pause it), and a note to the link's owner. 5 reports an hour per address. */
@@ -127,6 +127,7 @@ export async function takeReport(c: Context<AppEnv>, kind: "share" | "request" |
   if (!(await publicPostOk(c, kind === "share" ? "share" : kind, target.token_hash, typeof ft === "string" ? ft : null))) return false;
   const reason = String(fd?.get("reason") ?? "other");
   const r = REPORT_REASONS.some((x) => x.value === reason) ? reason : "other";
+  // eslint-disable-next-line no-control-regex -- strips control characters from names and notes
   const detail = String(fd?.get("detail") ?? "").replace(/[\u0000-\u0008\u000b-\u001f\u007f]+/g, " ").trim().slice(0, 500) || null;
   const { deps } = c.var;
   const now = deps.now().getTime();
@@ -192,14 +193,14 @@ ${r.message ? `<p class="msg">${esc(r.message)}</p>` : ""}
 <div class="grid2"><div><label for="who">Your name <span class="muted">(optional)</span></label><input id="who" type="text" maxlength="120" autocomplete="name"></div>
 <div><label for="email">Your email <span class="muted">(optional)</span></label><input id="email" type="email" maxlength="200" autocomplete="email"></div></div>
 <label for="note">A note <span class="muted">(optional)</span></label><textarea id="note" maxlength="1000"></textarea>
-${r.password_hash ? `<label for="pw">Password</label><input id="pw" type="password" maxlength="128" autocomplete="off" required>` : ""}
-<div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose files to send"><p style="margin:0 0 10px">Drop files here</p><button type="button" class="sec" id="pick">Choose files</button><input id="file" type="file" multiple hidden${accept}></div>
+${r.password_hash ? `<label for="pw">Password</label><input id="pw" data-testid="upload-password" type="password" maxlength="128" autocomplete="off" required>` : ""}
+<div class="drop" id="drop" data-testid="upload-drop" tabindex="0" role="button" aria-label="Choose files to send"><p style="margin:0 0 10px">Drop files here</p><button type="button" class="sec" id="pick">Choose files</button><input id="file" data-testid="upload-input" type="file" multiple hidden${accept}></div>
 <ul class="uploads" id="list" aria-label="Files to send"></ul>
 <p id="status" role="status" aria-live="polite" class="muted"></p>
-<div class="row"><button type="button" id="send" class="full" disabled>Send files</button></div>
+<div class="row"><button type="button" id="send" data-testid="upload-submit" class="full" disabled>Send files</button></div>
 <p class="muted small">Big files go up in parts. If the connection drops, open this link again and add the same file to carry on.</p>
 </div>
-<div id="done" hidden tabindex="-1" class="center"><h1>Thank you</h1><p id="done-n" class="muted"></p><div class="row" style="justify-content:center"><button type="button" class="sec" id="again">Send more files</button></div></div>
+<div id="done" data-testid="upload-done" hidden tabindex="-1" class="center"><h1>Thank you</h1><p id="done-n" class="muted"></p><div class="row" style="justify-content:center"><button type="button" class="sec" id="again">Send more files</button></div></div>
 </div>
 <p class="muted small center" style="margin-top:16px">Sent securely with Multies. Files go only to ${esc(v.workspace || "the person who sent this link")}.</p>
 ${reportBox(ft, `/u/${c.req.param("token")}/report`)}</main>`, { script: "/u/_/upload.js" });
@@ -287,13 +288,13 @@ async function secretPage(c: Context<AppEnv>, v: PublicSecretView) {
 <h1>Someone sent you a secret</h1>
 <p class="muted">${v.workspace ? `From someone at ${esc(v.workspace)}. ` : ""}It is ${r.kind === "file" ? "a file" : "a message"}${r.passphrase ? " locked with a passphrase" : ""}.</p>
 <div class="warn" role="note"><span aria-hidden="true">!</span><span>${left <= 1 ? "It can be opened once. When you open it, it is deleted for good, so have somewhere ready to keep it." : `It can be opened ${left} more times. After that it is deleted for good.`}</span></div>
-<div class="row"><button type="button" id="reveal" class="full">Show secret</button></div>
+<div class="row"><button type="button" id="reveal" data-testid="secret-reveal" class="full">Show secret</button></div>
 <p class="muted small">Only open secrets from people you know. Multies can't read this secret: it is unlocked in your browser.</p>
 </div>
 <div id="s-pass" hidden><h1>Enter the passphrase</h1><p class="muted">The sender should have told you this another way.</p>
-<form id="s-passform" autocomplete="off"><label for="s-pw">Passphrase</label><input id="s-pw" type="password" maxlength="200"><div class="row"><button type="submit" id="s-unlock" class="full">Unlock</button></div></form></div>
+<form id="s-passform" autocomplete="off"><label for="s-pw">Passphrase</label><input id="s-pw" data-testid="secret-passphrase" type="password" maxlength="200"><div class="row"><button type="submit" id="s-unlock" class="full">Unlock</button></div></form></div>
 <div id="s-out" hidden><h1>Your secret</h1>
-<div id="s-textbox" hidden><pre class="secret" id="s-text" tabindex="0" aria-label="Secret"></pre><div class="row"><button type="button" id="s-copy">Copy</button></div></div>
+<div id="s-textbox" hidden><pre class="secret" id="s-text" data-testid="secret-value" tabindex="0" aria-label="Secret"></pre><div class="row"><button type="button" id="s-copy">Copy</button></div></div>
 <div id="s-filebox" hidden><div class="file"><div class="ico" aria-hidden="true">FILE</div><div><p id="s-fname" style="font-weight:600;word-break:break-word"></p></div></div><a class="btn" id="s-file" href="#">Download</a></div>
 <p class="muted small" id="s-left"></p></div>
 <p id="s-status" role="status" aria-live="polite" class="muted"></p>

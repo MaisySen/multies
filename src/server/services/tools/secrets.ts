@@ -58,6 +58,7 @@ export async function createSecret(deps: Deps, auth: AuthContext, input: NewSecr
   if (!SECRET_VIEW_CHOICES.includes(input.maxViews as (typeof SECRET_VIEW_CHOICES)[number])) throw badRequest("Choose how many times it can be opened.");
   const secs = Math.floor(input.expiresInSeconds);
   if (!Number.isFinite(secs) || secs < SECRET_MIN_SECONDS || secs > SECRET_MAX_SECONDS) throw badRequest("Choose an expiry from 5 minutes to 30 days.");
+  // eslint-disable-next-line no-control-regex -- strips control characters from names and notes
   const label = (input.label ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, 80) || null;
   const now = deps.now().getTime();
   const made = await deps.db.get<{ n: number }>(sql`select count(*) as n from tool_secrets where org_id = ${auth.orgId} and created_at > ${now - DAY}`);

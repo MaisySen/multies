@@ -114,7 +114,7 @@ const SUB_LABEL: Record<string, string> = {
 const titleCase = (slug: string) => { const s = decodeURIComponent(slug).replace(/[-_]+/g, " ").trim(); return s ? s[0].toUpperCase() + s.slice(1) : s; };
 
 const TOOL_SUB: Record<string, string> = {
-  ai: "AI document helpers", share: "Share links", sign: "E-sign", workflows: "Tool workflows", templates: "Invoice and letter templates",
+  ai: "AI document helpers", share: "Secure share", sign: "E-sign", workflows: "Tool workflows", templates: "Invoice and letter templates",
   merge: "Mail merge", pages: "Page editor", forms: "Fill a PDF form", compare: "Compare documents", organize: "Organise pages",
   "edit-pdf": "Edit a PDF", // R86
 };
