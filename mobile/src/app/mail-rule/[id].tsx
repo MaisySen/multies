@@ -88,7 +88,7 @@ function RuleDetail({ rule, onEdit }: { rule: MailRule; onEdit: () => void }) {
           {rule.runCount ? `Ran ${rule.runCount} ${rule.runCount === 1 ? "time" : "times"}${rule.lastRunAt ? `, last ${shortDate(rule.lastRunAt)}` : ""}` : "Hasn't run yet"}
         </Text>
         {web ? (
-          <View style={{ marginHorizontal: space.lg, marginTop: space.md, padding: space.md, borderRadius: radius.md, backgroundColor: colors.brandSoft, gap: space.sm }} testID="rule-web-only">
+          <View style={{ marginHorizontal: space.lg, marginTop: space.md, padding: space.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.brandLine, gap: space.sm }} testID="rule-web-only">
             <Text style={{ color: colors.fg, fontSize: 14, lineHeight: 20 }}>This rule sends mail to other people, so it is changed on the web. Here you can turn it on or off, or delete it.</Text>
             <Pressable onPress={() => { tick(); void WebBrowser.openBrowserAsync(WEB_PAGES.mailRules); }} accessibilityRole="link" testID="rule-open-web" style={{ minHeight: 32, justifyContent: "center" }}>
               <Text style={{ color: colors.brand, fontWeight: "600", fontSize: 15 }}>Change it on the web</Text>
@@ -219,7 +219,7 @@ function RuleForm({ rule, onDone }: { rule?: MailRule; onDone: () => void }) {
           {d.conditions.length < RULE_CONDITIONS_MAX ? <Button label="Add a condition" icon="plus" variant="secondary" onPress={() => { tick(); set({ conditions: [...d.conditions, { field: "subject", value: "" }] }); }} testID="cond-add" /> : null}
           <Button label={mm.testRule.isPending ? "Checking" : "Check recent mail"} icon="search" variant="secondary" onPress={check} loading={mm.testRule.isPending} disabled={offline} testID="rule-test" />
           {test ? (
-            <View style={{ backgroundColor: colors.brandSoft, borderRadius: radius.md, padding: space.md, gap: 6 }} testID="rule-test-result" accessibilityLiveRegion="polite">
+            <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.brandLine, borderRadius: radius.md, padding: space.md, gap: 6 }} testID="rule-test-result" accessibilityLiveRegion="polite">
               <Text style={{ color: colors.fg, fontSize: 15, fontWeight: "600" }}>
                 {test.matched ? `Matches ${test.matched} of the last ${test.scanned} ${test.scanned === 1 ? "email" : "emails"}` : `No match in the last ${test.scanned} ${test.scanned === 1 ? "email" : "emails"}`}
               </Text>
