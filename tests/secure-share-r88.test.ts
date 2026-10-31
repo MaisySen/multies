@@ -131,7 +131,11 @@ describe("R88 file requests", () => {
     expect(got.byteLength).toBe(bytes.byteLength);
     expect(Buffer.from(got).equals(Buffer.from(bytes))).toBe(true);
     const n = await t.db.get<{ title: string }>(sql`select title from notifications where type = 'tools.file_request_upload'`);
-    expect(n!.title).toContain("Sam Client sent Statement.pdf");
+    expect(n!.title).toBe("New file for Tax documents 2026: Sam Client uploaded Statement.pdf");
+    // R100: the owner sees it in Notifications (Inbox), linked to the request.
+    const inbox = await t.c.get("/api/notifications?view=inbox&limit=100");
+    const item = inbox.body.notifications.find((x: { type: string }) => x.type === "tools.file_request_upload");
+    expect(item).toMatchObject({ category: "status", read: false, link: `/app/tools/share?tab=requests&request=${q.id}` });
     // Delete gives the room back.
     expect((await t.c.del(`/api/tools/requests/files/${detail.body.files[0].id}`)).status).toBe(200);
     expect((await t.c.get("/api/tools/requests")).body.requests[0]).toMatchObject({ uploads: 0, bytesReceived: 0 });

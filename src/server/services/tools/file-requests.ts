@@ -343,7 +343,7 @@ export async function cancelUpload(deps: Deps, v: PublicRequestView, uploadId: s
 /** An in app notification every time, and at most one email per request every 15 minutes (a batch of files is one email). */
 async function tellOwner(deps: Deps, r: RequestRow, f: RequestFileRow) {
   const who = f.uploader_name || f.uploader_email || "Someone";
-  await notify(deps, r.org_id, r.created_by, { type: "tools.file_request_upload", entityType: "file_request", entityId: r.id, title: `${who} sent ${f.name} to ${r.title}` });
+  await notify(deps, r.org_id, r.created_by, { type: "tools.file_request_upload", entityType: "file_request", entityId: r.id, title: `New file for ${r.title}: ${who} uploaded ${f.name}` });
   if (!r.notify) return;
   const now = deps.now().getTime();
   const due = await deps.db.run(sql`update tool_file_requests set notified_at = ${now} where id = ${r.id} and (notified_at is null or notified_at < ${now - 15 * 60_000})`);

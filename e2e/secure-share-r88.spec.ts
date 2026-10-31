@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Browser } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mkdirSync } from "node:fs";
+import { confirmEmail } from "./support/confirm-email";
 
 /**
  * R88 Secure share end to end, against a local server with TOOLS_FEATURES=all (SECURE_SHARE_E2E=1).
@@ -92,7 +93,57 @@ test("file request: make it, upload signed out (one file in two parts), see it a
   expect(dl.suggestedFilename()).toBe("ID scan.pdf");
   // The notification arrived.
   const notes = await (await page.request.get("/api/notifications")).json() as { notifications?: { title: string }[]; items?: { title: string }[] };
-  expect(JSON.stringify(notes)).toContain("Sam Client sent");
+  expect(JSON.stringify(notes)).toContain("Sam Client uploaded Statement.pdf");
+});
+
+async function person(browser: Browser, email: string, name: string) {
+  const base = test.info().project.use.baseURL!;
+  const ctx = await browser.newContext({ baseURL: base, viewport: { width: 1280, height: 860 }, extraHTTPHeaders: { "x-forwarded-for": ip() } });
+  const page = await ctx.newPage();
+  const headers = { origin: new URL(base).origin };
+  expect((await page.request.post("/api/auth/sign-up/email", { data: { name, email, password: "a-strong-password" }, headers })).status()).toBe(200);
+  return { ctx, page, headers };
+}
+
+async function sendOne(browser: Browser, url: string, who: string, file: string) {
+  const pub = await anon(browser);
+  await pub.goto(url);
+  await pub.getByLabel(/Your name/).fill(who);
+  await pub.locator("#file").setInputFiles([{ name: file, mimeType: "application/pdf", buffer: pdf(20_000) }]);
+  await pub.locator("#send").click();
+  await expect(pub.locator("#done")).toBeVisible({ timeout: 60_000 });
+  await pub.context().close();
+}
+
+// R100 (R88 follow up): the arrival notice lands in Notifications for whoever made the request, admin or member, and opens it.
+test("upload arrival notice reaches the request's owner, admin or member, and opens the request", async ({ browser }) => {
+  test.setTimeout(150_000);
+  const tag = Math.random().toString(36).slice(2, 8);
+  const ada = await person(browser, `ada-${tag}@example.com`, "Ada Owner");
+  expect((await ada.page.request.post("/api/account/onboarding", { headers: ada.headers, data: { name: "Ada Owner", timezone: "Australia/Sydney", locale: "en-AU", company: "Ada Co", workspaceTimezone: "Australia/Sydney" } })).status()).toBeLessThan(300);
+  const invite = await (await ada.page.request.post("/api/team/invites", { data: { email: `ben-${tag}@example.com`, role: "member" }, headers: ada.headers })).json();
+  const ben = await person(browser, `ben-${tag}@example.com`, "Ben Mate");
+  await confirmEmail(ben.page.request, `ben-${tag}@example.com`);
+  // Signing up with the invited address may already have joined Ada's workspace (410 invite_used); either way Ben is a member now.
+  expect([200, 410]).toContain((await ben.page.request.post(`/api/invites/${invite.link.split("/invite/")[1]}/accept`, { headers: ben.headers })).status());
+  const made: Record<string, { id: string; url: string }> = {};
+  for (const [who, p] of [["ada", ada], ["ben", ben]] as const) {
+    const r = await p.page.request.post("/api/tools/requests", { headers: p.headers, data: { title: `Papers for ${who}`, message: "Please send your papers.", maxFileBytes: 10 * 1024 * 1024, maxTotalBytes: 20 * 1024 * 1024, allowed: "any", keepDays: 30, expiresInDays: 14 } });
+    expect(r.status(), await r.text()).toBe(201);
+    made[who] = (await r.json()).request;
+  }
+  await sendOne(browser, made.ada.url, "Kim Client", "for-ada.pdf");
+  await sendOne(browser, made.ben.url, "Lee Client", "for-ben.pdf");
+  for (const [who, p, mine, other] of [["ada", ada, "for-ada.pdf", "for-ben.pdf"], ["ben", ben, "for-ben.pdf", "for-ada.pdf"]] as const) {
+    await p.page.goto("/app/notifications");
+    const item = p.page.getByRole("main").getByText(`New file for Papers for ${who}: ${who === "ada" ? "Kim" : "Lee"} Client uploaded ${mine}`);
+    await expect(item).toBeVisible({ timeout: 20_000 });
+    await expect(p.page.getByRole("main")).toContainText("Secure share");
+    await expect(p.page.getByRole("main").getByText(other)).toHaveCount(0);
+    await item.click();
+    await expect(p.page).toHaveURL(new RegExp(`/app/tools/share\\?tab=requests&request=${made[who].id}`));
+  }
+  await ada.ctx.close(); await ben.ctx.close();
 });
 
 test("secret link: lock it here, open it signed out once, then it is gone", async ({ page, browser }) => {

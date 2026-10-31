@@ -32,7 +32,7 @@ export const CATEGORY_LABELS: Record<NotificationCategory, string> = {
 };
 const FILTERS: (NotificationCategory | "all")[] = ["all", "mention", "assignment", "comment", "approval", "due_soon", "chat", "email", "status"];
 /** Where an item lives, read from its entity type. */
-const PLACE: Record<string, string> = { task: "Task", chat_message: "Chat", approval: "Approvals", message: "Mail", thread: "Inbox", goal: "Goals", meeting: "Meetings" };
+const PLACE: Record<string, string> = { task: "Task", chat_message: "Chat", approval: "Approvals", message: "Mail", thread: "Inbox", goal: "Goals", meeting: "Meetings", file_request: "Secure share", secret: "Secure share", share: "Secure share" };
 
 export function useUnreadNotifications(enabled: boolean) {
   return useQuery({ queryKey: ["notifications", "count"], enabled, refetchInterval: 30_000, queryFn: async () => (await api.get<InboxPage>("/notifications?limit=1")).unread });
