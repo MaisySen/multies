@@ -23,7 +23,7 @@ describe("only what is live is shown", () => {
     expect(src("src/web/pages/app/work/forms.tsx")).not.toMatch(/Turnstile keys/);
   });
 
-  it("the nav group everyone sees is Workspace, not Admin", () => {
-    expect(src("src/web/layouts/app.tsx")).toMatch(/admin: "Workspace"/);
+  it("the nav group everyone sees is Settings (P1 layout, was Workspace), not Admin", () => {
+    expect(src("src/web/layouts/app.tsx")).toMatch(/admin: "Settings"/);
   });
 });

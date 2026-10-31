@@ -55,7 +55,7 @@ test("connections screenshots and axe", async ({ page, context, baseURL }) => {
   await page.goto("/app/settings/apps");
   await expect(page.getByTestId("apps-none")).toBeVisible();
   await shot(page, "b01-gallery-empty-1280-light");
-  await page.goto("/app/settings/apps/social");
+  await page.goto("/app/social/new"); // P1 layout: the composer lives in Social
   await expect(page.getByTestId("social-empty")).toBeVisible();
   await shot(page, "b02-social-empty-1280-light");
 
@@ -67,16 +67,17 @@ test("connections screenshots and axe", async ({ page, context, baseURL }) => {
       await page.goto("/app/settings/apps");
       await expect(page.getByTestId("account-linkedin")).toBeVisible();
       await shot(page, `b10-gallery-${w}-${scheme}`);
-      await page.goto("/app/settings/apps/social");
+      await page.goto("/app/social/new");
       await expect(page.getByTestId("social-composer")).toBeVisible();
       await page.getByTestId("pick-facebook").getByRole("checkbox").check();
       await page.getByTestId("pick-linkedin").getByRole("checkbox").check();
       await page.getByTestId("social-text").fill("Our spring range lands Friday. Come and see it in store.");
       await shot(page, `b20-social-${w}-${scheme}`);
+      await page.goto("/app/social/posts");
       await page.getByTestId("social-posts").scrollIntoViewIfNeeded();
       await shot(page, `b21-posts-${w}-${scheme}`);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
-      for (const path of ["/app/settings/apps", "/app/settings/apps/social"]) {
+      for (const path of ["/app/settings/apps", "/app/social/new"]) {
         await page.goto(path);
         await page.waitForTimeout(500);
         const { violations } = await new AxeBuilder({ page }).include("main").analyze();
@@ -103,8 +104,8 @@ test("connections screenshots and axe", async ({ page, context, baseURL }) => {
   await page.goto("/app/settings/apps");
   await expect(page.getByTestId("account-linkedin")).toBeVisible();
   await shot(page, "b30-gallery-1280-forest");
-  await page.goto("/app/settings/apps/social");
-  await page.getByTestId("pick-instagram").getByRole("checkbox").check();
+  await page.goto("/app/social/new");
+  await page.getByTestId("pick-facebook").getByRole("checkbox").check();
   await shot(page, "b31-social-1280-forest");
   const { violations } = await new AxeBuilder({ page }).include("main").analyze();
   expect(violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `forest: ${v.id} ${v.nodes[0]?.target}`)).toEqual([]);

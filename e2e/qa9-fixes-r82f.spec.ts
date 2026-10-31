@@ -37,10 +37,11 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     await page.goto("/app/settings/connections?new=1");
     await expect(page).toHaveURL(/\/app\/settings\/apps\/mail\?new=1$/);
     const tabs = page.getByTestId("apps-tabs");
-    // Phones show the short labels so all four tabs fit at 390 px.
-    const names = label === "desktop" ? ["Apps", "Social posts", "Mail accounts", "Webhooks"] : ["Apps", "Social", "Mail", "Webhooks"];
+    // Phones show the short labels so all tabs fit at 390 px. P1 layout: Social posts moved out to Social.
+    const names = label === "desktop" ? ["Apps", "Mail accounts", "Webhooks"] : ["Apps", "Mail", "Webhooks"];
     for (const t of names) await expect(tabs.getByRole("link", { name: t, exact: true })).toBeVisible();
-    await expect(tabs.getByRole("link", { name: names[2], exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(tabs.getByRole("link", { name: /^Social/ })).toHaveCount(0);
+    await expect(tabs.getByRole("link", { name: names[1], exact: true })).toHaveAttribute("aria-current", "page");
     const box = await tabs.boundingBox();
     expect(box && box.x + box.width <= w).toBe(true);
     await expect(page.getByRole("heading", { name: "Mail accounts" }).first()).toBeVisible();
@@ -52,9 +53,9 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     if (label === "desktop") {
       await expect(page).toHaveTitle(/Connections · Multies$/);
-      const side = page.getByTestId("context-sidebar");
-      await expect(side.getByRole("link", { name: "Connections" })).toHaveCount(1);
-      await expect(side.getByRole("link", { name: "Integrations" })).toHaveCount(0);
+      // P1 layout: Settings has one sidebar, its own list.
+      await expect(page.getByTestId("context-sidebar")).toHaveCount(0);
+      await expect(page.getByTestId("settings-rail").getByRole("link", { name: "Integrations" })).toHaveCount(0);
       await expect(page.getByTestId("settings-rail").getByRole("link", { name: "Connected accounts" })).toHaveCount(0);
       await expect(page.getByTestId("settings-rail").getByRole("link", { name: "Connections" })).toHaveCount(1);
     }
@@ -64,9 +65,12 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
 test("MB-284 Social posts sends you to the Social apps; search and category survive Back and reload", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 860 });
   await demo(page);
+  // P1 layout: the old Social posts address opens the composer in Social; with nothing connected it points to Accounts.
   await page.goto("/app/settings/apps/social");
-  await page.getByRole("button", { name: "Connect an account" }).click();
-  await expect(page).toHaveURL(/\/app\/settings\/apps\?group=social$/);
+  await expect(page).toHaveURL(/\/app\/social\/new$/);
+  await page.getByRole("link", { name: "Connect an account" }).click();
+  await expect(page).toHaveURL(/\/app\/social\/accounts$/);
+  await page.goto("/app/settings/apps?group=social");
   await expect(page.getByTestId("apps-groups").getByRole("button", { name: "Social" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("app-facebook")).toBeVisible();
   await expect(page.getByTestId("app-gmail")).toHaveCount(0);

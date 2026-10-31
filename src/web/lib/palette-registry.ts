@@ -72,6 +72,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-connections-hub", label: "Connections", to: "/app/settings/apps", icon: IconPlugZap, keywords: ["apps", "integrations", "social", "facebook", "instagram", "linkedin", "pinterest", "reddit", "slack", "connect"] }, // R80C
   // P1 layout: Social has its own place (it was Settings, Connections, Social posts).
   { id: "p-social", label: "Social planner", to: "/app/social", icon: IconCalendarDays, keywords: ["social", "calendar", "scheduled posts", "plan", "facebook", "instagram", "linkedin"] },
+  { id: "p-social-new", label: "New social post", to: "/app/social/new", icon: IconCompose, keywords: ["write a post", "compose", "social", "publish", "schedule", "facebook", "instagram", "linkedin"] },
   { id: "p-social-posts", label: "Social posts", to: "/app/social/posts", icon: IconMegaphone, keywords: ["post", "schedule", "social media", "facebook", "instagram", "linkedin", "share", "failed", "sent"] },
   { id: "p-social-accounts", label: "Social accounts", to: "/app/social/accounts", icon: IconPlugZap, keywords: ["social", "connect", "reconnect", "tiktok", "threads", "facebook", "instagram", "linkedin", "pinterest", "reddit"] },
   { id: "p-branding", label: "Branding", to: "/app/settings/branding", icon: IconSettings, keywords: ["brand", "theme", "logo", "colours", "colors", "font", "company look"] }, // R77
@@ -84,7 +85,6 @@ export const PALETTE_ACTIONS: PaletteAction[] = [
   { id: "new-task", label: "New task", icon: IconSquarePlus, kind: "navigate", to: "/app/tasks?new=1", keywords: ["create task", "add task", "todo", "issue"] },
   { id: "task-tags", label: "Manage task tags", icon: IconTag, kind: "navigate", to: "/app/tasks?view=list&manage=tags", keywords: ["tags", "labels", "colours", "colors"] }, // R84
   { id: "task-fields", label: "Workspace fields for tasks", icon: IconTable, kind: "navigate", to: "/app/tasks?view=list&manage=fields", keywords: ["custom fields", "columns", "client", "budget"] }, // R84
-  { id: "new-social-post", label: "New social post", icon: IconMegaphone, kind: "navigate", to: "/app/social/new", keywords: ["post", "social", "facebook", "instagram", "linkedin", "publish", "schedule"] }, // P1 layout
   { id: "new-doc", label: "New doc", icon: IconFilePlus, kind: "navigate", to: "/app/docs?new=1", keywords: ["create doc", "page", "note", "write"] },
   { id: "new-chat", label: "Send a chat message", icon: IconMessageCircle, kind: "navigate", to: "/app/chat", keywords: ["message", "dm", "channel"] },
   { id: "add-domain", label: "Add a domain", icon: IconPlus, kind: "navigate", to: "/app/domains?add=1" },

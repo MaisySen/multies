@@ -15,11 +15,12 @@ async function demo(page: Page) {
   await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
 }
 
+/** P1 layout: a network you post to comes back to Social, Accounts, from either door. */
 async function connect(page: Page, slug: string, search: string) {
   await page.getByTestId("apps-search").fill(search);
   await page.getByTestId(`app-${slug}`).getByRole("button", { name: /Connect|Add another account/ }).click();
-  await expect(page).toHaveURL(/\/app\/settings\/apps(\?|$)/);
-  await expect(page.getByTestId(`account-${slug}`).first()).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/social\/accounts(\?|$)/);
+  await expect(page.getByTestId(`social-account-${slug}`).first()).toBeVisible();
 }
 
 for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as const) {
@@ -32,17 +33,27 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     await page.goto("/app/settings/apps");
     await expect(page.getByTestId("apps-none")).toBeVisible();
     await expect(page.getByTestId("app-facebook")).toBeVisible();
-    await connect(page, "linkedin", "linkedin");
-    await expect(page.getByText("LinkedIn connected")).toBeVisible();
-    await connect(page, "facebook", "facebook");
     // Search narrows the list; no horizontal scroll at this width.
     await page.getByTestId("apps-search").fill("zzzz nothing");
     await expect(page.getByText("No apps match")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    await connect(page, "linkedin", "linkedin");
+    await expect(page.getByText("LinkedIn connected")).toBeVisible();
+    // The second door: Connect right on Social, Accounts.
+    await page.getByTestId("connect-facebook").getByRole("button", { name: "Connect Facebook Pages" }).click();
+    await expect(page).toHaveURL(/\/app\/social\/accounts(\?|$)/);
+    await expect(page.getByTestId("social-account-facebook").first()).toBeVisible();
 
-    // Social posts: pick both accounts and a page, schedule for later.
-    await page.getByRole("link", { name: /^Social( posts)?$/ }).click(); // R82F: phones show the short tab label
+    // New post: pick both accounts and a page, schedule for later.
+    await page.getByTestId("new-post").first().click();
+    await expect(page).toHaveURL(/\/app\/social\/new$/);
     await expect(page.getByTestId("social-composer")).toBeVisible();
+    // A network that cannot take the post is greyed out with the reason (LinkedIn takes 3,000 characters).
+    await page.getByTestId("social-text").fill("x".repeat(3001));
+    await expect(page.getByTestId("pick-linkedin")).toHaveAttribute("data-blocked", "true");
+    await expect(page.getByTestId("pick-linkedin").getByRole("checkbox")).toBeDisabled();
+    await expect(page.getByTestId("pick-linkedin").getByTestId("pick-why")).toContainText("Too long for LinkedIn");
+    await page.getByTestId("social-text").fill("");
     await page.getByTestId("pick-linkedin").getByRole("checkbox").check();
     await page.getByTestId("pick-facebook").getByRole("checkbox").check();
     await expect(page.getByTestId("pick-facebook").getByRole("combobox")).toBeVisible();
@@ -51,6 +62,7 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     await page.getByRole("radio", { name: "Later" }).click();
     await page.getByTestId("social-submit").click();
     await expect(page.getByText(/Scheduled for/)).toBeVisible();
+    await expect(page).toHaveURL(/\/app\/social\/posts$/); // after sending, Posts shows how it goes
     const post = page.getByTestId("social-post").first();
     await expect(post).toHaveAttribute("data-status", "scheduled");
 
@@ -64,10 +76,12 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     await expect(page.getByTestId("social-post").first().getByText("Posted").first()).toBeVisible();
 
     // Hotfix Oct 31: a refused post says the real reason in plain words, with Reconnect when that is the fix.
+    await page.goto("/app/social/new");
     await page.getByTestId("pick-linkedin").getByRole("checkbox").check();
     await page.getByTestId("social-text").fill("EXPIRED sign in check");
     await page.getByRole("radio", { name: "Now" }).click();
     await page.getByTestId("social-submit").click();
+    await expect(page).toHaveURL(/\/app\/social\/posts$/);
     await page.reload(); // the list refreshes on its own while sending; a reload keeps the check quick
     const failed = page.getByTestId("social-post").filter({ hasText: "EXPIRED sign in check" });
     await expect(failed).toHaveAttribute("data-status", "failed", { timeout: 15_000 });
@@ -80,17 +94,19 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
         await page.emulateMedia({ colorScheme: scheme });
         await failed.scrollIntoViewIfNeeded();
         await failed.screenshot({ path: `${process.env.SHOTS_DIR}/failed-post-${w}-${scheme}.png` });
-        await page.getByTestId("social-composer").screenshot({ path: `${process.env.SHOTS_DIR}/composer-${w}-${scheme}.png` });
       }
       await page.emulateMedia({ colorScheme: "light" });
     }
 
-    // Disconnect LinkedIn, with the confirm step.
-    await page.getByRole("link", { name: "Apps", exact: true }).click();
+    // Failed filter shows it; Disconnect LinkedIn on Social, Accounts, with the confirm step.
+    await page.getByTestId("posts-filter").getByRole("button", { name: /Failed/ }).click();
+    await expect(page.getByTestId("social-post").filter({ hasText: "EXPIRED sign in check" })).toBeVisible();
+    await expect(page.getByTestId("social-post").filter({ hasText: "Our spring range" })).toHaveCount(0);
+    await page.goto("/app/social/accounts");
     await page.getByRole("button", { name: "Disconnect LinkedIn" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Disconnect" }).click();
     await expect(page.getByText("LinkedIn disconnected")).toBeVisible();
-    await expect(page.getByTestId("account-linkedin")).toHaveCount(0);
-    await expect(page.getByTestId("account-facebook")).toBeVisible();
+    await expect(page.getByTestId("social-account-linkedin")).toHaveCount(0);
+    await expect(page.getByTestId("social-account-facebook")).toBeVisible();
   });
 }

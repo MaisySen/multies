@@ -84,7 +84,7 @@ describe("R83 TikTok", () => {
     expect(to.searchParams.get("code_challenge_method")).toBe("S256");
     // The verifier the token call sent matches the challenge in the sign in URL (hex, as TikTok wants).
     expect(await challengeHex(mock.verifier!)).toBe(to.searchParams.get("code_challenge"));
-    expect(back.pathname).toBe("/app/settings/apps/social");
+    expect(back.pathname).toBe("/app/social/accounts"); // P1 layout
     expect(back.searchParams.get("connected")).toBe("tiktok");
     const row = (await ctx.db.select().from(directSocialLinks).get())!;
     expect(row.provider).toBe("tiktok");

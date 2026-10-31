@@ -21,14 +21,14 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     if (!process.env.E2E_BASE_URL) await context.setExtraHTTPHeaders({ "x-forwarded-for": ip() });
     await page.setViewportSize({ width: w, height: h });
     await demo(page);
-    await page.goto("/app/settings/apps/social");
+    await page.goto("/app/social/accounts"); // P1 layout: TikTok and Threads live in Social, Accounts
     const box = page.getByTestId("direct-accounts");
     await expect(box).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole("heading", { name: "TikTok and Threads" })).toBeVisible();
 
     // TikTok: connect (the stand in comes straight back), then the account shows.
     await page.getByTestId("direct-connect-tiktok").click();
-    await expect(page).toHaveURL(/\/app\/settings\/apps\/social$/);
+    await expect(page).toHaveURL(/\/app\/social\/accounts$/);
     await expect(page.getByText("TikTok is connected.")).toBeVisible();
     await expect(page.getByTestId("direct-tiktok")).toContainText("@multiesdemo");
 

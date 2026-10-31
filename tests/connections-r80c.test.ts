@@ -78,7 +78,7 @@ describe("R80C Connections", () => {
 
     const re = await owner.post(`/api/apps/accounts/${id}/reconnect`);
     expect(re.status).toBe(200);
-    expect(re.body.redirectUrl).toContain("/app/settings/apps?app=linkedin");
+    expect(re.body.redirectUrl).toContain("/app/social/accounts?app=linkedin"); // P1 layout: a network you post to comes back to Social
 
     expect((await owner.del(`/api/apps/accounts/${id}`)).status).toBe(200);
     expect((await owner.get("/api/apps/accounts")).body.accounts).toHaveLength(1);

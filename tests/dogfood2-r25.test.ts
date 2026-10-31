@@ -258,7 +258,7 @@ describe("DF-15: the sidebar is grouped (fixed in 74b25b4)", () => {
     expect(items.length).toBeGreaterThanOrEqual(25);
     const order = items.map((i) => i.group).filter((g, i, a) => i === 0 || a[i - 1] !== g);
     expect(order).toEqual(["work", "mail", "admin"]);
-    expect(src).toContain('const GROUP_LABEL = { work: "Work", mail: "Mail", admin: "Workspace" } as const;');
+    expect(src).toContain('const GROUP_LABEL = { work: "Work", mail: "Mail", admin: "Settings" } as const;'); // P1 layout: Workspace is Settings
     expect(src).toContain('data-testid="nav-group"');
     for (const to of ["/app/chat", "/app/tasks", "/app/docs", "/app/goals", "/app/mail", "/app/inbox", "/app/domains", "/app/settings", "/app/agents"]) {
       expect(items.map((i) => i.to)).toContain(to);

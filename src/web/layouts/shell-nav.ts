@@ -160,7 +160,8 @@ export function pageTitle(pathname: string, search = "", sections: Section[] = S
   if (crumbs.length && hit) {
     const last = crumbs[crumbs.length - 1].label;
     parts.push(last === "All tasks" ? "Tasks" : last);
-    if (crumbs.length > 2 && (hit.page.to === "/app/settings" || hit.page.to === "/app/settings/apps")) parts.push(crumbs[crumbs.length - 2].label);
+    // P1 layout: Settings is the section and the page now, so the parent is the page's own name, not the crumb before.
+    if (last !== hit.page.label && (hit.page.to === "/app/settings" || hit.page.to === "/app/settings/apps")) parts.push(hit.page.label);
   } else {
     const seg = pathname.replace(/^\/app\/?/, "").split("/")[0];
     if (seg) parts.push(OTHER_TITLES[seg] ?? titleCase(seg));

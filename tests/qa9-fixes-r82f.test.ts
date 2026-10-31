@@ -40,8 +40,9 @@ describe("MB-279 one home for outside apps", () => {
     expect(nav.SECTIONS.flatMap((s) => s.pages).some((p) => p.to === "/app/integrations" || p.label === "Integrations")).toBe(false);
   });
   it("breadcrumbs name each Connections tab", () => {
-    expect(nav.breadcrumbs("/app/settings/apps/mail", "").map((c) => c.label)).toEqual(["Workspace", "Connections", "Mail accounts"]);
-    expect(nav.breadcrumbs("/app/settings/apps/social", "").map((c) => c.label)).toEqual(["Workspace", "Connections", "Social posts"]);
+    expect(nav.breadcrumbs("/app/settings/apps/mail", "").map((c) => c.label)).toEqual(["Settings", "Connections", "Mail accounts"]);
+    // P1 layout: Social posts left Connections for Social.
+    expect(nav.breadcrumbs("/app/social/posts", "").map((c) => c.label)).toEqual(["Social", "Posts"]);
   });
 });
 

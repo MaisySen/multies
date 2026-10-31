@@ -289,10 +289,8 @@ export function SocialAccountsPage() {
             )}
         </section>
 
-        <section aria-labelledby="acc-own">
-          <h2 id="acc-own" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">TikTok and Threads</h2>
-          <DirectAccounts />
-        </section>
+        {/* TikTok and Threads carry their own heading (and hide while neither is offered). */}
+        <section aria-label="TikTok and Threads"><DirectAccounts /></section>
 
         <section aria-labelledby="acc-add">
           <h2 id="acc-add" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">Connect a network</h2>
