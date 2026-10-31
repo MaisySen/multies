@@ -22,6 +22,8 @@ const PUBLIC_OK = new Set([
   "GET /api/v1/app-config",
   // R36: the public MCP tool docs (tool names, schemas and scopes from the server code; no workspace data).
   "GET /api/mcp-tools",
+  // R83: the TikTok webhook address answers a plain ok to the developer portal's check (no data; events are POSTed and signed).
+  "GET /api/connections/webhooks/tiktok",
 ]);
 
 const fill = (path: string) => path.replace(/:[a-zA-Z]+(\{[^}]*\})?/g, "x1").replace(/\*$/, "x1");
