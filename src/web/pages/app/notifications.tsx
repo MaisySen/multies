@@ -143,7 +143,8 @@ export function NotificationsPage() {
   const counts = q.data?.counts;
   const vc = q.data?.viewCounts;
   const groups = groupByDay(items, view);
-  const centre = !!centreQ.data?.delivery; // R97
+  // R97: the Pause menu shows when the centre is on and alerts are not already paused (the status line offers Resume).
+  const centre = !!centreQ.data?.delivery && !(centreQ.data.delivery.pausedUntil && Date.parse(centreQ.data.delivery.pausedUntil) > Date.now());
   return (
     <div>
       <PageHeader title="Notifications" description="Mentions, work assigned to you, comments, approvals and anything due soon. Mark each one done or snooze it until later."

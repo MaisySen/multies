@@ -63,9 +63,17 @@ export function formatClock(iso: string, tz: string) {
 }
 function zoneLabel(tz: string) { return tz.replace(/_/g, " ").replace("/", ", "); }
 
-function Row({ label, hint, children, id }: { label: string; hint?: string; children: React.ReactNode; id?: string }) {
+function Row({ label, hint, children, id, inline }: { label: string; hint?: string; children: React.ReactNode; id?: string; /** A switch or a button: stays beside the label on phones too. */ inline?: boolean }) {
+  if (inline) {
+    return (
+      <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3 last:border-0">
+        <div className="min-w-0"><div id={id} className="text-[13.5px] font-medium">{label}</div>{hint && <p className="text-[12.5px] text-muted">{hint}</p>}</div>
+        <div className="flex shrink-0 items-center gap-2">{children}</div>
+      </div>
+    );
+  }
   return (
-    <div className="grid gap-2 border-b border-line px-4 py-3 last:border-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,280px)] sm:items-center sm:gap-6">
+    <div className="grid gap-2 border-b border-line px-4 py-3 last:border-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,320px)] sm:items-center sm:gap-6">
       <div className="min-w-0"><div id={id} className="text-[13.5px] font-medium">{label}</div>{hint && <p className="text-[12.5px] text-muted">{hint}</p>}</div>
       <div className="flex min-w-0 items-center gap-2 sm:justify-end">{children}</div>
     </div>
@@ -119,7 +127,7 @@ export function DeliverySettings({ delivery, anyMail }: { delivery: Delivery; an
 
       <Card className="p-0" data-testid="quiet-hours">
         <CardHead title="Quiet hours" text="Phone and browser alerts and single mails stay silent during these hours. Everything still lands in Notifications." />
-        <Row label="Use quiet hours" hint={quietNow ? "Quiet hours are on right now." : undefined}>
+        <Row inline label="Use quiet hours" hint={quietNow ? "Quiet hours are on right now." : undefined}>
           <Switch label="Use quiet hours" checked={d.quiet.enabled} onChange={(v) => void save({ delivery: { quiet: { enabled: v } } }, v ? "Quiet hours on" : "Quiet hours off")} />
         </Row>
         {d.quiet.enabled && (<>
@@ -139,7 +147,7 @@ export function DeliverySettings({ delivery, anyMail }: { delivery: Delivery; an
               ))}
             </div>
           </Row>
-          <Row label="Let mentions and approvals through" hint="They still alert you during quiet hours.">
+          <Row inline label="Let mentions and approvals through" hint="They still alert you during quiet hours.">
             <Switch label="Let mentions and approvals through" checked={d.quiet.allowUrgent} onChange={(v) => void save({ delivery: { quiet: { allowUrgent: v } } })} />
           </Row>
         </>)}
@@ -153,12 +161,12 @@ export function DeliverySettings({ delivery, anyMail }: { delivery: Delivery; an
 
       <Card className="p-0" data-testid="pause-card">
         <CardHead title="Pause and new mail" text="Pause every alert for a while, or stop alerts for each new mail." />
-        <Row label={paused ? `Paused until ${formatClock(d.pausedUntil!, d.timezone)}` : "Pause alerts"} hint={paused ? "Alerts start again by themselves." : "Items still land in Notifications."}>
+        <Row inline label={paused ? `Paused until ${formatClock(d.pausedUntil!, d.timezone)}` : "Pause alerts"} hint={paused ? "Alerts start again by themselves." : "Items still land in Notifications."}>
           {paused
             ? <Button size="sm" variant="secondary" onClick={() => void save({ delivery: { pause: "resume" } }, "Alerts are back on")}>Resume now</Button>
             : <PauseMenu />}
         </Row>
-        <Row label="Alert me for each new mail" hint="Phone and browser alerts for new mail in mailboxes you can open.">
+        <Row inline label="Alert me for each new mail" hint="Phone and browser alerts for new mail in mailboxes you can open.">
           <Switch label="Alert me for each new mail" checked={d.newMail} onChange={(v) => void save({ delivery: { newMail: v } })} />
         </Row>
       </Card>
@@ -169,7 +177,7 @@ export function DeliverySettings({ delivery, anyMail }: { delivery: Delivery; an
 export function PauseMenu({ size = "sm" }: { size?: "sm" | "md" }) {
   const save = useSaveSettings();
   return (
-    <Menu label="Pause alerts" trigger={<Button size={size} variant="secondary" data-testid="pause-alerts"><IconClock className="h-4 w-4" />Pause</Button>}>
+    <Menu label="Pause alerts" trigger={<Button size={size} variant="secondary" data-testid="pause-alerts" aria-label="Pause alerts"><IconClock className="h-4 w-4" /><span className="max-sm:hidden">Pause</span></Button>}>
       {(Object.keys(PAUSE_LABELS) as PausePreset[]).map((p) => (
         <MenuItem key={p} onSelect={() => void save({ delivery: { pause: p } }, "Alerts paused")}>{PAUSE_LABELS[p]}</MenuItem>
       ))}

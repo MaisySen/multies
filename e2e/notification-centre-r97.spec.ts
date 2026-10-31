@@ -22,7 +22,14 @@ async function shot(page: Page, name: string) {
   if (!DIR) return;
   await page.waitForLoadState("networkidle").catch(() => undefined);
   await page.waitForTimeout(400);
-  await page.screenshot({ path: `${DIR}/${name}.png`, fullPage: true });
+  await page.screenshot({ path: `${DIR}/${name}.png` });
+  // The page scrolls inside the app frame: a second shot shows the delivery cards.
+  const cards = page.getByTestId("quiet-hours");
+  if (await cards.count()) {
+    await cards.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: `${DIR}/${name}-cards.png` });
+  }
 }
 async function axe(page: Page, where: string) {
   await page.waitForLoadState("networkidle").catch(() => undefined);
