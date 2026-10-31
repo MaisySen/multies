@@ -40,3 +40,45 @@ ISC licence, https://lucide.dev/license.
 
 Tools P2: three script fonts for typed signatures, subset to Latin and converted to WOFF2 in public/fonts/sign/.
 SIL Open Font License 1.1; copyright lines and the full licence are in public/fonts/sign/OFL.txt.
+
+## Convert hub (src/web/lib/convert)
+
+The Convert hub in Tools converts images, PDFs and spreadsheets in the browser with these libraries. They load only on the Tools page.
+
+MIT License:
+
+- pdf-lib, Copyright (c) 2019 Andrew Dillon
+- @pdf-lib/standard-fonts, Copyright (c) 2018 Andrew Dillon
+- @pdf-lib/upng, Copyright (c) 2017 Photopea
+- gifenc, Copyright (c) 2017 Matt DesLauriers
+- write-excel-file and read-excel-file, Copyright (c) 2018 catamphetamine
+- fflate, Copyright (c) Arjun Barrett
+- papaparse, Copyright (c) 2015 Matthew Holt
+- pako (MIT and Zlib), Copyright (C) 2014-2017 Vitaly Puzrin and Andrei Tuputcyn
+
+```
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0):
+
+- pdfjs-dist (PDF.js), Copyright Mozilla Foundation
+- @jsquash/avif and @jsquash/webp, Copyright jSquash contributors, built from the Squoosh codecs (Copyright Google LLC)
+
+The AVIF and WebP encoders compiled into those packages are libavif and libaom (BSD 2 Clause, Copyright Joe Drago and the Alliance for Open Media) and libwebp (BSD 3 Clause, Copyright Google Inc.). Their licence texts ship in the packages' wasm builds and are reproduced at https://github.com/AOMediaCodec/libavif/blob/main/LICENSE, https://aomedia.googlesource.com/aom/+/refs/heads/main/LICENSE and https://chromium.googlesource.com/webm/libwebp/+/refs/heads/main/COPYING.

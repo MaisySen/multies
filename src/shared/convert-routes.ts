@@ -291,7 +291,7 @@ export function catalogueStats(opts: PlanOptions = {}): { read: number; write: n
 
 /** Parses "1-3, 5, 8-" against a page count into [start, end] pairs (1 based, inclusive). Null when it does not read. */
 export function parseRanges(text: string, pages: number): [number, number][] | null {
-  const parts = text.split(/[,;\s]+/).map((s) => s.trim()).filter(Boolean);
+  const parts = text.replace(/\s*(?:-|\bto\b|\u2013)\s*/gi, "-").split(/[,;\s]+/).map((s) => s.trim()).filter(Boolean);
   if (!parts.length) return null;
   const out: [number, number][] = [];
   for (const p of parts) {

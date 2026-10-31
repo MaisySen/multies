@@ -310,7 +310,7 @@ export function ConvertHubPage() {
                   {allLocal
                     ? <p><span className="font-semibold">Stays on your device.</span> Nothing is uploaded and no run is used.</p>
                     : <p><span className="font-semibold">Part of this uses the Multies engine</span> ({engineRuns} {engineRuns === 1 ? "run" : "runs"}). Files are sent over a secure connection and deleted from the engine within an hour.</p>}
-                  {!action && chosenRoutes.length > 0 && <p className="mt-0.5 text-muted" data-testid="convert-route">{chosenRoutes.map((r) => `${formatDef(r.from).label}: ${routeLine(r)}`).join(". ")}.</p>}
+                  {!action && chosenRoutes.some((r) => r.steps.length > 1 || !r.local) && <p className="mt-0.5 text-muted" data-testid="convert-route">{chosenRoutes.filter((r) => r.steps.length > 1 || !r.local).map((r) => `${formatDef(r.from).label}: ${routeLine(r)}`).join(". ")}.</p>}
                 </div>
               </div>
             )}
