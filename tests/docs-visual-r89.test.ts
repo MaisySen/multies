@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addChild, addSibling, diffBlocks, docToTree, find, indent, move, moveTo, neighbours, outdent, remove, rename, treeToDoc, visible, type PMNode } from "@/web/lib/mindmap-tree";
-import { clock, isNotesCallout, slideKey, splitSlides } from "@/web/lib/slides";
+import { clock, emptyNotesHint, isNotesCallout, slideKey, splitSlides } from "@/web/lib/slides";
 import { diagramKind, readDiagramError, templateCode, DIAGRAM_TEMPLATES } from "@/web/lib/diagram";
 import { boardText, changedSince, mergeElements, readScene, sceneKey, wins, type BoardElement } from "@/web/lib/whiteboard-merge";
 
@@ -232,5 +232,34 @@ describe("R89 whiteboard merge", () => {
     expect(readScene("not json")).toEqual([]);
     expect(readScene(JSON.stringify([el("1", 1), { nope: 1 }])).length).toBe(1);
     expect(boardText([el("1", 1, 1, { type: "text", text: " Hi " }), el("2", 1, 1, { type: "text", text: "Gone", isDeleted: true })])).toBe("Hi");
+  });
+});
+
+describe("R89 present: notes belong to the slide that holds the callout (verifier bug 2)", () => {
+  const p = (text: string): PMNode => ({ type: "paragraph", content: [{ type: "text", text }] });
+  const h = (level: number, text: string): PMNode => ({ type: "heading", attrs: { level }, content: [{ type: "text", text }] });
+  const notes = (text: string): PMNode => ({ type: "callout", attrs: { variant: "info" }, content: [p(text)] });
+  const doc = (...content: PMNode[]): PMNode => ({ type: "doc", content });
+
+  it("a Notes callout under the first heading is that slide's notes, not the title slide's", () => {
+    const s = splitSlides(doc(p("Our plan"), h(2, "Review"), p("We shipped boards."), notes("Notes: thank the team")), "Verifier review");
+    expect(s.map((x) => x.kind)).toEqual(["title", "content"]);
+    expect(s[0].notes).toBe("");
+    expect(s[1].notes).toBe("thank the team");
+    expect(s[1].blocks.some(isNotesCallout)).toBe(false);
+  });
+
+  it("a Notes callout above the first heading is the title slide's notes", () => {
+    const s = splitSlides(doc(p("Our plan"), notes("Notes: open with the numbers"), h(2, "Review"), p("x")), "Deck");
+    expect(s[0].notes).toBe("open with the numbers");
+    expect(s[0].subtitle).toBe("Our plan");
+    expect(s[1].notes).toBe("");
+  });
+
+  it("the empty notes hint says where a Notes callout goes for that slide", () => {
+    expect(emptyNotesHint({ kind: "title", title: "Deck" })).toMatch(/title slide.*above the first heading/);
+    expect(emptyNotesHint({ kind: "content", title: "Review" })).toMatch(/under the heading Review/);
+    expect(emptyNotesHint({ kind: "content", title: "" })).toMatch(/in this part of the doc/);
+    for (const t of [emptyNotesHint({ kind: "title", title: "x" }), emptyNotesHint({ kind: "content", title: "y" })]) expect(t).not.toMatch(/[\u2013\u2014]| - /);
   });
 });

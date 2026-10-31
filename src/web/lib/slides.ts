@@ -95,3 +95,14 @@ export function clock(ms: number): string {
   const two = (n: number) => String(n).padStart(2, "0");
   return h ? `${h}:${two(m)}:${two(s)}` : `${two(m)}:${two(s)}`;
 }
+
+/**
+ * What the presenter view says when a slide has no notes. Notes belong to the slide whose section holds the Notes
+ * callout, so the hint says where to put one for this slide (verifier R89 bug 2: slide 1 looked like it lost the
+ * notes that sat under the next heading).
+ */
+export function emptyNotesHint(slide: Pick<Slide, "kind" | "title">): string {
+  if (slide.kind === "title") return "No notes for the title slide. To add some, put a callout that starts with Notes above the first heading.";
+  const where = slide.title ? `under the heading ${slide.title}` : "in this part of the doc";
+  return `No notes for this slide. To add some, put a callout that starts with Notes ${where}.`;
+}

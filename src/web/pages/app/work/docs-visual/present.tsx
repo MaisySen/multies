@@ -9,7 +9,7 @@ import { IconArrowLeft, IconArrowRight, IconClose, IconMaximize, IconMinimize, I
 import { cn } from "@/web/lib/cn";
 import { WorkspaceMark } from "@/web/lib/brand";
 import { useMe } from "@/web/lib/queries";
-import { clock, slideKey, splitSlides, type Slide } from "@/web/lib/slides";
+import { clock, emptyNotesHint, slideKey, splitSlides, type Slide } from "@/web/lib/slides";
 import type { PMNode } from "@/web/lib/mindmap-tree";
 import { Blocks } from "./pm-render";
 
@@ -105,7 +105,7 @@ function PresenterPanel({ slides, index, go, workspace, compact }: { slides: Sli
         )}
         <div className="min-h-0 flex-1 overflow-auto rounded-xl bg-white/5 p-4">
           <p className="mb-1.5 text-[12px] font-medium uppercase tracking-wide text-white/60">Speaker notes</p>
-          <p className="whitespace-pre-wrap text-[18px] leading-relaxed text-white" data-testid="speaker-notes">{cur.notes || "No notes for this slide. Add a callout that starts with Notes to write some."}</p>
+          <p className="whitespace-pre-wrap text-[18px] leading-relaxed text-white" data-testid="speaker-notes">{cur.notes || emptyNotesHint(cur)}</p>
         </div>
       </div>
     </div>
