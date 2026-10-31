@@ -23,7 +23,8 @@ let cached: Omit<BrowserCaps, "heicDecode"> | null = null;
 export function measureCaps(heicDecode: boolean): BrowserCaps {
   if (!cached) {
     const wasm = wasmCompiles();
-    cached = { webpEncode: canvasWebp() || wasm, avifEncode: wasm };
+    // R86: archives open in a module worker running WebAssembly.
+    cached = { webpEncode: canvasWebp() || wasm, avifEncode: wasm, archive: wasm && typeof Worker === "function" };
   }
   return { ...cached, heicDecode };
 }

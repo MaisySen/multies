@@ -13,9 +13,14 @@ export type FormatId =
   | "pdf"
   | "csv" | "tsv" | "xlsx" | "json"
   | "docx" | "pptx" | "odt" | "ods" | "odp"
-  | "txt" | "md" | "html";
+  | "txt" | "md" | "html"
+  // R86 (round B): video, audio, e-books, archives.
+  | "mp4" | "mov" | "webm" | "mkv" | "avi"
+  | "mp3" | "wav" | "m4a" | "ogg" | "flac" | "aac"
+  | "epub" | "mobi"
+  | "zip" | "7z" | "tar" | "tgz" | "rar";
 
-export type Family = "image" | "pdf" | "sheet" | "document" | "text";
+export type Family = "image" | "pdf" | "sheet" | "document" | "text" | "video" | "audio" | "ebook" | "archive";
 
 export interface FormatDef {
   id: FormatId;
@@ -50,6 +55,25 @@ export const FORMATS: FormatDef[] = [
   { id: "txt", label: "Text", family: "text", exts: ["txt"], mime: "text/plain", words: "plain text" },
   { id: "md", label: "Markdown", family: "text", exts: ["md", "markdown"], mime: "text/markdown" },
   { id: "html", label: "HTML", family: "text", exts: ["html", "htm"], mime: "text/html", words: "web page" },
+  // R86: video and audio run on the engine (one run each); archives run on the device.
+  { id: "mp4", label: "MP4", family: "video", exts: ["mp4", "m4v"], mime: "video/mp4", words: "video movie" },
+  { id: "mov", label: "MOV", family: "video", exts: ["mov"], mime: "video/quicktime", words: "video iphone movie" },
+  { id: "webm", label: "WEBM", family: "video", exts: ["webm"], mime: "video/webm", words: "video web" },
+  { id: "mkv", label: "MKV", family: "video", exts: ["mkv"], mime: "video/x-matroska", words: "video" },
+  { id: "avi", label: "AVI", family: "video", exts: ["avi"], mime: "video/x-msvideo", words: "video" },
+  { id: "mp3", label: "MP3", family: "audio", exts: ["mp3"], mime: "audio/mpeg", words: "sound music audio song" },
+  { id: "wav", label: "WAV", family: "audio", exts: ["wav"], mime: "audio/wav", words: "sound audio" },
+  { id: "m4a", label: "M4A", family: "audio", exts: ["m4a"], mime: "audio/mp4", words: "sound audio voice memo" },
+  { id: "ogg", label: "OGG", family: "audio", exts: ["ogg", "oga", "opus"], mime: "audio/ogg", words: "sound audio voice note" },
+  { id: "flac", label: "FLAC", family: "audio", exts: ["flac"], mime: "audio/flac", words: "sound audio music" },
+  { id: "aac", label: "AAC", family: "audio", exts: ["aac"], mime: "audio/aac", words: "sound audio" },
+  { id: "epub", label: "EPUB", family: "ebook", exts: ["epub"], mime: "application/epub+zip", words: "ebook book" },
+  { id: "mobi", label: "MOBI", family: "ebook", exts: ["mobi", "azw", "prc"], mime: "application/x-mobipocket-ebook", words: "ebook kindle book" },
+  { id: "zip", label: "ZIP", family: "archive", exts: ["zip"], mime: "application/zip", words: "archive folder compressed" },
+  { id: "7z", label: "7Z", family: "archive", exts: ["7z"], mime: "application/x-7z-compressed", words: "archive seven zip" },
+  { id: "tar", label: "TAR", family: "archive", exts: ["tar"], mime: "application/x-tar", words: "archive" },
+  { id: "tgz", label: "TAR.GZ", family: "archive", exts: ["tgz", "gz"], mime: "application/gzip", words: "archive tarball gzip" },
+  { id: "rar", label: "RAR", family: "archive", exts: ["rar"], mime: "application/vnd.rar", words: "archive winrar" },
 ];
 
 const BY_ID = new Map(FORMATS.map((f) => [f.id, f]));
@@ -65,13 +89,19 @@ export function formatOf(name: string, mime?: string | null): FormatId | null {
   const m = (mime ?? "").toLowerCase().split(";")[0].trim();
   if (m === "image/jpg") return "jpg";
   if (m === "image/heif") return "heic";
+  if (m === "application/x-zip-compressed") return "zip";
+  if (m === "audio/x-wav" || m === "audio/wave") return "wav";
+  if (m === "audio/x-m4a") return "m4a";
   return BY_MIME.get(m)?.id ?? null;
 }
 
+/** "photos.tar.gz" keeps both parts of its extension when renamed. */
+const DOUBLE_EXT = /\.tar\.(gz|bz2|xz)$/i;
+
 /** "Report.final.docx" + "pdf" = "Report.final.pdf". */
 export function renameTo(name: string, to: FormatId, suffix = ""): string {
-  const base = name.replace(/\.[^./\\]+$/, "") || "file";
-  return `${base}${suffix}.${formatDef(to).exts[0]}`;
+  const base = (DOUBLE_EXT.test(name) ? name.replace(DOUBLE_EXT, "") : name.replace(/\.[^./\\]+$/, "")) || "file";
+  return `${base}${suffix}.${to === "tgz" ? "tar.gz" : formatDef(to).exts[0]}`;
 }
 
 /**
@@ -86,7 +116,7 @@ export interface ConverterDef {
   to: FormatId;
   where: Where;
   /** Browser: the implementation key in src/web/lib/convert/browser-ops.ts. */
-  run?: "image" | "image-pdf" | "pdf-image" | "sheet";
+  run?: "image" | "image-pdf" | "pdf-image" | "sheet" | "archive";
   /** Engine: the Tools op and its options (the same job the Tools screens run). */
   op?: string;
   options?: Record<string, string>;
@@ -96,6 +126,8 @@ export interface ConverterDef {
   needs?: keyof BrowserCaps;
   /** The step can turn one file into many (each page of a PDF). Later steps run on each. */
   many?: boolean;
+  /** R86: nothing chains after this step (a video's sound is not a starting point for more steps). */
+  final?: boolean;
 }
 
 /** Device abilities that differ between browsers. The page measures them; tests pass them in. */
@@ -106,9 +138,11 @@ export interface BrowserCaps {
   webpEncode: boolean;
   /** Writing AVIF (a small encoder loads on demand). */
   avifEncode: boolean;
+  /** R86: opening ZIP, 7Z, TAR and RAR archives (a small WebAssembly reader loads on demand). */
+  archive?: boolean;
 }
 
-export const ALL_CAPS: BrowserCaps = { heicDecode: true, webpEncode: true, avifEncode: true };
+export const ALL_CAPS: BrowserCaps = { heicDecode: true, webpEncode: true, avifEncode: true, archive: true };
 
 const READ_IMAGES: FormatId[] = ["jpg", "png", "webp", "avif", "gif", "bmp", "heic", "svg"];
 const WRITE_IMAGES: FormatId[] = ["jpg", "png", "webp", "avif", "gif", "bmp"];
@@ -124,6 +158,28 @@ function imageConverters(): ConverterDef[] {
     }
     out.push({ id: `img:${from}:pdf`, from, to: "pdf", where: "browser", run: "image-pdf", needs: from === "heic" ? "heicDecode" : undefined });
   }
+  return out;
+}
+
+export const VIDEO_FORMATS: FormatId[] = ["mp4", "mov", "webm", "mkv", "avi"];
+export const AUDIO_FORMATS: FormatId[] = ["mp3", "wav", "m4a", "ogg", "flac", "aac"];
+export const ARCHIVE_READ: FormatId[] = ["zip", "7z", "tar", "tgz", "rar"];
+export const ARCHIVE_WRITE: FormatId[] = ["zip", "tgz", "tar"];
+const VIDEO_TO: FormatId[] = ["mp4", "mov", "webm", "gif", "mp3", "m4a", "wav"];
+const AUDIO_TO: FormatId[] = ["mp3", "m4a", "wav"];
+
+/** R86: video and audio on the engine (media-convert, one run each). Nothing chains after them. */
+function mediaConverters(): ConverterDef[] {
+  const out: ConverterDef[] = [];
+  for (const from of VIDEO_FORMATS) for (const to of VIDEO_TO) if (from !== to) out.push({ id: `eng:media:${from}:${to}`, from, to, where: "engine", op: "media-convert", options: { to }, final: true });
+  for (const from of AUDIO_FORMATS) for (const to of AUDIO_TO) if (from !== to) out.push({ id: `eng:media:${from}:${to}`, from, to, where: "engine", op: "media-convert", options: { to }, final: true });
+  return out;
+}
+
+/** R86: one archive kind to another on the device (unpack, then pack again). 7Z and RAR are read only. */
+function archiveConverters(): ConverterDef[] {
+  const out: ConverterDef[] = [];
+  for (const from of ARCHIVE_READ) for (const to of ARCHIVE_WRITE) if (from !== to) out.push({ id: `arc:${from}:${to}`, from, to, where: "browser", run: "archive", needs: "archive", final: true });
   return out;
 }
 
@@ -144,6 +200,11 @@ export const CONVERTERS: ConverterDef[] = [
   { id: "eng:pdf-to-docx", from: "pdf", to: "docx", where: "engine", op: "pdf-to-docx" },
   ...(["html", "md", "txt", "csv"] as FormatId[]).map((from): ConverterDef => ({ id: `eng:to-pdf:${from}`, from, to: "pdf", where: "engine", op: "to-pdf", feature: "convert_plus" })),
   ...(["txt", "md", "csv", "xlsx"] as FormatId[]).map((to): ConverterDef => ({ id: `eng:pdf-to:${to}`, from: "pdf", to, where: "engine", op: "pdf-to", options: { target: to }, feature: "convert_plus" })),
+  ...mediaConverters(),
+  // R86: HEIC on the engine for browsers that cannot open it (Chrome, Edge, Firefox). The device route wins where it works.
+  ...(["jpg", "png"] as FormatId[]).map((to): ConverterDef => ({ id: `eng:photo:heic:${to}`, from: "heic", to, where: "engine", op: "photo-convert", options: { to } })),
+  ...(["epub", "mobi"] as FormatId[]).map((from): ConverterDef => ({ id: `eng:ebook:${from}`, from, to: "pdf", where: "engine", op: "ebook-to-pdf" })),
+  ...archiveConverters(),
 ];
 
 /** What a step costs when planning: staying on the device is cheap, an upload is dear, every step adds a little. */
@@ -180,7 +241,8 @@ export function converterUsable(c: ConverterDef, opts: PlanOptions = {}): boolea
     return true;
   }
   const caps = opts.caps ?? ALL_CAPS;
-  if (c.needs && !caps[c.needs]) return false;
+  // R86: an ability the caller did not measure (archive, added later) counts as there.
+  if (c.needs && caps[c.needs] === false) return false;
   if (c.run === "image" && c.from === "heic") {
     const n = encNeeds(c.to);
     if (n && !caps[n]) return false;
@@ -203,6 +265,7 @@ export function planRoutes(from: FormatId, opts: PlanOptions = {}): Route[] {
     queue.sort((a, b) => a.cost - b.cost || a.steps.length - b.steps.length);
     const cur = queue.shift()!;
     if (cur.steps.length >= maxSteps) continue;
+    if (cur.steps.length && cur.steps[cur.steps.length - 1].final) continue;
     for (const e of edges) {
       if (e.from !== cur.at || e.to === from) continue;
       if (cur.steps.some((s) => s.from === e.to)) continue; // no loops
@@ -224,7 +287,10 @@ export function routeTo(from: FormatId, to: FormatId, opts: PlanOptions = {}): R
 }
 
 /** The order targets show in: what people want most first. */
-const ORDER: FormatId[] = ["pdf", "jpg", "png", "webp", "avif", "gif", "bmp", "docx", "xlsx", "csv", "tsv", "json", "txt", "md", "heic", "svg", "pptx", "odt", "ods", "odp", "html"];
+const ORDER: FormatId[] = [
+  "pdf", "mp4", "mov", "webm", "mp3", "m4a", "wav", "jpg", "png", "webp", "avif", "gif", "bmp", "docx", "xlsx", "csv", "tsv", "json", "txt", "md",
+  "zip", "7z", "tgz", "tar", "heic", "svg", "pptx", "odt", "ods", "odp", "html", "mkv", "avi", "ogg", "flac", "aac", "epub", "mobi", "rar",
+];
 
 /**
  * For several files at once: the targets every one of them can reach (so one choice converts the whole batch), each
@@ -249,32 +315,52 @@ export function routeLine(r: Route): string {
 }
 
 /**
- * Actions on whole files (not a change of format), also as data. Each runs in the browser. `min` is how many files
- * the action needs; `family` which files it takes.
+ * Actions on whole files (not a change of format), also as data. Most run in the browser; R86 adds actions that use
+ * the engine for some files (compress for PDFs and videos, OCR). `min` is how many files the action needs; `takes`
+ * which files it takes; `engine` which files need an engine run (one each).
  */
 export interface ActionDef {
-  id: "merge" | "split" | "rotate" | "numbers" | "images-pdf";
+  id: "merge" | "split" | "rotate" | "numbers" | "images-pdf" | "compress" | "ocr-pdf" | "ocr-text" | "extract" | "archive";
   label: string;
   line: string;
   takes: (f: FormatId) => boolean;
   min: number;
-  /** All chosen files go into one result (merge, images into one PDF). */
+  /** All chosen files go into one result (merge, images into one PDF, one archive). */
   combine?: boolean;
+  /** R86: the files that need one engine run each (none: the action stays on the device). */
+  engine?: (f: FormatId) => boolean;
+  /** R86: takes every file, even kinds Multies cannot convert (an archive holds anything). */
+  anyFile?: boolean;
 }
 
 const isImage = (f: FormatId) => formatDef(f).family === "image";
+const isMedia = (f: FormatId) => VIDEO_FORMATS.includes(f) || AUDIO_FORMATS.includes(f);
+/** Pictures the device can redraw smaller (compress) or put on a page (OCR). */
+export const COMPRESS_IMAGES: FormatId[] = ["jpg", "png", "webp"];
+export const OCR_IMAGES: FormatId[] = ["jpg", "png", "webp", "bmp", "gif"];
 export const ACTIONS: ActionDef[] = [
   { id: "merge", label: "Merge into one PDF", line: "Join the PDFs in the order shown", takes: (f) => f === "pdf", min: 2, combine: true },
   { id: "images-pdf", label: "Images into one PDF", line: "One image per page, in the order shown", takes: isImage, min: 2, combine: true },
+  { id: "compress", label: "Make smaller", line: "Shrink PDFs, photos and videos, and see the size before and after", takes: (f) => f === "pdf" || COMPRESS_IMAGES.includes(f) || isMedia(f), min: 1, engine: (f) => f === "pdf" || isMedia(f) },
+  { id: "ocr-pdf", label: "Make searchable", line: "Read the words in scans and photos, so you can search and copy them", takes: (f) => f === "pdf" || OCR_IMAGES.includes(f), min: 1, engine: () => true },
+  { id: "ocr-text", label: "Copy out the text", line: "Read the words in scans and photos into a text file", takes: (f) => f === "pdf" || OCR_IMAGES.includes(f), min: 1, engine: () => true },
+  { id: "extract", label: "Unpack", line: "Take every file out of the archive", takes: (f) => ARCHIVE_READ.includes(f), min: 1 },
+  { id: "archive", label: "Put in one archive", line: "Pack all the files into one ZIP or TAR.GZ", takes: () => true, min: 1, combine: true, anyFile: true },
   { id: "split", label: "Split pages", line: "Every page, or the ranges you type, as separate PDFs", takes: (f) => f === "pdf", min: 1 },
   { id: "rotate", label: "Rotate pages", line: "Turn every page", takes: (f) => f === "pdf", min: 1 },
   { id: "numbers", label: "Add page numbers", line: "Numbers at the foot of each page", takes: (f) => f === "pdf", min: 1 },
 ];
 
-/** The actions that fit the chosen files: every file must be one the action takes. */
-export function actionsFor(froms: FormatId[]): ActionDef[] {
+/** The actions that fit the chosen files: every file must be one the action takes. Pass engine: false to leave out
+ * actions that need the engine for these files (Tools off, or no runs left). */
+export function actionsFor(froms: FormatId[], opts: { engine?: boolean } = {}): ActionDef[] {
   if (!froms.length) return [];
-  return ACTIONS.filter((a) => froms.length >= a.min && froms.every(a.takes));
+  return ACTIONS.filter((a) => froms.length >= a.min && froms.every(a.takes) && (opts.engine !== false || !a.engine || !froms.some(a.engine)));
+}
+
+/** R86: how many engine runs an action uses for these files. */
+export function actionEngineRuns(a: ActionDef, froms: FormatId[]): number {
+  return a.engine ? froms.filter(a.engine).length : 0;
 }
 
 /** Counts for the report and the page: how many formats are read and written, and how many pairs exist. */

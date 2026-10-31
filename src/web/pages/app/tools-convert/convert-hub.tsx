@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import {
-  ACTIONS, actionsFor, commonTargets, formatDef, formatOf, parseRanges, routeLine, routeTo, FORMATS,
+  ACTIONS, actionEngineRuns, actionsFor, commonTargets, formatDef, formatOf, parseRanges, routeLine, routeTo, FORMATS,
   type ActionDef, type BrowserCaps, type FormatId, type PlanOptions, type Route,
 } from "@/shared/convert-routes";
 import { ToolsFrame } from "@/web/components/tools/tools-frame";
@@ -16,10 +16,11 @@ import { runsLeft, sizeLabel, middleTruncate, takeCarried } from "@/web/componen
 import { Button } from "@/web/components/ui/button";
 import {
   IconArrowDown, IconArrowUp, IconCheckCircle, IconClose, IconDownload, IconFile, IconImage, IconServer, IconSheet,
-  IconShieldCheck, IconUpload, IconWarning, IconDocs,
+  IconShieldCheck, IconUpload, IconWarning, IconDocs, IconVideo, IconVolume, IconBook, IconArchive,
 } from "@/web/components/ui/icon";
 import { measureCaps } from "@/web/lib/convert/caps";
-import { downloadName, loadOps, runRoute, type Progress } from "@/web/lib/convert/run";
+import { downloadName, loadOps, runEngine, runRoute, type Progress } from "@/web/lib/convert/run";
+import { catalogueFor, toolDef, type ToolOp } from "@/shared/tools";
 import { saveFile } from "@/web/lib/tool-jobs";
 import { useLeaveGuard } from "@/web/components/tools/leave-guard"; // R82F (MB-286)
 import { toast } from "sonner";
@@ -28,11 +29,13 @@ const ring = "outline-none focus-visible:ring-2 focus-visible:ring-brand focus-v
 const MAX_FILES = 50;
 const MAX_LOCAL_BYTES = 200 * 1024 * 1024;
 
-interface Picked { id: string; file: File; fmt: FormatId | null; note?: string }
+interface Picked { id: string; file: File; fmt: FormatId | null; note?: string; hint?: string }
 type JobStatus = "waiting" | "running" | "done" | "failed";
 interface Job {
   id: string; title: string; status: JobStatus; progress: number; label: string; local: boolean;
   outputs: File[]; error?: string; to?: FormatId; thumb?: string; startedAt?: number; ms?: number;
+  /** R86: compress shows the size before and after. */
+  sizes?: { before: number; after: number };
 }
 
 /** Plain words for what went wrong; a converter that could not load is a connection problem, not a code. */
@@ -54,8 +57,22 @@ const nextId = () => `c${Date.now().toString(36)}${(seq++).toString(36)}`;
 const familyIcon = (f: FormatId | null) => {
   if (!f) return IconFile;
   const fam = formatDef(f).family;
-  return fam === "image" ? IconImage : fam === "sheet" ? IconSheet : fam === "pdf" ? IconDocs : IconFile;
+  return fam === "image" ? IconImage : fam === "sheet" ? IconSheet : fam === "pdf" ? IconDocs
+    : fam === "video" ? IconVideo : fam === "audio" ? IconVolume : fam === "ebook" ? IconBook : fam === "archive" ? IconArchive : IconFile;
 };
+/** R86: before and after, in plain words ("2.4 MB to 610 KB, 75% smaller"). */
+export function sizeChange(before: number, after: number): string {
+  const pct = before > 0 ? Math.round((1 - after / before) * 100) : 0;
+  if (after >= before || pct < 2) return `${sizeLabel(before)}, already small, kept as it is`;
+  return `${sizeLabel(before)} to ${sizeLabel(after)}, ${pct}% smaller`;
+}
+/** R86: the engine op an action uses for one kind of file. */
+function engineOpFor(id: ActionDef["id"], f: FormatId): ToolOp {
+  if (id === "compress") return f === "pdf" ? "compress" : "media-compress";
+  return "ocr";
+}
+const LEVELS = [{ v: "light", label: "A little" }, { v: "medium", label: "Balanced" }, { v: "strong", label: "Smallest" }] as const;
+const ARCHIVE_KINDS = [{ v: "zip", label: "ZIP" }, { v: "tgz", label: "TAR.GZ" }, { v: "tar", label: "TAR" }] as const;
 const QUALITY = [{ v: 0.92, label: "High" }, { v: 0.8, label: "Balanced" }, { v: 0.6, label: "Smaller" }];
 const IMAGE_OUT = new Set<FormatId>(["jpg", "webp", "avif"]);
 
@@ -74,6 +91,9 @@ export function ConvertHubPage() {
   const [numStyle, setNumStyle] = useState<"n" | "page n of N">("n");
   const [numPos, setNumPos] = useState<"bottom-center" | "bottom-right">("bottom-center");
   const [pageSize, setPageSize] = useState<"image" | "a4">("image");
+  const [level, setLevel] = useState<"light" | "medium" | "strong">("medium");
+  const [ocrLang, setOcrLang] = useState("eng");
+  const [packAs, setPackAs] = useState<"zip" | "tgz" | "tar">("zip");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [dragging, setDragging] = useState(false);
   const [zipping, setZipping] = useState(false);
@@ -91,10 +111,19 @@ export function ConvertHubPage() {
   const left = info.data ? runsLeft(info.data.usage, info.data.limits) : null;
   const plan: PlanOptions = useMemo(() => ({ features: info.data?.features ?? [], engine: !!info.data?.enabled && (left?.left ?? 0) > 0, caps }), [info.data, left?.left, caps]);
 
+  const planRef = useRef(plan);
+  planRef.current = plan;
   const usable = files.filter((f) => f.fmt && !f.note);
+  // R86: any file that is not empty can go into an archive, even a kind Multies can't convert.
+  const packable = files.filter((f) => f.file.size > 0);
   const fmts = usable.map((f) => f.fmt!) as FormatId[];
   const targets = useMemo(() => commonTargets(fmts, plan), [fmts.join(","), plan]); // eslint-disable-line react-hooks/exhaustive-deps
-  const actions = useMemo(() => actionsFor(fmts), [fmts.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+  const actions = useMemo(() => {
+    const fit = actionsFor(fmts, { engine: plan.engine });
+    if (!fmts.length && packable.length) return ACTIONS.filter((a) => a.anyFile);
+    return fit;
+  }, [fmts.join(","), plan.engine, packable.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const ocrChoices = useMemo(() => catalogueFor(info.data?.features ?? []).find((t) => t.op === "ocr")?.options.find((o) => o.name === "language")?.choices ?? [{ value: "eng", label: "English" }], [info.data?.features]);
 
   // Keep the choice valid as files come and go.
   useEffect(() => { if (target && !targets.some((t) => t.to === target)) setTarget(null); }, [targets, target]);
@@ -114,7 +143,12 @@ export function ConvertHubPage() {
     if (heic) {
       void loadOps().then((o) => o.browserOpensHeic(heic.file)).then((ok) => {
         setHeicOk(ok);
-        if (!ok) setFiles((cur) => cur.map((p) => (p.fmt === "heic" ? { ...p, note: "This browser can't open HEIC photos. Open Multies in Safari on an iPhone or Mac, or share the photo as JPG." } : p)));
+        if (ok) return;
+        // R86: outside Safari, HEIC photos become JPG or PNG on the Multies engine (uploaded, converted, then deleted).
+        const engine = planRef.current.engine;
+        setFiles((cur) => cur.map((p) => (p.fmt !== "heic" ? p : engine
+          ? { ...p, hint: "This browser can't open HEIC, so it is converted on the Multies engine." }
+          : { ...p, note: "This browser can't open HEIC photos. Turn on Tools to convert them on the Multies engine, or open Multies in Safari." })));
       });
     }
   }, []);
@@ -168,18 +202,32 @@ export function ConvertHubPage() {
     for (const f of fmts) if (f !== target && !seen.has(f)) seen.set(f, routeTo(f, target, plan));
     return [...seen.values()].filter((r): r is Route => !!r);
   }, [target, fmts.join(","), plan]); // eslint-disable-line react-hooks/exhaustive-deps
-  const allLocal = action ? true : chosenRoutes.every((r) => r.local);
-  const engineRuns = action ? 0 : (targets.find((t) => t.to === target)?.engineRuns ?? 0);
-  const tooBigLocal = usable.some((f) => f.file.size > MAX_LOCAL_BYTES);
+  const actionDef = action ? ACTIONS.find((a) => a.id === action) ?? null : null;
+  const engineRuns = actionDef ? actionEngineRuns(actionDef, fmts) : (targets.find((t) => t.to === target)?.engineRuns ?? 0);
+  const allLocal = actionDef ? engineRuns === 0 : chosenRoutes.every((r) => r.local);
+  // The engine's own size limits (videos, e-books) and notes for what the chosen work sends there.
+  const engineOps = useMemo(() => {
+    const ops = new Set<ToolOp>();
+    if (actionDef) for (const f of fmts) { if (actionDef.engine?.(f)) ops.add(engineOpFor(actionDef.id, f)); }
+    else for (const r of chosenRoutes) for (const s of r.steps) if (s.op) ops.add(s.op as ToolOp);
+    return [...ops];
+  }, [actionDef, chosenRoutes, fmts.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+  const workFiles = actionDef?.anyFile ? packable : usable;
+  // Files that go to the engine are checked against the engine's own limit there; the device limit is for local work.
+  const tooBigLocal = workFiles.some((f) => f.file.size > MAX_LOCAL_BYTES && !(actionDef?.engine?.(f.fmt as FormatId) ?? (!!target && !chosenRoutes.find((r) => r.from === f.fmt)?.local)));
   const busy = jobs.some((j) => j.status === "running" || j.status === "waiting");
-  const ready = !!usable.length && (!!target || !!action) && !tooBigLocal;
+  const ready = !!workFiles.length && (!!target || !!action) && !tooBigLocal;
 
   const patch = (id: string, p: Partial<Job>) => setJobs((cur) => cur.map((j) => (j.id === id ? { ...j, ...p } : j)));
 
+  // R86 (R78 leftover): a picture is known by its type or, when the browser gave none (PNG to PNG from some file
+  // pickers and from mail), by its name; the tick only shows when there is no picture at all.
   const makeThumb = (out: File[]): string | undefined => {
-    const img = out.find((f) => /^image\/(png|jpeg|webp|gif|avif|bmp)$/.test(f.type));
+    const isPic = (f: File) => /^image\/(png|jpeg|webp|gif|avif|bmp)$/.test(f.type) || (!/^image\//.test(f.type) && ["png", "jpg", "webp", "gif", "avif", "bmp"].includes(formatOf(f.name, "") ?? ""));
+    const img = out.find(isPic);
     if (!img || img.size > 15 * 1024 * 1024) return undefined;
-    const u = URL.createObjectURL(img); thumbs.current.push(u); return u;
+    const typed = img.type.startsWith("image/") ? img : new File([img], img.name, { type: formatDef(formatOf(img.name, "")!).mime });
+    const u = URL.createObjectURL(typed); thumbs.current.push(u); return u;
   };
 
   async function pool<T>(items: T[], limit: number, fn: (t: T) => Promise<void>) {
@@ -189,20 +237,25 @@ export function ConvertHubPage() {
 
   async function start() {
     if (!ready) return;
-    const list = [...usable];
+    const list = [...workFiles];
     if (action) {
       const def = ACTIONS.find((a) => a.id === action)!;
       const units = def.combine ? [list] : list.map((p) => [p]);
-      const made: Job[] = units.map((u) => ({ id: nextId(), title: def.combine ? `${def.label}: ${u.length} files` : u[0].file.name, status: "waiting", progress: 0, label: "Waiting", local: true, outputs: [] }));
+      const made: Job[] = units.map((u) => ({ id: nextId(), title: def.combine ? `${def.label}: ${u.length} ${u.length === 1 ? "file" : "files"}` : u[0].file.name, status: "waiting", progress: 0, label: "Waiting", local: !u.some((p) => def.engine?.(p.fmt as FormatId)), outputs: [] }));
       setJobs((cur) => [...made, ...cur]);
       showTray();
       const work = async (u: Picked[], job: Job) => {
         const t0 = performance.now();
-        patch(job.id, { status: "running", label: `${def.label} on your device`, progress: 0.15, startedAt: Date.now() });
+        const onEngine = !!def.engine?.(u[0].fmt as FormatId);
+        patch(job.id, { status: "running", label: onEngine ? `Starting ${def.label.toLowerCase()} on the Multies engine` : `${def.label} on your device`, progress: onEngine ? 0.03 : 0.15, startedAt: Date.now() });
+        const engineProgress = (pr: Progress) => patch(job.id, { progress: Math.max(0.03, pr.fraction), label: pr.label });
         try {
           const o = await loadOps();
           let outputs: File[] = [];
+          let sizes: Job["sizes"];
           const first = u[0].file;
+          const fmt = u[0].fmt as FormatId;
+          const base = first.name.replace(/\.[^.]+$/, "") || "file";
           if (def.id === "merge") outputs = [await o.mergePdfs(u.map((p) => p.file), first.name.replace(/\.pdf$/i, "-merged.pdf"))];
           else if (def.id === "images-pdf") outputs = [await o.imagesToPdf(u.map((p) => ({ file: p.file, from: p.fmt! })), `${first.name.replace(/\.[^.]+$/, "")}-images.pdf`, { pageSize })];
           else if (def.id === "split") {
@@ -212,7 +265,33 @@ export function ConvertHubPage() {
             outputs = await o.splitPdf(first, r);
           } else if (def.id === "rotate") outputs = [await o.rotatePdf(first, turn)];
           else if (def.id === "numbers") outputs = [await o.numberPdf(first, { style: numStyle, position: numPos })];
-          patch(job.id, { status: "done", progress: 1, label: "Done on your device", outputs, ms: Math.round(performance.now() - t0) });
+          else if (def.id === "compress") {
+            if (onEngine) {
+              const op = engineOpFor("compress", fmt);
+              const run = await runEngine(op, first, { level }, `Making ${formatDef(fmt).label} smaller on the Multies engine`, engineProgress);
+              const after = run.result?.out_bytes ?? run.file.size;
+              const kept = !!run.result?.already_optimised || after >= first.size;
+              outputs = [kept ? first : run.file];
+              sizes = { before: first.size, after: kept ? first.size : after };
+            } else {
+              const r = await o.compressImage(first, fmt, level);
+              outputs = [r.file];
+              sizes = { before: first.size, after: r.file.size };
+            }
+          } else if (def.id === "ocr-pdf" || def.id === "ocr-text") {
+            // A photo goes onto a page first (on the device), then the engine reads it.
+            const pdf = fmt === "pdf" ? first : await o.imagesToPdf([{ file: first, from: fmt }], `${base}.pdf`);
+            const run = await runEngine("ocr", pdf, { language: ocrLang }, "Reading the words on the Multies engine", engineProgress, { name: `${base}-searchable.pdf`, type: "application/pdf" });
+            outputs = def.id === "ocr-pdf" ? [run.file] : [await o.pdfText(run.file, `${base}.txt`)];
+          } else if (def.id === "extract") {
+            patch(job.id, { label: "Unpacking on your device" });
+            outputs = await o.extractArchive(first, (d, t) => patch(job.id, { progress: 0.1 + 0.85 * (d / t), label: `Unpacking on your device, ${d} of ${t}` }));
+          } else if (def.id === "archive") {
+            const name = u.length === 1 ? `${base}.${packAs === "tgz" ? "tar.gz" : packAs}` : `files-${new Date().toISOString().slice(0, 10)}.${packAs === "tgz" ? "tar.gz" : packAs}`;
+            outputs = [await o.makeArchive(u.map((p) => p.file), packAs, name)];
+            sizes = { before: u.reduce((n, p) => n + p.file.size, 0), after: outputs[0].size };
+          }
+          patch(job.id, { status: "done", progress: 1, label: onEngine ? "Done" : "Done on your device", outputs, sizes, thumb: def.id === "compress" ? makeThumb(outputs) : undefined, ms: Math.round(performance.now() - t0) });
         } catch (err) {
           patch(job.id, { status: "failed", progress: 1, label: "Not done", error: friendly(err) });
         }
@@ -220,6 +299,7 @@ export function ConvertHubPage() {
       made.forEach((job, i) => runners.current.set(job.id, () => work(units[i], job)));
       await pool(units.map((u, i) => ({ u, job: made[i] })), 2, ({ u, job }) => work(u, job));
       finished(made.map((j) => j.id));
+      if (def.engine) void info.refetch();
       return;
     }
     const to = target!;
@@ -292,7 +372,7 @@ export function ConvertHubPage() {
   // first (the browser's own question on reload, ours on a link inside Multies).
   const leaveGuard = useLeaveGuard(files.length > 0 && !saved, files.length > 1 ? "your files" : "your file");
   const runLabel = action
-    ? `${ACTIONS.find((a) => a.id === action)!.label}`
+    ? `${ACTIONS.find((a) => a.id === action)!.label}${workFiles.length > 1 && !ACTIONS.find((a) => a.id === action)!.combine ? ` (${workFiles.length} files)` : ""}`
     : target ? `Convert ${usable.length} ${usable.length === 1 ? "file" : "files"} to ${formatDef(target).label}` : "Choose what to make";
 
   return (
@@ -303,7 +383,7 @@ export function ConvertHubPage() {
           className={`group flex w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 text-center transition-[background-color,border-color,padding] duration-200 ${files.length ? "py-6" : "py-12 sm:py-16"} ${dragging ? "border-brand bg-brand/10" : "border-line-strong bg-surface hover:border-brand/60 hover:bg-brand/5"} ${ring}`}>
           <span className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/10 text-brand transition-transform duration-200 motion-safe:group-hover:-translate-y-0.5 ${dragging ? "motion-safe:scale-110" : ""}`}><IconUpload className="h-6 w-6" aria-hidden /></span>
           <span className="text-[16px] font-semibold text-fg">{dragging ? "Drop to add" : files.length ? "Add more files" : "Drop any files here, or choose files"}</span>
-          <span className="max-w-xl text-[13.5px] text-muted">Many at once. Photos, PDFs, spreadsheets, Word and PowerPoint files. Up to {MAX_FILES} files.</span>
+          <span className="max-w-xl text-[13.5px] text-muted">Many at once. Photos, PDFs, spreadsheets, Word and PowerPoint files, videos, sound, e-books and archives. Up to {MAX_FILES} files.</span>
         </button>
         <input ref={inputRef} type="file" multiple accept={ACCEPT} className="sr-only" tabIndex={-1} aria-label="Choose files to convert" data-testid="convert-input" onChange={(e) => { add([...(e.target.files ?? [])]); e.target.value = ""; }} />
 
@@ -339,6 +419,7 @@ export function ConvertHubPage() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13.5px] font-medium" title={p.file.name}>{middleTruncate(p.file.name, 46)}</p>
                       <p className={`text-[12px] ${p.note ? "text-warn" : "text-muted"}`}>{p.note ?? `${p.fmt ? formatDef(p.fmt).label : ""} · ${sizeLabel(p.file.size)}`}</p>
+                      {p.hint && !p.note && <p className="text-[12px] text-muted" data-testid="convert-file-hint">{p.hint}</p>}
                     </div>
                     {files.length > 1 && (
                       <span className="flex shrink-0 items-center">
@@ -354,11 +435,11 @@ export function ConvertHubPage() {
           </section>
         )}
 
-        {!!usable.length && (
+        {(!!usable.length || !!packable.length) && (
           <section aria-labelledby="cv-make" className="space-y-4 rounded-2xl border border-line bg-surface p-4 sm:p-5">
             <div>
-              <h2 id="cv-make" className="text-[14px] font-semibold">Turn {usable.length === 1 ? "it" : "them"} into</h2>
-              {targets.length ? (
+              <h2 id="cv-make" className="text-[14px] font-semibold">{usable.length ? `Turn ${usable.length === 1 ? "it" : "them"} into` : "What to do"}</h2>
+              {!usable.length ? null : targets.length ? (
                 <div role="group" aria-labelledby="cv-make" className="mt-2.5 flex flex-wrap gap-2" data-testid="convert-targets">
                   {targets.map((t) => {
                     const on = target === t.to;
@@ -377,13 +458,17 @@ export function ConvertHubPage() {
 
             {!!actions.length && (
               <div>
-                <h3 className="text-[13px] font-semibold text-muted">Or do this</h3>
+                {!!usable.length && <h3 className="text-[13px] font-semibold text-muted">Or do this</h3>}
                 <div className="mt-2 flex flex-wrap gap-2" data-testid="convert-actions">
                   {actions.map((a) => {
                     const on = action === a.id;
+                    const runs = actionEngineRuns(a, fmts);
                     return (
-                      <button key={a.id} type="button" aria-pressed={on} onClick={() => { setAction(on ? null : a.id); setTarget(null); }} data-testid={`convert-action-${a.id}`} title={a.line}
-                        className={`inline-flex h-9 items-center rounded-xl border px-3 text-[13.5px] font-medium transition-colors max-sm:min-h-11 ${on ? "border-brand bg-brand text-brand-fg" : "border-line-strong text-fg hover:border-brand/60 hover:bg-brand/5"} ${ring}`}>{a.label}</button>
+                      <button key={a.id} type="button" aria-pressed={on} onClick={() => { setAction(on ? null : a.id); setTarget(null); }} data-testid={`convert-action-${a.id}`} title={runs ? `${a.line}. Uses the Multies engine (${runs} ${runs === 1 ? "run" : "runs"})` : a.line}
+                        className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-[13.5px] font-medium transition-colors max-sm:min-h-11 ${on ? "border-brand bg-brand text-brand-fg" : "border-line-strong text-fg hover:border-brand/60 hover:bg-brand/5"} ${ring}`}>
+                        {a.label}
+                        {runs > 0 && <IconServer className={`h-3.5 w-3.5 ${on ? "text-brand-fg/80" : "text-subtle"}`} aria-label="uses the Multies engine" />}
+                      </button>
                     );
                   })}
                 </div>
@@ -408,6 +493,17 @@ export function ConvertHubPage() {
                 <Choice label="Position" value={numPos} onChange={(v) => setNumPos(v as "bottom-center" | "bottom-right")} options={[{ value: "bottom-center", label: "Bottom middle" }, { value: "bottom-right", label: "Bottom right" }]} testId="convert-num-pos" />
               </div>
             )}
+            {action === "compress" && <Choice label="How small" value={level} onChange={(v) => setLevel(v as typeof level)} options={LEVELS.map((l) => ({ value: l.v, label: l.label }))} testId="convert-level" />}
+            {(action === "ocr-pdf" || action === "ocr-text") && (
+              <label className="block max-w-xs">
+                <span className="text-[13px] font-medium">Language of the words</span>
+                <select value={ocrLang} onChange={(e) => setOcrLang(e.target.value)} data-testid="convert-ocr-language"
+                  className={`mt-1 h-10 w-full rounded-xl border border-line bg-surface px-3 text-[14px] max-sm:min-h-11 ${ring}`}>
+                  {ocrChoices.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+              </label>
+            )}
+            {action === "archive" && <Choice label="Kind" value={packAs} onChange={(v) => setPackAs(v as typeof packAs)} options={ARCHIVE_KINDS.map((k) => ({ value: k.v, label: k.label }))} testId="convert-pack-as" />}
             {action === "images-pdf" && <Choice label="Page size" value={pageSize} onChange={(v) => setPageSize(v as "image" | "a4")} options={[{ value: "image", label: "Same as each image" }, { value: "a4", label: "A4" }]} testId="convert-page-size" />}
 
             {(target || action) && (
@@ -417,6 +513,8 @@ export function ConvertHubPage() {
                   {allLocal
                     ? <p><span className="font-semibold">Stays on your device.</span> Nothing is uploaded and no run is used.</p>
                     : <p><span className="font-semibold">Part of this uses the Multies engine</span> ({engineRuns} {engineRuns === 1 ? "run" : "runs"}). Files are sent over a secure connection and deleted from the engine within an hour.</p>}
+                  {engineOps.map((op) => toolDef(op).note).filter(Boolean).map((n) => <p key={n} className="mt-0.5 text-muted" data-testid="convert-engine-limit">{n}</p>)}
+                  {!allLocal && <p className="mt-0.5 text-muted">Each file can be up to {sizeLabel(Math.min(...engineOps.map((op) => toolDef(op).maxBytes ?? Infinity), info.data?.limits.maxBytes ?? Infinity))} on your plan.</p>}
                   {!action && chosenRoutes.some((r) => r.steps.length > 1 || !r.local) && <p className="mt-0.5 text-muted" data-testid="convert-route">{chosenRoutes.filter((r) => r.steps.length > 1 || !r.local).map((r) => (chosenRoutes.length > 1 ? `${formatDef(r.from).label}: ${routeLine(r)}` : routeLine(r))).join(". ")}.</p>}
                 </div>
               </div>
@@ -453,7 +551,22 @@ export function ConvertHubPage() {
                     <p className="truncate text-[13.5px] font-medium" title={j.title}>{middleTruncate(j.title, 48)}</p>
                     {j.status === "failed"
                       ? <p className="text-[12.5px] text-bad" data-testid="convert-job-error">{j.error}</p>
+                      : j.status === "done" && j.sizes ? <p className="truncate text-[12.5px] text-muted" data-testid="convert-job-sizes">{sizeChange(j.sizes.before, j.sizes.after)}{j.local ? " · on your device" : ""}</p>
                       : <p className="truncate text-[12.5px] text-muted">{j.status === "done" ? `${j.outputs.length > 1 ? `${j.outputs.length} files` : j.outputs[0] ? `${j.outputs[0].name} · ${sizeLabel(j.outputs[0].size)}` : ""}${j.local ? " · on your device" : ""}${j.ms != null ? ` · ${j.ms < 1000 ? `${j.ms} ms` : `${(j.ms / 1000).toFixed(1)} s`}` : ""}` : j.label}</p>}
+                    {j.status === "done" && j.outputs.length > 1 && j.outputs.length <= 300 && (
+                      <details className="mt-1" data-testid="convert-job-files">
+                        <summary className={`cursor-pointer rounded text-[12.5px] font-medium text-brand max-sm:py-2 ${ring}`}>Show the {j.outputs.length} files</summary>
+                        <ul className="mt-1 max-h-56 space-y-0.5 overflow-y-auto pr-1">
+                          {j.outputs.map((f, k) => (
+                            <li key={k} className="flex items-center gap-2 text-[12.5px]">
+                              <span className="min-w-0 flex-1 truncate" title={f.name}>{f.name}</span>
+                              <span className="shrink-0 text-subtle">{sizeLabel(f.size)}</span>
+                              <button type="button" onClick={() => { setSaved(true); saveFile(f, f.name); }} aria-label={`Download ${f.name}`} className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-fg max-sm:h-10 max-sm:w-10 ${ring}`}><IconDownload className="h-3.5 w-3.5" aria-hidden /></button>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                     {(j.status === "running" || j.status === "waiting") && (
                       <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-fill" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(j.progress * 100)} aria-label={`${j.title} progress`}>
                         <div className="h-full rounded-full bg-brand transition-[width] duration-300" style={{ width: `${Math.round(j.progress * 100)}%` }} />

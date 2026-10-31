@@ -1,5 +1,5 @@
 {
- "_note": "Every op exactly as the live engine publishes it at GET /internal/v1/operations (office-toolkit main 0006d0a, 13 P1 + 21 P2 ops; compress level from ee2f946, stamp number_digits from 2d2bac2), regenerated 2026-10-30 for the catalogue parity test.",
+ "_note": "Every op exactly as the live engine publishes it at GET /internal/v1/operations (office-toolkit main 0006d0a, 13 P1 + 21 P2 ops; compress level from ee2f946, stamp number_digits from 2d2bac2), regenerated 2026-10-30 for the catalogue parity test. R86 adds media-convert, media-compress, photo-convert and ebook-to-pdf (office-toolkit engine-r86).",
  "operations": [
   {
    "accepts": "pdf",
@@ -1258,6 +1258,231 @@
    ],
    "slow": true,
    "slug": "chain"
+  },
+  {
+   "accepts": "file",
+   "accepts_ext": [
+    ".mp4",
+    ".m4v",
+    ".mov",
+    ".webm",
+    ".mkv",
+    ".avi",
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".aac",
+    ".ogg",
+    ".oga",
+    ".opus",
+    ".flac"
+   ],
+   "label": "Convert video or audio",
+   "limits": {
+    "audio_max_seconds": 3600,
+    "gif_max_seconds": 15,
+    "max_height": 720,
+    "max_width": 1280,
+    "video_max_seconds": 180
+   },
+   "max_bytes": 104857600,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "choices": [
+      "mp4",
+      "mov",
+      "webm",
+      "mp3",
+      "wav",
+      "m4a",
+      "gif"
+     ],
+     "default": "mp4",
+     "kind": "choice",
+     "label": "Convert to",
+     "name": "to",
+     "required": false
+    },
+    {
+     "choices": [
+      "high",
+      "balanced",
+      "small"
+     ],
+     "default": "balanced",
+     "kind": "choice",
+     "label": "Quality",
+     "name": "quality",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "video/mp4",
+    "name": "converted.mp4"
+   },
+   "outputs": [
+    {
+     "content_type": "video/mp4",
+     "name": "converted.mp4"
+    },
+    {
+     "content_type": "video/quicktime",
+     "name": "converted.mov"
+    },
+    {
+     "content_type": "video/webm",
+     "name": "converted.webm"
+    },
+    {
+     "content_type": "audio/mpeg",
+     "name": "converted.mp3"
+    },
+    {
+     "content_type": "audio/wav",
+     "name": "converted.wav"
+    },
+    {
+     "content_type": "audio/mp4",
+     "name": "converted.m4a"
+    },
+    {
+     "content_type": "image/gif",
+     "name": "converted.gif"
+    }
+   ],
+   "slow": true,
+   "slug": "media-convert"
+  },
+  {
+   "accepts": "file",
+   "accepts_ext": [
+    ".mp4",
+    ".m4v",
+    ".mov",
+    ".webm",
+    ".mkv",
+    ".avi",
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".aac",
+    ".ogg",
+    ".oga",
+    ".opus",
+    ".flac"
+   ],
+   "label": "Compress video or audio",
+   "limits": {
+    "audio_max_seconds": 3600,
+    "video_max_seconds": 180
+   },
+   "max_bytes": 104857600,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "choices": [
+      "light",
+      "medium",
+      "strong"
+     ],
+     "default": "medium",
+     "kind": "choice",
+     "label": "Level",
+     "name": "level",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "video/mp4",
+    "name": "compressed.mp4"
+   },
+   "outputs": [
+    {
+     "content_type": "video/mp4",
+     "name": "compressed.mp4"
+    },
+    {
+     "content_type": "audio/mp4",
+     "name": "compressed.m4a"
+    }
+   ],
+   "slow": true,
+   "slug": "media-compress"
+  },
+  {
+   "accepts": "file",
+   "accepts_ext": [
+    ".heic",
+    ".heif"
+   ],
+   "label": "HEIC photo to JPG or PNG",
+   "limits": {
+    "max_pixels": 60000000
+   },
+   "max_bytes": 52428800,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "choices": [
+      "jpg",
+      "png"
+     ],
+     "default": "jpg",
+     "kind": "choice",
+     "label": "Convert to",
+     "name": "to",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "image/jpeg",
+    "name": "photo.jpg"
+   },
+   "outputs": [
+    {
+     "content_type": "image/jpeg",
+     "name": "photo.jpg"
+    },
+    {
+     "content_type": "image/png",
+     "name": "photo.png"
+    }
+   ],
+   "slow": false,
+   "slug": "photo-convert"
+  },
+  {
+   "accepts": "file",
+   "accepts_ext": [
+    ".epub",
+    ".mobi",
+    ".azw",
+    ".prc"
+   ],
+   "label": "E-book to PDF",
+   "limits": {
+    "max_chapters": 400,
+    "max_images": 300,
+    "max_text_bytes": 4194304
+   },
+   "max_bytes": 31457280,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "book.pdf"
+   },
+   "slow": true,
+   "slug": "ebook-to-pdf"
   }
  ]
 }

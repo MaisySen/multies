@@ -14,12 +14,15 @@ export type ToolOp =
   // (pii-find under auto redact, thumbnails under the page editor, extract-text under search and AI).
   | "protect" | "stamp" | "to-pdf" | "pdf-to" | "pdf-tables" | "excel-merge" | "excel-clean" | "scan-clean" | "pii-find"
   | "thumbnails" | "organize" | "form-fields" | "form-fill" | "compare" | "sign"
-  | "extract-text" | "segments" | "translate-apply" | "render" | "render-batch" | "chain";
+  | "extract-text" | "segments" | "translate-apply" | "render" | "render-batch" | "chain"
+  // R86 (Tools round B): video and audio, HEIC photos, e-books.
+  | "media-convert" | "media-compress" | "photo-convert" | "ebook-to-pdf";
 
 export type ToolGroup = "Organise" | "Convert" | "Protect" | "Scans";
 
 /** Result types a tool can hand back. */
-export type ToolExt = "pdf" | "zip" | "docx" | "json" | "xlsx" | "csv" | "txt" | "md" | "png";
+export type ToolExt = "pdf" | "zip" | "docx" | "json" | "xlsx" | "csv" | "txt" | "md" | "png"
+  | "mp4" | "mov" | "webm" | "mp3" | "wav" | "m4a" | "gif" | "jpg";
 export const EXT_TYPES: Record<ToolExt, string> = {
   pdf: "application/pdf",
   zip: "application/zip",
@@ -30,6 +33,15 @@ export const EXT_TYPES: Record<ToolExt, string> = {
   txt: "text/plain",
   md: "text/markdown",
   png: "image/png",
+  // R86: video, audio and photo results.
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  m4a: "audio/mp4",
+  gif: "image/gif",
+  jpg: "image/jpeg",
 };
 /** The result type for an engine content type, or null when it is not one Tools hands out. */
 export function extForType(contentType: string | null | undefined): ToolExt | null {
@@ -110,6 +122,10 @@ const ZIP_TYPE = "application/zip";
 const DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const RANGES_HELP = "Page numbers and ranges, like 1-3, 5.";
 const SHEETS = ".xlsx,.xls,.csv";
+/** R86: the video and audio types the engine reads. */
+export const MEDIA_ACCEPT = ".mp4,.m4v,.mov,.webm,.mkv,.avi,.mp3,.wav,.m4a,.aac,.ogg,.oga,.opus,.flac,video/*,audio/*";
+export const MEDIA_QUALITY = [{ value: "high", label: "Best quality" }, { value: "balanced", label: "Balanced" }, { value: "small", label: "Smaller file" }];
+export const MEDIA_LEVELS = [{ value: "light", label: "A little" }, { value: "medium", label: "Balanced" }, { value: "strong", label: "Smallest" }];
 const YES_NO = (yes = "Yes", no = "No") => [{ value: "yes", label: yes }, { value: "no", label: no }];
 
 /** OCR languages (tesseract names). English stays the default; the rest show only when ocr_langs is on. */
@@ -218,6 +234,22 @@ export const TOOLS: ToolDef[] = [
     options: [{ name: "kinds", kind: "json", label: "What to look for", maxLen: 300 }],
     note: "Numbers are checked with their check digits where they have one, so fewer false matches. Always review before you black out." },
 
+  // R86 (Tools round B): video and audio on the engine (an LGPL FFmpeg), HEIC photos for browsers outside Safari, e-books.
+  { op: "media-convert", group: "Convert", label: "Convert video or audio", blurb: "Change a video or recording to MP4, MOV, WEBM, MP3, WAV or M4A, or make a GIF from a video.", accept: MEDIA_ACCEPT, acceptLabel: "a video or audio file", minFiles: 1, maxFiles: 1, suffix: "", ext: "mp4", contentType: EXT_TYPES.mp4, maxBytes: 100 * 1024 * 1024, slow: { secondsPerPage: 1 },
+    extBy: { option: "to", exts: { mp4: "mp4", mov: "mov", webm: "webm", mp3: "mp3", wav: "wav", m4a: "m4a", gif: "gif" } },
+    note: "Videos up to 3 minutes can be changed to another format. MOV to MP4 keeps the picture as it is and works for any length. A GIF uses the first 15 seconds.",
+    options: [
+      { name: "to", kind: "choice", label: "Change to", default: "mp4", choices: [{ value: "mp4", label: "MP4 video" }, { value: "mov", label: "MOV video" }, { value: "webm", label: "WEBM video" }, { value: "gif", label: "GIF from the video" }, { value: "mp3", label: "MP3 sound" }, { value: "m4a", label: "M4A sound" }, { value: "wav", label: "WAV sound" }] },
+      { name: "quality", kind: "choice", label: "Quality", default: "balanced", choices: MEDIA_QUALITY },
+    ] },
+  { op: "media-compress", group: "Convert", label: "Compress video or audio", blurb: "Make a video or recording smaller so it is easier to send.", accept: MEDIA_ACCEPT, acceptLabel: "a video or audio file", minFiles: 1, maxFiles: 1, suffix: "-smaller", ext: "mp4", contentType: EXT_TYPES.mp4, maxBytes: 100 * 1024 * 1024, slow: { secondsPerPage: 1 },
+    note: "Videos come back as MP4 and recordings as M4A. Videos up to 3 minutes.",
+    options: [{ name: "level", kind: "choice", label: "How small", default: "medium", choices: MEDIA_LEVELS }] },
+  { op: "photo-convert", group: "Convert", label: "HEIC photo to JPG", blurb: "Turn an iPhone photo into a JPG or PNG that opens anywhere.", accept: ".heic,.heif,image/heic,image/heif", acceptLabel: "a HEIC photo", minFiles: 1, maxFiles: 1, suffix: "", ext: "jpg", contentType: EXT_TYPES.jpg, maxBytes: 50 * 1024 * 1024,
+    extBy: { option: "to", exts: { jpg: "jpg", png: "png" } },
+    options: [{ name: "to", kind: "choice", label: "Change to", default: "jpg", choices: [{ value: "jpg", label: "JPG" }, { value: "png", label: "PNG" }] }] },
+  { op: "ebook-to-pdf", group: "Convert", label: "E-book to PDF", blurb: "Turn an EPUB or MOBI e-book into a PDF you can read, print or send.", accept: ".epub,.mobi,.azw,.prc,application/epub+zip", acceptLabel: "an EPUB or MOBI e-book", minFiles: 1, maxFiles: 1, suffix: "", ext: "pdf", contentType: PDF_TYPE, maxBytes: 30 * 1024 * 1024, slow: { secondsPerPage: 1 },
+    note: "E-books protected with DRM can't be converted.", options: [] },
   // Tools P2 (H7): the editors (page editor, form filler, compare). Each card opens its own page (path) and runs
   // through /api/tools/editors, never the plain form; the phone app hides the webOnly ones.
   ...TOOLS_EDITORS,
@@ -341,12 +373,15 @@ export interface ToolResultFacts {
   words_added?: number; words_removed?: number; segments_replaced?: number; chars?: number; steps?: number;
   // R71 (MB-263): compress says what it did: sizes in and out, and true when the file came back as it was.
   in_bytes?: number; out_bytes?: number; images_changed?: number; already_optimised?: boolean;
+  // R86: seconds of video or audio, streams copied as they were, a GIF cut to its first seconds, e-book chapters.
+  seconds?: number; copied?: boolean; trimmed?: boolean; chapters?: number;
 }
 /** The fact keys the server passes through to the browser (small numbers and flags only, never file contents). */
 export const TOOL_FACT_KEYS = [
   "pages", "parts", "matches", "phrases", "verified", "pages_changed", "pages_with_text",
   "tables", "rows", "rows_removed", "sheets", "fields", "fields_filled", "files", "words_added", "words_removed", "segments_replaced", "chars", "steps",
   "in_bytes", "out_bytes", "images_changed", "already_optimised",
+  "seconds", "copied", "trimmed", "chapters",
 ] as const;
 export interface ToolJob {
   token: string; op: ToolOp; status: ToolJobStatus; name: string; error?: string; bytes?: number; downloadUrl?: string;
@@ -364,7 +399,7 @@ export function emptyResult(op: string, r?: ToolResultFacts | null): boolean {
   if (!r) return false;
   if (op === "pdf-tables") return r.tables === 0;
   if (op === "redact" || op === "pii-find") return r.matches === 0;
-  if (op === "compress") return compressUnchanged(r.in_bytes, r.out_bytes, r.already_optimised);
+  if (op === "compress" || op === "media-compress") return compressUnchanged(r.in_bytes, r.out_bytes, r.already_optimised);
   return false;
 }
 

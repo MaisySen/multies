@@ -3,9 +3,10 @@
  * no public page and no other app page carries pdf-lib, the PDF reader, the spreadsheet libraries or the encoders.
  * Every function takes Files and gives Files back; nothing is uploaded. Libraries: pdf-lib (MIT), pdfjs-dist
  * (Apache 2.0), read-excel-file and write-excel-file (MIT), papaparse (MIT), gifenc (MIT), @jsquash/webp and
- * @jsquash/avif (Apache 2.0, libwebp and libavif are BSD). See THIRD_PARTY_NOTICES.md.
+ * @jsquash/avif (Apache 2.0, libwebp and libavif are BSD), and from R86 libarchive.js (MIT, libarchive is BSD) to open
+ * archives. See THIRD_PARTY_NOTICES.md.
  */
-import { formatDef, renameTo, type ConverterDef, type FormatId } from "@/shared/convert-routes";
+import { FORMATS, formatDef, renameTo, type ConverterDef, type FormatId } from "@/shared/convert-routes";
 
 export class ConvertError extends Error {}
 
@@ -197,11 +198,11 @@ export function jpegOrientation(bytes: Uint8Array): number {
 
 type PdfLib = typeof import("pdf-lib");
 let pdfLib: Promise<PdfLib> | null = null;
-const loadPdfLib = () => (pdfLib ??= import("pdf-lib").catch((e) => { pdfLib = null; throw e; }));
+export const loadPdfLib = () => (pdfLib ??= import("pdf-lib").catch((e) => { pdfLib = null; throw e; }));
 
 type Pdfjs = typeof import("pdfjs-dist");
 let pdfjs: Promise<Pdfjs> | null = null;
-function loadPdfjs(): Promise<Pdfjs> {
+export function loadPdfjs(): Promise<Pdfjs> {
   pdfjs ??= Promise.all([import("pdfjs-dist"), import("pdfjs-dist/build/pdf.worker.min.mjs?url")]).then(([lib, worker]) => {
     lib.GlobalWorkerOptions.workerSrc = (worker as { default: string }).default;
     return lib;
@@ -209,7 +210,7 @@ function loadPdfjs(): Promise<Pdfjs> {
   return pdfjs;
 }
 
-async function openPdf(file: Blob, _name: string) {
+export async function openPdf(file: Blob, _name: string) {
   const { PDFDocument } = await loadPdfLib();
   try {
     const doc = await PDFDocument.load(await file.arrayBuffer(), { updateMetadata: false });
@@ -450,6 +451,10 @@ export async function runBrowserStep(step: ConverterDef, file: File, opts: StepO
       return pdfToImages(file, step.to as "png" | "jpg", (d, t) => opts.onProgress?.(d / t));
     case "sheet":
       return convertSheet(file, step.from, step.to);
+    case "archive": {
+      const inside = await extractArchive(file, (d, t) => opts.onProgress?.((d / t) * 0.7));
+      return [await makeArchive(inside, step.to as ArchiveOut, renameTo(file.name, step.to))];
+    }
     default:
       throw new ConvertError("This step can't run on this device.");
   }
@@ -458,14 +463,204 @@ export async function runBrowserStep(step: ConverterDef, file: File, opts: StepO
 /** Many files as one ZIP, each name kept (a repeated name gets a number). */
 export async function zipFiles(files: File[]): Promise<Blob> {
   const { zipSync } = await import("fflate");
-  const used = new Set<string>();
   const entries: Record<string, Uint8Array> = {};
-  for (const f of files) {
-    let name = f.name;
-    for (let i = 2; used.has(name.toLowerCase()); i++) name = f.name.replace(/(\.[^.]+)?$/, ` (${i})$1`);
-    used.add(name.toLowerCase());
-    entries[name] = new Uint8Array(await f.arrayBuffer());
-  }
+  // R86: a file unpacked from an archive keeps its folder.
+  for (const [name, f] of uniqueNames(files)) entries[name] = new Uint8Array(await f.arrayBuffer());
   // Pictures, PDFs and workbooks are packed already; storing them is faster and barely bigger.
   return new Blob([zipSync(entries, { level: 0 }).slice().buffer], { type: "application/zip" });
+}
+
+/* ---------- R86: archives ---------- */
+
+/** Where a file sat inside the archive it came out of ("photos/2024/"), so packing it again keeps the folders. */
+const FOLDERS = new WeakMap<File, string>();
+export const folderOf = (f: File) => FOLDERS.get(f) ?? "";
+
+/** Each file's path in an archive, folders kept, a repeated path numbered. */
+function uniqueNames(files: File[]): [string, File][] {
+  const used = new Set<string>();
+  return files.map((f) => {
+    const full = folderOf(f) + f.name;
+    let name = full;
+    for (let i = 2; used.has(name.toLowerCase()); i++) name = full.replace(/(\.[^./]+)?$/, ` (${i})$1`);
+    used.add(name.toLowerCase());
+    return [name, f];
+  });
+}
+
+/** A path from inside an archive, made safe: no leading slash, no "..", no drive letters, no control characters. */
+export function safeArchivePath(path: string): string {
+  return path.replace(/\\/g, "/").split("/").map((p) => [...p].filter((ch) => ch.charCodeAt(0) >= 32).join("").trim()).filter((p) => p && p !== "." && p !== ".." && !/^[A-Za-z]:$/.test(p)).join("/");
+}
+
+/** The most files and bytes we unpack on a device at once. */
+export const ARCHIVE_MAX_FILES = 2000;
+export const ARCHIVE_MAX_BYTES = 500 * 1024 * 1024;
+
+let archiveLib: Promise<typeof import("./vendor/libarchive.js")> | null = null;
+async function archiveReader() {
+  archiveLib ??= import("./vendor/libarchive.js").then((m) => {
+    // The worker and its WebAssembly are served from our own origin (public/vendor/libarchive).
+    m.Archive.init({ getWorker: () => new Worker("/vendor/libarchive/worker-bundle.js", { type: "module" }) });
+    return m;
+  });
+  return (await archiveLib).Archive;
+}
+
+/** Every file inside a ZIP, 7Z, TAR, TAR.GZ or RAR archive. Folders are kept for packing again. */
+export async function extractArchive(file: File, onProgress?: (done: number, total: number) => void): Promise<File[]> {
+  const Archive = await archiveReader();
+  let reader;
+  try { reader = await Archive.open(file); } catch { throw new ConvertError(`${file.name} could not be opened. It may be damaged or not an archive.`); }
+  try {
+    if ((await reader.hasEncryptedData()) === true) throw new ConvertError(`${file.name} is locked with a password, so it can't be unpacked here.`);
+    const list = await reader.getFilesArray();
+    if (!list.length) throw new ConvertError(`${file.name} has no files in it.`);
+    if (list.length > ARCHIVE_MAX_FILES) throw new ConvertError(`${file.name} holds ${list.length.toLocaleString()} files. Up to ${ARCHIVE_MAX_FILES.toLocaleString()} can be unpacked at once.`);
+    const total = list.reduce((n, e) => n + (e.file.size || 0), 0);
+    if (total > ARCHIVE_MAX_BYTES) throw new ConvertError(`${file.name} unpacks to ${Math.round(total / 1048576)} MB. Up to 500 MB can be unpacked on this device.`);
+    const out: File[] = [];
+    let done = 0;
+    await reader.extractFiles((entry) => {
+      done += 1;
+      onProgress?.(done, list.length);
+      const path = safeArchivePath(entry.path + entry.file.name);
+      if (!path) return;
+      const slash = path.lastIndexOf("/");
+      const f = new File([entry.file], path.slice(slash + 1), { type: guessType(path) });
+      FOLDERS.set(f, slash >= 0 ? path.slice(0, slash + 1) : "");
+      out.push(f);
+    });
+    // extractFiles hands each file over just after it resolves; wait for the last one.
+    for (let i = 0; i < 50 && out.length < list.length; i++) await new Promise((r) => setTimeout(r, 20));
+    if (!out.length) throw new ConvertError(`${file.name} has no files in it.`);
+    return out;
+  } catch (err) {
+    if (err instanceof ConvertError) throw err;
+    throw new ConvertError(`${file.name} could not be unpacked. It may be damaged.`);
+  } finally {
+    void reader.close();
+  }
+}
+
+function guessType(path: string): string {
+  const ext = /\.([^./]+)$/.exec(path)?.[1]?.toLowerCase() ?? "";
+  const hit = FORMATS.find((f) => f.exts.includes(ext));
+  return hit?.mime ?? "application/octet-stream";
+}
+
+export type ArchiveOut = "zip" | "tar" | "tgz";
+
+/** A USTAR tar of these files (folders kept). Names over 100 bytes use the prefix field, up to 255. */
+export async function tarFiles(files: File[]): Promise<Uint8Array> {
+  const enc = new TextEncoder();
+  const parts: Uint8Array[] = [];
+  const now = Math.floor(Date.now() / 1000);
+  for (const [name, f] of uniqueNames(files)) {
+    let bytesName = enc.encode(name);
+    let prefix = new Uint8Array(0);
+    if (bytesName.length > 100) {
+      const cut = name.lastIndexOf("/", 154);
+      if (cut > 0 && enc.encode(name.slice(cut + 1)).length <= 100) { prefix = enc.encode(name.slice(0, cut)); bytesName = enc.encode(name.slice(cut + 1)); }
+      else bytesName = enc.encode(name.slice(-100).replace(/^[^/]*\//, ""));
+    }
+    const h = new Uint8Array(512);
+    h.set(bytesName.slice(0, 100), 0);
+    const oct = (n: number, len: number) => enc.encode(n.toString(8).padStart(len - 1, "0") + "\0");
+    h.set(oct(0o644, 8), 100); h.set(oct(0, 8), 108); h.set(oct(0, 8), 116);
+    h.set(oct(f.size, 12), 124); h.set(oct(Math.floor((f.lastModified || now * 1000) / 1000), 12), 136);
+    h.set(enc.encode("        "), 148);
+    h[156] = 0x30; // "0": a plain file
+    h.set(enc.encode("ustar\0"), 257); h.set(enc.encode("00"), 263);
+    h.set(prefix.slice(0, 155), 345);
+    let sum = 0;
+    for (const b of h) sum += b;
+    h.set(enc.encode(sum.toString(8).padStart(6, "0") + "\0 "), 148);
+    parts.push(h, new Uint8Array(await f.arrayBuffer()));
+    const pad = (512 - (f.size % 512)) % 512;
+    if (pad) parts.push(new Uint8Array(pad));
+  }
+  parts.push(new Uint8Array(1024));
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) { out.set(p, at); at += p.length; }
+  return out;
+}
+
+/** Packs files into one ZIP, TAR or TAR.GZ. ZIP squeezes what can be squeezed and stores what is packed already. */
+export async function makeArchive(files: File[], to: ArchiveOut, name: string): Promise<File> {
+  if (!files.length) throw new ConvertError("There are no files to pack.");
+  const total = files.reduce((n, f) => n + f.size, 0);
+  if (total > ARCHIVE_MAX_BYTES) throw new ConvertError(`These files come to ${Math.round(total / 1048576)} MB. Up to 500 MB can be packed on this device.`);
+  const fflate = await import("fflate");
+  if (to === "zip") {
+    const entries: Record<string, [Uint8Array, { level: 0 | 6 }]> = {};
+    for (const [n, f] of uniqueNames(files)) entries[n] = [new Uint8Array(await f.arrayBuffer()), { level: PACKED.test(n) ? 0 : 6 }];
+    return new File([fflate.zipSync(entries).slice().buffer], name, { type: "application/zip" });
+  }
+  const tar = await tarFiles(files);
+  if (to === "tar") return new File([tar.slice().buffer], name, { type: "application/x-tar" });
+  return new File([fflate.gzipSync(tar, { level: 6 }).slice().buffer], name, { type: "application/gzip" });
+}
+const PACKED = /\.(jpe?g|png|gif|webp|avif|heic|mp4|mov|webm|mp3|m4a|aac|ogg|opus|zip|7z|gz|tgz|rar|docx|xlsx|pptx|pdf)$/i;
+
+/* ---------- R86: smaller photos ---------- */
+
+export type CompressLevel = "light" | "medium" | "strong";
+const PHOTO_LEVELS: Record<CompressLevel, { side: number; quality: number }> = {
+  light: { side: 4096, quality: 0.85 },
+  medium: { side: 2560, quality: 0.75 },
+  strong: { side: 1600, quality: 0.6 },
+};
+
+/** A photo redrawn smaller (JPG, PNG or WEBP stays the same type). The original comes back when it is already small. */
+export async function compressImage(file: File, from: FormatId, level: CompressLevel): Promise<{ file: File; same: boolean }> {
+  const { side, quality } = PHOTO_LEVELS[level];
+  const c = await decodeImage(file, from);
+  const scale = Math.min(1, side / Math.max(c.width, c.height));
+  let target = c;
+  if (scale < 1) {
+    target = document.createElement("canvas");
+    target.width = Math.max(1, Math.round(c.width * scale));
+    target.height = Math.max(1, Math.round(c.height * scale));
+    const g = target.getContext("2d")!;
+    g.imageSmoothingQuality = "high";
+    g.drawImage(c, 0, 0, target.width, target.height);
+    c.width = c.height = 0;
+  }
+  const blob = await encodeImage(target, from, { quality });
+  target.width = target.height = 0;
+  if (blob.size >= file.size) return { file, same: true };
+  return { file: new File([blob], renameTo(file.name, from, "-smaller"), { type: formatDef(from).mime }), same: false };
+}
+
+/* ---------- R86: the text of a searchable PDF ---------- */
+
+/** All the words in a PDF that has a text layer (an OCR result), page by page, as a TXT file. */
+export async function pdfText(file: File, name: string): Promise<File> {
+  const lib = await loadPdfjs();
+  const task = lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
+  const doc = await task.promise;
+  try {
+    const pages: string[] = [];
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i);
+      const tc = await page.getTextContent();
+      let line = "";
+      const lines: string[] = [];
+      for (const it of tc.items as { str?: string; hasEOL?: boolean }[]) {
+        if (typeof it.str !== "string") continue;
+        line += it.str;
+        if (it.hasEOL) { lines.push(line.trimEnd()); line = ""; }
+      }
+      if (line.trim()) lines.push(line.trimEnd());
+      pages.push(lines.join("\n").trim());
+      page.cleanup();
+    }
+    const text = pages.join("\n\n").trim();
+    if (!text) throw new ConvertError(`No words were found in ${file.name}.`);
+    return new File([text + "\n"], name, { type: "text/plain" });
+  } finally {
+    void task.destroy();
+  }
 }

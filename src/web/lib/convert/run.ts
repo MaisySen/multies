@@ -5,7 +5,7 @@
  * next step on each of them.
  */
 import { formatDef, renameTo, type ConverterDef, type FormatId, type Route } from "@/shared/convert-routes";
-import { toolDef, type ToolOp } from "@/shared/tools";
+import { toolDef, type ToolJob, type ToolOp, type ToolResultFacts } from "@/shared/tools";
 import { jobFailure, uploadJob, waitForJob } from "@/web/lib/tool-jobs";
 
 export type BrowserOps = typeof import("./browser-ops");
@@ -15,22 +15,38 @@ export const loadOps = (): Promise<BrowserOps> => (ops ??= import("./browser-ops
 
 export interface Progress { fraction: number; label: string; where: "device" | "engine" }
 
-async function engineStep(step: ConverterDef, file: File, onProgress: (p: Progress) => void, signal?: AbortSignal): Promise<File> {
-  const op = step.op as ToolOp;
+/** How far a running engine job is (0 to 1): R86 jobs report done and total (pages, or seconds of video). */
+export function jobFraction(j: ToolJob): number {
+  const p = j.progress as ToolJob["progress"] | number | undefined;
+  if (typeof p === "number") return Math.min(1, Math.max(0, p / 100));
+  if (p && typeof p === "object" && p.total > 0) return Math.min(1, Math.max(0, p.done / p.total));
+  return 0;
+}
+
+export interface EngineRun { file: File; result?: ToolResultFacts }
+
+/**
+ * One Tools job on one file (upload, wait, download), with progress: uploading is the first 40%, the engine's own
+ * done and total the next 55%, the download the rest. `name` names the result (the engine's name when omitted).
+ */
+export async function runEngine(op: ToolOp, file: File, options: Record<string, string>, label: string, onProgress: (p: Progress) => void, opts: { name?: string; type?: string; signal?: AbortSignal } = {}): Promise<EngineRun> {
   const def = toolDef(op);
-  const options = step.options ?? {};
-  const label = `${formatDef(step.from).label} to ${formatDef(step.to).label} on the Multies engine`;
   onProgress({ fraction: 0, label: `Uploading for ${label}`, where: "engine" });
-  const job = await uploadJob(op, [file], options, (pct) => onProgress({ fraction: (pct / 100) * 0.4, label: `Uploading for ${label}`, where: "engine" }), { def, signal });
-  const done = await waitForJob(job.token, (j) => {
-    const pct = typeof (j as { progress?: number }).progress === "number" ? (j as { progress?: number }).progress! : 0;
-    onProgress({ fraction: 0.4 + 0.5 * Math.min(1, pct / 100), label, where: "engine" });
-  }, signal);
+  const job = await uploadJob(op, [file], options, (pct) => onProgress({ fraction: (pct / 100) * 0.4, label: `Uploading for ${label}`, where: "engine" }), { def, signal: opts.signal });
+  onProgress({ fraction: 0.4, label, where: "engine" });
+  const done = await waitForJob(job.token, (j) => onProgress({ fraction: 0.4 + 0.55 * jobFraction(j), label, where: "engine" }), opts.signal);
   if (done.status !== "done" || !done.downloadUrl) throw new Error(jobFailure(done));
+  onProgress({ fraction: 0.95, label: "Downloading the result", where: "engine" });
   const res = await fetch(done.downloadUrl, { credentials: "include" });
-  if (!res.ok) throw new Error("The converted file could not be downloaded. Try again.");
+  if (!res.ok) throw new Error("The finished file could not be downloaded. Try again.");
   const blob = await res.blob();
-  return new File([blob], renameTo(file.name, step.to), { type: formatDef(step.to).mime });
+  return { file: new File([blob], opts.name ?? done.name, { type: opts.type ?? (blob.type || "application/octet-stream") }), result: done.result };
+}
+
+async function engineStep(step: ConverterDef, file: File, onProgress: (p: Progress) => void, signal?: AbortSignal): Promise<File> {
+  const label = `${formatDef(step.from).label} to ${formatDef(step.to).label} on the Multies engine`;
+  const run = await runEngine(step.op as ToolOp, file, step.options ?? {}, label, onProgress, { name: renameTo(file.name, step.to), type: formatDef(step.to).mime, signal });
+  return run.file;
 }
 
 /**

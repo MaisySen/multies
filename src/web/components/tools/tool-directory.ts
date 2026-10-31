@@ -8,7 +8,7 @@ import {
   IconArrowRightLeft, IconCalendarClock, IconCamera, IconChatQuote, IconChecklist, IconClipboardCheck, IconColumns, IconCreditCard,
   IconDocs, IconEyeOff, IconFileCode, IconFilePlus, IconFileUp, IconFilter, IconGlobe, IconImage, IconKey, IconLayers, IconLink,
   IconLock, IconMails, IconMinimize, IconPenLine, IconReceipt, IconRefresh, IconRotate, IconRowsSplit, IconSearch, IconShapes,
-  IconSheet, IconShield, IconShieldAlert, IconTable, IconTemplate, IconWorkflow, IconZap,
+  IconSheet, IconShield, IconShieldAlert, IconTable, IconTemplate, IconWorkflow, IconZap, IconVideo, IconBook, IconEdit,
 } from "@/web/components/ui/icon";
 import { OP_REMOVE_PASSWORD, toolOn, toolTakes, type ToolDef } from "@/shared/tools";
 import { api } from "@/web/lib/api";
@@ -46,6 +46,11 @@ const LOOK: Record<string, Look> = {
   "pdf-tables": { section: "Convert", icon: IconTable, line: "Put a PDF's tables into Excel", words: "excel xlsx tables spreadsheet" },
   "excel-merge": { section: "Convert", icon: IconSheet, line: "Join spreadsheets into one", words: "excel csv combine sheets" },
   "excel-clean": { section: "Convert", icon: IconFilter, line: "Tidy spaces, duplicates and dates", words: "excel csv duplicates clean trim" },
+  // R86: video and audio, HEIC photos, e-books.
+  "media-convert": { section: "Convert", icon: IconVideo, name: "Convert video or audio", line: "MP4, MOV, WEBM, MP3, WAV, M4A or a GIF", words: "video audio sound music movie mp4 mov webm mkv avi mp3 wav m4a aac ogg flac gif extract audio" },
+  "media-compress": { section: "Convert", icon: IconMinimize, name: "Compress video", line: "Make a video or recording smaller", words: "compress shrink smaller video audio mp4 email size reduce" },
+  "photo-convert": { section: "Convert", icon: IconImage, name: "HEIC to JPG", line: "iPhone photos that open anywhere", words: "heic heif iphone apple photo jpg jpeg png" },
+  "ebook-to-pdf": { section: "Convert", icon: IconBook, name: "E-book to PDF", line: "EPUB or MOBI to a PDF", words: "ebook e-book epub mobi kindle azw book read print" },
   protect: { section: "Secure", icon: IconLock, line: "Lock a PDF with a password", words: "password encrypt lock" },
   [OP_REMOVE_PASSWORD]: { section: "Secure", icon: IconKey, line: "Take off a password you know", words: "password decrypt remove" },
   redact: { section: "Secure", icon: IconEyeOff, line: "Black out words for good", words: "redact black out hide" },
@@ -73,7 +78,9 @@ export interface Entry {
 /** Pages that are not catalogue tools, each behind its feature. */
 const PAGES: (Omit<Entry, "section" | "icon"> & { feature: string; section: Section; icon: Icon })[] = [
   // R78: the Convert hub ships with Tools itself (no feature): drop any file, see what it can become.
-  { key: "convert-any", feature: "", section: "Convert", icon: IconArrowRightLeft, name: "Convert any file", line: "Drop files, pick what they become", words: "convert change format heic webp avif png jpg gif bmp image photo csv excel xlsx json tsv pdf batch many zip", to: "/app/tools/convert", takes: /./ },
+  // R86: Edit PDF ships with Tools itself: pages, text, signature, black out, watermark and numbers on the device.
+  { key: "edit-pdf", feature: "", section: "Edit PDF", icon: IconEdit, name: "Edit a PDF", line: "Add text, sign, black out, move pages", words: "edit pdf add text type write sign signature redact black out hide box watermark page numbers reorder rotate delete pages annotate", to: "/app/tools/edit-pdf", takes: /\.pdf$/i },
+  { key: "convert-any", feature: "", section: "Convert", icon: IconArrowRightLeft, name: "Convert any file", line: "Drop files, pick what they become", words: "convert change format heic webp avif png jpg gif bmp image photo csv excel xlsx json tsv pdf batch many zip 7z tar rar extract archive video audio mp4 mov mp3 wav epub mobi ebook compress ocr", to: "/app/tools/convert", takes: /./ },
   { key: "esign", feature: "esign", section: "Secure", icon: IconPenLine, name: "Sign", line: "Sign a PDF or ask others to sign it", words: "sign signature esign request", to: "/app/tools/sign", takesAttachment: true, takes: /\.pdf$/i },
   { key: "share", feature: "share", section: "Secure", icon: IconLink, name: "Share as a link", line: "Send a big file as a link with expiry", words: "share link expiry password large file send", to: "/app/tools/share", takesAttachment: true, takes: /./ },
   { key: "ask", feature: "ask", section: "Smart", icon: IconChatQuote, name: "Ask a document", line: "A summary and answers from any document", words: "ai summary question answer chat", to: "/app/tools/ai?feature=ask", takesAttachment: true, takes: /\.(pdf|docx|png|jpe?g)$/i },

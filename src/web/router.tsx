@@ -108,7 +108,8 @@ const TemplatesPage = lazyPage(() => import("./pages/app/work/templates"), "Temp
 const ToolsPage = lazyPage(() => import("./pages/app/tools"), "ToolsPage");
 const ToolsAiPage = lazyPage(() => import("./pages/app/tools-ai"), "ToolsAiPage"); // Tools P2: AI documents
 const ToolsEditorRoute = lazyPage(() => import("./pages/app/tools-editors/route"), "ToolsEditorRoute"); // Tools P2: editors
-const ConvertHubPage = lazyPage(() => import("./pages/app/tools-convert/convert-hub"), "ConvertHubPage"); // R78: Convert hub
+const ConvertHubPage = lazyPage(() => import("./pages/app/tools-convert/convert-hub"), "ConvertHubPage");
+const EditPdfPage = lazyPage(() => import("./pages/app/tools-edit-pdf/edit-pdf"), "EditPdfPage"); // R86: Edit PDF on the device // R78: Convert hub
 const FilesPage = lazyPage(() => import("./pages/app/files"), "FilesPage"); // Tools P2 (16)
 const ShareLinksPage = lazyPage(() => import("./pages/app/tools-share-sign/share-links"), "ShareLinksPage"); // Tools P2: share links
 const SignPage = lazyPage(() => import("./pages/app/tools-share-sign/sign"), "SignPage"); // Tools P2: e-sign
@@ -252,7 +253,8 @@ export const router = createBrowserRouter([
       { path: "scheduling", element: page(<SchedulingPage />) },
       { path: "tools", element: page(<ToolsPage />) }, // Tools P1
       { path: "tools/ai", element: page(<ToolFeatureGate features={AI_FEATURES}><ToolsAiPage /></ToolFeatureGate>) }, // Tools P2: AI documents
-      { path: "tools/convert", element: page(<ConvertHubPage />) }, // R78: Convert hub (before the editors' :editor)
+      { path: "tools/convert", element: page(<ConvertHubPage />) },
+      { path: "tools/edit-pdf", element: page(<EditPdfPage />) }, // R86 // R78: Convert hub (before the editors' :editor)
       { path: "tools/:editor", element: page(<ToolsEditorRoute />) }, // Tools P2: editors (pages, forms, compare)
       { path: "files", element: page(<ToolFeatureGate features={["folders", "index"]}><FilesPage /></ToolFeatureGate>) }, // Tools P2 (16): smart folders
       { path: "tools/share", element: page(<ToolFeatureGate features={["share"]}><ShareLinksPage /></ToolFeatureGate>) }, // Tools P2: share links
