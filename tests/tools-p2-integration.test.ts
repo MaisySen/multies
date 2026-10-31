@@ -171,7 +171,7 @@ describe("Wiring", () => {
     expect(toolsCronPasses(none.deps)).toHaveLength(0);
     const all = await setup("all");
     const passes = toolsCronPasses(all.deps);
-    expect(passes).toHaveLength(4);
+    expect(passes).toHaveLength(5); // R88: file request upload prune
     await expect(Promise.all(passes)).resolves.toBeDefined();
   });
 });
