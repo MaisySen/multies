@@ -1,3 +1,5 @@
+import { createPortal } from "react-dom";
+import { useInspector } from "@/web/lib/inspector"; // R79
 import { Fragment, useEffect, useRef, useState } from "react";
 import { FieldInput } from "./fields";
 import { taskFields } from "./computed-fields";
@@ -38,7 +40,9 @@ export function describeActivity(a: ActivityEntry) {
   return VERBS[a.verb] ?? a.verb.replace(/_/g, " ");
 }
 
-export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) {
+/** R79: docked shows the task in the shell's resizable side panel (desktop, the person's View choice), else over the page. */
+export function TaskPanel({ id, onClose, docked = false }: { id: string; onClose: () => void; docked?: boolean }) {
+  const slot = useInspector(docked);
   const q = useTaskDetail(id);
   const projects = useProjects();
   const people = useAssignees();
@@ -123,8 +127,9 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
     } catch (e) { showError(e as Error); }
   };
 
-  return (
-    <aside role="dialog" aria-label="Task" data-keys-pass className="fixed inset-0 z-40 flex flex-col bg-surface sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[520px] sm:border-l sm:border-line sm:shadow-pop">
+  const panel = (
+    <aside role={docked ? "complementary" : "dialog"} aria-label={docked ? "Task details" : "Task"} data-keys-pass data-testid={docked ? "task-inspector" : undefined}
+      className={docked ? "flex h-full flex-col bg-surface" : "fixed inset-0 z-40 flex flex-col bg-surface sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[520px] sm:border-l sm:border-line sm:shadow-pop"}>
       <div className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-4">
         {t ? <span className="font-mono text-[12px] text-subtle">{t.ref}</span> : <Skeleton className="w-16" />}
         {project && <span className="truncate text-[12.5px] text-muted">in {project.name}</span>}
@@ -301,6 +306,8 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
       )}
     </aside>
   );
+  if (docked) return slot ? createPortal(panel, slot) : null;
+  return panel;
 }
 
 /** Blocked by and blocking: the same links the timeline draws as arrows. */

@@ -147,7 +147,8 @@ export function MeetingsPage() {
   const q = useQuery({ queryKey: ["meetings"], queryFn: () => api.get<{ meetings: Meeting[]; videoEnabled: boolean }>("/meetings") });
   // Weekly series come back as one entry per upcoming occurrence (worked out on the server, nothing stored).
   const soon = useQuery({ queryKey: ["meetings", "upcoming"], queryFn: () => api.get<{ meetings: Meeting[] }>("/meetings?upcoming=1") });
-  const [open, setOpen] = useState(false);
+  // R79: the shell's Create menu opens Schedule a meeting with ?new=1.
+  const [open, setOpen] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new") === "1");
   const [starting, setStarting] = useState(false);
   const navigate = useNavigate();
   const now = Date.now();

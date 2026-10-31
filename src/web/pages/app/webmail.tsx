@@ -1,3 +1,6 @@
+import { useMediaQuery } from "@/web/lib/use-compact";
+import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels"; // R79 (MIT)
+import { panelStorage, useLayout, useLayoutGeneration } from "@/web/lib/layout-prefs"; // R79
 import { InboxZeroArt, MailFolderArt, NoSearchResultsArt } from "@/web/components/illustrations";
 import { FreeAddressCard, useFreeAddress } from "@/web/components/free-address"; // R74 (MB-212)
 import { MailSyncBanner } from "@/web/components/mail-sync-progress";
@@ -59,6 +62,12 @@ const FOLDER_UI: { id: View; label: string; icon: IconComponent }[] = [
 
 export function WebmailPage() {
   const [params, setParams] = useSearchParams();
+  // R79: the reading pane (right, bottom or off) and its saved divider, on screens wide enough for two panes.
+  const wideMail = useMediaQuery("(min-width: 1024px)");
+  const { mailPane } = useLayout();
+  const layoutGen = useLayoutGeneration();
+  const paned = wideMail && mailPane !== "off";
+  const mailLayout = useDefaultLayout({ id: `mail-${mailPane}`, storage: panelStorage });
   const qc = useQueryClient();
   const overview = useQuery({ queryKey: qk.overview, queryFn: async () => (await api.get<{ mailboxes: MailboxOverview[] }>("/mail/overview")).mailboxes, refetchInterval: 30_000 });
   const mailboxes = useMemo(() => overview.data ?? [], [overview.data]);
@@ -381,18 +390,18 @@ export function WebmailPage() {
     "mail-close": () => { if (hasSel) { setSel(emptySelection()); return; } if (!selected) return false; open(null); },
   }, !compose);
 
-  // R31: Tab and Shift+Tab move between Inbox splits while focus is on the page or the message list
-  // (inside a form, a menu or the reader, Tab keeps moving focus as usual).
+  // R31, R79 (MB-273): ] and [ move between Inbox splits while focus is on the page or the message list.
+  // Tab is never taken: it always moves keyboard focus, so the page can be used without a mouse.
   const setSplit = useCallback((id: string) => setParam({ split: id === DEFAULT_SPLIT ? null : id, m: null }), [setParam]);
   useEffect(() => {
     if (!splitsOn || !splitTabs.length) return;
     const on = (e: KeyboardEvent) => {
-      if (e.key !== "Tab" || compose || editSplits || e.metaKey || e.ctrlKey || e.altKey) return;
+      if ((e.key !== "]" && e.key !== "[") || compose || editSplits || e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement;
       const listFocus = t === document.body || !!t.closest?.("[data-mail-list]");
       if (!listFocus) return;
       e.preventDefault();
-      setSplit(stepSplit(splitTabs, split, e.shiftKey ? -1 : 1));
+      setSplit(stepSplit(splitTabs, split, e.key === "[" ? -1 : 1));
     };
     window.addEventListener("keydown", on);
     return () => window.removeEventListener("keydown", on);
@@ -427,51 +436,9 @@ export function WebmailPage() {
   }
   const mb = mailboxes.find((m) => m.id === mailboxId) ?? busiest;
 
-  return (
-    <div className="flex h-full">
-      {/* Folders */}
-      <h1 className="sr-only">Mail</h1>
-      <aside aria-label="Mailboxes and folders" className="hidden w-56 shrink-0 flex-col border-r border-line bg-surface/50 md:flex xl:w-60">
-        <div className="p-3">
-          <Button className="w-full" onClick={() => startCompose()}><IconCompose className="h-4 w-4" />Compose</Button>
-          <button onClick={() => setInvoiceOpen(true)} className="mt-2 w-full rounded-lg px-2 py-1.5 text-left text-[13px] text-muted hover:bg-hover hover:text-fg">Chase an unpaid invoice</button>
-        </div>
-        <div className="px-3">
-          <label htmlFor="mailbox-switch" className="sr-only">Mailbox</label>
-          <Select bare id="mailbox-switch" value={mb.id} onChange={(e) => setParam({ mailbox: e.target.value, m: null, q: null })} className="h-9 w-full truncate rounded-lg border border-line bg-surface px-2 text-[13px] outline-none focus:border-brand/60"
-            phoneClassName={`${PHONE_PICK} h-11 w-full px-3`}>
-            {mailboxes.map((m) => <option key={m.id} value={m.id}>{m.address}{m.kind === "agent" ? " (agent)" : ""}{m.folders.inbox?.unread ? ` (${m.folders.inbox.unread})` : ""}</option>)}
-          </Select>
-        </div>
-        <nav className="mt-3 flex-1 space-y-0.5 overflow-y-auto px-3" aria-label="Folders">
-          {FOLDER_UI.map(({ id, label, icon: Icon }) => {
-            const unread = id === "inbox" || id === "spam" ? mb.folders[id as Folder]?.unread : undefined;
-            const count = id === "drafts" ? mb.folders.drafts?.total : unread;
-            return (
-              <button key={id} onClick={() => setParam({ folder: id === "inbox" ? null : id, m: null, q: null })} aria-current={!q && folder === id ? "page" : undefined}
-                className={cn("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] transition-colors", !q && folder === id ? "bg-fill font-medium text-fg" : "text-muted hover:bg-hover hover:text-fg")}>
-                <Icon className="h-4 w-4" />{label}
-                {!!count && <span className={cn("ml-auto text-[11px] tabular-nums", id === "inbox" ? "rounded bg-brand px-1.5 font-semibold text-brand-fg" : "text-subtle")}>{count}</span>}
-              </button>
-            );
-          })}
-          {SCHEDULE_VIEWS.map(({ id, label, icon: Icon }) => (
-            <button key={id} onClick={() => setParam({ folder: id, m: null, q: null })} aria-current={!q && folder === id ? "page" : undefined}
-              className={cn("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] transition-colors", !q && folder === id ? "bg-fill font-medium text-fg" : "text-muted hover:bg-hover hover:text-fg")}>
-              <Icon className="h-4 w-4" />{label}
-            </button>
-          ))}
-          {mb.connectionId && <ProviderFolderNav connectionId={mb.connectionId} current={q ? "" : folder} onPick={(key) => setParam({ folder: key, m: null, q: null })} />}
-        </nav>
-        <div className="border-t border-line p-3 text-[11px] text-subtle">
-          <div className="mb-1 flex justify-between"><span>Storage</span><span>{formatBytes(mb.usedBytes)} of {formatBytes(mb.quotaMb * 1024 * 1024)}</span></div>
-          <div className="h-1 overflow-hidden rounded-full bg-fill"><div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(2, Math.min(100, (mb.usedBytes / (mb.quotaMb * 1048576)) * 100))}%` }} /></div>
-          <div className="mt-3 hidden gap-x-3 gap-y-1 xl:flex xl:flex-wrap"><span><Kbd>c</Kbd> compose</span><span><Kbd>j</Kbd>/<Kbd>k</Kbd> move</span><span><Kbd>e</Kbd> archive</span><span><Kbd>t</Kbd> task</span><span><Kbd>/</Kbd> search</span></div>
-        </div>
-      </aside>
-
-      {/* List */}
-      <section className={cn("flex min-w-0 flex-col border-r border-line md:w-[340px] lg:w-[380px] xl:w-[420px]", selected ? "hidden md:flex" : "flex flex-1 md:flex-none")} aria-label="Messages">
+  // R79: the list and the reader, placed by the person's reading pane choice below.
+  const listSection = (
+      <section data-mail-pane={paned ? mailPane : undefined} className={cn("flex min-w-0 flex-col", paned ? "h-full" : mailPane === "off" && wideMail ? (selected ? "hidden" : "flex flex-1") : cn("border-r border-line md:w-[340px] lg:w-[380px] xl:w-[420px]", selected ? "hidden md:flex" : "flex flex-1 md:flex-none"))} aria-label="Messages">
         <div className="flex items-center gap-2 border-b border-line p-3">
           <Select aria-label="Folder" value={q ? "search" : folder} onChange={(e) => setParam({ folder: e.target.value === "inbox" ? null : e.target.value, m: null, q: null })} className="h-9 w-auto! max-w-[9.5rem] shrink-0 text-[13px] font-medium md:hidden">
             {q && <option value="search">Search</option>}
@@ -521,10 +488,9 @@ export function WebmailPage() {
           </>}
         </div>
       </section>
-
-      <ArchiveOlderSheet open={olderOpen} onClose={() => setOlderOpen(false)} mailboxId={mailboxId} asOf={olderOpen ? listAsOf() || new Date().toISOString() : ""} onRun={runArchiveOlder} everyTab={splitsOn && splitTabs.length > 0} />
-      {/* Reader */}
-      <section className={cn("min-w-0 flex-1", selected ? "flex" : "hidden md:flex")} aria-label="Message">
+  );
+  const readerSection = (
+      <section className={cn("min-w-0", paned ? "flex h-full" : mailPane === "off" && wideMail ? (selected ? "flex flex-1" : "hidden") : cn("flex-1", selected ? "flex" : "hidden md:flex"))} aria-label="Message">
         {current || selected ? (
           <Reader id={selected!} mailboxes={mailboxes} onBack={() => open(null)} onMove={move}
             onMoveTo={(m, to) => { act.mutate({ ids: [m.id], action: "move", to }); open(null); }}
@@ -537,6 +503,62 @@ export function WebmailPage() {
           </div>
         )}
       </section>
+  );
+
+  return (
+    <div className="flex h-full">
+      {/* Folders */}
+      <h1 className="sr-only">Mail</h1>
+      <aside aria-label="Mailboxes and folders" className="hidden w-56 shrink-0 flex-col border-r border-line bg-surface/50 md:flex xl:w-60">
+        <div className="p-3">
+          <Button className="w-full" onClick={() => startCompose()}><IconCompose className="h-4 w-4" />Compose</Button>
+          <button onClick={() => setInvoiceOpen(true)} className="mt-2 w-full rounded-lg px-2 py-1.5 text-left text-[13px] text-muted hover:bg-hover hover:text-fg">Chase an unpaid invoice</button>
+        </div>
+        <div className="px-3">
+          <label htmlFor="mailbox-switch" className="sr-only">Mailbox</label>
+          <Select bare id="mailbox-switch" value={mb.id} onChange={(e) => setParam({ mailbox: e.target.value, m: null, q: null })} className="h-9 w-full truncate rounded-lg border border-line bg-surface px-2 text-[13px] outline-none focus:border-brand/60"
+            phoneClassName={`${PHONE_PICK} h-11 w-full px-3`}>
+            {mailboxes.map((m) => <option key={m.id} value={m.id}>{m.address}{m.kind === "agent" ? " (agent)" : ""}{m.folders.inbox?.unread ? ` (${m.folders.inbox.unread})` : ""}</option>)}
+          </Select>
+        </div>
+        <nav className="mt-3 flex-1 space-y-0.5 overflow-y-auto px-3" aria-label="Folders">
+          {FOLDER_UI.map(({ id, label, icon: Icon }) => {
+            const unread = id === "inbox" || id === "spam" ? mb.folders[id as Folder]?.unread : undefined;
+            const count = id === "drafts" ? mb.folders.drafts?.total : unread;
+            return (
+              <button key={id} onClick={() => setParam({ folder: id === "inbox" ? null : id, m: null, q: null })} aria-current={!q && folder === id ? "page" : undefined}
+                className={cn("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] transition-colors", !q && folder === id ? "bg-fill font-medium text-fg" : "text-muted hover:bg-hover hover:text-fg")}>
+                <Icon className="h-4 w-4" />{label}
+                {!!count && <span className={cn("ml-auto text-[11px] tabular-nums", id === "inbox" ? "rounded bg-brand px-1.5 font-semibold text-brand-fg" : "text-subtle")}>{count}</span>}
+              </button>
+            );
+          })}
+          {SCHEDULE_VIEWS.map(({ id, label, icon: Icon }) => (
+            <button key={id} onClick={() => setParam({ folder: id, m: null, q: null })} aria-current={!q && folder === id ? "page" : undefined}
+              className={cn("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] transition-colors", !q && folder === id ? "bg-fill font-medium text-fg" : "text-muted hover:bg-hover hover:text-fg")}>
+              <Icon className="h-4 w-4" />{label}
+            </button>
+          ))}
+          {mb.connectionId && <ProviderFolderNav connectionId={mb.connectionId} current={q ? "" : folder} onPick={(key) => setParam({ folder: key, m: null, q: null })} />}
+        </nav>
+        <div className="border-t border-line p-3 text-[11px] text-subtle">
+          <div className="mb-1 flex justify-between"><span>Storage</span><span>{formatBytes(mb.usedBytes)} of {formatBytes(mb.quotaMb * 1024 * 1024)}</span></div>
+          <div className="h-1 overflow-hidden rounded-full bg-fill"><div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(2, Math.min(100, (mb.usedBytes / (mb.quotaMb * 1048576)) * 100))}%` }} /></div>
+          <div className="mt-3 hidden gap-x-3 gap-y-1 xl:flex xl:flex-wrap"><span><Kbd>c</Kbd> compose</span><span><Kbd>j</Kbd>/<Kbd>k</Kbd> move</span><span><Kbd>e</Kbd> archive</span><span><Kbd>t</Kbd> task</span><span><Kbd>/</Kbd> search</span></div>
+        </div>
+      </aside>
+
+      {/* R79: the reading pane sits right, below, or off (the View menu), with a draggable divider. */}
+      {paned ? (
+        <Group key={`mail-${mailPane}-${layoutGen}`} id={`mail-${mailPane}`} orientation={mailPane === "bottom" ? "vertical" : "horizontal"} className="min-w-0 flex-1"
+          defaultLayout={mailLayout.defaultLayout} onLayoutChanged={mailLayout.onLayoutChanged}>
+          <Panel id="list" defaultSize={mailPane === "bottom" ? "45%" : "400px"} minSize={mailPane === "bottom" ? "20%" : "300px"} maxSize={mailPane === "bottom" ? "80%" : "65%"}>{listSection}</Panel>
+          <Separator className="pane-separator" aria-label="Resize reading pane" />
+          <Panel id="reader" minSize={mailPane === "bottom" ? "20%" : "360px"}>{readerSection}</Panel>
+        </Group>
+      ) : <>{listSection}{readerSection}</>}
+
+      <ArchiveOlderSheet open={olderOpen} onClose={() => setOlderOpen(false)} mailboxId={mailboxId} asOf={olderOpen ? listAsOf() || new Date().toISOString() : ""} onRun={runArchiveOlder} everyTab={splitsOn && splitTabs.length > 0} />
 
       <InvoiceReminderDialog open={invoiceOpen} onClose={() => setInvoiceOpen(false)} onCompose={startCompose} />
       <Dialog open={!!confirmJob} onClose={() => setConfirmJob(null)} title={confirmJob?.title ?? ""} description={confirmJob?.description}

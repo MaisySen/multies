@@ -13,14 +13,14 @@ export function Menu({ trigger, children, align = "end", label, sheet }: { trigg
       if (e.key === "Escape") setOpen(false);
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
-        const items = [...(ref.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? [])];
+        const items = [...(ref.current?.querySelectorAll<HTMLElement>("[role^=menuitem]") ?? [])];
         const i = items.indexOf(document.activeElement as HTMLElement);
         items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
       }
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
-    setTimeout(() => ref.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus(), 0);
+    setTimeout(() => ref.current?.querySelector<HTMLElement>("[role^=menuitem]")?.focus(), 0);
     return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
   }, [open]);
   return (
@@ -41,14 +41,17 @@ export function Menu({ trigger, children, align = "end", label, sheet }: { trigg
   );
 }
 
-export function MenuItem({ children, onSelect, danger, icon }: { children: ReactNode; onSelect: () => void; danger?: boolean; icon?: ReactNode }) {
+/** R79: checked makes the item one choice of a set (a radio in a menu, read out as checked or not). */
+export function MenuItem({ children, onSelect, danger, icon, checked, hint }: { children: ReactNode; onSelect: () => void; danger?: boolean; icon?: ReactNode; checked?: boolean; hint?: ReactNode }) {
   return (
     <button
-      type="button" role="menuitem" onClick={onSelect}
+      type="button" role={checked === undefined ? "menuitem" : "menuitemradio"} aria-checked={checked} onClick={onSelect}
       className={cn("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] outline-none transition-colors duration-100 hover:bg-hover focus-visible:bg-hover max-sm:min-h-11 max-sm:text-[15px] [&_svg]:h-4 [&_svg]:w-4", danger ? "text-bad" : "text-fg/90")}
     >
       {icon}
       {children}
+      {hint && <span className="ml-auto pl-3 text-[11.5px] text-subtle">{hint}</span>}
+      {checked && <svg aria-hidden viewBox="0 0 16 16" className={cn("h-4 w-4 shrink-0 text-brand-hover", !hint && "ml-auto")}><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>}
     </button>
   );
 }

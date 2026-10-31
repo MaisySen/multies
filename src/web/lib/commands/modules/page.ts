@@ -20,8 +20,8 @@ export const pageCommands: Command[] = [
   { id: "task-triage-snooze", title: "Snooze the Triage item", group: "Tasks", scope: "tasks-list", keys: ["H"], keywords: ["triage", "later"], handler: "local" },
   { id: "task-triage-duplicate", title: "Mark the Triage item a duplicate", group: "Tasks", scope: "tasks-list", keys: ["M"], keywords: ["triage", "merge"], handler: "local" },
   { id: "task-triage-open", title: "Open the Triage item", group: "Tasks", scope: "tasks-list", keys: ["O"], keywords: ["triage"], handler: "local" },
-  { id: "mail-split-next", title: "Next Inbox split", group: "Mail", scope: "mail", keys: ["Tab"], keywords: ["important", "other", "split"], handler: "local" },
-  { id: "mail-split-prev", title: "Previous Inbox split", group: "Mail", scope: "mail", keys: ["Shift", "Tab"], keywords: ["split"], handler: "local" },
+  { id: "mail-split-next", title: "Next Inbox split", group: "Mail", scope: "mail", keys: ["]"], keywords: ["important", "other", "split"], handler: "local" },
+  { id: "mail-split-prev", title: "Previous Inbox split", group: "Mail", scope: "mail", keys: ["["], keywords: ["split"], handler: "local" },
   { id: "prejoin-join", title: "Join the call from the pre-join screen", group: "Meetings", scope: "meeting", keys: ["Enter"], keywords: ["camera", "mic"], handler: "local" },
   { id: "doc-slash", title: "Insert any block in a doc", group: "Writing", scope: "writing", keys: ["/"], keywords: ["heading", "list", "to-do", "quote", "code", "divider"], handler: "local" },
 ];

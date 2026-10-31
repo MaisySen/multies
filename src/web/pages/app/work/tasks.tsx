@@ -23,6 +23,8 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { EmptyState, Skeleton, Switch } from "@/web/components/ui/misc";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { Popover } from "@/web/components/ui/popover"; // R75
+import { ChipSelect } from "@/web/components/ui/chip-select"; // R79
+import { useLayout } from "@/web/lib/layout-prefs"; // R79
 import { cn } from "@/web/lib/cn";
 import { Board, ColumnComposer, NO_VALUE } from "./board";
 import { describeFilter, FieldFilterPicker, FieldsDialog } from "./fields";
@@ -65,6 +67,10 @@ export function TasksPage() {
   const people = useAssignees();
   const views = useViews();
   const phone = useMediaQuery(PHONE_QUERY);
+  // R79: on a desktop the task opens in the side panel beside the view (View menu: Task details), else over the page.
+  const desktop = useMediaQuery("(min-width: 1024px)");
+  const layoutPrefs = useLayout();
+  const dockTask = desktop && layoutPrefs.taskDetails === "side";
   const qc = useQueryClient();
   const { update, create } = useTaskMutations();
   // Phones open the list: a board's second column runs off a narrow screen (dogfood finding).
@@ -245,17 +251,18 @@ export function TasksPage() {
           { key: "status", label: "Status", value: filters.status ?? "", onChange: (v) => set({ status: v || null }), options: [{ value: "", label: "Any" }, { value: "todo", label: "To do" }, { value: "doing", label: "Doing" }, { value: "done", label: "Done" }] },
           { key: "type", label: "Type", value: filters.type ?? "", onChange: (v) => set({ type: v || null }), options: [{ value: "", label: "Any" }, ...TASK_TYPES.map((k) => ({ value: k, label: TYPE_META[k].label }))] },
         ]} />
-        <Select aria-label="Assignee filter" value={filters.assignee ?? ""} onChange={(e) => set({ assignee: e.target.value || null })} className="h-8 w-auto! text-[13px] max-sm:hidden">
+        {/* R79: light toolbar controls that say their setting; colour only when a filter is on. */}
+        <ChipSelect label="Assignee" aria-label="Assignee filter" active={!!filters.assignee} value={filters.assignee ?? ""} onChange={(e) => set({ assignee: e.target.value || null })} className="max-sm:hidden">
           <option value="">Anyone</option><option value="me">Me</option><option value="none">Nobody</option>
           {people.data?.map((p) => <option key={p.id} value={p.id}>{p.name}{isAgentLike(p) ? " (agent)" : ""}</option>)}
-        </Select>
-        <Select aria-label="Status filter" value={filters.status ?? ""} onChange={(e) => set({ status: e.target.value || null })} className="h-8 w-auto! text-[13px] max-sm:hidden">
-          <option value="">Any status</option><option value="todo">To do</option><option value="doing">Doing</option><option value="done">Done</option>
-        </Select>
+        </ChipSelect>
+        <ChipSelect label="Status" aria-label="Status filter" active={!!filters.status} value={filters.status ?? ""} onChange={(e) => set({ status: e.target.value || null })} className="max-sm:hidden">
+          <option value="">Any</option><option value="todo">To do</option><option value="doing">Doing</option><option value="done">Done</option>
+        </ChipSelect>
         {/* R75: the filters people reach for less often sit in one Filters panel, so the toolbar stays one row. */}
         <div className="max-sm:hidden">
           <Popover label="More filters" testId="tasks-more-filters" className="w-[22rem]" button={({ open }) => (
-            <span className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13px] transition-colors", open || moreFilterCount ? "border-brand/40 bg-brand-soft text-brand-hover" : "border-line bg-surface text-fg/90 hover:bg-hover")}>
+            <span className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] transition-colors", open || moreFilterCount ? "bg-brand-soft text-brand-hover" : "text-muted hover:bg-hover hover:text-fg")}>
               <IconSliders className="h-3.5 w-3.5" />Filters{moreFilterCount ? <span className="ml-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-brand px-1 text-[11px] font-semibold text-white">{moreFilterCount}</span> : null}
             </span>
           )}>
@@ -283,16 +290,16 @@ export function TasksPage() {
           </span>
         ))}
         {view === "board" && project && (
-          <Select aria-label="Group board by" value={groupEpic ? "epic" : groupField?.id ?? ""} onChange={(e) => set({ group: e.target.value || null })} className="h-8 w-auto! text-[13px]">
-            <option value="">Group by status</option>
-            <option value="epic">Group by epic</option>
-            {fields.filter((f) => f.type === "select").map((f) => <option key={f.id} value={f.id}>Group by {f.name}</option>)}
-          </Select>
+          <ChipSelect label="Group" aria-label="Group board by" active={!!(groupEpic || groupField)} value={groupEpic ? "epic" : groupField?.id ?? ""} onChange={(e) => set({ group: e.target.value || null })}>
+            <option value="">Status</option>
+            <option value="epic">Epic</option>
+            {fields.filter((f) => f.type === "select").map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </ChipSelect>
         )}
         {view === "board" && project && !groupField && !groupEpic && (
-          <Select aria-label="Swimlanes" data-testid="swimlanes-select" value={lanes} onChange={(e) => setLanes(e.target.value as Swimlanes)} className="h-8 w-auto! text-[13px]">
-            {SWIMLANES.map((s) => <option key={s} value={s}>{s === "none" ? "No swimlanes" : `Lanes: ${SWIMLANE_LABEL[s]}`}</option>)}
-          </Select>
+          <ChipSelect label="Lanes" aria-label="Swimlanes" data-testid="swimlanes-select" active={lanes !== "none"} value={lanes} onChange={(e) => setLanes(e.target.value as Swimlanes)}>
+            {SWIMLANES.map((s) => <option key={s} value={s}>{s === "none" ? "None" : SWIMLANE_LABEL[s]}</option>)}
+          </ChipSelect>
         )}
         {(activeFilters.length > 0 || fieldFilters.length > 0) && <Button variant="ghost" size="sm" onClick={() => set(Object.fromEntries([...FILTER_KEYS.map((k) => [k, null]), ...fieldFilters.map(([k]) => [k, null])]))}><IconClose className="h-3.5 w-3.5" />Clear</Button>}
         <div className="sm:ml-auto"><Menu align="end" trigger={<Button variant="ghost" size="sm" aria-label="Saved views" title="Saved views"><IconBookmark className="h-3.5 w-3.5" /><span className="max-xl:sr-only">Saved views</span><IconChevronDown className="h-3.5 w-3.5" /></Button>}>
@@ -351,7 +358,7 @@ export function TasksPage() {
         </ClashScope>
       </div>
 
-      {openId && <TaskPanel id={openId} onClose={() => set({ task: null })} />}
+      {openId && <TaskPanel id={openId} onClose={() => set({ task: null })} docked={dockTask} />}
       {newTask && <NewTaskDialog projects={list} projectId={projectId || list[0]?.id} statusId={newTask.statusId} onClose={() => setNewTask(null)}
         onCreate={async (body, more) => { const r = await create.mutateAsync(body); if (more) { toast.success(`Added ${r.task.ref}`); return; } setNewTask(null); open(r.task.id); }} />}
       {editing && <ProjectDialog project={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={(p) => { setEditing(null); set({ project: p.id }); }} />}

@@ -11,7 +11,7 @@ import { DateInput } from "@/web/components/ui/input"; // R67 (MB-250)
 import { useQueryClient } from "@tanstack/react-query";
 import { SwipeTr } from "@/web/components/ui/swipe-row";
 import { useRevealRow, useWindowedList } from "@/web/lib/use-windowed-list"; // R43 (MB-210)
-import { IconAgent, IconArrowDown, IconArrowUp, IconCalendarDays, IconCheck, IconCircleDot, IconClose, IconMail, IconMove, IconShapes, IconSprint, IconTag, IconTrash, IconUserRound, IconCheckCircle, IconMore } from "@/web/components/ui/icon";
+import { IconAgent, IconArrowDown, IconArrowUp, IconCalendarDays, IconCheck, IconCircleDot, IconClose, IconMail, IconMove, IconShapes, IconSprint, IconTag, IconTrash, IconUserRound, IconCheckCircle, IconMore, IconFlag } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
@@ -82,15 +82,15 @@ export const TABLE_COLUMNS: TableColumn[] = [
     id: "assignee", header: "Assignee", width: "w-[150px]", editor: "assignee", hideOnPhone: true, sortKey: (t) => t.assignee?.name.toLowerCase() ?? "\uffff",
     render: (t) => t.assignee
       ? <span className="inline-flex min-w-0 items-center gap-1 whitespace-nowrap">{isAgentLike(t.assignee) && <IconAgent className="h-3.5 w-3.5 shrink-0 text-brand-hover" />}<span className="truncate">{t.assignee.name}</span></span>
-      : <span className="text-subtle">Nobody</span>,
+      : <span className="inline-flex items-center" title="Nobody"><IconUserRound className="mm-faint h-4 w-4" aria-hidden /><span className="sr-only">Nobody</span></span>, // R79: a faint icon, not a word
   },
   {
     id: "priority", header: "Priority", width: "w-[110px]", editor: "priority", hideOnPhone: true, sortKey: (t) => PRIORITY_RANK[t.priority],
-    render: (t) => <span className={PRIORITY_COLOR[t.priority]}>{t.priority === "none" ? "" : PRIORITY_LABEL[t.priority]}</span>,
+    render: (t) => t.priority === "none" ? <span className="inline-flex items-center" title="No priority"><IconFlag className="mm-faint h-4 w-4" aria-hidden /><span className="sr-only">No priority</span></span> : <span className={PRIORITY_COLOR[t.priority]}>{PRIORITY_LABEL[t.priority]}</span>,
   },
   {
     id: "due", header: "Due", width: "w-[96px]", editor: "date", field: "due", sortKey: (t) => t.due ?? "9999",
-    render: (t) => <span className={cn("whitespace-nowrap", isOverdue(t) && "text-bad")}>{dueLabel(t.due) ?? ""}</span>,
+    render: (t) => t.due ? <span className={cn("whitespace-nowrap", isOverdue(t) && "text-bad")}>{dueLabel(t.due) ?? ""}</span> : <span className="inline-flex items-center" title="No due date"><IconCalendarDays className="mm-faint h-4 w-4" aria-hidden /><span className="sr-only">No due date</span></span>,
   },
   {
     id: "labels", header: "Labels", width: "w-[180px]", editor: "labels", hideOnPhone: true, sortKey: (t) => t.labels.join(",").toLowerCase() || "\uffff",

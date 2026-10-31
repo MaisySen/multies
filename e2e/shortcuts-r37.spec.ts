@@ -193,7 +193,7 @@ test("mail keys: J K C / and, on an open message, S U R A F T X H # Esc and Cmd+
   await expect.poll(async () => (await message(page, id)).folder, { timeout: 15_000 }).toBe(folderBefore);
 });
 
-test("mail list keys: Shift+X, Cmd+A, Esc and Tab or Shift+Tab between Inbox splits", async ({ page }) => {
+test("mail list keys: Shift+X, Cmd+A, Esc and ] or [ between Inbox splits (Tab stays focus, MB-273)", async ({ page }) => {
   test.setTimeout(300_000);
   await demo(page);
   await page.goto("/app/mail");
@@ -222,19 +222,19 @@ test("mail list keys: Shift+X, Cmd+A, Esc and Tab or Shift+Tab between Inbox spl
   await page.keyboard.press("Escape");
   await expect(checked).toHaveCount(0, { timeout: 10_000 });
 
-  // Tab and Shift+Tab step through the Inbox splits when the list has focus.
+  // R79 (MB-273): ] and [ step through the Inbox splits; Tab is left to move focus.
   const tabs = page.getByTestId("split-tabs").getByRole("tab");
   if ((await tabs.count()) < 2) {
-    test.info().annotations.push({ type: "note", description: "fewer than two Inbox splits, Tab not pressed" });
+    test.info().annotations.push({ type: "note", description: "fewer than two Inbox splits, ] not pressed" });
     return;
   }
   const selected = () => page.getByTestId("split-tabs").getByRole("tab", { selected: true }).textContent();
   const start = await selected();
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
-  await page.keyboard.press("Tab");
+  await page.keyboard.press("]");
   await expect.poll(selected, { timeout: 10_000 }).not.toBe(start);
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
-  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("[");
   await expect.poll(selected, { timeout: 10_000 }).toBe(start);
 });
 

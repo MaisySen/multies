@@ -1,3 +1,5 @@
+import { useLayout } from "@/web/lib/layout-prefs"; // R79
+import { IconUserRound } from "@/web/components/ui/icon"; // R79
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Gantt, Willow, WillowDark } from "@svar-ui/react-gantt";
@@ -197,6 +199,12 @@ function WhoCell({ row }: { row: BarRow }) {
   if (!info?.who) return <span className="text-[12px] text-subtle" aria-label="Nobody assigned">&nbsp;</span>;
   return <span title={info.who} className="inline-flex" data-testid="timeline-who"><Initials name={info.who} /><span className="sr-only">{info.who}</span></span>;
 }
+/** R79: the named Assignee column (View menu: Assignee column on Timeline); a faint icon when nobody has it. */
+function WhoNameCell({ row }: { row: BarRow }) {
+  const info = useContext(InfoCtx).get(String(row.id).replace(/^:/, ""));
+  if (!info?.who) return <span className="inline-flex items-center" title="Nobody assigned"><IconUserRound className="mm-faint h-4 w-4" aria-hidden /><span className="sr-only">Nobody assigned</span></span>;
+  return <span className="inline-flex min-w-0 items-center gap-1.5 text-[12.5px]" data-testid="timeline-who"><Initials name={info.who} /><span className="truncate">{info.who}</span></span>;
+}
 function WhenCell({ row }: { row: BarRow }) {
   const info = useContext(InfoCtx).get(String(row.id).replace(/^:/, ""));
   if (!info) return null;
@@ -276,6 +284,7 @@ export function TaskTimeline({ tasks, links = [], late, daysOff, zoom = "week", 
     return () => ro?.disconnect();
   }, [rows.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
   const [gridWidth, setGridWidth] = useState(savedGrid);
+  const people = useLayout().timelinePeople; // R79: optional named Assignee column
   const colsW = narrow ? 0 : gridWidth;
   const range = useMemo(() => timelineRange(rows.map((r) => r.start.getTime()), rows.map((r) => r.end.getTime()), startOfDay(Date.now()).getTime(), zoom, Math.max(0, boxW - colsW) + px * 2),
     [rows, zoom, boxW, colsW, px]);
@@ -343,7 +352,7 @@ export function TaskTimeline({ tasks, links = [], late, daysOff, zoom = "week", 
   const columns = narrow ? [{ id: "text", header: "Task", flexgrow: 1, cell: NameCell }] : [
     { id: "text", header: "Task", flexgrow: 1, cell: NameCell },
     ...(showDates ? [{ id: "when", header: "Dates", width: 132, cell: WhenCell }] : []),
-    { id: "who", header: "", width: 44, cell: WhoCell, align: "center" },
+    people ? { id: "who", header: "Assignee", width: 150, cell: WhoNameCell } : { id: "who", header: "", width: 44, cell: WhoCell, align: "center" },
   ];
   return (
     <div className="flex flex-col gap-2">

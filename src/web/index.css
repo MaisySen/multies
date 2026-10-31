@@ -433,3 +433,26 @@
 .mm-gantt-r75 .wx-grid .wx-row .wx-cell { border-color: var(--color-line); }
 .mm-row-band { position: absolute; left: 0; right: 0; z-index: 1; pointer-events: none; background: color-mix(in srgb, var(--color-brand) 7%, transparent); }
 @media (prefers-reduced-motion: reduce) { .mm-gantt-r75 .wx-bar.wx-task { transition: none; } }
+
+/* R79: the calm shell. Resizable dividers (react-resizable-panels): a hairline that shows its handle on hover or
+   keyboard focus; the hit area is wider than the line. */
+.shell-separator, .pane-separator { position: relative; flex: 0 0 1px; background: var(--color-line); outline: none; }
+.shell-separator::after, .pane-separator::after { content: ""; position: absolute; inset: 0 -4px; }
+.pane-separator[aria-orientation="horizontal"]::after { inset: -4px 0; }
+.shell-separator:hover, .shell-separator[data-separator="hover"], .shell-separator[data-separator="active"],
+.pane-separator:hover, .pane-separator[data-separator="hover"], .pane-separator[data-separator="active"] { background: var(--color-brand); }
+.shell-separator:focus-visible, .pane-separator:focus-visible { background: var(--color-brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-brand) 35%, transparent); }
+@media (prefers-reduced-motion: no-preference) { .shell-separator, .pane-separator { transition: background-color 120ms ease; } }
+
+/* R79: density from the View menu (per person). html[data-density] outranks the workspace brand on :root. */
+html[data-density="compact"] { --spacing: 0.21rem; }
+html[data-density="comfortable"] { --spacing: 0.25rem; }
+
+/* R79: every animation and transition steps aside when the person asks for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .app-shell *, .app-shell *::before, .app-shell *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+
+/* R79: unset fields on rows and cards show a faint icon, solid on hover or focus. */
+.mm-faint { color: var(--color-subtle); opacity: 0.55; }
+.group:hover .mm-faint, .mm-faint:focus-visible { opacity: 1; }

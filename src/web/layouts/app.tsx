@@ -49,6 +49,12 @@ import { useCollapsingTitle } from "@/web/lib/large-title";
 import { badgeTotal, useCounts, useTitleCount } from "@/web/lib/counts"; // R34: one counts query for every badge
 import { useOpenReportCount } from "@/web/lib/open-report-count"; // R35 (R45: its own module, not the moderation page)
 import { lazyPage } from "@/web/components/lazy-page";
+import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels"; // R79 (MIT): resizable shell panes
+import { panelStorage, setLayoutUser, sidebarHiddenOn, useLayout, useLayoutGeneration } from "@/web/lib/layout-prefs"; // R79
+import { setInspectorEl, useInspectorOpen } from "@/web/lib/inspector"; // R79
+import { useMediaQuery } from "@/web/lib/use-compact";
+import { Breadcrumbs, ContextSidebar, CreateMenu, IconRail, SearchEntry, ViewMenu, useSidebarShortcut, type NavCounts } from "./shell"; // R79
+import { sectionFor, visibleSections } from "./shell-nav"; // R79
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -82,15 +88,6 @@ const nav: NavItem[] = [
   { to: "/app/activity", label: "Activity", icon: IconActivity, group: "admin" },
   { to: "/app/settings", label: "Settings", icon: IconSettings, group: "admin" },
 ];
-/** R35: section tile colours (system palette, white glyphs pass 3:1 for non-text contrast). */
-const NAV_TINT: Record<string, string> = {
-  "/app/my-work": "#FF9500", "/app": "#5856D6", "/app/notifications": "#FF3B30", "/app/chat": "#34C759", "/app/tasks": "#0071E3",
-  "/app/triage": "#5AC8FA", "/app/docs": "#007AFF", "/app/meetings": "#30B0C7", "/app/scheduling": "#30B0C7", "/app/goals": "#FF2D55",
-  "/app/contacts": "#A2845E", "/app/time": "#FF9F0A", "/app/forms": "#AF52DE", "/app/dashboards": "#5856D6", "/app/reports": "#32ADE6",
-  "/app/portfolio": "#8E6CEF", "/app/templates": "#64D2FF", "/app/automations": "#FFCC00", "/app/mail": "#0071E3", "/app/inbox": "#5E5CE6",
-  "/app/mailboxes": "#34C759", "/app/domains": "#0A84FF", "/app/deliverability": "#30D158", "/app/agents": "#636366", "/app/approvals": "#FF9500",
-  "/app/integrations": "#BF5AF2", "/app/tools": "#FF6482", "/app/files": "#FF9F0A", "/app/activity": "#FF453A", "/app/settings": "#8E8E93", "/app/admin": "#1C1C1E",
-};
 // "Workspace", not "Admin": everyone sees this group (settings, people, billing); the operator's console is gated separately.
 const GROUP_LABEL = { work: "Work", mail: "Mail", admin: "Workspace" } as const;
 
@@ -124,6 +121,20 @@ export function AppLayout() {
   const qc = useQueryClient();
   const [drawer, setDrawer] = useState(false);
   const whatsNew = useWhatsNew(); // R53 (MB-133): unread dot, localStorage only
+  // R79: the person's own layout (read before first paint once they are known) and the desktop shell's hooks.
+  if (me.data?.user?.id) setLayoutUser(me.data.user.id, { silent: true });
+  const layout = useLayout();
+  const layoutGen = useLayoutGeneration();
+  const inspectorOpen = useInspectorOpen();
+  // On Mail the page's own folder list is the sidebar, so the shell's folds away unless the person shows it there.
+  const sidebarHidden = sidebarHiddenOn(layout, loc.pathname);
+  const desktop = useMediaQuery("(min-width: 1024px)");
+  useSidebarShortcut();
+  const shellLayout = useDefaultLayout({ id: "shell", storage: panelStorage, panelIds: [...(sidebarHidden ? [] : ["sidebar"]), "main", ...(inspectorOpen ? ["inspector"] : [])] });
+  const projectParam = loc.pathname === "/app/tasks" ? new URLSearchParams(loc.search).get("project") : null;
+  const projectList = useQuery({ queryKey: ["projects"], enabled: !!projectParam && !!me.data?.organization, staleTime: 30_000,
+    queryFn: async () => (await api.get<{ projects: { id: string; name: string }[] }>("/projects")).projects });
+  const projectName = projectParam ? projectList.data?.find((p) => p.id === projectParam)?.name ?? null : null;
   useEffect(() => watchKeyboardInset(), []); // R49 mobile: composers stay above the on screen keyboard
   const approvals = useQuery({
     queryKey: ["approvals", "pending"], enabled: !!me.data?.organization, refetchInterval: 30_000,
@@ -220,11 +231,11 @@ export function AppLayout() {
           {items.map(({ to, label, icon: Icon, end }) => (
             <NavLink to={to} end={end} className={({ isActive }) => cn(
               "flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13.5px] transition-colors duration-150 max-lg:min-h-11 max-lg:text-[15px]",
-              isActive ? "bg-brand font-medium text-brand-fg shadow-[var(--shadow-e1)] [&_[data-badge]]:bg-white/25 [&_[data-badge]]:text-white" : "text-fg/85 hover:bg-hover hover:text-fg",
+              isActive ? "bg-brand-soft font-medium text-brand-hover" : "text-fg/85 hover:bg-hover hover:text-fg",
             )}>
               {({ isActive }) => (<>
-              {/* R35: a tinted rounded tile per section, like the system settings sidebar; the glyph fills when active. */}
-              <span className="nav-tile" style={{ background: NAV_TINT[to] ?? "#8E8E93" }}><Icon filled={isActive} /></span>{label}
+              {/* R79: calm monochrome glyphs; colour is kept for the active item and for counts that need you. */}
+              <Icon filled={isActive} className="h-[18px] w-[18px] shrink-0 opacity-90" aria-hidden />{label}
               {to === "/app/notifications" && (unreadNotes.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" data-badge aria-label={`${unreadNotes.data} unread`}>{unreadNotes.data}</span>}
               {to === "/app/mail" && mailUnread > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" data-badge aria-label={`${mailUnread} unread in Inbox`}>{mailUnread > 999 ? "999+" : mailUnread}</span>}
               {to === "/app/chat" && (chatUnread.data?.total ?? 0) > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" data-badge aria-label={`${chatUnread.data?.total} unread messages`}>{chatUnread.data?.total}</span>}
@@ -258,17 +269,38 @@ export function AppLayout() {
     </div>
   );
 
-  return (
-    <div className="app-shell flex h-dvh overflow-hidden">
-      <BrandTokens orgId={organization?.id} />
-      <aside aria-label="Sidebar" className="glass-sidebar hairline-r hidden w-60 shrink-0 lg:block">{sidebar}</aside>
-      {drawer && (
-        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
-          <div className="absolute inset-0 animate-fade-in bg-black/40" onClick={() => setDrawer(false)} />
-          <aside aria-label="Sidebar" className="absolute inset-y-0 left-0 w-72 max-w-[85vw] animate-drawer-in border-r border-line bg-surface pt-[env(safe-area-inset-top)] elev-3 max-md:w-[min(20rem,88vw)] max-md:bg-bg">{sidebar}</aside>
-        </div>
-      )}
-      <div className="flex min-w-0 flex-1 flex-col">
+  // R79: the desktop shell: icon rail, a resizable sidebar for the open section (Cmd or Ctrl + backslash folds it),
+  // and a top bar with breadcrumbs, search, Create and View. Tablets and phones keep their own bars (R46).
+  const navFlags = { tools: !!config.data?.tools, files: !!config.data?.tools && !!config.data?.toolFeatures?.includes("folders"), scheduling: !!config.data?.scheduling, operator: !!me.data?.user.platformAdmin };
+  const sections = visibleSections(navFlags);
+  const section = sectionFor(loc.pathname, sections);
+  const navCounts: NavCounts = {
+    "/app/notifications": { n: unreadNotes.data ?? 0, label: `${unreadNotes.data ?? 0} unread`, alert: true },
+    "/app/triage": { n: triageCount.data ?? 0, label: `${triageCount.data ?? 0} waiting in Triage`, alert: true },
+    "/app/approvals": { n: pendingCount, label: `${pendingCount} waiting`, alert: true },
+    "/app/mail": { n: mailUnread, label: `${mailUnread} unread in Inbox` },
+    "/app/chat": { n: chatUnread.data?.total ?? 0, label: `${chatUnread.data?.total ?? 0} unread messages` },
+    "/app/admin": { n: openReports.data ?? 0, label: `${openReports.data ?? 0} reports to review`, alert: true },
+  };
+  const accountButton = accountMenu(<button className="relative grid h-10 w-10 place-items-center rounded-full hover:bg-hover" data-testid="sidebar-account" aria-label={`Account: ${user.name}`}>
+      <Avatar label={initials(user.name)} className="h-8 w-8" />{whatsNew.unread && <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-surface" aria-hidden data-testid="whats-new-unread" />}
+    </button>, "start");
+  const demoNote = organization?.isDemo && (
+    <div className="mx-2.5 mb-2.5 shrink-0 rounded-lg bg-fill p-3 text-[12.5px]">
+      <div className="flex items-center gap-1.5 font-medium text-fg"><IconFlask className="h-3.5 w-3.5 text-muted" aria-hidden />Demo workspace</div>
+      <p className="mt-1 text-muted">Sample data, private to you, deleted after 24 hours.</p>
+      <Link to="/signup" onClick={signOut} className="mt-2 inline-block font-medium text-fg hover:underline">Create a real account</Link>
+    </div>
+  );
+  const content = (
+    <div className="flex h-full min-w-0 flex-1 flex-col">
+        {desktop && (
+          <header className="hairline-b flex h-12 shrink-0 items-center gap-3 px-4" data-desktop-topbar>
+            <Breadcrumbs projectName={projectName} />
+            <div className="flex flex-1 justify-center"><SearchEntry /></div>
+            <div className="flex flex-1 items-center justify-end gap-1.5"><ViewMenu /><CreateMenu flags={navFlags} /></div>
+          </header>
+        )}
         <header className="sticky top-0 z-20 flex h-[calc(3rem+env(safe-area-inset-top))] shrink-0 items-center gap-1 glass hairline-b pl-[max(0.375rem,env(safe-area-inset-left))] pr-[max(0.375rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)] lg:hidden" data-topbar>
           {/* R46 mobile: phones get the tab bar (More opens the menu); a tablet keeps the menu button here. */}
           <button className="hidden h-11 w-11 shrink-0 place-items-center rounded-full text-brand-hover transition-colors hover:bg-hover md:grid" onClick={() => setDrawer(true)} aria-label="Open navigation"><IconMenu className="h-[22px] w-[22px]" /></button>
@@ -284,7 +316,7 @@ export function AppLayout() {
         <OfflineBanner />
         {!!me.error && <ReconnectingPill onRetry={() => void me.refetch()} />}
         <PendingInviteBanner />
-        <main ref={setMainEl} className={cn("min-h-0 flex-1 overflow-x-hidden", isMail ? "overflow-hidden" : "overflow-y-auto overscroll-y-contain")}>
+        <main id="main" tabIndex={-1} ref={setMainEl} className={cn("min-h-0 flex-1 overflow-x-hidden outline-none", isMail ? "overflow-hidden" : "overflow-y-auto overscroll-y-contain")}>
           {isMail ? <Outlet /> : <div key={loc.pathname.split("/").slice(0, 3).join("/")} className={pageFrameClass(loc.pathname)} data-page-width={pageWidth(loc.pathname)}><Outlet /></div>}
         </main>
         <PhoneTabBar mailUnread={mailUnread} moreOpen={drawer} onMore={() => setDrawer((d) => !d)} />
@@ -293,7 +325,44 @@ export function AppLayout() {
         <ShortcutsHost />
         <div className="pointer-events-none fixed bottom-[calc(1rem+var(--tabbar-h,0px))] right-4 z-30 [&>*]:pointer-events-auto"><TimerChip /></div>
         <Suspense fallback={null}><CallDockHost /></Suspense>
-      </div>
+    </div>
+  );
+
+  return (
+    <div className="app-shell flex h-dvh overflow-hidden">
+      <BrandTokens orgId={organization?.id} />
+      {/* R79 (MB-278): the first Tab stop jumps past the navigation to the page. */}
+      <a href="#main" data-testid="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-md focus:bg-fg focus:px-3 focus:py-2 focus:text-[13px] focus:font-medium focus:text-bg">Skip to content</a>
+      {desktop ? (<>
+        <IconRail sections={sections} active={section.id} counts={navCounts} footer={accountButton} />
+        <Group key={layoutGen} id="shell" orientation="horizontal" className="min-w-0 flex-1" defaultLayout={shellLayout.defaultLayout} onLayoutChanged={shellLayout.onLayoutChanged}>
+          {!sidebarHidden && <>
+            <Panel id="sidebar" defaultSize="248px" minSize="200px" maxSize="420px" className="glass-sidebar">
+              <aside aria-label="Sidebar" className="h-full">
+                <ContextSidebar section={section} counts={navCounts} header={<WorkspaceSwitcher current={organization} />} footer={demoNote} />
+              </aside>
+            </Panel>
+            <Separator className="shell-separator" aria-label="Resize sidebar" />
+          </>}
+          <Panel id="main" minSize="480px">{content}</Panel>
+          {inspectorOpen && <>
+            <Separator className="shell-separator" aria-label="Resize details panel" />
+            <Panel id="inspector" defaultSize="460px" minSize="340px" maxSize="760px">
+              <div ref={setInspectorEl} className="h-full min-w-0 overflow-hidden" />
+            </Panel>
+          </>}
+        </Group>
+      </>) : (<>
+        <aside aria-label="Sidebar" className="glass-sidebar hairline-r hidden w-60 shrink-0 lg:block">{sidebar}</aside>
+        {content}
+      </>)}
+      {drawer && (
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
+          <div className="absolute inset-0 animate-fade-in bg-black/40" onClick={() => setDrawer(false)} />
+          <aside aria-label="Sidebar" className="absolute inset-y-0 left-0 w-72 max-w-[85vw] animate-drawer-in border-r border-line bg-surface pt-[env(safe-area-inset-top)] elev-3 max-md:w-[min(20rem,88vw)] max-md:bg-bg">{sidebar}</aside>
+        </div>
+      )}
     </div>
   );
 }
