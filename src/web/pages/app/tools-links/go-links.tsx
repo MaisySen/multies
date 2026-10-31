@@ -122,7 +122,7 @@ function GoDialog({ open, link, preset, onClose }: { open: boolean; link: GoLink
             <input {...fp} autoFocus value={name} onChange={(e) => setName(e.target.value.toLowerCase().replace(/^go\//, "").replace(/\s+/g, "-"))} placeholder="onboarding" aria-label="Go link name" maxLength={48} className="h-9 min-w-0 flex-1 bg-transparent px-2.5 text-sm outline-none max-sm:h-11" data-testid="go-name" />
           </div>
         </>)}</Field>
-        <fieldset>
+        <fieldset className="min-w-0">
           <legend className="mb-1.5 text-[13px] font-medium">Opens</legend>
           <div role="radiogroup" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {KINDS.map(({ k, label, icon: I }) => (

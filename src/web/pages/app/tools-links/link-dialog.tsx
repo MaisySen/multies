@@ -97,7 +97,7 @@ export function LinkDialog({ open, onClose, base, link, onSaved }: { open: boole
         </button>
         {more && (
           <div className="space-y-4 rounded-xl border border-line bg-fill/40 p-4">
-            <fieldset>
+            <fieldset className="min-w-0">
               <legend className="mb-2 text-[13px] font-medium">Campaign tracking</legend>
               <div className="grid gap-3 sm:grid-cols-3">
                 {UTM_FIELDS.map(([k, label, ph]) => (

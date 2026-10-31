@@ -97,9 +97,9 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   // R87: team go links (go/name), when Tools > Links is on.
   const goLinks = useGoLinks(open && !!config.data?.tools && !!config.data?.toolFeatures?.includes("links"));
   const go = (to: string, label?: string, hint?: string) => () => { if (label) recordRecent({ kind: "item", id: to, label, url: to, hint }); ctx.navigate(to); };
+  const goItems: Item[] = (goLinks.data?.links ?? []).map((g) => ({ id: `go-${g.id}`, label: `go/${g.name}`, hint: g.description || g.label || "Go link", icon: IconLink, keywords: [g.name, `go ${g.name}`, g.label ?? "", "go link"], run: g.targetKind === "url" ? () => { close(); window.open(g.href, "_blank", "noopener"); } : go(`/app/go/${g.name}`, `go/${g.name}`, "Go link") }));
   const records: Item[] = [
     ...(domains.data ?? []).map((d) => ({ id: `d-${d.id}`, label: d.name, hint: "Domain", icon: IconGlobe, run: go(`/app/domains/${d.id}`, d.name, "Domain") })),
-    ...(goLinks.data?.links ?? []).map((g) => ({ id: `go-${g.id}`, label: `go/${g.name}`, hint: g.description || g.label || "Go link", icon: IconLink, keywords: [g.name, `go ${g.name}`, g.label ?? "", "go link"], run: g.targetKind === "url" ? () => { close(); window.open(g.href, "_blank", "noopener"); } : go(`/app/go/${g.name}`, `go/${g.name}`, "Go link") })),
     ...(mailboxes.data ?? []).map((m) => ({ id: `m-${m.id}`, label: m.address, hint: "Mailbox", icon: IconInbox, run: go(`/app/mail?mailbox=${m.id}`, m.address, "Mailbox") })),
   ];
   // R36: on an empty query the menu opens on what you used last (read when it opens; device only).
@@ -257,6 +257,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
             <ContentGroups state={content} search={search} onOpen={(url, title) => { if (title) recordRecent({ kind: "item", id: url, label: title, url, hint: hintForUrl(url) }); close(); navigate(url); }} />
             {group(<Heading icon={IconCommand}>Actions</Heading>, actions)}
             {group(<Heading icon={IconArrowRight}>Go to</Heading>, pages)}
+            {group(<Heading icon={IconLink}>Go links</Heading>, goItems, "palette-go-links")}
             {group(<Heading icon={IconGlobe}>Domains and mailboxes</Heading>, records)}
             {group(<Heading icon={IconUser}>Account</Heading>, [{ id: "signout", label: "Sign out", icon: IconLogOut, run: () => { close(); onSignOut(); } }])}
           </>

@@ -57,10 +57,10 @@ export function StatsView({ data, loading, error, days, onDays, csvHref, onRetry
         <div className="space-y-3" aria-busy="true"><div className="grid grid-cols-3 gap-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-[92px] rounded-xl" />)}</div><Skeleton className="h-52 rounded-xl" /></div>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-3 max-[420px]:grid-cols-1">
-            <StatTile label="Clicks" value={data.total} icon={<IconChart />} tone="brand" />
-            <StatTile label="Unique visitors" value={data.visitors} icon={<IconUser />} />
-            <StatTile label="Bots left out" value={data.botClicks} icon={<IconShield />} hint="All time" />
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <StatTile label="Clicks" value={data.total} icon={<IconChart />} tone="brand" className="max-sm:p-3" />
+            <StatTile label="Visitors" value={data.visitors} icon={<IconUser />} hint="Unique" className="max-sm:p-3" />
+            <StatTile label="Bots left out" value={data.botClicks} icon={<IconShield />} hint="All time" className="max-sm:p-3" />
           </div>
           <div className="h-52 rounded-xl border border-line p-2 pt-3">
             <ResponsiveContainer><BarChart data={rows} margin={{ left: -20, right: 8 }}>

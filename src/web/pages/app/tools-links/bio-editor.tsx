@@ -84,7 +84,7 @@ export function BioEditor() {
       {q.isError ? (
         <Card className="p-6 text-center"><p className="font-medium">Couldn't load the page</p><Button variant="outline" className="mt-3" onClick={() => void q.refetch()}>Try again</Button></Card>
       ) : !q.data ? (
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]" aria-busy="true"><Skeleton className="h-96 rounded-xl" /><Skeleton className="h-[560px] rounded-[2rem]" /></div>
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_262px] 2xl:grid-cols-[minmax(0,1fr)_350px]" aria-busy="true"><Skeleton className="h-96 rounded-xl" /><Skeleton className="h-[560px] rounded-[2rem]" /></div>
       ) : <BioForm key={`${scope}:${q.data.page.id ?? "new"}`} page={q.data.page} scope={scope} />}
     </div>
   );
@@ -122,10 +122,10 @@ function BioForm({ page, scope }: { page: BioPageInfo; scope: "me" | "workspace"
   const totalClicks = page.items.reduce((n, i) => n + i.clicks, 0);
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_262px] 2xl:grid-cols-[minmax(0,1fr)_350px]">
       <form className="min-w-0 space-y-4" onSubmit={(e) => { e.preventDefault(); save.mutate(undefined); }}>
         {ro && <p className="rounded-lg bg-fill px-3 py-2 text-[13px] text-muted">Only admins can change the workspace page.</p>}
-        <fieldset disabled={ro} className="space-y-4">
+        <fieldset disabled={ro} className="min-w-0 space-y-4">
           <Card className="space-y-4 p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -150,9 +150,9 @@ function BioForm({ page, scope }: { page: BioPageInfo; scope: "me" | "workspace"
                   <option value="none">No picture</option>
                 </Select>
               </>)}</Field>
-              <Field label="Look" hint="Buttons use your workspace brand colour">{(fp) => (<>
+              <Field label="Look" hint="Automatic follows the visitor's phone. Buttons use your brand colour">{(fp) => (<>
                 <Select {...fp} value={d.theme} onChange={(e) => set("theme", e.target.value as Draft["theme"])} data-testid="bio-theme">
-                  <option value="brand">Follow the visitor's light or dark</option>
+                  <option value="brand">Automatic</option>
                   <option value="light">Always light</option>
                   <option value="dark">Always dark</option>
                 </Select>
@@ -218,7 +218,7 @@ function BioForm({ page, scope }: { page: BioPageInfo; scope: "me" | "workspace"
           <span>Preview</span>
           {d.theme === "brand" && <label className="flex items-center gap-2">Dark<Switch checked={dark} onChange={setDark} label="Preview in dark" /></label>}
         </div>
-        <BioPreview d={d} dark={dark} />
+        <div className="lg:[zoom:0.76] 2xl:[zoom:1]"><BioPreview d={d} dark={dark} /></div>
       </div>
     </div>
   );
