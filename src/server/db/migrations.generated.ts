@@ -1255,5 +1255,23 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `notification_prefs` ADD `digest_last_at` integer;",
       "CREATE INDEX IF NOT EXISTS `notification_prefs_digest_idx` ON `notification_prefs` (`digest_due_at`);"
     ]
+  },
+  {
+    "name": "0122_social_p2b",
+    "statements": [
+      "-- R118: Social P2b. The inbox (comments, messages and mentions pulled from each account), internal notes and sent\n-- replies, saved replies, results per post and account, per account state (last pull, health, bell told) and the\n-- staging only test network. Additive only.\nCREATE TABLE `social_inbox_items` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`account_id` text NOT NULL,\n\t`app` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`remote_id` text NOT NULL,\n\t`target` text,\n\t`author_id` text,\n\t`author_name` text,\n\t`author_handle` text,\n\t`text` text NOT NULL,\n\t`post_url` text,\n\t`post_text` text,\n\t`received_at` integer NOT NULL,\n\t`last_inbound_at` integer,\n\t`status` text DEFAULT 'open' NOT NULL,\n\t`assignee_id` text,\n\t`contact_id` text,\n\t`task_id` text,\n\t`replied_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `social_inbox_remote_uq` ON `social_inbox_items` (`org_id`,`account_id`,`remote_id`);",
+      "CREATE INDEX `social_inbox_list_idx` ON `social_inbox_items` (`org_id`,`status`,`received_at`);",
+      "CREATE INDEX `social_inbox_assignee_idx` ON `social_inbox_items` (`org_id`,`assignee_id`,`status`);",
+      "CREATE TABLE `social_inbox_notes` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`item_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`author_id` text,\n\t`kind` text NOT NULL,\n\t`text` text NOT NULL,\n\t`status` text DEFAULT 'sent' NOT NULL,\n\t`error` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`item_id`) REFERENCES `social_inbox_items`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `social_inbox_notes_item_idx` ON `social_inbox_notes` (`item_id`,`created_at`);",
+      "CREATE TABLE `social_saved_replies` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`title` text NOT NULL,\n\t`body` text NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `social_saved_replies_org_idx` ON `social_saved_replies` (`org_id`,`title`);",
+      "CREATE TABLE `social_post_stats` (\n\t`post_id` text NOT NULL,\n\t`account_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`app` text NOT NULL,\n\t`reach` integer,\n\t`engagement` integer,\n\t`clicks` integer,\n\t`fetched_at` integer NOT NULL,\n\tPRIMARY KEY(`post_id`, `account_id`),\n\tFOREIGN KEY (`post_id`) REFERENCES `social_posts`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `social_post_stats_org_idx` ON `social_post_stats` (`org_id`,`fetched_at`);",
+      "CREATE TABLE `social_account_state` (\n\t`org_id` text NOT NULL,\n\t`account_id` text NOT NULL,\n\t`app` text NOT NULL,\n\t`inbox_synced_at` integer,\n\t`inbox_error` text,\n\t`stats_synced_at` integer,\n\t`health_code` text,\n\t`health_told_at` integer,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `account_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `social_account_state_inbox_idx` ON `social_account_state` (`inbox_synced_at`);",
+      "CREATE TABLE `social_test_accounts` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`name` text NOT NULL,\n\t`broken` integer DEFAULT 0 NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);"
+    ]
   }
 ];

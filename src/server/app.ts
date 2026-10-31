@@ -394,6 +394,9 @@ export function createApp(deps: Deps) {
       demoEnabled: deps.config.demoEnabled,
       // R117: Social composer v2, planner views and slots, drafts and approvals, library (SOCIAL_P2; on unless "off").
       socialP2: deps.config.socialP2 !== false,
+      // R118: Social inbox, analytics and account health alerts (SOCIAL_P2B); the staging only test network.
+      socialP2b: deps.config.socialP2b !== false,
+      socialTestNetwork: deps.config.socialTestNetwork === true,
       supportEmail: deps.config.supportEmail,
       outboundDriver: deps.outbound.name,
       billingEnabled: deps.config.billing.enabled,

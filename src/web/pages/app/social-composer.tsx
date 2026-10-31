@@ -86,6 +86,8 @@ export function composerAccounts(list: ConnectedAccountView[], direct: DirectSta
     if (!d.connected || d.status === "expired") continue;
     out.push({ id: `direct:${d.provider}`, app: d.provider, name: networkLabel(d.provider), label: d.username ? `@${d.username}` : null, needsTarget: false });
   }
+  // R118: the staging only test network, labelled as such everywhere.
+  if (direct?.test) out.push({ id: direct.test.id, app: "testnet", name: "Test network", label: null, needsTarget: false });
   return out;
 }
 

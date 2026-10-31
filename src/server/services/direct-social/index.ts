@@ -12,7 +12,8 @@ import { revokeTikTok, setPublishStatus } from "./tiktok";
 
 export async function directStatus(deps: Deps, auth: AuthContext): Promise<DirectStatusResponse> {
   const links = await Promise.all(DIRECT_PROVIDERS.map((p) => getLink(deps, auth.orgId, p)));
-  return { canManage: isAdmin(auth), accounts: DIRECT_PROVIDERS.map((p, i) => viewOf(deps, p, links[i])) };
+  const test = deps.config.socialTestNetwork === true ? (await (await import("../integrations/social-p2b")).testStatus(deps, auth)).account : null; // R118
+  return { canManage: isAdmin(auth), accounts: DIRECT_PROVIDERS.map((p, i) => viewOf(deps, p, links[i])), test };
 }
 
 export async function disconnect(deps: Deps, auth: AuthContext, p: DirectProvider) {

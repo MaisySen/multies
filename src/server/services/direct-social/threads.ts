@@ -196,3 +196,18 @@ export async function handleThreadsCallback(deps: Deps, signed: string) {
   deps.log?.info("threads.deauthorized", { links: removed.length });
   return { status: 200 as const, body: { url: `${deps.config.appUrl}/delete-account?code=${code}`, confirmation_code: code }, removed: removed.length };
 }
+
+/** R118: views and interactions of one Threads post, for Social analytics (null when Threads is not linked). */
+export async function threadsInsights(deps: Deps, orgId: string, mediaId: string): Promise<{ reach: number | null; engagement: number | null; clicks: null } | null> {
+  const t = deps.config.direct.threads;
+  if (!t) return null;
+  const { getLink } = await import("./store");
+  const link = await getLink(deps, orgId, "threads");
+  if (!link || link.status === "expired") return null;
+  const tok = await token(deps, link);
+  const r = await graph<{ data?: { name?: string; values?: { value?: number }[]; total_value?: { value?: number } }[] }>(deps, `${t.apiBase}/${encodeURIComponent(mediaId)}/insights?metric=views,likes,replies,reposts,quotes&access_token=${encodeURIComponent(tok)}`);
+  if (!r.ok) return null;
+  const v = (name: string) => { const m = (r.json.data ?? []).find((x) => x.name === name); const n = m?.values?.[0]?.value ?? m?.total_value?.value; return typeof n === "number" ? n : null; };
+  const parts = ["likes", "replies", "reposts", "quotes"].map(v);
+  return { reach: v("views"), engagement: parts.every((x) => x == null) ? null : parts.reduce<number>((a, b) => a + (b ?? 0), 0), clicks: null };
+}

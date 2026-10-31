@@ -119,6 +119,7 @@ export const SOCIAL_NETWORKS: Record<string, SocialNetwork> = {
   reddit: { app: "reddit", maxChars: 40000, image: "none", target: { kind: "subreddit", label: "Community" } },
   twitter: { app: "twitter", maxChars: 280, image: "none", target: null },
   threads: { app: "threads", maxChars: 500, image: "optional", target: null },
+  testnet: { app: "testnet", maxChars: 2000, image: "optional", target: null }, // R118: staging only test network
 };
 
 export const canPostTo = (app: string) => app in SOCIAL_NETWORKS;

@@ -164,6 +164,8 @@ export function linkFor(n: { entityType: string; entityId: string; type: string 
     case "secret": return "/app/tools/share?tab=secrets"; // R88
     case "share": return "/app/tools/share"; // R88
     case "dashboard": return `/app/dashboards/${encodeURIComponent(n.entityId)}`;
+    case "social_inbox": return `/app/social/inbox?item=${encodeURIComponent(n.entityId)}`; // R118
+    case "social_account": return "/app/social/accounts"; // R118
     default: return "/app/notifications";
   }
 }

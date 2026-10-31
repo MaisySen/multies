@@ -3227,3 +3227,94 @@ export const dashboardSources = sqliteTable("dashboard_sources", {
   createdBy: text("created_by").notNull(),
   createdAt: createdAt(),
 }, (t) => [index("dashboard_sources_org_idx").on(t.orgId), index("dashboard_sources_due_idx").on(t.nextRefreshAt)]);
+
+/* ------------------------------------------------------------- R118 (0122): Social P2b */
+
+/** One comment, message thread or mention pulled from a social account. A message thread is one row (its newest message). */
+export const socialInboxItems = sqliteTable("social_inbox_items", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  accountId: text("account_id").notNull(),
+  app: text("app").notNull(),
+  kind: text("kind", { enum: ["comment", "message", "mention", "reply"] }).notNull(),
+  remoteId: text("remote_id").notNull(),
+  /** The Page (Facebook) or account id a reply goes out from. */
+  target: text("target"),
+  authorId: text("author_id"),
+  authorName: text("author_name"),
+  authorHandle: text("author_handle"),
+  text: text("text").notNull(),
+  postUrl: text("post_url"),
+  postText: text("post_text"),
+  receivedAt: ts("received_at").notNull(),
+  /** Their newest message (the 24 hour reply window on Meta messages counts from here). */
+  lastInboundAt: ts("last_inbound_at"),
+  status: text("status", { enum: ["open", "done"] }).notNull().default("open"),
+  assigneeId: text("assignee_id"),
+  contactId: text("contact_id"),
+  taskId: text("task_id"),
+  repliedAt: ts("replied_at"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex("social_inbox_remote_uq").on(t.orgId, t.accountId, t.remoteId),
+  index("social_inbox_list_idx").on(t.orgId, t.status, t.receivedAt),
+  index("social_inbox_assignee_idx").on(t.orgId, t.assigneeId, t.status),
+]);
+
+/** An internal note (never sent) or a reply that went to the network. */
+export const socialInboxNotes = sqliteTable("social_inbox_notes", {
+  id: text("id").primaryKey(),
+  itemId: text("item_id").notNull().references(() => socialInboxItems.id, { onDelete: "cascade" }),
+  orgId: text("org_id").notNull(),
+  authorId: text("author_id"),
+  kind: text("kind", { enum: ["note", "reply"] }).notNull(),
+  text: text("text").notNull(),
+  status: text("status", { enum: ["sent", "failed"] }).notNull().default("sent"),
+  error: text("error"),
+  createdAt: createdAt(),
+}, (t) => [index("social_inbox_notes_item_idx").on(t.itemId, t.createdAt)]);
+
+export const socialSavedReplies = sqliteTable("social_saved_replies", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("social_saved_replies_org_idx").on(t.orgId, t.title)]);
+
+/** Results of one sent post on one account, as the network last told us. */
+export const socialPostStats = sqliteTable("social_post_stats", {
+  postId: text("post_id").notNull().references(() => socialPosts.id, { onDelete: "cascade" }),
+  accountId: text("account_id").notNull(),
+  orgId: text("org_id").notNull(),
+  app: text("app").notNull(),
+  reach: integer("reach"),
+  engagement: integer("engagement"),
+  clicks: integer("clicks"),
+  fetchedAt: ts("fetched_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.postId, t.accountId] }), index("social_post_stats_org_idx").on(t.orgId, t.fetchedAt)]);
+
+/** Per social account: when its inbox and results were last pulled, its health, and when the bell was told. */
+export const socialAccountState = sqliteTable("social_account_state", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  accountId: text("account_id").notNull(),
+  app: text("app").notNull(),
+  inboxSyncedAt: ts("inbox_synced_at"),
+  inboxError: text("inbox_error"),
+  statsSyncedAt: ts("stats_synced_at"),
+  healthCode: text("health_code"),
+  healthToldAt: ts("health_told_at"),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [primaryKey({ columns: [t.orgId, t.accountId] }), index("social_account_state_inbox_idx").on(t.inboxSyncedAt)]);
+
+/** Staging only: the test network account of a workspace (never read unless the config allows the test network). */
+export const socialTestAccounts = sqliteTable("social_test_accounts", {
+  orgId: text("org_id").primaryKey().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  broken: integer("broken", { mode: "boolean" }).notNull().default(false),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+});

@@ -25,6 +25,8 @@ export interface DirectAccountView {
 export interface DirectStatusResponse {
   canManage: boolean;
   accounts: DirectAccountView[];
+  /** R118: the staging only test network account, when this environment allows it and the workspace added it. */
+  test?: { id: string; name: string; broken: boolean } | null;
 }
 
 /** TikTok creator_info, as the post form needs it (TikTok's Direct Post UX rules). */

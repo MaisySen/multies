@@ -40,6 +40,10 @@ const SlotsBody = z.object({ tz: z.string().min(1).max(64), slots: z.array(z.obj
 const LibraryBody = z.object({ kind: z.enum(["image", "caption", "hashtags"]), name: z.string().max(120), body: z.string().max(6000).nullable().optional(), image: ImageBody.nullable().optional(), campaign: z.string().max(60).nullable().optional() });
 const LibraryPatch = z.object({ name: z.string().max(120).optional(), body: z.string().max(6000).nullable().optional(), campaign: z.string().max(60).nullable().optional() });
 const p2 = () => import("../services/integrations/social-p2");
+const p2b = () => import("../services/integrations/social-p2b"); // R118
+const TextBody = z.object({ text: z.string().max(4000) });
+const InboxPatch = z.object({ status: z.enum(["open", "done"]).optional(), assigneeId: z.string().max(64).nullable().optional(), contactId: z.string().max(64).nullable().optional() });
+const SavedBody = z.object({ title: z.string().max(200), body: z.string().max(4000) });
 const LOGO_HOST = "https://logos.composio.dev/api/";
 
 function runLater(c: { executionCtx: { waitUntil(p: Promise<unknown>): void } }, work: () => Promise<unknown>) {
@@ -119,6 +123,24 @@ export function socialRoutes() {
     .post("/library", async (c) => c.json({ item: await (await p2()).addLibraryItem(c.var.deps, c.var.auth, await parseBody(c, LibraryBody)) }, 201))
     .patch("/library/:id", async (c) => c.json({ item: await (await p2()).updateLibraryItem(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, LibraryPatch)) }))
     .delete("/library/:id", async (c) => c.json(await (await p2()).removeLibraryItem(c.var.deps, c.var.auth, c.req.param("id"))))
+    // R118: Social inbox, saved replies, analytics, and the staging only test network.
+    .get("/inbox", async (c) => c.json(await (await p2b()).listInbox(c.var.deps, c.var.auth, c.req.query())))
+    .post("/inbox/sync", async (c) => c.json(await (await p2b()).syncNow(c.var.deps, c.var.auth)))
+    .get("/inbox/:id", async (c) => c.json(await (await p2b()).getThread(c.var.deps, c.var.auth, c.req.param("id"))))
+    .patch("/inbox/:id", async (c) => c.json({ item: await (await p2b()).updateItem(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, InboxPatch)) }))
+    .post("/inbox/:id/notes", async (c) => c.json({ note: await (await p2b()).addNote(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, TextBody)).text) }, 201))
+    .post("/inbox/:id/reply", async (c) => c.json(await (await p2b()).reply(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, TextBody)).text), 201))
+    .post("/inbox/:id/task", async (c) => c.json(await (await p2b()).makeTask(c.var.deps, c.var.auth, c.req.param("id")), 201))
+    .get("/saved-replies", async (c) => c.json({ replies: await (await p2b()).listSavedReplies(c.var.deps, c.var.auth) }))
+    .post("/saved-replies", async (c) => c.json({ reply: await (await p2b()).saveReply(c.var.deps, c.var.auth, await parseBody(c, SavedBody)) }, 201))
+    .patch("/saved-replies/:id", async (c) => c.json({ reply: await (await p2b()).saveReply(c.var.deps, c.var.auth, await parseBody(c, SavedBody), c.req.param("id")) }))
+    .delete("/saved-replies/:id", async (c) => c.json(await (await p2b()).removeSavedReply(c.var.deps, c.var.auth, c.req.param("id"))))
+    .get("/analytics", async (c) => c.json(await (await p2b()).analytics(c.var.deps, c.var.auth, c.req.query("range"))))
+    .post("/analytics/sync", async (c) => c.json(await (await p2b()).syncStatsNow(c.var.deps, c.var.auth)))
+    .get("/test-network", async (c) => c.json(await (await p2b()).testStatus(c.var.deps, c.var.auth)))
+    .post("/test-network", async (c) => c.json(await (await p2b()).connectTest(c.var.deps, c.var.auth), 201))
+    .post("/test-network/signed-out", async (c) => c.json(await (await p2b()).setTestBroken(c.var.deps, c.var.auth, (await parseBody(c, z.object({ broken: z.boolean() }))).broken)))
+    .delete("/test-network", async (c) => c.json(await (await p2b()).removeTest(c.var.deps, c.var.auth)))
     // Oct 31: each social account checked without posting (sign in works, posting allowed, a Page reachable).
     .get("/health", async (c) => c.json({ accounts: await (await social()).accountHealth(c.var.deps, c.var.auth, { fresh: c.req.query("fresh") === "1" }) }))
     .get("/posts/:id", async (c) => c.json({ post: await (await social()).getPost(c.var.deps, c.var.auth.orgId, c.req.param("id")) }))

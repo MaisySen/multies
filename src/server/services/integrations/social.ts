@@ -50,7 +50,7 @@ export interface CreatePostInput {
 
 /** R117: the id a TikTok or Threads account has in a post (our own sign in, not Connections). */
 export const DIRECT_ACCOUNT = (p: "threads" | "tiktok") => `direct:${p}`;
-const directOf = (accountId: string): "threads" | "tiktok" | null => (accountId === "direct:threads" ? "threads" : accountId === "direct:tiktok" ? "tiktok" : null);
+const directOf = (accountId: string): "threads" | "tiktok" | "testnet" | null => (accountId === "direct:testnet" ? "testnet" : accountId === "direct:threads" ? "threads" : accountId === "direct:tiktok" ? "tiktok" : null);
 /** Most images one post carries (a carousel). */
 export const SOCIAL_MAX_IMAGES = 10;
 
@@ -161,14 +161,16 @@ async function preparePost(deps: Deps, auth: AuthContext, input: CreatePostInput
     try { const cp = platform(deps); accounts = await cp.accounts(platformUserId(cp, auth.orgId)); } catch { accounts = []; }
   }
   const links = viaDirect.length ? await deps.db.select({ provider: directSocialLinks.provider, username: directSocialLinks.username, status: directSocialLinks.status }).from(directSocialLinks).where(eq(directSocialLinks.orgId, auth.orgId)).all() : [];
+  // R118: the staging only test network (never present unless the config allows it).
+  const testLink = viaDirect.some((t) => directOf(t.accountId) === "testnet") ? await (await import("./social-p2b")).testAccount(deps, auth.orgId) : null;
   const byId = new Map(accounts.map((a) => [a.id, a]));
   const problems: (TargetProblem & { text?: string })[] = [];
   const rows = input.targets.map((t) => {
     const direct = directOf(t.accountId);
-    const link = direct ? links.find((l) => l.provider === direct) : undefined;
+    const link = direct === "testnet" ? (testLink ? { provider: "testnet", username: null, status: testLink.broken ? "expired" : "active" } : undefined) : direct ? links.find((l) => l.provider === direct) : undefined;
     const a = direct ? undefined : byId.get(t.accountId);
     const app = direct ?? a?.toolkit?.slug ?? "";
-    const label = direct ? (link?.username ? `@${link.username}` : appLabel(direct)) : a?.alias?.trim() || appLabel(app);
+    const label = direct === "testnet" ? (testLink?.name ?? "Test network") : direct ? (link?.username ? `@${link.username}` : appLabel(direct)) : a?.alias?.trim() || appLabel(app);
     const row = { accountId: t.accountId, app, label, target: (t.target ?? "").trim() || null, targetName: (t.targetName ?? "").trim().slice(0, 200) || null };
     if (!strict) return row;
     const live = direct ? !!link && link.status !== "expired" : !!a && statusOf(a.status) === "active";
@@ -494,7 +496,7 @@ export async function deletePost(deps: Deps, auth: AuthContext, id: string, ip?:
 
 /* ---------------------------------------------------------------- publishing */
 
-interface PublishCtx {
+export interface PublishCtx {
   cp: Composio; userId: string; accountId: string; text: string; imageUrl: string | null; image: { b64: string; type: string } | null; target: string | null; now?: Date;
   /** R117: every image of a carousel (the first is imageUrl), and the post's extras. */
   imageUrls?: string[]; extras?: PostExtras | null;
@@ -580,6 +582,7 @@ export function linkedinError(status: number, body: { message?: string; code?: s
   return new PublishError("rejected", detail);
 }
 
+export async function proxyCall(ctx: PublishCtx, req: Parameters<Composio["proxy"]>[2]) { return proxy(ctx, req); }
 async function proxy(ctx: PublishCtx, req: Parameters<Composio["proxy"]>[2]) {
   try { return await ctx.cp.proxy(ctx.accountId, ctx.userId, req); } catch (err) {
     if (err instanceof IntegrationError && err.code === "not_found") throw new PublishError("account_gone", err.message);
@@ -587,7 +590,7 @@ async function proxy(ctx: PublishCtx, req: Parameters<Composio["proxy"]>[2]) {
   }
 }
 
-async function graph(ctx: PublishCtx, method: "GET" | "POST" | "DELETE", path: string, body?: Record<string, unknown>) {
+export async function graph(ctx: PublishCtx, method: "GET" | "POST" | "DELETE", path: string, body?: Record<string, unknown>) {
   const r = await proxy(ctx, { endpoint: `${GRAPH}/${path}`, method, body });
   const data = (r.data ?? {}) as { error?: { message?: string; code?: number; error_subcode?: number } };
   if (r.status >= 400 || data.error) throw facebookError(r.status, data.error);
@@ -692,7 +695,7 @@ export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResu
     const creationId = dig(container, ["id", "creation_id", "container_id"]);
     if (!creationId) throw new PublishError("rejected", "no container");
     const post = await run(ctx, "INSTAGRAM_CREATE_POST", { ig_user_id: igId, creation_id: creationId });
-    return { status: "sent", url: dig(post, ["permalink"]) };
+    return { status: "sent", url: dig(post, ["permalink"]), remoteId: dig(post, ["id", "media_id"]) };
   },
   async linkedin(ctx) {
     // Hotfix Oct 31: the platform's ready made LinkedIn tool asks for an API version LinkedIn has retired, so we call
@@ -717,7 +720,7 @@ export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResu
       media_source: { source_type: "image_base64", content_type: ctx.image.type, data: ctx.image.b64 },
     });
     const id = dig(data, ["id"]);
-    return { status: "sent", url: id ? `https://www.pinterest.com/pin/${id}/` : null };
+    return { status: "sent", url: id ? `https://www.pinterest.com/pin/${id}/` : null, remoteId: id };
   },
   async reddit(ctx) {
     const [first, ...rest] = ctx.text.split("\n");
@@ -776,6 +779,8 @@ export async function publishPost(deps: Deps, postId: string): Promise<PostStatu
           const { threadsPost } = await import("../direct-social/threads");
           const r = await threadsPost(deps, { orgId: post.orgId, userId: post.createdBy ?? "", role: "owner" } as AuthContext, { text, imageUrl: takesImages ? imageUrl : null });
           res = { status: "sent", url: r.permalink, remoteId: r.id };
+        } else if (direct === "testnet") {
+          res = deps.config.socialTestNetwork === true ? await (await import("./social-p2b")).publishTest(deps, post.orgId, post.id, text) : { status: "failed", error: "account_gone" };
         } else if (direct) {
           res = { status: "skipped", error: "not_supported" };
         } else {
@@ -898,6 +903,14 @@ export async function accountHealth(deps: Deps, auth: AuthContext, opts: { fresh
   const now = deps.now().getTime();
   // A fresh check is still held back 30 seconds, so a page that asks often does not hammer the networks.
   if (hit && now - hit.at < (opts.fresh ? 30_000 : HEALTH_TTL_MS)) return hit.rows;
+  // R118: the staging only test network has its own health row, and works without the platform.
+  const p2b = deps.config.socialP2b !== false || deps.config.socialTestNetwork === true ? await import("./social-p2b") : null;
+  const testRows: AccountHealthView[] = deps.config.socialTestNetwork === true && p2b ? await p2b.testHealthRows(deps, auth.orgId) : [];
+  if (!deps.config.integrations.composio) {
+    await p2b?.noteHealth(deps, auth.orgId, testRows).catch(() => undefined);
+    healthCache.set(auth.orgId, { at: now, rows: testRows });
+    return testRows;
+  }
   const cp = platform(deps);
   const userId = platformUserId(cp, auth.orgId);
   let accounts: CpAccount[];
@@ -926,6 +939,12 @@ export async function accountHealth(deps: Deps, auth: AuthContext, opts: { fresh
     if (code === "unavailable" || code === "rate_limited") code = null;
     return { accountId: a.id, app, ok: !code, code, text: code ? (SOCIAL_HEALTH_COPY[code] ?? SOCIAL_ERROR_COPY[code] ?? null) : null };
   }));
+  rows.push(...testRows);
+  // R118: a newly broken account rings the bell once for owners and admins.
+  await p2b?.noteHealth(deps, auth.orgId, rows).catch((err) => deps.log?.warn("social.health_bell_failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) }));
   healthCache.set(auth.orgId, { at: now, rows });
   return rows;
 }
+
+/** R118: a change to an account (the test network's sign in) is seen at once, not after the 5 minute cache. */
+export function clearHealthCache(orgId: string) { healthCache.delete(orgId); }

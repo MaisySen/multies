@@ -1,3 +1,4 @@
+import { testNetworkAllowed } from "@/shared/social-p2b";
 import { parseToolFeatures, type ToolFeature } from "@/shared/tool-features";
 import { z } from "zod";
 import { parseSocialConnections, type SocialConnection } from "./auth/social-connections";
@@ -14,6 +15,10 @@ export interface AppConfig {
   flows?: boolean;
   /** R117: Social composer v2, planner views and slots, drafts and approvals, library, evergreen (SOCIAL_P2, on unless "off"). */
   socialP2?: boolean;
+  /** R118: Social inbox, account health alerts and analytics (SOCIAL_P2B, on unless "off"). */
+  socialP2b?: boolean;
+  /** R118: the staging only test network (SOCIAL_TEST_NETWORK=on and a staging or local APP_URL; refused on multies.si). */
+  socialTestNetwork?: boolean;
   /** Public booking pages and the scheduling API (SCHEDULING_ENABLED=true). Off unless set. */
   schedulingEnabled: boolean;
   /** R94: CRM_TIMELINE (paged contact and company timeline, logged calls and notes, segments, CSV import, deal forecast). Off unless set. */
@@ -305,6 +310,8 @@ const EnvSchema = z.object({
   TOOLS_FEATURES: z.string().optional(),
   LINK_CLICK_FLUSH_MS: z.string().optional(), // R87
   SOCIAL_P2: z.string().optional(),
+  SOCIAL_P2B: z.string().optional(),
+  SOCIAL_TEST_NETWORK: z.string().optional(),
   DOC_ENGINE_URL: z.string().optional(),
   DOC_ENGINE_KEY_ID: z.string().optional(),
   DOC_ENGINE_KEY: z.string().optional(),
@@ -578,6 +585,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     demoEnabled: env.DEMO_MODE === "true" || env.DEMO_MODE === "1",
     flows: env.FLOWS !== "off",
     socialP2: env.SOCIAL_P2 !== "off",
+    socialP2b: env.SOCIAL_P2B !== "off",
+    socialTestNetwork: testNetworkAllowed(env),
     schedulingEnabled: env.SCHEDULING_ENABLED === "true" || env.SCHEDULING_ENABLED === "1",
     crmTimeline: ["1", "true", "on"].includes(String(env.CRM_TIMELINE ?? "").toLowerCase()),
     dashboardsPlus: ["1", "true", "on", "test"].includes(String(env.DASHBOARDS_PLUS ?? "").toLowerCase()),

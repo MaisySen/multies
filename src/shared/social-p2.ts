@@ -12,7 +12,7 @@ export const FORMAT_LABELS: Record<SocialFormat, string> = { text: "Text", image
 /** Networks the composer knows. threads and tiktok are our own sign in (direct); the rest go through Connections. */
 export const COMPOSER_NETWORKS = ["facebook", "instagram", "linkedin", "pinterest", "reddit", "threads", "tiktok"] as const;
 export const NETWORK_LABEL: Record<string, string> = {
-  facebook: "Facebook", instagram: "Instagram", linkedin: "LinkedIn", pinterest: "Pinterest", reddit: "Reddit", threads: "Threads", tiktok: "TikTok", twitter: "X",
+  facebook: "Facebook", instagram: "Instagram", linkedin: "LinkedIn", pinterest: "Pinterest", reddit: "Reddit", threads: "Threads", tiktok: "TikTok", twitter: "X", testnet: "Test network",
 };
 export const networkLabel = (app: string) => NETWORK_LABEL[app] ?? app.charAt(0).toUpperCase() + app.slice(1);
 
@@ -39,6 +39,7 @@ export const NETWORK_RULES: Record<string, NetworkRules> = {
   pinterest: { maxChars: 800, maxImages: 1, aspect: null, fold: 100, firstComment: false, poll: false, linkCard: false, schedule: true },
   reddit: { maxChars: 40000, maxImages: 0, aspect: null, fold: 300, firstComment: false, poll: false, linkCard: false, schedule: true },
   threads: { maxChars: 500, maxImages: 1, aspect: null, fold: 500, firstComment: false, poll: false, linkCard: false, schedule: true },
+  testnet: { maxChars: 2000, maxImages: 4, aspect: null, fold: 300, firstComment: false, poll: false, linkCard: false, schedule: true }, // R118: staging only
   tiktok: { maxChars: 2200, maxImages: 0, aspect: null, fold: 100, firstComment: false, poll: false, linkCard: false, schedule: false },
 };
 

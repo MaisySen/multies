@@ -93,6 +93,8 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
   });
   // R117: evergreen posts fill free slots in the next two days, once an hour (one bounded read when there are none).
   if (inSlot(1) && deps.config.integrations.composio && deps.config.socialP2 !== false) await step("social_evergreen", async () => (await import("./integrations/social-p2")).runEvergreen(deps));
+  // R118: the Social inbox and results, for workspaces that use them (a bounded read when none is due).
+  if (inSlot(2) && deps.config.socialP2b !== false) await step("social_inbox", async () => (await import("./integrations/social-p2b")).runSocialP2bPass(deps));
   // R35 (Apple 1.2): mails the operator about open reports at most once per 15 minutes. One read when none are open.
   if (inSlot(3)) await step("ugc_reports_mail", async () => (await import("./suite/reports-r35")).mailOperator(deps));
   // Independent deletes on different tables, sent together rather than one after another.
