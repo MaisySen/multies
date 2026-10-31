@@ -92,6 +92,7 @@ const DocPage = lazyPage(() => docsPages(), "DocPage");
 const contactPages = () => import("./pages/app/work/contacts");
 const ContactsPage = lazyPage(() => contactPages(), "ContactsPage");
 const ContactPage = lazyPage(() => contactPages(), "ContactPage");
+const PortalPage = lazyPage(() => import("./pages/app/work/portals"), "PortalPage"); // R120
 const DealsPage = lazyPage(() => import("./pages/app/work/deals"), "DealsPage");
 const CompanyPage = lazyPage(() => import("./pages/app/work/crm-contacts-r94"), "CompanyPage"); // R94
 const AutomationsPage = lazyPage(() => import("./pages/app/work/automations"), "AutomationsPage");
@@ -262,6 +263,7 @@ export const router = createBrowserRouter([
       { path: "docs/help-center", element: page(<HelpCenterPage />) }, // R122
       { path: "docs/:id", element: page(<DocPage />) },
       { path: "contacts", element: page(<ContactsPage />) },
+      { path: "contacts/portals/:id", element: page(<PortalPage />) }, // R120
       { path: "contacts/:id", element: page(<ContactPage />) },
       { path: "contacts/companies/:id", element: page(<CompanyPage />) }, // R94
       { path: "deals", element: page(<DealsPage />) },

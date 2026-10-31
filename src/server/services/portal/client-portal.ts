@@ -30,6 +30,7 @@ interface ItemRow { id: string; portal_id: string; org_id: string; kind: PortalI
 interface MessageRow { id: string; from_client: number; author: string; body: string; created_at: number }
 
 const iso = (ms: number) => new Date(ms).toISOString();
+// eslint-disable-next-line no-control-regex
 const oneLine = (v: unknown, max: number) => String(v ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 const base = (deps: Deps) => deps.config.appUrl.replace(/\/$/, "");
 export const portalUrl = (deps: Deps, key: string) => `${base(deps)}/p/${key}`;
@@ -336,6 +337,7 @@ async function fileOf(deps: Deps, p: PortalRow, itemId: string): Promise<{ name:
 }
 
 function cleanBody(v: unknown) {
+  // eslint-disable-next-line no-control-regex
   const body = String(v ?? "").replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b-\u001f\u007f]+/g, " ").trim();
   if (!body) throw badRequest("Write a message first.");
   if (body.length > PORTAL_MESSAGE_MAX) throw badRequest(`Messages can be up to ${PORTAL_MESSAGE_MAX} characters.`);
@@ -426,7 +428,7 @@ export async function clientData(deps: Deps, p: PortalRow) {
   const withLinks = await Promise.all(live.map(async (i) => {
     if (i.kind !== "request") return { ...i, url: null as string | null };
     const row = await deps.db.get<{ token_enc: string | null }>(sql`select token_enc from client_portal_items where id = ${i.id}`);
-    let url: string | null = null;
+    let url: string | null;
     try { url = row?.token_enc ? await decryptSecret(deps.config.appSecret, row.token_enc) : null; } catch { url = null; }
     return { ...i, url };
   }));
@@ -440,7 +442,7 @@ export async function clientDoc(deps: Deps, p: PortalRow, itemId: string): Promi
   if (!it) throw notFound("Doc");
   const d = await deps.db.get<{ title: string; content: string }>(sql`select title, content from docs where id = ${it.ref_id} and org_id = ${p.org_id} and deleted_at is null`);
   if (!d) throw notFound("Doc");
-  let content: unknown = null;
+  let content: unknown;
   try { content = JSON.parse(d.content); } catch { content = null; }
   return { title: d.title || "Untitled", content };
 }

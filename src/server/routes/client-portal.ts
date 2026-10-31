@@ -85,7 +85,7 @@ export function portalRoutes() {
       if (bytes.byteLength > MAX_FILE) throw new HttpError(413, "too_large", "Files can be up to 25 MB here.");
       let name = "file";
       try { name = decodeURIComponent(c.req.header("x-file-name") ?? "file"); } catch { /* keep the default */ }
-      let folder: string | null = null;
+      let folder: string | null;
       try { folder = decodeURIComponent(c.req.header("x-folder") ?? "") || null; } catch { folder = null; }
       return c.json(await addFile(c.var.deps, c.var.auth, c.req.param("id"), { name, type: c.req.header("content-type") ?? null, folder, bytes }), 201);
     })

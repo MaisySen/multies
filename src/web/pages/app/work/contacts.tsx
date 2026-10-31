@@ -16,6 +16,7 @@ import type { Contact, Task } from "./data";
 import { NoContactsArt, NoSearchResultsArt } from "@/web/components/illustrations"; // R36
 import { CrmTimeline, useCrmTimelineOn } from "./crm-timeline"; // R94
 import { CompanyPicker, ImportContactsDialog, NewCompanyDialog, SegmentBar, filtersQuery, hasFilters, type SegFilters, type Segment } from "./crm-contacts-r94"; // R94
+import { ContactPortalButton, PortalsTab, usePortalsOn } from "./portals"; // R120
 
 interface Company { id: string; name: string; domain: string | null; contactCount: number; lastContactAt: string | null }
 interface ThreadRow { threadId: string; subject: string; lastAt: string; firstAt: string; count: number; lastDirection: "inbound" | "outbound"; snippet: string; messageId: string }
@@ -25,11 +26,14 @@ interface ContactDetail { contact: Contact; threads: ThreadRow[]; tasks: Task[];
 
 export const aud = (n: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(n);
 
+const TAB_LABEL = { people: "People", companies: "Companies", portals: "Client portals" } as const; // R120
+
 export function ContactsPage() {
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") === "companies" ? "companies" : "people";
+  const tab = params.get("tab") === "companies" ? "companies" : params.get("tab") === "portals" ? "portals" : "people"; // R120: portals
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
+  const portalsOn = usePortalsOn().on; // R120
   // R94: segments, filters, import and companies by hand (CRM_TIMELINE).
   const crm = useCrmTimelineOn();
   const [segment, setSegment] = useState<Segment | null>(null);
@@ -51,15 +55,15 @@ export function ContactsPage() {
         actions={<><Link to="/app/deals" className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconHandshake className="h-4 w-4" />Deals</Link>{crm.on && (tab === "companies" ? <Button variant="secondary" onClick={() => setNewCompany(true)} data-testid="new-company"><IconBuilding className="h-4 w-4" />New company</Button> : <Button variant="secondary" onClick={() => setImporting(true)} data-testid="import-contacts"><IconUpload className="h-4 w-4" />Import</Button>)}<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />Add contact</Button></>} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div role="tablist" className="flex rounded-lg bg-fill p-0.5">
-          {(["people", "companies"] as const).map((t) => (
-            <button key={t} role="tab" aria-selected={tab === t} onClick={() => setParams(t === "people" ? {} : { tab: t })} className={cn("rounded-md px-3 py-1.5 text-[13px] capitalize", tab === t ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>{t}</button>
+          {(["people", "companies", ...(portalsOn ? (["portals"] as const) : [])] as const).map((t) => (
+            <button key={t} role="tab" aria-selected={tab === t} onClick={() => setParams(t === "people" ? {} : { tab: t })} className={cn("rounded-md px-3 py-1.5 text-[13px]", tab === t ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")} data-testid={`contacts-tab-${t}`}>{TAB_LABEL[t]}</button>
           ))}
         </div>
         <Input aria-label="Search contacts" placeholder={tab === "people" ? "Search by name or email" : "Search companies"} value={q} onChange={(e) => setQ(e.target.value)} className="h-9 max-w-xs" />
         {tab === "people" && people.data && <span className="text-[12.5px] text-subtle">{people.data.total} {people.data.total === 1 ? "person" : "people"}</span>}
       </div>
       {crm.on && tab === "people" && <SegmentBar segment={segment} setSegment={setSegment} filters={filters} setFilters={setFilters} />}
-      {tab === "people" ? (
+      {tab === "portals" ? <PortalsTab query={q} /> : tab === "people" ? (
         people.isPending ? <Skeleton className="h-48" /> : !people.data?.contacts.length ? (
           <EmptyState icon={<IconTeam />} art={q ? <NoSearchResultsArt /> : <NoContactsArt />} title={q || filtered ? "Nobody matches" : "No contacts yet"} body={filtered ? "Nobody fits these filters right now. Change them or pick Everyone." : "When mail arrives or you send to someone outside your team, they show up here with their company."} />
         ) : (
@@ -157,6 +161,7 @@ export function ContactPage() {
           <p className="text-[13.5px] text-muted">{c.email}{c.title && <> · {c.title}</>}{c.company && <> · {crm.on ? <Link to={`/app/contacts/companies/${c.company.id}`} className="hover:text-fg hover:underline">{c.company.name}</Link> : c.company.name}</>}</p>
         </div>
         <div className="ml-auto flex gap-2">
+          <ContactPortalButton contactId={c.id} />
           <Link to={`/app/mail?compose=${encodeURIComponent(c.email)}`} className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconMail className="h-4 w-4" />Email</Link>
           <Button variant="secondary" onClick={() => void startMeeting({ type: "contact", id: c.id }, navigate)}><IconVideo className="h-4 w-4" />Meeting</Button>
           <Button variant="secondary" onClick={makeDeal}><IconHandshake className="h-4 w-4" />New deal</Button>

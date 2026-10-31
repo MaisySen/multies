@@ -39,6 +39,7 @@ export const taskStateLabel = (s: PortalTaskState | null | undefined) => (s === 
 
 /** Folder names are one short line; blank means no folder. */
 export function cleanFolder(v: string | null | undefined): string | null {
+  // eslint-disable-next-line no-control-regex
   const s = String(v ?? "").replace(/[\u0000-\u001f\u007f/\\]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
   return s || null;
 }
