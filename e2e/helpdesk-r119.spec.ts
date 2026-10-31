@@ -137,6 +137,11 @@ test("R119 settings, dark, Forest and phone", async ({ page, context, browser, b
   if (!process.env.E2E_BASE_URL) await context.setExtraHTTPHeaders({ "x-forwarded-for": ip() });
   await page.setViewportSize({ width: 1280, height: 860 });
   await demo(page);
+  // Before: helpdesk off, the shared inbox is exactly as it was.
+  await page.goto("/app/inbox");
+  await expect(page.getByRole("heading", { name: "Shared inbox" })).toBeVisible();
+  await expect(page.getByTestId("inbox-mode")).toHaveCount(0);
+  await shot(page, "r119-inbox-before-1280-light");
   const key = await turnOn(page, new URL(page.url()).origin);
   // A ticket to look at.
   const shop = await shopPage(browser, baseURL!, key, 390);

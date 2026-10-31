@@ -3,7 +3,8 @@
  * Mail threads and chat conversations become tickets through a bounded sync (cursor on hd_settings, at most every
  * 15 s per workspace, 200 rows a pass), run from the ticket list; existing hot routes are untouched.
  */
-import { and, asc, desc, eq, gt, inArray, isNull, lte, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNull, lte, ne, or, sql, type SQL } from "drizzle-orm";
+import { inIds } from "@/server/lib/sql-chunks";
 import type { AuthContext, Deps } from "../context";
 import {
   contacts, hdMacros, hdSettings, hdTickets, hdWebMessages, mailboxes, mailSnippets, members, messages, msgConversations, organizations, users,
@@ -103,7 +104,7 @@ export async function saveSettings(deps: Deps, a: AuthContext, patch: Partial<Se
   if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? "Those settings are not valid.");
   const ids = [...new Set([...parsed.data.mailboxIds, ...(parsed.data.widget.mailboxId ? [parsed.data.widget.mailboxId] : [])])];
   if (ids.length) {
-    const found = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.orgId, a.orgId), inArray(mailboxes.id, ids))).all();
+    const found = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.orgId, a.orgId), inIds(mailboxes.id, ids))).all();
     if (found.length !== ids.length) throw badRequest("One of those mailboxes is not in this workspace.");
   }
   const wasOn = cur.mailboxIds.length > 0 || cur.chats;
@@ -185,18 +186,18 @@ export async function syncTickets(deps: Deps, orgId: string, ctx?: HelpdeskConte
   const cursor = row.syncCursor;
   let created = 0, updated = 0, newCursor = nowMs - 2000;
   if (s.mailboxIds.length) {
-    const boxes = await deps.db.select({ id: mailboxes.id, address: mailboxes.address }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), inArray(mailboxes.id, s.mailboxIds))).all();
+    const boxes = await deps.db.select({ id: mailboxes.id, address: mailboxes.address }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), inIds(mailboxes.id, s.mailboxIds))).all();
     const own = new Set(boxes.map((b) => b.address.toLowerCase()));
     const rows = await deps.db.select({
       threadId: messages.threadId, mailboxId: messages.mailboxId, folder: messages.folder, fromAddress: messages.fromAddress, fromName: messages.fromName,
       subject: messages.subject, snippet: messages.snippet, date: messages.date,
-    }).from(messages).where(and(eq(messages.orgId, orgId), inArray(messages.mailboxId, boxes.map((b) => b.id)), gt(messages.date, new Date(cursor)),
+    }).from(messages).where(and(eq(messages.orgId, orgId), inIds(messages.mailboxId, boxes.map((b) => b.id)), gt(messages.date, new Date(cursor)),
       sql`${messages.folder} not in ('trash', 'drafts', 'spam')`)).orderBy(asc(messages.date)).limit(SYNC_BATCH).all();
     if (rows.length === SYNC_BATCH) newCursor = Math.min(newCursor, rows[rows.length - 1].date.getTime());
     const threadIds = [...new Set(rows.map((r) => r.threadId))];
     const existing = new Map<string, TicketRow>();
     for (let i = 0; i < threadIds.length; i += 50) {
-      const part = await deps.db.select().from(hdTickets).where(and(eq(hdTickets.orgId, orgId), eq(hdTickets.kind, "mail"), inArray(hdTickets.refId, threadIds.slice(i, i + 50)))).all();
+      const part = await deps.db.select().from(hdTickets).where(and(eq(hdTickets.orgId, orgId), eq(hdTickets.kind, "mail"), inIds(hdTickets.refId, threadIds.slice(i, i + 50)))).all();
       for (const t of part) existing.set(t.refId, t);
     }
     const touched = new Map<string, TicketRow>();
@@ -225,7 +226,7 @@ export async function syncTickets(deps: Deps, orgId: string, ctx?: HelpdeskConte
       .orderBy(asc(msgConversations.lastMessageAt)).limit(SYNC_BATCH).all();
     if (convs.length === SYNC_BATCH) newCursor = Math.min(newCursor, convs[convs.length - 1].lastMessageAt.getTime());
     if (convs.length) {
-      const have = new Map((await deps.db.select().from(hdTickets).where(and(eq(hdTickets.orgId, orgId), eq(hdTickets.kind, "chat"), inArray(hdTickets.refId, convs.map((x) => x.id)))).all()).map((t) => [t.refId, t]));
+      const have = new Map((await deps.db.select().from(hdTickets).where(and(eq(hdTickets.orgId, orgId), eq(hdTickets.kind, "chat"), inIds(hdTickets.refId, convs.map((x) => x.id)))).all()).map((t) => [t.refId, t]));
       for (const cv of convs) {
         const at = cv.lastMessageAt.getTime();
         const inbound = !!cv.lastInboundAt && cv.lastInboundAt.getTime() >= at;
@@ -269,7 +270,7 @@ const iso = (ms: number) => new Date(ms).toISOString();
 async function names(deps: Deps, ids: (string | null)[]) {
   const want = [...new Set(ids.filter((x): x is string => !!x))];
   if (!want.length) return new Map<string, string>();
-  const rows = await deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, want)).all();
+  const rows = await deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inIds(users.id, want)).all();
   return new Map(rows.map((u) => [u.id, u.name || u.email]));
 }
 function summarize(t: TicketRow, cfg: SlaConfig, now: number, who: Map<string, string>): TicketSummary {
@@ -286,7 +287,7 @@ function summarize(t: TicketRow, cfg: SlaConfig, now: number, who: Map<string, s
 async function scopeCond(deps: Deps, a: AuthContext): Promise<SQL | undefined> {
   const scope = await mailboxScope(deps.db, a);
   if (!scope) return undefined;
-  return or(ne(hdTickets.kind, "mail"), scope.length ? inArray(hdTickets.mailboxId, scope) : sql`0`);
+  return or(ne(hdTickets.kind, "mail"), scope.length ? inIds(hdTickets.mailboxId, scope) : sql`0`);
 }
 
 export interface ListQuery { view?: TicketView; priority?: TicketPriority; kind?: TicketKind; limit?: number }
@@ -297,7 +298,7 @@ export async function listTickets(deps: Deps, a: AuthContext, q: ListQuery) {
   const now = deps.now().getTime();
   const scope = await scopeCond(deps, a);
   const base = [eq(hdTickets.orgId, a.orgId), scope].filter(Boolean) as SQL[];
-  const live = inArray(hdTickets.status, ["open", "pending", "on_hold"]);
+  const live = inIds(hdTickets.status, ["open", "pending", "on_hold"]);
   const view = q.view ?? "open";
   const conds = [...base];
   if (q.priority) conds.push(eq(hdTickets.priority, q.priority));
@@ -502,6 +503,8 @@ export async function saveMacro(deps: Deps, a: AuthContext, input: MacroInput, i
 }
 export async function deleteMacro(deps: Deps, a: AuthContext, id: string) {
   if (!isAdmin(a)) throw forbidden("Only workspace admins can change macros.");
+  const found = await deps.db.select({ id: hdMacros.id }).from(hdMacros).where(and(eq(hdMacros.orgId, a.orgId), eq(hdMacros.id, id))).get();
+  if (!found) throw notFound("Macro");
   await deps.db.delete(hdMacros).where(and(eq(hdMacros.orgId, a.orgId), eq(hdMacros.id, id)));
   return { ok: true };
 }
