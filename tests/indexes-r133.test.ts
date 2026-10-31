@@ -23,7 +23,7 @@ describe("R133 indexes", () => {
     const { db } = await makeTestApp();
     const client = (db as unknown as { $client: Client }).$client;
     const q = db.select().from(mailSchedules)
-      .where(and(eq(mailSchedules.mailboxId, "mbx_1"), eq(mailSchedules.threadId, "thr_1"), inArray(mailSchedules.kind, ["snooze", "reminder"])));
+      .where(and(eq(mailSchedules.mailboxId, "mbx_1"), eq(mailSchedules.threadId, "thr_1"), inArray(mailSchedules.kind, ["snooze", "remind"])));
     const p = await plan(q, client);
     expect(p).toContain("mail_schedules_thread_idx");
     expect(p).not.toMatch(/SCAN mail_schedules(?! USING)/);
