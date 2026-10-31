@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-developers-faster-pages",
+    date: "2026-10-31",
+    title: "A home for developers, and quicker pages",
+    body: "The new Developers page gathers the API, MCP tools, agent inboxes and webhooks in one place, and the MCP tools page shows up properly in search and link previews again. Pricing, legal, status and the other public pages now appear right away on a phone, before the app finishes loading.",
+  },
+  {
     id: "2026-10-31-timeline-views",
     date: "2026-10-31",
     title: "A clearer timeline, and pages that use your screen",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-30",
     title: "Older mail shows its sender and subject",
     body: "Some older emails copied from a connected mailbox showed as unknown@invalid with no subject. They now load their real sender, subject, date and preview, and stay out of your list until they do.",
-  },
-  {
-    id: "2026-10-29-workspace-tabs",
-    date: "2026-10-29",
-    title: "Other tabs follow your workspace",
-    body: "Switch workspace in one tab and your other tabs ask you to reload, so nothing saves in the wrong place.",
   },
   {
     id: "2026-10-28-whats-new",

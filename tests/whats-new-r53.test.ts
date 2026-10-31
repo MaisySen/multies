@@ -71,7 +71,9 @@ describe("R53 whats-new list", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-10-29-free-and-switch")).toBe(false);
     // R75: "Share a guest invite yourself" made room for the clearer timeline.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-29-guest-link")).toBe(false);
-    expect(WHATS_NEW[0].id).toBe("2026-10-31-timeline-views");
+    // R76: "Other tabs follow your workspace" made room for the developer hub and faster public pages.
+    expect(WHATS_NEW.some((e) => e.id === "2026-10-29-workspace-tabs")).toBe(false);
+    expect(WHATS_NEW[0].id).toBe("2026-10-31-developers-faster-pages");
     for (const id of ["2026-10-28-more-safe-retries", "2026-10-28-lighter-mail-sync", "2026-10-28-safe-retries", "2026-10-28-quicker-task-lists", "2026-10-27-steadier-my-work"]) {
       expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);
     }
