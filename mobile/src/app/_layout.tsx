@@ -95,6 +95,7 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="meetings" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Meetings" }} />
         <Stack.Screen name="portfolio" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Portfolio" }} />
         <Stack.Screen name="workspaces" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Workspaces" }} />
+        <Stack.Screen name="social" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Social" }} />
         <Stack.Screen name="people" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "People" }} />
         <Stack.Screen name="tools" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Tools" }} />
         <Stack.Screen name="tool/[op]" options={{ presentation: "modal", title: "Tool" }} />

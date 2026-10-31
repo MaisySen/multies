@@ -6,7 +6,7 @@ import * as Updates from "expo-updates";
  * version; an over the air update (EAS Update, see docs/OTA.md) may raise it without a new store
  * build, and Settings then shows it with "(OTA)".
  */
-export const JS_VERSION = "1.10.4";
+export const JS_VERSION = "1.10.5";
 
 export type VersionFacts = {
   jsVersion: string;

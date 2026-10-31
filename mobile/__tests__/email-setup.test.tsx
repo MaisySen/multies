@@ -202,7 +202,7 @@ describe("Email addresses screen", () => {
     const WebBrowser = require("expo-web-browser");
     await wrap(<EmailSetup />, t);
     await screen.findByText("Get a free @mail.multies.si address");
-    await waitFor(async () => { await fireEvent.press(screen.getByTestId("option-connect")); expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://multies.si/app/settings/connections"); });
+    await waitFor(async () => { await fireEvent.press(screen.getByTestId("option-connect")); expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://multies.si/app/settings/apps/mail"); });
     expect(mockPush).not.toHaveBeenCalledWith("/connect-mailbox");
   });
 });

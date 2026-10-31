@@ -9,6 +9,7 @@ import type {
 } from "./types";
 
 import type { ToolJob, ToolsInfo } from "@/lib/tools";
+import type { ConnectedAccountView, DirectStatusResponse, NewSocialPost, SocialAccountHealth, SocialPostView, TargetOption } from "@/lib/social";
 
 export interface SignInResult { twoFactorRedirect?: boolean; user?: { email: string } }
 
@@ -165,6 +166,22 @@ export function endpoints(t: Transport) {
     claimFreeAddress: (localPart: string) => t.request<{ mailbox: { id: string; address: string } }>("POST", "/free-address", { localPart }),
     /** R26: is this name free? Reads only (same rules as a claim), so the field can say so while typing. */
     checkFreeAddress: (localPart: string) => t.request<{ address: string | null; available: boolean; problem: string | null }>("GET", `/free-address/check?localPart=${encodeURIComponent(localPart)}`),
+
+    // 1.10.5: social posts and the accounts they go to (the web's session routes /api/social, /api/apps, /api/direct).
+    socialPosts: () => t.request<{ posts: SocialPostView[] }>("GET", "/social/posts"),
+    createSocialPost: (input: NewSocialPost, idempotencyKey?: string) => t.request<{ post: SocialPostView }>("POST", "/social/posts", input, { idempotencyKey }),
+    retrySocialPost: (id: string) => t.request<{ post: SocialPostView }>("POST", `/social/posts/${encodeURIComponent(id)}/retry`, {}),
+    cancelSocialPost: (id: string) => t.request<{ post: SocialPostView }>("POST", `/social/posts/${encodeURIComponent(id)}/cancel`, {}),
+    /** Account checks before writing. Servers from before this check answer 404, which the app treats as "no checks". */
+    socialHealth: () => t.request<{ accounts: SocialAccountHealth[] }>("GET", "/social/health"),
+    appsStatus: () => t.request<{ available: boolean; canManage: boolean }>("GET", "/apps/status"),
+    appAccounts: () => t.request<{ accounts: ConnectedAccountView[] }>("GET", "/apps/accounts"),
+    /** Starts a sign in with the network. The phone opens redirectUrl in the browser, then confirms. */
+    connectApp: (app: string) => t.request<{ redirectUrl: string; accountId: string }>("POST", "/apps/connect", { app }),
+    confirmApp: (id: string) => t.request<{ account: ConnectedAccountView }>("POST", `/apps/accounts/${encodeURIComponent(id)}/confirm`, {}),
+    reconnectApp: (id: string) => t.request<{ redirectUrl: string }>("POST", `/apps/accounts/${encodeURIComponent(id)}/reconnect`, {}),
+    appTargets: (id: string) => t.request<{ targets: TargetOption[] }>("GET", `/apps/accounts/${encodeURIComponent(id)}/targets`),
+    directStatus: () => t.request<DirectStatusResponse>("GET", "/direct/status"),
   };
 }
 

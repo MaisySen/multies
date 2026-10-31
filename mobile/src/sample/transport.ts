@@ -10,6 +10,7 @@ import { samplePeople } from "./people";
 import { chatRoute, sampleChat, samplePersonName } from "./chat";
 import { emailRoute, sampleEmail } from "./email";
 import { runsRoute, sampleRuns } from "./runs";
+import { sampleSocial, socialRoute } from "./social";
 
 /**
  * The sample workspace runs entirely on the device with no server. It answers the same paths the
@@ -23,6 +24,7 @@ export class SampleTransport implements Transport {
   private chat = sampleChat(Date.now(), this.data.work, this.data.messages);
   private email = sampleEmail(Date.now());
   private runs = sampleRuns(Date.now(), this.data.work);
+  private social = sampleSocial(Date.now());
   /** R35: report and block in the sample workspace, kept in memory only. */
   private blocks: { userId: string; name: string; avatarUrl: string | null; createdAt: string }[] = [];
   private reports = 0;
@@ -36,6 +38,7 @@ export class SampleTransport implements Transport {
     this.chat = sampleChat(Date.now(), this.data.work, this.data.messages);
     this.email = sampleEmail(Date.now());
     this.runs = sampleRuns(Date.now(), this.data.work);
+    this.social = sampleSocial(Date.now());
     this.blocks = [];
     this.reports = 0;
   }
@@ -51,6 +54,10 @@ export class SampleTransport implements Transport {
     const route = `${method} /${parts.map((p, i) => (i > 0 && isId(p) ? ":id" : p)).join("/")}`;
     const id = parts.find((p, i) => i > 0 && isId(p)) ?? "";
     const json = <R>(v: R) => structuredCloneSafe(v) as unknown as T;
+
+    // 1.10.5: social posts and accounts.
+    const social = socialRoute(this.social, method, path, body, Date.now());
+    if (social !== undefined) return json(social);
 
     // Tools: the catalogue and runs that finish at once (no file is made in the sample workspace).
     if (path === "/tools" && method === "GET") return json(sampleToolsInfo(this.toolRuns));

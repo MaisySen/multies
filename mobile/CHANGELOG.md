@@ -3,6 +3,19 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.10.5 (OTA, runs on Android versionCode 16 and iOS build 20), 31 Oct 2026
+
+- Social: post to your Facebook Pages, LinkedIn, Instagram and more from the phone. Settings, Social has
+  Posts, New post and Accounts, the same as multies.si.
+- Real reasons: when a network turns a post down, you see its own reason, with Try again, and a Reconnect button when
+  signing in again is the fix.
+- Clear choices: New post greys out accounts that can't take the post and says why, for example an image is needed or
+  the sign in expired.
+- Accounts: see each connection's health, plus TikTok and Threads. Connect opens the sign in in your
+  browser.
+
+Carries everything in 1.10.4.
+
 ## 1.10.4 (OTA, runs on Android versionCode 16 and iOS build 20), 31 Oct 2026
 
 - Sample inbox: mail from the Multies team shows the multies.si address.

@@ -61,6 +61,8 @@ export const WEB_PAGES = {
   /** Domains: adding your own domain needs DNS records, so it stays on the web. */
   domains: `${API_BASE}/app/domains`,
   /** Connected accounts on the web, used when this server has mailbox connect switched off. */
-  connections: `${API_BASE}/app/settings/connections`,
+  connections: `${API_BASE}/app/settings/apps/mail`,
+  /** 1.10.5: social accounts on the web (TikTok and Threads sign in runs there, with the web session). */
+  socialAccounts: `${API_BASE}/app/settings/apps/social`,
   team: `${API_BASE}/app`,
 };
