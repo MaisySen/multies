@@ -366,16 +366,22 @@ function AccountCaps({ app }: { app: string }) {
   );
 }
 
-/** R118: the staging only test network: add it, act signed out to try the warnings, remove it. */
-function TestNetworkCard({ canManage }: { canManage: boolean }) {
+/** R118: the staging only test network (only asked for where the config allows it). */
+function useTestNetwork() {
+  const allowed = !!useConfig().data?.socialTestNetwork;
   const qc = useQueryClient();
-  const st = useQuery({ queryKey: ["social-test-network"], queryFn: () => api.get<{ available: boolean; account: { id: string; name: string; broken: boolean } | null }>("/social/test-network") });
-  const done = () => { for (const k of [["social-test-network"], ["social-health"], ["direct-status"], ["social-inbox"]]) void qc.invalidateQueries({ queryKey: k }); void qc.invalidateQueries(); };
+  const st = useQuery({ queryKey: ["social-test-network"], queryFn: () => api.get<{ available: boolean; account: { id: string; name: string; broken: boolean } | null }>("/social/test-network"), enabled: allowed });
   const act = useMutation({
     mutationFn: (what: "add" | "out" | "in" | "remove") => what === "add" ? api.post("/social/test-network", {}) : what === "remove" ? api.del("/social/test-network") : api.post("/social/test-network/signed-out", { broken: what === "out" }),
-    onSuccess: (_r, what) => { toast.success(what === "add" ? "Test network added" : what === "remove" ? "Test network removed" : what === "out" ? "Test network now acts signed out" : "Signed in again"); done(); },
+    onSuccess: (_r, what) => { toast.success(what === "add" ? "Test network added" : what === "remove" ? "Test network removed" : what === "out" ? "Test network now acts signed out" : "Signed in again"); void qc.invalidateQueries(); },
     onError: (e) => toast.error(errorMessage(e, "Couldn't change the test network.")),
   });
+  return { allowed, st, act };
+}
+
+/** R118: the staging only test network: add it, act signed out to try the warnings, remove it. */
+function TestNetworkCard({ canManage }: { canManage: boolean }) {
+  const { st, act } = useTestNetwork();
   if (!st.data?.available) return null;
   const a = st.data.account;
   return (
@@ -417,6 +423,8 @@ export function SocialAccountsPage() {
   // R118: a broken account goes to the top, so a lost sign in is the first thing seen here.
   const social = (accounts.data ?? []).filter((a) => a.app in SOCIAL_NETWORKS && a.app !== "testnet").sort((x, y) => (p2b ? Number(isBad(y)) - Number(isBad(x)) : 0));
   const broken = p2b ? social.filter((a) => isBad(a) && a.status !== "pending") : [];
+  const test = useTestNetwork();
+  const testBroken = p2b && !!test.st.data?.account?.broken;
   const connectedApps = new Set(social.filter((a) => a.status === "active").map((a) => a.app));
   const disconnect = useMutation({
     mutationFn: (a: ConnectedAccountView) => api.del<{ ok: true }>(`/apps/accounts/${encodeURIComponent(a.id)}`),
@@ -439,7 +447,7 @@ export function SocialAccountsPage() {
       <PageHeader title="Accounts" description="The profiles Multies posts to, checked before you write. Connect, reconnect or remove them here." actions={<NewPostButton />} />
       <SocialSwitcher />
       {!status.isPending && !canManage && <p className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-subtle"><IconLock className="h-3.5 w-3.5" aria-hidden />Only owners and admins can connect accounts or post.</p>}
-      {broken.length > 0 && (
+      {(broken.length > 0 || testBroken) && (
         <Card className="mb-5 border-warn/40 p-4 md:px-5" data-testid="accounts-broken" role="region" aria-label="Sign in again">
           <h2 className="flex items-center gap-2 text-[15px] font-semibold"><IconWarning className="h-4 w-4 text-warn" aria-hidden />Sign in again</h2>
           <ul className="mt-2 space-y-2">
@@ -449,6 +457,13 @@ export function SocialAccountsPage() {
                 {canManage ? <ReconnectButton accountId={a.id} appName={a.appName} /> : <span className="text-[12.5px] text-muted">Ask an owner or admin to reconnect it.</span>}
               </li>
             ))}
+            {testBroken && (
+              <li className="flex flex-wrap items-center gap-3 text-[13.5px]">
+                <span className="min-w-0 flex-1">Test network lost its sign in. Planned posts to it won't go out until you reconnect.</span>
+                {canManage ? <Button size="sm" variant="outline" onClick={() => test.act.mutate("in")} loading={test.act.isPending} data-testid="broken-reconnect-testnet"><IconRefresh className="h-4 w-4" aria-hidden />Reconnect</Button>
+                  : <span className="text-[12.5px] text-muted">Ask an owner or admin to reconnect it.</span>}
+              </li>
+            )}
           </ul>
         </Card>
       )}
@@ -490,7 +505,7 @@ export function SocialAccountsPage() {
         </section>
 
         {/* R118: staging only. */}
-        {useConfig().data?.socialTestNetwork && <TestNetworkCard canManage={canManage} />}
+        {test.allowed && <TestNetworkCard canManage={canManage} />}
 
         {/* TikTok and Threads carry their own heading (and hide while neither is offered). */}
         <section aria-label="TikTok and Threads"><DirectAccounts /></section>
