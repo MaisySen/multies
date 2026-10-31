@@ -148,6 +148,7 @@ TOOLS_FEATURES = "editor,forms,compare,ocr_langs,scan,protect,stamps,convert_plu
 # R107: e-sign v2 (email code, signing record, seal, templates, bulk send). On in prod after the verifier pass; "off" turns new requests back to the old flow.
 # esign itself left that list on 31 Oct (owner unheld e-sign; R107 adds it to TOOLS_FEATURES above after the verifier pass).
 ESIGN_V2 = "on"
+HELP_CENTER = "on" # R122: help center, verifier v4 PASS WITH BUGS 21:24 UTC Oct 31
 DOC_ENGINE_URL = "https://doctool.multies.si"
 DOC_ENGINE_KEY_ID = "prod-1"
 # R43b: imports carry on after their page closes (the upload is kept, the 15 minute pass finishes it and sends one
@@ -304,7 +305,7 @@ simple = { limit = 300, period = 60 }
 binding = "AI"
 
 [env.staging.vars]
-HELP_CENTER = "on" # R122: help center (prod after the verifier passes)
+HELP_CENTER = "on" # R122: help center
 TIKTOK_SCOPES = "user.info.basic,video.upload,video.publish"
 # Tools P1: document tools on staging, through the document engine with the staging key id.
 TOOLS_ENABLED = "true"
