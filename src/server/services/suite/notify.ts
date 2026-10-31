@@ -87,6 +87,9 @@ export function linkFor(n: { entityType: string; entityId: string; type: string 
     case "thread": return `/app/inbox?thread=${encodeURIComponent(n.entityId)}`;
     case "goal": return `/app/goals?goal=${encodeURIComponent(n.entityId)}`;
     case "meeting": return `/app/meetings/${encodeURIComponent(n.entityId)}`;
+    case "file_request": return `/app/tools/share?tab=requests&request=${encodeURIComponent(n.entityId)}`; // R88
+    case "secret": return "/app/tools/share?tab=secrets"; // R88
+    case "share": return "/app/tools/share"; // R88
     default: return "/app/notifications";
   }
 }

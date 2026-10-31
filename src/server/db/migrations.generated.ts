@@ -1047,5 +1047,27 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `social_post_targets` ADD `network_state` text;",
       "ALTER TABLE `social_post_targets` ADD `checked_at` integer;"
     ]
+  },
+  {
+    "name": "0107_secure_share",
+    "statements": [
+      "-- R88: secure share. File requests (a client uploads files to a workspace without an account, in resumable chunks),\n-- secret links (the server keeps only ciphertext; the key stays in the link's fragment), a view log beside the\n-- download log for share links, and link reports from public pages. Additive only.\nCREATE TABLE `tool_file_requests` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`created_by` text NOT NULL,\n\t`token_hash` text NOT NULL,\n\t`title` text NOT NULL,\n\t`message` text,\n\t`folder` text,\n\t`password_hash` text,\n\t`max_file_bytes` integer NOT NULL,\n\t`max_total_bytes` integer NOT NULL,\n\t`allowed` text DEFAULT 'any' NOT NULL,\n\t`max_uploads` integer,\n\t`uploads` integer DEFAULT 0 NOT NULL,\n\t`bytes_received` integer DEFAULT 0 NOT NULL,\n\t`keep_days` integer DEFAULT 30 NOT NULL,\n\t`show_brand` integer DEFAULT 1 NOT NULL,\n\t`notify` integer DEFAULT 1 NOT NULL,\n\t`notified_at` integer,\n\t`wrong_tries` integer DEFAULT 0 NOT NULL,\n\t`locked_until` integer,\n\t`reports` integer DEFAULT 0 NOT NULL,\n\t`last_upload_at` integer,\n\t`expires_at` integer NOT NULL,\n\t`closed_at` integer,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX `tool_file_requests_token_idx` ON `tool_file_requests` (`token_hash`);",
+      "CREATE INDEX `tool_file_requests_org_idx` ON `tool_file_requests` (`org_id`,`created_at`);",
+      "CREATE TABLE `tool_request_files` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`request_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`file_id` text NOT NULL,\n\t`upload_key_hash` text NOT NULL,\n\t`name` text NOT NULL,\n\t`content_type` text NOT NULL,\n\t`bytes` integer NOT NULL,\n\t`chunk_bytes` integer NOT NULL,\n\t`chunks` integer NOT NULL,\n\t`received` text NOT NULL,\n\t`status` text DEFAULT 'uploading' NOT NULL,\n\t`uploader_name` text,\n\t`uploader_email` text,\n\t`note` text,\n\t`country` text,\n\t`expires_at` integer NOT NULL,\n\t`deleted_at` integer,\n\t`created_at` integer NOT NULL,\n\t`completed_at` integer\n);",
+      "CREATE INDEX `tool_request_files_request_idx` ON `tool_request_files` (`request_id`,`created_at`);",
+      "CREATE INDEX `tool_request_files_org_idx` ON `tool_request_files` (`org_id`);",
+      "CREATE TABLE `tool_secrets` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`created_by` text NOT NULL,\n\t`token_hash` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`label` text,\n\t`ciphertext` text,\n\t`file_id` text,\n\t`bytes` integer NOT NULL,\n\t`passphrase` integer DEFAULT 0 NOT NULL,\n\t`max_views` integer DEFAULT 1 NOT NULL,\n\t`views` integer DEFAULT 0 NOT NULL,\n\t`notify` integer DEFAULT 1 NOT NULL,\n\t`reports` integer DEFAULT 0 NOT NULL,\n\t`expires_at` integer NOT NULL,\n\t`burned_at` integer,\n\t`revoked_at` integer,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX `tool_secrets_token_idx` ON `tool_secrets` (`token_hash`);",
+      "CREATE INDEX `tool_secrets_org_idx` ON `tool_secrets` (`org_id`,`created_at`);",
+      "CREATE TABLE `tool_secret_opens` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`secret_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`at` integer NOT NULL,\n\t`country` text,\n\t`region` text,\n\t`agent` text\n);",
+      "CREATE INDEX `tool_secret_opens_secret_idx` ON `tool_secret_opens` (`secret_id`,`at`);",
+      "CREATE TABLE `tool_link_reports` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`kind` text NOT NULL,\n\t`target_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`reason` text NOT NULL,\n\t`detail` text,\n\t`country` text,\n\t`at` integer NOT NULL\n);",
+      "CREATE INDEX `tool_link_reports_target_idx` ON `tool_link_reports` (`target_id`,`at`);",
+      "ALTER TABLE `tool_share_downloads` ADD `kind` text DEFAULT 'download' NOT NULL;",
+      "ALTER TABLE `tool_share_downloads` ADD `region` text;",
+      "ALTER TABLE `tool_shares` ADD `views` integer DEFAULT 0 NOT NULL;",
+      "ALTER TABLE `tool_shares` ADD `reports` integer DEFAULT 0 NOT NULL;"
+    ]
   }
 ];

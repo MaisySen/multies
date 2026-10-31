@@ -31,7 +31,8 @@ import { activeToolFeatures } from "./services/tools/features"; // Tools P2: "in
 import { toolsEditorsRoutes } from "./routes/tools-editors"; // Tools P2: editors
 import { toolsAiRoutes } from "./routes/tools-ai"; // Tools P2: AI documents
 import { mailMergeUnsubscribeRoutes, toolsAutomationRoutes } from "./routes/tools-automation"; // Tools P2: automation
-import { sharePublicRoutes, toolsShareRoutes } from "./routes/tools-share"; // Tools P2: share links
+import { sharePublicRoutes, toolsShareRoutes } from "./routes/tools-share";
+import { requestPublicRoutes, secretPublicRoutes, toolsRequestRoutes, toolsSecretRoutes } from "./routes/secure-share"; // R88 // Tools P2: share links
 import { esignPublicRoutes, toolsEsignRoutes } from "./routes/tools-esign"; // Tools P2: e-sign
 import { attachmentIndexRoutes } from "./routes/attachment-index"; // Tools P2: attachment index and smart folders
 import { connectionRoutes } from "./routes/connections";
@@ -425,6 +426,8 @@ export function createApp(deps: Deps) {
   app.route("/api/tools/editors", toolsEditorsRoutes()); // Tools P2: editors (page editor, forms, compare)
   app.route("/api/tools/ai", toolsAiRoutes()); // Tools P2: AI documents (ask, translate, invoices, expenses, contracts)
   app.route("/api/tools/share", toolsShareRoutes()); // Tools P2: share links
+  app.route("/api/tools/requests", toolsRequestRoutes()); // R88: file requests
+  app.route("/api/tools/secrets", toolsSecretRoutes()); // R88: secret links
   app.route("/api/tools/esign", toolsEsignRoutes()); // Tools P2: e-sign
   app.route("/api/tools", toolsRoutes()); // Tools P1: document tools (off unless TOOLS_ENABLED)
   app.route("/api/tools", toolsAutomationRoutes()); // Tools P2: automation (rules, workflows, templates, mail merge)
@@ -534,6 +537,8 @@ export function createApp(deps: Deps) {
   app.route("/api/share-links", shareLinkRoutes()); // R26 (MB-87): read only share links
   app.route("/s", sharePageRoutes()); // R26 (MB-87): the public page /s/<token>
   app.route("/d", sharePublicRoutes()); // Tools P2: share links, the public page /d/<token>
+  app.route("/u", requestPublicRoutes()); // R88: file requests, the public upload page /u/<token>
+  app.route("/x", secretPublicRoutes()); // R88: secret links, the public page /x/<token>#key
   app.route("/sign", esignPublicRoutes()); // Tools P2: e-sign, the public signing page /sign/<token>
   app.route("/r/o", openPixelRoutes()); // R31: read status open image /r/o/<token>.gif (public)
   // The public API is the biggest part of the app to build (about 150 OpenAPI routes, roughly

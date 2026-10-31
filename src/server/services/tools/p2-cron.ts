@@ -8,6 +8,7 @@ import { pruneAiUsage } from "./ai-meter";
 import { runSignPass } from "./esign";
 import { runMergePass } from "./automation";
 import { runIndexPass } from "./attachment-index";
+import { pruneStaleUploads } from "./file-requests";
 
 const AI_FEATURES = ["ask", "translate", "extract", "expenses", "contracts"];
 
@@ -25,6 +26,8 @@ export function toolsCronPasses(deps: Deps): Promise<unknown>[] {
   const out: Promise<unknown>[] = [];
   if (on(...AI_FEATURES)) out.push(guard("ai_prune", () => pruneAiUsage(deps, deps.now())));
   if (on("esign", "share")) out.push(guard("sign_pass", () => runSignPass(deps)));
+  // R88: file request uploads left unfinished for a day give their room back (100 a run).
+  if (on("file_requests")) out.push(guard("request_prune", () => pruneStaleUploads(deps)));
   if (on("merge_mail")) out.push(guard("merge_pass", () => runMergePass(deps)));
   // A no op without INDEX_DB or with indexing off (the pass checks its own stops: the D1 read guard, caps, switches).
   if (on("index", "folders")) out.push(guard("index_pass", () => runIndexPass(deps)));

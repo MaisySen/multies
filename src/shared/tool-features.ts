@@ -29,6 +29,8 @@ export const TOOL_FEATURES = [
   "templates",  // 14 templates
   "merge_mail", // 15 bulk mail merge
   "api",        // 26 developer API for Tools
+  "file_requests", // R88 file requests: a client uploads files without an account
+  "secrets",    // R88 secret links encrypted in the browser, and Send securely in compose
 ] as const;
 
 export type ToolFeature = (typeof TOOL_FEATURES)[number];

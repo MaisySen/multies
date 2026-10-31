@@ -36,7 +36,7 @@ export const SIGN_MAX_PAGES = 200;
 /** The one plain line every e-sign screen carries (legal-copy.md, for owner and lawyer review). */
 export const ESIGN_NOTE = "Electronic signatures suit most everyday business documents. Some documents, such as wills, powers of attorney and documents that must be witnessed, need a different way of signing.";
 
-export interface ShareDownloadRow { at: string; country: string | null; agent: string | null }
+export interface ShareDownloadRow { at: string; country: string | null; agent: string | null; /** R88 */ kind?: "download" | "view"; region?: string | null }
 
 export interface ShareLinkInfo {
   id: string;
@@ -46,10 +46,12 @@ export interface ShareLinkInfo {
   hasPassword: boolean;
   maxDownloads: number | null;
   downloads: number;
+  /** R88: page opens (link previewers not counted). */
+  views?: number;
   notifyFirst: boolean;
   expiresAt: string;
   createdAt: string;
-  status: "active" | "expired" | "revoked" | "used_up";
+  status: "active" | "expired" | "revoked" | "used_up" | "paused";
   /** Only in the answer that creates the link: the token is never stored, so it cannot be shown again. */
   url?: string;
   log?: ShareDownloadRow[];

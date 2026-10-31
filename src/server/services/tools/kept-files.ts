@@ -12,7 +12,7 @@ import { newId, randomToken, sha256Hex, safeEqual } from "../../lib/crypto";
 import { KEPT_FILE_CAP, KEPT_FILE_GLOBAL_CAP, KEPT_FILE_MAX_BYTES, type KeptUsage } from "@/shared/share-sign";
 import { isPlanId, type PlanId } from "@/shared/plans";
 
-export type KeptKind = "share" | "sign_source" | "sign_final" | "sign_image";
+export type KeptKind = "share" | "sign_source" | "sign_final" | "sign_image" | "request_file" | "secret";
 
 const mbText = (n: number) => (n >= 1024 * 1024 * 1024 ? `${Math.round(n / (1024 * 1024 * 1024))} GB` : `${Math.round(n / (1024 * 1024))} MB`);
 
@@ -43,11 +43,27 @@ export async function keptUsage(deps: Deps, orgId: string): Promise<KeptUsage> {
 export async function keepFile(deps: Deps, orgId: string, kind: KeptKind, bytes: Uint8Array, ttlSeconds: number, metadata?: Record<string, string>): Promise<string> {
   const store = keptStore(deps);
   if (bytes.byteLength > KEPT_FILE_MAX_BYTES) throw new HttpError(413, "too_large", "Files can be up to 25 MB here.");
+  const now = deps.now().getTime();
+  const until = now + Math.max(60, Math.floor(ttlSeconds)) * 1000;
+  const id = await reserveKept(deps, orgId, kind, bytes.byteLength, ttlSeconds);
+  try {
+    await store.put(`kept/${id}`, bytes, { ttlSeconds: Math.ceil((until - now) / 1000), metadata });
+  } catch (err) {
+    await deps.db.run(sql`update tool_files set deleted_at = ${now} where id = ${id}`);
+    throw err;
+  }
+  return id;
+}
+
+/**
+ * R88: reserves room for a file that arrives in chunks (a file request upload). The row is the ledger of live bytes,
+ * so the caps hold while the chunks come in. Throws the same plain plan limit as keepFile.
+ */
+export async function reserveKept(deps: Deps, orgId: string, kind: KeptKind, size: number, ttlSeconds: number): Promise<string> {
   const cap = KEPT_FILE_CAP[await planOf(deps, orgId)];
   const id = newId("kf");
   const now = deps.now().getTime();
   const until = now + Math.max(60, Math.floor(ttlSeconds)) * 1000;
-  const size = bytes.byteLength;
   const r = await deps.db.run(sql`insert into tool_files (id, org_id, kind, bytes, expires_at, created_at)
     select ${id}, ${orgId}, ${kind}, ${size}, ${until}, ${now}
     where coalesce((select sum(bytes) from tool_files where org_id = ${orgId} and expires_at > ${now} and deleted_at is null), 0) + ${size} <= ${cap}
@@ -57,13 +73,38 @@ export async function keepFile(deps: Deps, orgId: string, kind: KeptKind, bytes:
     if (u.bytes + size > u.cap) throw planLimit(`Your workspace can keep ${mbText(u.cap)} of shared and signing files at once. Remove an old link or wait for one to expire.`);
     throw new HttpError(503, "storage_full", "File storage is full right now. Try again later or send the file as an attachment.");
   }
-  try {
-    await store.put(`kept/${id}`, bytes, { ttlSeconds: Math.ceil((until - now) / 1000), metadata });
-  } catch (err) {
-    await deps.db.run(sql`update tool_files set deleted_at = ${now} where id = ${id}`);
-    throw err;
-  }
   return id;
+}
+
+/** R88: one chunk of a reserved file (KV key "kept/<id>.<n>"), with the file's own expiry. */
+export async function putKeptChunk(deps: Deps, id: string, n: number, bytes: Uint8Array, untilMs: number): Promise<void> {
+  const ttl = Math.max(60, Math.ceil((untilMs - deps.now().getTime()) / 1000));
+  await keptStore(deps).put(`kept/${id}.${n}`, bytes, { ttlSeconds: ttl });
+}
+
+export async function readKeptChunk(deps: Deps, id: string, n: number): Promise<Uint8Array | null> {
+  const f = await keptStore(deps).get(`kept/${id}.${n}`);
+  return f ? new Uint8Array(f.bytes) : null;
+}
+
+/** R88: deletes a chunked file's chunks and frees its bytes. */
+export async function dropKeptChunks(deps: Deps, orgId: string, id: string, chunks: number): Promise<void> {
+  const store = keptStore(deps);
+  await Promise.all(Array.from({ length: chunks }, (_, n) => store.delete(`kept/${id}.${n}`).catch(() => undefined)));
+  await deps.db.run(sql`update tool_files set deleted_at = ${deps.now().getTime()} where id = ${id} and org_id = ${orgId}`);
+}
+
+/** R88: the edge's region guess (state or province), never the address. Null off Cloudflare. */
+export function regionOf(req: Request): string | null {
+  const cf = (req as unknown as { cf?: { region?: unknown } }).cf;
+  const r = typeof cf?.region === "string" ? cf.region.trim() : "";
+  return r && r.length <= 60 && !/[<>"]/.test(r) ? r : null;
+}
+
+/** R88: link previewers and crawlers (chat apps unfurling a link) do not count as a view. */
+export function isPreviewer(ua: string | null | undefined): boolean {
+  if (!ua) return true;
+  return /bot|crawl|spider|preview|facebookexternalhit|whatsapp|telegram|slack|discord|skype|embedly|iframely|outlook|curl|wget|python|okhttp|go-http|headless/i.test(ua);
 }
 
 export async function readKeptFile(deps: Deps, id: string): Promise<Uint8Array | null> {

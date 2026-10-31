@@ -13,12 +13,15 @@ import { hashPassword, newId, verifyPassword } from "../../lib/crypto";
 import { audit } from "../audit";
 import { sendSystemEmail } from "../system-mail";
 import { changesOf, dropKeptFiles, hashMatches, keepFile, newPublicToken, readKeptFile, tokenHash, tokenShapeOk } from "./kept-files";
+import { REPORTS_TO_PAUSE } from "@/shared/secure-share";
 import { SHARE_LOCK_SECONDS, SHARE_MAX_DOWNLOADS, SHARE_MAX_SECONDS, SHARE_MIN_SECONDS, SHARE_WRONG_TRIES, type ShareDownloadRow, type ShareLinkInfo } from "@/shared/share-sign";
 
 export interface ShareRow {
   id: string; org_id: string; created_by: string; token_hash: string; file_id: string; name: string; content_type: string; bytes: number; source: string;
   password_hash: string | null; max_downloads: number | null; downloads: number; wrong_tries: number; locked_until: number | null;
   notify_first: number; notified_at: number | null; expires_at: number; revoked_at: number | null; created_at: number;
+  /** R88: page opens and reports (absent on rows read before migration 0107 ran). */
+  views?: number; reports?: number;
 }
 
 export interface NewShare {
@@ -32,13 +35,14 @@ function statusOf(r: ShareRow, now: number): ShareLinkInfo["status"] {
   if (r.revoked_at) return "revoked";
   if (r.expires_at <= now) return "expired";
   if (r.max_downloads !== null && r.downloads >= r.max_downloads) return "used_up";
+  if ((r.reports ?? 0) >= REPORTS_TO_PAUSE) return "paused";
   return "active";
 }
 
 function infoOf(r: ShareRow, now: number): ShareLinkInfo {
   return {
     id: r.id, name: r.name, bytes: r.bytes, source: r.source as ShareLinkInfo["source"], hasPassword: !!r.password_hash,
-    maxDownloads: r.max_downloads, downloads: r.downloads, notifyFirst: !!r.notify_first,
+    maxDownloads: r.max_downloads, downloads: r.downloads, views: r.views ?? 0, notifyFirst: !!r.notify_first,
     expiresAt: new Date(r.expires_at).toISOString(), createdAt: new Date(r.created_at).toISOString(), status: statusOf(r, now),
   };
 }
@@ -83,8 +87,8 @@ async function ownShare(deps: Deps, auth: AuthContext, id: string): Promise<Shar
 
 export async function shareDetail(deps: Deps, auth: AuthContext, id: string): Promise<ShareLinkInfo> {
   const r = await ownShare(deps, auth, id);
-  const log = await deps.db.all<{ at: number; country: string | null; agent: string | null }>(sql`select at, country, agent from tool_share_downloads where share_id = ${r.id} order by at desc limit 200`);
-  return { ...infoOf(r, deps.now().getTime()), log: log.map((l): ShareDownloadRow => ({ at: new Date(l.at).toISOString(), country: l.country, agent: l.agent })) };
+  const log = await deps.db.all<{ at: number; country: string | null; agent: string | null; kind: string | null; region: string | null }>(sql`select at, country, agent, kind, region from tool_share_downloads where share_id = ${r.id} order by at desc limit 200`);
+  return { ...infoOf(r, deps.now().getTime()), log: log.map((l): ShareDownloadRow => ({ at: new Date(l.at).toISOString(), country: l.country, agent: l.agent, kind: l.kind === "view" ? "view" : "download", region: l.region })) };
 }
 
 export async function revokeShare(deps: Deps, auth: AuthContext, id: string, ip?: string): Promise<ShareLinkInfo> {
@@ -121,7 +125,7 @@ export type DownloadAttempt =
   | { ok: false; reason: "gone" | "password" | "locked" | "used_up" | "missing"; triesLeft?: number };
 
 /** Checks the password (counting wrong tries), takes one download from the limit, logs it, and reads the file. */
-export async function takeDownload(deps: Deps, v: PublicShareView, password: string | null, req: { country: string | null; agent: string | null }): Promise<DownloadAttempt> {
+export async function takeDownload(deps: Deps, v: PublicShareView, password: string | null, req: { country: string | null; agent: string | null; region?: string | null }): Promise<DownloadAttempt> {
   const r = v.row;
   const now = deps.now().getTime();
   if (v.state === "locked") return { ok: false, reason: "locked" };
@@ -145,7 +149,7 @@ export async function takeDownload(deps: Deps, v: PublicShareView, password: str
   if (!changesOf(took)) return { ok: false, reason: "used_up" };
   const bytes = await readKeptFile(deps, r.file_id);
   if (!bytes) return { ok: false, reason: "missing" };
-  await deps.db.run(sql`insert into tool_share_downloads (id, share_id, org_id, at, country, agent) values (${newId("shd")}, ${r.id}, ${r.org_id}, ${now}, ${req.country}, ${req.agent})`);
+  await deps.db.run(sql`insert into tool_share_downloads (id, share_id, org_id, at, country, agent, kind, region) values (${newId("shd")}, ${r.id}, ${r.org_id}, ${now}, ${req.country}, ${req.agent}, 'download', ${req.region ?? null})`);
   if (r.notify_first && !r.notified_at) {
     const first = await deps.db.run(sql`update tool_shares set notified_at = ${now} where id = ${r.id} and notified_at is null`);
     if (changesOf(first)) await notifyFirstDownload(deps, r, req).catch((err) => deps.log?.warn("tools.share_notify_failed", { error: String(err) }));

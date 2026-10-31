@@ -15,10 +15,12 @@ import { requireAuth } from "../middleware";
 import { HttpError } from "../lib/errors";
 import { RateLimiter } from "../lib/rate-limit";
 import { createShare, findPublicShare, listShares, revokeShare, shareDetail, takeDownload, type NewShare, type PublicShareView } from "../services/tools/share";
-import { agentFamily, countryOf, keptUsage } from "../services/tools/kept-files";
+import { agentFamily, countryOf, keptUsage, regionOf } from "../services/tools/kept-files";
 import { fileOfForm, fromAttachment, fromToolResult, readUploadForm, type SourceFile } from "../services/tools/p2-sources";
 import { PUBLIC_HEADERS, attachmentDisposition, esc, formToken, gateP2, publicOn, publicPage, publicPostOk, sizeText } from "../services/tools/p2-public";
 import { TOOLS_UPLOAD_HEADER } from "./tools";
+import { logShareView, reportBox, takeReport } from "./secure-share"; // R88: view log and Report this link
+import { REPORTS_TO_PAUSE } from "@/shared/secure-share";
 
 const Opts = z.object({
   expiresInSeconds: z.coerce.number().int(),
@@ -69,6 +71,7 @@ const GONE: Record<string, [string, string]> = {
   used_up: ["This link has been used up", "It reached its download limit. Ask the person who sent it for a new one."],
   missing: ["This file is no longer available", "Ask the person who sent it for a new one."],
   locked: ["Too many wrong passwords", "This link is paused for 15 minutes. Try again later."],
+  paused: ["This link is paused", "It is being checked after a report."],
 };
 
 function gonePage(kind: keyof typeof GONE) {
@@ -93,20 +96,31 @@ ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ""}
 <div class="row"><button type="submit" class="full">Download</button></div>
 </form>
 ${left}<p class="muted small">This link expires on ${esc(expires)} UTC.</p>
-</div><p class="muted small" style="text-align:center;margin-top:16px">Shared securely with Multies. Only open files from people you trust.</p></main>`);
+</div><p class="muted small" style="text-align:center;margin-top:16px">Shared securely with Multies. Only open files from people you trust.</p>
+${reportBox(ft, `/d/${c.req.param("token")}/report`)}</main>`);
 }
 
 /** The public share page and its download. 60 page opens and 20 downloads a minute per address, in memory. */
 export function sharePublicRoutes() {
   const opens = new RateLimiter(60, 60_000);
   const posts = new RateLimiter(20, 60_000);
+  const reports = new RateLimiter(5, 60 * 60_000);
   return new Hono<AppEnv>()
+    .post("/:token/report", async (c) => {
+      // R88: Report this link. Three reports pause the link until its owner looks.
+      const v = publicOn(c, "share") ? await findPublicShare(c.var.deps, c.req.param("token")) : null;
+      if (!v) return c.html(gonePage("gone"), 404, PUBLIC_HEADERS);
+      const ok = await takeReport(c, "share", v.row, reports);
+      return c.html(publicPage(ok ? "Thanks for the report" : "Report not sent", `<header class="top"><span class="brand">Multies</span></header><main><div class="card"><h1>${ok ? "Thanks for the report" : "Report not sent"}</h1><p class="muted">${ok ? "We will look at this link. You can close this page." : "Open the link again and try once more."}</p></div></main>`), ok ? 200 : 429, PUBLIC_HEADERS);
+    })
     .get("/:token", async (c) => {
       if (!publicOn(c, "share")) return c.html(gonePage("gone"), 404, PUBLIC_HEADERS);
       if (!opens.take(c.var.ip)) return c.html(publicPage("Too many requests", `<main><div class="card"><h1>Too many requests</h1><p class="muted">Try again in a minute.</p></div></main>`), 429, { ...PUBLIC_HEADERS, "retry-after": "60" });
       const v = await findPublicShare(c.var.deps, c.req.param("token"));
       if (!v) return c.html(gonePage("gone"), 404, PUBLIC_HEADERS);
       if (v.state !== "active") return c.html(gonePage(v.state === "locked" ? "locked" : v.state === "used_up" ? "used_up" : "gone"), v.state === "locked" ? 429 : 410, PUBLIC_HEADERS);
+      if ((v.row.reports ?? 0) >= REPORTS_TO_PAUSE) return c.html(gonePage("paused"), 410, PUBLIC_HEADERS);
+      await logShareView(c, v.row).catch(() => undefined); // R88: the view log (link previewers are not counted)
       return c.html(await sharePage(c, v), 200, PUBLIC_HEADERS);
     })
     .post("/:token", async (c) => {
@@ -114,13 +128,14 @@ export function sharePublicRoutes() {
       if (!posts.take(c.var.ip)) return c.html(gonePage("locked"), 429, { ...PUBLIC_HEADERS, "retry-after": "60" });
       const v = await findPublicShare(c.var.deps, c.req.param("token"));
       if (!v) return c.html(gonePage("gone"), 404, PUBLIC_HEADERS);
+      if ((v.row.reports ?? 0) >= REPORTS_TO_PAUSE) return c.html(gonePage("paused"), 410, PUBLIC_HEADERS);
       const fd = await c.req.formData().catch(() => null);
       const ft = fd?.get("ft");
       if (!(await publicPostOk(c, "share", v.row.token_hash, typeof ft === "string" ? ft : null))) {
         return c.html(publicPage("Request blocked", `<main><div class="card"><h1>Request blocked</h1><p class="muted">Open the link again and use the Download button.</p></div></main>`), 403, PUBLIC_HEADERS);
       }
       const pw = fd?.get("password");
-      const r = await takeDownload(c.var.deps, v, typeof pw === "string" ? pw : null, { country: countryOf(c.req.raw.headers), agent: agentFamily(c.req.header("user-agent")) });
+      const r = await takeDownload(c.var.deps, v, typeof pw === "string" ? pw : null, { country: countryOf(c.req.raw.headers), agent: agentFamily(c.req.header("user-agent")), region: regionOf(c.req.raw) });
       if (!r.ok) {
         if (r.reason === "password") return c.html(await sharePage(c, v, `That password is not right. ${r.triesLeft} ${r.triesLeft === 1 ? "try" : "tries"} left.`), 401, PUBLIC_HEADERS);
         return c.html(gonePage(r.reason), r.reason === "locked" ? 429 : 410, PUBLIC_HEADERS);

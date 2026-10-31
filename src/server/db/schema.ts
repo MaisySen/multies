@@ -2296,6 +2296,8 @@ export const toolShares = sqliteTable("tool_shares", {
   expiresAt: integer("expires_at").notNull(),
   revokedAt: integer("revoked_at"),
   createdAt: integer("created_at").notNull(),
+  views: integer("views").notNull().default(0), // R88: page opens
+  reports: integer("reports").notNull().default(0), // R88: reports from the public page
 }, (t) => [uniqueIndex("tool_shares_token_idx").on(t.tokenHash), index("tool_shares_org_idx").on(t.orgId, t.createdAt)]);
 
 export const toolShareDownloads = sqliteTable("tool_share_downloads", {
@@ -2305,7 +2307,104 @@ export const toolShareDownloads = sqliteTable("tool_share_downloads", {
   at: integer("at").notNull(),
   country: text("country"),
   agent: text("agent"),
+  kind: text("kind").notNull().default("download"), // R88: "download" | "view"
+  region: text("region"), // R88: the edge's region guess, never the address
 }, (t) => [index("tool_share_downloads_share_idx").on(t.shareId, t.at), index("tool_share_downloads_org_idx").on(t.orgId)]);
+
+// R88 (migration 0107): secure share. File requests with their received files (KV kept files, chunked), secret links
+// (ciphertext only; the key never reaches the server), the secret open log and link reports from public pages.
+export const toolFileRequests = sqliteTable("tool_file_requests", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  createdBy: text("created_by").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  title: text("title").notNull(),
+  message: text("message"),
+  folder: text("folder"),
+  passwordHash: text("password_hash"),
+  maxFileBytes: integer("max_file_bytes").notNull(),
+  maxTotalBytes: integer("max_total_bytes").notNull(),
+  allowed: text("allowed").notNull().default("any"),
+  maxUploads: integer("max_uploads"),
+  uploads: integer("uploads").notNull().default(0),
+  bytesReceived: integer("bytes_received").notNull().default(0),
+  keepDays: integer("keep_days").notNull().default(30),
+  showBrand: integer("show_brand").notNull().default(1),
+  notify: integer("notify").notNull().default(1),
+  notifiedAt: integer("notified_at"),
+  wrongTries: integer("wrong_tries").notNull().default(0),
+  lockedUntil: integer("locked_until"),
+  reports: integer("reports").notNull().default(0),
+  lastUploadAt: integer("last_upload_at"),
+  expiresAt: integer("expires_at").notNull(),
+  closedAt: integer("closed_at"),
+  createdAt: integer("created_at").notNull(),
+}, (t) => [uniqueIndex("tool_file_requests_token_idx").on(t.tokenHash), index("tool_file_requests_org_idx").on(t.orgId, t.createdAt)]);
+
+export const toolRequestFiles = sqliteTable("tool_request_files", {
+  id: text("id").primaryKey(),
+  requestId: text("request_id").notNull(),
+  orgId: text("org_id").notNull(),
+  fileId: text("file_id").notNull(),
+  uploadKeyHash: text("upload_key_hash").notNull(),
+  name: text("name").notNull(),
+  contentType: text("content_type").notNull(),
+  bytes: integer("bytes").notNull(),
+  chunkBytes: integer("chunk_bytes").notNull(),
+  chunks: integer("chunks").notNull(),
+  received: text("received").notNull(),
+  status: text("status").notNull().default("uploading"),
+  uploaderName: text("uploader_name"),
+  uploaderEmail: text("uploader_email"),
+  note: text("note"),
+  country: text("country"),
+  expiresAt: integer("expires_at").notNull(),
+  deletedAt: integer("deleted_at"),
+  createdAt: integer("created_at").notNull(),
+  completedAt: integer("completed_at"),
+}, (t) => [index("tool_request_files_request_idx").on(t.requestId, t.createdAt), index("tool_request_files_org_idx").on(t.orgId)]);
+
+export const toolSecrets = sqliteTable("tool_secrets", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  createdBy: text("created_by").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  kind: text("kind").notNull(),
+  label: text("label"),
+  ciphertext: text("ciphertext"),
+  fileId: text("file_id"),
+  bytes: integer("bytes").notNull(),
+  passphrase: integer("passphrase").notNull().default(0),
+  maxViews: integer("max_views").notNull().default(1),
+  views: integer("views").notNull().default(0),
+  notify: integer("notify").notNull().default(1),
+  reports: integer("reports").notNull().default(0),
+  expiresAt: integer("expires_at").notNull(),
+  burnedAt: integer("burned_at"),
+  revokedAt: integer("revoked_at"),
+  createdAt: integer("created_at").notNull(),
+}, (t) => [uniqueIndex("tool_secrets_token_idx").on(t.tokenHash), index("tool_secrets_org_idx").on(t.orgId, t.createdAt)]);
+
+export const toolSecretOpens = sqliteTable("tool_secret_opens", {
+  id: text("id").primaryKey(),
+  secretId: text("secret_id").notNull(),
+  orgId: text("org_id").notNull(),
+  at: integer("at").notNull(),
+  country: text("country"),
+  region: text("region"),
+  agent: text("agent"),
+}, (t) => [index("tool_secret_opens_secret_idx").on(t.secretId, t.at)]);
+
+export const toolLinkReports = sqliteTable("tool_link_reports", {
+  id: text("id").primaryKey(),
+  kind: text("kind").notNull(),
+  targetId: text("target_id").notNull(),
+  orgId: text("org_id").notNull(),
+  reason: text("reason").notNull(),
+  detail: text("detail"),
+  country: text("country"),
+  at: integer("at").notNull(),
+}, (t) => [index("tool_link_reports_target_idx").on(t.targetId, t.at)]);
 
 export const signRequests = sqliteTable("sign_requests", {
   id: text("id").primaryKey(),
