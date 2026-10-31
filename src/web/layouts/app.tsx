@@ -231,7 +231,7 @@ export function AppLayout() {
           {items.map(({ to, label, icon: Icon, end }) => (
             <NavLink to={to} end={end} className={({ isActive }) => cn(
               "flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13.5px] transition-colors duration-150 max-lg:min-h-11 max-lg:text-[15px]",
-              isActive ? "bg-brand-soft font-medium text-brand-hover" : "text-fg/85 hover:bg-hover hover:text-fg",
+              isActive ? "bg-brand-soft font-medium text-fg" : "text-fg/85 hover:bg-hover hover:text-fg",
             )}>
               {({ isActive }) => (<>
               {/* R79: calm monochrome glyphs; colour is kept for the active item and for counts that need you. */}

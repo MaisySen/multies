@@ -181,7 +181,9 @@ export function colourTokens(primary: string | null, accent: string | null, sche
   t["--color-brand-fg"] = readableOn(fill);
   // brand-hover doubles as the brand coloured text colour (links, active labels): AA against the surface.
   const textish = scheme === "light" ? mix(p, "#000000", 0.12) : mix(p, "#ffffff", 0.28);
-  t["--color-brand-hover"] = ensureContrast(ensureContrast(textish, base.surface, 4.5), base.bg, 4.5);
+  // R79: also AA on raised cards and on the brand tinted ground of active tabs and chips (axe found 3.8 in dark).
+  const grounds = [base.surface, base.bg, NEUTRALS[scheme]["--color-elevated"], NEUTRALS[scheme]["--color-hover"], mix(base.surface, a, scheme === "light" ? 0.12 : 0.18)];
+  t["--color-brand-hover"] = grounds.reduce((c, g) => ensureContrast(c, g, 4.6), grounds.reduce((c, g) => ensureContrast(c, g, 4.6), textish));
   t["--color-brand-soft"] = `rgb(${rgbList(a)} / ${scheme === "light" ? 0.12 : 0.18})`;
   t["--color-accent"] = a;
   t["--color-accent-fg"] = readableOn(a);

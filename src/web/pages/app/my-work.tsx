@@ -100,7 +100,7 @@ export function MyWorkPage() {
       {/* Large title with the date above it, like the system Today screens. */}
       <div className="mb-5 flex flex-col gap-3 max-sm:mb-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-[#0071E3] dark:text-brand-hover" data-testid="today-date"><span>My Work</span><span aria-hidden> · </span><span className="text-muted">{day}</span></p>
+          <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-brand-hover" data-testid="today-date"><span>My Work</span><span aria-hidden> · </span><span className="text-muted">{day}</span></p>
           <h1 data-large-title className="text-[32px] font-bold leading-[38px] tracking-[-0.025em] text-fg sm:text-[34px] sm:leading-[41px]">Good {dayPart()}{first ? `, ${first}` : ""}</h1>
           <p className={cn("mt-1 text-[14px] text-muted", allQuiet && "sr-only")}>{!w ? "What is waiting on you today." : nothing ? "Nothing is waiting on you. Enjoy the quiet." : overdue > 0 ? `${overdue} overdue and ${due} due today. Start with the top of Focus.` : `${due ? `${due} due today` : "Nothing due today"}${next ? `, next up: ${next.item.title}` : ""}.`}</p>
           {q.cachedAt !== null && (

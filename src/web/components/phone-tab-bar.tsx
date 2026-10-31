@@ -47,7 +47,7 @@ export function PhoneTabBar({ mailUnread, moreOpen, onMore }: { mailUnread: numb
   ];
   const cls = (on: boolean) => cn(
     "pressable relative flex h-[52px] w-full flex-col items-center justify-center gap-[3px] text-[10.5px] font-medium tracking-[0.01em] transition-colors duration-150 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand",
-    on ? "text-[#0071E3] dark:text-[#2997FF]" : "text-subtle hover:text-muted",
+    on ? "text-brand-hover" : "text-subtle hover:text-muted", // R79: the workspace brand, AA in light and dark
   );
   return (
     <nav data-testid="phone-tabbar" aria-label="Tabs" className="glass hairline-t relative z-30 shrink-0 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] md:hidden">

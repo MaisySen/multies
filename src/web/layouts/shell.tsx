@@ -65,7 +65,7 @@ export function IconRail({ sections, active, counts, footer }: { sections: Secti
         className={cn("group relative flex w-16 flex-col items-center gap-0.5 rounded-lg py-1.5 text-[10px] font-medium tracking-[-0.01em] transition-colors duration-150 motion-reduce:transition-none",
           on ? "text-fg" : "text-muted hover:text-fg")}>
         <span className={cn("grid h-8 w-8 place-items-center rounded-lg transition-colors duration-150 motion-reduce:transition-none",
-          on ? "bg-brand-soft text-brand-hover" : "group-hover:bg-hover")}>
+          on ? "bg-brand-soft text-fg" : "group-hover:bg-hover")}>
           <Icon filled={on} className="h-[19px] w-[19px]" aria-hidden />
         </span>
         <span className="max-w-full truncate px-0.5">{s.label}</span>
@@ -126,7 +126,7 @@ export function ContextSidebar({ section, counts, header, footer }: { section: S
             const on = here?.page.to === p.to && !(p.to === "/app/tasks" && openProject);
             return (
               <NavLink key={p.to} to={p.to} end={p.end} aria-current={on ? "page" : undefined}
-                className={cn(row, on ? "bg-brand-soft font-medium text-brand-hover" : "text-fg/85 hover:bg-hover hover:text-fg")}>
+                className={cn(row, on ? "bg-brand-soft font-medium text-fg" : "text-fg/85 hover:bg-hover hover:text-fg")}>
                 <Icon filled={on} className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="min-w-0 flex-1 truncate">{p.label}</span>
                 <CountPill c={counts[p.to]} />
@@ -143,7 +143,7 @@ export function ContextSidebar({ section, counts, header, footer }: { section: S
               const on = f.kind === "project" ? openProject === f.id : loc.pathname === f.to;
               return (
                 <Link key={`${f.kind}:${f.id}`} to={f.to} aria-current={on ? "page" : undefined}
-                  className={cn(row, on ? "bg-brand-soft font-medium text-brand-hover" : "text-fg/85 hover:bg-hover hover:text-fg")}>
+                  className={cn(row, on ? "bg-brand-soft font-medium text-fg" : "text-fg/85 hover:bg-hover hover:text-fg")}>
                   {p ? <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: p.color }} aria-hidden /> : <IconStar className="h-4 w-4 shrink-0 text-subtle" aria-hidden />}
                   <span className="min-w-0 flex-1 truncate">{p?.name ?? f.label}</span>
                   {p && open(p) > 0 && <span className="text-[11.5px] tabular-nums text-subtle" aria-label={`${open(p)} open`}>{open(p)}</span>}
@@ -166,7 +166,7 @@ export function ContextSidebar({ section, counts, header, footer }: { section: S
               const to = `/app/tasks?project=${encodeURIComponent(p.id)}`;
               return (
                 <div key={p.id} role="listitem" className={cn("group/row", row, "p-0 pr-1", on ? "bg-brand-soft" : "hover:bg-hover")}>
-                  <Link to={to} aria-current={on ? "page" : undefined} className={cn("flex min-w-0 flex-1 items-center gap-2.5 px-2 py-[6px]", on ? "font-medium text-brand-hover" : "text-fg/85 hover:text-fg")}>
+                  <Link to={to} aria-current={on ? "page" : undefined} className={cn("flex min-w-0 flex-1 items-center gap-2.5 px-2 py-[6px]", on ? "font-medium text-fg" : "text-fg/85 hover:text-fg")}>
                     <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: p.color }} aria-hidden />
                     <span className="min-w-0 flex-1 truncate">{p.name}</span>
                     {open(p) > 0 && <span className="text-[11.5px] tabular-nums text-subtle group-hover/row:hidden group-focus-within/row:hidden" aria-label={`${open(p)} open`}>{open(p)}</span>}
