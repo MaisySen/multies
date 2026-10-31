@@ -9,8 +9,8 @@ import { LIST_SORTS, METRICS, NOTE_MAX, OPS, PIVOT_AXES, PIVOT_COLS, PIVOT_ROWS,
 
 export interface WidgetOption { name: string; what: string; values?: readonly string[]; default?: string | number | null; max?: number }
 export interface WidgetTypeInfo {
-  type: WidgetType; label: string; group: "Tasks" | "Progress" | "Time" | "Mail" | "Text"; what: string;
-  data: "tasks" | "mail" | "goals" | "time" | "none";
+  type: WidgetType; label: string; group: "Tasks" | "Progress" | "Time" | "Mail" | "Text" | "Custom"; what: string;
+  data: "tasks" | "mail" | "goals" | "time" | "none" | "custom";
   charts: readonly string[]; defaultChart: string; defaultSize: 1 | 2; options: WidgetOption[]; source: string[];
 }
 
@@ -19,6 +19,7 @@ const groupBy: WidgetOption = { name: "groupBy", what: "What the tasks are group
 const range: WidgetOption = { name: "range", what: "The days ending today.", values: RANGES, default: "30d" };
 
 const INFO: Record<WidgetType, Omit<WidgetTypeInfo, "type" | "defaultChart">> = {
+  question: { label: "Question", group: "Custom", what: "Your own question over tasks, deals, forms, bookings, time, mail or a data source (DASHBOARDS_PLUS).", data: "custom", charts: ["number", "bar", "line", "donut", "table"], defaultSize: 1, options: [], source: [] },
   count: { label: "Count", group: "Tasks", what: "How many tasks match the source.", data: "tasks", charts: ["number"], defaultSize: 1, options: [], source: TASK_SOURCE },
   breakdown: { label: "Breakdown", group: "Tasks", what: "Tasks grouped by one field, up to 20 groups.", data: "tasks", charts: ["bar", "donut", "table"], defaultSize: 1, options: [groupBy], source: TASK_SOURCE },
   due: { label: "Due soon", group: "Tasks", what: "Tasks due this week and overdue.", data: "tasks", charts: ["table"], defaultSize: 1, options: [], source: TASK_SOURCE },

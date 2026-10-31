@@ -56,6 +56,7 @@ import { mailScheduleRoutes } from "./routes/mail-schedules";
 import { epicRoutes } from "./routes/suite-r21-types";
 import { sprintRoutes } from "./routes/sprints";
 import { shareLinkRoutes, sharePageRoutes } from "./routes/share-links"; // R26 (MB-87): share links
+import { dashboardsPlusRoutes, dashboardsPublicRoutes } from "./routes/dashboards-r91"; // R91: dashboards plus
 import { workloadRoutes } from "./routes/workload";
 import { automationRecipeRoutes } from "./routes/automation-recipes";
 import { flowRoutes } from "./routes/flows";
@@ -403,6 +404,8 @@ export function createApp(deps: Deps) {
       flows: deps.config.flows !== false, // R90
       // R94: CRM timeline (CRM_TIMELINE): paged timeline, logged calls and notes, segments, CSV import, deal forecast.
       crmTimeline: !!deps.config.crmTimeline,
+      // R91: dashboards plus (DASHBOARDS_PLUS): share, reports, question builder, alerts, data sources.
+      dashboardsPlus: !!deps.config.dashboardsPlus,
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
       chatChannels: deps.config.channels.enabled,
       // Tools P1: whether the Tools page and its menu entries show (TOOLS_ENABLED with an engine configured).
@@ -567,6 +570,8 @@ export function createApp(deps: Deps) {
   app.route("/api/calendar", calendarRoutes()); // Round 23: calendar feed and other calendars
   app.route("/cal", calendarFeedRoutes()); // Round 23: public calendar feed /cal/<token>.ics
   app.route("/api/share-links", shareLinkRoutes()); // R26 (MB-87): read only share links
+  app.route("/api/dashboards-plus", dashboardsPlusRoutes()); // R91: links, reports, alerts, sources, questions
+  app.route("/api/dash-public", dashboardsPublicRoutes()); // R91: public dashboard links and report unsubscribe
   app.route("/s", sharePageRoutes()); // R26 (MB-87): the public page /s/<token>
   app.route("/d", sharePublicRoutes()); // Tools P2: share links, the public page /d/<token>
   app.route("/u", requestPublicRoutes()); // R88: file requests, the public upload page /u/<token>

@@ -24,6 +24,7 @@ import { replyStats } from "../mail/thread-state";
 import { dateFormat } from "../../lib/intl-cache";
 import { inIds } from "../../lib/sql-chunks";
 import { R38_WIDGET_TYPES, R38WidgetFields, r38DefaultTitle, r38Settings, type R38WidgetSettings, type R38WidgetType } from "./dashboards-r38-schema";
+import { QuestionSpec, runQuestion, describeQuestion } from "./dash-r91-question";
 import { battery, calculation, createdCompleted, note, pivot, taskList, timeTracked } from "./dashboards-r38-widgets";
 
 const DAY = 86_400_000;
@@ -34,7 +35,7 @@ export const GROUP_CAP = 20;
 /** Tasks a list widget shows at most. */
 export const LIST_CAP = 10;
 
-export const WIDGET_TYPES = ["count", "breakdown", "due", "completed", "burndown", "goals", "reply_times", "mail_volume", "workload", ...R38_WIDGET_TYPES] as const;
+export const WIDGET_TYPES = ["count", "breakdown", "due", "completed", "burndown", "goals", "reply_times", "mail_volume", "workload", ...R38_WIDGET_TYPES, "question"] as const;
 export type WidgetType = (typeof WIDGET_TYPES)[number];
 export const GROUP_BYS = ["status", "assignee", "priority", "project", "sprint", "type", "label"] as const;
 export type GroupBy = (typeof GROUP_BYS)[number];
@@ -69,16 +70,19 @@ export const WidgetInput = z.object({
   size: z.union([z.literal(1), z.literal(2)]).optional(),
   // R38: range, metric, op, goal, columnBy, sort and text, each kept only on the types that use it.
   ...R38WidgetFields,
+  // R91: the question builder card keeps its question here.
+  question: QuestionSpec.optional(),
 });
 export type WidgetInput = z.input<typeof WidgetInput>;
 export interface Widget extends R38WidgetSettings {
   id: string; type: WidgetType; title: string; source: z.infer<typeof WidgetSource>;
   groupBy: GroupBy | "mailbox" | "person" | null; chart: (typeof CHARTS)[number]; size: 1 | 2; position: number;
+  question?: QuestionSpec;
 }
 
 export const DEFAULT_CHART: Record<WidgetType, Widget["chart"]> = {
   count: "number", breakdown: "bar", due: "table", completed: "line", burndown: "line", goals: "table", reply_times: "table", mail_volume: "line", workload: "bar",
-  calculation: "number", battery: "bar", pivot: "table", created_completed: "bar", task_list: "table", time_tracked: "bar", note: "table",
+  calculation: "number", battery: "bar", pivot: "table", created_completed: "bar", task_list: "table", time_tracked: "bar", note: "table", question: "bar",
 };
 const GROUP_LABEL: Record<GroupBy, string> = { status: "status", assignee: "person", priority: "priority", project: "project", sprint: "sprint", type: "type", label: "label" };
 function defaultTitle(w: { type: WidgetType; groupBy?: string | null } & R38WidgetSettings) {
@@ -93,6 +97,7 @@ function defaultTitle(w: { type: WidgetType; groupBy?: string | null } & R38Widg
     case "reply_times": return "Reply times";
     case "mail_volume": return "Mail per day";
     case "workload": return "Workload per person";
+    case "question": return "Question";
     default: return "Widget";
   }
 }
@@ -111,11 +116,11 @@ function present(r: Row, actor: SuiteActor) {
 }
 export type Dashboard = ReturnType<typeof present>;
 
-const personOf = (actor: SuiteActor) => (actor.agentId ? "" : actor.userId || "");
+export const personOf = (actor: SuiteActor) => (actor.agentId ? "" : actor.userId || "");
 /** A dashboard this actor may open: shared ones, and private ones they own. An agent key owns none. */
 const visible = (actor: SuiteActor) => (personOf(actor) ? or(eq(dashboards.shared, true), eq(dashboards.ownerUserId, personOf(actor))) : eq(dashboards.shared, true));
 
-async function rowFor(deps: Deps, actor: SuiteActor, id: string) {
+export async function rowFor(deps: Deps, actor: SuiteActor, id: string) {
   const r = await deps.db.select().from(dashboards).where(and(eq(dashboards.orgId, actor.orgId), eq(dashboards.id, id), visible(actor))).get();
   if (!r) throw notFound("Dashboard");
   return r;
@@ -167,10 +172,12 @@ async function normalise(deps: Deps, actor: SuiteActor, input: WidgetInput[], ke
       : w.type === "reply_times" ? (w.groupBy === "person" ? "person" : "mailbox") : w.type === "pivot" ? extra.groupBy! : null;
     delete extra.groupBy;
     const prev = old.get(id);
+    if (w.type === "question" && !w.question && !prev?.question) throw new HttpError(422, "validation_failed", "Build the question first: pick the data and what to measure.");
+    const question = w.type === "question" ? (w.question ?? prev!.question) : undefined;
     const wide = ["completed", "workload", "pivot", "created_completed", "time_tracked"].includes(w.type);
     return {
-      id, type: w.type, title: w.title || prev?.title || defaultTitle({ type: w.type, groupBy, ...extra }), source: w.source, groupBy,
-      chart: w.chart ?? DEFAULT_CHART[w.type], size: w.size ?? (wide ? 2 : 1), position: i, ...extra,
+      id, type: w.type, title: w.title || prev?.title || (question ? describeQuestion(question) : null) || defaultTitle({ type: w.type, groupBy, ...extra }), source: w.source, groupBy,
+      chart: w.chart ?? DEFAULT_CHART[w.type], size: w.size ?? (wide ? 2 : 1), position: i, ...extra, ...(question ? { question } : {}),
     };
   });
 }
@@ -208,7 +215,7 @@ export async function createDashboard(deps: Deps, actor: SuiteActor, input: { na
   return getDashboard(deps, actor, id);
 }
 
-function assertCanChange(r: Row, actor: SuiteActor, what: "edit" | "share" | "delete") {
+export function assertCanChange(r: Row, actor: SuiteActor, what: "edit" | "share" | "delete") {
   const owner = !!personOf(actor) && r.ownerUserId === personOf(actor);
   const admin = actor.role === "owner" || actor.role === "admin";
   if (owner) return;
@@ -257,7 +264,7 @@ export async function deleteDashboard(deps: Deps, actor: SuiteActor, id: string)
 
 // ---------------------------------------------------------------- widget data (computed on read)
 
-async function readableMailboxes(deps: Deps, actor: SuiteActor): Promise<string[]> {
+export async function readableMailboxes(deps: Deps, actor: SuiteActor): Promise<string[]> {
   const { scopeOf } = await import("./common");
   const scope = await scopeOf(deps, actor);
   if (scope) return scope;
@@ -272,7 +279,7 @@ export interface Ctx {
   people: Promise<Map<string, string>>;
 }
 
-function zoneOffset(t: number, tz: string) {
+export function zoneOffset(t: number, tz: string) {
   const p = Object.fromEntries(dateFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
     .formatToParts(new Date(t)).map((x) => [x.type, x.value]));
   return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour) % 24, Number(p.minute), Number(p.second)) - Math.floor(t / 1000) * 1000;
@@ -493,6 +500,10 @@ async function widgetData(c: Ctx, w: Widget): Promise<unknown> {
     case "task_list": return taskList(c, w);
     case "time_tracked": return timeTracked(c, w);
     case "note": return note(w);
+    case "question": {
+      if (!w.question) throw new HttpError(422, "validation_failed", "This card has no question yet.");
+      return runQuestion(c.deps, c.actor, w.question, { mailboxes: () => readableMailboxes(c.deps, c.actor), offsetMin: Math.round(zoneOffset(c.now, c.tz) / 60_000), now: c.now });
+    }
   }
 }
 

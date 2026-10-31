@@ -3140,3 +3140,90 @@ export const hcTerms = sqliteTable("hc_terms", {
   itemId: text("item_id").notNull(),
   weight: integer("weight").notNull().default(1),
 }, (t) => [primaryKey({ columns: [t.orgId, t.term, t.kind, t.itemId] }), index("hc_terms_item_idx").on(t.itemId)]);
+/**
+ * R91 Dashboards plus (DASHBOARDS_PLUS). Additive only (migration 0112).
+ * dashboard_shares: public read only links to one dashboard. Only the SHA-256 of the token is stored; the
+ * public page reads one row by its unique index. The widget numbers are cached in `snapshot` for 15 minutes.
+ */
+export const dashboardShares = sqliteTable("dashboard_shares", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  dashboardId: text("dashboard_id").notNull().references(() => dashboards.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull(),
+  passwordHash: text("password_hash"),
+  showBrand: integer("show_brand", { mode: "boolean" }).notNull().default(true),
+  /** "report" when an emailed report made it for outside recipients (hidden from the share list). */
+  purpose: text("purpose").notNull().default("link"),
+  createdBy: text("created_by").notNull(),
+  createdAt: createdAt(),
+  expiresAt: ts("expires_at"),
+  revokedAt: ts("revoked_at"),
+  snapshot: text("snapshot"),
+  snapshotAt: ts("snapshot_at"),
+}, (t) => [uniqueIndex("dashboard_shares_token_uq").on(t.tokenHash), index("dashboard_shares_dash_idx").on(t.dashboardId)]);
+
+/** R91: scheduled report emails for one dashboard. Due rows are picked by (enabled, next_run_at). */
+export const dashboardReports = sqliteTable("dashboard_reports", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  dashboardId: text("dashboard_id").notNull().references(() => dashboards.id, { onDelete: "cascade" }),
+  createdBy: text("created_by").notNull(),
+  frequency: text("frequency", { enum: ["daily", "weekly", "monthly"] }).notNull(),
+  hour: integer("hour").notNull().default(8),
+  weekday: integer("weekday"),
+  monthDay: integer("month_day"),
+  timeZone: text("time_zone").notNull().default("UTC"),
+  withPdf: integer("with_pdf", { mode: "boolean" }).notNull().default(true),
+  /** JSON: { email: string; userId?: string }[] */
+  recipients: text("recipients").notNull().default("[]"),
+  /** JSON: lower cased emails that unsubscribed. */
+  unsubscribed: text("unsubscribed").notNull().default("[]"),
+  shareId: text("share_id"),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  nextRunAt: ts("next_run_at").notNull(),
+  lastRunAt: ts("last_run_at"),
+  lastError: text("last_error"),
+  createdAt: createdAt(),
+}, (t) => [index("dashboard_reports_due_idx").on(t.enabled, t.nextRunAt), index("dashboard_reports_dash_idx").on(t.dashboardId)]);
+
+/** R91: threshold alerts on a number card. Fires once per crossing; a crossing in quiet hours waits. */
+export const dashboardAlerts = sqliteTable("dashboard_alerts", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  dashboardId: text("dashboard_id").notNull().references(() => dashboards.id, { onDelete: "cascade" }),
+  widgetId: text("widget_id").notNull(),
+  createdBy: text("created_by").notNull(),
+  direction: text("direction", { enum: ["above", "below"] }).notNull(),
+  threshold: real("threshold").notNull(),
+  byMail: integer("by_mail", { mode: "boolean" }).notNull().default(true),
+  quietStart: integer("quiet_start"),
+  quietEnd: integer("quiet_end"),
+  timeZone: text("time_zone").notNull().default("UTC"),
+  state: text("state", { enum: ["ok", "crossed"] }),
+  pending: integer("pending", { mode: "boolean" }).notNull().default(false),
+  lastValue: real("last_value"),
+  lastFiredAt: ts("last_fired_at"),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  nextCheckAt: ts("next_check_at").notNull(),
+  createdAt: createdAt(),
+}, (t) => [index("dashboard_alerts_due_idx").on(t.enabled, t.nextCheckAt), index("dashboard_alerts_dash_idx").on(t.dashboardId)]);
+
+/** R91: uploaded CSV or a public CSV link, usable in the question builder. Rows are capped JSON. */
+export const dashboardSources = sqliteTable("dashboard_sources", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  kind: text("kind", { enum: ["csv", "url"] }).notNull(),
+  url: text("url"),
+  refresh: text("refresh", { enum: ["manual", "hourly", "daily"] }).notNull().default("manual"),
+  /** JSON: { name: string; kind: "number" | "date" | "text" }[] */
+  columns: text("columns").notNull().default("[]"),
+  /** JSON: (string | number | null)[][] */
+  rows: text("rows").notNull().default("[]"),
+  rowCount: integer("row_count").notNull().default(0),
+  refreshedAt: ts("refreshed_at"),
+  nextRefreshAt: ts("next_refresh_at"),
+  lastError: text("last_error"),
+  createdBy: text("created_by").notNull(),
+  createdAt: createdAt(),
+}, (t) => [index("dashboard_sources_org_idx").on(t.orgId), index("dashboard_sources_due_idx").on(t.nextRefreshAt)]);

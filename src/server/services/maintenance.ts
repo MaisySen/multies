@@ -59,6 +59,8 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
   if (has.moves) await step("data_move_continue", async () => (await import("./data-move/continue")).continueKeptMoves(deps));
   if (has.moves) await step("data_move_nudge", async () => (await import("./data-move/service")).nudgeLeftBehindMoves(deps));
   const jobsRun = !has.jobs ? { ran: 0, failed: 0, dead: 0 } : await step("jobs", () => runDueJobs(deps, 20, { excludeTypes: ["demo.seed_suite"], budgetMs: 10_000 }));
+  // R91: dashboards plus (DASHBOARDS_PLUS only): due data source refreshes, alerts and report mails, each bounded per pass.
+  if (deps.config.dashboardsPlus) await step("dashboards_plus", async () => (await import("./suite/dash-r91-cron")).runDashboardsPlus(deps));
   // The remaining steps touch different tables and don't depend on each other, so they run
   // together: one after another they were a chain of round trips (Sentry MYMAIL-API-4).
   const [uptime, crossChecks, legacy, dunning, approvalsExpired, reminders, , writes] = await Promise.all([

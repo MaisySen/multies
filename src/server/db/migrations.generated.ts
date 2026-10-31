@@ -1155,6 +1155,23 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0112_r91_dashboards_plus",
+    "statements": [
+      "-- R91 Dashboards plus: public links, emailed reports, alerts, data sources. Additive only.\nCREATE TABLE `dashboard_shares` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`dashboard_id` text NOT NULL REFERENCES `dashboards`(`id`) ON DELETE cascade,\n\t`token_hash` text NOT NULL,\n\t`password_hash` text,\n\t`show_brand` integer DEFAULT true NOT NULL,\n\t`purpose` text DEFAULT 'link' NOT NULL,\n\t`created_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`expires_at` integer,\n\t`revoked_at` integer,\n\t`snapshot` text,\n\t`snapshot_at` integer\n);",
+      "CREATE UNIQUE INDEX `dashboard_shares_token_uq` ON `dashboard_shares` (`token_hash`);",
+      "CREATE INDEX `dashboard_shares_dash_idx` ON `dashboard_shares` (`dashboard_id`);",
+      "CREATE TABLE `dashboard_reports` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`dashboard_id` text NOT NULL REFERENCES `dashboards`(`id`) ON DELETE cascade,\n\t`created_by` text NOT NULL,\n\t`frequency` text NOT NULL,\n\t`hour` integer DEFAULT 8 NOT NULL,\n\t`weekday` integer,\n\t`month_day` integer,\n\t`time_zone` text DEFAULT 'UTC' NOT NULL,\n\t`with_pdf` integer DEFAULT true NOT NULL,\n\t`recipients` text DEFAULT '[]' NOT NULL,\n\t`unsubscribed` text DEFAULT '[]' NOT NULL,\n\t`share_id` text,\n\t`enabled` integer DEFAULT true NOT NULL,\n\t`next_run_at` integer NOT NULL,\n\t`last_run_at` integer,\n\t`last_error` text,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX `dashboard_reports_due_idx` ON `dashboard_reports` (`enabled`,`next_run_at`);",
+      "CREATE INDEX `dashboard_reports_dash_idx` ON `dashboard_reports` (`dashboard_id`);",
+      "CREATE TABLE `dashboard_alerts` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`dashboard_id` text NOT NULL REFERENCES `dashboards`(`id`) ON DELETE cascade,\n\t`widget_id` text NOT NULL,\n\t`created_by` text NOT NULL,\n\t`direction` text NOT NULL,\n\t`threshold` real NOT NULL,\n\t`by_mail` integer DEFAULT true NOT NULL,\n\t`quiet_start` integer,\n\t`quiet_end` integer,\n\t`time_zone` text DEFAULT 'UTC' NOT NULL,\n\t`state` text,\n\t`pending` integer DEFAULT false NOT NULL,\n\t`last_value` real,\n\t`last_fired_at` integer,\n\t`enabled` integer DEFAULT true NOT NULL,\n\t`next_check_at` integer NOT NULL,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX `dashboard_alerts_due_idx` ON `dashboard_alerts` (`enabled`,`next_check_at`);",
+      "CREATE INDEX `dashboard_alerts_dash_idx` ON `dashboard_alerts` (`dashboard_id`);",
+      "CREATE TABLE `dashboard_sources` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`name` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`url` text,\n\t`refresh` text DEFAULT 'manual' NOT NULL,\n\t`columns` text DEFAULT '[]' NOT NULL,\n\t`rows` text DEFAULT '[]' NOT NULL,\n\t`row_count` integer DEFAULT 0 NOT NULL,\n\t`refreshed_at` integer,\n\t`next_refresh_at` integer,\n\t`last_error` text,\n\t`created_by` text NOT NULL,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX `dashboard_sources_org_idx` ON `dashboard_sources` (`org_id`);",
+      "CREATE INDEX `dashboard_sources_due_idx` ON `dashboard_sources` (`next_refresh_at`);"
+    ]
+  },
+  {
     "name": "0113_r133_indexes",
     "statements": [
       "-- R133 (Oct 31): two read paths scanned the whole table. Additive only.\n-- The org's statuses (read cache, every Tasks page) and a thread's snoozes and reminders (every mail thread).\nCREATE INDEX IF NOT EXISTS `project_statuses_org_idx` ON `project_statuses` (`org_id`);",

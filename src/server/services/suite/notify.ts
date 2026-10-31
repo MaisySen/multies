@@ -163,6 +163,7 @@ export function linkFor(n: { entityType: string; entityId: string; type: string 
     case "file_request": return `/app/tools/share?tab=requests&request=${encodeURIComponent(n.entityId)}`; // R88
     case "secret": return "/app/tools/share?tab=secrets"; // R88
     case "share": return "/app/tools/share"; // R88
+    case "dashboard": return `/app/dashboards/${encodeURIComponent(n.entityId)}`;
     default: return "/app/notifications";
   }
 }

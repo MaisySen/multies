@@ -159,6 +159,7 @@ BACKGROUND_COPY = "true"
 AUTH0_SOCIAL_CONNECTIONS = "google-oauth2"
 # Public booking pages and the scheduling API (migration 0021).
 SCHEDULING_ENABLED = "true"
+DASHBOARDS_PLUS = "on" # R91: public links, emailed reports, question builder, alerts, data sources
 # The app's public address. The workers.dev address keeps working (same Worker, same data);
 # www.multies.si redirects to the apex and app.multies.si serves the app too.
 APP_URL = "https://multies.si"
@@ -306,6 +307,7 @@ binding = "AI"
 
 [env.staging.vars]
 HELP_CENTER = "on" # R122: help center
+DASHBOARDS_PLUS = "on" # R91
 TIKTOK_SCOPES = "user.info.basic,video.upload,video.publish"
 # Tools P1: document tools on staging, through the document engine with the staging key id.
 TOOLS_ENABLED = "true"
