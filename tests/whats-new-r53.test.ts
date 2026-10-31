@@ -63,6 +63,8 @@ describe("R53 whats-new list", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-10-28-whats-new")).toBe(true);
     // R69: the list stays at 14, so the oldest entry after What's new itself ("Tell the command menu what to do") made room.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-28-command-menu-actions")).toBe(false);
+    // R83: "Tools pages and forms" made room for TikTok and Threads.
+    expect(WHATS_NEW.some((e) => e.id === "2026-10-30-tools-pages-forms")).toBe(false);
     // R70: "Reply straight from the shared inbox" made room for compress levels.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-29-inbox-reply")).toBe(false);
     // R71: "Your whole mailbox syncs by itself" made room for the QA pass 6 fixes.
@@ -85,12 +87,13 @@ describe("R53 whats-new list", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-10-30-tools-more")).toBe(false);
     // R82F: "Share links, workflows and templates" made room for One place for everything you connect.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-30-tools-share-workflows")).toBe(false);
-    expect(WHATS_NEW[0].id).toBe("2026-10-31-one-place-connections");
-    expect(WHATS_NEW[1].id).toBe("2026-10-31-connections");
-    expect(WHATS_NEW[2].id).toBe("2026-10-31-multies-everywhere");
-    expect(WHATS_NEW[3].id).toBe("2026-10-31-calm-layout");
-    expect(WHATS_NEW[4].id).toBe("2026-10-31-convert-any-file");
-    expect(WHATS_NEW[5].id).toBe("2026-10-31-workspace-brand");
+    expect(WHATS_NEW[0].id).toBe("2026-10-31-tiktok-threads");
+    expect(WHATS_NEW[1].id).toBe("2026-10-31-one-place-connections");
+    expect(WHATS_NEW[2].id).toBe("2026-10-31-connections");
+    expect(WHATS_NEW[3].id).toBe("2026-10-31-multies-everywhere");
+    expect(WHATS_NEW[4].id).toBe("2026-10-31-calm-layout");
+    expect(WHATS_NEW[5].id).toBe("2026-10-31-convert-any-file");
+    expect(WHATS_NEW[6].id).toBe("2026-10-31-workspace-brand");
     for (const id of ["2026-10-28-more-safe-retries", "2026-10-28-lighter-mail-sync", "2026-10-28-safe-retries", "2026-10-28-quicker-task-lists", "2026-10-27-steadier-my-work"]) {
       expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);
     }
