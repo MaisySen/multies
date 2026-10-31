@@ -2,7 +2,7 @@
  * R30: what the command menu can jump to and do, in one list, plus its fuzzy matching.
  * tests/palette-r30.test.ts checks every app page in router.tsx has an entry here.
  */
-import { IconPlugZap, IconMegaphone, IconWrench, IconPenLine, IconActivity, IconAgent, IconAssign, IconBell, IconBook, IconBriefcase, IconCalendarClock, IconCalendarDays, IconChart, IconChats, IconClipboardCheck, IconClipboardList, IconCompose, IconContacts, IconCreditCard, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHandshake, IconInbox, IconKey, IconKeyboard, IconLink, IconMail, IconMention, IconMessageCircle, IconMoon, IconPlug, IconPlus, IconSettings, IconShapes, IconShieldCheck, IconSmartphone, IconSquarePlus, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconUserCog, IconVideo, IconZap, IconAttachment, IconWorkflow, IconTag, IconTable, IconLock } from "@/web/components/ui/icon";
+import { IconBookmark, IconPlugZap, IconMegaphone, IconWrench, IconPenLine, IconActivity, IconAgent, IconAssign, IconBell, IconBook, IconBriefcase, IconCalendarClock, IconCalendarDays, IconChart, IconChats, IconClipboardCheck, IconClipboardList, IconCompose, IconContacts, IconCreditCard, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHandshake, IconInbox, IconKey, IconKeyboard, IconLink, IconMail, IconMention, IconMessageCircle, IconMoon, IconPlug, IconPlus, IconSettings, IconShapes, IconShieldCheck, IconSmartphone, IconSquarePlus, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconUserCog, IconVideo, IconZap, IconAttachment, IconWorkflow, IconTag, IconTable, IconLock } from "@/web/components/ui/icon";
 
 export type PaletteIcon = React.ComponentType<{ className?: string }>;
 /**
@@ -83,6 +83,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-social", label: "Social planner", to: "/app/social", icon: IconCalendarDays, keywords: ["social", "calendar", "scheduled posts", "plan", "facebook", "instagram", "linkedin"] },
   { id: "p-social-new", label: "New social post", to: "/app/social/new", icon: IconCompose, keywords: ["write a post", "compose", "social", "publish", "schedule", "facebook", "instagram", "linkedin"] },
   { id: "p-social-posts", label: "Social posts", to: "/app/social/posts", icon: IconMegaphone, keywords: ["post", "schedule", "social media", "facebook", "instagram", "linkedin", "share", "failed", "sent"] },
+  { id: "p-social-library", label: "Social library", to: "/app/social/library", icon: IconBookmark, keywords: ["social", "library", "images", "captions", "hashtags", "campaign"] }, // R117
   { id: "p-social-accounts", label: "Social accounts", to: "/app/social/accounts", icon: IconPlugZap, keywords: ["social", "connect", "reconnect", "tiktok", "threads", "facebook", "instagram", "linkedin", "pinterest", "reddit"] },
   { id: "p-branding", label: "Branding", to: "/app/settings/branding", icon: IconSettings, keywords: ["brand", "theme", "logo", "colours", "colors", "font", "company look"] }, // R77
   { id: "p-appearance", label: "Appearance", to: "/app/settings/appearance", icon: IconMoon, keywords: ["dark mode", "light mode", "theme", "accent", "my colour"] }, // R77

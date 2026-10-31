@@ -268,7 +268,7 @@ async function viewsFor(deps: Deps, orgId: string, ids?: string[], limit = 50, o
   if (ids) conds.push(inIds(socialPosts.id, ids));
   // R117: drafts and posts waiting for approval only reach callers that ask for them (the phone app 1.10.6 never does).
   if (!ids && !opts.all) conds.push(sql`${socialPosts.status} not in ('draft','review','changes','rejected')`);
-  if (opts.statuses?.length) conds.push(inArray(socialPosts.status, opts.statuses as PostStatus[]));
+  if (opts.statuses?.length) conds.push(inArray(socialPosts.status, opts.statuses as PostStatus[])); // D1: a handful of status words, never ids
   if (opts.from) conds.push(sql`${socialPosts.runAt} >= ${opts.from.getTime()}`);
   if (opts.to) conds.push(sql`${socialPosts.runAt} < ${opts.to.getTime()}`);
   const posts = await deps.db.select().from(socialPosts).where(and(...conds)).orderBy(desc(socialPosts.runAt)).limit(limit).all();
