@@ -3,6 +3,21 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.10.7 (OTA, runs on Android versionCode 16 and iOS build 20), 31 Oct 2026
+
+- Inbox tabs: Primary, Updates and Promotions (or Important and Other), each with its unread count, the same as on the
+  web. Tap a tab to switch; Inbox remembers the last one.
+- Sort as you go: press and hold a mail, Move to a tab, and Multies does the same for that sender from now on. Undo
+  is right there.
+- Snoozed: see every snoozed mail and when it comes back, and swipe one to bring it back now.
+- Labels: labels show on each mail; tap one to see all mail with it, or add and remove them from the long press menu.
+- Mail rules on the phone: Settings, Mail. See every rule, turn one on or off, make a new one, check it on recent
+  mail first, and see what each rule did. Rules that forward mail or send a reply are still made on the web.
+- Copy, share and translate: press and hold a mail or a post to copy its text or link, share it or translate it.
+  Press and hold a link to open, copy or share it. Mail and post text can be selected, and you see Copied when it worked.
+
+Carries everything in 1.10.6.
+
 ## 1.10.6 (OTA, runs on Android versionCode 16 and iOS build 20), 31 Oct 2026
 
 - After you post: you see how it went, network by network, with View in Posts and Write another. Posting no longer

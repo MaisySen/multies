@@ -16,6 +16,8 @@ export type ListFolder = Folder | "starred";
 export type MessageSummary = S["MessageSummary"] & {
   /** Set when one of your agents wrote it. */
   sentByAgentId?: string | null;
+  /** 1.10.7: the thread's labels (servers from R85 on; older ones leave it out). */
+  labels?: string[];
 };
 
 export interface Attachment { id: string; filename: string; contentType: string; sizeBytes: number; available: boolean }

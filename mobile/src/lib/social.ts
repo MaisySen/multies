@@ -384,3 +384,16 @@ export function healthChip(a: Pick<ConnectedAccountView, "status">, h: SocialAcc
   if (SOCIAL_RECONNECT_ERRORS.has(h.code)) return { label: "Sign in expired", tone: "warn" };
   return { label: "Needs a look", tone: "warn" };
 }
+
+/** 1.10.7: what a long press on a post copies, shares or translates; Copy post link uses the first network link. */
+export function postQuickTarget(post: SocialPostView): { title: string; subtitle?: string; text?: string; link: string | null; linkLabel: string } {
+  const live = post.targets.find((t) => t.url && t.networkState !== "removed");
+  const first = (post.text || "").trim().split(/\n/)[0] ?? "";
+  return {
+    title: first ? (first.length > 60 ? `${first.slice(0, 57)}...` : first) : "Post",
+    subtitle: live ? `On ${post.targets.filter((t) => t.url).length > 1 ? "several networks" : live.app.charAt(0).toUpperCase() + live.app.slice(1)}` : undefined,
+    text: post.text?.trim() ? post.text : undefined,
+    link: live?.url ?? null,
+    linkLabel: "Copy post link",
+  };
+}

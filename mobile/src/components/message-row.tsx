@@ -5,13 +5,20 @@ import { Avatar, Badge, Icon } from "./ui";
 import { displayName, shortDate } from "@/lib/format";
 import { colors, space } from "@/theme";
 
-export const MessageRow = memo(function MessageRow({ m, agents, onPress, onLongPress, showRecipient }: { m: MessageSummary; agents?: Agent[]; onPress: () => void; onLongPress?: () => void; showRecipient?: boolean }) {
+export const MessageRow = memo(function MessageRow({ m, agents, onPress, onLongPress, showRecipient, note, noteTone, onLabel }: {
+  m: MessageSummary; agents?: Agent[]; onPress: () => void; onLongPress?: () => void; showRecipient?: boolean;
+  /** 1.10.7: a short line under the snippet ("Back Tomorrow 8:00 am", "Back from snooze"). */
+  note?: string; noteTone?: "brand" | "muted";
+  /** 1.10.7: a tap on a label chip (shows all mail with that label). */
+  onLabel?: (label: string) => void;
+}) {
   const agent = m.sentByAgentId ? agents?.find((a) => a.id === m.sentByAgentId) : undefined;
   const who = showRecipient ? `To: ${m.to.map(displayName).join(", ")}` : agent?.name ?? displayName(m.from);
-  const label = `${m.isRead ? "" : "Unread. "}${who}. ${m.subject || "No subject"}. ${m.snippet}. ${shortDate(m.date)}${agent ? `. Written by agent ${agent.name}` : ""}`;
-  return (
+  const labels = m.labels ?? [];
+  const label = `${m.isRead ? "" : "Unread. "}${who}. ${m.subject || "No subject"}. ${m.snippet}. ${shortDate(m.date)}${agent ? `. Written by agent ${agent.name}` : ""}${labels.length ? `. Labels: ${labels.join(", ")}` : ""}${note ? `. ${note}` : ""}`;
+  const row = (
     <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={350} accessibilityRole="button" accessibilityLabel={label} accessibilityHint={onLongPress ? "Opens the conversation. Long press for more actions." : "Opens the conversation"}
-      style={({ pressed }) => [s.row, pressed && { backgroundColor: colors.surface }]}>
+      style={({ pressed }) => [s.row, labels.length && onLabel ? { borderBottomWidth: 0, paddingBottom: space.xs } : null, pressed && { backgroundColor: colors.surface }]}>
       <View style={s.dotCol}>{!m.isRead ? <View style={s.dot} /> : null}</View>
       <Avatar name={displayName(m.from)} agent={!!m.sentByAgentId} />
       <View style={{ flex: 1, gap: 2 }}>
@@ -21,17 +28,48 @@ export const MessageRow = memo(function MessageRow({ m, agents, onPress, onLongP
         </View>
         <Text style={[s.subject, !m.isRead && s.strong]} numberOfLines={1}>{m.subject || "(no subject)"}</Text>
         <Text style={s.snippet} numberOfLines={2}>{m.snippet}</Text>
-        {agent || m.isStarred || m.hasAttachments ? (
+        {note ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+            <Icon name="alarm-clock" size={13} color={noteTone === "brand" ? colors.brand : colors.subtle} />
+            <Text style={{ color: noteTone === "brand" ? colors.brand : colors.subtle, fontSize: 13, fontWeight: "600" }} numberOfLines={1} testID={`note-${m.id}`}>{note}</Text>
+          </View>
+        ) : null}
+        {agent || m.isStarred || m.hasAttachments || (labels.length && !onLabel) ? (
           <View style={{ flexDirection: "row", gap: 6, marginTop: 4, alignItems: "center" }}>
             {agent ? <Badge label={`Agent: ${agent.name}`} tone="brand" icon="cpu" /> : null}
             {m.hasAttachments ? <Icon name="paperclip" size={14} /> : null}
             {m.isStarred ? <Icon name="star" size={14} color={colors.warn} /> : null}
+            {!onLabel ? labels.slice(0, 3).map((l) => <LabelChip key={l} label={l} />) : null}
           </View>
         ) : null}
       </View>
     </Pressable>
   );
+  if (!labels.length || !onLabel) return row;
+  // Labels a person can tap sit under the row, not inside its button (no button inside a button).
+  return (
+    <View style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line }}>
+      {row}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, paddingLeft: 78, paddingRight: space.lg, paddingBottom: space.sm }}>
+        {labels.slice(0, 3).map((l) => <LabelChip key={l} label={l} testID={`label-${m.id}-${l}`} onPress={() => onLabel(l)} />)}
+        {labels.length > 3 ? <Text style={{ color: colors.subtle, fontSize: 12, alignSelf: "center" }}>+{labels.length - 3}</Text> : null}
+      </View>
+    </View>
+  );
 });
+
+/** A thread label: a small pill; with onPress it shows all mail with that label. */
+export function LabelChip({ label, onPress, testID }: { label: string; onPress?: () => void; testID?: string }) {
+  const chip = (
+    <Text numberOfLines={1} testID={onPress ? undefined : testID}
+      style={{ color: colors.brandHover, backgroundColor: colors.brandSoft, fontSize: 12, fontWeight: "600", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: "hidden", maxWidth: 140 }}>{label}</Text>
+  );
+  if (!onPress) return chip;
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`Show mail labelled ${label}`} testID={testID} hitSlop={8}
+      style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, minHeight: 24, justifyContent: "center" })}>{chip}</Pressable>
+  );
+}
 
 const s = StyleSheet.create({
   row: { flexDirection: "row", gap: space.md, paddingVertical: space.md, paddingRight: space.lg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line, minHeight: 76 },

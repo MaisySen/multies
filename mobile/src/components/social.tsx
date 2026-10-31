@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Badge, Icon } from "@/components/ui";
 import { appName, isRemoved, type SocialPostView, LINKEDIN_DELETE_NOTE, needsDeleteNote, networkName, socialErrorText, SOCIAL_NETWORKS, targetChip, type PostTargetView } from "@/lib/social";
 import { clearSocialToast, currentSocialToast, subscribeSocialToast } from "@/lib/social-queries";
+import { openLinkActions } from "@/lib/quick-actions";
 import { colors, radius, space, TOUCH } from "@/theme";
 
 /**
@@ -37,9 +38,9 @@ export function targetKind(t: PostTargetView) {
   return `${networkName(t.app)} ${k === "page" ? "Page" : k === "board" ? "board" : k === "subreddit" ? "community" : "profile"}`;
 }
 
-export function LinkText({ label, onPress, testID, color = colors.brand, a11y }: { label: string; onPress: () => void; testID?: string; color?: string; a11y?: string }) {
+export function LinkText({ label, onPress, onLongPress, testID, color = colors.brand, a11y }: { label: string; onPress: () => void; onLongPress?: () => void; testID?: string; color?: string; a11y?: string }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={a11y ?? label} hitSlop={8} testID={testID}
+    <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={350} accessibilityRole="button" accessibilityLabel={a11y ?? label} hitSlop={8} testID={testID}
       style={({ pressed }) => ({ minHeight: TOUCH, justifyContent: "center", paddingHorizontal: 2, opacity: pressed ? 0.6 : 1 })}>
       <Text style={{ color, fontSize: 15, fontWeight: "600" }}>{label}</Text>
     </Pressable>
@@ -63,7 +64,7 @@ export function TargetRow({ t, variant, canManage, onReconnect, onRetry, reconne
   const open = t.url && t.status === "sent" && !removed ? t.url : null;
   const sep = last ? null : { borderBottomWidth: 1, borderBottomColor: colors.line };
   if (variant === "compact") {
-    const action = open ? <LinkText label="Open" a11y={`Open post on ${networkName(t.app)}`} onPress={() => openPost(open)} testID={`open-${t.app}`} />
+    const action = open ? <LinkText label="Open" a11y={`Open post on ${networkName(t.app)}`} onPress={() => openPost(open)} onLongPress={() => openLinkActions(open)} testID={`open-${t.app}`} />
       : err?.reconnect && canManage && onReconnect ? <LinkText label="Reconnect" a11y={`Reconnect ${networkName(t.app)}`} onPress={onReconnect} testID={`reconnect-row-${t.app}`} />
       : err && canManage && onRetry ? <LinkText label="Try again" onPress={onRetry} testID={`retry-row-${t.app}`} />
       : null;
@@ -93,7 +94,7 @@ export function TargetRow({ t, variant, canManage, onReconnect, onRetry, reconne
         {needsDeleteNote(t) ? <Text style={{ color: colors.subtle, fontSize: 13, lineHeight: 18 }} testID="linkedin-note">{LINKEDIN_DELETE_NOTE}</Text> : null}
         {open || (err && canManage) ? (
           <View style={{ flexDirection: "row", gap: space.lg, flexWrap: "wrap" }}>
-            {open ? <LinkText label="Open post" a11y={`Open post on ${networkName(t.app)}`} onPress={() => openPost(open)} testID={`open-post-${t.app}`} /> : null}
+            {open ? <LinkText label="Open post" a11y={`Open post on ${networkName(t.app)}`} onPress={() => openPost(open)} onLongPress={() => openLinkActions(open)} testID={`open-post-${t.app}`} /> : null}
             {err?.reconnect && canManage && onReconnect ? <LinkText label={reconnecting ? "Reconnecting" : `Reconnect ${networkName(t.app)}`} onPress={onReconnect} testID="post-reconnect" /> : null}
             {err && canManage && onRetry ? <LinkText label={retrying ? "Trying again" : "Try again"} onPress={onRetry} testID={`retry-${t.app}`} /> : null}
           </View>

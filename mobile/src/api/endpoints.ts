@@ -4,12 +4,16 @@ import type { BlockedPerson, ReportInput } from "@/lib/moderation";
 import type { SnoozePreset } from "@/lib/snooze";
 import type { ConnectInput, ConnectionView, ConnectionsInfo, FreeAddressInfo } from "@/lib/mail-connect";
 import type {
-  AgentRun, Agent, Approval, Assignee, ChecklistItem, ChecklistView, ChangePage, ListFolder, MailboxOverview, Me, MessagePage, Project, SendInput, SendResult,
+  AgentRun, Agent, Approval, Assignee, ChecklistItem, ChecklistView, ChangePage, ListFolder, MailboxOverview, Me, MessagePage, MessageSummary, Project, SendInput, SendResult,
   CustomField, ChatChannel, ChatMessage, ChatPerson, ChatSend, ChatUnread, NotificationPage, NotificationSettings, NotificationView, Meeting, MeetingCreate, Person, PortfolioProject, Task, TaskComment, TaskCreate, TaskPatch, TaskQuery, TaskView, ThreadView, TimeEntry, TimeLog, WorkspaceSummary,
 } from "./types";
 
 import type { ToolJob, ToolsInfo } from "@/lib/tools";
+import type { InboxTabs, MailRule, MailRuleRun, RuleInput, RuleTestResult, TabStyle } from "@/lib/mail-rules";
 import type { ConnectedAccountView, DeleteResult, DirectStatusResponse, NewSocialPost, SocialAccountHealth, SocialPostView, TargetOption } from "@/lib/social";
+
+/** One pending snooze (GET /api/mail-schedules?view=snoozed) or one that came back (view=returned). */
+export interface SnoozedItem { id: string; kind: string; status: string; mailboxId: string; threadId: string | null; messageId: string | null; dueAt: string; message: MessageSummary | null }
 
 export interface SignInResult { twoFactorRedirect?: boolean; user?: { email: string } }
 
@@ -39,8 +43,8 @@ export function endpoints(t: Transport) {
     workspaces: () => t.request<{ workspaces: WorkspaceSummary[] }>("GET", "/account/workspaces"),
     switchWorkspace: (id: string) => t.request<{ ok: true; workspace?: { id: string; name: string } }>("POST", `/account/workspaces/${encodeURIComponent(id)}/switch`, {}),
     overview: () => t.request<{ mailboxes: MailboxOverview[] }>("GET", "/mail/overview"),
-    messages: (p: { folder?: ListFolder; q?: string; cursor?: string; mailboxId?: string; limit?: number }) =>
-      t.request<MessagePage>("GET", `/mail/messages${q({ folder: p.folder, q: p.q, cursor: p.cursor, mailboxId: p.mailboxId, limit: p.limit ?? 40 })}`),
+    messages: (p: { folder?: ListFolder; q?: string; cursor?: string; mailboxId?: string; limit?: number; split?: string; label?: string }) =>
+      t.request<MessagePage>("GET", `/mail/messages${q({ folder: p.folder, q: p.q, cursor: p.cursor, mailboxId: p.mailboxId, limit: p.limit ?? 40, split: p.split, label: p.label })}`),
     message: (id: string) => t.request<ThreadView>("GET", `/mail/messages/${encodeURIComponent(id)}`),
     updateMessage: (id: string, patch: { isRead?: boolean; isStarred?: boolean; folder?: "inbox" | "archive" | "spam" | "trash" }) =>
       t.request<{ ok: true }>("PATCH", `/mail/messages/${encodeURIComponent(id)}`, patch),
@@ -186,6 +190,28 @@ export function endpoints(t: Transport) {
     reconnectApp: (id: string) => t.request<{ redirectUrl: string }>("POST", `/apps/accounts/${encodeURIComponent(id)}/reconnect`, {}),
     appTargets: (id: string) => t.request<{ targets: TargetOption[] }>("GET", `/apps/accounts/${encodeURIComponent(id)}/targets`),
     directStatus: () => t.request<DirectStatusResponse>("GET", "/direct/status"),
+
+    // 1.10.7: Inbox tabs, labels, snoozed mail and mail rules (the web's R85 session routes; nothing new on the server).
+    inboxTabs: (mailboxId?: string) => t.request<InboxTabs & { splits?: unknown[] }>("GET", `/mail/splits${q({ mailboxId })}`),
+    tabSettings: () => t.request<{ style: TabStyle; chosen: boolean; defaultTab: string; senders: { address: string; tab: string }[] }>("GET", "/mail/splits/settings"),
+    setTabStyle: (style: TabStyle) => t.request<{ style: TabStyle; defaultTab: string }>("PUT", "/mail/splits/style", { style }),
+    teachTab: (messageId: string, tab: string, sender: boolean) =>
+      t.request<{ tab: string; threadId: string; sender: string | null; previous: { thread: string | null; sender?: string | null } }>("POST", "/mail/splits/teach", { messageId, tab, sender }),
+    restorePins: (input: { threadId?: string; thread?: string | null; sender?: string; senderTab?: string | null }) => t.request<unknown>("POST", "/mail/splits/pins/restore", input),
+    labels: () => t.request<{ labels: { label: string; threads: number }[] }>("GET", "/mail/labels"),
+    addLabel: (threadId: string, label: string) => t.request<{ labels: string[] }>("POST", "/mail/labels", { threadId, label }),
+    removeLabel: (threadId: string, label: string) => t.request<{ labels: string[] }>("DELETE", `/mail/labels${q({ threadId, label })}`),
+    snoozed: (view: "snoozed" | "returned", mailboxId?: string) => t.request<{ items: SnoozedItem[] }>("GET", `/mail-schedules${q({ view, mailboxId })}`),
+    /** Ends a snooze now: the mail is back in Inbox. */
+    unsnooze: (scheduleId: string) => t.request<{ ok: true }>("DELETE", `/mail-schedules/${encodeURIComponent(scheduleId)}`),
+    mailRules: () => t.request<{ rules: MailRule[] }>("GET", "/mail/rules"),
+    mailRule: (id: string) => t.request<{ rule: MailRule }>("GET", `/mail/rules/${encodeURIComponent(id)}`),
+    mailRuleRuns: (id: string) => t.request<{ runs: MailRuleRun[] }>("GET", `/mail/rules/${encodeURIComponent(id)}/runs`),
+    createMailRule: (input: RuleInput) => t.request<{ rule: MailRule }>("POST", "/mail/rules", input),
+    updateMailRule: (id: string, patch: Partial<RuleInput>) => t.request<{ rule: MailRule }>("PATCH", `/mail/rules/${encodeURIComponent(id)}`, patch),
+    deleteMailRule: (id: string) => t.request<{ deleted: true }>("DELETE", `/mail/rules/${encodeURIComponent(id)}`),
+    testMailRule: (input: { mailboxId: string; match: "all" | "any"; conditions: RuleInput["conditions"] }) => t.request<RuleTestResult>("POST", "/mail/rules/test", input),
+    runMailRuleRecent: (id: string) => t.request<{ ran: number; matched: number }>("POST", `/mail/rules/${encodeURIComponent(id)}/run-recent`, {}),
   };
 }
 

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { postQuickTarget } from "@/lib/social";
+import { openQuickActions } from "@/lib/quick-actions";
 import { Alert, FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -154,7 +156,7 @@ function PostCard({ post, canManage }: { post: SocialPostView; canManage: boolea
   // The card opens the post; the per network buttons sit beside that button, not inside it (no nested buttons).
   return (
     <View style={styles.card} testID={`post-${post.id}`}>
-      <Pressable onPress={open} accessibilityRole="button" accessibilityHint="Opens the post" testID={`open-${post.id}`}
+      <Pressable onPress={open} onLongPress={() => openQuickActions(postQuickTarget(post))} delayLongPress={350} accessibilityRole="button" accessibilityHint="Opens the post. Press and hold to copy, share or translate." testID={`open-${post.id}`}
         style={({ pressed }) => [{ gap: space.sm, borderRadius: radius.md }, pressed && { opacity: 0.7 }]}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
           <Badge label={badge.label} tone={badge.tone} />

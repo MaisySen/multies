@@ -10,6 +10,7 @@ import { displayName, longDate, shortDate } from "@/lib/format";
 import { previewLine, splitQuoted } from "@/lib/quote";
 import { bodyText } from "@/lib/mail-body";
 import { LinkedText } from "@/components/linked-text";
+import { firstLink, openQuickActions } from "@/lib/quick-actions";
 import { animateList } from "@/lib/motion";
 import { success, tick, warning } from "@/lib/haptics";
 import { FEATURES } from "@/config";
@@ -72,6 +73,8 @@ export default function Thread() {
             <IconButton icon="archive" label="Archive" onPress={() => act("archive")} testID="archive" />
             <IconButton icon="star" label={msg.isStarred ? "Remove star" : "Star"} color={msg.isStarred ? colors.warn : colors.fg} onPress={() => act(msg.isStarred ? "unstar" : "star")} testID="star" />
             <IconButton icon="trash-2" label="Move to trash" onPress={() => act("trash")} testID="trash" />
+            <IconButton icon="more-horizontal" label="More: copy, share, translate" testID="thread-more"
+              onPress={() => { const last = thread[thread.length - 1] ?? msg; const body = bodyText(last); openQuickActions({ title: msg.subject || "(no subject)", subtitle: displayName(last.from), text: [msg.subject, body].filter(Boolean).join("\n\n"), link: firstLink(body) }); }} />
           </View>
         ) : null,
       }} />

@@ -65,4 +65,6 @@ export const WEB_PAGES = {
   /** 1.10.5: social accounts on the web (TikTok and Threads sign in runs there, with the web session). */
   socialAccounts: `${API_BASE}/app/settings/apps/social`,
   team: `${API_BASE}/app`,
+  /** 1.10.7: mail rules on the web (rules that forward mail or send a reply are made there). */
+  mailRules: `${API_BASE}/app/mail/rules`,
 };

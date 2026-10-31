@@ -18,6 +18,7 @@ import { OtaProvider } from "@/lib/ota/provider";
 import { useBiometricLock } from "@/lib/native-features";
 import { nativeGestureHandler } from "@/lib/native-modules";
 import { LockScreen } from "@/components/lock-screen";
+import { QuickActionsHost, QuickToastHost } from "@/components/quick-actions";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 if (Platform.OS !== "web") configureNotifications();
@@ -116,9 +117,13 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="email-setup" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Email addresses" }} />
         <Stack.Screen name="connect-mailbox" options={{ title: "Connect your email" }} />
         <Stack.Screen name="free-address" options={{ title: "Free address" }} />
+        <Stack.Screen name="mail-settings" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Mail" }} />
+        <Stack.Screen name="mail-rule/[id]" options={{ title: "Rule" }} />
       </Stack.Protected>
     </Stack>
     {signedIn && <HeldSendBar />}
+    {signedIn ? <QuickActionsHost /> : null}
+    <QuickToastHost />
     {signedIn && lock.locked ? <LockScreen onUnlock={lock.unlock} /> : null}
     </>
   );

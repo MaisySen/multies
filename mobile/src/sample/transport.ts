@@ -11,6 +11,8 @@ import { chatRoute, sampleChat, samplePersonName } from "./chat";
 import { emailRoute, sampleEmail } from "./email";
 import { runsRoute, sampleRuns } from "./runs";
 import { sampleSocial, socialRoute } from "./social";
+import { mailExtrasRoute, sampleListExtras, sampleMailExtras, sampleSnooze } from "./mail-r85";
+import { snoozeUntil, type SnoozePreset } from "@/lib/snooze";
 
 /**
  * The sample workspace runs entirely on the device with no server. It answers the same paths the
@@ -25,6 +27,7 @@ export class SampleTransport implements Transport {
   private email = sampleEmail(Date.now());
   private runs = sampleRuns(Date.now(), this.data.work);
   private social = sampleSocial(Date.now());
+  private mail = sampleMailExtras(Date.now(), this.data.messages);
   /** R35: report and block in the sample workspace, kept in memory only. */
   private blocks: { userId: string; name: string; avatarUrl: string | null; createdAt: string }[] = [];
   private reports = 0;
@@ -39,6 +42,7 @@ export class SampleTransport implements Transport {
     this.email = sampleEmail(Date.now());
     this.runs = sampleRuns(Date.now(), this.data.work);
     this.social = sampleSocial(Date.now());
+    this.mail = sampleMailExtras(Date.now(), this.data.messages);
     this.blocks = [];
     this.reports = 0;
   }
@@ -58,6 +62,10 @@ export class SampleTransport implements Transport {
     // 1.10.5: social posts and accounts.
     const social = socialRoute(this.social, method, path, body, Date.now());
     if (social !== undefined) return json(social);
+
+    // 1.10.7: Inbox tabs, labels, snoozed mail and mail rules.
+    const extras = mailExtrasRoute(this.mail, this.data.messages, method, path, params, body, Date.now());
+    if (extras !== undefined) return json(extras);
 
     // Tools: the catalogue and runs that finish at once (no file is made in the sample workspace).
     if (path === "/tools" && method === "GET") return json(sampleToolsInfo(this.toolRuns));
@@ -133,7 +141,7 @@ export class SampleTransport implements Transport {
         if (search) {
           list = d.messages.filter((m) => [m.subject, m.text, m.from.address, m.from.name ?? ""].join(" ").toLowerCase().includes(search));
         }
-        list = [...list].sort((a, b) => b.date.localeCompare(a.date));
+        list = sampleListExtras(this.mail, [...list].sort((a, b) => b.date.localeCompare(a.date)), { ...params, folder });
         return json({ messages: list.map(({ text: _t, cc: _c, bcc: _b, html: _h, attachments: _a, replyTo: _r, ...rest }) => rest), nextCursor: null });
       }
       case "GET /mail/messages/:id": {
@@ -155,6 +163,7 @@ export class SampleTransport implements Transport {
         const m = d.messages.find((x) => x.id === b.messageId);
         if (!m) throw new ApiError(404, "not_found", "Message not found.");
         d.messages.filter((x) => x.threadId === m.threadId).forEach((x) => { if (x.folder === "inbox") x.folder = "archive"; });
+        sampleSnooze(this.mail, m, snoozeUntil(((body ?? {}) as { preset?: SnoozePreset }).preset ?? "tomorrow").toISOString());
         return json({ ok: true });
       }
       case "DELETE /mail/messages/:id": {
