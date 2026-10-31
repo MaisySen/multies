@@ -53,6 +53,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-mail", label: "Mail", to: "/app/mail", icon: IconInbox, keywords: ["inbox", "webmail", "email"] },
   { id: "p-mail-rules", label: "Mail rules", to: "/app/mail/rules", icon: IconWorkflow, keywords: ["filters", "labels", "auto reply", "forward", "sort mail", "inbox tabs"] }, // R85
   { id: "p-shared-inbox", label: "Shared inbox", to: "/app/inbox", icon: IconChats, keywords: ["team inbox", "support", "assign"] },
+  { id: "p-helpdesk", label: "Helpdesk settings", to: "/app/inbox/helpdesk", icon: IconChats, keywords: ["tickets", "sla", "macros", "website chat", "live chat", "survey", "csat", "support"] }, // R119
   { id: "p-mailboxes", label: "Mailboxes and aliases", to: "/app/mailboxes", icon: IconTeam, keywords: ["addresses", "alias"] },
   { id: "p-domains", label: "Domains", to: "/app/domains", icon: IconGlobe, keywords: ["dns"] },
   { id: "p-deliverability", label: "Deliverability", to: "/app/deliverability", icon: IconShieldCheck, keywords: ["dmarc", "bounces", "suppression", "health"] },

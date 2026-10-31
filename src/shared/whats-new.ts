@@ -48,8 +48,8 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
     id: "2026-10-31-inbox-tabs-rules",
     date: "2026-10-31",
-    title: "Inbox tabs, labels and mail rules",
-    body: "Pick how Inbox is sorted: Important and Other, Primary, Updates and Promotions, or one list. Drag a message onto a tab or use Move to tab and mail from that sender goes there next time. Mail rules label, sort, forward, reply, make a task or notify you as new mail arrives, and you can test a rule on recent mail before you save it.",
+    title: "Inbox tabs, mail rules and a helpdesk",
+    body: "Pick how Inbox is sorted: Important and Other, Primary, Updates and Promotions, or one list. Mail rules label, sort, forward, reply, make a task or notify you as new mail arrives. Turn a shared inbox into a helpdesk in Shared inbox, Helpdesk: tickets with owners, priorities and reply times in business hours, macros, a short survey after you solve, and a chat for your website.",
   },
   {
     id: "2026-10-31-tiktok-threads",
