@@ -90,7 +90,7 @@ export function IconRail({ sections, active, counts, footer }: { sections: Secti
 interface ShellProject { id: string; name: string; color: string; archived: boolean; counts: Record<string, number> }
 
 /** The open section's sidebar: favourites, then (for Tasks) the projects tree, then the section's pages. */
-export function ContextSidebar({ section, counts, header, footer }: { section: Section; counts: NavCounts; header: ReactNode; footer: ReactNode }) {
+export function ContextSidebar({ section, counts, logo, header, footer }: { section: Section; counts: NavCounts; logo?: ReactNode; header: ReactNode; footer: ReactNode }) {
   const layout = useLayout();
   const loc = useLocation();
   const navigate = useNavigate();
@@ -117,7 +117,9 @@ export function ContextSidebar({ section, counts, header, footer }: { section: S
 
   return (
     <div className="flex h-full min-w-0 flex-col" data-testid="context-sidebar">
-      <div className="shrink-0 px-2.5 pt-2.5">{header}</div>
+      {/* R77B kept: the workspace logo (wide, or the square mark with the name) sits at the top of the sidebar. */}
+      {logo && <div className="flex h-12 shrink-0 items-center px-4" data-testid="sidebar-logo">{logo}</div>}
+      <div className="shrink-0 px-2.5 pt-1">{header}</div>
       <div className="px-4 pb-1 pt-3 text-[15px] font-semibold tracking-[-0.01em]">{section.label}</div>
       <nav aria-label={section.label} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-3">
         <div className="space-y-px">

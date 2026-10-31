@@ -340,7 +340,7 @@ export function AppLayout() {
           {!sidebarHidden && <>
             <Panel id="shell-sidebar" defaultSize="248px" minSize="200px" maxSize="420px" className="glass-sidebar">
               <aside aria-label="Sidebar" className="h-full">
-                <ContextSidebar section={section} counts={navCounts} header={<WorkspaceSwitcher current={organization} />} footer={demoNote} />
+                <ContextSidebar section={section} counts={navCounts} logo={<Link to="/app" aria-label="Multies overview"><WorkspaceWideLogo onSidebar markName={me.data?.organization?.name ?? ""} fallback={<Logo className="h-6" />} /></Link>} header={<WorkspaceSwitcher current={organization} />} footer={demoNote} />
               </aside>
             </Panel>
             <Separator className="shell-separator" aria-label="Resize sidebar" />
