@@ -18,7 +18,7 @@ describe("settings panes", () => {
   it("finds panes by name and by what is inside them", () => {
     expect(matchPanes("").length).toBe(15);
     expect(matchPanes("logo").map((p) => p.label)).toContain("Branding"); // R77
-    expect(matchPanes("dark mode").map((p) => p.label)).toContain("Appearance");
+    expect(matchPanes("dark").map((p) => p.label)).toContain("Appearance");
     expect(matchPanes("passkey").map((p) => p.label)).toEqual(["Account & security"]);
     expect(matchPanes("api keys").map((p) => p.label)).toContain("Developers");
     expect(matchPanes("INVITE").map((p) => p.label)).toEqual(["Team"]);
