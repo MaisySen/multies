@@ -552,9 +552,9 @@ export function WebmailPage() {
       {paned ? (
         <Group key={`mail-${mailPane}-${layoutGen}`} id={`mail-${mailPane}`} orientation={mailPane === "bottom" ? "vertical" : "horizontal"} className="min-w-0 flex-1"
           defaultLayout={mailLayout.defaultLayout} onLayoutChanged={mailLayout.onLayoutChanged}>
-          <Panel id="list" defaultSize={mailPane === "bottom" ? "45%" : "400px"} minSize={mailPane === "bottom" ? "20%" : "300px"} maxSize={mailPane === "bottom" ? "80%" : "65%"}>{listSection}</Panel>
+          <Panel id="mail-list" defaultSize={mailPane === "bottom" ? "45%" : "400px"} minSize={mailPane === "bottom" ? "20%" : "300px"} maxSize={mailPane === "bottom" ? "80%" : "65%"}>{listSection}</Panel>
           <Separator className="pane-separator" aria-label="Resize reading pane" />
-          <Panel id="reader" minSize={mailPane === "bottom" ? "20%" : "360px"}>{readerSection}</Panel>
+          <Panel id="mail-reader" minSize={mailPane === "bottom" ? "20%" : "360px"}>{readerSection}</Panel>
         </Group>
       ) : <>{listSection}{readerSection}</>}
 

@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
 test("rail, sidebar fold with the shortcut and stays folded after a reload", async ({ page }) => {
   await expect(page.getByTestId("icon-rail")).toBeVisible();
   await expect(page.getByTestId("context-sidebar")).toBeVisible();
-  await page.locator("body").click({ position: { x: 640, y: 400 } });
+  await page.locator("main#main").focus();
   await page.keyboard.press(`${mod}+Backslash`);
   await expect(page.getByTestId("context-sidebar")).toHaveCount(0);
   await page.reload();
@@ -24,16 +24,20 @@ test("rail, sidebar fold with the shortcut and stays folded after a reload", asy
 });
 
 test("skip link is the first Tab stop and moves focus to the page (MB-278)", async ({ page }) => {
+  await page.reload();
+  await expect(page.getByTestId("icon-rail")).toBeVisible({ timeout: 30_000 });
   await page.keyboard.press("Tab");
+  if (!(await page.getByTestId("skip-link").evaluate((el) => el === document.activeElement))) console.log("first tab stop:", await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 160)));
   const skip = page.getByTestId("skip-link");
   await expect(skip).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page.locator("#main")).toBeFocused();
+  await expect(page.locator("main#main")).toBeFocused();
+  expect(await page.locator("#main").count()).toBe(1);
 });
 
 test("Create menu lists the five kinds and opens New task", async ({ page }) => {
   await page.getByTestId("create-menu").click();
-  for (const name of ["Task", "Doc", "Mail", "Event", "File"]) await expect(page.getByRole("menuitem", { name: new RegExp(`^${name}`) })).toBeVisible();
+  for (const name of ["Task", "Doc", "Email", "Meeting", "File"]) await expect(page.getByRole("menuitem", { name: new RegExp(`^${name}`) })).toBeVisible();
   await page.getByRole("menuitem", { name: /^Task/ }).click();
   await expect(page).toHaveURL(/\/app\/tasks/);
 });

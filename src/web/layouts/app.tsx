@@ -130,7 +130,7 @@ export function AppLayout() {
   const sidebarHidden = sidebarHiddenOn(layout, loc.pathname);
   const desktop = useMediaQuery("(min-width: 1024px)");
   useSidebarShortcut();
-  const shellLayout = useDefaultLayout({ id: "shell", storage: panelStorage, panelIds: [...(sidebarHidden ? [] : ["sidebar"]), "main", ...(inspectorOpen ? ["inspector"] : [])] });
+  const shellLayout = useDefaultLayout({ id: "shell", storage: panelStorage, panelIds: [...(sidebarHidden ? [] : ["shell-sidebar"]), "shell-main", ...(inspectorOpen ? ["shell-inspector"] : [])] });
   const projectParam = loc.pathname === "/app/tasks" ? new URLSearchParams(loc.search).get("project") : null;
   const projectList = useQuery({ queryKey: ["projects"], enabled: !!projectParam && !!me.data?.organization, staleTime: 30_000,
     queryFn: async () => (await api.get<{ projects: { id: string; name: string }[] }>("/projects")).projects });
@@ -338,17 +338,17 @@ export function AppLayout() {
         <IconRail sections={sections} active={section.id} counts={navCounts} footer={accountButton} />
         <Group key={layoutGen} id="shell" orientation="horizontal" className="min-w-0 flex-1" defaultLayout={shellLayout.defaultLayout} onLayoutChanged={shellLayout.onLayoutChanged}>
           {!sidebarHidden && <>
-            <Panel id="sidebar" defaultSize="248px" minSize="200px" maxSize="420px" className="glass-sidebar">
+            <Panel id="shell-sidebar" defaultSize="248px" minSize="200px" maxSize="420px" className="glass-sidebar">
               <aside aria-label="Sidebar" className="h-full">
                 <ContextSidebar section={section} counts={navCounts} header={<WorkspaceSwitcher current={organization} />} footer={demoNote} />
               </aside>
             </Panel>
             <Separator className="shell-separator" aria-label="Resize sidebar" />
           </>}
-          <Panel id="main" minSize="480px">{content}</Panel>
+          <Panel id="shell-main" minSize="480px">{content}</Panel>
           {inspectorOpen && <>
             <Separator className="shell-separator" aria-label="Resize details panel" />
-            <Panel id="inspector" defaultSize="420px" minSize="340px" maxSize="760px">
+            <Panel id="shell-inspector" defaultSize="420px" minSize="340px" maxSize="760px">
               <div ref={setInspectorEl} className="h-full min-w-0 overflow-hidden" />
             </Panel>
           </>}

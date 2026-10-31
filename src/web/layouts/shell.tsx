@@ -289,7 +289,8 @@ export function useSidebarShortcut() {
       e.preventDefault();
       toggleSidebar(location.pathname);
     };
-    window.addEventListener("keydown", on);
-    return () => window.removeEventListener("keydown", on);
+    // Capture phase: a page widget that stops key events (an editor, a grid) does not swallow the shortcut.
+    window.addEventListener("keydown", on, true);
+    return () => window.removeEventListener("keydown", on, true);
   }, []);
 }
