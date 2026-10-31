@@ -468,6 +468,7 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
                     const inlineEditor = col.editor === "text" || col.editor === "date" || col.editor === "labels" || col.editor === "points";
                     return (
                       <td key={col.id} role="gridcell"
+                        onMouseDown={(e) => { if (e.shiftKey) e.preventDefault(); /* shift click picks a range of rows, not text */ }}
                         onClick={(e) => {
                           if (e.shiftKey) { toggleRow(r, true); return; }
                           setFocus({ r, c });
