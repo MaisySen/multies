@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-client-portals",
+    date: "2026-11-01",
+    title: "Client portals for the people you work with",
+    body: "In Contacts, Client portals gives each client a private space they open from an email link, no password needed. Share files, docs and task updates, ask them for files, and message back and forth. Each client only ever sees their own space.",
+  },
+  {
     id: "2026-11-01-dashboards-plus",
     date: "2026-11-01",
     title: "Share dashboards, email reports, ask your own questions",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "Video, sound, ebooks, archives and Edit a PDF",
     body: "Tools, Convert any file takes one file or fifty, converts photos, PDFs and spreadsheets in your browser, and now handles videos, sound, EPUB and MOBI ebooks, HEIC photos and ZIP, 7Z and TAR archives. It also makes files smaller and reads scans into searchable PDFs or text. Tools, Edit a PDF adds text, a signature, black out boxes, a watermark and page numbers, all on your device.",
-  },
-  {
-    id: "2026-10-31-social-home",
-    date: "2026-10-31",
-    title: "Social has its own place",
-    body: "Social now sits in the left rail with a Planner calendar, Posts with how each account did, New post and Accounts. Connect Facebook Pages, Instagram, LinkedIn, Pinterest or Reddit, write one post and send it now or later; networks that can't take it are greyed out with the reason. Agents moved to the rail too, and Workspace is now called Settings, with one sidebar.",
   },
   {
     id: "2026-10-28-whats-new",
