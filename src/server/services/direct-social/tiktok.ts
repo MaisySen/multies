@@ -18,6 +18,8 @@ import {
 } from "./store";
 
 export const TIKTOK_SCOPES = ["user.info.basic", "video.upload", "video.publish", "video.list"];
+/** The scopes this host asks for: TIKTOK_SCOPES on the host when the app does not have all four (video.list needs the Display API). */
+export function tiktokScopes(deps: Deps): string[] { return deps.config.direct.tiktok?.scopes?.length ? deps.config.direct.tiktok.scopes : TIKTOK_SCOPES; }
 
 function cfg(deps: Deps) {
   const t = deps.config.direct.tiktok;
@@ -25,16 +27,16 @@ function cfg(deps: Deps) {
   return t;
 }
 
-export async function tiktokStart(deps: Deps, auth: AuthContext) {
+export async function tiktokStart(deps: Deps, auth: AuthContext, nonce?: string) {
   const t = cfg(deps);
   const verifier = randomToken(48);
-  const state = await makeState(deps, auth, "tiktok", verifier);
+  const state = await makeState(deps, auth, "tiktok", verifier, nonce);
   const q = new URLSearchParams({
-    client_key: t.clientKey, response_type: "code", scope: TIKTOK_SCOPES.join(","), redirect_uri: redirectUri(deps, "tiktok"), state,
+    client_key: t.clientKey, response_type: "code", scope: tiktokScopes(deps).join(","), redirect_uri: redirectUri(deps, "tiktok"), state,
     code_challenge: await challengeHex(verifier), code_challenge_method: "S256",
   });
   // Local stand in only (mock.ts): no consent page, straight back with a code.
-  if (new URL(t.authUrl).hostname === "tiktok.mock") return `${redirectUri(deps, "tiktok")}?${new URLSearchParams({ code: "mock-code", state, scopes: TIKTOK_SCOPES.join(",") })}`;
+  if (new URL(t.authUrl).hostname === "tiktok.mock") return `${redirectUri(deps, "tiktok")}?${new URLSearchParams({ code: "mock-code", state, scopes: tiktokScopes(deps).join(",") })}`;
   return `${t.authUrl}?${q}`;
 }
 
@@ -110,8 +112,8 @@ interface RawCreator {
 }
 
 /** Finishes the sign in: state, code for tokens, then who the account is. */
-export async function tiktokFinish(deps: Deps, auth: AuthContext, code: string, stateRaw: string) {
-  const s = await readState(deps, auth, "tiktok", stateRaw);
+export async function tiktokFinish(deps: Deps, auth: AuthContext, code: string, stateRaw: string, nonce?: string | null) {
+  const s = await readState(deps, auth, "tiktok", stateRaw, nonce);
   const t = await tokenCall(deps, { grant_type: "authorization_code", code, redirect_uri: redirectUri(deps, "tiktok"), code_verifier: s.v });
   if (!t.open_id) throw new DirectError("unavailable", "TikTok didn't say which account signed in. Try again.", 400);
   const granted = (t.scope ?? "").split(/[ ,]+/).filter(Boolean);
@@ -136,7 +138,7 @@ export async function tiktokFinish(deps: Deps, auth: AuthContext, code: string, 
     accessToken: t.access_token!, refreshToken: t.refresh_token ?? null,
     accessExpiresAt: inSec(deps, t.expires_in), refreshExpiresAt: inSec(deps, t.refresh_expires_in), scopes: granted.join(","),
   });
-  return { username: creator?.creator_username ?? info?.user?.display_name ?? null, missing: TIKTOK_SCOPES.filter((x) => !granted.includes(x)) };
+  return { username: creator?.creator_username ?? info?.user?.display_name ?? null, missing: tiktokScopes(deps).filter((x) => !granted.includes(x)) };
 }
 
 async function linkOrThrow(deps: Deps, auth: AuthContext) {
@@ -162,8 +164,10 @@ export async function creatorInfo(deps: Deps, auth: AuthContext): Promise<TikTok
 
 interface RawVideo { id?: string; title?: string; video_description?: string; cover_image_url?: string; share_url?: string; create_time?: number; duration?: number; view_count?: number; like_count?: number }
 
-export async function listVideos(deps: Deps, auth: AuthContext): Promise<TikTokVideoView[]> {
+/** null when the account was connected without video.list (the app has no Display API yet): the UI lists our own posts instead. */
+export async function listVideos(deps: Deps, auth: AuthContext): Promise<TikTokVideoView[] | null> {
   const link = await linkOrThrow(deps, auth);
+  if (link.scopes && !link.scopes.split(/[ ,]+/).includes("video.list")) return null;
   const d = await api<{ videos?: RawVideo[] }>(deps, link, "/v2/video/list/", {
     method: "POST", query: { fields: "id,title,video_description,cover_image_url,share_url,create_time,duration,view_count,like_count" }, body: { max_count: 20 },
   });

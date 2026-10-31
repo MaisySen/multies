@@ -5,7 +5,7 @@
 import { and, eq } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { directSocialLinks } from "../../db/schema";
-import { decryptSecret, encryptSecret, newId } from "../../lib/crypto";
+import { decryptSecret, encryptSecret, newId, safeEqual } from "../../lib/crypto";
 import { HttpError } from "../../lib/errors";
 import type { DirectAccountView, DirectProvider } from "../../../shared/direct-social";
 
@@ -113,18 +113,20 @@ export async function challengeHex(verifier: string) {
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export interface OAuthState { p: DirectProvider; u: string; o: string; v: string; t: number }
+/** n: a nonce also kept in an httpOnly cookie on this browser, cleared at the return, so a state works once and only where it started. */
+export interface OAuthState { p: DirectProvider; u: string; o: string; v: string; t: number; n?: string }
 
-export async function makeState(deps: Deps, auth: AuthContext, p: DirectProvider, verifier: string) {
-  return encryptSecret(deps.config.appSecret, JSON.stringify({ p, u: auth.userId, o: auth.orgId, v: verifier, t: deps.now().getTime() } satisfies OAuthState));
+export async function makeState(deps: Deps, auth: AuthContext, p: DirectProvider, verifier: string, nonce?: string) {
+  return encryptSecret(deps.config.appSecret, JSON.stringify({ p, u: auth.userId, o: auth.orgId, v: verifier, t: deps.now().getTime(), ...(nonce ? { n: nonce } : {}) } satisfies OAuthState));
 }
 
-export async function readState(deps: Deps, auth: AuthContext, p: DirectProvider, raw: string): Promise<OAuthState> {
+export async function readState(deps: Deps, auth: AuthContext, p: DirectProvider, raw: string, nonce?: string | null): Promise<OAuthState> {
   let s: OAuthState;
   try { s = JSON.parse(await decryptSecret(deps.config.appSecret, raw)) as OAuthState; } catch { throw new HttpError(400, "oauth_state", "That sign in link is not valid. Start again from Connections."); }
   if (s.p !== p || s.u !== auth.userId || s.o !== auth.orgId || deps.now().getTime() - s.t > 15 * 60_000) {
     throw new HttpError(400, "oauth_state", "That sign in link expired or belongs to someone else. Start again from Connections.");
   }
+  if (s.n && (!nonce || !safeEqual(s.n, nonce))) throw new HttpError(400, "oauth_state", "That sign in was already used or started in another browser. Start again from Connections.");
   return s;
 }
 

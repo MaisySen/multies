@@ -560,6 +560,7 @@ Live on production at multies.si unless marked otherwise. Round 11 becomes 0.11.
 - The agent page no longer overflows on phones: its two columns may shrink below the width of the connect snippets (round 14).
 
 - Connections: TikTok and Threads are ready in Add an app and connect through our own sign in; a connected one shows in Connected with Manage and post. Snapchat now reads Share photos and videos to Snapchat (still coming soon). Cards with accounts say Add another account and Connected · 2.
+- TikTok and Threads sign in: a nonce in an httpOnly cookie makes each sign in link work once and only in the browser that started it; TikTok test mode and missing permissions come back to Connections in plain words; TIKTOK_SCOPES lets a host skip video.list until the app has the Display API (the list then shows posts made from Multies).
 
 ## [0.10.0] (round 10, 24 Oct 2026)
 

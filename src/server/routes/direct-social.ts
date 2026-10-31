@@ -4,13 +4,15 @@
  * at /api/connections/webhooks/tiktok (signed, no session) and the Threads uninstall and delete callbacks, which POST
  * signed_request to /delete-account. The services load on first use.
  */
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
 import { HttpError } from "../lib/errors";
 import { RateLimiter } from "../lib/rate-limit";
 import { audit } from "../services/audit";
+import { randomToken } from "../lib/crypto";
 
 const svc = () => import("../services/direct-social");
 const tiktok = () => import("../services/direct-social/tiktok");
@@ -29,6 +31,14 @@ function fromB64(b64: string) {
   return out;
 }
 
+/** Plain words for a sign in the network sent back without a code (TikTok adds error_type, Threads error_reason). */
+export function signInError(p: "tiktok" | "threads", error?: string, errorType?: string, reason?: string): string {
+  if (p === "tiktok" && errorType === "non_sandbox_target") return "TikTok is in test mode. Only approved test accounts can connect until TikTok approves Multies.";
+  if (p === "tiktok" && errorType === "scope_not_authorized") return "TikTok didn't allow every permission Multies needs. Connect again and allow every option.";
+  if (reason === "user_denied" || (error === "access_denied" && !errorType) || errorType === "user_cancel") return "You cancelled the sign in.";
+  return "The sign in didn't finish. Try again.";
+}
+
 export function directSocialRoutes() {
   const posts = new RateLimiter(10, 15 * 60_000);
   const take = (userId: string) => { if (!posts.take(userId)) throw new HttpError(429, "too_many", "Too many posts in a short time. Wait a few minutes, then try again."); };
@@ -43,7 +53,7 @@ export function directSocialRoutes() {
     .get("/tiktok/videos", async (c) => {
       const t = await tiktok();
       const [videos, publishes] = await Promise.all([t.listVideos(c.var.deps, c.var.auth), t.listPublishes(c.var.deps, c.var.auth)]);
-      return c.json({ videos, publishes });
+      return c.json({ videos: videos ?? [], listAvailable: videos !== null, publishes });
     })
     .post("/tiktok/videos", async (c) => {
       (await store()).requireManager(c.var.auth);
@@ -76,30 +86,43 @@ export function directSocialRoutes() {
     });
 }
 
+const NONCE_PATH = "/api/connections/oauth";
+/** The browser half of the state: an httpOnly cookie the return must carry, cleared there (one use, this browser only). */
+function setNonce(c: Context<AppEnv>, p: "tiktok" | "threads") {
+  const n = randomToken(24);
+  setCookie(c, `mm_oauth_${p}`, n, { path: NONCE_PATH, httpOnly: true, secure: new URL(c.req.url).protocol === "https:", sameSite: "Lax", maxAge: 15 * 60 });
+  return n;
+}
+function takeNonce(c: Context<AppEnv>, p: "tiktok" | "threads") {
+  const n = getCookie(c, `mm_oauth_${p}`) ?? null;
+  deleteCookie(c, `mm_oauth_${p}`, { path: NONCE_PATH });
+  return n;
+}
+
 /** Sign in start and return for both networks. Mounted inside connectionRoutes (session already checked). */
 export function directOAuthRoutes() {
   const back = (q: Record<string, string>) => `/app/settings/apps/social?${new URLSearchParams(q)}`;
   return new Hono<AppEnv>()
     .get("/oauth/tiktok/start", async (c) => {
       (await store()).requireManager(c.var.auth);
-      return c.redirect(await (await tiktok()).tiktokStart(c.var.deps, c.var.auth));
+      return c.redirect(await (await tiktok()).tiktokStart(c.var.deps, c.var.auth, setNonce(c, "tiktok")));
     })
     .get("/oauth/threads/start", async (c) => {
       (await store()).requireManager(c.var.auth);
-      return c.redirect(await (await threads()).threadsStart(c.var.deps, c.var.auth));
+      return c.redirect(await (await threads()).threadsStart(c.var.deps, c.var.auth, setNonce(c, "threads")));
     })
     .get("/oauth/:p{tiktok|threads}/callback", async (c) => {
       const p = c.req.param("p") as "tiktok" | "threads";
+      const nonce = takeNonce(c, p);
       const code = c.req.query("code");
       const state = c.req.query("state");
       if (!code || !state) {
-        const denied = c.req.query("error") === "access_denied" || c.req.query("error_reason") === "user_denied";
-        return c.redirect(back({ error: denied ? "You cancelled the sign in." : "The sign in didn't finish. Try again.", network: p }));
+        return c.redirect(back({ error: signInError(p, c.req.query("error"), c.req.query("error_type"), c.req.query("error_reason")), network: p }));
       }
       const { deps, auth } = c.var;
       try {
         (await store()).requireManager(auth);
-        await (p === "tiktok" ? await (await tiktok()).tiktokFinish(deps, auth, code, state) : await (await threads()).threadsFinish(deps, auth, code, state));
+        await (p === "tiktok" ? await (await tiktok()).tiktokFinish(deps, auth, code, state, nonce) : await (await threads()).threadsFinish(deps, auth, code, state, nonce));
         await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "connection.direct_connected", targetType: "connection", targetId: p, metadata: { provider: p } });
         return c.redirect(back({ connected: p }));
       } catch (err) {

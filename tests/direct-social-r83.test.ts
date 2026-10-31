@@ -34,6 +34,14 @@ async function orgIdOf(email: string) {
 
 async function raw(c: Client, method: string, path: string, init: { body?: BodyInit; headers?: Record<string, string> } = {}) {
   const res = await ctx.app.request(path, { method, headers: { cookie: c.cookie, host: "localhost", ...(init.body instanceof FormData ? { "x-multies-upload": "1" } : {}), ...(init.headers ?? {}) }, body: init.body });
+  // Keep the sign in nonce cookie the way a browser would (set at start, cleared at the return).
+  for (const sc of res.headers.getSetCookie()) {
+    const [pair, ...attrs] = sc.split(/;\s*/);
+    const i = pair.indexOf("=");
+    const name = pair.slice(0, i), value = pair.slice(i + 1);
+    if (!name.startsWith("mm_oauth_")) continue;
+    if (!value || attrs.some((a) => /^max-age=0$/i.test(a))) c.jar.delete(name); else c.jar.set(name, value);
+  }
   return res;
 }
 
@@ -111,6 +119,9 @@ describe("R83 TikTok", () => {
     expect(new URL(r2.headers.get("location")!, "https://x").searchParams.get("error")).toMatch(/Connect TikTok again/);
     const r3 = await raw(owner, "GET", "/api/connections/oauth/tiktok/callback?error=access_denied");
     expect(new URL(r3.headers.get("location")!, "https://x").searchParams.get("error")).toBe("You cancelled the sign in.");
+    // The same state a second time (its browser cookie was used up by the return above) is refused.
+    const r4 = await raw(owner, "GET", `/api/connections/oauth/tiktok/callback?code=good-code&state=${encodeURIComponent(state)}`);
+    expect(new URL(r4.headers.get("location")!, "https://x").searchParams.get("error")).toMatch(/already used or started in another browser/);
     expect(await ctx.db.select().from(directSocialLinks).all()).toHaveLength(0);
   });
 
@@ -272,5 +283,22 @@ describe("R83 catalog: TikTok and Threads are ready, Snapchat copy", () => {
       if (by.has("twitter")) expect(by.get("twitter")?.availability).toBe("soon");
       if (by.has("google_business_profile")) expect(by.get("google_business_profile")?.availability).toBe("soon");
     }
+  });
+});
+
+describe("R83 sign in errors come back in plain words", () => {
+  it("names TikTok test mode, missing permissions and a cancel", async () => {
+    const { signInError } = await import("../src/server/routes/direct-social");
+    expect(signInError("tiktok", "access_denied", "non_sandbox_target")).toMatch(/test mode/);
+    expect(signInError("tiktok", "access_denied", "scope_not_authorized")).toMatch(/permission/);
+    expect(signInError("tiktok", "access_denied")).toBe("You cancelled the sign in.");
+    expect(signInError("threads", "access_denied", undefined, "user_denied")).toBe("You cancelled the sign in.");
+    expect(signInError("tiktok", "server_error")).toMatch(/didn't finish/);
+  });
+  it("asks only for the scopes the host lists in TIKTOK_SCOPES", async () => {
+    const { tiktokScopes, TIKTOK_SCOPES } = await import("../src/server/services/direct-social/tiktok");
+    const base = { config: { direct: { tiktok: { scopes: ["user.info.basic", "video.upload", "video.publish"] } } } } as never;
+    expect(tiktokScopes(base)).toEqual(["user.info.basic", "video.upload", "video.publish"]);
+    expect(tiktokScopes({ config: { direct: { tiktok: {} } } } as never)).toEqual(TIKTOK_SCOPES);
   });
 });

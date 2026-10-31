@@ -173,15 +173,17 @@ const PUBLISH_COPY: Record<TikTokPublishView["status"], { label: string; tone: "
 function TikTokVideos() {
   const q = useQuery({
     queryKey: keys.videos,
-    queryFn: () => api.get<{ videos: TikTokVideoView[]; publishes: TikTokPublishView[] }>("/direct/tiktok/videos"),
+    queryFn: () => api.get<{ videos: TikTokVideoView[]; listAvailable?: boolean; publishes: TikTokPublishView[] }>("/direct/tiktok/videos"),
     staleTime: 30_000,
     refetchInterval: (query) => (query.state.data?.publishes.some((p) => p.status === "processing") ? 8_000 : false),
   });
-  const pending = (q.data?.publishes ?? []).filter((p) => p.status !== "published").slice(0, 3);
+  // Without TikTok's video list (an app without the Display API), every post made from here is listed instead.
+  const own = q.data?.listAvailable === false;
+  const pending = own ? (q.data?.publishes ?? []) : (q.data?.publishes ?? []).filter((p) => p.status !== "published").slice(0, 3);
   return (
     <Card className="p-5" data-testid="tiktok-videos">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-fg">Your TikTok videos</h3>
+        <h3 className="text-sm font-semibold text-fg">{own ? "Posted from Multies" : "Your TikTok videos"}</h3>
         <Button variant="ghost" size="sm" onClick={() => void q.refetch()} disabled={q.isFetching} aria-label="Refresh videos"><IconRefresh className={cn("h-4 w-4", q.isFetching && "animate-spin motion-reduce:animate-none")} aria-hidden /></Button>
       </div>
       {pending.length > 0 && (
@@ -198,6 +200,8 @@ function TikTokVideos() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-busy="true">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="aspect-[9/16] rounded-lg" />)}</div>
       ) : q.error ? (
         <div role="alert" className="text-[13px] text-bad">{errorMessage(q.error, "Couldn't load your videos.")} <button type="button" className="underline" onClick={() => void q.refetch()}>Try again</button></div>
+      ) : own ? (
+        pending.length ? null : <p className="text-[13px] text-muted">No videos yet. Videos you post from here show in this list.</p>
       ) : !q.data?.videos.length ? (
         <p className="text-[13px] text-muted">No videos yet. Post one and it shows here once TikTok has it ready.</p>
       ) : (

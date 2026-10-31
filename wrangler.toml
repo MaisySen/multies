@@ -157,6 +157,8 @@ SCHEDULING_ENABLED = "true"
 APP_URL = "https://multies.si"
 # R83: TikTok posts through the sandbox app until TikTok approves the production app; then set "production".
 TIKTOK_MODE = "sandbox"
+# The TikTok app has no Display API yet, so video.list is not asked for; the list shows posts made from Multies.
+TIKTOK_SCOPES = "user.info.basic,video.upload,video.publish"
 DEMO_MODE = "true"
 SENTRY_ENVIRONMENT = "production"
 # R40 (MB-199): every traced request spends extra CPU against the free plan's 10 ms; trace 2% here.
@@ -296,6 +298,7 @@ simple = { limit = 300, period = 60 }
 binding = "AI"
 
 [env.staging.vars]
+TIKTOK_SCOPES = "user.info.basic,video.upload,video.publish"
 # Tools P1: document tools on staging, through the document engine with the staging key id.
 TOOLS_ENABLED = "true"
 # Tools P2 features (src/shared/tool-features.ts): "all" on staging, only shipped ones on production.

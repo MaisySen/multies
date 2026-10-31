@@ -158,7 +158,7 @@ export interface AppConfig {
    * point tests at a local stand in.
    */
   direct: {
-    tiktok?: { clientKey: string; clientSecret: string; sandbox: boolean; secrets: string[]; apiBase: string; authUrl: string };
+    tiktok?: { clientKey: string; clientSecret: string; sandbox: boolean; secrets: string[]; apiBase: string; authUrl: string; /** TIKTOK_SCOPES: the scopes the app has (comma list); unset asks for all four. */ scopes?: string[] };
     threads?: { appId: string; appSecret: string; apiBase: string; authUrl: string };
   };
   channels: { enabled: boolean; meta?: { appId: string; appSecret: string; verifyToken: string; configId: string; graphVersion: string }; mock: boolean; dailySoftCap: number };
@@ -256,6 +256,7 @@ const EnvSchema = z.object({
   TIKTOK_SANDBOX_CLIENT_SECRET: z.string().optional(),
   /** "sandbox" uses the sandbox keys even when production keys are set (until the network approves the app). */
   TIKTOK_MODE: z.enum(["production", "sandbox"]).optional(),
+  TIKTOK_SCOPES: z.string().optional(),
   TIKTOK_API_BASE: z.string().optional(),
   TIKTOK_AUTH_URL: z.string().optional(),
   THREADS_APP_ID: z.string().optional(),
@@ -479,6 +480,7 @@ function directConfig(env: z.infer<typeof EnvSchema>): AppConfig["direct"] {
       secrets: [prod?.secret, sand?.secret].filter((s): s is string => !!s),
       apiBase: (t(env.TIKTOK_API_BASE) ?? "https://open.tiktokapis.com").replace(/\/$/, ""),
       authUrl: t(env.TIKTOK_AUTH_URL) ?? "https://www.tiktok.com/v2/auth/authorize/",
+      ...(t(env.TIKTOK_SCOPES) ? { scopes: t(env.TIKTOK_SCOPES)!.split(/[ ,]+/).filter(Boolean) } : {}),
     };
   }
   if (t(env.THREADS_APP_ID) && t(env.THREADS_APP_SECRET)) {

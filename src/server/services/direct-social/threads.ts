@@ -24,9 +24,9 @@ function cfg(deps: Deps) {
   return t;
 }
 
-export async function threadsStart(deps: Deps, auth: AuthContext) {
+export async function threadsStart(deps: Deps, auth: AuthContext, nonce?: string) {
   const t = cfg(deps);
-  const state = await makeState(deps, auth, "threads", randomToken(8));
+  const state = await makeState(deps, auth, "threads", randomToken(8), nonce);
   const q = new URLSearchParams({ client_id: t.appId, redirect_uri: redirectUri(deps, "threads"), scope: THREADS_SCOPES.join(","), response_type: "code", state });
   if (new URL(t.authUrl).hostname === "threads.mock") return `${redirectUri(deps, "threads")}?${new URLSearchParams({ code: "mock-code", state })}`;
   return `${t.authUrl}?${q}`;
@@ -42,9 +42,9 @@ async function graph<T>(deps: Deps, url: string, init: RequestInit = {}): Promis
 
 const inSec = (deps: Deps, s: number | undefined) => (s ? new Date(deps.now().getTime() + s * 1000) : null);
 
-export async function threadsFinish(deps: Deps, auth: AuthContext, code: string, stateRaw: string) {
+export async function threadsFinish(deps: Deps, auth: AuthContext, code: string, stateRaw: string, nonce?: string | null) {
   const t = cfg(deps);
-  await readState(deps, auth, "threads", stateRaw);
+  await readState(deps, auth, "threads", stateRaw, nonce);
   const short = await graph<{ access_token?: string; user_id?: string | number }>(deps, `${t.apiBase}/oauth/access_token`, {
     method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ client_id: t.appId, client_secret: t.appSecret, grant_type: "authorization_code", redirect_uri: redirectUri(deps, "threads"), code: code.replace(/#_$/, "") }),
