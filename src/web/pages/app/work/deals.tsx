@@ -12,17 +12,19 @@ import { EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { aud } from "./contacts";
 import type { Contact } from "./data";
+import { useCrmTimelineOn } from "./crm-timeline"; // R94
+import { CloseReasonDialog, DealDetailsDialog, ForecastStrip } from "./crm-contacts-r94"; // R94
 
 interface Stage { id: string; name: string; total: number }
-interface Deal { id: string; title: string; stage: string; value: number; position: number; contact: Contact | null; company: { id: string; name: string } | null; expectedClose: string | null }
+interface Deal { id: string; title: string; stage: string; value: number; position: number; contact: Contact | null; company: { id: string; name: string } | null; expectedClose: string | null; probability?: number; probabilitySet?: boolean; closeReason?: string | null }
 
-function DealCard({ d }: { d: Deal }) {
+function DealCard({ d, crm, onOpen }: { d: Deal; crm?: boolean; onOpen?: (d: Deal) => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: d.id });
   return (
     <li ref={setNodeRef} {...listeners} style={transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : undefined}
       className={cn("touch-none rounded-lg border border-line bg-elevated p-3", isDragging && "z-10 border-brand/40 shadow-pop")} data-testid="deal-card">
       <div className="flex items-start gap-2">
-        <div className="flex-1 text-[13.5px] font-medium">{d.title}</div>
+        {crm && onOpen ? <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => onOpen(d)} className="flex-1 text-left text-[13.5px] font-medium hover:underline" data-testid="deal-open">{d.title}</button> : <div className="flex-1 text-[13.5px] font-medium">{d.title}</div>}
         <button type="button" {...attributes} {...listeners} aria-roledescription="Draggable deal" aria-label={`Move ${d.title}`}
           className="-mr-1 -mt-1 grid h-6 w-6 shrink-0 place-items-center rounded text-subtle hover:bg-surface hover:text-fg"><IconGrip className="h-3.5 w-3.5" aria-hidden /></button>
       </div>
@@ -30,12 +32,14 @@ function DealCard({ d }: { d: Deal }) {
         <span className="truncate">{d.company?.name ?? d.contact?.name ?? d.contact?.email ?? ""}</span>
         <span className="font-medium tabular-nums text-fg">{aud(d.value)}</span>
       </div>
+      {crm && d.stage !== "won" && d.stage !== "lost" && d.probability !== undefined && <div className="mt-1 text-[12px] text-subtle" data-testid="deal-chance">{d.probability}% chance{d.expectedClose ? ` · closes ${new Date(d.expectedClose).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}` : ""}</div>}
+      {crm && d.closeReason && <div className="mt-1 truncate text-[12px] text-subtle">Why: {d.closeReason}</div>}
       {d.contact && <Link to={`/app/contacts/${d.contact.id}`} onPointerDown={(e) => e.stopPropagation()} className="mt-1 block min-h-6 truncate py-1 text-[12px] text-subtle hover:text-fg">{d.contact.email}</Link>}
     </li>
   );
 }
 
-function StageColumn({ s, deals }: { s: Stage; deals: Deal[] }) {
+function StageColumn({ s, deals, crm, onOpen }: { s: Stage; deals: Deal[]; crm?: boolean; onOpen?: (d: Deal) => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: s.id });
   return (
     <section aria-label={s.name} className={cn("flex w-[260px] shrink-0 flex-col rounded-xl border border-line bg-surface/70", isOver && "border-brand/40")}>
@@ -43,7 +47,7 @@ function StageColumn({ s, deals }: { s: Stage; deals: Deal[] }) {
         <div className="flex items-center gap-2"><h2 className="text-[13px] font-semibold">{s.name}</h2><span className="text-[12px] text-subtle">{deals.length}</span></div>
         <div className="text-[12px] tabular-nums text-muted">{aud(s.total)}</div>
       </header>
-      <ul ref={setNodeRef} className="flex min-h-[80px] flex-1 flex-col gap-2 px-2 pb-3">{deals.map((d) => <DealCard key={d.id} d={d} />)}</ul>
+      <ul ref={setNodeRef} className="flex min-h-[80px] flex-1 flex-col gap-2 px-2 pb-3">{deals.map((d) => <DealCard key={d.id} d={d} crm={crm} onOpen={onOpen} />)}</ul>
     </section>
   );
 }
@@ -53,6 +57,9 @@ export function DealsPage() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["deals"], queryFn: () => api.get<{ stages: Stage[]; deals: Deal[] }>("/deals") });
   const [adding, setAdding] = useState(false);
+  const crm = useCrmTimelineOn(); // R94
+  const [asking, setAsking] = useState<{ deal: Deal; stage: "won" | "lost" } | null>(null);
+  const [openDeal, setOpenDeal] = useState<Deal | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor));
   const onDragEnd = async (e: DragEndEvent) => {
     if (!e.over || !q.data) return;
@@ -61,22 +68,35 @@ export function DealsPage() {
     qc.setQueryData(["deals"], { ...q.data, deals: q.data.deals.map((x) => (x.id === d.id ? { ...x, stage: String(e.over!.id) } : x)) });
     try { await api.patch(`/deals/${d.id}`, { stage: e.over.id }); } catch (err) { showError(err as Error); }
     void qc.invalidateQueries({ queryKey: ["deals"] });
+    if (crm.on) {
+      void qc.invalidateQueries({ queryKey: ["crm-forecast"] });
+      if (e.over.id === "won" || e.over.id === "lost") setAsking({ deal: d, stage: e.over.id });
+    }
+  };
+  const saveReason = async (reason: string | null) => {
+    const a = asking;
+    setAsking(null);
+    if (!a || !reason) return;
+    try { await api.patch(`/deals/${a.deal.id}`, { closeReason: reason }); await qc.invalidateQueries({ queryKey: ["deals"] }); await qc.invalidateQueries({ queryKey: ["crm-forecast"] }); } catch (err) { showError(err as Error); }
   };
   const open = q.data?.deals.filter((d) => d.stage !== "won" && d.stage !== "lost").reduce((n, d) => n + d.value, 0) ?? 0;
   return (
     <div>
       <Link to="/app/contacts" className="mb-4 inline-flex items-center gap-1 text-[12.5px] text-subtle hover:text-fg"><IconArrowLeft className="h-3.5 w-3.5" />Contacts</Link>
       <PageHeader title="Deals" description={q.data ? `${aud(open)} open in the pipeline, ex GST.` : "Your sales pipeline."} actions={<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />New deal</Button>} />
+      {crm.on && !!q.data?.deals.length && <ForecastStrip />}
       {q.isPending ? <Skeleton className="h-64" /> : !q.data?.deals.length ? (
         <EmptyState icon={<IconHandshake />} title="No deals yet" body="Add a deal from a contact, or here. Drag deals across stages as they move." action={<Button onClick={() => setAdding(true)}>New deal</Button>} />
       ) : (
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           <div className="flex gap-3 overflow-x-auto pb-4" data-testid="deals-board">
-            {q.data.stages.map((s) => <StageColumn key={s.id} s={s} deals={q.data.deals.filter((d) => d.stage === s.id)} />)}
+            {q.data.stages.map((s) => <StageColumn key={s.id} s={s} deals={q.data.deals.filter((d) => d.stage === s.id)} crm={crm.on} onOpen={setOpenDeal} />)}
           </div>
         </DndContext>
       )}
       {adding && <NewDeal onClose={() => setAdding(false)} />}
+      {asking && <CloseReasonDialog stage={asking.stage} title={asking.deal.title} onDone={(r) => void saveReason(r)} />}
+      {openDeal && <DealDetailsDialog deal={openDeal} onClose={() => setOpenDeal(null)} />}
     </div>
   );
 }

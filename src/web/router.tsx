@@ -92,6 +92,7 @@ const contactPages = () => import("./pages/app/work/contacts");
 const ContactsPage = lazyPage(() => contactPages(), "ContactsPage");
 const ContactPage = lazyPage(() => contactPages(), "ContactPage");
 const DealsPage = lazyPage(() => import("./pages/app/work/deals"), "DealsPage");
+const CompanyPage = lazyPage(() => import("./pages/app/work/crm-contacts-r94"), "CompanyPage"); // R94
 const AutomationsPage = lazyPage(() => import("./pages/app/work/automations"), "AutomationsPage");
 // R90: one Automations home (flows, rules, runs), the flow editor and the run log.
 const AutomationsHubPage = lazyPage(() => import("./pages/app/automations/hub"), "AutomationsHubPage");
@@ -251,6 +252,7 @@ export const router = createBrowserRouter([
       { path: "docs/:id", element: page(<DocPage />) },
       { path: "contacts", element: page(<ContactsPage />) },
       { path: "contacts/:id", element: page(<ContactPage />) },
+      { path: "contacts/companies/:id", element: page(<CompanyPage />) }, // R94
       { path: "deals", element: page(<DealsPage />) },
       { path: "automations", element: page(<AutomationsHubPage />) },
       { path: "automations/rules", element: page(<AutomationsPage />) },
