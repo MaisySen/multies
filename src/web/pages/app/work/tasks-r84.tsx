@@ -182,7 +182,7 @@ export function TagsDialog({ open, onClose }: { open: boolean; onClose: () => vo
           {tags.isLoading && [0, 1, 2].map((i) => <li key={i}><Skeleton className="h-9" /></li>)}
           {tags.data?.map((t) => (
             <li key={t.id} className="flex items-center gap-2" data-testid="tag-row">
-              <Menu label={`Colour of ${t.name}`} align="start" trigger={<span className="grid h-8 w-8 place-items-center rounded-md hover:bg-hover max-sm:h-11 max-sm:w-11"><span className="h-4 w-4 rounded-full" style={{ background: t.color }} /></span>}>
+              <Menu label={`Colour of ${t.name}`} align="start" trigger={<button type="button" className="grid h-8 w-8 place-items-center rounded-md hover:bg-hover max-sm:h-11 max-sm:w-11"><span className="h-4 w-4 rounded-full" style={{ background: t.color }} /></button>}>
                 {TAG_PALETTE.map((c, i) => (
                   <MenuItem key={c} checked={c === t.color} onSelect={() => void patch(t, { color: c })} icon={<span className="h-3.5 w-3.5 rounded-full" style={{ background: c }} />}>{COLOUR_NAMES[i]}</MenuItem>
                 ))}
@@ -298,7 +298,7 @@ export function AvatarStack({ people, max = 3, size = "sm" }: { people: { id: st
 export function AssigneePicker({ value, people, onChange, label = "Assignees" }: { value: string[]; people: AssigneeOption[]; onChange: (next: string[]) => void; label?: string }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const key = (p: AssigneeOption) => `${p.type}:${p.id}`;
+  const key = (p: AssigneeOption) => (p.id.includes(":") ? p.id : `${p.type}:${p.id}`); // the options carry "member:<id>" already
   const picked = value.map((k) => people.find((p) => key(p) === k)).filter(Boolean) as AssigneeOption[];
   const shown = people.filter((p) => p.name.toLowerCase().includes(q.trim().toLowerCase()) || (p.email ?? "").toLowerCase().includes(q.trim().toLowerCase()));
   const toggle = (p: AssigneeOption) => onChange(value.includes(key(p)) ? value.filter((k) => k !== key(p)) : [...value, key(p)].slice(0, 10));
@@ -486,9 +486,9 @@ export function ViewTabs({ views, activeId, onOpen, onAll, onEdit, onDelete, onR
         <Fragment key={v.id}>
           <Tab label={v.name} active={activeId === v.id} onClick={() => onOpen(v)} icon={v.shared ? undefined : <IconLock className="h-3 w-3" aria-label="Only you" />}
             menu={v.canEdit === false ? (
-              <Menu label={`${v.name} options`} trigger={<IconMore className="h-3.5 w-3.5" aria-hidden />}><MenuItem onSelect={() => onEdit(v, { pinned: false })} icon={<IconPinOff className="h-4 w-4" />}>Unpin for everyone</MenuItem></Menu>
+              <Menu label={`${v.name} options`} trigger={<button type="button"><IconMore className="h-3.5 w-3.5" aria-hidden /></button>}><MenuItem onSelect={() => onEdit(v, { pinned: false })} icon={<IconPinOff className="h-4 w-4" />}>Unpin for everyone</MenuItem></Menu>
             ) : (
-              <Menu label={`${v.name} options`} trigger={<IconMore className="h-3.5 w-3.5" aria-hidden />}>
+              <Menu label={`${v.name} options`} trigger={<button type="button"><IconMore className="h-3.5 w-3.5" aria-hidden /></button>}>
                 <MenuItem onSelect={() => onRename(v)} icon={<IconPencilLine className="h-4 w-4" />}>Rename</MenuItem>
                 <MenuItem onSelect={() => onEdit(v, { shared: !v.shared })} icon={v.shared ? <IconLock className="h-4 w-4" /> : <IconGlobe className="h-4 w-4" />}>{v.shared ? "Make private" : "Share with workspace"}</MenuItem>
                 <MenuItem onSelect={() => onEdit(v, { pinned: false })} icon={<IconPinOff className="h-4 w-4" />}>Unpin</MenuItem>

@@ -96,7 +96,8 @@ test("tasks screenshots and axe", async ({ page, context, baseURL }) => {
     await page.emulateMedia({ colorScheme: "light" });
     await page.setViewportSize({ width: 1280, height: 860 });
     await page.goto("/app/tasks?view=list&project=");
-    await page.getByRole("button", { name: "Save view" }).click();
+    await page.getByRole("button", { name: "Saved views" }).click();
+    await page.getByRole("menuitem", { name: "Save as new view" }).click();
     await expect(page.getByRole("dialog", { name: "Save view" })).toBeVisible();
     await shot(page, "tasks-after-saveview-desktop-light");
     bad.push(...await axe(page, "save view dialog"));

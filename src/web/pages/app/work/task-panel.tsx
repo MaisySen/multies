@@ -148,8 +148,8 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
         <div className="space-y-3 p-5">{q.error ? <p className="text-sm text-muted">{(q.error as Error).message}</p> : <><Skeleton className="h-7 w-3/4" /><Skeleton className="w-1/2" /><Skeleton className="h-24" /></>}</div>
       ) : (
         page ? (
-          <div className="grid gap-x-8 px-5 pb-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="min-w-0">
+          <div className="grid gap-x-8 px-5 pb-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_1fr]">
+            <div className="min-w-0 lg:col-start-1 lg:row-start-1">
           {conflict && <ConflictBar onKeepMine={keepMine} onUseTheirs={useTheirs} />}
           <CatchupCard key={`catchup-${t.id}`} type="task" id={t.id} className="mx-0 mb-0 mt-3" />
           <div className="flex items-start gap-2 pt-4">
@@ -160,6 +160,49 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
               className="w-full resize-none bg-transparent text-lg font-semibold leading-snug outline-none [field-sizing:content]" />
           </div>
 
+            </div>
+            <div className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-l lg:border-line lg:pl-6" data-testid="task-page-side">
+              <div className="lg:sticky lg:top-4">
+          <dl data-testid="task-properties" className="mt-4 grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5 text-[13px]">
+            <TaskTypeRows task={t} onSave={save} />
+            <dt className="text-subtle">Status</dt>
+            <dd><Select aria-label="Status" value={t.statusId} onChange={(e) => save({ statusId: e.target.value })} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base">
+              {project?.statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </Select></dd>
+            <dt className="text-subtle">Assignees</dt>
+            <dd className="min-w-0"><AssigneePicker value={(t.assignees ?? (t.assignee ? [t.assignee] : [])).map((a) => `${a.type}:${a.id}`)} people={people.data ?? []} onChange={(keys) => save({ assignees: keys })} /></dd>
+            <dt className="text-subtle">Priority</dt>
+            <dd><Select aria-label="Priority" value={t.priority} onChange={(e) => save({ priority: e.target.value as Priority })} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base">
+              {(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
+            </Select></dd>
+            <dt className="text-subtle">Start</dt>
+            <dd><Input type="date" aria-label="Start date" value={dateInput(t.start)} onChange={(e) => save({ start: e.target.value || null })} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base" /></dd>
+            <dt className="text-subtle">Due</dt>
+            <dd><Input type="date" aria-label="Due date" value={dateInput(t.due)} onChange={(e) => save({ due: e.target.value || null })} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base" /></dd>
+            <dt className="text-subtle">Repeat</dt>
+            <dd><RepeatPicker value={t.repeat ?? null} onChange={(repeat) => save({ repeat })} /></dd>
+            <dt className="text-subtle">Tags</dt>
+            <dd className="min-w-0"><TagPicker value={t.labels} onChange={(labels) => save({ labels })} /></dd>
+            <SprintFields task={t} onSave={(patch) => save(patch)} />
+          </dl>
+
+
+          {(q.data!.customFields?.length ?? 0) > 0 && (
+            <section className="mt-4" aria-label="Custom fields">
+              <dl className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5 text-[13px]">
+                {taskFields(q.data!.customFields!).map((f) => (
+                  <Fragment key={f.id}>
+                    <dt className="truncate text-subtle" title={f.name}>{f.name}</dt>
+                    <dd><FieldInput field={f} value={t.fields?.[f.id]} people={people.data ?? []} onSave={(v) => save({ fields: { [f.id]: v } })} /></dd>
+                  </Fragment>
+                ))}
+              </dl>
+            </section>
+          )}
+
+              </div>
+            </div>
+            <div className="min-w-0 lg:col-start-1 lg:row-start-2">
           {t.type === "epic" && <EpicSection epic={t} onChanged={() => void q.refetch()} />}
           <DescriptionEditor value={notes} people={people.data ?? []} onSave={(v) => { setNotes(v); void saveText({ notes: v }); }} />
 
@@ -256,45 +299,6 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
               ))}
             </ul>
           </section>
-            </div>
-            <div className="min-w-0 lg:sticky lg:top-4 lg:self-start lg:border-l lg:border-line lg:pl-6 max-lg:order-first" data-testid="task-page-side">
-          <dl data-testid="task-properties" className="mt-4 grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5 text-[13px]">
-            <TaskTypeRows task={t} onSave={save} />
-            <dt className="text-subtle">Status</dt>
-            <dd><Select aria-label="Status" value={t.statusId} onChange={(e) => save({ statusId: e.target.value })} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base">
-              {project?.statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </Select></dd>
-            <dt className="text-subtle">Assignees</dt>
-            <dd className="min-w-0"><AssigneePicker value={(t.assignees ?? (t.assignee ? [t.assignee] : [])).map((a) => `${a.type}:${a.id}`)} people={people.data ?? []} onChange={(keys) => save({ assignees: keys })} /></dd>
-            <dt className="text-subtle">Priority</dt>
-            <dd><Select aria-label="Priority" value={t.priority} onChange={(e) => save({ priority: e.target.value as Priority })} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base">
-              {(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
-            </Select></dd>
-            <dt className="text-subtle">Start</dt>
-            <dd><Input type="date" aria-label="Start date" value={dateInput(t.start)} onChange={(e) => save({ start: e.target.value || null })} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base" /></dd>
-            <dt className="text-subtle">Due</dt>
-            <dd><Input type="date" aria-label="Due date" value={dateInput(t.due)} onChange={(e) => save({ due: e.target.value || null })} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base" /></dd>
-            <dt className="text-subtle">Repeat</dt>
-            <dd><RepeatPicker value={t.repeat ?? null} onChange={(repeat) => save({ repeat })} /></dd>
-            <dt className="text-subtle">Tags</dt>
-            <dd className="min-w-0"><TagPicker value={t.labels} onChange={(labels) => save({ labels })} /></dd>
-            <SprintFields task={t} onSave={(patch) => save(patch)} />
-          </dl>
-
-
-          {(q.data!.customFields?.length ?? 0) > 0 && (
-            <section className="mt-4" aria-label="Custom fields">
-              <dl className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5 text-[13px]">
-                {taskFields(q.data!.customFields!).map((f) => (
-                  <Fragment key={f.id}>
-                    <dt className="truncate text-subtle" title={f.name}>{f.name}</dt>
-                    <dd><FieldInput field={f} value={t.fields?.[f.id]} people={people.data ?? []} onSave={(v) => save({ fields: { [f.id]: v } })} /></dd>
-                  </Fragment>
-                ))}
-              </dl>
-            </section>
-          )}
-
             </div>
           </div>
         ) : (

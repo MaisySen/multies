@@ -1,7 +1,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PhoneFilters } from "@/web/components/phone-filters-r40"; // R40 (MB-209)
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMediaQuery } from "@/web/lib/use-compact";
 import { PHONE_QUERY } from "@/web/lib/phone";
@@ -604,11 +604,7 @@ export function TaskPageRoute() {
   const navigate = useNavigate();
   return (
     <div className="mx-auto w-full max-w-[1200px]">
-      <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-1.5 text-[13px] text-muted">
-        <Link to="/app/tasks" className="rounded-md px-1 py-0.5 hover:bg-hover hover:text-fg max-sm:py-2.5">Tasks</Link>
-        <span aria-hidden>/</span>
-        <span className="font-mono text-fg" aria-current="page">{ref.toUpperCase()}</span>
-      </nav>
+      <h1 className="sr-only">Task {ref.toUpperCase()}</h1>
       <TaskPanel id={ref} page onClose={() => navigate("/app/tasks")} />
     </div>
   );
