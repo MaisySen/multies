@@ -10,7 +10,7 @@ import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
-import { Skeleton, Switch } from "@/web/components/ui/misc";
+import { EmptyState, Skeleton, Switch } from "@/web/components/ui/misc";
 import { useDialogs } from "@/web/components/ui/confirm";
 import { IconCheck, IconImage, IconInbox, IconLock, IconMonitor, IconMoon, IconRefresh, IconSearch, IconSparkle, IconTasks, IconToday, IconTrash, IconUpload, IconWarning, IconDocs, IconMail } from "@/web/components/ui/icon";
 import { AppearanceControl, useAppearance } from "@/web/components/theme";
@@ -40,7 +40,7 @@ function Segmented<T extends string>({ value, options, onChange, label, disabled
     <div role="radiogroup" aria-label={label} className="inline-flex w-full rounded-lg bg-fill p-0.5 sm:w-auto">
       {options.map((o) => (
         <button key={o.id} type="button" role="radio" aria-checked={value === o.id} disabled={disabled} onClick={() => onChange(o.id)}
-          className={cn("inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-[13px] transition-[background,color,box-shadow] duration-150 disabled:opacity-50 sm:flex-none",
+          className={cn("inline-flex min-h-9 max-sm:min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-[13px] transition-[background,color,box-shadow] duration-150 disabled:opacity-50 sm:flex-none",
             value === o.id ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>
           {o.icon}{o.label}
         </button>
@@ -76,7 +76,7 @@ function ColourField({ label, value, onChange, placeholder, allowNone, disabled,
   const commit = (s: string) => { const v = s.trim().toLowerCase(); if (/^#[0-9a-f]{6}$/.test(v)) onChange(v); else if (!v && allowNone) onChange(null); };
   return (
     <div className="flex items-center gap-3" data-testid={testId}>
-      <label className="relative grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-full ring-1 ring-line-strong" style={{ background: value ?? placeholder }}>
+      <label className="relative grid h-9 w-9 max-sm:h-11 max-sm:w-11 shrink-0 cursor-pointer place-items-center rounded-full ring-1 ring-line-strong" style={{ background: value ?? placeholder }}>
         <span className="sr-only">{label} picker</span>
         <input type="color" value={value ?? placeholder} disabled={disabled} onChange={(e) => onChange(e.target.value.toLowerCase())} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
       </label>
@@ -84,7 +84,7 @@ function ColourField({ label, value, onChange, placeholder, allowNone, disabled,
         <div className="text-[13px] font-medium">{label}</div>
         <input aria-label={`${label} hex`} value={text} disabled={disabled} placeholder={allowNone ? "None" : placeholder} maxLength={7}
           onChange={(e) => { setText(e.target.value); if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) commit(e.target.value); }} onBlur={(e) => commit(e.target.value)}
-          className="mt-0.5 w-28 rounded-md border border-line bg-bg px-2 py-1 font-mono text-[12.5px] uppercase outline-none focus:border-brand disabled:opacity-60" />
+          className="mt-0.5 w-28 rounded-md border border-line bg-bg px-2 py-1 font-mono text-[12.5px] uppercase outline-none focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-60 max-sm:w-32 max-sm:py-2.5 max-sm:text-[16px]" />
       </div>
       {allowNone && value && !disabled && <Button variant="ghost" size="sm" onClick={() => onChange(null)}>Clear</Button>}
     </div>
@@ -130,8 +130,8 @@ function LogoSlot({ data, kind, label, hint, wide, dark, canEdit, onChanged }: {
       {canEdit && (
         <div className="flex shrink-0 items-center gap-1">
           <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} aria-label={`Upload ${label.toLowerCase()} for ${hint.toLowerCase()}`} />
-          <Button variant="secondary" size="sm" loading={busy} onClick={() => input.current?.click()}><IconUpload className="h-4 w-4" />{v ? "Replace" : "Upload"}</Button>
-          {v && <Button variant="ghost" size="sm" disabled={busy} onClick={() => void remove()} aria-label={`Remove ${label.toLowerCase()} for ${hint.toLowerCase()}`}><IconTrash className="h-4 w-4" /></Button>}
+          <Button variant="secondary" size="sm" className="max-sm:h-11" loading={busy} onClick={() => input.current?.click()}><IconUpload className="h-4 w-4" />{v ? "Replace" : "Upload"}</Button>
+          {v && <Button variant="ghost" size="sm" className="max-sm:h-11 max-sm:w-11" disabled={busy} onClick={() => void remove()} aria-label={`Remove ${label.toLowerCase()} for ${hint.toLowerCase()}`}><IconTrash className="h-4 w-4" /></Button>}
         </div>
       )}
     </div>
@@ -274,6 +274,8 @@ export function BrandingSettings() {
       toast.success("Colours taken from your logo");
     } catch { toast.error("Couldn't read the logo's colours."); } finally { setExtracting(false); }
   };
+
+  if (q.isError) return <EmptyState icon={<IconWarning />} title="Couldn't load the brand" body="Check your connection, then try again." action={<Button variant="secondary" onClick={() => void q.refetch()}><IconRefresh className="h-4 w-4" />Try again</Button>} />;
   if (q.isPending || !draft || !brand || !q.data) return <div className="grid gap-4 xl:grid-cols-2"><Skeleton className="h-96" /><Skeleton className="h-96" /></div>;
   const ro = !canEdit;
   const hasLogo = Object.keys(q.data.brand.logos).length > 0;
@@ -386,6 +388,7 @@ export function AppearanceSettings() {
     },
     onError: (e) => showError(e),
   });
+  if (q.isError) return <EmptyState icon={<IconWarning />} title="Couldn't load the brand" body="Check your connection, then try again." action={<Button variant="secondary" onClick={() => void q.refetch()}><IconRefresh className="h-4 w-4" />Try again</Button>} />;
   if (q.isPending || !q.data) return <Skeleton className="h-80" />;
   const d = q.data;
   const p = save.isPending && save.variables ? save.variables : d.personal;
@@ -395,7 +398,7 @@ export function AppearanceSettings() {
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]" data-testid="appearance-settings">
       <div className="order-2 space-y-4 xl:order-1">
         <Panel title="Light or dark" description="System follows your device. Your workspace may set a default.">
-          <AppearanceControl className="w-full sm:w-auto [&>button]:min-h-9 [&>button]:flex-1 [&>button]:justify-center" />
+          <AppearanceControl className="w-full sm:w-auto [&>button]:min-h-9 max-sm:[&>button]:min-h-11 [&>button]:flex-1 [&>button]:justify-center" />
         </Panel>
         <Panel title="Accent colour" description={locked ? "Your workspace admin set one brand for everyone." : "Use your workspace's brand, or pick your own accent."} testId="personal-accent">
           <div className="flex items-center justify-between gap-3">

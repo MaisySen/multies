@@ -193,13 +193,18 @@ export function sidebarTokens(sidebar: string | null): Tokens {
   if (!sidebar) return {};
   const fg = readableOn(sidebar);
   const dark = fg === "#ffffff";
+  const fill = mix(sidebar, dark ? "#ffffff" : "#000000", 0.14);
   return {
     "--color-glass-sidebar": sidebar,
     "--color-fg": fg,
-    "--color-muted": ensureContrast(mix(fg, sidebar, 0.3), sidebar, 4.5),
-    "--color-subtle": ensureContrast(mix(fg, sidebar, 0.38), sidebar, 4.5),
+    // Quiet text stays AA on the sidebar and on its own hover and fill grounds (search, chips).
+    "--color-muted": ensureContrast(ensureContrast(mix(fg, sidebar, 0.3), fill, 4.6), sidebar, 4.6),
+    "--color-subtle": ensureContrast(ensureContrast(mix(fg, sidebar, 0.38), fill, 4.6), sidebar, 4.6),
     "--color-hover": mix(sidebar, dark ? "#ffffff" : "#000000", 0.1),
-    "--color-fill": mix(sidebar, dark ? "#ffffff" : "#000000", 0.14),
+    "--color-fill": fill,
+    // Initials keep the sidebar's text colour readable: dark tiles on a dark sidebar, light tiles on a light one.
+    "--avatar-s": dark ? "22%" : "30%",
+    "--avatar-l": dark ? "26%" : "86%",
     "--color-line": dark ? "rgb(255 255 255 / 0.12)" : "rgb(0 0 0 / 0.1)",
     "--color-brand-soft": dark ? "rgb(255 255 255 / 0.14)" : "rgb(0 0 0 / 0.08)",
     // Menus that open inside the sidebar keep readable text on a ground of the same family.
@@ -236,13 +241,16 @@ const block = (sel: string, t: Tokens) => {
 export function brandCss(b: Brand, personal: Personal | null = null): string {
   const { primary, accent } = effectiveColours(b, personal);
   const shape = shapeTokens(b);
-  const light = { ...shape, ...colourTokens(primary, accent, "light") };
+  // Compact spacing is for larger screens; a phone keeps comfortable spacing so tap targets stay 44 px.
+  const { "--spacing": spacing, ...shapeRest } = shape;
+  const light = { ...shapeRest, ...colourTokens(primary, accent, "light") };
   const dark = colourTokens(primary, accent, "dark");
   const side = sidebarTokens(b.sidebar);
   return [
     block(":root", light),
     block(':root[data-theme="dark"]', dark),
     Object.keys(dark).length ? `@media (prefers-color-scheme:dark){${block(':root:not([data-theme="light"])', dark)}}` : "",
+    spacing ? `@media (min-width:640px){${block(":root", { "--spacing": spacing })}}` : "",
     block(".glass-sidebar,[data-brand-sidebar]", side),
     // Text that inherits its colour (no text class of its own) follows the sidebar too.
     b.sidebar ? `.glass-sidebar,[data-brand-sidebar]{color:${readableOn(b.sidebar)}}` : "",

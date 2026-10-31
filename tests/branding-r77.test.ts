@@ -4,7 +4,7 @@ import { makeTestApp, Client } from "./helpers";
 import { THEME_SCRIPT } from "@/server/lib/security-headers";
 import {
   BrandPatchSchema, DEFAULT_BRAND, PRESETS, brandCss, checkBrand, colourTokens, contrast, ensureContrast, paletteFromPixels,
-  pickLogo, readBrand, readableOn, sniffImage, type Brand,
+  logoScheme, pickLogo, readBrand, readableOn, sidebarTokens, sniffImage, type Brand,
 } from "@/shared/branding";
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 73, 72, 68, 82]);
@@ -157,5 +157,27 @@ describe("R77 /api/branding", () => {
     await other.signup(undefined, "Grace Hopper", "Other Co");
     expect((await other.get("/api/branding")).body.brand.primary).toBeNull();
     expect((await other.put("/api/branding/logo/nope", {})).status).toBe(404);
+  });
+});
+
+describe("R77 UX gate: sidebar contrast, phone spacing, logo variant", () => {
+  it("keeps quiet sidebar text AA on the sidebar and on its fill, for every preset sidebar", () => {
+    for (const s of [...PRESETS.map((p) => p.sidebar).filter((x): x is string => !!x), "#1e1b4b", "#1c1917", "#f5f5f4", "#fde68a"]) {
+      const t = sidebarTokens(s);
+      for (const k of ["--color-muted", "--color-subtle"]) {
+        expect(contrast(t[k]!, s), `${k} on ${s}`).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(t[k]!, t["--color-fill"]!), `${k} on fill of ${s}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+  it("applies compact spacing only from 640 px, so phones keep 44 px targets", () => {
+    const css = brandCss({ ...DEFAULT_BRAND, density: "compact" } as Brand);
+    expect(css).toContain("@media (min-width:640px){:root{--spacing:");
+    expect(css.split("@media (min-width:640px)")[0]).not.toContain("--spacing");
+  });
+  it("picks the dark logo variant on a dark sidebar in light mode", () => {
+    expect(logoScheme({ sidebar: "#1e1b4b" }, "light", true)).toBe("dark");
+    expect(logoScheme({ sidebar: "#1e1b4b" }, "light", false)).toBe("light");
+    expect(logoScheme({ sidebar: null }, "dark", true)).toBe("dark");
   });
 });
