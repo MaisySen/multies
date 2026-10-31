@@ -373,3 +373,16 @@ describe("R120 client portal", () => {
     expect((await t.c.get(`/api/portals/${p.id}`)).body.requestsOn).toBe(false);
   });
 });
+
+// R120 (staging finding): on Cloudflare the Worker must both run first for /p/* (wrangler run_worker_first) and hand
+// /p/* to the app (src/entry/worker.ts), or the public portal answers the static 404 page.
+describe("R120 /p/* reaches the app on Cloudflare", () => {
+  it("is in run_worker_first and handed to the app by the worker entry", async () => {
+    const { readFileSync } = await import("node:fs");
+    const toml = readFileSync("wrangler.toml", "utf8");
+    const rwf = toml.split("\n").find((l) => l.startsWith("run_worker_first")) ?? "";
+    expect(rwf).toContain('"/p/*"');
+    const entry = readFileSync("src/entry/worker.ts", "utf8");
+    expect(entry).toContain('url.pathname.startsWith("/p/")');
+  });
+});
