@@ -474,10 +474,12 @@ export function ToolsPage() {
     } finally { setChaining(false); }
   };
 
-  if (config.isLoading) return <div className="w-full space-y-4"><Skeleton className="h-10 w-48" /><Skeleton className="h-40 w-full" /></div>;
+  // R100 (R133 M4): the hub has its one h1 in every state, loading and Tools off included.
+  if (config.isLoading) return <div className="w-full space-y-4" aria-busy="true"><h1 className="sr-only">Tools</h1><Skeleton className="h-10 w-48" /><Skeleton className="h-40 w-full" /></div>;
   if (!enabled || info.isError) {
     return (
       <div className="max-w-4xl">
+        <h1 className="large-title mb-4">Tools</h1>
         <EmptyState icon={<IconWrench />} title="Tools are not on for this workspace" body="Document tools are not available here. If your workspace turned them off, an admin can turn them back on in Settings, General." />
       </div>
     );
@@ -846,6 +848,7 @@ export function ToolsPage() {
 function ToolSkeleton() {
   return (
     <div className="w-full lg:grid lg:grid-cols-[236px_minmax(0,1fr)] lg:gap-6" aria-busy="true" aria-label="Loading tool">
+      <h1 className="sr-only">Tools</h1>
       <div className="hidden space-y-2 lg:block">{Array.from({ length: 10 }, (_, i) => <Skeleton key={i} className="h-7 w-full" />)}</div>
       <div className="space-y-4 rounded-2xl border border-line p-6"><Skeleton className="h-11 w-64" /><Skeleton className="h-40 w-full rounded-2xl" /><Skeleton className="h-11 w-40" /></div>
     </div>

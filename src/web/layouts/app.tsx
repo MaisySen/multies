@@ -1,6 +1,8 @@
 import { setDisplayLocale } from "@/web/lib/date-input";
 import { pageFrameClass, pageWidth } from "@/web/lib/page-width"; // R75: page widths next to the sidebar
 import { Suspense, useEffect, useState, type ReactElement } from "react";
+import { createPortal } from "react-dom";
+import { HostSlot, useStableHost } from "./stable-host"; // R100: the page survives the 1024 px layout switch
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconActivity, IconAgent, IconAttachment, IconMegaphone, IconBell, IconBriefcase, IconCalendarClock, IconChart, IconChats, IconCheck, IconChevronsUpDown, IconClipboardCheck, IconClipboardList, IconClose, IconContacts, IconDashboard, IconDocs, IconFlask, IconGlobe, IconInbox, IconKeyboard, IconLogOut, IconMenu, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUserCog, IconVideo, IconWrench, IconZap, type IconComponent } from "@/web/components/ui/icon";
@@ -131,6 +133,7 @@ export function AppLayout() {
   // On Mail the page's own folder list is the sidebar, so the shell's folds away unless the person shows it there.
   const sidebarHidden = sidebarHiddenOn(layout, loc.pathname);
   const desktop = useMediaQuery("(min-width: 1024px)");
+  const mainHost = useStableHost("flex h-full min-h-0 min-w-0 flex-1 flex-col");
   useSidebarShortcut();
   const shellLayout = useDefaultLayout({ id: "shell", storage: panelStorage, panelIds: [...(sidebarHidden ? [] : ["shell-sidebar"]), "shell-main", ...(inspectorOpen ? ["shell-inspector"] : [])] });
   const projectParam = loc.pathname === "/app/tasks" ? new URLSearchParams(loc.search).get("project") : null;
@@ -337,6 +340,7 @@ export function AppLayout() {
   return (
     <div className="app-shell flex h-dvh overflow-hidden">
       <BrandTokens orgId={organization?.id} />
+      {createPortal(content, mainHost)}
       {/* R79 (MB-278): the first Tab stop jumps past the navigation to the page. */}
       <a href="#main" data-testid="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}
         className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-md focus:bg-fg focus:px-3 focus:py-2 focus:text-[13px] focus:font-medium focus:text-bg">Skip to content</a>
@@ -355,7 +359,7 @@ export function AppLayout() {
             {/* R82F: named by title (still read out), so axe does not count the handle as page content outside a landmark. */}
             <Separator className="shell-separator" title="Resize sidebar" />
           </>}
-          <Panel id="shell-main" minSize="480px">{content}</Panel>
+          <Panel id="shell-main" minSize="480px"><HostSlot host={mainHost} className="flex h-full min-w-0 flex-col" /></Panel>
           {inspectorOpen && <>
             <Separator className="shell-separator" title="Resize details panel" />
             <Panel id="shell-inspector" defaultSize="420px" minSize="340px" maxSize="760px">
@@ -365,7 +369,7 @@ export function AppLayout() {
         </Group>
       </>) : (<>
         <aside aria-label="Sidebar" className="glass-sidebar hairline-r hidden w-60 shrink-0 lg:block">{sidebar}</aside>
-        {content}
+        <HostSlot host={mainHost} className="flex h-full min-w-0 flex-1 flex-col" />
       </>)}
       {drawer && (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
