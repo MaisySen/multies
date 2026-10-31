@@ -168,7 +168,8 @@ export function McpDocsPage() {
           <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-xs text-muted"><IconCode className="h-3.5 w-3.5" aria-hidden />Developers</span>
           <h1 className="mt-5 text-4xl font-semibold leading-[1.08] tracking-[-0.03em] sm:text-5xl">MCP tools</h1>
           <p className="mt-5 max-w-2xl text-[17px] leading-relaxed text-muted">
-            Every tool the Multies MCP server offers{tools ? `, all ${tools.length} of them` : ""}, read straight from the server. Each one shows the key scope it needs, its parameters and an example{tools ? `, ${tools.filter((t) => t.example.captured).length} with a real result` : ""}.
+            {/* R76: fixed words, so the paragraph keeps its height when the list arrives (the counts sit by All tools). */}
+            Every tool the Multies MCP server offers, read straight from the server. Each one shows the key scope it needs, its parameters and an example, most with a real result.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-2 text-sm">
             <code className="rounded-lg border border-line bg-surface px-3 py-2 font-mono text-[13px]">{BASE}/api/v1/mcp</code>
@@ -209,7 +210,7 @@ export function McpDocsPage() {
       <section className="mx-auto max-w-5xl px-5 py-14" aria-labelledby="all-tools">
         <div className="sticky top-14 z-10 -mx-5 border-b border-line bg-bg/80 px-5 py-3 backdrop-blur-xl">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 id="all-tools" className="text-lg font-semibold">All tools</h2>
+            <h2 id="all-tools" className="text-lg font-semibold">All tools{tools && <span className="ml-2 text-sm font-normal text-subtle">{tools.length}, {tools.filter((t) => t.example.captured).length} with a real result</span>}</h2>
             <label className="relative ml-auto w-full sm:w-72">
               <span className="sr-only">Search tools</span>
               <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" aria-hidden />
