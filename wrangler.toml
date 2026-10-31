@@ -142,8 +142,8 @@ TOOLS_ENABLED = "true"
 # Tools P2 features (src/shared/tool-features.ts): "all" on staging, only shipped ones on production.
 # Off on production until a lawyer checks the wording (files/plans legal review): esign, merge_mail, the AI
 # features (ask, translate, extract, expenses, contracts) and the attachment index (index, folders).
-# R94: CRM timeline. Off on production until the verifier passes it.
-CRM_TIMELINE = "off"
+# R94: CRM timeline. On after the verifier PASS on staging d006dfd83822 (31 Oct 19:27 UTC).
+CRM_TIMELINE = "on"
 TOOLS_FEATURES = "editor,forms,compare,ocr_langs,scan,protect,stamps,convert_plus,excel,autoredact,batch,share,rules,workflows,templates,api,file_requests,secrets,links"
 DOC_ENGINE_URL = "https://doctool.multies.si"
 DOC_ENGINE_KEY_ID = "prod-1"
