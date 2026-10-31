@@ -76,10 +76,7 @@ export function toolsEsignRoutes() {
     .get("/", async (c) => c.json({ requests: await listRequests(c.var.deps, c.var.auth), usage: await keptUsage(c.var.deps, c.var.auth.orgId), note: ESIGN_NOTE, v2: c.var.deps.config.esignV2 !== false }))
     // R107: templates and bulk send (ESIGN_V2).
     .use("/templates/*", async (c, next) => { if (c.var.deps.config.esignV2 === false) throw new HttpError(404, "not_found", "Not found."); await next(); })
-    .get("/templates", async (c) => {
-      if (c.var.deps.config.esignV2 === false) return c.json({ templates: [] });
-      return c.json({ templates: await listTemplates(c.var.deps, c.var.auth) });
-    })
+    .get("/templates", async (c) => c.json({ templates: await listTemplates(c.var.deps, c.var.auth) }))
     .post("/templates/parse-list", async (c) => {
       const b = await json(c, z.object({ text: z.string().max(20_000) }));
       const r = parseList(b.text);

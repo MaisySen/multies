@@ -39,7 +39,7 @@ export const CONSENT_TEXT = "I have read this document and I agree to sign it el
 export interface EventCtx { ipHash?: string | null; userAgent?: string | null; tz?: string | null; docSha256?: string | null }
 
 export function validTz(v: unknown): string | null {
-  if (typeof v !== "string" || v.length > 64 || !/^[A-Za-z][A-Za-z0-9_+\-]*(\/[A-Za-z0-9_+\-]+){0,2}$/.test(v)) return null;
+  if (typeof v !== "string" || v.length > 64 || !/^[A-Za-z][A-Za-z0-9_+-]*(\/[A-Za-z0-9_+-]+){0,2}$/.test(v)) return null;
   try { new Intl.DateTimeFormat("en-AU", { timeZone: v }); return v; } catch { return null; }
 }
 
@@ -133,7 +133,9 @@ export async function checkCode(deps: Deps, v: SignerView, code: unknown, ctx: E
   const h = await codeHash(deps, s.id, c);
   const { addEvent } = await import("./esign");
   if (!safeEqual(h, s.code_hash)) {
-    await deps.db.run(sql`update sign_signers set code_tries = code_tries + 1 where id = ${s.id}`);
+    // Counted in the statement itself, so parallel guesses cannot go past the limit.
+    const counted = await deps.db.run(sql`update sign_signers set code_tries = code_tries + 1 where id = ${s.id} and code_tries < ${CODE_MAX_TRIES}`);
+    if (!changesOf(counted)) return { ok: false, message: "Too many wrong codes. Ask for a new one.", status: 429 };
     await addEvent(deps, v.r, { signerId: s.id, name: s.name, email: s.email, action: "code_wrong", ...ctx });
     const left = CODE_MAX_TRIES - s.code_tries - 1;
     return { ok: false, message: left > 0 ? `That code is not right. ${left} ${left === 1 ? "try" : "tries"} left.` : "Too many wrong codes. Ask for a new one.", status: 400 };
