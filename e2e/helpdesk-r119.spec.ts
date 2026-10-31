@@ -182,6 +182,8 @@ test("R119 settings, dark, Forest and phone", async ({ page, context, browser, b
     await shot(page, `r119-webchat-${suffix}`);
     expect(await axe(page, `web chat ${suffix}`)).toEqual([]);
     await page.goto("/app/inbox/helpdesk#chat");
+    await expect(page.getByTestId("widget-snippet")).toBeVisible();
+    await expect(page.getByTestId("web-chat-log")).toHaveCount(0);
     await shot(page, `r119-settings-chat-${suffix}`);
     expect(await axe(page, `settings ${suffix}`)).toEqual([]);
   };
