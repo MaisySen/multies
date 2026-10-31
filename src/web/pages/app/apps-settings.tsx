@@ -24,6 +24,8 @@ import { IconClock, IconKey, IconLock, IconMegaphone, IconPlug, IconRefresh, Ico
 import { APP_GROUPS, SOCIAL_FIRST, type AppAvailability, type AppGroup, type ConnectedAccountView } from "@/shared/integrations";
 // R82F (MB-280): the Social posts panel loads with its own tab.
 const SocialPanel = lazyPage(() => import("./apps-social"), "SocialPanel", { quiet: true });
+// R83: TikTok and Threads through our own sign in, at the top of the Social posts tab.
+const DirectAccounts = lazyPage(() => import("./apps-direct"), "DirectAccounts", { quiet: true });
 
 // R82F (MB-279, MB-280): the two older panes load only when their tab opens, so the Apps tab stays light.
 const MailAccounts = lazyPage(() => import("./connections"), "ConnectionsSettings", { quiet: true });
@@ -155,7 +157,8 @@ export function AppsSettings() {
       <Tabs current={current} />
       {current === "mail" ? <Suspense fallback={<TabFallback />}><MailAccounts /></Suspense>
         : current === "webhooks" ? <Suspense fallback={<TabFallback />}><Webhooks embedded /></Suspense>
-        : <OutsideApps social={current === "social"} />}
+        : current === "social" ? <><Suspense fallback={null}><DirectAccounts /></Suspense><OutsideApps social /></>
+        : <OutsideApps social={false} />}
     </div>
   );
 }

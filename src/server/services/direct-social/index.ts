@@ -47,7 +47,7 @@ interface TikTokEvent { client_key?: string; event?: string; create_time?: numbe
 
 /** Applies one verified TikTok event. Unknown events are ignored. */
 export async function handleTikTokEvent(deps: Deps, ev: TikTokEvent) {
-  let content: Record<string, unknown> = {};
+  let content: Record<string, unknown>;
   try { content = typeof ev.content === "string" ? JSON.parse(ev.content) as Record<string, unknown> : (ev.content as unknown as Record<string, unknown>) ?? {}; } catch { content = {}; }
   const publishId = typeof content.publish_id === "string" ? content.publish_id : null;
   switch (ev.event) {

@@ -133,7 +133,7 @@ export function directWebhookRoutes() {
 export function deleteAccountCallbackRoutes() {
   return new Hono<AppEnv>()
     .post("/delete-account", async (c) => {
-      let signed = "";
+      let signed: string;
       try {
         const ct = c.req.header("content-type") ?? "";
         if (ct.includes("application/json")) signed = String(((await c.req.json()) as { signed_request?: string }).signed_request ?? "");
