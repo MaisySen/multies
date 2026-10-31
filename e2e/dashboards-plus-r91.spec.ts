@@ -86,7 +86,7 @@ test("question card, public link with password, emailed report, alert once, bad 
   await anon.close();
 
   // Emailed report to an outside address; Send now lands in the outbox.
-  await page.getByRole("button", { name: "More" }).click();
+  await page.getByTestId("dashboard-view").getByRole("button", { name: "More" }).click();
   await page.getByRole("menuitem", { name: "Emailed reports" }).click();
   const rd = page.getByTestId("reports-dialog");
   await rd.getByRole("button", { name: "New report" }).click();
@@ -120,7 +120,7 @@ test("question card, public link with password, emailed report, alert once, bad 
   }
 
   // A private address as a CSV link is refused in plain words.
-  await page.getByRole("button", { name: "More" }).click();
+  await page.getByTestId("dashboard-view").getByRole("button", { name: "More" }).click();
   await page.getByRole("menuitem", { name: "Data sources" }).click();
   const src = page.getByTestId("sources-dialog");
   await src.getByRole("tab", { name: "CSV link" }).click();
@@ -165,7 +165,7 @@ for (const width of [1280, 390]) {
       await axeClean(page, `dashboard ${tag}`);
       const open = async (name: string, testid: string) => {
         if (name === "Share") await page.getByRole("button", { name: "Share" }).click();
-        else { await page.getByRole("button", { name: "More" }).click(); await page.getByRole("menuitem", { name }).click(); }
+        else { await page.getByTestId("dashboard-view").getByRole("button", { name: "More" }).click(); await page.getByRole("menuitem", { name }).click(); }
         await expect(page.getByTestId(testid)).toBeVisible();
         await page.waitForTimeout(300);
         await page.screenshot({ path: `${SHOTS}/${testid}-${tag}.png` });

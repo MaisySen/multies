@@ -437,8 +437,8 @@ export function QuestionBuilder({ open, initial, onClose, onSave, renderResult }
                 {g?.kind === "date" && <Field label="Per">{(fp) => (<><Select {...fp} value={q.bucket ?? "week"} onChange={(e) => setQ({ ...q, bucket: e.target.value as "day" | "week" | "month" })}><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option></Select></>)}</Field>}
               </div>
               <Field label="Show as">{(fp) => (<>
-                <div {...fp} role="radiogroup" aria-label="Show as" className="flex flex-wrap gap-1.5">
-                  {charts.map((c) => <button key={c.id} type="button" role="radio" aria-checked={chart === c.id} onClick={() => setChart(c.id)} className={cn("rounded-full px-3 py-1 text-[13px]", chart === c.id ? "bg-brand text-on-brand" : "bg-fill text-muted hover:text-fg")}>{c.label}</button>)}
+                <div {...fp} role="radiogroup" aria-label="Show as" className="inline-flex flex-wrap rounded-lg bg-fill p-0.5">
+                  {charts.map((c) => <button key={c.id} type="button" role="radio" aria-checked={chart === c.id} onClick={() => setChart(c.id)} className={cn("rounded-md px-3 py-1.5 text-[13px]", chart === c.id ? "bg-surface font-medium text-fg shadow-sm" : "text-muted hover:text-fg")}>{c.label}</button>)}
                 </div>
               </>)}</Field>
               <Field label="Card title" hint="Leave empty to describe the question">{(fp) => (<><Input {...fp} value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} placeholder={preview.data?.result.label ?? "Question"} /></>)}</Field>
