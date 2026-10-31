@@ -13,12 +13,12 @@ import {
 import { OP_REMOVE_PASSWORD, toolOn, toolTakes, type ToolDef } from "@/shared/tools";
 import { api } from "@/web/lib/api";
 
-export const SECTIONS = ["Edit PDF", "Convert", "Secure", "Smart", "Automate"] as const;
+export const SECTIONS = ["Edit PDF", "Convert", "Secure", "Smart", "Automate", "Utilities"] as const;
 export type Section = (typeof SECTIONS)[number];
 
 /** One colour per section, so a glance says what kind of tool it is. */
 export const SECTION_TINT: Record<Section, string> = {
-  "Edit PDF": "bg-[#0A84FF]", Convert: "bg-[#5E5CE6]", Secure: "bg-[#FF9F0A]", Smart: "bg-[#BF5AF2]", Automate: "bg-[#30B0C7]",
+  "Edit PDF": "bg-[#0A84FF]", Convert: "bg-[#5E5CE6]", Secure: "bg-[#FF9F0A]", Smart: "bg-[#BF5AF2]", Automate: "bg-[#30B0C7]", Utilities: "bg-[#8E8E93]",
 };
 
 type Icon = ComponentType<{ className?: string }>;
@@ -80,6 +80,11 @@ const PAGES: (Omit<Entry, "section" | "icon"> & { feature: string; section: Sect
   // R78: the Convert hub ships with Tools itself (no feature): drop any file, see what it can become.
   // R86: Edit PDF sits with the editors (feature editor): pages, text, signature, black out, watermark and numbers on the device.
   { key: "edit-pdf", feature: "editor", section: "Edit PDF", icon: IconEdit, name: "Edit a PDF", line: "Add text, sign, black out, move pages", words: "edit pdf add text type write sign signature redact black out hide box watermark page numbers reorder rotate delete pages annotate", to: "/app/tools/edit-pdf", takes: /\.pdf$/i },
+  // R100 Tools C: three PDF pages on the device and the everyday utilities (feature tools_c).
+  { key: "pdf-fix", feature: "tools_c", section: "Edit PDF", icon: IconShield, name: "Fix a PDF", line: "Repair, fast web view, lock with a password", words: "repair fix broken damaged corrupt linearize fast web view optimise encrypt password lock aes", to: "/app/tools/pdf-fix", takes: /\.pdf$/i },
+  { key: "pdf-codes", feature: "tools_c", section: "Edit PDF", icon: IconLink, name: "QR and barcodes on a PDF", line: "Put a QR code or barcode on any page", words: "qr code barcode code128 stamp invoice label", to: "/app/tools/pdf-codes", takes: /\.pdf$/i },
+  { key: "pdf-comments", feature: "tools_c", section: "Edit PDF", icon: IconChatQuote, name: "Read comments", line: "Every comment and highlight, page by page", words: "comments annotations highlights notes review markup", to: "/app/tools/pdf-comments", takes: /\.pdf$/i },
+  { key: "utilities", feature: "tools_c", section: "Utilities", icon: IconZap, name: "Utilities", line: "JSON, Base64, hash, UUID, QR, colour, units and more", words: "utilities json yaml csv base64 hash sha md5 uuid qr colour color units timestamp unix diff regex", to: "/app/tools/utilities" },
   { key: "convert-any", feature: "", section: "Convert", icon: IconArrowRightLeft, name: "Convert any file", line: "Drop files, pick what they become", words: "convert change format heic webp avif png jpg gif bmp image photo csv excel xlsx json tsv pdf batch many zip 7z tar rar extract archive video audio mp4 mov mp3 wav epub mobi ebook compress ocr", to: "/app/tools/convert", takes: /./ },
   { key: "esign", feature: "esign", section: "Secure", icon: IconPenLine, name: "Sign", line: "Sign a PDF or ask others to sign it", words: "sign signature esign request", to: "/app/tools/sign", takesAttachment: true, takes: /\.pdf$/i },
   { key: "share", feature: "share", section: "Secure", icon: IconLink, name: "Share as a link", line: "Send a big file as a link with expiry", words: "share link expiry password large file send file request upload link secret one time password send securely", to: "/app/tools/share", takesAttachment: true, takes: /./ },

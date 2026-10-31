@@ -122,6 +122,10 @@ const ToolsPage = lazyPage(() => import("./pages/app/tools"), "ToolsPage");
 const ToolsAiPage = lazyPage(() => import("./pages/app/tools-ai"), "ToolsAiPage"); // Tools P2: AI documents
 const ToolsEditorRoute = lazyPage(() => import("./pages/app/tools-editors/route"), "ToolsEditorRoute"); // Tools P2: editors
 const ConvertHubPage = lazyPage(() => import("./pages/app/tools-convert/convert-hub"), "ConvertHubPage");
+const UtilitiesPage = lazyPage(() => import("./pages/app/tools-c/utilities"), "UtilitiesPage"); // R100
+const PdfFixPage = lazyPage(() => import("./pages/app/tools-c/pdf-pages"), "PdfFixPage"); // R100
+const PdfCodesPage = lazyPage(() => import("./pages/app/tools-c/pdf-pages"), "PdfCodesPage"); // R100
+const PdfCommentsPage = lazyPage(() => import("./pages/app/tools-c/pdf-pages"), "PdfCommentsPage"); // R100
 const EditPdfPage = lazyPage(() => import("./pages/app/tools-edit-pdf/edit-pdf"), "EditPdfPage"); // R86: Edit PDF on the device // R78: Convert hub
 const FilesPage = lazyPage(() => import("./pages/app/files"), "FilesPage"); // Tools P2 (16)
 const ShareLinksPage = lazyPage(() => import("./pages/app/tools-share-sign/share-links"), "ShareLinksPage"); // Tools P2: share links
@@ -280,6 +284,11 @@ export const router = createBrowserRouter([
       { path: "tools/edit-pdf", element: page(<EditPdfPage />) }, // R86 // R78: Convert hub (before the editors' :editor)
       { path: "tools/links", element: page(<ToolFeatureGate features={["links"]}><LinksPage /></ToolFeatureGate>) }, // R87: Links (before :editor)
       { path: "go/:name", element: page(<ToolFeatureGate features={["links"]}><GoOpenPage /></ToolFeatureGate>) }, // R87: go links
+      { path: "tools/utilities", element: page(<ToolFeatureGate features={["tools_c"]}><UtilitiesPage /></ToolFeatureGate>) }, // R100
+      { path: "tools/utilities/:id", element: page(<ToolFeatureGate features={["tools_c"]}><UtilitiesPage /></ToolFeatureGate>) }, // R100
+      { path: "tools/pdf-fix", element: page(<ToolFeatureGate features={["tools_c"]}><PdfFixPage /></ToolFeatureGate>) }, // R100
+      { path: "tools/pdf-codes", element: page(<ToolFeatureGate features={["tools_c"]}><PdfCodesPage /></ToolFeatureGate>) }, // R100
+      { path: "tools/pdf-comments", element: page(<ToolFeatureGate features={["tools_c"]}><PdfCommentsPage /></ToolFeatureGate>) }, // R100
       { path: "tools/:editor", element: page(<ToolsEditorRoute />) }, // Tools P2: editors (pages, forms, compare)
       { path: "files", element: page(<ToolFeatureGate features={["folders", "index"]}><FilesPage /></ToolFeatureGate>) }, // Tools P2 (16): smart folders
       { path: "tools/share", element: page(<ToolFeatureGate features={["share"]}><ShareLinksPage /></ToolFeatureGate>) }, // Tools P2: share links

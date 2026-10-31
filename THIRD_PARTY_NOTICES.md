@@ -189,3 +189,11 @@ katex (MIT) and dayjs (MIT).
 ## @xyflow/react and @xyflow/system (MIT)
 
 Copyright (c) 2019-2025 webkid GmbH. Used for the flow canvas in Automations (R90). Dependencies: zustand (MIT), classcat (MIT), d3-zoom, d3-drag, d3-selection, d3-transition, d3-dispatch (ISC).
+qpdf (R100 Tools C, Fix a PDF; run in the browser as WebAssembly, vendored at public/vendor/qpdf)
+Copyright (c) 2005-2024 Jay Berkenbilt and contributors. Licensed under the Apache License, Version 2.0. https://github.com/qpdf/qpdf
+
+@neslinesli93/qpdf-wasm 0.3.0 (WebAssembly build and loader of qpdf)
+ISC License. Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
+
+yaml 2.9.1 (R100 utilities)
+Copyright Eemeli Aro. ISC License.

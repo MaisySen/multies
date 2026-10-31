@@ -46,7 +46,10 @@ export function loadQpdfFactory(base = "/vendor/qpdf/"): Promise<QpdfFactory> {
     const s = document.createElement("script");
     s.src = `${base}qpdf.js`;
     s.async = true;
-    s.onload = () => { const f = w.Module; w.Module = prior; f ? resolve(f) : reject(new QpdfError("The PDF fixer did not load. Check your connection and try again.")); };
+    s.onload = () => {
+      const f = w.Module; w.Module = prior;
+      if (f) resolve(f); else { factoryPromise = null; reject(new QpdfError("The PDF fixer did not load. Check your connection and try again.")); }
+    };
     s.onerror = () => { factoryPromise = null; reject(new QpdfError("The PDF fixer did not load. Check your connection and try again.")); };
     document.head.appendChild(s);
   });

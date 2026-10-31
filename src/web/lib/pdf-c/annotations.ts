@@ -69,8 +69,8 @@ export async function readNotes(file: File, onPage?: (done: number, total: numbe
   let doc;
   try { doc = await task.promise; } catch (err) {
     void task.destroy();
-    if ((err as { name?: string })?.name === "PasswordException") throw new Error(`${file.name} is locked with a password. Remove the password first.`);
-    throw new Error(`${file.name} could not be opened as a PDF. Try Fix a PDF first.`);
+    if ((err as { name?: string })?.name === "PasswordException") throw new Error(`${file.name} is locked with a password. Remove the password first.`, { cause: err });
+    throw new Error(`${file.name} could not be opened as a PDF. Try Fix a PDF first.`, { cause: err });
   }
   try {
     const total = Math.min(doc.numPages, NOTES_MAX_PAGES);

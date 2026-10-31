@@ -4,7 +4,7 @@ import { copyFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PDFDocument } from "pdf-lib";
-import { fixPdf, looksEncrypted, qpdfArgs, readOutcome, QpdfError, type QpdfFactory } from "../src/web/lib/pdf-c/qpdf";
+import { fixPdf, looksEncrypted, qpdfArgs, readOutcome, type QpdfFactory } from "../src/web/lib/pdf-c/qpdf";
 
 const req = createRequire(import.meta.url);
 // The app package is ESM, so node reads the vendored loader as CommonJS from a .cjs copy.
