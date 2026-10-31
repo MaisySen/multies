@@ -47,6 +47,13 @@ test("whiteboard: create, draw, autosave, export, and two sessions drawing at on
     await ctx.addInitScript(() => localStorage.setItem("mm-debug-board", "1"));
     ctx.on("console", (m) => { if (m.text().startsWith("[board]")) console.log(m.text()); });
   }
+  // Bug 1 (verifier 15:36): the board's fonts must come from our own origin, with no policy errors.
+  const offOrigin: string[] = [];
+  const policyErrors: string[] = [];
+  const ownFonts: number[] = [];
+  ctx.on("request", (r) => { if (!r.url().startsWith("http://localhost") && !r.url().startsWith("data:") && !r.url().startsWith("blob:")) offOrigin.push(r.url()); });
+  ctx.on("response", (r) => { if (r.url().includes("/board-assets/fonts/")) ownFonts.push(r.status()); });
+  ctx.on("console", (m) => { if (m.type() === "error" && /Content Security Policy|font/i.test(m.text())) policyErrors.push(m.text().slice(0, 200)); });
   await page.goto("/app/docs");
   await page.getByTestId("new-whiteboard").click();
   await expect(page).toHaveURL(/\/app\/docs\/[^/?]+$/);
@@ -55,6 +62,8 @@ test("whiteboard: create, draw, autosave, export, and two sessions drawing at on
   await drawBox(page, "rectangle", 120, 120);
   await expect(count(page)).toHaveAttribute("data-element-count", "1");
   await expect.poll(() => sceneCount(page, id), { timeout: 20_000 }).toBe(1);
+  await expect.poll(() => ownFonts.length, { timeout: 15_000 }).toBeGreaterThan(0);
+  expect(ownFonts.every((st) => st === 200)).toBe(true);
 
   // Export
   const [png] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download as PNG" }).click()]);
@@ -72,6 +81,9 @@ test("whiteboard: create, draw, autosave, export, and two sessions drawing at on
   await other.close();
   await page.reload();
   await expect(count(page)).toHaveAttribute("data-element-count", "3", { timeout: 30_000 });
+  // Nothing on a board page asked another origin for anything, and the policy logged nothing.
+  expect(offOrigin).toEqual([]);
+  expect(policyErrors).toEqual([]);
   await ctx.close();
 });
 

@@ -10,7 +10,6 @@ export default function BoardPicture({ scene }: { scene: string }) {
   const [empty, setEmpty] = useState(false);
   useEffect(() => {
     let live = true;
-    if (typeof window !== "undefined") window.EXCALIDRAW_ASSET_PATH = "/board-assets/";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the library's element union
     const elements = restoreElements(readScene(scene).filter((e) => !e.isDeleted) as any, null);
     if (!elements.length) { setEmpty(true); return; }

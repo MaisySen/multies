@@ -1,4 +1,5 @@
 import "./lib/polyfills";
+import "./lib/board-asset-path";
 import { StrictMode } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

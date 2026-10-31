@@ -10,12 +10,11 @@ import { IconDownload, IconEye, IconMaximize, IconMinimize, IconShapes } from "@
 import { cn } from "@/web/lib/cn";
 import type { CollabSession } from "../doc-collab";
 import { isDark, useThemeKey } from "./theme";
-
-declare global { interface Window { EXCALIDRAW_ASSET_PATH?: string | string[] } }
+import { BOARD_ASSET_PATH } from "@/web/lib/board-asset-path";
 
 const loadCanvas = () => {
-  // The board's fonts are served from our own origin (copied at build time).
-  if (typeof window !== "undefined") window.EXCALIDRAW_ASSET_PATH = "/board-assets/";
+  // The board's fonts are served from our own origin (copied at build time); main.tsx sets this first, this is a guard.
+  if (typeof window !== "undefined") window.EXCALIDRAW_ASSET_PATH = BOARD_ASSET_PATH;
   return import("./whiteboard-canvas");
 };
 const WhiteboardCanvas = lazyPage(loadCanvas, "default", { quiet: true });

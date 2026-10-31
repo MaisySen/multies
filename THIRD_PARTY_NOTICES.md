@@ -148,8 +148,10 @@ server only and ships none of its code. App names and logos in the gallery belon
 ## Whiteboard drawing (@excalidraw/excalidraw)
 
 R89: the whiteboard in Docs draws with this library; it loads only when a board is on screen. Its hand drawn fonts
-(Excalifont, Virgil, Nunito, Lilita One, Comic Shanns, Cascadia Code, Liberation Sans, Assistant) are served from
-/board-assets/fonts under their own licences (SIL Open Font License 1.1, Apache 2.0 and MIT, listed in the package).
+(Excalifont, Virgil, Nunito, Lilita One, Comic Shanns, Cascadia Code, Liberation Sans, Assistant, and Xiaolai for
+Chinese, Japanese and Korean text) are served from /board-assets/fonts under their own licences (SIL Open Font
+License 1.1, Apache 2.0 and MIT, listed in the package; Xiaolai is SIL Open Font License 1.1). Our build removes the
+library's public CDN fallback for these fonts, so boards only load fonts from our own origin.
 
 ```
 MIT License
