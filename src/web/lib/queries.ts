@@ -21,18 +21,16 @@ export const qk = {
  * Whether a session exists, without a 401 for signed-out visitors (public pages use
  * this; Better Auth answers get-session with null when nobody is signed in).
  */
-export const useSignedIn = () => {
-  const q = useQuery({
-    queryKey: ["session"],
-    queryFn: async () => {
-      const res = await fetch("/api/auth/get-session", { credentials: "same-origin" });
-      return res.ok ? ((await res.json()) as { user?: unknown } | null) : null;
-    },
-    retry: false,
-    staleTime: 60_000,
-  });
-  return !!q.data?.user;
-};
+export const useSession = () => useQuery({
+  queryKey: ["session"],
+  queryFn: async () => {
+    const res = await fetch("/api/auth/get-session", { credentials: "same-origin" });
+    return res.ok ? ((await res.json()) as { user?: { email?: string } } | null) : null;
+  },
+  retry: false,
+  staleTime: 60_000,
+});
+export const useSignedIn = () => !!useSession().data?.user;
 
 /**
  * R40 (MB-200): the account check retries with backoff on a dropped request or an empty 5xx, starts from the

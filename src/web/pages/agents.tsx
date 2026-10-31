@@ -1,10 +1,12 @@
+import { SITE_URL } from "@/web/components/seo-meta";
 import { IconAgent, IconArrowRight, IconCheck, IconClipboardCheck, IconFileCode, IconKey, IconRadio, IconShieldCheck } from "@/web/components/ui/icon";
 import { useState } from "react";
 import { ButtonLink } from "@/web/components/ui/button";
 import { CopyButton } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 
-const BASE = typeof window !== "undefined" ? window.location.origin : "https://multies.si";
+// R76: a fixed origin, not window.location, so the prerendered HTML and the client render match (no hydration redo).
+const BASE = SITE_URL;
 
 function Code({ code, label }: { code: string; label: string }) {
   return (

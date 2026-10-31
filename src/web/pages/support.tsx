@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { IconHelp, IconMail, IconSmartphone, IconTrash } from "@/web/components/ui/icon";
-import { useConfig, useMe } from "@/web/lib/queries";
+import { useConfig, useSession } from "@/web/lib/queries";
 import { api, ApiError } from "@/web/lib/api";
 import { Button } from "@/web/components/ui/button";
 
@@ -53,7 +53,9 @@ export function SupportPage() {
 /** Public account deletion page: the deletion URL given to Google Play and Apple. */
 export function DeleteAccountPage() {
   useEffect(() => { document.title = "Delete your account | Multies"; }, []);
-  const me = useMe();
+  // R76: the session probe answers signed-out visitors with null instead of a 401 (no console error), and starts
+  // empty on the client as on the prerendered page, so hydration matches.
+  const session = useSession();
   const navigate = useNavigate();
   const [confirm, setConfirm] = useState("");
   const [password, setPassword] = useState("");
@@ -75,7 +77,7 @@ export function DeleteAccountPage() {
     }
   }
 
-  const signedIn = me.isSuccess && !!me.data?.user;
+  const signedIn = !!session.data?.user;
   return (
     <article className="mx-auto max-w-2xl px-5 pb-24 pt-28">
       <p className="text-xs uppercase tracking-wide text-subtle">Account</p>
@@ -114,7 +116,7 @@ export function DeleteAccountPage() {
           </p>
         ) : (
           <form onSubmit={submit} className="mt-3 space-y-4" noValidate>
-            <p className="text-[14.5px] text-muted">Signed in as <span className="text-fg">{me.data?.user.email}</span>.</p>
+            <p className="text-[14.5px] text-muted">Signed in as <span className="text-fg">{session.data?.user?.email}</span>.</p>
             <div>
               <label htmlFor="d-confirm" className="block text-sm font-medium">Type DELETE to confirm</label>
               <input id="d-confirm" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="off" autoCapitalize="characters"

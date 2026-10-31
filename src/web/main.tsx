@@ -1,13 +1,13 @@
 import "./lib/polyfills";
 import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot, hydrateRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "react-router";
 import { preloadAuthPages, router } from "./router";
 import { api, ApiError } from "./lib/api";
 import { qk } from "./lib/queries";
 import type { PublicConfig } from "./lib/types";
-import { scheduleSentry } from "./lib/sentry";
+import { captureWarning, scheduleSentry } from "./lib/sentry";
 import { ErrorBoundary } from "./components/error-boundary";
 import { ThemedToaster } from "./components/theme";
 import { applyMeta } from "./components/seo";
@@ -69,7 +69,11 @@ if (isAuthLayoutPath(window.location.pathname)) {
 // same card over it in one step. A read that fails or a slow network (4 s) renders anyway, as before.
 const rootEl = document.getElementById("root")!;
 const prerenderedAuth = rootEl.dataset.prerendered === "auth";
-if (prerenderedAuth) document.querySelectorAll<HTMLLinkElement>("link[data-defer-css]").forEach((l) => { l.media = "all"; });
+// R76: the landing and the other public pages arrive drawn too (scripts/prerender-landing.ts), each with its own CSS
+// inline. React hydrates that markup instead of drawing it again, so what painted first stays (it is the LCP), and
+// the main stylesheet is turned on now, before anything the inline CSS does not cover can appear.
+const prerenderedPage = rootEl.dataset.prerendered === "landing" || rootEl.dataset.prerendered === "public";
+if (prerenderedAuth || prerenderedPage) document.querySelectorAll<HTMLLinkElement>("link[data-defer-css]").forEach((l) => { l.media = "all"; });
 // R35: the page's own code is always waited for (rendering without it would put the loading fallback over the card,
 // the one layout shift seen on a slow Lighthouse run); only the two reads give up after 4 s.
 const beforeRender = prerenderedAuth
@@ -97,5 +101,32 @@ const render = () => { if (prerenderedAuth) delete rootEl.dataset.prerendered; c
     </QueryClientProvider>
   </StrictMode>,
 ); };
+// R76: hydration. The toaster and the beacon are not in the prerendered markup, so they get their own small root
+// beside it. A page whose markup differs from the build's (a stale cache, say) is redrawn by React; that is reported
+// as a warning, never an error screen.
+const hydrate = () => {
+  delete rootEl.dataset.prerendered;
+  hydrateRoot(rootEl, (
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <ErrorBoundary>
+          <RouterProvider router={router} />
+        </ErrorBoundary>
+      </QueryClientProvider>
+    </StrictMode>
+  ), { onRecoverableError: (err) => captureWarning(err, { kind: "hydration" }) });
+  const side = document.createElement("div");
+  side.id = "root-side";
+  document.body.appendChild(side);
+  createRoot(side).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <ThemedToaster />
+        <AnalyticsBeacon subscribe={beaconRoutes} />
+      </QueryClientProvider>
+    </StrictMode>,
+  );
+};
 if (beforeRender) void beforeRender.then(render);
+else if (prerenderedPage) hydrate();
 else render();

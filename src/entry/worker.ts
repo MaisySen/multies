@@ -45,7 +45,7 @@ import { loadBody, syncConnection } from "../server/services/connect/sync";
 import { LiveBudget, LiveMail, type LiveTouch } from "../server/services/connect/live";
 import { withReadRetry } from "../server/lib/d1-busy";
 import { withWriteMeter } from "../server/services/workspace-budget";
-import { BRAND_CACHE, htmlCacheControl, AUTH_CARD_PATH, loginHtmlFor, originHintsFor, shellFor, withOriginHints, type LoginPrerender } from "../shared/prerender-shell";
+import { BRAND_CACHE, htmlCacheControl, AUTH_CARD_PATH, loginHtmlFor, originHintsFor, publicHtmlFor, shellFor, withOriginHints, type LoginPrerender } from "../shared/prerender-shell";
 import { loginVariant, type LoginVariantOf } from "../server/auth/config";
 import { authFor } from "../server/auth";
 import { endWarmup, replayD1, warmHotRoutes, WARM_SECRET, type WarmFixture, type WarmReport } from "./warmup";
@@ -82,6 +82,8 @@ declare const __MYMAIL_LANDING_HTML__: string;
 declare const __MYMAIL_AUTH_HTML__: string;
 /** R34 (perf2): the sign in shell with critical CSS and one prerendered card per setup (null when not built). */
 declare const __MYMAIL_LOGIN_PRERENDER__: LoginPrerender | null;
+/** R76: the prerendered public pages, one HTML per path (scripts/prerender-landing.ts). */
+declare const __MYMAIL_PUBLIC_HTML__: Record<string, string> | null;
 /** The prerendered card this deployment shows, read from its config once per isolate. */
 let loginCard: LoginVariantOf | null | undefined;
 function loginCardFor(env: WorkerEnv): LoginVariantOf | null {
@@ -492,23 +494,24 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
   }
   // Every app route renders the app shell, which routes client-side.
   const shell = typeof __MYMAIL_SHELL_HTML__ === "string"
-    ? new Response(withOriginHints((AUTH_CARD_PATH.test(url.pathname) && typeof __MYMAIL_LOGIN_PRERENDER__ === "object" ? loginHtmlFor(url.pathname, url.search, __MYMAIL_LOGIN_PRERENDER__, loginCardFor(env)) : null) ?? shellFor(url.pathname, __MYMAIL_SHELL_HTML__, typeof __MYMAIL_LANDING_HTML__ === "string" ? __MYMAIL_LANDING_HTML__ : null, typeof __MYMAIL_AUTH_HTML__ === "string" ? __MYMAIL_AUTH_HTML__ : null), originHintsFor(envVar(env, "SENTRY_DSN_WEB"))), { headers: { "content-type": "text/html; charset=utf-8" } })
+    ? new Response(withOriginHints((AUTH_CARD_PATH.test(url.pathname) && typeof __MYMAIL_LOGIN_PRERENDER__ === "object" ? loginHtmlFor(url.pathname, url.search, __MYMAIL_LOGIN_PRERENDER__, loginCardFor(env)) : null) ?? shellFor(url.pathname, __MYMAIL_SHELL_HTML__, typeof __MYMAIL_LANDING_HTML__ === "string" ? __MYMAIL_LANDING_HTML__ : null, typeof __MYMAIL_AUTH_HTML__ === "string" ? __MYMAIL_AUTH_HTML__ : null, typeof __MYMAIL_PUBLIC_HTML__ === "object" ? __MYMAIL_PUBLIC_HTML__ : null), originHintsFor(envVar(env, "SENTRY_DSN_WEB"))), { headers: { "content-type": "text/html; charset=utf-8" } })
     : await env.ASSETS.fetch(new Request(new URL("/", url), { headers: request.headers }));
   // Unknown pages still get the app (it shows page-not-found) but with a real 404 status.
   const res = withSecurityHeaders(new Response(request.method === "HEAD" ? null : shell.body, { status: isKnownPage(url.pathname) ? 200 : 404, headers: shell.headers }), headers);
   res.headers.set("cache-control", htmlCacheControl("no-cache"));
-  return request.method === "HEAD" ? res : withPageMeta(res, url.pathname);
+  const prerendered = typeof __MYMAIL_PUBLIC_HTML__ === "object" && !!publicHtmlFor(url.pathname, __MYMAIL_PUBLIC_HTML__);
+  return request.method === "HEAD" ? res : withPageMeta(res, url.pathname, prerendered);
 }
 
 /**
  * Puts the page's own title, description, canonical and social tags into the shell, so crawlers and
  * link previews that do not run scripts see the right ones. A streaming rewrite: no extra CPU to speak of.
  */
-interface RewriterElement { setAttribute(name: string, value: string): void; setInnerContent(text: string, opts?: { html: boolean }): void; append(content: string, opts?: { html: boolean }): void }
+interface RewriterElement { setAttribute(name: string, value: string): void; setInnerContent(text: string, opts?: { html: boolean }): void; append(content: string, opts?: { html: boolean }): void; after(content: string, opts?: { html: boolean }): void }
 interface Rewriter { on(selector: string, handler: { element(el: RewriterElement): void }): Rewriter; transform(res: Response): Response }
 declare const HTMLRewriter: { new (): Rewriter } | undefined;
 
-function withPageMeta(res: Response, path: string): Response {
+function withPageMeta(res: Response, path: string, prerendered = false): Response {
   if (typeof HTMLRewriter === "undefined") return res;
   const meta = metaFor(path);
   const url = `${SITE_URL}${path === "/" ? "/" : path.replace(/\/+$/, "")}`;
@@ -524,7 +527,13 @@ function withPageMeta(res: Response, path: string): Response {
     .on('link[rel="canonical"]', { element: (el) => { el.setAttribute("href", url); } })
     .on("head", { element: (el) => { if (meta.noindex) el.append('<meta name="robots" content="noindex" />', { html: true }); } })
     // R60 (trust): residency, safe trial and connections as plain HTML for readers that do not run scripts.
-    .on("#root", { element: (el) => { if (STATIC_FACTS_PATHS.has(cleanPath(path))) el.setInnerContent(residencyStaticHtml(), { html: true }); } })
+    // R76: a prerendered page already carries its content for those readers; the facts then follow it in <noscript>, so
+    // the markup React hydrates is left exactly as the build rendered it.
+    .on("#root", { element: (el) => {
+      if (!STATIC_FACTS_PATHS.has(cleanPath(path))) return;
+      if (prerendered) el.after(`<noscript>${residencyStaticHtml()}</noscript>`, { html: true });
+      else el.setInnerContent(residencyStaticHtml(), { html: true });
+    } })
     .transform(res);
 }
 

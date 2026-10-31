@@ -5,10 +5,21 @@
  */
 export const EMPTY_ROOT = '<div id="root"></div>';
 
-export function injectLanding(shell: string, markup: string): string {
+export function injectLanding(shell: string, markup: string, kind: "landing" | "public" = "landing"): string {
   if (!shell.includes(EMPTY_ROOT)) throw new Error("index.html has no empty #root");
-  if (!markup.trim()) throw new Error("empty landing markup");
-  return shell.replace(EMPTY_ROOT, `<div id="root" data-prerendered="landing">${markup}</div>`);
+  if (!markup.trim()) throw new Error(`empty ${kind} markup`);
+  return shell.replace(EMPTY_ROOT, `<div id="root" data-prerendered="${kind}">${markup}</div>`);
+}
+
+/** R76: paths that show the same page as another (router.tsx), so the build stores that page's HTML once. */
+export const PUBLIC_HTML_ALIASES: Record<string, string> = { "/security": "/trust" };
+
+/** R76: a prerendered public page for a path (trailing slash ignored), when the build made one. */
+export function publicHtmlFor(pathname: string, pages: Record<string, string> | null | undefined): string | null {
+  if (!pages) return null;
+  const clean = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const p = PUBLIC_HTML_ALIASES[clean] ?? clean;
+  return Object.prototype.hasOwnProperty.call(pages, p) ? pages[p] : null;
 }
 
 /**
@@ -23,10 +34,10 @@ export function lowPriorityScripts(html: string): string {
 
 /** The HTML to send for a page path: the prerendered landing for "/", the sign in shell (with its code
  * preloaded) for the auth pages, each when the build made one; else the plain shell. */
-export function shellFor(pathname: string, shell: string, landing: string | null | undefined, auth?: string | null): string {
+export function shellFor(pathname: string, shell: string, landing: string | null | undefined, auth?: string | null, pages?: Record<string, string> | null): string {
   if (pathname === "/" && landing) return landing;
   if (auth && AUTH_SHELL_PATHS.test(pathname)) return auth;
-  return shell;
+  return publicHtmlFor(pathname, pages) ?? shell;
 }
 
 /**

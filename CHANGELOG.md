@@ -7,6 +7,16 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 76 (31 Oct 2026)
+
+- Fixed: /developers/mcp read "Page not found | Multies" in its title, link previews and search results, and carried noindex, since round 36 (26 Oct): the page rendered but had no entry in the page meta table, so it fell back to the not found meta. Every known page now has its own meta, checked by a unit test.
+- Added: /developers, a developer hub with the REST API, MCP tools, agent inboxes and webhooks (all 57 events, grouped), keys and scopes with a first call, and links to mcp.md, llms.txt and status. The footer has a Developers column; /developers is in the sitemap.
+- Changed: 17 public pages (pricing, startups, switch, agents, developers, developers/mcp, status, changelog, support, contact, check, trust and security, delete account and the four legal documents) are prerendered with their own critical CSS and hydrated instead of drawn by the app after it loads; the landing hydrates its prerendered page instead of drawing over it. Hydration mismatches go to Sentry as warnings.
+- Fixed: the agents, developers and MCP pages use the site address in their examples, so the prerendered page and the app agree; the status page's Check again button no longer starts spinning before the first check; the delete account page asks for the session without a 401 in the console when signed out.
+- Security (review 2026-10-31 M1, M2, L1): our check token no longer skips every demo limit. Check demos keep the burst and per address limits (10 an hour) and have their own cap of 30 a day. The header now carries a signed, timestamped value (v1.<time>.<HMAC>, five minutes of skew) instead of the raw token, staging has its own token, scripts/check-header.mjs makes the value for QA scripts, and x-multies-check is scrubbed from Sentry events.
+- Added: e2e/sitemap-walk-r76.spec.ts walks every sitemap page at 1280 and 390 and fails on a non 200, a not found page or title, noindex, sideways scroll, a broken image or a console error, then checks every internal link on the main public pages and that unknown paths answer 404.
+- What's new drops "What's new, in the app" to stay at 14.
+
 ### Round 74 (30 Oct 2026)
 
 - Changed: faster first load on a slow phone network. The icon glyphs split into the ones the first screens draw and the rest (first file 39 to 17 KB gzip), the footer legal line no longer pulls the legal documents into the entry (46 to 37 KB gzip), and the command menu and next page prefetch wait until the page has loaded (skipped on slow or data saving connections).

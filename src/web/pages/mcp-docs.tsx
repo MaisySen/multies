@@ -1,3 +1,4 @@
+import { SITE_URL } from "@/web/components/seo-meta";
 /**
  * R36: public MCP tool docs at /developers/mcp. Every tool comes from /api/mcp-tools, which the server
  * builds from its own tool registrations, so this page can never list a tool the server lacks or miss
@@ -10,7 +11,8 @@ import { CopyButton } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { MCP_RECIPES } from "@/shared/mcp-recipes";
 
-const BASE = typeof window !== "undefined" ? window.location.origin : "https://multies.si";
+// R76: a fixed origin, not window.location, so the prerendered HTML and the client render match (no hydration redo).
+const BASE = SITE_URL;
 
 interface Param { name: string; type: string; required: boolean; description: string; default?: unknown; values?: string[] }
 interface Tool { name: string; title: string; description: string; area: string; areaLabel: string; scope: string; readOnly: boolean; destructive: boolean; params: Param[]; example: { arguments: Record<string, unknown>; result: unknown; resultIsShape: boolean; captured?: boolean } }

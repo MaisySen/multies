@@ -8,19 +8,42 @@
  */
 import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
-import { AUTH_CARD_ROUTES, chunkFiles, injectLanding, LOGIN_VARIANTS, loginVariantKey, lowPriorityScripts, routeChunkMap, ROUTE_MODULES, startCodeAfterPaint, withCriticalCss, withPreloads, withProvidersPreload, type LoginPrerender } from "../src/shared/prerender-shell";
+import { AUTH_CARD_ROUTES, PUBLIC_HTML_ALIASES, chunkFiles, injectLanding, LOGIN_VARIANTS, loginVariantKey, lowPriorityScripts, routeChunkMap, ROUTE_MODULES, startCodeAfterPaint, withCriticalCss, withPreloads, withProvidersPreload, type LoginPrerender } from "../src/shared/prerender-shell";
 import { criticalCss } from "./critical-css";
 
 const out = path.resolve("dist/web");
 const shell = readFileSync(path.join(out, "index.html"), "utf8");
+const cssHrefMain = shell.match(/<link rel="stylesheet" crossorigin href="\/([^"]+)">/)?.[1];
+const mainCss = cssHrefMain && existsSync(path.join(out, cssHrefMain)) ? readFileSync(path.join(out, cssHrefMain), "utf8") : "";
+/** R76: the page's own CSS inline and the main stylesheet off the critical path (main.tsx turns it on), as on sign in. */
+const withPageCss = (html: string) => (mainCss ? withCriticalCss(html, criticalCss(mainCss, [html])) : html);
 try {
   const { renderLanding } = await import("../src/web/prerender");
-  const html = lowPriorityScripts(injectLanding(shell, renderLanding()));
+  const html = withPageCss(lowPriorityScripts(injectLanding(shell, renderLanding())));
   writeFileSync(path.join(out, "landing.html"), html);
   console.log(`prerendered landing → dist/web/landing.html (${Math.round(html.length / 1024)} KB)`);
 } catch (err) {
   rmSync(path.join(out, "landing.html"), { force: true });
   console.warn("[prerender] landing skipped, the plain shell serves /:", (err as Error).message);
+}
+// R76: every other static public page the same way (pricing, legal, developers, status...), one HTML per path.
+try {
+  const { renderPublicPage, PUBLIC_PRERENDER_PATHS } = await import("../src/web/prerender");
+  const pages: Record<string, string> = {};
+  // /security is the same page as /trust (router.tsx); the Worker serves the /trust HTML for it (publicHtmlFor).
+  for (const p of PUBLIC_PRERENDER_PATHS.filter((x) => !PUBLIC_HTML_ALIASES[x])) {
+    try {
+      pages[p] = withPageCss(lowPriorityScripts(injectLanding(shell, renderPublicPage(p), "public")));
+    } catch (err) {
+      console.warn(`[prerender] ${p} skipped, the plain shell serves it:`, (err as Error).message);
+    }
+  }
+  const json = JSON.stringify(pages);
+  writeFileSync(path.join(out, "public-pages.json"), json);
+  console.log(`prerendered public pages → dist/web/public-pages.json (${Object.keys(pages).length} pages, ${Math.round(json.length / 1024)} KB)`);
+} catch (err) {
+  rmSync(path.join(out, "public-pages.json"), { force: true });
+  console.warn("[prerender] public pages skipped, the plain shell serves them:", (err as Error).message);
 }
 
 const manifestFile = path.join(out, ".vite/manifest.json");

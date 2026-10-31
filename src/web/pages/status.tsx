@@ -41,7 +41,7 @@ export function StatusPage() {
             <span className="text-lg font-medium">{statusHeadline(s.overall, s.components)}</span>
           </div>
         ) : <span className="text-muted">{q.error ? "Couldn't reach the status check." : "Checking..."}</span>}
-        <Button size="sm" variant="ghost" onClick={() => q.refetch()} loading={q.isFetching}><IconRefresh className="h-3.5 w-3.5" />Check again</Button>
+        <Button size="sm" variant="ghost" onClick={() => q.refetch()} loading={q.isFetching && (!!s || !!q.error)}><IconRefresh className="h-3.5 w-3.5" />Check again</Button>
       </div>
       {!s && (
         // Placeholder rows hold the layout while the first check runs (no layout shift).

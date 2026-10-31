@@ -9,6 +9,7 @@ import { isKnownPage, KNOWN_PAGE_PATHS } from "../src/shared/known-routes";
 import { metaFor, NOT_FOUND_META, PUBLIC_META } from "../src/web/components/seo-meta";
 import { WEBHOOK_EVENT_GROUPS } from "../src/shared/developer-hub";
 import { WEBHOOK_EVENTS } from "../src/server/services/developer/webhooks";
+import { injectLanding, publicHtmlFor, shellFor, PUBLIC_HTML_ALIASES } from "../src/shared/prerender-shell";
 
 const sitemap = readFileSync("public/sitemap.xml", "utf8");
 const sitemapPaths = [...sitemap.matchAll(/<loc>https:\/\/multies\.si([^<]*)<\/loc>/g)].map((m) => m[1] || "/");
@@ -58,5 +59,34 @@ describe("R76 public pages are fully wired", () => {
     const shown = WEBHOOK_EVENT_GROUPS.flatMap((g) => g.events);
     expect(new Set(shown).size).toBe(shown.length);
     expect([...shown].sort()).toEqual([...WEBHOOK_EVENTS].sort());
+  });
+});
+
+describe("R76 prerendered public pages", () => {
+  const pages = { "/pricing": "<html>pricing</html>", "/trust": "<html>trust</html>" };
+  it("serves a page's own HTML, ignoring a trailing slash, and the shell when none was built", () => {
+    expect(shellFor("/pricing", "SHELL", "LANDING", "AUTH", pages)).toBe(pages["/pricing"]);
+    expect(shellFor("/pricing/", "SHELL", "LANDING", "AUTH", pages)).toBe(pages["/pricing"]);
+    expect(shellFor("/status", "SHELL", "LANDING", "AUTH", pages)).toBe("SHELL");
+    expect(shellFor("/pricing", "SHELL", "LANDING", "AUTH", null)).toBe("SHELL");
+    expect(shellFor("/", "SHELL", "LANDING", "AUTH", pages)).toBe("LANDING");
+    expect(shellFor("/app/inbox", "SHELL", "LANDING", "AUTH", pages)).toBe("SHELL");
+  });
+  it("/security shares the /trust HTML, and lookups never reach the object prototype", () => {
+    expect(PUBLIC_HTML_ALIASES["/security"]).toBe("/trust");
+    expect(publicHtmlFor("/security", pages)).toBe(pages["/trust"]);
+    expect(publicHtmlFor("/constructor", pages)).toBeNull();
+    expect(publicHtmlFor("/__proto__", pages)).toBeNull();
+  });
+  it("marks a prerendered public page for main.tsx to hydrate", () => {
+    expect(injectLanding('<body><div id="root"></div></body>', "<main>x</main>", "public")).toContain('<div id="root" data-prerendered="public"><main>x</main></div>');
+  });
+  it("prerenders every static marketing route in the router except the landing", async () => {
+    const { PUBLIC_PRERENDER_PATHS, renderPublicPage } = await import("../src/web/prerender");
+    for (const p of ["/pricing", "/developers", "/developers/mcp", "/status", "/privacy", "/terms", "/trust"]) expect(PUBLIC_PRERENDER_PATHS).toContain(p);
+    const html = renderPublicPage("/developers");
+    expect(html).toContain("Build on Multies");
+    expect(html).toContain("<!--$-->"); // the same Suspense boundary as router.tsx, so hydration matches
+    expect(html).toContain('href="/developers/mcp"');
   });
 });

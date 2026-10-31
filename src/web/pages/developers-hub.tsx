@@ -1,3 +1,4 @@
+import { SITE_URL } from "@/web/components/seo-meta";
 /**
  * R76: the public developer hub at /developers. One place that points at everything a developer needs:
  * the REST API reference and its OpenAPI file, the MCP server and its tool list, webhooks, keys and the
@@ -8,7 +9,8 @@ import { IconAgent, IconArrowRight, IconCode, IconFileCode, IconKey, IconRadio }
 import { CopyButton } from "@/web/components/ui/misc";
 import { WEBHOOK_EVENT_GROUPS } from "@/shared/developer-hub";
 
-const BASE = typeof window !== "undefined" ? window.location.origin : "https://multies.si";
+// R76: a fixed origin, not window.location, so the prerendered HTML and the client render match (no hydration redo).
+const BASE = SITE_URL;
 
 interface Card { title: string; body: string; href: string; cta: string; icon: typeof IconCode; internal?: boolean }
 

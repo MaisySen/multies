@@ -83,6 +83,10 @@ rmSync(landingFile, { force: true });
 const authFile = path.join(out, "auth.html");
 const authHtml = existsSync(authFile) ? readFileSync(authFile, "utf8") : "";
 rmSync(authFile, { force: true });
+// R76: the prerendered public pages (pricing, legal, developers...), one HTML per path.
+const publicFile = path.join(out, "public-pages.json");
+const publicPages = existsSync(publicFile) ? JSON.parse(readFileSync(publicFile, "utf8")) : null;
+rmSync(publicFile, { force: true });
 // R34 (perf2): the prerendered sign in cards (one per setup); the Worker picks one per request, so not a static file.
 const loginFile = path.join(out, "auth-login.json");
 const loginPrerender = existsSync(loginFile) ? JSON.parse(readFileSync(loginFile, "utf8")) : null;
@@ -123,7 +127,7 @@ const options = (banner: string): BuildOptions => ({
   // Production builds keep an external map for Sentry and wrangler (never served).
   sourcemap: profile === "preview" ? false : "external",
   alias: { "@": path.join(root, "src"), module: path.join(root, "src/server/shims/module.ts"), "@react-email/code-block": path.join(root, "src/server/shims/empty.ts") },
-  define: { __MYMAIL_BUILD_ENV__: JSON.stringify({ ...PROFILES[profile], ...secrets }), __MYMAIL_SHELL_HTML__: JSON.stringify(shellHtml), __MYMAIL_LANDING_HTML__: JSON.stringify(landingHtml), __MYMAIL_AUTH_HTML__: JSON.stringify(authHtml), __MYMAIL_LOGIN_PRERENDER__: JSON.stringify(loginPrerender) },
+  define: { __MYMAIL_BUILD_ENV__: JSON.stringify({ ...PROFILES[profile], ...secrets }), __MYMAIL_SHELL_HTML__: JSON.stringify(shellHtml), __MYMAIL_LANDING_HTML__: JSON.stringify(landingHtml), __MYMAIL_AUTH_HTML__: JSON.stringify(authHtml), __MYMAIL_LOGIN_PRERENDER__: JSON.stringify(loginPrerender), __MYMAIL_PUBLIC_HTML__: JSON.stringify(publicPages) },
   logLevel: "warning",
 });
 await build({ ...options(""), write: false });

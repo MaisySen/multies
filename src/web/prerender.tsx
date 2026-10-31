@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { Suspense, type ReactElement } from "react";
 import { renderToStaticMarkup, renderToString } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -9,6 +9,19 @@ import { ForgotPasswordPage, LoginPage, SignupPage } from "./pages/auth";
 import { authProvidersQuery } from "./lib/auth-providers";
 import { qk } from "./lib/queries";
 import { AUTH_CARD_ROUTES, type AuthCardPage, type LoginVariant } from "../shared/prerender-shell";
+import { PricingPage } from "./pages/pricing";
+import { StartupsPage } from "./pages/startups";
+import { SwitchIndexPage } from "./pages/switch";
+import { AgentsDevPage } from "./pages/agents";
+import { DevelopersPage } from "./pages/developers-hub";
+import { McpDocsPage } from "./pages/mcp-docs";
+import { StatusPage } from "./pages/status";
+import { ChangelogPage } from "./pages/changelog";
+import { LegalPage } from "./pages/legal";
+import { DeleteAccountPage, SupportPage } from "./pages/support";
+import { ContactUsPage } from "./pages/contact";
+import { CheckPage } from "./pages/check";
+import { TrustPage } from "./pages/trust";
 
 /**
  * R30: the landing page rendered to HTML at build time (scripts/prerender-landing.ts), so a phone sees
@@ -80,6 +93,52 @@ function renderAuthMarkup(page: AuthCardPage, v: LoginVariant): string {
         <Routes>
           <Route element={<AuthLayout />}>
             <Route path={path} element={AUTH_CARD_ELEMENTS[page]()} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+/**
+ * R76: the other public pages, rendered at build time the same way as the landing page, so a phone paints the page
+ * from the HTML and its inline CSS instead of waiting for the app's code (Lighthouse mobile: 88% of LCP was render
+ * delay on /pricing, /status, /privacy and /developers/mcp). main.tsx hydrates over it, so nothing is redrawn.
+ * The page sits in the same Suspense boundary as in router.tsx (publicPage), so the client tree matches; until the
+ * page's own code has loaded, React keeps this HTML on screen.
+ */
+const PUBLIC_ELEMENTS: Record<string, () => ReactElement> = {
+  "/pricing": () => <PricingPage />,
+  "/startups": () => <StartupsPage />,
+  "/switch": () => <SwitchIndexPage />,
+  "/agents": () => <AgentsDevPage />,
+  "/developers": () => <DevelopersPage />,
+  "/developers/mcp": () => <McpDocsPage />,
+  "/status": () => <StatusPage />,
+  "/changelog": () => <ChangelogPage />,
+  "/privacy": () => <LegalPage slug="privacy" />,
+  "/support": () => <SupportPage />,
+  "/contact": () => <ContactUsPage />,
+  "/check": () => <CheckPage />,
+  "/trust": () => <TrustPage />,
+  "/security": () => <TrustPage />,
+  "/delete-account": () => <DeleteAccountPage />,
+  "/terms": () => <LegalPage slug="terms" />,
+  "/acceptable-use": () => <LegalPage slug="acceptable-use" />,
+  "/dpa": () => <LegalPage slug="dpa" />,
+};
+export const PUBLIC_PRERENDER_PATHS = Object.keys(PUBLIC_ELEMENTS);
+
+export function renderPublicPage(path: string): string {
+  const el = PUBLIC_ELEMENTS[path];
+  if (!el) throw new Error(`no prerender for ${path}`);
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, enabled: false } } });
+  return renderToString(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route element={<MarketingLayout />}>
+            <Route path={path} element={<Suspense fallback={<div className="min-h-dvh" aria-busy="true" />}>{el()}</Suspense>} />
           </Route>
         </Routes>
       </MemoryRouter>
