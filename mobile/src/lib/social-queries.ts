@@ -3,6 +3,7 @@ import * as WebBrowser from "expo-web-browser";
 import { useSession } from "./session";
 import { isMissingEndpoint } from "./moderation";
 import { API_BASE, WEB_PAGES } from "@/config";
+import { INBOX_STALE_MS, inboxQuery, putItem, type InboxFilter, type InboxItemView, type InboxListResponse, type InboxNoteView, type InboxPatch, type InboxThreadResponse } from "./social-inbox";
 import { mergePosts, stillSending, syncIds, type NewSocialPost, type SocialPostView } from "./social";
 
 /** 1.10.5: social posts and accounts on the phone. Never cached on the phone: they change on the server. */
@@ -207,7 +208,7 @@ export async function openWebSocialAccounts() {
 }
 
 /* 1.10.6: which part of Social to show when going back to it (the screen after posting opens Posts with "View in Posts"). */
-export type SocialTab = "posts" | "new" | "accounts";
+export type SocialTab = "posts" | "inbox" | "new" | "accounts";
 let wantedTab: { tab: SocialTab; n: number } | null = null;
 const tabListeners = new Set<() => void>();
 export function requestSocialTab(tab: SocialTab) { wantedTab = { tab, n: (wantedTab?.n ?? 0) + 1 }; tabListeners.forEach((l) => l()); }
@@ -223,3 +224,94 @@ export function rememberDraft(d: SocialDraft) { lastDraft = d; }
 export function restoreLastDraft() { restore = lastDraft; }
 /** The composer takes the words back once. */
 export function takeRestoredDraft(): SocialDraft | null { const d = restore; restore = null; return d; }
+
+/* ---------------------------------------------------------------- 1.10.8: the Social inbox */
+
+export const inboxKeys = {
+  all: ["social", "inbox"] as const,
+  list: (f: InboxFilter) => ["social", "inbox", "list", f] as const,
+  thread: (id: string) => ["social", "inbox", "thread", id] as const,
+  saved: ["social", "inbox", "saved"] as const,
+};
+
+/** True when the server has no inbox for this workspace (feature off, an older server, or no social access). */
+export const inboxOff = (e: unknown) => isMissingEndpoint(e) || (e instanceof Error && "status" in e && (e as { status: number }).status === 403);
+
+/**
+ * One filter of the inbox. Opening it asks the server to pull from the networks when the last pull is older than five
+ * minutes (the web does the same); the server holds pulls to one per 30 seconds. Polls every minute while on screen.
+ */
+export function useSocialInbox(filter: InboxFilter, enabled = true) {
+  const { api } = useSession();
+  return useQuery({
+    queryKey: inboxKeys.list(filter),
+    enabled,
+    queryFn: async () => {
+      const r = await api.socialInbox(inboxQuery(filter));
+      const old = !r.syncedAt || Date.now() - Date.parse(r.syncedAt) > INBOX_STALE_MS;
+      if (r.stale || old) {
+        try { await api.syncSocialInbox(); return await api.socialInbox(inboxQuery(filter)); } catch { return r; }
+      }
+      return r;
+    },
+    retry: (n, e) => !inboxOff(e) && n < 2,
+    refetchInterval: 60_000,
+  });
+}
+
+/** The open count for the badge on the Social entry. Quiet when the inbox is off. */
+export function useInboxBadge(enabled = true) {
+  const { api } = useSession();
+  return useQuery({
+    queryKey: inboxKeys.list("all"),
+    enabled,
+    queryFn: () => api.socialInbox(inboxQuery("all")),
+    select: (d: InboxListResponse) => d.counts.open,
+    retry: false,
+    staleTime: 60_000,
+  });
+}
+
+export function useInboxThread(id: string | null | undefined) {
+  const { api } = useSession();
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: inboxKeys.thread(id ?? ""),
+    enabled: !!id,
+    queryFn: () => api.socialInboxThread(id!),
+    placeholderData: () => {
+      for (const [, d] of qc.getQueriesData<InboxListResponse>({ queryKey: ["social", "inbox", "list"] })) {
+        const item = d?.items.find((x) => x.id === id);
+        if (item) return { item, notes: [] } as InboxThreadResponse;
+      }
+      return undefined;
+    },
+  });
+}
+
+/** Saved replies, where the server has them. A missing route means none. */
+export function useSavedReplies(enabled = true) {
+  const { api } = useSession();
+  return useQuery({ queryKey: inboxKeys.saved, enabled, queryFn: async () => { try { return (await api.socialSavedReplies()).replies; } catch { return []; } }, staleTime: 5 * 60_000 });
+}
+
+export function useInboxActions(id: string) {
+  const { api } = useSession();
+  const qc = useQueryClient();
+  const put = (item: InboxItemView | undefined, note?: InboxNoteView) => {
+    if (!item) return;
+    qc.setQueryData<InboxThreadResponse>(inboxKeys.thread(id), (d) => (d ? { item, notes: note ? [...d.notes, note] : d.notes } : d));
+    for (const [key, d] of qc.getQueriesData<InboxListResponse>({ queryKey: ["social", "inbox", "list"] })) {
+      if (d) qc.setQueryData(key, { ...d, items: putItem(d.items, item) });
+    }
+  };
+  const settle = () => { void qc.invalidateQueries({ queryKey: ["social", "inbox", "list"] }); };
+  const patch = useMutation({ mutationFn: (p: InboxPatch) => api.patchSocialInbox(id, p), onSuccess: (r) => put(r.item), onSettled: settle });
+  const note = useMutation({
+    mutationFn: (text: string) => api.noteSocialInbox(id, text),
+    onSuccess: (r) => { qc.setQueryData<InboxThreadResponse>(inboxKeys.thread(id), (d) => (d ? { ...d, notes: [...d.notes, r.note] } : d)); },
+  });
+  const reply = useMutation({ mutationFn: (text: string) => api.replySocialInbox(id, text), onSuccess: (r) => put(r.item, r.note), onSettled: settle });
+  const task = useMutation({ mutationFn: () => api.taskFromSocialInbox(id), onSuccess: (r) => put(r.item) });
+  return { patch, note, reply, task };
+}

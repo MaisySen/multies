@@ -8,7 +8,8 @@ import { NotificationBell } from "@/components/notification-bell";
 import { useBadges } from "@/lib/use-badges";
 import { useMeetings, useTasks } from "@/lib/queries";
 import { useSession } from "@/lib/session";
-import { useSocialPosts, useSocialStatus } from "@/lib/social-queries";
+import { useInboxBadge, useSocialPosts, useSocialStatus } from "@/lib/social-queries";
+import { badgeText } from "@/lib/social-inbox";
 import { socialSummary } from "@/lib/social";
 import { dayFrom } from "@/lib/tasks";
 import { focusTasks, greeting, nextMeeting, whenLabel } from "@/lib/today";
@@ -36,6 +37,8 @@ export default function Today() {
   const socialOn = useSocialStatus();
   const posts = useSocialPosts(!!socialOn.data?.available);
   const social = socialOn.data?.available ? socialSummary(posts.data) : null;
+  // 1.10.8: open conversations in the Social inbox, as a badge on the card (quiet where the inbox is off).
+  const inboxOpen = badgeText(useInboxBadge(!!socialOn.data?.available).data);
   const date = now.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" });
   const go = (path: string) => { tick(); router.push(path as never); };
 
@@ -66,15 +69,15 @@ export default function Today() {
         </PressableCard>
 
         {social ? (
-          <PressableCard onPress={() => go("/social")} testID="today-social" accessibilityRole="button"
-            accessibilityLabel={`Social, ${social.title}${social.detail ? `, ${social.detail}` : ""}`} style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+          <PressableCard onPress={() => go(inboxOpen && !social.failed ? "/social?tab=inbox" : "/social")} testID="today-social" accessibilityRole="button"
+            accessibilityLabel={`Social, ${social.title}${social.detail ? `, ${social.detail}` : ""}${inboxOpen ? `, ${inboxOpen} open in the inbox` : ""}`} style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
             <Tile icon="send" tile="pink" />
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={font.tiny}>Social</Text>
               <Text style={font.headline} numberOfLines={1}>{social.title}</Text>
               {social.detail ? <Text style={[font.tiny, { color: colors.subtle }]} numberOfLines={1}>{social.detail}</Text> : null}
             </View>
-            {social.failed ? <Badge label={`${social.failed} failed`} tone="bad" /> : <Icon name="chevron-right" size={18} color={colors.subtle} />}
+            {social.failed ? <Badge label={`${social.failed} failed`} tone="bad" /> : inboxOpen ? <Badge label={`${inboxOpen} to answer`} tone="brand" icon="inbox" /> : <Icon name="chevron-right" size={18} color={colors.subtle} />}
           </PressableCard>
         ) : null}
 

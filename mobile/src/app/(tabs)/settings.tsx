@@ -1,3 +1,5 @@
+import { useInboxBadge, useSocialStatus } from "@/lib/social-queries";
+import { badgeText } from "@/lib/social-inbox";
 import { useEffect, useState } from "react";
 import { Alert, Platform, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
@@ -29,6 +31,9 @@ export default function Settings() {
   const insets = useSafeAreaInsets();
   const blocksQ = useBlocks();
   const tools = useTools();
+  // 1.10.8: open conversations in the Social inbox, shown on the Social row.
+  const socialSt = useSocialStatus();
+  const socialInbox = badgeText(useInboxBadge(!!socialSt.data?.available).data);
   const version = currentVersionFacts();
   const [push, setPush] = useState<PushState | null>(null);
   const [allowed, setAllowed] = useState(false);
@@ -90,7 +95,7 @@ export default function Settings() {
       <Row tile="purple" icon="cpu" label="Agent inboxes" value={overview.data ? String(overview.data.filter((m) => m.kind === "agent").length) : undefined} />
       <Row tile="gray" icon="hard-drive" label="Storage used" value={overview.data ? bytes(used) : undefined} />
       {tools.data ? <Row tile="brand" icon="wrench" label="Tools" value="PDF and Office" onPress={() => router.push("/tools")} testID="tools-link" /> : null}
-      <Row tile="pink" icon="send" label="Social" value="Posts and accounts" onPress={() => router.push("/social")} testID="social-link" />
+      <Row tile="pink" icon="send" label="Social" value={socialInbox ? `${socialInbox} open in inbox` : "Posts, inbox and accounts"} onPress={() => router.push("/social")} testID="social-link" />
       <Row tile="green" icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="meetings" />
       <Row tile="orange" icon="layers" label="Portfolio" onPress={() => router.push("/portfolio")} testID="portfolio-link" />
       <Row tile="teal" icon="users" label="People" onPress={() => router.push("/people")} testID="people-link" />

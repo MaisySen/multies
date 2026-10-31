@@ -60,7 +60,7 @@ export class SampleTransport implements Transport {
     const json = <R>(v: R) => structuredCloneSafe(v) as unknown as T;
 
     // 1.10.5: social posts and accounts.
-    const social = socialRoute(this.social, method, path, body, Date.now());
+    const social = socialRoute(this.social, method, path.startsWith("/social/inbox") ? rawPath : path, body, Date.now());
     if (social !== undefined) return json(social);
 
     // 1.10.7: Inbox tabs, labels, snoozed mail and mail rules.

@@ -10,6 +10,7 @@ import type {
 
 import type { ToolJob, ToolsInfo } from "@/lib/tools";
 import type { InboxTabs, MailRule, MailRuleRun, RuleInput, RuleTestResult, TabStyle } from "@/lib/mail-rules";
+import type { InboxItemView, InboxListResponse, InboxNoteView, InboxPatch, InboxThreadResponse, SavedReplyView } from "@/lib/social-inbox";
 import type { ConnectedAccountView, DeleteResult, DirectStatusResponse, NewSocialPost, SocialAccountHealth, SocialPostView, TargetOption } from "@/lib/social";
 
 /** One pending snooze (GET /api/mail-schedules?view=snoozed) or one that came back (view=returned). */
@@ -182,6 +183,15 @@ export function endpoints(t: Transport) {
     socialPost: (id: string) => t.request<{ post: SocialPostView }>("GET", `/social/posts/${encodeURIComponent(id)}`),
     syncSocialPosts: (ids: string[]) => t.request<{ posts: SocialPostView[] }>("POST", "/social/posts/sync", { ids }),
     deleteSocialPost: (id: string) => t.request<DeleteResult>("DELETE", `/social/posts/${encodeURIComponent(id)}`),
+    // 1.10.8: the Social inbox (server R118, session routes under /api/social; 404 when it is off for the workspace).
+    socialInbox: (query: string) => t.request<InboxListResponse>("GET", `/social/inbox${query}`),
+    syncSocialInbox: () => t.request<unknown>("POST", "/social/inbox/sync", {}),
+    socialInboxThread: (id: string) => t.request<InboxThreadResponse>("GET", `/social/inbox/${encodeURIComponent(id)}`),
+    patchSocialInbox: (id: string, patch: InboxPatch) => t.request<{ item: InboxItemView }>("PATCH", `/social/inbox/${encodeURIComponent(id)}`, patch),
+    noteSocialInbox: (id: string, text: string) => t.request<{ note: InboxNoteView }>("POST", `/social/inbox/${encodeURIComponent(id)}/notes`, { text }),
+    replySocialInbox: (id: string, text: string) => t.request<{ note: InboxNoteView; item: InboxItemView }>("POST", `/social/inbox/${encodeURIComponent(id)}/reply`, { text }),
+    taskFromSocialInbox: (id: string) => t.request<{ taskId: string; item: InboxItemView }>("POST", `/social/inbox/${encodeURIComponent(id)}/task`, {}),
+    socialSavedReplies: () => t.request<{ replies: SavedReplyView[] }>("GET", "/social/saved-replies"),
     appsStatus: () => t.request<{ available: boolean; canManage: boolean }>("GET", "/apps/status"),
     appAccounts: () => t.request<{ accounts: ConnectedAccountView[] }>("GET", "/apps/accounts"),
     /** Starts a sign in with the network. The phone opens redirectUrl in the browser, then confirms. */

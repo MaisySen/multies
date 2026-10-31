@@ -99,6 +99,7 @@ function Navigator({ client }: { client: QueryClient }) {
         {/* 1.10.6: Social keeps a fixed standard header (no large title): its parts and filters are pinned under it and
             only the list below scrolls, so nothing slides under the header. See __tests__/social-1106.test.tsx. */}
         <Stack.Screen name="social" options={{ headerLargeTitle: false, title: "Social" }} />
+        <Stack.Screen name="social-inbox/[id]" options={{ headerLargeTitle: false, title: "Conversation" }} />
         <Stack.Screen name="social-post/[id]" options={{ headerLargeTitle: false, title: "Post" }} />
         <Stack.Screen name="social-posted/[id]" options={{ headerLargeTitle: false, title: "", headerBackVisible: false, gestureEnabled: false }} />
         <Stack.Screen name="people" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "People" }} />

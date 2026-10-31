@@ -3,6 +3,18 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.10.8 (OTA, runs on Android versionCode 16 and iOS build 20), 1 Nov 2026
+
+- Social inbox on the phone: comments, messages and mentions from your pages in one list, the same as on the web.
+  Filter by Open, Mine, Unassigned and Done, and pull down to check for new ones.
+- Open a conversation to reply on the network, add a note for your team, use a saved reply, take it or hand it to
+  someone (owners and admins), make a task from it, and mark it done with Undo.
+- Facebook and Instagram messages show how long you have left to reply (they only take replies within 24 hours of
+  the last message), and say what to do once the window has closed.
+- Account health: accounts that need signing in again sit at the top of Social, Accounts with Reconnect, and each
+  account says what it can do (LinkedIn is posting only).
+- Today and Settings show how many conversations are open. New Social inbox command.
+
 ## 1.10.7 (OTA, runs on Android versionCode 16 and iOS build 20), 31 Oct 2026
 
 - Inbox tabs: Primary, Updates and Promotions (or Important and Other), each with its unread count, the same as on the

@@ -22,8 +22,12 @@ import {
   useSocialActions, useSocialHealth, useSocialPosts, useSocialStatus, useSocialSync, useSocialTargets, type SocialTab,
 } from "@/lib/social-queries";
 import { colors, font, radius, space } from "@/theme";
+import { InboxFilters, InboxTab } from "@/components/social-inbox";
+import { capLine, pinBroken, type InboxFilter } from "@/lib/social-inbox";
+import { inboxOff, useSocialInbox } from "@/lib/social-queries";
 
-const TABS: { id: SocialTab; label: string }[] = [{ id: "posts", label: "Posts" }, { id: "new", label: "New post" }, { id: "accounts", label: "Accounts" }];
+const TABS: { id: SocialTab; label: string }[] = [{ id: "posts", label: "Posts" }, { id: "inbox", label: "Inbox" }, { id: "new", label: "New post" }, { id: "accounts", label: "Accounts" }];
+const isTab = (t: string | undefined): t is SocialTab => t === "posts" || t === "inbox" || t === "new" || t === "accounts";
 
 /**
  * Social on the phone: Posts, New post and Accounts, the same three places as the web's Social area.
@@ -34,7 +38,8 @@ const TABS: { id: SocialTab; label: string }[] = [{ id: "posts", label: "Posts" 
  */
 export default function Social() {
   const params = useLocalSearchParams<{ tab?: string }>();
-  const [tab, setTab] = useState<SocialTab>(params.tab === "new" || params.tab === "accounts" ? params.tab : "posts");
+  const [tab, setTab] = useState<SocialTab>(isTab(params.tab) ? params.tab : "posts");
+  const [inboxFilter, setInboxFilter] = useState<InboxFilter>("all");
   const [filter, setFilter] = useState<PostFilter>("all");
   const status = useSocialStatus();
   const offline = useOffline();
@@ -45,7 +50,12 @@ export default function Social() {
   const [seen, setSeen] = useState(wanted?.n ?? 0);
   if (wanted && wanted.n !== seen) { setSeen(wanted.n); setTab(wanted.tab); if (wanted.tab === "posts") setFilter("all"); }
   const [param, setParam] = useState(params.tab);
-  if (params.tab !== param) { setParam(params.tab); if (params.tab === "new" || params.tab === "accounts" || params.tab === "posts") setTab(params.tab); }
+  if (params.tab !== param) { setParam(params.tab); if (isTab(params.tab)) setTab(params.tab); }
+  // 1.10.8: the Inbox part shows only where the server has the Social inbox for this workspace.
+  const inbox = useSocialInbox(inboxFilter, available);
+  const inboxOn = !(inbox.error && inboxOff(inbox.error));
+  const tabs = inboxOn ? TABS : TABS.filter((t) => t.id !== "inbox");
+  const shown: SocialTab = tab === "inbox" && !inboxOn ? "posts" : tab;
 
   if (status.isPending) return <View style={{ flex: 1, backgroundColor: colors.bg }} testID="social-loading"><PostSkeletons /></View>;
   if (status.error || !available) {
@@ -57,18 +67,20 @@ export default function Social() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }} testID="social">
       <View style={styles.pinned} testID="social-pinned">
-        <Segmented label="Social" value={tab} options={TABS} onChange={(v) => { tick(); clearSocialToast(); setTab(v); }} />
-        {tab === "posts" ? (
+        <Segmented label="Social" value={shown} options={tabs} onChange={(v) => { tick(); clearSocialToast(); setTab(v); }} />
+        {shown === "inbox" ? <InboxFilters value={inboxFilter} onChange={setInboxFilter} counts={inbox.data?.counts} /> : null}
+        {shown === "posts" ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, flexGrow: 1 }} accessibilityLabel="Filter posts" testID="social-filters">
             {POST_FILTERS.map((f) => <FilterChip key={f.id} label={f.label} count={posts.data ? count(f.id) : undefined} selected={filter === f.id} onPress={() => setFilter(f.id)} testID={`filter-${f.id}`} />)}
           </ScrollView>
         ) : null}
-        {offline ? <Banner text={tab === "new" ? "You're offline. You can post when you're back." : posts.dataUpdatedAt ? `You're offline. Showing what loaded ${ago(new Date(posts.dataUpdatedAt).toISOString())}.` : "You're offline. Posts and accounts load again when you're back."} /> : null}
+        {offline ? <Banner text={shown === "inbox" ? "You're offline. Showing what loaded last. Replies send when you're back." : shown === "new" ? "You're offline. You can post when you're back." : posts.dataUpdatedAt ? `You're offline. Showing what loaded ${ago(new Date(posts.dataUpdatedAt).toISOString())}.` : "You're offline. Posts and accounts load again when you're back."} /> : null}
       </View>
       <View style={{ flex: 1 }}>
-        {tab === "posts" ? <PostsTab canManage={canManage} filter={filter} onNew={() => setTab("new")} /> : null}
-        {tab === "new" ? <NewPostTab canManage={canManage} offline={offline} onAccounts={() => setTab("accounts")} /> : null}
-        {tab === "accounts" ? <AccountsTab canManage={canManage} /> : null}
+        {shown === "inbox" ? <InboxTab filter={inboxFilter} onAccounts={() => setTab("accounts")} /> : null}
+        {shown === "posts" ? <PostsTab canManage={canManage} filter={filter} onNew={() => setTab("new")} /> : null}
+        {shown === "new" ? <NewPostTab canManage={canManage} offline={offline} onAccounts={() => setTab("accounts")} /> : null}
+        {shown === "accounts" ? <AccountsTab canManage={canManage} /> : null}
       </View>
       <SocialToastHost />
     </View>
@@ -410,7 +422,7 @@ function AccountsTab({ canManage }: { canManage: boolean }) {
       refreshControl={<RefreshControl refreshing={pulling} onRefresh={refresh} tintColor={colors.brand} />} testID="social-accounts">
       {social.length ? (
         <InsetGroup header="Connected" footer={checked ? `Checked ${checked}. Pull down to check again.` : "Pull down to check your accounts again."}>
-          {social.map((a) => {
+          {pinBroken(social, (a) => { const c = healthChip(a, health.data?.find((x) => x.accountId === a.id) ?? null).label; return c !== "Ready to post" && c !== "Off"; }).map((a) => {
             const h = health.data?.find((x) => x.accountId === a.id) ?? null;
             const chip = healthChip(a, h);
             const problem = chip.label !== "Ready to post" && chip.label !== "Off";
@@ -421,6 +433,7 @@ function AccountsTab({ canManage }: { canManage: boolean }) {
                 <View style={{ flex: 1, paddingVertical: 10, gap: 1 }}>
                   <Text style={g.label} numberOfLines={1}>{a.label ?? appName(a.app, a.appName)}</Text>
                   <Text style={g.sub} numberOfLines={1}>{appName(a.app, a.appName)}</Text>
+                  <Text style={[g.sub, { color: colors.subtle }]} testID={`account-caps-${a.app}`}>{capLine(a.app)}</Text>
                   {line ? <Text style={[g.sub, { color: colors.warn }]}>{line}</Text> : null}
                 </View>
                 {problem && canManage
