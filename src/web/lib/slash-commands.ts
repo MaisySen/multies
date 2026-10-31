@@ -14,7 +14,9 @@ export type SlashAction =
   | { kind: "blockquote" } | { kind: "codeBlock" } | { kind: "horizontalRule" }
   | { kind: "linkPicker" } | { kind: "date" }
   // R32: blocks from docs-blocks-schema.ts and docs-callout.ts
-  | { kind: "table" } | { kind: "image" } | { kind: "callout"; variant: "info" | "success" | "warning" | "danger" };
+  | { kind: "table" } | { kind: "image" } | { kind: "callout"; variant: "info" | "success" | "warning" | "danger" }
+  // R89: whiteboard and diagram blocks (docs-visual-schema.ts)
+  | { kind: "whiteboard" } | { kind: "diagram"; template: "flowchart" | "sequence" | "org" | "er" | "gantt" };
 
 export interface SlashItem { id: string; label: string; hint: string; group: SlashGroup; keywords: string[]; markdown?: string; action: SlashAction }
 
@@ -36,6 +38,12 @@ export const SLASH_ITEMS: SlashItem[] = [
   { id: "todo", label: "To-do list", hint: "Tick items off", group: "Lists", keywords: ["task", "checkbox", "checklist", "todo"], markdown: "[]", action: { kind: "taskList" } },
   { id: "table", label: "Table", hint: "Rows and columns", group: "Media", keywords: ["grid", "rows", "columns", "spreadsheet", "cells"], action: { kind: "table" } },
   { id: "image", label: "Image", hint: "Upload or add by link", group: "Media", keywords: ["picture", "photo", "img", "screenshot", "upload"], action: { kind: "image" } },
+  { id: "whiteboard", label: "Whiteboard", hint: "Draw and sketch together", group: "Media", keywords: ["draw", "sketch", "canvas", "board", "drawing", "shapes", "sticky"], action: { kind: "whiteboard" } },
+  { id: "diagram", label: "Flowchart", hint: "A diagram drawn from text", group: "Media", keywords: ["diagram", "chart", "flow", "graph", "boxes", "arrows", "mermaid"], action: { kind: "diagram", template: "flowchart" } },
+  { id: "diagram-sequence", label: "Sequence diagram", hint: "Who talks to whom, in order", group: "Media", keywords: ["diagram", "sequence", "steps", "messages"], action: { kind: "diagram", template: "sequence" } },
+  { id: "diagram-org", label: "Org chart", hint: "People and who they report to", group: "Media", keywords: ["diagram", "org", "team", "people", "hierarchy", "reports"], action: { kind: "diagram", template: "org" } },
+  { id: "diagram-er", label: "Data model", hint: "Tables and how they link", group: "Media", keywords: ["diagram", "er", "entity", "database", "tables", "schema"], action: { kind: "diagram", template: "er" } },
+  { id: "diagram-gantt", label: "Timeline chart", hint: "Phases on a calendar", group: "Media", keywords: ["diagram", "gantt", "timeline", "schedule", "plan", "phases"], action: { kind: "diagram", template: "gantt" } },
   { id: "link", label: "Link a page or task", hint: "Find and link it", group: "Embeds", keywords: ["mention", "page", "doc", "task", "reference", "[["], action: { kind: "linkPicker" } },
   { id: "date", label: "Today's date", hint: "Insert the date", group: "Embeds", keywords: ["date", "today", "time", "now"], action: { kind: "date" } },
 ];

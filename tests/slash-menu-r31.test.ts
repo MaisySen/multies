@@ -15,7 +15,7 @@ describe("slash menu", () => {
   });
 
   it("lists every supported block, with unique ids and an action each", () => {
-    expect(SLASH_ITEMS.map((i) => i.id)).toEqual(["text", "h1", "h2", "h3", "quote", "code", "divider", "callout", "callout-success", "callout-warning", "callout-danger", "bullets", "numbers", "todo", "table", "image", "link", "date"]);
+    expect(SLASH_ITEMS.map((i) => i.id)).toEqual(["text", "h1", "h2", "h3", "quote", "code", "divider", "callout", "callout-success", "callout-warning", "callout-danger", "bullets", "numbers", "todo", "table", "image", "whiteboard", "diagram", "diagram-sequence", "diagram-org", "diagram-er", "diagram-gantt", "link", "date"]);
     expect(new Set(SLASH_ITEMS.map((i) => i.id)).size).toBe(SLASH_ITEMS.length);
     expect(SLASH_ITEMS.find((i) => i.id === "h2")!.action).toEqual({ kind: "heading", level: 2 });
     expect(SLASH_ITEMS.find((i) => i.id === "todo")!.action).toEqual({ kind: "taskList" });

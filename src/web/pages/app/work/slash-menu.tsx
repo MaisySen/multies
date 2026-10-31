@@ -6,12 +6,14 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
-import { IconCalendar, IconCheckCircle, IconCode, IconHeading1, IconHeading2, IconHeading3, IconImage, IconInfo, IconLink, IconList, IconListOrdered, IconMinus, IconOctagonAlert, IconQuote, IconTable, IconTasks, IconText, IconWarning, type IconComponent } from "@/web/components/ui/icon";
+import { IconCalendar, IconCheckCircle, IconCode, IconHeading1, IconHeading2, IconHeading3, IconImage, IconInfo, IconLink, IconList, IconListOrdered, IconMinus, IconOctagonAlert, IconQuote, IconShapes, IconTable, IconTasks, IconText, IconWarning, IconWorkflow, type IconComponent } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
 import { filterSlash, groupSlash, moveSel, slashQuery, todayText, type SlashItem } from "@/web/lib/slash-commands";
+import { templateCode } from "@/web/lib/diagram"; // R89
 
 const ICONS: Record<string, IconComponent> = { text: IconText, h1: IconHeading1, h2: IconHeading2, h3: IconHeading3, quote: IconQuote, code: IconCode, divider: IconMinus, bullets: IconList, numbers: IconListOrdered, todo: IconTasks, link: IconLink, date: IconCalendar,
-  table: IconTable, image: IconImage, callout: IconInfo, "callout-success": IconCheckCircle, "callout-warning": IconWarning, "callout-danger": IconOctagonAlert };
+  table: IconTable, image: IconImage, callout: IconInfo, "callout-success": IconCheckCircle, "callout-warning": IconWarning, "callout-danger": IconOctagonAlert,
+  whiteboard: IconShapes, diagram: IconWorkflow, "diagram-sequence": IconWorkflow, "diagram-org": IconWorkflow, "diagram-er": IconWorkflow, "diagram-gantt": IconWorkflow }; // R89
 
 interface MenuState { from: number; to: number; query: string; left: number; top: number }
 
@@ -34,6 +36,8 @@ export function runSlashItem(editor: Editor, item: SlashItem, range: { from: num
     case "table": chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); break;
     case "image": chain.run(); openImage?.(); break;
     case "callout": chain.setCallout(a.variant).run(); break;
+    case "whiteboard": chain.insertWhiteboard().run(); break; // R89
+    case "diagram": chain.insertDiagram(templateCode(a.template)).run(); break; // R89
   }
 }
 

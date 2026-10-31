@@ -13,6 +13,8 @@ import Collaboration, { isChangeOrigin } from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { docBlockExtensions, type ImageUploader } from "@/web/lib/docs-blocks"; // R32: table, image, callout
+import { docsVisualViewExtensions } from "./docs-visual/extensions"; // R89: whiteboard and diagram blocks
+import type { VisualOptions } from "./docs-visual/whiteboard-view";
 import { api, ApiError } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { connectCollab, FIELD, hashText, isLeader, meta, peersOf, seedIfEmpty, type CollabSession, type Peer } from "./doc-collab";
@@ -36,14 +38,15 @@ export function useCollabSession(docId: string) {
 }
 
 /** The editor extensions, the same on every page that opens a doc so the shared schema matches. */
-export function docExtensions(session: CollabSession | null, blocks: { upload?: ImageUploader | null; onError?: (e: Error) => void } = {}) {
+export function docExtensions(session: CollabSession | null, blocks: { upload?: ImageUploader | null; onError?: (e: Error) => void } = {}, visual: Partial<VisualOptions> = {}) {
+  const views = docsVisualViewExtensions({ ...visual, session }); // R89
   return session
     ? [
-        StarterKit.configure({ undoRedo: false }), TaskList, TaskItem.configure({ nested: true }), ...docBlockExtensions(blocks),
+        StarterKit.configure({ undoRedo: false }), TaskList, TaskItem.configure({ nested: true }), ...docBlockExtensions(blocks), ...views,
         Collaboration.configure({ document: session.ydoc, field: FIELD }),
         CollaborationCaret.configure({ provider: session.provider, user: { name: "Someone", color: "#e8590c" }, render: renderCaret }),
       ]
-    : [StarterKit, TaskList, TaskItem.configure({ nested: true }), ...docBlockExtensions(blocks)];
+    : [StarterKit, TaskList, TaskItem.configure({ nested: true }), ...docBlockExtensions(blocks), ...views];
 }
 
 /** Another person's caret with their name above it (styled in code, so no stylesheet is needed). */
