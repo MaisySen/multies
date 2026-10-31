@@ -160,7 +160,9 @@ export function mailRoutes() {
       const sentIds = plain.filter((t) => t.folder === "sent").map((t) => t.id);
       const status = sentIds.length ? await readStatusFor(c.var.deps, c.var.auth.orgId, sentIds) : null;
       const thread = status ? plain.map((t) => (t.folder === "sent" ? { ...t, readStatus: status.get(t.id) ?? null } : t)) : plain;
-      return c.json({ message: thread.find((t) => t.id === m.id), thread });
+      // R85: the thread's labels, for the reader's chips.
+      const labels = (await labelsFor(c.var.deps, c.var.auth.orgId, [m.threadId])).get(m.threadId) ?? [];
+      return c.json({ message: thread.find((t) => t.id === m.id), thread, labels });
     })
     .patch("/messages/:id", async (c) => {
       const patch = await parseBody(c, updateMessageSchema);

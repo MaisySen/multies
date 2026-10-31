@@ -7,6 +7,15 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 85 (31 Oct 2026)
+
+- Added: Inbox tab style per person: Important and Other (as before), Primary, Updates and Promotions, or no tabs (one Inbox list). Existing accounts keep Important and Other; accounts made from this release start on Primary, Updates and Promotions. Categories are worked out when the list is read (bulk mail split by an offers check), nothing is stored per message. Tab counts as before.
+- Added: Move to tab, from the reader toolbar (phone and keyboard) or by dragging a row onto a tab. It moves the thread and teaches its sender, with Undo; senders you sorted are listed in the Inbox tabs sheet and can be forgotten. Pins live in mail_prefs.tab_pins (migration 0103) and are read as part of the list query, with no extra read.
+- Added: thread labels. Add or remove from the reader, chips on rows, a Labels list in the Mail sidebar (and the phone folder picker), and ?label= on the list API (migration 0103, mail_thread_labels).
+- Added: Mail rules at /app/mail/rules (Rules in the Mail sidebar). Conditions: from, sent to, subject, from domain, has an attachment (all or any). Up to 8 actions run in order: add a label, move to a tab, mark read, archive, star, forward, reply with a saved reply, make a task, notify. Test on your last 200 Inbox messages before saving, turn a rule off, run it on recent mail (quiet actions only), and a run log of the last 50 runs per rule (migration 0103, mail_rules and mail_rule_runs).
+- Safety: rule replies skip bulk and robot senders, your own workspace's addresses and auto reply subjects; one reply per sender per day and at most 50 sends per rule per day. Rules run on mail delivered to hosted addresses, not on mail synced from a connected account.
+- Snooze (later today, tomorrow, next week, a picked date, the Snoozed view and the return to the top of Inbox) is the Round 20 feature, unchanged.
+
 ### Round 83 (31 Oct 2026)
 
 - Added: TikTok through our own app on Settings, Connections, Social posts. Sign in with PKCE (scopes user.info.basic, video.upload, video.publish, video.list), tokens encrypted at rest (migration 0102, direct_social_links), refreshed on expiry and revoked on disconnect. Post a video by Direct Post following TikTok's rules: creator nickname shown, audience only from creator_info with no default, comment, duet and stitch toggles, content disclosure (Your brand, Branded content) and the consent line; own video list and per post status.

@@ -61,6 +61,7 @@ const DomainsPage = lazyPage(() => import("./pages/app/domains"), "DomainsPage")
 const DomainDetailPage = lazyPage(() => import("./pages/app/domain-detail"), "DomainDetailPage");
 const MailboxesPage = lazyPage(() => import("./pages/app/mailboxes"), "MailboxesPage");
 const WebmailPage = lazyPage(() => import("./pages/app/webmail"), "WebmailPage");
+const MailRulesPage = lazyPage(() => import("./pages/app/mail/rules-r85"), "MailRulesPage"); // R85
 const agentPages = () => import("./pages/app/agents");
 const AgentsPage = lazyPage(() => agentPages(), "AgentsPage");
 const AgentDetailPage = lazyPage(() => agentPages(), "AgentDetailPage");
@@ -200,6 +201,7 @@ export const router = createBrowserRouter([
       { path: "domains/:id", element: page(<DomainDetailPage />) },
       { path: "mailboxes", element: page(<MailboxesPage />) },
       { path: "mail", element: page(<WebmailPage />) },
+      { path: "mail/rules", element: page(<MailRulesPage />) }, // R85
       { path: "inbox", element: page(<TeamInboxPage />) },
       { path: "agents", element: page(<AgentsPage />) },
       { path: "agents/:id", element: page(<AgentDetailPage />) },

@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-inbox-tabs-rules",
+    date: "2026-10-31",
+    title: "Inbox tabs, labels and mail rules",
+    body: "Pick how Inbox is sorted: Important and Other, Primary, Updates and Promotions, or one list. Drag a message onto a tab or use Move to tab and mail from that sender goes there next time. Mail rules label, sort, forward, reply, make a task or notify you as new mail arrives, and you can test a rule on recent mail before you save it.",
+  },
+  {
     id: "2026-10-31-tiktok-threads",
     date: "2026-10-31",
     title: "Post to TikTok and Threads",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "Pick how small, and see your result",
     body: "Compress now has Light, Balanced and Smallest, each saying what to expect. Scanned PDFs shrink a lot more than before. A finished PDF shows a picture of its first page, so you can check it before you download.",
-  },
-  {
-    id: "2026-10-31-tools-one-look",
-    date: "2026-10-31",
-    title: "Every tool, one look",
-    body: "Edit pages, forms, compare, share links, workflows and templates now open like every other tool: the full list stays on the left, All tools takes you back, and you always see how many runs are left. Page thumbnails are bigger on a phone.",
   },
   {
     id: "2026-10-28-whats-new",

@@ -36,7 +36,7 @@ test("Important and Other split the demo inbox, and a custom split by domain tak
   expect(new Set([...important, ...other].map((m) => m.id)).size).toBe(all.length);
 
   await page.goto(`/app/mail?mailbox=${mb.id}`);
-  const tabs = page.getByRole("tablist", { name: "Inbox splits" });
+  const tabs = page.getByRole("tablist", { name: "Inbox tabs" });
   await expect(tabs.getByRole("tab", { name: /^Important/ })).toHaveAttribute("aria-selected", "true");
   await tabs.getByRole("tab", { name: /^Other/ }).click();
   await expect(page).toHaveURL(/split=other/);
@@ -44,13 +44,13 @@ test("Important and Other split the demo inbox, and a custom split by domain tak
   // A split for one sender domain, made in the Edit splits sheet; the live count shows before saving.
   const pick = (other[0] ?? important[0])!;
   const domain = pick.from.address.split("@")[1];
-  await page.getByRole("button", { name: "Edit splits" }).click();
+  await page.getByRole("button", { name: "Edit tabs" }).click();
   await page.getByTestId("split-new").click();
-  await page.getByLabel("Split name").fill("From that domain");
+  await page.getByLabel("Tab name").fill("From that domain");
   await page.getByLabel("Rule 1 value").fill(domain);
   await expect(page.getByTestId("split-preview-count")).toContainText(/thread/);
   await page.getByTestId("split-save").click();
-  await expect(page.getByText("Split added")).toBeVisible();
+  await expect(page.getByText("Tab added")).toBeVisible();
   await page.getByRole("button", { name: "Done" }).click();
 
   const custom = tabs.getByRole("tab", { name: /^From that domain/ });

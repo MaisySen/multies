@@ -6,12 +6,12 @@ import { FreeAddressCard, useFreeAddress } from "@/web/components/free-address";
 import { MailSyncBanner } from "@/web/components/mail-sync-progress";
 import { folderEmpty } from "@/web/lib/empty-copy-r36"; // R36
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { applyMailAction, type MailAction, type MailListData } from "@/web/lib/optimistic-mail"; // R30
 import { SwipeRow } from "@/web/components/ui/swipe-row";
 import { useWindowedList } from "@/web/lib/use-windowed-list"; // R43 (MB-210)
-import { IconAgent, IconArchive, IconArrowLeft, IconAttachment, IconBlock, IconClose, IconCompose, IconFile, IconFileEdit, IconForward, IconInbox, IconMove, IconReply, IconSearch, IconSend, IconShieldAlert, IconShieldCheck, IconSparkle, IconStar, IconTrash, type IconComponent, IconSnooze } from "@/web/components/ui/icon";
+import { IconAgent, IconArchive, IconArrowLeft, IconAttachment, IconBlock, IconClose, IconCompose, IconFile, IconFileEdit, IconForward, IconInbox, IconMove, IconReply, IconSearch, IconSend, IconShieldAlert, IconShieldCheck, IconSparkle, IconStar, IconTrash, type IconComponent, IconSnooze, IconTag, IconWorkflow } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api } from "@/web/lib/api";
@@ -38,6 +38,7 @@ import { takePendingCompose } from "@/web/lib/compose-files"; // Tools P2: attac
 import { setFocus, useCommandHandlers } from "@/web/lib/commands";
 import { SCHEDULE_VIEWS, isScheduleView, ReturnedStrip, ScheduleListView, SnoozeMenu, useScheduleList, type ScheduleItem } from "./mail/schedules";
 import { DEFAULT_SPLIT, EditSplitsDialog, ReadStatusLine, SplitTabs, stepSplit, useSplits } from "./mail/splits"; // R31
+import { LabelChips, LabelMenu, MAIL_DRAG_TYPE, MoveToTabMenu, storeDefaultTab, storedDefaultTab, useLabelEdit, useLabels, useTeachTab } from "./mail/tabs-r85"; // R85
 import { registerMailActions } from "@/web/lib/mail-actions"; // R31
 import type { ReadStatus } from "@/shared/mail-splits";
 import { BulkBar, RowCheck } from "./mail/bulk-bar"; // R32
@@ -77,9 +78,15 @@ export function WebmailPage() {
   const folder = (params.get("folder") ?? "inbox") as View;
   const q = params.get("q") ?? "";
   const selected = params.get("m");
-  // R31: Inbox tabs (Important, Other, your splits). Only Inbox has them, and not while searching.
-  const splitsOn = folder === "inbox" && !q;
-  const split = splitsOn ? params.get("split") ?? DEFAULT_SPLIT : "";
+  // R85: a label view (any folder) narrows the list to threads with that label.
+  const label = params.get("label") ?? "";
+  // R31: Inbox tabs (Important, Other, your splits). Only Inbox has them, and not while searching. R85: the tab style
+  // decides where Inbox opens (Important or Primary, or no tabs); the last one seen is remembered so the first read needs no wait.
+  const splitsOn = folder === "inbox" && !q && !label;
+  const splits = useSplits(mailboxId, splitsOn);
+  const defaultTab = splits.data ? splits.data.defaultTab ?? DEFAULT_SPLIT : storedDefaultTab();
+  useEffect(() => { if (splits.data?.defaultTab !== undefined) storeDefaultTab(splits.data.defaultTab); }, [splits.data?.defaultTab]);
+  const split = splitsOn ? params.get("split") ?? defaultTab : "";
   const [editSplits, setEditSplits] = useState(false);
   const [search, setSearch] = useState(q);
   const [compose, setCompose] = useState<ComposeDraft | null>(null);
@@ -98,19 +105,21 @@ export function WebmailPage() {
     }, { replace: patch.m === undefined });
   }, [setParams]);
 
-  const splits = useSplits(mailboxId, splitsOn);
   const splitTabs = useMemo(() => splits.data?.tabs ?? [], [splits.data]);
+  const teach = useTeachTab();
+  const labels = useLabels();
+  const navigate = useNavigate();
   const list = useInfiniteQuery({
-    queryKey: ["mail", "list", mailboxId, folder, q, split],
+    queryKey: ["mail", "list", mailboxId, folder, q, split, label],
     enabled: !!mailboxId && (!!q || !isScheduleView(folder)),
     initialPageParam: "",
     // R33: the first page of each mailbox folder keeps a stored copy for offline (offline-lists.ts); search does not.
     networkMode: "offlineFirst",
     queryFn: ({ pageParam }) => {
       const read = () => api.get<{ messages: MessageListItem[]; nextCursor: string | null; asOf?: string }>(
-        `/mail/messages?${new URLSearchParams({ mailboxId, ...(q ? { q } : folder.startsWith("f:") ? { remote: folder } : { folder }), ...(split ? { split } : {}), ...(pageParam ? { cursor: pageParam } : {}) })}`,
+        `/mail/messages?${new URLSearchParams({ mailboxId, ...(q ? { q } : folder.startsWith("f:") ? { remote: folder } : { folder }), ...(split ? { split } : {}), ...(label ? { label } : {}), ...(pageParam ? { cursor: pageParam } : {}) })}`,
       );
-      return !pageParam && !q ? withOfflineCopy(`mail:${mailboxId}:${folder}:${split}`, read)() : read();
+      return !pageParam && !q && !label ? withOfflineCopy(`mail:${mailboxId}:${folder}:${split}`, read)() : read();
     },
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     refetchInterval: 30_000,
@@ -125,7 +134,7 @@ export function WebmailPage() {
   }, [list.data, returnedItems]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["mail"] });
-  const listKey = ["mail", "list", mailboxId, folder, q, split];
+  const listKey = ["mail", "list", mailboxId, folder, q, split, label];
   const act = useMutation({
     mutationFn: ({ ids, action, to, preset }: { ids: string[]; action: string; to?: string; preset?: string; quiet?: boolean }) => api.post("/mail/messages/bulk", { ids, action, ...(to ? { to } : {}), ...(preset ? { preset } : {}) }),
     // R30: optimistic. The list changes at once; a refusal puts it back and says why.
@@ -392,7 +401,7 @@ export function WebmailPage() {
 
   // R31, R79 (MB-273): ] and [ move between Inbox splits while focus is on the page or the message list.
   // Tab is never taken: it always moves keyboard focus, so the page can be used without a mouse.
-  const setSplit = useCallback((id: string) => setParam({ split: id === DEFAULT_SPLIT ? null : id, m: null }), [setParam]);
+  const setSplit = useCallback((id: string) => setParam({ split: id === defaultTab ? null : id, m: null }), [setParam, defaultTab]);
   useEffect(() => {
     if (!splitsOn || !splitTabs.length) return;
     const on = (e: KeyboardEvent) => {
@@ -440,10 +449,17 @@ export function WebmailPage() {
   const listSection = (
       <section data-mail-pane={paned ? mailPane : undefined} className={cn("flex min-w-0 flex-col", paned ? "h-full" : mailPane === "off" && wideMail ? (selected ? "hidden" : "flex flex-1") : cn("border-r border-line md:w-[340px] lg:w-[380px] xl:w-[420px]", selected ? "hidden md:flex" : "flex flex-1 md:flex-none"))} aria-label="Messages">
         <div className="flex items-center gap-2 border-b border-line p-3">
-          <Select aria-label="Folder" value={q ? "search" : folder} onChange={(e) => setParam({ folder: e.target.value === "inbox" ? null : e.target.value, m: null, q: null })} className="h-9 w-auto! max-w-[9.5rem] shrink-0 text-[13px] font-medium md:hidden">
+          <Select aria-label="Folder" value={q ? "search" : label ? `label:${label}` : folder} onChange={(e) => {
+            const v = e.target.value;
+            if (v === "rules") { navigate(`/app/mail/rules?mailbox=${mailboxId}`); return; }
+            if (v.startsWith("label:")) { setParam({ label: v.slice(6), folder: null, m: null, q: null, split: null }); return; }
+            setParam({ folder: v === "inbox" ? null : v, m: null, q: null, label: null });
+          }} className="h-9 w-auto! max-w-[9.5rem] shrink-0 text-[13px] font-medium md:hidden">
             {q && <option value="search">Search</option>}
             {FOLDER_UI.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
             {SCHEDULE_VIEWS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+            {(labels.data ?? []).map((l) => <option key={l.label} value={`label:${l.label}`}>{l.label}</option>)}
+            <option value="rules">Rules</option>
           </Select>
           <form className="relative flex-1" role="search" onSubmit={(e) => { e.preventDefault(); setParam({ q: search.trim() || null, m: null }); }}>
             <IconSearch className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
@@ -454,9 +470,16 @@ export function WebmailPage() {
           <button className="inline-flex shrink-0 items-center justify-center rounded-lg bg-brand p-2 text-brand-fg transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] hover:bg-brand/90 md:hidden max-sm:h-11 max-sm:w-11" onClick={() => startCompose()} aria-label="Compose"><IconCompose className="h-4 w-4" /></button>
         </div>
         <MailSyncBanner />
-        {splitsOn && splitTabs.length > 0 && <SplitTabs tabs={splitTabs} active={split} onChange={setSplit} onEdit={() => setEditSplits(true)} />}
+        {splitsOn && splitTabs.length > 0 && <SplitTabs tabs={splitTabs} active={split} onChange={setSplit} onEdit={() => setEditSplits(true)} onDropMessage={(id, tab) => teach.mutate({ messageId: id, tab })} />}
+        {splitsOn && splits.data && splitTabs.length === 0 && (
+          <div className="flex items-center justify-end border-b border-line px-2 py-1">
+            <button type="button" onClick={() => setEditSplits(true)} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[12px] text-subtle hover:bg-hover hover:text-fg max-sm:h-10" aria-label="Edit tabs">Turn on tabs</button>
+          </div>
+        )}
         <div className="flex items-center justify-between px-4 py-2 text-xs text-subtle">
-          <span>{q ? `Results for “${q}”` : FOLDER_UI.find((f) => f.id === folder)?.label ?? SCHEDULE_VIEWS.find((f) => f.id === folder)?.label ?? folder.slice(2)}</span>
+          {label ? <span className="inline-flex min-w-0 items-center gap-1.5" data-testid="label-view"><IconTag className="h-3.5 w-3.5 shrink-0" aria-hidden /><span className="truncate">{label}</span>
+            <button type="button" onClick={() => setParam({ label: null, m: null })} className="grid h-6 w-6 place-items-center rounded hover:bg-hover hover:text-fg max-sm:h-9 max-sm:w-9" aria-label="Clear label"><IconClose className="h-3 w-3" /></button></span>
+          : <span>{q ? `Results for “${q}”` : FOLDER_UI.find((f) => f.id === folder)?.label ?? SCHEDULE_VIEWS.find((f) => f.id === folder)?.label ?? folder.slice(2)}</span>}
           {folder === "trash" && !q && items.length > 0 && <button className="text-muted hover:text-bad" onClick={() => act.mutate({ ids: items.map((i) => i.id), action: "delete" })}>Empty trash</button>}
           {archiveOlderOffered({ folder, q, loaded: items.length, inboxTotal: mb.folders.inbox?.total ?? 0 }) && <button type="button" data-testid="archive-older" onClick={() => setOlderOpen(true)} aria-haspopup="dialog"
             className="-my-1.5 -mr-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 font-medium text-muted transition-colors duration-150 hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-10">
@@ -470,8 +493,8 @@ export function WebmailPage() {
           <ReturnedStrip items={returnedItems} onOpen={openReturned} />
           {list.isPending ? Array.from({ length: 7 }).map((_, i) => <div key={i} className="space-y-2 border-b border-line px-4 py-3.5"><Skeleton className="h-3.5 w-32" /><Skeleton className="h-3.5 w-56" /><Skeleton className="h-3 w-full" /></div>)
             : items.length === 0 ? (
-              <EmptyState icon={q ? <IconSearch /> : <IconInbox />} art={q ? <NoSearchResultsArt /> : folder === "inbox" ? <InboxZeroArt /> : <MailFolderArt />} title={q ? "No matches" : folder === "inbox" ? emptyInboxTitle({ split, defaultSplit: DEFAULT_SPLIT, tabs: splitsOn ? splitTabs.length : 0, inboxTotal: mb.folders.inbox?.total ?? 0 }) : folderEmpty(folder).title}
-                body={q ? "Try a different word, a sender's address, or check the spelling." : folder === "inbox" ? `New mail to ${mb.address} lands here.` : folderEmpty(folder).body}
+              <EmptyState icon={q ? <IconSearch /> : label ? <IconTag /> : <IconInbox />} art={q ? <NoSearchResultsArt /> : folder === "inbox" && !label ? <InboxZeroArt /> : <MailFolderArt />} title={q ? "No matches" : folder === "inbox" || label ? label ? "Nothing with this label" : emptyInboxTitle({ split, defaultSplit: defaultTab, tabs: splitsOn ? splitTabs.length : 0, inboxTotal: mb.folders.inbox?.total ?? 0 }) : folderEmpty(folder).title}
+                body={q ? "Try a different word, a sender's address, or check the spelling." : label ? "Add this label to a thread from its toolbar, or let a mail rule add it." : folder === "inbox" ? `New mail to ${mb.address} lands here.` : folderEmpty(folder).body}
                 action={!q && folder !== "inbox" ? <ButtonLink to="/app/mail" variant="secondary">Back to Inbox</ButtonLink> : undefined} />
             ) : (
               <ul ref={mailListRef}>
@@ -480,7 +503,7 @@ export function WebmailPage() {
                   checked={everything ? !everything.includes(m.id) : sel.ids.includes(m.id)} selecting={hasSel} onCheck={(shift) => toggleRow(m.id, shift)}
                   onOpen={() => (m.folder === "drafts" ? openDraft(m.id) : open(m.id))}
                   onStar={() => act.mutate({ ids: [m.id], action: m.isStarred ? "unstar" : "star" })}
-                  onSwipe={hasSel ? undefined : (action) => swipeAct(m.id, action)} />)}
+                  onSwipe={hasSel ? undefined : (action) => swipeAct(m.id, action)} draggable={splitsOn && splitTabs.length > 1} />)}
                 {mailWin.padBottom > 0 && <li aria-hidden="true" style={{ height: mailWin.padBottom }} />}
               </ul>
             )}
@@ -526,7 +549,7 @@ export function WebmailPage() {
             const unread = id === "inbox" || id === "spam" ? mb.folders[id as Folder]?.unread : undefined;
             const count = id === "drafts" ? mb.folders.drafts?.total : unread;
             return (
-              <button key={id} onClick={() => setParam({ folder: id === "inbox" ? null : id, m: null, q: null })} aria-current={!q && folder === id ? "page" : undefined}
+              <button key={id} onClick={() => setParam({ folder: id === "inbox" ? null : id, m: null, q: null, label: null })} aria-current={!q && !label && folder === id ? "page" : undefined}
                 className={cn("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] transition-colors", !q && folder === id ? "bg-fill font-medium text-fg" : "text-muted hover:bg-hover hover:text-fg")}>
                 <Icon className="h-4 w-4" />{label}
                 {!!count && <span className={cn("ml-auto text-[11px] tabular-nums", id === "inbox" ? "rounded bg-brand px-1.5 font-semibold text-brand-fg" : "text-subtle")}>{count}</span>}
@@ -534,12 +557,27 @@ export function WebmailPage() {
             );
           })}
           {SCHEDULE_VIEWS.map(({ id, label, icon: Icon }) => (
-            <button key={id} onClick={() => setParam({ folder: id, m: null, q: null })} aria-current={!q && folder === id ? "page" : undefined}
+            <button key={id} onClick={() => setParam({ folder: id, m: null, q: null, label: null })} aria-current={!q && !label && folder === id ? "page" : undefined}
               className={cn("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] transition-colors", !q && folder === id ? "bg-fill font-medium text-fg" : "text-muted hover:bg-hover hover:text-fg")}>
               <Icon className="h-4 w-4" />{label}
             </button>
           ))}
           {mb.connectionId && <ProviderFolderNav connectionId={mb.connectionId} current={q ? "" : folder} onPick={(key) => setParam({ folder: key, m: null, q: null })} />}
+          {/* R85: labels and mail rules. */}
+          {(labels.data?.length ?? 0) > 0 && (
+            <div className="pt-3" data-testid="label-nav">
+              <div className="px-2.5 pb-1 text-[11px] font-medium uppercase tracking-wide text-subtle">Labels</div>
+              {labels.data!.map((l) => (
+                <button key={l.label} onClick={() => setParam({ label: l.label, folder: null, m: null, q: null, split: null })} aria-current={label === l.label ? "page" : undefined}
+                  className={cn("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] transition-colors", label === l.label ? "bg-fill font-medium text-fg" : "text-muted hover:bg-hover hover:text-fg")}>
+                  <IconTag className="h-4 w-4" /><span className="min-w-0 flex-1 truncate text-left">{l.label}</span><span className="text-[11px] tabular-nums text-subtle">{l.threads}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="pt-3">
+            <ButtonLink to={`/app/mail/rules?mailbox=${mailboxId}`} variant="ghost" className="w-full justify-start gap-2.5 px-2.5 text-[13.5px] font-normal text-muted" data-testid="mail-rules-link"><IconWorkflow className="h-4 w-4" />Rules</ButtonLink>
+          </div>
         </nav>
         <div className="border-t border-line p-3 text-[11px] text-subtle">
           <div className="mb-1 flex justify-between"><span>Storage</span><span>{formatBytes(mb.usedBytes)} of {formatBytes(mb.quotaMb * 1024 * 1024)}</span></div>
@@ -570,7 +608,7 @@ export function WebmailPage() {
         footer={<><Button variant="secondary" onClick={() => setConfirmDelete(null)}>Cancel</Button><Button variant="danger" data-testid="bulk-delete-confirm" onClick={() => { const c = confirmDelete; setConfirmDelete(null); if (c) runBulk({ action: "delete" }, undefined, true); }}>Delete forever</Button></>}>
         <span className="sr-only">Confirm</span>
       </Dialog>
-      {splitsOn && <EditSplitsDialog open={editSplits} onClose={() => setEditSplits(false)} mailboxId={mailboxId} splits={splits.data?.splits ?? []} />}
+      {splitsOn && <EditSplitsDialog open={editSplits} onClose={() => setEditSplits(false)} mailboxId={mailboxId} splits={splits.data?.splits ?? []} tabs={splitTabs} style={splits.data?.style} />}
       {compose && <Compose key={JSON.stringify(compose).length + compose.subject} initial={compose} mailboxes={mailboxes} onClose={closeCompose} />}
     </div>
   );
@@ -581,7 +619,7 @@ export function WebmailPage() {
   }
 }
 
-function ListRow({ m, row, total, active, folder, onOpen, onStar, checked, selecting, onCheck, onSwipe }: { m: MessageListItem; row?: number; total?: number; active: boolean; folder: View; onOpen: () => void; onStar: () => void; checked: boolean; selecting: boolean; onCheck: (shift: boolean) => void; onSwipe?: (action: "archive" | "snooze") => void }) {
+function ListRow({ m, row, total, active, folder, onOpen, onStar, checked, selecting, onCheck, onSwipe, draggable }: { m: MessageListItem & { labels?: string[] }; row?: number; total?: number; active: boolean; folder: View; onOpen: () => void; onStar: () => void; checked: boolean; selecting: boolean; onCheck: (shift: boolean) => void; onSwipe?: (action: "archive" | "snooze") => void; draggable?: boolean }) {
   const who = folder === "sent" || folder === "drafts" ? `To: ${m.to.map((t) => t.name || t.address).join(", ") || "(no recipients)"}` : m.from.name || m.from.address;
   return (
     <li className={cn("group relative border-b border-line transition-colors duration-150 ease-out", checked ? "bg-brand-soft/80" : active ? "bg-brand-soft/60" : "hover:bg-hover")} data-selected={checked || undefined} data-testid="mail-row" data-win-row={row} aria-setsize={total} aria-posinset={row === undefined ? undefined : row + 1}>
@@ -589,7 +627,8 @@ function ListRow({ m, row, total, active, folder, onOpen, onStar, checked, selec
         left={onSwipe && folder !== "archive" ? { label: "Archive", icon: IconArchive, tone: "blue", onCommit: () => onSwipe("archive") } : undefined}
         right={onSwipe && folder !== "snoozed" && folder !== "sent" && folder !== "drafts" ? { label: "Snooze", icon: IconSnooze, tone: "orange", onCommit: () => onSwipe("snooze") } : undefined}>
       <RowCheck checked={checked} visible={selecting} label={`Select ${m.subject || "(no subject)"}`} onToggle={onCheck} />
-      <button onClick={(e) => { if (e.shiftKey || e.metaKey || e.ctrlKey) { e.preventDefault(); onCheck(e.shiftKey); return; } onOpen(); }} className="block w-full py-3 pl-9 pr-10 text-left" aria-current={active || undefined}>
+      <button onClick={(e) => { if (e.shiftKey || e.metaKey || e.ctrlKey) { e.preventDefault(); onCheck(e.shiftKey); return; } onOpen(); }} className="block w-full py-3 pl-9 pr-10 text-left" aria-current={active || undefined}
+        draggable={draggable || undefined} onDragStart={draggable ? (e) => { e.dataTransfer.setData(MAIL_DRAG_TYPE, m.id); e.dataTransfer.effectAllowed = "move"; } : undefined}>
         <div className="flex items-baseline gap-2">
           {!m.isRead && <span className="h-2 w-2 shrink-0 translate-y-[-1px] rounded-full bg-brand" aria-label="Unread" />}
           <span className={cn("min-w-0 flex-1 truncate text-[13.5px]", m.isRead ? "text-fg/75" : "font-semibold text-fg")}>{who}</span>
@@ -598,6 +637,7 @@ function ListRow({ m, row, total, active, folder, onOpen, onStar, checked, selec
         <div className={cn("mt-0.5 flex items-center gap-1.5 truncate text-[13px]", m.isRead ? "text-muted" : "text-fg/90")}>
           {m.sentByAgentId && <span className="inline-flex shrink-0 items-center gap-0.5 rounded border border-brand/40 px-1 text-[11px] text-brand-hover"><IconAgent className="h-3 w-3" aria-hidden />Agent</span>}
           {m.hasAttachments && <IconAttachment className="h-3 w-3 shrink-0 text-subtle" />}<span className="truncate">{m.subject || "(no subject)"}</span>
+          <LabelChips labels={m.labels?.slice(0, 2)} className="shrink-0 flex-nowrap" />
         </div>
         <div className="mt-0.5 truncate text-[12.5px] text-subtle">{m.snippet || "\u00a0"}</div>
         {folder === "sent" && <ReadStatusLine status={(m as { readStatus?: ReadStatus | null }).readStatus} className="mt-1" />}
@@ -631,8 +671,12 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
   }), []);
   const { data, isPending, error } = useQuery({
     queryKey: ["mail", "message", id],
-    queryFn: () => api.get<{ message: Message; thread: Message[] }>(`/mail/messages/${id}`),
+    queryFn: () => api.get<{ message: Message; thread: Message[]; labels?: string[] }>(`/mail/messages/${id}`),
   });
+  // R85: Inbox tabs for "Move to tab" (the same cached query as the list's tabs) and label edits.
+  const [readerParams] = useSearchParams();
+  const tabsFor = useSplits(data?.message.mailboxId ?? "", !!data && data.message.folder === "inbox");
+  const labelEdit = useLabelEdit();
   useEffect(() => { if (data) qc.invalidateQueries({ queryKey: qk.overview }); }, [data, qc]);
   // R67 (MB-244): a reply that was open here when the page reloaded opens again, with its saved draft.
   const resumed = useRef<string | null>(null);
@@ -683,6 +727,7 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
         <IconBtn label={m.folder === "trash" ? "Delete forever" : "Delete (#)"} onClick={() => onMove(m.folder === "trash" ? "delete" : "trash")}><IconTrash /></IconBtn>
         {m.remoteBox && m.folder !== "sent" && m.folder !== "drafts" && <MoveTo message={m} mailboxes={mailboxes} onMove={onMove} onMoveTo={onMoveTo} />}
         <IconBtn label={m.isStarred ? "Unstar (s)" : "Star (s)"} onClick={() => onStar(m)} active={m.isStarred}><IconStar filled={m.isStarred} /></IconBtn>
+        {m.folder === "inbox" && (tabsFor.data?.tabs.length ?? 0) > 1 && <MoveToTabMenu messageId={m.id} tabs={tabsFor.data!.tabs} current={readerParams.get("split") ?? tabsFor.data!.defaultTab} />}
         {/* R48 mobile: on a phone Reply and Forward live in the thumb bar at the foot (below), so this row never crowds. */}
         <div className="ml-auto flex gap-1 max-sm:hidden">
           <IconBtn label="Reply" onClick={() => reply(false)}><IconReply /></IconBtn>
@@ -692,7 +737,13 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8">
           <h1 className="text-xl font-semibold leading-snug tracking-tight">{m.subject || "(no subject)"}</h1>
-          <div className="mt-2"><MakeTask messageId={last.id} threadId={last.threadId} shortcut /></div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <MakeTask messageId={last.id} threadId={last.threadId} shortcut />
+            {m.folder !== "drafts" && <span className="inline-flex items-center gap-1" data-testid="reader-labels">
+              <LabelChips labels={data.labels} onRemove={(l) => labelEdit.remove.mutate({ threadId: m.threadId, label: l })} />
+              <LabelMenu threadId={m.threadId} labels={data.labels ?? []} />
+            </span>}
+          </div>
           {m.folder !== "drafts" && <ThreadPresenceLine threadId={m.threadId} />}
           <Assistant key={last.id} messageId={last.id} onDraft={(text) => reply(false, text)} />
           <div className="mt-6 space-y-4">
