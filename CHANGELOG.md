@@ -14,6 +14,12 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Added: bio pages per workspace and per person at /bio/name: picture, title, bio, ordered links with icons, social profiles, light, dark or follow the visitor, brand colour buttons, click and visit counts, no script, and a live preview while editing.
 - Added: team go links. go/name opens a doc, task, project or web address for workspace members only, from the address bar or the command menu, with near matches when a name is missing.
 - Added: the link domain. Short links use a workspace's verified domain once its CNAME is found and the certificate is set up; until then multies.si/l.
+### R119 helpdesk mode and website chat (31 Oct 2026)
+
+- Added: helpdesk mode for the shared inbox (off until an admin turns it on in Shared inbox, Helpdesk at /app/inbox/helpdesk). New mail to the chosen inboxes and, optionally, customer chats become numbered tickets with status (open, waiting on customer, on hold, solved), priority, owner and first reply and solve targets counted in business hours (time zone, weekly hours, holidays). Views Open, Mine, Unassigned, Breaching, Solved with counts; priority and channel filters; a ticket panel over each thread or chat with earlier tickets from the same customer and Add to contacts.
+- Added: macros (set status, priority or owner, add a note, start a reply from text or a saved reply) run from the ticket panel.
+- Added: website chat. A small script (about 6 KB, shadow DOM, its own styles) for allowed domains only; live chat with typing marks, internal notes the visitor never sees, an email card, an away form outside business hours with replies by email, optional automatic answers from saved replies.
+- Added: a one question survey (Great, Okay, Not good, with a comment) when a ticket is solved, by mail or in the chat; the rating shows on the ticket. Migration 0111 (hd_settings, hd_tickets, hd_web_messages, hd_macros). Flag HELPDESK (on unless "off").
 
 ### P1 layout (31 Oct 2026)
 
