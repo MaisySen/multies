@@ -359,7 +359,7 @@ function AccountPick({ account, on, why, note, choice, onToggle, onTarget, onRec
             {note ? <Text style={g.sub} testID={`note-${account.app}`}>{note}</Text> : null}
           </View>
         </Pressable>
-        {fixable ? <Button label="Reconnect" variant="secondary" loading={reconnecting} onPress={onReconnect} testID={`reconnect-${account.app}`} style={{ minHeight: 36, paddingHorizontal: 12 }} /> : null}
+        {fixable ? <Button label="Reconnect" variant="secondary" loading={reconnecting} onPress={onReconnect} testID={`reconnect-${account.app}`} style={{ minHeight: 44, paddingHorizontal: 12 }} /> : null}
       </View>
       {needsTarget ? <TargetPicker accountId={account.id} kind={net!.target!} choice={choice} onTarget={onTarget} /> : null}
     </View>
@@ -437,7 +437,7 @@ function AccountsTab({ canManage }: { canManage: boolean }) {
                   {line ? <Text style={[g.sub, { color: colors.warn }]}>{line}</Text> : null}
                 </View>
                 {problem && canManage
-                  ? <Button label="Reconnect" variant="secondary" loading={reconnect.isPending && reconnect.variables === a.id} onPress={() => doReconnect(a.id)} testID={`account-reconnect-${a.app}`} style={{ minHeight: 36, paddingHorizontal: 12 }} />
+                  ? <Button label="Reconnect" variant="secondary" loading={reconnect.isPending && reconnect.variables === a.id} onPress={() => doReconnect(a.id)} testID={`account-reconnect-${a.app}`} style={{ minHeight: 44, paddingHorizontal: 12 }} />
                   : <Badge label={chip.label} tone={chip.tone} />}
               </View>
             );
@@ -454,7 +454,7 @@ function AccountsTab({ canManage }: { canManage: boolean }) {
           {directs.map((d) => <DirectRow key={d.provider} d={d} canManage={canManage && !!direct.data?.canManage} />)}
           {canManage ? toConnect.map((app) => (
             <GroupRow key={app} label={appName(app)} sub={postsTo(app)} testID={`connect-${app}`}
-              right={<Button label="Connect" variant="secondary" loading={connect.isPending && connect.variables === app} onPress={() => doConnect(app)} style={{ minHeight: 36, paddingHorizontal: 12 }} />} />
+              right={<Button label="Connect" variant="secondary" loading={connect.isPending && connect.variables === app} onPress={() => doConnect(app)} style={{ minHeight: 44, paddingHorizontal: 12 }} />} />
           )) : null}
         </InsetGroup>
       ) : null}
@@ -476,7 +476,7 @@ function DirectRow({ d, canManage }: { d: DirectAccountView; canManage: boolean 
     <GroupRow label={name} sub={sub} testID={`direct-${d.provider}`}
       right={d.connected && !expired
         ? <Centered><Badge label="Ready to post" tone="ok" /></Centered>
-        : canManage ? <Button label={expired ? "Reconnect" : "Connect"} variant="secondary" onPress={() => { void openWebSocialAccounts(); }} testID={`direct-connect-${d.provider}`} style={{ minHeight: 36, paddingHorizontal: 12 }} />
+        : canManage ? <Button label={expired ? "Reconnect" : "Connect"} variant="secondary" onPress={() => { void openWebSocialAccounts(); }} testID={`direct-connect-${d.provider}`} style={{ minHeight: 44, paddingHorizontal: 12 }} />
         : <Centered><Badge label={expired ? "Sign in expired" : "Not connected"} tone={expired ? "warn" : "neutral"} /></Centered>} />
   );
 }

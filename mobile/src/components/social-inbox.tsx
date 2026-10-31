@@ -23,7 +23,7 @@ export function InboxFilters({ value, onChange, counts }: { value: InboxFilter; 
         const on = value === f.id;
         return (
           <Pressable key={f.id} onPress={() => { tick(); onChange(f.id); }} accessibilityRole="button" accessibilityState={{ selected: on }}
-            accessibilityLabel={n === undefined ? f.label : `${f.label}, ${n}`} testID={`inbox-filter-${f.id}`} hitSlop={4}
+            accessibilityLabel={n === undefined ? f.label : `${f.label}, ${n}`} testID={`inbox-filter-${f.id}`}
             style={[styles.filter, on && { backgroundColor: colors.brandSoft, borderColor: colors.brandLine }]}>
             <Text style={{ color: on ? colors.brandHover : colors.muted, fontWeight: "600", fontSize: 13 }} numberOfLines={1}>{f.label}</Text>
             {n !== undefined ? <Text style={{ color: on ? colors.brand : colors.subtle, fontSize: 12, fontVariant: ["tabular-nums"] }}>{n}</Text> : null}
@@ -120,7 +120,7 @@ export function InboxRow({ item, me, now }: { item: InboxItemView; me: string; n
 }
 
 const styles = StyleSheet.create({
-  filter: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 36, paddingHorizontal: 12, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line, backgroundColor: colors.surface },
+  filter: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 44, paddingHorizontal: 14, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line, backgroundColor: colors.surface },
   row: { flexDirection: "row", gap: space.md, padding: space.md, borderRadius: radius.lg, backgroundColor: colors.surface, minHeight: 64 },
   broken: { flexDirection: "row", alignItems: "center", gap: space.md, padding: space.md, marginBottom: space.sm, borderRadius: radius.lg, backgroundColor: colors.warnSoft },
 });

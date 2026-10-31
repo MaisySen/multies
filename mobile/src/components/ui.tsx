@@ -130,7 +130,7 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
       {options.map((o) => {
         const on = o.id === value;
         return (
-          <Pressable key={o.id} onPress={() => onChange(o.id)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={o.label}
+          <Pressable key={o.id} onPress={() => onChange(o.id)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={o.label} hitSlop={4}
             style={[styles.segment, on && { backgroundColor: colors.hover }]}>
             <Text style={{ color: on ? colors.fg : colors.muted, fontWeight: on ? "600" : "500", fontSize: 14 }}>{o.label}</Text>
           </Pressable>

@@ -76,6 +76,7 @@ export default function Today() {
               <Text style={font.tiny}>Social</Text>
               <Text style={font.headline} numberOfLines={1}>{social.title}</Text>
               {social.detail ? <Text style={[font.tiny, { color: colors.subtle }]} numberOfLines={1}>{social.detail}</Text> : null}
+              {inboxOpen && social.failed ? <Text style={[font.tiny, { color: colors.subtle }]} numberOfLines={1} testID="today-social-inbox">{inboxOpen} open in the inbox</Text> : null}
             </View>
             {social.failed ? <Badge label={`${social.failed} failed`} tone="bad" /> : inboxOpen ? <Badge label={`${inboxOpen} to answer`} tone="brand" icon="inbox" /> : <Icon name="chevron-right" size={18} color={colors.subtle} />}
           </PressableCard>

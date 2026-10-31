@@ -163,7 +163,7 @@ export default function InboxItem() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }} accessibilityLabel="Saved replies" keyboardShouldPersistTaps="handled" testID="inbox-saved">
             {saved.data.map((r) => (
               <Pressable key={r.id} onPress={() => { tick(); setText(fillSavedReply(r.body, item.authorName)); }} accessibilityRole="button" accessibilityLabel={`Use saved reply ${r.title}`}
-                style={styles.pill} testID={`inbox-saved-${r.id}`} hitSlop={4}>
+                style={styles.pill} testID={`inbox-saved-${r.id}`}>
                 <Text style={{ color: colors.brandHover, fontWeight: "600" }} numberOfLines={1}>{r.title}</Text>
               </Pressable>
             ))}
@@ -199,7 +199,7 @@ function NoteRow({ n }: { n: InboxNoteView }) {
 const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: space.lg, gap: space.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line },
   note: { backgroundColor: colors.surface, borderRadius: radius.md, padding: space.md, gap: 4, marginBottom: space.sm },
-  pill: { minHeight: 36, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.brandLine, backgroundColor: colors.brandSoft, justifyContent: "center" },
+  pill: { minHeight: 44, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.brandLine, backgroundColor: colors.brandSoft, justifyContent: "center" },
   undo: { flexDirection: "row", alignItems: "center", gap: space.md, paddingLeft: space.md, borderRadius: radius.lg, backgroundColor: colors.surface },
   composer: { gap: space.sm, paddingHorizontal: space.lg, paddingTop: space.sm, backgroundColor: colors.bg, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   input: { flex: 1, minHeight: 44, maxHeight: 140, paddingHorizontal: space.md, paddingTop: 11, paddingBottom: 11, borderRadius: radius.md, backgroundColor: colors.surface, color: colors.fg, fontSize: 16 },
