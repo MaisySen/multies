@@ -205,6 +205,11 @@ test("screenshots at 1280 and 390, light, dark and Forest, and axe finds nothing
     await expect(page.getByTestId("link-row").first()).toBeVisible({ timeout: 20_000 });
     await shot(`l01-list-${suffix}`); if (withAxe) await axe(`list ${suffix}`);
     await page.goto(`/app/tools/links?link=${main.id}`);
+    await expect(page.getByTestId("link-panel")).toBeVisible();
+    if (withAxe) {
+      const { violations } = await new AxeBuilder({ page }).include('[data-testid="link-panel"]').analyze();
+      expect(violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `panel ${suffix}: ${v.id}`)).toEqual([]);
+    }
     await page.getByTestId("panel-stats").click();
     await expect(page.getByTestId("link-stats")).toContainText("Australia");
     await shot(`l02-stats-${suffix}`); if (withAxe) await axe(`stats ${suffix}`);

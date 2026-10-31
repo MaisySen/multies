@@ -34,7 +34,7 @@ export function GoLinksTab() {
   const del = useMutation({
     mutationFn: (g: GoLinkInfo) => api.del(`/links/go/${g.id}`),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["links-go"] }); toast.success("Go link deleted"); setDeleting(null); },
-    onError: (e) => toast.error(errorMessage(e)),
+    onError: (e) => toast.error(errorMessage(e), { id: "links-go-links-error" }),
   });
   const links = useMemo(() => list.data?.links ?? [], [list.data]);
   const shown = useMemo(() => { const s = q.trim().toLowerCase().replace(/^go\//, ""); return links.filter((l) => !s || `${l.name} ${l.label ?? ""} ${l.description ?? ""}`.toLowerCase().includes(s)); }, [links, q]);
@@ -109,7 +109,7 @@ function GoDialog({ open, link, preset, onClose }: { open: boolean; link: GoLink
       return link ? api.patch(`/links/go/${link.id}`, body) : api.post("/links/go", body);
     },
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["links-go"] }); toast.success(link ? "Go link saved" : `go/${name} is ready`); onClose(); },
-    onError: (e) => toast.error(errorMessage(e)),
+    onError: (e) => toast.error(errorMessage(e), { id: "links-go-links-error" }),
   });
   const ready = okName && (kind === "url" ? !!url.trim() : !!target);
   return (

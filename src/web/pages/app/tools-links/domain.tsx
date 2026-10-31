@@ -27,9 +27,9 @@ export function DomainTab() {
   const h = q.data;
   useEffect(() => { if (h?.verifiedDomains[0] && !domainId) setDomainId(h.verifiedDomains[0].id); }, [h, domainId]);
   const done = (r: LinkHostInfo) => { qc.setQueryData(["links-host"], r); void qc.invalidateQueries({ queryKey: ["links"] }); };
-  const set = useMutation({ mutationFn: () => api.put<LinkHostInfo>("/links/host", { domainId, sub }), onSuccess: (r) => { done(r); toast.success("Saved. Add the DNS record next."); }, onError: (e) => toast.error(errorMessage(e)) });
-  const check = useMutation({ mutationFn: () => api.post<LinkHostInfo>("/links/host/check", {}), onSuccess: (r) => { done(r); toast[r.status === "failed" || r.status === "pending" ? "error" : "success"](STATE[r.status].label); }, onError: (e) => toast.error(errorMessage(e)) });
-  const remove = useMutation({ mutationFn: () => api.del<LinkHostInfo>("/links/host"), onSuccess: (r) => { done(r); toast.success("Back to the standard address"); }, onError: (e) => toast.error(errorMessage(e)) });
+  const set = useMutation({ mutationFn: () => api.put<LinkHostInfo>("/links/host", { domainId, sub }), onSuccess: (r) => { done(r); toast.success("Saved. Add the DNS record next."); }, onError: (e) => toast.error(errorMessage(e), { id: "links-domain-error" }) });
+  const check = useMutation({ mutationFn: () => api.post<LinkHostInfo>("/links/host/check", {}), onSuccess: (r) => { done(r); toast[r.status === "failed" || r.status === "pending" ? "error" : "success"](STATE[r.status].label); }, onError: (e) => toast.error(errorMessage(e), { id: "links-domain-error" }) });
+  const remove = useMutation({ mutationFn: () => api.del<LinkHostInfo>("/links/host"), onSuccess: (r) => { done(r); toast.success("Back to the standard address"); }, onError: (e) => toast.error(errorMessage(e), { id: "links-domain-error" }) });
 
   if (q.isError) return <Card className="mt-4 p-6 text-center"><p className="font-medium">Couldn't load the link domain</p><Button variant="outline" className="mt-3" onClick={() => void q.refetch()}>Try again</Button></Card>;
   if (!h) return <div className="space-y-3 pt-4" aria-busy="true"><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-40 rounded-xl" /></div>;

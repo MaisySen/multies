@@ -115,7 +115,7 @@ function BioForm({ page, scope }: { page: BioPageInfo; scope: "me" | "workspace"
       socials: d.socials.filter((s) => s.url.trim()),
     }),
     onSuccess: (r) => { qc.setQueryData(["links-bio", scope], r); toast.success(r.page.published ? "Page saved and live" : "Page saved as a draft"); },
-    onError: (e) => toast.error(errorMessage(e)),
+    onError: (e) => toast.error(errorMessage(e), { id: "links-bio-editor-error" }),
   });
   const ro = !page.canEdit;
   const base = page.url.slice(0, page.url.length - page.slug.length);

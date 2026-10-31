@@ -180,12 +180,12 @@ function LinkPanel({ l, onClose, base }: { l: ShortLinkInfo; onClose: () => void
   const toggle = useMutation({
     mutationFn: () => api.patch(`/links/${l.id}`, { enabled: !l.enabled }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: linksKey }); toast.success(l.enabled ? "Link turned off" : "Link turned on", { action: { label: "Undo", onClick: () => void api.patch(`/links/${l.id}`, { enabled: l.enabled }).then(() => qc.invalidateQueries({ queryKey: linksKey })) } }); },
-    onError: (e) => toast.error(errorMessage(e)),
+    onError: (e) => toast.error(errorMessage(e), { id: "links-links-page-error" }),
   });
   const del = useMutation({
     mutationFn: () => api.del(`/links/${l.id}`),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: linksKey }); toast.success("Link deleted"); onClose(); },
-    onError: (e) => toast.error(errorMessage(e)),
+    onError: (e) => toast.error(errorMessage(e), { id: "links-links-page-error" }),
   });
   const st = STATUS[l.status];
   const panelRef = useRef<HTMLElement>(null);
@@ -213,17 +213,19 @@ function LinkPanel({ l, onClose, base }: { l: ShortLinkInfo; onClose: () => void
       <div className="mt-4">
         {view === "details" && (
           <div className="space-y-4">
-            <dl className="space-y-3 text-sm">
-              <div><dt className="text-[12px] text-muted">Opens</dt><dd className="break-all">{l.url}</dd></div>
-              {l.title && <div><dt className="text-[12px] text-muted">Title</dt><dd>{l.title}</dd></div>}
-              {l.tags.length > 0 && <div><dt className="text-[12px] text-muted">Tags</dt><dd className="flex flex-wrap gap-1">{l.tags.map((t) => <span key={t} className="rounded bg-fill px-1.5 py-0.5 text-[12px]">{t}</span>)}</dd></div>}
-              <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-3 text-sm">
+              <dl className="space-y-3">
+                <div><dt className="text-[12px] text-muted">Opens</dt><dd className="break-all">{l.url}</dd></div>
+                {l.title && <div><dt className="text-[12px] text-muted">Title</dt><dd>{l.title}</dd></div>}
+                {l.tags.length > 0 && <div><dt className="text-[12px] text-muted">Tags</dt><dd className="flex flex-wrap gap-1">{l.tags.map((t) => <span key={t} className="rounded bg-fill px-1.5 py-0.5 text-[12px]">{t}</span>)}</dd></div>}
+              </dl>
+              <dl className="grid grid-cols-2 gap-3">
                 <div><dt className="text-[12px] text-muted">Stops working</dt><dd>{l.expiresAt ? new Date(l.expiresAt).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "Never"}</dd></div>
                 <div><dt className="text-[12px] text-muted">Click limit</dt><dd>{l.maxClicks ? `${l.clicks} of ${l.maxClicks}` : "None"}</dd></div>
                 <div><dt className="text-[12px] text-muted">Password</dt><dd>{l.hasPassword ? "Yes" : "No"}</dd></div>
                 <div><dt className="text-[12px] text-muted">Made by</dt><dd className="truncate">{l.createdByName ?? "Someone"}, {new Date(l.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</dd></div>
-              </div>
-            </dl>
+              </dl>
+            </div>
             {l.canEdit ? (
               <div className="flex flex-wrap gap-2 border-t border-line pt-4">
                 <Button variant="outline" onClick={() => setEditing(true)} data-testid="link-edit"><IconEdit className="h-4 w-4" />Edit</Button>

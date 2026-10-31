@@ -70,7 +70,7 @@ export function LinkDialog({ open, onClose, base, link, onSaved }: { open: boole
       onSaved?.(l);
       onClose();
     },
-    onError: (e) => toast.error(errorMessage(e)),
+    onError: (e) => toast.error(errorMessage(e), { id: "links-link-dialog-error" }),
   });
 
   const baseLabel = plainUrl(base);

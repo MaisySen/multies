@@ -34,7 +34,7 @@ export function ImportDialog({ open, onClose }: { open: boolean; onClose: () => 
   const run = useMutation({
     mutationFn: () => api.post<{ created: ShortLinkInfo[]; failed: { line: number; message: string }[] }>("/links/bulk", { rows }),
     onSuccess: (r) => { setResult(r); void qc.invalidateQueries({ queryKey: linksKey }); toast.success(`${r.created.length} ${r.created.length === 1 ? "link" : "links"} made`); },
-    onError: (e) => toast.error(errorMessage(e)),
+    onError: (e) => toast.error(errorMessage(e), { id: "links-import-dialog-error" }),
   });
   const pick = async (f: File | undefined) => {
     if (!f) return;
