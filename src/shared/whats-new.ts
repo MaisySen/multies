@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-crm-timeline",
+    date: "2026-10-31",
+    title: "A timeline for every contact and company",
+    body: "Each contact and company now has one timeline of email, meetings, bookings, forms, deals and tasks, and you can log a note, call or meeting and set the next step. Add companies by hand, import contacts from a CSV file without doubles, and save filters as segments. Deals show a chance to win, why they were won or lost, and a weighted forecast.",
+  },
+  {
     id: "2026-10-31-social-planner-library",
     date: "2026-10-31",
     title: "Plan social posts by the week",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "Convert any file, most of them right on your device",
     body: "Tools, Convert any file: drop one file or fifty and pick what they should become. Photos, PDFs and spreadsheets convert in your browser with nothing uploaded, and you can download each result or all of them as one ZIP. Merge, split, rotate and number PDF pages there too.",
-  },
-  {
-    id: "2026-10-31-workspace-brand",
-    date: "2026-10-31",
-    title: "Make Multies look like your company",
-    body: "Owners and admins can add your logo, pick colours, corners, density and a font, or start from a ready made theme, with a live preview in Settings, Brand. Everyone can set their own accent and light or dark look in Settings, Appearance. Tools has a bigger drop zone and clearer tool cards.",
   },
   {
     id: "2026-10-28-whats-new",

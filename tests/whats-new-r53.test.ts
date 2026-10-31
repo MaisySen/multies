@@ -102,7 +102,9 @@ describe("R53 whats-new list", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-10-31-developers-faster-pages")).toBe(false);
     // R117: "Post to TikTok and Threads" folded into "Plan social posts by the week" (still in CHANGELOG.md).
     for (const id of ["2026-10-31-tools-smoother", "2026-10-31-split-keep-faster", "2026-10-31-timeline-views", "2026-10-31-tiktok-threads"]) expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);
-    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-10-31-social-planner-library", "2026-10-31-automation-flows", "2026-10-31-docs-visual", "2026-10-31-links", "2026-10-31-secure-share", "2026-10-31-tools-round-b", "2026-10-31-social-home", "2026-10-31-tasks-views-tags", "2026-10-31-inbox-tabs-rules", "2026-10-31-one-place-connections", "2026-10-31-calm-layout", "2026-10-31-convert-any-file", "2026-10-31-workspace-brand", "2026-10-28-whats-new"]);
+    // R94: "2026-10-31-workspace-brand" (the oldest after What's new itself) made room for the CRM timeline; it stays in CHANGELOG.md.
+    expect(WHATS_NEW.some((e) => e.id === "2026-10-31-workspace-brand")).toBe(false);
+    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-10-31-crm-timeline", "2026-10-31-social-planner-library", "2026-10-31-automation-flows", "2026-10-31-docs-visual", "2026-10-31-links", "2026-10-31-secure-share", "2026-10-31-tools-round-b", "2026-10-31-social-home", "2026-10-31-tasks-views-tags", "2026-10-31-inbox-tabs-rules", "2026-10-31-one-place-connections", "2026-10-31-calm-layout", "2026-10-31-convert-any-file", "2026-10-28-whats-new"]);
     for (const id of ["2026-10-28-more-safe-retries", "2026-10-28-lighter-mail-sync", "2026-10-28-safe-retries", "2026-10-28-quicker-task-lists", "2026-10-27-steadier-my-work"]) {
       expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);
     }

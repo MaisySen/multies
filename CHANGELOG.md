@@ -7,6 +7,12 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 94 (31 Oct 2026)
+
+- CRM timeline: one paged timeline per contact and per company of email, logged notes, calls and meetings, meetings, bookings, form submissions, deal moves and tasks, with filters and a next step kept as a linked task.
+- Companies can be added by hand and have their own page. Contacts can be imported from a CSV file (up to 5,000 rows, matched by email so nobody is added twice) and filtered into saved segments, private or shared with the team.
+- Deals have a chance to win (a stage default or set by hand), a won or lost reason, the date they closed, and a weighted forecast above the board. Behind CRM_TIMELINE.
+
 ### Round 117 (31 Oct 2026)
 
 - Added: Social composer v2 on New post (flag `SOCIAL_P2`, on unless set to off; off keeps the old composer; migration 0109). Pick a format first (text, image, carousel, video, story or reel), give each network its own text (it follows the main text until edited), counters per network limit, a live preview per network (side panel at 1280, a sheet on phones) and checks before send that list each account as ready, changed (and how) or left out (and why). Carousels, first comment where allowed, link card, campaign tag, LinkedIn polls, TikTok and Threads in the same composer.
