@@ -107,7 +107,7 @@ function LogoSlot({ data, kind, label, hint, wide, dark, canEdit, onChanged }: {
     if (f.size > LOGO_MAX_BYTES) { toast.error("Logos can be up to 512 KB. Try a smaller PNG or WebP."); return; }
     setBusy(true);
     try {
-      const res = await fetch(`/api/branding/logo/${kind}`, { method: "PUT", credentials: "same-origin", headers: { "content-type": f.type }, body: f });
+      const res = await fetch(`/api/branding/logo/${kind}`, { method: "PUT", credentials: "same-origin", headers: { "content-type": f.type, "x-multies-upload": "1" }, body: f });
       const j = await res.json().catch(() => null) as { brand?: Brand; error?: { message?: string } } | null;
       if (!res.ok || !j?.brand) throw new Error(j?.error?.message ?? "Couldn't upload the logo. Try again.");
       onChanged(j.brand); toast.success("Logo saved");
