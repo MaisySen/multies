@@ -155,6 +155,8 @@ SCHEDULING_ENABLED = "true"
 # The app's public address. The workers.dev address keeps working (same Worker, same data);
 # www.multies.si redirects to the apex and app.multies.si serves the app too.
 APP_URL = "https://multies.si"
+# R83: TikTok posts through the sandbox app until TikTok approves the production app; then set "production".
+TIKTOK_MODE = "sandbox"
 DEMO_MODE = "true"
 SENTRY_ENVIRONMENT = "production"
 # R40 (MB-199): every traced request spends extra CPU against the free plan's 10 ms; trace 2% here.
