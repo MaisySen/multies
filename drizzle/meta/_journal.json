@@ -638,6 +638,13 @@
       "when": 1793400000000,
       "tag": "0099_tools_job_charges",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "6",
+      "when": 1793450000000,
+      "tag": "0100_workspace_branding",
+      "breakpoints": true
     }
   ]
 }

@@ -984,5 +984,13 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- R66 (MB-256): a Tools run is counted only when its job finishes with a result. One row per engine job that\n-- was counted, so a status read that sees \"done\" again (a second tab, a page that resumed after a refresh) never\n-- counts it twice. Rows carry no file names; the cron prunes them after 2 days with the day rows of tool_usage.\nCREATE TABLE `tool_job_charges` (\n\t`job_id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`created_at` integer NOT NULL\n) WITHOUT ROWID;",
       "CREATE INDEX `tool_job_charges_created_idx` ON `tool_job_charges` (`created_at`);"
     ]
+  },
+  {
+    "name": "0100_workspace_branding",
+    "statements": [
+      "-- R77: workspace branding and personal themes. One small row per workspace (the brand as JSON), the logo images\n-- (base64, 512 KB each at most, the same way attachments are kept) and each person's own accent. Plain tables\n-- only; every read is by primary key.\nCREATE TABLE `workspace_branding` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`brand` text NOT NULL,\n\t`updated_by` text,\n\t`updated_at` integer NOT NULL\n) WITHOUT ROWID;",
+      "CREATE TABLE `workspace_brand_logos` (\n\t`org_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`content_type` text NOT NULL,\n\t`size_bytes` integer NOT NULL,\n\t`version` text NOT NULL,\n\t`content_b64` text NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `kind`)\n) WITHOUT ROWID;",
+      "CREATE TABLE `user_themes` (\n\t`user_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`follow_brand` integer DEFAULT 1 NOT NULL,\n\t`accent` text,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`user_id`, `org_id`)\n) WITHOUT ROWID;"
+    ]
   }
 ];

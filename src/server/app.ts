@@ -37,6 +37,7 @@ import { attachmentIndexRoutes } from "./routes/attachment-index"; // Tools P2: 
 import { connectionRoutes } from "./routes/connections";
 import { fxRoutes } from "./routes/fx";
 import { orgRoutes } from "./routes/org";
+import { brandingRoutes } from "./routes/branding"; // R77
 import { mailRoutes } from "./routes/mail";
 import { inboundKeyRoutes, inboundWebhookRoutes } from "./routes/inbound";
 import { deliveryRoutes } from "./routes/deliveries";
@@ -429,6 +430,7 @@ export function createApp(deps: Deps) {
   app.route("/api/fx", fxRoutes());
   app.route("/api/aliases", aliasRoutes());
   app.route("/api/org", orgRoutes());
+  app.route("/api/branding", brandingRoutes()); // R77: workspace branding and personal themes
   app.route("/api/channels", channelRoutes()); // C1: chat channels in the shared inbox
   app.route("/api/mail/snippets", mailSnippetRoutes()); // Round 22: saved replies
   app.route("/api/mail/splits", mailSplitRoutes()); // R31: split inbox

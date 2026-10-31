@@ -2343,3 +2343,34 @@ export const attachmentIndexState = sqliteTable("attachment_index_state", {
   sw: integer("sw").notNull().default(0),
   updatedAt: ts("updated_at").notNull(),
 });
+
+// ---------------------------------------------------------------- R77: workspace branding and personal themes
+
+/** A workspace's brand (shared/branding.ts Brand, without logos) as JSON. No row is Multies' own look. */
+export const workspaceBranding = sqliteTable("workspace_branding", {
+  orgId: text("org_id").primaryKey(),
+  brand: text("brand").notNull(),
+  updatedBy: text("updated_by"),
+  updatedAt: ts("updated_at").notNull(),
+});
+
+/** Workspace logos: light and dark, square mark and wide logo. PNG, JPEG or WebP up to 512 KB, kept as base64. */
+export const workspaceBrandLogos = sqliteTable("workspace_brand_logos", {
+  orgId: text("org_id").notNull(),
+  kind: text("kind", { enum: ["mark_light", "mark_dark", "wide_light", "wide_dark"] }).notNull(),
+  contentType: text("content_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  /** A short hash of the bytes; the logo URL carries it so caches can keep the image for good. */
+  version: text("version").notNull(),
+  contentB64: text("content_b64").notNull(),
+  updatedAt: ts("updated_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.kind] })]);
+
+/** A person's own theme in one workspace: follow the brand (default) or their own accent. */
+export const userThemes = sqliteTable("user_themes", {
+  userId: text("user_id").notNull(),
+  orgId: text("org_id").notNull(),
+  followBrand: integer("follow_brand", { mode: "boolean" }).notNull().default(true),
+  accent: text("accent"),
+  updatedAt: ts("updated_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.userId, t.orgId] })]);
