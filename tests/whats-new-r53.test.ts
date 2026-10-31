@@ -65,6 +65,8 @@ describe("R53 whats-new list", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-10-28-command-menu-actions")).toBe(false);
     // R85: the oldest after What's new itself made room for Inbox tabs, labels and mail rules.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-31-tools-one-look")).toBe(false);
+    // R84: "Pick how small" (compress levels) merged into "Tools that tell you sooner" to make room for saved views, tags and the task page.
+    expect(WHATS_NEW.some((e) => e.id === "2026-10-31-compress-levels")).toBe(false);
     // R83: "Tools pages and forms" made room for TikTok and Threads.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-30-tools-pages-forms")).toBe(false);
     // R70: "Reply straight from the shared inbox" made room for compress levels.
@@ -89,14 +91,15 @@ describe("R53 whats-new list", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-10-30-tools-more")).toBe(false);
     // R82F: "Share links, workflows and templates" made room for One place for everything you connect.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-30-tools-share-workflows")).toBe(false);
-    expect(WHATS_NEW[0].id).toBe("2026-10-31-inbox-tabs-rules");
-    expect(WHATS_NEW[1].id).toBe("2026-10-31-tiktok-threads");
-    expect(WHATS_NEW[2].id).toBe("2026-10-31-one-place-connections");
-    expect(WHATS_NEW[3].id).toBe("2026-10-31-connections");
-    expect(WHATS_NEW[4].id).toBe("2026-10-31-multies-everywhere");
-    expect(WHATS_NEW[5].id).toBe("2026-10-31-calm-layout");
-    expect(WHATS_NEW[6].id).toBe("2026-10-31-convert-any-file");
-    expect(WHATS_NEW[7].id).toBe("2026-10-31-workspace-brand");
+    expect(WHATS_NEW[0].id).toBe("2026-10-31-tasks-views-tags");
+    expect(WHATS_NEW[1].id).toBe("2026-10-31-inbox-tabs-rules");
+    expect(WHATS_NEW[2].id).toBe("2026-10-31-tiktok-threads");
+    expect(WHATS_NEW[3].id).toBe("2026-10-31-one-place-connections");
+    expect(WHATS_NEW[4].id).toBe("2026-10-31-connections");
+    expect(WHATS_NEW[5].id).toBe("2026-10-31-multies-everywhere");
+    expect(WHATS_NEW[6].id).toBe("2026-10-31-calm-layout");
+    expect(WHATS_NEW[7].id).toBe("2026-10-31-convert-any-file");
+    expect(WHATS_NEW[8].id).toBe("2026-10-31-workspace-brand");
     for (const id of ["2026-10-28-more-safe-retries", "2026-10-28-lighter-mail-sync", "2026-10-28-safe-retries", "2026-10-28-quicker-task-lists", "2026-10-27-steadier-my-work"]) {
       expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);
     }
