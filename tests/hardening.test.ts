@@ -21,18 +21,18 @@ describe("security headers", () => {
     const res = await app.request("/api/v1/reference", { headers: { host: "localhost" } });
     expect(res.headers.get("content-security-policy")).toContain("https://cdn.jsdelivr.net");
     const csp = appCsp();
-    expect(csp).toContain("script-src 'self' 'sha256-H7IyFghRVKP9oghvs1j+pAVtwPfyVlZ2L1BUd9xT7PA=';"); // R31: + the inline theme script hash
+    expect(csp).toContain("script-src 'self' 'sha256-H7IyFghRVKP9oghvs1j+pAVtwPfyVlZ2L1BUd9xT7PA=' 'wasm-unsafe-eval';"); // R31: + the inline theme script hash
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
     // Only the public form page may load Turnstile.
-    expect(appCsp({ turnstile: true })).toContain("script-src 'self' 'sha256-H7IyFghRVKP9oghvs1j+pAVtwPfyVlZ2L1BUd9xT7PA=' https://challenges.cloudflare.com;");
+    expect(appCsp({ turnstile: true })).toContain("script-src 'self' 'sha256-H7IyFghRVKP9oghvs1j+pAVtwPfyVlZ2L1BUd9xT7PA=' 'wasm-unsafe-eval' https://challenges.cloudflare.com;");
   });
 
   it("pins every directive of the app policy, so a loosened CSP fails here", () => {
     const directives = Object.fromEntries(appCsp().split(";").map((d) => d.trim()).filter(Boolean).map((d) => { const [k, ...v] = d.split(/\s+/); return [k, v.join(" ")]; }));
     expect(directives).toEqual({
       "default-src": "'self'",
-      "script-src": "'self' 'sha256-H7IyFghRVKP9oghvs1j+pAVtwPfyVlZ2L1BUd9xT7PA='",
+      "script-src": "'self' 'sha256-H7IyFghRVKP9oghvs1j+pAVtwPfyVlZ2L1BUd9xT7PA=' 'wasm-unsafe-eval'",
       "style-src": "'self' 'unsafe-inline'",
       "img-src": "'self' data: blob: https:",
       "font-src": "'self' data:",

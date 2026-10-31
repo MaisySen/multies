@@ -72,6 +72,8 @@ export interface Entry {
 
 /** Pages that are not catalogue tools, each behind its feature. */
 const PAGES: (Omit<Entry, "section" | "icon"> & { feature: string; section: Section; icon: Icon })[] = [
+  // R78: the Convert hub ships with Tools itself (no feature): drop any file, see what it can become.
+  { key: "convert-any", feature: "", section: "Convert", icon: IconArrowRightLeft, name: "Convert any file", line: "Drop files, pick what they become", words: "convert change format heic webp avif png jpg gif bmp image photo csv excel xlsx json tsv pdf batch many zip", to: "/app/tools/convert", takes: /./ },
   { key: "esign", feature: "esign", section: "Secure", icon: IconPenLine, name: "Sign", line: "Sign a PDF or ask others to sign it", words: "sign signature esign request", to: "/app/tools/sign", takesAttachment: true, takes: /\.pdf$/i },
   { key: "share", feature: "share", section: "Secure", icon: IconLink, name: "Share as a link", line: "Send a big file as a link with expiry", words: "share link expiry password large file send", to: "/app/tools/share", takesAttachment: true, takes: /./ },
   { key: "ask", feature: "ask", section: "Smart", icon: IconChatQuote, name: "Ask a document", line: "A summary and answers from any document", words: "ai summary question answer chat", to: "/app/tools/ai?feature=ask", takesAttachment: true, takes: /\.(pdf|docx|png|jpe?g)$/i },
@@ -96,7 +98,11 @@ export function buildEntries(tools: ToolDef[], features: readonly string[]): Ent
     const look = LOOK[t.op] ?? { section: "Edit PDF" as Section, icon: IconDocs, line: t.blurb, words: "" };
     return { key: t.op, name: look.name ?? t.label, line: look.line, section: look.section, icon: look.icon, words: `${t.label} ${t.blurb} ${look.words}`, tool: t, to: t.path, takesAttachment: !!t.path };
   }).sort((a, b) => (ORDER.indexOf(a.key) + 1 || 99) - (ORDER.indexOf(b.key) + 1 || 99));
-  const pages: Entry[] = PAGES.filter((p) => features.includes(p.feature)).map(({ feature: _f, ...p }) => p);
+  const pages: Entry[] = PAGES.filter((p) => !p.feature || features.includes(p.feature)).map(({ feature: _f, ...p }) => p);
+  // R78: the Convert hub leads the Convert section.
+  const hub = pages.filter((p) => p.key === "convert-any");
+  const at = fromTools.findIndex((e) => e.section === "Convert");
+  if (at >= 0) return [...fromTools.slice(0, at), ...hub, ...fromTools.slice(at), ...pages.filter((p) => p.key !== "convert-any")];
   return [...fromTools, ...pages];
 }
 
@@ -112,7 +118,7 @@ export function entryTakes(e: Entry, filename: string, dropped = false): boolean
 }
 
 /** R66: pages that pick up a dropped file handed over from the Tools list (carryFiles). */
-export const CARRY_PAGES = new Set(["organize", "form-fill", "compare", "share"]);
+export const CARRY_PAGES = new Set(["organize", "form-fill", "compare", "share", "convert-any"]);
 
 const STOP_WORDS = new Set(["a", "an", "the", "to", "and", "or", "of", "for", "with", "my", "into", "in", "on", "from", "as", "file", "files"]);
 const tokens = (s: string) => s.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
@@ -216,7 +222,7 @@ export function rememberRecent(key: string) {
   try { localStorage.setItem(RECENT_KEY, JSON.stringify([key, ...recentKeys().filter((k) => k !== key)].slice(0, 6))); } catch { /* private mode */ }
 }
 /** Shown in Recent before anything has been used. */
-export const STARTERS = ["compress", "merge", "convert", "organize", "esign", "pdf-to-docx"];
+export const STARTERS = ["convert-any", "compress", "merge", "convert", "organize", "esign"];
 
 /** Files handed from one screen to the next (memory only); kept in their own small module the editors share. */
 export { carryFiles, peekCarried, takeCarried } from "@/web/lib/carried-files";

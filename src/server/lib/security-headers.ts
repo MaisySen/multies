@@ -74,7 +74,9 @@ export function appCsp(opts: CspOptions = {}): string {
     "default-src": ["'self'"],
     // Public form pages (/f/...) load Cloudflare Turnstile; every other page runs only our own scripts.
     // Cloudflare Web Analytics (cookieless) is allowed only when a beacon token is configured.
-    "script-src": ["'self'", THEME_SCRIPT_HASH, ...(opts.analytics ? [CF_INSIGHTS_SCRIPT] : []), ...(opts.turnstile ? [TURNSTILE] : [])],
+    // R78: 'wasm-unsafe-eval' lets the Tools Convert hub compile its own WebAssembly encoders (AVIF, WEBP) from our own
+    // origin. It allows WebAssembly compilation only; eval and inline script stay blocked.
+    "script-src": ["'self'", THEME_SCRIPT_HASH, "'wasm-unsafe-eval'", ...(opts.analytics ? [CF_INSIGHTS_SCRIPT] : []), ...(opts.turnstile ? [TURNSTILE] : [])],
     "style-src": ["'self'", "'unsafe-inline'"],
     "img-src": ["'self'", "data:", "blob:", "https:"],
     "font-src": ["'self'", "data:"],
