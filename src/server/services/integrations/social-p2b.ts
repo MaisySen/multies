@@ -480,7 +480,9 @@ export async function reply(deps: Deps, auth: AuthContext, id: string, text: str
   try { await sendReply(deps, auth, r, body); } catch (err) {
     status = "failed";
     const code = err instanceof PublishError ? err.code : "unavailable";
-    error = REPLY_COPY[code] ?? SOCIAL_ERROR_COPY[code] ?? (err instanceof PublishError && code === "rejected" ? `${networkLabel(r.app)} turned the reply down: ${err.message}` : "The network did not answer. Try again in a minute.");
+    const name = r.app === TEST_NETWORK ? TEST_NETWORK_LABEL : networkLabel(r.app);
+    error = code === "rejected" ? `${name} turned the reply down${err instanceof PublishError && err.message && err.message !== "rejected" ? `: ${err.message.slice(0, 200)}` : ""}.`
+      : REPLY_COPY[code] ?? SOCIAL_ERROR_COPY[code] ?? "The network did not answer. Try again in a minute.";
     deps.log?.warn("social.inbox_reply_failed", { app: r.app, code });
   }
   const now = deps.now();
