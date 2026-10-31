@@ -162,7 +162,7 @@ export function PresentOverlay({ docId, doc, title, start = 0, onClose }: Presen
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLElement && e.target.closest("input, textarea, [contenteditable=true]")) return;
-      if (e.key === "Escape") { e.preventDefault(); if (!document.fullscreenElement) onClose(); return; }
+      if (e.key === "Escape") { e.preventDefault(); if (document.fullscreenElement) void document.exitFullscreen().catch(() => {}); onClose(); return; }
       if (e.key === "f" || e.key === "F") { e.preventDefault(); toggleFull(); return; }
       if (e.target instanceof HTMLButtonElement && (e.key === " " || e.key === "Enter")) return;
       const n = slideKey(e.key, indexRef.current, slides.length, e.shiftKey);

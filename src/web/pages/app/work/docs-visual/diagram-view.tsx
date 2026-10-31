@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { IconChevronDown, IconDownload, IconWarning, IconWorkflow } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
 import { showError } from "@/web/lib/show-error";
+import { useDialogs } from "@/web/components/ui/confirm";
 import { DIAGRAM_TEMPLATES, diagramKind, type DiagramError } from "@/web/lib/diagram";
 import { readTokens, useThemeKey } from "./theme";
 import { downloadBlob, safeName, svgBlob, svgToPng } from "./export-file";
@@ -26,6 +27,7 @@ export function DiagramView({ node, editor, getPos }: NodeViewProps) {
   const [view, setView] = useState<View>("split");
   const [menu, setMenu] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const { confirm, dialogs } = useDialogs();
   const lines = useMemo(() => Math.max(1, source.split("\n").length), [source]);
 
   useEffect(() => {
@@ -68,6 +70,7 @@ export function DiagramView({ node, editor, getPos }: NodeViewProps) {
   const showPreview = !editable || view !== "code";
   return (
     <NodeViewWrapper as="div" className="mm-diagram not-prose my-3 overflow-hidden rounded-xl border border-line bg-surface" data-testid="diagram-block" data-view={editable ? view : "preview"}>
+      {dialogs}
       <div contentEditable={false} className="flex flex-wrap items-center gap-1 border-b border-line px-2 py-1.5 text-[12.5px] text-muted">
         <span className="inline-flex items-center gap-1.5 px-1 font-medium text-fg"><IconWorkflow className="h-4 w-4 text-muted" aria-hidden />{diagramKind(source)}</span>
         {error && <span className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5 text-[11.5px] font-medium text-warn" data-testid="diagram-error-chip"><IconWarning className="h-3 w-3" aria-hidden />{error.line ? `Line ${error.line}` : "Check the text"}</span>}
@@ -81,9 +84,9 @@ export function DiagramView({ node, editor, getPos }: NodeViewProps) {
               <div role="menu" className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-line bg-elevated p-1 shadow-pop" onKeyDown={(e) => { if (e.key === "Escape") setMenu(false); }}>
                 {DIAGRAM_TEMPLATES.map((t) => (
                   <button key={t.id} type="button" role="menuitem" className="block w-full rounded-md px-2.5 py-1.5 text-left hover:bg-hover focus-visible:bg-hover focus-visible:outline-none"
-                    onClick={() => {
+                    onClick={async () => {
                       setMenu(false);
-                      if (source.trim() && !window.confirm("Replace this diagram with the template?")) return;
+                      if (source.trim() && !(await confirm({ title: `Replace this diagram with the ${t.label.toLowerCase()} template?`, description: "Its text is replaced. Undo brings it back.", confirmLabel: "Replace" }))) return;
                       setSource(t.code);
                     }}>
                     <span className="block text-[13px] text-fg">{t.label}</span><span className="block text-[12px] text-subtle">{t.hint}</span>

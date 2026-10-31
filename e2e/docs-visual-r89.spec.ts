@@ -23,8 +23,8 @@ async function signUp(browser: Browser, width = 1280, height = 860) {
 async function drawBox(page: Page, tool: "rectangle" | "ellipse" | "diamond", x: number, y: number) {
   const host = page.getByTestId("board-host").first();
   await expect(host).toBeVisible({ timeout: 30_000 });
-  await host.locator(`[data-testid="toolbar-${tool}"]`).click();
-  const canvas = host.locator("canvas.excalidraw__canvas.interactive");
+  await host.locator("label", { has: page.locator(`[data-testid="toolbar-${tool}"]`) }).click();
+  const canvas = host.locator("canvas.interactive");
   const box = (await canvas.boundingBox())!;
   await page.mouse.move(box.x + x, box.y + y);
   await page.mouse.down();
@@ -43,6 +43,10 @@ const sceneCount = async (page: Page, id: string) => {
 test("whiteboard: create, draw, autosave, export, and two sessions drawing at once", async ({ browser }) => {
   test.setTimeout(240_000);
   const { ctx, page } = await signUp(browser);
+  if (process.env.R89_DEBUG) {
+    await ctx.addInitScript(() => localStorage.setItem("mm-debug-board", "1"));
+    ctx.on("console", (m) => { if (m.text().startsWith("[board]")) console.log(m.text()); });
+  }
   await page.goto("/app/docs");
   await page.getByTestId("new-whiteboard").click();
   await expect(page).toHaveURL(/\/app\/docs\/[^/?]+$/);
@@ -87,8 +91,9 @@ test("diagram: template, an error on its line, then fixed, no crash", async ({ b
   await expect(block.locator("[data-testid=diagram-preview] svg")).toBeVisible({ timeout: 30_000 });
   // Break it: an arrow to nowhere on a new last line.
   const src = block.getByTestId("diagram-source");
-  await src.click();
-  await page.keyboard.press("Control+End");
+  const sb = (await src.boundingBox())!;
+  await page.mouse.click(sb.x + sb.width - 4, sb.y + sb.height - 6);
+  await page.keyboard.press("End");
   await page.keyboard.press("Enter");
   await page.keyboard.type("  B -->");
   await expect(block.getByTestId("diagram-error")).toBeVisible({ timeout: 15_000 });
@@ -127,7 +132,7 @@ test("mind map: an edit in the map is written into the doc", async ({ browser })
   await page.getByTestId("doc-mode").getByRole("button", { name: "Doc" }).click();
   const editor = page.locator(".ProseMirror").first();
   await expect(editor.locator("li", { hasText: "Cut churn" })).toBeVisible();
-  await expect(editor.locator("li", { hasText: "Late launch" })).toBeVisible();
+  await expect(editor.locator("h2", { hasText: "Late launch" })).toBeVisible(); // a child of a top heading is a subheading
   await expect.poll(async () => ((await (await page.request.get(`/api/docs/${doc.id}`)).json()).doc.text as string), { timeout: 20_000 }).toMatch(/Cut churn[\s\S]*Risks[\s\S]*Late launch/);
   // Export
   await page.getByTestId("doc-mode").getByRole("button", { name: "Mind map" }).click();
@@ -165,8 +170,8 @@ test("present: slides, keys, presenter view with notes and timer", async ({ brow
   await expect(deck.getByTestId("speaker-notes")).toHaveText("thank the team first.");
   await expect(deck.getByTestId("presenter-timer")).toHaveText(/^00:0\d$/);
   await page.keyboard.press("Escape");
-  if (await deck.isVisible()) await page.keyboard.press("Escape");
   await expect(deck).toHaveCount(0);
+  await expect(page).not.toHaveURL(/present=/);
   await ctx.close();
 });
 

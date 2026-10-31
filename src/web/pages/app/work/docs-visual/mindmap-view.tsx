@@ -12,6 +12,7 @@ import { IconChevronRight, IconDownload, IconListTree, IconPlus } from "@/web/co
 import { Button } from "@/web/components/ui/button";
 import { cn } from "@/web/lib/cn";
 import { showError } from "@/web/lib/show-error";
+import { useDialogs } from "@/web/components/ui/confirm";
 import {
   addChild, addSibling, countHidden, diffBlocks, docToTree, find, indent, move, moveTo, neighbours, outdent, remove, rename, treeToDoc, visible,
   type EditResult, type MindNode, type PMNode,
@@ -77,6 +78,7 @@ export function MindMapView({ editor, title, readOnly, onRenameTitle }: { editor
   const [editing, setEditing] = useState<{ id: string; text: string; fresh: boolean } | null>(null);
   const [drag, setDrag] = useState<string | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
+  const { confirm, dialogs } = useDialogs();
 
   // The doc is the source: redraw on every change, local or from a co-editor.
   useEffect(() => {
@@ -165,8 +167,10 @@ export function MindMapView({ editor, title, readOnly, onRenameTitle }: { editor
     else if ((k === "Delete" || k === "Backspace") && id !== "r") {
       const f = find(tree, id);
       const many = f ? f.node.children.length : 0;
-      if (many && !window.confirm(`Delete "${f!.node.text || "this idea"}" and the ${many} ${many === 1 ? "item" : "items"} under it?`)) return;
-      apply(remove(tree, id));
+      if (many) {
+        void confirm({ title: `Delete "${f!.node.text || "this idea"}"?`, description: `The ${many} ${many === 1 ? "item" : "items"} under it go too. Undo in Doc view brings them back.`, confirmLabel: "Delete", tone: "danger" })
+          .then((ok) => { if (ok) apply(remove(tree, id)); });
+      } else apply(remove(tree, id));
     }
     else if (k.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) startEdit(id, false, k);
     else handled = false;
@@ -192,6 +196,7 @@ export function MindMapView({ editor, title, readOnly, onRenameTitle }: { editor
   const isEmpty = visible(tree).length === 0;
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="mindmap">
+      {dialogs}
       <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-1 pb-2 text-[12.5px] text-muted">
         <IconListTree className="h-4 w-4" aria-hidden />
         <span className="max-sm:hidden">{readOnly ? "Arrows move, Space folds." : "Tab adds a child, Enter a sibling, arrows move, type to rename."}</span>

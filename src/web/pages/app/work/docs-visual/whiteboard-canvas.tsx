@@ -36,6 +36,7 @@ export interface CanvasProps {
 }
 
 const LOCAL = "wb-local";
+const dbg = (...a: unknown[]) => { if (typeof localStorage !== "undefined" && localStorage.getItem("mm-debug-board")) console.log("[board]", ...a); };
 const SNAPSHOT_MS = 1100;
 
 export default function WhiteboardCanvas(p: CanvasProps) {
@@ -54,7 +55,7 @@ export default function WhiteboardCanvas(p: CanvasProps) {
   const localDoc = useMemo(() => new Y.Doc(), []);
   const ydoc = p.session?.ydoc ?? localDoc;
   const ymap = useMemo(() => ydoc.getMap<BoardElement>(`wb:${p.boardId}`), [ydoc, p.boardId]);
-  useEffect(() => () => localDoc.destroy(), [localDoc]);
+  useEffect(() => { dbg("mount", p.boardId, !!p.session); return () => { dbg("unmount"); localDoc.destroy(); }; }, [localDoc]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const all = useCallback((): BoardElement[] => orderElements([...ymap.values()]), [ymap]);
 
@@ -75,18 +76,35 @@ export default function WhiteboardCanvas(p: CanvasProps) {
     }, SNAPSHOT_MS);
   }, [all]);
 
-  // Seed the shared map from the saved copy (once, when the room has no drawing yet), then draw it.
-  useEffect(() => {
-    if (!api) return;
+  // Seed the shared map from the saved copy (once, when the room has no drawing yet). The first drawing goes in as
+  // the library's initial data: a scene set before it has loaded is replaced by its own empty start.
+  const initial = useMemo(() => {
     const saved = readScene(p.scene);
     if (ymap.size === 0 && saved.length && !p.readOnly) ydoc.transact(() => { for (const e of saved) if (!ymap.has(e.id)) ymap.set(e.id, e); }, LOCAL);
-    const start = ymap.size ? all() : saved;
-    const els = restoreElements(start as any, null, { refreshDimensions: false, repairBindings: true });
-    sent.current = new Map(els.map((e: BoardElement) => [e.id, e.version]));
-    api.updateScene({ elements: els, captureUpdate: CaptureUpdateAction.NEVER });
-    mark(els);
-    if (els.length) setTimeout(() => api.scrollToContent(undefined, { fitToContent: true, animate: false }), 30);
-    p.onReady?.();
+    const start = ymap.size ? orderElements([...ymap.values()]) : saved;
+    return restoreElements(start as any, null, { refreshDimensions: false, repairBindings: true }) as unknown as BoardElement[];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const initialData = useMemo(() => ({ elements: initial as any, scrollToContent: true, appState: { viewBackgroundColor: "transparent" } }), [initial]);
+
+  // Once loaded: take anything that reached the room meanwhile, and note what is already shared.
+  useEffect(() => {
+    if (!api) return;
+    let raf = 0, tries = 0, live = true;
+    const ready = () => {
+      if (!live) return;
+      if (api.getAppState()?.isLoading && tries++ < 120) { raf = requestAnimationFrame(ready); return; }
+      const local = api.getSceneElementsIncludingDeleted() as BoardElement[];
+      const merged = mergeElements(local.length ? local : initial, [...ymap.values()]);
+      sent.current = new Map(merged.map((e) => [e.id, e.version]));
+      if (merged.length !== local.length || merged.some((e, i) => local[i]?.id !== e.id || local[i]?.version !== e.version)) {
+        api.updateScene({ elements: restoreElements(merged as any, null), captureUpdate: CaptureUpdateAction.NEVER });
+      }
+      mark(merged);
+      p.onReady?.();
+    };
+    ready();
+    return () => { live = false; cancelAnimationFrame(raf); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api]);
 
@@ -97,6 +115,7 @@ export default function WhiteboardCanvas(p: CanvasProps) {
       if (tr.origin === LOCAL) return;
       const remote: BoardElement[] = [];
       ev.keysChanged.forEach((k) => { const e = ymap.get(k); if (e) remote.push(e); });
+      dbg("remote", remote.map((e) => `${e.id}:${e.version}`).join(","));
       if (!remote.length) return;
       const local = api.getSceneElementsIncludingDeleted() as BoardElement[];
       let next: BoardElement[];
@@ -105,7 +124,11 @@ export default function WhiteboardCanvas(p: CanvasProps) {
       } catch {
         next = mergeElements(local, remote);
       }
-      for (const e of next) sent.current.set(e.id, e.version);
+      dbg("merged", local.length, "->", next.length);
+      // Only what came from the room counts as shared; a local stroke still in progress keeps its own count, so its
+      // next change is written (marking it here lost strokes drawn while someone else drew).
+      const byId = new Map(next.map((e) => [e.id, e]));
+      for (const r of remote) { const e = byId.get(r.id); if (e && e.version === r.version) sent.current.set(r.id, r.version); }
       api.updateScene({ elements: next, captureUpdate: CaptureUpdateAction.NEVER });
       mark(next);
       snapshotSoon();
@@ -152,6 +175,7 @@ export default function WhiteboardCanvas(p: CanvasProps) {
     if (props.current.readOnly) return;
     const changed = changedSince(sent.current, elements);
     if (!changed.length) return;
+    dbg("local", changed.map((e) => `${e.id}:${e.version}`).join(","), "ymap", ymap.size);
     ydoc.transact(() => {
       for (const e of changed) {
         const cur = ymap.get(e.id);
@@ -172,7 +196,7 @@ export default function WhiteboardCanvas(p: CanvasProps) {
       if (!a) return;
       const elements = a.getSceneElements();
       if (!elements.length) { toast("Draw something first"); return; }
-      const appState = { ...a.getAppState(), exportBackground: true, exportWithDarkMode: props.current.dark, exportScale: 2 };
+      const appState = { ...a.getAppState(), exportBackground: true, viewBackgroundColor: "#ffffff", exportWithDarkMode: props.current.dark, exportScale: 2 };
       try {
         if (kind === "png") downloadBlob(await exportToBlob({ elements, appState, files: a.getFiles(), mimeType: "image/png", exportPadding: 24 }), safeName(props.current.title, "png"));
         else {
@@ -199,6 +223,7 @@ export default function WhiteboardCanvas(p: CanvasProps) {
     <div ref={host} className="h-full w-full" role="region" aria-label="Whiteboard" data-testid="board-host" data-element-count="0">
     <Excalidraw
       excalidrawAPI={(a: Api) => { apiRef.current = a; setApi(a); }}
+      initialData={initialData}
       onChange={onChange as any}
       onPointerUpdate={onPointerUpdate as any}
       isCollaborating={!!p.session}
