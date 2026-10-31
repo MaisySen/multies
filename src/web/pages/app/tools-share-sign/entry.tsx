@@ -15,13 +15,12 @@ export function useToolFeatures(): string[] {
 /** Two cards above the tool grid. */
 export function ShareSignCards() {
   const f = useToolFeatures();
-  const share = f.includes("share"), sign = f.includes("esign"), links = f.includes("links");
-  if (!share && !sign && !links) return null;
+  const share = f.includes("share"), sign = f.includes("esign");
+  if (!share && !sign) return null;
   const card = "flex items-center gap-3 rounded-xl border border-line bg-elevated px-4 py-3 text-sm hover:border-line-strong hover:bg-hover/40";
   return (
     <div className="grid gap-3 sm:grid-cols-2" data-testid="share-sign-cards">
       {share && <Link to="/app/tools/share" className={card}><span className="grid h-9 w-9 place-items-center rounded-lg bg-[#0071E3] text-white"><IconLink className="h-4 w-4" /></span><span><span className="block font-medium">Share links</span><span className="text-muted">Send a big file as a link with expiry and password</span></span></Link>}
-      {links && <Link to="/app/tools/links" className={card} data-testid="links-card"><span className="grid h-9 w-9 place-items-center rounded-lg bg-[#FF9500] text-white"><IconLink className="h-4 w-4" /></span><span><span className="block font-medium">Links</span><span className="text-muted">Short links with QR codes, click stats and a bio page</span></span></Link>}
       {sign && <Link to="/app/tools/sign" className={card}><span className="grid h-9 w-9 place-items-center rounded-lg bg-[#AF52DE] text-white"><IconPenLine className="h-4 w-4" /></span><span><span className="block font-medium">E-sign</span><span className="text-muted">Sign a PDF or ask others to sign it</span></span></Link>}
     </div>
   );

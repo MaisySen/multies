@@ -192,8 +192,9 @@ test("screenshots at 1280 and 390, light, dark and Forest, and axe finds nothing
   };
   // After shots of the screens that existed before: the Tools page card and the Create menu item.
   await page.goto("/app/tools");
-  await page.getByTestId("links-card").scrollIntoViewIfNeeded();
-  await expect(page.getByTestId("links-card")).toBeVisible({ timeout: 20_000 });
+  const card = page.getByText("Short links, QR codes, stats and a bio page").first();
+  await card.scrollIntoViewIfNeeded({ timeout: 20_000 });
+  await expect(card).toBeVisible();
   await shot("l00-after-tools-card-1280-light");
   await page.getByTestId("create-menu").click();
   await expect(page.getByRole("menuitem", { name: "Short link" })).toBeVisible();
