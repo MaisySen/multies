@@ -14,7 +14,13 @@ export interface WhatsNewEntry {
   body: string;
 }
 
-export const WHATS_NEW: readonly WhatsNewEntry[] = [
+export const WHATS_NEW: readonly WhatsNewEntry[
+  {
+    id: "2026-10-31-tiktok-threads",
+    date: "2026-10-31",
+    title: "Post to TikTok and Threads",
+    body: "Connect your TikTok and Threads accounts on Settings, Connections, Social posts. Post a video to TikTok, choosing who can see it and whether people can comment, duet or stitch, and post text or a picture to Threads. Your latest videos and posts show right there.",
+  },] = [
   {
     id: "2026-10-31-one-place-connections",
     date: "2026-10-31",
@@ -92,12 +98,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-30",
     title: "Edit pages, fill forms and compare PDFs",
     body: "Drag to reorder, turn or delete the pages of a PDF, fill PDF forms and flatten them, and compare two versions of a PDF page by page. Tools also has a new look, with search, clear groups and progress you can follow and cancel.",
-  },
-  {
-    id: "2026-10-28-whats-new",
-    date: "2026-10-28",
-    title: "What's new, in the app",
-    body: "The account menu has a What's new item, with a small dot when something new has shipped since you last looked. The same list is on the public changelog page.",
   },
 ];
 

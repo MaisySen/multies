@@ -7,6 +7,13 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 83 (31 Oct 2026)
+
+- Added: TikTok through our own app on Settings, Connections, Social posts. Sign in with PKCE (scopes user.info.basic, video.upload, video.publish, video.list), tokens encrypted at rest (migration 0102, direct_social_links), refreshed on expiry and revoked on disconnect. Post a video by Direct Post following TikTok's rules: creator nickname shown, audience only from creator_info with no default, comment, duet and stitch toggles, content disclosure (Your brand, Branded content) and the consent line; own video list and per post status.
+- Added: TikTok webhook at /api/connections/webhooks/tiktok (TikTok-Signature checked against both client secrets, 5 minute window): authorization.removed removes the link, post.publish.* settles the post.
+- Added: Threads through our own app: sign in at threads.net, long lived token with refresh, text or picture posts, profile and latest posts. The uninstall and delete callbacks (POST signed_request to /delete-account) are verified with the app secret, remove the Threads link and answer a confirmation code.
+- Ops: production uses the TikTok sandbox app (TIKTOK_MODE=sandbox) until TikTok approves the production app.
+
 ### Round 82F (31 Oct 2026)
 
 - Changed (MB-279): one home for outside apps. Settings, Connections has four tabs: Apps, Social posts, Mail accounts (was Settings, Connected accounts) and Webhooks (was Workspace, Integrations). /app/settings/connections and /app/integrations redirect to their tab, query included; the Workspace sidebar and the Settings list each have one Connections entry.
