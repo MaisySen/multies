@@ -9,7 +9,7 @@ import type {
 } from "./types";
 
 import type { ToolJob, ToolsInfo } from "@/lib/tools";
-import type { ConnectedAccountView, DirectStatusResponse, NewSocialPost, SocialAccountHealth, SocialPostView, TargetOption } from "@/lib/social";
+import type { ConnectedAccountView, DeleteResult, DirectStatusResponse, NewSocialPost, SocialAccountHealth, SocialPostView, TargetOption } from "@/lib/social";
 
 export interface SignInResult { twoFactorRedirect?: boolean; user?: { email: string } }
 
@@ -173,7 +173,11 @@ export function endpoints(t: Transport) {
     retrySocialPost: (id: string) => t.request<{ post: SocialPostView }>("POST", `/social/posts/${encodeURIComponent(id)}/retry`, {}),
     cancelSocialPost: (id: string) => t.request<{ post: SocialPostView }>("POST", `/social/posts/${encodeURIComponent(id)}/cancel`, {}),
     /** Account checks before writing. Servers from before this check answer 404, which the app treats as "no checks". */
-    socialHealth: () => t.request<{ accounts: SocialAccountHealth[] }>("GET", "/social/health"),
+    socialHealth: (fresh = false) => t.request<{ accounts: SocialAccountHealth[] }>("GET", fresh ? "/social/health?fresh=1" : "/social/health"),
+    // 1.10.6: one post, the posts on screen checked against their network (Facebook), and delete (also on the networks).
+    socialPost: (id: string) => t.request<{ post: SocialPostView }>("GET", `/social/posts/${encodeURIComponent(id)}`),
+    syncSocialPosts: (ids: string[]) => t.request<{ posts: SocialPostView[] }>("POST", "/social/posts/sync", { ids }),
+    deleteSocialPost: (id: string) => t.request<DeleteResult>("DELETE", `/social/posts/${encodeURIComponent(id)}`),
     appsStatus: () => t.request<{ available: boolean; canManage: boolean }>("GET", "/apps/status"),
     appAccounts: () => t.request<{ accounts: ConnectedAccountView[] }>("GET", "/apps/accounts"),
     /** Starts a sign in with the network. The phone opens redirectUrl in the browser, then confirms. */

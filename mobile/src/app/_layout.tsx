@@ -95,7 +95,11 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="meetings" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Meetings" }} />
         <Stack.Screen name="portfolio" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Portfolio" }} />
         <Stack.Screen name="workspaces" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Workspaces" }} />
-        <Stack.Screen name="social" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Social" }} />
+        {/* 1.10.6: Social keeps a fixed standard header (no large title): its parts and filters are pinned under it and
+            only the list below scrolls, so nothing slides under the header. See __tests__/social-1106.test.tsx. */}
+        <Stack.Screen name="social" options={{ headerLargeTitle: false, title: "Social" }} />
+        <Stack.Screen name="social-post/[id]" options={{ headerLargeTitle: false, title: "Post" }} />
+        <Stack.Screen name="social-posted/[id]" options={{ headerLargeTitle: false, title: "", headerBackVisible: false, gestureEnabled: false }} />
         <Stack.Screen name="people" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "People" }} />
         <Stack.Screen name="tools" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Tools" }} />
         <Stack.Screen name="tool/[op]" options={{ presentation: "modal", title: "Tool" }} />

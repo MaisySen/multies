@@ -3,6 +3,18 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.10.6 (OTA, runs on Android versionCode 16 and iOS build 20), 31 Oct 2026
+
+- After you post: you see how it went, network by network, with View in Posts and Write another. Posting no longer
+  looks like nothing happened.
+- Tidier screens: posts no longer slide under the Social title, and the Post button stays above the keyboard.
+- Open a post: see where it went, with a link to each network. Posts are checked with Facebook when you open them,
+  and one deleted there shows Removed on Facebook.
+- Delete a post: it is also deleted from Facebook and LinkedIn, after you confirm.
+- Quicker to reach: Today has a Social card, and Commands has New social post.
+
+Carries everything in 1.10.5.
+
 ## 1.10.5 (OTA, runs on Android versionCode 16 and iOS build 20), 31 Oct 2026
 
 - Social: post to your Facebook Pages, LinkedIn, Instagram and more from the phone. Settings, Social has

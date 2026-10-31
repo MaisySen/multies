@@ -1,156 +1,213 @@
-import { useMemo, useState } from "react";
-import { Alert, Image, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Alert, FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
 import { InsetGroup, GroupRow, g } from "@/components/grouped";
-import { Badge, Banner, Button, Chip, EmptyState, Icon, Loading, Segmented } from "@/components/ui";
+import { Badge, Banner, Button, Chip, EmptyState, Icon, Segmented, Skeleton } from "@/components/ui";
+import { LinkText, NetworkMark, plainError, postTime, SocialToastHost, TargetRow, useKeyboardLift } from "@/components/social";
 import { readBase64 } from "@/lib/chat-files";
 import { toNumber } from "@/lib/native-number";
 import { useOffline } from "@/lib/offline";
-import { success, warning } from "@/lib/haptics";
+import { success, tick, warning } from "@/lib/haptics";
 import {
-  DIRECT_NAMES, PHONE_CONNECT_APPS, POST_STATUS, SOCIAL_IMAGE_MAX_BYTES, SOCIAL_IMAGE_TYPES, SOCIAL_NETWORKS, SOCIAL_TEXT_MAX, TARGET_STATUS,
-  appName, canPostTo, filterPosts, laterOptions, needsReconnect, newPostKey, postNote, socialErrorText, whyNot,
+  DIRECT_NAMES, PHONE_CONNECT_APPS, POST_FILTERS, SOCIAL_IMAGE_MAX_BYTES, SOCIAL_IMAGE_TYPES, SOCIAL_NETWORKS, SOCIAL_TEXT_MAX,
+  ago, appName, canPostTo, filterPosts, healthChip, laterOptions, needsDeleteNote, needsReconnect, newPostKey, postBadge, postNote, whyNot,
   type ConnectedAccountView, type DirectAccountView, type PostFilter, type SocialAccountHealth, type SocialPostView,
 } from "@/lib/social";
 import {
-  openWebSocialAccounts, useDirectStatus, useSocialAccounts, useSocialActions, useSocialHealth, useSocialPosts, useSocialStatus, useSocialTargets,
+  clearSocialToast, currentSocialTab, openWebSocialAccounts, rememberDraft, subscribeSocialTab, takeRestoredDraft, useDirectStatus, useFreshHealth, useSocialAccounts,
+  useSocialActions, useSocialHealth, useSocialPosts, useSocialStatus, useSocialSync, useSocialTargets, type SocialTab,
 } from "@/lib/social-queries";
 import { colors, font, radius, space } from "@/theme";
 
-type Tab = "posts" | "new" | "accounts";
-const TABS: { id: Tab; label: string }[] = [{ id: "posts", label: "Posts" }, { id: "new", label: "New post" }, { id: "accounts", label: "Accounts" }];
+const TABS: { id: SocialTab; label: string }[] = [{ id: "posts", label: "Posts" }, { id: "new", label: "New post" }, { id: "accounts", label: "Accounts" }];
 
 /**
- * 1.10.5: Social on the phone, the same three places as the web's Social area: Posts (sent, scheduled and
- * not posted, with each network's own reason and a Reconnect button), New post, and Accounts.
+ * Social on the phone: Posts, New post and Accounts, the same three places as the web's Social area.
+ *
+ * 1.10.6 layout rule (the 1.10.5 cards slid under a large title): this screen has a fixed standard header, a pinned
+ * bar under it (the three parts, and the filters on Posts) that never scrolls, and one scrolling list below it with
+ * its own insets. Nothing else scrolls. A test guards it (__tests__/social-1106.test.tsx).
  */
 export default function Social() {
   const params = useLocalSearchParams<{ tab?: string }>();
-  const [tab, setTab] = useState<Tab>(params.tab === "new" || params.tab === "accounts" ? params.tab : "posts");
+  const [tab, setTab] = useState<SocialTab>(params.tab === "new" || params.tab === "accounts" ? params.tab : "posts");
+  const [filter, setFilter] = useState<PostFilter>("all");
   const status = useSocialStatus();
   const offline = useOffline();
-  if (status.isPending) return <Loading variant="task" />;
-  if (status.error || !status.data?.available) {
+  const available = !!status.data?.available;
+  const posts = useSocialPosts(available);
+  const wanted = useSyncExternalStore(subscribeSocialTab, currentSocialTab, currentSocialTab);
+  // Another screen can ask for a part (the screen after posting opens Posts or New post), and so can a link.
+  const [seen, setSeen] = useState(wanted?.n ?? 0);
+  if (wanted && wanted.n !== seen) { setSeen(wanted.n); setTab(wanted.tab); if (wanted.tab === "posts") setFilter("all"); }
+  const [param, setParam] = useState(params.tab);
+  if (params.tab !== param) { setParam(params.tab); if (params.tab === "new" || params.tab === "accounts" || params.tab === "posts") setTab(params.tab); }
+
+  if (status.isPending) return <View style={{ flex: 1, backgroundColor: colors.bg }} testID="social-loading"><PostSkeletons /></View>;
+  if (status.error || !available) {
     return <EmptyState icon="send" title="Social posting isn't on here yet" body="Once it is switched on for this workspace, you can post to your pages and profiles from here and from multies.si." />;
   }
-  const canManage = status.data.canManage;
+  const canManage = !!status.data?.canManage;
+  const list = posts.data ?? [];
+  const count = (f: PostFilter) => filterPosts(list, f).length;
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }} testID="social">
-      <View style={{ paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.sm, gap: space.sm }}>
-        <Segmented label="Social" value={tab} options={TABS} onChange={setTab} />
-        {offline ? <Banner text="You're offline. Posts and accounts load again when you're back." /> : null}
+      <View style={styles.pinned} testID="social-pinned">
+        <Segmented label="Social" value={tab} options={TABS} onChange={(v) => { tick(); clearSocialToast(); setTab(v); }} />
+        {tab === "posts" ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, flexGrow: 1 }} accessibilityLabel="Filter posts" testID="social-filters">
+            {POST_FILTERS.map((f) => <FilterChip key={f.id} label={f.label} count={posts.data ? count(f.id) : undefined} selected={filter === f.id} onPress={() => setFilter(f.id)} testID={`filter-${f.id}`} />)}
+          </ScrollView>
+        ) : null}
+        {offline ? <Banner text={tab === "new" ? "You're offline. You can post when you're back." : posts.dataUpdatedAt ? `You're offline. Showing what loaded ${ago(new Date(posts.dataUpdatedAt).toISOString())}.` : "You're offline. Posts and accounts load again when you're back."} /> : null}
       </View>
-      {tab === "posts" ? <PostsTab canManage={canManage} onNew={() => setTab("new")} /> : null}
-      {tab === "new" ? <NewPostTab canManage={canManage} onPosted={() => setTab("posts")} onAccounts={() => setTab("accounts")} /> : null}
-      {tab === "accounts" ? <AccountsTab canManage={canManage} /> : null}
+      <View style={{ flex: 1 }}>
+        {tab === "posts" ? <PostsTab canManage={canManage} filter={filter} onNew={() => setTab("new")} /> : null}
+        {tab === "new" ? <NewPostTab canManage={canManage} offline={offline} onAccounts={() => setTab("accounts")} /> : null}
+        {tab === "accounts" ? <AccountsTab canManage={canManage} /> : null}
+      </View>
+      <SocialToastHost />
+    </View>
+  );
+}
+
+/** A filter with its count, sized to fit four in one row at 375 wide. */
+function FilterChip({ label, count, selected, onPress, testID }: { label: string; count?: number; selected: boolean; onPress: () => void; testID: string }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={count === undefined ? label : `${label}, ${count}`} testID={testID}
+      style={[styles.filter, selected && { backgroundColor: colors.brandSoft, borderColor: colors.brandLine }]}>
+      <Text style={{ color: selected ? colors.brandHover : colors.muted, fontWeight: "600", fontSize: 13 }} numberOfLines={1}>{label}</Text>
+      {count !== undefined ? <Text style={{ color: selected ? colors.brand : colors.subtle, fontSize: 12, fontVariant: ["tabular-nums"] }}>{count}</Text> : null}
+    </Pressable>
+  );
+}
+
+function PostSkeletons() {
+  return (
+    <View style={{ padding: space.lg, gap: space.md }} accessibilityLabel="Loading posts" accessible>
+      {[0, 1, 2].map((i) => (
+        <View key={i} style={[styles.card, { gap: space.md }]}>
+          <View style={{ flexDirection: "row", gap: space.sm }}><Skeleton width={70} height={20} radius={10} /><Skeleton width={110} height={14} /></View>
+          <Skeleton width="90%" /><Skeleton width="60%" />
+          <Skeleton width="100%" height={22} /><Skeleton width="100%" height={22} />
+        </View>
+      ))}
     </View>
   );
 }
 
 /* ---------------------------------------------------------------- Posts */
 
-const FILTERS: { id: PostFilter; label: string }[] = [{ id: "all", label: "All" }, { id: "scheduled", label: "Scheduled" }, { id: "sent", label: "Posted" }, { id: "failed", label: "Not posted" }];
 
-function PostsTab({ canManage, onNew }: { canManage: boolean; onNew: () => void }) {
+function PostsTab({ canManage, filter, onNew }: { canManage: boolean; filter: PostFilter; onNew: () => void }) {
   const q = useSocialPosts();
-  const [filter, setFilter] = useState<PostFilter>("all");
-  if (q.isPending) return <Loading variant="task" />;
-  if (q.error) return <EmptyState icon="alert-circle" title="Couldn't load posts" body={q.error.message} action={<Button label="Try again" variant="secondary" onPress={() => q.refetch()} />} />;
-  const list = filterPosts(q.data, filter);
-  return (
-    <ScrollView contentContainerStyle={{ padding: space.lg, paddingTop: space.xs, gap: space.md, paddingBottom: space.xxl * 2 }}
-      refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => { q.refetch(); }} />} testID="social-posts">
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }}>
-        {FILTERS.map((f) => <Chip key={f.id} label={f.label} selected={filter === f.id} onPress={() => setFilter(f.id)} />)}
+  const sync = useSocialSync();
+  const insets = useSafeAreaInsets();
+  const [pulling, setPulling] = useState(false);
+  const synced = useRef(false);
+  // On opening Posts (and each time it comes back into view), the posts on screen are checked with Facebook.
+  useFocusEffect(useCallback(() => { synced.current = false; }, []));
+  useEffect(() => {
+    if (q.data && !synced.current) { synced.current = true; sync.mutate(q.data); }
+  }, [q.data, sync]);
+  const refresh = async () => {
+    setPulling(true);
+    try { const r = await q.refetch(); await sync.mutateAsync(r.data); } finally { setPulling(false); }
+  };
+  if (q.isPending) return <PostSkeletons />;
+  if (q.error && !q.data) {
+    return (
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingBottom: insets.bottom + space.xl }} contentInsetAdjustmentBehavior="never"
+        refreshControl={<RefreshControl refreshing={pulling} onRefresh={refresh} tintColor={colors.brand} />} testID="social-posts-error">
+        <EmptyState icon="alert-circle" title="Couldn't load posts" body={plainError(q.error)} action={<Button label="Try again" variant="secondary" onPress={() => q.refetch()} testID="posts-try-again" />} />
       </ScrollView>
-      {list.length ? list.map((p) => <PostCard key={p.id} post={p} canManage={canManage} />) : (
+    );
+  }
+  const list = filterPosts(q.data ?? [], filter);
+  const label = POST_FILTERS.find((f) => f.id === filter)?.label ?? "";
+  return (
+    <FlatList
+      data={list}
+      keyExtractor={(p) => p.id}
+      renderItem={({ item }) => <PostCard post={item} canManage={canManage} />}
+      contentInsetAdjustmentBehavior="never"
+      contentContainerStyle={{ paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.md, paddingBottom: insets.bottom + space.xxl, flexGrow: 1 }}
+      refreshControl={<RefreshControl refreshing={pulling} onRefresh={refresh} tintColor={colors.brand} />}
+      ListEmptyComponent={
         <EmptyState icon="send" title={filter === "all" ? "No posts yet" : "Nothing here"}
-          body={filter === "all" ? "Write a post once and send it to your pages and profiles together." : "Posts show here when they match this filter."}
+          body={filter === "all" ? "Write a post once and send it to your pages and profiles together." : `No ${label.toLowerCase()} posts right now.`}
           action={filter === "all" && canManage ? <Button label="New post" icon="edit" onPress={onNew} testID="social-empty-new" /> : undefined} />
-      )}
-    </ScrollView>
+      }
+      testID="social-posts"
+    />
   );
 }
-
-const when = (iso: string) => new Date(iso).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
 function PostCard({ post, canManage }: { post: SocialPostView; canManage: boolean }) {
-  const { retry, cancel, reconnect } = useSocialActions();
-  const s = POST_STATUS[post.status];
-  const failed = post.targets.some((t) => t.status === "failed");
-  const timeLine = post.status === "scheduled" ? `Goes out ${when(post.runAt)}` : when(post.runAt);
+  const { retry, reconnect } = useSocialActions();
+  const badge = postBadge(post);
+  const note = post.targets.some(needsDeleteNote);
+  const doRetry = () => retry.mutate(post.id, { onSuccess: () => success(), onError: (e) => { warning(); Alert.alert("Couldn't try again", plainError(e)); } });
+  const open = () => router.push(`/social-post/${post.id}` as never);
+  // The card opens the post; the per network buttons sit beside that button, not inside it (no nested buttons).
   return (
     <View style={styles.card} testID={`post-${post.id}`}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-        <Badge label={s.label} tone={s.tone} />
-        <Text style={[font.tiny, { flex: 1 }]} numberOfLines={1}>{timeLine}</Text>
-      </View>
-      <Text style={{ color: colors.fg, fontSize: 15, lineHeight: 20 }} numberOfLines={4}>{post.text || "Image only"}</Text>
-      {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.thumb} accessibilityIgnoresInvertColors accessibilityLabel="Post image" /> : null}
-      <View style={{ gap: space.sm, marginTop: space.xs }}>
-        {post.targets.map((t) => {
-          const err = t.status === "failed" ? socialErrorText(t.error) : null;
-          const where = [appName(t.app, t.label), t.targetName ?? t.label].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(" · ");
-          return (
-            <View key={`${t.accountId}:${t.target ?? ""}`} style={styles.target} testID={`post-target-${t.app}`}>
-              <Icon name={t.status === "sent" ? "check-circle" : t.status === "failed" ? "alert-circle" : "clock"} size={16}
-                color={t.status === "sent" ? colors.ok : t.status === "failed" ? colors.bad : colors.subtle} />
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={{ color: colors.fg, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>{where}</Text>
-                <Text style={{ color: err ? colors.bad : colors.subtle, fontSize: 13, lineHeight: 18 }} testID={err ? "post-error" : undefined}>
-                  {err ? err.text : TARGET_STATUS[t.status]}
-                </Text>
-                <View style={{ flexDirection: "row", gap: space.md, flexWrap: "wrap" }}>
-                  {t.url ? <LinkText label="Open post" onPress={() => Linking.openURL(t.url!)} /> : null}
-                  {err?.reconnect && canManage ? <LinkText label={`Reconnect ${appName(t.app)}`} testID="post-reconnect" onPress={() => reconnect.mutate(t.accountId)} /> : null}
-                </View>
-              </View>
-            </View>
-          );
-        })}
-      </View>
-      {canManage && (failed || post.status === "scheduled") ? (
-        <View style={{ flexDirection: "row", gap: space.sm, marginTop: space.xs }}>
-          {failed ? <Button label="Try again" icon="refresh-cw" variant="secondary" loading={retry.isPending && retry.variables === post.id}
-            onPress={() => retry.mutate(post.id, { onSuccess: () => success(), onError: (e) => { warning(); Alert.alert("Couldn't try again", e.message); } })} testID="post-retry" style={{ flex: 1 }} /> : null}
-          {post.status === "scheduled" ? <Button label="Cancel post" variant="ghost" loading={cancel.isPending && cancel.variables === post.id}
-            onPress={() => Alert.alert("Cancel this post?", "It won't go out. You can write it again later.", [{ text: "Keep it", style: "cancel" }, { text: "Cancel post", style: "destructive", onPress: () => cancel.mutate(post.id) }])}
-            testID="post-cancel" style={{ flex: 1 }} /> : null}
+      <Pressable onPress={open} accessibilityRole="button" accessibilityHint="Opens the post" testID={`open-${post.id}`}
+        style={({ pressed }) => [{ gap: space.sm, borderRadius: radius.md }, pressed && { opacity: 0.7 }]}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+          <Badge label={badge.label} tone={badge.tone} />
+          <Text style={[font.tiny, { flex: 1 }]} numberOfLines={1}>{postTime(post)}</Text>
         </View>
-      ) : null}
+        <View style={{ flexDirection: "row", gap: space.md, alignItems: "flex-start" }}>
+          <Text style={{ flex: 1, color: colors.fg, fontSize: 15, lineHeight: 21 }} numberOfLines={4}>{post.text || "Image only"}</Text>
+          {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.thumb} accessibilityIgnoresInvertColors accessibilityLabel="Post image" /> : null}
+        </View>
+      </Pressable>
+      <View style={{ marginTop: 2 }}>
+        {post.targets.map((t, i) => (
+          <TargetRow key={`${t.accountId}:${t.target ?? ""}`} t={t} variant="compact" canManage={canManage} last={i === post.targets.length - 1}
+            onReconnect={() => reconnect.mutate(t.accountId)} onRetry={doRetry} />
+        ))}
+      </View>
+      {note ? <Pressable onPress={open} accessibilityRole="button" accessibilityHint="Opens the post">
+        <Text style={{ color: colors.subtle, fontSize: 13 }}>Deleted on LinkedIn? Delete it here too.</Text>
+      </Pressable> : null}
     </View>
-  );
-}
-
-function LinkText({ label, onPress, testID }: { label: string; onPress: () => void; testID?: string }) {
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={10} testID={testID} style={{ minHeight: 28, justifyContent: "center" }}>
-      <Text style={{ color: colors.brand, fontSize: 14, fontWeight: "600" }}>{label}</Text>
-    </Pressable>
   );
 }
 
 /* ---------------------------------------------------------------- New post */
 
 interface Picked { name: string; type: string; uri: string; size?: number; base64?: string }
+type Chosen = Record<string, { target: string | null; targetName: string | null }>;
 
-function NewPostTab({ canManage, onPosted, onAccounts }: { canManage: boolean; onPosted: () => void; onAccounts: () => void }) {
+function NewPostTab({ canManage, offline, onAccounts }: { canManage: boolean; offline: boolean; onAccounts: () => void }) {
   const accounts = useSocialAccounts();
   const health = useSocialHealth(canManage);
   const { create, reconnect } = useSocialActions();
+  const insets = useSafeAreaInsets();
+  const { ref: liftRef, lift, keyboardUp } = useKeyboardLift();
   const [text, setText] = useState("");
   const [image, setImage] = useState<Picked | null>(null);
-  const [chosen, setChosen] = useState<Record<string, { target: string | null; targetName: string | null }>>({});
+  const [chosen, setChosen] = useState<Chosen>({});
   const [mode, setMode] = useState<"now" | "later">("now");
   const later = useMemo(() => laterOptions(new Date()), []);
   const [laterId, setLaterId] = useState(later[0]!.id);
   const [problem, setProblem] = useState<string | null>(null);
   const [key, setKey] = useState(newPostKey);
+  const lastSet = useRef<Chosen | null>(null);
+
+  // "Edit post" after a post that didn't go out puts its words and accounts back here.
+  useFocusEffect(useCallback(() => {
+    const d = takeRestoredDraft();
+    if (d) { setText(d.text); setImage(d.image); setChosen(d.chosen); setMode("now"); setKey(newPostKey()); }
+  }, []));
 
   if (!canManage) return <EmptyState icon="lock" title="Only owners and admins can post" body="Ask an owner or admin of this workspace to post, or to change your role." />;
-  if (accounts.isPending) return <Loading variant="task" />;
-  if (accounts.error) return <EmptyState icon="alert-circle" title="Couldn't load your accounts" body={accounts.error.message} action={<Button label="Try again" variant="secondary" onPress={() => accounts.refetch()} />} />;
+  if (accounts.isPending) return <PostSkeletons />;
+  if (accounts.error) return <EmptyState icon="alert-circle" title="Couldn't load your accounts" body={plainError(accounts.error)} action={<Button label="Try again" variant="secondary" onPress={() => accounts.refetch()} />} />;
   const postable = accounts.data.filter((a) => canPostTo(a.app));
   if (!postable.length) {
     return <EmptyState icon="link" title="Connect a page or profile first" body="Connect Facebook Pages, LinkedIn, Instagram and more, then post to them together." action={<Button label="Connect an account" onPress={onAccounts} testID="social-go-accounts" />} />;
@@ -159,7 +216,9 @@ function NewPostTab({ canManage, onPosted, onAccounts }: { canManage: boolean; o
   const hasImage = !!image;
   const picked = postable.filter((a) => chosen[a.id] && !whyNot(a, text, hasImage, healthOf(a.id)));
   const missingTarget = picked.find((a) => SOCIAL_NETWORKS[a.app]?.target && !chosen[a.id]?.target);
-  const canSend = picked.length > 0 && (text.trim().length > 0 || hasImage) && !missingTarget && text.length <= SOCIAL_TEXT_MAX;
+  const limit = picked.length ? Math.min(...picked.map((a) => SOCIAL_NETWORKS[a.app]?.maxChars ?? SOCIAL_TEXT_MAX), SOCIAL_TEXT_MAX) : SOCIAL_TEXT_MAX;
+  const sending = create.isPending;
+  const canSend = !offline && !sending && picked.length > 0 && (text.trim().length > 0 || hasImage) && !missingTarget && text.length <= limit;
 
   const pickImage = async () => {
     setProblem(null);
@@ -183,62 +242,82 @@ function NewPostTab({ canManage, onPosted, onAccounts }: { canManage: boolean; o
         img = { contentType: image.type, dataB64 };
       }
       const runAt = mode === "later" ? later.find((l) => l.id === laterId)!.at.toISOString() : null;
-      await create.mutateAsync({ key, input: { text, image: img, runAt, targets: picked.map((a) => ({ accountId: a.id, target: chosen[a.id]?.target ?? null, targetName: chosen[a.id]?.targetName ?? null })) } });
+      const targets = picked.map((a) => ({ accountId: a.id, target: chosen[a.id]?.target ?? null, targetName: chosen[a.id]?.targetName ?? null }));
+      const r = await create.mutateAsync({ key, input: { text, image: img, runAt, targets } });
       success();
-      setText(""); setImage(null); setChosen({}); setMode("now");
+      rememberDraft({ text, image, chosen });
+      // The composer is cleared before the result shows, so going back never sends the post twice. The accounts stay
+      // as last used.
+      const keep: Chosen = {};
+      for (const a of picked) keep[a.id] = SOCIAL_NETWORKS[a.app]?.target ? { ...chosen[a.id]! } : { target: null, targetName: null };
+      lastSet.current = keep;
+      setText(""); setImage(null); setChosen(keep); setMode("now");
       setKey(newPostKey());
-      onPosted();
+      router.push(`/social-posted/${r.post.id}` as never);
     } catch (e) {
       warning();
-      setProblem(e instanceof Error ? e.message : "The post didn't save. Try again.");
+      setProblem(e instanceof Error && e.message ? e.message : "The post didn't save. Try again.");
     }
   };
 
+  const label = sending ? "Posting" : mode === "later" ? "Schedule" : picked.length > 1 ? `Post to ${picked.length}` : "Post now";
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: space.xxl * 3 }} keyboardShouldPersistTaps="handled" testID="social-new">
-      <View style={{ paddingHorizontal: space.lg, gap: space.sm }}>
-        <TextInput value={text} onChangeText={setText} multiline placeholder="What do you want to share?" placeholderTextColor={colors.subtle}
-          accessibilityLabel="Post text" testID="social-text" style={styles.editor} maxLength={SOCIAL_TEXT_MAX} textAlignVertical="top" />
-        <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+    <View ref={liftRef} style={{ flex: 1, paddingBottom: lift }} testID="social-new-wrap">
+      <ScrollView contentContainerStyle={{ paddingTop: space.sm, paddingBottom: space.xl }} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive"
+        contentInsetAdjustmentBehavior="never" testID="social-new">
+        <View style={{ paddingHorizontal: space.lg, gap: space.sm }}>
+          <TextInput value={text} onChangeText={setText} multiline placeholder="What do you want to share?" placeholderTextColor={colors.subtle} editable={!sending}
+            accessibilityLabel="Post text" testID="social-text" style={styles.editor} maxLength={SOCIAL_TEXT_MAX} textAlignVertical="top" scrollEnabled={false} />
           {image ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm, flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
               <Image source={{ uri: image.uri }} style={styles.smallThumb} accessibilityIgnoresInvertColors accessibilityLabel="Chosen image" />
               <Text style={[font.tiny, { flex: 1 }]} numberOfLines={1}>{image.name}</Text>
               <LinkText label="Remove" onPress={() => setImage(null)} testID="social-image-remove" />
             </View>
-          ) : <View style={{ flex: 1 }}><LinkText label="Add an image" onPress={pickImage} testID="social-image" /></View>}
-          <Text style={font.tiny}>{text.length} characters</Text>
+          ) : (
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <LinkText label="Add an image" onPress={pickImage} testID="social-image" />
+              <Text style={[font.tiny, { flex: 1, textAlign: "right" }]}>JPEG or PNG, up to 1 MB</Text>
+            </View>
+          )}
         </View>
-      </View>
 
-      <InsetGroup header="Post to" footer="Greyed out accounts can't take this post. Each says why.">
-        {postable.map((a) => {
-          const why = whyNot(a, text, hasImage, healthOf(a.id));
-          const on = !!chosen[a.id] && !why;
-          const note = on ? postNote(a.app, hasImage) : null;
-          return (
-            <AccountPick key={a.id} account={a} on={on} why={why} note={note} choice={chosen[a.id] ?? null}
-              onToggle={() => setChosen((c) => { const n = { ...c }; if (n[a.id]) delete n[a.id]; else n[a.id] = { target: null, targetName: null }; return n; })}
-              onTarget={(target, targetName) => setChosen((c) => ({ ...c, [a.id]: { target, targetName } }))}
-              onReconnect={() => reconnect.mutate(a.id)} reconnecting={reconnect.isPending && reconnect.variables === a.id} />
-          );
-        })}
-      </InsetGroup>
+        <InsetGroup header="Post to" footer="Greyed out accounts can't take this post. Each says why.">
+          {postable.map((a) => {
+            const why = whyNot(a, text, hasImage, healthOf(a.id));
+            const on = !!chosen[a.id] && !why;
+            const note = on ? postNote(a.app, hasImage) : null;
+            return (
+              <AccountPick key={a.id} account={a} on={on} why={why} note={note} choice={chosen[a.id] ?? null}
+                onToggle={() => setChosen((c) => { const n = { ...c }; if (n[a.id]) delete n[a.id]; else n[a.id] = { target: null, targetName: null }; return n; })}
+                onTarget={(target, targetName) => setChosen((c) => ({ ...c, [a.id]: { target, targetName } }))}
+                onReconnect={() => reconnect.mutate(a.id)} reconnecting={reconnect.isPending && reconnect.variables === a.id} />
+            );
+          })}
+        </InsetGroup>
 
-      <View style={{ paddingHorizontal: space.lg, gap: space.sm, marginTop: space.xl }}>
-        <Text style={g.header} accessibilityRole="header">When</Text>
-        <Segmented label="When" value={mode} options={[{ id: "now", label: "Now" }, { id: "later", label: "Later" }]} onChange={setMode} />
-        {mode === "later" ? (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
-            {later.map((l) => <Chip key={l.id} label={l.label} selected={laterId === l.id} onPress={() => setLaterId(l.id)} />)}
-          </View>
-        ) : null}
+        <View style={{ paddingHorizontal: space.lg, gap: space.sm, marginTop: space.xl }}>
+          <Text style={g.header} accessibilityRole="header">When</Text>
+          <Segmented label="When" value={mode} options={[{ id: "now", label: "Now" }, { id: "later", label: "Later" }]} onChange={setMode} />
+          {mode === "later" ? (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
+              {later.map((l) => <Chip key={l.id} label={l.label} selected={laterId === l.id} onPress={() => setLaterId(l.id)} />)}
+            </View>
+          ) : null}
+        </View>
+      </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: keyboardUp ? space.sm : insets.bottom + space.sm }]} testID="social-footer">
         {problem ? <Banner tone="bad" icon="alert-circle" text={problem} /> : null}
         {missingTarget ? <Text style={[font.tiny, { color: colors.warn }]}>Pick a {SOCIAL_NETWORKS[missingTarget.app]!.target!.label.toLowerCase()} for {appName(missingTarget.app, missingTarget.appName)}.</Text> : null}
-        <Button label={mode === "now" ? (picked.length > 1 ? `Post to ${picked.length} accounts` : "Post now") : "Schedule post"} icon="send"
-          disabled={!canSend} loading={create.isPending} onPress={send} testID="social-send" />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+          <Text style={[font.tiny, { flex: 1, color: text.length > limit ? colors.bad : colors.subtle, fontVariant: ["tabular-nums"] }]} testID="social-count" numberOfLines={2}>
+            {offline ? "You're offline. You can post when you're back." : `${text.length.toLocaleString("en-AU")} of ${limit.toLocaleString("en-AU")}`}
+          </Text>
+          <Button label={label} icon="send" disabled={!canSend} loading={sending} onPress={send} testID="social-send" style={{ minWidth: 140 }} />
+        </View>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -256,13 +335,14 @@ function AccountPick({ account, on, why, note, choice, onToggle, onTarget, onRec
         <Pressable onPress={why ? undefined : onToggle} disabled={!!why} role="checkbox" aria-checked={on} aria-disabled={!!why}
           accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: !!why }}
           accessibilityLabel={[label, account.label, why].filter(Boolean).join(", ")} testID={`pick-${account.app}`}
-          style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", gap: space.md, paddingLeft: 16, minHeight: 48, opacity: why ? 0.6 : 1 }, pressed && { backgroundColor: colors.hover }]}>
+          style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", gap: space.md, paddingLeft: 16, minHeight: 52, opacity: why ? 0.6 : 1 }, pressed && { backgroundColor: colors.hover }]}>
           <View style={[styles.check, on && { backgroundColor: colors.brandFill, borderColor: colors.brandFill }]}>{on ? <Icon name="check" size={14} color={colors.brandFg} /> : null}</View>
+          <NetworkMark app={account.app} size={28} muted={!!why} />
           <View style={{ flex: 1, paddingVertical: 10 }}>
-            <Text style={g.label} numberOfLines={1}>{label}</Text>
-            {account.label ? <Text style={g.sub} numberOfLines={1}>{account.label}</Text> : null}
+            <Text style={g.label} numberOfLines={1}>{account.label ?? label}</Text>
+            <Text style={g.sub} numberOfLines={1}>{account.label ? label : " "}</Text>
             {why ? <Text style={[g.sub, { color: colors.warn }]} testID={`why-${account.app}`}>{why}</Text> : null}
-            {note ? <Text style={g.sub}>{note}</Text> : null}
+            {note ? <Text style={g.sub} testID={`note-${account.app}`}>{note}</Text> : null}
           </View>
         </Pressable>
         {fixable ? <Button label="Reconnect" variant="secondary" loading={reconnecting} onPress={onReconnect} testID={`reconnect-${account.app}`} style={{ minHeight: 36, paddingHorizontal: 12 }} /> : null}
@@ -274,9 +354,13 @@ function AccountPick({ account, on, why, note, choice, onToggle, onTarget, onRec
 
 function TargetPicker({ accountId, kind, choice, onTarget }: { accountId: string; kind: { kind: string; label: string }; choice: { target: string | null } | null; onTarget: (t: string | null, n: string | null) => void }) {
   const q = useSocialTargets(kind.kind === "subreddit" ? null : accountId);
+  // One Page or board: picked for you.
+  useEffect(() => {
+    if (q.data && q.data.length === 1 && !choice?.target) onTarget(q.data[0]!.id, q.data[0]!.name);
+  }, [q.data, choice?.target, onTarget]);
   if (kind.kind === "subreddit") {
     return (
-      <View style={{ paddingLeft: 52, paddingRight: space.lg, paddingBottom: space.md }}>
+      <View style={{ paddingLeft: 92, paddingRight: space.lg, paddingBottom: space.md }}>
         <TextInput value={choice?.target ?? ""} onChangeText={(v) => { const n = v.replace(/^r\//, "").trim(); onTarget(n || null, n ? `r/${n}` : null); }}
           placeholder="Community name, for example smallbusiness" placeholderTextColor={colors.subtle} autoCapitalize="none" autoCorrect={false}
           accessibilityLabel="Community" style={styles.input} testID="target-subreddit" />
@@ -284,9 +368,9 @@ function TargetPicker({ accountId, kind, choice, onTarget }: { accountId: string
     );
   }
   return (
-    <View style={{ paddingLeft: 52, paddingRight: space.lg, paddingBottom: space.md, gap: space.xs }}>
+    <View style={{ paddingLeft: 92, paddingRight: space.lg, paddingBottom: space.md, gap: space.xs }}>
       {q.isPending ? <Text style={font.tiny}>Finding your {kind.label.toLowerCase()}s</Text>
-        : q.error ? <Text style={[font.tiny, { color: colors.bad }]}>{q.error.message}</Text>
+        : q.error ? <Text style={[font.tiny, { color: colors.bad }]}>{plainError(q.error)}</Text>
         : q.data.length ? (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
             {q.data.map((t) => <Chip key={t.id} label={t.name} selected={choice?.target === t.id} onPress={() => onTarget(t.id, t.name)} />)}
@@ -301,43 +385,62 @@ function TargetPicker({ accountId, kind, choice, onTarget }: { accountId: string
 function AccountsTab({ canManage }: { canManage: boolean }) {
   const accounts = useSocialAccounts();
   const direct = useDirectStatus();
+  const health = useSocialHealth(true);
+  const fresh = useFreshHealth();
+  const insets = useSafeAreaInsets();
   const { connect, reconnect } = useSocialActions();
-  if (accounts.isPending) return <Loading variant="task" />;
-  if (accounts.error) return <EmptyState icon="alert-circle" title="Couldn't load your accounts" body={accounts.error.message} action={<Button label="Try again" variant="secondary" onPress={() => accounts.refetch()} />} />;
+  const [pulling, setPulling] = useState(false);
+  if (accounts.isPending) return <PostSkeletons />;
+  if (accounts.error) return <EmptyState icon="alert-circle" title="Couldn't load your accounts" body={plainError(accounts.error)} action={<Button label="Try again" variant="secondary" onPress={() => accounts.refetch()} />} />;
   const social = accounts.data.filter((a) => canPostTo(a.app));
   const connectedApps = new Set(social.map((a) => a.app));
   const toConnect = PHONE_CONNECT_APPS.filter((a) => !connectedApps.has(a));
   const directs = (direct.data?.accounts ?? []).filter((d) => d.available || d.connected);
-  const doConnect = (app: string) => connect.mutate(app, { onError: (e) => { warning(); Alert.alert("Couldn't start the sign in", e.message); } });
-  const doReconnect = (id: string) => reconnect.mutate(id, { onError: (e) => { warning(); Alert.alert("Couldn't reconnect", e.message); } });
+  const doConnect = (app: string) => connect.mutate(app, { onError: (e) => { warning(); Alert.alert("Couldn't start the sign in", plainError(e)); } });
+  const doReconnect = (id: string) => reconnect.mutate(id, { onError: (e) => { warning(); Alert.alert("Couldn't reconnect", plainError(e)); } });
+  const refresh = async () => {
+    setPulling(true);
+    try { await Promise.all([accounts.refetch(), direct.refetch(), fresh.mutateAsync()]); } finally { setPulling(false); }
+  };
+  const checked = health.dataUpdatedAt ? ago(new Date(Math.max(health.dataUpdatedAt, fresh.submittedAt || 0)).toISOString()) : null;
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: space.xxl * 2 }}
-      refreshControl={<RefreshControl refreshing={accounts.isRefetching} onRefresh={() => { accounts.refetch(); direct.refetch(); }} />} testID="social-accounts">
+    <ScrollView contentInsetAdjustmentBehavior="never" contentContainerStyle={{ paddingBottom: insets.bottom + space.xxl }}
+      refreshControl={<RefreshControl refreshing={pulling} onRefresh={refresh} tintColor={colors.brand} />} testID="social-accounts">
       {social.length ? (
-        <InsetGroup header="Connected">
-          {social.map((a) => (
-            <GroupRow key={a.id} label={appName(a.app, a.appName)} sub={needsReconnect(a) ? `${a.label ? `${a.label}. ` : ""}Sign in needs renewing before you can post.` : a.label}
-              testID={`account-${a.app}`}
-              right={needsReconnect(a) && canManage
-                ? <Button label="Reconnect" variant="secondary" loading={reconnect.isPending && reconnect.variables === a.id} onPress={() => doReconnect(a.id)} testID={`account-reconnect-${a.app}`} style={{ minHeight: 36, paddingHorizontal: 12 }} />
-                : <Centered><Badge label={needsReconnect(a) ? "Needs reconnect" : a.status === "disabled" ? "Off" : "Connected"} tone={needsReconnect(a) ? "warn" : a.status === "disabled" ? "neutral" : "ok"} /></Centered>} />
-          ))}
+        <InsetGroup header="Connected" footer={checked ? `Checked ${checked}. Pull down to check again.` : "Pull down to check your accounts again."}>
+          {social.map((a) => {
+            const h = health.data?.find((x) => x.accountId === a.id) ?? null;
+            const chip = healthChip(a, h);
+            const problem = chip.label !== "Ready to post" && chip.label !== "Off";
+            const line = needsReconnect(a) ? "Sign in needs renewing before you can post." : problem ? (h?.text ?? "Reconnect to post here.") : null;
+            return (
+              <View key={a.id} style={[g.row, { gap: space.md, alignItems: "center", minHeight: 60 }]} testID={`account-${a.app}`}>
+                <NetworkMark app={a.app} size={30} muted={a.status === "disabled"} />
+                <View style={{ flex: 1, paddingVertical: 10, gap: 1 }}>
+                  <Text style={g.label} numberOfLines={1}>{a.label ?? appName(a.app, a.appName)}</Text>
+                  <Text style={g.sub} numberOfLines={1}>{appName(a.app, a.appName)}</Text>
+                  {line ? <Text style={[g.sub, { color: colors.warn }]}>{line}</Text> : null}
+                </View>
+                {problem && canManage
+                  ? <Button label="Reconnect" variant="secondary" loading={reconnect.isPending && reconnect.variables === a.id} onPress={() => doReconnect(a.id)} testID={`account-reconnect-${a.app}`} style={{ minHeight: 36, paddingHorizontal: 12 }} />
+                  : <Badge label={chip.label} tone={chip.tone} />}
+              </View>
+            );
+          })}
         </InsetGroup>
-      ) : null}
+      ) : (
+        <View style={{ paddingTop: space.lg }}>
+          <EmptyState icon="link" title="No accounts yet" body="Connect a Facebook Page, LinkedIn and more, then post to them together." />
+        </View>
+      )}
 
-      {directs.length ? (
-        <InsetGroup header="TikTok and Threads" footer="These sign in on multies.si. Connect opens it in your browser.">
+      {directs.length || (canManage && toConnect.length) ? (
+        <InsetGroup header="Add more" footer="You sign in with the network in your browser, then come back here. TikTok and Threads sign in on multies.si.">
           {directs.map((d) => <DirectRow key={d.provider} d={d} canManage={canManage && !!direct.data?.canManage} />)}
-        </InsetGroup>
-      ) : null}
-
-      {canManage && toConnect.length ? (
-        <InsetGroup header="Connect" footer="You sign in with the network in your browser, then come back here.">
-          {toConnect.map((app) => (
-            <GroupRow key={app} label={appName(app)} sub={postsTo(app)}
-              testID={`connect-${app}`}
+          {canManage ? toConnect.map((app) => (
+            <GroupRow key={app} label={appName(app)} sub={postsTo(app)} testID={`connect-${app}`}
               right={<Button label="Connect" variant="secondary" loading={connect.isPending && connect.variables === app} onPress={() => doConnect(app)} style={{ minHeight: 36, paddingHorizontal: 12 }} />} />
-          ))}
+          )) : null}
         </InsetGroup>
       ) : null}
       {!canManage ? <View style={{ padding: space.lg }}><Banner tone="neutral" icon="info" text="Only owners and admins can connect or reconnect accounts." /></View> : null}
@@ -357,9 +460,9 @@ function DirectRow({ d, canManage }: { d: DirectAccountView; canManage: boolean 
   return (
     <GroupRow label={name} sub={sub} testID={`direct-${d.provider}`}
       right={d.connected && !expired
-        ? <Centered><Badge label="Connected" tone="ok" /></Centered>
+        ? <Centered><Badge label="Ready to post" tone="ok" /></Centered>
         : canManage ? <Button label={expired ? "Reconnect" : "Connect"} variant="secondary" onPress={() => { void openWebSocialAccounts(); }} testID={`direct-connect-${d.provider}`} style={{ minHeight: 36, paddingHorizontal: 12 }} />
-        : <Centered><Badge label={expired ? "Needs reconnect" : "Not connected"} tone={expired ? "warn" : "neutral"} /></Centered>} />
+        : <Centered><Badge label={expired ? "Sign in expired" : "Not connected"} tone={expired ? "warn" : "neutral"} /></Centered>} />
   );
 }
 
@@ -371,11 +474,13 @@ const PLURAL: Record<string, string> = { page: "Pages", board: "boards", subredd
 const postsTo = (app: string) => { const t = SOCIAL_NETWORKS[app]?.target; return t ? `Posts to your ${PLURAL[t.kind] ?? "pages"}` : "Posts to your profile"; };
 
 const styles = StyleSheet.create({
+  pinned: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.sm, gap: space.sm, backgroundColor: colors.bg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line, zIndex: 1 },
+  filter: { flexGrow: 1, flexShrink: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, minHeight: 34, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: space.lg, gap: space.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line },
-  target: { flexDirection: "row", gap: space.sm, alignItems: "flex-start" },
-  thumb: { width: "100%", height: 160, borderRadius: radius.md, backgroundColor: colors.elevated },
-  smallThumb: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.elevated },
-  editor: { minHeight: 140, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.lineStrong, padding: space.md, color: colors.fg, fontSize: 17, lineHeight: 22 },
+  thumb: { width: 64, height: 64, borderRadius: radius.md, backgroundColor: colors.elevated },
+  smallThumb: { width: 44, height: 44, borderRadius: radius.sm, backgroundColor: colors.elevated },
+  editor: { minHeight: 150, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.lineStrong, padding: space.md, color: colors.fg, fontSize: 17, lineHeight: 22 },
   input: { minHeight: 44, backgroundColor: colors.elevated, borderRadius: radius.md, paddingHorizontal: space.md, color: colors.fg, fontSize: 16 },
   check: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.lineStrong, alignItems: "center", justifyContent: "center" },
+  footer: { paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.sm, backgroundColor: colors.bg, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
 });

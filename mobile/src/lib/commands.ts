@@ -24,7 +24,7 @@ export const COMMAND_IDS = [
   // Go to
   "go-i", "go-t", "go-d", "go-c", "go-m", "go-n",
   // App actions
-  "compose", "new-task", "search-mail", "runs", "tools", "settings",
+  "compose", "new-task", "search-mail", "runs", "tools", "settings", "social-new", "social",
   // Task actions (long-press on a task row)
   "task-status", "task-assignee", "task-priority", "task-label", "task-due",
   // Mail actions (long-press and swipe on a mail row)
@@ -48,6 +48,8 @@ export const COMMANDS: Command[] = [
   { id: "search-mail", title: "Search mail", scope: "app", icon: "search", web: ["/"], keywords: ["find"] },
   { id: "runs", title: "Agent runs", scope: "app", icon: "cpu", keywords: ["agents", "runs", "history"] },
   { id: "tools", title: "Tools", scope: "app", icon: "wrench", keywords: ["pdf", "compress", "merge", "convert", "documents", "word to pdf", "redact", "ocr", "watermark"] },
+  { id: "social-new", title: "New social post", scope: "app", icon: "send", keywords: ["facebook", "linkedin", "instagram", "post", "share"] },
+  { id: "social", title: "Social posts", scope: "app", icon: "send", keywords: ["facebook", "linkedin", "posted", "accounts"] },
   { id: "settings", title: "Settings", scope: "app", icon: "settings", keywords: ["preferences", "account", "version"] },
 
   { id: "task-status", title: "Change status", scope: "task", icon: "check-circle", web: ["S"], keywords: ["move", "done"] },
@@ -164,6 +166,8 @@ export function createHandlers(d: CommandDeps): Record<CommandId, CommandHandler
     runs: () => d.navigate("/runs"),
     tools: () => d.navigate("/tools"),
     settings: () => d.navigate("/settings"),
+    "social-new": () => d.navigate({ pathname: "/social", params: { tab: "new" } }),
+    social: () => d.navigate("/social"),
     "task-status": task("status"),
     "task-assignee": task("assignee"),
     "task-priority": task("priority"),

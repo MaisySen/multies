@@ -2,12 +2,14 @@ import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
-import { Icon, LargeTitle, PressableCard, TILE, type IconName, type TileColor } from "@/components/ui";
+import { Badge, Icon, LargeTitle, PressableCard, TILE, type IconName, type TileColor } from "@/components/ui";
 import { useCollapse } from "@/components/chrome";
 import { NotificationBell } from "@/components/notification-bell";
 import { useBadges } from "@/lib/use-badges";
 import { useMeetings, useTasks } from "@/lib/queries";
 import { useSession } from "@/lib/session";
+import { useSocialPosts, useSocialStatus } from "@/lib/social-queries";
+import { socialSummary } from "@/lib/social";
 import { dayFrom } from "@/lib/tasks";
 import { focusTasks, greeting, nextMeeting, whenLabel } from "@/lib/today";
 import { tick } from "@/lib/haptics";
@@ -30,6 +32,10 @@ export default function Today() {
   const next = nextMeeting(meetings.data?.meetings, now);
   const focus = FEATURES.tasks ? focusTasks(mine.data, dayFrom(0, now)) : [];
   const first = me?.user.name?.split(" ")[0];
+  // 1.10.6: a Social card when posting is on for this workspace: the newest post, or how many need a look.
+  const socialOn = useSocialStatus();
+  const posts = useSocialPosts(!!socialOn.data?.available);
+  const social = socialOn.data?.available ? socialSummary(posts.data) : null;
   const date = now.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" });
   const go = (path: string) => { tick(); router.push(path as never); };
 
@@ -58,6 +64,19 @@ export default function Today() {
           </View>
           {next ? <Text style={{ color: colors.brand, fontWeight: "600", fontSize: 15 }}>{whenLabel(next.startsAt, now)}</Text> : <Icon name="chevron-right" size={18} color={colors.subtle} />}
         </PressableCard>
+
+        {social ? (
+          <PressableCard onPress={() => go("/social")} testID="today-social" accessibilityRole="button"
+            accessibilityLabel={`Social, ${social.title}${social.detail ? `, ${social.detail}` : ""}`} style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+            <Tile icon="send" tile="pink" />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={font.tiny}>Social</Text>
+              <Text style={font.headline} numberOfLines={1}>{social.title}</Text>
+              {social.detail ? <Text style={[font.tiny, { color: colors.subtle }]} numberOfLines={1}>{social.detail}</Text> : null}
+            </View>
+            {social.failed ? <Badge label={`${social.failed} failed`} tone="bad" /> : <Icon name="chevron-right" size={18} color={colors.subtle} />}
+          </PressableCard>
+        ) : null}
 
         {focus.length ? (
           <View style={{ gap: space.sm, marginTop: space.sm }}>

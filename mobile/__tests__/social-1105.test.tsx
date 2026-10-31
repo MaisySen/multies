@@ -15,6 +15,7 @@ let mockParams: Record<string, string> = {};
 jest.mock("expo-router", () => ({
   router: { push: jest.fn(), back: jest.fn(), replace: jest.fn() },
   useLocalSearchParams: () => mockParams,
+  useFocusEffect: (cb: () => void) => { require("react").useEffect(cb, [cb]); },
   Stack: { Screen: () => null },
 }));
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }), SafeAreaView: ({ children }: { children: ReactNode }) => children }));
@@ -65,14 +66,13 @@ describe("Social screen", () => {
   };
   beforeEach(() => { transport = new SampleTransport(); mockParams = {}; });
 
-  it("lists posts with the real reason, Reconnect and Try again", async () => {
+  it("lists posts with one compact row per network and Reconnect where that is the fix", async () => {
+    // 1.10.6: the list shows a chip and one action per network; the full reason is on the post page (social-1106).
     const Social = require("@/app/social").default;
     await wrap(<Social />);
     expect(await screen.findByText("Partly posted")).toBeTruthy();
-    expect(screen.getByTestId("post-error")).toHaveTextContent(/has not allowed posting/);
-    expect(screen.getByText("Reconnect LinkedIn")).toBeTruthy();
-    await fireEvent.press(screen.getByTestId("post-retry"));
-    await waitFor(() => expect(screen.queryByTestId("post-error")).toBeNull());
+    expect(screen.getAllByText("Not posted").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("reconnect-row-linkedin")).toBeTruthy();
   });
 
   it("writes a post: greys out Instagram without an image and posts to Facebook and LinkedIn", async () => {
@@ -88,9 +88,12 @@ describe("Social screen", () => {
     expect(screen.getByTestId("social-send")).toBeDisabled();
     await fireEvent.press(screen.getByText("Harbour Bakery Events"));
     await fireEvent.press(screen.getByTestId("pick-linkedin"));
-    expect(screen.getByText("Post to 2 accounts")).toBeTruthy();
+    expect(screen.getByText("Post to 2")).toBeTruthy();
     await fireEvent.press(screen.getByTestId("social-send"));
-    expect(await screen.findByText("Fresh bread today")).toBeTruthy();
+    // 1.10.6: the result screen opens and the composer is cleared, so going back never posts twice.
+    const { router } = require("expo-router");
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith(expect.stringMatching(/^\/social-posted\/sp_\d+$/)));
+    expect(screen.getByTestId("social-text").props.value).toBe("");
   });
 
   it("accounts show health, TikTok test mode, Threads connected, and Connect for the rest", async () => {
@@ -100,7 +103,7 @@ describe("Social screen", () => {
     await wrap(<Social />);
     expect(await screen.findByTestId("account-reconnect-instagram")).toBeTruthy();
     expect(await screen.findByText(/Test mode/)).toBeTruthy();
-    expect(screen.getByText("@harbourbakery")).toBeTruthy();
+    expect(screen.getAllByText("@harbourbakery").length).toBe(2);
     expect(screen.getByTestId("connect-pinterest")).toBeTruthy();
     await fireEvent.press(screen.getByTestId("direct-connect-tiktok"));
     await waitFor(() => expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith(WEB_PAGES.socialAccounts));
