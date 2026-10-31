@@ -22,6 +22,7 @@ import { mailboxScope } from "../team";
 import { sendSystemEmail } from "../system-mail";
 import { changesOf, dropKeptFiles, keepFile, newPublicToken, readKeptFile, tokenHash, tokenShapeOk, hashMatches } from "./kept-files";
 import { engineJobOutput, engineJobState, submitEngineJob, type EngineFile } from "./engine-run";
+import { CONSENT_TEXT, deviceOf, isVerified, sealRequest, sharedFiles, type EventCtx } from "./esign-v2";
 
 /** The engine reads signature pictures from this form field (GET /internal/v1/operations, sign extra_files). */
 const SIGN_IMAGES_FIELD = "images";
@@ -34,12 +35,17 @@ export interface RequestRow {
   mailbox_id: string | null; in_reply_to_id: string | null; order_mode: "any" | "sequence"; fields: string | null; pages: string | null;
   source_file_id: string; source_sha256: string; final_file_id: string | null; final_sha256: string | null; engine_job: string | null; engine_kind: string | null;
   remind_days: number; error: string | null; expires_at: number; sent_at: number | null; completed_at: number | null; created_at: number;
+  /** R107 (0119); absent on rows read before the migration in tests. */
+  v2?: number; seal?: string | null; seal_key_id?: string | null; template_id?: string | null; bulk_id?: string | null; pending_send?: number;
 }
 export interface SignerRow {
   id: string; request_id: string; org_id: string; position: number; name: string; email: string; token_hash: string | null; status: SignerStatus;
   sent_at: number | null; reminded_at: number | null; viewed_at: number | null; signed_at: number | null; declined_at: number | null; decline_reason: string | null; signature_file_ids: string | null;
+  /** R107 (0119): the email code. */
+  code_hash?: string | null; code_expires_at?: number | null; code_tries: number; code_sent_at?: number | null; code_sends?: string | null; verified_at?: number | null; verified_token?: string | null;
 }
-export interface EventRow { id: string; request_id: string; org_id: string; seq: number; at: number; signer_id: string | null; name: string; email: string; action: string; ip_country: string | null; detail: string | null }
+export interface EventRow { id: string; request_id: string; org_id: string; seq: number; at: number; signer_id: string | null; name: string; email: string; action: string; ip_country: string | null; detail: string | null;
+  ip_hash?: string | null; user_agent?: string | null; tz?: string | null; doc_sha256?: string | null }
 interface PagesInfo { zip: string | null; list: SignPage[] }
 
 /** Drafts (a document waiting to be placed) are kept a day; a request lives as long as the sender chose. */
@@ -52,7 +58,7 @@ const iso = (ms: number | null) => (ms === null ? null : new Date(ms).toISOStrin
 export async function requestRow(deps: Deps, id: string): Promise<RequestRow | null> {
   return (await deps.db.get<RequestRow>(sql`select * from sign_requests where id = ${id}`)) ?? null;
 }
-async function ownRequest(deps: Deps, auth: AuthContext, id: string): Promise<RequestRow> {
+export async function ownRequest(deps: Deps, auth: AuthContext, id: string): Promise<RequestRow> {
   const r = await deps.db.get<RequestRow>(sql`select * from sign_requests where id = ${id} and org_id = ${auth.orgId}`);
   if (!r || (auth.role === "member" && r.created_by !== auth.userId)) throw notFound("Signing request");
   return r;
@@ -65,16 +71,19 @@ export async function eventsOf(deps: Deps, requestId: string): Promise<EventRow[
 }
 
 /** One event row; seq is the next number for the request, taken in the same statement. */
-export async function addEvent(deps: Deps, r: Pick<RequestRow, "id" | "org_id">, e: { signerId?: string | null; name: string; email: string; action: string; ipCountry?: string | null; detail?: string | null }) {
+export async function addEvent(deps: Deps, r: Pick<RequestRow, "id" | "org_id">, e: { signerId?: string | null; name: string; email: string; action: string; ipCountry?: string | null; detail?: string | null } & EventCtx) {
   const now = deps.now().getTime();
-  await deps.db.run(sql`insert into sign_events (id, request_id, org_id, seq, at, signer_id, name, email, action, ip_country, detail)
-    select ${newId("sev")}, ${r.id}, ${r.org_id}, coalesce(max(seq), 0) + 1, ${now}, ${e.signerId ?? null}, ${e.name.slice(0, 120)}, ${e.email.slice(0, 254)}, ${e.action}, ${e.ipCountry ?? null}, ${e.detail ?? null}
+  await deps.db.run(sql`insert into sign_events (id, request_id, org_id, seq, at, signer_id, name, email, action, ip_country, detail, ip_hash, user_agent, tz, doc_sha256)
+    select ${newId("sev")}, ${r.id}, ${r.org_id}, coalesce(max(seq), 0) + 1, ${now}, ${e.signerId ?? null}, ${e.name.slice(0, 120)}, ${e.email.slice(0, 254)}, ${e.action}, ${e.ipCountry ?? null}, ${e.detail ?? null},
+      ${e.ipHash ?? null}, ${e.userAgent ? e.userAgent.slice(0, 200) : null}, ${e.tz ?? null}, ${e.docSha256 ?? null}
     from sign_events where request_id = ${r.id}`);
 }
 
 const ACTION_TEXT: Record<string, string> = {
   created: "Created the request", sent: "Sent the signing link", viewed: "Opened the document", signed: "Signed", declined: "Declined",
   reminded: "Sent a reminder", completed: "Everyone signed; finished copy made", cancelled: "Cancelled the request", self_signed: "Signed",
+  // R107
+  code_sent: "Emailed a code", code_wrong: "Entered a wrong code", identity_checked: "Identity checked by email code", sealed: "Sealed with the workspace key",
 };
 export const actionText = (a: string) => ACTION_TEXT[a] ?? a;
 
@@ -88,7 +97,12 @@ function info(r: RequestRow, signers: SignerRow[], events?: EventRow[]): SignReq
     completedAt: iso(r.completed_at), sourceSha256: r.source_sha256, finalSha256: r.final_sha256, error: r.error, signers: signers.map(signerInfo),
   };
   if (r.status === "out") out.waitingOn = signers.filter((s) => s.status !== "signed" && turnOf(r, signers, s)).map((s) => s.name);
-  if (events) out.events = events.map((e): SignEventRow => ({ at: iso(e.at)!, name: e.name, email: e.email, action: e.action, ipCountry: e.ip_country, detail: e.detail }));
+  if (events) out.events = events.map((e): SignEventRow => ({ at: iso(e.at)!, name: e.name, email: e.email, action: e.action, ipCountry: e.ip_country, detail: e.detail,
+    tz: e.tz ?? null, device: deviceOf(e.user_agent) || null, ipHash: e.ip_hash ?? null, docSha256: e.doc_sha256 ?? null }));
+  if (r.v2) out.v2 = true;
+  if (r.seal) { out.sealed = true; out.sealKeyId = r.seal_key_id ?? null; }
+  if (r.template_id) out.templateId = r.template_id;
+  if (r.kind === "request" && r.status !== "draft") out.recordUrl = `/api/tools/esign/${r.id}/record`;
   if (r.final_file_id && r.status === "completed") out.downloadUrl = `/api/tools/esign/${r.id}/download`;
   return out;
 }
@@ -245,11 +259,14 @@ export function checkFields(fields: SignField[], pages: SignPage[], signerCount:
     const p = byPage.get(f.page);
     if (!p) throw badRequest("A field is on a page the document does not have.");
     if (!Number.isInteger(f.signer) || f.signer < 0 || f.signer >= Math.max(1, signerCount)) throw badRequest("Each field needs a signer.");
-    if (!["signature", "initials", "date"].includes(f.kind)) throw badRequest("Unknown field.");
+    if (!["signature", "initials", "date", "text", "checkbox"].includes(f.kind)) throw badRequest("Unknown field.");
     const x = Math.max(0, f.x), y = Math.max(0, f.y);
     const w = Math.min(f.w, p.width - x), h = Math.min(f.h, p.height - y);
     if (!(w >= 10 && h >= 6)) throw badRequest("A field is too small or off the page.");
-    return { signer: f.signer, kind: f.kind, page: f.page, x: round(x), y: round(y), w: round(w), h: round(h) };
+    const out: SignField = { signer: f.signer, kind: f.kind, page: f.page, x: round(x), y: round(y), w: round(w), h: round(h) };
+    // R107: a text or checkbox field may carry a short label the signer sees.
+    if ((f.kind === "text" || f.kind === "checkbox") && typeof f.label === "string" && f.label.trim()) out.label = f.label.trim().slice(0, 40);
+    return out;
   });
 }
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -338,7 +355,7 @@ export async function sendRequest(deps: Deps, auth: AuthContext, id: string, inp
   await dropKeptFiles(deps, r.org_id, [oldSource]);
   await deps.db.run(sql`update sign_requests set kind = 'request', status = 'out', subject = ${subject}, message = ${(input.message ?? "").slice(0, 2000) || null},
     mailbox_id = ${mailboxId}, in_reply_to_id = ${parent?.id ?? null}, order_mode = ${input.order === "sequence" ? "sequence" : "any"}, fields = ${JSON.stringify(fields)},
-    pages = ${pagesJson}, source_file_id = ${newSource}, remind_days = ${remind}, expires_at = ${until}, sent_at = ${now} where id = ${r.id}`);
+    pages = ${pagesJson}, source_file_id = ${newSource}, remind_days = ${remind}, expires_at = ${until}, sent_at = ${now}, v2 = ${deps.config.esignV2 === false ? 0 : 1} where id = ${r.id}`);
   for (let i = 0; i < signers.length; i++) {
     await deps.db.run(sql`insert into sign_signers (id, request_id, org_id, position, name, email, status) values (${newId("ssg")}, ${r.id}, ${r.org_id}, ${i}, ${signers[i].name}, ${signers[i].email}, 'waiting')`);
   }
@@ -419,11 +436,11 @@ export async function findSigner(deps: Deps, token: string): Promise<SignerView 
   return { r, s, signers, workspace: r.ws ?? "", sender: r.sender ?? "", state };
 }
 
-export async function markViewed(deps: Deps, v: SignerView, country: string | null) {
+export async function markViewed(deps: Deps, v: SignerView, country: string | null, ctx: EventCtx = {}) {
   if (v.state !== "open" || v.s.viewed_at) return;
   const now = deps.now().getTime();
   const res = await deps.db.run(sql`update sign_signers set viewed_at = ${now}, status = case when status = 'sent' then 'viewed' else status end where id = ${v.s.id} and viewed_at is null`);
-  if (changesOf(res)) await addEvent(deps, v.r, { signerId: v.s.id, name: v.s.name, email: v.s.email, action: "viewed", ipCountry: country });
+  if (changesOf(res)) await addEvent(deps, v.r, { signerId: v.s.id, name: v.s.name, email: v.s.email, action: "viewed", ipCountry: country, ...ctx, docSha256: v.r.source_sha256 });
 }
 
 export function fieldsFor(v: SignerView): SignField[] {
@@ -434,8 +451,13 @@ export function fieldsFor(v: SignerView): SignField[] {
  * Signs: one picture per field of this signer (signature, initials, date). Single use: the row only moves from
  * sent or viewed to signed once. When the last signer signs, the finished copy is started.
  */
-export async function signAsSigner(deps: Deps, v: SignerView, images: string[], country: string | null): Promise<{ ok: true; finished: boolean } | { ok: false; message: string }> {
+export async function signAsSigner(deps: Deps, v: SignerView, images: string[], country: string | null, opts: { ctx?: EventCtx; consent?: boolean } = {}): Promise<{ ok: true; finished: boolean } | { ok: false; message: string }> {
   if (v.state !== "open") return { ok: false, message: "This link can no longer be used to sign." };
+  // R107: a v2 request needs the email code checked (bound to this link) and the consent box ticked, checked here too.
+  if (v.r.v2) {
+    if (!isVerified(v.s, deps.now().getTime())) return { ok: false, message: "Confirm it is you with the code we email you, then sign." };
+    if (opts.consent !== true) return { ok: false, message: "Tick the box to agree to sign electronically." };
+  }
   const fields = fieldsFor(v);
   if (!fields.length || images.length !== fields.length) return { ok: false, message: "Add your signature to every field." };
   const pngs = images.map(pngFromDataUrl);
@@ -447,7 +469,9 @@ export async function signAsSigner(deps: Deps, v: SignerView, images: string[], 
   const res = await deps.db.run(sql`update sign_signers set status = 'signed', signed_at = ${now}, signature_file_ids = ${JSON.stringify(ids)}
     where id = ${v.s.id} and status in ('sent', 'viewed') and token_hash = ${v.s.token_hash}`);
   if (!changesOf(res)) { await dropKeptFiles(deps, v.r.org_id, ids); return { ok: false, message: "This link can no longer be used to sign." }; }
-  await addEvent(deps, v.r, { signerId: v.s.id, name: v.s.name, email: v.s.email, action: "signed", ipCountry: country });
+  const extra = fields.filter((f) => f.kind === "text" || f.kind === "checkbox").length;
+  await addEvent(deps, v.r, { signerId: v.s.id, name: v.s.name, email: v.s.email, action: "signed", ipCountry: country, ...(opts.ctx ?? {}), docSha256: v.r.source_sha256,
+    detail: v.r.v2 ? `Agreed: ${CONSENT_TEXT}${extra ? ` Filled ${extra} ${extra === 1 ? "field" : "fields"}.` : ""}` : null });
   const signers = await signersOf(deps, v.r.id);
   if (signers.every((s) => s.status === "signed")) {
     const moved = await deps.db.run(sql`update sign_requests set status = 'finishing' where id = ${v.r.id} and status = 'out'`);
@@ -458,7 +482,7 @@ export async function signAsSigner(deps: Deps, v: SignerView, images: string[], 
   return { ok: true, finished: false };
 }
 
-export async function declineAsSigner(deps: Deps, v: SignerView, reason: string, country: string | null): Promise<boolean> {
+export async function declineAsSigner(deps: Deps, v: SignerView, reason: string, country: string | null, ctx: EventCtx = {}): Promise<boolean> {
   if (v.state !== "open") return false;
   const why = reason.trim().slice(0, 500) || "No reason given";
   const now = deps.now().getTime();
@@ -466,7 +490,7 @@ export async function declineAsSigner(deps: Deps, v: SignerView, reason: string,
     where id = ${v.s.id} and status in ('sent', 'viewed') and token_hash = ${v.s.token_hash}`);
   if (!changesOf(res)) return false;
   await deps.db.run(sql`update sign_requests set status = 'declined' where id = ${v.r.id} and status = 'out'`);
-  await addEvent(deps, v.r, { signerId: v.s.id, name: v.s.name, email: v.s.email, action: "declined", ipCountry: country, detail: why });
+  await addEvent(deps, v.r, { signerId: v.s.id, name: v.s.name, email: v.s.email, action: "declined", ipCountry: country, detail: why, ...ctx, docSha256: v.r.source_sha256 });
   const u = await deps.db.get<{ email: string }>(sql`select email from users where id = ${v.r.created_by}`);
   if (u) {
     await sendSystemEmail(deps, { to: u.email, orgId: v.r.org_id, subject: `${v.s.name} declined to sign ${v.r.title}`,
@@ -484,7 +508,9 @@ export function auditFor(r: RequestRow, events: EventRow[]) {
   return {
     title: r.title,
     document_sha256: r.source_sha256,
-    events: events.map((e) => ({ at: new Date(e.at).toISOString(), who: e.name, email: e.email, what: actionText(e.action), ip_country: e.ip_country ?? "" })),
+    // R107: the record page also shows a short IP reference (a keyed hash, never the IP) beside the country.
+    events: events.filter((e) => e.action !== "code_sent" && e.action !== "code_wrong").map((e) => ({ at: new Date(e.at).toISOString(), who: e.name, email: e.email, what: actionText(e.action).slice(0, 60),
+      ip_country: [e.ip_country ?? "", e.ip_hash ? `IP ref ${e.ip_hash.slice(0, 8)}` : ""].filter(Boolean).join(", ").slice(0, 60) })),
   };
 }
 
@@ -503,7 +529,9 @@ export async function startFinish(deps: Deps, r: RequestRow): Promise<void> {
       const png = ids[i] ? await readKeptFile(deps, ids[i]) : null;
       if (!png) { await failRequest(deps, r, `The signature of ${s.name} expired.`); return; }
       const f = mine[i];
-      sigs.push({ page: f.page, x: f.x, y: f.y, w: f.w, h: f.h, image: files.length - 1, kind: f.kind, name: s.name, signed_at: iso(s.signed_at), date: String(iso(s.signed_at) ?? "").slice(0, 10) });
+      // R107: text and checkbox fields carry no "Signed by" line (the engine adds one under any placement with a name).
+      const plain = f.kind === "text" || f.kind === "checkbox";
+      sigs.push({ page: f.page, x: f.x, y: f.y, w: f.w, h: f.h, image: files.length - 1, kind: f.kind, name: plain ? "" : s.name, signed_at: iso(s.signed_at), date: String(iso(s.signed_at) ?? "").slice(0, 10) });
       files.push({ name: `sig-${files.length}.png`, type: "image/png", bytes: png, field: SIGN_IMAGES_FIELD });
     }
   }
@@ -537,9 +565,14 @@ export async function advance(deps: Deps, r: RequestRow): Promise<RequestRow> {
   const done = await deps.db.run(sql`update sign_requests set status = 'completed', final_file_id = ${finalId}, final_sha256 = ${fact}, completed_at = ${now}, engine_job = null, engine_kind = null
     where id = ${r.id} and status = 'finishing'`);
   if (!changesOf(done)) { await dropKeptFiles(deps, r.org_id, [finalId]); return (await requestRow(deps, r.id))!; }
-  const fresh = (await requestRow(deps, r.id))!;
+  let fresh = (await requestRow(deps, r.id))!;
   if (r.kind === "request") {
-    await addEvent(deps, r, { name: "Multies", email: "", action: "completed", detail: `Finished copy SHA-256 ${fact}` });
+    await addEvent(deps, r, { name: "Multies", email: "", action: "completed", detail: `Finished copy SHA-256 ${fact}`, docSha256: fact });
+    // R107: v2 requests are sealed with the workspace key before the copies go out.
+    if (fresh.v2) {
+      await sealRequest(deps, fresh).catch((err) => deps.log?.warn("tools.esign_seal_failed", { error: String(err) }));
+      fresh = (await requestRow(deps, r.id))!;
+    }
     await sendFinished(deps, fresh, out).catch(async (err) => {
       deps.log?.warn("tools.esign_send_finished_failed", { error: String(err) });
       await deps.db.run(sql`update sign_requests set error = ${"The signed copy could not be emailed: " + (err instanceof Error ? err.message : "unknown error")} where id = ${r.id}`);
@@ -558,8 +591,17 @@ async function sendFinished(deps: Deps, r: RequestRow, pdf: Uint8Array) {
     `Everyone has signed ${r.title}. The signed copy, with its signing record on the last page, is attached.`, "",
     `Fingerprint of the document before signing (SHA-256): ${r.source_sha256}`,
     `Fingerprint of the signed copy (SHA-256): ${r.final_sha256}`,
+    ...(r.seal ? ["", `Sealed with the workspace key ${r.seal_key_id}. To check a copy has not been changed since, open ${appUrl(deps)}/sign/verify and choose the PDF.`] : []),
   ].join("\n");
   const { sendMessage } = await import("../mail/send");
+  // R107: on v2 each signer gets their own copy, so no one sees the other signers' addresses in the email.
+  if (r.v2) {
+    for (const s of signers) {
+      await sendMessage(deps, auth, { mailboxId: r.mailbox_id!, to: [s.email], subject: r.subject && !r.subject.startsWith("Please sign:") ? r.subject : `Signed: ${r.title}`, text: text.replace("Hi everyone,", `Hi ${s.name},`), inReplyToId: r.in_reply_to_id ?? undefined },
+        { attachments: [{ filename: signedName(r.title), contentType: "application/pdf", content: pdf }] });
+    }
+    return;
+  }
   await sendMessage(deps, auth, { mailboxId: r.mailbox_id!, to: signers.map((s) => s.email), subject: r.subject && !r.subject.startsWith("Please sign:") ? r.subject : `Signed: ${r.title}`, text, inReplyToId: r.in_reply_to_id ?? undefined },
     { attachments: [{ filename: signedName(r.title), contentType: "application/pdf", content: pdf }] });
 }
@@ -598,7 +640,9 @@ export async function cancelRequest(deps: Deps, auth: AuthContext, id: string, i
 async function dropRequestFiles(deps: Deps, r: RequestRow) {
   const signers = await signersOf(deps, r.id);
   const pages = r.pages ? (JSON.parse(r.pages) as PagesInfo) : null;
-  await dropKeptFiles(deps, r.org_id, [r.source_file_id, pages?.zip, ...signers.flatMap((s) => (s.signature_file_ids ? (JSON.parse(s.signature_file_ids) as string[]) : []))]);
+  // R107: a request made from a template shares the template's document; that stays while the template (or another open request) needs it.
+  const keep = await sharedFiles(deps, r);
+  await dropKeptFiles(deps, r.org_id, [r.source_file_id, pages?.zip, ...signers.flatMap((s) => (s.signature_file_ids ? (JSON.parse(s.signature_file_ids) as string[]) : []))].filter((id) => !id || !keep.has(id)));
 }
 
 export async function requestFile(deps: Deps, auth: AuthContext, id: string): Promise<{ bytes: Uint8Array; name: string }> {
@@ -642,6 +686,9 @@ export async function runSignPass(deps: Deps): Promise<{ expired: number; finish
     if (!turnOf(r, signers, s)) continue;
     await sendLink(deps, r, s, true).then(() => { out.reminded++; }, (err) => deps.log?.warn("tools.esign_remind_failed", { error: String(err) }));
   }
+  // R107: queued bulk sends, a few a pass.
+  const { sendPending } = await import("./esign-v2");
+  await sendPending(deps).catch((err) => deps.log?.warn("tools.esign_bulk_pass_failed", { error: String(err) }));
   const { pruneKeptFiles } = await import("./kept-files");
   await pruneKeptFiles(deps);
   return out;

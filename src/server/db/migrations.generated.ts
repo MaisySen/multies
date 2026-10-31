@@ -1176,5 +1176,34 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX `bookings_org_email_idx` ON `bookings` (`org_id`,`email`);",
       "CREATE INDEX `form_submissions_entity_idx` ON `form_submissions` (`entity_type`,`entity_id`,`created_at`) WHERE `entity_id` IS NOT NULL;"
     ]
+  },
+  {
+    "name": "0119_r107_esign_v2",
+    "statements": [
+      "-- R107 (Oct 31): e-sign upgrade. Additive only: new columns, two tables, one index, one trigger.\n-- Identity codes per signer, a richer append only signing record, a per workspace seal key, templates and bulk send.\nALTER TABLE `sign_requests` ADD `v2` integer DEFAULT 0 NOT NULL;",
+      "ALTER TABLE `sign_requests` ADD `seal` text;",
+      "ALTER TABLE `sign_requests` ADD `seal_key_id` text;",
+      "ALTER TABLE `sign_requests` ADD `template_id` text;",
+      "ALTER TABLE `sign_requests` ADD `bulk_id` text;",
+      "ALTER TABLE `sign_requests` ADD `pending_send` integer DEFAULT 0 NOT NULL;",
+      "CREATE INDEX IF NOT EXISTS `sign_requests_pending_idx` ON `sign_requests` (`pending_send`,`created_at`);",
+      "CREATE INDEX IF NOT EXISTS `sign_requests_final_sha_idx` ON `sign_requests` (`final_sha256`);",
+      "CREATE INDEX IF NOT EXISTS `sign_requests_template_idx` ON `sign_requests` (`template_id`);",
+      "ALTER TABLE `sign_signers` ADD `code_hash` text;",
+      "ALTER TABLE `sign_signers` ADD `code_expires_at` integer;",
+      "ALTER TABLE `sign_signers` ADD `code_tries` integer DEFAULT 0 NOT NULL;",
+      "ALTER TABLE `sign_signers` ADD `code_sent_at` integer;",
+      "ALTER TABLE `sign_signers` ADD `code_sends` text;",
+      "ALTER TABLE `sign_signers` ADD `verified_at` integer;",
+      "ALTER TABLE `sign_signers` ADD `verified_token` text;",
+      "ALTER TABLE `sign_events` ADD `ip_hash` text;",
+      "ALTER TABLE `sign_events` ADD `user_agent` text;",
+      "ALTER TABLE `sign_events` ADD `tz` text;",
+      "ALTER TABLE `sign_events` ADD `doc_sha256` text;",
+      "CREATE TRIGGER IF NOT EXISTS `sign_events_append_only` BEFORE UPDATE ON `sign_events` BEGIN SELECT RAISE(ABORT, 'sign_events is append only'); END;",
+      "CREATE TABLE IF NOT EXISTS `esign_keys` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`key_id` text NOT NULL,\n\t`public_jwk` text NOT NULL,\n\t`private_enc` text NOT NULL,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE TABLE IF NOT EXISTS `sign_templates` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`created_by` text NOT NULL,\n\t`name` text NOT NULL,\n\t`title` text NOT NULL,\n\t`message` text,\n\t`order_mode` text DEFAULT 'any' NOT NULL,\n\t`remind_days` integer DEFAULT 0 NOT NULL,\n\t`expires_days` integer DEFAULT 14 NOT NULL,\n\t`roles` text NOT NULL,\n\t`fields` text NOT NULL,\n\t`pages` text NOT NULL,\n\t`source_file_id` text NOT NULL,\n\t`source_sha256` text NOT NULL,\n\t`uses` integer DEFAULT 0 NOT NULL,\n\t`deleted_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX IF NOT EXISTS `sign_templates_org_idx` ON `sign_templates` (`org_id`,`deleted_at`,`updated_at`);"
+    ]
   }
 ];

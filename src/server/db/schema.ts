@@ -2468,7 +2468,15 @@ export const signRequests = sqliteTable("sign_requests", {
   sentAt: integer("sent_at"),
   completedAt: integer("completed_at"),
   createdAt: integer("created_at").notNull(),
-}, (t) => [index("sign_requests_org_idx").on(t.orgId, t.createdAt), index("sign_requests_status_idx").on(t.status, t.expiresAt)]);
+  /** R107 (0119): e-sign v2 stamp, seal, template and bulk send. */
+  v2: integer("v2").notNull().default(0),
+  seal: text("seal"),
+  sealKeyId: text("seal_key_id"),
+  templateId: text("template_id"),
+  bulkId: text("bulk_id"),
+  pendingSend: integer("pending_send").notNull().default(0),
+}, (t) => [index("sign_requests_org_idx").on(t.orgId, t.createdAt), index("sign_requests_status_idx").on(t.status, t.expiresAt),
+  index("sign_requests_pending_idx").on(t.pendingSend, t.createdAt), index("sign_requests_final_sha_idx").on(t.finalSha256), index("sign_requests_template_idx").on(t.templateId)]);
 
 export const signSigners = sqliteTable("sign_signers", {
   id: text("id").primaryKey(),
@@ -2486,6 +2494,14 @@ export const signSigners = sqliteTable("sign_signers", {
   declinedAt: integer("declined_at"),
   declineReason: text("decline_reason"),
   signatureFileIds: text("signature_file_ids"),
+  /** R107 (0119): the email code that identifies the signer. */
+  codeHash: text("code_hash"),
+  codeExpiresAt: integer("code_expires_at"),
+  codeTries: integer("code_tries").notNull().default(0),
+  codeSentAt: integer("code_sent_at"),
+  codeSends: text("code_sends"),
+  verifiedAt: integer("verified_at"),
+  verifiedToken: text("verified_token"),
 }, (t) => [uniqueIndex("sign_signers_token_idx").on(t.tokenHash), index("sign_signers_request_idx").on(t.requestId, t.position)]);
 
 export const signEvents = sqliteTable("sign_events", {
@@ -2500,7 +2516,41 @@ export const signEvents = sqliteTable("sign_events", {
   action: text("action").notNull(),
   ipCountry: text("ip_country"),
   detail: text("detail"),
+  /** R107 (0119): append only (trigger); never the IP itself. */
+  ipHash: text("ip_hash"),
+  userAgent: text("user_agent"),
+  tz: text("tz"),
+  docSha256: text("doc_sha256"),
 }, (t) => [index("sign_events_request_idx").on(t.requestId, t.seq)]);
+/** R107 (0119): one seal key per workspace; the private half is encrypted with the app secret. */
+export const esignKeys = sqliteTable("esign_keys", {
+  orgId: text("org_id").primaryKey(),
+  keyId: text("key_id").notNull(),
+  publicJwk: text("public_jwk").notNull(),
+  privateEnc: text("private_enc").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+/** R107 (0119): a placed document with roles instead of people. */
+export const signTemplates = sqliteTable("sign_templates", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  createdBy: text("created_by").notNull(),
+  name: text("name").notNull(),
+  title: text("title").notNull(),
+  message: text("message"),
+  orderMode: text("order_mode").notNull().default("any"),
+  remindDays: integer("remind_days").notNull().default(0),
+  expiresDays: integer("expires_days").notNull().default(14),
+  roles: text("roles").notNull(),
+  fields: text("fields").notNull(),
+  pages: text("pages").notNull(),
+  sourceFileId: text("source_file_id").notNull(),
+  sourceSha256: text("source_sha256").notNull(),
+  uses: integer("uses").notNull().default(0),
+  deletedAt: integer("deleted_at"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [index("sign_templates_org_idx").on(t.orgId, t.deletedAt, t.updatedAt)]);
 
 
 /**

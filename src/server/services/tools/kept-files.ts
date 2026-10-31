@@ -12,7 +12,7 @@ import { newId, randomToken, sha256Hex, safeEqual } from "../../lib/crypto";
 import { KEPT_FILE_CAP, KEPT_FILE_GLOBAL_CAP, KEPT_FILE_MAX_BYTES, type KeptUsage } from "@/shared/share-sign";
 import { isPlanId, type PlanId } from "@/shared/plans";
 
-export type KeptKind = "share" | "sign_source" | "sign_final" | "sign_image" | "request_file" | "secret";
+export type KeptKind = "share" | "sign_source" | "sign_final" | "sign_image" | "request_file" | "secret" | "sign_template";
 
 const mbText = (n: number) => (n >= 1024 * 1024 * 1024 ? `${Math.round(n / (1024 * 1024 * 1024))} GB` : `${Math.round(n / (1024 * 1024))} MB`);
 

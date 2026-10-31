@@ -60,13 +60,17 @@ export interface ShareLinkInfo {
 export interface KeptUsage { bytes: number; cap: number }
 
 /** A field placed on a page: PDF points from the top left of the page. */
-export interface SignField { signer: number; kind: "signature" | "initials" | "date"; page: number; x: number; y: number; w: number; h: number }
+export type SignFieldKind = "signature" | "initials" | "date" | "text" | "checkbox";
+/** R107 adds text and checkbox; label names a text or checkbox field for the signer (up to 40 characters). */
+export interface SignField { signer: number; kind: SignFieldKind; page: number; x: number; y: number; w: number; h: number; label?: string }
 export interface SignPage { page: number; width: number; height: number; img?: string }
 
 export type SignRequestStatus = "draft" | "preparing" | "out" | "finishing" | "completed" | "declined" | "cancelled" | "expired" | "failed";
 export type SignerStatus = "waiting" | "sent" | "viewed" | "signed" | "declined";
 
-export interface SignEventRow { at: string; name: string; email: string; action: string; ipCountry: string | null; detail?: string | null }
+export interface SignEventRow { at: string; name: string; email: string; action: string; ipCountry: string | null; detail?: string | null;
+  /** R107: the signer's own time zone, a short device word, a keyed hash of the IP (never the IP) and the document fingerprint. */
+  tz?: string | null; device?: string | null; ipHash?: string | null; docSha256?: string | null }
 export interface SignSignerInfo { id: string; position: number; name: string; email: string; status: SignerStatus; sentAt: string | null; viewedAt: string | null; signedAt: string | null; declinedAt: string | null; declineReason: string | null }
 export interface SignRequestInfo {
   id: string;
@@ -84,4 +88,21 @@ export interface SignRequestInfo {
   events?: SignEventRow[];
   downloadUrl?: string;
   waitingOn?: string[];
+  /** R107: v2 requests check each signer by email code; completed ones carry the workspace seal. */
+  v2?: boolean;
+  sealed?: boolean;
+  sealKeyId?: string | null;
+  templateId?: string | null;
+  recordUrl?: string;
 }
+/** R107: a placed document with roles instead of people. */
+export interface SignTemplateInfo {
+  id: string; name: string; title: string; message: string | null; orderMode: "any" | "sequence"; remindDays: number; expiresDays: number;
+  roles: string[]; fieldCount: number; pageCount: number; uses: number; createdAt: string; updatedAt: string; createdBy: string | null; canDelete: boolean;
+}
+/** R107: what the public check page learns from a fingerprint. */
+export type SignVerifyResult =
+  | { found: false }
+  | { found: true; title: string; workspace: string; completedAt: string | null; signers: number; sealed: boolean; sealValid: boolean; keyId: string | null };
+export const SIGN_TEMPLATE_MAX = 50;
+export const SIGN_BULK_MAX = 50;

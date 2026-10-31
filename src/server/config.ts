@@ -171,6 +171,8 @@ export interface AppConfig {
   };
   /** R119: helpdesk mode on the shared inbox and the website chat (HELPDESK, on unless "off"; each workspace turns it on itself). */
   helpdesk?: boolean;
+  /** R107: e-sign v2 (ESIGN_V2, on unless "off"): email code identity, richer signing record, seal, templates, bulk send. Stamped per request, so older links keep their flow. */
+  esignV2?: boolean;
   channels: { enabled: boolean; meta?: { appId: string; appSecret: string; verifyToken: string; configId: string; graphVersion: string }; mock: boolean; dailySoftCap: number };
   /**
    * Free addresses (round 17): a Multies-owned domain that every workspace can take an address on
@@ -285,6 +287,7 @@ const EnvSchema = z.object({
   CHANNELS_MOCK: z.string().optional(),
   CHAT_CHANNELS: z.string().optional(),
   HELPDESK: z.string().optional(),
+  ESIGN_V2: z.string().optional(),
   CHANNELS_DAILY_SOFT_CAP: z.string().optional(),
   TOOLS_ENABLED: z.string().optional(),
   CRM_TIMELINE: z.string().optional(),
@@ -649,6 +652,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     direct: directConfig(env),
     channels: channelsConfig(env, mode),
     helpdesk: env.HELPDESK !== "off",
+    esignV2: env.ESIGN_V2 !== "off",
     operatorInbox: operatorInbox(env.SUPPORT_EMAIL?.trim() || "support@multies.si", env.OPERATOR_INBOX_ORG_ID, env.OPERATOR_INBOX_ADDRESSES),
     freeMail: {
       domain: freeMailDomain(env.FREE_MAIL_DOMAIN, env.APP_URL),
