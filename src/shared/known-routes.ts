@@ -11,7 +11,7 @@ const EXACT = new Set([
 ]);
 // R58 (MB-237): the free plan page, the switch list, and one switch page per tool the import reads (unknown tools are a 404).
 for (const p of ["/startups", "/switch", ...SWITCH_SLUGS.map((s) => `/switch/${s}`)]) EXACT.add(p);
-const PREFIXES = ["/app", "/invite/", "/f/", "/m/", "/g/", "/book/", "/go/"]; // R87: go links (members only)
+const PREFIXES = ["/app", "/invite/", "/f/", "/m/", "/g/", "/book/", "/go/", "/dash/"]; // R87: go links (members only); R91: /dash/<token> public dashboards
 
 /** R76: every exact page path, so a test can check each has its own title (seo-meta.ts) and a sitemap entry where public. */
 export const KNOWN_PAGE_PATHS: readonly string[] = [...EXACT];

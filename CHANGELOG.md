@@ -48,6 +48,14 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Added: macros (set status, priority or owner, add a note, start a reply from text or a saved reply) run from the ticket panel.
 - Added: website chat. A small script (about 6 KB, shadow DOM, its own styles) for allowed domains only; live chat with typing marks, internal notes the visitor never sees, an email card, an away form outside business hours with replies by email, optional automatic answers from saved replies.
 - Added: a one question survey (Great, Okay, Not good, with a comment) when a ticket is solved, by mail or in the chat; the rating shows on the ticket. Migration 0111 (hd_settings, hd_tickets, hd_web_messages, hd_macros). Flag HELPDESK (on unless "off").
+### R91 dashboards plus (31 Oct 2026)
+
+- Added: Share by link for a dashboard (Work > Dashboards > Share): a read only page at /dash/<token> with an expiry (7, 30, 90 days or never), an optional password and the workspace name on or off; links can be turned off. Numbers only, no ids or emails behind them.
+- Added: Emailed reports: daily, weekly or monthly at an hour in a time zone, to members or outside addresses (up to 20), with a PDF and a one click unsubscribe; Send now.
+- Added: Question builder: pick tasks, deals, form responses, bookings, time, mail or a data source, filter, group (by day, week or month for dates) and count, total or average; shown as a number, bars, a line, a donut or a table, with a live preview. Only data you can already see.
+- Added: Alerts on number cards (above or below a line), in the app and by email, once per crossing, with quiet hours.
+- Added: Data sources: upload a CSV or link a public CSV or published sheet (hourly, daily or by hand); 1 MB, 5,000 rows, 30 columns; private addresses refused.
+- Flag: DASHBOARDS_PLUS (on in staging and production; DASHBOARDS_PLUS=test in e2e also opens a run now hook). Migration 0112.
 
 ### P1 layout (31 Oct 2026)
 

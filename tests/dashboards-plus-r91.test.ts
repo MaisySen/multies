@@ -228,7 +228,7 @@ describe("R91 routes end to end", () => {
     const outside = mails.find((x) => JSON.stringify(x.to).includes("client@outside.io"))!;
     const text = String(outside.text ?? "");
     expect(text).toContain("Ops");
-    expect(text).toMatch(/https:\/\/app\.test\/d\//);
+    expect(text).toMatch(/https:\/\/app\.test\/dash\//);
     const unsub = text.match(/https:\/\/app\.test(\/api\/dash-public\/reports\/unsubscribe\?\S+)/)![1]!;
     expect((await new Client(ctx.app).get(unsub)).status).toBe(200);
     const pdf = text.match(/https:\/\/app\.test(\/api\/dash-public\/\S+\/pdf)/)![1]!;
