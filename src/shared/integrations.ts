@@ -167,4 +167,24 @@ export const SOCIAL_ERROR_COPY: Record<string, string> = {
   not_supported: "Posting to this network is not ready yet.",
   rejected: "The network turned the post down.",
   unavailable: "The network did not answer. Try again in a few minutes.",
+  reconnect: "The sign in for this account has expired. Reconnect it, then try again.",
+  no_permission: "This account has not allowed posting. Reconnect it and allow posting, then try again.",
+  not_page_admin: "Your profile can't post to this Page. Check you are an admin of the Page, then reconnect.",
+  duplicate: "The network says this matches a recent post. Change the text, then try again.",
+  rate_limited: "The network is limiting posts from this account right now. Try again in an hour.",
+  bad_image: "The network couldn't use the image. Try another JPEG or PNG.",
+  network_changed: "This network changed how posting works. We are fixing it; try again later.",
 };
+
+/** Error codes where reconnecting the account is the next step. */
+export const SOCIAL_RECONNECT_ERRORS = new Set(["reconnect", "no_permission", "not_page_admin", "account_gone"]);
+
+/** Splits a stored target error ("code" or "rejected:the network's words") into plain words to show. */
+export function socialErrorText(stored: string | null | undefined): { code: string; text: string } {
+  const raw = stored ?? "rejected";
+  const i = raw.indexOf(":");
+  const code = i > 0 ? raw.slice(0, i) : raw;
+  const detail = i > 0 ? raw.slice(i + 1).trim() : "";
+  const base = SOCIAL_ERROR_COPY[code] ?? SOCIAL_ERROR_COPY.rejected!;
+  return { code, text: code === "rejected" && detail ? `The network turned the post down: “${detail}”` : base };
+}

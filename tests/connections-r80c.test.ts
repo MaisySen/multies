@@ -8,9 +8,9 @@ import { eq } from "drizzle-orm";
 import { Client, makeTestApp } from "./helpers";
 import { auditLogs, members, sessions, socialMedia, socialPosts, users } from "../src/server/db/schema";
 import { mockComposioFetch, newMockState, type MockComposioState } from "../src/server/services/integrations/mock";
-import { checkTarget, runDueSocialPosts, pruneSocialMedia, dig } from "../src/server/services/integrations/social";
+import { checkTarget, runDueSocialPosts, pruneSocialMedia, dig, firstUrl, linkedinText, linkedinVersions, facebookError, linkedinError, platformDetail } from "../src/server/services/integrations/social"; // gitleaks:allow (function names, no key)
 import { schemeFor, statusOf } from "../src/server/services/integrations/service";
-import { groupFor } from "../src/shared/integrations";
+import { groupFor, socialErrorText, SOCIAL_RECONNECT_ERRORS } from "../src/shared/integrations";
 
 const ENV = { COMPOSIO_API_KEY: "ak_test_key_never_shown", COMPOSIO_BASE_URL: "https://composio.mock", APP_URL: "https://app.example.com" };
 // A 1x1 PNG.
@@ -149,10 +149,14 @@ describe("R80C social posts", () => {
     const post = (await owner.get(`/api/social/posts/${r.body.post.id}`)).body.post;
     expect(post.status).toBe("done");
     expect(post.targets.map((t: { status: string }) => t.status)).toEqual(["sent", "sent", "sent"]);
-    expect(mock.executed.map((e) => e.slug)).toEqual(expect.arrayContaining(["LINKEDIN_CREATE_LINKED_IN_POST", "FACEBOOK_CREATE_PHOTO_POST", "INSTAGRAM_CREATE_POST"]));
-    const liCall = mock.executed.find((e) => e.slug === "LINKEDIN_CREATE_LINKED_IN_POST")!;
-    expect(liCall.args).toMatchObject({ author: "urn:li:person:mock1", commentary: "Spring launch is live" });
-    const fbCall = mock.executed.find((e) => e.slug === "FACEBOOK_CREATE_PHOTO_POST")!;
+    expect(mock.executed.map((e) => e.slug)).toEqual(expect.arrayContaining(["INSTAGRAM_CREATE_POST"]));
+    // Hotfix Oct 31: LinkedIn and Facebook go straight to the networks through the proxy.
+    const liCall = mock.proxied.find((e) => e.endpoint === "https://api.linkedin.com/rest/posts")!;
+    expect(liCall.body).toMatchObject({ author: "urn:li:person:mock1", commentary: "Spring launch is live", lifecycleState: "PUBLISHED", distribution: { feedDistribution: "MAIN_FEED" } });
+    expect(liCall.headers["LinkedIn-Version"]).toMatch(/^20\d{4}$/);
+    const fbCall = { args: mock.proxied.find((e) => e.endpoint.endsWith("/pg_100/photos"))!.body };
+    // Posted as the Page, with the Page's own token.
+    expect(fbCall.args.access_token).toBe("mock-page-token");
     expect(String(fbCall.args.url)).toMatch(/^https:\/\/app\.example\.com\/api\/social\/media\/sm_/);
     // The image is public at its unguessable address, and only there.
     const img = await ctx.app.request(new URL(String(fbCall.args.url)).pathname, { headers: { host: "localhost" } });
@@ -189,7 +193,8 @@ describe("R80C social posts", () => {
     expect((await runDueSocialPosts(ctx.deps, { now: later })).sent).toBe(0);
     const post = (await owner.get(`/api/social/posts/${r.body.post.id}`)).body.post;
     expect(post.status).toBe("failed");
-    expect(post.targets.every((t: { error: string }) => t.error === "rejected")).toBe(true);
+    // The network's own words ride after the code, so the person sees the real reason.
+    expect(post.targets.every((t: { error: string }) => t.error === "rejected:The network turned this post down.")).toBe(true);
     // Try again sends only the failed accounts.
     const again = await owner.post(`/api/social/posts/${r.body.post.id}/retry`);
     expect(again.status).toBe(200);
@@ -252,5 +257,74 @@ describe("R80C pure parts", () => {
   it("finds ids inside nested answers and groups apps Social first", () => {
     expect(dig({ data: { response: { id: "42" } } }, ["id"])).toBe("42");
     expect(groupFor(["Social Media"])).toBe("social");
+  });
+});
+
+describe("Hotfix Oct 31: Facebook and LinkedIn posting and clear errors", () => {
+  it("posts text with a link to a Facebook Page as the Page, with the link for its preview", async () => {
+    const fb = await connect(owner, "facebook");
+    const li = await connect(owner, "linkedin");
+    const r = await owner.post("/api/social/posts", { text: "Testing.\nhttps://fintex.au", targets: [{ accountId: fb, target: "pg_100" }, { accountId: li }] });
+    expect(r.status).toBe(201);
+    await new Promise((res) => setTimeout(res, 50));
+    const post = (await owner.get(`/api/social/posts/${r.body.post.id}`)).body.post;
+    expect(post.status).toBe("done");
+    const feed = mock.proxied.find((e) => e.endpoint.endsWith("/pg_100/feed"))!;
+    expect(feed.body).toMatchObject({ message: "Testing.\nhttps://fintex.au", link: "https://fintex.au", access_token: "mock-page-token", published: true });
+    expect(post.targets.find((t: { app: string }) => t.app === "linkedin").url).toMatch(/^https:\/\/www\.linkedin\.com\/feed\/update\/urn:li:share:/);
+    // The page token never reaches the browser.
+    expect(JSON.stringify(post)).not.toContain("mock-page-token");
+  });
+
+  it("an expired sign in says Reconnect, on both networks", async () => {
+    const fb = await connect(owner, "facebook");
+    const li = await connect(owner, "linkedin");
+    const r = await owner.post("/api/social/posts", { text: "EXPIRED token", targets: [{ accountId: fb, target: "pg_100" }, { accountId: li }] });
+    await new Promise((res) => setTimeout(res, 50));
+    const post = (await owner.get(`/api/social/posts/${r.body.post.id}`)).body.post;
+    expect(post.targets.map((t: { error: string }) => t.error)).toEqual(["reconnect", "reconnect"]);
+    expect(SOCIAL_RECONNECT_ERRORS.has("reconnect")).toBe(true);
+  });
+
+  it("a Page the profile can't post to says so", async () => {
+    const fb = await connect(owner, "facebook");
+    const r = await owner.post("/api/social/posts", { text: "Hello", targets: [{ accountId: fb, target: "pg_noadmin" }] });
+    await new Promise((res) => setTimeout(res, 50));
+    const post = (await owner.get(`/api/social/posts/${r.body.post.id}`)).body.post;
+    expect(post.targets[0].error).toBe("not_page_admin");
+    expect(socialErrorText(post.targets[0].error).text).toMatch(/admin of the Page/);
+  });
+
+  it("maps network errors to our own codes", () => {
+    expect(facebookError(400, { code: 190, message: "Session has expired" }).code).toBe("reconnect");
+    expect(facebookError(403, { code: 200, message: "(#200) Unpublished posts must be posted to a page as the page itself." }).code).toBe("not_page_admin");
+    expect(facebookError(403, { code: 200, message: "(#200) Requires pages_manage_posts permission" }).code).toBe("no_permission");
+    expect(facebookError(400, { code: 506, message: "Duplicate status message" }).code).toBe("duplicate");
+    expect(facebookError(400, { code: 32, message: "Page request limit reached" }).code).toBe("rate_limited");
+    expect(facebookError(400, { code: 324, message: "Missing or invalid image file" }).code).toBe("bad_image");
+    expect(facebookError(400, { code: 100, message: "Invalid parameter" }).code).toBe("rejected");
+    expect(linkedinError(401, { message: "revoked", code: "REVOKED_ACCESS_TOKEN" }).code).toBe("reconnect");
+    expect(linkedinError(403, { message: "Not enough permissions" }).code).toBe("no_permission");
+    expect(linkedinError(422, { message: "Content is a duplicate of urn:li:share:1" }).code).toBe("duplicate");
+    expect(linkedinError(426, { message: "Requested version 20241101 is not active", code: "NONEXISTENT_VERSION" }).code).toBe("network_changed");
+    expect(linkedinError(429, null).code).toBe("rate_limited");
+  });
+
+  it("steps LinkedIn versions back a month at a time, and escapes LinkedIn markup", () => {
+    expect(linkedinVersions(new Date("2026-10-31T08:00:00Z"))).toEqual(["202609", "202608", "202610"]);
+    expect(linkedinVersions(new Date("2027-01-05T08:00:00Z"))).toEqual(["202612", "202611", "202701"]);
+    expect(linkedinText("Hi (team) #launch @you_2 *new*")).toBe("Hi \\(team\\) \\#launch \\@you\\_2 \\*new\\*");
+    expect(firstUrl("Testing.\nhttps://fintex.au.")).toBe("https://fintex.au");
+    expect(firstUrl("no link")).toBeNull();
+  });
+
+  it("shows the network's own words for a plain refusal, short and without long ids", () => {
+    expect(platformDetail('{"error":{"message":"(#100) Bad thing","code":100}}')).toBe("(#100) Bad thing");
+    expect(platformDetail('{"status":426,"message":"Requested version 20241101 is not active"}')).toBe("Requested version 20241101 is not active");
+    expect(platformDetail(`token ${"x".repeat(40)} bad`)).toBe("token … bad");
+    expect(socialErrorText("rejected:Bad thing").text).toBe("The network turned the post down: “Bad thing”");
+    expect(socialErrorText("reconnect").text).toMatch(/Reconnect it/);
+    expect(socialErrorText(null).text).toBe("The network turned the post down.");
+    expect(socialErrorText("something_new").code).toBe("something_new");
   });
 });

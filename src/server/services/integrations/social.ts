@@ -16,7 +16,7 @@ import {
   type PostStatus, type SocialPostView, type TargetStatus,
 } from "@/shared/integrations";
 import { appLabel, isAdmin, limitWrite, platform, platformUserId, statusOf, toHttp } from "./service";
-import type { Composio } from "./composio";
+import { IntegrationError, type Composio } from "./composio";
 
 /** Due posts one cron pass takes; the rest wait for the next pass. */
 export const SOCIAL_PASS_LIMIT = 10;
@@ -171,7 +171,7 @@ export async function retryPost(deps: Deps, auth: AuthContext, id: string): Prom
 
 /* ---------------------------------------------------------------- publishing */
 
-interface PublishCtx { cp: Composio; userId: string; accountId: string; text: string; imageUrl: string | null; image: { b64: string; type: string } | null; target: string | null }
+interface PublishCtx { cp: Composio; userId: string; accountId: string; text: string; imageUrl: string | null; image: { b64: string; type: string } | null; target: string | null; now?: Date }
 interface PublishResult { status: "sent" | "failed" | "skipped"; url?: string | null; error?: string | null }
 
 function str(v: unknown): string | null { return typeof v === "string" && v ? v : typeof v === "number" ? String(v) : null; }
@@ -187,17 +187,119 @@ export function dig(data: unknown, keys: string[], depth = 0): string | null {
 
 async function run(ctx: PublishCtx, slug: string, args: Record<string, unknown>) {
   const r = await ctx.cp.execute(slug, ctx.accountId, ctx.userId, args);
-  if (!r.ok) throw new PublishError("rejected", r.error ?? "rejected");
+  if (!r.ok) throw new PublishError("rejected", platformDetail(r.error) ?? "rejected");
   return r.data;
 }
 
-class PublishError extends Error { constructor(public code: string, detail: string) { super(detail); } }
+/** The platform passes the network's answer as a JSON string; keep only the network's own message. */
+export function platformDetail(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const j = JSON.parse(raw) as { message?: unknown; error?: { message?: unknown } | string };
+    const m = typeof j.error === "object" ? j.error?.message : typeof j.error === "string" ? j.error : j.message;
+    return cleanDetail(m) ?? cleanDetail(raw);
+  } catch { return cleanDetail(raw); }
+}
+
+/** What goes in the target's error column: our code, and for a plain refusal the network's own words after a colon. */
+export function storedError(err: PublishError): string {
+  return err.code === "rejected" && err.message && err.message !== "rejected" ? `rejected:${err.message}` : err.code;
+}
+
+export class PublishError extends Error { constructor(public code: string, detail: string) { super(detail); } }
+
+/* Hotfix Oct 31: direct calls to Facebook and LinkedIn through the platform's signed proxy. */
+
+const GRAPH = "https://graph.facebook.com/v21.0";
+
+export function firstUrl(text: string): string | null {
+  const m = text.match(/https?:\/\/[^\s<>"']+/i);
+  return m ? m[0].replace(/[.,;:!?)\]]+$/, "") : null;
+}
+
+/** LinkedIn reads ( ) [ ] { } < > @ | ~ _ * # \ as markup in commentary; a plain post escapes them. */
+export function linkedinText(text: string): string {
+  return text.replace(/[\\()[\]{}<>@|~_*#]/g, (c) => `\\${c}`);
+}
+
+/** The network's own words, short and without anything that looks like a key or a long id. */
+export function cleanDetail(msg: unknown): string | null {
+  if (typeof msg !== "string" || !msg.trim()) return null;
+  return msg.replace(/[A-Za-z0-9_-]{32,}/g, "…").replace(/\s+/g, " ").trim().slice(0, 180);
+}
+
+/** Facebook Graph error codes to our own. https://developers.facebook.com/docs/graph-api/guides/error-handling */
+export function facebookError(status: number, err: { message?: string; code?: number; error_subcode?: number } | undefined): PublishError {
+  const code = err?.code ?? 0;
+  const detail = cleanDetail(err?.message) ?? `HTTP ${status}`;
+  if (code === 190 || code === 102 || code === 463 || code === 467) return new PublishError("reconnect", detail);
+  if (code === 4 || code === 17 || code === 32 || code === 613 || code === 80001 || status === 429) return new PublishError("rate_limited", detail);
+  if (code === 506) return new PublishError("duplicate", detail);
+  if (code === 324 || code === 1366046 || /image|photo/i.test(err?.message ?? "") && code === 100) return new PublishError("bad_image", detail);
+  if (code === 10 || (code >= 200 && code <= 299)) return new PublishError(/admin|as the page|page itself|sufficient administrative/i.test(err?.message ?? "") ? "not_page_admin" : "no_permission", detail);
+  if (status >= 500 || code === 1 || code === 2) return new PublishError("unavailable", detail);
+  return new PublishError("rejected", detail);
+}
+
+export function linkedinError(status: number, body: { message?: string; code?: string; serviceErrorCode?: number } | null): PublishError {
+  const detail = cleanDetail(body?.message) ?? `HTTP ${status}`;
+  const code = body?.code ?? "";
+  if (status === 401 || /REVOKED|EXPIRED|INVALID_ACCESS_TOKEN/i.test(code)) return new PublishError("reconnect", detail);
+  if (status === 403) return new PublishError("no_permission", detail);
+  if (status === 429) return new PublishError("rate_limited", detail);
+  if (/duplicate/i.test(body?.message ?? "") || /DUPLICATE/.test(code)) return new PublishError("duplicate", detail);
+  if (status === 426) return new PublishError("network_changed", detail);
+  if (status >= 500) return new PublishError("unavailable", detail);
+  return new PublishError("rejected", detail);
+}
+
+async function proxy(ctx: PublishCtx, req: Parameters<Composio["proxy"]>[2]) {
+  try { return await ctx.cp.proxy(ctx.accountId, ctx.userId, req); } catch (err) {
+    if (err instanceof IntegrationError && err.code === "not_found") throw new PublishError("account_gone", err.message);
+    throw new PublishError("unavailable", err instanceof Error ? err.message : String(err));
+  }
+}
+
+async function graph(ctx: PublishCtx, method: "GET" | "POST", path: string, body?: Record<string, unknown>) {
+  const r = await proxy(ctx, { endpoint: `${GRAPH}/${path}`, method, body });
+  const data = (r.data ?? {}) as { error?: { message?: string; code?: number; error_subcode?: number } };
+  if (r.status >= 400 || data.error) throw facebookError(r.status, data.error);
+  return data as Record<string, unknown>;
+}
+
+/** LinkedIn API versions to try, newest first: last month, the month before, this month. */
+export function linkedinVersions(now: Date): string[] {
+  const v = (back: number) => { const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1)); return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}`; };
+  return [v(1), v(2), v(0)];
+}
+
+async function linkedinCall(ctx: PublishCtx, method: "GET" | "POST", endpoint: string, body?: Record<string, unknown>) {
+  const versions = endpoint.includes("/rest/") ? linkedinVersions(ctx.now ?? new Date()) : [null];
+  let last: PublishError | null = null;
+  for (const version of versions) {
+    const headers: Record<string, string> = version ? { "LinkedIn-Version": version, "X-Restli-Protocol-Version": "2.0.0" } : {};
+    const r = await proxy(ctx, { endpoint, method, body, headers });
+    if (r.status < 400) return r;
+    last = linkedinError(r.status, (r.data ?? null) as never);
+    if (!(r.status === 426 && version)) throw last;
+  }
+  throw last ?? new PublishError("unavailable", "no answer");
+}
+
 
 export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResult>> = {
   async facebook(ctx) {
+    // Hotfix Oct 31: a Page post must be made with the Page's own token. The platform's ready made tools post with
+    // the person's token, which Facebook refuses, so we ask for the Page token and call the Graph API directly.
+    if (!ctx.target) throw new PublishError("needs_target", "no page");
+    const page = encodeURIComponent(ctx.target);
+    const tok = await graph(ctx, "GET", `${page}?fields=access_token`);
+    const pageToken = str((tok as { access_token?: unknown }).access_token);
+    if (!pageToken) throw new PublishError("not_page_admin", "no page token");
+    const link = firstUrl(ctx.text);
     const data = ctx.imageUrl
-      ? await run(ctx, "FACEBOOK_CREATE_PHOTO_POST", { page_id: ctx.target, url: ctx.imageUrl, message: ctx.text, published: true })
-      : await run(ctx, "FACEBOOK_CREATE_POST", { page_id: ctx.target, message: ctx.text, published: true });
+      ? await graph(ctx, "POST", `${page}/photos`, { url: ctx.imageUrl, caption: ctx.text, published: true, access_token: pageToken })
+      : await graph(ctx, "POST", `${page}/feed`, { message: ctx.text, ...(link ? { link } : {}), published: true, access_token: pageToken });
     const id = dig(data, ["post_id", "id"]);
     return { status: "sent", url: id ? `https://www.facebook.com/${id}` : null };
   },
@@ -213,12 +315,18 @@ export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResu
     return { status: "sent", url: dig(post, ["permalink"]) };
   },
   async linkedin(ctx) {
-    const me = await run(ctx, "LINKEDIN_GET_MY_INFO", {});
-    const raw = dig(me, ["author_id", "sub"]);
-    if (!raw) throw new PublishError("rejected", "no author");
+    // Hotfix Oct 31: the platform's ready made LinkedIn tool asks for an API version LinkedIn has retired, so we call
+    // LinkedIn's Posts API directly with a current version (and step back a month at a time if one is not live).
+    const me = await linkedinCall(ctx, "GET", "https://api.linkedin.com/v2/userinfo");
+    const raw = dig(me.data, ["sub"]);
+    if (!raw) throw new PublishError("reconnect", "no author");
     const author = raw.startsWith("urn:") ? raw : `urn:li:person:${raw}`;
-    const data = await run(ctx, "LINKEDIN_CREATE_LINKED_IN_POST", { author, commentary: ctx.text, visibility: "PUBLIC", lifecycleState: "PUBLISHED" });
-    const id = dig(data, ["id", "post_id", "x-restli-id"]);
+    const r = await linkedinCall(ctx, "POST", "https://api.linkedin.com/rest/posts", {
+      author, commentary: linkedinText(ctx.text), visibility: "PUBLIC",
+      distribution: { feedDistribution: "MAIN_FEED", targetEntities: [], thirdPartyDistributionChannels: [] },
+      lifecycleState: "PUBLISHED", isReshareDisabledByAuthor: false,
+    });
+    const id = r.headers["x-restli-id"] ?? r.headers["x-linkedin-id"] ?? dig(r.data, ["id"]);
     return { status: "sent", url: id ? `https://www.linkedin.com/feed/update/${id}` : null };
   },
   async pinterest(ctx) {
@@ -266,10 +374,10 @@ export async function publishPost(deps: Deps, postId: string): Promise<PostStatu
     const pre = checkTarget(t.app, post.text, !!media, t.target);
     if (pre) res = { status: pre === "not_supported" ? "skipped" : "failed", error: pre };
     else {
-      try { res = await PUBLISHERS[t.app]!({ cp, userId, accountId: t.accountId, text: post.text, imageUrl, image, target: t.target }); } catch (err) {
+      try { res = await PUBLISHERS[t.app]!({ cp, userId, accountId: t.accountId, text: post.text, imageUrl, image, target: t.target, now: deps.now() }); } catch (err) {
         const code = err instanceof PublishError ? err.code : (err instanceof HttpError && err.status === 404) ? "account_gone" : "unavailable";
         deps.log?.warn("social.publish_failed", { app: t.app, code, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
-        res = { status: "failed", error: code };
+        res = { status: "failed", error: err instanceof PublishError ? storedError(err) : code };
       }
     }
     await deps.db.update(socialPostTargets).set({ status: res.status, url: res.url ?? null, error: res.error ?? null, sentAt: res.status === "sent" ? deps.now() : null })

@@ -25,6 +25,8 @@ export interface MockComposioState {
   accounts: Map<string, MockAccount>;
   authConfigs: { id: string; toolkit: string; managed: boolean; scheme: string }[];
   executed: { slug: string; accountId: string; args: Record<string, unknown> }[];
+  /** Raw network calls made through the platform's proxy (hotfix Oct 31). */
+  proxied: { method: string; endpoint: string; accountId: string; body: Record<string, unknown>; headers: Record<string, string> }[];
   /** Calls seen, "METHOD /path", for tests. */
   calls: string[];
   /** Every request carried the key header. */
@@ -32,7 +34,7 @@ export interface MockComposioState {
 }
 
 export function newMockState(): MockComposioState {
-  return { accounts: new Map(), authConfigs: [], executed: [], calls: [], keyMissing: 0 };
+  return { accounts: new Map(), authConfigs: [], executed: [], proxied: [], calls: [], keyMissing: 0 };
 }
 
 /** One state per process for the local server; tests make their own. */
@@ -71,6 +73,40 @@ function execute(state: MockComposioState, slug: string, body: { connected_accou
       if (/CREATE|POST|PIN/.test(slug)) return ok({ id: nid("post") });
       return json({ error: { message: "unknown tool" } }, 404);
   }
+}
+
+/** The platform's proxy: answers Facebook Graph and LinkedIn calls the way the networks do (shape checked 31 Oct 2026). */
+function proxy(state: MockComposioState, body: { connected_account_id?: string; user_id?: string; endpoint?: string; method?: string; body?: Record<string, unknown>; parameters?: { name: string; value: string; type: string }[] }) {
+  const acct = state.accounts.get(body.connected_account_id ?? "");
+  if (!acct || acct.user_id !== body.user_id) return json({ error: { message: "connected account not found" } }, 404);
+  const endpoint = String(body.endpoint ?? "");
+  const method = String(body.method ?? "GET");
+  const args = body.body ?? {};
+  const headers = Object.fromEntries((body.parameters ?? []).filter((p) => p.type === "header").map((p) => [p.name, p.value]));
+  state.proxied.push({ method, endpoint, accountId: acct.id, body: args, headers });
+  const net = (status: number, data: unknown, h: Record<string, string> = {}) => json({ data, status, headers: h });
+  const text = String(args.message ?? args.caption ?? args.commentary ?? "");
+  const u = new URL(endpoint);
+  if (u.hostname === "graph.facebook.com") {
+    if (method === "GET" && u.searchParams.get("fields") === "access_token") return net(200, u.pathname.endsWith("/pg_noadmin") ? { id: "pg_noadmin" } : { id: "pg", access_token: "mock-page-token" });
+    if (/EXPIRED/.test(text)) return net(400, { error: { message: "Error validating access token: Session has expired.", type: "OAuthException", code: 190 } });
+    if (/FAIL/.test(text)) return net(400, { error: { message: "The network turned this post down.", type: "OAuthException", code: 100 } });
+    if (args.access_token !== "mock-page-token") return net(403, { error: { message: "(#200) Unpublished posts must be posted to a page as the page itself.", code: 200 } });
+    if (method === "POST" && /\/photos$/.test(u.pathname)) return net(200, { id: nid("ph"), post_id: nid("pg_post") });
+    if (method === "POST" && /\/feed$/.test(u.pathname)) return net(200, { id: nid("pg_post") });
+    return net(404, { error: { message: "Unknown path", code: 803 } });
+  }
+  if (u.hostname === "api.linkedin.com") {
+    if (u.pathname === "/v2/userinfo") return net(200, { sub: "mock1", name: "Ada" });
+    if (u.pathname === "/rest/posts" && method === "POST") {
+      // Only a recent version is live, as on LinkedIn: anything a year old is retired.
+      if (!/^20\d{4}$/.test(headers["LinkedIn-Version"] ?? "") || headers["LinkedIn-Version"]! < "202501") return net(426, { status: 426, code: "NONEXISTENT_VERSION", message: `Requested version ${headers["LinkedIn-Version"]}01 is not active` });
+      if (/EXPIRED/.test(text)) return net(401, { status: 401, code: "REVOKED_ACCESS_TOKEN", message: "The token used in the request has been revoked by the user" });
+      if (/FAIL/.test(text)) return net(422, { status: 422, message: "The network turned this post down." });
+      return net(201, "", { "x-restli-id": `urn:li:share:${Date.now()}` });
+    }
+  }
+  return net(404, { message: "not found" });
 }
 
 export function handleMockComposio(state: MockComposioState, req: { method: string; url: URL; headers: Headers; body: unknown }): Response {
@@ -126,6 +162,7 @@ export function handleMockComposio(state: MockComposioState, req: { method: stri
       return json({ id: a.id, status: "INITIATED", redirect_url: back.toString() });
     }
   }
+  if (method === "POST" && path === "/tools/execute/proxy") return proxy(state, body as never);
   if (method === "POST" && (m = path.match(/^\/tools\/execute\/([\w]+)$/))) return execute(state, m[1]!, body as never);
   return json({ error: "not found" }, 404);
 }

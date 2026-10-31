@@ -136,6 +136,21 @@ export function composioFrom(deps: Deps) {
       });
       return { ok: r.successful !== false && !r.error, data: r.data ?? {}, error: r.error ?? null };
     },
+    /**
+     * Hotfix Oct 31: a raw call to the network's own API, signed by the platform with the connected account's
+     * sign in. Used where the platform's ready made tools fall behind the network (a retired API version, a
+     * person token where a page token is needed). Answers the network's own status, body and headers.
+     */
+    async proxy(accountId: string, userId: string, req: { endpoint: string; method: "GET" | "POST" | "DELETE"; body?: Record<string, unknown>; headers?: Record<string, string> }): Promise<{ status: number; data: unknown; headers: Record<string, string> }> {
+      const parameters = Object.entries(req.headers ?? {}).map(([name, value]) => ({ name, value, type: "header" }));
+      const r = await call<{ data?: unknown; status?: number; headers?: Record<string, string> }>("POST", "/tools/execute/proxy", {
+        body: { connected_account_id: accountId, user_id: userId, endpoint: req.endpoint, method: req.method, ...(req.body ? { body: req.body } : {}), ...(parameters.length ? { parameters } : {}) },
+        timeoutMs: 30_000,
+      });
+      const headers: Record<string, string> = {};
+      for (const [k, v] of Object.entries(r.headers ?? {})) headers[k.toLowerCase()] = String(v);
+      return { status: typeof r.status === "number" ? r.status : 200, data: r.data ?? null, headers };
+    },
   };
 }
 

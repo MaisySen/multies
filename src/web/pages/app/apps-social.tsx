@@ -14,7 +14,7 @@ import { Button } from "@/web/components/ui/button";
 import { Input, Select, Textarea } from "@/web/components/ui/input";
 import { IconCheckCircle, IconClock, IconClose, IconExternalLink, IconImage, IconMegaphone, IconPlug, IconRefresh, IconSend, IconWarning, IconXCircle } from "@/web/components/ui/icon";
 import {
-  SOCIAL_ERROR_COPY, SOCIAL_IMAGE_MAX_BYTES, SOCIAL_MAX_AHEAD_DAYS, SOCIAL_NETWORKS, SOCIAL_TEXT_MAX,
+  SOCIAL_ERROR_COPY, SOCIAL_RECONNECT_ERRORS, socialErrorText, SOCIAL_IMAGE_MAX_BYTES, SOCIAL_MAX_AHEAD_DAYS, SOCIAL_NETWORKS, SOCIAL_TEXT_MAX,
   type ConnectedAccountView, type PostStatus, type SocialPostView,
 } from "@/shared/integrations";
 import { AppLogo, useAppAccounts } from "./apps-settings";
@@ -236,6 +236,26 @@ function Composer({ accounts }: { accounts: ConnectedAccountView[] }) {
   );
 }
 
+/** Why one account did not post, in plain words, with Reconnect when signing in again is the fix. */
+function TargetError({ error, accountId, appName, canManage }: { error: string | null; accountId: string; appName: string; canManage: boolean }) {
+  const { code, text } = socialErrorText(error);
+  const reconnect = useMutation({
+    mutationFn: () => api.post<{ redirectUrl: string }>(`/apps/accounts/${encodeURIComponent(accountId)}/reconnect`),
+    onSuccess: (r) => { window.location.assign(r.redirectUrl); },
+    onError: (e) => toast.error(errorMessage(e, "Couldn't reconnect. Try again.")),
+  });
+  return (
+    <span className="flex basis-full flex-wrap items-center gap-x-2 gap-y-1 pl-9" data-testid="post-target-error" data-code={code}>
+      <span className="inline-flex min-w-0 items-start gap-1.5 text-bad"><IconXCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /><span className="min-w-0 break-words">{text}</span></span>
+      {canManage && SOCIAL_RECONNECT_ERRORS.has(code) && (
+        <Button variant="outline" size="sm" loading={reconnect.isPending} onClick={() => reconnect.mutate()} aria-label={`Reconnect ${appName}`}>
+          <IconPlug className="h-4 w-4" aria-hidden />Reconnect
+        </Button>
+      )}
+    </span>
+  );
+}
+
 function PostList({ canManage }: { canManage: boolean }) {
   const qc = useQueryClient();
   const posts = useQuery({
@@ -300,7 +320,7 @@ function PostList({ canManage }: { canManage: boolean }) {
                               {t.url && <a href={t.url} target="_blank" rel="noopener noreferrer" className="ml-1 inline-flex min-h-8 items-center gap-1 font-medium text-fg underline underline-offset-2 hover:text-muted">View<IconExternalLink className="h-3.5 w-3.5" aria-hidden /></a>}
                             </span>
                           ) : t.status === "failed" || t.status === "skipped" ? (
-                            <span className="inline-flex basis-full items-center gap-1.5 pl-9 text-bad sm:basis-auto sm:pl-0"><IconXCircle className="h-4 w-4 shrink-0" aria-hidden />{SOCIAL_ERROR_COPY[t.error ?? "rejected"] ?? SOCIAL_ERROR_COPY.rejected}</span>
+                            <TargetError error={t.error} accountId={t.accountId} appName={t.label ?? t.app} canManage={canManage} />
                           ) : (
                             <span className="text-muted">{p.status === "scheduled" ? "Waiting" : p.status === "canceled" ? "Not sent" : "Posting"}</span>
                           )}
