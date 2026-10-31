@@ -65,6 +65,9 @@ async function shots(page: Page, name: string, widths: ("1280" | "390")[] = ["12
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "no-preference" });
 }
 async function noSeriousAxe(page: Page) {
+  // A toast sliding in is half transparent for a moment; check colours once motion has settled.
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"), null, { timeout: 5_000 }).catch(() => {});
+  await page.waitForTimeout(300);
   const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
   const bad = r.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
   expect(bad.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
@@ -84,7 +87,7 @@ test("1. a video becomes MP3 on the engine, with its limits said and progress sh
   await expect(page.locator('[data-testid="convert-job"][data-status="done"]')).toHaveCount(1, { timeout: 60_000 });
   const f = await firstDownload(page);
   expect(f.name).toBe("clip.mp3");
-  await shots(page, "video-done");
+  await shots(page, "video-done", ["1280"]);
 });
 
 test("2. HEIC outside Safari goes to the engine and says so; 3. EPUB to PDF", async ({ page }) => {
@@ -123,7 +126,7 @@ test("4. ZIP and 7Z unpack on the device, each file listed, folders kept in the 
   // One file on its own.
   const one = await download(page, () => files.getByRole("button", { name: "Download a.txt" }).click());
   expect(one.bytes.toString()).toBe("hello\n");
-  await shots(page, "unpacked");
+  await shots(page, "unpacked", ["1280"]);
 });
 
 test("5. any files pack into one TAR.GZ, even a kind Multies can't convert", async ({ page }) => {
@@ -224,7 +227,8 @@ test("9. Edit a PDF: text, black out, signature, watermark, numbers, turn and de
   await page.mouse.move(pb.x + 20, pb.y + pb.height / 2); await page.mouse.down();
   await page.mouse.move(pb.x + pb.width / 2, pb.y + 10, { steps: 6 }); await page.mouse.move(pb.x + pb.width - 20, pb.y + pb.height - 10, { steps: 6 }); await page.mouse.up();
   await page.getByTestId("edit-pdf-use-signature").click();
-  await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.8);
+  // The page is taller than the window: let Playwright scroll the spot into view before the tap.
+  await first.click({ position: { x: box.width * 0.6, y: box.height * 0.62 } });
   await expect(page.getByTestId("edit-pdf-item-sign")).toHaveCount(1);
   // Watermark and numbers.
   await page.getByText("Watermark and page numbers").click();
@@ -243,32 +247,65 @@ test("9. Edit a PDF: text, black out, signature, watermark, numbers, turn and de
   const raw = f.bytes.toString("latin1");
   // The blacked out page is a picture now (its words are gone), the rest keeps text; text and numbers use Helvetica.
   expect(raw).toMatch(/\/Subtype\s*\/Image/);
-  expect(raw).toMatch(/Helvetica/);
-  await shots(page, "edit-pdf");
+  // Fonts can sit inside compressed object streams, so look at the parsed objects rather than the raw bytes.
+  const objs = out.context.enumerateIndirectObjects().map(([, o]) => String(o)).join("\n");
+  expect(objs).toMatch(/\/BaseFont \/Helvetica/);
+  await shots(page, "edit-pdf", ["1280"]);
 });
 
-test("10. Forest theme and phone width on the hub and Edit a PDF", async ({ page }) => {
+test("10. Forest theme on the hub and Edit a PDF, at 1280 and 390", async ({ page }) => {
   test.skip(!SHOTS, "screenshots only with R86_SHOTS");
   await signIn(page);
   await page.goto("/app/settings/branding");
   await page.getByRole("button", { name: "Forest", exact: true }).click();
   await page.getByRole("button", { name: "Save brand" }).click();
   await page.waitForTimeout(800);
-  await open(page);
-  await add(page, [join(FIX, "clip.mp4"), join(FIX, "bundle.zip")]);
-  await page.getByTestId("convert-action-archive").click();
+  // Each width starts fresh: crossing the desktop breakpoint remounts the page.
   for (const [vp, w, h] of [["1280", 1280, 900], ["390", 390, 844]] as const) {
     await page.setViewportSize({ width: w, height: h });
+    await open(page);
+    await add(page, [join(FIX, "clip.mp4"), join(FIX, "bundle.zip")]);
+    await page.getByTestId("convert-action-archive").click();
     await page.waitForTimeout(300);
     await page.screenshot({ path: join(SHOTS!, `r86-hub-${vp}-forest.png`), fullPage: true });
-  }
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto("/app/tools/edit-pdf");
-  await page.getByTestId("edit-pdf-input").setInputFiles(join(TOOLS, "sample-a.pdf"));
-  await expect(page.getByTestId("edit-pdf-page").first()).toBeVisible({ timeout: 20_000 });
-  for (const [vp, w, h] of [["1280", 1280, 900], ["390", 390, 844]] as const) {
-    await page.setViewportSize({ width: w, height: h });
+    await page.goto("/app/tools/edit-pdf");
+    await page.getByTestId("edit-pdf-input").setInputFiles(join(TOOLS, "sample-a.pdf"));
+    await expect(page.getByTestId("edit-pdf-page").first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("edit-pdf-page").first().getByText("Loading page")).toHaveCount(0, { timeout: 20_000 });
     await page.waitForTimeout(400);
     await page.screenshot({ path: join(SHOTS!, `r86-edit-${vp}-forest.png`) });
+    await noSeriousAxe(page);
   }
+});
+
+test("11. phone width: compress with sizes, unpack, and Edit a PDF with a text box", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(page); await open(page);
+  await add(page, [join(TOOLS, "sample-a.pdf"), join(FIX, "photo-b.jpg")]);
+  await page.getByTestId("convert-action-compress").click();
+  await run(page, 2);
+  await expect(page.getByTestId("convert-job-sizes")).toHaveCount(2);
+  const noSideScroll = async () => expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await noSideScroll();
+  await noSeriousAxe(page);
+  await shots(page, "phone-compressed", ["390"]);
+  await page.getByTestId("convert-clear-files").click();
+  await page.getByTestId("convert-clear-tray").click();
+  await add(page, [join(FIX, "bundle.zip")]);
+  await page.getByTestId("convert-action-extract").click();
+  await run(page, 1);
+  await page.getByTestId("convert-job-files").first().locator("summary").click();
+  await noSideScroll();
+  await shots(page, "phone-unpacked", ["390"]);
+  await page.goto("/app/tools/edit-pdf");
+  await page.getByTestId("edit-pdf-input").setInputFiles(join(TOOLS, "sample-a.pdf"));
+  await expect(page.getByTestId("edit-pdf-page").first().getByText("Loading page")).toHaveCount(0, { timeout: 20_000 });
+  const first = page.getByTestId("edit-pdf-page").first().getByRole("group");
+  const box = (await first.boundingBox())!;
+  await page.getByTestId("edit-pdf-tool-text").click();
+  await first.click({ position: { x: box.width * 0.15, y: box.height * 0.1 } });
+  await page.getByTestId("edit-pdf-text").first().fill("Approved");
+  await noSideScroll();
+  await noSeriousAxe(page);
+  await shots(page, "phone-edit", ["390"]);
 });

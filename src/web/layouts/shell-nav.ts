@@ -116,6 +116,7 @@ const titleCase = (slug: string) => { const s = decodeURIComponent(slug).replace
 const TOOL_SUB: Record<string, string> = {
   ai: "AI document helpers", share: "Share links", sign: "E-sign", workflows: "Tool workflows", templates: "Invoice and letter templates",
   merge: "Mail merge", pages: "Page editor", forms: "Fill a PDF form", compare: "Compare documents", organize: "Organise pages",
+  "edit-pdf": "Edit a PDF", // R86
 };
 
 export interface Crumb { label: string; to?: string }

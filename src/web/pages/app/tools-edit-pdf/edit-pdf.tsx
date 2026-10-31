@@ -15,6 +15,7 @@ import { saveFile } from "@/web/lib/tool-jobs";
 import { SignaturePad, SIGN_FONT_CSS, type SignaturePadHandle } from "@/web/pages/app/tools-share-sign/signature-pad";
 import type { EditItem, OpenedPdf } from "@/web/lib/convert/pdf-edit";
 import { toast } from "sonner";
+import { PHONE_PICK, Select } from "@/web/components/ui/input";
 
 const ring = "outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface";
 type Tool = "move" | "text" | "sign" | "box";
@@ -158,9 +159,9 @@ export function EditPdfPage() {
               </div>
               {tool === "text" && (
                 <label className="flex items-center gap-2 text-[13px]">Size
-                  <select value={textSize} onChange={(e) => setTextSize(Number(e.target.value))} className={`h-9 rounded-lg border border-line bg-surface px-2 max-sm:min-h-11 ${ring}`} data-testid="edit-pdf-text-size">
+                  <Select bare value={textSize} onChange={(e) => setTextSize(Number(e.target.value))} className={`h-9 rounded-lg border border-line bg-surface px-2 ${ring}`} phoneClassName={`${PHONE_PICK} h-11 w-20 pl-3`} data-testid="edit-pdf-text-size">
                     {[10, 12, 14, 18, 24, 32].map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  </Select>
                 </label>
               )}
               <div className="ml-auto flex items-center gap-2">

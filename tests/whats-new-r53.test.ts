@@ -69,6 +69,8 @@ describe("R53 whats-new list", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-10-31-compress-levels")).toBe(false);
     // R83: "Tools pages and forms" made room for TikTok and Threads.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-30-tools-pages-forms")).toBe(false);
+    // R86: "Compress levels" made room for Tools round B.
+    expect(WHATS_NEW.some((e) => e.id === "2026-10-31-compress-levels")).toBe(false);
     // R70: "Reply straight from the shared inbox" made room for compress levels.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-29-inbox-reply")).toBe(false);
     // R71: "Your whole mailbox syncs by itself" made room for the QA pass 6 fixes.

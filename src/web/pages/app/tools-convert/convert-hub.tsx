@@ -24,6 +24,7 @@ import { catalogueFor, toolDef, type ToolOp } from "@/shared/tools";
 import { saveFile } from "@/web/lib/tool-jobs";
 import { useLeaveGuard } from "@/web/components/tools/leave-guard"; // R82F (MB-286)
 import { toast } from "sonner";
+import { Select } from "@/web/components/ui/input";
 
 const ring = "outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface";
 const MAX_FILES = 50;
@@ -497,10 +498,9 @@ export function ConvertHubPage() {
             {(action === "ocr-pdf" || action === "ocr-text") && (
               <label className="block max-w-xs">
                 <span className="text-[13px] font-medium">Language of the words</span>
-                <select value={ocrLang} onChange={(e) => setOcrLang(e.target.value)} data-testid="convert-ocr-language"
-                  className={`mt-1 h-10 w-full rounded-xl border border-line bg-surface px-3 text-[14px] max-sm:min-h-11 ${ring}`}>
+                <Select value={ocrLang} onChange={(e) => setOcrLang(e.target.value)} data-testid="convert-ocr-language" className="mt-1">
                   {ocrChoices.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                </select>
+                </Select>
               </label>
             )}
             {action === "archive" && <Choice label="Kind" value={packAs} onChange={(v) => setPackAs(v as typeof packAs)} options={ARCHIVE_KINDS.map((k) => ({ value: k.v, label: k.label }))} testId="convert-pack-as" />}
