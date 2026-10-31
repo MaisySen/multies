@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { IconBookmark, IconArrowRightLeft, IconLink, IconMegaphone, IconPlugZap, IconCalendarDays, IconSend, IconUserRoundCheck,
   IconActivity, IconAgent, IconApprovals, IconAttachment, IconBell, IconBriefcase, IconCalendarClock, IconCalendarPlus, IconChart, IconChats,
   IconChevronDown, IconChevronRight, IconClipboardList, IconCompose, IconContacts, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHome,
-  IconInbox, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconSidebar, IconSliders,
+  IconHelp, IconInbox, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconSidebar, IconSliders,
   IconSquarePlus, IconStar, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconVideo, IconWrench, IconZap,
   type IconComponent,
 } from "@/web/components/ui/icon";
@@ -32,6 +32,7 @@ export const NAV_ICONS: Record<IconKey, IconComponent> = {
   templates: IconTemplate, automations: IconZap, files: IconAttachment, forms: IconClipboardList, meetings: IconVideo, booking: IconCalendarClock,
   contacts: IconContacts, reports: IconChart, agents: IconAgent, integrations: IconPlug, connections: IconPlugZap, settings: IconSettings, operator: IconShield, convert: IconArrowRightLeft,
   social: IconMegaphone, planner: IconCalendarDays, posts: IconSend, accounts: IconUserRoundCheck, library: IconBookmark, // P1 layout
+  help: IconHelp, // R122
 };
 
 /** Counts the shell shows, keyed by page path. "alert" counts use the brand colour; the rest stay neutral. */

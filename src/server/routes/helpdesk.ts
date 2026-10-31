@@ -19,6 +19,7 @@ import {
   saveMacro, saveSettings, startChat, surveyByToken, ticketByRef, visitorEmail, visitorPoll, visitorRate, visitorSend, visitorTyping, webReply, webThread,
   widgetConfig, widgetContext,
 } from "../services/helpdesk";
+import { suggestArticles } from "../services/help-center"; // R122
 import { WIDGET_JS } from "./widget-script";
 
 const ListQ = z.object({ view: z.enum(TICKET_VIEWS).optional(), priority: z.enum(TICKET_PRIORITIES).optional(), kind: z.enum(TICKET_KINDS).optional(), limit: z.coerce.number().int().min(1).max(100).optional() });
@@ -90,6 +91,13 @@ export function widgetRoutes() {
       if (allowed) { c.res.headers.set("access-control-allow-origin", origin!); c.res.headers.append("vary", "Origin"); }
     })
     .get("/:key/config", async (c) => { guard(c, limits.poll); return c.json(await widgetConfig(c.var.deps, await ctx(c))); })
+    // R122: up to 3 help center articles for what the visitor is typing (empty unless HELP_CENTER and the workspace's setting are on).
+    .get("/:key/help", async (c) => {
+      guard(c, limits.poll);
+      const w = await ctx(c);
+      if (!c.var.deps.config.helpCenter) return c.json({ articles: [] });
+      return c.json({ articles: await suggestArticles(c.var.deps, w.row.orgId, (c.req.query("q") ?? "").slice(0, 200)) });
+    })
     .post("/:key/chats", async (c) => { guard(c, limits.start); return c.json(await startChat(c.var.deps, await ctx(c), await parseBody(c, Start)), 201); })
     .get("/:key/chats/me", async (c) => { guard(c, limits.poll); return c.json(await visitorPoll(c.var.deps, await ctx(c), token(c), parseQuery(c, AfterQ).after ?? 0)); })
     .post("/:key/chats/me/messages", async (c) => { guard(c, limits.send); return c.json(await visitorSend(c.var.deps, await ctx(c), token(c), (await parseBody(c, Send)).text)); })

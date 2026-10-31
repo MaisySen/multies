@@ -275,6 +275,19 @@ describe("a solved ticket to a public answer", () => {
     expect((await owner.post("/api/help-center/tickets/publish", { ticketId: id, title: "x again", question: "", answer: "y y" })).status).toBe(409);
   });
 
+  it("suggests live articles in the website chat only while the setting is on", async () => {
+    await setup();
+    await owner.post("/api/help-center/articles", { docId: await doc("Reset your password", "Use the forgot password link.") });
+    await solvedWebTicket();
+    const key = (await owner.get("/api/helpdesk/settings")).body.widgetKey as string;
+    const get = async () => (await (await ctx.app.request(`/api/widget/${key}/help?q=password%20reset`, { headers: { host: "localhost", origin: "https://www.shop.com" } })).json()).articles;
+    const on = await get();
+    expect(on).toHaveLength(1);
+    expect(on[0].url).toMatch(/\/help\/acme-help\/a\/reset-your-password$/);
+    await owner.patch("/api/help-center", { suggestInChat: false });
+    expect(await get()).toEqual([]);
+  });
+
   it("a member's publish goes to the moderation queue", async () => {
     await setup();
     const id = await solvedWebTicket();

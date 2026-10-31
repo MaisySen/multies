@@ -55,7 +55,7 @@
     "textarea{min-height:44px;max-height:120px}label{display:block;font-size:12.5px;font-weight:600;margin:10px 0 4px}",
     ".b{min-height:44px;padding:0 14px;border-radius:10px;border:0;background:var(--c);color:var(--i);font-weight:600;cursor:pointer;font-size:14px}",
     ".ghost{background:transparent;color:var(--fg);border:1px solid var(--ln);font-weight:500}.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}",
-    ".form{padding:14px;overflow-y:auto;flex:1}.err{color:#b91c1c;font-size:12.5px;margin:6px 0 0;min-height:0}.hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}",
+    ".form{padding:14px;overflow-y:auto;flex:1}.sug p{margin:8px 0 2px;font-size:12.5px;color:var(--mu)}.sug a{display:block;padding:6px 0;color:var(--fg);font-size:13.5px;text-decoration:underline}.err{color:#b91c1c;font-size:12.5px;margin:6px 0 0;min-height:0}.hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}",
     ".card{align-self:stretch;border:1px solid var(--ln);border-radius:12px;padding:10px 12px}",
     ":host{--bg:#fff;--fg:#111827;--mu:#4b5563;--ln:#e5e7eb;--soft:#f3f4f6}",
     "@media (prefers-color-scheme:dark){:host{--bg:#171a21;--fg:#f3f4f6;--mu:#a1a1aa;--ln:#2f3542;--soft:#242934}.err{color:#fca5a5}}",
@@ -132,7 +132,24 @@
   }
   function startForm() {
     errEl = el("p", { "class": "err", role: "alert" });
-    var form = el("form", { "class": "form", novalidate: "" }, [el("p", { text: st.cfg.greeting })].concat(field("mq-n", "Name", "text", false, "name"), field("mq-e", "Email", "email", true, "email"), field("mq-m", "Message", "area", true), [errEl, el("div", { "class": "row" }, [el("button", { "class": "b", type: "submit", text: "Start chat" })])]));
+    var sug = el("div", { "class": "sug", "aria-live": "polite" }); // R122: help center articles that may answer it
+    var form = el("form", { "class": "form", novalidate: "" }, [el("p", { text: st.cfg.greeting })].concat(field("mq-n", "Name", "text", false, "name"), field("mq-e", "Email", "email", true, "email"), field("mq-m", "Message", "area", true), [sug, errEl, el("div", { "class": "row" }, [el("button", { "class": "b", type: "submit", text: "Start chat" })])]));
+    var sugT = 0, sugQ = "";
+    form.querySelector("#mq-m").addEventListener("input", function (e) {
+      var v = e.target.value.trim();
+      clearTimeout(sugT);
+      sugT = setTimeout(function () {
+        if (v.length < 4 || v === sugQ) return;
+        sugQ = v;
+        req("GET", "/help?q=" + encodeURIComponent(v.slice(0, 200))).then(function (r) {
+          while (sug.firstChild) sug.removeChild(sug.firstChild);
+          var list = (r && r.articles) || [];
+          if (!list.length) return;
+          sug.appendChild(el("p", { text: "These might answer it:" }));
+          list.forEach(function (a) { sug.appendChild(el("a", { href: a.url, target: "_blank", rel: "noopener", text: a.title })); });
+        }).catch(function () {});
+      }, 450);
+    });
     form.addEventListener("submit", function (e) {
       e.preventDefault();
       var email = form.querySelector("#mq-e").value, text = form.querySelector("#mq-m").value;

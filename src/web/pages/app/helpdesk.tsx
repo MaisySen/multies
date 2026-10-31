@@ -7,7 +7,8 @@ import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/web/lib/api";
-import { useTeam } from "@/web/lib/queries";
+import { useConfig, useTeam } from "@/web/lib/queries";
+import { PublishAnswerDialog } from "./help-center-publish"; // R122
 import { cn } from "@/web/lib/cn";
 import { mailDate, fullDate } from "@/web/lib/format";
 import { Button } from "@/web/components/ui/button";
@@ -136,6 +137,8 @@ export function TicketPanel({ kind, refId, ticketId, onReplyText }: { kind: Tick
   const team = useTeam();
   const macros = useMacros(!!q.data?.ticket);
   const [macroReply, setMacroReply] = useState<string | null>(null);
+  const [publishOpen, setPublishOpen] = useState(false); // R122
+  const helpCenterOn = !!useConfig().data?.helpCenter;
   const done = (d: TicketDetail) => { qc.setQueryData(key, d); qc.invalidateQueries({ queryKey: ["helpdesk", "tickets"] }); };
   const patch = useMutation({
     mutationFn: (b: { status?: TicketStatus; priority?: TicketPriority; assigneeUserId?: string | null }) => api.patch<TicketDetail>(`/helpdesk/tickets/${q.data!.ticket!.id}`, b),
@@ -194,6 +197,8 @@ export function TicketPanel({ kind, refId, ticketId, onReplyText }: { kind: Tick
         <span className="min-w-0 truncate text-muted">{t.requester.name}{t.requester.email && t.requester.email !== t.requester.name ? ` · ${t.requester.email}` : ""}</span>
         {q.data.contact ? <Link to={`/app/contacts?contact=${q.data.contact.id}`} className="text-[13px] font-medium text-brand hover:underline">Open contact</Link>
           : t.requester.email ? <Button size="sm" variant="ghost" onClick={() => contact.mutate()} loading={contact.isPending}>Add to contacts</Button> : null}
+        {helpCenterOn && t.status === "solved" && (t.kind === "mail" || t.kind === "web") && <Button size="sm" variant="ghost" onClick={() => setPublishOpen(true)}>Publish as answer</Button>}
+        {publishOpen && <PublishAnswerDialog ticketId={t.id} onClose={() => setPublishOpen(false)} />}
         <div className="ml-auto flex items-center gap-2 max-sm:ml-0 max-sm:w-full">
           {(macros.data?.macros.length ?? 0) > 0 && (
             <Select aria-label="Run a macro" value="" disabled={busy} onChange={(e) => e.target.value && run.mutate(e.target.value)} className="h-8 w-auto text-[13px] max-sm:h-11 max-sm:flex-1">

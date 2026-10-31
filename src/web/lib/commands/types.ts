@@ -45,7 +45,7 @@ export interface Command {
   handler: "run" | "page" | "local";
   /** Only offered when this says so (e.g. a task is focused). */
   /** R59: offered only while this server switch (from /api/config) is on. */
-  flag?: "chatChannels" | "tools" | "docsVisual";
+  flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter";
   /** Tools P2: shown only while one of these P2 features is on (/api/config toolFeatures). */
   toolFeature?: string[];
   when?: (ctx: { focus: import("./focus").Focus }) => boolean;
