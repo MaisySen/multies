@@ -15,8 +15,10 @@ export const OLD_NAME = /my ?mail|mail ?forge/i;
  * - x-mymail-signature, x-mymail-key: header names between the inbound mail worker and the API, listed so error
  *   reports never carry their values. Renaming them needs a coordinated worker deploy.
  * - mymail-theme: the old saved light or dark choice, read once so it carries over. Remove after 30 Nov 2026.
+ * - mymail-<id>.livekit.cloud: the video call project's host in the CSP header, named when the project was made;
+ *   a new project means new keys for every call, so it stays until that move.
  */
-export const ALLOWED = [/x-mymail-(signature|key)/gi, /"mymail-theme"|`mymail-theme`|'mymail-theme'/g];
+export const ALLOWED = [/x-mymail-(signature|key)/gi, /"mymail-theme"|`mymail-theme`|'mymail-theme'/g, /mymail-[a-z0-9]+\.livekit\.cloud/gi];
 
 export function oldNameHits(text: string): string[] {
   let clean = text;
@@ -86,6 +88,6 @@ test("old name detector: finds every spelling and skips only the listed internal
   expect(oldNameHits("Where is my mail stored?")).toHaveLength(1);
   expect(oldNameHits("Built on MailForge")).toHaveLength(1);
   expect(oldNameHits("Bearer $MYMAIL_KEY")).toHaveLength(1);
-  expect(oldNameHits("x-mymail-signature|x-mymail-key|localStorage.getItem(\"mymail-theme\")")).toHaveLength(0);
+  expect(oldNameHits("x-mymail-signature|x-mymail-key|localStorage.getItem(\"mymail-theme\")|wss://mymail-oqyurlee.livekit.cloud")).toHaveLength(0);
   expect(oldNameHits("Multies, email on your own domain")).toHaveLength(0);
 });
