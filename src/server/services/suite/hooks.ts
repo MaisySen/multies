@@ -42,6 +42,12 @@ export async function onMailStored(deps: Deps, m: StoredMail) {
     const { runEmailAutomations } = await import("./automations");
     await runEmailAutomations(deps, m.orgId, { messageId: m.messageId, threadId: m.threadId, mailboxId: m.mailboxId, from: m.from.address, subject: m.subject });
   });
+  // R85: the person's own mail rules on this mailbox (one read when there are none).
+  await step("mail_rules", async () => {
+    if (m.folder && m.folder !== "inbox") return;
+    const { runMailRules } = await import("../mail/rules-r85");
+    await runMailRules(deps, { orgId: m.orgId, mailboxId: m.mailboxId, messageId: m.messageId });
+  });
   await step("push", async () => {
     if (!deps.config.push.enabled) return;
     const { pushToUsers } = await import("./push");

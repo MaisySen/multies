@@ -8,12 +8,13 @@
  */
 import { and, asc, eq, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { mailSplits, messages } from "../../db/schema";
+import { mailPrefs, mailSplits, messages, users } from "../../db/schema";
 import { newId } from "../../lib/crypto";
 import { badRequest, HttpError, notFound } from "../../lib/errors";
 import { inIds } from "../../lib/sql-chunks";
 import { BULK_LOCAL_PARTS, SPLITS_MAX, type MailSplit, type SplitRuleT, type SplitTab } from "@/shared/mail-splits";
 import { snoozeHiddenCond } from "./schedules";
+import { BUILT_IN_TABS, NOT_PROMO_WORDS, PROMO_LOCAL_PARTS, PROMO_WORDS, parsePins, type TabPins, type TabStyle } from "@/shared/mail-rules-r85";
 
 export interface SplitActor { orgId: string; userId: string; agentId?: string | null; scope?: string }
 
@@ -129,7 +130,7 @@ export async function createSplit(deps: Deps, a: SplitActor, input: { name: stri
   if (opts.id && opts.retry && existing.some((s) => s.id === opts.id)) return getSplit(deps, a, opts.id);
   if (existing.length >= SPLITS_MAX) throw badRequest(`You can have up to ${SPLITS_MAX} splits.`);
   const name = input.name.trim();
-  if (["important", "other"].includes(name.toLowerCase())) throw badRequest("Important and Other are already tabs. Pick another name.");
+  if (["important", "other", "primary", "updates", "promotions"].includes(name.toLowerCase())) throw badRequest("That name is already a tab. Pick another name.");
   if (existing.some((s) => s.name.toLowerCase() === name.toLowerCase())) throw new HttpError(409, "split_exists", "You already have a split with that name.");
   const now = deps.now();
   const id = opts.id ?? newId("spl");
@@ -145,7 +146,7 @@ export async function updateSplit(deps: Deps, a: SplitActor, id: string, patch: 
   await own(deps, a, id);
   if (patch.name !== undefined) {
     const name = patch.name.trim();
-    if (["important", "other"].includes(name.toLowerCase())) throw badRequest("Important and Other are already tabs. Pick another name.");
+    if (["important", "other", "primary", "updates", "promotions"].includes(name.toLowerCase())) throw badRequest("That name is already a tab. Pick another name.");
     const clash = (await listSplits(deps, a)).find((s) => s.id !== id && s.name.toLowerCase() === name.toLowerCase());
     if (clash) throw new HttpError(409, "split_exists", "You already have a split with that name.");
   }
@@ -190,6 +191,13 @@ function claimedCond(splits: MailSplit[], orgId: string): SQL | null {
 /** The SQL condition for one tab: "important", "other" or a split id. Unknown ids answer 404. */
 export async function splitCond(deps: Deps, a: SplitActor, split: string, splits?: MailSplit[]): Promise<SQL> {
   const list = splits ?? (a.userId && !a.agentId ? await listSplits(deps, a) : []);
+  // R85: Primary, Updates and Promotions, and tabs with senders or threads pinned to them, take the general path.
+  const st = a.userId && !a.agentId ? await tabsState(deps, a) : null;
+  if (st && (st.style === "categories" || hasPins(st.pins) || (CATEGORY_TAB_IDS as string[]).includes(split))) {
+    const cond = tabCondsFor(a.orgId, list, st, split);
+    if (!cond) throw notFound("Split");
+    return cond;
+  }
   const claimed = claimedCond(list, a.orgId);
   const base = importantBaseCond(a.orgId);
   if (split === "important") return claimed ? sql`(${base} and not ${claimed})` : base;
@@ -216,8 +224,12 @@ export function splitCountParts(orgId: string, list: MailSplit[]): { important: 
 }
 
 /** Inbox tabs for a mailbox (or every mailbox in scope), each with its unread count. Snoozed mail is left out. R59: one statement for every tab. */
-export async function splitTabs(deps: Deps, a: SplitActor, q: { mailboxId?: string; scope: string[] | null }): Promise<SplitTab[]> {
+export async function splitTabs(deps: Deps, a: SplitActor, q: { mailboxId?: string; scope: string[] | null }, state?: TabsState): Promise<SplitTab[]> {
   const list = await listSplits(deps, a);
+  // R85: a person's tab style. "off": no tabs. Categories or pins: the general count (one statement too).
+  const st = state ?? (a.userId && !a.agentId ? await tabsState(deps, a) : null);
+  if (st?.style === "off") return [];
+  if (st && (st.style === "categories" || hasPins(st.pins))) return generalTabs(deps, a, q, list, st);
   // R61a kill switch (MAIL_SPLIT_COUNTS=off): the tabs stay, their unread counts read as 0 and no count runs.
   if (!deps.config.mailSplitCounts) {
     return [
@@ -253,4 +265,101 @@ export async function previewSplit(deps: Deps, a: SplitActor, input: { rules: Sp
     eq(messages.folder, "inbox"), splitMatchCond({ rules: input.rules, match: input.match ?? "all" }, a.orgId),
   )).get();
   return { threads: Number(row?.n ?? 0) };
+}
+
+// ---------------------------------------------------------------- R85: tab styles and pins
+
+/** Accounts made from this moment open on Primary, Updates and Promotions; older accounts keep Important and Other until they choose. */
+export const CATEGORIES_DEFAULT_FROM = Date.parse("2026-10-31T10:00:00Z");
+const CATEGORY_TAB_IDS = ["primary", "updates", "promotions"];
+
+export interface TabsState { style: TabStyle; pins: TabPins; chosen: boolean }
+
+export function hasPins(p: TabPins) { return Object.keys(p.s).length > 0 || Object.keys(p.t).length > 0; }
+
+/** The person's tab style and pins in one read (their user row and mail prefs). */
+export async function tabsState(deps: Deps, a: { orgId: string; userId: string }): Promise<TabsState> {
+  const row = await deps.db.select({ createdAt: users.createdAt, style: mailPrefs.inboxTabs, pins: mailPrefs.tabPins }).from(users)
+    .leftJoin(mailPrefs, and(eq(mailPrefs.orgId, a.orgId), eq(mailPrefs.userId, users.id)))
+    .where(eq(users.id, a.userId)).get();
+  const created = row?.createdAt ? new Date(row.createdAt as unknown as Date).getTime() : 0;
+  const style: TabStyle = row?.style ?? (created >= CATEGORIES_DEFAULT_FROM ? "categories" : "classic");
+  return { style, pins: parsePins(row?.pins ?? null), chosen: !!row?.style };
+}
+
+const inLits = (col: SQL, values: string[]): SQL => (values.length ? sql`${col} in (${sql.join(values.map((v) => lit(v)), sql`, `)})` : sql`0`);
+
+function promoCond(): SQL {
+  const local = sql`lower(substr(${messages.fromAddress}, 1, instr(${messages.fromAddress}, '@') - 1))`;
+  const subj = sql`lower(${messages.subject})`;
+  const like = (w: string) => sql`${subj} like ${likeLit(w)} ${ESC}`;
+  const promo = sql`(${inLits(local, PROMO_LOCAL_PARTS)} or ${sql.join(PROMO_WORDS.map(like), sql` or `)})`;
+  return sql`(${promo} and not (${sql.join(NOT_PROMO_WORDS.map(like), sql` or `)}))`;
+}
+
+/** The rule behind a built in tab, before pins and splits take their share. */
+function builtInHeuristic(orgId: string, id: string): SQL | null {
+  switch (id) {
+    case "important": return sql`(${importantBaseCond(orgId)}) is true`;
+    case "other": return sql`(${importantBaseCond(orgId)}) is not true`;
+    case "primary": return sql`(${notBulkCond()}) is true`;
+    case "promotions": return sql`((${notBulkCond()}) is not true and (${promoCond()}) is true)`;
+    case "updates": return sql`((${notBulkCond()}) is not true and (${promoCond()}) is not true)`;
+    default: return null;
+  }
+}
+
+/** Every tab id the person has now: the style's built in tabs, then their splits. */
+export function tabIdsOf(style: TabStyle, list: MailSplit[]): string[] {
+  const builtIn = style === "off" ? BUILT_IN_TABS.classic : BUILT_IN_TABS[style];
+  return [...builtIn.map((t) => t.id), ...list.map((s) => s.id)];
+}
+
+/**
+ * One tab's condition with pins: a thread pinned to a tab shows there; else a sender pinned to a tab; else the splits
+ * that claim mail; else the built in rule. Pins to a tab the person no longer has are ignored. Values are literals.
+ */
+export function tabCondsFor(orgId: string, list: MailSplit[], st: TabsState, tab: string): SQL | null {
+  const style: TabStyle = st.style === "off" ? "classic" : st.style;
+  const valid = new Set(tabIdsOf(style, list));
+  // API callers may still ask for Important or Other while categories are on (and the reverse): both rules stay readable.
+  const known = valid.has(tab) || builtInHeuristic(orgId, tab) !== null;
+  if (!known) return null;
+  const threadPins = Object.entries(st.pins.t).filter(([, t]) => valid.has(t));
+  const senderPins = Object.entries(st.pins.s).filter(([, t]) => valid.has(t));
+  const threadCol = sql`${messages.threadId}`;
+  const fromCol = sql`lower(${messages.fromAddress})`;
+  const anyThread = threadPins.length ? inLits(threadCol, threadPins.map(([k]) => k)) : null;
+  const anySender = senderPins.length ? inLits(fromCol, senderPins.map(([k]) => k.toLowerCase())) : null;
+  const pinnedAny = anyThread && anySender ? sql`(${anyThread} or ${anySender})` : anyThread ?? anySender;
+  const pinOf = (t: string): SQL | null => {
+    const th = threadPins.filter(([, x]) => x === t).map(([k]) => k);
+    const se = senderPins.filter(([, x]) => x === t).map(([k]) => k.toLowerCase());
+    const parts: SQL[] = [];
+    if (th.length) parts.push(inLits(threadCol, th));
+    if (se.length) parts.push(anyThread ? sql`(not ${anyThread} and ${inLits(fromCol, se)})` : inLits(fromCol, se));
+    return parts.length ? sql`(${sql.join(parts, sql` or `)})` : null;
+  };
+  const notPinned = (c: SQL) => (pinnedAny ? sql`(not ${pinnedAny} and ${c})` : c);
+  const withPin = (t: string, c: SQL) => { const p = pinOf(t); return p ? sql`(${p} or ${notPinned(c)})` : notPinned(c); };
+  const split = list.find((s) => s.id === tab);
+  if (split) return withPin(tab, sql`(${splitMatchCond(split, orgId)}) is true`);
+  const claimed = claimedCond(list, orgId);
+  const h = builtInHeuristic(orgId, tab)!;
+  return withPin(tab, claimed ? sql`((${claimed}) is not true and ${h})` : h);
+}
+
+/** Tabs with unread counts for categories or pins: one statement, one sum per tab. */
+async function generalTabs(deps: Deps, a: SplitActor, q: { mailboxId?: string; scope: string[] | null }, list: MailSplit[], st: TabsState): Promise<SplitTab[]> {
+  const style = st.style === "off" ? "classic" : st.style;
+  const builtIn = BUILT_IN_TABS[style];
+  const tabs = [...builtIn.map((t) => ({ id: t.id, name: t.name, builtIn: true })), ...list.map((s) => ({ id: s.id, name: s.name, builtIn: false }))];
+  if (!deps.config.mailSplitCounts) return tabs.map((t) => ({ ...t, unread: 0 }));
+  const cols: Record<string, SQL<number>> = {};
+  tabs.forEach((t, i) => { cols[`t${i}`] = sql<number>`coalesce(sum(case when ${tabCondsFor(a.orgId, list, st, t.id)!} then 1 else 0 end), 0)`; });
+  const row = (await deps.db.select(cols).from(messages).where(and(
+    eq(messages.orgId, a.orgId), q.mailboxId ? eq(messages.mailboxId, q.mailboxId) : undefined, q.scope ? inIds(messages.mailboxId, q.scope) : undefined,
+    eq(messages.folder, "inbox"), eq(messages.isRead, false), snoozeHiddenCond(deps.now()),
+  )).get()) as Record<string, number> | undefined;
+  return tabs.map((t, i) => ({ ...t, unread: Number(row?.[`t${i}`] ?? 0) }));
 }

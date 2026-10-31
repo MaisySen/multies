@@ -14,10 +14,17 @@ import { mailboxScope } from "../services/team";
 import { createSplit, deleteSplit, getSplit, listSplits, previewSplit, reorderSplits, splitTabs, updateSplit } from "../services/mail/splits";
 import { getMailPrefs, PIXEL_GIF, readStatusOf, recordOpen, setMailPrefs } from "../services/mail/read-status";
 import { SplitCreate, SplitPatch, SplitPreview } from "@/shared/mail-splits";
+import { TabStylePatch, TabTeach } from "@/shared/mail-rules-r85";
+import { restorePins, setTabStyle, tabSettings, teachTab } from "../services/mail/tabs-r85";
+import { tabsState } from "../services/mail/splits";
 
 export const SplitReorder = z.object({ ids: z.array(z.string().min(1).max(64)).max(20) });
 export const MailPrefsPatch = z.object({ readStatus: z.boolean().optional() });
 const MailboxQ = z.object({ mailboxId: z.string().max(64).optional().transform((v) => v || undefined) });
+const PinRestore = z.object({
+  threadId: z.string().min(1).max(128).optional(), thread: z.string().max(64).nullable().optional(),
+  sender: z.string().min(1).max(320).optional(), senderTab: z.string().max(64).nullable().optional(),
+});
 
 export function mailSplitRoutes() {
   return new Hono<AppEnv>()
@@ -26,8 +33,16 @@ export function mailSplitRoutes() {
       const { mailboxId } = parseQuery(c, MailboxQ);
       const deps = c.var.deps;
       const scope = await mailboxScope(deps.db, c.var.auth);
-      return c.json({ splits: await listSplits(deps, c.var.auth), tabs: await splitTabs(deps, c.var.auth, { mailboxId, scope }) });
+      // R85: the person's tab style rides along (one read), so Inbox knows which tab it opens on.
+      const st = c.var.auth.userId ? await tabsState(deps, c.var.auth) : undefined;
+      const tabs = await splitTabs(deps, c.var.auth, { mailboxId, scope }, st);
+      return c.json({ splits: await listSplits(deps, c.var.auth), tabs, style: st?.style ?? "classic", defaultTab: tabs[0]?.id ?? "" });
     })
+    // R85: tab style, moving a thread to a tab (teaches its sender) and undo or forget.
+    .get("/settings", async (c) => c.json(await tabSettings(c.var.deps, c.var.auth)))
+    .put("/style", async (c) => c.json(await setTabStyle(c.var.deps, c.var.auth, (await parseBody(c, TabStylePatch)).style)))
+    .post("/teach", async (c) => c.json(await teachTab(c.var.deps, c.var.auth, await mailboxScope(c.var.deps.db, c.var.auth), await parseBody(c, TabTeach))))
+    .post("/pins/restore", async (c) => c.json(await restorePins(c.var.deps, c.var.auth, await parseBody(c, PinRestore))))
     .post("/", async (c) => c.json({ split: await createSplit(c.var.deps, c.var.auth, await parseBody(c, SplitCreate)) }, 201))
     .post("/preview", async (c) => {
       const body = await parseBody(c, SplitPreview);

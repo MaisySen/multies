@@ -39,6 +39,7 @@ import { syncConnection } from "../services/connect/sync";
 import { snoozeHiddenCond } from "../services/mail/schedules";
 import { checkDraftSave, ownedBy, replyTarget } from "../services/suite/thread-collab";
 import { splitCond } from "../services/mail/splits";
+import { labelCond, labelsFor } from "../services/mail/rules-r85";
 import { readStatusFor } from "../services/mail/read-status";
 import { BULK_MAIL_ACTIONS, BULK_MAIL_MAX, runBulkMail } from "../services/mail/bulk-r32";
 import { deferrableWrite } from "../services/write-priority";
@@ -87,6 +88,8 @@ const MessageListQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional(),
   /** R31: an Inbox tab, "important", "other" or a split id (services/mail/splits.ts). */
   split: z.string().max(64).regex(/^[A-Za-z0-9_-]+$/).optional().transform((v) => v || undefined),
+  /** R85: threads with this label. */
+  label: z.string().max(40).optional().transform((v) => v || undefined),
 });
 
 export function mailRoutes() {
@@ -112,9 +115,14 @@ export function mailRoutes() {
         cursor: q.cursor,
         limit: q.limit,
         scope: await mailboxScope(c.var.deps.db, c.var.auth),
-        // Round 20: a snoozed thread stays out of Inbox until its time.
-        extra: splitExtra && snoozeExtra ? and(snoozeExtra, splitExtra) : snoozeExtra,
+        // Round 20: a snoozed thread stays out of Inbox until its time. R85: a label narrows any folder.
+        extra: and(snoozeExtra, splitExtra, q.label ? labelCond(c.var.auth.orgId, q.label) : undefined),
       });
+      // R85: labels on the page's threads (one read).
+      if (result.messages.length) {
+        const labels = await labelsFor(c.var.deps, c.var.auth.orgId, result.messages.map((m) => m.threadId));
+        if (labels.size) result.messages = result.messages.map((m) => ({ ...m, labels: labels.get(m.threadId) ?? [] }));
+      }
       // R31: Sent shows read status when the sender has it on ("Opened 2x, last 3:14 PM").
       if (q.folder === "sent" && result.messages.length) {
         const status = await readStatusFor(c.var.deps, c.var.auth.orgId, result.messages.map((m) => m.id));

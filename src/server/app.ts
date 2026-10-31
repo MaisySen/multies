@@ -70,6 +70,7 @@ import { taskTeardownRoutes } from "./routes/task-teardown-r27"; // R27 teardown
 import { mailSnippetRoutes } from "./routes/mail-snippets";
 import { countsRoutes } from "./routes/counts-r34"; // R34
 import { mailPrefRoutes, mailReadStatusRoutes, mailSplitRoutes, openPixelRoutes } from "./routes/mail-splits-r31";
+import { mailLabelRoutes, mailRuleRoutes } from "./routes/mail-rules-r85";
 import { meetingNotesRoutes } from "./routes/meeting-notes";
 import { meetingLiveRoutes, publicMeetingLiveRoutes } from "./routes/meeting-live-r31";
 import { meetingLobbyRoutes, publicMeetingLobbyRoutes } from "./routes/meeting-lobby-r32";
@@ -442,6 +443,8 @@ export function createApp(deps: Deps) {
   app.route("/api/channels", channelRoutes()); // C1: chat channels in the shared inbox
   app.route("/api/mail/snippets", mailSnippetRoutes()); // Round 22: saved replies
   app.route("/api/mail/splits", mailSplitRoutes()); // R31: split inbox
+  app.route("/api/mail/rules", mailRuleRoutes()); // R85: mail rules with several actions
+  app.route("/api/mail/labels", mailLabelRoutes()); // R85: thread labels
   app.route("/api/counts", countsRoutes()); // R34: unread counts for badges
   app.route("/api/reports", reportsRoutes()); // R35: report a message or person
   app.route("/api/blocks", blocksRoutes()); // R35: blocks
