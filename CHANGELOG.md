@@ -7,6 +7,14 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 87 (31 Oct 2026)
+
+- Added: Tools, Links (feature flag `links`, migration 0105). Short links with an auto or custom back half, a public address check on the destination (no private hosts, no loops), end date, password (form token, same site POST, rate limited), click limit (atomic, previews do not count), tags, on and off, edit the destination later, UTM builder and CSV import of up to 500 rows. QR codes in PNG or SVG with the brand colour, the workspace mark and four sizes.
+- Added: click stats per day, country, referrer, device and browser, with bots and link previews left out. No IP is stored: a daily salted hash counts unique visitors. Clicks are buffered and written in batches after the response; the redirect is one keyed lookup with a short isolate and edge cache. CSV export.
+- Added: bio pages per workspace and per person at /bio/name: picture, title, bio, ordered links with icons, social profiles, light, dark or follow the visitor, brand colour buttons, click and visit counts, no script, and a live preview while editing.
+- Added: team go links. go/name opens a doc, task, project or web address for workspace members only, from the address bar or the command menu, with near matches when a name is missing.
+- Added: the link domain. Short links use a workspace's verified domain once its CNAME is found and the certificate is set up; until then multies.si/l.
+
 ### P1 layout (31 Oct 2026)
 
 - Changed: Social is a top level area in the rail (after Docs): Planner (/app/social, a month of scheduled and sent posts; a day list on phones), Posts (/app/social/posts, filters All, Scheduled, Sent, Failed with each account's result, Try again, Cancel, Reconnect), New post (/app/social/new, the composer moved out of Settings; networks that cannot take the post are greyed out with the reason) and Accounts (/app/social/accounts, connected profiles with the account check, Reconnect, Disconnect, the TikTok and Threads cards, Connect for each network). No new server calls.

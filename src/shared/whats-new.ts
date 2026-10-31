@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-links",
+    date: "2026-10-31",
+    title: "Short links, QR codes and a link in bio page",
+    body: "Tools, Links turns a long address into a short link with a QR code in your brand colour, an end date, a password or a click limit, and shows clicks by day, country and device with bots left out. Each person and the workspace can have a bio page, and go links like go/onboarding open a doc, task or project for your team.",
+  },
+  {
     id: "2026-10-31-secure-share",
     date: "2026-10-31",
     title: "Ask for files, and send secrets that delete themselves",
@@ -84,14 +90,8 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
     id: "2026-10-31-developers-faster-pages",
     date: "2026-10-31",
-    title: "A home for developers, and quicker pages",
-    body: "The new Developers page gathers the API, MCP tools, agent inboxes and webhooks in one place, and the MCP tools page shows up properly in search and link previews again. Pricing, legal, status and the other public pages now appear right away on a phone, before the app finishes loading.",
-  },
-  {
-    id: "2026-10-31-timeline-views",
-    date: "2026-10-31",
-    title: "A clearer timeline, and pages that use your screen",
-    body: "Timeline shows Day, Week or Month, a Today button, bars coloured by status and a card with dates and owner when you point at one. It is only as tall as your tasks, and on a phone it reads as a list by week. Tasks, boards and templates now use the full width next to the sidebar.",
+    title: "A home for developers, a clearer timeline, and quicker pages",
+    body: "The new Developers page gathers the API, MCP tools, agent inboxes and webhooks in one place. Timeline shows Day, Week or Month with a Today button and bars coloured by status, and reads as a list by week on a phone. Pricing, legal, status and the other public pages now appear right away on a phone.",
   },
   {
     id: "2026-10-28-whats-new",
