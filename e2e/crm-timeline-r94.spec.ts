@@ -38,11 +38,9 @@ async function firstContact(page: Page) {
 }
 const noHScroll = async (page: Page) => expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
 
-let contactUrl = "";
-
 test("contact timeline: log a note and a call, filter, set a next step, delete with undo", async ({ page }) => {
   await demo(page);
-  contactUrl = await firstContact(page);
+  await firstContact(page);
   const composer = page.getByTestId("crm-composer");
   await composer.getByRole("textbox").fill("Asked for the spring price list");
   await page.getByTestId("crm-save").click();
