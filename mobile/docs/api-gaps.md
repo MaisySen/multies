@@ -6,6 +6,11 @@ answers in a few seconds on production.
 
 ## Still open (nice to have, nothing blocks the app)
 
+- Social inbox (1.10.8): items carry no read or unread flag, so the phone filters by Open, Mine, Unassigned and Done
+  (the same as the web) instead of Unread, and the badge counts open conversations. The thread read
+  (`GET /api/social/inbox/:id`) does not repeat `me`, `canManage` and `people`; the phone takes them from the list
+  read. A contact picker for "Link contact" is left to the web for now.
+
 - Free addresses (build 13): there is no read only availability check, so the app learns that a
   name is taken or kept when it tries to claim it (the server's words are shown as they come). A
   `GET /api/free-address/check?localPart=` answering `{ available, problem }` from

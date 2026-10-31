@@ -2,6 +2,13 @@
 
 Things the over the air updates leave out because they need native code. None of them blocks 1.10.7.
 
+## From 1.10.8 (1 Nov 2026)
+
+- Nothing new. The Social inbox and account health use only modules already in iOS build 20 and Android versionCode
+  16 (expo-web-browser for Reconnect, React Native's own lists and inputs). A push notification that opens a
+  conversation straight from the bell alert would need the notification route mapping only (JavaScript), not a store
+  build.
+
 ## From 1.10.7 (31 Oct 2026)
 
 - Translate in place on iPhone. 1.10.7 sends Translate to the share sheet on iOS (where the system Translate and any
