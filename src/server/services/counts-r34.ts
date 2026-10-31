@@ -13,7 +13,7 @@ import type { Deps } from "../context";
 import { mailboxAccess, messages, notifications, tasks } from "../db/schema";
 import { IsolateCache } from "../lib/isolate-cache";
 import { snoozeHiddenCond } from "./mail/schedules";
-import { listSplits, splitCountParts } from "./mail/splits";
+import { hasPins, listSplits, splitCountParts, tabCondsFor, tabsState, type TabsState } from "./mail/splits";
 import { unreadQuery } from "./suite/chat";
 import type { SuiteActor } from "./suite/common";
 import { DEFAULT_SNOOZE_ZONE, inboxWhere } from "./suite/notify-triage";
@@ -70,7 +70,7 @@ export function localDay(now: Date, tz: string): { start: Date; end: Date } {
  * mailbox scope is a subquery too. Only the person's own mail tabs (their split rules) are read first, from a
  * short per isolate copy.
  */
-const splitsCopy = new IsolateCache<MailSplit[]>(60_000);
+const splitsCopy = new IsolateCache<{ list: MailSplit[]; st: TabsState }>(60_000);
 
 /** Every count for the caller. An agent key has no inbox, chat or notifications: those parts are 0. */
 export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string | null } = {}): Promise<Counts> {
@@ -95,9 +95,21 @@ export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string |
 
   // R61a kill switch (MAIL_SPLIT_COUNTS=off): Important and Other read 0 and their rule is not evaluated at all.
   const splitsOn = deps.config.mailSplitCounts;
-  const list = splitsOn ? await splitsCopy.getOr(`${a.userId}:${a.orgId}`, () => listSplits(deps, { orgId: a.orgId, userId: a.userId })) : [];
+  const tabsMine = splitsOn
+    ? await splitsCopy.getOr(`${a.userId}:${a.orgId}`, async () => {
+      const actor = { orgId: a.orgId, userId: a.userId };
+      const [list, st] = await Promise.all([listSplits(deps, actor), tabsState(deps, actor)]);
+      return { list, st };
+    })
+    : null;
+  const list = tabsMine?.list ?? [];
   // R59 hotfix: the Important rule is evaluated once per row; Other is "not claimed" minus Important.
   const { important, notClaimed } = splitCountParts(a.orgId, list);
+  // R85T: senders or threads the person moved to a tab (R85 pins) change what Important and Other hold, so the counts
+  // take the same per tab rule as the tabs and lists (one sum each). Without pins the cheap R59 path above is exact.
+  const pinned = tabsMine && hasPins(tabsMine.st.pins)
+    ? { important: tabCondsFor(a.orgId, list, tabsMine.st, "important")!, other: tabCondsFor(a.orgId, list, tabsMine.st, "other")! }
+    : null;
   // Owners and admins see every mailbox; a member only the ones granted (a subquery, not a separate read).
   const scope = (a.role ?? "member") === "member"
     ? inArray(messages.mailboxId, deps.db.select({ id: mailboxAccess.mailboxId }).from(mailboxAccess).where(and(eq(mailboxAccess.userId, a.userId), eq(mailboxAccess.orgId, a.orgId)))) // D1: a subquery, not a bound list
@@ -108,8 +120,9 @@ export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string |
   const notes = deps.db.select({ n: count() }).from(notifications).where(and(eq(notifications.orgId, a.orgId), eq(notifications.userId, a.userId), isNull(notifications.readAt), inboxWhere(now)));
   const r = await deps.db.select({
     inbox: sql<number>`count(*)`,
-    important: splitsOn ? sql<number>`coalesce(sum(case when ${important} then 1 else 0 end), 0)` : sql<number>`0`,
-    notClaimed: !splitsOn ? sql<number>`0` : notClaimed ? sql<number>`coalesce(sum(case when ${notClaimed} then 1 else 0 end), 0)` : sql<number>`count(*)`,
+    important: !splitsOn ? sql<number>`0` : sql<number>`coalesce(sum(case when ${pinned?.important ?? important} then 1 else 0 end), 0)`,
+    notClaimed: !splitsOn ? sql<number>`0` : pinned ? sql<number>`0` : notClaimed ? sql<number>`coalesce(sum(case when ${notClaimed} then 1 else 0 end), 0)` : sql<number>`count(*)`,
+    pinnedOther: pinned ? sql<number>`coalesce(sum(case when ${pinned.other} then 1 else 0 end), 0)` : sql<number>`0`,
     dueToday: sql<number>`(${dueToday})`,
     overdue: sql<number>`(${overdue})`,
     triage: sql<number>`(${triage})`,
@@ -122,7 +135,8 @@ export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string |
   out.tasks = { dueToday: Number(r?.dueToday ?? 0), overdue: Number(r?.overdue ?? 0) };
   out.triage = Number(r?.triage ?? 0);
   const importantN = Number(r?.important ?? 0);
-  out.mail = { inbox: Number(r?.inbox ?? 0), important: importantN, other: Math.max(0, Number(r?.notClaimed ?? 0) - importantN) };
+  const otherN = pinned ? Number(r?.pinnedOther ?? 0) : Math.max(0, Number(r?.notClaimed ?? 0) - importantN);
+  out.mail = { inbox: Number(r?.inbox ?? 0), important: importantN, other: otherN };
   out.chat = { unread: Number(r?.chat ?? 0), mentions: Number(r?.mentions ?? 0) };
   out.notifications = { unread: Number(r?.notes ?? 0) };
   return out;

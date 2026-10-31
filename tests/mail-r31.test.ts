@@ -5,7 +5,9 @@ import { makeTestApp, Client } from "./helpers";
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { isBulkMail, isRobotSender, readStatusLine, SplitCreate } from "@/shared/mail-splits";
 import { isScannerAgent, withPixel } from "@/server/services/mail/read-status";
-import { lit } from "@/server/services/mail/splits";
+import { eq } from "drizzle-orm";
+import { users } from "@/server/db/schema";
+import { CATEGORIES_DEFAULT_FROM, lit } from "@/server/services/mail/splits";
 
 /** R31: split inbox (Important, Other, custom splits) and read status on sent mail. */
 let ctx: Awaited<ReturnType<typeof makeTestApp>>;
@@ -45,6 +47,9 @@ beforeEach(async () => {
   ctx.deps.now = () => now;
   owner = new Client(ctx.app);
   await owner.signup("owner@acme.io", "Olive Owner");
+  // R85T: an account made before R85 keeps Important and Other until its person picks a style (signup stamps the wall
+  // clock, so pin it; Primary, Updates and Promotions are covered at the end of "split inbox" and in mail-r85).
+  await ctx.db.update(users).set({ createdAt: new Date(CATEGORIES_DEFAULT_FROM - 86_400_000) }).where(eq(users.email, "owner@acme.io"));
   await owner.post("/api/org/plan", { plan: "pro" });
   const domainId = (await owner.post("/api/domains", { name: "acme.io" })).body.domain.id;
   const { body } = await owner.get(`/api/domains/${domainId}`);
@@ -153,6 +158,28 @@ describe("split inbox", () => {
     await maya.post(`/api/invites/${inv.body.link.split("/invite/")[1]}/accept`);
     expect((await maya.get("/api/mail/splits")).body.splits).toHaveLength(0);
     expect((await maya.get(`/api/mail/splits/${made.body.split.id}`)).status).toBe(404);
+  });
+
+  it("with Primary, Updates and Promotions, splits still take their mail out of the built in tabs, in the app, v1 and MCP", async () => {
+    await owner.put("/api/mail/splits/style", { style: "categories" });
+    await inbound("Hello from Ana", { address: "ana@studio.io", name: "Ana" });
+    await inbound("Cold pitch", { address: "sam@vendor.io", name: "Sam" }, { "list-unsubscribe": "<https://vendor.io/u>" });
+    await inbound("Your receipt", { address: "noreply@shop.com", name: "Shop" });
+    const key = (await owner.post("/api/developer/keys", { name: "Full" })).body.secret;
+    const made = await api(key, "POST", "/mail/splits", { name: "Vendors", rules: [{ field: "fromDomain", value: "vendor.io" }] });
+    expect(made.status).toBe(201);
+    expect(await subjects("primary")).toEqual(["Hello from Ana"]);
+    expect(await subjects(made.body.split.id)).toEqual(["Cold pitch"]);
+    expect([...(await subjects("updates")), ...(await subjects("promotions"))]).toEqual(["Your receipt"]);
+    const tabs = (await owner.get(`/api/mail/splits?mailboxId=${mailboxId}`)).body.tabs as { name: string; unread: number }[];
+    expect(tabs.map((t) => `${t.name}:${t.unread}`)).toEqual(["Primary:1", "Updates:1", "Promotions:0", "Vendors:1"]);
+    const v1 = await api(key, "GET", `/messages?mailboxId=${mailboxId}&folder=inbox&split=primary`);
+    expect(v1.body.data.map((m: { subject: string }) => m.subject)).toEqual(["Hello from Ana"]);
+    const mcp = await mcpFor(key);
+    const list = data(await mcp.callTool({ name: "mail_split_list", arguments: { mailboxId } }));
+    expect(list.tabs.map((t: { name: string }) => t.name)).toEqual(["Primary", "Updates", "Promotions", "Vendors"]);
+    await mcp.close();
+    expect((await owner.post("/api/mail/splits", { name: "Promotions", rules: [{ field: "subjectContains", value: "x" }] })).status).toBe(400);
   });
 });
 

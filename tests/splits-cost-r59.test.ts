@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { deliverInbound } from "@/server/services/mail/delivery";
-import { messages } from "@/server/db/schema";
-import { importantBaseCond, splitCountParts } from "@/server/services/mail/splits";
+import { messages, users } from "@/server/db/schema";
+import { CATEGORIES_DEFAULT_FROM, importantBaseCond, splitCountParts } from "@/server/services/mail/splits";
 
 /**
  * R59 hotfix (prod D1 reads at 245% of the free daily limit): Inbox tab counts were quadratic because the first time
@@ -50,6 +50,9 @@ beforeEach(async () => {
   ctx.deps.now = () => now;
   owner = new Client(ctx.app);
   await owner.signup("owner@acme.io", "Olive Owner");
+  // R85T: an account made before R85 keeps Important and Other until its person picks a style (signup stamps the wall
+  // clock, so pin it; accounts made after 2026-10-31 10:00 UTC open on Primary, Updates and Promotions, tested below).
+  await ctx.db.update(users).set({ createdAt: new Date(CATEGORIES_DEFAULT_FROM - 86_400_000) }).where(eq(users.email, "owner@acme.io"));
   await owner.post("/api/org/plan", { plan: "pro" });
   const domainId = (await owner.post("/api/domains", { name: "acme.io" })).body.domain.id;
   const { body } = await owner.get(`/api/domains/${domainId}`);
@@ -123,5 +126,64 @@ describe("Inbox tab counts stay cheap (R59 hotfix)", () => {
     for (let i = 0; i < 10; i++) await inbound(`Again ${i}`, `p${i}@people${i}.io`);
     expect(await tabs()).toEqual({ Important: 40, Other: 10 });
     expect(await counts()).toMatchObject({ inbox: 50, important: 40, other: 10 });
+  });
+
+  it("R85T: a sender moved to a tab moves in counts too, not only in tabs and lists", async () => {
+    await inbound("First note", "ana@studio.io");
+    await inbound("Receipt", "noreply@shop.com");
+    await inbound("Receipt 2", "noreply@shop.com");
+    expect(await counts()).toEqual({ inbox: 3, important: 1, other: 2 });
+    const m = await ctx.deps.db.select({ id: messages.id }).from(messages).where(eq(messages.subject, "Receipt")).get();
+    expect((await owner.post("/api/mail/splits/teach", { messageId: m!.id, tab: "important" })).status).toBe(200);
+    expect(await subjects("important")).toEqual(["First note", "Receipt", "Receipt 2"]);
+    expect(await subjects("other")).toEqual([]);
+    expect(await tabs()).toEqual({ Important: 3, Other: 0 });
+    expect(await counts()).toEqual({ inbox: 3, important: 3, other: 0 });
+    // And back out again: Ana moved to Other.
+    const a = await ctx.deps.db.select({ id: messages.id }).from(messages).where(eq(messages.subject, "First note")).get();
+    await owner.post("/api/mail/splits/teach", { messageId: a!.id, tab: "other" });
+    expect(await tabs()).toEqual({ Important: 2, Other: 1 });
+    expect(await counts()).toEqual({ inbox: 3, important: 2, other: 1 });
+  });
+});
+
+describe("Primary, Updates and Promotions (R85, accounts made after 2026-10-31 10:00 UTC)", () => {
+  beforeEach(async () => {
+    await ctx.db.update(users).set({ createdAt: new Date(CATEGORIES_DEFAULT_FROM + 1000) }).where(eq(users.email, "owner@acme.io"));
+  });
+
+  it("people land in Primary, bulk in Updates or Promotions; counts, tabs and lists agree", async () => {
+    await inbound("First note", "ana@studio.io");
+    await inbound("Second note", "ana@studio.io");
+    await inbound("Receipt", "noreply@shop.com");
+    await inbound("50% off this weekend", "deals@shop.com", { headers: { "list-unsubscribe": "<https://shop.com/u>" } });
+    expect(await subjects("primary")).toEqual(["First note", "Second note"]);
+    expect(await subjects("updates")).toEqual(["Receipt"]);
+    expect(await subjects("promotions")).toEqual(["50% off this weekend"]);
+    expect(await tabs()).toEqual({ Primary: 2, Updates: 1, Promotions: 1 });
+    // The counts route keeps its Important and Other fields for API callers; they agree with those lists.
+    expect(await counts()).toEqual({ inbox: 4, important: (await subjects("important")).length, other: (await subjects("other")).length });
+  });
+
+  it("a split that claims mail leaves the built in tabs, in tabs and lists", async () => {
+    await inbound("First note", "ana@studio.io");
+    await inbound("Invoice 7", "billing@vendor.io");
+    await inbound("Receipt", "noreply@shop.com");
+    const r = await owner.post("/api/mail/splits", { name: "Billing", rules: [{ field: "fromContains", value: "billing" }], match: "all", leavesImportant: true });
+    expect(r.status).toBeLessThan(300);
+    expect(await tabs()).toEqual({ Primary: 1, Updates: 1, Promotions: 0, Billing: 1 });
+    expect(await subjects("primary")).toEqual(["First note"]);
+    expect(await subjects(r.body.split.id)).toEqual(["Invoice 7"]);
+  });
+
+  it("many senders at once keep exact counts", async () => {
+    for (let i = 0; i < 40; i++) await inbound(`Note ${i}`, `p${i}@people${i}.io`);
+    for (let i = 0; i < 10; i++) await inbound(`Statement ${i}`, `noreply@bank${i}.io`);
+    for (let i = 0; i < 5; i++) await inbound(`Sale ${i}`, `deals@shop${i}.io`, { headers: { "list-unsubscribe": "<https://x.io/u>" } });
+    expect(await tabs()).toEqual({ Primary: 40, Updates: 10, Promotions: 5 });
+    expect((await subjects("primary")).length).toBe(40);
+    expect((await subjects("updates")).length).toBe(10);
+    expect((await subjects("promotions")).length).toBe(5);
+    expect(await counts()).toMatchObject({ inbox: 55 });
   });
 });

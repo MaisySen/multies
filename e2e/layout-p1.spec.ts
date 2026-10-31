@@ -201,6 +201,11 @@ test("P1 phone 390: drawer lists Social and Agents, pages fit, planner is a list
   await expect(sw.getByRole("link", { name: "Posts" })).toHaveAttribute("aria-current", "page");
   await sw.getByRole("link", { name: "Accounts" }).click();
   await expect(page).toHaveURL(/\/app\/social\/accounts$/);
+  // R85T: boundingBox does not wait, and the switcher is the new page's own (the old page's copy is hidden while the
+  // Accounts route loads), so measure once Accounts has drawn and marks itself current.
+  await expect(page.getByTestId("social-accounts")).toBeVisible();
+  await expect(sw.getByRole("link", { name: "Accounts" })).toBeVisible();
+  await expect(sw.getByRole("link", { name: "Accounts" })).toHaveAttribute("aria-current", "page");
   const tap = await sw.getByRole("link", { name: "Accounts" }).boundingBox();
   expect(tap && tap.height >= 44).toBe(true);
   for (const scheme of ["light", "dark"] as const) {

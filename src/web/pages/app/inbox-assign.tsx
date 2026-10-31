@@ -104,7 +104,7 @@ export function AssigneeChip({ assignee, status, lastInboundAt }: { assignee?: T
   if (!chip && ageMs == null) return null;
   return (
     <span className="ml-auto inline-flex items-center gap-1.5">
-      {ageMs != null && <span data-testid="thread-age" title="Since the customer last wrote" className={cn("text-[11px] font-medium tabular-nums", ageMs >= 86_400_000 ? "text-[#B25000]" : "text-subtle")}>{formatAge(ageMs)}</span>}
+      {ageMs != null && <span data-testid="thread-age" title="Since the customer last wrote" className={cn("text-[11px] font-medium tabular-nums", ageMs >= 86_400_000 ? "text-[#B25000] dark:text-[#FFB340]" : "text-subtle")}>{formatAge(ageMs)}</span>}
       {chip && (
         <span className="inline-flex items-center gap-1.5" data-testid="thread-assignee">
           {status === "waiting" && <IconHourglass className="h-3.5 w-3.5 text-subtle" aria-label="Waiting on the customer" />}
