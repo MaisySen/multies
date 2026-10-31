@@ -93,7 +93,7 @@ function Swatch({ primary, accent, sidebar, label, selected, onClick, disabled, 
         )}
         {selected && <span className="absolute right-1.5 top-1.5 grid h-5 w-5 animate-fade-in place-items-center rounded-full bg-white text-black shadow"><IconCheck className="h-3.5 w-3.5" /></span>}
       </span>
-      <span className="truncate px-0.5 text-[12px] leading-tight text-muted group-aria-pressed:font-medium group-aria-pressed:text-fg">{label}</span>
+      <span className="line-clamp-2 px-0.5 text-[12px] leading-tight text-muted group-aria-pressed:font-medium group-aria-pressed:text-fg">{label}</span>
     </button>
   );
 }
@@ -217,7 +217,7 @@ export function BrandPreview({ brand, data, personal, scheme, compact, name }: {
   ];
   return (
     <div style={root} className="overflow-hidden rounded-2xl border border-line bg-bg text-fg shadow-[var(--shadow-e2)] transition-[background-color,color] duration-200" data-testid="brand-preview" data-scheme={scheme}>
-      <div className={cn("flex transition-colors duration-200", compact ? "h-[300px]" : "h-[320px] sm:h-[380px] @min-[640px]:h-[460px]")}>
+      <div className={cn("flex transition-colors duration-200", compact ? "h-[300px]" : "h-[260px] @min-[640px]:h-[460px]")}>
         <div style={side} className="hidden w-[34%] min-w-[128px] shrink-0 flex-col gap-1 border-r border-line p-2.5 text-fg min-[420px]:flex">
           <div className="mb-2 flex h-7 items-center gap-2 px-1">
             {wide && data ? <img src={logoUrl(data.orgId, wide, brand.logos[wide]!)} alt="" className="h-5 max-w-full object-contain" />
@@ -275,7 +275,7 @@ function PreviewPane({ brand, data, personal, name, caption }: { brand: Brand; d
   // The preview follows the app when the app switches between light and dark; the toggle still lets you peek.
   useEffect(() => setScheme(resolved), [resolved]);
   return (
-    <div className="space-y-3 @min-[640px]:sticky @min-[640px]:top-[76px]" data-testid="preview-pane">
+    <div className="space-y-3" data-testid="preview-pane">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-[15px] font-semibold">Live preview</h2>
         <Segmented label="Preview in" value={scheme} onChange={setScheme} options={[{ id: "light", label: "Light", icon: <IconToday className="h-3.5 w-3.5" /> }, { id: "dark", label: "Dark", icon: <IconMoon className="h-3.5 w-3.5" /> }]} />
@@ -389,9 +389,9 @@ export function BrandingSettings() {
   const status = ro
     ? <span className="flex items-center gap-2 text-muted"><IconLock className="h-4 w-4 shrink-0" aria-hidden />Only workspace owners and admins can change the brand.</span>
     : save.isPending ? <span className="text-muted">Saving…</span>
-      : dirty ? <span className="flex items-center gap-2 font-medium"><span className="h-2 w-2 shrink-0 rounded-full bg-warn" aria-hidden />Unsaved changes<span className="font-normal text-subtle max-md:hidden">· you see them now, your team sees them after you save</span></span>
-        : justSaved ? <span className="flex items-center gap-1.5 font-medium text-ok"><IconCheckCircle className="h-4 w-4 shrink-0" aria-hidden />Saved for everyone</span>
-          : <span className="flex items-center gap-1.5 text-muted"><IconCheck className="h-4 w-4 shrink-0" aria-hidden />All changes saved</span>;
+      : dirty ? <span className="flex items-center gap-2 font-medium"><span className="h-2 w-2 shrink-0 rounded-full bg-warn" aria-hidden /><span className="max-sm:hidden">Unsaved changes</span><span className="sm:hidden">Unsaved</span><span className="font-normal text-subtle max-md:hidden">· you see them now, your team sees them after you save</span></span>
+        : justSaved ? <span className="flex items-center gap-1.5 font-medium text-ok"><IconCheckCircle className="h-4 w-4 shrink-0" aria-hidden /><span className="max-sm:hidden">Saved for everyone</span><span className="sm:hidden">Saved</span></span>
+          : <span className="flex items-center gap-1.5 text-muted"><IconCheck className="h-4 w-4 shrink-0" aria-hidden /><span className="max-sm:hidden">All changes saved</span><span className="sm:hidden">Saved</span></span>;
   return (
     <div className="@container" data-testid="branding-settings">
       {dialogs}
@@ -404,7 +404,7 @@ export function BrandingSettings() {
       <div className="grid items-start gap-6 @min-[640px]:grid-cols-[minmax(0,1fr)_minmax(280px,42%)] @min-[960px]:grid-cols-[minmax(0,1fr)_440px] @min-[1200px]:grid-cols-[minmax(0,1fr)_520px]">
         <div className="order-2 min-w-0 space-y-4 @min-[640px]:order-1">
           <Panel title="Theme" description="Pick a ready made theme or take the colours from your logo. The app changes as you click." testId="brand-presets">
-            <div className="grid grid-cols-3 gap-1 @min-[420px]/panel:grid-cols-4 @min-[640px]/panel:grid-cols-5 @min-[760px]/panel:grid-cols-7">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(72px,1fr))] gap-1">
               {PRESETS.map((p) => (
                 <Swatch key={p.id} primary={p.primary} accent={p.accent} sidebar={p.sidebar} label={p.name} disabled={ro}
                   selected={draft.preset === p.id || (!draft.preset && p.id === "multies" && !draft.primary)}
@@ -483,7 +483,7 @@ export function BrandingSettings() {
             </Panel>
           )}
         </div>
-        <div className="order-1 min-w-0 @min-[640px]:order-2">
+        <div className="order-1 min-w-0 @min-[640px]:sticky @min-[640px]:top-[76px] @min-[640px]:order-2">
           <PreviewPane brand={brand} data={q.data} name={orgName} caption={canEdit ? "You see changes across Multies right away. Your team sees them once you save." : "This is how Multies looks in this workspace."} />
         </div>
       </div>
@@ -531,7 +531,7 @@ export function AppearanceSettings() {
             <SwitchRow label="Follow workspace brand" hint={locked ? "Locked by an admin" : "On by default"} checked={follow} disabled={locked || save.isPending}
               onChange={(v) => save.mutate({ followBrand: v, accent: p.accent ?? PRESETS[3].primary })} testId="follow-brand" />
             {!follow && (
-              <div className="mt-4 grid grid-cols-3 gap-1 @min-[420px]/panel:grid-cols-4 @min-[640px]/panel:grid-cols-6">
+              <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(72px,1fr))] gap-1">
                 {PRESETS.map((s) => (
                   <Swatch key={s.id} primary={s.primary} accent={s.primary} label={s.name} selected={p.accent === s.primary} onClick={() => save.mutate({ followBrand: false, accent: s.primary })} />
                 ))}
@@ -540,7 +540,7 @@ export function AppearanceSettings() {
             {!follow && <div className="mt-3"><ColourField label="Custom accent" value={p.accent} placeholder="#0066cc" onChange={(v) => v && save.mutate({ followBrand: false, accent: v })} /></div>}
           </Panel>
         </div>
-        <div className="order-1 min-w-0 @min-[640px]:order-2">
+        <div className="order-1 min-w-0 @min-[640px]:sticky @min-[640px]:top-[76px] @min-[640px]:order-2">
           <PreviewPane brand={d.brand} data={d} personal={locked ? null : p} name={me.data?.organization?.name} caption="This is how Multies looks for you. Changes apply as soon as you pick them." />
         </div>
       </div>
