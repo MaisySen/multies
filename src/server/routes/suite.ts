@@ -21,7 +21,9 @@ import {
   contactDetail, createContact, createDeal, deleteContact, deleteDeal, getCompany, listCompanies, listContacts, listDeals, updateCompany, updateContact, updateDeal,
 } from "../services/suite/contacts";
 import { automationUsage, createAutomation, deleteAutomation, listAutomations, RECIPES, updateAutomation } from "../services/suite/automations";
-import { getPrefs, listNotifications, markNotificationsRead, markNotificationUnread, setPrefs } from "../services/suite/notify";
+import { getDelivery, getPrefs, listNotifications, markNotificationsRead, markNotificationUnread, setDelivery, setPrefs, type Prefs } from "../services/suite/notify";
+import { DeliveryPatch } from "../../shared/notification-centre"; // R97
+import { HttpError } from "../lib/errors";
 import { markDone, markManyDone, markUndone, snooze, SNOOZE_PRESETS, TRIAGE_VIEWS } from "../services/suite/notify-triage"; // R31 triage
 import { listDevices, registerDevice, unregisterDevice } from "../services/suite/push";
 import {
@@ -200,6 +202,11 @@ export const NotificationIds = z.object({ ids: z.array(z.string().min(1).max(64)
 export const SnoozeBody = z.object({ until: z.string().max(40).optional(), preset: z.enum(SNOOZE_PRESETS).optional() })
   .refine((b) => !!b.until !== !!b.preset, { message: "Send until (an ISO date and time) or a preset, not both." });
 
+/** R97: with the notification centre off, settings answer in the old shape (no mail field). */
+function stripMail(p: Prefs) {
+  return Object.fromEntries(Object.entries(p).map(([k, v]) => [k, { inApp: v.inApp, push: v.push }]));
+}
+
 export function notificationRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
@@ -217,10 +224,26 @@ export function notificationRoutes() {
       return c.json(await markNotificationsRead(c.var.deps, c.var.auth.orgId, c.var.auth.userId, b.ids, b.category));
     })
     .post("/:id/unread", async (c) => c.json(await markNotificationUnread(c.var.deps, c.var.auth.orgId, c.var.auth.userId, c.req.param("id"))))
-    .get("/settings", async (c) => c.json({ settings: await getPrefs(c.var.deps, c.var.auth.orgId, c.var.auth.userId) }))
+    // R97: `delivery` (time zone, quiet hours, digest, pause) and `mail` per category are added fields; with the
+    // notification centre off the answer is exactly the old one.
+    .get("/settings", async (c) => {
+      const { deps, auth } = c.var;
+      const settings = await getPrefs(deps, auth.orgId, auth.userId);
+      if (deps.config.notificationCentre === false) return c.json({ settings: stripMail(settings) });
+      return c.json({ settings, delivery: await getDelivery(deps, auth.orgId, auth.userId) });
+    })
     .put("/settings", async (c) => {
-      const b = await parseBody(c, z.object({ settings: z.record(z.string(), z.object({ inApp: z.boolean().optional(), push: z.boolean().optional() })) }));
-      return c.json({ settings: await setPrefs(c.var.deps, c.var.auth.orgId, c.var.auth.userId, b.settings) });
+      const { deps, auth } = c.var;
+      const centre = deps.config.notificationCentre !== false;
+      const b = await parseBody(c, z.object({
+        settings: z.record(z.string(), z.object({ inApp: z.boolean().optional(), push: z.boolean().optional(), mail: z.boolean().optional() })).optional(),
+        delivery: DeliveryPatch.optional(),
+      }).refine((v) => !!v.settings || !!v.delivery, { message: "Send settings or delivery." }));
+      if (!centre && (b.delivery || Object.values(b.settings ?? {}).some((v) => v.mail !== undefined))) throw new HttpError(422, "validation_failed", "Mail and delivery settings are not available.");
+      const settings = b.settings ? await setPrefs(deps, auth.orgId, auth.userId, b.settings) : await getPrefs(deps, auth.orgId, auth.userId);
+      if (!centre) return c.json({ settings: stripMail(settings) });
+      const delivery = b.delivery ? await setDelivery(deps, auth.orgId, auth.userId, b.delivery) : await getDelivery(deps, auth.orgId, auth.userId);
+      return c.json({ settings, delivery });
     })
 }
 

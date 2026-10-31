@@ -206,9 +206,9 @@ describe("notifications inbox", () => {
     expect((await mate.client.post("/api/notifications/read", {})).body.updated).toBe(1);
     // Settings: turning assignments off keeps them out of the inbox.
     const s = (await mate.client.get("/api/notifications/settings")).body.settings;
-    expect(s.assignment).toEqual({ inApp: true, push: true });
+    expect(s.assignment).toMatchObject({ inApp: true, push: true }); // R97 adds a mail field
     const put = await mate.client.put("/api/notifications/settings", { settings: { assignment: { inApp: false, push: false } } });
-    expect(put.body.settings.assignment).toEqual({ inApp: false, push: false });
+    expect(put.body.settings.assignment).toMatchObject({ inApp: false, push: false });
     await c.post("/api/tasks", { title: "Another", projectId: p.id, assigneeId: `member:${mate.id}` });
     expect((await mate.client.get("/api/notifications?unread=1")).body.unread).toBe(0);
     expect((await mate.client.put("/api/notifications/settings", { settings: { bogus: { push: true } } })).status).toBe(422);

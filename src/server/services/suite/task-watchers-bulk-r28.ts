@@ -72,7 +72,10 @@ export async function notifyWatchersBulk(deps: Deps, orgId: string, moved: Moved
       await runBatch(deps.db, stmts);
     }
     // Phones: one buzz per watcher for this bulk call, for the first task they watch.
-    const pushers = [...byUser.entries()].filter(([u]) => prefOf(u).push);
+    // R97 one place: pause and quiet hours hold these alerts too (same check as every other sender).
+    const { alertRecipients } = await import("./notify");
+    const allowed = new Set(await alertRecipients(deps, orgId, [...byUser.keys()].filter((u) => prefOf(u).push), type));
+    const pushers = [...byUser.entries()].filter(([u]) => allowed.has(u));
     if (pushers.length) {
       const { pushToUsers } = await import("./push");
       const firstOf = new Map<string, string[]>();

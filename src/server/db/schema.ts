@@ -1511,8 +1511,14 @@ export const notificationPrefs = sqliteTable("notification_prefs", {
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   /** JSON { [category]: { inApp, push } } */
   settings: text("settings").notNull().default("{}"),
+  /** R97: JSON delivery settings (time zone, quiet hours, digest, pause). See src/shared/notification-centre.ts. */
+  delivery: text("delivery").notNull().default("{}"),
+  /** R97: when this person's next digest mail is due (null when digests are off). */
+  digestDueAt: ts("digest_due_at"),
+  /** R97: when the last digest went out; the next lists items newer than this. */
+  digestLastAt: ts("digest_last_at"),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
-}, (t) => [primaryKey({ columns: [t.userId, t.orgId] })]);
+}, (t) => [primaryKey({ columns: [t.userId, t.orgId] }), index("notification_prefs_digest_idx").on(t.digestDueAt)]);
 
 /** A saved project, task or doc template. The starter gallery lives in code and is not stored. */
 export const templates = sqliteTable("templates", {

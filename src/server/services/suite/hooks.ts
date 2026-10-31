@@ -52,7 +52,9 @@ export async function onMailStored(deps: Deps, m: StoredMail) {
     if (!deps.config.push.enabled) return;
     const { pushToUsers } = await import("./push");
     const { usersWhoCanOpen } = await import("../team");
-    await pushToUsers(deps, m.orgId, await usersWhoCanOpen(deps.db, m.orgId, m.mailboxId), { type: "message.received", id: m.messageId });
+    // R97 one place: a Mail phone switch turned off, a pause and quiet hours hold new mail alerts too.
+    const { alertRecipients } = await import("./notify");
+    await pushToUsers(deps, m.orgId, await alertRecipients(deps, m.orgId, await usersWhoCanOpen(deps.db, m.orgId, m.mailboxId), "message.received"), { type: "message.received", id: m.messageId });
   });
   // Round 22 (R22.5): new mail on a waiting or done thread puts it back to open (0 writes when nothing changes).
   await step("thread_reopen", async () => {

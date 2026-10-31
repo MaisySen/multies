@@ -5,11 +5,12 @@
  */
 import { and, eq, isNull, lt, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { notificationPrefs, notifications } from "../../db/schema";
+import { notificationPrefs, notifications, users } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { sortableId } from "./common";
 import { pushToUsers } from "./push";
-import { inIds } from "../../lib/sql-chunks";
+import { inChunks, inIds } from "../../lib/sql-chunks";
+import { alertAllowed, applyDeliveryPatch, nextDigestAt, readDelivery, type Delivery, type DeliveryPatch } from "../../../shared/notification-centre"; // R97
 import { deferrableWrite } from "../write-priority";
 import { inboxWhere, VIEW_ORDER, viewCountsFor, viewWhere, type TriageView } from "./notify-triage"; // R31 triage
 
@@ -41,18 +42,31 @@ export const TYPE_CATEGORY: Record<string, Category> = {
 export const categoryOf = (type: string): Category => TYPE_CATEGORY[type] ?? "status";
 const typesOf = (c: Category) => Object.entries(TYPE_CATEGORY).filter(([, v]) => v === c).map(([k]) => k);
 
-export type Prefs = Record<Category, { inApp: boolean; push: boolean }>;
-export const DEFAULT_PREFS: Prefs = Object.fromEntries(CATEGORIES.map((c) => [c, { inApp: true, push: c !== "status" && c !== "email" }])) as Prefs;
+export type ChannelPrefs = { inApp: boolean; push: boolean; /** R97: mail (as it happens or in the digest). Off by default. */ mail: boolean };
+export type Prefs = Record<Category, ChannelPrefs>;
+export const DEFAULT_PREFS: Prefs = Object.fromEntries(CATEGORIES.map((c) => [c, { inApp: true, push: c !== "status" && c !== "email", mail: false }])) as Prefs;
 
-export async function getPrefs(deps: Deps, orgId: string, userId: string): Promise<Prefs> {
-  const row = await deps.db.select({ settings: notificationPrefs.settings }).from(notificationPrefs).where(and(eq(notificationPrefs.userId, userId), eq(notificationPrefs.orgId, orgId))).get();
-  const saved = row ? (JSON.parse(row.settings) as Partial<Prefs>) : {};
+/** Saved settings JSON merged over the defaults. */
+export function mergePrefs(raw: string | null | undefined): Prefs {
+  let saved: Partial<Prefs> = {};
+  try { saved = raw ? (JSON.parse(raw) as Partial<Prefs>) : {}; } catch { /* a broken row reads as defaults */ }
   const out = {} as Prefs;
   for (const c of CATEGORIES) out[c] = { ...DEFAULT_PREFS[c], ...(saved[c] ?? {}) };
   return out;
 }
 
-export async function setPrefs(deps: Deps, orgId: string, userId: string, patch: Partial<Record<string, { inApp?: boolean; push?: boolean }>>) {
+async function prefRow(deps: Deps, orgId: string, userId: string) {
+  return deps.db.select({ settings: notificationPrefs.settings, delivery: notificationPrefs.delivery }).from(notificationPrefs)
+    .where(and(eq(notificationPrefs.userId, userId), eq(notificationPrefs.orgId, orgId))).get();
+}
+
+export async function getPrefs(deps: Deps, orgId: string, userId: string): Promise<Prefs> {
+  return mergePrefs((await prefRow(deps, orgId, userId))?.settings);
+}
+
+const centreOn = (deps: Deps) => deps.config.notificationCentre !== false;
+
+export async function setPrefs(deps: Deps, orgId: string, userId: string, patch: Partial<Record<string, { inApp?: boolean; push?: boolean; mail?: boolean }>>) {
   const cur = await getPrefs(deps, orgId, userId);
   for (const [k, v] of Object.entries(patch)) {
     if (!(CATEGORIES as readonly string[]).includes(k)) throw new HttpError(422, "validation_failed", `Unknown category: ${k}`);
@@ -64,14 +78,72 @@ export async function setPrefs(deps: Deps, orgId: string, userId: string, patch:
   return cur;
 }
 
+/** R97: the person's delivery settings (time zone, quiet hours, digest, pause), filled from their profile zone. */
+export async function getDelivery(deps: Deps, orgId: string, userId: string): Promise<Delivery> {
+  const [row, user] = await Promise.all([
+    prefRow(deps, orgId, userId),
+    deps.db.select({ tz: users.timezone }).from(users).where(eq(users.id, userId)).get(),
+  ]);
+  return readDelivery(row?.delivery, user?.tz);
+}
+
+/** R97: saves a delivery patch and moves the digest clock to the next digest moment in the person's zone. */
+export async function setDelivery(deps: Deps, orgId: string, userId: string, patch: DeliveryPatch): Promise<Delivery> {
+  const now = deps.now();
+  const next = applyDeliveryPatch(await getDelivery(deps, orgId, userId), patch, now);
+  const due = nextDigestAt(now, next);
+  const json = JSON.stringify(next);
+  // The first digest lists items from now on, not the whole history.
+  await deps.db.insert(notificationPrefs).values({ userId, orgId, settings: "{}", delivery: json, digestDueAt: due, digestLastAt: now, updatedAt: now })
+    .onConflictDoUpdate({ target: [notificationPrefs.userId, notificationPrefs.orgId], set: { delivery: json, digestDueAt: due, updatedAt: now } });
+  return next;
+}
+
+/** R97: what one person's settings say for one event right now. */
+export function decide(prefs: Prefs, delivery: Delivery | null, category: Category, now: Date) {
+  const p = prefs[category];
+  const alertOk = !delivery || alertAllowed(now, delivery, category);
+  const digestOn = !!delivery && delivery.digest.frequency !== "off";
+  return { inApp: p.inApp, push: p.push && alertOk, mailNow: !!delivery && p.mail && !digestOn && alertOk };
+}
+
+/**
+ * R97 one place: who of these people should get a phone or browser alert for this event type now. New mail follows
+ * the person's New mail switch (on unless they turned it off); other types follow the category's Phone switch.
+ * A pause and quiet hours hold every alert. People with nothing saved keep the alert. One bounded read.
+ */
+export async function alertRecipients(deps: Deps, orgId: string, userIds: string[], type: string): Promise<string[]> {
+  const ids = [...new Set(userIds)];
+  if (!ids.length || !centreOn(deps)) return ids;
+  const cat = categoryOf(type);
+  const rows = await inChunks(ids, (chunk) => deps.db.select({ userId: notificationPrefs.userId, settings: notificationPrefs.settings, delivery: notificationPrefs.delivery })
+    .from(notificationPrefs).where(and(eq(notificationPrefs.orgId, orgId), inIds(notificationPrefs.userId, chunk))));
+  const by = new Map(rows.map((r) => [r.userId, r]));
+  const now = deps.now();
+  return ids.filter((u) => {
+    const r = by.get(u);
+    if (!r) return true;
+    const d = readDelivery(r.delivery);
+    const on = type === "message.received" ? d.newMail : mergePrefs(r.settings)[cat].push;
+    return on && alertAllowed(now, d, cat);
+  });
+}
+
 export async function notify(deps: Deps, orgId: string, userId: string, n: { type: string; entityType: string; entityId: string; title: string; actorName?: string | null; pushMessageId?: string | null }) {
   try {
-    const prefs = await getPrefs(deps, orgId, userId);
-    const p = prefs[categoryOf(n.type)];
-    if (p.inApp) {
-      await deps.db.insert(notifications).values({ id: sortableId("ntf", deps.now().getTime()), orgId, userId, type: n.type, entityType: n.entityType, entityId: n.entityId, title: n.title.slice(0, 300), actorName: n.actorName?.slice(0, 120) ?? null, createdAt: deps.now() });
+    const row = await prefRow(deps, orgId, userId);
+    const cat = categoryOf(n.type);
+    const now = deps.now();
+    const d = decide(mergePrefs(row?.settings), centreOn(deps) ? readDelivery(row?.delivery) : null, cat, now);
+    if (d.inApp) {
+      await deps.db.insert(notifications).values({ id: sortableId("ntf", now.getTime()), orgId, userId, type: n.type, entityType: n.entityType, entityId: n.entityId, title: n.title.slice(0, 300), actorName: n.actorName?.slice(0, 120) ?? null, createdAt: now });
     }
-    if (p.push) await pushToUsers(deps, orgId, [userId], n.pushMessageId ? { type: n.type, id: n.entityId, mid: n.pushMessageId, title: n.title } : { type: n.type, id: n.entityId, title: n.title });
+    if (d.push) await pushToUsers(deps, orgId, [userId], n.pushMessageId ? { type: n.type, id: n.entityId, mid: n.pushMessageId, title: n.title } : { type: n.type, id: n.entityId, title: n.title });
+    // R97: mail as it happens goes through the job queue, so the caller never waits on rendering or the provider.
+    if (d.mailNow) {
+      const { enqueue } = await import("../jobs");
+      await enqueue(deps, "notify.mail", { orgId, userId, type: n.type, entityType: n.entityType, entityId: n.entityId, title: n.title.slice(0, 300), actorName: n.actorName ?? null }, { orgId, maxAttempts: 3 });
+    }
   } catch (err) {
     deps.reportError?.(err, { where: "notify", type: n.type });
   }

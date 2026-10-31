@@ -22,6 +22,7 @@ import { crossCheck, recordUptimeCheck } from "./status";
 import "./mail/deliver-job";
 import "./system-mail";
 import "./suite/push";
+import "./suite/notify-centre-r97"; // R97: notify.mail job
 import "./billing/referral-job";
 
 /**

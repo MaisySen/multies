@@ -1229,5 +1229,14 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE IF NOT EXISTS `sign_templates` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`created_by` text NOT NULL,\n\t`name` text NOT NULL,\n\t`title` text NOT NULL,\n\t`message` text,\n\t`order_mode` text DEFAULT 'any' NOT NULL,\n\t`remind_days` integer DEFAULT 0 NOT NULL,\n\t`expires_days` integer DEFAULT 14 NOT NULL,\n\t`roles` text NOT NULL,\n\t`fields` text NOT NULL,\n\t`pages` text NOT NULL,\n\t`source_file_id` text NOT NULL,\n\t`source_sha256` text NOT NULL,\n\t`uses` integer DEFAULT 0 NOT NULL,\n\t`deleted_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
       "CREATE INDEX IF NOT EXISTS `sign_templates_org_idx` ON `sign_templates` (`org_id`,`deleted_at`,`updated_at`);"
     ]
+  },
+  {
+    "name": "0121_r97_notification_centre",
+    "statements": [
+      "-- R97 (Oct 31): notification centre. Additive only: delivery settings (quiet hours, pause, digest) per person per\n-- workspace, and the digest clock so the cron pass reads only rows that are due.\nALTER TABLE `notification_prefs` ADD `delivery` text DEFAULT '{}' NOT NULL;",
+      "ALTER TABLE `notification_prefs` ADD `digest_due_at` integer;",
+      "ALTER TABLE `notification_prefs` ADD `digest_last_at` integer;",
+      "CREATE INDEX IF NOT EXISTS `notification_prefs_digest_idx` ON `notification_prefs` (`digest_due_at`);"
+    ]
   }
 ];

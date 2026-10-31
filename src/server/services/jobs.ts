@@ -15,7 +15,7 @@ import { jobs } from "../db/schema";
 import { newId } from "../lib/crypto";
 import { inIds } from "../lib/sql-chunks";
 
-export type JobType = "mail.deliver" | "system-mail.send" | "push.send" | "demo.seed_suite" | "data-move.notify" | "billing.referral_grant" | "tools.merge_send" | `test.${string}`;
+export type JobType = "mail.deliver" | "system-mail.send" | "push.send" | "demo.seed_suite" | "data-move.notify" | "billing.referral_grant" | "tools.merge_send" | "notify.mail" | `test.${string}`;
 
 export class RetryableJobError extends Error {}
 export class PermanentJobError extends Error {}
