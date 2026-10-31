@@ -83,6 +83,7 @@ export function TeamInboxPage() {
   return (
     <>
       <PageHeader title="Shared inbox" actions={(hdOn || hds.data?.canManage) ? <Link to="/app/inbox/helpdesk" className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium text-muted transition-colors hover:bg-hover hover:text-fg max-sm:min-h-11" data-testid="helpdesk-settings-link"><IconSettings className="h-4 w-4" aria-hidden />Helpdesk</Link> : undefined} description={ticketsMode ? "Every customer conversation as a ticket, with an owner, a priority and reply times." : chatOn ? "Mail and customer chats in one place, with your team and your agents. Agent replies are labelled." : "Your team and your agents on the same threads. Agent replies are labelled, and anything waiting for approval shows in place."} />
+      <div className={cn(anySelected && "max-lg:hidden")}>
       {hdOn && (
         <div role="group" aria-label="Show" className="mb-3 inline-flex gap-0.5 rounded-lg bg-fill p-0.5" data-testid="inbox-mode">
           {(["tickets", "all"] as const).map((m) => (
@@ -92,6 +93,7 @@ export function TeamInboxPage() {
         </div>
       )}
       {ticketsMode ? <HelpdeskViewBar {...tv} counts={tlist.data?.counts} /> : <InboxViewBar {...iv} />}
+      </div>
       {chatOn && !ticketsMode && <div className="-mt-1 mb-4"><ChannelFilterControl filter={filter} set={cf.set} providers={providers} /></div>}
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">{/* R67 (MB-252): one column never grows past the phone width */}
         <Card className={cn("overflow-hidden lg:max-h-[calc(100dvh-11rem)] lg:overflow-y-auto", anySelected && "hidden lg:block")}>
@@ -130,7 +132,7 @@ export function TeamInboxPage() {
           {selectedTicket && hdOn ? <WebChatView ticketId={selectedTicket} onBack={() => open(null)} />
             : selectedConv && chatOn ? <div className="space-y-3">{hdOn && <TicketPanel kind="chat" refId={selectedConv} />}<ChatView id={selectedConv} onBack={() => open(null)} /></div>
             : selected ? <ThreadView helpdesk={hdOn} id={selected} onBack={() => open(null)} canReply={(mailboxId) => sendable.some((m) => m.id === mailboxId)} own={sendable.map((m) => m.address)} onReply={setCompose} />
-            : <Card><EmptyState icon={<IconInbox />} title={chatOn ? "Pick a thread or a chat" : "Pick a thread"} body={chatOn ? "See every message, who wrote it, and reply from here." : "See every message, who wrote it, and what an agent wants to send next."} /></Card>}
+            : <Card><EmptyState icon={<IconInbox />} title={ticketsMode ? "Pick a ticket" : chatOn ? "Pick a thread or a chat" : "Pick a thread"} body={ticketsMode ? "See the conversation, its owner and reply times, and answer from here." : chatOn ? "See every message, who wrote it, and reply from here." : "See every message, who wrote it, and what an agent wants to send next."} /></Card>}
         </div>
       </div>
       {compose && <Compose key={`${compose.inReplyToId ?? "new"}:${compose.draftId ?? ""}`} initial={compose} mailboxes={sendable} onClose={() => setCompose(null)} />}

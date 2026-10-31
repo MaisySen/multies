@@ -316,7 +316,7 @@ function WebsiteChat({ d, ro }: { d: HelpdeskSettingsOut; ro: boolean }) {
       <Card className="space-y-3 p-5">
         <h2 className="text-base font-semibold">Add it to your website</h2>
         <p className="text-sm text-muted">Paste this just before the closing body tag on every page. It loads after your page and adds about 6 KB.</p>
-        <pre className="overflow-x-auto rounded-lg bg-fill p-3 font-mono text-xs [overflow-wrap:anywhere]" data-testid="widget-snippet">{d.snippet}</pre>
+        <pre tabIndex={0} aria-label="Snippet for your website" className="whitespace-pre-wrap break-all rounded-lg bg-fill p-3 font-mono text-xs" data-testid="widget-snippet">{d.snippet}</pre>
         <div className="flex flex-wrap gap-2">
           <CopyButton value={d.snippet} label="Copy snippet" toastText="Snippet copied" />
           {d.settings.widget.on && <Button size="sm" variant="secondary" onClick={tryHere} disabled={tried}>{tried ? "Open in the corner" : "Try it on this page"}</Button>}

@@ -73,14 +73,14 @@ export function HelpdeskViewBar({ view, priority, kind, set, counts }: ReturnTyp
         {seg("open", "Open", counts?.open)}{seg("mine", "Mine", counts?.mine)}{seg("unassigned", "Unassigned", counts?.unassigned)}
         {seg("breaching", "Breaching", counts?.breaching)}{seg("solved", "Solved")}
       </div>
-      <Select aria-label="Priority" value={priority} onChange={(e) => set({ priority: e.target.value })} className="h-8 w-auto text-[13px] max-sm:h-11">
+      <div className="w-40 max-sm:min-w-0 max-sm:flex-1"><Select aria-label="Priority" value={priority} onChange={(e) => set({ priority: e.target.value })} className="h-8 w-full text-[13px] max-sm:h-11">
         <option value="">Any priority</option>
         {[...TICKET_PRIORITIES].reverse().map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
-      </Select>
-      <Select aria-label="Channel" value={kind} onChange={(e) => set({ kind: e.target.value })} className="h-8 w-auto text-[13px] max-sm:h-11">
+      </Select></div>
+      <div className="w-40 max-sm:min-w-0 max-sm:flex-1"><Select aria-label="Channel" value={kind} onChange={(e) => set({ kind: e.target.value })} className="h-8 w-full text-[13px] max-sm:h-11">
         <option value="">All channels</option>
         <option value="mail">Email</option><option value="chat">Chats</option><option value="web">Website chat</option>
-      </Select>
+      </Select></div>
     </div>
   );
 }
