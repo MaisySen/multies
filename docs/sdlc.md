@@ -6,7 +6,7 @@
 - Several people and agents may share one working tree, so commit only your own paths: `git add <files> && git commit -m "..." -- <files>`. Never `git add -A`, `git commit -a`, stash or reset other people's files.
 - Conventional prefixes, as in `git log`: `feat(area):`, `fix(area):`, `perf:`, `test:`, `docs:`, `design:`, `copy:`, `brand:`, `security:`, `chore:`, `ci:`, `ops:`. The subject says what changed for a person, in plain words. Mention a Sentry issue id when a commit fixes one.
 - Never commit secrets. Values live in Cloudflare secrets and in the owner's "CREDENTIALS (owner email v7)" list.
-- Push to GitHub (`MaisySen/mymail`) only after a deploy has passed, and never with force.
+- Push to GitHub (`MaisySen/multies`) only after a deploy has passed, and never with force.
 
 ## Checks before every deploy
 

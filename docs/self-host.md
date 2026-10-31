@@ -54,17 +54,17 @@ powershell -ExecutionPolicy Bypass -File scripts\selfhost\setup.ps1
 
 ## 2. Get the code
 
-The repository is private, so sign in to GitHub as an account with access to `MaisySen/mymail`.
+The repository is private, so sign in to GitHub as an account with access to `MaisySen/multies`.
 The easiest way is [GitHub Desktop](https://desktop.github.com/) (File, Clone repository), or the
 command line with the [GitHub CLI](https://cli.github.com/):
 
 ```sh
 gh auth login
-gh repo clone MaisySen/mymail
+gh repo clone MaisySen/multies
 cd mymail
 ```
 
-Plain `git clone https://github.com/MaisySen/mymail.git` also works; when it asks for a password,
+Plain `git clone https://github.com/MaisySen/multies.git` also works; when it asks for a password,
 use a [personal access token](https://github.com/settings/tokens), not your GitHub password.
 
 ## 3. Set up and start
