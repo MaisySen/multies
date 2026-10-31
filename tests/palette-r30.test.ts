@@ -10,7 +10,7 @@ describe("R30 command menu coverage", () => {
     const app = router.slice(router.indexOf('path: "/app"'), router.indexOf('path: "/f/:slug"'));
     const settingsAt = app.indexOf('path: "settings"');
     // R82F (MB-279): an old address that only redirects (<Moved />) is not a page of its own.
-    const paths = [...app.matchAll(/path: "([^"]+)"(.*)/g)].filter((m) => !m[2].includes("<Moved") && !m[2].includes("<SocialMoved")).map((m) => ({ p: m[1], at: m.index! }))
+    const paths = [...app.matchAll(/path: "([^"]+)"(.*)/g)].filter((m) => !m[2].includes("<Moved") && !m[2].includes("<MovedSocial")).map((m) => ({ p: m[1], at: m.index! }))
       .filter(({ p }) => p !== "/app" && !p.includes(":") && p !== "admin" && !p.startsWith("admin/")) // operator pages stay out of the menu
       .map(({ p, at }) => (p === "settings" ? "/app/settings" : at > settingsAt ? `/app/settings/${p}` : `/app/${p}`));
     const covered = new Set(PALETTE_PAGES.map((x) => x.to));

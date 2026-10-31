@@ -65,7 +65,7 @@ describe("P1 Settings", () => {
   });
   it("old addresses redirect, and sign ins come back to Social", () => {
     const router = readFileSync("src/web/router.tsx", "utf8");
-    expect(router).toMatch(/path: "apps\/social", element: <SocialMoved \/>/);
+    expect(router).toMatch(/path: "apps\/social", element: <MovedSocial \/>/);
     expect(router).toMatch(/"\/app\/social\/accounts" : "\/app\/social\/new"/);
     expect(readFileSync("src/server/routes/direct-social.ts", "utf8")).toContain("/app/social/accounts?");
   });

@@ -14,7 +14,7 @@ function Moved({ to }: { to: string }) {
 }
 
 /** P1 layout: the old Social posts tab of Connections. A sign in coming back lands on Accounts, the rest on New post. */
-function SocialMoved() {
+function MovedSocial() {
   const loc = useLocation();
   const q = new URLSearchParams(loc.search);
   const back = ["connected", "error", "status", "connected_account_id", "app", "provider"].some((k) => q.has(k));
@@ -274,7 +274,7 @@ export const router = createBrowserRouter([
           { path: "team", element: page(<TeamSettings />) },
           { path: "channels", element: page(<ChannelsSettings />) }, // C1
           { path: "apps", element: page(<AppsSettings />) }, // R80C: Connections hub
-          { path: "apps/social", element: <SocialMoved /> }, // P1 layout: Social posts moved to Social
+          { path: "apps/social", element: <MovedSocial /> }, // P1 layout: Social posts moved to Social
           { path: "apps/mail", element: page(<AppsSettings />) }, // R82F (MB-279): mail accounts, was Connected accounts
           { path: "apps/webhooks", element: page(<AppsSettings />) }, // R82F (MB-279): webhooks, was Integrations
           { path: "billing", element: page(<BillingSettings />) },
