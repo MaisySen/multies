@@ -185,8 +185,10 @@ async function pullTest(deps: Deps, orgId: string): Promise<Incoming[]> {
     .from(socialPostTargets).innerJoin(socialPosts, eq(socialPosts.id, socialPostTargets.postId))
     .where(and(eq(socialPosts.orgId, orgId), eq(socialPostTargets.accountId, TEST_ACCOUNT_ID), eq(socialPostTargets.status, "sent")))
     .orderBy(desc(socialPostTargets.sentAt)).limit(10).all();
-  for (const s of sent) {
-    out.push({ remoteId: `t-pc-${s.postId}`, kind: "comment", authorName: "Alex Kim", authorHandle: "@alexkim", text: "Nice one! Saving this for later.", postUrl: s.url, postText: s.text, receivedAt: new Date(Math.min(now, (s.sentAt?.getTime() ?? now) + 5 * 60_000)), inbound: true });
+  const fans = [["Alex Kim", "@alexkim", "Nice one! Saving this for later."], ["Noah Brown", "@noahb", "Do you ship to New Zealand?"], ["Ella Wright", "@ellaw", "This made my day, thank you."]] as const;
+  for (const [i, s] of sent.entries()) {
+    const [name, handle, words] = fans[i % fans.length]!;
+    out.push({ remoteId: `t-pc-${s.postId}`, kind: "comment", authorName: name, authorHandle: handle, text: words, postUrl: s.url, postText: s.text, receivedAt: new Date(Math.min(now, (s.sentAt?.getTime() ?? now) + 5 * 60_000)), inbound: true });
   }
   return out;
 }

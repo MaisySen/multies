@@ -255,7 +255,7 @@ function Conversation({ id, list, onBack, now }: { id: string; list: InboxListRe
       <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2.5 text-[13px] md:px-5">
         {list.canManage ? (
           <label className="flex items-center gap-2">
-            <span className="text-muted">Assigned to</span>
+            <span className="whitespace-nowrap text-muted">Assigned to</span>
             <Select value={item.assigneeId ?? ""} onChange={(e) => patch.mutate({ assigneeId: e.target.value || null })} className="h-9 w-44" data-testid="inbox-assign">
               <option value="">No one</option>
               {list.people.map((p) => <option key={p.id} value={p.id}>{p.id === list.me ? `${p.name} (you)` : p.name}</option>)}
@@ -354,7 +354,13 @@ export function SocialInboxPage() {
   useEffect(() => {
     if (list.data?.stale && !synced.current) { synced.current = true; sync.mutate(false); }
   }, [list.data?.stale, sync]);
-  const set = (k: string, v: string | null) => setParams((p) => { const n = new URLSearchParams(p); if (v) n.set(k, v); else n.delete(k); return n; }, { replace: k !== "item" });
+  // One update for several keys: two calls in a row would each start from the same old address.
+  const setMany = (kv: Record<string, string | null>) => setParams((p) => {
+    const n = new URLSearchParams(p);
+    for (const [k, v] of Object.entries(kv)) { if (v) n.set(k, v); else n.delete(k); }
+    return n;
+  }, { replace: !("item" in kv) });
+  const set = (k: string, v: string | null) => setMany({ [k]: v });
 
   if (!on) return <div><PageHeader title="Inbox" /><Card className="p-5 text-sm text-muted">The Social inbox isn't switched on for this workspace yet.</Card></div>;
   const data = list.data;
@@ -377,7 +383,7 @@ export function SocialInboxPage() {
           {TABS.map((t) => {
             const n = counts ? counts[t.id] : null;
             return (
-              <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => { set("tab", t.id === "open" ? null : t.id); set("item", null); }} data-testid={`inbox-tab-${t.id}`}
+              <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setMany({ tab: t.id === "open" ? null : t.id, item: null })} data-testid={`inbox-tab-${t.id}`}
                 className={cn("inline-flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
                   tab === t.id ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg")}>
                 {t.label}{n != null && <span className="tabular-nums text-subtle">{n}</span>}
