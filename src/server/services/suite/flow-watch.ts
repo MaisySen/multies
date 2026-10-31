@@ -74,7 +74,7 @@ export async function guardedGet(deps: Deps, raw: string): Promise<{ url: string
       return { url, status: res.status, text: res.status < 400 ? await readCapped(res) : "", type: res.headers.get("content-type") ?? "" };
     } catch (err) {
       if (err instanceof HttpError) throw err;
-      throw new Error(ctrl.signal.aborted ? "The page took longer than 10 seconds." : err instanceof Error ? err.message : "The page could not be reached.");
+      throw new Error(ctrl.signal.aborted ? "The page took longer than 10 seconds." : err instanceof Error ? err.message : "The page could not be reached.", { cause: err });
     } finally { clearTimeout(timer); }
   }
   throw new Error("The page redirects too many times.");

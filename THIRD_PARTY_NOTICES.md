@@ -185,3 +185,7 @@ MIT License, Copyright (c) 2014 to 2022 Knut Sveidqvist. The full MIT text is th
 Its own dependencies used in the browser include d3 (ISC, Copyright 2010 to 2023 Mike Bostock), dagre-d3-es (MIT),
 khroma (MIT), DOMPurify (Apache 2.0 or MPL 2.0, Copyright Cure53), cytoscape (MIT), elkjs (EPL 2.0),
 katex (MIT) and dayjs (MIT).
+
+## @xyflow/react and @xyflow/system (MIT)
+
+Copyright (c) 2019-2025 webkid GmbH. Used for the flow canvas in Automations (R90). Dependencies: zustand (MIT), classcat (MIT), d3-zoom, d3-drag, d3-selection, d3-transition, d3-dispatch (ISC).

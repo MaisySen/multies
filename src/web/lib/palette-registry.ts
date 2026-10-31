@@ -49,7 +49,10 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-reports", label: "Reports", to: "/app/reports", icon: IconChart, keywords: ["analytics", "charts"] },
   { id: "p-portfolio", label: "Portfolio", to: "/app/portfolio", icon: IconBriefcase, keywords: ["projects", "status"] },
   { id: "p-templates", label: "Project templates", to: "/app/templates", icon: IconTemplate, keywords: ["blueprints", "templates"] },
-  { id: "p-automations", label: "Automations", to: "/app/automations", icon: IconZap, keywords: ["rules", "workflows", "recipes"] },
+  { id: "p-automations", label: "Automations", to: "/app/automations", icon: IconZap, keywords: ["rules", "workflows", "recipes", "flows"] },
+  // R90: the automation builder.
+  { id: "p-flow-runs", label: "Automation runs", to: "/app/automations/runs", icon: IconZap, keywords: ["flows", "runs", "log", "failed"] },
+  { id: "p-flow-templates", label: "New flow from a template", to: "/app/automations", icon: IconZap, keywords: ["flow", "automation", "template", "watch page", "feed", "digest"] },
   { id: "p-mail", label: "Mail", to: "/app/mail", icon: IconInbox, keywords: ["inbox", "webmail", "email"] },
   { id: "p-mail-rules", label: "Mail rules", to: "/app/mail/rules", icon: IconWorkflow, keywords: ["filters", "labels", "auto reply", "forward", "sort mail", "inbox tabs"] }, // R85
   { id: "p-shared-inbox", label: "Shared inbox", to: "/app/inbox", icon: IconChats, keywords: ["team inbox", "support", "assign"] },

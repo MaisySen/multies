@@ -74,7 +74,7 @@ function FlowsTab({ isAdmin }: { isAdmin: boolean }) {
       await qc.invalidateQueries({ queryKey: flowKeys.all });
     } catch (e) { showError(e as Error); }
   };
-  const useTemplate = async (t: FlowTemplate) => { const id = await create(t.name, t.graph); if (id) nav(`/app/automations/flows/${id}`); };
+  const pickTemplate = async (t: FlowTemplate) => { const id = await create(t.name, t.graph); if (id) nav(`/app/automations/flows/${id}`); };
   if (q.isPending) return <div className="space-y-3" aria-busy="true"><Skeleton className="h-20" /><Skeleton className="h-20" /><Skeleton className="h-40" /></div>;
   if (q.isError) return <Card className="p-6"><EmptyState icon={<IconWorkflow />} title="Flows did not load" body="Check your connection and try again." action={<Button variant="outline" onClick={() => void q.refetch()}>Try again</Button>} /></Card>;
   const list = q.data.flows;
@@ -111,7 +111,7 @@ function FlowsTab({ isAdmin }: { isAdmin: boolean }) {
             <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {FLOW_TEMPLATES.map((t) => (
                 <li key={t.key}>
-                  <button onClick={() => void useTemplate(t)} className="flex h-full w-full flex-col rounded-lg border border-line bg-surface p-4 text-left transition-colors duration-150 hover:border-line-strong hover:bg-hover/40 focus-visible:outline-2 focus-visible:outline-brand">
+                  <button onClick={() => void pickTemplate(t)} className="flex h-full w-full flex-col rounded-lg border border-line bg-surface p-4 text-left transition-colors duration-150 hover:border-line-strong hover:bg-hover/40 focus-visible:outline-2 focus-visible:outline-brand">
                     <span className="flex items-center gap-1.5 text-[14px] font-medium"><IconZap className="h-3.5 w-3.5 text-brand-hover" aria-hidden />{t.name}</span>
                     <span className="mt-1 text-[13px] text-muted">{t.description}</span>
                     <span className="mt-2 text-[12px] text-subtle">{TRIGGER_LABEL[t.trigger]}</span>
