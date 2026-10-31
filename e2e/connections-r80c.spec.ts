@@ -81,8 +81,13 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     await page.getByTestId("social-text").fill("EXPIRED sign in check");
     await page.getByRole("radio", { name: "Now" }).click();
     await page.getByTestId("social-submit").click();
+    // Oct 31: Post now opens a sheet that follows the post until each network answers.
+    const sheet = page.getByTestId("posted-sheet");
+    await expect(sheet).toHaveAttribute("data-status", "failed", { timeout: 15_000 });
+    await expect(page.getByRole("dialog")).toContainText("Not posted");
+    await expect(sheet.getByTestId("post-target-error")).toHaveAttribute("data-code", "reconnect");
+    await page.getByTestId("view-in-posts").click();
     await expect(page).toHaveURL(/\/app\/social\/posts$/);
-    await page.reload(); // the list refreshes on its own while sending; a reload keeps the check quick
     const failed = page.getByTestId("social-post").filter({ hasText: "EXPIRED sign in check" });
     await expect(failed).toHaveAttribute("data-status", "failed", { timeout: 15_000 });
     await expect(failed.getByTestId("post-target-error")).toHaveAttribute("data-code", "reconnect");
@@ -97,6 +102,40 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
       }
       await page.emulateMedia({ colorScheme: "light" });
     }
+
+    // Oct 31: a post that went out says so right away, opens on the network, and Delete removes it there too.
+    await page.goto("/app/social/new");
+    await page.getByTestId("pick-facebook").getByRole("checkbox").check();
+    await page.getByTestId("pick-facebook").getByRole("combobox").selectOption({ label: "Acme Studio" });
+    await page.getByTestId("social-text").fill("Delete me after the check");
+    await page.getByRole("radio", { name: "Now" }).click();
+    await page.getByTestId("social-submit").click();
+    await expect(sheet).toHaveAttribute("data-status", "done", { timeout: 15_000 });
+    await expect(page.getByRole("dialog")).toContainText("Posted to Facebook");
+    await expect(sheet.getByTestId("open-post")).toHaveAttribute("href", /^https:\/\/www\.facebook\.com\/\d+\/posts\//);
+    await expect(page.getByTestId("social-text")).toHaveValue(""); // the composer is clear behind the sheet
+    if (process.env.SHOTS_DIR) for (const scheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.screenshot({ path: `${process.env.SHOTS_DIR}/posted-sheet-${w}-${scheme}.png` });
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.getByTestId("view-in-posts").click();
+    await expect(page).toHaveURL(/\/app\/social\/posts$/);
+    const done = page.getByTestId("social-post").filter({ hasText: "Delete me after the check" });
+    await expect(done.getByTestId("open-post")).toBeVisible();
+    if (process.env.SHOTS_DIR) for (const scheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.screenshot({ path: `${process.env.SHOTS_DIR}/posts-${w}-${scheme}.png`, fullPage: true });
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+    await done.getByTestId("post-delete").click();
+    const confirm = page.getByRole("dialog");
+    await expect(confirm).toContainText("It will also be deleted from Facebook. You can't undo this.");
+    if (process.env.SHOTS_DIR) await page.screenshot({ path: `${process.env.SHOTS_DIR}/delete-confirm-${w}-light.png` });
+    await confirm.getByRole("button", { name: "Delete from Facebook" }).click();
+    await expect(page.getByText("Post deleted from Facebook")).toBeVisible();
+    await expect(page.getByTestId("social-post").filter({ hasText: "Delete me after the check" })).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 
     // Failed filter shows it; Disconnect LinkedIn on Social, Accounts, with the confirm step.
     await page.getByTestId("posts-filter").getByRole("button", { name: /Failed/ }).click();

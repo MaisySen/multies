@@ -12,10 +12,12 @@ import { cn } from "@/web/lib/cn";
 import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Input, Select, Textarea } from "@/web/components/ui/input";
-import { IconCheckCircle, IconClock, IconClose, IconExternalLink, IconImage, IconMegaphone, IconPlug, IconRefresh, IconSend, IconWarning, IconXCircle } from "@/web/components/ui/icon";
+import { IconCheckCircle, IconClock, IconClose, IconExternalLink, IconImage, IconMegaphone, IconPlug, IconRefresh, IconSend, IconSpinner, IconTrash, IconWarning, IconXCircle } from "@/web/components/ui/icon";
+import { Dialog } from "@/web/components/ui/dialog";
+import { ConfirmDialog } from "@/web/components/ui/confirm";
 import {
   SOCIAL_ERROR_COPY, SOCIAL_RECONNECT_ERRORS, socialErrorText, SOCIAL_IMAGE_MAX_BYTES, SOCIAL_MAX_AHEAD_DAYS, SOCIAL_NETWORKS, SOCIAL_TEXT_MAX,
-  type ConnectedAccountView, type PostStatus, type SocialAccountHealth, type SocialPostView,
+  type ConnectedAccountView, type DeleteOutcome, type PostStatus, type PostTargetView, type SocialAccountHealth, type SocialPostView,
 } from "@/shared/integrations";
 import { AppLogo, useAppAccounts } from "./apps-settings";
 
@@ -122,6 +124,7 @@ export function Composer({ accounts, onPosted, heading = true }: { accounts: Con
   const [later, setLater] = useState(false);
   const [at, setAt] = useState(() => localInput(new Date(Date.now() + 3600_000)));
   const [problems, setProblems] = useState<Record<string, string>>({});
+  const [postedId, setPostedId] = useState<string | null>(null);
   const file = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const health = useAccountHealth();
@@ -161,10 +164,11 @@ export function Composer({ accounts, onPosted, heading = true }: { accounts: Con
       runAt: whenIso,
     }),
     onSuccess: (r) => {
-      toast.success(r.post.status === "scheduled" && later ? `Scheduled for ${whenText(r.post.runAt)}` : `Posting to ${chosen.length} ${chosen.length === 1 ? "account" : "accounts"}`);
       setText(""); setImage(null); setPicked({}); setLater(false); setProblems({});
       void qc.invalidateQueries({ queryKey: postsKey });
-      onPosted?.(r.post);
+      // Oct 31: a post set for now opens a sheet that follows it until every network has answered.
+      if (r.post.status === "scheduled" && later) { toast.success(`Scheduled for ${whenText(r.post.runAt)}`); onPosted?.(r.post); }
+      else setPostedId(r.post.id);
     },
     onError: (e) => {
       const d = e instanceof ApiError ? (e.details as { problems?: { accountId: string; code: string }[] } | undefined) : undefined;
@@ -261,6 +265,7 @@ export function Composer({ accounts, onPosted, heading = true }: { accounts: Con
           </Button>
         </div>
       </form>
+      {postedId && <PostedSheet postId={postedId} onClose={() => setPostedId(null)} onViewPosts={onPosted ? (p) => { setPostedId(null); onPosted(p); } : undefined} />}
     </Card>
   );
 }
@@ -327,10 +332,129 @@ export function useSocialPosts() {
   });
 }
 
+/** Oct 31: the network's name as people say it ("Facebook"), from the account label or the app id. */
+const NETWORK_NAME: Record<string, string> = { facebook: "Facebook", instagram: "Instagram", linkedin: "LinkedIn", pinterest: "Pinterest", reddit: "Reddit", twitter: "X", threads: "Threads" };
+export const networkName = (app: string) => NETWORK_NAME[app] ?? app.charAt(0).toUpperCase() + app.slice(1);
+
+/** "Facebook and LinkedIn", "Facebook, Instagram and LinkedIn". */
+export function andList(items: string[]): string {
+  const u = [...new Set(items)];
+  return u.length <= 1 ? (u[0] ?? "") : `${u.slice(0, -1).join(", ")} and ${u[u.length - 1]}`;
+}
+
+/** Where a delete reaches: networks it is deleted on, and networks where the post stays. */
+export function deleteReach(p: SocialPostView): { on: string[]; stays: string[] } {
+  const sent = p.targets.filter((t) => t.status === "sent" && t.networkState !== "removed");
+  return { on: sent.filter((t) => t.canDelete).map((t) => networkName(t.app)), stays: sent.filter((t) => !t.canDelete).map((t) => networkName(t.app)) };
+}
+
+/** Every network that had the post has since removed it. */
+export const removedEverywhere = (p: SocialPostView) => p.targets.some((t) => t.status === "sent") && p.targets.filter((t) => t.status === "sent").every((t) => t.networkState === "removed");
+
+/** One account's row on a post: logo, account, status chip, time, then Open post or the reason and a fix. */
+function TargetRow({ t, p, canManage }: { t: PostTargetView; p: SocialPostView; canManage: boolean }) {
+  const name = t.label ?? networkName(t.app);
+  const removed = t.status === "sent" && t.networkState === "removed";
+  return (
+    <li className={cn("flex flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-2.5 text-[13px]", removed && "text-muted")} data-testid="post-target" data-status={t.status} data-network={removed ? "removed" : t.networkState ?? ""}>
+      <AppLogo slug={t.app} name={name} size="sm" />
+      <span className="min-w-0 flex-1 truncate">{name}{t.target ? <span className="text-muted">, {t.targetName ?? t.target}</span> : null}</span>
+      {removed ? (
+        <Badge tone="neutral">Removed on {networkName(t.app)}</Badge>
+      ) : t.status === "sent" ? (
+        <span className="inline-flex items-center gap-2">
+          <Badge tone="ok"><IconCheckCircle className="h-3.5 w-3.5" aria-hidden />Posted</Badge>
+          {t.sentAt && <span className="text-[12px] text-subtle">{whenText(t.sentAt)}</span>}
+          {t.url && <a href={t.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-8 items-center gap-1 font-medium text-fg underline underline-offset-2 hover:text-muted max-sm:min-h-11" data-testid="open-post">Open post<IconExternalLink className="h-3.5 w-3.5" aria-hidden /></a>}
+        </span>
+      ) : t.status === "failed" || t.status === "skipped" ? (
+        <>
+          <Badge tone="bad">Not posted</Badge>
+          <TargetError error={t.error} accountId={t.accountId} appName={name} canManage={canManage} />
+        </>
+      ) : (
+        <span className="inline-flex items-center gap-1.5 text-muted">
+          {p.status === "sending" || (p.status === "scheduled" && Date.parse(p.runAt) <= Date.now()) ? <><IconSpinner className="h-3.5 w-3.5 animate-spin" aria-hidden />Posting</> : p.status === "canceled" ? "Not sent" : <><IconClock className="h-3.5 w-3.5" aria-hidden />Waiting</>}
+        </span>
+      )}
+      {removed && <p className="basis-full pl-9 text-[12px] text-subtle">This post was deleted on {networkName(t.app)}. There is nothing left to open.</p>}
+      {t.status === "sent" && !removed && t.canCheck === false && t.canDelete && (
+        <p className="basis-full pl-9 text-[12px] text-subtle" data-testid="no-removal-check">{networkName(t.app)} doesn't tell Multies when a post is deleted there. Deleted it on {networkName(t.app)}? Delete it here too.</p>
+      )}
+    </li>
+  );
+}
+
+/**
+ * Oct 31: after Post now, a sheet follows the post until every network has answered: a tick and Open post for each
+ * one that took it, the reason and a fix for one that did not. The composer is already clear behind it.
+ */
+export function PostedSheet({ postId, onClose, onViewPosts }: { postId: string; onClose: () => void; onViewPosts?: (p: SocialPostView) => void }) {
+  const navigate = useNavigate();
+  const q = useQuery({
+    queryKey: [...postsKey, "one", postId],
+    queryFn: () => api.get<{ post: SocialPostView }>(`/social/posts/${postId}`).then((r) => r.post),
+    refetchInterval: (x) => (!x.state.data || x.state.data.status === "sending" || x.state.data.status === "scheduled" ? 1500 : false),
+  });
+  const p = q.data;
+  const busy = !p || p.status === "sending" || p.status === "scheduled";
+  const okCount = p ? p.targets.filter((t) => t.status === "sent").length : 0;
+  const title = busy ? "Posting now" : p.status === "done" ? (okCount === 1 ? `Posted to ${networkName(p.targets[0]!.app)}` : `Posted to all ${okCount} accounts`) : p.status === "partial" ? `Posted to ${okCount} of ${p.targets.length} accounts` : "Not posted";
+  const description = busy ? "Each network answers in a few seconds." : p.status === "done" ? "It's live. Open it on each network below." : p.status === "partial" ? "One network turned it down. The reason and the fix are below." : "No network took it. The reason and the fix are below.";
+  const view = () => { if (p && onViewPosts) onViewPosts(p); else { onClose(); navigate("/app/social/posts"); } };
+  return (
+    <Dialog open onClose={onClose} title={title} description={description} className="sm:max-w-lg"
+      footer={(
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="secondary" className="max-sm:w-full" onClick={onClose}>Write another</Button>
+          <Button className="max-sm:w-full" onClick={view} data-testid="view-in-posts">View in Posts</Button>
+        </div>
+      )}>
+      <div data-testid="posted-sheet" data-status={p?.status ?? "loading"} aria-live="polite">
+        {!p ? (q.error ? <p className="text-sm text-bad" role="alert">{errorMessage(q.error, "Couldn't load the post. It is in Posts.")}</p> : <div className="space-y-2"><Skeleton className="h-10 rounded-lg" /><Skeleton className="h-10 rounded-lg" /></div>) : (
+          <ul className="divide-y divide-line rounded-lg border border-line text-left" aria-label="Where it went">
+            {p.targets.map((t) => <TargetRow key={t.accountId} t={t} p={p} canManage />)}
+          </ul>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * Oct 31: the posts on screen are checked against their network when Posts opens, when the window comes back into
+ * view and on Refresh (the server holds each post to one check per 5 minutes). Facebook only: LinkedIn doesn't say.
+ */
+function useNetworkSync(posts: SocialPostView[] | undefined) {
+  const qc = useQueryClient();
+  const ids = useMemo(() => (posts ?? []).filter((p) => p.targets.some((t) => t.canCheck && t.status === "sent" && t.networkState !== "removed" && t.sentAt && Date.now() - Date.parse(t.sentAt) < 30 * 86_400_000)).slice(0, 20).map((p) => p.id), [posts]);
+  const key = ids.join(",");
+  const run = useMutation({
+    mutationFn: (list: string[]) => api.post<{ posts: SocialPostView[] }>("/social/posts/sync", { ids: list }),
+    onSuccess: (r) => {
+      const byId = new Map(r.posts.map((p) => [p.id, p]));
+      qc.setQueryData<SocialPostView[]>(postsKey, (old) => old?.map((p) => byId.get(p.id) ?? p));
+    },
+  });
+  const runRef = useRef(run.mutate);
+  runRef.current = run.mutate;
+  useEffect(() => {
+    if (!key) return;
+    runRef.current(key.split(","));
+    const onFocus = () => { if (document.visibilityState === "visible") runRef.current(key.split(",")); };
+    document.addEventListener("visibilitychange", onFocus);
+    return () => document.removeEventListener("visibilitychange", onFocus);
+  }, [key]);
+  return { syncing: run.isPending, sync: () => { if (key) run.mutate(key.split(",")); } };
+}
+
+
 export function PostList({ canManage, filter = "all", heading = true }: { canManage: boolean; filter?: PostFilter; heading?: boolean }) {
   const qc = useQueryClient();
   const posts = useSocialPosts();
   const shown = (posts.data ?? []).filter((p) => postMatches(p, filter));
+  const net = useNetworkSync(posts.data);
+  const [toDelete, setToDelete] = useState<SocialPostView | null>(null);
   const cancel = useMutation({
     mutationFn: (id: string) => api.post<{ post: SocialPostView }>(`/social/posts/${id}/cancel`),
     onSuccess: () => { toast.success("Post canceled"); void qc.invalidateQueries({ queryKey: postsKey }); },
@@ -341,11 +465,36 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
     onSuccess: () => { toast.success("Sending again"); void qc.invalidateQueries({ queryKey: postsKey }); },
     onError: (e) => toast.error(errorMessage(e, "Couldn't send again. Try again in a minute.")),
   });
+  const del = useMutation({
+    mutationFn: (id: string) => api.del<{ deleted: boolean; results: { app: string; outcome: DeleteOutcome }[] }>(`/social/posts/${id}`),
+    onSuccess: (r) => {
+      const done = r.results.filter((x) => x.outcome === "deleted").map((x) => networkName(x.app));
+      const failed = r.results.filter((x) => x.outcome === "failed").map((x) => networkName(x.app));
+      if (r.deleted) toast.success(done.length ? `Post deleted from ${andList(done)}` : "Post deleted");
+      else toast.error(`${done.length ? `Deleted from ${andList(done)}. ` : ""}${andList(failed)} didn't delete it. Try again in a minute.`);
+      setToDelete(null);
+      void qc.invalidateQueries({ queryKey: postsKey });
+    },
+    onError: (e) => toast.error(errorMessage(e, "Couldn't delete the post. Try again.")),
+  });
+  const reach = toDelete ? deleteReach(toDelete) : { on: [], stays: [] };
+  const deleteText = !toDelete ? "" : [
+    reach.on.length ? `It will also be deleted from ${andList(reach.on)}.` : toDelete.status === "scheduled" ? "It won't go out." : "",
+    reach.stays.length ? `${andList(reach.stays)} doesn't let Multies delete posts, so it stays there.` : "",
+    reach.on.length ? "You can't undo this." : "",
+  ].filter(Boolean).join(" ");
 
   return (
     <section aria-labelledby="posts-title">
-      <h2 id="posts-title" className={cn("mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle", !heading && "sr-only")}>Posts</h2>
-      {posts.isPending ? <div className="space-y-3"><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-24 rounded-xl" /></div>
+      <div className="mb-2 flex items-center justify-between gap-2 px-1">
+        <h2 id="posts-title" className={cn("text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle", !heading && "sr-only")}>Posts</h2>
+        {!!posts.data?.length && (
+          <Button variant="ghost" size="sm" className="ml-auto" loading={net.syncing || posts.isRefetching} onClick={() => { void posts.refetch(); net.sync(); }} data-testid="posts-refresh">
+            <IconRefresh className="h-4 w-4" aria-hidden />Refresh
+          </Button>
+        )}
+      </div>
+      {posts.isPending ? <div className="space-y-3"><Skeleton className="h-28 rounded-xl" /><Skeleton className="h-28 rounded-xl" /></div>
         : posts.error ? (
           <Card className="p-5">
             <p className="text-sm text-bad" role="alert">{errorMessage(posts.error, "Couldn't load posts.")}</p>
@@ -356,50 +505,44 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
         ) : (
           <ul className="space-y-3" data-testid="social-posts">
             {shown.map((p) => {
-              const st = POST_STATUS[p.status];
+              const gone = removedEverywhere(p);
+              const st = gone ? { label: "Removed", tone: "neutral" as const } : POST_STATUS[p.status];
               return (
                 <li key={p.id}>
                   <Card className="p-4 md:p-5" data-testid="social-post" data-status={p.status}>
-                    <div className="flex flex-wrap items-start gap-3">
-                      {p.imageUrl && <img src={p.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-lg border border-line object-cover" loading="lazy" />}
+                    <div className="flex items-start gap-3.5">
+                      {p.imageUrl && (
+                        <span className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-line bg-fill">
+                          <img src={p.imageUrl} alt="" className="max-h-full max-w-full object-contain" loading="lazy" />
+                        </span>
+                      )}
                       <div className="min-w-0 flex-1">
-                        <p className="line-clamp-3 whitespace-pre-line text-sm">{p.text}</p>
-                        <p className="mt-1.5 flex flex-wrap items-center gap-2 text-[12.5px] text-muted">
+                        <p className="flex flex-wrap items-center gap-2 text-[12.5px] text-muted">
                           <Badge tone={st.tone} dot>{st.label}</Badge>
                           <span>{p.status === "scheduled" ? `Goes out ${whenText(p.runAt)}` : whenText(p.runAt)}</span>
                         </p>
+                        <p className={cn("mt-2 line-clamp-4 whitespace-pre-line break-words text-sm leading-relaxed", gone && "text-muted")}>{p.text}</p>
                       </div>
-                      {canManage && (p.status === "scheduled" || p.status === "failed" || p.status === "partial") && (
-                        <div className="flex gap-2 max-sm:w-full">
-                          {p.status === "scheduled"
-                            ? <Button variant="ghost" size="sm" className="max-sm:flex-1" loading={cancel.isPending && cancel.variables === p.id} onClick={() => cancel.mutate(p.id)}>Cancel post</Button>
-                            : <Button variant="outline" size="sm" className="max-sm:flex-1" loading={retry.isPending && retry.variables === p.id} onClick={() => retry.mutate(p.id)}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button>}
-                        </div>
-                      )}
                     </div>
-                    <ul className="mt-3 divide-y divide-line rounded-lg border border-line" aria-label="Accounts">
-                      {p.targets.map((t) => (
-                        <li key={t.accountId} className="flex flex-wrap items-center gap-2 px-3 py-2 text-[13px]" data-testid="post-target" data-status={t.status}>
-                          <AppLogo slug={t.app} name={t.label ?? t.app} size="sm" />
-                          <span className="min-w-0 flex-1 truncate">{t.label ?? t.app}{t.target ? <span className="text-muted">, {t.targetName ?? t.target}</span> : null}</span>
-                          {t.status === "sent" ? (
-                            <span className="inline-flex items-center gap-1.5 text-ok"><IconCheckCircle className="h-4 w-4" aria-hidden />Posted
-                              {t.url && <a href={t.url} target="_blank" rel="noopener noreferrer" className="ml-1 inline-flex min-h-8 items-center gap-1 font-medium text-fg underline underline-offset-2 hover:text-muted">View<IconExternalLink className="h-3.5 w-3.5" aria-hidden /></a>}
-                            </span>
-                          ) : t.status === "failed" || t.status === "skipped" ? (
-                            <TargetError error={t.error} accountId={t.accountId} appName={t.label ?? t.app} canManage={canManage} />
-                          ) : (
-                            <span className="text-muted">{p.status === "scheduled" ? "Waiting" : p.status === "canceled" ? "Not sent" : "Posting"}</span>
-                          )}
-                        </li>
-                      ))}
+                    <ul className="mt-3.5 divide-y divide-line rounded-lg border border-line" aria-label="Accounts">
+                      {p.targets.map((t) => <TargetRow key={t.accountId} t={t} p={p} canManage={canManage} />)}
                     </ul>
+                    {canManage && p.status !== "sending" && (
+                      <div className="mt-3 flex flex-wrap justify-end gap-2">
+                        {p.status === "scheduled" && <Button variant="ghost" size="sm" className="max-sm:flex-1" loading={cancel.isPending && cancel.variables === p.id} onClick={() => cancel.mutate(p.id)}>Cancel post</Button>}
+                        {(p.status === "failed" || p.status === "partial") && <Button variant="outline" size="sm" className="max-sm:flex-1" loading={retry.isPending && retry.variables === p.id} onClick={() => retry.mutate(p.id)}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button>}
+                        <Button variant="ghost" size="sm" className="text-bad hover:text-bad max-sm:flex-1" onClick={() => setToDelete(p)} data-testid="post-delete"><IconTrash className="h-4 w-4" aria-hidden />Delete</Button>
+                      </div>
+                    )}
                   </Card>
                 </li>
               );
             })}
           </ul>
         )}
+      <ConfirmDialog open={!!toDelete} onClose={() => setToDelete(null)} onConfirm={() => toDelete && del.mutate(toDelete.id)} busy={del.isPending}
+        title="Delete this post?" description={deleteText || "It leaves your list in Multies."}
+        confirmLabel={reach.on.length ? `Delete from ${andList(reach.on)}` : "Delete post"} />
     </section>
   );
 }
