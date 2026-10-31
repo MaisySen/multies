@@ -64,7 +64,7 @@ export const SECTIONS: Section[] = [
   { id: "agents", label: "Agents", icon: "agents", to: "/app/agents", pages: [
     { to: "/app/agents", label: "Agents", icon: "agents" },
     // R90 (layout plan: one Automations home under Agents): flows, rules and their runs.
-    { to: "/app/automations", label: "Automations", icon: "automations", end: true },
+    { to: "/app/automations", label: "Automations", icon: "automations" },
     { to: "/app/automations/runs", label: "Runs", icon: "activity", flag: "flows" },
   ] },
   // P1 layout: "Workspace" is called Settings; it holds only wiring (connect, keys, people, billing, the log).
