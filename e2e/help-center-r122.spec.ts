@@ -121,6 +121,7 @@ test("admin sets up a help center, publishes a doc; visitors read, search, give 
   expect(await axe(page, "question dialog", "dialog")).toEqual([]);
   await page.keyboard.press("Escape");
   await v.page.goto(`${base}/questions`);
+  expect(await axe(v.page, "public questions", "body")).toEqual([]);
   await v.page.getByRole("link", { name: /Can I sign in with my phone number/ }).click();
   await expect(v.page.getByText("Best answer")).toBeVisible();
   await shot(v.page, "r122-public-question-1280-light");
@@ -153,7 +154,7 @@ test("admin sets up a help center, publishes a doc; visitors read, search, give 
     }
   };
   const pubViews = async (suffix: string) => {
-    for (const [name, path] of [["public-home", base], ["public-article", `${base}/a/reset-your-password`]] as const) {
+    for (const [name, path] of [["public-home", base], ["public-article", `${base}/a/reset-your-password`], ["public-questions", `${base}/questions`]] as const) {
       await v.page.goto(path);
       await shot(v.page, `r122-${name}-${suffix}`);
       expect(await axe(v.page, `${name} ${suffix}`, "body")).toEqual([]);

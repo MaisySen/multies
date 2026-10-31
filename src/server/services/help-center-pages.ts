@@ -35,7 +35,7 @@ a.card:hover{border-color:var(--brand);text-decoration:none}
 ul.list{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden}
 ul.list li+li{border-top:1px solid var(--line)}ul.list a{display:block;padding:14px 18px;color:var(--fg)}ul.list a:hover{background:var(--soft);text-decoration:none}
 ul.list .t{font-weight:600;display:block}ul.list .s{color:var(--muted);font-size:14px;display:block;overflow-wrap:anywhere}
-.meta{color:var(--muted);font-size:13px}.pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--soft);color:var(--muted);margin-right:6px}
+.meta{color:var(--muted);font-size:13px}.meta a,.doc a,p a{text-decoration:underline;text-underline-offset:2px}.pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--soft);color:var(--muted);margin-right:6px}
 .pill.ok{color:var(--good)}
 .crumbs{font-size:14px;color:var(--muted);margin:0 0 16px}.crumbs a{color:var(--muted)}
 article.doc{font-size:17px;line-height:1.7;overflow-wrap:anywhere}article.doc h1{font-size:30px;line-height:1.25;margin:0 0 8px;letter-spacing:-.02em}
