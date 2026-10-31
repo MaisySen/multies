@@ -187,3 +187,23 @@ test("phone: the convert button stays in reach and tap targets are 44px", async 
   }
   for (const b of await page.getByRole("button", { name: /^(Move|Remove) / }).all()) expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
 });
+
+test("brand themes: Forest, Gold and Aubergine keep the hub readable (axe AA) in light and dark", async ({ page }) => {
+  test.setTimeout(180_000);
+  await signIn(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  for (const theme of ["Forest", "Gold", "Aubergine"]) {
+    await page.goto("/app/settings/branding");
+    await expect(page.getByTestId("branding-settings")).toBeVisible({ timeout: 20_000 });
+    await page.getByRole("button", { name: theme, exact: true }).click();
+    await page.getByRole("button", { name: "Save brand" }).click();
+    await page.waitForTimeout(600);
+    await open(page);
+    await page.getByTestId("convert-input").setInputFiles(["photo-a.png", "photo-b.jpg"].map((f) => join(FIX, f)));
+    await page.getByTestId("convert-to-webp").click();
+    await page.getByTestId("convert-run").click();
+    await expect(page.locator('[data-testid="convert-job"][data-status="done"]')).toHaveCount(2, { timeout: 30_000 });
+    await axe(page, `brand ${theme}`);
+    await shots(page, `brand-${theme.toLowerCase()}`, "convert-targets");
+  }
+});

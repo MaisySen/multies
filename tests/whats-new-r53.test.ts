@@ -67,6 +67,8 @@ describe("R53 whats-new list", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-10-29-inbox-reply")).toBe(false);
     // R71: "Your whole mailbox syncs by itself" made room for the QA pass 6 fixes.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-29-full-mailbox-sync")).toBe(false);
+    // R78: "Clearer legal pages" made room for Convert any file.
+    expect(WHATS_NEW.some((e) => e.id === "2026-10-30-clearer-legal")).toBe(false);
     // R74: "Free for a small team, and easy to move in" made room for Split choices and the kept file.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-29-free-and-switch")).toBe(false);
     // R75: "Share a guest invite yourself" made room for the clearer timeline.

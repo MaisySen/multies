@@ -7,6 +7,16 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 78 (31 Oct 2026)
+
+- Added: Tools, Convert any file (/app/tools/convert, first in the Convert section and in Popular, and "Convert files" in the command menu): drop one file or up to 50, Multies reads each one and shows only the formats every file can become. A data driven route planner (src/shared/convert-routes.ts) chains up to 3 steps over 21 formats, prefers steps on the device, and uses at most one engine run per file.
+- Added: conversions in the browser with nothing uploaded and no run used: JPG, PNG, WEBP, AVIF, GIF, BMP and SVG to each other and to PDF (HEIC where the browser opens it, Safari); PDF merge, split by ranges, rotate, page numbers, images into one PDF, PDF pages to PNG or JPG; CSV, TSV, XLSX and JSON to each other. The libraries (pdf-lib, pdfjs, gifenc, write-excel-file, read-excel-file, jSquash WebP and AVIF encoders, fflate) load only on this page; the app CSP adds 'wasm-unsafe-eval' for the encoders.
+- Added: everything else (Word, Excel, PowerPoint and OpenDocument to PDF, PDF to Word, text and HTML to PDF, PDF to text, Excel or CSV) goes to the Multies engine through the normal Tools job, and the page says so before you run it.
+- Added: a results tray with progress per file, Download or ZIP per result and Download all as ZIP; plain error words with Try again; Ctrl Enter converts, Ctrl O chooses files, a copied image pastes in; Clear can be undone.
+- Added: THIRD_PARTY_NOTICES entries for the new libraries (MIT, Apache 2.0, BSD codecs). No GPL code.
+- Left for later rounds: HEIC on browsers that cannot open it, video and audio, ebooks, archives, more engine formats and a second engine step per route.
+- What's new drops "Clearer legal pages" to stay at 14.
+
 ### Round 77 (31 Oct 2026)
 
 - Added: Settings, Branding (owners and admins): light and dark logos (square mark and wide), brand, accent and optional sidebar colours, corners (sharp, default, round), density (comfortable, compact), six safe fonts, the default appearance, 12 ready made themes plus "Use my logo colours", an AA contrast warning with readable text picked automatically, Reset to Multies default, a lock that keeps everyone on the brand, and a live preview of the app in light and dark.

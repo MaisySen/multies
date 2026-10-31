@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-convert-any-file",
+    date: "2026-10-31",
+    title: "Convert any file, most of them right on your device",
+    body: "Tools, Convert any file: drop one file or fifty and pick what they should become. Photos, PDFs and spreadsheets convert in your browser with nothing uploaded, and you can download each result or all of them as one ZIP. Merge, split, rotate and number PDF pages there too.",
+  },
+  {
     id: "2026-10-31-workspace-brand",
     date: "2026-10-31",
     title: "Make Multies look like your company",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-30",
     title: "Tools for your documents",
     body: "Compress, merge, split, rotate, redact, watermark, make scans searchable, and turn Word, Excel and PowerPoint into PDF, right inside Multies. Run them on an upload or straight from an email attachment. Files are deleted within 1 hour.",
-  },
-  {
-    id: "2026-10-30-clearer-legal",
-    date: "2026-10-30",
-    title: "Clearer privacy and terms",
-    body: "The privacy policy, terms and trust page now say plainly what we do today, with one contact address: contact@fintex.au. Every backup is encrypted and deleted after 30 days.",
   },
   {
     id: "2026-10-28-whats-new",
