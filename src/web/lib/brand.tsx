@@ -89,12 +89,28 @@ export function WorkspaceMark({ name, className, rounded = "rounded-md", onSideb
   return <span aria-hidden data-initial={name?.[0]?.toUpperCase() ?? ""} className={cn("grid shrink-0 place-items-center bg-brand font-bold text-brand-fg before:content-[attr(data-initial)]", rounded, className)} />;
 }
 
-/** The wide logo when the workspace has one (for headers that already exist, like Tools results). */
-export function WorkspaceWideLogo({ className, fallback = null, onSidebar }: { className?: string; fallback?: ReactNode; onSidebar?: boolean }) {
+/**
+ * The wide logo when the workspace has one (for headers that already exist, like Tools results).
+ * R77B: with `markName`, a workspace that uploaded only a square logo gets that logo and its name instead of the
+ * fallback, so an upload always shows at the top of the sidebar.
+ */
+export function WorkspaceWideLogo({ className, fallback = null, onSidebar, markName }: { className?: string; fallback?: ReactNode; onSidebar?: boolean; markName?: string }) {
   const q = useBranding();
   const { resolved } = useAppearance();
   const b = q.data?.brand;
-  const kind = b ? pickLogo(b, "wide", logoScheme(b, resolved, onSidebar)) : null;
+  const scheme = b ? logoScheme(b, resolved, onSidebar) : resolved;
+  const kind = b ? pickLogo(b, "wide", scheme) : null;
+  if (b && !kind && markName !== undefined && q.data) {
+    const mark = pickLogo(b, "mark", scheme);
+    if (mark) {
+      return (
+        <span className="flex min-w-0 items-center gap-2" data-testid="workspace-mark-logo">
+          <img src={logoUrl(q.data.orgId, mark, b.logos[mark]!)} alt="" aria-hidden className="h-7 w-7 shrink-0 rounded-md object-contain" />
+          <span className="max-w-[140px] truncate text-[15px] font-semibold tracking-[-0.01em] text-fg">{markName}</span>
+        </span>
+      );
+    }
+  }
   if (!b || !kind || !q.data) return <>{fallback}</>;
   return <img src={logoUrl(q.data.orgId, kind, b.logos[kind]!)} alt="" aria-hidden className={cn("h-6 w-auto max-w-[160px] object-contain", className)} data-testid="workspace-wide-logo" />;
 }

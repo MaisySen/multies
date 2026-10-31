@@ -18,10 +18,13 @@ const READING = [
 ];
 /** Tools editors and docs pages that are themselves wide surfaces stay full even under a reading prefix. */
 const FULL_EXCEPTIONS = [/^\/app\/tools\/(pages|forms|compare|merge|workflows|sign)$/, /^\/app\/meetings\/[^/]+$/];
+/** R77B: settings panes with a form beside a live preview need the room; they run wide under the settings prefix. */
+const WIDE_EXCEPTIONS = [/^\/app\/settings\/(branding|appearance)$/];
 
 export function pageWidth(pathname: string): PageWidth {
   const p = pathname.replace(/\/+$/, "") || "/";
   if (FULL_EXCEPTIONS.some((r) => r.test(p))) return "full";
+  if (WIDE_EXCEPTIONS.some((r) => r.test(p))) return "wide";
   if (READING.some((r) => r.test(p))) return "reading";
   if (FULL.some((r) => r.test(p))) return "full";
   return "wide";

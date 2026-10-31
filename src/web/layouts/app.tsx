@@ -200,7 +200,7 @@ export function AppLayout() {
   const sidebar = (
     <div className="flex h-full flex-col">
       <div className="flex h-14 shrink-0 items-center justify-between px-4">
-        <Link to="/app" aria-label="Multies overview"><WorkspaceWideLogo onSidebar fallback={<Logo className="h-6" />} /></Link>
+        <Link to="/app" aria-label="Multies overview"><WorkspaceWideLogo onSidebar markName={me.data?.organization?.name ?? ""} fallback={<Logo className="h-6" />} /></Link>
         <button className="grid h-11 w-11 place-items-center rounded-full text-muted transition-colors hover:bg-hover hover:text-fg lg:hidden" onClick={() => setDrawer(false)} aria-label="Close navigation"><IconClose className="h-5 w-5" /></button>
       </div>
       <div className="shrink-0 px-3">
