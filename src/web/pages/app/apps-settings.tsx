@@ -219,7 +219,7 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
                 <AppLogo slug={a.app} name={a.appName} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[15px] font-medium">{a.appName}{a.label ? <span className="text-muted">, {a.label}</span> : n ? <span className="text-muted">, account {n}</span> : null}</p>
-                  <p className="flex flex-wrap items-center gap-2 text-[13px] text-muted"><Badge tone={s.tone} dot>{s.label}</Badge><span>Connected {timeAgo(a.createdAt)}</span></p>
+                  <p className="flex flex-wrap items-center gap-2 text-[13px] text-muted"><Badge tone={s.tone} dot>{s.label}</Badge><span>{a.status === "pending" ? "Started" : "Connected"} {timeAgo(a.createdAt)}</span></p>
                 </div>
                 {canManage && (
                   <div className="flex gap-2 max-sm:w-full">
@@ -278,7 +278,7 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
           <>
             <ul className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3" data-testid="apps-grid">
               {matches.slice(0, limit).map((a) => (
-                <AppCard key={a.slug} app={a} count={byApp.get(a.slug)?.length ?? 0} canManage={canManage} busy={connect.isPending && connect.variables === a.slug} onConnect={() => connect.mutate(a.slug)} />
+                <AppCard key={a.slug} app={a} count={byApp.get(a.slug)?.filter((x) => x.status === "active").length ?? 0} canManage={canManage} busy={connect.isPending && connect.variables === a.slug} onConnect={() => connect.mutate(a.slug)} />
               ))}
             </ul>
             {matches.length > limit && (
