@@ -334,7 +334,7 @@ export const router = createBrowserRouter([
   { path: "/f/:slug", element: publicPage(<PublicFormPage />), errorElement: <RouteError /> },
   { path: "/m/:token", element: publicPage(<GuestMeetingPage />), errorElement: <RouteError /> },
   { path: "/book/:slug", element: publicPage(<BookingPage />), errorElement: <RouteError /> },
-  { path: "/d/:token", element: publicPage(<PublicDashboardPage />), errorElement: <RouteError /> }, // R91: public dashboard link
+  { path: "/dash/:token", element: publicPage(<PublicDashboardPage />), errorElement: <RouteError /> }, // R91: public dashboard link
   { path: "/book/:slug/cancel/:id", element: publicPage(<BookingCancelPage />), errorElement: <RouteError /> },
   // A project guest (a client): the invite link, then the one project they can see.
   { path: "/g/:token", element: publicPage(<GuestAcceptPage />), errorElement: <RouteError /> },

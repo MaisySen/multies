@@ -196,7 +196,7 @@ describe("R91 routes end to end", () => {
   it("share link: opens logged out, needs its password, expires and revokes; members cannot make one", async () => {
     expect((await m.post(`/api/dashboards-plus/${dash}/shares`, {})).status).toBe(403);
     const s = (await c.post(`/api/dashboards-plus/${dash}/shares`, { password: "secret12", expiresInDays: 7 })).body;
-    const token = s.url.split("/d/")[1];
+    const token = s.url.split("/dash/")[1];
     const anon = new Client(ctx.app);
     expect((await anon.get(`/api/dash-public/${token}`)).body.error.code).toBe("password_required");
     expect((await anon.call("GET", `/api/dash-public/${token}`, undefined, { "x-share-password": "nope" })).status).toBe(401);
@@ -211,9 +211,9 @@ describe("R91 routes end to end", () => {
     expect((await anon.call("GET", `/api/dash-public/${token}`, undefined, { "x-share-password": "secret12" })).status).toBe(404);
     ctx.deps.now = () => new Date();
     const s2 = (await c.post(`/api/dashboards-plus/${dash}/shares`, { expiresInDays: null })).body;
-    expect((await anon.get(`/api/dash-public/${s2.url.split("/d/")[1]}`)).status).toBe(200);
+    expect((await anon.get(`/api/dash-public/${s2.url.split("/dash/")[1]}`)).status).toBe(200);
     expect((await c.del(`/api/dashboards-plus/shares/${s2.link.id}`)).status).toBe(200);
-    expect((await anon.get(`/api/dash-public/${s2.url.split("/d/")[1]}`)).status).toBe(404);
+    expect((await anon.get(`/api/dash-public/${s2.url.split("/dash/")[1]}`)).status).toBe(404);
   });
 
   it("scheduled report: mails each recipient once per run with unsubscribe, and stops after unsubscribe", async () => {

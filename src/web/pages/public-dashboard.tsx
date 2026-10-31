@@ -1,5 +1,5 @@
 /**
- * R91: the public read only dashboard (/d/:token). No account needed. Shows the dashboard's own numbers as
+ * R91: the public read only dashboard (/dash/:token). No account needed. Shows the dashboard's own numbers as
  * the person who shared it sees them, with names but no ids or emails, "Updated" time and Refresh. A link
  * with a password asks for it first. Works at 390 and 1280, light and dark.
  */

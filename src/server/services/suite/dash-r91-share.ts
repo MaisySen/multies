@@ -1,5 +1,5 @@
 /**
- * R91 public read only dashboard links. The token (32 random bytes) is shown once as <appUrl>/d/<token>; only
+ * R91 public read only dashboard links. The token (32 random bytes) is shown once as <appUrl>/dash/<token> (/d/ belongs to file share links); only
  * its SHA-256 is stored. Expiry presets, an optional password (PBKDF2 via hashPassword), the workspace name
  * when chosen, revoke. The page shows the dashboard's own numbers only: the widgets' data computed as the
  * person who made the link (never more than they see), with ids, emails and widget sources removed.
@@ -26,7 +26,7 @@ export const ShareCreate = z.object({
 
 type Row = typeof dashboardShares.$inferSelect;
 export const isActive = (r: Pick<Row, "revokedAt" | "expiresAt">, now: number) => !r.revokedAt && (!r.expiresAt || r.expiresAt.getTime() > now);
-export const shareUrl = (deps: Deps, token: string) => `${deps.config.appUrl.replace(/\/$/, "")}/d/${token}`;
+export const shareUrl = (deps: Deps, token: string) => `${deps.config.appUrl.replace(/\/$/, "")}/dash/${token}`;
 
 function present(r: Row, now: number) {
   return { id: r.id, createdAt: r.createdAt.toISOString(), expiresAt: r.expiresAt?.toISOString() ?? null, hasPassword: !!r.passwordHash, showBrand: r.showBrand, active: isActive(r, now), revoked: !!r.revokedAt };

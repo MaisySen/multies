@@ -39,7 +39,7 @@ async function axeClean(page: Page, label: string) {
 test("question card, public link with password, emailed report, alert once, bad source refused", async ({ browser }) => {
   test.setTimeout(240_000);
   const { ctx, page, headers, dash, base } = await account(browser);
-  await page.goto(`/app/work/dashboards/${dash}`);
+  await page.goto(`/app/dashboards/${dash}`);
   await expect(page.getByTestId("widget").first()).toBeVisible();
 
   // Build a question: tasks by status as bars.
@@ -65,7 +65,7 @@ test("question card, public link with password, emailed report, alert once, bad 
   await sd.getByLabel("Password").fill("launch2026");
   await sd.getByRole("button", { name: "Create link" }).click();
   const url = await sd.getByLabel("Public link").inputValue();
-  expect(url).toMatch(/\/d\/[A-Za-z0-9_-]{30,}$/);
+  expect(url).toMatch(/\/dash\/[A-Za-z0-9_-]{30,}$/);
   await expect(sd.getByTestId("share-row")).toHaveCount(1);
   await page.keyboard.press("Escape");
   const anon = await browser.newContext({ baseURL: base, viewport: { width: 390, height: 844 }, extraHTTPHeaders: local ? { "x-forwarded-for": ip() } : {} });
@@ -139,7 +139,7 @@ test("a member sees share and reports as read only", async ({ browser }) => {
   await mp.request.post("/api/auth/sign-up/email", { data: { name: "Max Member", email, password: "a-strong-password" }, headers });
   const acc = await mp.request.post(`/api/invites/${invite.link.split("/invite/")[1]}/accept`, { headers });
   test.skip(acc.status() !== 200, "invite acceptance needs a verified address on this server");
-  await mp.goto(`/app/work/dashboards/${dash}`);
+  await mp.goto(`/app/dashboards/${dash}`);
   await mp.getByRole("button", { name: "Share" }).click();
   await expect(mp.getByTestId("share-dialog")).toContainText("Only the owner or a workspace admin");
   await mctx.close();
@@ -158,7 +158,7 @@ for (const width of [1280, 390]) {
         await page.waitForTimeout(600);
       }
       await page.request.patch(`/api/dashboards/${dash}`, { data: { widgets: [{ type: "count", title: "All tasks" }, { type: "question", question: { table: "tasks", groupBy: "status" }, chart: "bar" }, { type: "question", title: "Open tasks", question: { table: "tasks", filters: [{ field: "status", op: "is_not", value: "done" }] }, chart: "number" }] }, headers });
-      await page.goto(`/app/work/dashboards/${dash}`);
+      await page.goto(`/app/dashboards/${dash}`);
       await expect(page.locator('[data-testid="widget"][data-type="question"]').first()).toContainText("To do");
       const tag = `${width}-${theme}`;
       await page.screenshot({ path: `${SHOTS}/dashboard-${tag}.png`, fullPage: true });
