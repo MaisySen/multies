@@ -22,6 +22,7 @@ import { Input } from "@/web/components/ui/input";
 import { ConfirmDialog } from "@/web/components/ui/confirm";
 import { IconClock, IconKey, IconLock, IconMegaphone, IconPlug, IconRefresh, IconSearch, IconTrash } from "@/web/components/ui/icon";
 import { APP_GROUPS, SOCIAL_FIRST, type AppAvailability, type AppGroup, type ConnectedAccountView } from "@/shared/integrations";
+import { DIRECT_NAMES, type DirectAccountView, type DirectStatusResponse } from "@/shared/direct-social";
 // R82F (MB-280): the Social posts panel loads with its own tab.
 const SocialPanel = lazyPage(() => import("./apps-social"), "SocialPanel", { quiet: true });
 // R83: TikTok and Threads through our own sign in, at the top of the Social posts tab.
@@ -282,7 +283,14 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
     return m;
   }, [accounts.data]);
 
-  const apps = useMemo(() => catalog.data ?? [], [catalog.data]);
+  // R83: TikTok and Threads connect through our own sign in (apps-direct), not the shared platform.
+  const direct = useQuery({ queryKey: ["direct", "status"] as const, queryFn: () => api.get<DirectStatusResponse>("/direct/status"), staleTime: 15_000 });
+  const own = useMemo(() => new Map<string, DirectAccountView>((direct.data?.accounts ?? []).map((a) => [a.provider, a])), [direct.data]);
+  const ownConnected = useMemo(() => (direct.data?.accounts ?? []).filter((a) => a.connected), [direct.data]);
+  const apps = useMemo(() => (catalog.data ?? []).map((a): CatalogApp => {
+    const o = own.get(a.slug);
+    return o && !o.available && !o.connected ? { ...a, availability: "soon" } : a;
+  }), [catalog.data, own]);
   const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const matches = useMemo(() => {
     const order = new Map<string, number>(SOCIAL_FIRST.map((s, i) => [s, i]));
@@ -311,7 +319,7 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
               <p className="flex-1 text-sm text-bad" role="alert">{errorMessage(accounts.error, "Couldn't load your connected apps.")}</p>
               <Button variant="outline" size="sm" onClick={() => void accounts.refetch()}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button>
             </div>
-          ) : connected.length === 0 ? (
+          ) : connected.length === 0 && ownConnected.length === 0 ? (
             <div className="flex items-center gap-3 p-4 text-sm text-muted" data-testid="apps-none">
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-fill text-muted" aria-hidden><IconPlug className="h-4 w-4" /></span>
               <p>Nothing connected yet. Pick an app below to connect your first account.</p>
@@ -340,6 +348,21 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
               </div>
             );
           })}
+          {!accounts.isPending && !accounts.error && ownConnected.map((a) => (
+            <div key={a.provider} className="flex flex-wrap items-center gap-3 p-4 md:px-5" data-testid={`account-${a.provider}`}>
+              <AppLogo slug={a.provider} name={DIRECT_NAMES[a.provider]} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[15px] font-medium">{DIRECT_NAMES[a.provider]}{a.username ? <span className="text-muted">, @{a.username}</span> : null}</p>
+                <p className="flex flex-wrap items-center gap-2 text-[13px] text-muted">
+                  {a.status === "expired" ? <Badge tone="warn" dot>Sign in expired</Badge> : <Badge tone="ok" dot>Connected</Badge>}
+                  {a.connectedAt && <span>Connected {timeAgo(a.connectedAt)}</span>}
+                </p>
+              </div>
+              <Button variant="outline" size="sm" className="max-sm:w-full" onClick={() => navigate("/app/settings/apps/social")} aria-label={`Manage ${DIRECT_NAMES[a.provider]}`}>
+                <IconMegaphone className="h-4 w-4" aria-hidden />Manage and post
+              </Button>
+            </div>
+          ))}
         </Card>
         {connected.some((a) => a.status === "active" && a.app in { facebook: 1, instagram: 1, linkedin: 1, pinterest: 1, reddit: 1 }) && (
           <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate("/app/settings/apps/social")}>
@@ -384,7 +407,10 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
           <>
             <ul className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3" data-testid="apps-grid">
               {matches.slice(0, limit).map((a) => (
-                <AppCard key={a.slug} app={a} count={byApp.get(a.slug)?.filter((x) => x.status === "active").length ?? 0} canManage={canManage} busy={connect.isPending && connect.variables === a.slug} onConnect={() => connect.mutate(a.slug)} />
+                <AppCard key={a.slug} app={a} single={own.has(a.slug)}
+                  count={own.has(a.slug) ? (own.get(a.slug)?.connected ? 1 : 0) : byApp.get(a.slug)?.filter((x) => x.status === "active").length ?? 0}
+                  canManage={own.has(a.slug) ? !!direct.data?.canManage : canManage} busy={connect.isPending && connect.variables === a.slug}
+                  onConnect={() => (own.has(a.slug) ? window.location.assign(`/api/connections/oauth/${a.slug}/start`) : connect.mutate(a.slug))} />
               ))}
             </ul>
             {more && (
@@ -402,7 +428,8 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
   );
 }
 
-function AppCard({ app, count, canManage, busy, onConnect }: { app: CatalogApp; count: number; canManage: boolean; busy: boolean; onConnect: () => void }) {
+/** `single`: one account per workspace (our own TikTok and Threads sign in), so a connected card offers no second one. */
+function AppCard({ app, count, canManage, busy, onConnect, single = false }: { app: CatalogApp; count: number; canManage: boolean; busy: boolean; onConnect: () => void; single?: boolean }) {
   return (
     <li className="flex min-w-0 flex-col gap-3 rounded-xl border border-line bg-surface p-4 shadow-card transition-colors duration-150 hover:border-line-strong" data-testid={`app-${app.slug}`}>
       <div className="flex min-w-0 items-start gap-3">
@@ -410,7 +437,7 @@ function AppCard({ app, count, canManage, busy, onConnect }: { app: CatalogApp; 
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] font-medium leading-5">
             <span className="truncate">{app.name}</span>
-            {count > 0 && <Badge tone="ok" dot>{count === 1 ? "Connected" : `${count} connected`}</Badge>}
+            {count > 0 && <Badge tone="ok" dot>{count === 1 ? "Connected" : `Connected · ${count}`}</Badge>}
           </p>
           <p className="mt-1 line-clamp-2 text-[13px] leading-[18px] text-muted">{app.description}</p>
         </div>
@@ -421,9 +448,9 @@ function AppCard({ app, count, canManage, busy, onConnect }: { app: CatalogApp; 
             : app.availability === "soon" ? <span className="inline-flex items-center gap-1"><IconClock className="h-3.5 w-3.5" aria-hidden />Coming soon</span>
             : app.canPost ? <span className="inline-flex items-center gap-1"><IconMegaphone className="h-3.5 w-3.5" aria-hidden />Post from Multies</span> : null}
         </span>
-        {app.availability !== "soon" && canManage && (
-          <Button size="sm" variant={count ? "outline" : "primary"} loading={busy} onClick={onConnect} aria-label={count ? `Add account for ${app.name}` : `Connect ${app.name}`}>
-            <IconPlug className="h-4 w-4" aria-hidden />{count ? "Add account" : "Connect"}
+        {app.availability !== "soon" && canManage && !(single && count > 0) && (
+          <Button size="sm" variant={count ? "outline" : "primary"} loading={busy} onClick={onConnect} className="shrink-0" aria-label={count ? `Add another ${app.name} account` : `Connect ${app.name}`}>
+            <IconPlug className="h-4 w-4" aria-hidden />{count ? "Add another account" : "Connect"}
           </Button>
         )}
       </div>

@@ -559,6 +559,8 @@ Live on production at multies.si unless marked otherwise. Round 11 becomes 0.11.
 ### Fixed
 - The agent page no longer overflows on phones: its two columns may shrink below the width of the connect snippets (round 14).
 
+- Connections: TikTok and Threads are ready in Add an app and connect through our own sign in; a connected one shows in Connected with Manage and post. Snapchat now reads Share photos and videos to Snapchat (still coming soon). Cards with accounts say Add another account and Connected · 2.
+
 ## [0.10.0] (round 10, 24 Oct 2026)
 
 ### Added

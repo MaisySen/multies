@@ -257,3 +257,20 @@ describe("R83 Threads", () => {
     expect(await ctx.db.select().from(directSocialLinks).all()).toHaveLength(0);
   });
 });
+
+
+describe("R83 catalog: TikTok and Threads are ready, Snapchat copy", () => {
+  it("lists TikTok and Threads as ready everywhere and Snapchat as sharing, still coming soon", async () => {
+    const top = (await import("../src/shared/connections-catalog-top.json")).default as { apps: { slug: string; availability: string; description: string }[] };
+    const all = (await import("../src/shared/connections-catalog.json")).default as { apps: { slug: string; availability: string; description: string }[] };
+    for (const list of [top.apps, all.apps]) {
+      const by = new Map(list.map((a) => [a.slug, a]));
+      expect(by.get("tiktok")?.availability).toBe("ready");
+      expect(by.get("threads")?.availability).toBe("ready");
+      expect(by.get("snapchat")?.availability).toBe("soon");
+      expect(by.get("snapchat")?.description).toBe("Share photos and videos to Snapchat.");
+      if (by.has("twitter")) expect(by.get("twitter")?.availability).toBe("soon");
+      if (by.has("google_business_profile")) expect(by.get("google_business_profile")?.availability).toBe("soon");
+    }
+  });
+});

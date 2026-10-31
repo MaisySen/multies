@@ -17,7 +17,7 @@ async function demo(page: Page) {
 
 async function connect(page: Page, slug: string, search: string) {
   await page.getByTestId("apps-search").fill(search);
-  await page.getByTestId(`app-${slug}`).getByRole("button", { name: /Connect|Add account/ }).click();
+  await page.getByTestId(`app-${slug}`).getByRole("button", { name: /Connect|Add another account/ }).click();
   await expect(page).toHaveURL(/\/app\/settings\/apps(\?|$)/);
   await expect(page.getByTestId(`account-${slug}`).first()).toBeVisible();
 }

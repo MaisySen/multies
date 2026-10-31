@@ -12,7 +12,11 @@ interface Toolkit { slug: string; name: string; meta?: { description?: string; c
 
 export interface CatalogEntry { slug: string; name: string; description: string; group: AppGroup; availability: AppAvailability; canPost: boolean; rank: number }
 
+/** R83: our own TikTok and Threads connectors (src/server/services/direct-social) make these two ready on every host. */
+export const OWN_CONNECTORS = ["tiktok", "threads"] as const;
+
 export function availabilityOf(t: Toolkit): AppAvailability | null {
+  if ((OWN_CONNECTORS as readonly string[]).includes(t.slug)) return "ready";
   const schemes = t.auth_schemes ?? [];
   if (t.no_auth || schemes.length === 0 || (schemes.length === 1 && schemes[0] === "NO_AUTH")) return null;
   if ((t.composio_managed_auth_schemes ?? []).length > 0 || schemes.includes("DCR_OAUTH")) return "ready";
@@ -38,7 +42,7 @@ export const DESCRIPTIONS: Record<string, string> = {
   telegram: "Send messages to your chats and channels through your own bot.",
   discord: "Send messages and updates to your Discord server.",
   whatsapp: "Message customers from your WhatsApp Business number.",
-  snapchat: "Run and track Snapchat ad campaigns.",
+  snapchat: "Share photos and videos to Snapchat.",
   gmail: "Read, send and sort mail in your Gmail account.",
   github: "Work with repositories, issues and pull requests on GitHub.",
   googlecalendar: "See and create events in Google Calendar.",
