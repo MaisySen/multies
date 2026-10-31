@@ -94,7 +94,13 @@ const deps = {
 const app = createApp(deps);
 
 // Housekeeping: DNS re-checks, session expiry, sandbox purge.
-const tick = () => runMaintenanceIfMigrated(deps).catch((err) => console.error("[maintenance]", err));
+const tick = () => {
+  void runMaintenanceIfMigrated(deps).catch((err) => console.error("[maintenance]", err));
+  // R97: due notification digests (self hosted servers run the same pass as the cloud cron).
+  if (deps.config.notificationCentre !== false) {
+    void import("../server/services/suite/notify-centre-r97").then((m) => m.runNotificationDigests(deps)).catch((err) => console.error("[notify.digest]", err));
+  }
+};
 setInterval(tick, 10 * 60_000).unref();
 setTimeout(tick, 5_000).unref();
 
