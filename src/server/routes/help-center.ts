@@ -118,6 +118,8 @@ export function helpPublicRoutes() {
   const visitor = (c: Context<AppEnv>, ctr: LiveCenter) => visitorOf(c.var.deps, ctr.orgId, c.var.ip, c.req.header("user-agent"));
   const see = (to: string) => new Response(null, { status: 303, headers: { location: to, "cache-control": "private, no-store" } });
 
+  // A trailing slash (people type it, some sites link it) goes to the canonical address.
+  app.get("/:slug/", (c) => c.redirect(`/help/${encodeURIComponent(c.req.param("slug") ?? "")}`, 301));
   app.get("/:slug", async (c) => {
     const r = await center(c); if ("err" in r) return r.err;
     return c.html(homePage(r.ctr, r.base, await publicHome(c.var.deps, r.ctr)), 200, HTML_HEADERS);

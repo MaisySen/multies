@@ -172,6 +172,23 @@ describe("articles", () => {
   });
 });
 
+describe("every public page answers 200 (lead v9 guard)", () => {
+  it("home, category, article, search, questions, question, ask and sitemap", async () => {
+    await setup();
+    const cat = (await owner.post("/api/help-center/categories", { name: "Billing" })).body.category;
+    await owner.post("/api/help-center/articles", { docId: await doc("Change your plan", "Pick a new plan."), categoryId: cat.id });
+    const ask = await html("/help/acme-help/ask");
+    later();
+    await post("/help/acme-help/ask", { ...formOf(ask.text), title: "Can I pay yearly?", body: "", name: "" });
+    const q = (await owner.get("/api/help-center/questions?status=pending")).body.questions[0];
+    await owner.patch(`/api/help-center/questions/${q.id}`, { status: "published" });
+    expect((await html("/help/acme-help/")).status).toBe(301);
+    for (const path of ["/help/acme-help", "/help/acme-help/c/billing", "/help/acme-help/a/change-your-plan", "/help/acme-help/search?q=plan", "/help/acme-help/questions", `/help/acme-help/q/${q.id}`, "/help/acme-help/ask", "/help/acme-help/sitemap.xml"]) {
+      expect((await html(path)).status, path).toBe(200);
+    }
+  });
+});
+
 describe("questions and answers", () => {
   it("a visitor question waits for the team; approve, answer, accept, vote", async () => {
     await setup();

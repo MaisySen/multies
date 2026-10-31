@@ -101,3 +101,17 @@ describe("public posts", () => {
     expect(helpfulPercent(3, 1)).toBe(75);
   });
 });
+
+// Lead v9 guard (R120 staging finding): on Cloudflare the Worker must run first for /help/* (wrangler run_worker_first)
+// and hand /help/* to the app (src/entry/worker.ts), or every public help center page answers the static 404 page.
+describe("R122 /help/* reaches the app on Cloudflare", () => {
+  it("is in run_worker_first and handed to the app by the worker entry", async () => {
+    const { readFileSync } = await import("node:fs");
+    const toml = readFileSync("wrangler.toml", "utf8");
+    const rwf = toml.split("\n").filter((l) => l.trim().startsWith("run_worker_first"));
+    expect(rwf.length).toBeGreaterThan(0);
+    for (const l of rwf) expect(l).toContain('"/help/*"');
+    const entry = readFileSync("src/entry/worker.ts", "utf8");
+    expect(entry).toContain('url.pathname.startsWith("/help/")');
+  });
+});
