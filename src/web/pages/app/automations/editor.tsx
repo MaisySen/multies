@@ -139,7 +139,7 @@ function Editor({ flow }: { flow: FlowDto }) {
       <Link to="/app/automations" className="mb-2 inline-flex w-fit items-center gap-1 text-[13px] text-muted hover:text-fg max-sm:min-h-11"><IconArrowLeft className="h-4 w-4" aria-hidden />Automations</Link>
       <header className="mb-3 flex flex-wrap items-center gap-2">
         <Input aria-label="Flow name" value={name} maxLength={80} readOnly={readOnly} onChange={(e) => { setName(e.target.value); setDirty(true); }}
-          className="h-9 min-w-0 flex-1 border-transparent bg-transparent px-1 text-[20px] font-semibold hover:border-line focus:border-line-strong sm:max-w-md" />
+          className="h-9 min-w-0 basis-full border-transparent bg-transparent px-1 text-[20px] font-semibold hover:border-line focus:border-line-strong sm:max-w-md sm:flex-1 sm:basis-auto" />
         <div className="flex flex-wrap items-center gap-2">
           {problems.length > 0 && <Badge tone="warn"><IconWarning className="h-3.5 w-3.5" aria-hidden />{problems.length} to fix</Badge>}
           {dirty && <span className="text-[12px] text-subtle" aria-live="polite">Not saved</span>}
