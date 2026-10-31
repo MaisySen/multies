@@ -206,7 +206,8 @@ export async function sendReport(deps: Deps, r: Row): Promise<{ sent: number; er
     if (unsub.has(to.email)) continue;
     const off = `${base}/api/dash-public/reports/unsubscribe?r=${encodeURIComponent(r.id)}&e=${encodeURIComponent(to.email)}&t=${await unsubscribeToken(deps, r.id, to.email)}`;
     const open = to.userId ? `${base}/app/dashboards/${encodeURIComponent(r.dashboardId)}` : shared;
-    const text = `${body}\n\nUpdated ${when(Date.parse(dash.updatedAt), r.timeZone)}.\n${r.withPdf ? `PDF: ${base}/api/dash-public/${share.token}/pdf\n` : ""}Open the dashboard: ${open}\n\nStop these emails: ${off}`;
+    // The time reads in the dashboard's own zone, as on the dashboard and the PDF; the mail adds the "Open dashboard" link itself.
+    const text = `${body}\n\nUpdated ${when(Date.parse(dash.updatedAt), dash.timeZone)}.\n${r.withPdf ? `PDF: ${base}/api/dash-public/${share.token}/pdf\n` : ""}\nStop these emails: ${off}`;
     const res = await sendSystemEmail(deps, { to: to.email, subject: `${dash.name}: your ${r.frequency} report`, text, action: { label: "Open dashboard", url: open }, orgId: r.orgId });
     if (res.delivered || res.via !== "none") sent++;
   }
