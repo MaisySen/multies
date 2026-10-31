@@ -11,7 +11,7 @@ import { DateInput } from "@/web/components/ui/input"; // R67 (MB-250)
 import { useQueryClient } from "@tanstack/react-query";
 import { SwipeTr } from "@/web/components/ui/swipe-row";
 import { useRevealRow, useWindowedList } from "@/web/lib/use-windowed-list"; // R43 (MB-210)
-import { IconAgent, IconArrowDown, IconArrowUp, IconCalendarDays, IconCheck, IconCircleDot, IconClose, IconMail, IconMove, IconShapes, IconSprint, IconTag, IconTrash, IconUserRound, IconCheckCircle, IconMore, IconFlag } from "@/web/components/ui/icon";
+import { IconAgent, IconArrowDown, IconArrowUp, IconCalendarDays, IconCheck, IconCircleDot, IconClose, IconMail, IconMove, IconShapes, IconSprint, IconTag, IconTrash, IconUserRound, IconCheckCircle, IconMore, IconFlag, IconPlus } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
@@ -241,8 +241,10 @@ function LabelEditor({ value, onSave, onCancel }: { value: string[]; onSave: (v:
 
 interface Cell { r: number; c: number }
 
-export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], projectId }: {
+export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], projectId, onAdd }: {
   tasks: Task[]; projects: Project[]; onOpen: (id: string) => void; fields?: CustomField[]; people?: AssigneeOption[]; projectId?: string;
+  /** R79: the "+ Add task" row under the list. */
+  onAdd?: () => void;
 }) {
   const writes = useTableWrites();
   const pmap = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
@@ -351,10 +353,11 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
 
   return (
     <div className="relative">
-      <div ref={gridRef} role="grid" aria-label="Tasks" aria-multiselectable="true" aria-rowcount={rows.length + 1} tabIndex={0} onKeyDown={onKeyDown}
+      {/* R79 (axe): the grid role sits on the table itself; the scroller is a labelled region that takes focus. */}
+      <div ref={gridRef} role="region" aria-label="Tasks table" tabIndex={0} onKeyDown={onKeyDown}
         onFocus={(e) => { if (e.target === gridRef.current && !focus && rows.length) setFocus({ r: 0, c: 1 }); }}
         className="max-h-[calc(100dvh-13rem)] overflow-auto rounded-xl border border-line outline-none focus-visible:ring-2 focus-visible:ring-brand/30" data-testid="task-table">
-        <table className="w-full border-separate border-spacing-0 text-[13px]">
+        <table role="grid" aria-label="Tasks" aria-multiselectable="true" aria-rowcount={rows.length + 1} className="w-full border-separate border-spacing-0 text-[13px]">
           <thead className="text-left text-[12px] text-subtle">
             <tr>
               <th className="sticky top-0 z-20 w-9 border-b border-line bg-surface/95 px-3 py-2 backdrop-blur">
@@ -417,6 +420,10 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
             })}
             {win.padBottom > 0 && <tr aria-hidden="true" data-testid="win-pad-bottom" style={{ height: win.padBottom }}><td colSpan={span} className="p-0" /></tr>}
             {rows.length === 0 && <tr><td colSpan={columns.length + 1} className="px-3 py-10 text-center text-muted">No tasks match these filters.</td></tr>}
+            {onAdd && <tr><td colSpan={columns.length + 1} className="p-0">
+              <button type="button" onClick={onAdd} data-testid="table-add-task" className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-[13px] text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand motion-reduce:transition-none">
+                <IconPlus className="h-3.5 w-3.5" aria-hidden />Add task</button>
+            </td></tr>}
           </tbody>
         </table>
       </div>

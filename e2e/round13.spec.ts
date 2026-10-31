@@ -17,10 +17,14 @@ test.beforeAll(async ({ browser }) => {
 });
 test.afterAll(async () => { await ctx?.close(); });
 
-test("sidebar: grouped into Work, Mail and Admin, with Shared inbox under Mail", async () => {
+test("shell (R79): sections in the rail, with Shared inbox in the Mail section", async () => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  const nav = page.getByRole("navigation", { name: "App" });
-  await expect(nav.getByTestId("nav-group")).toHaveText(["Work", "Mail", "Workspace"]);
+  const rail = page.getByTestId("icon-rail");
+  await expect(rail.getByTestId("rail-mail")).toBeVisible();
+  await expect(rail.getByTestId("rail-tasks")).toBeVisible();
+  await expect(rail.getByTestId("rail-workspace")).toBeVisible();
+  await page.goto("/app/mailboxes");
+  const nav = page.getByTestId("context-sidebar");
   await expect(nav.getByRole("link", { name: "Shared inbox" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Team inbox" })).toHaveCount(0);
 });

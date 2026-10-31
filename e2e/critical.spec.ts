@@ -194,7 +194,7 @@ test("approve an agent's message from the approval queue", async ({ page }) => {
   await page.goto("/login");
   await page.getByRole("button", { name: "Explore a demo workspace" }).click();
   await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
-  await page.getByRole("navigation", { name: "App" }).getByRole("link", { name: /Approvals/ }).click();
+  await page.getByTestId("context-sidebar").getByRole("link", { name: /Approvals/ }).click(); // R79: the Home section sidebar
   await expect(page.getByRole("heading", { name: "Approvals" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Waiting (2)" })).toBeVisible();
   const card = page.getByRole("article", { name: /Re: Password reset not arriving/ });

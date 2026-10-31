@@ -285,6 +285,24 @@ export function TaskTimeline({ tasks, links = [], late, daysOff, zoom = "week", 
   }, [rows.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
   const [gridWidth, setGridWidth] = useState(savedGrid);
   const people = useLayout().timelinePeople; // R79: optional named Assignee column
+  // R79 (axe): the chart library numbers its grid rows from 0; ARIA rows count from 1 and the header is row 1.
+  useEffect(() => {
+    const root = box.current;
+    if (!root || typeof MutationObserver === "undefined") return;
+    const fix = () => {
+      for (const el of root.querySelectorAll<HTMLElement>('.wx-data > [role="row"][aria-rowindex]')) {
+        const v = el.getAttribute("aria-rowindex");
+        if (v == null || el.dataset.rxf === v) continue;
+        const n = String(Number(v) + 2);
+        el.dataset.rxf = n;
+        el.setAttribute("aria-rowindex", n);
+      }
+    };
+    fix();
+    const mo = new MutationObserver(fix);
+    mo.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["aria-rowindex"] });
+    return () => mo.disconnect();
+  }, []);
   const colsW = narrow ? 0 : gridWidth;
   const range = useMemo(() => timelineRange(rows.map((r) => r.start.getTime()), rows.map((r) => r.end.getTime()), startOfDay(Date.now()).getTime(), zoom, Math.max(0, boxW - colsW) + px * 2),
     [rows, zoom, boxW, colsW, px]);

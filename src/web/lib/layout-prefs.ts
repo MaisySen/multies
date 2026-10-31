@@ -60,7 +60,7 @@ export function sanitize(raw: unknown): LayoutPrefs {
 
 export function readLayout(): LayoutPrefs {
   if (cache) return cache;
-  let parsed: unknown = null;
+  let parsed: unknown;
   try { parsed = JSON.parse(storage()?.getItem(key()) ?? "null"); } catch { parsed = null; }
   cache = sanitize(parsed);
   return cache;

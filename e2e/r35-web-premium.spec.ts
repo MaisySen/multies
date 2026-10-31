@@ -30,7 +30,7 @@ test("Today home: cards, Focus and icons from the one set", async ({ browser }) 
   await expect(page.getByTestId("today-approvals")).toContainText("Approvals waiting");
   await expect(page.getByTestId("today-quick").getByRole("link", { name: "New task" })).toBeVisible();
   // Every glyph in the sidebar is from the one icon set, and the active row's glyph is filled.
-  expect(await page.locator('aside[aria-label="Sidebar"] svg[data-icon]').count()).toBeGreaterThan(10);
+  expect(await page.locator('[data-testid="icon-rail"] svg[data-icon], aside[aria-label="Sidebar"] svg[data-icon]').count()).toBeGreaterThan(10); // R79: rail plus section sidebar
   expect(await page.locator('svg.lucide').count()).toBe(0);
   await ctx.close();
 });

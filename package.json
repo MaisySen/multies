@@ -99,6 +99,7 @@
     "postal-mime": "^4.1.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-resizable-panels": "^4.15.3",
     "react-router": "^8.5.0",
     "read-excel-file": "^9.3.14",
     "recharts": "^3.10.1",

@@ -173,13 +173,14 @@ export function ContextSidebar({ section, counts, header, footer }: { section: S
                   </Link>
                   <button type="button" onClick={() => toggleFavourite({ kind: "project", id: p.id, label: p.name, to })} aria-pressed={fav}
                     aria-label={fav ? `Remove ${p.name} from favourites` : `Add ${p.name} to favourites`}
-                    className={cn("grid h-6 w-6 shrink-0 place-items-center rounded text-subtle hover:text-fg", fav ? "text-[#f5a524]" : "hidden group-hover/row:grid group-focus-within/row:grid")}>
+                    className={cn("grid h-6 w-6 shrink-0 place-items-center rounded text-subtle hover:text-fg", fav ? "text-warn" : "hidden group-hover/row:grid group-focus-within/row:grid")}>
                     <IconStar filled={fav} className="h-3.5 w-3.5" aria-hidden />
                   </button>
                 </div>
               );
             })}
-            {projects.isSuccess && !live.length && <p className="px-2 py-1 text-[12.5px] text-subtle">No projects yet</p>}
+            {projects.isError && <div className="px-2 py-1 text-[12.5px] text-muted" role="alert">Projects did not load. <button type="button" onClick={() => void projects.refetch()} className="font-medium text-fg underline-offset-2 hover:underline">Try again</button></div>}
+            {projects.isSuccess && !live.length && <div className="px-2 py-1 text-[12.5px] text-subtle">No projects yet. <button type="button" onClick={() => navigate("/app/tasks?newProject=1")} className="font-medium text-fg underline-offset-2 hover:underline">Start one</button></div>}
           </div>}
         </>}
       </nav>
@@ -213,7 +214,7 @@ export function Breadcrumbs({ projectName }: { projectName?: string | null }) {
       {fav && (
         <button type="button" onClick={() => toggleFavourite(fav)} aria-pressed={starred} data-testid="favourite-star"
           aria-label={starred ? "Remove from favourites" : "Add to favourites"} title={starred ? "Remove from favourites" : "Add to favourites"}
-          className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-md hover:bg-hover", starred ? "text-[#f5a524]" : "text-subtle hover:text-fg")}>
+          className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-md hover:bg-hover", starred ? "text-warn" : "text-subtle hover:text-fg")}>
           <IconStar filled={starred} className="h-4 w-4" aria-hidden />
         </button>
       )}

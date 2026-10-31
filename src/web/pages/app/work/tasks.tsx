@@ -343,7 +343,7 @@ export function TasksPage() {
         ) : view === "list" || ((view === "board" || view === "sprints") && !project) ? (
           <>
             {phone ? <PhoneTaskList tasks={tasks.data ?? []} projects={list} onOpen={open} /> /* R41 (MB-226) */
-              : <TaskTable tasks={tasks.data ?? []} projects={list} onOpen={open} fields={project ? fields : []} people={people.data ?? []} projectId={projectId || undefined} />}
+              : <TaskTable tasks={tasks.data ?? []} projects={list} onOpen={open} fields={project ? fields : []} people={people.data ?? []} projectId={projectId || undefined} onAdd={() => setNewTask({})} />}
             {/* R42: the board's rapid add at the foot of the list; into the picked project, else the first one. */}
             {(project ?? list[0]) && <ColumnComposer variant="list" title={(project ?? list[0])!.name}
               onQuickAdd={async (title) => { await create.mutateAsync({ title, projectId: (project ?? list[0])!.id }); await qc.invalidateQueries({ queryKey: ["tasks"] }); }} />}
