@@ -37,6 +37,12 @@ export function platform(deps: Deps): Composio {
   try { return composioFrom(deps); } catch (err) { return toHttp(err); }
 }
 
+/** For routes that name one connection: with Connections switched off there is no such connection (404, not 503). */
+export function platformForId(deps: Deps): Composio {
+  if (!deps.config.integrations.composio) throw new HttpError(404, "not_found", "That connection was not found.");
+  return platform(deps);
+}
+
 export const platformUserId = (cp: Pick<Composio, "userPrefix">, orgId: string) => `${cp.userPrefix}:${orgId}`;
 
 export function appLabel(slug: string): string {
@@ -133,7 +139,7 @@ export async function startConnect(deps: Deps, auth: AuthContext, app: string, i
 
 /** The person came back from the connect page: read the account and record it. */
 export async function confirmConnect(deps: Deps, auth: AuthContext, accountId: string, ip?: string | null): Promise<ConnectedAccountView> {
-  const cp = platform(deps);
+  const cp = platformForId(deps);
   limitWrite(auth.orgId);
   const a = await ownAccount(cp, auth.orgId, accountId);
   const view = viewOf(a);
@@ -145,7 +151,7 @@ export async function confirmConnect(deps: Deps, auth: AuthContext, accountId: s
 
 export async function reconnect(deps: Deps, auth: AuthContext, accountId: string, ip?: string | null): Promise<{ redirectUrl: string }> {
   if (!isAdmin(auth)) throw forbidden("Only owners and admins can reconnect apps.");
-  const cp = platform(deps);
+  const cp = platformForId(deps);
   limitWrite(auth.orgId);
   const a = await ownAccount(cp, auth.orgId, accountId);
   const app = a.toolkit?.slug ?? "";
@@ -166,7 +172,7 @@ export async function reconnect(deps: Deps, auth: AuthContext, accountId: string
 
 export async function disconnect(deps: Deps, auth: AuthContext, accountId: string, ip?: string | null): Promise<{ ok: true }> {
   if (!isAdmin(auth)) throw forbidden("Only owners and admins can disconnect apps.");
-  const cp = platform(deps);
+  const cp = platformForId(deps);
   limitWrite(auth.orgId);
   const a = await ownAccount(cp, auth.orgId, accountId);
   try { await cp.remove(a.id); } catch (err) { return toHttp(err); }
@@ -191,7 +197,7 @@ export function findList(data: unknown, keys = ["data", "items", "pages", "board
 }
 
 export async function listTargets(deps: Deps, auth: AuthContext, accountId: string): Promise<TargetOption[]> {
-  const cp = platform(deps);
+  const cp = platformForId(deps);
   limitRead(auth.orgId);
   const a = await ownAccount(cp, auth.orgId, accountId);
   const app = a.toolkit?.slug ?? "";

@@ -8,6 +8,7 @@ import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { socialMedia, socialPostTargets, socialPosts } from "../../db/schema";
 import { newId, randomToken, toB64, fromB64 } from "../../lib/crypto";
+import { inIds } from "../../lib/sql-chunks";
 import { HttpError, forbidden, notFound } from "../../lib/errors";
 import { audit } from "../audit";
 import {
@@ -118,14 +119,14 @@ function mediaUrl(deps: Deps, m: { id: string; token: string } | undefined) {
 }
 
 async function viewsFor(deps: Deps, orgId: string, ids?: string[], limit = 50): Promise<SocialPostView[]> {
-  const where = ids ? and(eq(socialPosts.orgId, orgId), inArray(socialPosts.id, ids)) : eq(socialPosts.orgId, orgId);
+  const where = ids ? and(eq(socialPosts.orgId, orgId), inIds(socialPosts.id, ids)) : eq(socialPosts.orgId, orgId);
   const posts = await deps.db.select().from(socialPosts).where(where).orderBy(desc(socialPosts.runAt)).limit(limit).all();
   if (!posts.length) return [];
   const pIds = posts.map((p) => p.id);
   const mIds = posts.map((p) => p.mediaId).filter((x): x is string => !!x);
   const [targets, media] = await Promise.all([
-    deps.db.select().from(socialPostTargets).where(inArray(socialPostTargets.postId, pIds)).all(),
-    mIds.length ? deps.db.select({ id: socialMedia.id, token: socialMedia.token }).from(socialMedia).where(inArray(socialMedia.id, mIds)).all() : Promise.resolve([]),
+    deps.db.select().from(socialPostTargets).where(inIds(socialPostTargets.postId, pIds)).all(),
+    mIds.length ? deps.db.select({ id: socialMedia.id, token: socialMedia.token }).from(socialMedia).where(inIds(socialMedia.id, mIds)).all() : Promise.resolve([]),
   ]);
   const mById = new Map(media.map((m) => [m.id, m]));
   return posts.map((p) => ({
@@ -318,8 +319,8 @@ export async function pruneSocialMedia(deps: Deps, opts: { now?: Date; orgId?: s
     .where(and(scope, inArray(socialPosts.status, ["done", "partial", "failed", "canceled"]), lt(socialPosts.updatedAt, new Date(now.getTime() - MEDIA_TTL_MS)), sql`${socialPosts.mediaId} is not null`)).limit(50).all();
   const mIds = old.map((o) => o.mediaId!).filter(Boolean);
   if (mIds.length) {
-    await deps.db.delete(socialMedia).where(inArray(socialMedia.id, mIds));
-    await deps.db.update(socialPosts).set({ mediaId: null }).where(inArray(socialPosts.mediaId, mIds));
+    await deps.db.delete(socialMedia).where(inIds(socialMedia.id, mIds));
+    await deps.db.update(socialPosts).set({ mediaId: null }).where(inIds(socialPosts.mediaId, mIds));
   }
   return { mediaPruned: mIds.length };
 }
