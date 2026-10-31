@@ -18,11 +18,14 @@ import { IconCopy, IconFileUp, IconLink, IconLock, IconMail, IconTrash } from "@
 import { SHARE_EXPIRY_CHOICES, type KeptUsage, type ShareLinkInfo } from "@/shared/share-sign";
 import type { ToolsInfo } from "@/shared/tools";
 import { attachToNewEmail } from "@/web/lib/compose-files";
+import { RequestsTab } from "./requests-tab"; // R88
+import { SecretsTab } from "./secrets-tab"; // R88
 
 const sizeOf = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / (1024 * 1024)).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`);
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 const STATUS: Record<ShareLinkInfo["status"], { label: string; tone: "ok" | "neutral" | "warn" | "bad" }> = {
   active: { label: "Active", tone: "ok" }, expired: { label: "Expired", tone: "neutral" }, revoked: { label: "Turned off", tone: "neutral" }, used_up: { label: "Used up", tone: "warn" },
+  paused: { label: "Paused after reports", tone: "bad" }, // R88
 };
 
 /** Opens a new email with the link in it, through the one "Attach to a new email" path (lib/compose-files). */
@@ -71,17 +74,18 @@ function LinkRow({ l }: { l: ShareLinkInfo }) {
       <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted">
         <span>{sizeOf(l.bytes)}</span>
         <span>{l.downloads} {l.downloads === 1 ? "download" : "downloads"}{l.maxDownloads !== null ? ` of ${l.maxDownloads}` : ""}</span>
+        {!!l.views && <span>{l.views} {l.views === 1 ? "view" : "views"}</span>}
         <span>{l.status === "active" ? "Expires" : "Ended"} {when(l.expiresAt)}</span>
         <span className="ml-auto flex gap-1">
-          <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)} aria-expanded={open}>{open ? "Hide downloads" : "Downloads"}</Button>
+          <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)} aria-expanded={open}>{open ? "Hide activity" : "Activity"}</Button>
           {l.status === "active" && <Button size="sm" variant="ghost" onClick={() => revoke.mutate()} loading={revoke.isPending}><IconTrash className="h-3.5 w-3.5" />Turn off</Button>}
         </span>
       </div>
       {open && (
-        <div className="mt-2 rounded-lg bg-fill p-3 text-[13px]">
-          {detail.isLoading ? <Skeleton className="h-4 w-40" /> : !detail.data?.log?.length ? <p className="text-muted">No downloads yet.</p> : (
-            <table className="w-full"><thead><tr className="text-left text-muted"><th className="py-1 font-medium">When</th><th className="font-medium">Country</th><th className="font-medium">Browser</th></tr></thead>
-              <tbody>{detail.data.log.map((d, i) => <tr key={i}><td className="py-1">{when(d.at)}</td><td>{d.country ?? "Unknown"}</td><td>{d.agent ?? "Unknown"}</td></tr>)}</tbody></table>
+        <div className="mt-2 overflow-x-auto rounded-lg bg-fill p-3 text-[13px]">
+          {detail.isLoading ? <Skeleton className="h-4 w-40" /> : !detail.data?.log?.length ? <p className="text-muted">No views or downloads yet.</p> : (
+            <table className="w-full min-w-[360px]"><thead><tr className="text-left text-muted"><th className="py-1 font-medium">When</th><th className="font-medium">What</th><th className="font-medium">Where</th><th className="font-medium">Browser</th></tr></thead>
+              <tbody>{detail.data.log.map((d, i) => <tr key={i}><td className="py-1">{when(d.at)}</td><td>{d.kind === "view" ? "Viewed" : "Downloaded"}</td><td>{[d.region, d.country].filter(Boolean).join(", ") || "Unknown"}</td><td>{d.agent ?? "Unknown"}</td></tr>)}</tbody></table>
           )}
         </div>
       )}
@@ -89,14 +93,11 @@ function LinkRow({ l }: { l: ShareLinkInfo }) {
   );
 }
 
-export function ShareLinksPage() {
-  const config = useConfig();
+function ShareFilesTab() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [params] = useSearchParams();
-  const tools = useQuery({ queryKey: ["tools"], enabled: !!config.data?.tools, queryFn: () => api.get<ToolsInfo>("/tools") });
-  const on = !!tools.data?.features?.includes("share");
-  const list = useQuery({ queryKey: ["tools-share"], enabled: on, queryFn: () => api.get<{ links: ShareLinkInfo[]; usage: KeptUsage }>("/tools/share") });
+  const list = useQuery({ queryKey: ["tools-share"], queryFn: () => api.get<{ links: ShareLinkInfo[]; usage: KeptUsage }>("/tools/share") });
   const result = params.get("result");
   const attachment = params.get("attachment");
   const fromName = params.get("name") ?? "";
@@ -110,8 +111,6 @@ export function ShareLinksPage() {
   const [made, setMade] = useState<ShareLinkInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
-
-  if (config.data && (!config.data.tools || (tools.data && !on))) return <EmptyState title="Share links are not available" body="Ask your workspace admin about Tools." />;
 
   const source = result ? "result" : attachment ? "attachment" : file ? "upload" : null;
   const create = async () => {
@@ -129,7 +128,7 @@ export function ShareLinksPage() {
   const field = "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-brand";
 
   return (
-    <ToolsFrame entryKey="share" title="Share links" description="Send a big file as a link that expires. Add a password or a download limit, and see every download." usage={false} testId="share-page">
+    <div className="space-y-5" data-testid="share-files-tab">
       <Card className="space-y-4 p-5">
         {made?.url ? (
           <div className="space-y-3" data-testid="share-made">
@@ -181,8 +180,52 @@ export function ShareLinksPage() {
         <Card className="px-5 py-1">
           {list.isLoading ? <div className="py-4"><Skeleton className="h-5 w-2/3" /></div> : !list.data?.links.length ? <p className="py-6 text-center text-sm text-muted">No share links yet.</p> : <ul>{list.data.links.map((l) => <LinkRow key={l.id} l={l} />)}</ul>}
         </Card>
-        <p className="mt-3 text-[12px] text-muted">Shared files are deleted when the link expires or is turned off. The download log keeps the time, the country and the browser, never the full address.</p>
+        <p className="mt-3 text-[12px] text-muted">Shared files are deleted when the link expires or is turned off. The activity log keeps the time, the region and the browser, never the full address. Link previews in chat apps are not counted as views.</p>
       </section>
+    </div>
+  );
+}
+
+type ShareTab = "files" | "requests" | "secrets";
+const TABS: { id: ShareTab; label: string; feature: string; line: string }[] = [
+  { id: "files", label: "Share files", feature: "share", line: "Send a big file as a link that expires. Add a password or a download limit, and see every view and download." },
+  { id: "requests", label: "File requests", feature: "file_requests", line: "Ask clients for files with a link. They upload without an account, and files land here." },
+  { id: "secrets", label: "Secret links", feature: "secrets", line: "Send a password or a small file that is locked on your device and deletes itself once it is opened." },
+];
+
+/** R88: Secure share. One page, three tabs (each behind its own Tools feature), the tab in ?tab= so links and Back work. */
+export function ShareLinksPage() {
+  const config = useConfig();
+  const [params, setParams] = useSearchParams();
+  const tools = useQuery({ queryKey: ["tools"], enabled: !!config.data?.tools, queryFn: () => api.get<ToolsInfo>("/tools") });
+  const features = tools.data?.features ?? [];
+  const tabs = TABS.filter((t) => (features as string[]).includes(t.feature));
+  const asked = params.get("tab") as ShareTab | null;
+  const active: ShareTab = tabs.find((t) => t.id === asked)?.id ?? tabs[0]?.id ?? "files";
+  const refs = useRef<Record<string, HTMLButtonElement | null>>({});
+  if (config.data && (!config.data.tools || (tools.data && !tabs.length))) return <EmptyState title="Secure share is not available" body="Ask your workspace admin about Tools." />;
+  const pick = (id: ShareTab) => setParams((p) => { const n = new URLSearchParams(p); n.set("tab", id); if (id !== "requests") n.delete("request"); return n; }, { replace: true });
+  const onKey = (e: React.KeyboardEvent) => {
+    const i = tabs.findIndex((t) => t.id === active);
+    const next = e.key === "ArrowRight" ? tabs[(i + 1) % tabs.length] : e.key === "ArrowLeft" ? tabs[(i - 1 + tabs.length) % tabs.length] : e.key === "Home" ? tabs[0] : e.key === "End" ? tabs[tabs.length - 1] : null;
+    if (!next) return;
+    e.preventDefault(); pick(next.id); refs.current[next.id]?.focus();
+  };
+  const line = TABS.find((t) => t.id === active)?.line ?? TABS[0].line;
+  return (
+    <ToolsFrame entryKey="share" title="Secure share" description={line} usage={false} testId="share-page">
+      {tabs.length > 1 && (
+        <div role="tablist" aria-label="Secure share" onKeyDown={onKey} className="-mx-1 flex gap-1 overflow-x-auto border-b border-line px-1" data-testid="share-tabs">
+          {tabs.map((t) => (
+            <button key={t.id} ref={(el) => { refs.current[t.id] = el; }} type="button" role="tab" id={`share-tab-${t.id}`} aria-selected={active === t.id} aria-controls={`share-panel-${t.id}`} tabIndex={active === t.id ? 0 : -1}
+              onClick={() => pick(t.id)}
+              className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-[14px] font-medium outline-none transition-colors focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-11 ${active === t.id ? "border-brand text-fg" : "border-transparent text-muted hover:text-fg"}`}>{t.label}</button>
+          ))}
+        </div>
+      )}
+      <div role="tabpanel" id={`share-panel-${active}`} aria-labelledby={tabs.length > 1 ? `share-tab-${active}` : undefined}>
+        {active === "requests" ? <RequestsTab /> : active === "secrets" ? <SecretsTab /> : <ShareFilesTab />}
+      </div>
     </ToolsFrame>
   );
 }

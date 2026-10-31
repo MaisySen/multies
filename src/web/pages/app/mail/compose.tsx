@@ -21,6 +21,7 @@ import { zonedDateTime } from "@/web/lib/format";
 import { RemindSelect, SendLaterMenu, type When } from "./schedules";
 import { AttachButton, AttachmentChips, useComposeFiles } from "./compose-attachments"; // Tools P2: attachments and auto rules
 import { fileToBase64, type ToolFileRef } from "@/web/lib/compose-files";
+import { SendSecurelyButton } from "./send-securely"; // R88
 
 export interface ComposeDraft {
   mailboxId: string;
@@ -255,6 +256,8 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
               {/* Tools P2: attachments go now, not later (Tools results are kept for an hour; scheduled sends carry no files yet). */}
               <SendLaterMenu disabled={!d.to.trim() || att.count > 0 || !!unverified} onPick={(when) => send(true, when)} />
               <AttachButton c={att} />
+              <SendSecurelyButton bodyRef={bodyRef} text={d.text} files={att.items} onRemoveFile={att.remove}
+                onText={(text, cursor) => { setD((x) => ({ ...x, text })); requestAnimationFrame(() => { bodyRef.current?.focus(); bodyRef.current?.setSelectionRange(cursor, cursor); }); }} />
               <span className="hidden items-center gap-1 text-[11px] text-subtle sm:flex"><Kbd>⌘</Kbd><Kbd>↵</Kbd></span>
               <label className="ml-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted hover:bg-hover max-sm:ml-0 max-sm:min-h-11 max-sm:px-2" title="How long you have to undo after pressing Send">
                 <IconUndo className="h-3.5 w-3.5" aria-hidden />

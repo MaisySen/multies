@@ -2,7 +2,7 @@
  * R30: what the command menu can jump to and do, in one list, plus its fuzzy matching.
  * tests/palette-r30.test.ts checks every app page in router.tsx has an entry here.
  */
-import { IconPlugZap, IconMegaphone, IconWrench, IconPenLine, IconActivity, IconAgent, IconAssign, IconBell, IconBook, IconBriefcase, IconCalendarClock, IconCalendarDays, IconChart, IconChats, IconClipboardCheck, IconClipboardList, IconCompose, IconContacts, IconCreditCard, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHandshake, IconInbox, IconKey, IconKeyboard, IconLink, IconMail, IconMention, IconMessageCircle, IconMoon, IconPlug, IconPlus, IconSettings, IconShieldCheck, IconSmartphone, IconSquarePlus, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconUserCog, IconVideo, IconZap, IconAttachment, IconWorkflow, IconTag, IconTable } from "@/web/components/ui/icon";
+import { IconPlugZap, IconMegaphone, IconWrench, IconPenLine, IconActivity, IconAgent, IconAssign, IconBell, IconBook, IconBriefcase, IconCalendarClock, IconCalendarDays, IconChart, IconChats, IconClipboardCheck, IconClipboardList, IconCompose, IconContacts, IconCreditCard, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHandshake, IconInbox, IconKey, IconKeyboard, IconLink, IconMail, IconMention, IconMessageCircle, IconMoon, IconPlug, IconPlus, IconSettings, IconShieldCheck, IconSmartphone, IconSquarePlus, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconUserCog, IconVideo, IconZap, IconAttachment, IconWorkflow, IconTag, IconTable, IconLock } from "@/web/components/ui/icon";
 
 export type PaletteIcon = React.ComponentType<{ className?: string }>;
 /**
@@ -30,6 +30,8 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-tools-ai", label: "AI document helpers", to: "/app/tools/ai", icon: IconWrench, keywords: ["ask a document", "summary", "translate", "invoice", "receipt", "expense report", "contract dates"], flag: "tools", toolFeature: ["ask", "translate", "extract", "expenses", "contracts"] }, // Tools P2
   // Tools P2: share links and e-sign, each shown only while its feature is on.
   { id: "p-tools-share", label: "Share links", to: "/app/tools/share", icon: IconLink, keywords: ["send large file", "share file", "download link", "expiring link"], flag: "tools", toolFeature: ["share"] },
+  { id: "p-tools-file-request", label: "New file request", to: "/app/tools/share?tab=requests", icon: IconUpload, keywords: ["ask for files", "upload link", "collect files", "client upload", "file request"], flag: "tools", toolFeature: ["file_requests"] }, // R88
+  { id: "p-tools-secret", label: "New secret link", to: "/app/tools/share?tab=secrets", icon: IconLock, keywords: ["send password", "one time secret", "self destruct", "send securely", "encrypted note"], flag: "tools", toolFeature: ["secrets"] }, // R88
   { id: "p-tools-sign", label: "E-sign", to: "/app/tools/sign", icon: IconPenLine, keywords: ["sign", "signature", "esign", "sign pdf", "request signature"], flag: "tools", toolFeature: ["esign"] },
   // Tools P2 (H6): automation pages, each behind its own feature.
   { id: "p-tools-workflows", label: "Tool workflows", to: "/app/tools/workflows", icon: IconWrench, keywords: ["workflow", "chain", "scan", "ocr", "shrink", "protect"], flag: "tools", toolFeature: ["workflows"] },
