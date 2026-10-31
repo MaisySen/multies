@@ -1088,6 +1088,23 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0111_helpdesk",
+    "statements": [
+      "-- R119: helpdesk mode on the shared inbox (tickets, SLA clocks, macros, survey) and the website chat. Additive only.\nCREATE TABLE `hd_settings` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`settings` text DEFAULT '{}' NOT NULL,\n\t`widget_key` text NOT NULL,\n\t`ticket_seq` integer DEFAULT 1000 NOT NULL,\n\t`sync_cursor` integer DEFAULT 0 NOT NULL,\n\t`synced_at` integer DEFAULT 0 NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `hd_settings_widget_key_uq` ON `hd_settings` (`widget_key`);",
+      "CREATE TABLE `hd_tickets` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`number` integer NOT NULL,\n\t`kind` text NOT NULL,\n\t`ref_id` text NOT NULL,\n\t`mailbox_id` text,\n\t`subject` text DEFAULT '' NOT NULL,\n\t`snippet` text DEFAULT '' NOT NULL,\n\t`requester_name` text DEFAULT '' NOT NULL,\n\t`requester_email` text,\n\t`contact_id` text,\n\t`status` text DEFAULT 'open' NOT NULL,\n\t`priority` text DEFAULT 'normal' NOT NULL,\n\t`assignee_user_id` text,\n\t`created_at` integer NOT NULL,\n\t`last_message_at` integer NOT NULL,\n\t`first_reply_at` integer,\n\t`first_reply_due_at` integer,\n\t`resolve_due_at` integer,\n\t`resolve_used_min` integer DEFAULT 0 NOT NULL,\n\t`running_since` integer,\n\t`solved_at` integer,\n\t`unread` integer DEFAULT 0 NOT NULL,\n\t`csat_token_hash` text,\n\t`csat_rating` text,\n\t`csat_comment` text,\n\t`csat_at` integer,\n\t`visitor_token_hash` text,\n\t`visitor_typing_at` integer,\n\t`agent_typing_at` integer,\n\t`visitor_seen_at` integer,\n\t`offline` integer DEFAULT false NOT NULL,\n\t`page_url` text,\n\t`window_start` integer DEFAULT 0 NOT NULL,\n\t`window_count` integer DEFAULT 0 NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`assignee_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n);",
+      "CREATE UNIQUE INDEX `hd_tickets_ref_uq` ON `hd_tickets` (`org_id`,`kind`,`ref_id`);",
+      "CREATE INDEX `hd_tickets_org_status_idx` ON `hd_tickets` (`org_id`,`status`,`last_message_at`);",
+      "CREATE INDEX `hd_tickets_org_assignee_idx` ON `hd_tickets` (`org_id`,`assignee_user_id`);",
+      "CREATE INDEX `hd_tickets_csat_idx` ON `hd_tickets` (`csat_token_hash`);",
+      "CREATE INDEX `hd_tickets_visitor_idx` ON `hd_tickets` (`visitor_token_hash`);",
+      "CREATE TABLE `hd_web_messages` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`ticket_id` text NOT NULL,\n\t`author` text NOT NULL,\n\t`author_user_id` text,\n\t`text` text NOT NULL,\n\t`via` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`ticket_id`) REFERENCES `hd_tickets`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `hd_web_messages_ticket_idx` ON `hd_web_messages` (`ticket_id`,`created_at`);",
+      "CREATE TABLE `hd_macros` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`steps` text NOT NULL,\n\t`created_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `hd_macros_org_idx` ON `hd_macros` (`org_id`);"
+    ]
+  },
+  {
     "name": "0113_r133_indexes",
     "statements": [
       "-- R133 (Oct 31): two read paths scanned the whole table. Additive only.\n-- The org's statuses (read cache, every Tasks page) and a thread's snoozes and reminders (every mail thread).\nCREATE INDEX IF NOT EXISTS `project_statuses_org_idx` ON `project_statuses` (`org_id`);",

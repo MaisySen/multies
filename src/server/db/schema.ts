@@ -2705,3 +2705,88 @@ export const linkHosts = sqliteTable("link_hosts", {
   checkedAt: ts("checked_at"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("link_hosts_host_uq").on(t.host)]);
+// R119 (0111): helpdesk mode on the shared inbox and the website chat. Off for a workspace until an admin turns it on.
+/** One row per workspace: the helpdesk settings (JSON, read with readSettings), the website chat key, the ticket counter and the sync cursor. */
+export const hdSettings = sqliteTable("hd_settings", {
+  orgId: text("org_id").primaryKey().references(() => organizations.id, { onDelete: "cascade" }),
+  settings: text("settings").notNull().default("{}"),
+  /** Public key in the website chat snippet (not a secret: the allowed domains guard it). */
+  widgetKey: text("widget_key").notNull(),
+  ticketSeq: integer("ticket_seq").notNull().default(1000),
+  /** Mail and chat activity is read after this moment (epoch ms) by the ticket sync. */
+  syncCursor: integer("sync_cursor").notNull().default(0),
+  syncedAt: integer("synced_at").notNull().default(0),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [uniqueIndex("hd_settings_widget_key_uq").on(t.widgetKey)]);
+
+/** A ticket over one mail thread, chat conversation or website chat. Clock fields are epoch ms (see shared/helpdesk SlaClock). */
+export const hdTickets = sqliteTable("hd_tickets", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  number: integer("number").notNull(),
+  kind: text("kind", { enum: ["mail", "chat", "web"] }).notNull(),
+  /** mail: thread id; chat: msg_conversations.id; web: the ticket's own id. */
+  refId: text("ref_id").notNull(),
+  mailboxId: text("mailbox_id"),
+  subject: text("subject").notNull().default(""),
+  snippet: text("snippet").notNull().default(""),
+  requesterName: text("requester_name").notNull().default(""),
+  requesterEmail: text("requester_email"),
+  contactId: text("contact_id"),
+  status: text("status", { enum: ["open", "pending", "on_hold", "solved"] }).notNull().default("open"),
+  priority: text("priority", { enum: ["low", "normal", "high", "urgent"] }).notNull().default("normal"),
+  assigneeUserId: text("assignee_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: integer("created_at").notNull(),
+  lastMessageAt: integer("last_message_at").notNull(),
+  firstReplyAt: integer("first_reply_at"),
+  firstReplyDueAt: integer("first_reply_due_at"),
+  resolveDueAt: integer("resolve_due_at"),
+  resolveUsedMin: integer("resolve_used_min").notNull().default(0),
+  runningSince: integer("running_since"),
+  solvedAt: integer("solved_at"),
+  unread: integer("unread").notNull().default(0),
+  csatTokenHash: text("csat_token_hash"),
+  csatRating: text("csat_rating", { enum: ["great", "okay", "bad"] }),
+  csatComment: text("csat_comment"),
+  csatAt: integer("csat_at"),
+  /** Website chat: the visitor's token (sha256), typing marks, the page it came from, the abuse window. */
+  visitorTokenHash: text("visitor_token_hash"),
+  visitorTypingAt: integer("visitor_typing_at"),
+  agentTypingAt: integer("agent_typing_at"),
+  visitorSeenAt: integer("visitor_seen_at"),
+  offline: integer("offline", { mode: "boolean" }).notNull().default(false),
+  pageUrl: text("page_url"),
+  windowStart: integer("window_start").notNull().default(0),
+  windowCount: integer("window_count").notNull().default(0),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [
+  uniqueIndex("hd_tickets_ref_uq").on(t.orgId, t.kind, t.refId),
+  index("hd_tickets_org_status_idx").on(t.orgId, t.status, t.lastMessageAt),
+  index("hd_tickets_org_assignee_idx").on(t.orgId, t.assigneeUserId),
+  index("hd_tickets_csat_idx").on(t.csatTokenHash),
+  index("hd_tickets_visitor_idx").on(t.visitorTokenHash),
+]);
+
+/** Website chat messages (mail and chat tickets keep their messages where they already live). */
+export const hdWebMessages = sqliteTable("hd_web_messages", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  ticketId: text("ticket_id").notNull().references(() => hdTickets.id, { onDelete: "cascade" }),
+  author: text("author", { enum: ["visitor", "agent", "bot", "system"] }).notNull(),
+  authorUserId: text("author_user_id"),
+  text: text("text").notNull(),
+  /** "mail" when the reply also went out by email. */
+  via: text("via"),
+  createdAt: integer("created_at").notNull(),
+}, (t) => [index("hd_web_messages_ticket_idx").on(t.ticketId, t.createdAt)]);
+
+/** Named steps an agent runs on a ticket in one go (shared/helpdesk MacroStep[] as JSON). */
+export const hdMacros = sqliteTable("hd_macros", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  steps: text("steps").notNull(),
+  createdBy: text("created_by").notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [index("hd_macros_org_idx").on(t.orgId)]);
