@@ -22,21 +22,30 @@ import { SOCIAL_NETWORKS, type ConnectedAccountView, type SocialPostView } from 
 import { AppLogo, appsKeys, useAppAccounts, useAppsStatus, useConnect, useConnectReturn } from "./apps-settings";
 import { Composer, POST_STATUS, PostList, ReconnectButton, useAccountHealth, useSocialPosts, type PostFilter } from "./apps-social";
 import { DirectAccounts } from "./apps-direct";
+import { useConfig } from "@/web/lib/queries";
+import { ComposerV2, composerAccounts, useDirectStatus, useLibrary } from "./social-composer";
+import { PlannerV2 } from "./social-planner";
+import { SocialLibrary } from "./social-library";
+
+/** R117: Social P2 (composer v2, planner v2, drafts and approvals, library) sits behind its own flag. */
+export const useSocialP2 = () => !!useConfig().data?.socialP2;
 
 /** Phones and small tablets have no shell sidebar, so Social's four pages switch here, under the title. */
 const SOCIAL_TABS = [
   { to: "/app/social", label: "Planner", end: true },
   { to: "/app/social/posts", label: "Posts", end: false },
   { to: "/app/social/new", label: "New post", end: false },
+  { to: "/app/social/library", label: "Library", end: false },
   { to: "/app/social/accounts", label: "Accounts", end: false },
 ] as const;
 
 export function SocialSwitcher() {
   const { pathname } = useLocation();
+  const p2 = useSocialP2();
   return (
     <nav aria-label="Social" className="-mx-1 mb-4 overflow-x-auto px-1 lg:hidden" data-testid="social-switcher">
       <ul className="flex w-max gap-1 rounded-lg border border-line bg-fill/50 p-1">
-        {SOCIAL_TABS.map((t) => {
+        {SOCIAL_TABS.filter((t) => p2 || t.to !== "/app/social/library").map((t) => {
           const on = t.end ? pathname === t.to || pathname === `${t.to}/` : pathname.startsWith(t.to);
           return (
             <li key={t.to}>
@@ -112,6 +121,28 @@ function PostChip({ p }: { p: SocialPostView }) {
 }
 
 export function SocialPlannerPage() {
+  const p2 = useSocialP2();
+  if (p2) return <SocialPlannerV2Page />;
+  return <SocialPlannerV1 />;
+}
+
+function SocialPlannerV2Page() {
+  const status = useAppsStatus();
+  const accounts = useAppAccounts();
+  const direct = useDirectStatus();
+  const posts = useSocialPosts();
+  const list = composerAccounts(accounts.data ?? [], direct.data).map((a) => ({ id: a.id, name: a.label ? `${a.name}, ${a.label}` : a.name }));
+  const scheduled = (posts.data ?? []).filter((p) => p.status === "scheduled").length;
+  return (
+    <div data-testid="social-planner">
+      <PageHeader title="Planner" description={scheduled ? `${scheduled} ${scheduled === 1 ? "post is" : "posts are"} waiting to go out. Drag one to move it.` : "Your week of posts, with free time slots to fill."} actions={<NewPostButton />} />
+      <SocialSwitcher />
+      <PlannerV2 canManage={!!status.data?.canManage} accounts={list} />
+    </div>
+  );
+}
+
+function SocialPlannerV1() {
   const posts = useSocialPosts();
   const [cursor, setCursor] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const cells = useMemo(() => monthGrid(cursor.y, cursor.m), [cursor]);
@@ -186,8 +217,9 @@ export function SocialPlannerPage() {
 
 /* ---------------------------------------------------------------- Posts */
 
-const FILTERS: { id: PostFilter; label: string }[] = [
+const FILTERS: { id: PostFilter; label: string; p2?: true }[] = [
   { id: "all", label: "All" }, { id: "scheduled", label: "Scheduled" }, { id: "sent", label: "Sent" }, { id: "failed", label: "Failed" },
+  { id: "drafts", label: "Drafts", p2: true }, { id: "waiting", label: "Waiting for approval", p2: true },
 ];
 
 export function SocialPostsPage() {
@@ -195,8 +227,11 @@ export function SocialPostsPage() {
   const posts = useSocialPosts();
   const [params, setParams] = useSearchParams();
   const loc = useLocation();
+  const p2 = useSocialP2();
+  const filters = FILTERS.filter((f) => p2 || !f.p2);
   const raw = params.get("status");
-  const filter: PostFilter = FILTERS.some((f) => f.id === raw) ? (raw as PostFilter) : "all";
+  const filter: PostFilter = filters.some((f) => f.id === raw) ? (raw as PostFilter) : "all";
+  const waiting = (posts.data ?? []).filter((p) => p.status === "review").length;
   const failed = (posts.data ?? []).filter((p) => p.status === "failed" || p.status === "partial").length;
   // A post opened from the planner: scroll to it once the list is here.
   useEffect(() => {
@@ -212,10 +247,11 @@ export function SocialPostsPage() {
       <SocialSwitcher />
       <div className="mb-4 -mx-1 max-w-full overflow-x-auto px-1 [scrollbar-width:none]">
         <div className="inline-flex gap-1 rounded-lg bg-fill p-1" role="group" aria-label="Show posts" data-testid="posts-filter">
-          {FILTERS.map((f) => (
+          {filters.map((f) => (
             <button key={f.id} type="button" aria-pressed={filter === f.id} onClick={() => setParams((p) => { const n = new URLSearchParams(p); if (f.id === "all") n.delete("status"); else n.set("status", f.id); return n; }, { replace: true })}
               className={cn(tab, filter === f.id ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg")}>
               {f.label}
+              {f.id === "waiting" && waiting > 0 && <span className="min-w-[18px] rounded-full bg-warn-soft px-1.5 text-center text-[11px] font-semibold tabular-nums leading-[18px] text-warn" aria-label={`${waiting} waiting`}>{waiting}</span>}
               {f.id === "failed" && failed > 0 && <span className="min-w-[18px] rounded-full bg-bad-soft px-1.5 text-center text-[11px] font-semibold tabular-nums leading-[18px] text-bad" aria-label={`${failed} need attention`}>{failed}</span>}
             </button>
           ))}
@@ -229,6 +265,59 @@ export function SocialPostsPage() {
 /* ---------------------------------------------------------------- New post */
 
 export function SocialNewPostPage() {
+  const p2 = useSocialP2();
+  if (p2) return <SocialNewPostV2 />;
+  return <SocialNewPostV1 />;
+}
+
+function SocialNewPostV2() {
+  const status = useAppsStatus();
+  const accounts = useAppAccounts();
+  const direct = useDirectStatus();
+  const posts = useSocialPosts();
+  const [params] = useSearchParams();
+  const draftId = params.get("draft");
+  const libId = params.get("lib");
+  const lib = useLibrary(!!libId);
+  const list = composerAccounts(accounts.data ?? [], direct.data);
+  const draft = draftId ? (posts.data ?? []).find((p) => p.id === draftId) ?? null : null;
+  const libItem = libId ? lib.data?.items.find((i) => i.id === libId) ?? null : null;
+  const campaigns = [...new Set((posts.data ?? []).map((p) => p.campaign).filter((c): c is string => !!c))].sort();
+  const waitingOn = status.isPending || accounts.isPending || direct.isPending || (!!draftId && posts.isPending) || (!!libId && lib.isPending);
+  const canPublish = !!status.data?.canManage;
+  return (
+    <div data-testid="social-new">
+      <PageHeader title={draft ? "Edit post" : "New post"} description={canPublish ? "Pick a format, write once and adjust the text per network. Accounts that can't take the format are greyed out with the reason." : "Write a post and send it for approval. An owner or admin approves it before it goes out."} />
+      <SocialSwitcher />
+      {waitingOn ? <div className="space-y-4" aria-busy="true"><Skeleton className="h-72 rounded-xl" /></div>
+        : status.error ? <LoadError error={status.error} retry={() => void status.refetch()} what="Social" />
+        : accounts.error ? <LoadError error={accounts.error} retry={() => void accounts.refetch()} what="your accounts" />
+        : draftId && !draft ? <Card><EmptyState icon={<IconMegaphone />} title="That draft is gone" body="It may have been sent, discarded or approved already." action={<ButtonLink to="/app/social/posts?status=drafts" variant="outline" size="sm">See drafts</ButtonLink>} /></Card>
+        : !list.length ? (
+          <Card data-testid="social-empty"><EmptyState icon={<IconMegaphone />} title="Connect a social account first" body="Connect Facebook Pages, Instagram, LinkedIn, Pinterest, Reddit, Threads or TikTok, then write one post and send it to all of them." action={<ButtonLink to="/app/social/accounts" size="sm"><IconPlug className="h-4 w-4" aria-hidden />Connect an account</ButtonLink>} /></Card>
+        ) : (
+          <ComposerV2 key={draft?.id ?? libItem?.id ?? "new"} accounts={list} canPublish={canPublish} draft={draft} presetAt={params.get("at")} presetAccount={params.get("account")} campaigns={campaigns}
+            presetLibraryText={libItem && libItem.kind !== "image" ? libItem.body : null}
+            presetImage={libItem?.kind === "image" && libItem.imageUrl && libItem.mediaId ? { url: libItem.imageUrl, mediaId: libItem.mediaId } : null} />
+        )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- Library */
+
+export function SocialLibraryPage() {
+  const p2 = useSocialP2();
+  return (
+    <div data-testid="social-library-page">
+      <PageHeader title="Library" description="Images, captions and hashtag sets your team reuses, tagged by campaign." actions={<NewPostButton />} />
+      <SocialSwitcher />
+      {p2 ? <SocialLibrary /> : <Card><EmptyState icon={<IconMegaphone />} title="Library isn't on yet" body="It arrives with the next Social update." /></Card>}
+    </div>
+  );
+}
+
+function SocialNewPostV1() {
   const status = useAppsStatus();
   const accounts = useAppAccounts();
   const navigate = useNavigate();

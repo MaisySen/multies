@@ -8,9 +8,9 @@ export type IconKey =
   | "today" | "overview" | "bell" | "triage" | "approvals" | "activity" | "sharedInbox" | "mailboxes" | "domains" | "deliverability"
   | "goals" | "portfolio" | "timesheet" | "templates" | "automations" | "files" | "forms" | "meetings" | "booking" | "contacts"
   | "reports" | "agents" | "integrations" | "connections" | "settings" | "operator" | "convert"
-  | "social" | "planner" | "posts" | "accounts";
+  | "social" | "planner" | "posts" | "accounts" | "library";
 
-export interface NavPage { to: string; label: string; icon: IconKey; end?: boolean; flag?: "tools" | "files" | "scheduling" | "operator" | "flows" }
+export interface NavPage { to: string; label: string; icon: IconKey; end?: boolean; flag?: "tools" | "files" | "scheduling" | "operator" | "flows" | "socialP2" }
 export interface Section { id: SectionId; label: string; icon: IconKey; to: string; pages: NavPage[] }
 
 export const SECTIONS: Section[] = [
@@ -43,6 +43,7 @@ export const SECTIONS: Section[] = [
   { id: "social", label: "Social", icon: "social", to: "/app/social", pages: [
     { to: "/app/social", label: "Planner", icon: "planner", end: true },
     { to: "/app/social/posts", label: "Posts", icon: "posts" },
+    { to: "/app/social/library", label: "Library", icon: "library", flag: "socialP2" }, // R117
     { to: "/app/social/accounts", label: "Accounts", icon: "accounts" },
   ] },
   { id: "tools", label: "Tools", icon: "tools", to: "/app/tools", pages: [
@@ -76,7 +77,7 @@ export const SECTIONS: Section[] = [
   ] },
 ];
 
-export interface NavFlags { /** R90: the automation builder is on. */ flows?: boolean; tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts. */ social?: boolean; /** R87: Tools > Links is on. */ links?: boolean }
+export interface NavFlags { /** R90: the automation builder is on. */ flows?: boolean; tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts (R117: members too, sent for approval, with Social P2). */ social?: boolean; socialP2?: boolean; /** R87: Tools > Links is on. */ links?: boolean }
 
 /** The sections and pages this person can open (switched off features leave no dead links). */
 export function visibleSections(flags: NavFlags): Section[] {

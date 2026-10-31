@@ -286,7 +286,7 @@ export function canEditPost(role: string, userId: string, post: { status: string
 /** Library limits on the free plan. */
 export const LIBRARY_LIMITS = { items: 200, imageBytes: 25 * 1024 * 1024, imageMax: 1_000_000, textMax: 5000 } as const;
 export type LibraryKind = "image" | "caption" | "hashtags";
-export interface LibraryItemView { id: string; kind: LibraryKind; name: string; body: string | null; imageUrl: string | null; campaign: string | null; sizeBytes: number; createdAt: string }
+export interface LibraryItemView { id: string; kind: LibraryKind; name: string; body: string | null; imageUrl: string | null; campaign: string | null; sizeBytes: number; createdAt: string; mediaId?: string }
 export interface LibraryView { items: LibraryItemView[]; usedBytes: number; limits: typeof LIBRARY_LIMITS }
 
 export interface SlotView { id: string; accountId: string | null; weekday: number; minute: number; tz: string }

@@ -13,6 +13,7 @@ import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { useAgents } from "./agents";
 import { FlowApprovalsSection } from "./automations/approvals-section"; // R90
+import { SocialApprovals } from "./social-approvals";
 
 export interface Approval {
   id: string; agentId: string; mailboxId: string; threadId: string | null; status: "pending" | "sent" | "rejected" | "failed" | "expired";
@@ -35,7 +36,8 @@ export function ApprovalsPage() {
   const rows = tab === "pending" ? list.data : list.data?.filter((a) => a.status !== "pending");
   return (
     <>
-      <PageHeader title="Approvals" description="Messages your agents want to send. Nothing leaves until someone approves it. Edit before you approve if it needs a better word." />
+      <PageHeader title="Approvals" description="Messages your agents want to send, automation steps waiting for a yes, and social posts members wrote. Nothing leaves until someone approves it." />
+      <SocialApprovals />
       <FlowApprovalsSection />
       <div className="mb-4 flex gap-1 rounded-lg bg-fill p-0.5 text-sm sm:w-fit" role="tablist" aria-label="Approvals">
         {(["pending", "decided"] as const).map((t) => (

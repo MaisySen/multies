@@ -12,7 +12,7 @@ import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { api, ApiError, errorMessage } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
-import { Badge, Card, Skeleton } from "@/web/components/ui/misc";
+import { Card, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Input, Select, Textarea } from "@/web/components/ui/input";
 import { Dialog } from "@/web/components/ui/dialog";
@@ -267,7 +267,7 @@ function LibraryPicker({ open, onClose, onImage, onText }: { open: boolean; onCl
             {items.map((i) => (
               <li key={i.id}>
                 <button type="button" className="group block w-full overflow-hidden rounded-lg border border-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50" aria-label={`Use ${i.name}`}
-                  onClick={async () => { const mediaId = (i as { mediaId?: string }).mediaId; if (!i.imageUrl || !mediaId) return; const d = await measure(i.imageUrl); onImage({ key: nextKey(), src: i.imageUrl, w: d.w, h: d.h, mediaId }); onClose(); }}>
+                  onClick={async () => { const mediaId = i.mediaId; if (!i.imageUrl || !mediaId) return; const d = await measure(i.imageUrl); onImage({ key: nextKey(), src: i.imageUrl, w: d.w, h: d.h, mediaId }); onClose(); }}>
                   <img src={i.imageUrl ?? ""} alt="" className="aspect-square w-full object-cover transition-transform duration-150 group-hover:scale-[1.03] motion-reduce:transition-none" />
                   <span className="block truncate px-1.5 py-1 text-left text-[12px]">{i.name}</span>
                 </button>
@@ -299,14 +299,15 @@ export interface ComposerProps {
   presetAt?: string | null;
   presetAccount?: string | null;
   presetLibraryText?: string | null;
+  presetImage?: { url: string; mediaId: string } | null;
   campaigns?: string[];
 }
 
-export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccount, presetLibraryText, campaigns = [] }: ComposerProps) {
+export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccount, presetLibraryText, presetImage, campaigns = [] }: ComposerProps) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const health = useAccountHealth();
-  const [format, setFormat] = useState<SocialFormat>(() => (draft?.format as SocialFormat) ?? (draft?.images?.length ? (draft.images.length > 1 ? "carousel" : "image") : "text"));
+  const [format, setFormat] = useState<SocialFormat>(() => (draft?.format as SocialFormat) ?? (draft?.images?.length ? (draft.images.length > 1 ? "carousel" : "image") : presetImage ? "image" : "text"));
   const [text, setText] = useState(draft?.text ?? presetLibraryText ?? "");
   const [texts, setTexts] = useState<Record<string, string>>(draft?.texts ?? {});
   const [tab, setTab] = useState<string>("all");
@@ -335,6 +336,10 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
   const [moreOpen, setMoreOpen] = useState(!!(draft?.extras || draft?.campaign || draft?.evergreen));
   const file = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (!presetImage) return;
+    void measure(presetImage.url).then((d) => setImages([{ key: nextKey(), src: presetImage.url, w: d.w, h: d.h, mediaId: presetImage.mediaId }]));
+  }, [presetImage]);
   // A draft's images come back as library style picks (the post already holds them).
   useEffect(() => {
     if (!draft?.images?.length) return;
@@ -685,4 +690,3 @@ function TargetField({ account, value, onChange }: { account: ConnectedAccountVi
   );
 }
 
-export { Badge };
