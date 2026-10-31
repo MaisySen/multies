@@ -101,6 +101,7 @@ export default function WhiteboardCanvas(p: CanvasProps) {
         api.updateScene({ elements: restoreElements(merged as any, null), captureUpdate: CaptureUpdateAction.NEVER });
       }
       mark(merged);
+      if (merged.some((e) => !e.isDeleted)) api.scrollToContent(undefined, { fitToContent: true, animate: false });
       p.onReady?.();
     };
     ready();
@@ -210,6 +211,16 @@ export default function WhiteboardCanvas(p: CanvasProps) {
   }, [p.exportRef]);
 
   useEffect(() => () => clearTimeout(snapTimer.current), []);
+  // The library's menu button has an icon only; give it a name screen readers can say.
+  useEffect(() => {
+    const el = host.current;
+    if (!el) return;
+    const name = () => el.querySelectorAll(".main-menu-trigger:not([aria-label])").forEach((b) => b.setAttribute("aria-label", "Board menu"));
+    name();
+    const mo = new MutationObserver(name);
+    mo.observe(el, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, []);
   // Save what is pending when the board closes (leaving the page, closing the block).
   useEffect(() => () => {
     if (props.current.readOnly) return;

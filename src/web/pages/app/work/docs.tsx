@@ -214,7 +214,7 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
       <div className="mb-3 flex items-center gap-2 text-[12.5px] text-subtle max-sm:-mx-2 max-sm:-mt-3 max-sm:mb-1 max-sm:gap-0" data-testid="doc-bar">
         <Link to="/app/docs" className="inline-flex items-center gap-1 hover:text-fg max-sm:h-11 max-sm:shrink-0 max-sm:gap-0.5 max-sm:rounded-lg max-sm:pl-1 max-sm:pr-2 max-sm:text-[16px] max-sm:text-brand-hover max-sm:active:bg-hover"><IconArrowLeft className="h-3.5 w-3.5 max-sm:h-5 max-sm:w-5" />Docs</Link>
         {session && (
-          <div className="ml-auto flex min-w-0 items-center gap-1.5 max-sm:mr-1" data-testid="collab-presence" aria-label={peers.length ? `Also here: ${peers.map((p) => p.name).join(", ")}` : "Only you are here"}>
+          <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 max-sm:mr-1" data-testid="collab-presence" aria-label={peers.length ? `Also here: ${peers.map((p) => p.name).join(", ")}` : "Only you are here"}>
             <span className="inline-flex items-center gap-1 text-[12px]"><span className="h-1.5 w-1.5 rounded-full bg-good max-sm:h-2 max-sm:w-2" aria-hidden /><span className="max-sm:sr-only">Live</span></span>
             {peers.map((p) => (
               <span key={p.clientId} data-testid="collab-peer" title={p.name} className="inline-flex max-w-[10rem] items-center gap-1 whitespace-nowrap rounded-full border border-line px-2 py-0.5 text-[12px] text-fg">
@@ -223,7 +223,7 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
             ))}
           </div>
         )}
-        <span className={cn(!session && "ml-auto", "max-sm:mr-1 max-sm:whitespace-nowrap", state === "saved" && "max-sm:sr-only", state === "conflict" && "max-sm:order-last max-sm:basis-full max-sm:whitespace-normal max-sm:px-2 max-sm:pt-1 max-sm:text-bad")} role="status">{status}</span>
+        <span className={cn(!session && "ml-auto", "shrink-0 whitespace-nowrap max-sm:mr-1", state === "saved" && "max-sm:sr-only", state === "conflict" && "max-sm:order-last max-sm:basis-full max-sm:whitespace-normal max-sm:px-2 max-sm:pt-1 max-sm:text-bad")} role="status">{status}</span>
         {visual && !isBoard && (
           <div role="group" aria-label="View" className="inline-flex shrink-0 rounded-lg border border-line p-0.5 max-sm:hidden" data-testid="doc-mode">
             {(["doc", "mindmap"] as DocMode[]).map((m) => (
@@ -235,7 +235,7 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
         {visual && !isBoard && (
           <button type="button" aria-label="Present" title="Present" data-testid="present-button" onClick={() => setParam("present", "1")}
             className="inline-flex shrink-0 items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg">
-            <IconPlay className="h-4 w-4 max-sm:h-5 max-sm:w-5" /><span className="max-sm:hidden">Present</span>
+            <IconPlay className="h-4 w-4 max-sm:h-5 max-sm:w-5" /><span className="max-lg:hidden">Present</span>
           </button>
         )}
         {isBoard && (
@@ -252,7 +252,7 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
             if (state === "unsaved") { clearTimeout(timer.current); await save(); }
             try { await api.post("/templates", { kind: "doc", fromDocId: id, name: title.trim() || undefined }); toast.success("Saved as a doc template"); } catch (err) { showError(err as Error); }
           }}>
-          <IconTemplate className="h-4 w-4 max-sm:h-5 max-sm:w-5" /><span className="max-sm:hidden">Save as template</span>
+          <IconTemplate className="h-4 w-4 max-sm:h-5 max-sm:w-5" /><span className="max-2xl:hidden">Save as template</span>
         </button>
         <button aria-label="Delete doc" className="inline-flex shrink-0 items-center justify-center rounded p-1 hover:text-bad max-sm:h-11 max-sm:w-11 max-sm:rounded-lg" onClick={async () => { if (!(await confirm({ ...deleteDocConfirm(tree.data?.tree, id, title), confirmLabel: "Delete doc" }))) return; await api.del(`/docs/${id}`); void qc.invalidateQueries({ queryKey: ["doc-tree"] }); navigate("/app/docs"); }}><IconTrash className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>
       </div>

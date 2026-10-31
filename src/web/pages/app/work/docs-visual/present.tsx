@@ -170,7 +170,6 @@ export function PresentOverlay({ docId, doc, title, start = 0, onClose }: Presen
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [go, slides.length, onClose]);
 
   // Chrome hides after a few still seconds on a big screen.

@@ -20,11 +20,11 @@ import {
 import { downloadBlob, pngToPdf, safeName, svgBlob, svgToPng } from "./export-file";
 import { readTokens, useThemeKey } from "./theme";
 
-const COL = 236, ROW = 44, NODE_H = 34, PAD = 24, MAX_W = 196;
+const COL = 280, ROW = 44, NODE_H = 34, PAD = 24, MAX_W = 240;
 
 interface Box { id: string; node: MindNode; x: number; y: number; w: number; depth: number; folded: boolean; hidden: number }
 
-const textWidth = (s: string, root: boolean) => Math.min(MAX_W, Math.max(56, Math.round(s.length * (root ? 8.4 : 7.4)) + 28));
+const textWidth = (s: string, bold: boolean, badge: boolean) => Math.min(MAX_W, Math.max(64, Math.round(s.length * (bold ? 8 : 7.2)) + 30 + (badge ? 30 : 0)));
 
 /** A simple tidy layout: leaves take one row each, a parent sits in the middle of its children. */
 function layout(tree: MindNode, folded: Set<string>): { boxes: Box[]; links: [Box, Box][]; width: number; height: number } {
@@ -36,7 +36,8 @@ function layout(tree: MindNode, folded: Set<string>): { boxes: Box[]; links: [Bo
     const childBoxes = kids.map((k) => walk(k, depth + 1));
     const y = childBoxes.length ? (childBoxes[0].y + childBoxes[childBoxes.length - 1].y) / 2 : PAD + (row++) * ROW;
     const text = n.text || (n.kind === "root" ? "Untitled" : "");
-    const b: Box = { id: n.id, node: n, x: PAD + depth * COL, y, w: textWidth(text || "New idea", n.kind === "root"), depth, folded: folded.has(n.id) && visible(n).length > 0, hidden: countHidden(n) };
+    const hidden = countHidden(n);
+    const b: Box = { id: n.id, node: n, x: PAD + depth * COL, y, w: textWidth(text || "New idea", n.kind !== "item", hidden > 0 && n.kind !== "root"), depth, folded: folded.has(n.id) && visible(n).length > 0, hidden };
     boxes.push(b);
     for (const c of childBoxes) links.push([b, c]);
     return b;
@@ -213,8 +214,8 @@ export function MindMapView({ editor, title, readOnly, onRenameTitle }: { editor
         <Button variant="ghost" size="sm" onClick={() => void exportAs("pdf")} aria-label="Download as PDF"><IconDownload className="h-3.5 w-3.5" />PDF</Button>
         <Button variant="ghost" size="sm" onClick={() => void exportAs("svg")} aria-label="Download as SVG"><IconDownload className="h-3.5 w-3.5" />SVG</Button>
       </div>
-      <div ref={wrap} className="relative min-h-[360px] flex-1 overflow-auto overscroll-contain rounded-xl bg-bg/50 [touch-action:pan-x_pan-y]" role="tree" aria-label={`Mind map of ${title || "Untitled"}`}>
-        <div className="relative" style={{ width, height }}>
+      <div ref={wrap} className="relative min-h-[360px] flex-1 overflow-auto overscroll-contain rounded-xl bg-bg/50 [touch-action:pan-x_pan-y]">
+        <div className="relative" style={{ width, height }} role="tree" aria-label={`Mind map of ${title || "Untitled"}`}>
           <svg className="pointer-events-none absolute inset-0" width={width} height={height} aria-hidden>
             {links.map(([a, b]) => <path key={`${a.id}-${b.id}`} d={curve(a, b)} fill="none" className="stroke-line-strong" strokeWidth={1.5} />)}
           </svg>
@@ -256,7 +257,7 @@ export function MindMapView({ editor, title, readOnly, onRenameTitle }: { editor
                   </div>
                 )}
                 {kids > 0 && !isEditing && (
-                  <button type="button" tabIndex={-1} onClick={() => toggleFold(b.id)} aria-label={b.folded ? `Show ${kids} under ${b.node.text}` : `Fold ${b.node.text}`}
+                  <button type="button" tabIndex={-1} aria-hidden onClick={() => toggleFold(b.id)} aria-label={b.folded ? `Show ${kids} under ${b.node.text}` : `Fold ${b.node.text}`}
                     className="absolute right-0 top-[7px] grid h-5 w-5 place-items-center rounded-full border border-line bg-surface text-[10px] text-muted hover:text-fg max-sm:top-[3px] max-sm:h-7 max-sm:w-7">
                     {b.folded ? kids : <IconChevronRight className="h-3 w-3 rotate-180" aria-hidden />}
                   </button>
