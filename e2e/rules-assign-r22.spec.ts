@@ -39,7 +39,7 @@ test("a round robin mail rule assigns new support threads to two people in turn;
 
   // The rule, made in the Automations page.
   await page.setViewportSize({ width: 1360, height: 900 });
-  await page.goto("/app/automations");
+  await page.goto("/app/automations?tab=rules"); // R90: rules are a tab of the Automations home
   await page.getByRole("button", { name: "New rule" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name").fill("Share out support mail");
@@ -86,7 +86,7 @@ test("a round robin mail rule assigns new support threads to two people in turn;
   await expect(row("Order 1182 arrived damaged")).toBeVisible();
   await expect(row("Can I move my billing date")).toHaveCount(0);
 
-  await page.goto("/app/automations");
+  await page.goto("/app/automations?tab=rules"); // R90: rules are a tab of the Automations home
   await expect(page.getByText(/Ran 2 times/)).toBeVisible();
   await page.screenshot({ path: `${dir}/rules-automations.png` });
 });

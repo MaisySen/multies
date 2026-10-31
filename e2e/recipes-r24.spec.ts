@@ -22,7 +22,7 @@ test("turn on a recipe, finish a task, and the post shows in the channel", async
   expect((await page.request.post("/api/automations/recipes/assigned_notify/enable", { data: {}, headers })).status()).toBe(200);
   expect((await page.request.post("/api/automations/recipes/day_before_due/enable", { data: {}, headers })).status()).toBe(200);
 
-  await page.goto("/app/automations");
+  await page.goto("/app/automations?tab=rules"); // R90: rules are a tab of the Automations home
   await page.getByRole("tab", { name: "Recipes" }).click();
   await expect(page.getByRole("region", { name: "Tasks" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Mail" })).toBeVisible();

@@ -53,11 +53,14 @@ export function AutomationsPage({ embedded }: { embedded?: boolean } = {}) {
   const remove = async (r: Rule) => { try { await api.del(`/automations/${r.id}`); await refresh(); } catch (e) { showError(e as Error); } };
   return (
     <div>
-      {embedded ? <div className="mb-3 flex justify-end"><Button onClick={() => setEditing({ trigger: "email_received", action: "create_task", conditions: {}, actionConfig: {} })}><IconPlus className="h-4 w-4" />New rule</Button></div> : <PageHeader title="Automations" description="Simple rules that run inside Multies. They make tasks, notify your team and post in channels; they never email anyone outside the business." actions={<Button onClick={() => setEditing({ trigger: "email_received", action: "create_task", conditions: {}, actionConfig: {} })}><IconPlus className="h-4 w-4" />New rule</Button>} />}
-      <div role="tablist" aria-label="Automations" className="mb-5 inline-flex rounded-lg border border-line bg-surface p-0.5 text-[13px]">
+      {!embedded && <PageHeader title="Automations" description="Simple rules that run inside Multies. They make tasks, notify your team and post in channels; they never email anyone outside the business." actions={<Button onClick={() => setEditing({ trigger: "email_received", action: "create_task", conditions: {}, actionConfig: {} })}><IconPlus className="h-4 w-4" />New rule</Button>} />}
+      <div className={embedded ? "mb-4 flex flex-wrap items-center justify-between gap-2" : ""}>
+      <div role="tablist" aria-label={embedded ? "Rules" : "Automations"} className={`${embedded ? "" : "mb-5 "}inline-flex rounded-lg border border-line bg-surface p-0.5 text-[13px]`}>
         {(["rules", "recipes"] as const).map((k) => (
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`rounded-md px-3 py-1.5 font-medium ${tab === k ? "bg-brand text-white" : "text-muted hover:text-fg"}`}>{k === "rules" ? "Your rules" : "Recipes"}</button>
         ))}
+      </div>
+        {embedded && <Button onClick={() => setEditing({ trigger: "email_received", action: "create_task", conditions: {}, actionConfig: {} })}><IconPlus className="h-4 w-4" />New rule</Button>}
       </div>
       {tab === "recipes" ? <RecipesTab rules={q.data?.automations ?? []} onEditRule={(r) => setEditing(r as Rule)} /> : q.isPending ? <Skeleton className="h-40" /> : (
         <div className="grid gap-6 lg:grid-cols-[1fr_320px]">

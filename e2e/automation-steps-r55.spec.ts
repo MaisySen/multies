@@ -17,7 +17,7 @@ test("a rule with extra actions runs them all on a new task", async ({ page, con
   await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
 
   await page.setViewportSize({ width: 1360, height: 900 });
-  await page.goto("/app/automations");
+  await page.goto("/app/automations?tab=rules"); // R90: rules are a tab of the Automations home
   await page.getByRole("button", { name: "New rule" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Name").fill("Triage new tasks");
