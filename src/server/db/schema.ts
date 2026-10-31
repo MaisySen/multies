@@ -1989,8 +1989,56 @@ export const mailPrefs = sqliteTable("mail_prefs", {
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   readStatus: integer("read_status", { mode: "boolean" }).notNull().default(false),
+  /** R85 (0103): the person's Inbox tabs: "classic" (Important, Other), "categories" (Primary, Updates, Promotions) or "off". Null: the default for their account. */
+  inboxTabs: text("inbox_tabs", { enum: ["classic", "categories", "off"] }),
+  /** R85 (0103): JSON { s: { sender: tab }, t: { threadId: tab } }: senders and threads the person moved to a tab. */
+  tabPins: text("tab_pins"),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
 }, (t) => [primaryKey({ columns: [t.orgId, t.userId] })]);
+
+/** R85 (0103): a person's mail rules: conditions on new mail and several actions run in order. */
+export const mailRules = sqliteTable("mail_rules", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  match: text("match", { enum: ["all", "any"] }).notNull().default("all"),
+  /** JSON MailRuleCondition[] (shared/mail-rules-r85.ts). */
+  conditions: text("conditions").notNull().default("[]"),
+  /** JSON MailRuleAction[], run in order. */
+  actions: text("actions").notNull().default("[]"),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  position: integer("position").notNull().default(0),
+  runCount: integer("run_count").notNull().default(0),
+  lastRunAt: ts("last_run_at"),
+  lastError: text("last_error"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("mail_rules_mailbox_idx").on(t.mailboxId, t.enabled), index("mail_rules_user_idx").on(t.orgId, t.userId, t.position)]);
+
+/** R85 (0103): what each mail rule did, newest first (kept 30 days). */
+export const mailRuleRuns = sqliteTable("mail_rule_runs", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  ruleId: text("rule_id").notNull().references(() => mailRules.id, { onDelete: "cascade" }),
+  messageId: text("message_id"),
+  fromAddress: text("from_address"),
+  subject: text("subject"),
+  status: text("status", { enum: ["ok", "partial", "failed", "skipped"] }).notNull(),
+  /** JSON { action, ok, detail }[] */
+  steps: text("steps").notNull().default("[]"),
+  createdAt: createdAt(),
+}, (t) => [index("mail_rule_runs_rule_idx").on(t.ruleId, t.createdAt)]);
+
+/** R85 (0103): labels on mail threads, shared by everyone who can open the thread. WITHOUT ROWID (see the migration). */
+export const mailThreadLabels = sqliteTable("mail_thread_labels", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  threadId: text("thread_id").notNull(),
+  label: text("label").notNull(),
+  mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.threadId, t.label] }), index("mail_thread_labels_label_idx").on(t.orgId, t.label)]);
 
 /** R33 (0074): "select all" in mail as one server job (services/mail/bulk-job-r33.ts). */
 export const mailBulkJobs = sqliteTable("mail_bulk_jobs", {

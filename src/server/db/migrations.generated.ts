@@ -1013,5 +1013,19 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX `direct_social_publishes_org_idx` ON `direct_social_publishes` (`org_id`,`created_at`);",
       "CREATE UNIQUE INDEX `direct_social_publishes_pub_uq` ON `direct_social_publishes` (`provider`,`publish_id`);"
     ]
+  },
+  {
+    "name": "0103_mail_rules_tabs",
+    "statements": [
+      "-- R85: inbox tabs (a person's tab style and the senders and threads they moved to a tab), mail rules with several\n-- actions in order, a run log per rule, and thread labels. Additive only: existing people keep their tabs until they\n-- choose another style.\nALTER TABLE `mail_prefs` ADD `inbox_tabs` text;",
+      "ALTER TABLE `mail_prefs` ADD `tab_pins` text;",
+      "CREATE TABLE `mail_rules` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`match` text DEFAULT 'all' NOT NULL,\n\t`conditions` text DEFAULT '[]' NOT NULL,\n\t`actions` text DEFAULT '[]' NOT NULL,\n\t`enabled` integer DEFAULT true NOT NULL,\n\t`position` integer DEFAULT 0 NOT NULL,\n\t`run_count` integer DEFAULT 0 NOT NULL,\n\t`last_run_at` integer,\n\t`last_error` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `mail_rules_mailbox_idx` ON `mail_rules` (`mailbox_id`,`enabled`);",
+      "CREATE INDEX `mail_rules_user_idx` ON `mail_rules` (`org_id`,`user_id`,`position`);",
+      "CREATE TABLE `mail_rule_runs` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`rule_id` text NOT NULL,\n\t`message_id` text,\n\t`from_address` text,\n\t`subject` text,\n\t`status` text NOT NULL,\n\t`steps` text DEFAULT '[]' NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`rule_id`) REFERENCES `mail_rules`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `mail_rule_runs_rule_idx` ON `mail_rule_runs` (`rule_id`,`created_at`);",
+      "CREATE TABLE `mail_thread_labels` (\n\t`org_id` text NOT NULL,\n\t`thread_id` text NOT NULL,\n\t`label` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `thread_id`, `label`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;",
+      "CREATE INDEX `mail_thread_labels_label_idx` ON `mail_thread_labels` (`org_id`,`label`);"
+    ]
   }
 ];

@@ -659,6 +659,13 @@
       "when": 1793470000000,
       "tag": "0102_direct_social",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "6",
+      "when": 1793480000000,
+      "tag": "0103_mail_rules_tabs",
+      "breakpoints": true
     }
   ]
 }
