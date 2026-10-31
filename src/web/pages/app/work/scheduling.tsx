@@ -70,7 +70,7 @@ export function SchedulingPage() {
   const url = page.data?.url;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       {dialogs}
       <PageHeader title="Booking page" description="Share a link so clients and partners can pick a time that suits you. Bookings become meetings with a video link." />
       {url && (

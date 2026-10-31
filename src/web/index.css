@@ -405,3 +405,6 @@
 
 /* Tools UX: an indeterminate progress bar (only animated when motion is allowed). */
 @keyframes tools-indeterminate { 0% { transform: translateX(-110%) } 100% { transform: translateX(320%) } }
+
+/* R75: card galleries fill the room next to the sidebar: as many 260 px (or wider) columns as fit, equal heights. */
+.mm-card-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); align-items: stretch; }

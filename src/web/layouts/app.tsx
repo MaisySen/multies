@@ -1,4 +1,5 @@
 import { setDisplayLocale } from "@/web/lib/date-input";
+import { pageFrameClass, pageWidth } from "@/web/lib/page-width"; // R75: page widths next to the sidebar
 import { Suspense, useEffect, useState, type ReactElement } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -282,7 +283,7 @@ export function AppLayout() {
         {!!me.error && <ReconnectingPill onRetry={() => void me.refetch()} />}
         <PendingInviteBanner />
         <main ref={setMainEl} className={cn("min-h-0 flex-1 overflow-x-hidden", isMail ? "overflow-hidden" : "overflow-y-auto overscroll-y-contain")}>
-          {isMail ? <Outlet /> : <div key={loc.pathname.split("/").slice(0, 3).join("/")} className="route-in mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8"><Outlet /></div>}
+          {isMail ? <Outlet /> : <div key={loc.pathname.split("/").slice(0, 3).join("/")} className={pageFrameClass(loc.pathname)} data-page-width={pageWidth(loc.pathname)}><Outlet /></div>}
         </main>
         <PhoneTabBar mailUnread={mailUnread} moreOpen={drawer} onMore={() => setDrawer((d) => !d)} />
         <PaletteHost onSignOut={signOut} />

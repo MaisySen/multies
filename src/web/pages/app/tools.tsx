@@ -456,10 +456,10 @@ export function ToolsPage() {
     } finally { setChaining(false); }
   };
 
-  if (config.isLoading) return <div className="mx-auto max-w-5xl space-y-4"><Skeleton className="h-10 w-48" /><Skeleton className="h-40 w-full" /></div>;
+  if (config.isLoading) return <div className="w-full space-y-4"><Skeleton className="h-10 w-48" /><Skeleton className="h-40 w-full" /></div>;
   if (!enabled || info.isError) {
     return (
-      <div className="mx-auto max-w-4xl">
+      <div className="max-w-4xl">
         <EmptyState icon={<IconWrench />} title="Tools are not on for this workspace" body="Document tools are not available here. If your workspace turned them off, an admin can turn them back on in Settings, General." />
       </div>
     );
@@ -608,7 +608,7 @@ export function ToolsPage() {
   const waking = (phase.kind === "uploading" && phase.waking) || (phase.kind === "working" && cold && elapsed >= 4 && !phase.job.progress);
 
   return (
-    <div className="mx-auto w-full max-w-6xl pb-6" data-testid="tools-page" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+    <div className="w-full pb-6" data-testid="tools-page" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {leaveGuard}
       <div className="lg:grid lg:grid-cols-[236px_minmax(0,1fr)] lg:gap-6">
         <nav className="hidden lg:block" aria-label="All tools">
@@ -825,7 +825,7 @@ export function ToolsPage() {
 
 function ToolSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-6xl lg:grid lg:grid-cols-[236px_minmax(0,1fr)] lg:gap-6" aria-busy="true" aria-label="Loading tool">
+    <div className="w-full lg:grid lg:grid-cols-[236px_minmax(0,1fr)] lg:gap-6" aria-busy="true" aria-label="Loading tool">
       <div className="hidden space-y-2 lg:block">{Array.from({ length: 10 }, (_, i) => <Skeleton key={i} className="h-7 w-full" />)}</div>
       <div className="space-y-4 rounded-2xl border border-line p-6"><Skeleton className="h-11 w-64" /><Skeleton className="h-40 w-full rounded-2xl" /><Skeleton className="h-11 w-40" /></div>
     </div>

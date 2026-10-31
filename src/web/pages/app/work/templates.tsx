@@ -32,26 +32,26 @@ export function TemplatesPage() {
     try { await api.del(`/templates/${t.id}`); await qc.invalidateQueries({ queryKey: ["templates"] }); } catch (e) { showError(e as Error); }
   };
   const card = (t: Template) => (
-    <Card key={t.id} className="flex flex-col gap-2" data-testid="template-card">
+    <Card key={t.id} className="flex h-full flex-col gap-3 p-5 transition-shadow duration-150 hover:shadow-md motion-reduce:transition-none" data-testid="template-card">
       <div className="flex items-start justify-between gap-2">
-        <div><h3 className="font-semibold">{t.name}</h3><p className="text-[12px] text-subtle">{t.category} · {t.kind === "project" ? `project, ${t.taskCount} tasks` : t.kind === "doc" ? "doc" : "task"}</p></div>
-      {dialogs}
+        <div className="min-w-0"><h3 className="text-[15px] font-semibold leading-6">{t.name}</h3><p className="mt-0.5 text-[12px] text-subtle">{t.category} · {t.kind === "project" ? `project, ${t.taskCount} tasks` : t.kind === "doc" ? "doc" : "task"}</p></div>
         {!t.builtin && <Button variant="ghost" size="icon" aria-label={`Delete ${t.name}`} onClick={() => void remove(t)}><IconTrash className="h-4 w-4" /></Button>}
       </div>
       {t.description && <p className="text-[13.5px] text-muted">{t.description}</p>}
-      <div className="mt-auto pt-1"><Button size="sm" onClick={() => setUsing(t)}>Use template</Button></div>
+      <div className="mt-auto pt-2"><Button size="sm" variant="secondary" className="w-full sm:w-auto" onClick={() => setUsing(t)}>Use template</Button></div>
     </Card>
   );
   return (
     <div>
+      {dialogs}
       <PageHeader title="Project templates" description="Start a project with its statuses, fields and tasks already in place. Due dates count from the start date you pick."
         actions={<div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => setSaving(true)}>Save a project as a template</Button><Button size="sm" onClick={() => setWriting(true)}><IconPlus className="h-4 w-4" />New template</Button></div>} />
       {q.isPending ? <Skeleton className="h-64" /> : (
         <>
           <h2 className="mb-3 text-[15px] font-semibold">Starter gallery</h2>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{starters.map(card)}</div>
+          <div className="mm-card-grid">{starters.map(card)}</div>
           <h2 className="mb-3 mt-8 text-[15px] font-semibold">Your templates</h2>
-          {mine.length ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{mine.map(card)}</div>
+          {mine.length ? <div className="mm-card-grid">{mine.map(card)}</div>
             : <EmptyState icon={<IconTemplate />} title="No saved templates yet" body="Write one from scratch with New template, save any project as a template, or save a task from its menu." />}
         </>
       )}

@@ -49,14 +49,14 @@ export function FilesPage() {
     getNextPageParam: (last) => last.next ?? undefined,
   });
 
-  if (tools.isPending) return <div className="mx-auto max-w-6xl p-6"><Skeleton className="h-8 w-48" /></div>;
-  if (!features.includes("folders")) return <div className="mx-auto max-w-6xl p-6"><EmptyState icon={<IconFile />} title="Files is not on here yet" body="Your workspace will see Files once it is switched on." /></div>;
+  if (tools.isPending) return <div className="w-full"><Skeleton className="h-8 w-48" /></div>;
+  if (!features.includes("folders")) return <div className="w-full"><EmptyState icon={<IconFile />} title="Files is not on here yet" body="Your workspace will see Files once it is switched on." /></div>;
   const items = list.data?.pages.flatMap((p) => p.items) ?? [];
   const indexing = counts.data?.indexing;
   const pick = (f: AttachmentFolder) => { setRaw(""); setParams({ folder: f }); };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6" data-testid="files-page">
+    <div className="w-full" data-testid="files-page">
       <PageHeader eyebrow="Tools" title="Files" description="Attachments from your mail, sorted into folders. Search finds words inside them, scans included." />
       <div className="relative mb-4">
         <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />

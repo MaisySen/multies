@@ -56,7 +56,7 @@ export function IntegrationsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
+    <div className="max-w-5xl space-y-8">
       <PageHeader title="Integrations" description="Send workspace events to the apps you already use, and turn posts from other tools into tasks, chat messages and contacts. No paid plans or app installs needed." />
 
       <section aria-labelledby="int-connected" className="space-y-3">

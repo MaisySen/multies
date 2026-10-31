@@ -22,6 +22,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { EmptyState, Skeleton, Switch } from "@/web/components/ui/misc";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
+import { Popover } from "@/web/components/ui/popover"; // R75
 import { cn } from "@/web/lib/cn";
 import { Board, ColumnComposer, NO_VALUE } from "./board";
 import { describeFilter, FieldFilterPicker, FieldsDialog } from "./fields";
@@ -181,6 +182,7 @@ export function TasksPage() {
   // R31: J/K focus on the visible tasks; S, A, P, L and D act on the focused or open task (lib/commands).
   useTaskListFocus(useMemo(() => (tasks.data ?? []).map((t) => t.id), [tasks.data]), openId);
   const activeFilters = FILTER_KEYS.filter((k) => filters[k]);
+  const moreFilterCount = (filters.priority ? 1 : 0) + (filters.type ? 1 : 0); // R75: shown on the Filters button
 
   const saveView = async () => {
     const name = (await prompt({ title: "Save view", label: "View name", initial: activeFilters.length ? activeFilters.map((k) => filters[k]).join(", ") : `${project?.name ?? "All tasks"} ${view}`, confirmLabel: "Save view", validate: requireText("a name") }))?.trim();
@@ -204,21 +206,18 @@ export function TasksPage() {
           {view !== "board" && view !== "sprints" && <option value="">All projects</option>}
           {list.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
-        {project && <Button variant="ghost" size="icon" className="max-sm:hidden" aria-label="Project settings" title="Statuses and project settings" onClick={() => setEditing(project)}><IconSettings2 className="h-4 w-4" /></Button>}
-        {project && <Button variant="ghost" size="sm" className="max-sm:hidden" onClick={() => setFieldsOpen(true)}><IconSliders className="h-4 w-4" /><span className="max-sm:sr-only">Fields</span></Button>}
-        {project && <Button variant="ghost" size="sm" className="max-sm:hidden" onClick={() => setGuestsOpen(true)}><IconAssign className="h-4 w-4" /><span className="max-sm:sr-only">Guests</span></Button>}
-        {project && <Button variant="ghost" size="sm" className="max-sm:hidden" onClick={() => setEpicsOpen(true)}><IconMountain className="h-4 w-4" /><span className="max-sm:sr-only">Epics</span></Button>}
-        {project && view === "board" && <span className="max-sm:order-3"><ShareButton kind="project_board" targetId={project.id} /></span>}
-        <Button variant="ghost" size="sm" className="max-sm:hidden" onClick={() => setEditing("new")} aria-label="New project"><IconPlus className="h-4 w-4" /><span className="max-sm:sr-only">New project</span></Button>
-        <div className="sm:hidden max-sm:order-3">
-          <Menu label="Project actions" trigger={<Button variant="ghost" size="icon" aria-label="Project actions" title="Project actions"><IconMore className="h-5 w-5" /></Button>}>
+        {/* R75: project actions live in one menu on every width (the header was three rows of buttons). */}
+        <div className="max-sm:order-3">
+          <Menu label="Project actions" align="start" trigger={<Button variant="ghost" size="icon" aria-label="Project actions" title="Project actions" data-testid="project-actions"><IconMore className="h-5 w-5" /></Button>}>
             {project && <MenuItem icon={<IconSettings2 />} onSelect={() => setEditing(project)}>Project settings</MenuItem>}
             {project && <MenuItem icon={<IconSliders />} onSelect={() => setFieldsOpen(true)}>Fields</MenuItem>}
             {project && <MenuItem icon={<IconAssign />} onSelect={() => setGuestsOpen(true)}>Guests</MenuItem>}
             {project && <MenuItem icon={<IconMountain />} onSelect={() => setEpicsOpen(true)}>Epics</MenuItem>}
+            {project && <div className="my-1 border-t border-line" />}
             <MenuItem icon={<IconPlus />} onSelect={() => setEditing("new")}>New project</MenuItem>
           </Menu>
         </div>
+        {project && view === "board" && <span className="max-sm:order-3"><ShareButton kind="project_board" targetId={project.id} /></span>}
         <div className="ml-auto flex items-center gap-2 max-sm:order-2">
           {/* R41 (MB-226): on phones the six views fold into one View picker (a bottom sheet). */}
           <Select aria-label="View" data-testid="phone-view-select" value={view} onChange={(e) => { const v = e.target.value as ViewKind; storeTaskView(v); set({ view: v }); }} className="h-10! w-auto! min-w-[112px] text-[14px] sm:hidden">
@@ -250,24 +249,39 @@ export function TasksPage() {
           <option value="">Anyone</option><option value="me">Me</option><option value="none">Nobody</option>
           {people.data?.map((p) => <option key={p.id} value={p.id}>{p.name}{isAgentLike(p) ? " (agent)" : ""}</option>)}
         </Select>
-        <Select aria-label="Priority filter" value={filters.priority ?? ""} onChange={(e) => set({ priority: e.target.value || null })} className="h-8 w-auto! text-[13px] max-sm:hidden">
-          <option value="">Any priority</option>
-          {(["urgent", "high", "medium", "low"] as Priority[]).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
-        </Select>
         <Select aria-label="Status filter" value={filters.status ?? ""} onChange={(e) => set({ status: e.target.value || null })} className="h-8 w-auto! text-[13px] max-sm:hidden">
           <option value="">Any status</option><option value="todo">To do</option><option value="doing">Doing</option><option value="done">Done</option>
         </Select>
-        <Select aria-label="Type filter" value={filters.type ?? ""} onChange={(e) => set({ type: e.target.value || null })} className="h-8 w-auto! text-[13px] max-sm:hidden">
-          <option value="">Any type</option>
-          {TASK_TYPES.map((k) => <option key={k} value={k}>{TYPE_META[k].label}</option>)}
-        </Select>
+        {/* R75: the filters people reach for less often sit in one Filters panel, so the toolbar stays one row. */}
+        <div className="max-sm:hidden">
+          <Popover label="More filters" testId="tasks-more-filters" className="w-[22rem]" button={({ open }) => (
+            <span className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13px] transition-colors", open || moreFilterCount ? "border-brand/40 bg-brand-soft text-brand-hover" : "border-line bg-surface text-fg/90 hover:bg-hover")}>
+              <IconSliders className="h-3.5 w-3.5" />Filters{moreFilterCount ? <span className="ml-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-brand px-1 text-[11px] font-semibold text-white">{moreFilterCount}</span> : null}
+            </span>
+          )}>
+            <div className="grid gap-3">
+              <Field label="Priority">{(p) => (
+                <Select {...p} value={filters.priority ?? ""} onChange={(e) => set({ priority: e.target.value || null })} className="h-9 text-[13px]">
+                  <option value="">Any priority</option>
+                  {(["urgent", "high", "medium", "low"] as Priority[]).map((x) => <option key={x} value={x}>{PRIORITY_LABEL[x]}</option>)}
+                </Select>
+              )}</Field>
+              <Field label="Type">{(p) => (
+                <Select {...p} value={filters.type ?? ""} onChange={(e) => set({ type: e.target.value || null })} className="h-9 text-[13px]">
+                  <option value="">Any type</option>
+                  {TASK_TYPES.map((k) => <option key={k} value={k}>{TYPE_META[k].label}</option>)}
+                </Select>
+              )}</Field>
+              {project && <div className="[&_[role=group]]:flex-wrap"><FieldFilterPicker fields={fields.filter((f) => !isComputed(f))} people={people.data ?? []} onAdd={(id, raw) => set({ [`field.${id}`]: raw })} /></div>}
+            </div>
+          </Popover>
+        </div>
         {fieldFilters.map(([k, v]) => (
           <span key={k} className="inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-elevated px-2 text-[12.5px]">
             {describeFilter(fields.find((f) => f.id === k.slice(6)), v, people.data ?? [])}
             <button aria-label="Remove this filter" onClick={() => set({ [k]: null })} className="text-subtle hover:text-fg"><IconClose className="h-3 w-3" /></button>
           </span>
         ))}
-        {project && <FieldFilterPicker fields={fields.filter((f) => !isComputed(f))} people={people.data ?? []} onAdd={(id, raw) => set({ [`field.${id}`]: raw })} />}
         {view === "board" && project && (
           <Select aria-label="Group board by" value={groupEpic ? "epic" : groupField?.id ?? ""} onChange={(e) => set({ group: e.target.value || null })} className="h-8 w-auto! text-[13px]">
             <option value="">Group by status</option>
@@ -281,7 +295,7 @@ export function TasksPage() {
           </Select>
         )}
         {(activeFilters.length > 0 || fieldFilters.length > 0) && <Button variant="ghost" size="sm" onClick={() => set(Object.fromEntries([...FILTER_KEYS.map((k) => [k, null]), ...fieldFilters.map(([k]) => [k, null])]))}><IconClose className="h-3.5 w-3.5" />Clear</Button>}
-        <Menu align="end" trigger={<Button variant="secondary" size="sm"><IconBookmark className="h-3.5 w-3.5" />Saved views<IconChevronDown className="h-3.5 w-3.5" /></Button>}>
+        <div className="sm:ml-auto"><Menu align="end" trigger={<Button variant="ghost" size="sm"><IconBookmark className="h-3.5 w-3.5" />Saved views<IconChevronDown className="h-3.5 w-3.5" /></Button>}>
           <MenuLabel>Saved views</MenuLabel>
           {(views.data ?? []).map((v) => (
             <MenuItem key={v.id} onSelect={() => set({ view: v.view, project: v.projectId, ...Object.fromEntries(FILTER_KEYS.map((k) => [k, v.filters[k] ?? null])), lanes: v.filters.lanes ?? null, group: v.filters.group ?? null })}>{v.name}{v.filters.lanes && v.filters.lanes !== "none" ? <span className="ml-auto pl-3 text-[11.5px] text-subtle">Lanes: {SWIMLANE_LABEL[v.filters.lanes as Exclude<Swimlanes, "none">] ?? v.filters.lanes}</span> : null}</MenuItem>
@@ -289,7 +303,7 @@ export function TasksPage() {
           {!views.data?.length && <p className="px-2.5 py-1.5 text-[12.5px] text-subtle">None yet</p>}
           <div className="my-1 border-t border-line" />
           <MenuItem icon={<IconPlus />} onSelect={() => void saveView()}>{saving ? "Saving" : "Save this view"}</MenuItem>
-        </Menu>
+        </Menu></div>
       </div>
 
       {project && fieldsOpen && <FieldsDialog projectId={project.id} fields={allFields} open onClose={() => setFieldsOpen(false)} />}
