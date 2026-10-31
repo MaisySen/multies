@@ -67,6 +67,8 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-chat-channels", label: "Chat channels", to: "/app/settings/channels", icon: IconChats, keywords: ["whatsapp", "messenger", "instagram", "chat", "connect"], flag: "chatChannels" },
   { id: "p-developers", label: "Developers", to: "/app/settings/developers", icon: IconKey, keywords: ["api", "webhooks", "keys", "mcp"] },
   { id: "p-sign-up-emails", label: "Sign-up emails", to: "/app/settings/sign-up-emails", icon: IconMention, keywords: ["auth emails", "verification", "hook"] },
+  { id: "p-branding", label: "Branding", to: "/app/settings/branding", icon: IconSettings, keywords: ["brand", "theme", "logo", "colours", "colors", "font", "company look"] }, // R77
+  { id: "p-appearance", label: "Appearance", to: "/app/settings/appearance", icon: IconMoon, keywords: ["dark mode", "light mode", "theme", "accent", "my colour"] }, // R77
   { id: "p-import", label: "Import", to: "/app/settings/import", icon: IconUpload, keywords: ["migrate", "move", "asana", "trello", "jira"] },
 ];
 

@@ -122,7 +122,7 @@ describe("R77 /api/branding", () => {
     expect(svg.status).toBe(422);
     const big = await (c as unknown as { app: { request: (p: string, i: RequestInit) => Promise<Response> } }).app.request("/api/branding/logo/wide_dark", { method: "PUT", body: new Uint8Array(600 * 1024), headers: { cookie: c.cookie, host: "localhost", "content-type": "image/png", "x-multies-upload": "1" } });
     expect(big.status).toBe(413);
-    expect((await c.get(`/api/branding/public/${orgId}`)).body.brand.logos.mark_light).toBe(v);
+    expect((await c.get(`/api/branding/public/${orgId}`)).status).toBe(404); // no public look until a public page has a branding hook
 
     // Personal accent is ignored while the brand is locked.
     const mine = await c.put("/api/branding/me", { followBrand: false, accent: "#15803d" });

@@ -68,15 +68,6 @@ export function brandingRoutes() {
         "cross-origin-resource-policy": "cross-origin",
       } });
     })
-    // A workspace's public look (colours, corners, font, logos) for its shared links and booking pages.
-    .get("/public/:orgId", async (c) => {
-      const orgId = c.req.param("orgId");
-      if (!/^[\w-]{1,64}$/.test(orgId)) throw notFound("No such workspace.");
-      const b = await getBrand(c.var.deps.db, orgId);
-      const pub: Brand = { ...b, sidebar: null, density: "comfortable", appearance: "system" };
-      c.header("cache-control", "public, max-age=300");
-      return c.json({ brand: publicBrand(b), css: brandCss(pub) });
-    })
     .get("/", requireAuth, async (c) => {
       const { auth, deps } = c.var;
       const [brand, personal] = await Promise.all([getBrand(deps.db, auth.orgId), personalFor(deps.db, auth.userId, auth.orgId)]);
