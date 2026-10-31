@@ -216,6 +216,30 @@ describe("R91 routes end to end", () => {
     expect((await anon.get(`/api/dash-public/${s2.url.split("/dash/")[1]}`)).status).toBe(404);
   });
 
+  it("public link is numbers only: no task titles, refs, dates or names, and refresh works after the password", async () => {
+    const me = (await c.get("/api/account/me")).body.user as { id: string; name: string };
+    const p = (await c.post("/api/projects", { name: "Vault", key: "VLT" })).body.project.id;
+    const due = new Date(Date.now() + 2 * 86_400_000).toISOString();
+    for (const title of ["Pack the vault", "Move the safe"]) await c.post("/api/tasks", { title, projectId: p, due, assignee: `member:${me.id}` });
+    const d2 = (await c.post("/api/dashboards", { name: "Private bits", shared: true, widgets: [
+      { type: "due" }, { type: "breakdown", groupBy: "assignee" }, { type: "workload" }, { type: "task_list" },
+      { type: "question", question: { table: "tasks", groupBy: "assignee" } },
+    ] })).body.dashboard.id;
+    const s = (await c.post(`/api/dashboards-plus/${d2}/shares`, { password: "secret12" })).body;
+    const token = s.url.split("/dash/")[1];
+    const anon = new Client(ctx.app);
+    const ok = await anon.call("GET", `/api/dash-public/${token}`, undefined, { "x-share-password": "secret12" });
+    expect(ok.status).toBe(200);
+    const body = JSON.stringify(ok.body.dashboard.data);
+    for (const bad of ["Pack the vault", "Move the safe", "VLT-1", "VLT-2", due, me.name]) expect(body.includes(bad), bad).toBe(false);
+    expect(body).toMatch(/Person 1/);
+    expect(body).toMatch(/"publicList":true/);
+    expect(body).not.toMatch(/usr_|"title":|"ref":|"due":/);
+    const again = await anon.call("GET", `/api/dash-public/${token}?refresh=1`, undefined, { "x-share-password": "secret12" });
+    expect(again.status).toBe(200);
+    expect((await anon.get(`/api/dash-public/${token}?refresh=1`)).status).toBe(401);
+  });
+
   it("scheduled report: mails each recipient once per run with unsubscribe, and stops after unsubscribe", async () => {
     const r = (await c.post(`/api/dashboards-plus/${dash}/reports`, { frequency: "daily", hour: 8, timeZone: "UTC", recipients: [{ email: "client@outside.io" }, { email: "x@y.io", userId: actor.userId }] })).body.report;
     expect(r.recipients.map((x: { email: string }) => x.email).sort()).toEqual(["client@outside.io", "owner@acme.io"]);

@@ -98,7 +98,44 @@ export function scrub(v: unknown, depth = 0): unknown {
   return v;
 }
 
+
+// R91 verifier fix: the public page is numbers only. Lists (task titles, refs, dates) become counts, and widgets
+// grouped by people show "Person 1", "Person 2" instead of names. Done here, server side, before anything is cached.
+const PERSON_RE = /assignee|person|owner|creator|createdby|member|user|from|sender|recipient|host|guest|attendee|workload/i;
+const LIST_ITEM_KEYS = ["title", "subject", "ref", "snippet", "body"];
+const isListOfRecords = (x: unknown): x is Record<string, unknown>[] =>
+  Array.isArray(x) && x.some((e) => e && typeof e === "object" && !Array.isArray(e) && LIST_ITEM_KEYS.some((k) => typeof (e as Record<string, unknown>)[k] === "string"));
+export function numbersOnly(w: { type: string; groupBy: string | null; settings?: Record<string, unknown>; question?: { groupBy?: string | null } | null }, data: unknown): unknown {
+  const s = w.settings ?? {};
+  const personish = w.type === "workload" || [w.groupBy, w.question?.groupBy, s.rowBy, s.colBy, s.groupBy, s.by].some((v) => typeof v === "string" && PERSON_RE.test(v));
+  const people = new Map<string, string>();
+  const alias = (name: string) => { if (!people.has(name)) people.set(name, `Person ${people.size + 1}`); return people.get(name)!; };
+  const keys = new Map<string, string>();
+  const keyAlias = (k: string) => { if (!keys.has(k)) keys.set(k, `p${keys.size + 1}`); return keys.get(k)!; };
+  let listed = false;
+  const walk = (v: unknown, depth: number): unknown => {
+    if (depth > 8) return null;
+    if (Array.isArray(v)) return v.map((x) => walk(x, depth + 1));
+    if (!v || typeof v !== "object") return v;
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if (k === "assignee" || k === "assignees" || k === "people" && !personish) continue;
+      if (isListOfRecords(x)) { out[k] = []; out[`${k}Count`] = x.length; listed = true; continue; }
+      if (personish && typeof x === "string" && k === "key" && x) { out[k] = keyAlias(x); continue; }
+      if (personish && typeof x === "string" && ["label", "name", "person", "row", "col"].includes(k) && x && !/^(nobody|unassigned|no one|none|other|others)$/i.test(x)) { out[k] = alias(x); continue; }
+      out[k] = walk(x, depth + 1);
+    }
+    return out;
+  };
+  const out = walk(data, 0);
+  if (isListOfRecords(data)) return { publicList: true, itemsCount: (data as unknown[]).length };
+  if (listed && out && typeof out === "object" && !Array.isArray(out)) (out as Record<string, unknown>).publicList = true;
+  return out;
+}
+
 export interface PublicDashboard {
+  /** Shape version; cached snapshots of an older shape are rebuilt (R91 numbers only). */
+  publicV?: number;
   name: string; brand: string | null; updatedAt: string; timeZone: string;
   widgets: { id: string; type: string; title: string; chart: string; size: number; groupBy: string | null; settings: Record<string, unknown> }[];
   data: { id: string; type: string; data: unknown; error: string | null }[];
@@ -117,7 +154,7 @@ export async function openShare(deps: Deps, token: string, opts: { password?: st
     if (!(await verifyPassword(opts.password, r.passwordHash))) return { status: "password_wrong" };
   }
   const age = r.snapshotAt ? now - r.snapshotAt.getTime() : Infinity;
-  if (r.snapshot && (age < SHARE_TTL_MS && !(opts.refresh && age > SHARE_REFRESH_GAP_MS))) {
+  if (r.snapshot && r.snapshot.includes('"publicV":2') && (age < SHARE_TTL_MS && !(opts.refresh && age > SHARE_REFRESH_GAP_MS))) {
     try { return { status: "ok", dashboard: JSON.parse(r.snapshot) as PublicDashboard }; } catch { /* rebuild */ }
   }
   const built = await buildPublic(deps, r);
@@ -133,11 +170,15 @@ export async function buildPublic(deps: Deps, r: Pick<Row, "orgId" | "dashboardI
   try { res = await dashboardData(deps, actor, r.dashboardId); } catch (e) { if (e instanceof HttpError && e.status < 500) return null; throw e; }
   const brand = r.showBrand ? (await deps.db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, r.orgId)).get())?.name ?? null : null;
   return {
-    name: res.dashboard.name, brand, updatedAt: res.generatedAt, timeZone: res.timeZone,
+    publicV: 2, name: res.dashboard.name, brand, updatedAt: res.generatedAt, timeZone: res.timeZone,
     widgets: res.dashboard.widgets.map((w) => {
       const { id, type, title, chart, size, groupBy, source: _s, question: _q, position: _p, ...settings } = w as typeof w & { question?: unknown };
       return { id, type, title, chart, size, groupBy, settings: scrub(settings) as Record<string, unknown> };
     }),
-    data: res.widgets.map((x) => ({ id: x.id, type: x.type, data: scrub(x.data), error: x.error })),
+    data: res.widgets.map((x) => {
+      const w = res.dashboard.widgets.find((y) => y.id === x.id) as ({ type: string; groupBy: string | null; question?: { groupBy?: string | null } | null } & Record<string, unknown>) | undefined;
+      const safe = w ? numbersOnly({ type: w.type, groupBy: w.groupBy, settings: w, question: w.question ?? null }, x.data) : numbersOnly({ type: x.type, groupBy: null }, x.data);
+      return { id: x.id, type: x.type, data: scrub(safe), error: x.error };
+    }),
   };
 }

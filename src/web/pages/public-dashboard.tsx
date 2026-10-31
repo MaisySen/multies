@@ -3,7 +3,7 @@
  * the person who shared it sees them, with names but no ids or emails, "Updated" time and Refresh. A link
  * with a password asks for it first. Works at 390 and 1280, light and dark.
  */
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useParams } from "react-router";
 import { Button } from "@/web/components/ui/button";
 import { Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
@@ -29,14 +29,17 @@ export function PublicDashboardPage() {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const pwRef = useRef<string>("");
   const load = async (opts: { refresh?: boolean; pw?: string } = {}) => {
     setBusy(true);
     try {
-      const pw = opts.pw ?? sessionStorage.getItem(`dash-pw:${token}`) ?? "";
+      let stored = "";
+      try { stored = sessionStorage.getItem(`dash-pw:${token}`) ?? ""; } catch { /* storage blocked */ }
+      const pw = opts.pw ?? (pwRef.current || stored);
       const r = await fetch(`/api/dash-public/${encodeURIComponent(token)}${opts.refresh ? "?refresh=1" : ""}`, { headers: pw ? { "x-share-password": pw } : {} });
       const body = await r.json().catch(() => ({})) as { dashboard?: PublicDashboard; error?: { code: string; message: string } };
-      if (r.ok && body.dashboard) { if (pw) sessionStorage.setItem(`dash-pw:${token}`, pw); setState({ kind: "ok", d: body.dashboard }); }
-      else if (r.status === 401) { sessionStorage.removeItem(`dash-pw:${token}`); setState({ kind: "password", wrong: body.error?.code === "password_wrong" }); }
+      if (r.ok && body.dashboard) { if (pw) { pwRef.current = pw; try { sessionStorage.setItem(`dash-pw:${token}`, pw); } catch { /* storage blocked */ } } setState({ kind: "ok", d: body.dashboard }); }
+      else if (r.status === 401) { pwRef.current = ""; try { sessionStorage.removeItem(`dash-pw:${token}`); } catch { /* storage blocked */ } setState({ kind: "password", wrong: body.error?.code === "password_wrong" }); }
       else if (r.status === 404) setState({ kind: "gone" });
       else setState({ kind: "error", message: body.error?.message ?? "Something went wrong. Try again in a minute." });
     } catch { setState({ kind: "error", message: "We couldn't reach the dashboard. Check your connection and try again." }); }
@@ -78,7 +81,7 @@ export function PublicDashboardPage() {
                   return (
                     <Card key={w.id} className={cn("flex flex-col p-4", w.size === 2 && "md:col-span-2")} data-testid="public-widget">
                       <h2 className="mb-3 truncate text-[13px] font-semibold" title={w.title}>{w.title}</h2>
-                      <div className="min-h-0 flex-1">{!res ? <Skeleton className="h-40" /> : res.error ? <p className="py-10 text-center text-[13px] text-muted">{res.error}</p> : <WidgetBody w={widget} data={res.data} />}</div>
+                      <div className="min-h-0 flex-1">{!res ? <Skeleton className="h-40" /> : res.error ? <p className="py-10 text-center text-[13px] text-muted">{res.error}</p> : (res.data as { publicList?: boolean } | null)?.publicList ? <PublicCounts data={res.data as Record<string, unknown>} /> : <WidgetBody w={widget} data={res.data} />}</div>
                     </Card>
                   );
                 })}
@@ -87,6 +90,22 @@ export function PublicDashboardPage() {
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+const COUNT_LABEL: Record<string, string> = { overdue: "Overdue", dueThisWeek: "Due this week", tasksCount: "Tasks", itemsCount: "Items", total: "Total", count: "Count", open: "Open", done: "Done" };
+/** Numbers only: a list widget on a public link shows its counts, never the titles behind them. */
+function PublicCounts({ data }: { data: Record<string, unknown> }) {
+  const nums = Object.entries(data).filter(([k, v]) => typeof v === "number" && k !== "publicV").slice(0, 4) as [string, number][];
+  return (
+    <div className="grid grid-cols-2 gap-3 py-2" data-testid="public-counts">
+      {nums.map(([k, v]) => (
+        <div key={k} className="rounded-lg bg-fill px-3 py-3">
+          <p className="text-2xl font-semibold tabular-nums">{v.toLocaleString()}</p>
+          <p className="text-[12.5px] text-muted">{COUNT_LABEL[k] ?? k.replace(/Count$/, "").replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}</p>
+        </div>
+      ))}
     </div>
   );
 }

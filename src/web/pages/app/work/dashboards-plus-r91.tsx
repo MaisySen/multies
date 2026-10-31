@@ -57,7 +57,7 @@ export function ShareDialog({ dashboardId, open, onClose }: { dashboardId: strin
   });
   const links = list.data?.links.filter((l) => l.active) ?? [];
   return (
-    <Dialog open={open} onClose={onClose} title="Share by link" className="sm:max-w-xl" description="Anyone with the link sees this dashboard's numbers, read only, without signing in. Tasks, mail and names behind the numbers stay private.">
+    <Dialog open={open} onClose={onClose} title="Share by link" className="sm:max-w-xl" description="Anyone with the link sees this dashboard's numbers, read only, without signing in. Lists show counts only and people show as Person 1, Person 2, so titles, mail and names stay private.">
       <div className="space-y-6" data-testid="share-dialog">
         {list.isPending ? <Skeleton className="h-24" /> : !list.data?.canManage ? <Note>Only the owner or a workspace admin can share this dashboard by link.</Note> : (
           <>
