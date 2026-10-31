@@ -7,6 +7,16 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 77 (31 Oct 2026)
+
+- Added: Settings, Branding (owners and admins): light and dark logos (square mark and wide), brand, accent and optional sidebar colours, corners (sharp, default, round), density (comfortable, compact), six safe fonts, the default appearance, 12 ready made themes plus "Use my logo colours", an AA contrast warning with readable text picked automatically, Reset to Multies default, a lock that keeps everyone on the brand, and a live preview of the app in light and dark.
+- Added: Settings, Appearance (everyone): their own accent and light, dark or system, following the workspace brand by default.
+- Added: the theme applies everywhere through CSS variables painted by the inline boot script from a per workspace cache (no flash); the workspace logo shows in the sidebar and on the Tools result header.
+- Added: migration 0100 (workspace_branding, workspace_brand_logos, user_themes; logos up to 512 KB as PNG, JPEG or WebP, sniffed, served immutable with a sandbox CSP). /api/branding: members read, owners and admins write, every change audited (workspace.branding_changed, workspace.branding_reset, workspace.logo_changed, workspace.logo_removed). A raw logo upload needs the x-multies-upload header, like Tools uploads.
+- Changed: Tools cards with a larger icon and a two line description, and a big drop zone in the workspace colours.
+- Left: public pages (shared links, booking) have no branding hook yet, so they stay as they are; the phone app picks the theme up from the web app and needs no OTA.
+- What's new drops "Older mail shows its sender and subject" to stay at 14.
+
 ### Round 76 (31 Oct 2026)
 
 - Fixed: /developers/mcp read "Page not found | Multies" in its title, link previews and search results, and carried noindex, since round 36 (26 Oct): the page rendered but had no entry in the page meta table, so it fell back to the not found meta. Every known page now has its own meta, checked by a unit test.

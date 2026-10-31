@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-workspace-brand",
+    date: "2026-10-31",
+    title: "Make Multies look like your company",
+    body: "Owners and admins can add your logo, pick colours, corners, density and a font, or start from a ready made theme, with a live preview in Settings, Brand. Everyone can set their own accent and light or dark look in Settings, Appearance. Tools has a bigger drop zone and clearer tool cards.",
+  },
+  {
     id: "2026-10-31-developers-faster-pages",
     date: "2026-10-31",
     title: "A home for developers, and quicker pages",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-30",
     title: "Clearer privacy and terms",
     body: "The privacy policy, terms and trust page now say plainly what we do today, with one contact address: contact@fintex.au. Every backup is encrypted and deleted after 30 days.",
-  },
-  {
-    id: "2026-10-30-older-mail-headers",
-    date: "2026-10-30",
-    title: "Older mail shows its sender and subject",
-    body: "Some older emails copied from a connected mailbox showed as unknown@invalid with no subject. They now load their real sender, subject, date and preview, and stay out of your list until they do.",
   },
   {
     id: "2026-10-28-whats-new",
