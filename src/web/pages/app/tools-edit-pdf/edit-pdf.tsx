@@ -321,11 +321,11 @@ function PageCard({ pdf, idx, pos, count, turn, tool, items, selected, textSize,
             {items.map((it) => (
               <div key={it.id} data-item data-testid={`edit-pdf-item-${it.kind}`} onPointerDown={(e) => grab(e, it)}
                 className={`group absolute ${it.kind === "box" ? "bg-black" : ""} ${selected === it.id ? "outline outline-2 outline-brand" : "hover:outline hover:outline-1 hover:outline-brand/50"}`}
-                style={{ left: `${it.x * 100}%`, top: `${it.y * 100}%`, width: `${it.w * 100}%`, ...(it.kind === "text" ? {} : { height: `${it.h * 100}%` }) }}>
+                style={{ left: `${it.x * 100}%`, top: `${it.y * 100}%`, ...(it.kind === "text" ? { minWidth: `${it.w * 100}%` } : { width: `${it.w * 100}%`, height: `${it.h * 100}%` }) }}>
                 {it.kind === "text" && (
-                  <textarea autoFocus={selected === it.id && !it.text} value={it.text ?? ""} rows={Math.max(1, (it.text ?? "").split("\n").length)} aria-label="Text on the page" data-testid="edit-pdf-text"
+                  <textarea autoFocus={selected === it.id && !it.text} value={it.text ?? ""} rows={Math.max(1, (it.text ?? "").split("\n").length)} cols={Math.max(8, ...(it.text ?? "").split("\n").map((l) => l.length + 1))} wrap="off" aria-label="Text on the page" data-testid="edit-pdf-text"
                     onChange={(e) => onPatch(it.id, { text: e.target.value })} placeholder="Type here"
-                    className="block w-full resize-none overflow-hidden bg-transparent p-0 font-sans leading-[1.2] text-[#121217] outline-none placeholder:text-neutral-400"
+                    className="block min-w-full resize-none overflow-hidden whitespace-pre bg-transparent p-0 font-sans leading-[1.2] text-[#121217] outline-none [field-sizing:content] placeholder:text-neutral-400"
                     style={{ fontSize: `${((it.size ?? 14) / size.width) * (wrap.current?.clientWidth ?? 600)}px` }} />
                 )}
                 {it.kind === "sign" && it.image && <img src={it.image} alt="Signature" className="h-full w-full object-contain" draggable={false} />}
