@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-social-planner-library",
+    date: "2026-10-31",
+    title: "Plan social posts by the week",
+    body: "Pick a format, give each network its own text and see a live preview before you send, now with TikTok videos and Threads posts in the same composer. The Planner has week, month and list views, weekly time slots to fill and drag to move, members can send posts for approval in Home, Approvals, and Library keeps images, captions and hashtag sets by campaign.",
+  },
+  {
     id: "2026-10-31-automation-flows",
     date: "2026-10-31",
     title: "Flows: automations you can see",
@@ -62,12 +68,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "Inbox tabs, mail rules and a helpdesk",
     body: "Pick how Inbox is sorted: Important and Other, Primary, Updates and Promotions, or one list. Mail rules label, sort, forward, reply, make a task or notify you as new mail arrives. Turn a shared inbox into a helpdesk in Shared inbox, Helpdesk: tickets with owners, priorities and reply times in business hours, macros, a short survey after you solve, and a chat for your website.",
-  },
-  {
-    id: "2026-10-31-tiktok-threads",
-    date: "2026-10-31",
-    title: "Post to TikTok and Threads",
-    body: "Connect your TikTok and Threads accounts in Social, Accounts. Post a video to TikTok, choosing who can see it and whether people can comment, duet or stitch, and post text or a picture to Threads. Your latest videos and posts show right there.",
   },
   {
     id: "2026-10-31-one-place-connections",
