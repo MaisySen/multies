@@ -5,6 +5,13 @@ and versions follow [Semantic Versioning](https://semver.org/). Before 1.0.0 eac
 version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` after the fact, so their
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
+
+## R118 Social P2b: inbox, account health, analytics (2026-10-31)
+### Added
+- Social, Inbox: comments, messages and mentions from Facebook Pages, Instagram and Reddit in one list; assign, mark done, internal notes, saved replies, link to a contact, make a task; the 24 hour reply window on Meta messages; a bell alert for new items.
+- Social, Analytics: reach, engagement and clicks per post and per account (Facebook, Instagram, Pinterest, Threads) and best times to post.
+- Account health: broken accounts pinned with Sign in again and Reconnect, a bell alert when an account breaks, warnings on planned posts; each account lists what it can do (LinkedIn says posting only).
+- Staging only test network (SOCIAL_TEST_NETWORK, refused on multies.si) for end to end checks. Flag SOCIAL_P2B. Migration 0122.
 ## [Unreleased] (rounds 11 to 15)
 
 ### Round 94 (31 Oct 2026)

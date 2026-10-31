@@ -54,8 +54,8 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
     id: "2026-10-31-social-planner-library",
     date: "2026-10-31",
-    title: "Plan social posts by the week",
-    body: "Pick a format, give each network its own text and see a live preview before you send, now with TikTok videos and Threads posts in the same composer. The Planner has week, month and list views, weekly time slots to fill and drag to move, members can send posts for approval in Home, Approvals, and Library keeps images, captions and hashtag sets by campaign.",
+    title: "Social: plan, reply and see results",
+    body: "Social has an Inbox for comments, messages and mentions from every account, with assigning, saved replies and notes, and Analytics with reach, clicks and your best times to post. Pick a format, give each network its own text and see a live preview before you send, now with TikTok videos and Threads posts in the same composer. The Planner has week, month and list views, weekly time slots to fill and drag to move, members can send posts for approval in Home, Approvals, and Library keeps images, captions and hashtag sets by campaign.",
   },
   {
     id: "2026-10-31-automation-flows",
