@@ -10,7 +10,7 @@ import { useNavigate } from "react-router";
 import { Command } from "cmdk";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { IconArrowDown, IconArrowUp, IconBack, IconCheck, IconClock, IconCommand, IconGlobe, IconHistory, IconInbox, IconLogOut, IconSearch, IconSparkle, IconToday, IconUser, IconArrowRight, IconTag, IconCheckCircle } from "@/web/components/ui/icon";
+import { IconArrowDown, IconArrowUp, IconBack, IconCheck, IconClock, IconCommand, IconGlobe, IconHistory, IconInbox, IconLink, IconLogOut, IconSearch, IconSparkle, IconToday, IconUser, IconArrowRight, IconTag, IconCheckCircle } from "@/web/components/ui/icon";
 import { displayKeys } from "@/web/lib/commands/registry";
 import { hintForUrl, readRecents, recordRecent } from "@/web/lib/palette-recents"; // R36
 import { paletteScore } from "@/web/lib/palette-registry";
@@ -20,6 +20,7 @@ import { taskPickerItems, type PickerItem } from "@/web/lib/commands/task-picker
 import { typedActionChange, useTypedAction } from "@/web/lib/commands/typed-action"; // R54
 import { useAppearance } from "@/web/components/theme";
 import { ContentGroups, useContentSearch } from "@/web/components/search-results";
+import { useGoLinks } from "@/web/pages/app/tools-links/data"; // R87
 import { useConfig, useDomains, useMailboxes } from "@/web/lib/queries";
 import { useAssignees, useProjects, useTaskDetail, useTaskMutations, type Task } from "@/web/pages/app/work/data";
 import { Kbd } from "@/web/components/ui/misc";
@@ -93,9 +94,12 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   const contextual = palette.filter((c) => c.when && c.when({ focus }) && (c.scope !== "task" || !!task));
   const actions = palette.filter((c) => !c.when && c.group !== "Go to").map(toItem);
   const pages = palette.filter((c) => !c.when && c.group === "Go to").map(toItem);
+  // R87: team go links (go/name), when Tools > Links is on.
+  const goLinks = useGoLinks(open && !!config.data?.tools && !!config.data?.toolFeatures?.includes("links"));
   const go = (to: string, label?: string, hint?: string) => () => { if (label) recordRecent({ kind: "item", id: to, label, url: to, hint }); ctx.navigate(to); };
   const records: Item[] = [
     ...(domains.data ?? []).map((d) => ({ id: `d-${d.id}`, label: d.name, hint: "Domain", icon: IconGlobe, run: go(`/app/domains/${d.id}`, d.name, "Domain") })),
+    ...(goLinks.data?.links ?? []).map((g) => ({ id: `go-${g.id}`, label: `go/${g.name}`, hint: g.description || g.label || "Go link", icon: IconLink, keywords: [g.name, `go ${g.name}`, g.label ?? "", "go link"], run: g.targetKind === "url" ? () => { close(); window.open(g.href, "_blank", "noopener"); } : go(`/app/go/${g.name}`, `go/${g.name}`, "Go link") })),
     ...(mailboxes.data ?? []).map((m) => ({ id: `m-${m.id}`, label: m.address, hint: "Mailbox", icon: IconInbox, run: go(`/app/mail?mailbox=${m.id}`, m.address, "Mailbox") })),
   ];
   // R36: on an empty query the menu opens on what you used last (read when it opens; device only).

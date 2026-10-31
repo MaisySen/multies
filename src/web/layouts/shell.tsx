@@ -6,7 +6,7 @@
 import { useEffect, useMemo, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { IconArrowRightLeft, IconMegaphone, IconPlugZap, IconCalendarDays, IconSend, IconUserRoundCheck,
+import { IconArrowRightLeft, IconLink, IconMegaphone, IconPlugZap, IconCalendarDays, IconSend, IconUserRoundCheck,
   IconActivity, IconAgent, IconApprovals, IconAttachment, IconBell, IconBriefcase, IconCalendarClock, IconCalendarPlus, IconChart, IconChats,
   IconChevronDown, IconChevronRight, IconClipboardList, IconCompose, IconContacts, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHome,
   IconInbox, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconSidebar, IconSliders,
@@ -235,7 +235,7 @@ export function Breadcrumbs({ projectName }: { projectName?: string | null }) {
   );
 }
 
-const CREATE_ICON: Record<string, IconComponent> = { task: IconSquarePlus, doc: IconFilePlus, mail: IconCompose, event: IconCalendarPlus, file: IconUpload, post: IconMegaphone };
+const CREATE_ICON: Record<string, IconComponent> = { task: IconSquarePlus, doc: IconFilePlus, mail: IconCompose, event: IconCalendarPlus, file: IconUpload, post: IconMegaphone, link: IconLink };
 
 /** One Create menu for everything new. */
 export function CreateMenu({ flags }: { flags: NavFlags }) {

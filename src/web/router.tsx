@@ -1,5 +1,5 @@
 import { Suspense, useState, type ReactNode } from "react";
-import { Navigate, createBrowserRouter, useLocation } from "react-router";
+import { Navigate, createBrowserRouter, useLocation, useParams } from "react-router";
 import { RouteError } from "./components/route-error";
 import { MarketingLayout } from "./layouts/marketing";
 import { AuthLayout } from "./layouts/auth";
@@ -19,6 +19,12 @@ function MovedSocial() {
   const q = new URLSearchParams(loc.search);
   const back = ["connected", "error", "status", "connected_account_id", "app", "provider"].some((k) => q.has(k));
   return <Navigate to={`${back ? "/app/social/accounts" : "/app/social/new"}${loc.search}${loc.hash}`} replace />;
+}
+
+/** R87: go/name typed in the address bar lands in the app, which opens the go link (members only). */
+function GoMoved() {
+  const { "*": name } = useParams();
+  return <Navigate to={`/app/go/${name ?? ""}`} replace />;
 }
 
 /** R66 (MB-259): the AI document pages show while any AI feature is on. */
@@ -112,6 +118,8 @@ const ConvertHubPage = lazyPage(() => import("./pages/app/tools-convert/convert-
 const EditPdfPage = lazyPage(() => import("./pages/app/tools-edit-pdf/edit-pdf"), "EditPdfPage"); // R86: Edit PDF on the device // R78: Convert hub
 const FilesPage = lazyPage(() => import("./pages/app/files"), "FilesPage"); // Tools P2 (16)
 const ShareLinksPage = lazyPage(() => import("./pages/app/tools-share-sign/share-links"), "ShareLinksPage"); // Tools P2: share links
+const LinksPage = lazyPage(() => import("./pages/app/tools-links/links-page"), "LinksPage"); // R87: Links
+const GoOpenPage = lazyPage(() => import("./pages/app/tools-links/go-open"), "GoOpenPage"); // R87: go links
 const SignPage = lazyPage(() => import("./pages/app/tools-share-sign/sign"), "SignPage"); // Tools P2: e-sign
 // Tools P2: automation pages
 const WorkflowsPage = lazyPage(() => import("./pages/app/tools-automation/workflows"), "WorkflowsPage");
@@ -255,6 +263,8 @@ export const router = createBrowserRouter([
       { path: "tools/ai", element: page(<ToolFeatureGate features={AI_FEATURES}><ToolsAiPage /></ToolFeatureGate>) }, // Tools P2: AI documents
       { path: "tools/convert", element: page(<ConvertHubPage />) },
       { path: "tools/edit-pdf", element: page(<EditPdfPage />) }, // R86 // R78: Convert hub (before the editors' :editor)
+      { path: "tools/links", element: page(<ToolFeatureGate features={["links"]}><LinksPage /></ToolFeatureGate>) }, // R87: Links (before :editor)
+      { path: "go/*", element: page(<ToolFeatureGate features={["links"]}><GoOpenPage /></ToolFeatureGate>) }, // R87: go links
       { path: "tools/:editor", element: page(<ToolsEditorRoute />) }, // Tools P2: editors (pages, forms, compare)
       { path: "files", element: page(<ToolFeatureGate features={["folders", "index"]}><FilesPage /></ToolFeatureGate>) }, // Tools P2 (16): smart folders
       { path: "tools/share", element: page(<ToolFeatureGate features={["share"]}><ShareLinksPage /></ToolFeatureGate>) }, // Tools P2: share links
@@ -301,6 +311,7 @@ export const router = createBrowserRouter([
   // A project guest (a client): the invite link, then the one project they can see.
   { path: "/g/:token", element: publicPage(<GuestAcceptPage />), errorElement: <RouteError /> },
   { path: "/guest", element: publicPage(<GuestProjectPage />), errorElement: <RouteError /> },
+  { path: "/go/*", element: <GoMoved />, errorElement: <RouteError /> }, // R87
   { path: "/thanks", element: publicPage(<ThanksPage />), errorElement: <RouteError /> },
   { path: "/thank-you", element: publicPage(<ThanksPage />), errorElement: <RouteError /> },
   { path: "*", element: <NotFound /> },

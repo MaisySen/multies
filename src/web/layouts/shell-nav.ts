@@ -74,7 +74,7 @@ export const SECTIONS: Section[] = [
   ] },
 ];
 
-export interface NavFlags { tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts. */ social?: boolean }
+export interface NavFlags { tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts. */ social?: boolean; /** R87: Tools > Links is on. */ links?: boolean }
 
 /** The sections and pages this person can open (switched off features leave no dead links). */
 export function visibleSections(flags: NavFlags): Section[] {
@@ -170,7 +170,7 @@ export function pageTitle(pathname: string, search = "", sections: Section[] = S
   return [...parts, "Multies"].join(" · ");
 }
 
-export type CreateKind = "task" | "doc" | "mail" | "event" | "file" | "post";
+export type CreateKind = "task" | "doc" | "mail" | "event" | "file" | "post" | "link";
 export const CREATE_ITEMS: { kind: CreateKind; label: string; to: string; hint: string }[] = [
   { kind: "task", label: "Task", to: "/app/tasks?new=1", hint: "T" },
   { kind: "doc", label: "Doc", to: "/app/docs?new=1", hint: "D" },
@@ -183,6 +183,8 @@ export const CREATE_ITEMS: { kind: CreateKind; label: string; to: string; hint: 
 export function createItems(flags: NavFlags) {
   const items = CREATE_ITEMS.map((c) => (c.kind === "file" && !flags.tools ? { ...c, to: "/app/docs" } : c));
   // R80C: a social post, for the people who can send one.
+  // R87: a short link, where Tools > Links is on.
+  const withLink = flags.links ? [...items, { kind: "link" as const, label: "Short link", to: "/app/tools/links?new=1", hint: "" }] : items;
   // P1 layout: it opens the composer in Social (it opened Settings before).
-  return flags.social ? [...items, { kind: "post" as const, label: "Social post", to: SOCIAL_NEW, hint: "P" }] : items;
+  return flags.social ? [...withLink, { kind: "post" as const, label: "Social post", to: SOCIAL_NEW, hint: "P" }] : withLink;
 }

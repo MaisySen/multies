@@ -12,7 +12,7 @@ import { BIO_ICONS, MAX_BIO_ITEMS, MAX_SOCIALS, RESERVED_SLUGS, SLUG_RE, SOCIALS
 import { checkDestination, statsFor } from "./core";
 import { forgetBio, type ResolvedBio } from "./public";
 import { esc } from "../tools/p2-public";
-import { BIO_ICON_PATHS } from "./icons";
+import { BIO_ICON_PATHS } from "@/shared/link-icons";
 
 export type BioScope = "workspace" | "me";
 type Row = typeof linkBioPages.$inferSelect;

@@ -49,7 +49,7 @@ export async function checkHost(deps: Deps, auth: AuthContext): Promise<LinkHost
   if (auth.role === "member") throw forbidden("Only admins can check the link domain.");
   const h = await deps.db.select().from(linkHosts).where(eq(linkHosts.orgId, auth.orgId)).get();
   if (!h) throw notFound("Link domain");
-  let ok = false;
+  let ok: boolean;
   try {
     const res = await deps.fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(h.host)}&type=CNAME`, { headers: { accept: "application/dns-json" }, signal: AbortSignal.timeout(4000) });
     const body = (await res.json()) as { Answer?: { type: number; data: string }[] };

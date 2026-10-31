@@ -32,6 +32,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-tools-share", label: "Secure share", to: "/app/tools/share", icon: IconLink, keywords: ["send large file", "share file", "download link", "expiring link"], flag: "tools", toolFeature: ["share"] },
   { id: "p-tools-file-request", label: "New file request", to: "/app/tools/share?tab=requests", icon: IconUpload, keywords: ["ask for files", "upload link", "collect files", "client upload", "file request"], flag: "tools", toolFeature: ["file_requests"] }, // R88
   { id: "p-tools-secret", label: "New secret link", to: "/app/tools/share?tab=secrets", icon: IconLock, keywords: ["send password", "one time secret", "self destruct", "send securely", "encrypted note"], flag: "tools", toolFeature: ["secrets"] }, // R88
+  { id: "p-tools-links", label: "Links", to: "/app/tools/links", icon: IconLink, keywords: ["short link", "url shortener", "qr code", "link in bio", "bio page", "go links", "click stats", "utm"], flag: "tools", toolFeature: ["links"] }, // R87
   { id: "p-tools-sign", label: "E-sign", to: "/app/tools/sign", icon: IconPenLine, keywords: ["sign", "signature", "esign", "sign pdf", "request signature"], flag: "tools", toolFeature: ["esign"] },
   // Tools P2 (H6): automation pages, each behind its own feature.
   { id: "p-tools-workflows", label: "Tool workflows", to: "/app/tools/workflows", icon: IconWrench, keywords: ["workflow", "chain", "scan", "ocr", "shrink", "protect"], flag: "tools", toolFeature: ["workflows"] },
@@ -88,6 +89,7 @@ export const PALETTE_ACTIONS: PaletteAction[] = [
   { id: "new-task", label: "New task", icon: IconSquarePlus, kind: "navigate", to: "/app/tasks?new=1", keywords: ["create task", "add task", "todo", "issue"] },
   { id: "task-tags", label: "Manage task tags", icon: IconTag, kind: "navigate", to: "/app/tasks?view=list&manage=tags", keywords: ["tags", "labels", "colours", "colors"] }, // R84
   { id: "task-fields", label: "Workspace fields for tasks", icon: IconTable, kind: "navigate", to: "/app/tasks?view=list&manage=fields", keywords: ["custom fields", "columns", "client", "budget"] }, // R84
+  { id: "new-short-link", label: "New short link", icon: IconLink, kind: "navigate", to: "/app/tools/links?new=1", keywords: ["shorten", "short url", "qr code", "link"], flag: "tools", toolFeature: ["links"] }, // R87
   { id: "new-doc", label: "New doc", icon: IconFilePlus, kind: "navigate", to: "/app/docs?new=1", keywords: ["create doc", "page", "note", "write"] },
   { id: "new-chat", label: "Send a chat message", icon: IconMessageCircle, kind: "navigate", to: "/app/chat", keywords: ["message", "dm", "channel"] },
   { id: "add-domain", label: "Add a domain", icon: IconPlus, kind: "navigate", to: "/app/domains?add=1" },
