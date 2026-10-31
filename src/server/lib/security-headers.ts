@@ -62,11 +62,12 @@ const SENTRY_INGEST = ["https://*.ingest.sentry.io", "https://*.ingest.us.sentry
 
 /**
  * R31: the one inline script, in index.html (and the landing and sign in shells built from it): it sets the
- * saved light or dark appearance before first paint, so it cannot wait for a file. Its sha256 is allowed by
+ * saved light or dark appearance before first paint, so it cannot wait for a file. R77: inside the app it also
+ * paints the cached workspace brand (CSS custom properties only) and the workspace default appearance. Its sha256 is allowed by
  * hash, never 'unsafe-inline'. tests/theme-inline-r31.test.ts keeps this hash equal to the script's bytes.
  */
-export const THEME_SCRIPT = 'try{var t=localStorage.getItem("mymail-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}';
-export const THEME_SCRIPT_HASH = "'sha256-jvkpXW6eMxvAhWHOQ6tdMEiUzK0YDn6KJM3M2Qm7OHc='";
+export const THEME_SCRIPT = 'try{var d=document.documentElement,t=localStorage.getItem("mymail-theme");if(t==="light"||t==="dark")d.dataset.theme=t;if(location.pathname.indexOf("/app")===0){var b=JSON.parse(localStorage.getItem("multies-brand")||"null");if(b){if(t!=="light"&&t!=="dark"&&(b.a==="light"||b.a==="dark"))d.dataset.theme=b.a;if(typeof b.c==="string"&&b.c){var s=document.createElement("style");s.id="brand-tokens";s.textContent=b.c;document.head.appendChild(s)}}}}catch(e){}';
+export const THEME_SCRIPT_HASH = "'sha256-H7IyFghRVKP9oghvs1j+pAVtwPfyVlZ2L1BUd9xT7PA='";
 
 export function appCsp(opts: CspOptions = {}): string {
   const directives: Record<string, string[]> = {

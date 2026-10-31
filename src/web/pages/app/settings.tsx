@@ -7,7 +7,7 @@ import { AttachmentIndexSection } from "./attachment-index-settings"; // Tools P
 import { ShareLinksSetting } from "./work/share-sheet"; // R26 (MB-87)
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconBack, IconBell, IconCalendar, IconCheck, IconChevronRight, IconCode, IconCreditCard, IconDownload, IconKey, IconMail, IconMailCheck, IconPlug, IconPlus, IconSearch, IconSend, IconShieldCheck, IconChats, IconSliders, IconSmartphone, IconTeam, IconTrash, IconWarning } from "@/web/components/ui/icon";
+import { IconBack, IconBell, IconCalendar, IconCheck, IconChevronRight, IconCode, IconCreditCard, IconDownload, IconKey, IconMail, IconMailCheck, IconPlug, IconPlus, IconSearch, IconSend, IconShieldCheck, IconChats, IconSliders, IconSmartphone, IconSparkle, IconMoon, IconTeam, IconTrash, IconWarning } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
@@ -34,12 +34,14 @@ type Pane = { to: string; label: string; end?: boolean; icon: React.ComponentTyp
 export const SETTINGS_GROUPS: { label: string; items: Pane[] }[] = [
   { label: "Workspace", items: [
     { to: "/app/settings", label: "General", end: true, icon: IconSliders, tint: "#8E8E93", keywords: "time zone language country workspace name logo share links agents keys tools documents export delete workspace" },
+    { to: "/app/settings/branding", label: "Branding", icon: IconSparkle, tint: "#FF2D55", keywords: "brand theme logo colours colors company font corners dark light preset accent sidebar" }, // R77
     { to: "/app/settings/team", label: "Team", icon: IconTeam, tint: "#0071E3", keywords: "members invite roles admin agents guests remove" },
     { to: "/app/settings/channels", label: "Chat channels", icon: IconChats, tint: "#25D366", keywords: "whatsapp messenger instagram facebook meta chat channels connect number customers" }, // C1
     { to: "/app/settings/billing", label: "Billing", icon: IconCreditCard, tint: "#34C759", keywords: "plan invoices card upgrade receipts tax" },
   ] },
   { label: "You", items: [
     { to: "/app/settings/account", label: "Account & security", icon: IconShieldCheck, tint: "#FF9500", keywords: "password two factor passkey sessions devices sign out delete account blocked people" },
+    { to: "/app/settings/appearance", label: "Appearance", icon: IconMoon, tint: "#5E5CE6", keywords: "theme dark light system accent colour color personal" }, // R77
     { to: "/app/settings/notifications", label: "Notifications", icon: IconBell, tint: "#FF3B30", keywords: "push email digest quiet hours sounds badges" },
     { to: "/app/settings/calendar", label: "Calendar", icon: IconCalendar, tint: "#FF2D55", keywords: "sync working hours booking events time zone" },
     { to: "/app/settings/connections", label: "Connected accounts", icon: IconPlug, tint: "#5856D6", keywords: "mailbox imap smtp gmail outlook connect accounts" },

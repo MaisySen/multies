@@ -16,17 +16,31 @@ function subscribe(fn: () => void) {
   listeners.add(fn);
   const m = media();
   m.addEventListener("change", fn);
-  return () => { listeners.delete(fn); m.removeEventListener("change", fn); };
+  window.addEventListener("multies-appearance", fn); // R77: the workspace default appearance changed
+  return () => { listeners.delete(fn); m.removeEventListener("change", fn); window.removeEventListener("multies-appearance", fn); };
 }
+
+/** R77: the workspace's default appearance (from the cached brand), used while the person has not picked one. */
+function workspaceDefault(): "light" | "dark" | null {
+  try {
+    const raw = localStorage.getItem("multies-brand");
+    const a = raw ? (JSON.parse(raw) as { a?: string }).a : null;
+    return a === "light" || a === "dark" ? a : null;
+  } catch { return null; }
+}
+const inApp = () => typeof location !== "undefined" && location.pathname.startsWith("/app");
 
 /** The person's appearance choice and the scheme in effect. Public/theme.js applies the choice before first paint. */
 export function useAppearance() {
   const choice = useSyncExternalStore(subscribe, read, () => "system" as Appearance);
   const systemDark = useSyncExternalStore(subscribe, () => media().matches, () => false);
-  const resolved: "light" | "dark" = choice === "system" ? (systemDark ? "dark" : "light") : choice;
+  const wsDefault = useSyncExternalStore(subscribe, () => (inApp() ? workspaceDefault() : null), () => null);
+  const resolved: "light" | "dark" = choice === "system" ? (wsDefault ?? (systemDark ? "dark" : "light")) : choice;
   const set = (next: Appearance) => {
     try { if (next === "system") localStorage.removeItem(KEY); else localStorage.setItem(KEY, next); } catch { /* storage blocked */ }
-    if (next === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = next;
+    // R77: "System" goes back to the workspace default when the workspace set one, else the device setting.
+    const fallback = inApp() ? workspaceDefault() : null;
+    if (next === "system") { if (fallback) document.documentElement.dataset.theme = fallback; else delete document.documentElement.dataset.theme; } else document.documentElement.dataset.theme = next;
     listeners.forEach((fn) => fn());
   };
   return { choice, resolved, set };

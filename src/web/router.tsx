@@ -115,6 +115,9 @@ const TeamSettings = lazyPage(() => import("./pages/app/team"), "TeamSettings");
 const BillingSettings = lazyPage(() => import("./pages/app/billing"), "BillingSettings");
 const AuthEmailSettings = lazyPage(() => import("./pages/app/auth-email-settings"), "AuthEmailSettings"); // R27
 const ChannelsSettings = lazyPage(() => import("./pages/app/channels-settings"), "ChannelsSettings"); // C1
+const brandingSettings = () => import("./pages/app/branding-settings"); // R77
+const BrandingSettings = lazyPage(() => brandingSettings(), "BrandingSettings");
+const AppearanceSettings = lazyPage(() => brandingSettings(), "AppearanceSettings");
 const CalendarSettings = lazyPage(() => import("./pages/app/calendar-settings"), "CalendarSettings");
 const ConnectionsSettings = lazyPage(() => import("./pages/app/connections"), "ConnectionsSettings");
 const MailAppsSettings = lazyPage(() => import("./pages/app/mail-apps"), "MailAppsSettings");
@@ -236,6 +239,8 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: page(<GeneralSettings />) },
           { path: "general", element: page(<GeneralSettings />) }, // R38: the phone settings hub opens General here
+          { path: "branding", element: page(<BrandingSettings />) }, // R77
+          { path: "appearance", element: page(<AppearanceSettings />) }, // R77
           { path: "team", element: page(<TeamSettings />) },
           { path: "channels", element: page(<ChannelsSettings />) }, // C1
           { path: "billing", element: page(<BillingSettings />) },

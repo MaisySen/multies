@@ -36,6 +36,18 @@ export const DEFAULT_BRAND: Brand = { primary: null, accent: null, sidebar: null
 /** Multies' own colours, the base every derived token starts from. */
 export const BASE = { light: { brand: "#0066cc", surface: "#ffffff", bg: "#f5f5f7", fg: "#1d1d1f" }, dark: { brand: "#0071e3", surface: "#161618", bg: "#0c0c0d", fg: "#f5f5f7" } } as const;
 
+/** The neutral tokens for each scheme (index.css), so a preview can show dark while the app is light. */
+export const NEUTRALS: Record<"light" | "dark", Tokens> = {
+  light: { "--color-bg": "#f5f5f7", "--color-surface": "#ffffff", "--color-elevated": "#ffffff", "--color-hover": "#ebebef", "--color-fill": "#e8e8ed", "--color-line": "rgb(0 0 0 / 0.09)", "--color-line-strong": "rgb(0 0 0 / 0.16)", "--color-fg": "#1d1d1f", "--color-muted": "#5a5a5f", "--color-subtle": "#606065", "--color-glass-sidebar": "rgb(245 245 247 / 0.78)", "--color-brand": "#0066cc", "--color-brand-hover": "#0058b0", "--color-brand-soft": "rgb(0 102 204 / 0.1)", "--color-brand-fg": "#ffffff", "--color-accent": "#0066cc", "--color-accent-fg": "#ffffff" },
+  dark: { "--color-bg": "#0c0c0d", "--color-surface": "#161618", "--color-elevated": "#1f1f22", "--color-hover": "#2a2a2d", "--color-fill": "#2c2c2f", "--color-line": "rgb(255 255 255 / 0.09)", "--color-line-strong": "rgb(255 255 255 / 0.16)", "--color-fg": "#f5f5f7", "--color-muted": "#aeaeb2", "--color-subtle": "#9a9a9f", "--color-glass-sidebar": "rgb(18 18 20 / 0.78)", "--color-brand": "#0071e3", "--color-brand-hover": "#5ea4ff", "--color-brand-soft": "rgb(10 132 255 / 0.16)", "--color-brand-fg": "#ffffff", "--color-accent": "#0071e3", "--color-accent-fg": "#ffffff" },
+};
+
+/** Every token for one scheme, for a scoped live preview (style attribute on the preview root). */
+export function previewTokens(b: Brand, scheme: "light" | "dark", personal: Personal | null = null): { root: Tokens; sidebar: Tokens } {
+  const { primary, accent } = effectiveColours(b, personal);
+  return { root: { ...NEUTRALS[scheme], ...shapeTokens(b), ...colourTokens(primary, accent, scheme) }, sidebar: sidebarTokens(b.sidebar) };
+}
+
 export const FONTS: { id: FontId; label: string; stack: string }[] = [
   { id: "system", label: "System", stack: `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI Variable Text", "Segoe UI", Roboto, Inter, system-ui, sans-serif` },
   { id: "humanist", label: "Humanist", stack: `Seravek, "Gill Sans Nova", Ubuntu, Calibri, "DejaVu Sans", source-sans-pro, sans-serif` },
@@ -82,7 +94,7 @@ export const DEFAULT_PERSONAL: Personal = { followBrand: true, accent: null };
 
 /** A stored JSON brand, read leniently: anything unknown or invalid falls back to the default. */
 export function readBrand(json: string | null | undefined, logos: Partial<Record<LogoKind, string>> = {}): Brand {
-  let raw: unknown = null;
+  let raw: unknown;
   try { raw = json ? JSON.parse(json) : null; } catch { raw = null; }
   const p = BrandPatchSchema.safeParse(raw && typeof raw === "object" ? raw : {});
   return { ...DEFAULT_BRAND, ...(p.success ? stripUndef(p.data) : {}), logos };

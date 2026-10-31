@@ -5,6 +5,7 @@ import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconActivity, IconAgent, IconAttachment, IconBell, IconBriefcase, IconCalendarClock, IconChart, IconChats, IconCheck, IconChevronsUpDown, IconClipboardCheck, IconClipboardList, IconClose, IconContacts, IconDashboard, IconDocs, IconFlask, IconGlobe, IconInbox, IconKeyboard, IconLogOut, IconMenu, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUserCog, IconVideo, IconWrench, IconZap, type IconComponent } from "@/web/components/ui/icon";
 import { Logo } from "@/web/components/logo";
+import { BrandTokens, WorkspaceMark, WorkspaceWideLogo } from "@/web/lib/brand"; // R77: workspace brand
 import { AppearanceControl } from "@/web/components/theme";
 import { Avatar, Kbd } from "@/web/components/ui/misc";
 import { UpdatePill } from "@/web/components/update-pill"; // R32
@@ -199,7 +200,7 @@ export function AppLayout() {
   const sidebar = (
     <div className="flex h-full flex-col">
       <div className="flex h-14 shrink-0 items-center justify-between px-4">
-        <Link to="/app" aria-label="Multies overview"><Logo className="h-6" /></Link>
+        <Link to="/app" aria-label="Multies overview"><WorkspaceWideLogo fallback={<Logo className="h-6" />} /></Link>
         <button className="grid h-11 w-11 place-items-center rounded-full text-muted transition-colors hover:bg-hover hover:text-fg lg:hidden" onClick={() => setDrawer(false)} aria-label="Close navigation"><IconClose className="h-5 w-5" /></button>
       </div>
       <div className="shrink-0 px-3">
@@ -259,6 +260,7 @@ export function AppLayout() {
 
   return (
     <div className="app-shell flex h-dvh overflow-hidden">
+      <BrandTokens orgId={organization?.id} />
       <aside aria-label="Sidebar" className="glass-sidebar hairline-r hidden w-60 shrink-0 lg:block">{sidebar}</aside>
       {drawer && (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
@@ -330,13 +332,13 @@ function WorkspaceSwitcher({ current, variant = "sidebar", compact = false }: { 
     <>
       <Menu align="start" trigger={variant === "chip" ? (
         <button className="flex h-11 min-w-0 max-w-[58vw] items-center gap-2 rounded-full pl-1 pr-2 text-left transition-colors hover:bg-hover" aria-label={`${current?.name ?? "Workspace"}, switch workspace`} /* R54: the name a screen reader hears starts with the words on the button (WCAG 2.5.3) */ data-testid="topbar-workspace">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-[#0071E3] text-[14px] font-bold text-white shadow-[var(--shadow-e1)] before:content-[attr(data-initial)]" aria-hidden data-initial={current?.name[0]?.toUpperCase() ?? ""} /* R54: drawn by CSS, not a text node, so the visible words are just the name (axe counted the letter) */ />
+          <WorkspaceMark name={current?.name} rounded="rounded-[9px]" className="h-8 w-8 text-[14px] shadow-[var(--shadow-e1)]" /* R54: the initial is drawn by CSS, not a text node; R77: the workspace logo when it has one */ />
           {!compact && <span className="min-w-0 truncate text-[15px] font-semibold tracking-[-0.01em] text-fg">{current?.name}</span>}
           {!compact && <IconChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden />}
         </button>
       ) : (
         <button className="flex w-full items-center gap-2.5 rounded-lg border border-line bg-elevated/60 px-2.5 py-2 text-left transition-colors hover:border-line-strong">
-          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-line-strong bg-elevated text-[11px] font-bold text-fg">{current?.name[0]?.toUpperCase()}</span>
+          <WorkspaceMark name={current?.name} className="h-6 w-6 text-[11px]" />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[13px] font-medium">{current?.name}</span>
             <span className="block text-[11px] text-subtle">{current ? PLANS[current.plan].name : ""} plan</span>

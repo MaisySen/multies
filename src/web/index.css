@@ -28,6 +28,9 @@
   --color-brand-hover: #0058b0;
   --color-brand-soft: rgb(0 102 204 / 0.1);
   --color-brand-fg: #ffffff;
+  /* R77: a workspace's second brand colour (selected rows, progress, highlights); the brand colour by default. */
+  --color-accent: #0066cc;
+  --color-accent-fg: #ffffff;
 
   --color-ok: #17692c;
   --color-ok-soft: rgb(36 138 61 / 0.12);
@@ -101,6 +104,7 @@
     --color-brand-hover: #5ea4ff;
     --color-brand-soft: rgb(10 132 255 / 0.16);
     --color-brand-fg: #ffffff;
+    --color-accent: #0071e3;
     --color-ok: #30d158;
     --color-ok-soft: rgb(48 209 88 / 0.14);
     --color-warn: #ffb340;
@@ -134,6 +138,7 @@
       --color-brand-hover: #5ea4ff;
       --color-brand-soft: rgb(10 132 255 / 0.16);
       --color-brand-fg: #ffffff;
+      --color-accent: #0071e3;
       --color-ok: #30d158;
       --color-ok-soft: rgb(48 209 88 / 0.14);
       --color-warn: #ffb340;
