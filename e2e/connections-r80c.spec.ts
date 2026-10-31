@@ -41,7 +41,7 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 
     // Social posts: pick both accounts and a page, schedule for later.
-    await page.getByRole("link", { name: "Social posts" }).click();
+    await page.getByRole("link", { name: /^Social( posts)?$/ }).click(); // R82F: phones show the short tab label
     await expect(page.getByTestId("social-composer")).toBeVisible();
     await page.getByTestId("pick-linkedin").getByRole("checkbox").check();
     await page.getByTestId("pick-facebook").getByRole("checkbox").check();

@@ -120,11 +120,12 @@ const STATUS_COPY: Record<ConnectedAccountView["status"], { label: string; tone:
 };
 
 export type ConnectionsTab = "apps" | "social" | "mail" | "webhooks";
-export const CONNECTION_TABS: { id: ConnectionsTab; label: string; to: string }[] = [
-  { id: "apps", label: "Apps", to: "/app/settings/apps" },
-  { id: "social", label: "Social posts", to: "/app/settings/apps/social" },
-  { id: "mail", label: "Mail accounts", to: "/app/settings/apps/mail" },
-  { id: "webhooks", label: "Webhooks", to: "/app/settings/apps/webhooks" },
+/** `short` is the phone label, so all four tabs fit at 390 px without a cut off last tab. */
+export const CONNECTION_TABS: { id: ConnectionsTab; label: string; short: string; to: string }[] = [
+  { id: "apps", label: "Apps", short: "Apps", to: "/app/settings/apps" },
+  { id: "social", label: "Social posts", short: "Social", to: "/app/settings/apps/social" },
+  { id: "mail", label: "Mail accounts", short: "Mail", to: "/app/settings/apps/mail" },
+  { id: "webhooks", label: "Webhooks", short: "Webhooks", to: "/app/settings/apps/webhooks" },
 ];
 export function connectionsTabFor(pathname: string): ConnectionsTab {
   const last = pathname.replace(/\/+$/, "").split("/").pop();
@@ -137,7 +138,7 @@ function Tabs({ current }: { current: ConnectionsTab }) {
     <nav aria-label="Connections" className="-mx-1 max-w-full overflow-x-auto px-1 [scrollbar-width:none]">
       <div className="inline-flex gap-1 rounded-lg bg-fill p-1" data-testid="apps-tabs">
         {CONNECTION_TABS.map((t) => (
-          <NavLink key={t.id} to={t.to} end aria-current={current === t.id ? "page" : undefined} className={() => cn(tab, current === t.id && "bg-surface text-fg shadow-card")}>{t.label}</NavLink>
+          <NavLink key={t.id} to={t.to} end aria-current={current === t.id ? "page" : undefined} className={() => cn(tab, current === t.id && "bg-surface text-fg shadow-card")}><span className="sm:hidden">{t.short}</span><span className="max-sm:hidden">{t.label}</span></NavLink>
         ))}
       </div>
     </nav>

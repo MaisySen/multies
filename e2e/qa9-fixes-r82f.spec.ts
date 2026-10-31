@@ -37,8 +37,12 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     await page.goto("/app/settings/connections?new=1");
     await expect(page).toHaveURL(/\/app\/settings\/apps\/mail\?new=1$/);
     const tabs = page.getByTestId("apps-tabs");
-    for (const t of ["Apps", "Social posts", "Mail accounts", "Webhooks"]) await expect(tabs.getByRole("link", { name: t, exact: true })).toBeVisible();
-    await expect(tabs.getByRole("link", { name: "Mail accounts" })).toHaveAttribute("aria-current", "page");
+    // Phones show the short labels so all four tabs fit at 390 px.
+    const names = label === "desktop" ? ["Apps", "Social posts", "Mail accounts", "Webhooks"] : ["Apps", "Social", "Mail", "Webhooks"];
+    for (const t of names) await expect(tabs.getByRole("link", { name: t, exact: true })).toBeVisible();
+    await expect(tabs.getByRole("link", { name: names[2], exact: true })).toHaveAttribute("aria-current", "page");
+    const box = await tabs.boundingBox();
+    expect(box && box.x + box.width <= w).toBe(true);
     await expect(page.getByRole("heading", { name: "Mail accounts" }).first()).toBeVisible();
     await page.goto("/app/integrations");
     await expect(page).toHaveURL(/\/app\/settings\/apps\/webhooks$/);
