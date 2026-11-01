@@ -6,6 +6,7 @@
  * Only the caller's workspace is ever read or changed; the client workspace (vv8k) is refused.
  */
 import { sql } from "drizzle-orm";
+import { containsText } from "../../lib/like-search";
 import { zipSync, strToU8 } from "fflate";
 import type { Deps, AuthContext } from "../../context";
 import type { DB } from "../../db";
@@ -159,7 +160,6 @@ async function reqFor(deps: Deps, a: Actor, id: string): Promise<ReqRow> {
   return r;
 }
 
-const likeEsc = (s: string) => s.replace(/[\\%_]/g, (m) => `\\${m}`);
 function hasEmail(v: unknown, email: string): boolean {
   if (typeof v === "string") return v.trim().toLowerCase() === email;
   if (Array.isArray(v)) return v.some((x) => hasEmail(x, email));
@@ -178,7 +178,7 @@ export async function findMatches(db: DB, orgId: string, emailIn: string): Promi
   const contacts = await db.all<{ id: string; name: string; email: string; phone: string | null; title: string | null; notes: string; created_at: number }>(sql`select id, name, email, phone, title, notes, created_at
     from contacts where org_id = ${orgId} and lower(email) = ${email} limit ${L.maxRows}`);
   const subs = await db.all<{ id: string; data: string; created_at: number; form: string }>(sql`select s.id, s.data, s.created_at, f.name as form
-    from form_submissions s join forms f on f.id = s.form_id where s.org_id = ${orgId} and lower(s.data) like ${`%${likeEsc(email)}%`} escape '\\' order by s.created_at desc limit ${L.maxRows}`);
+    from form_submissions s join forms f on f.id = s.form_id where s.org_id = ${orgId} and ${containsText(sql`s.data`, email)} order by s.created_at desc limit ${L.maxRows}`);
   const forms = subs.flatMap((s) => { try { const d = JSON.parse(s.data) as Record<string, unknown>; return hasEmail(d, email) ? [{ id: s.id, form: s.form, answers: d, createdAt: Number(s.created_at) }] : []; } catch { return []; } });
   const books = await db.all<{ id: string; page: string; name: string; email: string; note: string; starts_at: number; status: string; created_at: number }>(sql`select b.id, p.title as page, b.name, b.email, b.note, b.starts_at, b.status, b.created_at
     from bookings b join scheduling_pages p on p.id = b.page_id where b.org_id = ${orgId} and lower(b.email) = ${email} order by b.starts_at desc limit ${L.maxRows}`);

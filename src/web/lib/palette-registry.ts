@@ -102,7 +102,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-notification-settings", label: "Notification settings", to: "/app/settings/notifications", icon: IconBell, keywords: ["email alerts", "push", "quiet hours", "digest", "pause", "do not disturb"] },
   { id: "p-calendar-settings", label: "Calendar settings", to: "/app/settings/calendar", icon: IconCalendarDays, keywords: ["caldav", "carddav", "ics", "google calendar", "sync with your phone", "app password", "iphone", "android", "outlook", "contacts sync"] },
   { id: "p-mail-settings", label: "Mail settings", to: "/app/settings/mail", icon: IconMail, keywords: ["signature", "saved replies", "vacation"] },
-  { id: "p-reports", label: "Anonymous reports", to: "/app/forms?tab=reports", icon: IconShieldCheck, keywords: ["whistleblower", "report", "speak up", "complaint", "case", "concern"], flag: "reporting" }, // R112
+  { id: "p-anonymous-reports", label: "Anonymous reports", to: "/app/forms?tab=reports", icon: IconShieldCheck, keywords: ["whistleblower", "report", "speak up", "complaint", "case", "concern"], flag: "reporting" }, // R112
   { id: "p-data-requests", label: "Data requests", to: "/app/settings/data-requests", icon: IconShieldCheck, keywords: ["privacy", "export my data", "delete my data", "erasure", "access request", "gdpr"], flag: "reporting" }, // R112
   { id: "p-mail-archive", label: "Archive and retention", to: "/app/settings/mail-archive", icon: IconArchive, keywords: ["retention", "legal hold", "ediscovery", "export case", "mbox", "compliance"] }, // R111
   { id: "p-connections", label: "Mail accounts", to: "/app/settings/apps/mail", icon: IconLink, keywords: ["gmail", "outlook", "imap", "connections", "connected accounts", "mailboxes"] },
