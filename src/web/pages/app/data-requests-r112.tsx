@@ -13,6 +13,7 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
 import { IconDownload, IconMail, IconPlus, IconShieldCheck, IconTrash } from "@/web/components/ui/icon";
 import { ApiError } from "@/web/lib/api";
+import { LoadFailure } from "@/web/components/load-error-t1g";
 import { LOCALE } from "@/shared/locale";
 import {
   DATA_KINDS, DATA_KIND_LABELS, DATA_STATUS_LABELS, daysLeft, isEmail,
@@ -106,7 +107,7 @@ function RequestDialog({ id, onClose }: { id: string; onClose: () => void }) {
           {r.status === "verified" && r.type === "delete" && <Button variant="danger" onClick={() => setConfirm(true)} data-testid="dr-delete"><IconTrash className="h-4 w-4" />Delete data</Button>}
         </div>
       )}>
-      {q.isPending ? <Skeleton className="h-40" /> : q.isError || !d || !r ? <p className="text-[13px]" role="alert">Couldn't load this request. <Button size="sm" variant="ghost" onClick={() => void q.refetch()}>Try again</Button></p> : (
+      {q.isPending ? <Skeleton className="h-40" /> : q.isError || !d || !r ? <LoadFailure error={q.error} onRetry={() => q.refetch()} /> : (
         <div className="space-y-4" data-testid="dr-detail">
           <div className="flex flex-wrap items-center gap-2"><Badge tone={tone(r.status)}>{DATA_STATUS_LABELS[r.status]}</Badge>{r.overdue && <Badge tone="bad">Overdue</Badge>}
             {!r.overdue && (r.status === "verified" || r.status === "unverified") && <span className="text-[12.5px] text-muted">{Math.max(0, daysLeft(r.dueAt, now))} days left</span>}</div>
@@ -151,7 +152,7 @@ export function DataRequestsSettings() {
       {settings.isPending ? <Skeleton className="h-24" /> : forbidden ? (
         <Card><EmptyState icon={<IconShieldCheck />} title="Only owners and admins" body="Ask an owner or admin of this workspace to handle data requests." /></Card>
       ) : settings.isError ? (
-        <Card className="p-6 text-center text-[13px]" role="alert">Couldn't load data requests. <Button size="sm" variant="ghost" onClick={() => void settings.refetch()}>Try again</Button></Card>
+        <LoadFailure block error={settings.error} onRetry={() => settings.refetch()} />
       ) : (
         <>
           <Card className="space-y-3 p-4 sm:p-5">
@@ -162,7 +163,7 @@ export function DataRequestsSettings() {
             {settings.data.publicEnabled && <div className="flex flex-wrap items-center gap-2"><code className="min-w-0 flex-1 truncate rounded-lg max-sm:basis-full border border-line bg-fill px-3 py-2 text-[12.5px]" data-testid="dr-link">{settings.data.url}</code><CopyButton value={settings.data.url} label="Copy link" /></div>}
           </Card>
           {list.isPending ? <Skeleton className="h-40" /> : list.isError ? (
-            <Card className="p-6 text-center text-[13px]" role="alert">Couldn't load requests. <Button size="sm" variant="ghost" onClick={() => void list.refetch()}>Try again</Button></Card>
+            <LoadFailure block error={list.error} onRetry={() => list.refetch()} />
           ) : !list.data.requests.length ? (
             <Card><EmptyState icon={<IconShieldCheck />} title="No data requests" body="Requests from your public page, or ones you enter for someone, show here." action={<Button variant="secondary" onClick={() => setMaking(true)}>New request</Button>} /></Card>
           ) : (
@@ -179,7 +180,7 @@ export function DataRequestsSettings() {
             </Card>
           )}
           <Card className="p-4 sm:p-5"><div className="mb-2 text-[14px] font-semibold">Activity</div><p className="mb-3 text-[12.5px] text-muted">Who did what and how many records. The data itself is never kept here.</p>
-            {log.isPending ? <Skeleton className="h-16" /> : log.isError ? <p className="text-[13px]">Couldn't load the activity. <Button size="sm" variant="ghost" onClick={() => void log.refetch()}>Try again</Button></p> : <LogList rows={log.data.log} />}
+            {log.isPending ? <Skeleton className="h-16" /> : log.isError ? <LoadFailure error={log.error} onRetry={() => log.refetch()} /> : <LogList rows={log.data.log} />}
           </Card>
         </>
       )}

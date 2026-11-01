@@ -3,6 +3,7 @@
  * they are the handler of. List and case side by side at 1280, one at a time on a phone.
  */
 import { useEffect, useState } from "react";
+import { LoadError as SharedLoadError } from "@/web/components/load-error-t1g";
 import { useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
@@ -27,8 +28,9 @@ export function useReportAccess(on: boolean) {
   return useQuery({ queryKey: ["reporting", "access"], queryFn: () => api.get<Access>("/reporting/access"), enabled: on, staleTime: 60_000 });
 }
 
-function LoadError({ what, retry }: { what: string; retry: () => void }) {
-  return <Card className="p-6 text-center text-[13px]" role="alert">Couldn't load {what}. <Button size="sm" variant="ghost" onClick={retry}>Try again</Button></Card>;
+/** F12 (MB-299): the shared failed load card ("Couldn't load this" with Retry). `what` names the read for readers of the code. */
+function LoadError({ retry }: { what?: string; retry: () => void }) {
+  return <SharedLoadError onRetry={retry} />;
 }
 
 function ChannelCard({ channel }: { channel: ReportChannelView }) {
