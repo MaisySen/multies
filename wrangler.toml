@@ -158,7 +158,7 @@ TOOLS_ENABLED = "true"
 CRM_TIMELINE = "on"
 SEARCH_R98 = "on" # R98: search with typo tolerance, filters and instant results (verifier v9 PASS WITH BUGS 1 Nov)
 ASK_R110 = "on" # R110: Ask across the workspace (on after verifier v15 PASS WITH BUGS 10:55 UTC Nov 1)
-VAULT_R128 = "off" # R128: team password vault (on only after the verifier passes it on staging)
+VAULT_R128 = "on" # R128: team password vault (verifier v22 PASS on staging 21:48 UTC Nov 1)
 TOOLS_FEATURES = "editor,forms,compare,ocr_langs,scan,protect,stamps,convert_plus,excel,autoredact,batch,share,rules,workflows,templates,api,file_requests,secrets,links,tools_c,esign,tools_c2,merge_plus_r109"
 # R107: e-sign v2 (email code, signing record, seal, templates, bulk send). On in prod after the verifier pass; "off" turns new requests back to the old flow.
 # esign itself left that list on 31 Oct (owner unheld e-sign; R107 adds it to TOOLS_FEATURES above after the verifier pass).
