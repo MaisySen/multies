@@ -73,6 +73,7 @@ export function pickHidden(names: string[], params: Record<string, unknown> | UR
   for (const n of names) {
     const v = get(n);
     if (v === undefined || v === null) continue;
+    // eslint-disable-next-line no-control-regex -- strips control characters from hidden field values
     const s = String(v).replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 200);
     if (s) out[n] = s;
   }
