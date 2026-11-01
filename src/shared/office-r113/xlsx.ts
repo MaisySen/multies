@@ -4,7 +4,7 @@
  */
 import Papa from "papaparse";
 import { SHEET_CAPS, addr, colName, parseAddr, parseInput, shiftFormula, Calc, FErr, type Cell, type Sheet, type Workbook } from "./sheet";
-import { OfficeError, attr, child, children, esc, find, findAll, isZip, kids, parseXml, readRels, tagOf, text, textOf, unzipParts, zipParts, type XNode } from "./xml";
+import { OfficeError, attr, child, children, esc, find, findAll, isZip, kids, parseXml, readRels, text, textOf, unzipParts, zipParts, type XNode } from "./xml";
 
 export interface LoadedBook { wb: Workbook; notes: string[]; overCap: string | null }
 
@@ -63,7 +63,7 @@ export function readXlsx(bytes: Uint8Array): LoadedBook {
           const ft = attr(fEl, "t"); const si = attr(fEl, "si"); const body = textOf(fEl);
           if (ft === "array") notes.add("Array formulas show their saved values.");
           if (ft === "shared" && si != null) {
-            if (body) sharedF.set(si, { f: body, r: a.r, c: a.c }), (cell.f = body);
+            if (body) { sharedF.set(si, { f: body, r: a.r, c: a.c }); cell.f = body; }
             else { const base = sharedF.get(si); if (base) cell.f = shiftFormula(base.f, a.r - base.r, a.c - base.c); }
           } else if (body && ft !== "array") cell.f = body;
         }
@@ -136,7 +136,7 @@ export function writeXlsx(wb: Workbook): Uint8Array {
 function uniqueSheetNames(names: string[]): string[] {
   const seen = new Set<string>();
   return names.map((n, i) => {
-    let base = (n || `Sheet${i + 1}`).replace(/[\\/?*[\]:]/g, " ").trim().slice(0, 31) || `Sheet${i + 1}`; let out = base; let k = 2;
+    const base = (n || `Sheet${i + 1}`).replace(/[\\/?*[\]:]/g, " ").trim().slice(0, 31) || `Sheet${i + 1}`; let out = base; let k = 2;
     while (seen.has(out.toLowerCase())) { out = `${base.slice(0, 28)} ${k++}`; }
     seen.add(out.toLowerCase()); return out;
   });

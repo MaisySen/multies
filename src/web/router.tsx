@@ -136,6 +136,7 @@ const PdfCodesPage = lazyPage(() => import("./pages/app/tools-c/pdf-pages"), "Pd
 const PdfCommentsPage = lazyPage(() => import("./pages/app/tools-c/pdf-pages"), "PdfCommentsPage"); // R100
 const EditPdfPage = lazyPage(() => import("./pages/app/tools-edit-pdf/edit-pdf"), "EditPdfPage"); // R86: Edit PDF on the device // R78: Convert hub
 const FilesPage = lazyPage(() => import("./pages/app/files"), "FilesPage"); // Tools P2 (16)
+const OfficeEditorPage = lazyPage(() => import("./pages/app/files-office-r113"), "OfficeEditorPage"); // R113
 const ShareLinksPage = lazyPage(() => import("./pages/app/tools-share-sign/share-links"), "ShareLinksPage"); // Tools P2: share links
 const LinksPage = lazyPage(() => import("./pages/app/tools-links/links-page"), "LinksPage"); // R87: Links
 const GoOpenPage = lazyPage(() => import("./pages/app/tools-links/go-open"), "GoOpenPage"); // R87: go links
@@ -320,6 +321,7 @@ export const router = createBrowserRouter([
       { path: "tools/pdf-comments", element: page(<ToolFeatureGate features={["tools_c"]}><PdfCommentsPage /></ToolFeatureGate>) }, // R100
       { path: "tools/:editor", element: page(<ToolsEditorRoute />) }, // Tools P2: editors (pages, forms, compare)
       { path: "files", element: page(<ToolFeatureGate features={["folders", "index"]} orFilesPlus><FilesPage /></ToolFeatureGate>) }, // Tools P2 (16): smart folders
+      { path: "files/edit/:id", element: page(<ToolFeatureGate features={["folders", "index"]} orFilesPlus><OfficeEditorPage /></ToolFeatureGate>) }, // R113: office files in the browser
       { path: "tools/share", element: page(<ToolFeatureGate features={["share"]}><ShareLinksPage /></ToolFeatureGate>) }, // Tools P2: share links
       { path: "tools/sign", element: page(<ToolFeatureGate features={["esign"]}><SignPage /></ToolFeatureGate>) }, // Tools P2: e-sign
       { path: "tools/workflows", element: page(<ToolFeatureGate features={["workflows"]}><WorkflowsPage /></ToolFeatureGate>) }, // Tools P2: workflows

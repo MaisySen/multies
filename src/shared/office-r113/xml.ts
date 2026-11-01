@@ -61,6 +61,7 @@ export function findAll(nodes: XNode[], tag: string, out: XNode[] = []): XNode[]
 }
 export const child = (n: XNode, tag: string) => kids(n).find((k) => tagOf(k) === tag);
 export const children = (n: XNode, tag: string) => kids(n).filter((k) => tagOf(k) === tag);
+// eslint-disable-next-line no-control-regex -- strips characters XML 1.0 cannot carry
 export const esc = (s: string) => s.replace(/[&<>"]/g, (c) => (c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&quot;")).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "");
 /** Rels file: id to target, resolved against the folder the part sits in. */
 export function readRels(src: string, base: string): Map<string, { target: string; type: string; external: boolean }> {

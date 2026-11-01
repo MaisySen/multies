@@ -7,12 +7,13 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { useDebounced } from "@/web/lib/search";
-import { useMe, useTeam } from "@/web/lib/queries";
+import { useConfig, useMe, useTeam } from "@/web/lib/queries";
+import { officeActionLabel, officeEditPath, officeKindOf } from "@/shared/office-r113/kind"; // R113
 import { cn } from "@/web/lib/cn";
 import {
   IconAttachment, IconCheck, IconChevronRight, IconClock, IconClose, IconCopy, IconDownload, IconFile, IconFilePdf, IconFolder, IconFolderPlus, IconGrid, IconHistory, IconImage,
@@ -423,6 +424,8 @@ function DriveRow({ it, layout, view, selected, anySelected, onToggle, onOpen, o
 }) {
   const [over, setOver] = useState(false);
   const trash = view === "trash";
+  const navigate = useNavigate(); // R113: Open in editor
+  const office = useConfig().data?.officeEditR113 && it.kind === "file" ? officeKindOf(it.name) : null;
   const meta = [it.location, trash && it.trashedAt ? `Deleted ${dateOf(it.trashedAt)}` : dateOf(it.updatedAt), it.kind === "file" ? sizeLabel(it.sizeBytes) : null, trash ? null : it.createdBy.name].filter(Boolean).join(" · ");
   const onKey = (e: KeyboardEvent<HTMLLIElement>) => {
     if (e.target !== e.currentTarget) return;
@@ -442,6 +445,7 @@ function DriveRow({ it, layout, view, selected, anySelected, onToggle, onOpen, o
         {it.canDelete && <MenuItem danger icon={<IconTrash className="h-4 w-4" />} onSelect={onDelete}>Delete forever</MenuItem>}
       </>) : (<>
         <MenuItem icon={it.kind === "folder" ? <IconFolder className="h-4 w-4" /> : <IconImage className="h-4 w-4" />} onSelect={onOpen}>{it.kind === "folder" ? "Open" : "Preview"}</MenuItem>
+        {office && <MenuItem icon={<IconPencilLine className="h-4 w-4" />} onSelect={() => navigate(officeEditPath(it.id))}>{officeActionLabel(office)}</MenuItem>}
         {it.kind === "file" ? <MenuItem icon={<IconDownload className="h-4 w-4" />} onSelect={() => { window.location.href = contentUrl(it.id); }}>Download</MenuItem>
           : <MenuItem icon={<IconDownload className="h-4 w-4" />} onSelect={onZip}>Download zip</MenuItem>}
         <MenuItem icon={<IconStar className="h-4 w-4" />} onSelect={onStar}>{it.starred ? "Remove star" : "Star"}</MenuItem>
@@ -613,8 +617,15 @@ function PreviewPanel({ id, trashed, onClose, onShare, isAdmin, onChanged }: { i
 function FilePreview({ it, isAdmin }: { it: DriveItem; isAdmin: boolean }) {
   const kind = it.kind === "folder" ? "none" : previewKind(it.contentType, it.name);
   const src = contentUrl(it.id, { inline: true });
+  const office = useConfig().data?.officeEditR113 && it.kind === "file" && !it.trashedAt ? officeKindOf(it.name) : null; // R113
   return (
     <div className="space-y-4">
+      {office && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2.5">
+          <p className="min-w-0 flex-1 text-xs text-subtle">{office === "pptx" ? "See every slide here. Nothing is changed." : it.canEdit ? "Edit it here. Saving keeps the original in Versions." : "You can view it here. Only people who can edit can save."}</p>
+          <Link to={officeEditPath(it.id)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand px-3 text-[13px] font-medium text-white transition-colors duration-150 hover:bg-brand-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 max-sm:h-11" data-testid="drive-open-editor">{officeActionLabel(office)}</Link>
+        </div>
+      )}
       {kind === "image" && <img src={src} alt={it.name} className="mx-auto h-[min(60vh,28rem)] w-full rounded-lg bg-fill object-contain" data-testid="drive-preview-image" />}
       {kind === "video" && <video src={src} controls preload="metadata" className="max-h-[60vh] w-full rounded-lg bg-black" data-testid="drive-preview-video"><track kind="captions" /></video>}
       {kind === "audio" && <audio src={src} controls className="w-full" data-testid="drive-preview-audio" />}

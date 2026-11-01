@@ -9,7 +9,6 @@ export interface PMMark { type: string; attrs?: Record<string, unknown> }
 export interface PMNode { type: string; attrs?: Record<string, unknown>; content?: PMNode[]; text?: string; marks?: PMMark[] }
 export interface LoadedDoc { doc: PMNode; notes: string[] }
 
-const W = "w:";
 const on = (el: XNode | undefined) => !!el && !["0", "false", "off", "none"].includes(String(attr(el, "w:val") ?? "true").toLowerCase());
 
 export function readDocx(bytes: Uint8Array): LoadedDoc {
@@ -82,7 +81,7 @@ function readBlocks(nodes: XNode[], ctx: Ctx, styles: Map<string, string>, numFm
     const { inline, images } = readInline(kids(n), ctx, notes);
     const hr = pPr && child(pPr, "w:pBdr") && !inline.length && !images.length;
     let block: PMNode;
-    const hm = /^heading ?([1-6])$/.exec(style) ?? (style === "title" ? [, "1"] : style === "subtitle" ? [, "2"] : null) ?? (outline && Number(attr(outline, "w:val")) < 6 ? [, String(Number(attr(outline, "w:val")) + 1)] : null);
+    const hm = /^heading ?([1-6])$/.exec(style) ?? (style === "title" ? ["", "1"] : style === "subtitle" ? ["", "2"] : null) ?? (outline && Number(attr(outline, "w:val")) < 6 ? ["", String(Number(attr(outline, "w:val")) + 1)] : null);
     if (/^(code|html preformatted|plain text|source code)$/.test(style)) { flushList(); flushQuote(); code.push(inline.map((x) => x.text ?? "\n").join("")); continue; }
     flushCode();
     if (hr) { flushAll(); out.push({ type: "horizontalRule" }); continue; }

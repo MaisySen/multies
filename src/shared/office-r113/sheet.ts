@@ -318,7 +318,7 @@ export class Calc {
       } else {
         if (v instanceof FErr) return v;
         if (opts.countAll) { if (v != null && v !== "") out.push(1); continue; }
-        const x = toNum(v); if (x instanceof FErr) return x; out.push(x);
+        const x = toNum(v as Val); if (x instanceof FErr) return x; out.push(x);
       }
     }
     return out;
