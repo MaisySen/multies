@@ -61,7 +61,7 @@ function TemplateGallery({ onOpen, onLibrary }: { onOpen: (id: string) => void; 
     onSuccess: (_, v) => { toast.success(v.back ? "Template is back for everyone" : "Template retired. Members no longer see it."); void qc.invalidateQueries({ queryKey: ["contracts"] }); },
     onError: (e) => showError(e),
   });
-  if (q.isPending) return <div className="space-y-3"><Skeleton className="h-12 w-full" /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-36" />)}</div></div>;
+  if (q.isPending) return <div className="space-y-3"><Skeleton className="h-12 w-full" /><div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-36" />)}</div></div>;
   if (q.isError) return <EmptyState title="Contracts didn't load" body={errorMessage(q.error)} action={<Button variant="secondary" onClick={() => void q.refetch()}>Try again</Button>} />;
   const d = q.data!;
   const ours = d.templates.filter((t) => !t.builtIn);
@@ -94,12 +94,12 @@ function TemplateGallery({ onOpen, onLibrary }: { onOpen: (id: string) => void; 
       {ours.length > 0 && (
         <section aria-labelledby="ours-h" className="space-y-2">
           <h2 id="ours-h" className="text-[13px] font-semibold text-muted">Your workspace</h2>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{ours.map(card)}</div>
+          <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">{ours.map(card)}</div>
         </section>
       )}
       <section aria-labelledby="std-h" className="space-y-2">
         <h2 id="std-h" className="text-[13px] font-semibold text-muted">Standard templates</h2>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{standard.map(card)}</div>
+        <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">{standard.map(card)}</div>
       </section>
       <section aria-labelledby="recent-h" className="space-y-2">
         <h2 id="recent-h" className="text-[13px] font-semibold text-muted">Your recent contracts</h2>
@@ -305,13 +305,13 @@ function Interview({ id, onBack }: { id: string; onBack: () => void }) {
           <Button variant="ghost" size="sm" onClick={onBack}>Back to templates</Button>
           <h2 className="mt-1 text-lg font-semibold">{def.name}</h2>
         </div>
-        <div className="flex rounded-lg border border-line p-0.5 lg:hidden" role="tablist" aria-label="Questions or preview">
+        <div className="flex rounded-lg border border-line p-0.5 2xl:hidden" role="tablist" aria-label="Questions or preview">
           {(["questions", "preview"] as const).map((p) => <button key={p} role="tab" aria-selected={pane === p} onClick={() => setPane(p)} className={cn("min-h-[36px] rounded-md px-3 text-[13px]", pane === p ? "bg-fill font-medium text-fg" : "text-muted")}>{p === "questions" ? "Questions" : "Preview"}</button>)}
         </div>
       </div>
       {q.data!.skipped.length > 0 && <p className="text-xs text-subtle">{q.data!.skipped.length} retired clause{q.data!.skipped.length === 1 ? " is" : "s are"} left out.</p>}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-        <Card className={cn("space-y-4 p-4", pane !== "questions" && "hidden lg:block")}>
+      <div className="grid gap-4 2xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+        <Card className={cn("space-y-4 p-4", pane !== "questions" && "hidden 2xl:block")}>
           <nav aria-label="Interview steps">
             <ol className="flex flex-wrap gap-1.5">
               {sections.map((s, i) => (
@@ -333,10 +333,12 @@ function Interview({ id, onBack }: { id: string; onBack: () => void }) {
             <div className="space-y-4" data-testid="contract-review">
               <dl className="divide-y divide-line rounded-lg border border-line text-[13px]">
                 {visible.map((x) => (
-                  <div key={x.key} className="flex items-start justify-between gap-3 px-3 py-2">
-                    <dt className="text-muted">{x.label}</dt>
-                    <dd className="flex min-w-0 items-start gap-2 text-right"><span className={cn("min-w-0 whitespace-pre-line break-words", errors[x.key] && "text-bad")}>{answerText(x) || "Not answered"}</span>
-                      <button className="shrink-0 text-xs text-brand underline-offset-2 hover:underline" onClick={() => setStep(sections.indexOf(x.section))} aria-label={`Change ${x.label}`}>Change</button></dd>
+                  <div key={x.key} className="space-y-0.5 px-3 py-2">
+                    <dt className="text-xs text-muted">{x.label}</dt>
+                    <dd className="flex items-start justify-between gap-3">
+                      <span className={cn("min-w-0 whitespace-pre-line break-words", errors[x.key] && "text-bad")}>{answerText(x) || <span className="text-subtle">Not answered</span>}</span>
+                      <button className="-my-1 min-h-[32px] shrink-0 rounded-md px-2 text-xs font-medium text-brand hover:bg-hover" onClick={() => setStep(sections.indexOf(x.section))} aria-label={`Change ${x.label}`}>Change</button>
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -363,7 +365,7 @@ function Interview({ id, onBack }: { id: string; onBack: () => void }) {
             </div>
           )}
         </Card>
-        <div className={cn("min-w-0", pane !== "preview" && "hidden lg:block")}><Preview built={built} /></div>
+        <div className={cn("min-w-0", pane !== "preview" && "hidden 2xl:block")}><Preview built={built} /></div>
       </div>
     </div>
   );
@@ -399,7 +401,7 @@ function ClauseLibrary({ onBack }: { onBack: () => void }) {
         {canManage && <Button size="sm" onClick={() => { setSel(null); setDraft({ title: "", body: "" }); }}>New clause</Button>}
       </div>
       <p className="text-[13px] text-muted">Every template is built from these clauses. {canManage ? "Editing a clause saves a new version; contracts already made keep the version they used." : "Only workspace admins can change clauses."}</p>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(200px,2fr)_minmax(0,3fr)]">
         <Card className="space-y-2 p-3">
           <Field label="Find a clause">{(fp) => <Input {...fp} value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="GST, privacy, ending" />}</Field>
           {list.isPending ? <Skeleton className="h-64" /> : clauses.length === 0 ? <p className="p-2 text-[13px] text-subtle">No clauses match.</p> : (
@@ -407,9 +409,9 @@ function ClauseLibrary({ onBack }: { onBack: () => void }) {
               {clauses.map((c) => (
                 <li key={c.key}>
                   <button onClick={() => { setSel(c.key); setDraft(null); }} aria-current={sel === c.key ? "true" : undefined}
-                    className={cn("flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-[13px]", sel === c.key ? "bg-brand/10 text-fg" : "hover:bg-hover")}>
-                    <span className={cn("min-w-0 truncate", c.retired && "text-subtle line-through")}>{c.title}</span>
-                    <span className="shrink-0">{c.retired ? <Badge tone="warn">Retired</Badge> : c.edited ? <Badge tone="brand">Version {c.version}</Badge> : <Badge>Standard</Badge>}</span>
+                    className={cn("flex w-full flex-col items-start gap-1 rounded-lg px-2.5 py-2 text-left text-[13px]", sel === c.key ? "bg-brand/10 text-fg" : "hover:bg-hover")}>
+                    <span className={cn("min-w-0 leading-snug", c.retired && "text-subtle line-through")}>{c.title}</span>
+                    <span>{c.retired ? <Badge tone="warn">Retired</Badge> : c.edited ? <Badge tone="brand">Version {c.version}</Badge> : <Badge>Standard</Badge>}</span>
                   </button>
                 </li>
               ))}
