@@ -91,7 +91,7 @@ test("a typo still finds the task, says what it searched for, and Enter opens it
   await d.getByRole("button", { name: /Search for “kestrl reveiw” instead/ }).click();
   await expect(d.getByTestId("search-result")).toHaveCount(0);
   await d.getByRole("combobox").fill("quarterly kestrel");
-  await expect(d.getByTestId("search-top-hit").first()).toContainText("Quarterly kestrel review", { timeout: 10_000 });
+  await expect(results(d).first()).toContainText("Quarterly kestrel review", { timeout: 10_000 });
   await d.getByRole("combobox").press("Enter");
   await expect(page).toHaveURL(new RegExp(`task=${taskId}`));
   await closeMenu(page);
@@ -197,7 +197,7 @@ test("shots and axe at 1280 and 390, light, dark and Forest", async () => {
     for (const w of [1280, 390]) {
       await page.setViewportSize({ width: w, height: w === 390 ? 844 : 860 });
       await page.goto("/app/tasks");
-      let d = await openSearch(page, "kestrel");
+      const d = await openSearch(page, "kestrel");
       await expect(results(d).first()).toBeVisible({ timeout: 10_000 });
       await shot(page, `r98-results-${w}-${theme}`);
       await axe(page, `results ${w} ${theme}`);
@@ -218,7 +218,7 @@ test("shots and axe at 1280 and 390, light, dark and Forest", async () => {
       await axe(page, `empty ${w} ${theme}`);
       await closeMenu(page);
       await page.route("**/api/search?*", (r) => r.fulfill({ status: 500, body: "{}" }));
-      d = await openSearch(page, "error case");
+      await openSearch(page, "error case");
       await expect(page.getByTestId("search-error")).toBeVisible({ timeout: 10_000 });
       await shot(page, `r98-error-${w}-${theme}`);
       await axe(page, `error ${w} ${theme}`);

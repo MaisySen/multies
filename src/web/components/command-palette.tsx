@@ -94,7 +94,8 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   useEffect(() => { setStrict(false); }, [parsed.text]);
   const owner = me.data?.organization ? `${me.data.user.id}:${me.data.organization.id}` : null;
   useInstantIndex(open && r98, owner);
-  const hits = r98 && open && !page ? instantHits(parsed.text, effective) : [];
+  // Instant hits fill the wait; once the server answers for this query its grouped results take over.
+  const hits = r98 && open && !page && !(r98s.data && !r98s.loading) ? instantHits(parsed.text, effective) : [];
   const hitKeys = new Set(hits.map((h) => `${h.type}:${h.id}`));
   const content = r98 ? r98s : legacy;
   const shown = r98 && r98s.data
