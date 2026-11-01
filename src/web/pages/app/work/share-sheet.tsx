@@ -13,9 +13,11 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Select } from "@/web/components/ui/input";
 import { CopyButton, Switch } from "@/web/components/ui/misc";
 import { useMe } from "@/web/lib/queries";
+import { useConfig } from "@/web/lib/queries"; // R103
+import { toast } from "sonner";
 
 type Kind = "doc" | "project_board";
-interface ShareLink { id: string; kind: Kind; targetId: string; showWorkspaceName: boolean; createdAt: string; expiresAt: string | null; url?: string }
+interface ShareLink { id: string; kind: Kind; targetId: string; showWorkspaceName: boolean; createdAt: string; expiresAt: string | null; url?: string; comments?: "off" | "on" }
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
 
@@ -32,6 +34,10 @@ export function ShareButton({ kind, targetId, size = "sm" }: { kind: Kind; targe
 function ShareSheet({ kind, targetId, onClose }: { kind: Kind; targetId: string; onClose: () => void }) {
   const qc = useQueryClient();
   const key = ["share-links", kind, targetId];
+  const docsPlus = !!useConfig().data?.docsPlus; // R103: comments on the shared link
+  const setComments = async (l: ShareLink, on: boolean) => {
+    try { await api.put(`/docs-plus/share/${l.id}`, { comments: on }); toast.success(on ? "Comments on. New ones wait for your review in the doc." : "Comments off for this link"); void qc.invalidateQueries({ queryKey: key }); } catch (e) { showError(e as Error); }
+  };
   const q = useQuery({ queryKey: key, queryFn: () => api.get<{ links: ShareLink[]; allowShareLinks: boolean }>(`/share-links?kind=${kind}&targetId=${encodeURIComponent(targetId)}`) });
   const [expiry, setExpiry] = useState<"never" | "7" | "30">("never");
   const [showWs, setShowWs] = useState(true);
@@ -87,6 +93,11 @@ function ShareSheet({ kind, targetId, onClose }: { kind: Kind; targetId: string;
                   <li key={l.id} className="flex items-center gap-2 px-3 py-2 text-[13px]" data-testid="share-link-row">
                     <IconLink className="h-3.5 w-3.5 text-muted" aria-hidden />
                     <span className="min-w-0 flex-1 truncate">Made {day(l.createdAt)} · {l.expiresAt ? `ends ${day(l.expiresAt)}` : "no end date"}{l.showWorkspaceName ? "" : " · name hidden"}</span>
+                    {kind === "doc" && docsPlus && (
+                      <label className="inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[12px] text-muted hover:bg-hover hover:text-fg" title="People with this link can comment. You review each comment before it shows.">
+                        <input type="checkbox" className="h-4 w-4 accent-[color:var(--brand,#1f6f43)]" checked={l.comments === "on"} onChange={(ev) => void setComments(l, ev.target.checked)} data-testid="share-comments-toggle" />Comments
+                      </label>
+                    )}
                     <Button variant="ghost" size="sm" onClick={() => void revoke(l.id)} aria-label="Revoke link"><IconTrash className="h-3.5 w-3.5" />Revoke</Button>
                   </li>
                 ))}

@@ -196,6 +196,8 @@ export interface AppConfig {
   davSync?: boolean;
   /** R103: Docs plus (link library, web clipper, doc comments, spell check), DOCS_PLUS_R103=on. */
   docsPlus?: boolean;
+  /** R103: local end to end runs only: the clipper reads a pretend web (DOCS_PLUS_FAKE_WEB=1). */
+  docsPlusFakeWeb?: boolean;
   /** R97: notification centre: mail channel, digests, quiet hours, pause (NOTIFICATION_CENTRE, on unless "off"). */
   notificationCentre?: boolean;
   /** R96: chat plus (topics, announcements, decision votes, polls, live Q&A; CHAT_PLUS, on unless "off"). */
@@ -321,6 +323,7 @@ const EnvSchema = z.object({
   HELP_CENTER: z.string().optional(),
   DAV_SYNC_R99: z.string().optional(),
   DOCS_PLUS_R103: z.string().optional(),
+  DOCS_PLUS_FAKE_WEB: z.string().optional(),
   NOTIFICATION_CENTRE: z.string().optional(),
   CHAT_PLUS: z.string().optional(),
   CHANNELS_DAILY_SOFT_CAP: z.string().optional(),
@@ -710,6 +713,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     helpCenter: ["on", "true", "1"].includes(String(env.HELP_CENTER ?? "").toLowerCase()),
     davSync: ["on", "true", "1"].includes(String(env.DAV_SYNC_R99 ?? "").toLowerCase()),
     docsPlus: ["on", "true", "1"].includes(String(env.DOCS_PLUS_R103 ?? "").toLowerCase()),
+    docsPlusFakeWeb: env.DOCS_PLUS_FAKE_WEB === "1" && !/multies\.si/.test(String(env.APP_URL ?? "")),
     notificationCentre: env.NOTIFICATION_CENTRE !== "off",
     chatPlus: env.CHAT_PLUS !== "off",
     operatorInbox: operatorInbox(env.SUPPORT_EMAIL?.trim() || "support@multies.si", env.OPERATOR_INBOX_ORG_ID, env.OPERATOR_INBOX_ADDRESSES),

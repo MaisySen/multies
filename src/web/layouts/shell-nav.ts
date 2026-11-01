@@ -10,7 +10,7 @@ export type IconKey =
   | "reports" | "agents" | "integrations" | "connections" | "settings" | "operator" | "convert"
   | "social" | "planner" | "posts" | "accounts" | "library" | "help" | "socialInbox" | "analytics";
 
-export interface NavPage { to: string; label: string; icon: IconKey; end?: boolean; flag?: "tools" | "files" | "scheduling" | "operator" | "flows" | "socialP2" | "helpCenter" | "socialP2b" }
+export interface NavPage { to: string; label: string; icon: IconKey; end?: boolean; flag?: "tools" | "files" | "scheduling" | "operator" | "flows" | "socialP2" | "helpCenter" | "socialP2b" | "docsPlus" }
 export interface Section { id: SectionId; label: string; icon: IconKey; to: string; pages: NavPage[] }
 
 export const SECTIONS: Section[] = [
@@ -38,6 +38,7 @@ export const SECTIONS: Section[] = [
   { id: "docs", label: "Docs", icon: "docs", to: "/app/docs", pages: [
     { to: "/app/docs", label: "Docs", icon: "docs" },
     { to: "/app/forms", label: "Forms", icon: "forms" },
+    { to: "/app/docs/links", label: "Link library", icon: "library", flag: "docsPlus" }, // R103
     { to: "/app/docs/help-center", label: "Help center", icon: "help", flag: "helpCenter" }, // R122
   ] },
   // P1 layout: posting is a daily tool, so it has its own place (it lived in Settings, Connections, Social posts).
@@ -80,7 +81,7 @@ export const SECTIONS: Section[] = [
   ] },
 ];
 
-export interface NavFlags { /** R122: the help center in Docs. */ helpCenter?: boolean; /** R90: the automation builder is on. */ flows?: boolean; tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts (R117: members too, sent for approval, with Social P2). */ social?: boolean; socialP2?: boolean; /** R118: Social inbox and analytics. */ socialP2b?: boolean; /** R87: Tools > Links is on. */ links?: boolean }
+export interface NavFlags { /** R122: the help center in Docs. */ helpCenter?: boolean; /** R103: the link library in Docs. */ docsPlus?: boolean; /** R90: the automation builder is on. */ flows?: boolean; tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts (R117: members too, sent for approval, with Social P2). */ social?: boolean; socialP2?: boolean; /** R118: Social inbox and analytics. */ socialP2b?: boolean; /** R87: Tools > Links is on. */ links?: boolean }
 
 /** The sections and pages this person can open (switched off features leave no dead links). */
 export function visibleSections(flags: NavFlags): Section[] {

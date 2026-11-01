@@ -83,6 +83,7 @@ const ApprovalsPage = lazyPage(() => import("./pages/app/approvals"), "Approvals
 const TeamInboxPage = lazyPage(() => import("./pages/app/inbox"), "TeamInboxPage");
 const HelpdeskSettingsPage = lazyPage(() => import("./pages/app/helpdesk-settings"), "HelpdeskSettingsPage"); // R119
 const HelpCenterPage = lazyPage(() => import("./pages/app/help-center"), "HelpCenterPage"); // R122
+const DocsLinksPage = lazyPage(() => import("./pages/app/docs-links-r103"), "DocsLinksPage"); // R103
 const work = () => import("./pages/app/work/tasks");
 const TasksPage = lazyPage(() => work(), "TasksPage");
 const TaskPageRoute = lazyPage(() => work(), "TaskPageRoute"); // R84: the full task page
@@ -262,6 +263,7 @@ export const router = createBrowserRouter([
       { path: "tasks/:ref", element: page(<TaskPageRoute />) }, // R84
       { path: "docs", element: page(<DocsPage />) },
       { path: "docs/help-center", element: page(<HelpCenterPage />) }, // R122
+      { path: "docs/links", element: page(<DocsLinksPage />) }, // R103
       { path: "docs/:id", element: page(<DocPage />) },
       { path: "contacts", element: page(<ContactsPage />) },
       { path: "contacts/portals/:id", element: page(<PortalPage />) }, // R120

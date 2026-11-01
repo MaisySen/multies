@@ -27,6 +27,8 @@ export interface PublicConfig {
   crmTimeline?: boolean;
   /** R99: calendar and contacts sync (CalDAV and CardDAV). */
   davSync?: boolean;
+  /** R103: Docs plus (link library, web clipper, doc comments, spell check). */
+  docsPlus?: boolean;
   appName: string;
   mode: "production" | "development";
   demoEnabled: boolean;

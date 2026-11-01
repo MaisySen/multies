@@ -11,6 +11,10 @@ import { createDoc } from "../suite/docs";
 import { linkKey, normalizeTags, siteOf, withScheme } from "@/shared/docs-plus";
 import { ClipError, checkClipUrl, fetchPublicPage } from "./url-guard";
 import { extractReadable, type DocNode } from "./extract";
+import { fakeWebFetch } from "./fake-web";
+
+/** The network the clipper reads through (a pretend web in local end to end runs). */
+const net = (deps: Deps) => (deps.config.docsPlusFakeWeb ? { fetch: fakeWebFetch } : deps);
 
 export const LIST_LIMIT = 200;
 export const CLIPS_PAGE_TITLE = "Web clips";
@@ -68,7 +72,7 @@ async function preview(deps: Deps, url: string): Promise<{ title: string; descri
   const site = siteOf(url);
   try {
     checkClipUrl(url);
-    const page = await fetchPublicPage(deps, url, { maxBytes: 600_000, timeoutMs: 6000 });
+    const page = await fetchPublicPage(net(deps), url, { maxBytes: 600_000, timeoutMs: 6000 });
     const x = extractReadable(page.body, page.url, page.contentType);
     return { title: x.title.slice(0, 300), description: x.description.slice(0, 600), site: (x.siteName || site).slice(0, 120) };
   } catch { return { title: site, description: "", site }; }
@@ -136,7 +140,7 @@ export async function clipPage(deps: Deps, actor: SuiteActor, input: ClipInput) 
   assertWritable(actor);
   const { url, key } = cleanUrl(input.url);
   let page;
-  try { page = await fetchPublicPage(deps, url); } catch (e) { throw clipErr(e); }
+  try { page = await fetchPublicPage(net(deps), url); } catch (e) { throw clipErr(e); }
   const x = extractReadable(page.body, page.url, page.contentType);
   if (x.words < 15) throw new HttpError(422, "no_text", "We could not find readable text on that page. Save it as a link instead.");
   let parentId = input.parentId ?? null;

@@ -9,9 +9,9 @@ export type PaletteIcon = React.ComponentType<{ className?: string }>;
  * R59: `flag` names a server switch from /api/config; the page is offered only while it is on.
  * Tools P2: `toolFeature` also needs one of these P2 features in /api/config toolFeatures.
  */
-export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter"; toolFeature?: string[] }
+export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus"; toolFeature?: string[] }
 export type PaletteActionKind = "navigate" | "shortcuts" | "theme" | "external";
-export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter"; toolFeature?: string[] }
+export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus"; toolFeature?: string[] }
 
 export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-my-work", label: "My Work", to: "/app/my-work", icon: IconToday, keywords: ["today", "due", "home", "mentions"] },
@@ -22,6 +22,8 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-triage", label: "Triage", to: "/app/triage", icon: IconTodo, keywords: ["intake", "requests"] },
   { id: "p-docs", label: "Docs", to: "/app/docs", icon: IconDocs, keywords: ["documents", "notes", "wiki", "pages"] },
   { id: "p-help-center", label: "Help center", to: "/app/docs/help-center", icon: IconDocs, keywords: ["knowledge base", "faq", "questions", "answers", "public help", "articles"], flag: "helpCenter" }, // R122
+  { id: "p-link-library", label: "Link library", to: "/app/docs/links", icon: IconDocs, keywords: ["links", "bookmarks", "saved links", "tags", "read later"], flag: "docsPlus" }, // R103
+  { id: "p-save-page", label: "Save a web page", to: "/app/docs/links?save=page", icon: IconDocs, keywords: ["clip", "clipper", "web clip", "save page", "archive", "snapshot", "pdf"], flag: "docsPlus" }, // R103
   { id: "p-meetings", label: "Meetings", to: "/app/meetings", icon: IconVideo, keywords: ["calls", "video", "calendar"] },
   { id: "p-scheduling", label: "Booking page", to: "/app/scheduling", icon: IconCalendarClock, keywords: ["scheduling", "book", "calendar link"] },
   // Tools P1: shown only when the server has Tools on (flag "tools").

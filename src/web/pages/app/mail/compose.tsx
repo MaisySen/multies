@@ -21,6 +21,9 @@ import { zonedDateTime } from "@/web/lib/format";
 import { RemindSelect, SendLaterMenu, type When } from "./schedules";
 import { AttachButton, AttachmentChips, useComposeFiles } from "./compose-attachments"; // Tools P2: attachments and auto rules
 import { fileToBase64, type ToolFileRef } from "@/web/lib/compose-files";
+import { useSpellPref } from "@/web/lib/spell-r103"; // R103
+import { SpellButton, fixPlainText } from "@/web/components/spell-check-r103";
+import { useConfig } from "@/web/lib/queries"; // R103
 import { SendSecurelyButton } from "./send-securely"; // R88
 
 export interface ComposeDraft {
@@ -69,6 +72,8 @@ const splitAddrs = (s?: string) => (s ?? "").split(/[\s,;]+/).map((x) => x.trim(
 
 export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft; mailboxes: (Mailbox | MailboxOverview)[]; onClose: () => void }) {
   const [d, setD] = useState(initial);
+  const [spell] = useSpellPref(); // R103: spelling
+  const docsPlus = !!useConfig().data?.docsPlus;
   const [showCc, setShowCc] = useState(!!(initial.cc || initial.bcc));
   const [minimized, setMinimized] = useState(false);
   const qc = useQueryClient();
@@ -237,7 +242,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
             <Row label="Bcc"><input value={d.bcc ?? ""} onChange={set("bcc")} className="h-9 w-full bg-transparent text-sm outline-none" aria-label="Bcc" spellCheck={false} /></Row>
           </>}
           <Row label="Subject"><input ref={subjectRef} value={d.subject} onChange={set("subject")} className="h-9 w-full bg-transparent text-sm font-medium outline-none" aria-label="Subject" /></Row>
-          <textarea ref={bodyRef} value={d.text} onChange={set("text")} onKeyDown={snippetKeys} aria-label="Message" className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 text-[14.5px] leading-relaxed outline-none placeholder:text-subtle" placeholder="Write your message…" />
+          <textarea ref={bodyRef} value={d.text} onChange={set("text")} onKeyDown={snippetKeys} aria-label="Message" spellCheck={spell.on} lang={spell.lang} className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 text-[14.5px] leading-relaxed outline-none placeholder:text-subtle" placeholder="Write your message…" />
           {askedSubject && !d.subject.trim() && (
             <div role="status" data-testid="subject-prompt" className="flex shrink-0 flex-wrap items-center gap-2 border-t border-line bg-[#0071E3]/[0.06] px-4 py-2 text-[13px]">
               <IconInfo className="h-4 w-4 shrink-0 text-[#0071E3]" aria-hidden />
@@ -256,6 +261,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
               {/* Tools P2: attachments go now, not later (Tools results are kept for an hour; scheduled sends carry no files yet). */}
               <SendLaterMenu disabled={!d.to.trim() || att.count > 0 || !!unverified} onPick={(when) => send(true, when)} />
               <AttachButton c={att} />
+              {docsPlus && <SpellButton compact getText={() => d.text} onFix={(f) => setD((x) => ({ ...x, text: fixPlainText(x.text, f) }))} />}
               <SendSecurelyButton bodyRef={bodyRef} text={d.text} files={att.items} onRemoveFile={att.remove}
                 onText={(text, cursor) => { setD((x) => ({ ...x, text })); requestAnimationFrame(() => { bodyRef.current?.focus(); bodyRef.current?.setSelectionRange(cursor, cursor); }); }} />
               <span className="hidden items-center gap-1 text-[11px] text-subtle sm:flex"><Kbd>⌘</Kbd><Kbd>↵</Kbd></span>

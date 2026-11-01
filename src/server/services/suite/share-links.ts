@@ -96,7 +96,7 @@ export async function createShareLink(deps: Deps, actor: Actor, input: CreateSha
   const token = randomToken(32);
   const now = deps.now();
   const row: Row = {
-    id: newId("shl"), orgId: actor.orgId, kind: input.kind, targetId: input.targetId, tokenHash: await sha256Hex(token),
+    id: newId("shl"), orgId: actor.orgId, kind: input.kind, targetId: input.targetId, tokenHash: await sha256Hex(token), comments: "off",
     showWorkspace: input.showWorkspaceName ?? true, createdBy: actor.userId || actor.email || "unknown", createdAt: now,
     expiresAt: input.expiresInDays ? new Date(now.getTime() + input.expiresInDays * 86_400_000) : null, revokedAt: null,
   };

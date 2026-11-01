@@ -25,6 +25,7 @@ import { FieldCell } from "./fields";
 import { FileList } from "./task-files";
 import { tone } from "@/web/components/app-bits";
 import { GuestBacklinks, GuestDocTree } from "./guest-docs";
+import { GuestDocComments } from "./doc-comments-r103"; // R103
 
 interface Home {
   guest: { id: string; email: string; name: string }; workspace: { name: string };
@@ -72,6 +73,7 @@ function DocView({ id, onClose, onOpen }: { id: string; onClose: () => void; onO
       <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">{q.data?.title ?? ""}</h2><Button variant="ghost" size="icon" aria-label="Close doc" onClick={onClose}><IconClose className="h-4 w-4" /></Button></div>
       <div className="prose-doc mt-3 text-[14px] leading-relaxed"><EditorContent editor={editor} /></div>
       <GuestBacklinks id={id} onOpen={onOpen} />
+      <GuestDocComments docId={id} />
     </Card>
   );
 }

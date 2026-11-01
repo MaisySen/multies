@@ -31,6 +31,9 @@ import { DocHistoryButton, DocHistoryPanel } from "./doc-history-r39"; // R39: p
 import { docKindOf, whiteboardDocContent } from "@/shared/docs-visual"; // R89: whiteboards, mind map, Present
 import { pageBoardExport } from "./docs-visual/whiteboard-view";
 import type { PMNode } from "@/web/lib/mindmap-tree";
+import { DocCommentsButton, DocCommentsPanel } from "./doc-comments-r103"; // R103
+import { SpellButton } from "@/web/components/spell-check-r103";
+import { SpellAttrs, fixInEditor } from "./doc-spell-r103";
 
 const MindMapView = lazyPage(() => import("./docs-visual/mindmap-view"), "MindMapView");
 const PresentOverlay = lazyPage(() => import("./docs-visual/present"), "PresentOverlay");
@@ -133,6 +136,8 @@ const BOARD_PROPS = { attributes: { class: "mm-board-doc outline-none", "aria-la
 const LIVE_BOARD_PROPS = { ...BOARD_PROPS, handleDOMEvents: liveDomEvents };
 
 function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSession | null; onReplaced: (d: Doc) => void }) {
+  const docsPlus = !!useConfig().data?.docsPlus; // R103
+  const [commentsOpen, setCommentsOpen] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("comments") === "1");
   // R36: an opened doc joins "Recently opened" in the command menu (device only, no server write).
   useEffect(() => { recordRecent({ kind: "item", id: `/app/docs/${doc.id}`, label: doc.title || "Untitled", url: `/app/docs/${doc.id}`, hint: "Doc" }); }, [doc.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const { confirm, dialogs } = useDialogs();
@@ -246,6 +251,7 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
           </>
         )}
         <ShareButton kind="doc" targetId={id} />
+        {docsPlus && <DocCommentsButton docId={id} open={commentsOpen} onToggle={() => setCommentsOpen((o) => !o)} />}
         <DocHistoryButton onOpen={openHistory} />
         <button aria-label="Save as template" title="Save as template" className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg"
           onClick={async () => {
@@ -291,6 +297,7 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
           <ToolButton label="Bulleted list" active={e.isActive("bulletList")} on={() => e.chain().focus().toggleBulletList().run()}><IconList /></ToolButton>
           <ToolButton label="Numbered list" active={e.isActive("orderedList")} on={() => e.chain().focus().toggleOrderedList().run()}><IconListOrdered /></ToolButton>
           <ToolButton label="Quote" active={e.isActive("blockquote")} on={() => e.chain().focus().toggleBlockquote().run()}><IconQuote /></ToolButton>
+          {docsPlus && <SpellButton compact getText={() => e.getText({ blockSeparator: "\n" })} onFix={(f) => fixInEditor(e, f)} />}
           <ToolButton label="Link a page or task" active={picker} on={() => setPicker((p) => !p)}><IconLink /></ToolButton>
           <PageLinkPicker editor={e} open={picker} onClose={() => setPicker(false)} selfId={id} />
         </div>
@@ -309,6 +316,8 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
         </Suspense>
       )}
       <SlashMenu editor={editor} onLinkPicker={openPicker} onImage={openImageDialog} />
+      {docsPlus && <SpellAttrs editor={editor} />}
+      {docsPlus && <DocCommentsPanel docId={id} open={commentsOpen} onClose={() => setCommentsOpen(false)} />}
       <TableMenu editor={editor} />
       <ImageToolbar editor={editor} />
       <ImageInsertDialog editor={editor} open={imageDialog} onClose={() => setImageDialog(false)} upload={uploadImage} />
