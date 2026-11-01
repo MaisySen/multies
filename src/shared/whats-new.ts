@@ -54,8 +54,8 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
     id: "2026-10-31-tools-round-c",
     date: "2026-10-31",
-    title: "Fix a PDF, codes on a PDF and everyday utilities",
-    body: "Tools, Fix a PDF repairs a damaged PDF, makes it open fast on the web, or locks it with a password. You can also put a QR code or barcode on any page, read every comment and highlight in a PDF, and use quick utilities for JSON, YAML and CSV, Base64, hashes, UUIDs, colours, units, timestamps, text diff and regex. All of it runs on your device.",
+    title: "Fix a PDF, slides, image links and everyday utilities",
+    body: "Tools, Fix a PDF repairs a damaged PDF, makes it open fast on the web, or locks it with a password. You can put a QR code or barcode on any page, read every comment in a PDF, and turn slides and drawings (PPTX, PPT, ODP, ODG) into a PDF or into each other. Image links resize, crop and convert a picture from Files by its link, and the utilities cover JSON, Base64, hashes, colours, units, timestamps, regex and a link preview.",
   },
   {
     id: "2026-10-31-crm-timeline",
