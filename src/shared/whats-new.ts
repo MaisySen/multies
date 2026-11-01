@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-docs-plus",
+    date: "2026-11-01",
+    title: "Link library, saved pages, comments on docs and spelling",
+    body: "Docs has a Link library: keep links with tags, or save a public page as a clean doc you can read later, share or download as a PDF. Comment on any doc, and let people with a shared link comment too, after your review. Check spelling in docs and mail in 20 languages.",
+  },
+  {
     id: "2026-11-01-dav-sync",
     date: "2026-11-01",
     title: "Your calendar and contacts on your phone",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "Whiteboards, diagrams, mind maps and slides in Docs",
     body: "Start a whiteboard from Docs and draw on it together, with everyone's cursor showing, or add one inside any doc with /whiteboard. Type /flowchart for a diagram drawn from text, flip a doc to Mind map to see and edit it as a tree, and press Present to show it as slides with speaker notes and a timer.",
-  },
-  {
-    id: "2026-10-31-links",
-    date: "2026-10-31",
-    title: "Short links, QR codes and a link in bio page",
-    body: "Tools, Links turns a long address into a short link with a QR code in your brand colour, an end date, a password or a click limit, and shows clicks by day, country and device with bots left out. Each person and the workspace can have a bio page, and go links like go/onboarding open a doc, task or project for your team.",
   },
   {
     id: "2026-10-28-whats-new",
