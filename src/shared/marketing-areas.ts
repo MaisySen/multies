@@ -91,14 +91,15 @@ export const AREAS: readonly MarketingArea[] = [
   {
     slug: "files", name: "Files", line: "A shared drive with folders, previews, a brand library and safe sharing.",
     title: "Files and secure sharing | Multies",
-    description: "A shared drive with folders, versions and previews, a brand library, file request links, expiring shares and PDF tools.",
+    description: "A shared drive with folders, versions and previews, office files you edit in the browser, a brand library, file request links, expiring shares and PDF tools.",
     headline: "Every file in one place, shared safely.",
     intro: "Keep the team's files in folders with previews and versions, and share them with people outside without losing track of who opened what.",
     points: [
       { t: "Folders, versions and previews", b: "A shared drive for the team, with previews of documents, images and PDFs, and earlier versions kept." },
       { t: "A brand library", b: "Logos and brand files in one place, so everyone uses the right ones." },
       { t: "Secure sharing", b: "Ask clients for files with a request link, share with links that expire and a view log, or send a secret that opens once." },
-      { t: "PDF and office tools", b: "Open and convert office files, compress and edit PDFs, read text from scans, and add QR codes." },
+      { t: "Office files in the browser", b: "Edit Word files and Excel sheets with working formulas right in Files, save each change as a version, and view slides without leaving the browser." },
+      { t: "PDF tools", b: "Convert office files, compress and edit PDFs, read text from scans, and add QR codes." },
     ],
     where: "Files in the left menu.",
     shotAlt: "The Multies files drive with folders and file previews.",
