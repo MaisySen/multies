@@ -28,6 +28,10 @@ import { loadPdfjs } from "@/web/components/tools/pdf-thumb";
 import { runEngine } from "@/web/lib/convert/run";
 import type { ToolOp } from "@/shared/tools";
 import { officeKindOf, type OfficeKind } from "@/shared/office-r113/kind";
+import { useLeaveGuard } from "@/web/components/tools/leave-guard";
+
+/** F12 (MB-296): what the leave question says while the editor has unsaved edits. */
+export const OFFICE_LEAVE_TEXT = "Your changes are not saved yet. If you leave, they will be lost.";
 
 const capOf = (k: OfficeKind) => (k === "pptx" ? OFFICE_CAPS.slideBytes : k === "csv" ? OFFICE_CAPS.csvBytes : OFFICE_CAPS.editBytes);
 const MIME: Record<OfficeKind, string> = {
@@ -65,12 +69,10 @@ export function OfficeEditorPage() {
   const [noteHidden, setNoteHidden] = useState(() => sessionStorage.getItem("office-note-hidden") === "1");
 
   useEffect(() => { if (it) document.title = `${it.name} · Files`; }, [it]);
-  useEffect(() => {
-    if (!state.dirty) return;
-    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [state.dirty]);
+  // F12 (MB-296): unsaved edits ask before leaving (rail, links, Back, reload or close), the same guard Convert uses.
+  // A failed Save leaves state.dirty on, so the guard stays until a Save goes through.
+  const leaveGuard = useLeaveGuard(state.dirty, "your changes", OFFICE_LEAVE_TEXT);
+  const narrow = useNarrow();
 
   const save = useCallback(async (force = false) => {
     if (!builder.current || !it || state.saving) return;
@@ -120,6 +122,7 @@ export function OfficeEditorPage() {
   const tooBig = it.sizeBytes > capOf(kind);
   return (
     <Shell>
+      {leaveGuard}
       <header className="mb-3 flex flex-wrap items-center gap-2 sm:gap-3">
         <BackLink compact />
         <div className="min-w-0 flex-1">
@@ -131,7 +134,7 @@ export function OfficeEditorPage() {
         <a href={contentUrl(it.id, undefined, true)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] text-fg transition-colors duration-150 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-11" download>
           <IconDownload className="h-4 w-4" /><span className="max-sm:sr-only">Download</span>
         </a>
-        {canEdit && !tooBig && <Button onClick={() => void save()} disabled={state.saving || !state.dirty} aria-keyshortcuts="Control+S" className="max-sm:h-11">{state.saving ? "Saving" : "Save"}</Button>}
+        {canEdit && !tooBig && !(narrow && (kind === "xlsx" || kind === "csv")) && <Button onClick={() => void save()} disabled={state.saving || !state.dirty} aria-keyshortcuts="Control+S" className="max-sm:h-11">{state.saving ? "Saving" : "Save"}</Button>}
         {!canEdit && kind !== "pptx" && <span className="inline-flex items-center gap-1 rounded-full bg-fill px-2.5 py-1 text-xs text-muted"><IconLock className="h-3.5 w-3.5" />View only</span>}
       </header>
       {state.conflict && (

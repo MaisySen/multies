@@ -12,6 +12,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { timeAgo } from "@/web/lib/format";
 import { Section } from "./settings";
+import { LoadError } from "@/web/components/load-error-t1g";
 
 interface Endpoint { host: string; port: number; security: "ssl" | "starttls" }
 interface MailAccess { enabled: boolean; missing: string[]; imap: Endpoint; smtp: Endpoint }
@@ -49,6 +50,7 @@ function Connected({ access }: { access: MailAccess }) {
   const mailbox = mailboxes.data?.find((m) => m.id === mailboxId);
 
   if (mailboxes.isPending) return <Skeleton className="h-48" />;
+  if (mailboxes.isError && mailboxes.data === undefined) return <LoadError onRetry={() => mailboxes.refetch()} />; // F12 (MB-295)
   if (!mailboxes.data?.length) {
     return (
       <EmptyState icon={<IconDevices className="h-5 w-5" />} title="No mailboxes yet"

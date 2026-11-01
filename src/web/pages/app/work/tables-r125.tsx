@@ -302,8 +302,9 @@ export function TableDoc({ docId }: { docId: string }) {
         {d.table.canManage && <Button variant="ghost" size="sm" onClick={() => setSettings(true)} aria-label="Who can edit"><IconSettings className="h-4 w-4" /></Button>}
       </div>
 
-      <div className="-mx-1 flex items-center gap-1 overflow-x-auto px-1 pb-1">
-      <div className="flex items-center gap-1" role="tablist" aria-label="Views">
+      {/* F12 (R125 low): the tab row scrolls sideways at 390 instead of the View button covering the last tabs. */}
+      <div className="-mx-1 flex min-w-0 max-w-full items-center gap-1 overflow-x-auto px-1 pb-1" data-testid="table-view-tabs">
+      <div className="flex shrink-0 items-center gap-1" role="tablist" aria-label="Views">
         {d.views.map((v) => (
           <button key={v.id} role="tab" aria-selected={v.id === view.id} onClick={() => setViewId(v.id)}
             className={cn("flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium transition-colors", v.id === view.id ? "bg-fill text-fg" : "text-muted hover:bg-hover")}>

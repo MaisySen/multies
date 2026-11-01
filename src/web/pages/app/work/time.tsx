@@ -13,6 +13,7 @@ import { tone } from "@/web/components/app-bits";
 import { ApprovalQueue, DayTimeline, EntryExtras, ExportLink, IdlePrompt, useTasksPlus, WeekStatus } from "./time-plus-r95"; // R95
 import { useMe } from "@/web/lib/queries";
 import { cleanTags } from "@/shared/tasks-plus-r95";
+import { LoadError } from "@/web/components/load-error-t1g";
 
 export interface TimeEntry {
   id: string; taskId: string | null; task: { id: string; ref: string; title: string } | null; projectId: string | null;
@@ -183,7 +184,7 @@ export function TimesheetPage() {
         )}
         {running.data && <span className="ml-auto text-[12.5px] text-muted">Timer running on {running.data.task?.ref} {running.data.task?.title}</span>}
       </div>
-      {q.isPending ? <Skeleton className="h-48" /> : !q.data!.rows.length ? (
+      {q.isPending ? <Skeleton className="h-48" /> : !q.data ? <Card><LoadError onRetry={() => q.refetch()} /></Card> /* F12 (MB-298) */ : !q.data.rows.length ? (
         <Card><EmptyState icon={<IconTimer />} title="No time this week" body="Open a task and press Start timer, or log time by hand. Agents can log time through the API and MCP too." /></Card>
       ) : (
         <>

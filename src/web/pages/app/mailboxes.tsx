@@ -19,6 +19,7 @@ import { MailFolderArt } from "@/web/components/illustrations";
 import { AvatarTile, MailboxKindPill, StorageRing } from "@/web/components/premium5-r39";
 import { mailboxKind } from "@/web/lib/premium5-r39";
 import { FreeAddressCard, useFreeAddress } from "@/web/components/free-address";
+import { LoadError } from "@/web/components/load-error-t1g";
 
 export function MailboxesPage() {
   const [params, setParams] = useSearchParams();
@@ -76,7 +77,7 @@ function ListSkeleton() {
 }
 
 function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onCreate: () => void; freeDomain?: string }) {
-  const { data, isPending } = useMailboxes();
+  const { data, isPending, isError, refetch } = useMailboxes();
   const team = useTeam();
   const navigate = useNavigate();
   const [editing, setEditing] = useState<Mailbox | null>(null);
@@ -88,6 +89,7 @@ function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onC
     onError: (e) => showError(e),
   });
   if (isPending) return <ListSkeleton />;
+  if (isError && data === undefined) return <Card><LoadError onRetry={() => refetch()} /></Card>; // F12 (MB-295)
   if (!data?.length) return <Card><EmptyState icon={<IconTeam />} art={<MailFolderArt />} title="No mailboxes yet" body="Create an inbox for yourself or a teammate. It can receive, send and store mail." action={<Button onClick={onCreate}><IconPlus className="h-4 w-4" />New mailbox</Button>} /></Card>;
   const domainStatus = new Map(domains.map((d) => [d.id, d.status]));
   return (
@@ -214,7 +216,7 @@ function EditMailboxDialog({ mailbox, onClose }: { mailbox: Mailbox; onClose: ()
 }
 
 function AliasList({ domains, onCreate }: { domains: Domain[]; onCreate: () => void }) {
-  const { data, isPending } = useAliases();
+  const { data, isPending, isError, refetch } = useAliases();
   const [editing, setEditing] = useState<Alias | null>(null);
   const [deleting, setDeleting] = useState<Alias | null>(null);
   const invalidate = useInvalidate();
@@ -224,6 +226,7 @@ function AliasList({ domains, onCreate }: { domains: Domain[]; onCreate: () => v
     onError: (e) => showError(e),
   });
   if (isPending) return <ListSkeleton />;
+  if (isError && data === undefined) return <Card><LoadError onRetry={() => refetch()} /></Card>; // F12 (MB-295)
   if (!data?.length) return <Card><EmptyState icon={<IconMention />} title="No aliases yet" body="Aliases forward a role address like sales@ to one or more people, inside or outside your domain." action={<Button onClick={onCreate}><IconPlus className="h-4 w-4" />New alias</Button>} /></Card>;
   void domains;
   return (

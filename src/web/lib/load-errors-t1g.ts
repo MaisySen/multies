@@ -14,7 +14,8 @@ import type { Query, QueryClient } from "@tanstack/react-query";
 import { ApiError, isTransientError } from "./api";
 
 export const LOAD_ERROR_TITLE = "Couldn't load this";
-export const LOAD_ERROR_BODY = "Something went wrong on our side. Your work is safe. Try again in a moment.";
+// F12 (MB-299): the one wording for a failed load, on every page, panel and the app frame strip.
+export const LOAD_ERROR_BODY = "Something went wrong on our side. Your work is safe.";
 
 /** Reads the app frame already explains in its own way (the account check has the Reconnecting pill). */
 const OWN_STATE_KEYS = new Set(["me", "session"]);

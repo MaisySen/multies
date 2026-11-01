@@ -51,6 +51,7 @@ import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33 offline
 import { SNOOZE_WORDS, emptySelection, prune, selectAll, selectRange, setSelectionCount, toggleOne, undoPlan, UNDO_MS, type BulkCall, type Selection } from "@/web/lib/mail-selection"; // R32
 
 type View = Folder | "starred" | "snoozed" | "scheduled" | `f:${string}`;
+import { LoadError } from "@/web/components/load-error-t1g";
 const FOLDER_UI: { id: View; label: string; icon: IconComponent }[] = [
   { id: "inbox", label: "Inbox", icon: IconInbox },
   { id: "starred", label: "Starred", icon: IconStar },
@@ -435,6 +436,10 @@ export function WebmailPage() {
   }), []);
 
   if (overview.isPending) return <div className="flex h-full"><div className="hidden w-60 border-r border-line p-4 md:block"><Skeleton className="mb-4 h-9" />{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="mb-2 h-7" />)}</div><div className="flex-1 p-4">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="mb-3 h-14" />)}</div></div>;
+  // F12 (MB-295): a failed read is not "no mailboxes"; say it failed and offer Retry. Loaded mailboxes stay on screen.
+  if (overview.isError && overview.data === undefined) {
+    return <div className="grid h-full place-items-center p-6"><LoadError onRetry={() => overview.refetch()} /></div>;
+  }
   if (!mailboxes.length) {
     return (
       <div className="grid h-full place-items-center p-6">

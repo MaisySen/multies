@@ -32,6 +32,19 @@ export function LoadError({ onRetry, className, compact }: { onRetry: () => unkn
   );
 }
 
+/** F12 (MB-299): the same words in one line, for a small panel, a list inside a dialog or a row of a page. */
+export function LoadErrorInline({ onRetry, className }: { onRetry: () => unknown; className?: string }) {
+  useMarkInlineLoadError();
+  const [busy, retry] = useRetrying(onRetry);
+  return (
+    <div role="alert" data-testid="load-error-inline" className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px]", className)}>
+      <IconAlertCircle className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
+      <span className="min-w-0 flex-1"><span className="font-medium text-fg">{LOAD_ERROR_TITLE}.</span> <span className="text-muted">{LOAD_ERROR_BODY}</span></span>
+      <Button size="sm" variant="secondary" loading={busy} onClick={() => void retry()} data-testid="load-error-retry">Retry</Button>
+    </div>
+  );
+}
+
 function useOnline() {
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine !== false);
   useEffect(() => {
@@ -55,7 +68,7 @@ export function LoadErrorStrip() {
   return (
     <div role="alert" data-testid="load-error-strip" className="flex items-center justify-center gap-3 border-b border-line bg-surface px-4 py-2 text-[13px] text-fg">
       <IconAlertCircle className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
-      <span className="min-w-0"><span className="font-medium">{LOAD_ERROR_TITLE}.</span> <span className="text-muted">Something went wrong on our side.</span></span>
+      <span className="min-w-0"><span className="font-medium">{LOAD_ERROR_TITLE}.</span> <span className="text-muted">{LOAD_ERROR_BODY}</span></span>
       <Button size="sm" variant="secondary" loading={busy} onClick={() => void retry()} data-testid="load-error-strip-retry">Retry</Button>
     </div>
   );

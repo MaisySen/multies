@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { displayFirstName } from "@/shared/display-name";
 import { Link } from "react-router";
 import { MyDay } from "./work/my-day-r95"; // R95
-import { IconApprovals, IconCalendarClock, IconCheck, IconChat, IconChevronRight, IconClipboardCheck, IconCompose, IconDocs, IconInbox, IconMail, IconMention, IconPlus, IconRefresh, IconSnooze, IconTasks, IconToday, IconUserCheck, IconVideo, IconWarning, type IconComponent } from "@/web/components/ui/icon";
+import { IconApprovals, IconCalendarClock, IconCheck, IconChat, IconChevronRight, IconClipboardCheck, IconCompose, IconDocs, IconInbox, IconMail, IconMention, IconPlus, IconAlertCircle, IconRefresh, IconSnooze, IconTasks, IconUserCheck, IconVideo, IconWarning, type IconComponent } from "@/web/components/ui/icon";
 import { ClearDayArt } from "@/web/components/illustrations";
 import { Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
@@ -12,6 +12,9 @@ import { allClear, focusItems, nextMeeting } from "@/web/lib/today";
 import { useConfig, useMe } from "@/web/lib/queries";
 import { useCounts } from "@/web/lib/counts";
 import { dayPart } from "@/web/lib/format";
+import { LoadError } from "@/web/components/load-error-t1g";
+import { Button } from "@/web/components/ui/button";
+import { LOAD_ERROR_TITLE } from "@/web/lib/load-errors-t1g";
 
 /** R56 (MB-247): the tile reads the meeting's time in the same zone as the list under it (the zone My Work was built in), not the browser's. */
 function meetingTime(at: string, timeZone?: string | null): string {
@@ -105,7 +108,14 @@ export function MyWorkPage() {
           <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-brand-hover" data-testid="today-date"><span>My Work</span><span aria-hidden> · </span><span className="text-muted">{day}</span></p>
           <h1 data-large-title className="text-[32px] font-bold leading-[38px] tracking-[-0.025em] text-fg sm:text-[34px] sm:leading-[41px]">Good {dayPart()}{first ? `, ${first}` : ""}</h1>
           <p className={cn("mt-1 text-[14px] text-muted", allQuiet && "sr-only")}>{!w ? "What is waiting on you today." : nothing ? "Nothing is waiting on you. Enjoy the quiet." : overdue > 0 ? `${overdue} overdue and ${due} due today. Start with the top of Focus.` : `${due ? `${due} due today` : "Nothing due today"}${next ? `, next up: ${next.item.title}` : ""}.`}</p>
-          {q.cachedAt !== null && (
+          {q.cachedAt !== null && q.isError && (
+            /* F12 (MB-297): the read failed; the stored list stays on screen, said plainly, with Retry. */
+            <p className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-full bg-elevated py-1 pl-2.5 pr-1 text-[12px] font-medium text-muted" role="alert" data-testid="mywork-stale">
+              <IconAlertCircle className="h-3.5 w-3.5" aria-hidden="true" />{LOAD_ERROR_TITLE}. Showing your list from {new Date(q.cachedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+              <Button size="sm" variant="secondary" onClick={() => void q.refetch()} data-testid="mywork-retry">Retry</Button>
+            </p>
+          )}
+          {q.cachedAt !== null && !q.isError && (
             <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-elevated px-2.5 py-1 text-[12px] font-medium text-muted" role="status" data-testid="mywork-updating">
               <IconRefresh className="h-3.5 w-3.5 motion-safe:animate-spin [animation-duration:1.6s]" aria-hidden="true" />Updating. Showing your list from {new Date(q.cachedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
             </p>
@@ -125,8 +135,8 @@ export function MyWorkPage() {
 
       {q.isPending && !w ? (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5"><Skeleton className="h-32" /><Skeleton className="h-32" /><Skeleton className="h-32" /><Skeleton className="h-32" /><Skeleton className="h-32" /></div>
-      ) : q.isError || !w ? (
-        <EmptyState icon={<IconToday />} title="My Work didn't load" body="Check your connection and try again in a moment." />
+      ) : !w ? (
+        <LoadError onRetry={() => q.refetch()} />
       ) : (
         <>
           {allQuiet ? (

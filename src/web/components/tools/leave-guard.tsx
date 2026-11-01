@@ -16,7 +16,8 @@ export function shouldAsk(dirty: boolean, from: { pathname: string }, to: { path
   return dirty && from.pathname !== to.pathname && handedOn === 0;
 }
 
-export function useLeaveGuard(dirty: boolean, what = "your file") {
+/** F12 (MB-296): `description` replaces the default line, for screens with unsaved edits rather than a picked file. */
+export function useLeaveGuard(dirty: boolean, what = "your file", description?: string) {
   useEffect(() => {
     if (!dirty) return;
     const onBefore = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
@@ -27,7 +28,7 @@ export function useLeaveGuard(dirty: boolean, what = "your file") {
   const open = blocker.state === "blocked";
   return (
     <Dialog open={open} onClose={() => blocker.reset?.()} title="Leave this page?"
-      description={`You have not run or saved ${what} yet. If you leave, you will need to pick it again.`}
+      description={description ?? `You have not run or saved ${what} yet. If you leave, you will need to pick it again.`}
       footer={<>
         <Button type="button" variant="ghost" onClick={() => blocker.reset?.()} data-testid="leave-stay" className="max-sm:min-h-11">Stay</Button>
         <Button type="button" onClick={() => blocker.proceed?.()} data-testid="leave-go" className="max-sm:min-h-11">Leave</Button>
