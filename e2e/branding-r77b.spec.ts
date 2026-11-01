@@ -40,8 +40,8 @@ test("every branding action works and shows at once", async ({ page }) => {
   await expect(bar).toContainText("All changes saved");
 
   // Colours, corners, density and font all change the draft; Ctrl S saves.
-  await page.getByLabel("Brand colour hex").fill("#0f766e");
-  await expect.poll(() => brandVar(page)).toBe("#0f766e");
+  await page.getByLabel("Brand colour hex").fill("#0f726b");
+  await expect.poll(() => brandVar(page)).toBe("#0f726b");
   await page.getByRole("radio", { name: "Round", exact: true }).click();
   await page.getByRole("radio", { name: "Compact", exact: true }).click();
   await page.getByRole("radio", { name: /Serif/ }).click();
@@ -49,7 +49,7 @@ test("every branding action works and shows at once", async ({ page }) => {
   await expect(bar).toContainText("Saved for everyone");
   await page.reload();
   await expect(page.getByTestId("branding-settings")).toBeVisible();
-  await expect.poll(() => brandVar(page)).toBe("#0f766e");
+  await expect.poll(() => brandVar(page)).toBe("#0f726b");
   await expect(page.getByRole("radio", { name: "Round", exact: true })).toHaveAttribute("aria-checked", "true");
 
   // A theme then Save brand.
