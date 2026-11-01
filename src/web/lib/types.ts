@@ -47,6 +47,8 @@ export interface PublicConfig {
   dashboardsPlus?: boolean;
   /** R59: chat channels (WhatsApp, Messenger, Instagram) in the shared inbox (CHAT_CHANNELS). Off unless set. */
   chatChannels?: boolean;
+  /** R111: mail archive and retention (MAIL_ARCHIVE_R111): the Archive and retention pane and Audit log filters. */
+  mailArchive?: boolean;
   /** Tools P1: document tools (TOOLS_ENABLED with an engine configured). */
   tools?: boolean;
   /** Tools P2: the advanced Tools features on for this deployment (empty when Tools is off). The lead adds it to /api/config. */

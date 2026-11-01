@@ -5,7 +5,9 @@ import { api } from "@/web/lib/api";
 import type { AuditEntry, Delivery } from "@/web/lib/types";
 import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
-import { useMe } from "@/web/lib/queries";
+import { useConfig, useMe } from "@/web/lib/queries";
+import { AUDIT_AREAS } from "@/shared/mail-archive";
+import { Input, Select } from "@/web/components/ui/input";
 import { describeAudit } from "@/web/components/app-bits";
 import { fullDate, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -22,6 +24,12 @@ export function ActivityPage() {
   const canExport = role === "owner" || role === "admin";
   // R39: the audit log is for owners and admins only (the server answers 403 to members).
   const tab = params.get("tab") === "audit" && canExport ? "audit" : "deliveries";
+  // R111: Audit log filters (area, person, dates) while MAIL_ARCHIVE_R111 is on; the export keeps them.
+  const filtersOn = !!useConfig().data?.mailArchive;
+  const af = new URLSearchParams();
+  if (filtersOn) for (const k of ["area", "actor", "since", "until"]) { const v = params.get(k); if (v) af.set(k, v); }
+  const afq = af.toString();
+  const setFilter = (k: string, v: string) => { const n = new URLSearchParams(params); if (v) n.set(k, v); else n.delete(k); n.set("tab", "audit"); setParams(n, { replace: true }); };
   return (
     <>
       <PageHeader title="Activity" description="Every message that moved through your domains, and every change anyone made." />
@@ -41,14 +49,26 @@ export function ActivityPage() {
         )}
         {tab === "audit" && canExport && (
           <div className="ml-auto flex gap-2 text-[12.5px]">
-            <a href="/api/org/audit/export?format=csv" download className="inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1 font-medium text-muted hover:bg-hover hover:text-fg">
+            <a href={`/api/org/audit/export?format=csv${afq ? `&${afq}` : ""}`} download className="inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1 font-medium text-muted hover:bg-hover hover:text-fg">
               <IconDownload className="h-3.5 w-3.5" aria-hidden />Export CSV
             </a>
-            <a href="/api/org/audit/export?format=json" download className="inline-flex items-center rounded-md border border-line px-2.5 py-1 font-medium text-muted hover:bg-hover hover:text-fg">JSON</a>
+            <a href={`/api/org/audit/export?format=json${afq ? `&${afq}` : ""}`} download className="inline-flex items-center rounded-md border border-line px-2.5 py-1 font-medium text-muted hover:bg-hover hover:text-fg">JSON</a>
           </div>
         )}
       </div>
-      {tab === "deliveries" ? <Deliveries direction={direction} /> : <Audit />}
+      {tab === "audit" && filtersOn && (
+        <div className="mb-4 grid gap-2 sm:grid-cols-4" role="group" aria-label="Filter the audit log">
+          <Select aria-label="Area" value={params.get("area") ?? ""} onChange={(e) => setFilter("area", e.target.value)}>
+            <option value="">All areas</option>
+            {AUDIT_AREAS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+          </Select>
+          <Input aria-label="Person" type="search" placeholder="Person's email" defaultValue={params.get("actor") ?? ""} maxLength={254}
+            onKeyDown={(e) => { if (e.key === "Enter") setFilter("actor", e.currentTarget.value.trim()); }} onBlur={(e) => setFilter("actor", e.currentTarget.value.trim())} />
+          <Input aria-label="From date" type="date" value={params.get("since") ?? ""} onChange={(e) => setFilter("since", e.target.value)} />
+          <Input aria-label="To date" type="date" value={params.get("until") ?? ""} onChange={(e) => setFilter("until", e.target.value)} />
+        </div>
+      )}
+      {tab === "deliveries" ? <Deliveries direction={direction} /> : <Audit query={afq} />}
     </>
   );
 }
@@ -102,10 +122,11 @@ function Deliveries({ direction }: { direction: string }) {
   );
 }
 
-function Audit() {
-  const q = useCursorList<AuditEntry>(["audit"], "/org/audit", (r) => (r as { entries: AuditEntry[] }).entries);
+function Audit({ query = "" }: { query?: string }) {
+  const q = useCursorList<AuditEntry>(["audit", query], `/org/audit${query ? `?${query}` : ""}`, (r) => (r as { entries: AuditEntry[] }).entries);
   const rows = q.data?.pages.flat() ?? [];
   if (q.isPending) return <TableSkeleton />;
+  if (!rows.length && query) return <Card><EmptyState icon={<IconFileClock />} title="Nothing matches these filters" body="Try another area, person or date range." /></Card>;
   if (!rows.length) return <Card><EmptyState icon={<IconFileClock />} title="No activity yet" body="Changes to domains, mailboxes, aliases, keys and plans are recorded here." /></Card>;
   return (
     <Card className="divide-y divide-line">

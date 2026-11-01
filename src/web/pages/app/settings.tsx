@@ -7,7 +7,7 @@ import { AttachmentIndexSection } from "./attachment-index-settings"; // Tools P
 import { ShareLinksSetting } from "./work/share-sheet"; // R26 (MB-87)
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconActivity, IconShield, IconBack, IconBell, IconCalendar, IconCheck, IconChevronRight, IconCode, IconCreditCard, IconDownload, IconKey, IconMail, IconMailCheck, IconPlugZap, IconPlus, IconSearch, IconSend, IconShieldCheck, IconChats, IconSliders, IconSmartphone, IconSparkle, IconMoon, IconTeam, IconTrash, IconWarning } from "@/web/components/ui/icon";
+import { IconArchive, IconActivity, IconShield, IconBack, IconBell, IconCalendar, IconCheck, IconChevronRight, IconCode, IconCreditCard, IconDownload, IconKey, IconMail, IconMailCheck, IconPlugZap, IconPlus, IconSearch, IconSend, IconShieldCheck, IconChats, IconSliders, IconSmartphone, IconSparkle, IconMoon, IconTeam, IconTrash, IconWarning } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
@@ -49,6 +49,7 @@ export const SETTINGS_GROUPS: { label: string; items: Pane[] }[] = [
   { label: "Mail", items: [
     { to: "/app/settings/mail", label: "Mail routing", icon: IconMail, tint: "#0A84FF", keywords: "inbound outbound forwarding undo send saved replies read status dns" },
     { to: "/app/settings/mail-apps", label: "Mail apps", icon: IconSmartphone, tint: "#32ADE6", keywords: "imap phone desktop app password apple mail" },
+    { to: "/app/settings/mail-archive", label: "Archive and retention", icon: IconArchive, tint: "#8E8E93", keywords: "retention keep delete years legal hold ediscovery search export case mbox compliance archive" }, // R111
     { to: "/app/settings/sign-up-emails", label: "Sign-up emails", icon: IconMailCheck, tint: "#AF52DE", keywords: "auth emails branded confirm reset hook secret" },
     { to: "/app/settings/import", label: "Import and export", icon: IconDownload, tint: "#636366", keywords: "import export move data backup download zip csv calendar contacts mail tasks from another app undo" },
   ] },
@@ -67,8 +68,8 @@ export function paneFor(path: string): Pane {
   return ALL_PANES.find((p) => p.to !== "/app/settings" && (clean === p.to || clean.startsWith(p.to + "/"))) ?? ALL_PANES[0];
 }
 /** R59: panes tied to a server switch (chat channels, CHAT_CHANNELS) are listed only while it is on. */
-export function panesFor(config: { chatChannels?: boolean } | undefined): (p: Pane) => boolean {
-  return (p) => p.to !== "/app/settings/channels" || !!config?.chatChannels;
+export function panesFor(config: { chatChannels?: boolean; mailArchive?: boolean } | undefined): (p: Pane) => boolean {
+  return (p) => (p.to !== "/app/settings/channels" || !!config?.chatChannels) && (p.to !== "/app/settings/mail-archive" || !!config?.mailArchive);
 }
 export function matchPanes(q: string): Pane[] {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);

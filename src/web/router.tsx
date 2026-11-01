@@ -159,6 +159,7 @@ const ChannelsSettings = lazyPage(() => import("./pages/app/channels-settings"),
 const brandingSettings = () => import("./pages/app/branding-settings"); // R77
 const BrandingSettings = lazyPage(() => brandingSettings(), "BrandingSettings");
 const AppearanceSettings = lazyPage(() => brandingSettings(), "AppearanceSettings");
+const MailArchiveSettings = lazyPage(() => import("./pages/app/mail-archive-settings"), "MailArchiveSettings"); // R111
 const CalendarSettings = lazyPage(() => import("./pages/app/calendar-settings"), "CalendarSettings");
 const AppsSettings = lazyPage(() => import("./pages/app/apps-settings"), "AppsSettings"); // R80C: Connections hub
 const social = () => import("./pages/app/social"); // P1 layout: Social, out of Settings
@@ -333,6 +334,7 @@ export const router = createBrowserRouter([
           { path: "mail", element: page(<MailSettings />) },
           { path: "connections", element: <Moved to="/app/settings/apps/mail" /> }, // R82F (MB-279)
           { path: "mail-apps", element: page(<MailAppsSettings />) },
+          { path: "mail-archive", element: page(<MailArchiveSettings />) }, // R111: archive and retention (MAIL_ARCHIVE_R111)
           { path: "developers", element: page(<DeveloperSettings />) },
           { path: "sign-up-emails", element: page(<AuthEmailSettings />) }, // R27
           { path: "import", element: page(<ImportSettings />) },
