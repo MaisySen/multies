@@ -1,21 +1,15 @@
 /**
  * Repeating tasks. A rule says how often: daily, weekly on chosen days, monthly on a day of the
- * month, yearly, every N of any of those (custom), with an optional end date. When a repeating
- * task is finished, the next one is made with the next due date, and the rule moves to it.
+ * month (or, R95, the nth weekday), yearly, every N of any of those (custom), with an optional end date.
+ * R95 adds counting from when the task was finished, a time zone (so 9 am stays 9 am across daylight
+ * saving) and a rotation of assignees. When a repeating task is finished, the next one is made with the
+ * next due date, and the rule moves to it. The date math lives in src/shared/tasks-plus-r95.ts.
  */
 import { HttpError } from "../../lib/errors";
+import { ruleProblem, type RepeatRule } from "../../../shared/tasks-plus-r95";
 
-export interface RepeatRule {
-  freq: "daily" | "weekly" | "monthly" | "yearly";
-  /** Every N days, weeks, months or years. 1 by default. */
-  interval?: number;
-  /** For weekly: days of the week, 0 Sunday to 6 Saturday. Defaults to the due date's day. */
-  weekdays?: number[];
-  /** For monthly: day of the month, 1 to 31 (short months use their last day). Defaults to the due date's day. */
-  monthDay?: number;
-  /** Last date a repeat may fall on, YYYY-MM-DD. */
-  until?: string | null;
-}
+export type { RepeatRule } from "../../../shared/tasks-plus-r95";
+export { nextOccurrence, describeRule, repeatBase, nextInRotation } from "../../../shared/tasks-plus-r95";
 
 export function normaliseRule(r: unknown): RepeatRule | null {
   if (r === null || r === undefined) return null;
@@ -38,47 +32,12 @@ export function normaliseRule(r: unknown): RepeatRule | null {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(x.until)) throw new HttpError(422, "validation_failed", "repeat.until must be YYYY-MM-DD.");
     out.until = x.until;
   }
+  // R95: smart repeat. Unset fields keep the old behaviour exactly.
+  const problem = ruleProblem(x);
+  if (problem) throw new HttpError(422, "validation_failed", problem);
+  if (x.nth !== undefined && x.nth !== null) { out.nth = Number(x.nth); out.nthWeekday = Number(x.nthWeekday); delete out.monthDay; }
+  if (x.basis === "done") out.basis = "done";
+  if (x.tz) out.tz = x.tz;
+  if (x.rotate?.length) out.rotate = [...new Set(x.rotate)];
   return out;
-}
-
-const DAY = 86_400_000;
-const daysIn = (y: number, m: number) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
-
-/** The next date after `from` that the rule lands on, keeping the time of day. Null once past `until`. */
-export function nextOccurrence(rule: RepeatRule, from: Date): Date | null {
-  const n = rule.interval ?? 1;
-  let next: Date;
-  if (rule.freq === "daily") next = new Date(from.getTime() + n * DAY);
-  else if (rule.freq === "weekly") {
-    const days = rule.weekdays?.length ? rule.weekdays : [from.getUTCDay()];
-    const dow = from.getUTCDay();
-    const later = days.find((d) => d > dow);
-    if (later !== undefined) next = new Date(from.getTime() + (later - dow) * DAY);
-    else {
-      // First chosen day in the week N weeks on.
-      const startOfWeek = from.getTime() - dow * DAY;
-      next = new Date(startOfWeek + n * 7 * DAY + days[0] * DAY);
-    }
-  } else if (rule.freq === "monthly") {
-    const want = rule.monthDay ?? from.getUTCDate();
-    const y = from.getUTCFullYear(), m = from.getUTCMonth() + n;
-    const ty = y + Math.floor(m / 12), tm = ((m % 12) + 12) % 12;
-    next = new Date(Date.UTC(ty, tm, Math.min(want, daysIn(ty, tm)), from.getUTCHours(), from.getUTCMinutes()));
-  } else {
-    const ty = from.getUTCFullYear() + n, tm = from.getUTCMonth();
-    next = new Date(Date.UTC(ty, tm, Math.min(from.getUTCDate(), daysIn(ty, tm)), from.getUTCHours(), from.getUTCMinutes()));
-  }
-  if (rule.until && next.getTime() > new Date(`${rule.until}T23:59:59.999Z`).getTime()) return null;
-  return next;
-}
-
-/** A short plain description, e.g. "Every 2 weeks on Mon, Wed". */
-export function describeRule(r: RepeatRule) {
-  const n = r.interval ?? 1;
-  const unit = { daily: "day", weekly: "week", monthly: "month", yearly: "year" }[r.freq];
-  let s = n === 1 ? `Every ${unit}` : `Every ${n} ${unit}s`;
-  if (r.freq === "weekly" && r.weekdays?.length) s += ` on ${r.weekdays.map((d) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d]).join(", ")}`;
-  if (r.freq === "monthly" && r.monthDay) s += ` on day ${r.monthDay}`;
-  if (r.until) s += ` until ${r.until}`;
-  return s;
 }
