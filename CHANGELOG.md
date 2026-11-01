@@ -6,6 +6,12 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## R108 Contracts: templates and guided interviews (2026-11-01)
+### Added
+- Tools, Templates, Contracts: plain words templates for a service agreement, an NDA (mutual or one way), a contractor agreement, quote terms and a privacy notice, each with the "This is a template, not legal advice" note on the template and the generated document.
+- Guided interview: branching questions (only what matters for your answers), checks for required answers, dates, money, email and ABN, a live preview, then a Doc (normal sharing), a PDF, a Word file or Send to sign (e-sign page).
+- Renewal and end date reminders as tasks; a clause library with versions (admins edit, retire and bring back; contracts record the versions used) and workspace versions of templates. Docs, Templates links to it. Flag CONTRACTS_R108. Migration 0130.
+
 ## R101 Files plus: drive and brand library (2026-11-01)
 ### Added
 - Files: Team files, My files, Shared with me, Starred, Recent and Trash; folders with breadcrumbs, drag and drop upload and move, Move to, star, rename.
