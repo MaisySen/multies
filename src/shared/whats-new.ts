@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-tables",
+    date: "2026-11-01",
+    title: "Tables in Docs",
+    body: "Keep clients, stock or jobs in a table with typed fields, linked records, lookups and formulas. Switch between grid, kanban, calendar and form views, paste from a spreadsheet, import and export CSV, and comment on rows. Start one from Docs > New table.",
+  },
+  {
     id: "2026-11-01-booking-plus",
     date: "2026-11-01",
     title: "Book rooms, find a time together, run free events",
@@ -87,13 +93,7 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     title: "Topics, announcements and votes in Chat",
     body: "Channels can have topics: pick one from the bar under the channel name to see just that conversation, with its own unread count, and mark it resolved with a tick when it is done. Admins can post announcements that are pinned and show who has seen them, all in one Announcements list. Use Add next to the message box for a poll, a decision (agree, abstain, disagree or block, with the outcome posted when it closes), live questions with upvotes, or a word cloud; during a call, the Live panel runs the same polls and questions.",
   },
-  {
-    id: "2026-11-01-client-portals",
-    date: "2026-11-01",
-    title: "Client portals for the people you work with",
-    body: "In Contacts, Client portals gives each client a private space they open from an email link, no password needed. Share files, docs and task updates, ask them for files, and message back and forth. Each client only ever sees their own space.",
-  },
-  {
+    {
     id: "2026-10-28-whats-new",
     date: "2026-10-28",
     title: "What's new, in the app",

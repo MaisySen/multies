@@ -71,7 +71,7 @@ function assertEdit(viewer: Viewer, meta: Meta) {
 const member = (actor: SuiteActor): Viewer => ({ kind: "member", actor });
 
 function presentField(f: FieldRow): TField {
-  let config: TFieldConfig = {};
+  let config: TFieldConfig;
   try { config = JSON.parse(f.config) as TFieldConfig; } catch { config = {}; }
   return { id: f.id, name: f.name, type: f.type as TFieldType, config, position: f.position, width: f.width };
 }
@@ -80,7 +80,7 @@ async function fieldsOf(deps: Deps, orgId: string, docId: string): Promise<TFiel
   return rows.map(presentField);
 }
 function presentView(v: typeof tableViews.$inferSelect) {
-  let config: ViewConfig = {};
+  let config: ViewConfig;
   try { config = JSON.parse(v.config) as ViewConfig; } catch { config = {}; }
   return { id: v.id, name: v.name, type: v.type as ViewType, config, position: v.position };
 }

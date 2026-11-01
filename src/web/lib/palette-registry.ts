@@ -9,9 +9,9 @@ export type PaletteIcon = React.ComponentType<{ className?: string }>;
  * R59: `flag` names a server switch from /api/config; the page is offered only while it is on.
  * Tools P2: `toolFeature` also needs one of these P2 features in /api/config toolFeatures.
  */
-export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices" | "expenses"; toolFeature?: string[] }
+export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices" | "expenses" | "tablesR125"; toolFeature?: string[] }
 export type PaletteActionKind = "navigate" | "shortcuts" | "theme" | "external";
-export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices" | "expenses"; toolFeature?: string[] }
+export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices" | "expenses" | "tablesR125"; toolFeature?: string[] }
 
 export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-my-work", label: "My Work", to: "/app/my-work", icon: IconToday, keywords: ["today", "due", "home", "mentions"] },
@@ -125,6 +125,7 @@ export const PALETTE_ACTIONS: PaletteAction[] = [
   { id: "new-short-link", label: "New short link", icon: IconLink, kind: "navigate", to: "/app/tools/links?new=1", keywords: ["shorten", "short url", "qr code", "link"], flag: "tools", toolFeature: ["links"] }, // R87
   { id: "new-doc", label: "New doc", icon: IconFilePlus, kind: "navigate", to: "/app/docs?new=1", keywords: ["create doc", "page", "note", "write"] },
   { id: "new-whiteboard", label: "New whiteboard", icon: IconShapes, kind: "navigate", to: "/app/docs?new=whiteboard", keywords: ["draw", "sketch", "canvas", "board", "diagram", "brainstorm"], flag: "docsVisual" }, // R89
+  { id: "new-table", label: "New table", icon: IconTable, kind: "navigate", to: "/app/docs?new=table", keywords: ["database", "spreadsheet", "grid", "kanban", "records", "csv", "list"], flag: "tablesR125" }, // R125
   { id: "new-chat", label: "Send a chat message", icon: IconMessageCircle, kind: "navigate", to: "/app/chat", keywords: ["message", "dm", "channel"] },
   { id: "add-domain", label: "Add a domain", icon: IconPlus, kind: "navigate", to: "/app/domains?add=1" },
   { id: "add-mailbox", label: "Create a mailbox", icon: IconPlus, kind: "navigate", to: "/app/mailboxes?add=1" },

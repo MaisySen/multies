@@ -22,7 +22,7 @@ export const commandById = (id: string) => COMMANDS.find((c) => c.id === id);
 export const inSheet = (c: Command) => c.sheet ?? !!c.keys?.length;
 export const inPalette = (c: Command) => c.palette ?? false;
 /** R59: a command tied to a server switch is offered only while /api/config says the switch is on. */
-export const flagOn = (c: { flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices" | "expenses"; toolFeature?: string[] }, config: { askR110?: boolean; chatChannels?: boolean; tools?: boolean; docsVisual?: boolean; helpCenter?: boolean; docsPlus?: boolean; maps?: boolean; filesPlus?: boolean; invoices?: boolean; expenses?: boolean; toolFeatures?: string[] } | undefined) =>
+export const flagOn = (c: { flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices" | "expenses" | "tablesR125"; toolFeature?: string[] }, config: { askR110?: boolean; chatChannels?: boolean; tools?: boolean; docsVisual?: boolean; helpCenter?: boolean; docsPlus?: boolean; maps?: boolean; filesPlus?: boolean; invoices?: boolean; expenses?: boolean; tablesR125?: boolean; toolFeatures?: string[] } | undefined) =>
   (!c.flag || !!config?.[c.flag]) && (!c.toolFeature || c.toolFeature.some((f) => !!config?.toolFeatures?.includes(f))); // Tools P2: per feature
 
 /** How long after the first key of a sequence the next one still counts, in ms. */

@@ -3,11 +3,12 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { lazyPage } from "@/web/components/lazy-page";
 import { toast } from "sonner";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { NewTableDialog, TableDoc, useTablesOn } from "./tables-r125";
 import { CatchupCard } from "@/web/components/catchup-card"; // R31
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Transaction } from "@tiptap/pm/state";
-import { IconArrowLeft, IconBold, IconDocs, IconDownload, IconHeading2, IconItalic, IconLink, IconList, IconListOrdered, IconPlay, IconPlus, IconQuote, IconShapes, IconTasks, IconTemplate, IconTrash, IconUser } from "@/web/components/ui/icon";
+import { IconArrowLeft, IconBold, IconDocs, IconDownload, IconHeading2, IconItalic, IconLink, IconList, IconListOrdered, IconPlay, IconPlus, IconQuote, IconShapes, IconTable, IconTasks, IconTemplate, IconTrash, IconUser } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -41,7 +42,7 @@ const MindMapView = lazyPage(() => import("./docs-visual/mindmap-view"), "MindMa
 const PresentOverlay = lazyPage(() => import("./docs-visual/present"), "PresentOverlay");
 const PresenterWindow = lazyPage(() => import("./docs-visual/present"), "PresenterWindow");
 
-interface DocSummary { id: string; title: string; excerpt: string; updatedAt: string; projectId: string | null; kind?: "doc" | "whiteboard" }
+interface DocSummary { id: string; title: string; excerpt: string; updatedAt: string; projectId: string | null; kind?: "doc" | "whiteboard" | "table" }
 interface Doc extends DocSummary { content: Record<string, unknown>; text: string; version: number; links: { type: string; id: string }[] }
 type DocMode = "doc" | "mindmap";
 
@@ -59,18 +60,22 @@ export function DocsPage() {
   // R30: /app/docs?new=1 (from the command menu) starts a new doc once, then opens it. R89: ?new=whiteboard.
   const [params] = useSearchParams();
   const started = useRef(false);
+  const tablesOn = useTablesOn(); // R125
+  const [newTable, setNewTable] = useState(false);
   useEffect(() => {
     const n = params.get("new");
+    if (n === "table" && tablesOn && !started.current) { started.current = true; setNewTable(true); return; }
     if ((n !== "1" && n !== "whiteboard") || started.current) return;
     started.current = true;
     void create(n === "whiteboard" ? "whiteboard" : "doc");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params]);
+  }, [params, tablesOn]);
   return (
     <div className="flex gap-6">
+      {newTable && <NewTableDialog open onClose={() => setNewTable(false)} />}
       <DocTreeSidebar />
       <div className="min-w-0 flex-1">
-      <PageHeader title="Docs" description="Briefs, meeting notes and plans, linked to tasks, projects, threads and contacts. Agents can read and add to them too." actions={<div className="flex gap-2">{visual && <Button variant="secondary" onClick={() => void create("whiteboard")} data-testid="new-whiteboard"><IconShapes className="h-4 w-4" />New whiteboard</Button>}<Button onClick={() => void create()}><IconPlus className="h-4 w-4" />New doc</Button></div>} />
+      <PageHeader title="Docs" description="Briefs, meeting notes and plans, linked to tasks, projects, threads and contacts. Agents can read and add to them too." actions={<div className="flex flex-wrap gap-2">{tablesOn && <Button variant="secondary" onClick={() => setNewTable(true)} data-testid="new-table"><IconTable className="h-4 w-4" />New table</Button>}{visual && <Button variant="secondary" onClick={() => void create("whiteboard")} data-testid="new-whiteboard"><IconShapes className="h-4 w-4" />New whiteboard</Button>}<Button onClick={() => void create()}><IconPlus className="h-4 w-4" />New doc</Button></div>} />
       <Input aria-label="Search docs" placeholder="Search docs" value={q} onChange={(e) => setQ(e.target.value)} className="mb-4 max-w-sm" />
       {docs.isError && !docs.data ? <LoadError onRetry={() => docs.refetch()} /> : docs.isPending ? <Skeleton className="h-40" /> : !docs.data?.length ? (
         <EmptyState icon={<IconDocs />} art={q ? <NoSearchResultsArt /> : <NoDocsArt />} title={q ? "No docs match" : "No docs yet"} body="Write a brief or notes and link it to the work it belongs to." action={!q && <Button onClick={() => void create()}>New doc</Button>} />
@@ -78,7 +83,7 @@ export function DocsPage() {
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="doc-list">
           {docs.data.map((d) => (
             <li key={d.id}><Link to={`/app/docs/${d.id}`} className="block h-full rounded-xl border border-line bg-surface p-4 transition-colors hover:border-line-strong">
-              <div className="flex items-center gap-2 text-[14px] font-medium">{d.kind === "whiteboard" ? <IconShapes className="h-4 w-4 text-muted" aria-label="Whiteboard" /> : <IconDocs className="h-4 w-4 text-muted" />}{d.title}</div>
+              <div className="flex items-center gap-2 text-[14px] font-medium">{d.kind === "table" ? <IconTable className="h-4 w-4 text-muted" aria-label="Table" /> : d.kind === "whiteboard" ? <IconShapes className="h-4 w-4 text-muted" aria-label="Whiteboard" /> : <IconDocs className="h-4 w-4 text-muted" />}{d.title}</div>
               <p className="mt-2 line-clamp-3 whitespace-pre-line text-[13px] leading-relaxed text-muted">{d.excerpt || "Empty"}</p>
               <p className="mt-3 text-[12px] text-subtle">Edited {timeAgo(d.updatedAt)}</p>
             </Link></li>
@@ -121,7 +126,8 @@ function DocPageMain() {
   const [replaced, setReplaced] = useState(0);
   const onReplaced = useCallback((d: Doc) => { qc.setQueryData(["doc", id], d); setReplaced((n) => n + 1); }, [qc, id]);
 
-  const body = q.isPending || !collab ? <div className="mx-auto max-w-3xl space-y-3"><Skeleton className="h-9 w-1/2" /><Skeleton className="h-64" /></div>
+  // R125: a table doc is its own page (grid, kanban, calendar, form) instead of the text editor.
+  const body = q.data?.kind === "table" ? <TableDoc docId={id} /> : q.isPending || !collab ? <div className="mx-auto max-w-3xl space-y-3"><Skeleton className="h-9 w-1/2" /><Skeleton className="h-64" /></div>
     : q.error && !isServerLoadError(q.error) ? <EmptyState icon={<IconDocs />} title="Doc not found" body="It may have been deleted." action={<Button onClick={() => navigate("/app/docs")}>All docs</Button>} />
     : q.data === undefined ? <LoadError onRetry={() => q.refetch()} /> // T1G (T1-8): a server failure is not "not found"
     : <DocEditor key={`${id}:${collab.session ? "live" : "solo"}:${replaced}`} doc={q.data} session={collab.session} onReplaced={onReplaced} />;

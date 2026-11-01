@@ -162,7 +162,7 @@ describe("R125 tables API", () => {
     expect(imp.body.problems[0]).toMatchObject({ row: 4, field: "Price" });
     const csv = await t.c.call("GET", `/api/tables/${imp.body.docId}/export.csv`);
     expect(csv.status).toBe(200);
-    const text = typeof csv.body === "string" ? csv.body : csv.text;
+    const text = String(csv.body);
     expect(text).toContain("Name,Price,Due,Paid");
     expect(text).toContain("Ram,$12.50,2026-11-02,Yes");
     expect(text).toContain('"Hari, Jr",$3.00,,No');
