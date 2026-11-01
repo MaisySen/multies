@@ -105,6 +105,7 @@ import { helpdeskRoutes, surveyRoutes, widgetRoutes, WIDGET_JS_HEADERS } from ".
 import { helpCenterRoutes, helpPublicRoutes } from "./routes/help-center"; // R122
 import { WIDGET_JS } from "./routes/widget-script"; // R119
 import { meetingRecordingRoutes } from "./routes/meeting-recordings";
+import { chatPlusRoutes, guestChatPlusRoutes } from "./routes/chat-plus-r96";
 import { checkRoutes } from "./routes/check";
 import { guestSearchRoutes, myWorkRoutes, searchRoutes } from "./routes/search";
 import { fieldRoutes, fileRoutes, guestAdminRoutes, guestRoutes, portfolioRoutes } from "./routes/suite-r8";
@@ -470,6 +471,11 @@ export function createApp(deps: Deps) {
   app.route("/api/org", orgRoutes());
   app.route("/api/branding", brandingRoutes()); // R77: workspace branding and personal themes
   app.route("/api/channels", channelRoutes()); // C1: chat channels in the shared inbox
+  if (deps.config.chatPlus !== false) {
+    // R96: chat plus: topics, announcements, decision votes, polls, live Q&A and word clouds.
+    app.route("/api/chat-plus", chatPlusRoutes());
+    app.route("/api/guest/chat-plus", guestChatPlusRoutes());
+  }
   if (deps.config.helpdesk !== false) {
     // R119: helpdesk mode, the website chat (public, CORS for the workspace's own domains) and the one tap survey.
     app.route("/api/helpdesk", helpdeskRoutes());

@@ -25,11 +25,11 @@ import { chatLiveR32Routes } from "./chat-live-r32";
 import { withBlockedByMe } from "../services/suite/reports-r35"; // R35
 
 export const ChatAttachment = z.object({ filename: z.string().trim().min(1).max(200), contentType: z.string().max(100).optional(), contentBase64: z.string().min(1).max(14_000_000) });
-export const ChatPost = z.object({ body: z.string().max(20_000).default(""), parentId: z.string().max(64).nullable().optional(), attachments: z.array(ChatAttachment).max(5).optional(), /** R33: the sender's id for this send; a repeat with the same id returns the first message (see chat-ack-r33.ts). */ clientMsgId: z.string().regex(/^[0-9a-z]{17,49}$/).optional() });
+export const ChatPost = z.object({ body: z.string().max(20_000).default(""), parentId: z.string().max(64).nullable().optional(), topicId: z.string().max(64).nullable().optional() /* R96 */, attachments: z.array(ChatAttachment).max(5).optional(), /** R33: the sender's id for this send; a repeat with the same id returns the first message (see chat-ack-r33.ts). */ clientMsgId: z.string().regex(/^[0-9a-z]{17,49}$/).optional() });
 export const ChannelCreate = z.object({ name: z.string().trim().min(1).max(80), topic: z.string().max(250).optional(), private: z.boolean().optional(), memberIds: z.array(z.string().max(80)).max(200).optional(), projectId: z.string().max(64).nullable().optional(), guestAccess: z.boolean().optional() });
 export const ChannelPatch = z.object({ name: z.string().trim().min(1).max(80).optional(), topic: z.string().max(250).optional(), archived: z.boolean().optional(), guestAccess: z.boolean().optional(), projectId: z.string().max(64).nullable().optional() });
 export const MessageToTask = z.object({ title: z.string().max(300).optional(), projectId: z.string().max(64).optional(), assignee: z.string().regex(/^(member|agent):[A-Za-z0-9_-]+$/).nullable().optional(), due: z.string().max(40).nullable().optional(), triage: z.boolean().optional() });
-export const MessagesQuery = z.object({ limit: z.coerce.number().int().min(1).max(200).optional(), before: z.string().max(64).optional(), since: z.string().max(40).optional() });
+export const MessagesQuery = z.object({ limit: z.coerce.number().int().min(1).max(200).optional(), before: z.string().max(64).optional(), since: z.string().max(40).optional(), topicId: z.string().max(64).optional() /* R96 */ });
 const KrKind = z.enum(["number", "currency", "percent", "tasks"]);
 export const KrCreate = z.object({ name: z.string().trim().min(1).max(200), kind: KrKind.optional(), start: z.number().finite().optional(), target: z.number().finite().optional(), current: z.number().finite().optional(), unit: z.string().max(20).optional(), projectId: z.string().max(64).nullable().optional(), taskIds: z.array(z.string().max(64)).max(500).optional() });
 export const KrPatch = KrCreate.partial().omit({ kind: true });
@@ -79,7 +79,7 @@ export function chatRoutes() {
     .post("/channels/:id/messages", async (c) => {
       const b = await parseBody(c, ChatPost);
       // R33: the answer carries an ack naming the client id, and a repeat answers 200 with the first message.
-      const r = await postMessageAcked(c.var.deps, c.var.auth, c.req.param("id"), { body: b.body, parentId: b.parentId, files: decodeAttachments(b.attachments), clientMsgId: b.clientMsgId });
+      const r = await postMessageAcked(c.var.deps, c.var.auth, c.req.param("id"), { body: b.body, parentId: b.parentId, files: decodeAttachments(b.attachments), clientMsgId: b.clientMsgId, topicId: b.topicId });
       return c.json({ message: r.message, ...(b.clientMsgId ? { ack: ackFor(b.clientMsgId, r.message, r.deduped) } : {}) }, r.deduped ? 200 : 201);
     })
     .post("/channels/:id/read", async (c) => c.json(await markRead(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, z.object({ messageId: z.string().max(64).optional() }).default({}))).messageId)))

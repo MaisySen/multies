@@ -1268,6 +1268,26 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0120_r96_chat_plus",
+    "statements": [
+      "-- R96: chat plus. Topics inside channels, announcements with seen by, decision votes, polls, live Q&A and word clouds. Additive only.\nALTER TABLE `chat_messages` ADD `topic_id` text;",
+      "CREATE INDEX `chat_messages_topic_idx` ON `chat_messages` (`topic_id`,`created_at`) WHERE `topic_id` IS NOT NULL;",
+      "CREATE TABLE `chat_topics` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`channel_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`name_key` text NOT NULL,\n\t`resolved_at` integer,\n\t`resolved_by` text,\n\t`last_message_at` integer,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`channel_id`) REFERENCES `chat_channels`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `chat_topics_name_uq` ON `chat_topics` (`channel_id`,`name_key`);",
+      "CREATE TABLE `chat_topic_reads` (\n\t`topic_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`last_read_at` integer NOT NULL,\n\tPRIMARY KEY(`topic_id`, `user_id`),\n\tFOREIGN KEY (`topic_id`) REFERENCES `chat_topics`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE TABLE `chat_announcements` (\n\t`message_id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`channel_id` text NOT NULL,\n\t`posted_by` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`message_id`) REFERENCES `chat_messages`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `chat_announcements_org_idx` ON `chat_announcements` (`org_id`,`created_at`);",
+      "CREATE TABLE `chat_announcement_reads` (\n\t`message_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`read_at` integer NOT NULL,\n\tPRIMARY KEY(`message_id`, `user_id`),\n\tFOREIGN KEY (`message_id`) REFERENCES `chat_announcements`(`message_id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE TABLE `chat_polls` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`channel_id` text,\n\t`message_id` text,\n\t`meeting_id` text,\n\t`kind` text NOT NULL,\n\t`question` text NOT NULL,\n\t`options` text DEFAULT '[]' NOT NULL,\n\t`multi` integer DEFAULT false NOT NULL,\n\t`anonymous` integer DEFAULT false NOT NULL,\n\t`closes_at` integer,\n\t`closed_at` integer,\n\t`outcome` text,\n\t`created_by` text,\n\t`created_by_name` text DEFAULT '' NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `chat_polls_message_uq` ON `chat_polls` (`message_id`);",
+      "CREATE INDEX `chat_polls_meeting_idx` ON `chat_polls` (`meeting_id`) WHERE `meeting_id` IS NOT NULL;",
+      "CREATE INDEX `chat_polls_due_idx` ON `chat_polls` (`closed_at`,`closes_at`);",
+      "CREATE TABLE `chat_poll_items` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`poll_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`body` text NOT NULL,\n\t`author_id` text,\n\t`author_name` text DEFAULT '' NOT NULL,\n\t`answered_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`poll_id`) REFERENCES `chat_polls`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `chat_poll_items_poll_idx` ON `chat_poll_items` (`poll_id`);",
+      "CREATE TABLE `chat_poll_votes` (\n\t`poll_id` text NOT NULL,\n\t`voter` text NOT NULL,\n\t`choice` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`voter_name` text DEFAULT '' NOT NULL,\n\t`reason` text DEFAULT '' NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`poll_id`, `voter`, `choice`),\n\tFOREIGN KEY (`poll_id`) REFERENCES `chat_polls`(`id`) ON UPDATE no action ON DELETE cascade\n);"
+    ]
+  },
+  {
     "name": "0121_r97_notification_centre",
     "statements": [
       "-- R97 (Oct 31): notification centre. Additive only: delivery settings (quiet hours, pause, digest) per person per\n-- workspace, and the digest clock so the cron pass reads only rows that are due.\nALTER TABLE `notification_prefs` ADD `delivery` text DEFAULT '{}' NOT NULL;",

@@ -189,6 +189,8 @@ export interface AppConfig {
   helpCenter?: boolean;
   /** R97: notification centre: mail channel, digests, quiet hours, pause (NOTIFICATION_CENTRE, on unless "off"). */
   notificationCentre?: boolean;
+  /** R96: chat plus (topics, announcements, decision votes, polls, live Q&A; CHAT_PLUS, on unless "off"). */
+  chatPlus?: boolean;
   channels: { enabled: boolean; meta?: { appId: string; appSecret: string; verifyToken: string; configId: string; graphVersion: string }; mock: boolean; dailySoftCap: number };
   /**
    * Free addresses (round 17): a Multies-owned domain that every workspace can take an address on
@@ -309,6 +311,7 @@ const EnvSchema = z.object({
   ESIGN_V2: z.string().optional(),
   HELP_CENTER: z.string().optional(),
   NOTIFICATION_CENTRE: z.string().optional(),
+  CHAT_PLUS: z.string().optional(),
   CHANNELS_DAILY_SOFT_CAP: z.string().optional(),
   TOOLS_ENABLED: z.string().optional(),
   CRM_TIMELINE: z.string().optional(),
@@ -686,6 +689,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     esignV2: env.ESIGN_V2 !== "off",
     helpCenter: ["on", "true", "1"].includes(String(env.HELP_CENTER ?? "").toLowerCase()),
     notificationCentre: env.NOTIFICATION_CENTRE !== "off",
+    chatPlus: env.CHAT_PLUS !== "off",
     operatorInbox: operatorInbox(env.SUPPORT_EMAIL?.trim() || "support@multies.si", env.OPERATOR_INBOX_ORG_ID, env.OPERATOR_INBOX_ADDRESSES),
     freeMail: {
       domain: freeMailDomain(env.FREE_MAIL_DOMAIN, env.APP_URL),

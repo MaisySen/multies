@@ -1487,10 +1487,12 @@ export const chatMessages = sqliteTable("chat_messages", {
   /** Pinned to the top of its channel (top level messages only), and the name of who pinned it. */
   pinnedAt: ts("pinned_at"),
   pinnedBy: text("pinned_by"),
+  /** R96: the topic inside the channel (null = no topic). */
+  topicId: text("topic_id"),
   deletedAt: ts("deleted_at"),
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
-}, (t) => [index("chat_messages_channel_idx").on(t.channelId, t.parentId, t.createdAt), index("chat_messages_updated_idx").on(t.channelId, t.updatedAt), index("chat_messages_parent_idx").on(t.parentId).where(sql`${t.parentId} IS NOT NULL`)]);
+}, (t) => [index("chat_messages_channel_idx").on(t.channelId, t.parentId, t.createdAt), index("chat_messages_updated_idx").on(t.channelId, t.updatedAt), index("chat_messages_parent_idx").on(t.parentId).where(sql`${t.parentId} IS NOT NULL`), index("chat_messages_topic_idx").on(t.topicId, t.createdAt).where(sql`${t.topicId} IS NOT NULL`)]);
 
 export const chatFiles = sqliteTable("chat_files", {
   id: text("id").primaryKey(),
@@ -3318,3 +3320,87 @@ export const socialTestAccounts = sqliteTable("social_test_accounts", {
   createdBy: text("created_by"),
   createdAt: createdAt(),
 });
+/** R96: topics inside a channel (rename, merge, resolve with a tick). `nameKey` is the lower case name, unique per channel. */
+export const chatTopics = sqliteTable("chat_topics", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull().references(() => chatChannels.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  nameKey: text("name_key").notNull(),
+  resolvedAt: ts("resolved_at"),
+  resolvedBy: text("resolved_by"),
+  lastMessageAt: ts("last_message_at"),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [uniqueIndex("chat_topics_name_uq").on(t.channelId, t.nameKey)]);
+
+/** R96: how far each person has read a topic (unread by topic). */
+export const chatTopicReads = sqliteTable("chat_topic_reads", {
+  topicId: text("topic_id").notNull().references(() => chatTopics.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  lastReadAt: ts("last_read_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.topicId, t.userId] })]);
+
+/** R96: a chat message posted as an announcement (pinned, with seen by receipts). */
+export const chatAnnouncements = sqliteTable("chat_announcements", {
+  messageId: text("message_id").primaryKey().references(() => chatMessages.id, { onDelete: "cascade" }),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull(),
+  postedBy: text("posted_by"),
+  createdAt: createdAt(),
+}, (t) => [index("chat_announcements_org_idx").on(t.orgId, t.createdAt)]);
+
+export const chatAnnouncementReads = sqliteTable("chat_announcement_reads", {
+  messageId: text("message_id").notNull().references(() => chatAnnouncements.messageId, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  orgId: text("org_id").notNull(),
+  readAt: ts("read_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.messageId, t.userId] })]);
+
+/** R96: polls, decision votes, live Q&A and word clouds, in a channel (with a card message) and or a meeting. */
+export const chatPolls = sqliteTable("chat_polls", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  channelId: text("channel_id"),
+  messageId: text("message_id"),
+  meetingId: text("meeting_id"),
+  kind: text("kind", { enum: ["poll", "decision", "qa", "cloud"] }).notNull(),
+  question: text("question").notNull(),
+  /** JSON string[]: the choices of a poll (fixed for a decision, empty for Q&A and word clouds). */
+  options: text("options").notNull().default("[]"),
+  multi: integer("multi", { mode: "boolean" }).notNull().default(false),
+  anonymous: integer("anonymous", { mode: "boolean" }).notNull().default(false),
+  closesAt: ts("closes_at"),
+  closedAt: ts("closed_at"),
+  /** JSON outcome written once when it closes. */
+  outcome: text("outcome"),
+  createdBy: text("created_by"),
+  createdByName: text("created_by_name").notNull().default(""),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [uniqueIndex("chat_polls_message_uq").on(t.messageId), index("chat_polls_meeting_idx").on(t.meetingId).where(sql`${t.meetingId} IS NOT NULL`), index("chat_polls_due_idx").on(t.closedAt, t.closesAt)]);
+
+/** R96: the questions of a live Q&A. */
+export const chatPollItems = sqliteTable("chat_poll_items", {
+  id: text("id").primaryKey(),
+  pollId: text("poll_id").notNull().references(() => chatPolls.id, { onDelete: "cascade" }),
+  orgId: text("org_id").notNull(),
+  body: text("body").notNull(),
+  authorId: text("author_id"),
+  authorName: text("author_name").notNull().default(""),
+  answeredAt: ts("answered_at"),
+  createdAt: createdAt(),
+}, (t) => [index("chat_poll_items_poll_idx").on(t.pollId)]);
+
+/** R96: one row per voter and choice (an option index, a stance, a question id or a word). */
+export const chatPollVotes = sqliteTable("chat_poll_votes", {
+  pollId: text("poll_id").notNull().references(() => chatPolls.id, { onDelete: "cascade" }),
+  voter: text("voter").notNull(),
+  choice: text("choice").notNull(),
+  orgId: text("org_id").notNull(),
+  voterName: text("voter_name").notNull().default(""),
+  reason: text("reason").notNull().default(""),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.pollId, t.voter, t.choice] })]);

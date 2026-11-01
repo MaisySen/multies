@@ -10,7 +10,7 @@
  */
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { chatChannels, chatFiles, chatMembers, chatMessages, docs, members as orgMembers, messages, projectGuests, tasks, users } from "../../db/schema";
+import { chatChannels, chatFiles, chatMembers, chatMessages, chatTopics, docs, members as orgMembers, messages, projectGuests, tasks, users } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { isMimeType } from "../../lib/input-checks";
 import { actorOf, assertWritable, createdBy, iso, recordWrite, sortableId, type SuiteActor } from "./common";
@@ -18,6 +18,7 @@ import { notify } from "./notify";
 import { assignees, createTask, link } from "./tasks";
 import { emitEvent } from "../developer/webhooks";
 import { reactionsFor } from "./chat-reaction-summary";
+import { chatPlusExtras } from "./chat-plus-extras"; // R96: poll cards and announcements
 import { inChunks, inIds } from "../../lib/sql-chunks";
 import { publishChat } from "../../realtime/publish";
 import { deferrableWrite } from "../write-priority";
@@ -344,6 +345,7 @@ function presentMessage(m: MessageRow, files: { id: string; filename: string; co
     body: deleted ? "" : m.body, mentions: deleted ? [] : (JSON.parse(m.mentions) as Mention[]), links: deleted ? [] : (JSON.parse(m.links) as ChatLink[]),
     attachments: deleted ? [] : files, replyCount: m.replyCount, lastReplyAt: iso(m.lastReplyAt), editedAt: iso(m.editedAt), deleted,
     pinnedAt: deleted ? null : iso(m.pinnedAt), pinnedBy: deleted ? null : m.pinnedBy ?? null,
+    topicId: m.topicId ?? null, // R96: the topic inside the channel
     createdAt: m.createdAt.toISOString(), updatedAt: m.updatedAt.toISOString(),
   };
 }
@@ -360,17 +362,19 @@ async function authorInfo(deps: Deps, rows: MessageRow[]): Promise<Map<string, A
   return out;
 }
 
-async function present(deps: Deps, rows: MessageRow[]) {
+export async function present(deps: Deps, rows: MessageRow[]) {
   const files = await filesFor(deps, rows.map((r) => r.id));
   const who = await authorInfo(deps, rows);
   // Round 20: reactions ride along on every read, so the existing chat poll shows them to others.
   const reactions = await reactionsFor(deps, rows.filter((r) => !r.deletedAt).map((r) => r.id));
-  return rows.map((r) => ({ ...presentMessage(r, files.get(r.id), r.authorId ? who.get(r.authorId) : undefined), reactions: reactions.get(r.id) ?? [] }));
+  const extras = await chatPlusExtras(deps, rows.filter((r) => !r.deletedAt).map((r) => r.id));
+  return rows.map((r) => ({ ...presentMessage(r, files.get(r.id), r.authorId ? who.get(r.authorId) : undefined), reactions: reactions.get(r.id) ?? [], ...extras.get(r.id) }));
 }
 
-export async function listMessages(deps: Deps, channelId: string, q: { limit?: number; before?: string; since?: string }, viewer?: string | null) {
+export async function listMessages(deps: Deps, channelId: string, q: { limit?: number; before?: string; since?: string; topicId?: string }, viewer?: string | null) {
   // R35: messages from people the viewer blocked are left out on the server (paging stays exact).
-  const hide = notBlockedBy(chatMessages.authorId, viewer);
+  // R96: a topic filter shows only that topic's messages (the `since` poll stays channel wide so moves are seen).
+  const hide = and(notBlockedBy(chatMessages.authorId, viewer), q.topicId && !q.since ? eq(chatMessages.topicId, q.topicId) : undefined);
   const limit = Math.min(Math.max(q.limit ?? 50, 1), 200);
   if (q.since) {
     const since = new Date(q.since);
@@ -385,7 +389,7 @@ export async function listMessages(deps: Deps, channelId: string, q: { limit?: n
   return { messages: await present(deps, rows.slice(0, limit).reverse()), hasMore };
 }
 
-export async function channelMessages(deps: Deps, a: SuiteActor, channelId: string, q: { limit?: number; before?: string; since?: string }) {
+export async function channelMessages(deps: Deps, a: SuiteActor, channelId: string, q: { limit?: number; before?: string; since?: string; topicId?: string }) {
   const c = await visibleChannel(deps, a, channelId);
   return listMessages(deps, c.id, q, isKey(a) ? null : a.userId);
 }
@@ -474,6 +478,12 @@ async function writeMessage(deps: Deps, a: SuiteActor, c: ChannelRow, author: Au
     if (parent.channelId !== c.id) throw notFound("Message");
     if (parent.parentId) parent = await messageRow(deps, c.orgId, parent.parentId);
   }
+  // R96: a reply follows its thread's topic; a new message goes into the topic it names (in this channel).
+  let topicId: string | null = parent ? parent.topicId ?? null : null;
+  if (!parent && input.topicId) {
+    const { topicForPost } = await import("./chat-plus");
+    topicId = await topicForPost(deps, c.orgId, c.id, input.topicId);
+  }
   const parsed = parseMarkup(body);
   const people = await peopleOf(deps, c.orgId);
   const mentions: Mention[] = parsed.mentions.map((m) => people.get(`${m.type}:${m.id}`)).filter(Boolean).map((p) => ({ type: p!.type, id: p!.id.split(":")[1], name: p!.name }));
@@ -485,8 +495,9 @@ async function writeMessage(deps: Deps, a: SuiteActor, c: ChannelRow, author: Au
   await deps.db.insert(chatMessages).values({
     id, orgId: c.orgId, channelId: c.id, parentId: parent?.id ?? null, authorType: author.type, authorId: author.id, authorName: author.name.slice(0, 120),
     body, mentions: JSON.stringify(mentions), mentionKeys: mentions.map((m) => (m.type === "channel" ? "channel" : `${m.type}:${m.id}`)).join(" "),
-    links: JSON.stringify(links), createdAt: now, updatedAt: now,
+    links: JSON.stringify(links), topicId, createdAt: now, updatedAt: now,
   });
+  if (topicId) await deps.db.update(chatTopics).set({ lastMessageAt: now }).where(eq(chatTopics.id, topicId));
   if (files.length) await storeFiles(deps, c.orgId, c.id, id, files);
   if (parent) await deps.db.update(chatMessages).set({ replyCount: sql`${chatMessages.replyCount} + 1`, lastReplyAt: now, updatedAt: now }).where(eq(chatMessages.id, parent.id));
   else await deps.db.update(chatChannels).set({ lastMessageAt: now }).where(eq(chatChannels.id, c.id));
@@ -530,7 +541,7 @@ async function afterPost(deps: Deps, c: ChannelRow, m: ChatMessage, parent: Mess
   if (agentMentions.length) await emitEvent(deps, c.orgId, "chat.mention", { message: m, channel, agents: agentMentions.map((x) => ({ id: x.id, name: x.name })) });
 }
 
-export async function postMessage(deps: Deps, a: SuiteActor, channelId: string, input: { body: string; parentId?: string | null; files?: Upload[]; clientMsgId?: string }, opts: { id?: string; retry?: boolean } = {}) {
+export async function postMessage(deps: Deps, a: SuiteActor, channelId: string, input: { body: string; parentId?: string | null; files?: Upload[]; clientMsgId?: string; topicId?: string | null }, opts: { id?: string; retry?: boolean } = {}) {
   return (await postMessageAcked(deps, a, channelId, input, opts)).message;
 }
 
@@ -539,7 +550,7 @@ export async function postMessage(deps: Deps, a: SuiteActor, channelId: string, 
  * server has already written (the same author, the same workspace) returns that message and
  * writes nothing: no second row, no second notification, no second live event.
  */
-export async function postMessageAcked(deps: Deps, a: SuiteActor, channelId: string, input: { body: string; parentId?: string | null; files?: Upload[]; clientMsgId?: string }, opts: { id?: string; retry?: boolean } = {}): Promise<{ message: ChatMessage; deduped: boolean }> {
+export async function postMessageAcked(deps: Deps, a: SuiteActor, channelId: string, input: { body: string; parentId?: string | null; files?: Upload[]; clientMsgId?: string; topicId?: string | null }, opts: { id?: string; retry?: boolean } = {}): Promise<{ message: ChatMessage; deduped: boolean }> {
   assertWritable(a);
   const c = await visibleChannel(deps, a, channelId);
   await assertCanPostInDm(deps, c, isKey(a) ? null : a.userId); // R35: a DM with someone who blocked the sender: 403 blocked
