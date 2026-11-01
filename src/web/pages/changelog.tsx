@@ -1,12 +1,11 @@
 import { Link } from "react-router";
-import { WHATS_NEW, formatWhatsNewDate, type WhatsNewEntry } from "@/shared/whats-new";
-import { WHATS_NEW_EARLIER } from "@/shared/whats-new-public";
+import { formatWhatsNewDate, type WhatsNewEntry } from "@/shared/whats-new";
+import { publicWhatsNew } from "@/shared/whats-new-public";
 import { LOCALE } from "@/shared/locale";
 
 /** R53 (MB-133): the public changelog. The same list the account menu's What's new item points to.
  * W1: also at /whats-new, with the earlier live features below the in-app list (ids already in it are skipped). */
-const inApp = new Set(WHATS_NEW.map((e) => e.id));
-const ENTRIES: readonly WhatsNewEntry[] = [...WHATS_NEW, ...WHATS_NEW_EARLIER.filter((e) => !inApp.has(e.id))].sort((a, b) => b.date.localeCompare(a.date));
+const ENTRIES: readonly WhatsNewEntry[] = publicWhatsNew(); // W1B: newest first, same day order kept
 export function ChangelogPage() {
   return (
     <section className="mx-auto max-w-3xl px-5 pb-24 pt-32 sm:pt-36">

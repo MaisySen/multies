@@ -22,6 +22,24 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     body: "Keep clients, stock or jobs in a table with typed fields, linked records, lookups and formulas. Switch between grid, kanban, calendar and form views, paste from a spreadsheet, import and export CSV, and comment on rows. Start one from Docs > New table.",
   },
   {
+    id: "2026-11-01-clear-errors",
+    date: "2026-11-01",
+    title: "Clear errors with Retry",
+    body: "If a page cannot load, you see a plain message and a Retry button instead of endless loading, and anything already on screen stays.",
+  },
+  {
+    id: "2026-11-01-faster-search",
+    date: "2026-11-01",
+    title: "Faster search",
+    body: "Search across mail, tasks, docs and files stays quick when the whole team is busy.",
+  },
+  {
+    id: "2026-11-01-office-files",
+    date: "2026-11-01",
+    title: "Office files in the browser",
+    body: "Edit Word files and Excel sheets with working formulas right in Files, save each change as a version, and view slides.",
+  },
+  {
     id: "2026-11-01-booking-plus",
     date: "2026-11-01",
     title: "Book rooms, find a time together, run free events",
@@ -74,24 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Archive and retention for mail",
     body: "Admins can keep mail for a set number of years or forever, and see how many messages a policy would remove before turning it on. Legal holds keep a person's or a mailbox's mail from being deleted, and you can search the archive and export a case. Nothing is removed unless an admin turns a policy on.",
-  },
-  {
-    id: "2026-11-01-docs-plus",
-    date: "2026-11-01",
-    title: "Link library, saved pages, comments on docs and spelling",
-    body: "Docs has a Link library: keep links with tags, or save a public page as a clean doc you can read later, share or download as a PDF. Comment on any doc, and let people with a shared link comment too, after your review. Check spelling in docs and mail in 20 languages.",
-  },
-  {
-    id: "2026-11-01-dav-sync",
-    date: "2026-11-01",
-    title: "Your calendar and contacts on your phone",
-    body: "In Settings, Calendar, Sync with your phone: make an app password for each device and your meetings, task due dates, bookings and workspace contacts show up in the calendar and contacts apps on your phone and computer. Edits on the phone come back to Multies, and you can stop any device at once.",
-  },
-  {
-    id: "2026-11-01-chat-plus",
-    date: "2026-11-01",
-    title: "Topics, announcements and votes in Chat",
-    body: "Channels can have topics: pick one from the bar under the channel name to see just that conversation, with its own unread count, and mark it resolved with a tick when it is done. Admins can post announcements that are pinned and show who has seen them, all in one Announcements list. Use Add next to the message box for a poll, a decision (agree, abstain, disagree or block, with the outcome posted when it closes), live questions with upvotes, or a word cloud; during a call, the Live panel runs the same polls and questions.",
   },
     {
     id: "2026-10-28-whats-new",
