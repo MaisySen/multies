@@ -13,6 +13,8 @@ export type FormatId =
   | "pdf"
   | "csv" | "tsv" | "xlsx" | "json"
   | "docx" | "pptx" | "odt" | "ods" | "odp"
+  // R100b: old PowerPoint and OpenDocument drawings.
+  | "ppt" | "odg"
   | "txt" | "md" | "html"
   // R86 (round B): video, audio, e-books, archives.
   | "mp4" | "mov" | "webm" | "mkv" | "avi"
@@ -52,6 +54,8 @@ export const FORMATS: FormatDef[] = [
   { id: "odt", label: "ODT", family: "document", exts: ["odt"], mime: "application/vnd.oasis.opendocument.text", words: "opendocument text" },
   { id: "ods", label: "ODS", family: "sheet", exts: ["ods"], mime: "application/vnd.oasis.opendocument.spreadsheet", words: "opendocument spreadsheet" },
   { id: "odp", label: "ODP", family: "document", exts: ["odp"], mime: "application/vnd.oasis.opendocument.presentation", words: "opendocument slides" },
+  { id: "ppt", label: "PowerPoint 97", family: "document", exts: ["ppt"], mime: "application/vnd.ms-powerpoint", words: "old powerpoint slides deck" },
+  { id: "odg", label: "ODG", family: "document", exts: ["odg"], mime: "application/vnd.oasis.opendocument.graphics", words: "opendocument drawing draw diagram" },
   { id: "txt", label: "Text", family: "text", exts: ["txt"], mime: "text/plain", words: "plain text" },
   { id: "md", label: "Markdown", family: "text", exts: ["md", "markdown"], mime: "text/markdown" },
   { id: "html", label: "HTML", family: "text", exts: ["html", "htm"], mime: "text/html", words: "web page" },
@@ -190,6 +194,11 @@ const SHEET_PAIRS: [FormatId, FormatId][] = [
   ["json", "csv"], ["json", "xlsx"], ["json", "tsv"],
 ];
 
+/** R100b: what the slides op turns each format into (PPTX and ODP to PDF stay on the older convert op). */
+export const SLIDE_PAIRS: [FormatId, FormatId][] = [
+  ["pptx", "odp"], ["odp", "pptx"], ["ppt", "pdf"], ["ppt", "pptx"], ["ppt", "odp"], ["odg", "pdf"], ["odg", "svg"], ["pdf", "odg"],
+];
+
 /** The converter table. Engine rows mirror the Tools catalogue (src/shared/tools.ts) and the features they need. */
 export const CONVERTERS: ConverterDef[] = [
   ...imageConverters(),
@@ -205,6 +214,8 @@ export const CONVERTERS: ConverterDef[] = [
   ...(["jpg", "png"] as FormatId[]).map((to): ConverterDef => ({ id: `eng:photo:heic:${to}`, from: "heic", to, where: "engine", op: "photo-convert", options: { to }, feature: "convert_plus" })),
   ...(["epub", "mobi"] as FormatId[]).map((from): ConverterDef => ({ id: `eng:ebook:${from}`, from, to: "pdf", where: "engine", op: "ebook-to-pdf", feature: "convert_plus" })),
   ...archiveConverters(),
+  // R100b: slides and drawings on the engine (op slides-convert). Slides to pictures chain through PDF on the device.
+  ...SLIDE_PAIRS.map(([from, to]): ConverterDef => ({ id: `eng:slides:${from}:${to}`, from, to, where: "engine", op: "slides-convert", options: { to }, feature: "tools_c2" })),
 ];
 
 /** What a step costs when planning: staying on the device is cheap, an upload is dear, every step adds a little. */
@@ -289,7 +300,7 @@ export function routeTo(from: FormatId, to: FormatId, opts: PlanOptions = {}): R
 /** The order targets show in: what people want most first. */
 const ORDER: FormatId[] = [
   "pdf", "mp4", "mov", "webm", "mp3", "m4a", "wav", "jpg", "png", "webp", "avif", "gif", "bmp", "docx", "xlsx", "csv", "tsv", "json", "txt", "md",
-  "zip", "7z", "tgz", "tar", "heic", "svg", "pptx", "odt", "ods", "odp", "html", "mkv", "avi", "ogg", "flac", "aac", "epub", "mobi", "rar",
+  "zip", "7z", "tgz", "tar", "heic", "svg", "pptx", "odt", "ods", "odp", "odg", "ppt", "html", "mkv", "avi", "ogg", "flac", "aac", "epub", "mobi", "rar",
 ];
 
 /**

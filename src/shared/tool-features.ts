@@ -32,7 +32,8 @@ export const TOOL_FEATURES = [
   "file_requests", // R88 file requests: a client uploads files without an account
   "secrets",    // R88 secret links encrypted in the browser, and Send securely in compose
   "links",      // R87 short links, QR, click stats, bio page, go links
-  "tools_c",    // R100 Tools C: fix a PDF (qpdf), QR and barcodes on a PDF, read comments, utilities, image links, slides
+  "tools_c",    // R100 Tools C: fix a PDF (qpdf), QR and barcodes on a PDF, read comments, utilities
+  "tools_c2",   // R100b: slides and drawings on the engine, image links, link preview
 ] as const;
 
 export type ToolFeature = (typeof TOOL_FEATURES)[number];

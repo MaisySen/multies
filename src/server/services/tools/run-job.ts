@@ -203,7 +203,7 @@ export async function runToolJob(deps: Deps, auth: RunAuth, op: ToolOp, files: T
 }
 
 /** Engine ops with no card in the catalogue, run only by server code (contract E1 and E2). */
-const ENGINE_ONLY_OPS = ["thumbnails", "organize", "form-fields", "form-fill", "compare", "sign", "extract-text", "segments", "translate-apply", "render", "render-batch", "chain"] as const;
+const ENGINE_ONLY_OPS = ["thumbnails", "organize", "form-fields", "form-fill", "compare", "sign", "extract-text", "segments", "translate-apply", "render", "render-batch", "chain", "image-transform"] as const;
 export const isEngineOnlyOp = (op: string): boolean => (ENGINE_ONLY_OPS as readonly string[]).includes(op);
 
 const safeName = (n: string) => (n || "file").replace(/[\r\n"\\/]/g, "_").slice(0, 120);

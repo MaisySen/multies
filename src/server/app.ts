@@ -112,6 +112,7 @@ import { checkRoutes } from "./routes/check";
 import { guestSearchRoutes, myWorkRoutes, searchRoutes } from "./routes/search";
 import { fieldRoutes, fileRoutes, guestAdminRoutes, guestRoutes, portfolioRoutes } from "./routes/suite-r8";
 import { docImageRoutes } from "./routes/doc-images-r32"; // R32: images in docs
+import { imageLinkRoutes, toolsC2Routes } from "./routes/tools-c2-r100b"; // R100b: link preview and image links
 import { installHttpCache } from "./lib/http-cache";
 import { hostSessionCookie } from "./lib/host-cookie";
 import { authErrorPageCode, authErrorRedirectUrl, errorCodeOf, isAuthNavigation } from "./lib/auth-redirect"; // R41 MB-222
@@ -570,6 +571,8 @@ export function createApp(deps: Deps) {
   app.route("/api/guests", guestAdminRoutes());
   app.route("/api/files", fileRoutes());
   app.route("/api/doc-images", docImageRoutes()); // R32: images in docs (file storage only)
+  app.route("/api/tools-c2", toolsC2Routes()); // R100b: link preview (SSRF guarded)
+  app.route("/api/img", imageLinkRoutes()); // R100b: image links (resize, crop, format)
   // Round 20: search everything and My Work (reads only). Guest search sits before the guest routes.
   app.route("/api/search", searchRoutes());
   app.route("/api/my-work", myWorkRoutes());

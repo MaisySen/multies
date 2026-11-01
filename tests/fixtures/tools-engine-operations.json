@@ -1,5 +1,5 @@
 {
- "_note": "Every op exactly as the live engine publishes it at GET /internal/v1/operations (office-toolkit main 0006d0a, 13 P1 + 21 P2 ops; compress level from ee2f946, stamp number_digits from 2d2bac2), regenerated 2026-10-30 for the catalogue parity test. R86 adds media-convert, media-compress, photo-convert and ebook-to-pdf (office-toolkit engine-r86).",
+ "_note": "Every op exactly as the live engine publishes it at GET /internal/v1/operations (office-toolkit main 0006d0a, 13 P1 + 21 P2 ops; compress level from ee2f946, stamp number_digits from 2d2bac2), regenerated 2026-10-30 for the catalogue parity test. R86 adds media-convert, media-compress, photo-convert and ebook-to-pdf (office-toolkit engine-r86). R100b adds slides-convert and image-transform, and pptx, odp, odg, svg and webp result types (office-toolkit engine-r100b).",
  "operations": [
   {
    "accepts": "pdf",
@@ -1483,6 +1483,185 @@
    },
    "slow": true,
    "slug": "ebook-to-pdf"
+  },
+  {
+   "accepts": "file",
+   "accepts_ext": [
+    ".pptx",
+    ".ppt",
+    ".odp",
+    ".odg",
+    ".pdf"
+   ],
+   "label": "Convert slides and drawings",
+   "limits": {
+    "pdf_to_drawing_max_pages": 40
+   },
+   "max_bytes": 52428800,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "choices": [
+      "pdf",
+      "pptx",
+      "odp",
+      "odg",
+      "svg"
+     ],
+     "default": "pdf",
+     "kind": "choice",
+     "label": "Convert to",
+     "name": "to",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "application/pdf",
+    "name": "converted.pdf"
+   },
+   "outputs": [
+    {
+     "content_type": "application/pdf",
+     "name": "converted.pdf"
+    },
+    {
+     "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+     "name": "converted.pptx"
+    },
+    {
+     "content_type": "application/vnd.oasis.opendocument.presentation",
+     "name": "converted.odp"
+    },
+    {
+     "content_type": "application/vnd.oasis.opendocument.graphics",
+     "name": "converted.odg"
+    },
+    {
+     "content_type": "image/svg+xml",
+     "name": "converted.svg"
+    }
+   ],
+   "slow": true,
+   "slug": "slides-convert"
+  },
+  {
+   "accepts": "file",
+   "accepts_ext": [
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp"
+   ],
+   "label": "Resize, crop and convert an image",
+   "limits": {
+    "max_edge": 4096,
+    "max_pixels": 40000000
+   },
+   "max_bytes": 20971520,
+   "max_files": 1,
+   "max_pages": null,
+   "min_files": 1,
+   "options": [
+    {
+     "default": 0,
+     "kind": "int",
+     "label": "Width",
+     "max": 4096,
+     "min": 0,
+     "name": "w",
+     "required": false
+    },
+    {
+     "default": 0,
+     "kind": "int",
+     "label": "Height",
+     "max": 4096,
+     "min": 0,
+     "name": "h",
+     "required": false
+    },
+    {
+     "choices": [
+      "inside",
+      "cover",
+      "contain",
+      "fill"
+     ],
+     "default": "inside",
+     "kind": "choice",
+     "label": "Fit",
+     "name": "fit",
+     "required": false
+    },
+    {
+     "choices": [
+      "smart",
+      "center",
+      "top",
+      "bottom",
+      "left",
+      "right"
+     ],
+     "default": "center",
+     "kind": "choice",
+     "label": "Crop from",
+     "name": "gravity",
+     "required": false
+    },
+    {
+     "choices": [
+      "auto",
+      "jpeg",
+      "png",
+      "webp"
+     ],
+     "default": "auto",
+     "kind": "choice",
+     "label": "Format",
+     "name": "format",
+     "required": false
+    },
+    {
+     "default": 82,
+     "kind": "int",
+     "label": "Quality",
+     "max": 95,
+     "min": 30,
+     "name": "quality",
+     "required": false
+    },
+    {
+     "default": "",
+     "kind": "text",
+     "label": "Crop area",
+     "max_len": 40,
+     "name": "area",
+     "required": false
+    }
+   ],
+   "output": {
+    "content_type": "image/jpeg",
+    "name": "image.jpg"
+   },
+   "outputs": [
+    {
+     "content_type": "image/jpeg",
+     "name": "image.jpg"
+    },
+    {
+     "content_type": "image/png",
+     "name": "image.png"
+    },
+    {
+     "content_type": "image/webp",
+     "name": "image.webp"
+    }
+   ],
+   "slow": false,
+   "slug": "image-transform"
   }
  ]
 }

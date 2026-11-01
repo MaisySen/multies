@@ -16,13 +16,16 @@ export type ToolOp =
   | "thumbnails" | "organize" | "form-fields" | "form-fill" | "compare" | "sign"
   | "extract-text" | "segments" | "translate-apply" | "render" | "render-batch" | "chain"
   // R86 (Tools round B): video and audio, HEIC photos, e-books.
-  | "media-convert" | "media-compress" | "photo-convert" | "ebook-to-pdf";
+  | "media-convert" | "media-compress" | "photo-convert" | "ebook-to-pdf"
+  // R100b: slides and drawings.
+  | "slides-convert";
 
 export type ToolGroup = "Organise" | "Convert" | "Protect" | "Scans";
 
 /** Result types a tool can hand back. */
 export type ToolExt = "pdf" | "zip" | "docx" | "json" | "xlsx" | "csv" | "txt" | "md" | "png"
-  | "mp4" | "mov" | "webm" | "mp3" | "wav" | "m4a" | "gif" | "jpg";
+  | "mp4" | "mov" | "webm" | "mp3" | "wav" | "m4a" | "gif" | "jpg"
+  | "pptx" | "odp" | "odg" | "svg";
 export const EXT_TYPES: Record<ToolExt, string> = {
   pdf: "application/pdf",
   zip: "application/zip",
@@ -42,6 +45,11 @@ export const EXT_TYPES: Record<ToolExt, string> = {
   m4a: "audio/mp4",
   gif: "image/gif",
   jpg: "image/jpeg",
+  // R100b: slides and drawings.
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  odp: "application/vnd.oasis.opendocument.presentation",
+  odg: "application/vnd.oasis.opendocument.graphics",
+  svg: "image/svg+xml",
 };
 /** The result type for an engine content type, or null when it is not one Tools hands out. */
 export function extForType(contentType: string | null | undefined): ToolExt | null {
@@ -250,6 +258,11 @@ export const TOOLS: ToolDef[] = [
     options: [{ name: "to", kind: "choice", label: "Change to", default: "jpg", choices: [{ value: "jpg", label: "JPG" }, { value: "png", label: "PNG" }] }] },
   { op: "ebook-to-pdf", group: "Convert", feature: "convert_plus", label: "E-book to PDF", blurb: "Turn an EPUB or MOBI e-book into a PDF you can read, print or send.", accept: ".epub,.mobi,.azw,.prc,application/epub+zip", acceptLabel: "an EPUB or MOBI e-book", minFiles: 1, maxFiles: 1, suffix: "", ext: "pdf", contentType: PDF_TYPE, maxBytes: 30 * 1024 * 1024, slow: { secondsPerPage: 1 },
     note: "E-books protected with DRM can't be converted.", options: [] },
+  // R100b: slides and drawings on the engine (LibreOffice Impress and Draw).
+  { op: "slides-convert", group: "Convert", feature: "tools_c2", label: "Slides and drawings", blurb: "Turn slides or a drawing into a PDF or into each other, a drawing into SVG, or a PDF into a drawing you can edit.", accept: ".pptx,.ppt,.odp,.odg,.pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-powerpoint,application/vnd.oasis.opendocument.presentation,application/vnd.oasis.opendocument.graphics,application/pdf", acceptLabel: "slides, a drawing or a PDF", minFiles: 1, maxFiles: 1, suffix: "", ext: "pdf", contentType: PDF_TYPE, maxBytes: 50 * 1024 * 1024, slow: { secondsPerPage: 2 },
+    note: "Slides (PPTX, PPT, ODP) become a PDF, PowerPoint or ODP. A drawing (ODG) becomes a PDF or SVG. A PDF up to 40 pages becomes a drawing.",
+    extBy: { option: "to", exts: { pdf: "pdf", pptx: "pptx", odp: "odp", odg: "odg", svg: "svg" } },
+    options: [{ name: "to", kind: "choice", label: "Change to", default: "pdf", choices: [{ value: "pdf", label: "PDF" }, { value: "pptx", label: "PowerPoint (PPTX)" }, { value: "odp", label: "ODP slides" }, { value: "odg", label: "ODG drawing" }, { value: "svg", label: "SVG picture" }] }] },
   // Tools P2 (H7): the editors (page editor, form filler, compare). Each card opens its own page (path) and runs
   // through /api/tools/editors, never the plain form; the phone app hides the webOnly ones.
   ...TOOLS_EDITORS,
