@@ -23,6 +23,8 @@ export interface OutboxItem {
   clientMsgId: string;
   channelId: string;
   parentId: string | null;
+  /** R96: the topic a new message goes into. */
+  topicId?: string | null;
   body: string;
   state: OutboxState;
   tries: number;
@@ -97,10 +99,10 @@ export class ChatOutbox {
   }
 
   /** Adds a send; it goes now when the socket is ready, else after hello or the hold. */
-  enqueue(input: { channelId: string; parentId?: string | null; body: string; clientMsgId?: string }) {
+  enqueue(input: { channelId: string; parentId?: string | null; body: string; clientMsgId?: string; topicId?: string | null }) {
     const item: OutboxItem = {
       clientMsgId: input.clientMsgId ?? newClientMsgId(this.clock.now(), () => this.clock.random()),
-      channelId: input.channelId, parentId: input.parentId ?? null, body: input.body,
+      channelId: input.channelId, parentId: input.parentId ?? null, topicId: input.topicId ?? null, body: input.body,
       state: "queued", tries: 0, createdAt: this.clock.now(),
     };
     this.items.push(item);

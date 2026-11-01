@@ -28,6 +28,7 @@ import { CallHeaderStatus } from "./call-r23";
 import { PendingBubbles } from "./chat-pending-r33";
 import { newClientMsgId, pendingFor } from "@/web/lib/chat-outbox";
 import { BlockedHiddenRow, useModeration } from "./report-sheet-r35"; // R35: report and block
+import { AnnouncementsFeed, AnnouncementsNav, ChatPlusAdd, MoveToTopic, PollCard, TopicBar, useChatPlus, type Topic } from "./chat-plus-r96"; // R96
 import { CallButton, CallCard, ChatSearch, JumpToUnread, ReactionPicker, Reactions, callPath, flashMessage, useFirstUnread, type ChatSearchResult, type Reaction } from "./chat-r20";
 
 export interface ChatChannel {
@@ -35,6 +36,8 @@ export interface ChatChannel {
   members: { id: string; name: string; email: string; blockedByMe?: boolean }[]; unread: number; mentions: number; lastMessageAt: string | null; lastMessage: { id: string; preview: string; authorName: string } | null;
 }
 export interface ChatMessage {
+  /** R96 chat plus */
+  topicId?: string | null; poll?: { id: string; kind: string; question: string }; announcement?: boolean; updatedAt?: string;
   id: string; channelId: string; parentId: string | null; author: { type: string; id: string | null; name: string; title?: string | null; agent?: boolean }; body: string;
   mentions: { type: string; id: string; name: string }[]; links: { type: "task" | "thread" | "doc"; id: string; ref: string | null; title: string; messageId?: string }[];
   attachments: { id: string; filename: string; contentType: string; size: number }[]; replyCount: number; lastReplyAt: string | null; editedAt: string | null; deleted: boolean; createdAt: string;
@@ -71,7 +74,7 @@ function LinkChip({ l }: { l: ChatMessage["links"][number] }) {
   );
 }
 
-function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onReact, onReport, onBlock, myId, mine, inThread, role }: { m: ChatMessage; mine: boolean; inThread?: boolean; onThread?: () => void; onTask: () => void; onTriage?: () => void; onEdit: () => void; onDelete: () => void; onPin?: () => void; onReact: (emoji: string) => void; onReport?: () => void; onBlock?: () => void; myId?: string; role?: string | null }) {
+function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onReact, onReport, onBlock, onMove, myId, mine, inThread, role }: { m: ChatMessage; onMove?: () => void; mine: boolean; inThread?: boolean; onThread?: () => void; onTask: () => void; onTriage?: () => void; onEdit: () => void; onDelete: () => void; onPin?: () => void; onReact: (emoji: string) => void; onReport?: () => void; onBlock?: () => void; myId?: string; role?: string | null }) {
   const taskLinks = m.links.filter((l) => l.type === "task");
   const call = m.deleted ? null : callPath(m.body);
   // R25 wave 2: on phones and touch screens one More button (or a long press) opens the actions as a sheet.
@@ -94,6 +97,7 @@ function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onRea
           {(m.author.type === "agent" || m.author.agent) && <span className="rounded bg-fill px-1 text-[11px] text-muted">agent</span>}
           <time className="text-[11.5px] text-subtle" dateTime={m.createdAt}>{mailDate(m.createdAt)}</time>
           {m.editedAt && !m.deleted && <span className="text-[11px] text-subtle">(edited)</span>}
+          {m.announcement && !m.deleted && <span className="rounded bg-brand/15 px-1.5 text-[11px] text-brand-hover" data-testid="announcement-label">Announcement</span>}
           {m.pinnedAt && !m.deleted && <span className="inline-flex items-center gap-1 text-[11px] text-subtle" data-testid="pinned-label"><IconPin className="h-3 w-3" aria-hidden />Pinned{m.pinnedBy ? ` by ${m.pinnedBy}` : ""}</span>}
           {compact && !m.deleted && (
             <button type="button" onClick={() => setSheet(true)} aria-label="Message actions" aria-haspopup="dialog" data-testid="message-more" className="-my-2.5 -mr-2 ml-auto inline-flex h-10 w-10 shrink-0 items-center justify-center self-center rounded-lg text-subtle active:bg-elevated">
@@ -101,7 +105,7 @@ function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onRea
             </button>
           )}
         </div>
-        {m.deleted ? <p className="text-[13px] italic text-subtle">Message deleted</p> : call ? <CallCard path={call} by={m.author.name} at={m.createdAt} channelId={m.channelId} /> : <Body m={m} />}
+        {m.deleted ? <p className="text-[13px] italic text-subtle">Message deleted</p> : call ? <CallCard path={call} by={m.author.name} at={m.createdAt} channelId={m.channelId} /> : m.poll ? <PollCard pollId={m.poll.id} version={m.updatedAt} /> : <Body m={m} />}
         {m.attachments.length > 0 && (
           <ul className="mt-1.5 flex flex-wrap gap-2">
             {m.attachments.map((f) => (
@@ -122,6 +126,7 @@ function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onRea
             <MenuItem onSelect={onTask} icon={<IconTasks className="h-4 w-4" />}>Make task</MenuItem>
             {onTriage && <MenuItem onSelect={onTriage} icon={<IconInbox className="h-4 w-4" />}>Send to triage</MenuItem>}
             {onPin && !m.parentId && <MenuItem onSelect={onPin} icon={m.pinnedAt ? <IconPinOff className="h-4 w-4" /> : <IconPin className="h-4 w-4" />}>{m.pinnedAt ? "Unpin" : "Pin to channel"}</MenuItem>}
+            {onMove && !m.parentId && !m.deleted && <MenuItem onSelect={onMove} icon={<IconHash className="h-4 w-4" />}>Move to topic</MenuItem>}
             {mine && <MenuItem onSelect={onEdit}>Edit</MenuItem>}
             <MenuItem onSelect={onDelete} danger>Delete</MenuItem>
             {onReport && !mine && <MenuItem onSelect={onReport} icon={<IconFlag className="h-4 w-4" />}>Report message</MenuItem>}
@@ -240,6 +245,12 @@ export function ChatPage() {
   const qc = useQueryClient();
   const me = useMe();
   const myId = me.data?.user.id;
+  // R96 chat plus: topics, announcements, votes. Hidden when the server has the flag off.
+  const plus = useChatPlus();
+  const annView = plus.on && params.get("view") === "announcements";
+  const isAdmin = me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin";
+  const [topicId, setTopicId] = useState<string | null>(null);
+  const [moving, setMoving] = useState<ChatMessage | null>(null);
   const [creating, setCreating] = useState<"channel" | "dm" | null>(null);
   // R32: live chat over a socket; while it is open the polls below slow to a 60 second safety net.
   const live = useLiveChat(myId);
@@ -250,12 +261,26 @@ export function ChatPage() {
   const current = list.find((c) => c.id === channelId) ?? (channelId ? undefined : list.find((c) => c.name === "general") ?? list[0]);
   // R49: on a phone, Back lands on the channel list (?list=1) instead of bouncing straight into a channel.
   const listParam = params.get("list");
-  useEffect(() => { if (current && shouldOpenDefaultChannel({ channelId, hasDefault: true, listParam, phone: isPhoneWidth() })) navigate(`/app/chat/${current.id}`, { replace: true }); }, [channelId, current, navigate, listParam]);
+  useEffect(() => { if (!annView && current && shouldOpenDefaultChannel({ channelId, hasDefault: true, listParam, phone: isPhoneWidth() })) navigate(`/app/chat/${current.id}`, { replace: true }); }, [channelId, current, navigate, listParam]);
   const visible = typeof document === "undefined" || document.visibilityState === "visible";
   const messages = useQuery({
     queryKey: ["chat", "messages", current?.id], enabled: !!current, refetchInterval: visible ? chatPollMs(live.live, 4000) : false,
     queryFn: async () => (await api.get<{ messages: ChatMessage[] }>(`/chat/channels/${current!.id}/messages?limit=100`)).messages,
   });
+  useEffect(() => { setTopicId(null); }, [current?.id]);
+  const topicMsgs = useQuery({
+    queryKey: ["chat", "topic-messages", current?.id, topicId], enabled: !!current && !!topicId, refetchInterval: visible ? chatPollMs(live.live, 4000) : false,
+    queryFn: async () => (await api.get<{ messages: ChatMessage[] }>(`/chat/channels/${current!.id}/messages?limit=100&topicId=${encodeURIComponent(topicId!)}`)).messages,
+  });
+  // R96: with a topic picked, the server's topic page plus anything newer the channel list already holds.
+  const shown = useMemo(() => {
+    if (!topicId) return messages.data;
+    const byId = new Map<string, ChatMessage>();
+    for (const m of topicMsgs.data ?? []) byId.set(m.id, m);
+    for (const m of messages.data ?? []) if (m.topicId === topicId) byId.set(m.id, m);
+    return [...byId.values()].filter((m) => m.topicId === topicId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }, [topicId, topicMsgs.data, messages.data]);
+  const topicName = topicId ? qc.getQueryData<Topic[]>(["chat-plus", "topics", current?.id])?.find((t) => t.id === topicId)?.name : undefined;
   const thread = useQuery({
     queryKey: ["chat", "thread", threadId], enabled: !!threadId, refetchInterval: visible ? chatPollMs(live.live, 4000) : false,
     queryFn: () => api.get<{ message: ChatMessage; replies: ChatMessage[] }>(`/chat/messages/${threadId}/thread`),
@@ -280,9 +305,9 @@ export function ChatPage() {
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ["chat", "messages"] }), qc.invalidateQueries({ queryKey: ["chat", "thread"] }), qc.invalidateQueries({ queryKey: ["chat", "channels"] }), qc.invalidateQueries({ queryKey: ["chat", "pins"] })]);
   const send = (parentId?: string) => async (body: string, files: File[]) => {
     // R33: text goes through the outbox (client id, held until the socket's hello, ack, one retry).
-    if (!files.length) { live.outbox.enqueue({ channelId: current!.id, parentId: parentId ?? null, body }); return; }
+    if (!files.length) { live.outbox.enqueue({ channelId: current!.id, parentId: parentId ?? null, body, topicId: parentId ? null : topicId }); return; }
     const attachments = await Promise.all(files.map(async (f) => ({ filename: f.name, contentType: f.type || undefined, contentBase64: await toBase64(f) })));
-    await api.post(`/chat/channels/${current!.id}/messages`, { body, parentId, attachments: attachments.length ? attachments : undefined, clientMsgId: newClientMsgId() });
+    await api.post(`/chat/channels/${current!.id}/messages`, { body, parentId, topicId: parentId ? undefined : topicId ?? undefined, attachments: attachments.length ? attachments : undefined, clientMsgId: newClientMsgId() });
     await refresh();
   };
   const makeTask = async (m: ChatMessage) => {
@@ -338,6 +363,7 @@ export function ChatPage() {
       onReport={reportable(m) ? () => moderation.report({ targetType: "message", messageId: m.id, userId: m.author.id!, name: m.author.name, context: reportCtx() }) : undefined}
       onBlock={reportable(m) ? () => void moderation.block(m.author.id!, m.author.name) : undefined}
       onThread={() => openThread(m)} onTask={() => void makeTask(m)} onTriage={() => void sendToTriage(m)} onEdit={() => void edit(m)} onDelete={() => void remove(m)}
+      onMove={plus.on && current?.kind === "channel" && !inThread && ((m.author.type === "member" && m.author.id === myId) || isAdmin) ? () => setMoving(m) : undefined}
       onPin={current?.kind === "channel" ? () => void togglePin(m) : undefined} onReact={(e) => void react(m, e)} myId={myId} role={me.data?.organization?.role} />
   );
   const chans = list.filter((c) => c.kind === "channel");
@@ -359,7 +385,8 @@ export function ChatPage() {
       {dialogs}
       {moderation.sheet}
       <h1 className="sr-only">Chat</h1>
-      <nav aria-label="Channels" className={cn("w-full shrink-0 overflow-y-auto border-r border-line p-3 sm:w-60", current && channelId ? "hidden sm:block" : "block")}>
+      <nav aria-label="Channels" className={cn("w-full shrink-0 overflow-y-auto border-r border-line p-3 sm:w-60", (current && channelId) || annView ? "hidden sm:block" : "block")}>
+        {plus.on && <AnnouncementsNav active={annView} onOpen={() => navigate("/app/chat?view=announcements")} />}
         <div className="mb-1 flex items-center justify-between px-2"><h2 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Channels</h2>
           <Button variant="ghost" size="icon" aria-label="New channel" onClick={() => setCreating("channel")}><IconPlus className="h-4 w-4" /></Button></div>
         {channels.isPending ? <Skeleton className="h-24" /> : <ul className="space-y-0.5">{chans.map((c) => navItem(c, c.private ? <IconLock className="h-3.5 w-3.5" aria-hidden /> : <IconHash className="h-3.5 w-3.5" aria-hidden />))}</ul>}
@@ -368,8 +395,16 @@ export function ChatPage() {
         <ul className="space-y-0.5">{dms.map((c) => navItem(c, <IconTeam className="h-3.5 w-3.5" aria-hidden />))}</ul>
         {!dms.length && <p className="px-2 text-[12.5px] text-subtle">No direct messages yet.</p>}
       </nav>
-      <section aria-label={current ? `Messages in ${current.name}` : "Messages"} className={cn("flex min-w-0 flex-1 flex-col", !channelId && "hidden sm:flex", threadId && "hidden lg:flex")}>
-        {current ? (
+      <section aria-label={current ? `Messages in ${current.name}` : "Messages"} className={cn("flex min-w-0 flex-1 flex-col", !channelId && !annView && "hidden sm:flex", threadId && "hidden lg:flex")}>
+        {annView ? (
+          <>
+            <header className="flex min-h-14 items-center gap-2 border-b border-line px-4 py-2.5 max-sm:px-2">
+              <Link to="/app/chat?list=1" className="inline-flex min-h-11 items-center gap-0.5 rounded-lg pl-1 pr-2 text-[15px] text-brand-hover hover:bg-hover sm:hidden"><IconBack className="h-4 w-4" aria-hidden />Chat</Link>
+              <h2 className="text-[15px] font-semibold">Announcements</h2>
+            </header>
+            <AnnouncementsFeed onOpenMessage={(cid, mid) => navigate(`/app/chat/${cid}#m-${mid}`)} />
+          </>
+        ) : current ? (
           <>
             <header className="flex min-h-14 items-center gap-2 border-b border-line px-4 py-2.5 max-sm:gap-1 max-sm:px-2 max-sm:py-1" data-testid="chat-head">
               <Link to="/app/chat" className="-my-2 -ml-2 max-sm:my-0 max-sm:ml-0 inline-flex min-h-11 shrink-0 items-center gap-0.5 rounded-lg pl-1 pr-2 text-[15px] text-brand-hover transition-colors duration-150 hover:bg-hover sm:hidden" onClick={(e) => { e.preventDefault(); navigate("/app/chat?list=1"); }}><IconBack className="h-5 w-5" aria-hidden />Back</Link>
@@ -395,17 +430,27 @@ export function ChatPage() {
                 {!current.archived && <CallButton channelId={current.id} onStarted={refresh} />}
               </div>
             </header>
+            {plus.on && current.kind === "channel" && <TopicBar channelId={current.id} topicId={topicId} onPick={setTopicId} canAdmin={isAdmin} />}
             <PinnedBar pins={pins.data ?? []} onOpen={openPin} onUnpin={(m) => void togglePin(m)} />
             <div className="flex-1 overflow-y-auto px-2 py-2">
               <CatchupCard key={`catchup-${current.id}`} type="channel" id={current.id} />
               <JumpToUnread key={current.id} first={firstUnread.data} onJump={(id) => { if (!flashMessage(id)) openThread({ id } as ChatMessage); }} />
-              {messages.isPending ? <Skeleton className="h-40" /> : !messages.data?.length ? pendingFor(outboxItems, current.id, null).length ? null : (
+              {messages.isPending ? <Skeleton className="h-40" /> : !shown?.length ? pendingFor(outboxItems, current.id, null).length ? null : topicId ? (
+                <EmptyState icon={<IconChat />} title="No messages in this topic yet" body="Write the first one below. It goes into this topic." />
+              ) : (
                 <EmptyState icon={<IconChat />} art={<NoChatArt />} title="Nothing here yet" body="Say hello. Mention people with @, link a task with its ref, or turn any message into a task." />
-              ) : <ul>{hiddenHere && <BlockedHiddenRow />}{messages.data.map((m) => row(m))}</ul>}
+              ) : <ul>{hiddenHere && <BlockedHiddenRow />}{shown.map((m) => row(m))}</ul>}
               <PendingBubbles outbox={live.outbox} channelId={current.id} parentId={null} authorName={me.data?.user.name ?? undefined} />
               <div ref={bottom} />
             </div>
             <ChatLiveLine store={live.typing} channelId={current.id} degraded={live.degraded} />
+            {plus.on && !current.archived && (
+              <div className="flex min-w-0 items-center gap-2 px-4 pt-1 max-sm:px-2">
+                <ChatPlusAdd channelId={current.id} topicId={topicId} isAdmin={isAdmin} onDone={() => void refresh()} />
+                {topicId && <span className="min-w-0 truncate text-[12px] text-subtle" data-testid="posting-in">Posting in {topicName ?? "this topic"}</span>}
+              </div>
+            )}
+            {moving && <MoveToTopic open messageId={moving.id} channelId={moving.channelId} current={moving.topicId ?? null} onClose={() => setMoving(null)} onMoved={() => { setMoving(null); void refresh(); void qc.invalidateQueries({ queryKey: ["chat-plus"] }); void qc.invalidateQueries({ queryKey: ["chat", "topic-messages"] }); }} />}
             <Composer testId="chat-composer" people={people.data ?? []} placeholder={current.kind === "channel" ? `Message #${current.name}` : `Message ${current.name}`} onSend={send()} onType={() => live.onType(current.id)} />
           </>
         ) : !channels.isPending && <EmptyState icon={<IconChat />} art={<NoChatArt />} title="Pick a channel" body="Choose a channel or start a direct message." className="m-auto" />}

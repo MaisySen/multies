@@ -393,7 +393,7 @@ export function useLiveChat(myId: string | undefined) {
     send: async (item): Promise<SendResult> => {
       try {
         const r = await api.post<{ message: unknown; ack?: { type: "ack"; reply_to: string; ok: boolean; message?: { id: string; ts: string }; deduped?: boolean } }>(
-          `/chat/channels/${encodeURIComponent(item.channelId)}/messages`, { body: item.body, parentId: item.parentId ?? undefined, clientMsgId: item.clientMsgId });
+          `/chat/channels/${encodeURIComponent(item.channelId)}/messages`, { body: item.body, parentId: item.parentId ?? undefined, topicId: item.topicId ?? undefined, clientMsgId: item.clientMsgId });
         return { ok: true, ack: r.ack ?? { type: "ack", reply_to: item.clientMsgId, ok: true, message: { id: (r.message as { id: string }).id, ts: "" } }, message: r.message };
       } catch (e) {
         const status = e instanceof ApiError ? e.status : 0;
