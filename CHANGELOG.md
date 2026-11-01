@@ -12,6 +12,16 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Guided interview: branching questions (only what matters for your answers), checks for required answers, dates, money, email and ABN, a live preview, then a Doc (normal sharing), a PDF, a Word file or Send to sign (e-sign page).
 - Renewal and end date reminders as tasks; a clause library with versions (admins edit, retire and bring back; contracts record the versions used) and workspace versions of templates. Docs, Templates links to it. Flag CONTRACTS_R108. Migration 0130.
 
+
+## R110 Ask your workspace (2026-11-01)
+### Added
+- Tools, Ask your workspace (flag `ASK_R110`, migration 0131): ask a question across mail, docs, tasks, contacts and files. Answers use only items the asker can open, checked at question time (access removed later hides them too), list their sources and carry a note that AI answers can be wrong. Prompt library, private searchable history, save an answer to a doc, and change cards that apply nothing until Apply is clicked. Ctrl K offers "Ask AI" for a typed question. Guests get no Ask.
+- Free tier AI only: a per workspace daily cap and an account wide daily cap, counted before each call, with a calm "Daily limit reached" state; the client workspace excluded from Ask stays excluded.
+### Fixed
+- A long search (about 48 characters or more) in Contacts answered 500 on production: D1 refuses a LIKE pattern over 50 bytes. Contacts, Companies, Docs and Tasks lists, global search, the new search and Ask history now match with instr, with no length limit, and % and _ are plain characters.
+- Search: a guest's results open the guest view of the item; a bad filter gets a plain message.
+- Search: while results load, the command menu list no longer holds a progress bar (axe aria-required-children at 1280); the list says it is busy instead.
+- Tests: the calendar sync e2e builds its events in the Sydney month the page shows, not the UTC month.
 ## R101 Files plus: drive and brand library (2026-11-01)
 ### Added
 - Files: Team files, My files, Shared with me, Starred, Recent and Trash; folders with breadcrumbs, drag and drop upload and move, Move to, star, rename.
