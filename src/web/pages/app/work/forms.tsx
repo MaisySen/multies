@@ -6,6 +6,7 @@ import { FORM_TEMPLATES, pickHidden } from "@/shared/forms-plus";
 import { BoardsTab } from "./forms-plus/boards-tab";
 import { CallDialog, DEFAULT_CALL_FIELDS, ReviewQueueTab } from "./forms-plus/calls-tab";
 import { FormPlusDialog } from "./forms-plus/settings-dialog";
+import { ReportsTab, useReportAccess } from "./reports-r112/reports-tab"; // R112
 import { ChatForm, RatingInput, type PublicFormData } from "./forms-plus/chat-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconArrowDown, IconArrowUp, IconClipboardList, IconExternalLink, IconPlus, IconTrash } from "@/web/components/ui/icon";
@@ -39,40 +40,45 @@ const idFor = (label: string, taken: Set<string>, i: number) => {
 const withIds = (fields: FormField[]) => { const taken = new Set(fields.map((x) => x.id).filter(Boolean) as string[]); return fields.map((x, i) => (x.id ? x : { ...x, id: idFor(x.label, taken, i) })); };
 
 /* R93 Forms plus: with FORMS_PLUS_R93 on, this page gains tabs (kept in ?tab= so links and Back work). */
-type FormsTab = "forms" | "boards" | "calls" | "review";
+type FormsTab = "forms" | "boards" | "calls" | "review" | "reports";
 const FORMS_TABS: { id: FormsTab; label: string; line: string }[] = [
   { id: "forms", label: "Forms", line: "A public link anyone can fill in. Each answer becomes a task or a contact, with spam checks built in." },
   { id: "boards", label: "Feedback boards", line: "Collect ideas, let people vote, and share what is planned on a roadmap." },
   { id: "calls", label: "Calls for submissions", line: "Take entries, have reviewers score them with a rubric, and build a shortlist." },
   { id: "review", label: "To review", line: "Entries assigned to you for scoring." },
+  // R112: anonymous reports (REPORTING_R112), shown to owners, admins and the handler of a report.
+  { id: "reports", label: "Reports", line: "Anonymous reports from your people, with a private two way chat, a handler and deadlines." },
 ];
 
 export function FormsPage() {
   const config = useConfig();
   const [params, setParams] = useSearchParams();
   const refs = useRef<Record<string, HTMLButtonElement | null>>({});
-  if (!config.data?.formsPlus) return <FormsList />;
-  const active: FormsTab = FORMS_TABS.find((t) => t.id === params.get("tab"))?.id ?? "forms";
+  const reportAccess = useReportAccess(!!config.data?.reporting); // R112
+  const showReports = !!config.data?.reporting && !!reportAccess.data?.canSee;
+  const tabs = FORMS_TABS.filter((t) => (t.id === "reports" ? showReports : t.id === "forms" || !!config.data?.formsPlus));
+  if (!config.data?.formsPlus && !showReports) return <FormsList />;
+  const active: FormsTab = tabs.find((t) => t.id === params.get("tab"))?.id ?? "forms";
   const pick = (id: FormsTab) => setParams((p) => { const n = new URLSearchParams(p); if (id === "forms") n.delete("tab"); else n.set("tab", id); return n; }, { replace: true });
   const onKey = (e: React.KeyboardEvent) => {
-    const i = FORMS_TABS.findIndex((t) => t.id === active);
-    const n = FORMS_TABS.length;
-    const next = e.key === "ArrowRight" ? FORMS_TABS[(i + 1) % n] : e.key === "ArrowLeft" ? FORMS_TABS[(i - 1 + n) % n] : e.key === "Home" ? FORMS_TABS[0] : e.key === "End" ? FORMS_TABS[n - 1] : null;
+    const i = tabs.findIndex((t) => t.id === active);
+    const n = tabs.length;
+    const next = e.key === "ArrowRight" ? tabs[(i + 1) % n] : e.key === "ArrowLeft" ? tabs[(i - 1 + n) % n] : e.key === "Home" ? tabs[0] : e.key === "End" ? tabs[n - 1] : null;
     if (!next) return;
     e.preventDefault(); pick(next.id); refs.current[next.id]?.focus();
   };
   return (
     <div className="space-y-5">
-      <PageHeader title="Forms" description={FORMS_TABS.find((t) => t.id === active)!.line} />
+      <PageHeader title="Forms" description={tabs.find((t) => t.id === active)!.line} />
       <div role="tablist" aria-label="Forms" onKeyDown={onKey} className="-mx-1 flex gap-1 overflow-x-auto border-b border-line px-1" data-testid="forms-tabs">
-        {FORMS_TABS.map((t) => (
+        {tabs.map((t) => (
           <button key={t.id} ref={(el) => { refs.current[t.id] = el; }} type="button" role="tab" id={`forms-tab-${t.id}`} aria-selected={active === t.id} aria-controls={`forms-panel-${t.id}`} tabIndex={active === t.id ? 0 : -1}
             onClick={() => pick(t.id)}
             className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-[14px] font-medium outline-none transition-colors duration-150 focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-11 ${active === t.id ? "border-brand text-fg" : "border-transparent text-muted hover:text-fg"}`}>{t.label}</button>
         ))}
       </div>
       <div role="tabpanel" id={`forms-panel-${active}`} aria-labelledby={`forms-tab-${active}`}>
-        {active === "boards" ? <BoardsTab /> : active === "review" ? <ReviewQueueTab /> : <FormsList plus kind={active === "calls" ? "calls" : "forms"} />}
+        {active === "reports" ? <ReportsTab /> : active === "boards" ? <BoardsTab /> : active === "review" ? <ReviewQueueTab /> : <FormsList plus kind={active === "calls" ? "calls" : "forms"} />}
       </div>
     </div>
   );

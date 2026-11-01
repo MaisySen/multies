@@ -59,6 +59,7 @@ export const SETTINGS_GROUPS: { label: string; items: Pane[] }[] = [
   // P1 layout: one sidebar. The pages the old Workspace sidebar listed beside Settings are here now.
   { label: "Admin", items: [
     { to: "/app/activity", label: "Activity", icon: IconActivity, tint: "#8E8E93", keywords: "log audit history changes messages who did what" },
+    { to: "/app/settings/data-requests", label: "Data requests", icon: IconShieldCheck, tint: "#30B0C7", keywords: "privacy export delete my data erasure access request personal information" }, // R112
     { to: "/app/admin", label: "Operator", icon: IconShield, tint: "#1C1C1E", keywords: "operator platform admin moderation reports" },
   ] },
 ];
@@ -68,8 +69,8 @@ export function paneFor(path: string): Pane {
   return ALL_PANES.find((p) => p.to !== "/app/settings" && (clean === p.to || clean.startsWith(p.to + "/"))) ?? ALL_PANES[0];
 }
 /** R59: panes tied to a server switch (chat channels, CHAT_CHANNELS) are listed only while it is on. */
-export function panesFor(config: { chatChannels?: boolean; mailArchive?: boolean } | undefined): (p: Pane) => boolean {
-  return (p) => (p.to !== "/app/settings/channels" || !!config?.chatChannels) && (p.to !== "/app/settings/mail-archive" || !!config?.mailArchive);
+export function panesFor(config: { chatChannels?: boolean; mailArchive?: boolean; reporting?: boolean } | undefined): (p: Pane) => boolean {
+  return (p) => (p.to !== "/app/settings/channels" || !!config?.chatChannels) && (p.to !== "/app/settings/mail-archive" || !!config?.mailArchive) && (p.to !== "/app/settings/data-requests" || !!config?.reporting);
 }
 export function matchPanes(q: string): Pane[] {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);

@@ -38,7 +38,7 @@ const noStore = (c: Context<AppEnv>) => { for (const [k, v] of Object.entries(PR
 /** Reads a JSON body, or a multipart body with a "data" JSON part and any number of "files" parts. */
 async function readWithFiles<T extends z.ZodTypeAny>(c: Context<AppEnv>, schema: T): Promise<{ body: z.infer<T>; files: A.UploadFile[] }> {
   const type = c.req.header("content-type") ?? "";
-  if (!type.startsWith("multipart/form-data")) return { body: await parseBody(c, schema), files: [] };
+  if (!type.startsWith("multipart/form-data")) return { body: (await parseBody(c, schema)) as z.infer<T>, files: [] };
   const form = await c.req.parseBody({ all: true });
   let raw: unknown = {};
   try { raw = JSON.parse(typeof form.data === "string" ? form.data : "{}"); } catch { throw new HttpError(422, "validation_failed", "The form could not be read."); }
@@ -53,14 +53,14 @@ async function readWithFiles<T extends z.ZodTypeAny>(c: Context<AppEnv>, schema:
   return { body: parsed.data, files };
 }
 
-function fileResponse(c: Context<AppEnv>, f: { name: string; size: number; stream: ReadableStream<Uint8Array> }) {
+function fileResponse(f: { name: string; size: number; stream: ReadableStream<Uint8Array> }) {
   return new Response(f.stream, { headers: {
     "content-type": "application/octet-stream", "content-length": String(f.size), "x-content-type-options": "nosniff", ...PRIVATE,
     "content-disposition": `attachment; filename="${f.name.replace(/["\\\r\n]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(f.name)}`,
   } });
 }
 function zipResponse(z: { zip: Uint8Array; name: string }) {
-  return new Response(z.zip, { headers: { "content-type": "application/zip", "content-disposition": `attachment; filename="${z.name}"`, "x-content-type-options": "nosniff", ...PRIVATE } });
+  return new Response(z.zip as unknown as BodyInit, { headers: { "content-type": "application/zip", "content-disposition": `attachment; filename="${z.name}"`, "x-content-type-options": "nosniff", ...PRIVATE } });
 }
 
 export function reportPublicRoutes() {
@@ -85,7 +85,7 @@ export function reportPublicRoutes() {
     })
     .post("/:pid/file", async (c) => {
       const b = await parseBody(c, Reader.extend({ fileId: z.string().max(80) }).strict());
-      return fileResponse(c, await A.reporterFile(c.var.deps, Pid.parse(c.req.param("pid")), b.caseNo, b.token, b.fileId));
+      return fileResponse(await A.reporterFile(c.var.deps, Pid.parse(c.req.param("pid")), b.caseNo, b.token, b.fileId));
     });
 }
 
@@ -127,7 +127,7 @@ export function reportingRoutes() {
     .patch("/cases/:id", async (c) => c.json({ case: await A.updateCase(c.var.deps, actor(c), c.req.param("id"), await parseBody(c, z.object({
       status: z.enum(REPORT_STATUSES).optional(), handlerId: z.string().max(80).nullable().optional(), outcome: z.string().max(4000).optional(),
     }).strict())) }))
-    .get("/cases/:id/files/:fileId", async (c) => fileResponse(c, await A.handlerFile(c.var.deps, actor(c), c.req.param("id"), c.req.param("fileId"))));
+    .get("/cases/:id/files/:fileId", async (c) => fileResponse(await A.handlerFile(c.var.deps, actor(c), c.req.param("id"), c.req.param("fileId"))));
 }
 
 export function dataRequestRoutes() {

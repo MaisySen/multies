@@ -183,6 +183,12 @@ const brandingSettings = () => import("./pages/app/branding-settings"); // R77
 const BrandingSettings = lazyPage(() => brandingSettings(), "BrandingSettings");
 const AppearanceSettings = lazyPage(() => brandingSettings(), "AppearanceSettings");
 const MailArchiveSettings = lazyPage(() => import("./pages/app/mail-archive-settings"), "MailArchiveSettings"); // R111
+const DataRequestsSettings = lazyPage(() => import("./pages/app/data-requests-r112"), "DataRequestsSettings"); // R112
+const reportPages = () => import("./pages/app/work/reports-r112/public-pages"); // R112
+const PublicReportPage = lazyPage(() => reportPages(), "PublicReportPage");
+const PublicDataRequestPage = lazyPage(() => reportPages(), "PublicDataRequestPage");
+const DataRequestVerifyPage = lazyPage(() => reportPages(), "DataRequestVerifyPage");
+const DataRequestDownloadPage = lazyPage(() => reportPages(), "DataRequestDownloadPage");
 const CalendarSettings = lazyPage(() => import("./pages/app/calendar-settings"), "CalendarSettings");
 const AppsSettings = lazyPage(() => import("./pages/app/apps-settings"), "AppsSettings"); // R80C: Connections hub
 const social = () => import("./pages/app/social"); // P1 layout: Social, out of Settings
@@ -375,6 +381,7 @@ export const router = createBrowserRouter([
           { path: "connections", element: <Moved to="/app/settings/apps/mail" /> }, // R82F (MB-279)
           { path: "mail-apps", element: page(<MailAppsSettings />) },
           { path: "mail-archive", element: page(<MailArchiveSettings />) }, // R111: archive and retention (MAIL_ARCHIVE_R111)
+          { path: "data-requests", element: page(<DataRequestsSettings />) }, // R112: data requests (REPORTING_R112)
           { path: "developers", element: page(<DeveloperSettings />) },
           { path: "sign-up-emails", element: page(<AuthEmailSettings />) }, // R27
           { path: "import", element: page(<ImportSettings />) },
@@ -386,6 +393,11 @@ export const router = createBrowserRouter([
   { path: "/f/:slug", element: publicPage(<PublicFormPage />), errorElement: <RouteError /> },
   { path: "/f/:slug/embed", element: publicPage(<PublicFormPage />), errorElement: <RouteError /> }, // R93: inside the website bubble
   { path: "/fb/:slug", element: publicPage(<PublicBoardPage />), errorElement: <RouteError /> }, // R93: public feedback board
+  // R112: anonymous reports and data requests (the verify and download pages come before the page with a workspace id).
+  { path: "/report/:slug", element: publicPage(<PublicReportPage />), errorElement: <RouteError /> },
+  { path: "/data-request/verify/:token", element: publicPage(<DataRequestVerifyPage />), errorElement: <RouteError /> },
+  { path: "/data-request/download/:token", element: publicPage(<DataRequestDownloadPage />), errorElement: <RouteError /> },
+  { path: "/data-request/:slug", element: publicPage(<PublicDataRequestPage />), errorElement: <RouteError /> },
   { path: "/m/:token", element: publicPage(<GuestMeetingPage />), errorElement: <RouteError /> },
   { path: "/book/poll/:token", element: publicPage(<PollVotePage />), errorElement: <RouteError /> },
   { path: "/book/event/:slug", element: publicPage(<EventRsvpPage />), errorElement: <RouteError /> },
