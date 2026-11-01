@@ -143,7 +143,7 @@ export function ImageLinksPage() {
               {state.error && <p role="alert" className="px-4 text-center text-[13px] text-bad" data-testid="image-error">{state.error}</p>}
             </div>
             <div className="sticky bottom-2 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface/95 p-2 backdrop-blur">
-              <code className="min-w-0 flex-1 truncate rounded-lg bg-fill/60 px-2 py-1.5 font-mono text-[12.5px]" data-testid="image-link">{needsBoth ? "Type both sizes" : link}</code>
+              <code className="w-full min-w-0 truncate rounded-lg bg-fill/60 px-2 py-1.5 font-mono text-[12.5px]" data-testid="image-link">{needsBoth ? "Type both sizes" : link}</code>
               <CopyButton value={full} label="Copy link" />
               <a href={link} download className={`inline-flex h-9 items-center rounded-lg border border-line px-3 text-[13px] font-medium hover:bg-hover ${ring}`} aria-disabled={needsBoth} data-testid="image-download">Download</a>
             </div>
