@@ -22,7 +22,7 @@ async function demo(page: Page) {
 }
 async function axe(page: Page, label: string) {
   await page.waitForTimeout(400); // let colour transitions (theme switch) settle so axe reads the final colours
-  const { violations } = await new AxeBuilder({ page }).exclude(".maplibregl-canvas").analyze();
+  const { violations } = await new AxeBuilder({ page }).exclude(".maplibregl-canvas").exclude("[data-sonner-toaster]") /* toasts fade in and out; mid fade colours are not real */.analyze();
   const bad = violations.filter((v) => v.impact === "serious" || v.impact === "critical");
   expect(bad.map((v) => `${label}: ${v.id} ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(", ")}`)).toEqual([]);
 }
@@ -88,9 +88,15 @@ test("contact address: pick a suggestion, see the map and directions; no match s
   // No match: kept as typed, without a pin.
   await card.getByRole("button", { name: "Change address" }).click();
   await box.fill("Back paddock, nowhere road");
-  await expect(page.getByText("No matches. Check the spelling, or keep the address as typed.")).toBeVisible({ timeout: 10_000 });
-  await box.press("Escape");
-  await card.getByTestId("address-save").click();
+  await expect(card.getByTestId("address-status")).toHaveText("No matches. Check the spelling, or keep the address as typed.", { timeout: 10_000 });
+  // No empty listbox and no popup over Save (verifier v8 addendum: aria-required-children, click intercepted).
+  await expect(page.getByRole("listbox", { name: "Matching addresses" })).toHaveCount(0);
+  await expect(box).toHaveAttribute("aria-expanded", "false");
+  await axe(page, "address search with no matches");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await axe(page, "address search with no matches, dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await card.getByTestId("address-save").click({ timeout: 5_000 });
   await expect(page.getByText("Address saved without a map pin")).toBeVisible();
   await expect(card).toContainText("No map pin for this address yet");
   await expect(card.getByTestId("directions-google")).toHaveAttribute("href", /destination=Back%20paddock/);

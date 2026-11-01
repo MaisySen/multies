@@ -101,33 +101,35 @@ export function AddressField({ initial = "", onChange, label, autoFocus, placeho
     }
   };
   activeAddress.current = active >= 0 && results[active] ? results[active].address : null;
-  const showList = open && (state !== "idle" || results.length > 0);
+  const showList = open && results.length > 0;
+  // Searching, no matches, busy and errors are a status line under the box (not inside the listbox, and never a popup
+  // over the Save button); the popup only ever holds real suggestions.
+  const status = !open ? "" : state === "loading" && !results.length ? "Searching" : state === "none" ? "No matches. Check the spelling, or keep the address as typed."
+    : state === "busy" ? "Search is busy for a moment. Press Enter to try again." : state === "error" ? message : "";
   return (
     <div className="relative">
       <label htmlFor={id} className="sr-only">{label}</label>
       <Input id={id} role="combobox" aria-expanded={showList} aria-controls={listId} aria-autocomplete="list" autoComplete="off" autoFocus={autoFocus}
-        aria-activedescendant={showList && active >= 0 ? `${id}-o${active}` : undefined}
+        aria-activedescendant={showList && active >= 0 ? `${id}-o${active}` : undefined} aria-describedby={`${id}-status`}
         value={text} onChange={(e) => type(e.target.value)} onKeyDown={onKey} onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={placeholder} maxLength={300} data-testid="address-input" />
       {showList && (
         <div className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden rounded-xl border border-line bg-elevated shadow-pop motion-safe:animate-[fade-in_150ms_ease-out]">
           <ul id={listId} role="listbox" aria-label="Matching addresses" className="max-h-72 overflow-y-auto py-1">
-            {state === "loading" && !results.length && <li className="px-3 py-2 text-[13px] text-muted" role="presentation">Searching</li>}
             {results.map((r, i) => (
               <li key={`${r.address}${i}`} id={`${id}-o${i}`} role="option" aria-selected={i === active}
-                onMouseDown={(e) => { e.preventDefault(); pick(r); }} onMouseEnter={() => setActive(i)}
+                onMouseDown={(e) => { e.preventDefault(); pick(r); }} onMouseMove={() => { if (active !== i) setActive(i); }}
                 className={cn("flex cursor-pointer items-start gap-2 px-3 py-2 text-[13px]", i === active && "bg-hover")}>
                 <IconMapPin className="mt-0.5 h-4 w-4 shrink-0 text-subtle" />
                 <span className="min-w-0"><span className="block truncate font-medium text-fg">{r.label}</span><span className="block truncate text-muted">{r.address}</span></span>
               </li>
             ))}
-            {state === "none" && <li className="px-3 py-2 text-[13px] text-muted" role="presentation">No matches. Check the spelling, or keep the address as typed.</li>}
-            {state === "busy" && <li className="px-3 py-2 text-[13px] text-muted" role="presentation">Search is busy for a moment. Press Enter to try again.</li>}
-            {state === "error" && <li className="px-3 py-2 text-[13px] text-bad" role="presentation">{message}</li>}
           </ul>
           <p className="border-t border-line px-3 py-1.5 text-[11.5px] text-subtle">{MAP_ATTRIBUTION}</p>
         </div>
       )}
+      <p id={`${id}-status`} role="status" aria-live="polite" data-testid="address-status"
+        className={cn("text-[12.5px]", status ? "mt-1.5" : "sr-only", state === "error" ? "text-bad" : "text-muted")}>{status}</p>
     </div>
   );
 }
