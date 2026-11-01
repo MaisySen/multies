@@ -493,6 +493,9 @@ function Grid(props: GridProps) {
   const [act, setAct] = useState<{ r: number; c: number } | null>(null);
   const [anchor, setAnchor] = useState<{ r: number; c: number } | null>(null);
   const [edit, setEdit] = useState<{ value: string } | null>(null);
+  // Keys typed before the editor has rendered append here, so a quick "Acme" never loses its first letter.
+  const editRef = useRef<string | null>(null);
+  useEffect(() => { if (!edit) editRef.current = null; }, [edit]);
   const [err, setErr] = useState("");
   const wrap = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<{ fid: string; x: number; w: number } | null>(null);
@@ -510,7 +513,7 @@ function Grid(props: GridProps) {
   const sel = act ? (anchor ? { r0: Math.min(act.r, anchor.r), r1: Math.max(act.r, anchor.r), c0: Math.min(act.c, anchor.c), c1: Math.max(act.c, anchor.c) } : { r0: act.r, r1: act.r, c0: act.c, c1: act.c }) : null;
   const inSel = (r: number, c: number) => !!sel && r >= sel.r0 && r <= sel.r1 && c >= sel.c0 && c <= sel.c1;
   const typable = (f: TField) => canEdit && !isComputed(f.type) && !["link", "attachment", "multiselect", "longtext", "select", "checkbox"].includes(f.type);
-  const focusGrid = () => wrap.current?.focus({ preventScroll: true });
+  const focusGrid = () => { const a = document.activeElement; if (a instanceof HTMLInputElement && wrap.current?.contains(a)) return; wrap.current?.focus({ preventScroll: true }); };
   const commit = (move?: "down" | "right") => {
     if (!act || !edit) return;
     const f = fields[act.c], r = rows[act.r];
@@ -519,7 +522,7 @@ function Grid(props: GridProps) {
       if (!res.ok) { setErr(res.error); return; }
       if (JSON.stringify(res.value ?? null) !== JSON.stringify(r.values[f.id] ?? null)) props.onSave([{ row: r, cells: { [f.id]: res.value } }]);
     }
-    setErr(""); setEdit(null); setAnchor(null);
+    setErr(""); editRef.current = null; setEdit(null); setAnchor(null);
     if (move === "down") setAct({ r: Math.min(rows.length - 1, act.r + 1), c: act.c });
     if (move === "right") setAct({ r: act.r, c: Math.min(fields.length - 1, act.c + 1) });
     setTimeout(focusGrid, 0);
@@ -530,9 +533,19 @@ function Grid(props: GridProps) {
     if (!f || !r) return;
     if (f.type === "checkbox" && canEdit) { props.onSave([{ row: r, cells: { [f.id]: !(r.values[f.id] === true) } }]); return; }
     if (!typable(f)) { props.onOpen(r.id); return; }
-    setErr(""); setEdit({ value: initial ?? rawForEdit(f, r) });
+    const value = initial ?? rawForEdit(f, r);
+    editRef.current = value;
+    setErr(""); setEdit({ value });
   };
   const onKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (editRef.current !== null && !edit && e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      // The editor is opening but has not rendered yet: keep the key instead of starting over.
+      e.preventDefault();
+      const value = editRef.current + e.key;
+      editRef.current = value;
+      setEdit({ value });
+      return;
+    }
     if (edit) return;
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key.toLowerCase() === "z") { e.preventDefault(); if (canEdit) props.onUndo(); return; }
@@ -656,8 +669,8 @@ function Grid(props: GridProps) {
                       onDoubleClick={() => startEdit()}>
                       {active && edit ? (
                         <input autoFocus aria-label={`Edit ${f.name}`} className="absolute inset-0 z-20 w-full bg-surface px-2 text-[13px] outline outline-2 outline-brand" value={edit.value}
-                          onChange={(e) => setEdit({ value: e.target.value })}
-                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit("down"); } else if (e.key === "Tab") { e.preventDefault(); commit("right"); } else if (e.key === "Escape") { e.preventDefault(); setEdit(null); setErr(""); setTimeout(focusGrid, 0); } }}
+                          onChange={(e) => { editRef.current = e.target.value; setEdit({ value: e.target.value }); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit("down"); } else if (e.key === "Tab") { e.preventDefault(); commit("right"); } else if (e.key === "Escape") { e.preventDefault(); editRef.current = null; setEdit(null); setErr(""); setTimeout(focusGrid, 0); } }}
                           onBlur={() => commit()} />
                       ) : f.type === "checkbox" ? (
                         <input type="checkbox" checked={r.values[f.id] === true} disabled={!canEdit} aria-label={`${f.name}, row ${ri + 1}`} tabIndex={-1} onChange={() => props.onSave([{ row: r, cells: { [f.id]: !(r.values[f.id] === true) } }])} />
