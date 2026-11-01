@@ -57,9 +57,7 @@ describe("R117 planner and composer helpers", () => {
   });
   it("what's new stays at 14 with the planner entry near the top", () => {
     expect(WHATS_NEW.length).toBeLessThanOrEqual(14);
-    // R97: newer rounds add their entry above; the planner entry stays in the list, without dashes.
-    const planner = WHATS_NEW.find((e) => e.id === "2026-10-31-social-planner-library");
-    expect(planner).toBeTruthy();
-    expect(planner!.body).not.toMatch(/[\u2013\u2014-]/);
+    // R97: newer rounds add their entry above. R101: the planner entry aged out of the list at 14 (it stays in CHANGELOG.md); every entry stays without dashes.
+    for (const e of WHATS_NEW) expect(e.body).not.toMatch(/[\u2013\u2014-]/);
   });
 });

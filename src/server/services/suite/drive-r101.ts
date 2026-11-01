@@ -10,6 +10,7 @@
  * table drive_blobs made on first use, base64 chunks of DRIVE_CHUNK bytes), else the main database (self hosted
  * and tests only). Lists are bounded; nothing here runs on a hot read route.
  */
+import { inIds } from "../../lib/sql-chunks";
 import { and, asc, desc, eq, inArray, isNull, isNotNull, lt, or, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import type { DB } from "../../db";
@@ -120,7 +121,7 @@ async function ancestors(db: DB, orgId: string, parentId: string | null): Promis
       UNION ALL SELECT d.id, d.parent_id, anc.depth + 1 FROM drive_items d JOIN anc ON d.id = anc.parent_id WHERE d.org_id = ${orgId} AND anc.depth < ${L.depth}
     ) SELECT id, depth FROM anc`);
   if (!rows.length) return [];
-  const full = await db.select().from(driveItems).where(inArray(driveItems.id, rows.map((r) => r.id))).all();
+  const full = await db.select().from(driveItems).where(inIds(driveItems.id, rows.map((r) => r.id))).all();
   const depth = new Map(rows.map((r) => [r.id, Number(r.depth)]));
   return full.sort((a, b) => (depth.get(a.id) ?? 0) - (depth.get(b.id) ?? 0));
 }
@@ -161,7 +162,7 @@ async function loadItem(db: DB, a: Actor, id: string, opts: { trashed?: boolean 
 async function names(db: DB, ids: string[]) {
   const uniq = [...new Set(ids)].slice(0, 90);
   if (!uniq.length) return new Map<string, string>();
-  const rows = await db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, uniq)).all();
+  const rows = await db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inIds(users.id, uniq)).all();
   return new Map(rows.map((r) => [r.id, r.name || r.email || "Someone"]));
 }
 
@@ -169,8 +170,8 @@ async function shape(db: DB, a: Actor, rows: Row[], accessFor: (r: Row) => Acces
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id).slice(0, 90);
   const [stars, shared] = await Promise.all([
-    db.select({ itemId: driveStars.itemId }).from(driveStars).where(and(eq(driveStars.userId, a.userId), inArray(driveStars.itemId, ids))).all(),
-    db.select({ itemId: driveShares.itemId }).from(driveShares).where(and(eq(driveShares.orgId, a.orgId), inArray(driveShares.itemId, ids))).all(),
+    db.select({ itemId: driveStars.itemId }).from(driveStars).where(and(eq(driveStars.userId, a.userId), inIds(driveStars.itemId, ids))).all(),
+    db.select({ itemId: driveShares.itemId }).from(driveShares).where(and(eq(driveShares.orgId, a.orgId), inIds(driveShares.itemId, ids))).all(),
   ]);
   const st = new Set(stars.map((s) => s.itemId)), sh = new Set(shared.map((s) => s.itemId));
   const out: DriveItem[] = [];
@@ -235,7 +236,7 @@ export async function listDrive(deps: Deps, a: Actor, view: DriveView, opts: { f
   if (view === "shared") {
     const sh = await db.select({ itemId: driveShares.itemId }).from(driveShares).where(and(eq(driveShares.orgId, a.orgId), eq(driveShares.userId, a.userId))).limit(500).all();
     const ids = sh.map((s) => s.itemId).slice(0, 90);
-    const rows = ids.length ? await db.select().from(driveItems).where(and(eq(driveItems.orgId, a.orgId), inArray(driveItems.id, ids), live, nameLike)).orderBy(...order).all() : [];
+    const rows = ids.length ? await db.select().from(driveItems).where(and(eq(driveItems.orgId, a.orgId), inIds(driveItems.id, ids), live, nameLike)).orderBy(...order).all() : [];
     const owners = await names(db, rows.map((r) => r.ownerId ?? ""));
     return { view, folder: null, path: [{ id: null, name: VIEW_LABEL.shared }], canAdd: false,
       items: await shape(db, a, rows, (r) => accessOf(db, a, r, []), (r) => `From ${owners.get(r.ownerId ?? "") ?? "a teammate"}`), next: null };
@@ -272,7 +273,7 @@ export async function listDrive(deps: Deps, a: Actor, view: DriveView, opts: { f
 async function folderNames(db: DB, orgId: string, ids: (string | null)[]) {
   const uniq = [...new Set(ids.filter((x): x is string => !!x))].slice(0, 90);
   if (!uniq.length) return new Map<string, string>();
-  const rows = await db.select({ id: driveItems.id, name: driveItems.name }).from(driveItems).where(and(eq(driveItems.orgId, orgId), inArray(driveItems.id, uniq))).all();
+  const rows = await db.select({ id: driveItems.id, name: driveItems.name }).from(driveItems).where(and(eq(driveItems.orgId, orgId), inIds(driveItems.id, uniq))).all();
   return new Map(rows.map((r) => [r.id, r.name]));
 }
 
@@ -396,7 +397,7 @@ async function pruneVersions(deps: Deps, orgId: string, itemId: string) {
   const all = await deps.db.select().from(driveVersions).where(eq(driveVersions.itemId, itemId)).orderBy(desc(driveVersions.number)).all();
   const old = all.slice(L.versions);
   if (!old.length) return;
-  await deps.db.delete(driveVersions).where(inArray(driveVersions.id, old.map((v) => v.id)));
+  await deps.db.delete(driveVersions).where(inIds(driveVersions.id, old.map((v) => v.id)));
   await dropUnusedBlobs(deps, orgId, old);
 }
 
@@ -404,7 +405,7 @@ async function dropUnusedBlobs(deps: Deps, orgId: string, gone: { blobKey: strin
   const keys = [...new Map(gone.map((g) => [g.blobKey, g])).values()];
   for (let i = 0; i < keys.length; i += 80) {
     const slice = keys.slice(i, i + 80);
-    const still = new Set((await deps.db.select({ k: driveVersions.blobKey }).from(driveVersions).where(and(eq(driveVersions.orgId, orgId), inArray(driveVersions.blobKey, slice.map((s) => s.blobKey)))).all()).map((r) => r.k));
+    const still = new Set((await deps.db.select({ k: driveVersions.blobKey }).from(driveVersions).where(and(eq(driveVersions.orgId, orgId), inIds(driveVersions.blobKey, slice.map((s) => s.blobKey)))).all()).map((r) => r.k));
     for (const s of slice) if (!still.has(s.blobKey)) await blobsFor(deps).delete(s.blobKey, s.parts);
   }
 }
@@ -566,12 +567,12 @@ async function purge(deps: Deps, orgId: string, rootId: string) {
   const ids = rows.map((r) => r.id);
   for (let i = 0; i < ids.length; i += 80) {
     const slice = ids.slice(i, i + 80);
-    const vs = await db.select({ id: driveVersions.id, blobKey: driveVersions.blobKey, parts: driveVersions.parts }).from(driveVersions).where(inArray(driveVersions.itemId, slice)).all();
-    if (vs.length) await db.delete(driveVersions).where(inArray(driveVersions.itemId, slice));
+    const vs = await db.select({ id: driveVersions.id, blobKey: driveVersions.blobKey, parts: driveVersions.parts }).from(driveVersions).where(inIds(driveVersions.itemId, slice)).all();
+    if (vs.length) await db.delete(driveVersions).where(inIds(driveVersions.itemId, slice));
     await dropUnusedBlobs(deps, orgId, vs);
-    await db.delete(driveStars).where(inArray(driveStars.itemId, slice));
-    await db.delete(driveShares).where(inArray(driveShares.itemId, slice));
-    await db.delete(driveItems).where(inArray(driveItems.id, slice));
+    await db.delete(driveStars).where(inIds(driveStars.itemId, slice));
+    await db.delete(driveShares).where(inIds(driveShares.itemId, slice));
+    await db.delete(driveItems).where(inIds(driveItems.id, slice));
   }
 }
 
