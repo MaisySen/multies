@@ -1636,5 +1636,27 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `vault_audit` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`user_name` text DEFAULT '' NOT NULL,\n\t`folder_id` text,\n\t`item_id` text,\n\t`action` text NOT NULL,\n\t`field` text,\n\t`at` integer NOT NULL\n);",
       "CREATE INDEX `vault_audit_org_at_idx` ON `vault_audit` (`org_id`, `at`);"
     ]
+  },
+  {
+    "name": "0147_r112_reporting",
+    "statements": [
+      "-- R112 (Nov 2): Anonymous reporting channel and data requests (REPORTING_R112). Additive only.\n-- An anonymous report keeps no IP address, user agent or cookie: only what the reporter types, the times the deadlines need,\n-- and a slow hash of the passphrase. Data request log rows hold who, when, what kinds and counts, never the data itself.\nCREATE TABLE IF NOT EXISTS `report_channels` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`public_id` text NOT NULL,\n\t`enabled` integer DEFAULT 0 NOT NULL,\n\t`requests_enabled` integer DEFAULT 0 NOT NULL,\n\t`intro` text DEFAULT '' NOT NULL,\n\t`default_handler_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `report_channels_public_uq` ON `report_channels` (`public_id`);",
+      "CREATE TABLE IF NOT EXISTS `report_cases` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`case_no` text NOT NULL,\n\t`pass_hash` text NOT NULL,\n\t`status` text DEFAULT 'new' NOT NULL,\n\t`handler_id` text,\n\t`summary` text DEFAULT '' NOT NULL,\n\t`outcome` text DEFAULT '' NOT NULL,\n\t`ack_due_at` integer NOT NULL,\n\t`outcome_due_at` integer NOT NULL,\n\t`acknowledged_at` integer,\n\t`closed_at` integer,\n\t`fail_count` integer DEFAULT 0 NOT NULL,\n\t`locked_until` integer,\n\t`reader_hash` text,\n\t`reader_expires_at` integer,\n\t`last_reporter_at` integer,\n\t`last_handler_at` integer,\n\t`handler_seen_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `report_cases_no_uq` ON `report_cases` (`case_no`);",
+      "CREATE INDEX IF NOT EXISTS `report_cases_org_status_idx` ON `report_cases` (`org_id`,`status`,`created_at`);",
+      "CREATE INDEX IF NOT EXISTS `report_cases_org_handler_idx` ON `report_cases` (`org_id`,`handler_id`);",
+      "CREATE TABLE IF NOT EXISTS `report_messages` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`case_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`author` text NOT NULL,\n\t`user_id` text,\n\t`internal` integer DEFAULT 0 NOT NULL,\n\t`body` text DEFAULT '' NOT NULL,\n\t`files` text DEFAULT '[]' NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`case_id`) REFERENCES `report_cases`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX IF NOT EXISTS `report_messages_case_idx` ON `report_messages` (`case_id`,`created_at`);",
+      "CREATE TABLE IF NOT EXISTS `report_files` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`case_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`blob_key` text NOT NULL,\n\t`parts` integer DEFAULT 1 NOT NULL,\n\t`name` text NOT NULL,\n\t`content_type` text NOT NULL,\n\t`size` integer NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`case_id`) REFERENCES `report_cases`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX IF NOT EXISTS `report_files_case_idx` ON `report_files` (`case_id`);",
+      "CREATE TABLE IF NOT EXISTS `report_day` (\n\t`org_id` text NOT NULL,\n\t`day` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`n` integer DEFAULT 0 NOT NULL,\n\tPRIMARY KEY(`org_id`, `kind`)\n);",
+      "CREATE TABLE IF NOT EXISTS `data_requests` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`email` text NOT NULL,\n\t`type` text NOT NULL,\n\t`status` text DEFAULT 'unverified' NOT NULL,\n\t`source` text NOT NULL,\n\t`created_by` text,\n\t`verify_hash` text,\n\t`verify_expires_at` integer,\n\t`verified_at` integer,\n\t`due_at` integer NOT NULL,\n\t`download_hash` text,\n\t`download_expires_at` integer,\n\t`done_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX IF NOT EXISTS `data_requests_org_idx` ON `data_requests` (`org_id`,`created_at`);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `data_requests_verify_uq` ON `data_requests` (`verify_hash`);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `data_requests_download_uq` ON `data_requests` (`download_hash`);",
+      "CREATE TABLE IF NOT EXISTS `data_request_log` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`request_id` text,\n\t`actor_user_id` text,\n\t`actor_label` text NOT NULL,\n\t`action` text NOT NULL,\n\t`kinds` text DEFAULT '[]' NOT NULL,\n\t`counts` text DEFAULT '{}' NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX IF NOT EXISTS `data_request_log_org_idx` ON `data_request_log` (`org_id`,`created_at`);"
+    ]
   }
 ];

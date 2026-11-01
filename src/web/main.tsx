@@ -34,11 +34,15 @@ prefetchOnIntent();
 // after the router has run (one less round trip in a row on a slow phone network). Same module as the router's.
 if (window.location.pathname.startsWith("/app")) void import("./layouts/app").catch(() => undefined);
 
+// R112: the anonymous report and data request pages start no error tracking, no analytics and no offline worker,
+// so nothing about the person's browser leaves the page (the server sends a policy that blocks those hosts too).
+const privatePage = /^\/(report|data-request)(\/|$)/.test(window.location.pathname);
+
 // R34: after the page has loaded and gone idle, so error tracking never delays it; earlier errors are queued.
-scheduleSentry();
+if (!privatePage) scheduleSentry();
 
 // R32: offline app shell and browser notifications (production builds only; see lib/sw-client.ts).
-registerServiceWorker({ navigate: (url) => void router.navigate(url) });
+if (!privatePage) registerServiceWorker({ navigate: (url) => void router.navigate(url) });
 
 // Per-page title, description and social tags, on first load and every navigation.
 applyMeta(window.location.pathname);
@@ -100,8 +104,8 @@ const render = () => { if (prerenderedAuth) delete rootEl.dataset.prerendered; c
         <RouterProvider router={router} />
       </ErrorBoundary>
       <ThemedToaster />
-      <AnalyticsBeacon subscribe={beaconRoutes} />
-      <ProductAnalytics subscribe={beaconRoutes} />
+      {!privatePage && <AnalyticsBeacon subscribe={beaconRoutes} />}
+      {!privatePage && <ProductAnalytics subscribe={beaconRoutes} />}
     </QueryClientProvider>
   </StrictMode>,
 ); };
@@ -126,8 +130,8 @@ const hydrate = () => {
     <StrictMode>
       <QueryClientProvider client={queryClient}>
         <ThemedToaster />
-        <AnalyticsBeacon subscribe={beaconRoutes} />
-        <ProductAnalytics subscribe={beaconRoutes} />
+        {!privatePage && <AnalyticsBeacon subscribe={beaconRoutes} />}
+        {!privatePage && <ProductAnalytics subscribe={beaconRoutes} />}
       </QueryClientProvider>
     </StrictMode>,
   );

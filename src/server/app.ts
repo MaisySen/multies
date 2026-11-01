@@ -9,7 +9,7 @@ import { isD1LimitError, READ_ONLY_BODY } from "./lib/d1-limit";
 import { busyBody, d1BusyKind } from "./lib/d1-busy";
 import { healthView, noteD1LimitHit, readsView, writeBudget } from "./services/write-budget";
 import { deferredCounts } from "./services/write-priority";
-import { API_CSP, CAMPAIGN_PUBLIC_CSP, EMBED_FORM_PATH, appCsp, docsCsp, frameableCsp, isHttps, securityHeaders } from "./lib/security-headers";
+import { API_CSP, CAMPAIGN_PUBLIC_CSP, EMBED_FORM_PATH, PRIVATE_PAGE_PATH, appCsp, docsCsp, frameableCsp, isHttps, securityHeaders } from "./lib/security-headers";
 import { installCspReport } from "./routes/csp-report-r30";
 import type { AppEnv, Deps } from "./context";
 import { HttpError } from "./lib/errors";
@@ -46,6 +46,7 @@ import { bioPublicRoutes, linkPublicRoutes, linksRoutes } from "./routes/links";
 import { COMMENTS_JS, COMMENTS_JS_HEADERS, sitePublicRoutes, sitesRoutes } from "./routes/sites"; // R123: Sites
 import { bookingPlusRoutes, bookingPublicRoutes } from "./routes/booking-plus"; // R92
 import { formsPlusRoutes, formsPublicRoutes } from "./routes/forms-plus"; // R93
+import { dataRequestPublicRoutes, dataRequestRoutes, reportPublicRoutes, reportingRoutes } from "./routes/reporting-r112"; // R112
 import { FORMS_EMBED_HEADERS, FORMS_EMBED_JS } from "./routes/forms-embed-script"; // R93
 import { esignPublicRoutes, toolsEsignRoutes } from "./routes/tools-esign"; // Tools P2: e-sign
 import { attachmentIndexRoutes } from "./routes/attachment-index"; // Tools P2: attachment index and smart folders
@@ -222,7 +223,8 @@ export function createApp(deps: Deps) {
     await next();
     c.res.headers.set("x-request-id", requestId);
     // One access line per API request. No query strings (they can carry tokens) and no bodies.
-    if (c.req.path.startsWith("/api/") && c.req.path !== "/api/health") {
+    // R112: anonymous reports write no access line at all (not even the path and status).
+    if (c.req.path.startsWith("/api/") && c.req.path !== "/api/health" && !c.req.path.startsWith("/api/pub/report/")) {
       const status = c.res.status;
       const fields = { method: c.req.method, path: c.req.routePath && c.req.routePath !== "/*" ? c.req.routePath : c.req.path, status, ms: Date.now() - started, user: c.var.auth?.userId, org: c.var.auth?.orgId };
       // R40 deploy 3 (free plan CPU): a successful read writes no access line in production; the platform's own
@@ -241,11 +243,12 @@ export function createApp(deps: Deps) {
   const cspBase = { analytics: true, appUrl: deps.config.appUrl, livekitUrl: deps.config.meetings?.url };
   const pageHeaders = securityHeaders({ csp: appCsp(cspBase), hsts });
   const formPageHeaders = securityHeaders({ csp: appCsp({ ...cspBase, turnstile: true }), hsts });
+  const privatePageHeaders = { ...securityHeaders({ csp: appCsp({ ...cspBase, anonymous: true }), hsts }), "referrer-policy": "no-referrer" }; // R112
   app.use("*", async (c, next) => {
     await next();
     const p = c.req.path;
     if (p === "/widget.js" || p === "/forms-embed.js") return; // R119 chat script, R93 form bubble: load on other sites (own headers)
-    const set = p === "/api/v1/reference" ? docsHeaders : p.startsWith("/api/campaign-public/") ? campaignPublicHeaders : p.startsWith("/api/") || p.startsWith("/.well-known/") ? apiHeaders : p.startsWith("/f/") ? formPageHeaders : pageHeaders;
+    const set = p === "/api/v1/reference" ? docsHeaders : p.startsWith("/api/campaign-public/") ? campaignPublicHeaders : p.startsWith("/api/") || p.startsWith("/.well-known/") ? apiHeaders : p.startsWith("/f/") ? formPageHeaders : PRIVATE_PAGE_PATH.test(p) ? privatePageHeaders : pageHeaders;
     for (const [k, v] of Object.entries(set)) c.res.headers.set(k, v);
     // R93: only the form inside the website bubble may be framed by other sites.
     if (EMBED_FORM_PATH.test(p) && deps.config.formsPlus) { c.res.headers.delete("x-frame-options"); c.res.headers.set("content-security-policy", frameableCsp(formPageHeaders["content-security-policy"])); }
@@ -296,6 +299,8 @@ export function createApp(deps: Deps) {
     if (p.startsWith("/api/auth/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/connections/webhooks/") || p.startsWith("/api/inbound/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/") || isOAuthPublic(p)) return next();
     // Incoming hooks and the booking page limit themselves in memory, so a public call costs no limiter write.
     if (p.startsWith("/api/hooks/in/") || p.startsWith("/api/hooks/agent-runs/") || p.startsWith("/api/book/") || p.startsWith("/api/widget/") || p.startsWith("/api/check/")) return next();
+    // R112: an anonymous report never meets the address based limiter (the case number has its own lock, the page a daily cap).
+    if (p.startsWith("/api/pub/report/")) return next();
     return appLimiter(c, next);
   });
   app.use("/api/*", async (c, next) => {
@@ -460,6 +465,7 @@ export function createApp(deps: Deps) {
       tablesR125: !!deps.config.tablesR125, // R125: tables (vv8k gets 404 from the API and no entry points)
       formsPlus: !!deps.config.formsPlus, // R93: chat forms, webhook, embed, feedback boards, calls for submissions
       homeWidgetsR131: !!deps.config.homeWidgetsR131, // R131: Home widgets
+      reporting: !!deps.config.reporting, // R112: anonymous reporting channel and data requests
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
       chatChannels: deps.config.channels.enabled,
       // R111: mail archive and retention (MAIL_ARCHIVE_R111=on): the Archive and retention pane and Audit log filters.
@@ -523,6 +529,10 @@ export function createApp(deps: Deps) {
   app.route("/api/pub/booking", bookingPublicRoutes()); // R92: public poll, event and ticket API with the spam shield
   app.route("/api/forms-plus", formsPlusRoutes()); // R93: form settings, webhook, feedback boards, calls for submissions
   app.route("/api/pub/forms", formsPublicRoutes()); // R93: public boards, votes and ideas with the spam shield
+  app.route("/api/pub/report", reportPublicRoutes()); // R112: anonymous reports (no IP, user agent, cookie or access log)
+  app.route("/api/pub/data-request", dataRequestPublicRoutes()); // R112: data requests with a one time email link
+  app.route("/api/reporting", reportingRoutes()); // R112: cases for admins and their handlers
+  app.route("/api/data-requests", dataRequestRoutes()); // R112: export or delete a person's data (admins)
   app.get("/forms-embed.js", (c) => (c.var.deps.config.formsPlus ? c.body(FORMS_EMBED_JS, 200, FORMS_EMBED_HEADERS) : c.notFound())); // R93
   app.route("/api/tools/esign", toolsEsignRoutes()); // Tools P2: e-sign
   app.route("/api/tools", toolsRoutes()); // Tools P1: document tools (off unless TOOLS_ENABLED)

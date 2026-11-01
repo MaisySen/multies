@@ -22,7 +22,7 @@ import { ResilientOutbound } from "../server/services/resilience";
 import { getOrCreateStoredSecret, runMaintenanceIfMigrated } from "../server/services/maintenance";
 import { toolsCronPasses } from "../server/services/tools/p2-cron"; // Tools P2
 import type { Deps, RateLimitBinding } from "../server/context";
-import { API_CSP, EMBED_FORM_PATH, appCsp, frameableCsp, isHttps, withSecurityHeaders } from "../server/lib/security-headers";
+import { API_CSP, EMBED_FORM_PATH, PRIVATE_PAGE_PATH, appCsp, frameableCsp, isHttps, withSecurityHeaders } from "../server/lib/security-headers";
 import { jsonLogger } from "../server/lib/logger";
 import { withAuthRequestState } from "../server/lib/request-state";
 import { S3BodyStore } from "../server/services/storage/body-store";
@@ -290,6 +290,7 @@ function binding(v: unknown): RateLimitBinding | undefined {
 
 let pageHeaders: { csp: string; hsts: boolean } | null = null;
 let formPageHeaders: { csp: string; hsts: boolean } | null = null;
+let privatePageHeaders: { csp: string; hsts: boolean } | null = null; // R112
 
 function getReady(env: WorkerEnv) {
   ready ??= boot(env).catch((err) => { ready = null; throw err; });
@@ -480,7 +481,10 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
   pageHeaders ??= { csp: appCsp(cspBase), hsts: isHttps(url.origin) };
   // Public form pages load Cloudflare Turnstile; the rest of the app runs only its own scripts.
   formPageHeaders ??= { csp: appCsp({ ...cspBase, turnstile: true }), hsts: isHttps(url.origin) };
-  let headers = url.pathname.startsWith("/f/") ? formPageHeaders : pageHeaders;
+  // R112: the anonymous report and data request pages: no error reporting or analytics host, no referrer (set below).
+  privatePageHeaders ??= { csp: appCsp({ ...cspBase, anonymous: true }), hsts: isHttps(url.origin) };
+  const privatePage = PRIVATE_PAGE_PATH.test(url.pathname);
+  let headers = url.pathname.startsWith("/f/") ? formPageHeaders : privatePage ? privatePageHeaders : pageHeaders;
   // R93: the form inside the website bubble may be framed by other sites (x-frame-options dropped below).
   const embedForm = EMBED_FORM_PATH.test(url.pathname) && ["true", "1"].includes(envVar(env, "FORMS_PLUS_R93") ?? "");
   if (embedForm) headers = { ...formPageHeaders, csp: frameableCsp(formPageHeaders.csp) };
@@ -504,6 +508,7 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
   // Unknown pages still get the app (it shows page-not-found) but with a real 404 status.
   const res = withSecurityHeaders(new Response(request.method === "HEAD" ? null : shell.body, { status: isKnownPage(url.pathname) ? 200 : 404, headers: shell.headers }), headers);
   if (embedForm) res.headers.delete("x-frame-options"); // R93
+  if (privatePage) res.headers.set("referrer-policy", "no-referrer"); // R112
   res.headers.set("cache-control", htmlCacheControl("no-cache"));
   const prerendered = typeof __MYMAIL_PUBLIC_HTML__ === "object" && !!publicHtmlFor(url.pathname, __MYMAIL_PUBLIC_HTML__);
   return request.method === "HEAD" ? res : withPageMeta(res, url.pathname, prerendered);

@@ -69,6 +69,9 @@ export function metaFor(path: string): PageMeta {
   if (PUBLIC_META[clean]) return PUBLIC_META[clean];
   // R93: public forms and feedback boards are real pages with their own titles, so shared links preview well.
   if (clean.startsWith("/f/")) return { title: "Form | Multies", description: "Answer a short form shared with you on Multies. It takes a minute.", noindex: true };
+  // R112: the anonymous report and data request pages: a plain title that names no person and no case.
+  if (clean.startsWith("/report/")) return { title: "Make a report | Multies", description: "Report a concern safely and anonymously. You get a case number to follow up.", noindex: true };
+  if (clean.startsWith("/data-request/")) return { title: "Data request | Multies", description: "Ask for a copy of your data, or for it to be deleted.", noindex: true };
   if (clean.startsWith("/fb/")) return { title: "Feedback board | Multies", description: "Share ideas, vote on what matters most and follow the roadmap on Multies.", noindex: true };
   if (clean === "/app" || clean.startsWith("/app/") || clean.startsWith("/invite/") || clean.startsWith("/m/") || clean.startsWith("/g/") || clean === "/guest") {
     return { title: "Multies", description: DEFAULT.description, noindex: true };

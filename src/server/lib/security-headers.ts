@@ -26,6 +26,8 @@ export interface CspOptions {
   turnstile?: boolean;
   /** A Cloudflare Web Analytics beacon token is set: allow its script and its reporting host. */
   analytics?: boolean;
+  /** R112: the anonymous report pages: no error reporting host and no analytics host may be reached. */
+  anonymous?: boolean;
   /** The app's own origin (APP_URL): its ws/wss form is listed for the collab and chat sockets. */
   appUrl?: string;
   /** LIVEKIT_URL: a self-hosted LiveKit server gets its wss and https origins in connect-src. */
@@ -78,12 +80,12 @@ export function appCsp(opts: CspOptions = {}): string {
     // Cloudflare Web Analytics (cookieless) is allowed only when a beacon token is configured.
     // R78: 'wasm-unsafe-eval' lets the Tools Convert hub compile its own WebAssembly encoders (AVIF, WEBP) from our own
     // origin. It allows WebAssembly compilation only; eval and inline script stay blocked.
-    "script-src": ["'self'", THEME_SCRIPT_HASH, "'wasm-unsafe-eval'", ...(opts.analytics ? [CF_INSIGHTS_SCRIPT] : []), ...(opts.turnstile ? [TURNSTILE] : [])],
+    "script-src": ["'self'", THEME_SCRIPT_HASH, "'wasm-unsafe-eval'", ...(opts.analytics && !opts.anonymous ? [CF_INSIGHTS_SCRIPT] : []), ...(opts.turnstile ? [TURNSTILE] : [])],
     "style-src": ["'self'", "'unsafe-inline'"],
     "img-src": ["'self'", "data:", "blob:", "https:"],
     "font-src": ["'self'", "data:"],
     // Video meetings: LiveKit Cloud or a self-hosted LiveKit server, over secure WebSockets.
-    "connect-src": unique(["'self'", ...socketOrigins(opts.appUrl, false), ...SENTRY_INGEST, ...(opts.analytics ? [CF_INSIGHTS] : []), ...LIVEKIT_CLOUD, ...socketOrigins(opts.livekitUrl, true), MAP_TILES, ...(opts.connectSrc ?? [])]),
+    "connect-src": unique(["'self'", ...socketOrigins(opts.appUrl, false), ...(opts.anonymous ? [] : SENTRY_INGEST), ...(opts.analytics && !opts.anonymous ? [CF_INSIGHTS] : []), ...LIVEKIT_CLOUD, ...socketOrigins(opts.livekitUrl, true), MAP_TILES, ...(opts.connectSrc ?? [])]),
     "media-src": ["'self'", "blob:"],
     "frame-src": ["'self'", "blob:", ...(opts.turnstile ? [TURNSTILE] : [])],
     "worker-src": ["'self'", "blob:"],
@@ -183,3 +185,6 @@ export const EMBED_FORM_PATH = /^\/f\/[A-Za-z0-9_-]{1,64}\/embed\/?$/;
 export function frameableCsp(csp: string): string {
   return csp.replace(/frame-ancestors [^;]*/, "frame-ancestors *");
 }
+
+/** R112: the anonymous report and data request pages get the private policy (no error reporting, no analytics, no referrer). */
+export const PRIVATE_PAGE_PATH = /^\/(report|data-request)(\/|$)/;
