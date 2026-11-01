@@ -293,8 +293,8 @@ function LinkDialog({ open, onClose, onSave }: { open: boolean; onClose: () => v
   return (
     <Dialog open={open} onClose={onClose} title="Add a quick link" footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save} data-testid="link-save">Add link</Button></>}>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); save(); }}>
-        <Field label="Name"><Input value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} placeholder="Team handbook" data-testid="link-title" /></Field>
-        <Field label="Web address" error={err ?? undefined}><Input value={url} maxLength={500} inputMode="url" onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" data-testid="link-url" /></Field>
+        <Field label="Name">{(p) => <Input {...p} value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} placeholder="Team handbook" data-testid="link-title" />}</Field>
+        <Field label="Web address" error={err ?? undefined}>{(p) => <Input {...p} value={url} maxLength={500} inputMode="url" onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" data-testid="link-url" />}</Field>
       </form>
     </Dialog>
   );
