@@ -561,8 +561,8 @@ function PreviewPanel({ id, trashed, onClose, onShare, isAdmin, onChanged }: { i
         <div className="flex items-center gap-2 border-b border-line px-4 py-3">
           {it && <span className="text-muted">{iconFor(it)}</span>}
           <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold" title={it?.name}>{it?.name ?? "Loading"}</h2>
-          {it && it.kind === "file" && <a href={contentUrl(it.id)} className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-muted hover:bg-hover hover:text-fg max-sm:min-h-11" data-testid="drive-download"><IconDownload className="h-4 w-4" /><span className="max-sm:hidden">Download</span></a>}
-          {detail.data?.canShare && !trashed && <Button size="sm" variant="ghost" onClick={onShare}><IconShare className="h-4 w-4" /><span className="max-sm:hidden">Share</span></Button>}
+          {it && it.kind === "file" && <a href={contentUrl(it.id)} aria-label={`Download ${it.name}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-muted hover:bg-hover hover:text-fg max-sm:min-h-11" data-testid="drive-download"><IconDownload className="h-4 w-4" /><span className="max-sm:hidden">Download</span></a>}
+          {detail.data?.canShare && !trashed && <Button size="sm" variant="ghost" onClick={onShare} aria-label="Share"><IconShare className="h-4 w-4" /><span className="max-sm:hidden">Share</span></Button>}
           <button type="button" onClick={onClose} aria-label="Close preview" className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-hover max-sm:h-11 max-sm:w-11"><IconClose className="h-4 w-4" /></button>
         </div>
         {detail.isPending ? <div className="space-y-3 p-4"><Skeleton className="h-64 w-full" /><Skeleton className="h-6 w-1/2" /></div>

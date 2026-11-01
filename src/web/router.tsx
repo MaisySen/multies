@@ -307,7 +307,7 @@ export const router = createBrowserRouter([
       { path: "tools/pdf-codes", element: page(<ToolFeatureGate features={["tools_c"]}><PdfCodesPage /></ToolFeatureGate>) }, // R100
       { path: "tools/pdf-comments", element: page(<ToolFeatureGate features={["tools_c"]}><PdfCommentsPage /></ToolFeatureGate>) }, // R100
       { path: "tools/:editor", element: page(<ToolsEditorRoute />) }, // Tools P2: editors (pages, forms, compare)
-      { path: "files", element: page(<ToolFeatureGate features={["folders", "index"]}><FilesPage /></ToolFeatureGate>) }, // Tools P2 (16): smart folders
+      { path: "files", element: page(<ToolFeatureGate features={["folders", "index"]} orFilesPlus><FilesPage /></ToolFeatureGate>) }, // Tools P2 (16): smart folders
       { path: "tools/share", element: page(<ToolFeatureGate features={["share"]}><ShareLinksPage /></ToolFeatureGate>) }, // Tools P2: share links
       { path: "tools/sign", element: page(<ToolFeatureGate features={["esign"]}><SignPage /></ToolFeatureGate>) }, // Tools P2: e-sign
       { path: "tools/workflows", element: page(<ToolFeatureGate features={["workflows"]}><WorkflowsPage /></ToolFeatureGate>) }, // Tools P2: workflows
