@@ -87,7 +87,7 @@ const safeName = (s: string) => s.replace(/[\r\n"\\/]/g, "_").slice(0, 120);
 const base = (s: string) => s.replace(/\.[a-z0-9]{2,5}$/i, "") || "document";
 
 /** Posts one engine job and returns a P1 style status token. Counts one tool run and writes one audit row. */
-async function startEngineJob(c: Context<AppEnv>, op: string, fd: FormData, name: string, source: string) {
+export async function startEngineJob(c: Context<AppEnv>, op: string, fd: FormData, name: string, source: string) {
   const { engine, tokenKey } = setup(c);
   const { auth, deps } = c.var;
   const req = new Request("http://tools.local/", { method: "POST", body: fd });
@@ -152,7 +152,7 @@ async function jobJson(c: Context<AppEnv>, token: string): Promise<{ data: unkno
   try { return { data: JSON.parse(text) as unknown, name: t.n }; } catch { throw new HttpError(422, "tool_input", "The file could not be read."); }
 }
 
-async function docFor(c: Context<AppEnv>, token: string): Promise<{ doc: DocText; name: string }> {
+export async function docFor(c: Context<AppEnv>, token: string): Promise<{ doc: DocText; name: string }> {
   const { data, name } = await jobJson(c, token);
   const doc = readDocText(data);
   if (docChars(doc) < 3) throw new HttpError(422, "no_text", "No text was found in this file. If it is a scan, try again with text recognition on.");
@@ -218,7 +218,7 @@ function sheetFile(name: string, format: "xlsx" | "csv", sheets: { name: string;
   });
 }
 
-async function fillInvoices(c: Context<AppEnv>, feature: "extract" | "expenses", files: { token: string; attachmentId?: string }[], useAi: boolean) {
+export async function fillInvoices(c: Context<AppEnv>, feature: "extract" | "expenses", files: { token: string; attachmentId?: string }[], useAi: boolean) {
   const rows: InvoiceRow[] = [];
   let note: string | null = null;
   for (const f of files) {

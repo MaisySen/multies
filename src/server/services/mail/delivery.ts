@@ -87,6 +87,12 @@ async function logDelivery(db: DB, row: Omit<typeof deliveries.$inferInsert, "id
 export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, seen = new Set<string>()): Promise<InboundResult> {
   const { db } = deps;
   const rcpt = baseAddress(d.rcptTo);
+  // R106: a forward to the workspace receipts address becomes draft expenses for the member who sent it.
+  if (deps.config.expensesR106 && /^receipts\./i.test(rcpt)) {
+    const { receiveReceiptMail } = await import("../expenses/expenses");
+    const r = await receiveReceiptMail(deps, { rcpt, fromAddress: d.email.from?.address ?? d.envelopeFrom, subject: d.email.subject ?? null, dmarcFail: d.email.authResults?.dmarc === "fail", attachments: d.email.attachments });
+    if (r.handled) return { accepted: r.accepted, code: r.accepted ? 250 : 550, reason: r.reason, storedIn: [], forwardedTo: [] };
+  }
   // R26 (DF-18): the company domain's listed addresses go only to the operator workspace; its other addresses stay closed.
   const op = operatorDecision(deps.config, rcpt);
   if (op?.kind === "closed") return { accepted: false, code: 550, reason: `No mailbox for ${rcpt}.`, storedIn: [], forwardedTo: [] };

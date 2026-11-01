@@ -1501,5 +1501,16 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX IF NOT EXISTS `tasks_org_updated_live_idx` ON `tasks` (`org_id`,`updated_at`) WHERE \"tasks\".\"deleted_at\" IS NULL AND \"tasks\".\"triage_state\" IS NULL;",
       "CREATE INDEX IF NOT EXISTS `contacts_org_recent_live_idx` ON `contacts` (`org_id`,coalesce(\"last_contact_at\", \"updated_at\")) WHERE \"contacts\".\"deleted_at\" IS NULL;"
     ]
+  },
+  {
+    "name": "0139_r106_expenses",
+    "statements": [
+      "-- R106: expenses and receipts. Receipts come in by upload, phone camera or a forward to the workspace receipts address;\n-- fields are read by the existing free text engine and rules, people check them, submit, an approver approves, and an\n-- expense can be re billed onto an invoice draft. Money is integer cents. Additive only.\nCREATE TABLE `expense_settings` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`receipts_token` text,\n\t`approver_ids` text DEFAULT '[]' NOT NULL,\n\t`require_approval` integer DEFAULT 1 NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX `expense_settings_token_uq` ON `expense_settings` (`receipts_token`) WHERE `receipts_token` IS NOT NULL;",
+      "CREATE TABLE `expenses` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`user_name` text DEFAULT '' NOT NULL,\n\t`status` text DEFAULT 'draft' NOT NULL,\n\t`supplier` text,\n\t`supplier_abn` text,\n\t`spent_on` text,\n\t`total_cents` integer DEFAULT 0 NOT NULL,\n\t`gst_cents` integer DEFAULT 0 NOT NULL,\n\t`currency` text DEFAULT 'AUD' NOT NULL,\n\t`category` text,\n\t`gst_claimable` integer DEFAULT 0 NOT NULL,\n\t`reimbursable` integer DEFAULT 1 NOT NULL,\n\t`note` text,\n\t`source` text DEFAULT 'upload' NOT NULL,\n\t`file_key` text,\n\t`file_parts` integer DEFAULT 0 NOT NULL,\n\t`file_size` integer DEFAULT 0 NOT NULL,\n\t`file_name` text,\n\t`file_type` text,\n\t`read_state` text DEFAULT 'none' NOT NULL,\n\t`read_token` text,\n\t`read_fields` text DEFAULT '[]' NOT NULL,\n\t`edited_fields` text DEFAULT '[]' NOT NULL,\n\t`splits` text DEFAULT '[]' NOT NULL,\n\t`every` text,\n\t`rebill_doc_id` text,\n\t`rebill_at` integer,\n\t`decided_by` text,\n\t`decided_by_name` text,\n\t`decided_at` integer,\n\t`reject_reason` text,\n\t`submitted_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX `expenses_org_user_idx` ON `expenses` (`org_id`,`user_id`,`created_at`);",
+      "CREATE INDEX `expenses_org_status_idx` ON `expenses` (`org_id`,`status`,`created_at`);",
+      "CREATE INDEX `expenses_org_supplier_idx` ON `expenses` (`org_id`,`supplier`);"
+    ]
   }
 ];

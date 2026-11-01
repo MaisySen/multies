@@ -4005,3 +4005,38 @@ export const shieldSpent = sqliteTable("shield_spent", {
   id: text("id").primaryKey(),
   expiresAt: integer("expires_at").notNull(),
 }, (t) => [index("shield_spent_exp_idx").on(t.expiresAt)]);
+
+// R106: expenses and receipts (drizzle/0139_r106_expenses.sql).
+export const expenseSettings = sqliteTable("expense_settings", {
+  orgId: text("org_id").primaryKey(),
+  receiptsToken: text("receipts_token"),
+  approverIds: text("approver_ids").notNull().default("[]"),
+  requireApproval: integer("require_approval", { mode: "boolean" }).notNull().default(true),
+  updatedAt: ts("updated_at").notNull(),
+});
+export const expenses = sqliteTable("expenses", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  userId: text("user_id").notNull(),
+  userName: text("user_name").notNull().default(""),
+  status: text("status", { enum: ["draft", "submitted", "approved", "rejected"] }).notNull().default("draft"),
+  supplier: text("supplier"), supplierAbn: text("supplier_abn"), spentOn: text("spent_on"),
+  totalCents: integer("total_cents").notNull().default(0), gstCents: integer("gst_cents").notNull().default(0),
+  currency: text("currency").notNull().default("AUD"), category: text("category"),
+  gstClaimable: integer("gst_claimable", { mode: "boolean" }).notNull().default(false),
+  reimbursable: integer("reimbursable", { mode: "boolean" }).notNull().default(true),
+  note: text("note"),
+  source: text("source", { enum: ["upload", "camera", "email"] }).notNull().default("upload"),
+  fileKey: text("file_key"), fileParts: integer("file_parts").notNull().default(0), fileSize: integer("file_size").notNull().default(0),
+  fileName: text("file_name"), fileType: text("file_type"),
+  readState: text("read_state", { enum: ["none", "reading", "done", "failed", "unavailable"] }).notNull().default("none"),
+  readToken: text("read_token"),
+  readFields: text("read_fields").notNull().default("[]"),
+  editedFields: text("edited_fields").notNull().default("[]"),
+  splits: text("splits").notNull().default("[]"),
+  every: text("every"),
+  rebillDocId: text("rebill_doc_id"), rebillAt: ts("rebill_at"),
+  decidedBy: text("decided_by"), decidedByName: text("decided_by_name"), decidedAt: ts("decided_at"), rejectReason: text("reject_reason"),
+  submittedAt: ts("submitted_at"),
+  createdAt: ts("created_at").notNull(), updatedAt: ts("updated_at").notNull(),
+}, (t) => [index("expenses_org_user_idx").on(t.orgId, t.userId, t.createdAt), index("expenses_org_status_idx").on(t.orgId, t.status, t.createdAt), index("expenses_org_supplier_idx").on(t.orgId, t.supplier)]);

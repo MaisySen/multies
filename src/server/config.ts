@@ -53,6 +53,10 @@ export interface AppConfig {
   bookingPlus: boolean;
   /** R92 spam shield proof of work bits (SHIELD_DIFFICULTY, default 14; tests use less). */
   shieldDifficulty: number;
+  /** R106: expenses and receipts (EXPENSES_R106=on). Off unless set. */
+  expensesR106: boolean;
+  /** R106 tests only: a receipt's own bytes are read as its text (never in production). */
+  expensesFakeRead?: boolean;
   /**
    * Tools P1: document tools on the private document engine. On only when TOOLS_ENABLED=true and the
    * engine address and both keys are set (DOC_ENGINE_URL, DOC_ENGINE_KEY_ID, DOC_ENGINE_KEY, TOOLS_TOKEN_KEY).
@@ -327,6 +331,8 @@ const EnvSchema = z.object({
   INVOICES_ENABLED: z.string().optional(), // R105
   BOOKING_PLUS: z.string().optional(),
   SHIELD_DIFFICULTY: z.string().optional(),
+  EXPENSES_R106: z.string().optional(), // R106
+  EXPENSES_FAKE_READ: z.string().optional(), // R106 tests only
   COMPOSIO_API_KEY: z.string().optional(),
   // R83: own sign in for TikTok (Login Kit and Content Posting) and Threads.
   TIKTOK_CLIENT_KEY: z.string().optional(),
@@ -675,6 +681,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     invoicesEnabled: env.INVOICES_ENABLED === "true" || env.INVOICES_ENABLED === "1", // R105
     bookingPlus: (env.SCHEDULING_ENABLED === "true" || env.SCHEDULING_ENABLED === "1") && (env.BOOKING_PLUS === "true" || env.BOOKING_PLUS === "1"),
     shieldDifficulty: env.SHIELD_DIFFICULTY && /^\d{1,2}$/.test(env.SHIELD_DIFFICULTY) ? Math.min(22, Number(env.SHIELD_DIFFICULTY)) : 14,
+    expensesR106: ["on", "true", "1"].includes(env.EXPENSES_R106 ?? ""), // R106
+    expensesFakeRead: env.EXPENSES_FAKE_READ === "1" && mode !== "production", // R106 tests only
     tools: toolsConfig(env),
     links: { flushMs: Math.max(0, Math.min(20_000, Number(env.LINK_CLICK_FLUSH_MS ?? 4000) || 0)) },
     appName: env.APP_NAME ?? "Multies",
