@@ -159,6 +159,7 @@ export async function updateDoc(deps: Deps, actor: SuiteActor, id: string, patch
   const expected = patch.version ?? patch.ifVersion; // R28: ifVersion is the API's name for it
   if (expected !== undefined && expected !== d.version) throw versionConflict(d.version);
   // MB-58: plain text replaces the body too, with the same rules as create (# headings, - bullets).
+  if (d.kind === "course" && (patch.content !== undefined || patch.text !== undefined)) throw new HttpError(409, "course_doc", "This doc is a course. Change it in the course itself."); // R129
   const body = patch.content !== undefined ? validDoc(patch.content) : patch.text !== undefined ? editorShape(docFromText(patch.text)) : undefined;
   await assertLinkTargets(deps, actor.orgId, patch.links ?? []);
   // R39: page history. A new editing session saves the page as it stood first (deferrable, never fails the edit).

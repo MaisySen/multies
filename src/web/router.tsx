@@ -92,6 +92,7 @@ const TaskPageRoute = lazyPage(() => work(), "TaskPageRoute"); // R84: the full 
 const docsPages = () => import("./pages/app/work/docs");
 const DocsPage = lazyPage(() => docsPages(), "DocsPage");
 const DocPage = lazyPage(() => docsPages(), "DocPage");
+const MyLearningPage = lazyPage(() => import("./pages/app/work/courses-r129"), "MyLearningPage"); // R129
 const contactPages = () => import("./pages/app/work/contacts");
 const ContactsPage = lazyPage(() => contactPages(), "ContactsPage");
 const ContactPage = lazyPage(() => contactPages(), "ContactPage");
@@ -288,6 +289,7 @@ export const router = createBrowserRouter([
       { path: "docs/sites", element: page(<SitesPage />) }, // R123
       { path: "docs/sites/:pageId", element: page(<SiteEditorPage />) }, // R123
       { path: "docs/links", element: page(<DocsLinksPage />) }, // R103
+      { path: "docs/learning", element: page(<MyLearningPage />) }, // R129: My learning
       { path: "docs/:id", element: page(<DocPage />) },
       { path: "contacts", element: page(<ContactsPage />) },
       { path: "contacts/portals/:id", element: page(<PortalPage />) }, // R120

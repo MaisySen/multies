@@ -1587,5 +1587,19 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE IF NOT EXISTS `site_page_stats` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`page_id` text NOT NULL REFERENCES `site_pages`(`id`) ON DELETE cascade,\n\t`day` text NOT NULL,\n\t`source` text NOT NULL,\n\t`device` text NOT NULL,\n\t`views` integer DEFAULT 0 NOT NULL\n);",
       "CREATE INDEX IF NOT EXISTS `site_page_stats_org_idx` ON `site_page_stats` (`org_id`,`day`);"
     ]
+  },
+  {
+    "name": "0144_courses_r129",
+    "statements": [
+      "-- R129 (Nov 1): courses, a doc type (docs.kind \"course\"). Settings per course, lessons (quiz keys stay on the server),\n-- learners (assigned or self started) and progress per lesson. Additive only: new tables and indexes.\nCREATE TABLE IF NOT EXISTS `doc_courses` (\n\t`doc_id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`status` text DEFAULT 'draft' NOT NULL,\n\t`pass_mark` integer DEFAULT 80 NOT NULL,\n\t`certificate` integer DEFAULT true NOT NULL,\n\t`editors` text DEFAULT '[]' NOT NULL,\n\t`managers` text DEFAULT '[]' NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX IF NOT EXISTS `doc_courses_org_idx` ON `doc_courses` (`org_id`);",
+      "CREATE TABLE IF NOT EXISTS `course_lessons` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`doc_id` text NOT NULL,\n\t`position` real DEFAULT 0 NOT NULL,\n\t`title` text NOT NULL,\n\t`type` text NOT NULL,\n\t`ref_doc_id` text,\n\t`url` text,\n\t`body` text DEFAULT '' NOT NULL,\n\t`quiz` text DEFAULT '[]' NOT NULL,\n\t`pass_mark` integer,\n\t`required` integer DEFAULT true NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer,\n\t`deleted_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX IF NOT EXISTS `course_lessons_doc_idx` ON `course_lessons` (`org_id`,`doc_id`,`position`);",
+      "CREATE TABLE IF NOT EXISTS `course_learners` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`doc_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`source` text DEFAULT 'self' NOT NULL,\n\t`assigned_by` text,\n\t`due_at` integer,\n\t`started_at` integer,\n\t`completed_at` integer,\n\t`certificate_no` text,\n\t`reminded_soon_at` integer,\n\t`reminded_overdue_at` integer,\n\t`removed_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `course_learners_uq` ON `course_learners` (`org_id`,`doc_id`,`user_id`);",
+      "CREATE INDEX IF NOT EXISTS `course_learners_user_idx` ON `course_learners` (`org_id`,`user_id`);",
+      "CREATE INDEX IF NOT EXISTS `course_learners_due_idx` ON `course_learners` (`due_at`);",
+      "CREATE TABLE IF NOT EXISTS `course_progress` (\n\t`learner_id` text NOT NULL,\n\t`lesson_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`done_at` integer,\n\t`score` integer,\n\t`best_score` integer,\n\t`attempts` integer DEFAULT 0 NOT NULL,\n\t`attempt_day` text,\n\t`day_attempts` integer DEFAULT 0 NOT NULL,\n\t`passed` integer DEFAULT false NOT NULL,\n\t`updated_at` integer,\n\tPRIMARY KEY(`learner_id`, `lesson_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);"
+    ]
   }
 ];

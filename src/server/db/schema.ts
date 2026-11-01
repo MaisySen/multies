@@ -1003,8 +1003,8 @@ export const docs = sqliteTable("docs", {
   parentId: text("parent_id"),
   /** R24: order among siblings, fractional so a move writes one row. */
   position: real("position").notNull().default(0),
-  /** R89: "doc", or "whiteboard" for a doc that is one board (set by the server from the content, never sent). R125: "table" for a table doc (set at create, never changed). */
-  kind: text("kind", { enum: ["doc", "whiteboard", "table"] }).notNull().default("doc"),
+  /** R89: "doc", or "whiteboard" for a doc that is one board (set by the server from the content, never sent). R125: "table" for a table doc (set at create, never changed). R129: "course" for a course doc. */
+  kind: text("kind", { enum: ["doc", "whiteboard", "table", "course"] }).notNull().default("doc"), // R129: course
   ...suiteCols(),
 }, (t) => [index("docs_org_idx").on(t.orgId, t.updatedAt)]);
 
@@ -4337,3 +4337,75 @@ export const sitePageStats = sqliteTable("site_page_stats", {
   device: text("device").notNull(),
   views: integer("views").notNull().default(0),
 }, (t) => [index("site_page_stats_org_idx").on(t.orgId, t.day)]);
+
+// ---------------------------------------------------------------- R129: courses (a doc type, COURSES_R129)
+
+/** R129: one per course doc (docs.kind "course"): its settings. Editors and managers are member user ids (JSON). */
+export const docCourses = sqliteTable("doc_courses", {
+  docId: text("doc_id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  status: text("status", { enum: ["draft", "published"] }).notNull().default("draft"),
+  passMark: integer("pass_mark").notNull().default(80),
+  certificate: integer("certificate", { mode: "boolean" }).notNull().default(true),
+  editors: text("editors").notNull().default("[]"),
+  managers: text("managers").notNull().default("[]"),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at"),
+}, (t) => [index("doc_courses_org_idx").on(t.orgId)]);
+
+/** R129: a lesson. quiz holds the questions with the answer key (never sent to a learner). */
+export const courseLessons = sqliteTable("course_lessons", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  docId: text("doc_id").notNull(),
+  position: real("position").notNull().default(0),
+  title: text("title").notNull(),
+  type: text("type", { enum: ["page", "file", "video", "text", "quiz"] }).notNull(),
+  refDocId: text("ref_doc_id"),
+  url: text("url"),
+  body: text("body").notNull().default(""),
+  quiz: text("quiz").notNull().default("[]"),
+  passMark: integer("pass_mark"),
+  required: integer("required", { mode: "boolean" }).notNull().default(true),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at"),
+  deletedAt: ts("deleted_at"),
+}, (t) => [index("course_lessons_doc_idx").on(t.orgId, t.docId, t.position)]);
+
+/** R129: a person taking a course (assigned, or started on their own). */
+export const courseLearners = sqliteTable("course_learners", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  docId: text("doc_id").notNull(),
+  userId: text("user_id").notNull(),
+  source: text("source", { enum: ["assigned", "self"] }).notNull().default("self"),
+  assignedBy: text("assigned_by"),
+  dueAt: ts("due_at"),
+  startedAt: ts("started_at"),
+  completedAt: ts("completed_at"),
+  certificateNo: text("certificate_no"),
+  remindedSoonAt: ts("reminded_soon_at"),
+  remindedOverdueAt: ts("reminded_overdue_at"),
+  removedAt: ts("removed_at"),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex("course_learners_uq").on(t.orgId, t.docId, t.userId),
+  index("course_learners_user_idx").on(t.orgId, t.userId),
+  index("course_learners_due_idx").on(t.dueAt),
+]);
+
+/** R129: a learner's state on one lesson. */
+export const courseProgress = sqliteTable("course_progress", {
+  learnerId: text("learner_id").notNull(),
+  lessonId: text("lesson_id").notNull(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  doneAt: ts("done_at"),
+  score: integer("score"),
+  bestScore: integer("best_score"),
+  attempts: integer("attempts").notNull().default(0),
+  attemptDay: text("attempt_day"),
+  dayAttempts: integer("day_attempts").notNull().default(0),
+  passed: integer("passed", { mode: "boolean" }).notNull().default(false),
+  updatedAt: ts("updated_at"),
+}, (t) => [primaryKey({ columns: [t.learnerId, t.lessonId] })]);

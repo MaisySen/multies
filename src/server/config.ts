@@ -51,6 +51,10 @@ export interface AppConfig {
   tablesR125?: boolean;
   /** R125: more workspaces kept out of tables (vv8k is always out). */
   tablesExclude?: string;
+  /** R129: courses, a doc type (COURSES_R129). Off unless set. */
+  coursesR129?: boolean;
+  /** R129: more workspaces kept out of courses (vv8k is always out). */
+  coursesExclude?: string;
   /** R105: invoices and quotes (INVOICES_ENABLED=true). Off unless set. */
   invoicesEnabled: boolean;
   /** R92 Booking plus: resources, time polls, free events with QR tickets (BOOKING_PLUS=true, needs scheduling). */
@@ -343,6 +347,8 @@ const EnvSchema = z.object({
   CLIENT_PORTAL: z.string().optional(),
   MAIL_ARCHIVE_R111: z.string().optional(),
   INVOICES_ENABLED: z.string().optional(), // R105
+  COURSES_R129: z.string().optional(), // R129
+  COURSES_EXCLUDE: z.string().optional(), // R129
   BOOKING_PLUS: z.string().optional(),
   FORMS_PLUS_R93: z.string().optional(), // R93
   FORMS_PLUS_EXCLUDE: z.string().optional(), // R93
@@ -702,6 +708,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     tablesR125: ["1", "true", "on"].includes(String(env.TABLES_R125 ?? "").toLowerCase()), // R125
     tablesExclude: env.TABLES_EXCLUDE ?? "", // R125
     invoicesEnabled: env.INVOICES_ENABLED === "true" || env.INVOICES_ENABLED === "1", // R105
+    coursesR129: ["1", "true", "on"].includes(String(env.COURSES_R129 ?? "").toLowerCase()), // R129
+    coursesExclude: env.COURSES_EXCLUDE ?? "", // R129
     bookingPlus: (env.SCHEDULING_ENABLED === "true" || env.SCHEDULING_ENABLED === "1") && (env.BOOKING_PLUS === "true" || env.BOOKING_PLUS === "1"),
     formsPlus: env.FORMS_PLUS_R93 === "true" || env.FORMS_PLUS_R93 === "1", // R93
     formsPlusExclude: env.FORMS_PLUS_EXCLUDE ?? "", // R93

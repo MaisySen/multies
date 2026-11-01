@@ -18,6 +18,7 @@ import {
   acceptInvite, addFile, GUEST_COOKIE, GUEST_SESSION_DAYS, guestComment, guestDoc, guestHome, guestTaskDetail, inviteGuest, listFiles, listGuests, newGuestLink, readFile, resolveGuest, revokeGuest,
   type GuestContext,
 } from "../services/suite/guests";
+import { assertCoursesOn, courseDetail, lessonPage } from "../services/courses-r129"; // R129
 import { resolveTaskId } from "../services/suite/tasks";
 import { CommentCreate, FieldCreate, FieldPatch, GuestInvite, WorkspaceFieldCreate, WorkspaceFieldPatch } from "./suite-schemas";
 
@@ -135,6 +136,9 @@ export function guestRoutes() {
     // R125: a guest reads tables in their project (read only; linked rows outside it stay hidden).
     .get("/tables/:id", async (c) => { await assertTablesOn(c.var.deps, c.var.guest.guest.orgId); return c.json(await tableDetail(c.var.deps, { kind: "guest", actor: c.var.guest.actor, projectId: c.var.guest.guest.projectId }, c.req.param("id"))); })
     .get("/tables/:id/rows", async (c) => { await assertTablesOn(c.var.deps, c.var.guest.guest.orgId); return c.json(await listRows(c.var.deps, { kind: "guest", actor: c.var.guest.actor, projectId: c.var.guest.guest.projectId }, c.req.param("id"), { cursor: c.req.query("cursor") || undefined, q: (c.req.query("q") ?? "").slice(0, 200) || undefined, viewId: c.req.query("view") || undefined })); })
+    // R129: a guest reads a published course in their project (lessons only: no progress, quiz or table).
+    .get("/courses/:id", async (c) => { await assertCoursesOn(c.var.deps, c.var.guest.guest.orgId); return c.json(await courseDetail(c.var.deps, { kind: "guest", actor: c.var.guest.actor, projectId: c.var.guest.guest.projectId }, c.req.param("id"))); })
+    .get("/courses/:id/lessons/:lid/page", async (c) => { await assertCoursesOn(c.var.deps, c.var.guest.guest.orgId); return c.json(await lessonPage(c.var.deps, { kind: "guest", actor: c.var.guest.actor, projectId: c.var.guest.guest.projectId }, c.req.param("id"), c.req.param("lid"))); })
     // R103: comments on the project's docs (DOCS_PLUS_R103=on).
     .get("/r103/docs/:id/comments", async (c) => {
       if (!c.var.deps.config.docsPlus) return c.json({ error: { code: "not_found", message: "Not found" } }, 404);

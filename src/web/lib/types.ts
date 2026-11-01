@@ -84,6 +84,8 @@ export interface PublicConfig {
   invoices?: boolean;
   /** R106: expenses and receipts. */
   expenses?: boolean;
+  /** R129: courses doc type. */
+  coursesR129?: boolean;
   mxHosts: { host: string; priority: number }[];
   plans: Plan[];
   sentry: { dsn: string; environment: string; release?: string; tracesSampleRate?: number } | null;

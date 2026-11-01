@@ -107,6 +107,7 @@ import { automationRoutes, changeRoutes, companyRoutes, contactRoutes, dealRoute
 import { invoicePublicRoutes, invoiceRoutes } from "./routes/invoices"; // R105
 import { expenseRoutes } from "./routes/expenses"; // R106
 import { tableRoutes } from "./routes/tables-r125"; // R125
+import { courseRoutes } from "./routes/courses-r129"; // R129
 import { importRoutes, importRunnerRoutes, integrationRoutes } from "./routes/imports";
 import { workImportRoutes } from "./routes/work-imports";
 import { dataMoveDownloadRoutes, dataMoveRoutes } from "./routes/data-moves";
@@ -447,6 +448,7 @@ export function createApp(deps: Deps) {
       // R110: Ask across the workspace (ASK_R110).
       askR110: !!deps.config.askR110,
       invoices: deps.config.invoicesEnabled, // R105
+      coursesR129: !!deps.config.coursesR129, // R129: courses (vv8k gets 404 from the API and no entry points)
       bookingPlus: deps.config.bookingPlus, // R92: resources, time polls, events
       officeEditR113: !!deps.config.officeEditR113, // R113: office files in the browser
       expenses: deps.config.invoicesEnabled && deps.config.expensesR106, // R106
@@ -609,6 +611,7 @@ export function createApp(deps: Deps) {
   app.route("/api/invoices", invoiceRoutes()); // R105: invoices and quotes
   app.route("/api/expenses", expenseRoutes()); // R106: expenses and receipts
   app.route("/api/tables", tableRoutes()); // R125: tables (a doc type)
+  app.route("/api/courses", courseRoutes()); // R129: courses (a doc type)
   app.route("/api/invoice-view", invoicePublicRoutes()); // R105: the buyer's logged out view link
   app.route("/api/companies", companyRoutes());
   app.route("/api/deals", dealRoutes());

@@ -99,6 +99,8 @@ const app = createApp(deps);
 // Housekeeping: DNS re-checks, session expiry, sandbox purge.
 const tick = () => {
   void runMaintenanceIfMigrated(deps).catch((err) => console.error("[maintenance]", err));
+  // R129: course reminders (self hosted servers run the same pass as the cloud cron).
+  if (deps.config.coursesR129) void import("../server/services/courses-r129").then((m) => m.runCourseReminders(deps)).catch((err) => console.error("[courses.reminders]", err));
   // R97: due notification digests (self hosted servers run the same pass as the cloud cron).
   if (deps.config.notificationCentre !== false) {
     void import("../server/services/suite/notify-centre-r97").then((m) => m.runNotificationDigests(deps)).catch((err) => console.error("[notify.digest]", err));

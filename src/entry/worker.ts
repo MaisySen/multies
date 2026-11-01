@@ -594,6 +594,10 @@ const handler = {
     if (deps.config.invoicesEnabled) {
       ctx.waitUntil(import("../server/services/invoices/deliver").then((m) => m.runInvoiceCron(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "invoices.cron" })));
     }
+    // R129: course due soon and overdue reminders (COURSES_R129), 100 a pass.
+    if (deps.config.coursesR129) {
+      ctx.waitUntil(import("../server/services/courses-r129").then((m) => m.runCourseReminders(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "courses.reminders" })));
+    }
     // R97: due notification digests (50 a run, only rows whose digest time has come).
     if (deps.config.notificationCentre !== false) {
       ctx.waitUntil(import("../server/services/suite/notify-centre-r97").then((m) => m.runNotificationDigests(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "notify.digest_pass" })));
