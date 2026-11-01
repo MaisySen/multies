@@ -24,6 +24,16 @@ export function MarketingLayout() {
   const loc = useLocation();
   useEffect(() => setOpen(false), [loc.pathname, loc.hash]);
   useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      document.querySelector<HTMLButtonElement>("button[data-mk-menu]")?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+  useEffect(() => {
     const on = () => setScrolled(window.scrollY > 8);
     on();
     window.addEventListener("scroll", on, { passive: true });
@@ -55,7 +65,7 @@ export function MarketingLayout() {
               </>
             )}
           </div>
-          <button className="rounded-md p-2 text-muted hover:text-fg md:hidden" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={open ? "Close menu" : "Open menu"}>
+          <button data-mk-menu className="rounded-md p-2 text-muted hover:text-fg md:hidden" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={open ? "Close menu" : "Open menu"}>
             {open ? <IconClose className="h-5 w-5" /> : <IconMenu className="h-5 w-5" />}
           </button>
         </nav>

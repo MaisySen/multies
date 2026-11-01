@@ -7,6 +7,9 @@ import type { WhatsNewEntry } from "./whats-new";
 export const WHATS_NEW_EARLIER: readonly WhatsNewEntry[] = [
   { id: "2026-11-01-search", date: "2026-11-01", title: "Search that forgives typos", body: "Search finds what you meant with typos and words in any order, filters by type, and only ever shows what you can open." },
   { id: "2026-11-01-dashboards", date: "2026-11-01", title: "Dashboards you can share", body: "Share a dashboard by link, get it by email on a schedule, and set an alert when a number moves." },
+  { id: "2026-11-01-clear-errors", date: "2026-11-01", title: "Clear errors with Retry", body: "If a page cannot load, you see a plain message and a Retry button instead of endless loading, and anything already on screen stays." },
+  { id: "2026-11-01-faster-search", date: "2026-11-01", title: "Faster search", body: "Search across mail, tasks, docs and files stays quick when the whole team is busy." },
+  { id: "2026-11-01-office-files", date: "2026-11-01", title: "Office files in the browser", body: "Edit Word files and Excel sheets with working formulas right in Files, save each change as a version, and view slides." },
   { id: "2026-11-01-social-inbox", date: "2026-11-01", title: "Social inbox and post results", body: "Answer comments and messages from your connected accounts in one inbox, and see how each post did." },
   { id: "2026-10-31-notifications", date: "2026-10-31", title: "Notifications your way", body: "Pick per category what reaches you by mail, get a daily or weekly digest, set quiet hours, or pause everything." },
   { id: "2026-10-31-help-center", date: "2026-10-31", title: "A public help center", body: "Publish a knowledge base and questions and answers for your customers, written in Docs." },

@@ -66,3 +66,17 @@ test("W1 shared links preview with the page's own title and picture", async ({ p
   const map = await (await request.get("/sitemap.xml")).text();
   for (const a of AREAS) expect(map).toContain(`https://multies.si/features/${a.slug}`);
 });
+
+test("W1 mobile menu closes on Escape and What's new lists today's items", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/features");
+  const btn = page.locator("button[data-mk-menu]");
+  await btn.click();
+  await expect(btn).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Escape");
+  await expect(btn).toHaveAttribute("aria-expanded", "false");
+  await expect(btn).toBeFocused();
+  await page.goto("/whats-new");
+  await expect(page.getByText("Office files in the browser").first()).toBeVisible();
+  await expect(page.getByText("Clear errors with Retry").first()).toBeVisible();
+});
