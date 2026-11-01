@@ -136,7 +136,7 @@ test.describe("R129 courses", () => {
     await axe(page, "progress");
     await shot(page, "progress-1280-light");
     await page.goto("/app/docs/learning");
-    await expect(page.getByText("Assigned to you")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Assigned to you" })).toBeVisible();
   });
 
   test("works at 390: build, learn, progress stacked, no sideways scroll", async ({ page }) => {
