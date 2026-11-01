@@ -4,6 +4,7 @@ import type { AppEnv } from "../context";
 import { parseBody, parseQuery, requireAuth } from "../middleware";
 import { sendMessageSchema } from "@/shared/schemas";
 import { HttpError } from "../lib/errors";
+import { idempotency } from "../lib/idempotency";
 import { getOrg } from "../services/plans";
 import {
   cancelSchedule, clearReturned, listSchedules, remindIfNoReply, rescheduleItem, runMailSchedules, scheduleSend, snoozeThread,
@@ -27,6 +28,8 @@ const when = {
 export function mailScheduleRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
+    // R111: keyed like /api/mail (same scope), so a send later handed over as the tab closes can never schedule twice.
+    .use("*", idempotency((c) => `user:${c.var.auth.userId}`))
     .get("/", async (c) => {
       const q = parseQuery(c, Q_MAIL_SCHEDULES_1);
       return c.json({ items: await listSchedules(c.var.deps, c.var.auth, q) });

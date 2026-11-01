@@ -54,8 +54,14 @@ function wireGlobals() {
     e.stopImmediatePropagation();
     sendHold.undo();
   }, { capture: true });
+  // R111: closing the tab during the hold no longer loses the message. On pagehide each held message is handed to the
+  // server with a request that outlives the page (same Idempotency-Key as the normal send); if the page comes back from
+  // the back/forward cache the hold posts again under that key and the server replays the first answer, so it goes once.
+  window.addEventListener("pagehide", () => { sendHold.leave(); });
+  window.addEventListener("pageshow", (e) => { if (e.persisted) sendHold.resume(); });
   window.addEventListener("beforeunload", (e) => {
-    if (!sendHold.busy()) return;
+    // Only a message that can't be handed over (its files are too big for a request that outlives the page) asks first.
+    if (!sendHold.atRisk()) return;
     e.preventDefault();
     // Older browsers show the prompt only when returnValue is set.
     e.returnValue = "";
@@ -70,6 +76,12 @@ export interface HoldMessageOptions<R> {
   onSent: (r: R) => void;
   onError: (e: unknown) => void;
   onUndo: () => void;
+  /**
+   * R111: the same request `send` makes, for handing the message over if the page closes during the hold.
+   * `body` returns undefined until it is built (files still being read). `draft` is what goes back into Compose
+   * on the next visit if the page closed before the request could leave.
+   */
+  handoff?: { path: string; key: string; body: () => unknown; draft: unknown; hadFiles?: boolean };
 }
 
 export function recipientsLabel(to: string[]) {
@@ -81,12 +93,17 @@ export function recipientsLabel(to: string[]) {
 export function holdMessage<R>(o: HoldMessageOptions<R>): HeldSend<R> {
   wireGlobals();
   const toastId = `undo-send-${crypto.randomUUID()}`;
+  const ho = o.handoff;
+  const dueAt = Date.now() + Math.max(0, o.seconds) * 1000;
+  if (ho) rescueAdd({ key: ho.key, dueAt, label: recipientsLabel(o.to), draft: ho.draft, hadFiles: !!ho.hadFiles });
+  const done = () => { if (ho) rescueRemove(ho.key); };
   const h = sendHold.hold<R>({
     seconds: o.seconds,
     send: o.send,
-    onSent: (r) => { toast.dismiss(toastId); o.onSent(r); },
-    onError: (e) => { toast.dismiss(toastId); o.onError(e); },
-    onUndo: () => { toast.dismiss(toastId); o.onUndo(); },
+    onSent: (r) => { done(); toast.dismiss(toastId); o.onSent(r); },
+    onError: (e) => { done(); toast.dismiss(toastId); o.onError(e); },
+    onUndo: () => { done(); toast.dismiss(toastId); o.onUndo(); },
+    exit: ho ? keepaliveExit(ho.path, ho.key, ho.body) : undefined,
   });
   toast.custom(() => <HeldToast h={h} label={recipientsLabel(o.to)} />, { id: toastId, duration: Infinity, unstyled: true, dismissible: false });
   return h;
@@ -150,4 +167,104 @@ export function useReopenedDrafts<D>(onDraft: (d: D, reason: Reopen<D>["reason"]
     drain();
     return () => { reopenListeners.delete(drain); };
   });
+}
+
+// ---------------------------------------------------------------- R111: undo send survives tab close
+
+/** Browsers cap the bodies of requests that outlive the page (keepalive) at 64 KB in total; stay under it. */
+export const KEEPALIVE_MAX_BYTES = 60_000;
+
+/** A keepalive POST of the same request the hold would make, with the same Idempotency-Key. */
+export function keepaliveExit(path: string, key: string, body: () => unknown, doFetch: typeof fetch = (...a) => fetch(...a)) {
+  let json: string | null = null;
+  const build = () => {
+    if (json !== null) return json;
+    const b = body();
+    if (b === undefined) return null;
+    json = JSON.stringify(b);
+    return json;
+  };
+  return {
+    ready: () => { const j = build(); return j !== null && new TextEncoder().encode(j).length <= KEEPALIVE_MAX_BYTES; },
+    fire: () => {
+      const j = build();
+      if (j === null) return;
+      void doFetch(`/api${path}`, {
+        method: "POST", keepalive: true, credentials: "same-origin",
+        headers: { "content-type": "application/json", "idempotency-key": key }, body: j,
+      }).catch(() => { /* the copy on this device brings it back next visit */ });
+    },
+  };
+}
+
+/**
+ * A copy of each held message on this device, written when the hold starts and removed when it is sent, undone or
+ * fails in this page. A copy still here after its hold time means the page closed first: the next visit asks the
+ * server whether it went (by its key) and, if it did not, puts it back in Compose. Files are not kept (only that
+ * there were some), so nothing large or private sits in storage.
+ */
+export const HELD_RESCUE_KEY = "multies-held-sends";
+export interface HeldRescue { key: string; dueAt: number; label: string; draft: unknown; hadFiles: boolean }
+function rescueRead(): HeldRescue[] {
+  try { const v = JSON.parse(localStorage.getItem(HELD_RESCUE_KEY) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; }
+}
+function rescueWrite(list: HeldRescue[]) {
+  try { if (list.length) localStorage.setItem(HELD_RESCUE_KEY, JSON.stringify(list)); else localStorage.removeItem(HELD_RESCUE_KEY); } catch { /* private mode */ }
+}
+/** Strips File objects (they can't be stored) and keeps the rest of the draft. */
+function storableDraft(d: unknown): unknown {
+  if (!d || typeof d !== "object") return d;
+  return { ...(d as Record<string, unknown>), files: [] };
+}
+export function rescueAdd(r: HeldRescue) { rescueWrite([...rescueRead().filter((x) => x.key !== r.key), { ...r, draft: storableDraft(r.draft) }]); }
+export function rescueRemove(key: string) { rescueWrite(rescueRead().filter((x) => x.key !== key)); }
+
+export type HeldStatus = "sent" | "pending" | "failed" | "unknown";
+/** A copy is only looked at well after its hold ended, so a live hold in another tab is never mistaken for a closed one. */
+export const RESCUE_GRACE_MS = 20_000;
+/** A handed over send still "pending" after this long was cut off; it goes back to Compose instead of waiting forever. */
+export const RESCUE_PENDING_MAX_MS = 10 * 60_000;
+
+/** What to do with each leftover copy, given the server's answer. Pure, for tests. */
+export function rescueDecision(r: HeldRescue, status: HeldStatus, now: number): "sent" | "wait" | "reopen" {
+  if (status === "sent") return "sent";
+  if (status === "pending" && now - r.dueAt < RESCUE_PENDING_MAX_MS) return "wait";
+  return "reopen";
+}
+
+let recovering = false;
+/**
+ * Runs once when the app opens: each message whose page closed during its hold is either confirmed as sent or put
+ * back in Compose. Never sends anything itself, so nothing can go twice.
+ */
+export async function recoverHeldSends(opts: {
+  now?: number;
+  status?: (key: string) => Promise<HeldStatus>;
+  reopen?: (draft: unknown) => void;
+  notify?: (kind: "sent" | "reopen", r: HeldRescue) => void;
+} = {}) {
+  if (recovering) return;
+  recovering = true;
+  try {
+    const now = opts.now ?? Date.now();
+    const due = rescueRead().filter((r) => now - r.dueAt > RESCUE_GRACE_MS);
+    const status = opts.status ?? (async (key: string) => {
+      const { api } = await import("@/web/lib/api");
+      return (await api.get<{ state: HeldStatus }>(`/mail/held-status?key=${encodeURIComponent(key)}`)).state;
+    });
+    for (const r of due) {
+      let st: HeldStatus;
+      try { st = await status(r.key); } catch { continue; } // offline: try again next visit
+      const d = rescueDecision(r, st, now);
+      if (d === "wait") continue;
+      rescueRemove(r.key);
+      if (d === "sent") { (opts.notify ?? notifyRescue)("sent", r); continue; }
+      (opts.notify ?? notifyRescue)("reopen", r);
+      (opts.reopen ?? ((x) => reopenDraft(x, "failed")))(r.draft);
+    }
+  } finally { recovering = false; }
+}
+function notifyRescue(kind: "sent" | "reopen", r: HeldRescue) {
+  if (kind === "sent") toast.success(`Sent ${r.label}`.trim(), { description: "The page closed while it was held, so it went when you left." });
+  else toast.error("The page closed before your message could send.", { description: r.hadFiles ? "It's back in Compose. Attach the files again, then send." : "It's back in Compose, ready to send." });
 }

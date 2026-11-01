@@ -140,6 +140,8 @@ export function AppLayout() {
   const projectList = useQuery({ queryKey: ["projects"], enabled: !!projectParam && !!me.data?.organization, staleTime: 30_000,
     queryFn: async () => (await api.get<{ projects: { id: string; name: string }[] }>("/projects")).projects });
   const projectName = projectParam ? projectList.data?.find((p) => p.id === projectParam)?.name ?? null : null;
+  // R111: a message whose tab closed during its undo send hold is confirmed as sent or put back in Compose.
+  useEffect(() => { const t = setTimeout(() => { void import("@/web/lib/undo-send").then((m) => m.recoverHeldSends()); }, 1500); return () => clearTimeout(t); }, []);
   useEffect(() => watchKeyboardInset(), []); // R49 mobile: composers stay above the on screen keyboard
   const approvals = useQuery({
     queryKey: ["approvals", "pending"], enabled: !!me.data?.organization, refetchInterval: 30_000,

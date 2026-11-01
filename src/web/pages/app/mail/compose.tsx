@@ -148,10 +148,13 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
     const remind = remindDays;
     if (later) {
       // Send later: the same hold (Undo still works), then the message waits in Scheduled.
+      // R111: keyed like Send, so a hold handed over as the tab closes can never schedule twice.
+      const laterBody = { message, ...later, ...(remind ? { remindDays: remind } : {}) };
       holdMessage<{ dueAt: string }>({
         seconds: undoSeconds,
         to,
-        send: () => api.post<{ dueAt: string }>("/mail-schedules/send", { message, ...later, ...(remind ? { remindDays: remind } : {}) }),
+        send: () => api.post<{ dueAt: string }>("/mail-schedules/send", laterBody, { idempotencyKey: key }),
+        handoff: { path: "/mail-schedules/send", key, body: () => laterBody, draft: snapshot },
         onSent: (r) => { void qc.invalidateQueries({ queryKey: ["mail"] }); toast.success(`Scheduled for ${zonedDateTime(r.dueAt)}`, { description: "Find it in Scheduled to edit or cancel it." }); },
         onError: (e) => { toast.error(e instanceof ApiError ? e.message : "Couldn't schedule it.", { description: "Your message is back in Compose." }); reopenDraft(snapshot, "failed"); },
         onUndo: () => reopenDraft(snapshot, "undo"),
@@ -159,10 +162,19 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
       onClose();
       return;
     }
+    // R111: the request is built once when the hold starts (files read in the background), so the normal send and a
+    // hand over as the tab closes post the very same body under the same key, and the server sends it once.
+    let built: unknown = files.length ? undefined : message;
+    const bodyP: Promise<unknown> = files.length
+      ? Promise.all(files.map(async (f) => ({ filename: f.name, contentType: f.type || "application/octet-stream", data: await fileToBase64(f) })))
+        .then((attachments) => { built = { ...message, attachments }; return built; })
+      : Promise.resolve(message);
+    bodyP.catch(() => { /* surfaced by send */ });
     holdMessage({
       seconds: undoSeconds,
       to,
-      send: async () => api.post<SendResult>("/mail/send", files.length ? { ...message, attachments: await Promise.all(files.map(async (f) => ({ filename: f.name, contentType: f.type || "application/octet-stream", data: await fileToBase64(f) }))) } : message, { idempotencyKey: key }),
+      send: async () => api.post<SendResult>("/mail/send", await bodyP, { idempotencyKey: key }),
+      handoff: { path: "/mail/send", key, body: () => built, draft: snapshot, hadFiles: files.length > 0 },
       onSent: (r) => {
         void qc.invalidateQueries({ queryKey: ["mail"] });
         void qc.invalidateQueries({ queryKey: ["dashboard"] });

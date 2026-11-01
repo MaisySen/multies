@@ -5,7 +5,7 @@ import type { AppEnv } from "../context";
 import { parseBody, parseQuery, requireAuth } from "../middleware";
 import { saveDraftSchema, sendMessageSchema, updateMessageSchema } from "@/shared/schemas";
 import type { Folder } from "@/shared/mail";
-import { attachments, mailboxes, messages } from "../db/schema";
+import { attachments, idempotencyKeys, mailboxes, messages } from "../db/schema";
 import { audit } from "../services/audit";
 import { sendMessage } from "../services/mail/send";
 import { toolFilesAsAttachments } from "../services/tools/attach"; // Tools P2
@@ -93,12 +93,29 @@ const MessageListQuery = z.object({
   label: z.string().max(40).optional().transform((v) => v || undefined),
 });
 
+/** R111: the answer for /held-status from the idempotency row (pure, for tests). */
+export function heldState(row: { state: string; status: number | null } | undefined): "sent" | "pending" | "failed" | "unknown" {
+  if (!row) return "unknown";
+  if (row.state === "done") return row.status !== null && row.status < 300 ? "sent" : "failed";
+  // Running with a stored 5xx failed and may be retried; with no status it is in flight (or was cut off).
+  return row.status !== null && row.status !== undefined ? "failed" : "pending";
+}
+
 export function mailRoutes() {
   const sendLimiter = new RateLimiter(30, 60_000);
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     // The composer sends an Idempotency-Key, so a retried "Send" never sends twice.
     .use("*", idempotency((c) => `user:${c.var.auth.userId}`))
+    // R111 (undo send survives tab close): did the held send with this key reach the server? Read only, the caller's
+    // own keys only (same scope as the middleware above), and no message content in the answer.
+    .get("/held-status", async (c) => {
+      const key = (c.req.query("key") ?? "").slice(0, 255);
+      if (!/^[A-Za-z0-9_.:-]{8,255}$/.test(key)) throw badRequest("That key isn't valid.");
+      const row = await c.var.deps.db.select({ state: idempotencyKeys.state, status: idempotencyKeys.responseStatus })
+        .from(idempotencyKeys).where(and(eq(idempotencyKeys.scope, `user:${c.var.auth.userId}`), eq(idempotencyKeys.key, key))).get();
+      return c.json({ state: heldState(row) });
+    })
     .get("/overview", async (c) => c.json({ mailboxes: await mailboxOverview(c.var.deps.db, c.var.auth.orgId, await mailboxScope(c.var.deps.db, c.var.auth)) }))
     .get("/messages", async (c) => {
       const q = parseQuery(c, MessageListQuery);
