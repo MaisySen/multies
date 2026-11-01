@@ -47,3 +47,20 @@ export function createProductAnalytics(opts: { sender?: Sender; optedOut?: () =>
 
   return { pageOpened, flush, pending: () => queue.length };
 }
+
+/**
+ * R111 (ANALYTICS-PH low): flush queued events with a keepalive request when the page is hidden or goes away.
+ * visibilitychange alone misses some closes (Safari, a tab closed from another window), so pagehide flushes too.
+ * Returns the unsubscribe.
+ */
+export function flushOnPageHide(
+  pa: { flush: (keepalive?: boolean) => void },
+  win: Pick<Window, "addEventListener" | "removeEventListener"> = window,
+  doc: Pick<Document, "addEventListener" | "removeEventListener" | "visibilityState"> = document,
+): () => void {
+  const hidden = () => { if (doc.visibilityState === "hidden") pa.flush(true); };
+  const gone = () => pa.flush(true);
+  doc.addEventListener("visibilitychange", hidden);
+  win.addEventListener("pagehide", gone);
+  return () => { doc.removeEventListener("visibilitychange", hidden); win.removeEventListener("pagehide", gone); };
+}

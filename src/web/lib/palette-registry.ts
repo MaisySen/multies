@@ -121,6 +121,7 @@ export const PALETTE_ACTIONS: PaletteAction[] = [
   // R82F (MB-275): the PDF jobs people type by name go straight to the tool.
   { id: "tools-split", label: "Split PDF", icon: IconWrench, kind: "navigate", to: "/app/tools?op=split", keywords: ["split pdf", "extract pages", "separate pages", "page ranges", "tools"], flag: "tools" },
   { id: "tools-rotate", label: "Rotate PDF pages", icon: IconWrench, kind: "navigate", to: "/app/tools?op=rotate", keywords: ["rotate pdf", "turn pages", "tools"], flag: "tools" },
+  { id: "tools-slides", label: "Convert slides and drawings", icon: IconWrench, kind: "navigate", to: "/app/tools?op=slides-convert", keywords: ["slides", "slide deck", "powerpoint", "pptx", "ppt", "odp", "odg", "presentation", "keynote", "drawing", "slides to pdf", "pdf to slides"], flag: "tools", toolFeature: ["tools_c2"] }, // R111 (R100b low): Ctrl K finds Slides
   { id: "tools-to-images", label: "PDF to images", icon: IconWrench, kind: "navigate", to: "/app/tools?op=to-jpeg", keywords: ["pdf to jpg", "pdf to png", "pages as images", "tools"], flag: "tools" },
   { id: "tools-convert", label: "Convert to PDF", icon: IconWrench, kind: "navigate", to: "/app/tools?op=convert", keywords: ["word to pdf", "docx", "excel", "powerpoint", "tools"], flag: "tools" },
   { id: "shortcuts", label: "Keyboard shortcuts", icon: IconKeyboard, kind: "shortcuts", keywords: ["keys", "help", "hotkeys"] },

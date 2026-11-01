@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
 import { qk } from "@/web/lib/queries";
 import { isAuthLayoutPath } from "@/web/lib/auth-providers";
-import { createProductAnalytics } from "@/web/lib/product-analytics";
+import { createProductAnalytics, flushOnPageHide } from "@/web/lib/product-analytics";
 
 /**
  * ANALYTICS-PH: reports app area and tool opens when the server turns it on (ANALYTICS_PH). Loads nothing extra,
@@ -22,9 +22,8 @@ export function ProductAnalytics({ subscribe }: { subscribe?: (fn: (path: string
     pa.current.pageOpened(path);
   }, [enabled, path]);
   useEffect(() => {
-    const hide = () => { if (document.visibilityState === "hidden") pa.current?.flush(true); };
-    document.addEventListener("visibilitychange", hide);
-    return () => document.removeEventListener("visibilitychange", hide);
+    // R111: pagehide as well as visibilitychange, so events queued just before a close still leave.
+    return flushOnPageHide({ flush: (k) => pa.current?.flush(k) });
   }, []);
   return null;
 }

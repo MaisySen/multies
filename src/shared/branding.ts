@@ -177,6 +177,9 @@ export function colourTokens(primary: string | null, accent: string | null, sche
   // A filled button: the brand colour, darkened only if no text colour can reach AA on it.
   let fill = p;
   if (contrast(fill, readableOn(fill)) < 4.5) fill = ensureContrast(fill, readableOn(fill), 4.5);
+  // R111 (R100b low): buttons and tool rows lighten the fill on hover (bg-brand/90 over the page). Forest measured 4.22:1
+  // there, so the fill is deepened just enough that the hovered fill still reads at AA with its text.
+  fill = hoverSafeFill(fill, scheme);
   t["--color-brand"] = fill;
   t["--color-brand-fg"] = readableOn(fill);
   // brand-hover doubles as the brand coloured text colour (links, active labels): AA against the surface.
@@ -188,6 +191,21 @@ export function colourTokens(primary: string | null, accent: string | null, sche
   t["--color-accent"] = a;
   t["--color-accent-fg"] = readableOn(a);
   return t;
+}
+
+/** The grounds a hovered brand fill (90% fill over the page) can sit on, per scheme. */
+const hoverGrounds = (scheme: "light" | "dark") => [BASE[scheme].surface, BASE[scheme].bg, NEUTRALS[scheme]["--color-elevated"]];
+/** The fill as it looks on hover over each ground (Tailwind bg-brand/90). */
+export const hoveredFills = (fill: string, scheme: "light" | "dark") => hoverGrounds(scheme).map((g) => mix(fill, g, 0.1));
+/** R111: deepens a fill until its text reaches 4.5:1 both at rest and on hover. */
+export function hoverSafeFill(fill: string, scheme: "light" | "dark"): string {
+  let f = fill;
+  for (let i = 0; i < 40; i++) {
+    const fg = readableOn(f);
+    if ([f, ...hoveredFills(f, scheme)].every((c) => contrast(c, fg) >= 4.5)) return f;
+    f = mix(f, fg === "#ffffff" ? "#000000" : "#ffffff", 0.03);
+  }
+  return f;
 }
 
 /** Sidebar tokens: the sidebar paints its own ground and the text colours inside it follow. */
