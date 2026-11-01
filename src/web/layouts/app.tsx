@@ -117,6 +117,8 @@ export function AppLayout() {
   // R33: stored list copies are keyed by this person and workspace; set during render so lists started now see it.
   if (me.data) setOfflineScope(scopeOf(me.data));
   const config = useConfig();
+  // R123: Sites shows in Docs only once the workspace has a site (one small read per session, kept 10 minutes).
+  const sitesUse = useQuery({ queryKey: ["sites", "in-use"], enabled: !!config.data?.sites, staleTime: 600_000, retry: false, queryFn: () => api.get<{ inUse: boolean; canStart: boolean }>("/sites/in-use") });
   useDemoSeedCatchUp(!!me.data?.organization?.isDemo);
   useAnnounceWorkspace(me.data?.organization); // R58 (MB-245): other tabs learn which workspace is open
   const loc = useLocation();
@@ -281,7 +283,7 @@ export function AppLayout() {
 
   // R79: the desktop shell: icon rail, a resizable sidebar for the open section (Cmd or Ctrl + backslash folds it),
   // and a top bar with breadcrumbs, search, Create and View. Tablets and phones keep their own bars (R46).
-  const navFlags = { helpCenter: !!config.data?.helpCenter, docsPlus: !!config.data?.docsPlus, flows: (config.data as { flows?: boolean } | undefined)?.flows !== false, tools: !!config.data?.tools, files: !!config.data?.tools && (!!config.data?.toolFeatures?.includes("folders") || !!config.data?.filesPlus), scheduling: !!config.data?.scheduling, links: !!config.data?.tools && !!config.data?.toolFeatures?.includes("links"), operator: !!me.data?.user.platformAdmin, social: me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin" || (!!config.data?.socialP2 && !!me.data?.organization), socialP2: !!config.data?.socialP2, socialP2b: !!config.data?.socialP2 && config.data?.socialP2b !== false, invoices: !!config.data?.invoices };
+  const navFlags = { sites: !!config.data?.sites && !!sitesUse.data?.inUse, sitesCreate: !!config.data?.sites && (!!sitesUse.data?.canStart || !!sitesUse.data?.inUse), helpCenter: !!config.data?.helpCenter, docsPlus: !!config.data?.docsPlus, flows: (config.data as { flows?: boolean } | undefined)?.flows !== false, tools: !!config.data?.tools, files: !!config.data?.tools && (!!config.data?.toolFeatures?.includes("folders") || !!config.data?.filesPlus), scheduling: !!config.data?.scheduling, links: !!config.data?.tools && !!config.data?.toolFeatures?.includes("links"), operator: !!me.data?.user.platformAdmin, social: me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin" || (!!config.data?.socialP2 && !!me.data?.organization), socialP2: !!config.data?.socialP2, socialP2b: !!config.data?.socialP2 && config.data?.socialP2b !== false, invoices: !!config.data?.invoices };
   const sections = visibleSections(navFlags);
   const section = sectionFor(loc.pathname, sections);
   const navCounts: NavCounts = {

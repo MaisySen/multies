@@ -83,6 +83,8 @@ const ApprovalsPage = lazyPage(() => import("./pages/app/approvals"), "Approvals
 const TeamInboxPage = lazyPage(() => import("./pages/app/inbox"), "TeamInboxPage");
 const HelpdeskSettingsPage = lazyPage(() => import("./pages/app/helpdesk-settings"), "HelpdeskSettingsPage"); // R119
 const HelpCenterPage = lazyPage(() => import("./pages/app/help-center"), "HelpCenterPage"); // R122
+const SitesPage = lazyPage(() => import("./pages/app/sites"), "SitesPage"); // R123
+const SiteEditorPage = lazyPage(() => import("./pages/app/sites"), "SiteEditorPage"); // R123
 const DocsLinksPage = lazyPage(() => import("./pages/app/docs-links-r103"), "DocsLinksPage"); // R103
 const work = () => import("./pages/app/work/tasks");
 const TasksPage = lazyPage(() => work(), "TasksPage");
@@ -283,6 +285,8 @@ export const router = createBrowserRouter([
       { path: "tasks/:ref", element: page(<TaskPageRoute />) }, // R84
       { path: "docs", element: page(<DocsPage />) },
       { path: "docs/help-center", element: page(<HelpCenterPage />) }, // R122
+      { path: "docs/sites", element: page(<SitesPage />) }, // R123
+      { path: "docs/sites/:pageId", element: page(<SiteEditorPage />) }, // R123
       { path: "docs/links", element: page(<DocsLinksPage />) }, // R103
       { path: "docs/:id", element: page(<DocPage />) },
       { path: "contacts", element: page(<ContactsPage />) },

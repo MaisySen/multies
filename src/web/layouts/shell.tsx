@@ -33,6 +33,7 @@ export const NAV_ICONS: Record<IconKey, IconComponent> = {
   contacts: IconContacts, reports: IconChart, agents: IconAgent, integrations: IconPlug, connections: IconPlugZap, settings: IconSettings, operator: IconShield, convert: IconArrowRightLeft,
   social: IconMegaphone, planner: IconCalendarDays, posts: IconSend, accounts: IconUserRoundCheck, library: IconBookmark, socialInbox: IconInbox, analytics: IconChart, // P1 layout, R118
   help: IconHelp, // R122
+  sites: IconGlobe, // R123
 };
 
 /** Counts the shell shows, keyed by page path. "alert" counts use the brand colour; the rest stay neutral. */
@@ -236,7 +237,7 @@ export function Breadcrumbs({ projectName }: { projectName?: string | null }) {
   );
 }
 
-const CREATE_ICON: Record<string, IconComponent> = { task: IconSquarePlus, doc: IconFilePlus, mail: IconCompose, event: IconCalendarPlus, file: IconUpload, post: IconMegaphone, link: IconLink, invoice: IconReceipt, quote: IconReceipt };
+const CREATE_ICON: Record<string, IconComponent> = { site: IconGlobe, task: IconSquarePlus, doc: IconFilePlus, mail: IconCompose, event: IconCalendarPlus, file: IconUpload, post: IconMegaphone, link: IconLink, invoice: IconReceipt, quote: IconReceipt };
 
 /** One Create menu for everything new. */
 export function CreateMenu({ flags }: { flags: NavFlags }) {

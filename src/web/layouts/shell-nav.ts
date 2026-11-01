@@ -8,9 +8,9 @@ export type IconKey =
   | "today" | "overview" | "bell" | "triage" | "approvals" | "activity" | "sharedInbox" | "mailboxes" | "domains" | "deliverability"
   | "goals" | "portfolio" | "timesheet" | "templates" | "automations" | "files" | "forms" | "meetings" | "booking" | "contacts"
   | "reports" | "agents" | "integrations" | "connections" | "settings" | "operator" | "convert"
-  | "social" | "planner" | "posts" | "accounts" | "library" | "help" | "socialInbox" | "analytics";
+  | "social" | "planner" | "posts" | "accounts" | "library" | "help" | "socialInbox" | "analytics" | "sites";
 
-export interface NavPage { to: string; label: string; icon: IconKey; end?: boolean; flag?: "tools" | "files" | "scheduling" | "operator" | "flows" | "socialP2" | "helpCenter" | "socialP2b" | "docsPlus" }
+export interface NavPage { to: string; label: string; icon: IconKey; end?: boolean; flag?: "sites" | "tools" | "files" | "scheduling" | "operator" | "flows" | "socialP2" | "helpCenter" | "socialP2b" | "docsPlus" }
 export interface Section { id: SectionId; label: string; icon: IconKey; to: string; pages: NavPage[] }
 
 export const SECTIONS: Section[] = [
@@ -40,6 +40,7 @@ export const SECTIONS: Section[] = [
     { to: "/app/forms", label: "Forms", icon: "forms" },
     { to: "/app/docs/links", label: "Link library", icon: "library", flag: "docsPlus" }, // R103
     { to: "/app/docs/help-center", label: "Help center", icon: "help", flag: "helpCenter" }, // R122
+    { to: "/app/docs/sites", label: "Sites", icon: "sites", flag: "sites" }, // R123: shown once the workspace has a site
   ] },
   // P1 layout: posting is a daily tool, so it has its own place (it lived in Settings, Connections, Social posts).
   { id: "social", label: "Social", icon: "social", to: "/app/social", pages: [
@@ -81,7 +82,7 @@ export const SECTIONS: Section[] = [
   ] },
 ];
 
-export interface NavFlags { /** R122: the help center in Docs. */ helpCenter?: boolean; /** R103: the link library in Docs. */ docsPlus?: boolean; /** R90: the automation builder is on. */ flows?: boolean; tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts (R117: members too, sent for approval, with Social P2). */ social?: boolean; socialP2?: boolean; /** R118: Social inbox and analytics. */ socialP2b?: boolean; /** R87: Tools > Links is on. */ links?: boolean; /** R105: invoices and quotes. */ invoices?: boolean }
+export interface NavFlags { /** R122: the help center in Docs. */ helpCenter?: boolean; /** R103: the link library in Docs. */ docsPlus?: boolean; /** R90: the automation builder is on. */ flows?: boolean; tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts (R117: members too, sent for approval, with Social P2). */ social?: boolean; socialP2?: boolean; /** R118: Social inbox and analytics. */ socialP2b?: boolean; /** R87: Tools > Links is on. */ links?: boolean; /** R105: invoices and quotes. */ invoices?: boolean; /** R123: the workspace has a site (the Sites page shows only then). */ sites?: boolean; /** R123: Sites is on and this person can start or build it (Create menu). */ sitesCreate?: boolean }
 
 /** The sections and pages this person can open (switched off features leave no dead links). */
 export function visibleSections(flags: NavFlags): Section[] {
@@ -195,6 +196,8 @@ export function createItems(flags: NavFlags) {
   const withLinkOnly = flags.links ? [...items, { kind: "link" as const, label: "Short link", to: "/app/tools/links?new=1", hint: "" }] : items;
   // R105: an invoice or a quote, where invoices are on.
   const withLink = flags.invoices ? [...withLinkOnly, { kind: "invoice" as const, label: "Invoice", to: "/app/contacts/invoices?new=invoice", hint: "" }, { kind: "quote" as const, label: "Quote", to: "/app/contacts/invoices?new=quote", hint: "" }] : withLinkOnly;
+  // R123: a site page, where Sites is on for this person.
+  const withSite = flags.sitesCreate ? [...withLink, { kind: "site" as const, label: "Site page", to: "/app/docs/sites?new=1", hint: "" }] : withLink;
   // P1 layout: it opens the composer in Social (it opened Settings before).
-  return flags.social ? [...withLink, { kind: "post" as const, label: "Social post", to: SOCIAL_NEW, hint: "P" }] : withLink;
+  return flags.social ? [...withSite, { kind: "post" as const, label: "Social post", to: SOCIAL_NEW, hint: "P" }] : withSite;
 }

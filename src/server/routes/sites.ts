@@ -18,7 +18,7 @@ import { SHIELD_HONEYPOT_NAME, type ShieldAnswer } from "@/shared/spam-shield";
 import { escHtml, renderPageHtml, type RenderLinks } from "@/shared/sites";
 import {
   createPage, deletePage, getPage, getSite, linkables, listComments, listPages, listVersions, moderateComment, postComment, publicComments, publishPage,
-  queueView, resolvePage, resolveSite, restoreVersion, savePage, siteStats, siteUrl, startSite, unpublishPage, updateSite, type PublicSite,
+  queueView, resolvePage, sitesInUse, resolveSite, restoreVersion, savePage, siteStats, siteUrl, startSite, unpublishPage, updateSite, type PublicSite,
 } from "../services/sites";
 
 const Start = z.object({ name: z.string().max(200), slug: z.string().max(60) });
@@ -38,6 +38,7 @@ export function sitesRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => c.json(await getSite(c.var.deps, c.var.auth)))
+    .get("/in-use", async (c) => c.json(await sitesInUse(c.var.deps, c.var.auth)))
     .post("/", async (c) => c.json(await startSite(c.var.deps, c.var.auth, await parseBody(c, Start)), 201))
     .patch("/", async (c) => c.json(await updateSite(c.var.deps, c.var.auth, await parseBody(c, SitePatch))))
     .get("/linkables", async (c) => c.json(await linkables(c.var.deps, c.var.auth)))

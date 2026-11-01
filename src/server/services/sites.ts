@@ -93,6 +93,12 @@ export async function getSite(deps: Deps, a: AuthContext) {
   return { site: s ? siteInfo(deps, a, s) : null, canStart: isAdmin(a), suggestedSlug: slugify(o.slug || o.name || "site", "site").slice(0, 40).padEnd(3, "0"), orgName: o.name ?? "" };
 }
 
+/** For the menu: does this workspace have a site, and could this person start one. One keyed read. */
+export async function sitesInUse(deps: Deps, a: AuthContext) {
+  const s = await deps.db.select({ id: sites.id, editors: sites.editors }).from(sites).where(eq(sites.orgId, a.orgId)).get();
+  return { inUse: !!s, canStart: !s && isAdmin(a), canEdit: !!s && canEditSite(a, s) };
+}
+
 export async function startSite(deps: Deps, a: AuthContext, input: { name: string; slug: string }) {
   await guard(deps, a);
   if (!isAdmin(a)) throw forbidden("Only admins can start the site.");
@@ -187,7 +193,8 @@ export async function getPage(deps: Deps, a: AuthContext, id: string) {
   const s = await needSite(deps, a);
   const p = await promoteDue(deps, await pageOf(deps, a, id));
   if (!canEditSite(a, s) && !p.membersCanView && !p.live) throw forbidden("This page is a draft. Ask a site editor to share it with members.");
-  return { page: detail(deps, s, p, a), site: siteInfo(deps, a, s) };
+  const brand = await getBrand(deps.db, a.orgId);
+  return { page: detail(deps, s, p, a), site: siteInfo(deps, a, s), look: { brandColor: brand.primary ?? brand.accent ?? null } };
 }
 
 export async function createPage(deps: Deps, a: AuthContext, input: { title: string; slug?: string }) {

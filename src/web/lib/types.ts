@@ -23,6 +23,8 @@ export interface PublicConfig {
   analyticsPh?: boolean;
   /** R122: the help center in Docs. */
   helpCenter?: boolean;
+  /** R123: Sites in Docs (SITES_R123). */
+  sites?: boolean;
   /** R98: typo tolerant search with filters and instant results (SEARCH_R98). */
   searchR98?: boolean;
   /** R110: Ask across the workspace (ASK_R110). */
