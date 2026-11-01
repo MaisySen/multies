@@ -3,7 +3,7 @@
  * announcements with seen by receipts, and votes: polls, decision votes with an outcome, live Q&A with upvotes
  * and word clouds, in channels and during meetings. Members only; guests read results where a channel lets them in.
  */
-import { and, asc, count, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, isNull, ne, or, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import {
   chatAnnouncementReads, chatAnnouncements, chatChannels, chatMembers, chatMessages, chatPollItems, chatPollVotes, chatPolls, chatTopicReads, chatTopics,
@@ -75,19 +75,26 @@ export async function topicForPost(deps: Deps, orgId: string, channelId: string,
 
 export async function listTopics(deps: Deps, a: SuiteActor, channelId: string) {
   const c = await visibleChannel(deps, a, channelId);
-  const viewer = a.agentId || a.apiKeyId ? "" : a.userId ?? "";
-  const live = sql`${chatMessages.topicId} = ${chatTopics.id} and ${chatMessages.parentId} is null and ${chatMessages.deletedAt} is null`;
-  const rows = await deps.db.select({
-    t: chatTopics,
-    total: sql<number>`(select count(*) from ${chatMessages} where ${live})`,
-    unread: sql<number>`(select count(*) from ${chatMessages} where ${live} and coalesce(${chatMessages.authorId}, '') <> ${viewer}
-      and exists (select 1 from ${chatMembers} where ${chatMembers.channelId} = ${chatTopics.channelId} and ${chatMembers.userId} = ${viewer})
-      and ${chatMessages.createdAt} > max(
-        coalesce((select ${chatTopicReads.lastReadAt} from ${chatTopicReads} where ${chatTopicReads.topicId} = ${chatTopics.id} and ${chatTopicReads.userId} = ${viewer}), 0),
-        coalesce((select ${chatMembers.lastReadAt} from ${chatMembers} where ${chatMembers.channelId} = ${chatTopics.channelId} and ${chatMembers.userId} = ${viewer}), 0)))`,
-  }).from(chatTopics).where(and(eq(chatTopics.orgId, c.orgId), eq(chatTopics.channelId, c.id)))
+  const viewer = a.agentId || a.apiKeyId ? null : a.userId ?? null;
+  const rows = await deps.db.select().from(chatTopics).where(and(eq(chatTopics.orgId, c.orgId), eq(chatTopics.channelId, c.id)))
     .orderBy(sql`${chatTopics.resolvedAt} is not null`, desc(sql`coalesce(${chatTopics.lastMessageAt}, ${chatTopics.createdAt})`)).limit(L.topicsPerChannel);
-  return { topics: rows.map((r) => presentTopic(r.t, { total: Number(r.total) || 0, unread: Number(r.unread) || 0 })) };
+  if (!rows.length) return { topics: [] };
+  const live = and(eq(chatMessages.channelId, c.id), isNull(chatMessages.parentId), isNull(chatMessages.deletedAt));
+  const totals = new Map((await deps.db.select({ id: chatMessages.topicId, n: count() }).from(chatMessages).where(and(live, inIds(chatMessages.topicId, rows.map((r) => r.id)))).groupBy(chatMessages.topicId)).map((r) => [r.id, r.n]));
+  const unread = new Map<string, number>();
+  const member = viewer ? await deps.db.select({ at: chatMembers.lastReadAt }).from(chatMembers).where(and(eq(chatMembers.channelId, c.id), eq(chatMembers.userId, viewer))).get() : null;
+  if (viewer && member) {
+    // Unread by topic: messages after the later of the channel read mark and the topic's own read mark.
+    const since = new Map(rows.map((r) => [r.id, member.at?.getTime() ?? 0]));
+    for (const r of await deps.db.select().from(chatTopicReads).where(and(eq(chatTopicReads.userId, viewer), inIds(chatTopicReads.topicId, rows.map((t) => t.id))))) {
+      since.set(r.topicId, Math.max(since.get(r.topicId) ?? 0, r.lastReadAt.getTime()));
+    }
+    const floor = Math.min(...since.values());
+    const recent = await deps.db.select({ topicId: chatMessages.topicId, at: chatMessages.createdAt }).from(chatMessages)
+      .where(and(live, inIds(chatMessages.topicId, rows.map((r) => r.id)), gt(chatMessages.createdAt, new Date(floor)), sql`coalesce(${chatMessages.authorId}, '') <> ${viewer}`)).limit(5000);
+    for (const m of recent) if (m.topicId && m.at.getTime() > (since.get(m.topicId) ?? 0)) unread.set(m.topicId, (unread.get(m.topicId) ?? 0) + 1);
+  }
+  return { topics: rows.map((t) => presentTopic(t, { total: totals.get(t.id) ?? 0, unread: unread.get(t.id) ?? 0 })) };
 }
 
 export async function createTopic(deps: Deps, a: SuiteActor, channelId: string, rawName: string) {

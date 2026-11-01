@@ -465,7 +465,7 @@ async function storeFiles(deps: Deps, orgId: string, channelId: string, messageI
 }
 
 /** The one write path for a new message, shared by people, agents and guests. */
-async function writeMessage(deps: Deps, a: SuiteActor, c: ChannelRow, author: Author, input: { body: string; parentId?: string | null; files?: Upload[]; id?: string | null; clientMsgId?: string }) {
+async function writeMessage(deps: Deps, a: SuiteActor, c: ChannelRow, author: Author, input: { body: string; parentId?: string | null; files?: Upload[]; id?: string | null; clientMsgId?: string; topicId?: string | null }) {
   const body = (input.body ?? "").trim();
   const files = input.files ?? [];
   if (!body && !files.length) throw new HttpError(422, "validation_failed", "Write a message or attach a file.");

@@ -40,7 +40,7 @@ export function cleanOptions(raw: string[]): { options: string[] } | { error: st
 
 /** A word cloud entry: lower case letters and numbers (any script), inner apostrophes kept, at most 24 characters. */
 export function normaliseWord(w: string): string {
-  return w.toLowerCase().normalize("NFC").replace(/[^\p{L}\p{N}' ]+/gu, " ").replace(/\s+/g, " ").trim().replace(/^'+|'+$/g, "").slice(0, CHAT_PLUS_LIMITS.word).trim();
+  return w.toLowerCase().normalize("NFC").replace(/[^\p{L}\p{M}\p{N}' ]+/gu, " ").replace(/\s+/g, " ").trim().replace(/^'+|'+$/g, "").slice(0, CHAT_PLUS_LIMITS.word).trim();
 }
 /** Up to three distinct words from what someone typed (split on commas or new lines; a phrase stays one entry). */
 export function cloudWords(raw: string[]): string[] {
