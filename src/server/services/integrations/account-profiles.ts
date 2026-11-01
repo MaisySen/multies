@@ -183,7 +183,7 @@ export async function backfillProfiles(deps: Deps, cp: Composio, orgId: string, 
   const live = new Set(accounts.map((a) => a.id));
   const gone = [...profiles.keys()].filter((id) => !live.has(id));
   if (gone.length) {
-    await deps.db.delete(socialAccountProfiles).where(and(eq(socialAccountProfiles.orgId, orgId), inArray(socialAccountProfiles.accountId, gone.slice(0, 50))));
+    await deps.db.delete(socialAccountProfiles).where(and(eq(socialAccountProfiles.orgId, orgId), inArray(socialAccountProfiles.accountId, gone.slice(0, 50)))); // D1: at most 50 ids
     for (const id of gone) profiles.delete(id);
   }
   return { profiles, merged };
