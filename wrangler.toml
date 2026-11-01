@@ -136,6 +136,10 @@ simple = { limit = 300, period = 60 }
 
 [vars]
 APP_MODE = "production"
+# ANALYTICS-PH: internal product usage analytics, on after verifier v9 PASS (1 Nov 2026). POSTHOG_KEY and
+# ANALYTICS_HASH_KEY are secrets; the client workspace is always excluded; "off" switches it off everywhere.
+ANALYTICS_PH = "on"
+POSTHOG_HOST = "https://eu.i.posthog.com"
 # Tools (document tools on the private document engine): on in production from R63 (30 October 2026). Set
 # TOOLS_ENABLED = "false" to switch them off everywhere. The engine keys are secrets (DOC_ENGINE_KEY, TOOLS_TOKEN_KEY).
 TOOLS_ENABLED = "true"
