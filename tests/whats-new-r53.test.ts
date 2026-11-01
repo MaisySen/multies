@@ -133,10 +133,12 @@ describe("R53 whats-new list", () => {
     // W1B: the three items shipped last on 1 Nov 14:32 to 15:37 UTC (office files, faster search, clear errors) joined above booking plus; 2026-11-01-docs-plus, 2026-11-01-dav-sync, 2026-11-01-chat-plus, the oldest after What's new itself, moved to the public earlier list (whats-new-public.ts).
     // R93: forms that chat, feedback boards and calls for submissions joined at the top; "2026-11-01-mail-archive" (the oldest after What's new itself) moved to the public earlier list.
     // R123: Sites joined at the top; "2026-11-01-maps-visits" (the oldest after What's new itself) moved to the public earlier list.
+    // R112: anonymous reports joined at the top; "2026-11-01-contracts" (the oldest after What's new itself) moved to the public earlier list.
     // R129: courses joined at the top; "2026-11-01-files-plus" (the oldest after What's new itself) moved to the public earlier list.
     // R114: webinars joined at the top; "2026-11-01-tasks-plus" (the oldest after What's new itself) moved to the public earlier list.
     expect(WHATS_NEW.some((e) => e.id === "2026-11-01-tasks-plus")).toBe(false);
-    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-02-webinars", "2026-11-02-home-widgets", "2026-11-02-courses", "2026-11-01-sites", "2026-11-01-forms-plus", "2026-11-01-tables", "2026-11-01-clear-errors", "2026-11-01-faster-search", "2026-11-01-office-files", "2026-11-01-booking-plus", "2026-11-01-invoices", "2026-11-01-ask-workspace", "2026-11-01-contracts", "2026-10-28-whats-new"]);
+    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-02-anonymous-reports", "2026-11-02-webinars", "2026-11-02-home-widgets", "2026-11-02-courses", "2026-11-01-sites", "2026-11-01-forms-plus", "2026-11-01-tables", "2026-11-01-clear-errors", "2026-11-01-faster-search", "2026-11-01-office-files", "2026-11-01-booking-plus", "2026-11-01-invoices", "2026-11-01-ask-workspace", "2026-10-28-whats-new"]);
+    expect(WHATS_NEW.some((e) => e.id === "2026-11-01-contracts")).toBe(false);
     expect(WHATS_NEW.some((e) => e.id === "2026-11-01-help-center")).toBe(false);
     for (const id of ["2026-10-28-more-safe-retries", "2026-10-28-lighter-mail-sync", "2026-10-28-safe-retries", "2026-10-28-quicker-task-lists", "2026-10-27-steadier-my-work"]) {
       expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);

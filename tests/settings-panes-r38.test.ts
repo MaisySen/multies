@@ -7,7 +7,7 @@ describe("settings panes", () => {
     const all = SETTINGS_GROUPS.flatMap((g) => g.items.map((i) => i.to));
     expect(SETTINGS_GROUPS.map((g) => g.label)).toEqual(["Workspace", "You", "Mail", "Build", "Admin"]); // P1 layout: Admin (Activity, Operator) joins the one sidebar
     expect(new Set(all).size).toBe(all.length);
-    expect(all).toHaveLength(18); // R111 Archive and retention; C1 added Chat channels; R77 Branding and Appearance; R80C Connections; R82F Connected accounts became a Connections tab
+    expect(all).toHaveLength(19); // R112 Data requests; R111 Archive and retention; C1 added Chat channels; R77 Branding and Appearance; R80C Connections; R82F Connected accounts became a Connections tab
   });
   it("names the pane you are on, General for the hub and its phone alias", () => {
     expect(paneFor("/app/settings").label).toBe("General");
@@ -16,7 +16,7 @@ describe("settings panes", () => {
     expect(paneFor("/app/settings/sign-up-emails/").label).toBe("Sign-up emails");
   });
   it("finds panes by name and by what is inside them", () => {
-    expect(matchPanes("").length).toBe(18);
+    expect(matchPanes("").length).toBe(19);
     expect(matchPanes("logo").map((p) => p.label)).toContain("Branding"); // R77
     expect(matchPanes("dark").map((p) => p.label)).toContain("Appearance");
     expect(matchPanes("passkey").map((p) => p.label)).toEqual(["Account & security"]);
