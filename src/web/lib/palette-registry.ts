@@ -9,9 +9,9 @@ export type PaletteIcon = React.ComponentType<{ className?: string }>;
  * R59: `flag` names a server switch from /api/config; the page is offered only while it is on.
  * Tools P2: `toolFeature` also needs one of these P2 features in /api/config toolFeatures.
  */
-export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129"; toolFeature?: string[] }
+export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129"; toolFeature?: string[] }
 export type PaletteActionKind = "navigate" | "shortcuts" | "theme" | "external";
-export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129"; toolFeature?: string[] }
+export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129"; toolFeature?: string[] }
 
 export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-my-work", label: "My Work", to: "/app/my-work", icon: IconToday, keywords: ["today", "due", "home", "mentions"] },
@@ -42,6 +42,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-tools-secret", label: "New secret link", to: "/app/tools/share?tab=secrets", icon: IconLock, keywords: ["send password", "one time secret", "self destruct", "send securely", "encrypted note"], flag: "tools", toolFeature: ["secrets"] }, // R88
   { id: "p-tools-links", label: "Links", to: "/app/tools/links", icon: IconLink, keywords: ["short link", "url shortener", "qr code", "link in bio", "bio page", "go links", "click stats", "utm"], flag: "tools", toolFeature: ["links"] }, // R87
   { id: "p-tools-utilities", label: "Utilities", to: "/app/tools/utilities", icon: IconZap, keywords: ["json", "yaml", "csv", "base64", "hash", "uuid", "qr code", "colour", "contrast", "units", "timestamp", "diff", "regex"], flag: "tools", toolFeature: ["tools_c"] }, // R100
+  { id: "p-tools-vault", label: "Vault", to: "/app/tools/vault", icon: IconKey, keywords: ["password vault", "passwords", "logins", "password generator"], flag: "vaultR128" }, // R128
   { id: "p-tools-ask", label: "Ask AI", to: "/app/tools/ask", icon: IconSparkle, keywords: ["ask ai", "ask a question", "assistant", "ai answer"], flag: "askR110" }, // R110
   { id: "p-tools-image-links", label: "Image links", to: "/app/tools/image-links", icon: IconZap, keywords: ["resize image", "crop", "smart crop", "thumbnail", "webp", "image link"], flag: "tools", toolFeature: ["tools_c2"] }, // R100b
   { id: "p-tools-link-preview", label: "Link preview", to: "/app/tools/utilities/link-preview", icon: IconZap, keywords: ["link preview", "url card", "open graph", "unfurl"], flag: "tools", toolFeature: ["tools_c2"] }, // R100b

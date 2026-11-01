@@ -27,7 +27,7 @@ export function vaultRoutes() {
     .use("*", async (c, next) => { await assertVaultOpen(c.var.deps, c.var.auth); c.header("Cache-Control", "private, no-store"); await next(); })
     .get("/state", async (c) => c.json(await vaultState(c.var.deps, c.var.auth, toolFeatureOn(c, "secrets"))))
     .post("/account", async (c) => c.json(await setUpVault(c.var.deps, c.var.auth, await body(c)), 201))
-    .post("/unlock", async (c) => { take(unlockLimiter, `${c.var.auth.orgId}:${c.var.auth.userId}`); return c.json(await unlockVault(c.var.deps, c.var.auth, await body(c))); })
+    .post("/open", async (c) => { take(unlockLimiter, `${c.var.auth.orgId}:${c.var.auth.userId}`); return c.json(await unlockVault(c.var.deps, c.var.auth, await body(c))); })
     .post("/account/passphrase", async (c) => { take(unlockLimiter, `${c.var.auth.orgId}:${c.var.auth.userId}`); return c.json(await changePassphrase(c.var.deps, c.var.auth, await body(c))); })
     .post("/account/reset", async (c) => c.json(await resetVault(c.var.deps, c.var.auth, await body(c))))
     .get("/people", async (c) => c.json({ people: await vaultPeople(c.var.deps, c.var.auth) }))

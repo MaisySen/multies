@@ -1,9 +1,9 @@
 /**
  * R128 Team password vault, the browser side of the key model (files/catalogue/r128/DESIGN.md). Web Crypto only:
  * - passphrase -> PBKDF2 SHA-256 (600,000 rounds, per person salt) -> HKDF SHA-256 split into a wrap key (AES-GCM 256,
- *   never extractable) and an unlock proof (sent to the server only at unlock; it reveals nothing about the wrap key);
+ *   never extractable) and an opening proof (sent to the server only when opening; it reveals nothing about the wrap key);
  * - an RSA-OAEP 3072 key pair per person; the private key is stored only AES-GCM encrypted under the wrap key and, after
- *   unlock, lives here as a non extractable key in memory;
+ *   opening, lives here as a non extractable key in memory;
  * - an AES-GCM 256 key per folder (and key version), wrapped with each member's public key;
  * - every item and folder name is one AES-GCM ciphertext with a fresh 12 byte IV, bound to its ids by additional data.
  * Nothing in this file logs, persists or sends a passphrase, key or plaintext.
@@ -126,7 +126,7 @@ export function genSets(o: GenOptions): string[] {
   return sets.length ? sets : ["abcdefghijkmnpqrstuvwxyz"];
 }
 /** An unbiased random index below n (rejection sampling over 32 bit values). */
-export function randomBelow(n: number, rand: (a: Uint32Array) => Uint32Array = (a) => crypto.getRandomValues(a)): number {
+export function randomBelow(n: number, rand: (a: Uint32Array<ArrayBuffer>) => Uint32Array<ArrayBuffer> = (a) => crypto.getRandomValues(a)): number {
   const limit = Math.floor(0x1_0000_0000 / n) * n;
   const buf = new Uint32Array(1);
   for (;;) { const v = rand(buf)[0]!; if (v < limit) return v % n; }

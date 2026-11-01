@@ -115,22 +115,22 @@ describe("R128 server rules", () => {
     const st = (await admin.get("/api/vault/state")).body;
     expect(st).toMatchObject({ setUp: true, kdf: { salt: acc.salt, iterations: acc.iterations } });
     expect(JSON.stringify(st)).not.toContain(acc.wrappedPrivateKey);
-    const ok: Res = await admin.post("/api/vault/unlock", { auth: acc.auth });
+    const ok: Res = await admin.post("/api/vault/open", { auth: acc.auth });
     expect(ok.status).toBe(200);
     expect(ok.body.wrappedPrivateKey).toBe(acc.wrappedPrivateKey);
     const bad = (await derivePassKeys("nope nope nope nope", acc.salt, acc.iterations)).auth;
     for (let i = 0; i < 4; i++) {
-      const r: Res = await admin.post("/api/vault/unlock", { auth: bad });
+      const r: Res = await admin.post("/api/vault/open", { auth: bad });
       expect(r.status).toBe(401);
       expect(JSON.stringify(r.body)).not.toContain("wrappedPrivateKey");
     }
-    const paused: Res = await admin.post("/api/vault/unlock", { auth: bad });
+    const paused: Res = await admin.post("/api/vault/open", { auth: bad });
     expect(paused.status).toBe(429);
     // Even the right proof waits out the pause.
-    expect((await admin.post("/api/vault/unlock", { auth: acc.auth })).status).toBe(429);
+    expect((await admin.post("/api/vault/open", { auth: acc.auth })).status).toBe(429);
     const t0 = deps.now().getTime?.() ?? Date.now();
     deps.now = (() => new Date(t0 + 16 * 60_000)) as typeof deps.now;
-    expect((await admin.post("/api/vault/unlock", { auth: acc.auth })).status).toBe(200);
+    expect((await admin.post("/api/vault/open", { auth: acc.auth })).status).toBe(200);
     // Weak protection and a second set up are refused.
     expect((await admin.post("/api/vault/account", { publicKey: acc.publicKey, wrappedPrivateKey: acc.wrappedPrivateKey, salt: acc.salt, iterations: acc.iterations, auth: acc.auth, fingerprint: acc.fingerprint })).status).toBe(409);
   }, 60_000);
@@ -169,7 +169,7 @@ describe("R128 server rules", () => {
     const bf = (await bob.get("/api/vault/folders")).body.folders;
     expect(bf).toHaveLength(1);
     expect(bf[0].access).toBe("view");
-    const bobPk = await openPrivateKey((await derivePassKeys("bobs very long passphrase", B.salt, B.iterations)).wrapKey, (await bob.post("/api/vault/unlock", { auth: B.auth })).body.wrappedPrivateKey, B.orgId, B.userId);
+    const bobPk = await openPrivateKey((await derivePassKeys("bobs very long passphrase", B.salt, B.iterations)).wrapKey, (await bob.post("/api/vault/open", { auth: B.auth })).body.wrappedPrivateKey, B.orgId, B.userId);
     const bobFk = await unwrapFolderKey(bf[0].keys[0].wrappedKey, bobPk);
     const items = (await bob.get(`/api/vault/folders/${fid}/items`)).body.items;
     expect((await openJson<VaultItemPlain>(bobFk, items[0].ct, itemAad(fid, iid, 1))).password).toBe(SECRET);

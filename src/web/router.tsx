@@ -136,6 +136,7 @@ const TemplatesPage = lazyPage(() => import("./pages/app/work/templates"), "Temp
 const ToolsPage = lazyPage(() => import("./pages/app/tools"), "ToolsPage");
 const ToolsAiPage = lazyPage(() => import("./pages/app/tools-ai"), "ToolsAiPage"); // Tools P2: AI documents
 const AskPage = lazyPage(() => import("./pages/app/tools-ask/ask"), "AskPage"); // R110: Ask across the workspace
+const VaultPage = lazyPage(() => import("./pages/app/tools-vault/vault"), "VaultPage"); // R128: team password vault
 const ToolsEditorRoute = lazyPage(() => import("./pages/app/tools-editors/route"), "ToolsEditorRoute"); // Tools P2: editors
 const ConvertHubPage = lazyPage(() => import("./pages/app/tools-convert/convert-hub"), "ConvertHubPage");
 const UtilitiesPage = lazyPage(() => import("./pages/app/tools-c/utilities"), "UtilitiesPage"); // R100
@@ -325,6 +326,7 @@ export const router = createBrowserRouter([
       { path: "meetings/:id/webinar", element: page(<WebinarHostPage />) }, // R114
       { path: "scheduling", element: page(<SchedulingPage />) },
       { path: "tools", element: page(<ToolsPage />) }, // Tools P1
+      { path: "tools/vault", element: page(<VaultPage />) }, // R128 (VAULT_R128; the page shows not found while it is off)
       { path: "tools/ask", element: page(<AskPage />) }, // R110 (ASK_R110; the page shows not found while it is off)
       { path: "tools/ai", element: page(<ToolFeatureGate features={AI_FEATURES}><ToolsAiPage /></ToolFeatureGate>) }, // Tools P2: AI documents
       { path: "tools/convert", element: page(<ConvertHubPage />) },
