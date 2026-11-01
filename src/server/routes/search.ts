@@ -8,17 +8,31 @@ import type { AppEnv } from "../context";
 import { requireAuth } from "../middleware";
 import { HttpError } from "../lib/errors";
 import { myWork, parseTypes, searchEverything } from "../services/search";
+import { parseFilters, searchIndex } from "../services/search-r98"; // R98
 import { GUEST_COOKIE, resolveGuest, type GuestContext } from "../services/suite/guests";
 
 const limitOf = (raw: string | undefined) => (raw && /^\d{1,2}$/.test(raw) ? Number(raw) : undefined);
 
-/** GET /api/search?q=word&types=tasks,docs&limit=5 */
+/** R98: person, from, to, project and strict, read only while SEARCH_R98 is on (ignored otherwise, as before). */
+const r98Opts = (deps: AppEnv["Variables"]["deps"], q: (k: string) => string | undefined) => (deps.config.searchR98
+  ? { filters: parseFilters({ person: q("person"), from: q("from"), to: q("to"), project: q("project") }), strict: q("strict") === "1" }
+  : {});
+
+/** GET /api/search?q=word&types=tasks,docs&limit=5 (R98: &person=<user id>&from=2026-10-01&to=2026-10-31&project=<id>&strict=1) */
 export function searchRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
+    // R98: the titles the command menu indexes in the browser for instant results (404 unless SEARCH_R98).
+    .get("/index", async (c) => {
+      if (!c.var.deps.config.searchR98) throw new HttpError(404, "not_found", "Page not found.");
+      const out = await searchIndex(c.var.deps, c.var.auth);
+      c.header("Cache-Control", "private, no-store");
+      c.header("Server-Timing", `searchindex;dur=${out.tookMs}`);
+      return c.json(out);
+    })
     .get("/", async (c) => {
       const { deps, auth } = c.var;
-      const out = await searchEverything(deps, { kind: "actor", actor: auth }, c.req.query("q") ?? "", { types: parseTypes(c.req.query("types")), limit: limitOf(c.req.query("limit")) });
+      const out = await searchEverything(deps, { kind: "actor", actor: auth }, c.req.query("q") ?? "", { ...r98Opts(c.var.deps, (k) => c.req.query(k)), types: parseTypes(c.req.query("types")), limit: limitOf(c.req.query("limit")), ...r98Opts(deps, (k) => c.req.query(k)) });
       c.var.log?.info("search", { ms: out.tookMs, groups: out.groups.length, partial: out.partial });
       c.header("Server-Timing", `search;dur=${out.tookMs}`);
       return c.json(out);

@@ -21,6 +21,10 @@ export interface PublicConfig {
   analyticsPh?: boolean;
   /** R122: the help center in Docs. */
   helpCenter?: boolean;
+  /** R98: typo tolerant search with filters and instant results (SEARCH_R98). */
+  searchR98?: boolean;
+  /** R94: CRM timeline (notes are searchable with R98). */
+  crmTimeline?: boolean;
   appName: string;
   mode: "production" | "development";
   demoEnabled: boolean;

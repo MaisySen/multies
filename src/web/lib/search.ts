@@ -4,7 +4,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
 import { readLastCopy, withOfflineCopy } from "@/web/lib/offline-lists"; // R33, R45
 
-export type SearchType = "mail" | "tasks" | "docs" | "chat" | "contacts" | "deals" | "attachments"; // Tools P2: attachments
+export type SearchType = "mail" | "tasks" | "docs" | "chat" | "contacts" | "deals" | "attachments" | "files" | "notes"; // Tools P2: attachments; R98: files, notes
 export interface SearchItem { type: SearchType; id: string; title: string; subtitle: string; snippet: string; url: string; at: string | null }
 export interface SearchGroup { type: SearchType; label: string; items: SearchItem[] }
 export interface SearchResult { query: string; groups: SearchGroup[]; tookMs: number; partial: boolean }

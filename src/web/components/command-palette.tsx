@@ -20,8 +20,10 @@ import { taskPickerItems, type PickerItem } from "@/web/lib/commands/task-picker
 import { typedActionChange, useTypedAction } from "@/web/lib/commands/typed-action"; // R54
 import { useAppearance } from "@/web/components/theme";
 import { ContentGroups, useContentSearch } from "@/web/components/search-results";
+import { Corrected, FilterBar, NoResults, SearchError, TopHits } from "@/web/components/search-r98"; // R98
+import { NO_FILTERS, TYPE_CHOICES, dropIndex, hasFilters, instantHits, parseFilterWords, useInstantIndex, useSearchR98, type Filters } from "@/web/lib/search-r98"; // R98
 import { useGoLinks } from "@/web/pages/app/tools-links/data"; // R87
-import { useConfig, useDomains, useMailboxes } from "@/web/lib/queries";
+import { useConfig, useDomains, useMailboxes, useMe } from "@/web/lib/queries";
 import { useAssignees, useProjects, useTaskDetail, useTaskMutations, type Task } from "@/web/pages/app/work/data";
 import { Kbd } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
@@ -63,7 +65,10 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   const focus = useFocus();
   const [search, setSearch] = useState("");
   const appearance = useAppearance();
-  const close = () => { onOpenChange(false); setSearch(""); };
+  // R98: filters chosen with the chips (typed filter words are read from the box on top of these).
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  const [strict, setStrict] = useState(false);
+  const close = () => { onOpenChange(false); setSearch(""); setFilters(NO_FILTERS); setStrict(false); };
   const ctx: CommandContext = {
     navigate: (to) => { close(); navigate(to); },
     openSheet: () => { close(); openShortcutsSheet(); },
@@ -72,12 +77,31 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   };
 
   // Round 20: content from mail, tasks, docs, chat, contacts and deals, searched on the server.
-  const content = useContentSearch(search, open && !page);
+  const r98 = !!config.data?.searchR98; // R98 (SEARCH_R98)
+  const legacy = useContentSearch(search, open && !page && !r98);
   const taskId = focus.kind === "task" ? focus.id : null;
   const task = useFocusedTask(open ? taskId : null);
   const projects = useProjects();
   const people = useAssignees();
   const { update } = useTaskMutations();
+  // R98: typed filter words, the server search with filters, and instant hits from the index in this tab.
+  const me = useMe();
+  const members = useMemo(() => (people.data ?? []).filter((p) => p.type === "member" && !p.isAgent).map((p) => ({ id: p.id, name: p.name, email: p.email })), [people.data]);
+  const liveProjects = useMemo(() => (projects.data ?? []).filter((p) => !p.archived).map((p) => ({ id: p.id, name: p.name, key: p.key })), [projects.data]);
+  const parsed = useMemo(() => (r98 ? parseFilterWords(search, members, liveProjects) : { text: search, filters: {}, problems: [] as string[] }), [r98, search, members, liveProjects]);
+  const effective: Filters = useMemo(() => ({ ...filters, ...parsed.filters }), [filters, parsed.filters]);
+  const r98s = useSearchR98(parsed.text, effective, open && !page && r98, strict);
+  useEffect(() => { setStrict(false); }, [parsed.text]);
+  const owner = me.data?.organization ? `${me.data.user.id}:${me.data.organization.id}` : null;
+  useInstantIndex(open && r98, owner);
+  const hits = r98 && open && !page ? instantHits(parsed.text, effective) : [];
+  const hitKeys = new Set(hits.map((h) => `${h.type}:${h.id}`));
+  const content = r98 ? r98s : legacy;
+  const shown = r98 && r98s.data
+    ? { ...r98s, data: { ...r98s.data, groups: r98s.data.groups.map((g) => ({ ...g, items: g.items.filter((it) => !hitKeys.has(`${it.type}:${it.id}`)) })).filter((g) => g.items.length > 0) } }
+    : content;
+  const typeChoices = TYPE_CHOICES.filter((t) => t.id !== "notes" || !!config.data?.crmTimeline);
+  const openResult = (url: string, title?: string) => { if (title) recordRecent({ kind: "item", id: url, label: title, url, hint: hintForUrl(url) }); close(); navigate(url); };
 
   const toItem = (c: Cmd): Item => ({
     id: c.id, label: c.title, icon: c.id === "action-theme" && appearance.resolved === "dark" ? IconToday : c.icon ?? IconSearch, keywords: c.keywords,
@@ -204,6 +228,15 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
     <Command.Dialog open={open} onOpenChange={(v) => { if (!v) close(); else onOpenChange(v); }} label="Command menu" filter={paletteScore}
       onKeyDown={(e) => {
         if (e.key === "Backspace" && !search && page) { e.preventDefault(); onPage(null); }
+        // R98: Alt and a number picks a type; Backspace in an empty box takes off the last filter.
+        if (r98 && !page && e.altKey && /^Digit[1-8]$/.test(e.code)) {
+          const t = typeChoices[Number(e.code.slice(5)) - 1];
+          if (t) { e.preventDefault(); setFilters((f) => ({ ...f, type: t.id })); }
+        }
+        if (r98 && !page && e.key === "Backspace" && !search && hasFilters(filters)) {
+          e.preventDefault();
+          setFilters((f) => (f.date !== "any" ? { ...f, date: "any", from: null, to: null } : f.project ? { ...f, project: null } : f.person ? { ...f, person: null } : { ...f, type: "all" }));
+        }
         if (e.key === "Enter" && holdEnter({ search, loading: content.loading, typed: !!typed, page })) { e.preventDefault(); e.stopPropagation(); heldEnter.current = true; }
       }}
       overlayClassName="fixed inset-0 z-[90] bg-black/40 backdrop-blur-[2px] animate-fade-in motion-reduce:animate-none"
@@ -217,11 +250,14 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
       <div className="flex items-center gap-2.5 border-b border-line px-3.5">
         <IconSearch className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
         <Command.Input value={search} onValueChange={setSearch}
-          placeholder={picker ? picker.title.replace("...", "") : "Search mail, tasks, docs and chat, or jump to a page"}
+          placeholder={picker ? picker.title.replace("...", "") : r98 ? "Search everything, or jump to a page" : "Search mail, tasks, docs and chat, or jump to a page"}
           className="h-12 w-full bg-transparent text-[14px] text-fg outline-none placeholder:text-subtle" />
         <span className="max-sm:hidden"><Kbd>Esc</Kbd></span>
         <button type="button" onClick={close} className="hidden h-9 shrink-0 rounded-lg px-2 text-[15px] text-brand max-sm:block">Cancel</button>
       </div>
+      {r98 && !picker && (search.trim() || hasFilters(filters)) && (
+        <FilterBar filters={effective} onChange={setFilters} people={members} projects={liveProjects} notes={!!config.data?.crmTimeline} problems={parsed.problems} />
+      )}
       <Command.List ref={listRef} className={cn("max-h-[min(440px,62vh)] overflow-y-auto overscroll-contain py-1 max-sm:max-h-none max-sm:flex-1")}>
         {picker ? (
           <>
@@ -250,16 +286,22 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
                 </Command.Item>
               </Command.Group>
             )}
-            {!typed && !content.loading && !content.data?.groups.length && <Command.Empty className="px-4 py-8 text-center text-sm text-muted"><SmallNoResultsArt /><p className="mt-2 font-medium text-fg">No results for “{search}”</p><p className="mt-0.5 text-xs text-subtle">Try another word, or press ? to see every shortcut.</p></Command.Empty>}
+            {r98 && content.active && r98s.error && <SearchError onRetry={r98s.retry} />}
+            {r98 && content.active && !r98s.error && r98s.data?.corrected && !strict && <Corrected corrected={r98s.data.corrected} typed={parsed.text} onStrict={() => setStrict(true)} />}
+            {r98 && !typed && content.active && !content.loading && !r98s.error && !hits.length && !r98s.data?.groups.length && (
+              <NoResults search={parsed.text} filtered={hasFilters(effective)} onClear={() => { setFilters(NO_FILTERS); setSearch(parsed.text); }} />
+            )}
+            {!r98 && !typed && !content.loading && !content.data?.groups.length && <Command.Empty className="px-4 py-8 text-center text-sm text-muted"><SmallNoResultsArt /><p className="mt-2 font-medium text-fg">No results for “{search}”</p><p className="mt-0.5 text-xs text-subtle">Try another word, or press ? to see every shortcut.</p></Command.Empty>}
             {group(<Heading icon={IconSparkle}>{task && focus.kind === "task" ? `Task ${task.ref}` : "This message"}</Heading>, contextual.map(toItem), "palette-context")}
             {group(<Heading icon={IconHistory}>Recently opened</Heading>, recentItems, "palette-recent-items")}
             {group(<Heading icon={IconClock}>Recent commands</Heading>, recentCommands, "palette-recent-commands")}
-            <ContentGroups state={content} search={search} onOpen={(url, title) => { if (title) recordRecent({ kind: "item", id: url, label: title, url, hint: hintForUrl(url) }); close(); navigate(url); }} />
+            {r98 && <TopHits hits={hits} search={search} onOpen={openResult} />}
+            <ContentGroups state={shown as typeof legacy} search={search} onOpen={openResult} />
             {group(<Heading icon={IconCommand}>Actions</Heading>, actions)}
             {group(<Heading icon={IconArrowRight}>Go to</Heading>, pages)}
             {group(<Heading icon={IconLink}>Go links</Heading>, goItems, "palette-go-links")}
             {group(<Heading icon={IconGlobe}>Domains and mailboxes</Heading>, records)}
-            {group(<Heading icon={IconUser}>Account</Heading>, [{ id: "signout", label: "Sign out", icon: IconLogOut, run: () => { close(); onSignOut(); } }])}
+            {group(<Heading icon={IconUser}>Account</Heading>, [{ id: "signout", label: "Sign out", icon: IconLogOut, run: () => { close(); dropIndex(); onSignOut(); } }])}
           </>
         )}
       </Command.List>

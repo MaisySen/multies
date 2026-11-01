@@ -324,6 +324,7 @@ TOOLS_ENABLED = "true"
 # Tools P2 features (src/shared/tool-features.ts): "all" on staging, only shipped ones on production.
 # R94: CRM timeline on staging.
 CRM_TIMELINE = "on"
+SEARCH_R98 = "on" # R98: search with typo tolerance, filters and instant results (prod after the verifier passes)
 TOOLS_FEATURES = "all"
 CLIENT_PORTAL = "on" # R120: client portals (prod after the verifier passes)
 DOC_ENGINE_URL = "https://doctool.multies.si"

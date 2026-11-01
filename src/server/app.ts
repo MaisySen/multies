@@ -416,6 +416,8 @@ export function createApp(deps: Deps) {
       crmTimeline: !!deps.config.crmTimeline,
       // R91: dashboards plus (DASHBOARDS_PLUS): share, reports, question builder, alerts, data sources.
       dashboardsPlus: !!deps.config.dashboardsPlus,
+      // R98: typo tolerant search with filters and instant results in the command menu (SEARCH_R98).
+      searchR98: !!deps.config.searchR98,
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
       chatChannels: deps.config.channels.enabled,
       // Tools P1: whether the Tools page and its menu entries show (TOOLS_ENABLED with an engine configured).

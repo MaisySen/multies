@@ -197,3 +197,11 @@ ISC License. Permission to use, copy, modify, and/or distribute this software fo
 
 yaml 2.9.1 (R100 utilities)
 Copyright Eemeli Aro. ISC License.
+
+## MiniSearch (MIT)
+
+R98 search: the instant, typo tolerant title index in the command menu. minisearch 7.2.0, https://github.com/lucaong/minisearch.
+Copyright 2022 Luca Ongaro. Licensed under the MIT License: permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation files, to deal in the software without restriction,
+subject to including this copyright and permission notice in all copies or substantial portions of the software.
+The software is provided "as is", without warranty of any kind.

@@ -32,9 +32,10 @@ import { notBlockedBy } from "./suite/reports-r35"; // R35
 import { searchAttachmentText } from "./tools/attachment-index"; // Tools P2 (17)
 
 // Tools P2 (17): "attachments" (text inside mail attachments) is listed only while the deployment has the index feature on.
-export const SEARCH_TYPES = ["mail", "tasks", "docs", "chat", "contacts", "deals", "attachments"] as const;
+// R98: "files" (task and chat files) and "notes" (CRM notes) are searched only with SEARCH_R98 (search-r98.ts).
+export const SEARCH_TYPES = ["mail", "tasks", "docs", "chat", "contacts", "deals", "attachments", "files", "notes"] as const;
 export type SearchType = (typeof SEARCH_TYPES)[number];
-export const SEARCH_LABELS: Record<SearchType, string> = { mail: "Mail", tasks: "Tasks", docs: "Docs", chat: "Chat", contacts: "Contacts", deals: "Deals", attachments: "Attachments" };
+export const SEARCH_LABELS: Record<SearchType, string> = { mail: "Mail", tasks: "Tasks", docs: "Docs", chat: "Chat", contacts: "Contacts", deals: "Deals", attachments: "Attachments", files: "Files", notes: "Notes" };
 export const SEARCH_MIN_CHARS = 2;
 export const SEARCH_MAX_CHARS = 100;
 export const SEARCH_DEFAULT_LIMIT = 5;
@@ -244,7 +245,9 @@ export function parseTypes(raw: string | string[] | null | undefined): SearchTyp
  * `budgetMs`: sources still running then are left out and `partial` is true. A source that fails
  * (a table this database does not have yet) is skipped, so one bad source never empties the rest.
  */
-export async function searchEverything(deps: Deps, v: SearchViewer, rawQuery: string, opts: { types?: SearchType[]; limit?: number; budgetMs?: number } = {}): Promise<SearchResult> {
+export async function searchEverything(deps: Deps, v: SearchViewer, rawQuery: string, opts: { types?: SearchType[]; limit?: number; budgetMs?: number; filters?: import("./search-r98").SearchFilters; strict?: boolean } = {}): Promise<SearchResult> {
+  // R98 (SEARCH_R98): typo tolerant, filtered and ranked, with files and notes. Off: the round 20 search below, unchanged.
+  if (deps.config.searchR98) return (await import("./search-r98")).searchR98(deps, v, rawQuery, opts);
   const started = Date.now();
   const term = normaliseQuery(rawQuery);
   if (!term) throw new HttpError(422, "validation_failed", `Type at least ${SEARCH_MIN_CHARS} characters to search.`);
@@ -252,6 +255,7 @@ export async function searchEverything(deps: Deps, v: SearchViewer, rawQuery: st
   // Groups always come back in the same order (mail, tasks, docs, chat, contacts, deals).
   let types = opts.types?.length ? SEARCH_TYPES.filter((t) => opts.types!.includes(t)) : [...SEARCH_TYPES];
   // A guest sees one project's tasks, docs and guest channels. Nothing else.
+  types = types.filter((t) => t !== "files" && t !== "notes"); // R98 types, searched only with SEARCH_R98
   if (v.kind === "guest") types = types.filter((t) => t === "tasks" || t === "docs" || t === "chat");
   // Tools P2 (17): attachment text only where the index feature is on and the index database is bound (otherwise the type is unknown to callers).
   const tools = deps.config.tools;
@@ -271,6 +275,7 @@ export async function searchEverything(deps: Deps, v: SearchViewer, rawQuery: st
       case "contacts": return searchContacts(deps, a.orgId, term, limit);
       case "deals": return searchDeals(deps, a.orgId, term, limit);
       case "attachments": return searchAttachments(deps, a, term, limit);
+      default: return Promise.resolve([]);
     }
   };
   const done = new Map<SearchType, SearchItem[]>();

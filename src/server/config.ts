@@ -29,6 +29,8 @@ export interface AppConfig {
   /** R91: DASHBOARDS_PLUS (public links, emailed reports, question builder, alerts, data sources). Off unless set. */
   dashboardsPlus?: boolean;
   dashboardsPlusTestHook?: boolean;
+  /** R98: SEARCH_R98 (typo tolerant search with filters, files and notes, and the instant index). Off unless set. */
+  searchR98?: boolean;
   /**
    * Tools P1: document tools on the private document engine. On only when TOOLS_ENABLED=true and the
    * engine address and both keys are set (DOC_ENGINE_URL, DOC_ENGINE_KEY_ID, DOC_ENGINE_KEY, TOOLS_TOKEN_KEY).
@@ -318,6 +320,8 @@ const EnvSchema = z.object({
   CHANNELS_DAILY_SOFT_CAP: z.string().optional(),
   TOOLS_ENABLED: z.string().optional(),
   CRM_TIMELINE: z.string().optional(),
+  /** R98: typo tolerant, filtered search with files and notes, and the instant index in the command menu. Off unless set. */
+  SEARCH_R98: z.string().optional(),
   TOOLS_FEATURES: z.string().optional(),
   LINK_CLICK_FLUSH_MS: z.string().optional(), // R87
   SOCIAL_P2: z.string().optional(),
@@ -610,6 +614,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     // R91: DASHBOARDS_PLUS=test (e2e only) also opens POST /api/dashboards-plus/test/run, which runs the due reports, alerts and refreshes now.
     dashboardsPlusTestHook: String(env.DASHBOARDS_PLUS ?? "").toLowerCase() === "test",
     clientPortal: ["on", "true", "1"].includes(String(env.CLIENT_PORTAL ?? "").toLowerCase()),
+    searchR98: ["1", "true", "on"].includes(String(env.SEARCH_R98 ?? "").toLowerCase()), // R98
     tools: toolsConfig(env),
     links: { flushMs: Math.max(0, Math.min(20_000, Number(env.LINK_CLICK_FLUSH_MS ?? 4000) || 0)) },
     appName: env.APP_NAME ?? "Multies",
