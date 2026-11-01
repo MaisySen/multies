@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-home-widgets",
+    date: "2026-11-01",
+    title: "Arrange your Home",
+    body: "Home is now made of widgets for your tasks, meetings, inbox counts, quick links and more. Drag them into the order you like, change their size or hide them, and admins can set the layout everyone starts with.",
+  },
+  {
     id: "2026-11-02-courses",
     date: "2026-11-02",
     title: "Courses for staff training",
@@ -88,12 +94,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     body: "Plan today from My Work and drag tasks onto your day to block time. Repeat tasks every weekday, on the second Tuesday, or after they are done, and take turns between people. Tag time, see a day view, submit your week for approval, and rearrange a project as a mind map.",
   },
   {
-    id: "2026-11-01-newsletters",
-    date: "2026-11-01",
-    title: "Newsletters and welcome emails in Merge",
-    body: "Tools > Merge now has Newsletters, Lists and Journeys: build a list with each person's consent, write from blocks with merge fields and a live preview, then send, schedule or start a welcome series. Every email has a one click unsubscribe that works across all your lists.",
-  },
-    {
     id: "2026-10-28-whats-new",
     date: "2026-10-28",
     title: "What's new, in the app",
