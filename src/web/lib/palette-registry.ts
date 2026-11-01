@@ -23,6 +23,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-docs", label: "Docs", to: "/app/docs", icon: IconDocs, keywords: ["documents", "notes", "wiki", "pages"] },
   { id: "p-help-center", label: "Help center", to: "/app/docs/help-center", icon: IconDocs, keywords: ["knowledge base", "faq", "questions", "answers", "public help", "articles"], flag: "helpCenter" }, // R122
   { id: "p-sites", label: "Sites", to: "/app/docs/sites", icon: IconDocs, keywords: ["website", "web page", "page builder", "landing page", "publish", "comments"], flag: "sites" }, // R123
+  { id: "p-my-learning", label: "My learning", to: "/app/docs/learning", icon: IconBook, keywords: ["courses", "training", "lessons", "certificate", "quiz"], flag: "coursesR129" }, // R129
   { id: "p-link-library", label: "Link library", to: "/app/docs/links", icon: IconDocs, keywords: ["links", "bookmarks", "saved links", "tags", "read later"], flag: "docsPlus" }, // R103
   { id: "p-save-page", label: "Save a web page", to: "/app/docs/links?save=page", icon: IconDocs, keywords: ["clip", "clipper", "web clip", "save page", "archive", "snapshot", "pdf"], flag: "docsPlus" }, // R103
   { id: "p-meetings", label: "Meetings", to: "/app/meetings", icon: IconVideo, keywords: ["calls", "video", "calendar"] },
