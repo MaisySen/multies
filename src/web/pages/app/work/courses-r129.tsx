@@ -45,6 +45,16 @@ function useCourse(id: string) {
   return useQuery({ queryKey: key(id), retry: (n, e) => !(e instanceof ApiError && (e.status === 403 || e.status === 404)) && n < 2, queryFn: () => api.get<Detail>(`/courses/${id}`) });
 }
 
+/** A switch with its words beside it (the shared Switch carries its label for screen readers only). */
+function LabeledSwitch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <div className="flex min-h-11 items-center justify-between gap-3">
+      <span className="text-[14px]" aria-hidden>{label}</span>
+      <Switch checked={checked} onChange={onChange} label={label} />
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------- new course
 
 export function NewCourseDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -188,7 +198,7 @@ function LearnTab({ detail }: { detail: Detail }) {
           </ol>
         </nav>
       </aside>
-      <section className="min-w-0 space-y-4" aria-label="Lesson">
+      <section className="min-w-0 space-y-4" aria-label="Lesson content">
         {me?.completedAt && <CompletedCard course={course} me={me} />}
         {active && <LessonView key={active.id} course={course} lesson={active} me={me} done={done(active)} onNext={next ? () => setOpenId(next.id) : undefined} />}
       </section>
@@ -439,7 +449,7 @@ function LessonDialog({ course, lesson, afterId, onClose, onSaved }: { course: C
             {quiz.length < 50 && <Button variant="secondary" onClick={() => setQuiz((l) => [...l, newQuestion()])} data-testid="add-question"><IconPlus className="h-4 w-4" />Add question</Button>}
           </div>
         )}
-        <Switch checked={required} onChange={setRequired} label="Learners must finish this lesson" />
+        <LabeledSwitch checked={required} onChange={setRequired} label="Learners must finish this lesson" />
         {error && <p role="alert" className="text-[13px] text-bad" data-testid="lesson-error">{error}</p>}
       </div>
     </Dialog>
@@ -494,7 +504,7 @@ function AssignTab({ detail }: { detail: Detail }) {
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <Card className="space-y-4 p-5">
         <h2 className="text-[16px] font-semibold">Assign this course</h2>
-        <Switch checked={everyone} onChange={setEveryone} label="Everyone in the workspace" />
+        <LabeledSwitch checked={everyone} onChange={setEveryone} label="Everyone in the workspace" />
         {!everyone && <PeoplePicker value={people} onChange={setPeople} label="People" />}
         <Field label="Due date (optional)" hint="People get a reminder two days before and when it is overdue.">{(fp) => <DateInput {...fp} value={due} min={today} onChange={(e) => setDue(e.target.value)} data-testid="assign-due" />}</Field>
         <Button onClick={() => void assign()} disabled={busy || (!everyone && !people.length)} data-testid="assign-course">{everyone ? "Assign to everyone" : people.length ? `Assign to ${people.length}` : "Assign"}</Button>
@@ -602,7 +612,7 @@ function SettingsTab({ detail }: { detail: Detail }) {
   return (
     <Card className="max-w-2xl space-y-5 p-5">
       <Field label="Pass mark (%)" hint="A quiz is passed at this score unless the quiz sets its own.">{(fp) => <Input {...fp} inputMode="numeric" value={passMark} onChange={(e) => setPassMark(e.target.value.replace(/\D/g, "").slice(0, 3))} className="max-w-32" data-testid="pass-mark" />}</Field>
-      <Switch checked={certificate} onChange={setCertificate} label="Give a certificate when someone finishes" />
+      <LabeledSwitch checked={certificate} onChange={setCertificate} label="Give a certificate when someone finishes" />
       {canPeople && <PeoplePicker value={editors} onChange={setEditors} label="Course editors (can build and assign)" />}
       {canPeople && <PeoplePicker value={managers} onChange={setManagers} label="Managers (can see everyone's progress)" />}
       <Button onClick={() => void save()} disabled={busy}>Save settings</Button>

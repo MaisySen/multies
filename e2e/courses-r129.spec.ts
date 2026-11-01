@@ -119,7 +119,7 @@ test.describe("R129 courses", () => {
     await demo(page);
     const id = await seeded(page, "Privacy at work");
     await page.goto(`/app/docs/${id}?tab=assign`);
-    await page.getByText("Everyone in the workspace").click();
+    await page.getByRole("switch", { name: "Everyone in the workspace" }).click();
     const due = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
     await page.getByTestId("assign-due").fill(due);
     await page.getByTestId("assign-due").press("Tab");
