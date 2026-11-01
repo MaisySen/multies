@@ -39,6 +39,17 @@ async function pubBlob(path: string, body: unknown, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+/** A plain browser title, and a no index hint so these pages never show in search results. */
+function usePublicTitle(title: string) {
+  useEffect(() => {
+    document.title = `${title} | Multies`;
+    const meta = document.createElement("meta");
+    meta.name = "robots"; meta.content = "noindex, nofollow";
+    document.head.appendChild(meta);
+    return () => meta.remove();
+  }, [title]);
+}
+
 function Shell({ children, workspace }: { children: React.ReactNode; workspace?: string }) {
   return (
     <main className="min-h-dvh bg-bg px-4 py-8 text-fg sm:py-12">
@@ -80,6 +91,7 @@ export function PublicReportPage() {
   const [mode, setMode] = useState<"start" | "write" | "check">("start");
   const [receipt, setReceipt] = useState<{ caseNo: string; passphrase: string } | null>(null);
   const [session, setSession] = useState<{ caseNo: string; token: string; thread: ReporterThread } | null>(null);
+  usePublicTitle("Make a report");
   useEffect(() => { pub<ChannelInfo>(`report/${slug}`).then(setInfo, () => setInfo("missing")); }, [slug]);
   if (info === null) return <Shell><Skeleton className="h-72" /></Shell>;
   if (info === "missing") return <Shell><Unavailable what="page" /></Shell>;
@@ -242,6 +254,7 @@ export function PublicDataRequestPage() {
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [err, setErr] = useState("");
+  usePublicTitle("Ask about your data");
   useEffect(() => { pub<{ workspace: string; dueDays: number }>(`data-request/${slug}`).then(setInfo, () => setInfo("missing")); }, [slug]);
   if (info === null) return <Shell><Skeleton className="h-64" /></Shell>;
   if (info === "missing") return <Shell><Unavailable what="page" /></Shell>;
@@ -277,6 +290,7 @@ export function PublicDataRequestPage() {
 export function DataRequestVerifyPage() {
   const { token = "" } = useParams();
   const [state, setState] = useState<{ ok: true; workspace: string; type: string } | { ok: false; msg: string } | null>(null);
+  usePublicTitle("Confirm your data request");
   useEffect(() => { pub<{ workspace: string; type: string }>("data-request/verify", { token }).then((r) => setState({ ok: true, ...r }), (e) => setState({ ok: false, msg: (e as Error).message })); }, [token]);
   return (
     <Shell>
@@ -294,6 +308,7 @@ export function DataRequestDownloadPage() {
   const { token = "" } = useParams();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  usePublicTitle("Your data");
   const get = async () => { setBusy(true); setMsg(""); try { await pubBlob("data-request/download", { token }, "my-data.zip"); setMsg("Your download has started."); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); } };
   return (
     <Shell>
