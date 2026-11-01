@@ -7,6 +7,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError, errorMessage } from "@/web/lib/api";
 import { Button } from "@/web/components/ui/button";
+import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
+import { LOAD_ERROR_BODY, LOAD_ERROR_TITLE } from "@/web/lib/load-errors-t1g";
 import { Dialog } from "@/web/components/ui/dialog";
 import { ConfirmDialog } from "@/web/components/ui/confirm";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
@@ -272,7 +274,7 @@ export function FolderDialog({ open, onClose, folder, state, onCreated }: { open
       return id;
     },
     onSuccess: (id) => { toast.success(folder ? "Folder renamed" : "Folder created"); void qc.invalidateQueries({ queryKey: vk.folders }); onClose(); if (!folder) onCreated(id); },
-    onError: (e) => setErr(e instanceof Error && e.message === "name" ? "Give the folder a name." : e instanceof Error && e.message === "people" ? "Couldn't load the people in this workspace. Try again." : e instanceof ApiError ? errorMessage(e) : "Couldn't save. Try again."),
+    onError: (e) => setErr(e instanceof Error && e.message === "name" ? "Give the folder a name." : e instanceof Error && e.message === "people" ? `${LOAD_ERROR_TITLE}. ${LOAD_ERROR_BODY}` : e instanceof ApiError ? errorMessage(e) : "Couldn't save. Try again."),
   });
   return (
     <Dialog open={open} onClose={onClose} title={folder ? "Rename folder" : "New folder"} description={folder ? undefined : "Owners and admins who have set up their vault can manage it too. Share it with others after."}
@@ -326,7 +328,7 @@ export function AccessDialog({ open, onClose, folder, state }: { open: boolean; 
       <Dialog open={open && !removing} onClose={onClose} title="Who has access" description={`${folder.name ?? "This folder"}. Compare a key fingerprint with the person if you want to be sure it is theirs.`}>
         <div className="space-y-4" data-testid="vault-access">
           {access.isPending ? <p className="py-4 text-[14px] text-muted">Loading</p>
-            : access.isError ? <p className="py-4 text-[14px] text-bad">Couldn't load who has access. <button type="button" className="font-medium underline" onClick={() => void access.refetch()}>Retry</button></p>
+            : access.isError ? <LoadErrorInline className="py-4" onRetry={() => access.refetch()} />
             : (
               <ul className="divide-y divide-line">
                 {access.data!.members.map((m) => (
@@ -386,7 +388,7 @@ export function ActivityDialog({ open, onClose, names }: { open: boolean; onClos
     <Dialog open={open} onClose={onClose} title="Vault activity" description="Every reveal, copy and share, and every change. Values are never recorded." className="sm:max-w-3xl"
       footer={<><Button type="button" variant="ghost" onClick={onClose}>Close</Button><Button type="button" variant="secondary" disabled={!q.data?.rows.length} onClick={csv} data-testid="vault-audit-csv">Download CSV</Button></>}>
       {q.isPending ? <p className="py-6 text-center text-[14px] text-muted">Loading</p>
-        : q.isError ? <p className="py-6 text-center text-[14px] text-bad">Couldn't load the activity. <button type="button" className="font-medium underline" onClick={() => void q.refetch()}>Retry</button></p>
+        : q.isError ? <LoadError compact onRetry={() => q.refetch()} />
         : !q.data!.rows.length ? <p className="py-6 text-center text-[14px] text-muted">No activity yet.</p>
         : (
           <ul className="divide-y divide-line" data-testid="vault-audit">

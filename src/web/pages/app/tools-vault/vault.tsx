@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError, errorMessage } from "@/web/lib/api";
 import { Button } from "@/web/components/ui/button";
+import { LoadError } from "@/web/components/load-error-t1g";
 import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Field, Input } from "@/web/components/ui/input";
 import { IconFolder, IconFolderPlus, IconHistory, IconKey, IconLock, IconMore, IconPlus, IconSearch, IconShieldCheck, IconUserCog, IconWarning } from "@/web/components/ui/icon";
@@ -34,7 +35,7 @@ export function VaultPage() {
   const body = state.isPending || config.isPending ? <Card className="space-y-3 p-5"><Skeleton className="h-5 w-48" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-2/3" /></Card>
     : state.isError ? (state.error instanceof ApiError && state.error.status === 404
       ? <EmptyState title="Page not found" body="The vault is not available in this workspace." />
-      : <Card className="p-5 text-center text-[14px]" data-testid="vault-error"><p className="text-bad">Couldn't load this. Something went wrong on our side.</p><Button type="button" variant="secondary" className="mt-3" onClick={() => void state.refetch()}>Retry</Button></Card>)
+      : <Card data-testid="vault-error"><LoadError onRetry={() => state.refetch()} /></Card>)
     : !state.data!.setUp ? <SetupCard state={state.data!} />
     : !isOpen ? <OpenCard state={state.data!} />
     : <VaultMain state={state.data!} />;
@@ -193,7 +194,7 @@ function VaultMain({ state }: { state: VaultStateDto }) {
   );
 
   if (folders.isPending) return <div className="space-y-3">{header}<Card className="space-y-2 p-4">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-11 w-full" />)}</Card></div>;
-  if (folders.isError) return <div className="space-y-3">{header}<Card className="p-5 text-center text-[14px]"><p className="text-bad">Couldn't load your folders.</p><Button type="button" variant="secondary" className="mt-3" onClick={() => void folders.refetch()}>Retry</Button></Card></div>;
+  if (folders.isError) return <div className="space-y-3">{header}<Card><LoadError onRetry={() => folders.refetch()} /></Card></div>;
 
   const dialogs = (
     <>
@@ -273,7 +274,7 @@ function VaultMain({ state }: { state: VaultStateDto }) {
             </div>
             <Card className="overflow-hidden p-0">
               {items.isPending ? <div className="space-y-2 p-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
-                : items.isError ? <div className="p-5 text-center text-[14px]"><p className="text-bad">Couldn't load this folder.</p><Button type="button" variant="secondary" className="mt-3" onClick={() => void items.refetch()}>Retry</Button></div>
+                : items.isError ? <LoadError compact onRetry={() => items.refetch()} />
                 : !items.data!.length ? <EmptyState title="No items yet" body={canEdit(folder.access) ? "Add a login, a card PIN or a server password. It is encrypted before it is saved." : "Nothing in this folder yet."} />
                 : !shown.length ? <p className="p-6 text-center text-[14px] text-muted">No items match.</p>
                 : (
