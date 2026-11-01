@@ -12,7 +12,24 @@ export interface DomainDnsInput {
   providerRecords?: string | null;
 }
 
-const fqdnOf = (host: string, domain: string) => (host === "" || host === "@" || host.toLowerCase() === domain.toLowerCase() ? domain : `${host}.${domain}`);
+/**
+ * The full DNS name of a record host. The sending provider names its records relative to the parent zone,
+ * so for a subdomain such as mail.example.com it asks for "send.mail", which lives at send.mail.example.com
+ * (not send.mail.mail.example.com). A host that already ends with the domain is taken as it is.
+ */
+export function fqdnOf(host: string, domain: string): string {
+  const h = host.trim().toLowerCase().replace(/\.$/, "");
+  const dn = domain.trim().toLowerCase().replace(/\.$/, "");
+  if (h === "" || h === "@" || h === dn) return domain;
+  if (h.endsWith(`.${dn}`)) return h;
+  const labels = dn.split(".");
+  // Longest subdomain part first: for a.b.example.com try "a.b", then "a".
+  for (let k = labels.length - 2; k >= 1; k--) {
+    const sub = labels.slice(0, k).join(".");
+    if (h === sub || h.endsWith(`.${sub}`)) return `${h}.${labels.slice(k).join(".")}`;
+  }
+  return `${host}.${domain}`;
+}
 
 /** The provider's records for this domain, sorted by what they do. Empty when there are none. */
 function providerParts(d: DomainDnsInput) {

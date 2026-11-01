@@ -361,6 +361,11 @@ PEER_HOST = "mymail.mymail-app.workers.dev"
 # address was refused by the mail provider. No new domain and no paid plan: mail.multies.si was already verified.
 SYSTEM_FROM = "staging@mail.multies.si"
 SYSTEM_FROM_NAME = "Multies Staging"
+# Staging mail (Oct 31): the staging QA workspace sends from mail.multies.si, a domain the production platform owns and the
+# sending provider has verified. Its SPF (v=spf1 include:_spf.mx.cloudflare.net ~all) is the production record and is not
+# changed for staging; the provider's own SPF sits on its return path (send.mail.multies.si). So staging checks SPF for the
+# receiving include only, and the daily domain recheck no longer demotes the QA domain.
+MAIL_SPF_INCLUDES = "_spf.mx.cloudflare.net"
 # R43: small import steps (5 items), so a small test file still exercises the background finish (kept upload, cron).
 IMPORT_STEP_MAX_ITEMS = "5"
 # R45: set here on purpose (wrangler warned they were missing from staging). Staging has no operator shared inbox (that
