@@ -13,6 +13,7 @@ import { ErrorBoundary } from "./components/error-boundary";
 import { ThemedToaster } from "./components/theme";
 import { applyMeta } from "./components/seo";
 import { AnalyticsBeacon } from "./components/analytics-beacon";
+import { ProductAnalytics } from "./components/product-analytics";
 import "./index.css";
 import { prefetchOnIntent, prefetchRoute } from "./lib/prefetch";
 import { authProvidersQuery, isAuthLayoutPath } from "./lib/auth-providers";
@@ -99,6 +100,7 @@ const render = () => { if (prerenderedAuth) delete rootEl.dataset.prerendered; c
       </ErrorBoundary>
       <ThemedToaster />
       <AnalyticsBeacon subscribe={beaconRoutes} />
+      <ProductAnalytics subscribe={beaconRoutes} />
     </QueryClientProvider>
   </StrictMode>,
 ); };
@@ -124,6 +126,7 @@ const hydrate = () => {
       <QueryClientProvider client={queryClient}>
         <ThemedToaster />
         <AnalyticsBeacon subscribe={beaconRoutes} />
+        <ProductAnalytics subscribe={beaconRoutes} />
       </QueryClientProvider>
     </StrictMode>,
   );

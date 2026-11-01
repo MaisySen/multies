@@ -91,14 +91,14 @@ describe("trust page facts", () => {
 
   it("names providers by category and keeps the named list in the DPA (owner approved review, 30 October 2026)", async () => {
     const { LEGAL_DOCS, SUBPROCESSORS: NAMED } = await import("../src/shared/legal");
-    const vendors = /Cloudflare|Auth0|Okta|Resend|Stripe|Sentry|LiveKit|Expo\b|Google Public DNS|\bage\b|AWS/;
+    const vendors = /Cloudflare|Auth0|Okta|Resend|Stripe|Sentry|LiveKit|Expo\b|Google Public DNS|\bage\b|AWS|PostHog/;
     const trustText = JSON.stringify({ DATA_REGION, SUBPROCESSORS, BACKUPS, SIGN_IN, ENCRYPTION });
     expect(trustText).not.toMatch(vendors);
     for (const slug of ["privacy", "terms", "acceptable-use"] as const) expect(JSON.stringify(LEGAL_DOCS[slug]), slug).not.toMatch(vendors);
     const dpaOutsideTable = JSON.stringify(LEGAL_DOCS.dpa.sections.map((s) => ({ ...s, body: s.body.filter((b) => !(typeof b === "object" && "table" in b && b.table === NAMED)) })));
     expect(dpaOutsideTable).not.toMatch(vendors);
     const names = NAMED.slice(1).map((r) => r[0]);
-    for (const n of ["Cloudflare", "Auth0 (Okta)", "Resend", "Stripe", "Sentry", "LiveKit", "Expo", "Google Public DNS"]) expect(names).toContain(n);
+    for (const n of ["Cloudflare", "Auth0 (Okta)", "Resend", "Stripe", "Sentry", "LiveKit", "Expo", "Google Public DNS", "PostHog"]) expect(names).toContain(n);
     expect(SUBPROCESSORS.length).toBe(NAMED.length - 1);
     const all = JSON.stringify(LEGAL_DOCS);
     expect(all).not.toMatch(/24 hours|99\.9/);

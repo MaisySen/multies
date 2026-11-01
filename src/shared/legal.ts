@@ -12,7 +12,7 @@ import { LEGAL_ENTITY, LEGAL_LINE_TEXT } from "./legal-entity";
 
 /** The date the current version of every legal document took effect. */
 export const LEGAL_EFFECTIVE = "30 October 2026";
-export const LEGAL_UPDATED = "30 October 2026";
+export const LEGAL_UPDATED = "1 November 2026";
 
 export type Block = string | { list: string[] } | { table: string[][] };
 export interface LegalSection { id: string; title: string; body: Block[] }
@@ -31,6 +31,7 @@ export const PROVIDER_CATEGORIES: string[][] = [
   ["Our sign in provider", "Sign in and sign up", "Name, email address, sign in method, second factor enrolment", "Australia; accounts made before 25 October 2026 in the United States until moved"],
   ["Our outbound email provider", "Delivery of mail you send to addresses outside Multies", "Outbound messages and their recipients", "United States"],
   ["Our payments provider", "Payments and invoices for paid add ons", "Billing contact; card details are held by our payments provider, never by us", "Australia and United States"],
+  ["Our product analytics provider", "Product usage analytics for our own team: which parts of Multies are opened and which key actions happen, so we know what to improve", "Pseudonymous ids made with a keyed hash, workspace plan, area and action names; never your content, name or email address", "European Union"],
   ["Our error monitoring provider", "Error and performance monitoring", "Error reports with account ids; no message content", "United States"],
   ["Our video meetings provider", "Video meetings, only while a meeting is running", "Meeting audio and video, display names", "United States"],
   ["Our push notification provider", "Notifications to the Multies phone apps, only when push notifications are turned on", "Device push token and message ids; no message text", "United States"],
@@ -46,6 +47,7 @@ export const SUBPROCESSORS: string[][] = [
   ["Auth0 (Okta)", "Sign in and sign up", "Name, email address, sign in method, second factor enrolment", "Australia; accounts made before 25 October 2026 in the United States until moved"],
   ["Resend", "Delivery of mail you send to addresses outside Multies", "Outbound messages and their recipients", "United States"],
   ["Stripe", "Payments and invoices for paid add ons", "Billing contact; card details are held by Stripe, never by us", "Australia and United States"],
+  ["PostHog", "Product usage analytics for our own team: which parts of Multies are opened and which key actions happen, so we know what to improve", "Pseudonymous ids made with a keyed hash, workspace plan, area and action names; never your content, name or email address", "European Union"],
   ["Sentry", "Error and performance monitoring", "Error reports with account ids; no message content", "United States"],
   ["LiveKit", "Video meetings, only while a meeting is running", "Meeting audio and video, display names", "United States"],
   ["Expo", "Push notifications to the Multies phone apps, only when push notifications are turned on", "Device push token and message ids; no message text", "United States"],
@@ -102,6 +104,7 @@ export const PRIVACY: LegalDoc = {
         ["Purpose", "GDPR lawful basis"],
         ["Run the service: store and deliver your mail and content, keep you signed in", "Performance of our contract with you"],
         ["Bill you for paid add ons and keep tax records", "Contract; legal obligation"],
+        ["Product usage analytics: count which areas are opened and which key actions happen (never content), so we can improve Multies. Turn it off with Do Not Track or Global Privacy Control", "Legitimate interests"],
         ["Keep accounts and the network safe: rate limits, lockout, spam and abuse checks on outbound mail", "Legitimate interests (security); legal obligation"],
         ["Fix errors and measure reliability", "Legitimate interests"],
         ["Service emails: verification, security alerts, receipts, usage alerts", "Contract"],
@@ -123,7 +126,7 @@ export const PRIVACY: LegalDoc = {
       "Multies does not offer Australia only storage. Our primary database, which holds your workspace data including mail synced from connected mailboxes, is placed in our hosting provider's Oceania region, our app servers run in Sydney, and requests first reach the edge location nearest you. Our sign in provider holds accounts in Australia. Files you run through Tools are processed on our document engine in Singapore and deleted within 1 hour. When your workspace uses the AI document helpers, document text may be processed by our infrastructure provider's AI service outside Australia. Some providers listed above process data in the United States, and our encrypted backup copies are kept in the United States. Our Trust page (multies.si/trust) lists where each kind of data lives. We take reasonable steps, including contractual commitments and, for European data, Standard Contractual Clauses, so they handle it consistently with the APPs and the GDPR.",
     ] },
     { id: "cookies", title: "Cookies", body: [
-      "We use only cookies that are strictly necessary: a session cookie that keeps you signed in and a short lived cookie that protects sign in. If you open a referral link from another Multies customer, a first party cookie keeps its referral code for up to 30 days so that customer can be credited when you sign up; it holds nothing else and is not shared with anyone. There are no advertising or analytics cookies. If we turn on visitor analytics, it is cookieless and stores nothing on your device. Error monitoring does not set cookies. We show a short notice about this once; closing it saves a small note in your browser's local storage so it stays closed.",
+      "We use only cookies that are strictly necessary: a session cookie that keeps you signed in and a short lived cookie that protects sign in. If you open a referral link from another Multies customer, a first party cookie keeps its referral code for up to 30 days so that customer can be credited when you sign up; it holds nothing else and is not shared with anyone. There are no advertising or analytics cookies. Product usage analytics sets no cookies and stores nothing on your device, and if your browser sends Do Not Track or Global Privacy Control we send nothing. If we turn on visitor analytics, it is cookieless and stores nothing on your device. Error monitoring does not set cookies. We show a short notice about this once; closing it saves a small note in your browser's local storage so it stays closed.",
     ] },
     { id: "keep", title: "How long we keep it", body: [
       { list: [

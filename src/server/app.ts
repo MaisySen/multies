@@ -1,3 +1,5 @@
+import { productAnalyticsRoutes } from "./routes/product-analytics";
+import { productAnalyticsActions } from "./services/product-analytics";
 import { docsMarkdown, DOCS_MD_PATHS, llmsFullTxt, llmsTxt, MCP_TOOLS_MD_PATH, versionJson } from "./routes/web-meta-r32";
 import { crmRoutes } from "./routes/crm-r94"; // R94: CRM timeline
 import { recordWorkspaceWrites, runMetered, workspaceHealthView } from "./services/workspace-budget";
@@ -393,6 +395,8 @@ export function createApp(deps: Deps) {
       mode: deps.config.mode,
       release: deps.config.release,
       cfBeaconToken: deps.config.cfBeaconToken,
+      // ANALYTICS-PH: internal product usage analytics (on only with ANALYTICS_PH and its keys; the browser still honours Do Not Track).
+      analyticsPh: !!deps.config.productAnalytics,
       demoEnabled: deps.config.demoEnabled,
       // R117: Social composer v2, planner views and slots, drafts and approvals, library (SOCIAL_P2; on unless "off").
       socialP2: deps.config.socialP2 !== false,
@@ -434,6 +438,8 @@ export function createApp(deps: Deps) {
     }),
   );
 
+  // ANALYTICS-PH: a successful key action (send mail, new task, invite...) is recorded after the response (off unless ANALYTICS_PH).
+  app.use("/api/*", productAnalyticsActions);
   app.route("/api/account", accountRoutes());
   app.route("/api/contact", contactFormRoutes());
   app.route("/api/admin/app-config", adminAppConfigRoutes()); // R29b: mobile remote config
@@ -503,6 +509,7 @@ export function createApp(deps: Deps) {
   app.route("/api/team", teamRoutes());
   app.route("/api/invites", inviteRoutes());
   app.route("/api/billing", billingRoutes());
+  app.route("/api/analytics", productAnalyticsRoutes()); // ANALYTICS-PH: area opens from the browser
   app.route("/api/mail-access", mailAccessRoutes());
   app.route("/api/mail-schedules", mailScheduleRoutes());
   app.route("/api/sprints", sprintRoutes());

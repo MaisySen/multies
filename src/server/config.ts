@@ -1,3 +1,4 @@
+import { productAnalyticsConfig, type ProductAnalyticsConfig } from "./services/product-analytics";
 import { testNetworkAllowed } from "@/shared/social-p2b";
 import { parseToolFeatures, type ToolFeature } from "@/shared/tool-features";
 import { z } from "zod";
@@ -40,6 +41,8 @@ export interface AppConfig {
   supportEmail: string;
   /** Cloudflare Web Analytics beacon token (cookieless). Unset means no analytics. */
   cfBeaconToken: string | null;
+  /** ANALYTICS-PH: internal product usage analytics (ANALYTICS_PH on plus POSTHOG_KEY and ANALYTICS_HASH_KEY). Null means off. */
+  productAnalytics?: ProductAnalyticsConfig | null;
   appUrl: string;
   /** Root secret for at-rest encryption. Must be long and random in production. */
   appSecret: string;
@@ -319,6 +322,11 @@ const EnvSchema = z.object({
   LINK_CLICK_FLUSH_MS: z.string().optional(), // R87
   SOCIAL_P2: z.string().optional(),
   SOCIAL_P2B: z.string().optional(),
+  ANALYTICS_PH: z.string().optional(), // ANALYTICS-PH (off unless on)
+  POSTHOG_KEY: z.string().optional(),
+  POSTHOG_HOST: z.string().optional(),
+  ANALYTICS_HASH_KEY: z.string().optional(),
+  ANALYTICS_EXCLUDE: z.string().optional(),
   SOCIAL_TEST_NETWORK: z.string().optional(),
   DOC_ENGINE_URL: z.string().optional(),
   DOC_ENGINE_KEY_ID: z.string().optional(),
@@ -606,6 +614,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     links: { flushMs: Math.max(0, Math.min(20_000, Number(env.LINK_CLICK_FLUSH_MS ?? 4000) || 0)) },
     appName: env.APP_NAME ?? "Multies",
     supportEmail: env.SUPPORT_EMAIL?.trim() || "support@multies.si",
+    productAnalytics: productAnalyticsConfig(env),
     cfBeaconToken: /^[a-f0-9]{32}$/i.test(env.CF_BEACON_TOKEN?.trim() ?? "") ? env.CF_BEACON_TOKEN!.trim() : null,
     appUrl: (env.APP_URL ?? "http://localhost:5173").replace(/\/$/, ""),
     appSecret: secret || "dev-only-insecure-secret-change-me-0000000000",

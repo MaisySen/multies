@@ -1,3 +1,4 @@
+import { captureEvents, runAfterResponse } from "../services/product-analytics";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
@@ -78,6 +79,10 @@ export function providerWebhookRoutes() {
     .post("/stripe", async (c) => {
       const raw = await c.req.text();
       const res = await wrapStripe(() => handleStripeWebhook(c.var.deps, raw, c.req.header("stripe-signature")));
+      // ANALYTICS-PH: a finished checkout is the one server only event (off unless ANALYTICS_PH; never blocks the webhook).
+      if (!res.duplicate && res.type === "checkout.session.completed" && res.orgId && c.var.deps.config.productAnalytics) {
+        await runAfterResponse(c, captureEvents(c.var.deps, { orgId: res.orgId, events: [{ name: "upgrade_completed" }] }));
+      }
       return c.json({ received: true, ...res });
     });
 }

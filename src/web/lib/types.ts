@@ -17,6 +17,8 @@ export interface Me {
 }
 
 export interface PublicConfig {
+  /** ANALYTICS-PH: internal product usage analytics is on (the browser still honours Do Not Track). */
+  analyticsPh?: boolean;
   /** R122: the help center in Docs. */
   helpCenter?: boolean;
   appName: string;
