@@ -23,7 +23,7 @@ env:
   BUNDLE_ID: au.fintex.multies
   URL_SCHEME: mymail
   EXPO_PUBLIC_API_BASE: https://preview.multies.si
-  DEFAULT_ROUTES: "/ /sign-in /search /tools /social /files /docs /contacts /visits /mail-merge /tools/mail-merge /mail-archive /sync"
+  DEFAULT_ROUTES: "/ /files /files?view=team&folder=drv-clients /files?view=brand /files-item/drv-price /docs /doc/doc_plan /doc/comments/doc_plan /doc/share/doc_plan /contacts /contact/con_s1 /visits /settings"
 
 jobs:
   shots:
@@ -112,13 +112,23 @@ jobs:
               echo "- waitForAnimationToEnd"; echo "- takeScreenshot: s00-sample-$MODE"
               i=1
               for R in $ROUTES; do
-                N=$(echo "$R" | sed 's#^/##; s#/#-#g'); [ -z "$N" ] && N=home
+                N=$(echo "$R" | sed 's#^/##; s#[^A-Za-z0-9_]#-#g'); [ -z "$N" ] && N=home
                 echo "- openLink: \"$URL_SCHEME://$R\""
                 echo "- tapOn: {text: \"Open\", optional: true}"
                 echo "- waitForAnimationToEnd"
                 echo "- takeScreenshot: s$(printf %02d $i)-$N-$MODE"
                 i=$((i+1))
-              done; } > "$F"
+              done
+              # 1.10.9 extras: global Search with type chips, file detail scrolled to versions, contact detail scrolled to Visits
+              echo "- openLink: \"$URL_SCHEME:///search\""; echo "- tapOn: {text: \"Open\", optional: true}"; echo "- waitForAnimationToEnd"
+              echo "- tapOn: {id: \"search\", optional: true}"; echo "- inputText: \"plan\""; echo "- waitForAnimationToEnd"
+              echo "- hideKeyboard: {optional: true}"; echo "- waitForAnimationToEnd"; echo "- takeScreenshot: x01-search-results-$MODE"
+              echo "- tapOn: {id: \"search-chip-.*\", index: 1, optional: true}"; echo "- waitForAnimationToEnd"; echo "- takeScreenshot: x02-search-chip-$MODE"
+              echo "- openLink: \"$URL_SCHEME:///files-item/drv-price\""; echo "- tapOn: {text: \"Open\", optional: true}"; echo "- waitForAnimationToEnd"
+              echo "- scroll"; echo "- waitForAnimationToEnd"; echo "- takeScreenshot: x03-file-versions-$MODE"
+              echo "- openLink: \"$URL_SCHEME:///contact/con_s1\""; echo "- tapOn: {text: \"Open\", optional: true}"; echo "- waitForAnimationToEnd"
+              echo "- scroll"; echo "- waitForAnimationToEnd"; echo "- takeScreenshot: x04-contact-visits-$MODE"
+              } > "$F"
             maestro --device "$DEV" test "$F" > "$OUT/maestro-$MODE.log" 2>&1 || { echo "maestro $MODE failed"; tail -15 "$OUT/maestro-$MODE.log"; }
           done
           ls | wc -l

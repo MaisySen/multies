@@ -3,6 +3,15 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.10.9 (OTA, runs on Android versionCode 16 and iOS build 20), 1 Nov 2026
+
+- Files on the phone: Team, Mine, Shared, Starred, Recent and Trash, with folders, upload, versions, preview, move,
+  star and restore. The Brand library is there too, and only admins can edit its tags.
+- Search everything from one place, with chips to narrow it to mail, contacts, files, docs, tasks and more.
+- Docs open in a clean reader on the phone, with comments and share links.
+- Contacts on the phone: search, open a contact, tap Get directions to open your maps app, and see past Visits.
+- When the app restarts to apply an update it no longer counts as a crash.
+
 ## 1.10.8 (OTA, runs on Android versionCode 16 and iOS build 20), 1 Nov 2026
 
 - Social inbox on the phone: comments, messages and mentions from your pages in one list, the same as on the web.

@@ -1,6 +1,6 @@
 import { memoryKV } from "@/lib/kv";
 import { createOtaController, CRITICAL_NOTICE, type UpdatesApi } from "@/lib/ota/controller";
-import { launchReports, markStable } from "@/lib/ota/lifecycle";
+import { launchReports, markStable, STABLE_AFTER_MS } from "@/lib/ota/lifecycle";
 import { DEFAULT_CONFIG, type MobileConfig } from "@/lib/ota/policy";
 import type { Telemetry } from "@/lib/ota/telemetry";
 import type { VersionFacts } from "@/lib/app-version";
@@ -21,7 +21,7 @@ function fakeUpdates(o: Partial<UpdatesApi> = {}): UpdatesApi & { calls: string[
   };
 }
 
-function setup(o: { updates?: UpdatesApi; config?: Partial<MobileConfig>; f?: Partial<VersionFacts>; store?: ReturnType<typeof memoryKV> } = {}) {
+function setup(o: { updates?: UpdatesApi; config?: Partial<MobileConfig>; f?: Partial<VersionFacts>; store?: ReturnType<typeof memoryKV>; setTimer?: (fn: () => void, ms: number) => number } = {}) {
   let clock = 1_000_000_000;
   const store = o.store ?? memoryKV();
   const records: { event: string; updateId: string | null }[] = [];
@@ -32,7 +32,7 @@ function setup(o: { updates?: UpdatesApi; config?: Partial<MobileConfig>; f?: Pa
     os: "ios", facts: () => ({ ...facts, ...o.f }), updates, store, telemetry,
     fetchConfig: async () => config, cachedConfig: async () => null,
     notes: { "1.9.6": [{ title: "What's new", body: "A sheet." }] },
-    now: () => clock, setTimer: (fn) => { fn(); return 0; }, noticeMs: 0, launchCheckDelayMs: 0,
+    now: () => clock, setTimer: o.setTimer ?? ((fn) => { fn(); return 0; }), noticeMs: 0, launchCheckDelayMs: 0,
   });
   return { c, store, records, telemetry, updates, tick: (ms: number) => { clock += ms; } };
 }
@@ -55,6 +55,16 @@ describe("update controller", () => {
     await c.start();
     expect((updates as ReturnType<typeof fakeUpdates>).calls).toEqual(["check", "fetch", "reload"]);
     expect(seen).toContain(CRITICAL_NOTICE);
+  });
+
+  it("an update applied at launch is not reported as a crash on the next start", async () => {
+    const updates = fakeUpdates({ checkForUpdateAsync: async () => ({ isAvailable: true, manifest: { id: "crit-1" } }) });
+    // The 10 s "stable" timer never fires here: the restart comes first, as on a phone.
+    const { c, store } = setup({ updates, setTimer: (fn, ms) => { if (ms < STABLE_AFTER_MS) fn(); return 0; }, f: { updateId: "old-1", embedded: false }, config: { ota: { ...DEFAULT_CONFIG.ota, criticalUpdateIds: ["crit-1"] } } });
+    await c.start();
+    expect((updates as ReturnType<typeof fakeUpdates>).calls).toContain("reload");
+    const next = await launchReports(store, { updateId: "crit-1", embedded: false, emergency: false, emergencyReason: null }, [], 99);
+    expect(next.map((r) => r.event)).not.toContain("launch_crash");
   });
 
   it("moves a phone off a rolled back update at once", async () => {

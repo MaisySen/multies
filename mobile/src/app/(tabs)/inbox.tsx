@@ -161,7 +161,7 @@ function Header({ onSearch, collapsed }: { onSearch: () => void; collapsed?: boo
       <>
         <NotificationBell />
         <IconButton icon="command" label="Commands" onPress={openCommandSheet} testID="open-commands" />
-        <IconButton icon="search" label="Search mail" onPress={onSearch} testID="open-search" />
+        <IconButton icon="search" label="Search" onPress={onSearch} testID="open-search" />
       </>
     )} />
   );
