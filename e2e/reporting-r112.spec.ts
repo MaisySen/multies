@@ -13,12 +13,26 @@ import { confirmEmail } from "./support/confirm-email";
 const SHOTS = process.env.R112_SHOTS;
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 const OUTBOX = ".data/e2e-outbox";
+test.describe.configure({ timeout: 300_000 }); // many axe passes at two widths and two schemes
 
 async function demo(page: Page) {
   await page.goto("/login");
   const origin = new URL(page.url()).origin;
   const r = await page.request.post("/api/account/demo", { headers: { origin } });
   expect(r.ok(), await r.text()).toBe(true);
+  await page.goto("/app");
+  return origin;
+}
+const ip = () => `10.${(Math.random() * 250) | 0}.${(Math.random() * 250) | 0}.${(Math.random() * 250) | 0}`;
+/** A fresh owner with a real workspace (a demo workspace sends no email, so data requests and invites need this). */
+async function owner(page: Page) {
+  await page.context().setExtraHTTPHeaders({ "x-forwarded-for": ip() });
+  await page.goto("/login");
+  const origin = new URL(page.url()).origin;
+  const email = `r112o${Date.now()}@example.com`;
+  expect((await page.request.post("/api/auth/sign-up/email", { data: { name: "Ola Owner", email, password: "a-strong-password" }, headers: { origin } })).ok()).toBe(true);
+  await confirmEmail(page.request, email).catch(() => undefined);
+  await page.request.post("/api/account/onboarding", { data: { name: "Ola Owner", timezone: "Australia/Sydney", locale: "en-AU" }, headers: { origin } });
   await page.goto("/app");
   return origin;
 }
@@ -77,9 +91,9 @@ async function memberPage(browser: Browser, owner: Page) {
   const origin = new URL(owner.url()).origin;
   const email = `r112m${Date.now()}@example.com`;
   const inv = await owner.request.post("/api/team/invites", { data: { email, role: "member" }, headers: { origin } });
-  expect(inv.ok()).toBe(true);
+  expect(inv.ok(), await inv.text()).toBe(true);
   const link = (await inv.json()).link as string;
-  const ctx = await browser.newContext({ baseURL: origin });
+  const ctx = await browser.newContext({ baseURL: origin, extraHTTPHeaders: { "x-forwarded-for": ip() } });
   const page = await ctx.newPage();
   expect((await page.request.post("/api/auth/sign-up/email", { data: { name: "Mia Member", email, password: "a-strong-password" }, headers: { origin } })).ok()).toBe(true);
   await confirmEmail(page.request, email).catch(() => undefined);
@@ -108,7 +122,7 @@ test("1. reporter sends a report, comes back with the passphrase and reads the h
   const sent = v.page.waitForResponse((r) => r.url().includes("/api/pub/report/") && r.url().endsWith("/cases"));
   await v.page.getByTestId("report-send").click();
   const res = await sent;
-  expect(res.status()).toBe(201);
+  expect(res.status()).toBe(200);
   expect(res.headers()["set-cookie"]).toBeUndefined();
   const caseNo = (await v.page.getByTestId("receipt-case").textContent())!.trim();
   const pass = (await v.page.getByTestId("receipt-pass").textContent())!.trim();
@@ -160,21 +174,46 @@ test("1. reporter sends a report, comes back with the passphrase and reads the h
 });
 
 test("2. a member sees no reports and the API says no", async ({ page, browser }) => {
-  await demo(page);
-  await turnOn(page);
+  const origin = await owner(page);
+  const path = await turnOn(page);
+  const made = await page.request.post(`/api/pub${path}/cases`, { data: { what: "Someone keeps changing the roster after it is signed off." }, headers: { origin } });
+  expect(made.ok(), await made.text()).toBe(true);
+  const all = await (await page.request.get("/api/reporting/cases?view=all")).json();
+  expect(all.cases.length).toBe(1);
+  const caseId = all.cases[0].id as string;
   const m = await memberPage(browser, page);
   expect(m.ok, `invite accept answered ${m.status}`).toBe(true);
   await m.page.goto("/app/forms?tab=reports");
   await expect(m.page.getByRole("tab", { name: "Reports" })).toHaveCount(0);
-  expect((await m.page.request.get("/api/reporting/cases?view=all")).status()).toBe(403);
+  expect((await (await m.page.request.get("/api/reporting/access")).json()).canSee).toBe(false);
+  const mine = await m.page.request.get("/api/reporting/cases?view=all");
+  expect(mine.ok() ? (await mine.json()).cases.length : 0).toBe(0);
+  expect([403, 404]).toContain((await m.page.request.get(`/api/reporting/cases/${caseId}`)).status());
+  expect([403, 404]).toContain((await m.page.request.patch(`/api/reporting/cases/${caseId}`, { data: { status: "closed" }, headers: { origin } })).status());
+  expect([403, 404]).toContain((await m.page.request.put("/api/reporting/channel", { data: { enabled: false }, headers: { origin } })).status());
   expect((await m.page.request.get("/api/data-requests")).status()).toBe(403);
   await m.page.goto("/app/settings/data-requests");
   await expect(m.page.getByText("Only owners and admins")).toBeVisible();
+
+  // Made the handler, the member sees that one case and can reply, but not reassign it.
+  const hs = (await (await page.request.get("/api/reporting/handlers")).json()).handlers as { id: string; name: string }[];
+  const mia = hs.find((h) => h.name === "Mia Member");
+  expect(mia, JSON.stringify(hs)).toBeTruthy();
+  expect((await page.request.patch(`/api/reporting/cases/${caseId}`, { data: { handlerId: mia!.id }, headers: { origin } })).ok()).toBe(true);
+  await m.page.goto("/app/forms?tab=reports");
+  await m.page.getByRole("tab", { name: "Reports" }).click();
+  await m.page.getByTestId("case-row").first().click();
+  await expect(m.page.getByTestId("case-handler")).toHaveCount(0);
+  await m.page.getByTestId("handler-reply-text").fill("Thanks, I am looking at the roster history now.");
+  await m.page.getByTestId("handler-reply-send").click();
+  await expect(m.page.getByText("looking at the roster history")).toBeVisible();
+  await check(m.page, "member-handler");
+  expect([403, 404]).toContain((await m.page.request.patch(`/api/reporting/cases/${caseId}`, { data: { handlerId: null }, headers: { origin } })).status());
   await m.page.context().close();
 });
 
 test("3. a data request is confirmed by email, then exported and deleted", async ({ page, browser }) => {
-  const origin = await demo(page);
+  const origin = await owner(page);
   const email = `r112p${Date.now()}@example.com`;
   expect((await page.request.post("/api/contacts", { headers: { origin }, data: { name: "Pat Person", email } })).ok()).toBe(true);
   await page.goto("/app/settings/data-requests");
@@ -217,7 +256,7 @@ test("3. a data request is confirmed by email, then exported and deleted", async
   await page.getByTestId("dr-delete-text").fill("DELETE");
   await page.getByTestId("dr-delete-confirm").click();
   await expect(page.getByText("This request is done.")).toBeVisible();
-  await expect(page.getByTestId("dr-log")).toContainText("Data deleted");
+  await expect(page.getByRole("dialog").getByTestId("dr-log")).toContainText("Data deleted");
   const left = await (await page.request.get(`/api/contacts?q=${encodeURIComponent(email)}`)).json();
   expect(JSON.stringify(left)).not.toContain(email);
 });

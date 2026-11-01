@@ -159,7 +159,7 @@ export function DataRequestsSettings() {
               <div className="min-w-0 flex-1"><div className="text-[14px] font-semibold">Public request page</div><p className="mt-0.5 text-[13px] text-muted">A page where people can ask for their data themselves. Link it from your privacy policy.</p></div>
               <Switch checked={settings.data.publicEnabled} onChange={(v) => void toggle(v)} label={settings.data.publicEnabled ? "Turn the request page off" : "Turn the request page on"} disabled={busy} />
             </div>
-            {settings.data.publicEnabled && <div className="flex flex-wrap items-center gap-2"><code className="min-w-0 flex-1 truncate rounded-lg border border-line bg-fill px-3 py-2 text-[12.5px]" data-testid="dr-link">{settings.data.url}</code><CopyButton value={settings.data.url} label="Copy link" /></div>}
+            {settings.data.publicEnabled && <div className="flex flex-wrap items-center gap-2"><code className="min-w-0 flex-1 truncate rounded-lg max-sm:basis-full border border-line bg-fill px-3 py-2 text-[12.5px]" data-testid="dr-link">{settings.data.url}</code><CopyButton value={settings.data.url} label="Copy link" /></div>}
           </Card>
           {list.isPending ? <Skeleton className="h-40" /> : list.isError ? (
             <Card className="p-6 text-center text-[13px]" role="alert">Couldn't load requests. <Button size="sm" variant="ghost" onClick={() => void list.refetch()}>Try again</Button></Card>

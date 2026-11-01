@@ -53,7 +53,7 @@ function ChannelCard({ channel }: { channel: ReportChannelView }) {
       </div>
       {channel.enabled && channel.url && (
         <div className="flex flex-wrap items-center gap-2">
-          <code className="min-w-0 flex-1 truncate rounded-lg border border-line bg-fill px-3 py-2 text-[12.5px]" data-testid="report-link">{channel.url}</code>
+          <code className="min-w-0 flex-1 truncate rounded-lg max-sm:basis-full border border-line bg-fill px-3 py-2 text-[12.5px]" data-testid="report-link">{channel.url}</code>
           <CopyButton value={channel.url} label="Copy link" />
           <a href={channel.url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] hover:bg-elevated max-sm:min-h-11"><IconExternalLink className="h-4 w-4" />Open</a>
         </div>
