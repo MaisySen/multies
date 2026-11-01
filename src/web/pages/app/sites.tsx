@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { api, errorMessage } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
-import { Input, Textarea } from "@/web/components/ui/input";
+import { Input, Select, Textarea } from "@/web/components/ui/input";
 import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton, StatTile, Switch } from "@/web/components/ui/misc";
 import { Dialog } from "@/web/components/ui/dialog";
 import { ConfirmDialog } from "@/web/components/ui/confirm";
@@ -458,10 +458,10 @@ function BlockFields({ b, i, on, links }: { b: Block; i: number; on: (p: Partial
       const list = b.type === "form" ? links?.forms ?? [] : links?.booking ?? [];
       return <>
         <Lbl id={id("s")}>{b.type === "form" ? "Form" : "Booking page"}</Lbl>
-        <select id={id("s")} className="min-h-10 rounded-lg border border-line bg-transparent px-2 text-sm" value={b.slug} onChange={(e) => on({ slug: e.target.value })}>
+        <Select id={id("s")} value={b.slug} onChange={(e) => on({ slug: e.target.value })}>
           <option value="">{list.length ? "Pick one" : b.type === "form" ? "No forms yet" : "No booking pages yet"}</option>
           {list.map((x) => <option key={x.slug} value={x.slug}>{x.title}</option>)}
-        </select>
+        </Select>
         <Lbl id={id("t")}>Title</Lbl><Input id={id("t")} value={b.title} maxLength={200} onChange={(e) => on({ title: e.target.value })} />
         <Lbl id={id("x")}>Text</Lbl><Textarea id={id("x")} rows={2} value={b.text} maxLength={400} onChange={(e) => on({ text: e.target.value })} />
       </>;
