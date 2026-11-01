@@ -30,6 +30,8 @@ export const csrfGuard: MiddlewareHandler<AppEnv> = async (c, next) => {
   // Tools P2: the same for every upload under /api/tools/ (AI documents, share, sign), each with the header.
   // R77: a workspace logo upload (raw image bytes) under /api/branding/logo/ with the same header.
   if (hasBody && c.req.header("x-multies-upload") === "1" && ((m === "POST" && c.req.path.startsWith("/api/tools/")) || (m === "PUT" && c.req.path.startsWith("/api/branding/logo/")) || (m === "POST" && c.req.path === "/api/direct/tiktok/videos" /* R83: a TikTok video upload */) || (m === "POST" && /^\/api\/portals\/[^/]+\/files$/.test(c.req.path) /* R120: a file shared into a client portal */) || (m === "PUT" && (c.req.path === "/api/drive/upload" || /^\/api\/drive\/items\/[^/]+\/content$/.test(c.req.path)) /* R101: a drive upload or new version */) || (m === "PUT" && c.req.path === "/api/expenses/upload" /* R106: a receipt photo or PDF */))) return next();
+  // R112: a report, a reply or a handler message with files is a form upload with the same custom header.
+  if (hasBody && m === "POST" && c.req.header("x-multies-upload") === "1" && /^\/api\/(pub\/report\/[a-z0-9]{8,40}\/(cases|reply)|reporting\/cases\/[A-Za-z0-9_]{1,80}\/messages)$/.test(c.req.path)) return next();
   if (hasBody && !isJsonContentType(c.req.header("content-type"))) throw new HttpError(403, "bad_content_type", "Requests must be JSON.");
   await next();
 };

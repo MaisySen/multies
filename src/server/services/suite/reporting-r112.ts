@@ -244,7 +244,7 @@ async function caseForReader(deps: Deps, publicId: string, caseNoIn: string, tok
 
 async function messagesFor(db: DB, caseId: string, includeInternal: boolean): Promise<ReportMessageView[]> {
   const rows = await db.all<MsgRow & { author_name: string | null }>(sql`select m.id, m.author, m.user_id, m.internal, m.body, m.files, m.created_at, u.name as author_name
-    from report_messages m left join users u on u.id = m.user_id where m.case_id = ${caseId} ${includeInternal ? sql`` : sql`and m.internal = 0`} order by m.created_at, m.id limit 1000`);
+    from report_messages m left join users u on u.id = m.user_id where m.case_id = ${caseId} ${includeInternal ? sql`` : sql`and m.internal = 0`} order by m.created_at, m.rowid limit 1000`);
   return rows.map((r) => ({
     id: r.id, author: r.author, internal: !!r.internal, body: r.body, createdAt: Number(r.created_at),
     // A reporter sees "Handler", not a name: the team can choose to sign their replies.

@@ -198,7 +198,7 @@ export async function getRequest(deps: Deps, a: Actor, id: string) {
   // Nothing about the person is shown until they have confirmed the email.
   const matches = ready ? await findMatches(deps.db, a.orgId, r.email) : null;
   const logRows = await deps.db.all<{ id: string; request_id: string | null; actor_label: string; action: string; kinds: string; counts: string; created_at: number }>(sql`select id, request_id, actor_label, action, kinds, counts, created_at
-    from data_request_log where org_id = ${a.orgId} and request_id = ${id} order by created_at, id limit 200`);
+    from data_request_log where org_id = ${a.orgId} and request_id = ${id} order by created_at, rowid limit 200`);
   return { request: view, matches, counts: matches ? countsOf(matches) : null, log: logRows.map(logView) };
 }
 
@@ -209,7 +209,7 @@ const logView = (r: { id: string; request_id: string | null; actor_label: string
 export async function workspaceLog(deps: Deps, a: Actor) {
   assertAdmin(a); await assertOrg(deps, a.orgId);
   const rows = await deps.db.all<{ id: string; request_id: string | null; actor_label: string; action: string; kinds: string; counts: string; created_at: number }>(sql`select id, request_id, actor_label, action, kinds, counts, created_at
-    from data_request_log where org_id = ${a.orgId} order by created_at desc limit 200`);
+    from data_request_log where org_id = ${a.orgId} order by created_at desc, rowid desc limit 200`);
   return { log: rows.map(logView) };
 }
 
@@ -285,7 +285,7 @@ export async function deleteData(deps: Deps, a: Actor, id: string, body: { confi
   // Every statement names this workspace, so nothing in another workspace can be touched.
   if (kinds.includes("contacts")) {
     for (const c of m.contacts) {
-      await deps.db.run(sql`delete from crm_entries where org_id = ${a.orgId} and entity_id = ${c.id}`);
+      await deps.db.run(sql`delete from crm_entries where org_id = ${a.orgId} and entity_type = 'contact' and entity_id = ${c.id}`);
       await deps.db.run(sql`delete from contacts where org_id = ${a.orgId} and id = ${c.id}`);
     }
     counts.contacts = m.contacts.length;
