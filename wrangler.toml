@@ -154,7 +154,7 @@ TOOLS_FEATURES = "editor,forms,compare,ocr_langs,scan,protect,stamps,convert_plu
 # esign itself left that list on 31 Oct (owner unheld e-sign; R107 adds it to TOOLS_FEATURES above after the verifier pass).
 ESIGN_V2 = "on"
 HELP_CENTER = "on" # R122: help center, verifier v4 PASS WITH BUGS 21:24 UTC Oct 31
-DAV_SYNC_R99 = "off" # R99: calendar and contacts sync; on after the verifier passes
+DAV_SYNC_R99 = "on" # R99: calendar and contacts sync, verifier v10 PASS WITH BUGS 03:02 UTC Nov 1
 DOC_ENGINE_URL = "https://doctool.multies.si"
 DOC_ENGINE_KEY_ID = "prod-1"
 # R43b: imports carry on after their page closes (the upload is kept, the 15 minute pass finishes it and sends one
