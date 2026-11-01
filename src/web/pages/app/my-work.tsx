@@ -2,13 +2,14 @@
 import type { ReactNode } from "react";
 import { displayFirstName } from "@/shared/display-name";
 import { Link } from "react-router";
+import { MyDay } from "./work/my-day-r95"; // R95
 import { IconApprovals, IconCalendarClock, IconCheck, IconChat, IconChevronRight, IconClipboardCheck, IconCompose, IconDocs, IconInbox, IconMail, IconMention, IconPlus, IconRefresh, IconSnooze, IconTasks, IconToday, IconUserCheck, IconVideo, IconWarning, type IconComponent } from "@/web/components/ui/icon";
 import { ClearDayArt } from "@/web/components/illustrations";
 import { Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { useMyWork, type MyWorkItem } from "@/web/lib/search";
 import { allClear, focusItems, nextMeeting } from "@/web/lib/today";
-import { useMe } from "@/web/lib/queries";
+import { useConfig, useMe } from "@/web/lib/queries";
 import { useCounts } from "@/web/lib/counts";
 import { dayPart } from "@/web/lib/format";
 
@@ -80,6 +81,7 @@ const QUICK: { to: string; label: string; icon: IconComponent }[] = [
 
 export function MyWorkPage() {
   const q = useMyWork();
+  const plus = !!useConfig().data?.tasksPlus; // R95: My Day
   const me = useMe();
   const counts = useCounts(true);
   const first = displayFirstName(me.data?.user.name, me.data?.user.email); // R41 (MB-224)
@@ -145,6 +147,8 @@ export function MyWorkPage() {
             <Stat className="max-lg:col-span-2" wide testId="today-approvals" to="/app/approvals" icon={IconApprovals} tint="#FF9500" value={w.approvals.length} label="Approvals waiting" sub={w.approvals.length ? "Open Approvals" : "None waiting"} />
           </div>
           )}
+
+          {plus && <MyDay />}
 
           {allQuiet ? null : nothing ? (
             <EmptyState className="mb-4" art={<ClearDayArt />} title="You're clear for today" body="Nothing is due, nobody is waiting on you and there are no meetings today." />

@@ -8,7 +8,7 @@ import { PHONE_QUERY } from "@/web/lib/phone";
 import { PhoneTaskList } from "./tasks-phone-r41";
 import { SaveViewDialog, TagsDialog, ViewTabs, WorkspaceFieldsDialog } from "./tasks-r84"; // R84
 import { GROUP_LABEL, isGroupBy, type GroupBy } from "@/web/lib/task-groups-r84"; // R84
-import { IconAssign, IconBoard, IconMore, IconBookmark, IconCalendarDays, IconChevronDown, IconChevronUp, IconClose, IconList, IconMountain, IconPlus, IconSettings2, IconSliders, IconSprint, IconTeam, IconTimeline, IconTrash, IconTag, IconRows, type IconComponent } from "@/web/components/ui/icon";
+import { IconListTree, IconAssign, IconBoard, IconMore, IconBookmark, IconCalendarDays, IconChevronDown, IconChevronUp, IconClose, IconList, IconMountain, IconPlus, IconSettings2, IconSliders, IconSprint, IconTeam, IconTimeline, IconTrash, IconTag, IconRows, type IconComponent } from "@/web/components/ui/icon";
 
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
 import { emptyTasksCopy, hasTaskFilters } from "@/web/lib/empty-states";
@@ -23,6 +23,7 @@ import { requireText, useDialogs } from "@/web/components/ui/confirm";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { EmptyState, Skeleton, Switch } from "@/web/components/ui/misc";
+import { useConfig } from "@/web/lib/queries"; // R95
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { Popover } from "@/web/components/ui/popover"; // R75
 import { ChipSelect } from "@/web/components/ui/chip-select"; // R79
@@ -51,8 +52,9 @@ const TaskCalendar = lazyPage(() => import("./calendar"), "TaskCalendar");
 const PlannedTimeline = lazyPage(() => import("./timeline-plan-r37"), "default"); // R37: timeline with dependency planning
 const SprintsView = lazyPage(() => import("./sprints"), "SprintsView");
 const WorkloadView = lazyPage(() => import("./workload"), "WorkloadView");
+const MindMapView = lazyPage(() => import("./mindmap-r95"), "MindMapView"); // R95
 
-const VIEWS: { id: ViewKind; label: string; icon: IconComponent }[] = [
+const BASE_VIEWS: { id: ViewKind; label: string; icon: IconComponent }[] = [
   { id: "board", label: "Board", icon: IconBoard },
   { id: "list", label: "List", icon: IconList },
   { id: "calendar", label: "Calendar", icon: IconCalendarDays },
@@ -60,6 +62,7 @@ const VIEWS: { id: ViewKind; label: string; icon: IconComponent }[] = [
   { id: "sprints", label: "Sprints", icon: IconSprint },
   { id: "workload", label: "Workload", icon: IconTeam },
 ];
+const MINDMAP_VIEW: { id: ViewKind; label: string; icon: IconComponent } = { id: "mindmap", label: "Mind map", icon: IconListTree }; // R95
 const FILTER_KEYS = ["q", "assignee", "priority", "label", "status", "type"] as const;
 
 export function TasksPage() {
@@ -77,7 +80,10 @@ export function TasksPage() {
   const { update, create } = useTaskMutations();
   // Phones open the list: a board's second column runs off a narrow screen (dogfood finding).
   // R25 (DF-10): the address, then this device's last pick, then List on phones and Board elsewhere.
-  const view = pickTaskView({ param: params.get("view"), stored: readStoredTaskView(), phone: isPhoneWidth() }) as ViewKind;
+  const tasksPlus = !!useConfig().data?.tasksPlus; // R95: the mind map view
+  const picked = pickTaskView({ param: params.get("view"), stored: readStoredTaskView(), phone: isPhoneWidth() }) as ViewKind;
+  const view: ViewKind = picked === "mindmap" && !tasksPlus ? "list" : picked;
+  const VIEWS = tasksPlus ? [...BASE_VIEWS, MINDMAP_VIEW] : BASE_VIEWS;
   const list = projects.data ?? [];
   // The board needs one project: by default the one with the most open work.
   const busiest = [...list].sort((a, b) => (b.counts.todo + b.counts.doing) - (a.counts.todo + a.counts.doing))[0];
@@ -418,6 +424,9 @@ export function TasksPage() {
               : update.mutate({ id, patch: { statusId: col, position, status: project.statuses.find((s) => s.id === col)?.category, statusName: project.statuses.find((s) => s.id === col)?.name } })} />
         ) : view === "workload" ? (
           <Suspense fallback={<PanelListSkeleton label="Loading workload" />}><WorkloadView projectId={projectId || undefined} onOpen={open} /></Suspense>
+        ) : view === "mindmap" ? (
+          project ? <Suspense fallback={<PanelListSkeleton label="Loading the mind map" />}><MindMapView project={project} onOpen={open} /></Suspense>
+            : <EmptyState icon={<IconListTree />} title="Pick a project" body="The mind map shows one project's tasks and subtasks. Choose a project above." />
         ) : view === "sprints" && project ? (
           <Suspense fallback={<PanelListSkeleton label="Loading sprints" />}><SprintsView project={project} onOpen={open} /></Suspense>
         ) : view === "list" || ((view === "board" || view === "sprints") && !project) ? (

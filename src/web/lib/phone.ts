@@ -3,7 +3,7 @@
  * Kept free of React so the choices are unit tested (tests/phone-r25.test.ts).
  */
 
-export const TASK_VIEWS = ["board", "list", "calendar", "timeline", "sprints", "workload"] as const;
+export const TASK_VIEWS = ["board", "list", "calendar", "timeline", "sprints", "workload", "mindmap"] as const; // R95: mindmap (Tasks plus only)
 export type TaskViewId = (typeof TASK_VIEWS)[number];
 
 /** Where the last view a person picked on this device is kept. */

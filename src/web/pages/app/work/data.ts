@@ -22,7 +22,7 @@ export interface Task {
   subtasks: { total: number; done: number }; commentCount: number; completedAt: string | null;
   /** R26 (MB-85): checklist counts for the card chip. */
   checklist?: { total: number; done: number };
-  repeat?: { freq: "daily" | "weekly" | "monthly" | "yearly"; interval?: number; weekdays?: number[]; monthDay?: number; until?: string | null; text: string } | null;
+  repeat?: { freq: "daily" | "weekly" | "monthly" | "yearly"; interval?: number; weekdays?: number[]; monthDay?: number; until?: string | null; text: string; /** R95 */ nth?: number; nthWeekday?: number; basis?: "due" | "done"; tz?: string; rotate?: string[] } | null;
   createdBy: { type: string; id: string | null }; createdAt: string; updatedAt: string; version: number;
   fields?: Record<string, FieldValue>;
   /** R24.1: why a formula or rollup cell shows #ERROR, per field id. */
@@ -57,7 +57,7 @@ export interface SavedView { id: string; projectId: string | null; name: string;
 export interface Tag { id: string; name: string; color: string; position: number; count?: number }
 /** R84: a field defined once for the workspace (key), shown in every project. */
 export interface WorkspaceField { key: string; name: string; type: FieldType; options: FieldOption[]; projects: number }
-export type ViewKind = "board" | "list" | "calendar" | "timeline" | "sprints" | "workload";
+export type ViewKind = "board" | "list" | "calendar" | "timeline" | "sprints" | "workload" | "mindmap"; // R95: mindmap
 
 export const PRIORITY_LABEL: Record<Priority, string> = { none: "No priority", low: "Low", medium: "Medium", high: "High", urgent: "Urgent" };
 export const PRIORITY_COLOR: Record<Priority, string> = { none: "text-subtle", low: "text-muted", medium: "text-brand-hover", high: "text-warn", urgent: "text-bad" };

@@ -47,6 +47,8 @@ export interface PublicConfig {
   scheduling?: boolean;
   /** R91: dashboards plus (share by link, emailed reports, question builder, alerts, data sources). */
   dashboardsPlus?: boolean;
+  /** R95: Tasks plus (My Day, smart repeat, timesheet approval, time tags and export, mind map). */
+  tasksPlus?: boolean;
   /** R59: chat channels (WhatsApp, Messenger, Instagram) in the shared inbox (CHAT_CHANNELS). Off unless set. */
   chatChannels?: boolean;
   /** R111: mail archive and retention (MAIL_ARCHIVE_R111): the Archive and retention pane and Audit log filters. */

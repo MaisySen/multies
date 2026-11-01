@@ -10,6 +10,9 @@ import { CatchupCard } from "@/web/components/catchup-card"; // R31
 import { IconAgent, IconCalendar, IconCheckCircle, IconCircle, IconClose, IconCopy, IconDocs, IconLink, IconMail, IconMore, IconTrash, IconUser, IconVideo, IconWarning, IconMaximize, IconSidebar } from "@/web/components/ui/icon";
 import { AssigneePicker, CommentBox, DescriptionEditor, TagPicker } from "./tasks-r84"; // R84
 import { TaskTime } from "./time";
+import { RepeatPlus } from "./repeat-plus-r95"; // R95
+import { AddToMyDay } from "./my-day-r95"; // R95
+import { useConfig } from "@/web/lib/queries";
 import { EpicSection, TaskTypeRows } from "./task-type";
 import { SprintFields } from "./sprint-fields";
 import { TaskChecklist } from "./task-checklist"; // R26 (MB-85)
@@ -180,7 +183,7 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
             <dt className="text-subtle">Due</dt>
             <dd><Input type="date" aria-label="Due date" value={dateInput(t.due)} onChange={(e) => save({ due: e.target.value || null })} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base" /></dd>
             <dt className="text-subtle">Repeat</dt>
-            <dd><RepeatPicker value={t.repeat ?? null} onChange={(repeat) => save({ repeat })} /></dd>
+            <dd><RepeatField value={t.repeat ?? null} due={t.due} onChange={(repeat) => save({ repeat })} /></dd>
             <dt className="text-subtle">Tags</dt>
             <dd className="min-w-0"><TagPicker value={t.labels} onChange={(labels) => save({ labels })} /></dd>
             <SprintFields task={t} onSave={(patch) => save(patch)} />
@@ -228,7 +231,7 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
             </section>
           )}
 
-          <TaskTime taskId={t.id} total={q.data!.time?.totalSeconds ?? 0} entries={q.data!.time?.entries ?? []} onChange={() => void q.refetch()} />
+          <MyDayRow taskId={t.id} /><TaskTime taskId={t.id} total={q.data!.time?.totalSeconds ?? 0} entries={q.data!.time?.entries ?? []} onChange={() => void q.refetch()} />
 
           <Dependencies task={t} blockedBy={q.data!.blockedBy ?? []} blocking={q.data!.blocking ?? []} onChange={() => void q.refetch()} />
 
@@ -330,7 +333,7 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
             <dt className="text-subtle">Due</dt>
             <dd><Input type="date" aria-label="Due date" value={dateInput(t.due)} onChange={(e) => save({ due: e.target.value || null })} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base" /></dd>
             <dt className="text-subtle">Repeat</dt>
-            <dd><RepeatPicker value={t.repeat ?? null} onChange={(repeat) => save({ repeat })} /></dd>
+            <dd><RepeatField value={t.repeat ?? null} due={t.due} onChange={(repeat) => save({ repeat })} /></dd>
             <dt className="text-subtle">Tags</dt>
             <dd className="min-w-0"><TagPicker value={t.labels} onChange={(labels) => save({ labels })} /></dd>
             <SprintFields task={t} onSave={(patch) => save(patch)} />
@@ -375,7 +378,7 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
             </section>
           )}
 
-          <TaskTime taskId={t.id} total={q.data!.time?.totalSeconds ?? 0} entries={q.data!.time?.entries ?? []} onChange={() => void q.refetch()} />
+          <MyDayRow taskId={t.id} /><TaskTime taskId={t.id} total={q.data!.time?.totalSeconds ?? 0} entries={q.data!.time?.entries ?? []} onChange={() => void q.refetch()} />
 
           <Dependencies task={t} blockedBy={q.data!.blockedBy ?? []} blocking={q.data!.blocking ?? []} onChange={() => void q.refetch()} />
 
@@ -496,6 +499,20 @@ function Dependencies({ task, blockedBy, blocking, onChange }: { task: Task; blo
 }
 
 type Repeat = NonNullable<Task["repeat"]>;
+
+/** R95: the smart repeat control when Tasks plus is on, else the classic one. */
+function RepeatField({ value, due, onChange }: { value: Repeat | null; due: string | null; onChange: (r: Omit<Repeat, "text"> | null) => void }) {
+  const plus = !!useConfig().data?.tasksPlus;
+  const people = useAssignees();
+  if (!plus) return <RepeatPicker value={value} onChange={onChange} />;
+  return <RepeatPlus value={value} due={due} people={(people.data ?? []).map((p) => ({ type: p.type, id: p.id, name: p.name }))} onChange={onChange as never} />;
+}
+
+/** R95: Add to My Day, above the task's time. */
+function MyDayRow({ taskId }: { taskId: string }) {
+  if (!useConfig().data?.tasksPlus) return null;
+  return <div className="mt-6 flex items-center gap-2"><AddToMyDay taskId={taskId} /></div>;
+}
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /** Repeat rule: none, daily, weekly on chosen days, monthly, yearly, or every N of those. */

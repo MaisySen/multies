@@ -10,11 +10,15 @@ import { Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc
 import { cn } from "@/web/lib/cn";
 import { useProjects, useTasks } from "./data";
 import { tone } from "@/web/components/app-bits";
+import { ApprovalQueue, DayTimeline, EntryExtras, ExportLink, IdlePrompt, useTasksPlus, WeekStatus } from "./time-plus-r95"; // R95
+import { useMe } from "@/web/lib/queries";
+import { cleanTags } from "@/shared/tasks-plus-r95";
 
 export interface TimeEntry {
   id: string; taskId: string | null; task: { id: string; ref: string; title: string } | null; projectId: string | null;
   project: { id: string; name: string; key: string; color: string } | null; person: { type: "member" | "agent"; id: string; name: string }; personId: string;
   startedAt: string; endedAt: string | null; running: boolean; seconds: number; note: string; billable: boolean; source: "timer" | "manual";
+  /** R95 */ tags?: string[];
 }
 interface Sheet { from: string; to: string; days: string[]; rows: { person: TimeEntry["person"]; project: TimeEntry["project"]; days: Record<string, number>; total: number; billable: number }[]; dayTotals: Record<string, number>; total: number; entries: TimeEntry[] }
 
@@ -46,8 +50,9 @@ export function useTimerActions() {
 /** The running timer, shown in the app header on every page. */
 export function TimerChip() {
   const running = useRunningTimer();
-  const { stop } = useTimerActions();
+  const { stop, refresh } = useTimerActions();
   const secs = useElapsed(running.data);
+  const plus = useTasksPlus();
   if (!running.data) return null;
   return (
     <div className="flex items-center gap-1.5 rounded-full border border-brand/40 bg-brand/10 py-0.5 pl-2.5 pr-1 text-[12.5px]" data-testid="timer-chip">
@@ -55,6 +60,7 @@ export function TimerChip() {
       <span className="max-w-[140px] truncate text-muted">{running.data.task?.ref}</span>
       <span className="font-mono tabular-nums">{clockText(secs)}</span>
       <button className="rounded-full p-1 text-muted hover:bg-elevated hover:text-fg" aria-label="Stop timer" onClick={() => stop.mutate()}><IconPause className="h-3.5 w-3.5" /></button>
+      {plus && <IdlePrompt entry={running.data} onDone={refresh} />}
     </div>
   );
 }
@@ -123,8 +129,13 @@ export function TimesheetPage() {
   const [projectId, setProjectId] = useState("");
   const [adding, setAdding] = useState(false);
   const qc = useQueryClient();
+  const plus = useTasksPlus(); // R95
+  const me = useMe();
+  const [mode, setMode] = useState<"week" | "day">("week");
+  const [tag, setTag] = useState("");
+  const [dayPick, setDayPick] = useState("");
   const from = ymd(week), to = ymd(new Date(week.getTime() + 6 * 86_400_000));
-  const qs = new URLSearchParams({ from, to, ...(person ? { person } : {}), ...(projectId ? { projectId } : {}) }).toString();
+  const qs = new URLSearchParams({ from, to, ...(person ? { person } : {}), ...(projectId ? { projectId } : {}), ...(plus && tag.trim() ? { tag: tag.trim() } : {}) }).toString();
   const q = useQuery({ queryKey: ["timesheet", qs], queryFn: () => api.get<Sheet>(`/time/timesheet?${qs}`) });
   const projects = useProjects();
   const running = useRunningTimer();
@@ -135,9 +146,15 @@ export function TimesheetPage() {
   }, [q.data]);
   const del = async (id: string) => { try { await api.del(`/time/${id}`); void qc.invalidateQueries({ queryKey: ["timesheet"] }); } catch (e) { showError(e as Error); } };
   const thisWeek = ymd(startOfWeek(new Date())) === from;
+  const myId = me.data?.user.id ? `member:${me.data.user.id}` : "";
+  const myTotal = (q.data?.entries ?? []).filter((e) => e.personId === myId).reduce((s, e) => s + e.seconds, 0);
+  const shownDay = dayPick && q.data?.days.includes(dayPick) ? dayPick : (q.data?.days.includes(today()) ? today() : q.data?.days[0] ?? from);
+  const refreshSheet = () => void qc.invalidateQueries({ queryKey: ["timesheet"] });
   return (
     <div>
-      <PageHeader title="Timesheet" description="Time logged on tasks, per person and project. Start a timer from any task, or log time by hand." actions={<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />Log time</Button>} />
+      <PageHeader title="Timesheet" description="Time logged on tasks, per person and project. Start a timer from any task, or log time by hand." actions={<div className="flex items-center gap-2">{plus && <ExportLink qs={qs} />}<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />Log time</Button></div>} />
+      {plus && <ApprovalQueue onOpen={(w, pid) => { setWeek(startOfWeek(new Date(`${w}T12:00:00`))); setPerson(`member:${pid}`); }} />}
+      {plus && myId && <WeekStatus week={from} total={myTotal} />}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="flex items-center rounded-lg border border-line">
           <button className="p-2 text-muted hover:text-fg" aria-label="Previous week" onClick={() => setWeek(new Date(week.getTime() - 7 * 86_400_000))}><IconBack className="h-4 w-4" /></button>
@@ -153,12 +170,24 @@ export function TimesheetPage() {
           <option value="">All projects</option>
           {projects.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
+        {plus && <Input aria-label="Tag" placeholder="Tag" value={tag} onChange={(e) => setTag(e.target.value)} className="h-9 w-32 text-[13px]" data-testid="tag-filter" />}
+        {plus && (
+          <div className="flex rounded-lg bg-fill p-0.5" role="tablist" aria-label="Show">
+            {(["week", "day"] as const).map((m) => <button key={m} role="tab" aria-selected={mode === m} onClick={() => setMode(m)} className={cn("min-h-8 rounded-md px-2.5 text-[12.5px] max-sm:min-h-10", mode === m ? "bg-surface font-medium shadow-sm" : "text-muted hover:text-fg")}>{m === "week" ? "Week" : "Day"}</button>)}
+          </div>
+        )}
+        {plus && mode === "day" && q.data && (
+          <Select aria-label="Day" value={shownDay} onChange={(e) => setDayPick(e.target.value)} className="h-9 w-auto text-[13px]">
+            {q.data.days.map((d) => <option key={d} value={d}>{dayHead(d).dow} {dayHead(d).dm}</option>)}
+          </Select>
+        )}
         {running.data && <span className="ml-auto text-[12.5px] text-muted">Timer running on {running.data.task?.ref} {running.data.task?.title}</span>}
       </div>
       {q.isPending ? <Skeleton className="h-48" /> : !q.data!.rows.length ? (
         <Card><EmptyState icon={<IconTimer />} title="No time this week" body="Open a task and press Start timer, or log time by hand. Agents can log time through the API and MCP too." /></Card>
       ) : (
         <>
+          {plus && mode === "day" ? <DayTimeline entries={q.data!.entries} day={shownDay} /> : (
           <Card className="overflow-x-auto" tabIndex={0} role="region" aria-label="Timesheet">
             <table className="w-full min-w-[720px] text-[13px]" data-testid="timesheet">
               <thead>
@@ -187,6 +216,7 @@ export function TimesheetPage() {
               </tfoot>
             </table>
           </Card>
+          )}
           <h2 className="mb-2 mt-6 text-[13px] font-semibold">Entries</h2>
           <Card className="divide-y divide-line">
             {q.data!.entries.map((e) => (
@@ -194,6 +224,7 @@ export function TimesheetPage() {
                 <span className="w-20 shrink-0 font-mono tabular-nums">{e.running ? "running" : hoursText(e.seconds)}</span>
                 <span className="min-w-0 flex-1 truncate">{e.task ? <><span className="font-mono text-[12px] text-subtle">{e.task.ref}</span> {e.task.title}</> : <span className="text-muted">{e.project?.name ?? "No project"}</span>}{e.note && <span className="text-muted"> · {e.note}</span>}</span>
                 <span className="hidden text-muted sm:inline">{e.person.name}</span>
+                {plus && <EntryExtras entry={e} onChange={refreshSheet} />}
                 <span className="w-20 text-right text-subtle">{new Date(e.startedAt).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}</span>
                 {!e.running && <button className="text-subtle opacity-0 hover:text-bad group-hover:opacity-100 focus:opacity-100" aria-label="Delete entry" onClick={() => void del(e.id)}><IconTrash className="h-4 w-4" /></button>}
               </div>
@@ -213,9 +244,12 @@ function LogTimeDialog({ open, onClose, onSaved }: { open: boolean; onClose: () 
   const [date, setDate] = useState(today());
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const plus = useTasksPlus(); // R95: tags and billable
+  const [tags, setTags] = useState("");
+  const [billable, setBillable] = useState(true);
   const save = async () => {
     setSaving(true);
-    try { await api.post("/time", { taskId, minutes: Number(minutes), date, note: note || undefined }); onSaved(); onClose(); } catch (e) { showError(e as Error); } finally { setSaving(false); }
+    try { await api.post("/time", { taskId, minutes: Number(minutes), date, note: note || undefined, ...(plus ? { tags: cleanTags(tags.split(",")), billable } : {}) }); onSaved(); onClose(); } catch (e) { showError(e as Error); } finally { setSaving(false); }
   };
   return (
     <Dialog open={open} onClose={onClose} title="Log time" footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={() => void save()} loading={saving} disabled={!taskId}>Save</Button></>}>
@@ -229,6 +263,8 @@ function LogTimeDialog({ open, onClose, onSaved }: { open: boolean; onClose: () 
           <Field label="Date">{(fp) => (<Input {...fp} type="date" value={date} onChange={(e) => setDate(e.target.value)} />)}</Field>
         </div>
         <Field label="Note">{(fp) => (<Input {...fp} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />)}</Field>
+        {plus && <Field label="Tags">{(fp) => (<Input {...fp} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="client a, design" />)}</Field>}
+        {plus && <label className="flex min-h-9 items-center gap-2 text-[13px]"><input type="checkbox" checked={billable} onChange={(e) => setBillable(e.target.checked)} className="h-4 w-4 accent-[var(--color-brand)]" />Billable</label>}
       </div>
     </Dialog>
   );
