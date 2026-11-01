@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconCheckCircle, IconCircle, IconClock, IconClose, IconGavel, IconHash, IconNotes, IconSparkle, IconTeam } from "@/web/components/ui/icon";
+import { IconCheckCircle, IconCircle, IconClock, IconClose, IconGavel, IconHash, IconNotes, IconSparkle, IconTeam, IconChat } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -25,7 +25,8 @@ export interface SoFar {
 }
 interface GuestNotes { notes: { title: string; headings: string[]; agenda: string[]; notes: string[]; todos: { text: string; done: boolean }[] } | null }
 
-export type CallTab = "notes" | "so-far";
+import { MeetingLivePanel, useChatPlus } from "./chat-plus-r96"; // R96
+export type CallTab = "notes" | "so-far" | "live"; // R96: live polls and questions
 
 /** Members: makes the call's notes doc once (idempotent on the server) as the call starts. */
 export function useCallNotesDoc(meetingId: string | undefined, enabled: boolean) {
@@ -152,6 +153,7 @@ export function useCallPanel(meetingId: string | undefined, member: boolean) {
 }
 
 export function CallToolbar({ tab, setTab, member }: { tab: CallTab | null; setTab: (t: CallTab | null) => void; member: boolean }) {
+  const plus = useChatPlus(); // R96
   const btn = (t: CallTab, label: string, icon: ReactNode) => (
     <button type="button" onClick={() => setTab(tab === t ? null : t)} aria-pressed={tab === t} data-testid={`call-tab-${t}`}
       className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium max-sm:h-11 max-sm:rounded-full max-sm:px-3.5 max-sm:text-[15px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand motion-reduce:transition-none", tab === t ? "bg-brand-soft text-brand" : "text-muted hover:bg-hover hover:text-fg")}>
@@ -162,6 +164,7 @@ export function CallToolbar({ tab, setTab, member }: { tab: CallTab | null; setT
     <div className="flex items-center gap-1" role="toolbar" aria-label="Call panels" data-testid="call-toolbar">
       {btn("notes", "Notes", <IconNotes className="h-4 w-4" aria-hidden />)}
       {member && btn("so-far", "So far", <IconClock className="h-4 w-4" aria-hidden />)}
+      {member && plus.on && btn("live", "Live", <IconChat className="h-4 w-4" aria-hidden />)}
     </div>
   );
 }
@@ -176,13 +179,14 @@ export function CallSidePanel({ meetingId, guestToken, member, tab, onClose, so 
     onSuccess: (r) => setWritten(r.summary), onError: (e) => showError(e as Error),
   });
   return (
-    <aside className="flex w-full shrink-0 flex-col overflow-hidden rounded-xl border border-line bg-elevated md:w-[360px] motion-safe:animate-[fade-in_160ms_ease-out]" aria-label={tab === "notes" ? "Call notes" : "So far"} data-testid="call-panel">
+    <aside className="flex w-full shrink-0 flex-col overflow-hidden rounded-xl border border-line bg-elevated md:w-[360px] motion-safe:animate-[fade-in_160ms_ease-out]" aria-label={tab === "notes" ? "Call notes" : tab === "live" ? "Live polls" : "So far"} data-testid="call-panel">
       <header className="flex items-center justify-between border-b border-line px-4 py-2.5">
-        <h2 className="text-[13px] font-semibold">{tab === "notes" ? "Notes" : "So far"}</h2>
+        <h2 className="text-[13px] font-semibold">{tab === "notes" ? "Notes" : tab === "live" ? "Live" : "So far"}</h2>
         <button type="button" onClick={onClose} aria-label="Close panel" className="rounded-md p-1 text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"><IconClose className="h-4 w-4" /></button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {tab === "notes"
+        {tab === "live" ? (member && meetingId ? <MeetingLivePanel meetingId={meetingId} isAdmin={false} /> : null)
+          : tab === "notes"
           ? (member && meetingId ? <div className="p-2"><MeetingNotes meetingId={meetingId} /></div> : guestToken ? <GuestNotesView token={guestToken} /> : null)
           : so.data ? <SoFarView data={so.data} onWrite={() => write.mutate()} writing={write.isPending} written={written} />
           : so.error ? <p className="p-4 text-[13px] text-muted">{(so.error as Error).message}</p>

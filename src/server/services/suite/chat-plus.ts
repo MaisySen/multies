@@ -324,7 +324,7 @@ async function finishPoll(deps: Deps, p: PollRow, by: SuiteActor | null): Promis
   const votes = await deps.db.select().from(chatPollVotes).where(eq(chatPollVotes.pollId, p.id));
   const options = JSON.parse(p.options) as string[];
   let outcome: Record<string, unknown> = { voters: new Set(votes.map((v) => v.voter)).size };
-  let line = "";
+  let line: string;
   if (p.kind === "decision") {
     const counts: Partial<Record<Stance, number>> = {};
     for (const v of votes) counts[v.choice as Stance] = (counts[v.choice as Stance] ?? 0) + 1;
@@ -424,7 +424,7 @@ export async function vote(deps: Deps, a: SuiteActor, id: string, input: { choic
   const userId = person(a);
   const p = await openForWrite(deps, a, id);
   const options = JSON.parse(p.options) as string[];
-  let choices: string[] = [];
+  let choices: string[];
   let reason = "";
   if (p.kind === "poll") {
     choices = [...new Set(input.choices)];

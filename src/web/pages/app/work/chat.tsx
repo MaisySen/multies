@@ -261,7 +261,7 @@ export function ChatPage() {
   const current = list.find((c) => c.id === channelId) ?? (channelId ? undefined : list.find((c) => c.name === "general") ?? list[0]);
   // R49: on a phone, Back lands on the channel list (?list=1) instead of bouncing straight into a channel.
   const listParam = params.get("list");
-  useEffect(() => { if (!annView && current && shouldOpenDefaultChannel({ channelId, hasDefault: true, listParam, phone: isPhoneWidth() })) navigate(`/app/chat/${current.id}`, { replace: true }); }, [channelId, current, navigate, listParam]);
+  useEffect(() => { if (!annView && current && shouldOpenDefaultChannel({ channelId, hasDefault: true, listParam, phone: isPhoneWidth() })) navigate(`/app/chat/${current.id}`, { replace: true }); }, [channelId, current, navigate, listParam, annView]);
   const visible = typeof document === "undefined" || document.visibilityState === "visible";
   const messages = useQuery({
     queryKey: ["chat", "messages", current?.id], enabled: !!current, refetchInterval: visible ? chatPollMs(live.live, 4000) : false,
