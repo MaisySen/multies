@@ -514,6 +514,9 @@ export function dig(data: unknown, keys: string[], depth = 0): string | null {
   return null;
 }
 
+/** SA1: a platform tool call for the profile read (who the account is). */
+export async function runTool(ctx: PublishCtx, slug: string, args: Record<string, unknown>) { return run(ctx, slug, args); }
+
 async function run(ctx: PublishCtx, slug: string, args: Record<string, unknown>) {
   const r = await ctx.cp.execute(slug, ctx.accountId, ctx.userId, args);
   if (!r.ok) throw new PublishError("rejected", platformDetail(r.error) ?? "rejected");
@@ -627,6 +630,9 @@ export function linkedinVersions(now: Date): string[] {
   const v = (back: number) => { const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1)); return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}`; };
   return [v(1), v(2), v(0)];
 }
+
+/** SA1: a LinkedIn read for the profile (who the account is). */
+export async function linkedinGet(ctx: PublishCtx, endpoint: string): Promise<unknown> { return (await linkedinCall(ctx, "GET", endpoint)).data; }
 
 async function linkedinCall(ctx: PublishCtx, method: "GET" | "POST", endpoint: string, body?: Record<string, unknown>) {
   const versions = endpoint.includes("/rest/") ? linkedinVersions(ctx.now ?? new Date()) : [null];

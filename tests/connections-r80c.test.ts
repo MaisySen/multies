@@ -70,17 +70,23 @@ describe("R80C Connections", () => {
     expect(raw).not.toContain("ak_test_key_never_shown");
     expect(mock.keyMissing).toBe(0);
 
-    // A second account for the same app is its own row.
+    // SA1: the same account again is still one row; a different account for the same app is its own row.
     await connect(owner, "linkedin");
+    expect((await owner.get("/api/apps/accounts")).body.accounts).toHaveLength(1);
+    const kept = (await owner.get("/api/apps/accounts")).body.accounts[0].id as string;
+    const r2 = await owner.post("/api/apps/connect", { app: "linkedin" });
+    const other = new URL(r2.body.redirectUrl).searchParams.get("connected_account_id")!;
+    mock.accounts.get(other)!.data.sub = "someone-else";
+    expect((await owner.post(`/api/apps/accounts/${other}/confirm`)).status).toBe(200);
     expect((await owner.get("/api/apps/accounts")).body.accounts).toHaveLength(2);
     // The managed sign in setup was made once and reused.
     expect(mock.authConfigs.filter((a) => a.toolkit === "linkedin")).toHaveLength(1);
 
-    const re = await owner.post(`/api/apps/accounts/${id}/reconnect`);
+    const re = await owner.post(`/api/apps/accounts/${kept}/reconnect`);
     expect(re.status).toBe(200);
     expect(re.body.redirectUrl).toContain("/app/social/accounts?app=linkedin"); // P1 layout: a network you post to comes back to Social
 
-    expect((await owner.del(`/api/apps/accounts/${id}`)).status).toBe(200);
+    expect((await owner.del(`/api/apps/accounts/${kept}`)).status).toBe(200);
     expect((await owner.get("/api/apps/accounts")).body.accounts).toHaveLength(1);
 
     const orgId = await orgIdOf("owner-r80c@acme.io");
@@ -333,7 +339,11 @@ describe("Oct 31: account health before posting", () => {
   it("checks each social account without posting, and says what to fix", async () => {
     const fb = await connect(owner, "facebook");
     const li = await connect(owner, "linkedin");
-    const li2 = await connect(owner, "linkedin");
+    // SA1: a second LinkedIn is a different member (the same member again would fold into one row).
+    const r2 = await owner.post("/api/apps/connect", { app: "linkedin" });
+    const li2 = new URL(r2.body.redirectUrl).searchParams.get("connected_account_id")!;
+    mock.accounts.get(li2)!.data.sub = "someone-else";
+    expect((await owner.post(`/api/apps/accounts/${li2}/confirm`)).status).toBe(200);
     mock.accounts.get(li2)!.data.expired = true;
     const before = mock.proxied.length;
     const r = await owner.get("/api/social/health");

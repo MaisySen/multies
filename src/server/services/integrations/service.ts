@@ -72,6 +72,10 @@ export function viewOf(a: CpAccount): ConnectedAccountView {
   };
 }
 
+function withProfile(v: ConnectedAccountView, p: { name: string | null; avatarUrl: string | null } | null | undefined): ConnectedAccountView {
+  return { ...v, name: p?.name ?? null, avatarUrl: p?.avatarUrl ?? null };
+}
+
 /** The workspace's accounts. Pending ones older than an hour are left-over connect attempts and are not shown. */
 export async function listAccounts(deps: Deps, auth: AuthContext): Promise<ConnectedAccountView[]> {
   const cp = platform(deps);
@@ -79,9 +83,20 @@ export async function listAccounts(deps: Deps, auth: AuthContext): Promise<Conne
   let rows: CpAccount[];
   try { rows = await cp.accounts(platformUserId(cp, auth.orgId)); } catch (err) { return toHttp(err); }
   const staleBefore = deps.now().getTime() - 3_600_000;
-  return rows
-    .filter((a) => a.user_id === undefined || a.user_id === platformUserId(cp, auth.orgId))
-    .map(viewOf)
+  const userId = platformUserId(cp, auth.orgId);
+  const mine = rows.filter((a) => a.user_id === undefined || a.user_id === userId);
+  // SA1: names and pictures for social accounts, and one row per network account (older duplicates fold in).
+  let profiles = new Map<string, { name: string | null; avatarUrl: string | null }>();
+  let merged = new Set<string>();
+  if (mine.some((a) => canPostTo(a.toolkit?.slug ?? ""))) {
+    try {
+      const { backfillProfiles } = await import("./account-profiles");
+      ({ profiles, merged } = await backfillProfiles(deps, cp, auth.orgId, userId, mine, canPostTo));
+    } catch (err) { deps.log?.warn("social.profiles_failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) }); }
+  }
+  return mine
+    .filter((a) => !merged.has(a.id))
+    .map((a) => withProfile(viewOf(a), profiles.get(a.id)))
     .filter((v) => !(v.status === "pending" && Date.parse(v.createdAt) < staleBefore))
     .sort((a, b) => a.appName.localeCompare(b.appName) || a.createdAt.localeCompare(b.createdAt));
 }
@@ -148,9 +163,17 @@ export async function confirmConnect(deps: Deps, auth: AuthContext, accountId: s
   const cp = platformForId(deps);
   limitWrite(auth.orgId);
   const a = await ownAccount(cp, auth.orgId, accountId);
-  const view = viewOf(a);
+  let view = viewOf(a);
   if (view.status === "active") {
     await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "integration.connected", targetType: "integration", targetId: a.id, metadata: { app: view.app }, ip: ip ?? null });
+    // SA1: the same network account connected again refreshes the one row instead of adding a second.
+    if (canPostTo(view.app)) {
+      try {
+        const { settleAccount } = await import("./account-profiles");
+        const r = await settleAccount(deps, cp, auth.orgId, platformUserId(cp, auth.orgId), a, { userId: auth.userId, email: auth.email, ip: ip ?? null });
+        view = { ...withProfile(view, r.profile), refreshed: r.merged.length > 0 };
+      } catch (err) { deps.log?.warn("social.settle_failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) }); }
+    }
   }
   return view;
 }

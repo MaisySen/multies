@@ -81,7 +81,7 @@ export function useDirectStatus() {
 /** Composio accounts the composer posts to, plus TikTok and Threads when linked. */
 export function composerAccounts(list: ConnectedAccountView[], direct: DirectStatusResponse | undefined): ComposerAccount[] {
   const out: ComposerAccount[] = list.filter((a) => a.status === "active" && a.app in SOCIAL_NETWORKS && a.app !== "threads" && a.app !== "twitter")
-    .map((a) => ({ id: a.id, app: a.app, name: a.appName, label: a.label ?? null, needsTarget: !!SOCIAL_NETWORKS[a.app]?.target, account: a }));
+    .map((a) => ({ id: a.id, app: a.app, name: a.appName, label: a.name ?? a.label ?? null, needsTarget: !!SOCIAL_NETWORKS[a.app]?.target, account: a }));
   for (const d of direct?.accounts ?? []) {
     if (!d.connected || d.status === "expired") continue;
     out.push({ id: `direct:${d.provider}`, app: d.provider, name: networkLabel(d.provider), label: d.username ? `@${d.username}` : null, needsTarget: false });

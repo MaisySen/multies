@@ -210,7 +210,7 @@ export function Composer({ accounts, onPosted, heading = true }: { accounts: Con
                     <input type="checkbox" checked={on} disabled={!!cannot || !!(h && !on)} onChange={() => toggle(a)} aria-describedby={cannot ? `why-${a.id}` : undefined} className="h-4 w-4 shrink-0 accent-[var(--color-brand)] disabled:cursor-not-allowed" />
                     <span className={cn("flex min-w-0 items-center gap-3", (cannot || (h && !on)) && "opacity-55")}>
                       <AppLogo slug={a.app} name={a.appName} size="sm" />
-                      <span className="min-w-0 truncate text-sm">{a.appName}{a.label ? <span className="text-muted">, {a.label}</span> : null}</span>
+                      <span className="min-w-0 truncate text-sm">{a.appName}{(a.name ?? a.label) ? <span className="text-muted">, {a.name ?? a.label}</span> : null}</span>
                     </span>
                   </label>
                   {cannot && <p id={`why-${a.id}`} className="basis-full pl-7 text-[12.5px] text-muted" data-testid="pick-why">{cannot}</p>}

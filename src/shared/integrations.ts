@@ -87,7 +87,15 @@ export interface ConnectedAccountView {
   /** A readable name for the account when the platform gives one (a page, a handle). */
   label: string | null;
   createdAt: string;
+  /** SA1: who the account is on its network (a profile or page name) and its picture, when the network said. */
+  name?: string | null;
+  avatarUrl?: string | null;
+  /** SA1: on confirm, true when this sign in replaced an older connection to the same account (one row, fresh sign in). */
+  refreshed?: boolean;
 }
+
+/** SA1: the plain note on LinkedIn, until LinkedIn approves page access (no organization scopes are asked for). */
+export const LINKEDIN_PAGE_NOTE = "Posting to a company page needs LinkedIn's approval for page access. Your personal profile works now.";
 
 export interface CatalogResponse {
   available: boolean;

@@ -3708,3 +3708,15 @@ export const contractRuns = sqliteTable("contract_runs", {
   createdBy: text("created_by").notNull(),
   createdAt: createdAt(),
 }, (t) => [index("contract_runs_mine_idx").on(t.orgId, t.createdBy, t.createdAt)]);
+
+/** SA1 (0134): who each connected social account is on its network (its own id, name and picture). One row per
+ * connection; the unique index keeps one connection per network account in a workspace. */
+export const socialAccountProfiles = sqliteTable("social_account_profiles", {
+  orgId: text("org_id").notNull(),
+  accountId: text("account_id").notNull(),
+  app: text("app").notNull(),
+  externalId: text("external_id"),
+  name: text("name"),
+  avatarUrl: text("avatar_url"),
+  checkedAt: ts("checked_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.accountId] }), uniqueIndex("social_account_profiles_ext_uq").on(t.orgId, t.app, t.externalId)]);

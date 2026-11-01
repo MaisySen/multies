@@ -110,6 +110,21 @@ export function AppLogo({ slug, name, size = "md" }: { slug: string; name: strin
   );
 }
 
+/** SA1: the account's own picture with its network's logo in the corner; the network logo alone when there is none. */
+export function AccountAvatar({ account, size = "md" }: { account: Pick<ConnectedAccountView, "app" | "appName" | "avatarUrl" | "name">; size?: "sm" | "md" }) {
+  const [failed, setFailed] = useState(false);
+  if (!account.avatarUrl || failed) return <AppLogo slug={account.app} name={account.appName} size={size} />;
+  const dims = size === "sm" ? "h-7 w-7" : "h-10 w-10";
+  return (
+    <span className={cn("relative shrink-0", dims)} aria-hidden data-testid="account-avatar">
+      <img src={account.avatarUrl} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} className={cn("rounded-full border border-line bg-fill object-cover", dims)} />
+      <span className={cn("absolute -bottom-1 -right-1 overflow-hidden rounded-md bg-surface ring-2 ring-surface", size === "sm" ? "h-3.5 w-3.5" : "h-[18px] w-[18px]")}>
+        <img src={`/api/apps/logo/${account.app}`} alt="" loading="lazy" decoding="async" className="h-full w-full object-contain" />
+      </span>
+    </span>
+  );
+}
+
 const STATUS_COPY: Record<ConnectedAccountView["status"], { label: string; tone: "ok" | "warn" | "bad" | "neutral" }> = {
   active: { label: "Connected", tone: "ok" },
   pending: { label: "Sign in not finished", tone: "warn" }, // R82F (MB-284): an abandoned sign in must not read as connected
@@ -220,7 +235,9 @@ export function useConnectReturn() {
     if (!id) { clean(); return; }
     api.post<{ account: ConnectedAccountView }>(`/apps/accounts/${encodeURIComponent(id)}/confirm`)
       .then((r) => {
-        if (r.account.status === "active") toast.success(`${r.account.appName} connected`);
+        // SA1: the same account signed in again is one row with a fresh sign in, and the toast says so.
+        if (r.account.status === "active" && r.account.refreshed) toast.success(`${r.account.appName}${r.account.name ? `, ${r.account.name},` : ""} was already connected. Its sign in is refreshed.`);
+        else if (r.account.status === "active") toast.success(`${r.account.appName} connected${r.account.name ? ` as ${r.account.name}` : ""}`);
         else toast.message(`${r.account.appName} is still finishing sign in. It shows here when it is ready.`);
       })
       .catch((e) => toast.error(errorMessage(e, "Couldn't confirm the connection. Refresh to check.")))

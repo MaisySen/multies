@@ -1421,5 +1421,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `contract_runs` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`template_id` text NOT NULL,\n\t`title` text NOT NULL,\n\t`doc_id` text,\n\t`answers` text DEFAULT '{}' NOT NULL,\n\t`clause_versions` text DEFAULT '{}' NOT NULL,\n\t`task_ids` text DEFAULT '[]' NOT NULL,\n\t`created_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
       "CREATE INDEX `contract_runs_mine_idx` ON `contract_runs` (`org_id`,`created_by`,`created_at`);"
     ]
+  },
+  {
+    "name": "0134_sa1_social_account_profiles",
+    "statements": [
+      "-- SA1 (Nov 1): one row per social account the workspace connected: the account's own id on its network, the name and\n-- picture people know it by, and when we last asked. Additive only. The unique index is the server side guard: a\n-- workspace holds one connection per network account, so connecting the same account again refreshes it. The\n-- connections themselves live on the integration platform, so there are no rows to merge here yet; existing\n-- duplicates are merged by the app the first time each workspace's accounts are listed.\nCREATE TABLE IF NOT EXISTS `social_account_profiles` (\n\t`org_id` text NOT NULL,\n\t`account_id` text NOT NULL,\n\t`app` text NOT NULL,\n\t`external_id` text,\n\t`name` text,\n\t`avatar_url` text,\n\t`checked_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `account_id`)\n);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `social_account_profiles_ext_uq` ON `social_account_profiles` (`org_id`,`app`,`external_id`);"
+    ]
   }
 ];

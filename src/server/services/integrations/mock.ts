@@ -98,6 +98,8 @@ function proxy(state: MockComposioState, body: { connected_account_id?: string; 
   const text = String(args.message ?? args.caption ?? args.commentary ?? "");
   const u = new URL(endpoint);
   if (u.hostname === "graph.facebook.com") {
+    // SA1: who the signed in profile is (data.who picks another person, for two different accounts).
+    if (method === "GET" && /\/me$/.test(u.pathname)) return net(200, { id: String(acct.data.fbId ?? "fbu_1"), name: String(acct.data.name ?? "Ada Lovelace"), picture: { data: { url: "https://images.example.com/ada.png" } } });
     if (method === "GET" && u.pathname.endsWith("/me/permissions")) return net(200, { data: acct.data.noPostPerm ? [{ permission: "pages_show_list", status: "granted" }] : [{ permission: "pages_show_list", status: "granted" }, { permission: "pages_manage_posts", status: "granted" }] });
     if (method === "GET" && u.pathname.endsWith("/me/accounts")) return net(200, { data: [{ id: "pg_100", tasks: ["CREATE_CONTENT", "MANAGE"] }, { id: "pg_200", tasks: ["CREATE_CONTENT"] }] });
     if (method === "GET" && u.searchParams.get("fields") === "access_token") return net(200, u.pathname.endsWith("/pg_noadmin") ? { id: "pg_noadmin" } : { id: "pg", access_token: "mock-page-token" });
@@ -126,7 +128,7 @@ function proxy(state: MockComposioState, body: { connected_account_id?: string; 
     return net(404, { error: { message: "Unknown path", code: 803 } });
   }
   if (u.hostname === "api.linkedin.com") {
-    if (u.pathname === "/v2/userinfo") return acct.data.expired ? net(401, { status: 401, code: "REVOKED_ACCESS_TOKEN", message: "The token used in the request has been revoked by the user" }) : net(200, { sub: "mock1", name: "Ada" });
+    if (u.pathname === "/v2/userinfo") return acct.data.expired ? net(401, { status: 401, code: "REVOKED_ACCESS_TOKEN", message: "The token used in the request has been revoked by the user" }) : net(200, { sub: String(acct.data.sub ?? "mock1"), name: String(acct.data.name ?? "Ada"), picture: acct.data.picture ?? undefined });
     if (u.pathname.startsWith("/rest/posts/") && method === "DELETE") {
       const urn = decodeURIComponent(u.pathname.slice("/rest/posts/".length));
       const gone = state.goneRemote ?? (state.goneRemote = new Set());

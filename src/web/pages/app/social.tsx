@@ -18,9 +18,9 @@ import { ConfirmDialog } from "@/web/components/ui/confirm";
 import {
   IconBack, IconCalendarDays, IconChevronRight, IconCompose, IconFlask, IconLock, IconMegaphone, IconPlug, IconPlus, IconRefresh, IconTrash, IconWarning,
 } from "@/web/components/ui/icon";
-import { SOCIAL_NETWORKS, type ConnectedAccountView, type SocialPostView } from "@/shared/integrations";
+import { LINKEDIN_PAGE_NOTE, SOCIAL_NETWORKS, type ConnectedAccountView, type SocialPostView } from "@/shared/integrations";
 import { capList, capsOf } from "@/shared/social-p2b";
-import { AppLogo, appsKeys, useAppAccounts, useAppsStatus, useConnect, useConnectReturn } from "./apps-settings";
+import { AccountAvatar, AppLogo, appsKeys, useAppAccounts, useAppsStatus, useConnect, useConnectReturn } from "./apps-settings";
 import { Composer, POST_STATUS, PostList, ReconnectButton, useAccountHealth, useSocialPosts, type PostFilter } from "./apps-social";
 import { DirectAccounts } from "./apps-direct";
 import { useConfig } from "@/web/lib/queries";
@@ -453,7 +453,7 @@ export function SocialAccountsPage() {
           <ul className="mt-2 space-y-2">
             {broken.map((a) => (
               <li key={a.id} className="flex flex-wrap items-center gap-3 text-[13.5px]">
-                <span className="min-w-0 flex-1">{a.appName}{a.label ? `, ${a.label}` : ""} lost its sign in. Planned posts to it won't go out until you reconnect.</span>
+                <span className="min-w-0 flex-1">{a.appName}{(a.name ?? a.label) ? `, ${a.name ?? a.label}` : ""} lost its sign in. Planned posts to it won't go out until you reconnect.</span>
                 {canManage ? <ReconnectButton accountId={a.id} appName={a.appName} /> : <span className="text-[12.5px] text-muted">Ask an owner or admin to reconnect it.</span>}
               </li>
             ))}
@@ -484,17 +484,19 @@ export function SocialAccountsPage() {
                   const bad = h && !h.ok && h.code !== "check_failed";
                   return (
                     <div key={a.id} className="flex flex-wrap items-center gap-3 p-4 md:px-5" data-testid={`social-account-${a.app}`} data-health={bad ? "bad" : h?.ok ? "ok" : "unknown"}>
-                      <AppLogo slug={a.app} name={a.appName} />
+                      <AccountAvatar account={a} />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[15px] font-medium">{a.appName}{a.label ? <span className="text-muted">, {a.label}</span> : null}</p>
-                        <p className="flex flex-wrap items-center gap-2 text-[13px] text-muted">{healthLine(a)}<span>Connected {timeAgo(a.createdAt)}</span></p>
+                        {/* SA1: the account's own name first, so two accounts on one network are told apart. */}
+                        <p className="truncate text-[15px] font-medium" data-testid="account-name">{a.name ?? a.label ?? a.appName}</p>
+                        <p className="flex flex-wrap items-center gap-2 text-[13px] text-muted">{(a.name ?? a.label) ? <span className="text-subtle">{a.appName}</span> : null}{healthLine(a)}<span>Connected {timeAgo(a.createdAt)}</span></p>
                         {bad && h?.text && <p className="mt-1 text-[12.5px] text-warn" data-testid="account-health-text">{h.text}</p>}
+                        {a.app === "linkedin" && <p className="mt-1 text-[12.5px] text-muted" data-testid="linkedin-page-note">{LINKEDIN_PAGE_NOTE}</p>}
                         {p2b && <AccountCaps app={a.app} />}
                       </div>
                       {canManage && (
                         <div className="flex gap-2 max-sm:w-full max-sm:pl-[52px]">
                           {(bad || a.status !== "active") && <ReconnectButton accountId={a.id} appName={a.appName} />}
-                          <Button variant="ghost" size="sm" className="text-bad hover:text-bad" onClick={() => setRemoving(a)} aria-label={`Disconnect ${a.appName}`}><IconTrash className="h-4 w-4" aria-hidden />Disconnect</Button>
+                          <Button variant="ghost" size="sm" className="text-bad hover:text-bad" onClick={() => setRemoving(a)} aria-label={`Disconnect ${a.appName}${a.name ? `, ${a.name}` : ""}`}><IconTrash className="h-4 w-4" aria-hidden />Disconnect</Button>
                         </div>
                       )}
                     </div>
@@ -519,6 +521,7 @@ export function SocialAccountsPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[15px] font-medium">{NETWORK_NAMES[app] ?? app}</p>
                   <p className="text-[12.5px] text-muted">{connectedApps.has(app) ? "Connected. Add another account." : SOCIAL_NETWORKS[app]!.image === "required" ? "Posts need an image." : "Text and image posts."}</p>
+                  {app === "linkedin" && <p className="mt-1 text-[12px] leading-snug text-subtle" data-testid="connect-linkedin-note">{LINKEDIN_PAGE_NOTE}</p>}
                 </div>
                 {canManage && (
                   <Button variant="outline" size="sm" loading={connect.isPending && connect.variables === app} onClick={() => connect.mutate(app)} aria-label={`Connect ${NETWORK_NAMES[app] ?? app}`}>
@@ -532,7 +535,7 @@ export function SocialAccountsPage() {
         </section>
       </div>
       <ConfirmDialog open={!!removing} onClose={() => setRemoving(null)} onConfirm={() => removing && disconnect.mutate(removing)} busy={disconnect.isPending}
-        title={removing ? `Disconnect ${removing.appName}?` : "Disconnect"} confirmLabel="Disconnect"
+        title={removing ? `Disconnect ${removing.appName}${removing.name ? `, ${removing.name}` : ""}?` : "Disconnect"} confirmLabel="Disconnect"
         description="Scheduled posts to this account will not go out. You can connect it again any time." />
     </div>
   );
