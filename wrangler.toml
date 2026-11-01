@@ -162,6 +162,7 @@ TOOLS_FEATURES = "editor,forms,compare,ocr_langs,scan,protect,stamps,convert_plu
 # esign itself left that list on 31 Oct (owner unheld e-sign; R107 adds it to TOOLS_FEATURES above after the verifier pass).
 ESIGN_V2 = "on"
 HELP_CENTER = "on" # R122: help center, verifier v4 PASS WITH BUGS 21:24 UTC Oct 31
+TASKS_PLUS_R95 = "on" # R95: tasks plus (My Day, smart repeat, timesheets, mind map), verifier v13 PASS 08:21 UTC Nov 1
 DOCS_PLUS_R103 = "on" # R103: Docs plus (link library, save a page, doc comments, spell check); verifier v10 PASS 03:31 UTC Nov 1
 DAV_SYNC_R99 = "on" # R99: calendar and contacts sync, verifier v10 PASS WITH BUGS 03:02 UTC Nov 1
 MAIL_ARCHIVE_R111 = "on" # R111: mail archive and retention (no policy anywhere until an admin turns one on), verifier v11 PASS WITH BUGS 05:01 UTC Nov 1
