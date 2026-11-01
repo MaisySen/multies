@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-mail-archive",
+    date: "2026-11-01",
+    title: "Archive and retention for mail",
+    body: "Admins can keep mail for a set number of years or forever, and see how many messages a policy would remove before turning it on. Legal holds keep a person's or a mailbox's mail from being deleted, and you can search the archive and export a case. Nothing is removed unless an admin turns a policy on.",
+  },
+  {
     id: "2026-11-01-docs-plus",
     date: "2026-11-01",
     title: "Link library, saved pages, comments on docs and spelling",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "Flows: automations you can see",
     body: "Automations has a new home under Agents, where you build a flow on a canvas from a trigger, conditions with yes and no paths, waits, an approval step and actions. Flows can watch a web page or a news feed, gather items into a morning digest, or send signed events to a webhook. Every run shows each step with what went in and what came out, and a failed run can be tried again from that step.",
-  },
-  {
-    id: "2026-10-31-docs-visual",
-    date: "2026-10-31",
-    title: "Whiteboards, diagrams, mind maps and slides in Docs",
-    body: "Start a whiteboard from Docs and draw on it together, with everyone's cursor showing, or add one inside any doc with /whiteboard. Type /flowchart for a diagram drawn from text, flip a doc to Mind map to see and edit it as a tree, and press Present to show it as slides with speaker notes and a timer.",
   },
   {
     id: "2026-10-28-whats-new",

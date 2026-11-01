@@ -14,6 +14,11 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Spelling: a Check spelling button in docs and mail compose (20 languages, browser spell check with a language choice).
 ### Notes
 - Behind DOCS_PLUS_R103 (on in staging). Migration 0125 adds link_library, doc_comments and share_links.comments.
+## R111 Mail archive and retention (2026-11-01)
+- Settings > Mail > Archive and retention (admins): a workspace retention policy (keep N years, or forever) with a dry run count before it can be turned on and a 7 day grace before anything is removed; legal holds per person or mailbox that always win; archive search and case export as an mbox ZIP; every pass, hold, search and export is in the audit log, which gains filters on Activity. Members see a read only notice; guests nothing. Behind MAIL_ARCHIVE_R111; no policy is on anywhere until an admin turns one on.
+- Undo send survives a closed tab: if the tab closes during the hold, the message is handed to the server with a request that outlives the page, under the same Idempotency-Key, so it is never lost and never sent twice; anything that could not leave comes back in Compose on the next visit. Send later is keyed the same way.
+- Command menu finds Slides; Forest hover contrast on tool buttons; analytics events are flushed when the page is hidden.
+- What's new: "Archive and retention for mail" took the place of "Ask for files, and send secrets that delete themselves".
 
 ## R118 Social P2b: inbox, account health, analytics (2026-10-31)
 ### Added
