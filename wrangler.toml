@@ -142,6 +142,7 @@ namespace_id = "1004"
 simple = { limit = 300, period = 60 }
 
 [vars]
+FILES_PLUS_R101 = "on" # R101: Files plus (drive and brand library), on after verifier v12 PASS WITH BUGS 07:16 UTC Nov 1
 APP_MODE = "production"
 # ANALYTICS-PH: internal product usage analytics, on after verifier v9 PASS (1 Nov 2026). POSTHOG_KEY and
 # ANALYTICS_HASH_KEY are secrets; the client workspace is always excluded; "off" switches it off everywhere.
