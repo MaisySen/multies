@@ -12,14 +12,12 @@ import { HttpError } from "../../lib/errors";
 import { dateRange, parseTaskQuery, PRIORITY_RANK, TaskQueryError, type HistoryTerm, type QueryNode, type QueryOp, type QueryTerm } from "../../../shared/task-query";
 import type { SuiteActor } from "./common";
 import { refCond, TASK_REF_RE } from "./task-refs-r34";
+import { containsAny, containsText } from "../../lib/like-search";
 
 export interface TaskQueryCtx { deps: Deps; actor: SuiteActor }
 
-const likeText = (v: string) => `%${v.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-const textCond = (v: string, titleOnly = false) => {
-  const p = likeText(v);
-  return titleOnly ? sql`${tasks.title} like ${p} escape '\\'` : sql`(${tasks.title} like ${p} escape '\\' or ${tasks.notes} like ${p} escape '\\')`;
-};
+/** LK1: instr based, so a long query never meets D1's 50 byte LIKE pattern limit. */
+const textCond = (v: string, titleOnly = false) => (titleOnly ? containsText(tasks.title, v) : containsAny([tasks.title, tasks.notes], v));
 const anyOf = (list: SQL[]) => (list.length === 1 ? list[0] : or(...list)!);
 
 /** col op value; dates bind as epoch milliseconds (the timestamp_ms columns). */
@@ -134,7 +132,7 @@ function termCond(t: QueryTerm, ctx: TaskQueryCtx): SQL {
       if (l === "open") return ne(tasks.status, "done");
       return sql`${tasks.statusId} in (select s.id from project_statuses s where s.org_id = ${org} and lower(s.name) = ${l} and s.deleted_at is null)`;
     });
-    case "label": return each((v) => sql`lower(${tasks.labels}) like ${`%${JSON.stringify(v.toLowerCase()).replace(/[\\%_]/g, (c) => `\\${c}`)}%`} escape '\\'`);
+    case "label": return each((v) => containsText(tasks.labels, JSON.stringify(v.toLowerCase())));
     case "priority": return each((v) => (t.op === "=" ? eq(tasks.priority, v.toLowerCase() as "none") : compare(PRIORITY_SQL, t.op, PRIORITY_RANK[v.toLowerCase()])));
     case "type": return each((v) => eq(tasks.type, v.toLowerCase() as "task"));
     case "due": return each((v) => (v.toLowerCase() === "none" ? isNull(tasks.dueAt) : dateCond(tasks.dueAt, t.op, v, now, false)));

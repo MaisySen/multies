@@ -3,12 +3,13 @@
  * Every correspondent outside the workspace becomes a contact the first time mail
  * goes either way; work domains become companies. Free mail domains never do.
  */
-import { and, asc, desc, eq, isNull, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { aliases, appSettings, companies, contacts, deals, domains, mailboxes, messages, tasks } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, scopeOf, parseDate, recordWrite, sortableId, timeline, type SuiteActor } from "./common";
 import { addressNeedle, containsLower, inIds } from "../../lib/sql-chunks";
+import { containsAny } from "../../lib/like-search";
 
 const FREE_MAIL = new Set([
   "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "hotmail.com.au", "live.com", "live.com.au", "msn.com", "yahoo.com", "yahoo.com.au", "ymail.com",
@@ -180,7 +181,7 @@ export async function listContacts(deps: Deps, orgId: string, q: { q?: string; c
   if (q.lastWithinDays) conds.push(sql`${contacts.lastContactAt} >= ${deps.now().getTime() - q.lastWithinDays * day}`);
   if (q.lastOlderThanDays) conds.push(sql`(${contacts.lastContactAt} is null or ${contacts.lastContactAt} < ${deps.now().getTime() - q.lastOlderThanDays * day})`);
   if (q.hasOpenDeal) conds.push(sql`exists (select 1 from ${deals} where ${deals.contactId} = ${contacts.id} and ${deals.deletedAt} is null and ${deals.stage} not in ('won','lost'))`);
-  if (q.q) conds.push(or(like(contacts.name, `%${q.q}%`), like(contacts.email, `%${q.q}%`))!);
+  if (q.q) conds.push(containsAny([contacts.name, contacts.email], q.q));
   // One round trip for the page with its companies, and the count beside it.
   const [rows, total] = await Promise.all([
     deps.db.select({ c: contacts, co: companies }).from(contacts).leftJoin(companies, eq(companies.id, contacts.companyId)).where(and(...conds))
@@ -293,7 +294,7 @@ export async function deleteContact(deps: Deps, actor: SuiteActor, id: string) {
 export async function listCompanies(deps: Deps, orgId: string, q: { q?: string } = {}) {
   await backfillContacts(deps, orgId);
   const rows = await deps.db.select({ c: companies, n: sql<number>`(select count(*) from contacts where contacts.company_id = ${companies.id} and contacts.deleted_at is null)`, last: sql<number | null>`(select max(last_contact_at) from contacts where contacts.company_id = ${companies.id})` })
-    .from(companies).where(and(eq(companies.orgId, orgId), isNull(companies.deletedAt), q.q ? or(like(companies.name, `%${q.q}%`), like(companies.domain, `%${q.q}%`)) : undefined))
+    .from(companies).where(and(eq(companies.orgId, orgId), isNull(companies.deletedAt), q.q ? containsAny([companies.name, companies.domain], q.q) : undefined))
     .orderBy(sql`3 desc nulls last`).limit(500);
   return rows.map((r) => ({ id: r.c.id, name: r.c.name, domain: r.c.domain, notes: r.c.notes, contactCount: Number(r.n), lastContactAt: r.last ? new Date(Number(r.last)).toISOString() : null }));
 }

@@ -4,7 +4,7 @@
  * functions, through the app, the REST API and MCP.
  */
 import { TASK_LIST_LIMIT } from "@/shared/task-list-limit"; // R45b
-import { and, asc, desc, eq, gt, gte, inArray, isNull, like, lt, lte, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { agents, changes, docs, entityLinks, members, messages, projectKeyAliases, projectStatusCounts, projectStatuses, projects, savedViews, taskComments, tasks, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
@@ -18,6 +18,7 @@ import { claimNumbers } from "./project-counter";
 import { invalidateStatuses, orgStatuses } from "./read-cache";
 import { SQL_IN_CHUNK, inChunks, inIds } from "../../lib/sql-chunks";
 import { isAgentEmail } from "../people";
+import { containsAny, containsText } from "../../lib/like-search";
 import { rowMapper, selectMapped } from "../../db/fast-rows"; // R52
 
 export type Category = "todo" | "doing" | "done";
@@ -406,13 +407,13 @@ async function listConds(deps: Deps, actor: SuiteActor, f: TaskFilters): Promise
       const [type, id] = f.assignee === "me" ? (actor.agentId ? ["agent", actor.agentId] : ["member", actor.userId]) : f.assignee.split(":");
       // R84: a person beside the main assignee matches too (the JSON list on the row, no other table).
       conds.push(or(and(eq(tasks.assigneeType, type as "member" | "agent"), eq(tasks.assigneeId, id)),
-        sql`(${tasks.coAssignees} <> '[]' and ${tasks.coAssignees} like ${`%"${type}:${String(id).replace(/"/g, "").replace(/[\\%_]/g, (ch) => `\\${ch}`)}"%`} escape '\\')`));
+        sql`(${tasks.coAssignees} <> '[]' and ${containsText(tasks.coAssignees, `"${type}:${String(id).replace(/"/g, "")}"`)})`));
     }
   }
-  if (f.label) conds.push(like(tasks.labels, `%${JSON.stringify(f.label).slice(1, -1)}%`));
+  if (f.label) conds.push(containsText(tasks.labels, JSON.stringify(f.label).slice(1, -1)));
   if (f.dueBefore) conds.push(lte(tasks.dueAt, parseDate(f.dueBefore)!));
   if (f.dueAfter) conds.push(gte(tasks.dueAt, parseDate(f.dueAfter)!));
-  if (f.q) conds.push(or(like(tasks.title, `%${f.q}%`), like(tasks.notes, `%${f.q}%`)));
+  if (f.q) conds.push(containsAny([tasks.title, tasks.notes], f.q));
   if (f.parentId === null) conds.push(isNull(tasks.parentId));
   else if (f.parentId) conds.push(eq(tasks.parentId, f.parentId));
   else if (!f.includeSubtasks && !f.threadId) conds.push(topLevelCondition());

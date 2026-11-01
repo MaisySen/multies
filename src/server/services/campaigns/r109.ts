@@ -206,9 +206,9 @@ export async function addFromContacts(deps: Deps, auth: AuthContext, listId: str
 
 export async function listMembers(deps: Deps, auth: AuthContext, listId: string, q: { search?: string; status?: string; offset?: number }) {
   const l = await getList(deps, auth, listId);
-  const s = q.search?.trim().toLowerCase() ?? ""; const like = `%${s.replace(/[%_]/g, "")}%`;
+  const s = q.search?.trim().toLowerCase() ?? "";
   const rows = await deps.db.all<MemberRow>(sql`select * from audience_members where list_id = ${listId}
-    ${q.status ? sql`and status = ${q.status}` : sql``} ${s ? sql`and (email like ${like} or lower(name) like ${like})` : sql``}
+    ${q.status ? sql`and status = ${q.status}` : sql``} ${s ? sql`and (instr(lower(email), lower(${s})) > 0 or instr(lower(name), lower(${s})) > 0)` : sql``}
     order by created_at desc limit 51 offset ${Math.max(0, q.offset ?? 0)}`);
   const { unsub, supp } = await blockedAmong(deps, auth.orgId, rows.map((r) => r.email));
   return {
@@ -239,9 +239,9 @@ export async function unsubscribeEverywhere(deps: Deps, orgId: string, email: st
 }
 
 export async function suppressionList(deps: Deps, auth: AuthContext, search = "") {
-  const like = `%${search.trim().toLowerCase().replace(/[%_]/g, "")}%`;
-  const u = await deps.db.all<{ email: string; created_at: number }>(sql`select email, created_at from merge_unsubscribes where org_id = ${auth.orgId} and email like ${like} order by created_at desc limit 200`);
-  const s = await deps.db.all<{ address: string; reason: string; created_at: number }>(sql`select address, reason, created_at from suppressions where org_id = ${auth.orgId} and address like ${like} order by created_at desc limit 200`);
+  const s0 = search.trim();
+  const u = await deps.db.all<{ email: string; created_at: number }>(sql`select email, created_at from merge_unsubscribes where org_id = ${auth.orgId} and instr(lower(email), lower(${s0})) > 0 order by created_at desc limit 200`);
+  const s = await deps.db.all<{ address: string; reason: string; created_at: number }>(sql`select address, reason, created_at from suppressions where org_id = ${auth.orgId} and instr(lower(address), lower(${s0})) > 0 order by created_at desc limit 200`);
   const toIso = (n: number) => new Date(Number(n) < 1e12 ? Number(n) * 1000 : Number(n)).toISOString();
   return [...u.map((r) => ({ email: r.email, reason: "unsubscribed", at: toIso(r.created_at) })), ...s.map((r) => ({ email: r.address, reason: r.reason, at: toIso(r.created_at) }))]
     .sort((a, b) => b.at.localeCompare(a.at)).slice(0, 300);

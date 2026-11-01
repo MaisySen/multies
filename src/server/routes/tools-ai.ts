@@ -32,6 +32,7 @@ import { writeCsv, writeXlsx, type Cell } from "../services/tools/xlsx-writer";
 import { createTask } from "../services/suite/tasks";
 import type { ToolFeature } from "@/shared/tool-features";
 import type { ToolJob, ToolOp } from "@/shared/tools";
+import { containsAny } from "../lib/like-search";
 
 export const AI_FEATURES: ToolFeature[] = ["ask", "translate", "extract", "expenses", "contracts"];
 const READ_FEATURES = ["ask", "extract", "expenses", "contracts", "translate"] as const;
@@ -371,13 +372,13 @@ export function toolsAiRoutes() {
       const d0 = from && /^\d{4}-\d{2}-\d{2}$/.test(from) ? new Date(`${from}T00:00:00Z`) : new Date(deps.now().getTime() - 31 * 86_400_000);
       const d1 = to && /^\d{4}-\d{2}-\d{2}$/.test(to) ? new Date(`${to}T23:59:59Z`) : deps.now();
       const scope = await mailboxScope(deps.db, auth);
-      const like = q ? `%${q.replace(/[%_]/g, "")}%` : null;
+      const term = q ? q.trim() : "";
       const rows = await deps.db.select({ id: attachments.id, filename: attachments.filename, size: attachments.sizeBytes, date: messages.date, subject: messages.subject, mailboxId: messages.mailboxId, threadId: messages.threadId })
         .from(messages).innerJoin(attachments, eq(attachments.messageId, messages.id))
         // Uses messages_org_folder_date_idx (org, folder, date) and attachments_message_idx; capped.
         .where(and(eq(messages.orgId, auth.orgId), inArray(messages.folder, ["inbox", "archive"]), gte(messages.date, d0), lte(messages.date, d1),
           sql`(lower(${attachments.filename}) like '%.pdf' or lower(${attachments.filename}) like '%.jpg' or lower(${attachments.filename}) like '%.jpeg' or lower(${attachments.filename}) like '%.png')`,
-          like ? sql`(${attachments.filename} like ${like} or ${messages.subject} like ${like})` : undefined))
+          term ? containsAny([attachments.filename, messages.subject], term) : undefined))
         .orderBy(desc(messages.date)).limit(AI_CAPS.receiptsList).all();
       return c.json({ receipts: rows.filter((r) => !scope || scope.includes(r.mailboxId)).map(({ mailboxId: _m, ...r }) => r) });
     })

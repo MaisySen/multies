@@ -4,7 +4,7 @@
  * portal and the person, and every item read checks the item's portal. Files live in the kept files store (plan
  * caps hold); file requests are R88 requests; docs and tasks are read live so the client sees today's state.
  */
-import { and, count, eq, gt, like, sql } from "drizzle-orm";
+import { and, count, eq, gt, sql } from "drizzle-orm";
 import { auditLogs } from "../../db/schema";
 import type { AuthContext, Deps } from "../../context";
 import { HttpError, badRequest, forbidden, notFound, tooMany } from "../../lib/errors";
@@ -20,6 +20,7 @@ import {
   PORTAL_SESSION_DAYS, cleanFolder, emailOk, type PortalDetail, type PortalItem, type PortalItemKind, type PortalMessage, type PortalPerson,
   type PortalSummary, type PortalTaskState,
 } from "@/shared/client-portal";
+import { containsText } from "../../lib/like-search";
 
 export interface PortalRow {
   id: string; org_id: string; key: string; name: string; contact_id: string | null; company_id: string | null; welcome: string | null;
@@ -210,7 +211,7 @@ export async function removePerson(deps: Deps, auth: AuthContext, id: string, pe
 async function copiedSince(deps: Deps, p: PortalRow, personId: string, since: number): Promise<number> {
   const r = await deps.db.select({ n: count() }).from(auditLogs).where(and(
     eq(auditLogs.orgId, p.org_id), eq(auditLogs.action, "portal.link_copied"), eq(auditLogs.targetId, p.id),
-    gt(auditLogs.createdAt, new Date(since)), like(auditLogs.metadata, `%"personId":"${personId}"%`)));
+    gt(auditLogs.createdAt, new Date(since)), containsText(auditLogs.metadata, `"personId":"${personId}"`)));
   return Number(r[0]?.n ?? 0);
 }
 

@@ -20,6 +20,7 @@ import {
   retentionCutoff, safeZone, zoneMidnight,
   type ArchiveFilters, type ArchiveHit, type LegalHoldView, type MailCaseView, type RetentionPreview, type RetentionView,
 } from "@/shared/mail-archive";
+import { containsText } from "../../lib/like-search";
 
 type Actor = Pick<AuthContext, "orgId" | "userId" | "email" | "role">;
 const iso = (d: Date | null | undefined) => (d ? new Date(d).toISOString() : null);
@@ -252,8 +253,8 @@ export async function releaseHold(deps: Deps, auth: Actor, id: string) {
 
 /* ---------- Search and cases ---------- */
 
-const likeEsc = (s: string) => `%${s.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-const like = (col: SQLWrapper, s: string) => sql`${col} like ${likeEsc(s)} escape '\\'`;
+/** LK1: a contains match with no 50 byte LIKE pattern limit. */
+const like = (col: SQLWrapper, s: string) => containsText(col, s);
 function dayStart(dateIso: string, tz: string) {
   const [y, m, d] = dateIso.split("-").map(Number);
   return zoneMidnight(y!, m!, d!, tz);

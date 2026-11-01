@@ -3,7 +3,7 @@
  * (organizations.channels_enabled, off by default; admins turn it on in Settings, Channels) and a member of the
  * workspace. Connecting and disconnecting a channel is for owners and admins. Tokens never leave the server.
  */
-import { and, asc, desc, eq, isNull, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { inIds } from "../../lib/sql-chunks";
 import type { Deps, AuthContext } from "../../context";
 import { agents, members, msgChannels, msgConversations, msgMessages, organizations, tasks, threadComments, usageCounters, users } from "../../db/schema";
@@ -19,6 +19,7 @@ import { INBOUND_METRIC, MEDIA_INLINE_MAX, snippetOf, utcDay } from "./ingest";
 import { mediaTypeFor } from "./meta";
 import { ProviderError } from "./provider";
 import { adapterFor, credentialsOf, type ChannelRow } from "./registry";
+import { containsText } from "../../lib/like-search";
 
 type ConvRow = typeof msgConversations.$inferSelect;
 type MsgRow = typeof msgMessages.$inferSelect;
@@ -164,7 +165,6 @@ export interface ListQuery { channel?: string; status?: "open" | "waiting" | "do
 export async function listConversations(deps: Deps, a: AuthContext, q: ListQuery): Promise<ConversationSummary[]> {
   await requireEnabled(deps, a);
   const term = q.q?.trim().slice(0, 100);
-  const pat = term ? `%${term.replace(/[%_\\]/g, (m) => `\\${m}`)}%` : null;
   const rows = await deps.db.select({ c: msgConversations, provider: msgChannels.provider }).from(msgConversations)
     .innerJoin(msgChannels, eq(msgChannels.id, msgConversations.channelId))
     .where(and(
@@ -173,9 +173,9 @@ export async function listConversations(deps: Deps, a: AuthContext, q: ListQuery
       q.status ? eq(msgConversations.status, q.status) : undefined,
       q.unread === "true" ? sql`${msgConversations.unreadCount} > 0` : undefined,
       q.assignee === "me" ? eq(msgConversations.assigneeUserId, a.userId) : q.assignee === "none" ? isNull(msgConversations.assigneeUserId) : q.assignee ? eq(msgConversations.assigneeUserId, q.assignee) : undefined,
-      pat ? or(
-        sql`${msgConversations.contactName} LIKE ${pat} ESCAPE '\\'`, like(msgConversations.contactExternalId, pat),
-        sql`EXISTS (SELECT 1 FROM msg_messages mm WHERE mm.conversation_id = ${msgConversations.id} AND mm.text LIKE ${pat} ESCAPE '\\')`,
+      term ? or(
+        containsText(msgConversations.contactName, term), containsText(msgConversations.contactExternalId, term),
+        sql`EXISTS (SELECT 1 FROM msg_messages mm WHERE mm.conversation_id = ${msgConversations.id} AND ${containsText(sql`mm.text`, term)})`,
       ) : undefined,
     ))
     .orderBy(desc(msgConversations.lastMessageAt)).limit(Math.min(Math.max(q.limit ?? 50, 1), 100));

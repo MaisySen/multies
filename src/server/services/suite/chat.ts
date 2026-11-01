@@ -23,6 +23,7 @@ import { inChunks, inIds } from "../../lib/sql-chunks";
 import { publishChat } from "../../realtime/publish";
 import { deferrableWrite } from "../write-priority";
 import { messageIdForClient } from "./chat-ack-r33";
+import { containsText } from "../../lib/like-search";
 import { assertCanPostInDm, assertNotBlockedInDm, blockedIds, notBlockedBy } from "./reports-r35"; // R35: blocks
 
 type ChannelRow = typeof chatChannels.$inferSelect;
@@ -141,7 +142,7 @@ export function unreadQuery(deps: Deps, orgId: string, userId: string) {
   return deps.db.select({
     channelId: chatMessages.channelId,
     unread: sql<number>`count(*)`.as("unread"),
-    mentions: sql<number>`sum(case when ${chatMessages.mentionKeys} like ${`%member:${userId}%`} or ${chatMessages.mentionKeys} like '%channel%' then 1 else 0 end)`.as("mentions"),
+    mentions: sql<number>`sum(case when ${containsText(chatMessages.mentionKeys, `member:${userId}`)} or ${chatMessages.mentionKeys} like '%channel%' then 1 else 0 end)`.as("mentions"),
   }).from(chatMessages)
     .innerJoin(chatMembers, and(eq(chatMembers.channelId, chatMessages.channelId), eq(chatMembers.userId, userId)))
     .where(and(eq(chatMessages.orgId, orgId), isNull(chatMessages.parentId), isNull(chatMessages.deletedAt),

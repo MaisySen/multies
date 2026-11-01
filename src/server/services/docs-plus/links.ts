@@ -2,7 +2,7 @@
  * R103: the team link library and the web clipper. Lists are bounded (200 rows), reads use link_library_org_idx.
  * Anyone in the workspace (not read only) saves and tags links; the person who saved one, an owner or an admin removes it.
  */
-import { and, desc, eq, isNull, like, or } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { linkLibrary, docs } from "../../db/schema";
 import { HttpError, forbidden, notFound } from "../../lib/errors";
@@ -12,6 +12,7 @@ import { linkKey, normalizeTags, siteOf, withScheme } from "@/shared/docs-plus";
 import { ClipError, checkClipUrl, fetchPublicPage } from "./url-guard";
 import { extractReadable, type DocNode } from "./extract";
 import { fakeWebFetch } from "./fake-web";
+import { containsAny, containsText } from "../../lib/like-search";
 
 /** The network the clipper reads through (a pretend web in local end to end runs). */
 const net = (deps: Deps) => (deps.config.docsPlusFakeWeb ? { fetch: fakeWebFetch } : deps);
@@ -37,8 +38,8 @@ export async function listLinks(deps: Deps, actor: SuiteActor, q: { q?: string; 
   const tag = q.tag ? normalizeTags([q.tag])[0] : undefined;
   const rows = await deps.db.select().from(linkLibrary).where(and(
     eq(linkLibrary.orgId, actor.orgId), isNull(linkLibrary.deletedAt),
-    term ? or(like(linkLibrary.title, `%${term}%`), like(linkLibrary.url, `%${term}%`), like(linkLibrary.description, `%${term}%`), like(linkLibrary.note, `%${term}%`)) : undefined,
-    tag ? like(linkLibrary.tags, `%${JSON.stringify(tag)}%`) : undefined,
+    term ? containsAny([linkLibrary.title, linkLibrary.url, linkLibrary.description, linkLibrary.note], term) : undefined,
+    tag ? containsText(linkLibrary.tags, JSON.stringify(tag)) : undefined,
   )).orderBy(desc(linkLibrary.createdAt)).limit(LIST_LIMIT + 1);
   const list = rows.filter((r) => q.clipped === undefined || !!r.docId === q.clipped);
   return { links: list.slice(0, LIST_LIMIT).map((r) => presentLink(r, actor)), more: rows.length > LIST_LIMIT };

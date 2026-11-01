@@ -1,5 +1,5 @@
 /** Simple rich text docs (Tiptap JSON) linked to projects, tasks, threads or contacts. */
-import { and, desc, eq, isNull, like, or } from "drizzle-orm";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { contacts, deals, docs, entityLinks, messages, projects, tasks } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
@@ -10,6 +10,7 @@ import { boardTextOf, docKindOf } from "../../../shared/docs-visual"; // R89
 import { markdownToDoc } from "./markdown-doc";
 import { editorShape } from "./doc-editor-shape";
 import { inIds } from "../../lib/sql-chunks";
+import { containsAny } from "../../lib/like-search";
 import { snapshotBeforeEdit } from "./doc-versions-r39"; // R39: page history
 
 export type LinkTarget = { type: "project" | "task" | "thread" | "contact" | "deal"; id: string };
@@ -107,7 +108,7 @@ export async function listDocs(deps: Deps, orgId: string, q: { q?: string; proje
   if (ids && !ids.length) return [];
   const rows = await deps.db.select().from(docs).where(and(eq(docs.orgId, orgId), isNull(docs.deletedAt),
     q.projectId ? eq(docs.projectId, q.projectId) : undefined, ids ? inIds(docs.id, ids) : undefined,
-    q.q ? or(like(docs.title, `%${q.q}%`), like(docs.plainText, `%${q.q}%`)) : undefined)).orderBy(desc(docs.updatedAt)).limit(200);
+    q.q ? containsAny([docs.title, docs.plainText], q.q) : undefined)).orderBy(desc(docs.updatedAt)).limit(200);
   return rows.map((d) => presentDoc(d));
 }
 

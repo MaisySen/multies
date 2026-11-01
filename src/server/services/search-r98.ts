@@ -25,6 +25,7 @@ import {
   excerpt, readableChannels, SEARCH_BUDGET_MS, SEARCH_DEFAULT_LIMIT, SEARCH_LABELS, SEARCH_MAX_CHARS, SEARCH_MIN_CHARS, SEARCH_TYPES_R98,
   type SearchItem, type SearchResult, type SearchType, type SearchViewer,
 } from "./search";
+import { containsAny, containsText } from "../lib/like-search";
 
 // ---------------------------------------------------------------- words, typos, ranking (pure)
 
@@ -169,8 +170,8 @@ const range = (col: Parameters<typeof gte>[0], f: SearchFilters): SQL | undefine
 
 // ---------------------------------------------------------------- matching SQL
 
-const escapeLike = (s: string) => s.replace(/[!%_]/g, (ch) => `!${ch}`);
-const likeAny = (cols: SQL[], piece: string) => or(...cols.map((c) => sql`lower(${c}) like ${`%${escapeLike(piece)}%`} escape '!'`))!;
+/** LK1: instr, so a long word (a URL, a pasted line) never meets D1's 50 byte LIKE limit. */
+const likeAny = (cols: SQL[], piece: string) => containsAny(cols, piece);
 /** Every word somewhere in the columns (exact pass), or, for the typo pass, one of each word's pieces. */
 function matchAll(cols: SQL[], words: string[], fuzzy: boolean): SQL {
   return and(...words.map((w) => {
@@ -224,7 +225,7 @@ async function taskGroup(c: Ctx): Promise<Candidate[]> {
   if (c.v.kind === "guest" && c.f.project && c.f.project !== c.v.projectId) return [];
   const cols = { id: tasks.id, title: tasks.title, notes: tasks.notes, number: tasks.number, status: tasks.status, projectId: tasks.projectId, updatedAt: tasks.updatedAt, key: projects.key, projectName: projects.name };
   const base = and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), isNull(tasks.triageState), projectId ? eq(tasks.projectId, projectId) : undefined,
-    c.person ? or(and(eq(tasks.assigneeType, "member"), eq(tasks.assigneeId, c.person.id)), eq(tasks.createdById, c.person.id), sql`${tasks.coAssignees} like ${`%"member:${escapeLike(c.person.id)}"%`} escape '!'`) : undefined,
+    c.person ? or(and(eq(tasks.assigneeType, "member"), eq(tasks.assigneeId, c.person.id)), eq(tasks.createdById, c.person.id), containsText(tasks.coAssignees, `"member:${c.person.id}"`)) : undefined,
     range(tasks.updatedAt, c.f));
   const key = c.words.length === 1 ? TASK_KEY.exec(c.words[0]) : null;
   const exact = key ? await c.deps.db.select(cols).from(tasks).innerJoin(projects, eq(projects.id, tasks.projectId))

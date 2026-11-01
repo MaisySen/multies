@@ -10,6 +10,7 @@ import { HttpError, notFound } from "../lib/errors";
 import { listJobs, queueStats, replayJobs } from "../services/jobs";
 import { getOrg } from "../services/plans";
 import { inIds } from "../lib/sql-chunks";
+import { containsAny } from "../lib/like-search";
 
 /** Operator console API. Platform admins only (Better Auth admin role). */
 export function adminRoutes() {
@@ -51,7 +52,7 @@ export function adminRoutes() {
     .get("/users", async (c) => {
       const q = (c.req.query("q") ?? "").trim().toLowerCase().slice(0, 100);
       const rows = await c.var.deps.db.select({ id: users.id, email: users.email, name: users.name, createdAt: users.createdAt }).from(users)
-        .where(q ? sql`lower(${users.email}) like ${"%" + q + "%"} or lower(${users.name}) like ${"%" + q + "%"}` : undefined)
+        .where(q ? containsAny([users.email, users.name], q) : undefined)
         .orderBy(desc(users.createdAt)).limit(50);
       return c.json({ users: rows });
     })

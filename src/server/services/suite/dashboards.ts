@@ -9,7 +9,7 @@
  * viewer may read (an agent key its own mailboxes). Guests have no session here, so they are refused.
  * A private dashboard is seen only by its owner; another workspace's ids answer not found.
  */
-import { and, asc, eq, gte, isNull, like, lt, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { Deps } from "../../context";
 import { dashboards, mailboxes, messages, projects, projectStatuses, savedViews, sprints, tasks } from "../../db/schema";
@@ -26,6 +26,7 @@ import { inIds } from "../../lib/sql-chunks";
 import { R38_WIDGET_TYPES, R38WidgetFields, r38DefaultTitle, r38Settings, type R38WidgetSettings, type R38WidgetType } from "./dashboards-r38-schema";
 import { QuestionSpec, runQuestion, describeQuestion } from "./dash-r91-question";
 import { battery, calculation, createdCompleted, note, pivot, taskList, timeTracked } from "./dashboards-r38-widgets";
+import { containsAny, containsText } from "../../lib/like-search";
 
 const DAY = 86_400_000;
 export const MAX_WIDGETS = 24;
@@ -317,8 +318,8 @@ export function taskConds(c: Ctx, w: Widget): SQL[] {
       conds.push(and(eq(tasks.assigneeType, type as "member" | "agent"), eq(tasks.assigneeId, id ?? "")));
     }
   }
-  if (f.label) conds.push(like(tasks.labels, `%${JSON.stringify(f.label).slice(1, -1)}%`));
-  if (f.q) conds.push(or(like(tasks.title, `%${f.q}%`), like(tasks.notes, `%${f.q}%`)));
+  if (f.label) conds.push(containsText(tasks.labels, JSON.stringify(f.label).slice(1, -1)));
+  if (f.q) conds.push(containsAny([tasks.title, tasks.notes], f.q));
   if (f.due === "overdue") conds.push(sql`${tasks.dueAt} < ${c.todayStart}`, ne(tasks.status, "done"));
   else if (f.due === "week") conds.push(sql`${tasks.dueAt} >= ${c.weekStart} and ${tasks.dueAt} < ${c.weekEnd}`);
   else if (f.due === "none") conds.push(isNull(tasks.dueAt));

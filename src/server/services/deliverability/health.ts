@@ -48,12 +48,12 @@ export async function domainHealth(deps: Deps, orgId: string, d: typeof domains.
     ? { id: "dmarc_pass", label: "DMARC pass rate", max: 15, points: 10, status: "unknown", detail: `No DMARC reports in the last ${days} days. They arrive daily once your DMARC record has a rua address.` }
     : { id: "dmarc_pass", label: "DMARC pass rate", max: 15, points: passRate >= 98 ? 15 : passRate >= 90 ? 10 : passRate >= 75 ? 5 : 0, status: passRate >= 98 ? "good" : passRate >= 90 ? "warn" : "bad", detail: `${fmt(passRate)} of ${reported.toLocaleString(LOCALE)} reported messages passed.` });
 
-  const suffix = `%@${d.name}`;
+  const suffix = `@${d.name}`; // LK1: ends with, no 50 byte LIKE pattern limit
   const sent = await deps.db.select({
     total: sql<number>`count(*)`,
     bounced: sql<number>`sum(case when ${deliveries.status} = 'bounced' then 1 else 0 end)`,
     complained: sql<number>`sum(case when ${deliveries.status} = 'complained' then 1 else 0 end)`,
-  }).from(deliveries).where(and(eq(deliveries.orgId, orgId), eq(deliveries.direction, "outbound"), gte(deliveries.createdAt, since), sql`${deliveries.fromAddress} like ${suffix}`, sql`${deliveries.provider} <> 'internal'`)).get();
+  }).from(deliveries).where(and(eq(deliveries.orgId, orgId), eq(deliveries.direction, "outbound"), gte(deliveries.createdAt, since), sql`substr(lower(${deliveries.fromAddress}), -length(${suffix})) = lower(${suffix})`, sql`${deliveries.provider} <> 'internal'`)).get();
   const total = Number(sent?.total ?? 0);
   const bounceRate = pct(Number(sent?.bounced ?? 0), total);
   const complaintRate = pct(Number(sent?.complained ?? 0), total);

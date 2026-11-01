@@ -22,6 +22,7 @@ import {
   DRIVE_CHUNK, DRIVE_LIMITS as L, VIEW_LABEL, cleanName, cleanTags, uniqueName,
   type DriveCrumb, type DriveDetail, type DriveItem, type DriveList, type DriveManifest, type DriveRole, type DriveShare, type DriveSpace, type DriveUsage, type DriveVersion, type DriveView,
 } from "../../../shared/drive";
+import { containsText } from "../../lib/like-search";
 
 type Row = typeof driveItems.$inferSelect;
 type Actor = Pick<AuthContext, "orgId" | "userId" | "email" | "role"> & { name?: string };
@@ -194,10 +195,9 @@ const order = [asc(sql`CASE WHEN ${driveItems.kind} = 'folder' THEN 0 ELSE 1 END
 export async function listDrive(deps: Deps, a: Actor, view: DriveView, opts: { folderId?: string | null; q?: string; tag?: string; cursor?: number } = {}): Promise<DriveList> {
   const db = deps.db;
   const q = (opts.q ?? "").trim().toLowerCase().slice(0, 100);
-  const like = q ? `%${q.replace(/[%_!]/g, (c) => `!${c}`)}%` : null;
   const offset = Math.max(0, Math.min(opts.cursor ?? 0, 5000));
   const live = isNull(driveItems.trashedAt);
-  const nameLike = like ? sql`lower(${driveItems.name}) LIKE ${like} ESCAPE '!'` : undefined;
+  const nameLike = q ? containsText(driveItems.name, q) : undefined; // LK1: no 50 byte LIKE limit
   const page = <T>(rows: T[]) => ({ rows: rows.slice(0, L.page), next: rows.length > L.page ? String(offset + L.page) : null });
 
   if (view === "team" || view === "mine" || view === "brand") {
@@ -224,13 +224,13 @@ export async function listDrive(deps: Deps, a: Actor, view: DriveView, opts: { f
       return { view: listView, folder, path, canAdd, items: await shape(db, a, pg.rows, () => acc), next: pg.next };
     }
     const where = and(eq(driveItems.orgId, a.orgId), eq(driveItems.space, space), live, spaceOwner ? eq(driveItems.ownerId, spaceOwner) : undefined,
-      like ? undefined : isNull(driveItems.parentId), nameLike);
+      q ? undefined : isNull(driveItems.parentId), nameLike);
     const rows = await db.select().from(driveItems).where(where).orderBy(...order).limit(L.page + 1).offset(offset).all();
     const pg = page(rows);
     // A search across the whole space shows each hit's folder.
-    const parentNames = like ? await folderNames(db, a.orgId, pg.rows.map((r) => r.parentId)) : new Map<string, string>();
+    const parentNames = q ? await folderNames(db, a.orgId, pg.rows.map((r) => r.parentId)) : new Map<string, string>();
     const access = (r: Row) => accessOf(db, a, r, []);
-    return { view, folder, path, canAdd, items: await shape(db, a, pg.rows, access, like ? (r) => (r.parentId ? parentNames.get(r.parentId) : VIEW_LABEL[view]) : undefined), next: pg.next };
+    return { view, folder, path, canAdd, items: await shape(db, a, pg.rows, access, q ? (r) => (r.parentId ? parentNames.get(r.parentId) : VIEW_LABEL[view]) : undefined), next: pg.next };
   }
 
   if (view === "shared") {

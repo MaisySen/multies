@@ -32,8 +32,8 @@ export function lit(v: string): SQL {
   const clean = v.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 400);
   return sql.raw(`'${clean.replace(/'/g, "''")}'`);
 }
-const likeLit = (v: string) => lit(`%${v.toLowerCase().replace(/[!%_]/g, (ch) => `!${ch}`)}%`);
-const ESC = sql.raw(`escape '!'`);
+/** LK1: `col` (already lower cased) contains `v`; instr has no 50 byte LIKE pattern limit. */
+const hasLit = (col: SQL, v: string) => sql`instr(${col}, lower(${lit(v.toLowerCase())})) > 0`;
 
 /** Teammates: workspace members' sign-in addresses and the workspace's own mailboxes. */
 function teammateCond(orgId: string): SQL {
@@ -82,13 +82,15 @@ export function firstTimeAuthCond(orgId: string): SQL {
 export function ruleCond(r: SplitRuleT, orgId: string): SQL {
   const v = (r.value ?? "").trim().toLowerCase();
   switch (r.field) {
-    case "fromContains": return sql`lower(${messages.fromAddress} || ' ' || ${messages.fromName}) like ${likeLit(v)} ${ESC}`;
+    case "fromContains": return hasLit(sql`lower(${messages.fromAddress} || ' ' || ${messages.fromName})`, v);
     case "fromDomain": {
-      const d = v.replace(/^@+/, "").replace(/[!%_]/g, (ch) => `!${ch}`);
-      return sql`(lower(${messages.fromAddress}) like ${lit(`%@${d}`)} ${ESC} or lower(${messages.fromAddress}) like ${lit(`%.${d}`)} ${ESC})`;
+      const d = v.replace(/^@+/, "");
+      // LK1: an ends with test, so a long domain never meets D1's 50 byte LIKE pattern limit.
+      const ends = (x: string) => sql`substr(lower(${messages.fromAddress}), -length(${lit(x)})) = lower(${lit(x)})`;
+      return sql`(${ends(`@${d}`)} or ${ends(`.${d}`)})`;
     }
-    case "to": return sql`(lower(${messages.to} || ${messages.cc}) like ${likeLit(v)} ${ESC} or ${messages.mailboxId} = ${lit(r.value.trim())})`;
-    case "subjectContains": return sql`lower(${messages.subject}) like ${likeLit(v)} ${ESC}`;
+    case "to": return sql`(${hasLit(sql`lower(${messages.to} || ${messages.cc})`, v)} or ${messages.mailboxId} = ${lit(r.value.trim())})`;
+    case "subjectContains": return hasLit(sql`lower(${messages.subject})`, v);
     case "calendarInvite": return sql`exists (select 1 from attachments a where a.message_id = ${messages.id} and (lower(a.content_type) like 'text/calendar%' or lower(a.filename) like '%.ics'))`;
     case "fromTeammate": return teammateCond(orgId);
   }
@@ -292,7 +294,7 @@ const inLits = (col: SQL, values: string[]): SQL => (values.length ? sql`${col} 
 function promoCond(): SQL {
   const local = sql`lower(substr(${messages.fromAddress}, 1, instr(${messages.fromAddress}, '@') - 1))`;
   const subj = sql`lower(${messages.subject})`;
-  const like = (w: string) => sql`${subj} like ${likeLit(w)} ${ESC}`;
+  const like = (w: string) => hasLit(subj, w);
   const promo = sql`(${inLits(local, PROMO_LOCAL_PARTS)} or ${sql.join(PROMO_WORDS.map(like), sql` or `)})`;
   return sql`(${promo} and not (${sql.join(NOT_PROMO_WORDS.map(like), sql` or `)}))`;
 }

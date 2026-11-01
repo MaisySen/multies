@@ -5,6 +5,7 @@ import { notFound } from "../../lib/errors";
 import type { Address, Folder } from "@/shared/mail";
 import { inIds } from "../../lib/sql-chunks";
 import { PENDING_FROM } from "./pending-from";
+import { containsAny } from "../../lib/like-search";
 
 type Row = typeof messages.$inferSelect;
 
@@ -57,7 +58,6 @@ export async function mailboxOverview(db: DB, orgId: string, scope: Scope = null
   });
 }
 
-const escapeLike = (s: string) => s.replace(/[!%_]/g, (ch) => `!${ch}`);
 
 export async function listMessages(db: DB, orgId: string, q: { mailboxId?: string; folder?: Folder | "starred"; remote?: string; search?: string; cursor?: string; limit?: number; scope?: Scope; extra?: SQL }) {
   const limit = Math.min(q.limit ?? 50, 100);
@@ -71,9 +71,8 @@ export async function listMessages(db: DB, orgId: string, q: { mailboxId?: strin
   // A connected mailbox's own folder (round 19): filed under Archive, named by its provider path.
   if (q.remote) conds.push(eq(messages.folder, "archive"), eq(messages.remoteBox, q.remote));
   if (q.search?.trim()) {
-    const term = `%${escapeLike(q.search.trim().toLowerCase())}%`;
     const fields = [messages.subject, messages.fromAddress, messages.fromName, messages.text, messages.to];
-    conds.push(or(...fields.map((f) => sql`lower(${f}) like ${term} escape '!'`))!);
+    conds.push(containsAny(fields, q.search.trim()));
     if (!q.folder) conds.push(sql`${messages.folder} <> 'trash'`);
   }
   // Round 20: e.g. snoozed threads hidden from Inbox (services/mail/schedules.ts).

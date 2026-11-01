@@ -28,6 +28,7 @@ import { plainText } from "./suite/chat";
 import { linkFor } from "./suite/notify";
 import { dateFormat, dayInZone } from "../lib/intl-cache";
 import { inIds } from "../lib/sql-chunks";
+import { containsAny } from "../lib/like-search";
 import { notBlockedBy } from "./suite/reports-r35"; // R35
 import { searchAttachmentText } from "./tools/attachment-index"; // Tools P2 (17)
 
@@ -71,8 +72,9 @@ export function normaliseQuery(q: string | null | undefined): string | null {
   return s.length >= SEARCH_MIN_CHARS ? s : null;
 }
 
-const contains = (term: string) => `%${escapeLike(term)}%`;
-const likeAny = (cols: SQL[], pattern: string) => or(...cols.map((c) => sql`lower(${c}) like ${pattern} escape '!'`))!;
+/** LK1: the term itself; likeAny matches it with instr (no 50 byte LIKE pattern limit, % and _ literal). */
+const contains = (term: string) => term;
+const likeAny = (cols: SQL[], term: string) => containsAny(cols, term);
 const iso = (d: Date | null | undefined) => (d ? new Date(d).toISOString() : null);
 const isKey = (a: SuiteActor) => !!(a.agentId || a.apiKeyId);
 

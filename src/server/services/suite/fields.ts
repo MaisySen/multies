@@ -14,6 +14,7 @@ import { normalizeConfig, type ComputedConfig } from "./formula-config";
 import { renameReferences } from "./formula-rename";
 import { invalidateFieldDefs } from "./read-cache";
 import { inIds } from "../../lib/sql-chunks";
+import { containsText } from "../../lib/like-search";
 
 export const FIELD_TYPES = ["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url", "formula", "rollup"] as const;
 /** R24.1: computed on read from other values; nothing is stored per task. */
@@ -313,8 +314,6 @@ export function parseFieldFilters(query: Record<string, string | undefined>): Fi
   return out.slice(0, 10);
 }
 
-/** A LIKE pattern with the user's text matched literally. */
-const likeText = (s: string) => s.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 const has = (fieldId: string | string[], cond: SQL) => Array.isArray(fieldId)
   ? sql`exists (select 1 from task_field_values v where v.task_id = ${tasks.id} and v.field_id in (${sql.join(fieldId.map((id) => sql`${id}`), sql`, `)}) and ${cond})`
   : sql`exists (select 1 from task_field_values v where v.task_id = ${tasks.id} and v.field_id = ${fieldId} and ${cond})`;
@@ -361,13 +360,13 @@ export async function fieldFilterConditions(deps: Deps, orgId: string, filters: 
       out.push(has(field.id, sql`v.value_num ${cmp} ${n}`));
     } else if (field.type === "multiselect") {
       const id = field.options.find((o) => o.id === v || o.label.toLowerCase() === v.toLowerCase())?.id ?? v;
-      const c = has(field.id, sql`v.value_text like ${`%"${likeText(id.replace(/"/g, ""))}"%`} escape '\\'`);
+      const c = has(field.id, containsText(sql`v.value_text`, `"${id.replace(/"/g, "")}"`));
       out.push(f.op === "ne" ? sql`not ${c}` : c);
     } else if (field.type === "select") {
       const id = field.options.find((o) => o.id === v || o.label.toLowerCase() === v.toLowerCase())?.id ?? v;
       out.push(f.op === "ne" ? sql`not ${has(field.id, sql`v.value_text = ${id}`)}` : has(field.id, sql`v.value_text = ${id}`));
     } else if (f.op === "contains" || ((field.type === "text" || field.type === "url") && f.op === "eq")) {
-      out.push(has(field.id, sql`v.value_text like ${`%${likeText(v)}%`} escape '\\'`));
+      out.push(has(field.id, containsText(sql`v.value_text`, v)));
     } else {
       const cmp = { eq: sql`=`, ne: sql`<>`, gt: sql`>`, gte: sql`>=`, lt: sql`<`, lte: sql`<=`, contains: sql`=` }[f.op];
       out.push(has(field.id, sql`v.value_text ${cmp} ${v}`));

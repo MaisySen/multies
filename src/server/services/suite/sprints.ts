@@ -28,6 +28,7 @@ import { listTasks, listTasksPage, resolveTaskId, type Task } from "./tasks";
 import { dateFormat, dayInZone } from "../../lib/intl-cache";
 import { inIds } from "../../lib/sql-chunks";
 import { TASK_LIST_LIMIT } from "../../../shared/task-list-limit";
+import { containsText } from "../../lib/like-search";
 
 export type SprintStatus = "planned" | "active" | "completed";
 type SprintRow = typeof sprints.$inferSelect;
@@ -352,7 +353,7 @@ export async function burndownFor(deps: Deps, actor: SuiteActor, s: SprintRow, o
       .where(and(eq(activityFeed.entityType, "sprint"), eq(activityFeed.entityId, s.id), gte(activityFeed.createdAt, new Date(startMs))));
     // Single moves made through a task edit name the sprint in the task's own activity row.
     const moveRows = await deps.db.select({ entityId: activityFeed.entityId, data: activityFeed.data, createdAt: activityFeed.createdAt }).from(activityFeed)
-      .where(and(eq(activityFeed.orgId, actor.orgId), gte(activityFeed.createdAt, new Date(startMs)), eq(activityFeed.entityType, "task"), like(activityFeed.data, `%${s.id}%`))).limit(5000);
+      .where(and(eq(activityFeed.orgId, actor.orgId), gte(activityFeed.createdAt, new Date(startMs)), eq(activityFeed.entityType, "task"), containsText(activityFeed.data, s.id))).limit(5000);
     for (const r of scopeRows) {
       const d = JSON.parse(r.data) as { added?: string[]; removed?: string[] };
       for (const id of d.added ?? []) { ids.add(id); push(id, { at: r.createdAt.getTime(), kind: "in" }); }

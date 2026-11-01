@@ -9,6 +9,7 @@ import { newId } from "../../lib/crypto";
 import { badRequest, conflict, forbidden, notFound } from "../../lib/errors";
 import { GO_NAME_RE, type GoLinkInfo, type GoTargetKind } from "@/shared/links";
 import { checkDestination } from "./core";
+import { containsText } from "../../lib/like-search";
 
 type Row = typeof goLinks.$inferSelect;
 const canEdit = (auth: AuthContext, r: Pick<Row, "createdBy">) => auth.role !== "member" || r.createdBy === auth.userId;
@@ -96,7 +97,7 @@ export async function openGo(deps: Deps, auth: AuthContext, rawName: string): Pr
   const r = GO_NAME_RE.test(name) ? await deps.db.select().from(goLinks).where(and(eq(goLinks.orgId, auth.orgId), eq(goLinks.name, name))).get() : undefined;
   if (!r) {
     const like = name.replace(/[%_]/g, "").slice(0, 20);
-    const near = like ? await deps.db.select({ name: goLinks.name }).from(goLinks).where(and(eq(goLinks.orgId, auth.orgId), sql`${goLinks.name} like ${`%${like}%`}`)).limit(5) : [];
+    const near = like ? await deps.db.select({ name: goLinks.name }).from(goLinks).where(and(eq(goLinks.orgId, auth.orgId), containsText(goLinks.name, like))).limit(5) : [];
     return { href: null, name, suggestions: near.map((n) => n.name) };
   }
   await deps.db.run(sql`update go_links set clicks = clicks + 1 where id = ${r.id}`);

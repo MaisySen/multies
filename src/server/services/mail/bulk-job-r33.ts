@@ -22,6 +22,7 @@ import { mailboxScope } from "../team";
 import { runBulkMail, type BulkMailAction, type QueueFn } from "./bulk-r32";
 import { resolveWhen, snoozeHiddenCond, type ScheduleActor, type WhenInput } from "./schedules";
 import { splitCond } from "./splits";
+import { containsAny } from "../../lib/like-search";
 
 /** Actions a job can run: the ones with a clear meaning over thousands of messages. */
 // R34: snooze (until one time for every thread) and move (to a connected mailbox's folder) run as a job too.
@@ -94,9 +95,8 @@ async function scopeConds(deps: Deps, actor: ScheduleActor, job: { params: Param
   else if (scope.folder === "starred") conds.push(eq(messages.isStarred, true));
   else if (scope.folder) conds.push(eq(messages.folder, scope.folder as Row["folder"]));
   if (scope.q?.trim()) {
-    const term = `%${scope.q.trim().toLowerCase().replace(/[!%_]/g, (ch) => `!${ch}`)}%`;
     const fields = [messages.subject, messages.fromAddress, messages.fromName, messages.text, messages.to];
-    conds.push(or(...fields.map((f) => sql`lower(${f}) like ${term} escape '!'`))!);
+    conds.push(containsAny(fields, scope.q.trim()));
     if (!scope.folder) conds.push(sql`${messages.folder} <> 'trash'`);
   }
   if (scope.folder === "inbox" && !scope.q && !scope.remote) {

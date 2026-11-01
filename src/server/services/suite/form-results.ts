@@ -11,6 +11,7 @@ import { HttpError, notFound } from "../../lib/errors";
 import { answerList, normaliseLogic, normaliseRules, type FieldLogic, type FieldRules } from "@/shared/form-logic";
 import type { SuiteActor } from "./common";
 import { normaliseFields, updateForm, type FormField } from "./forms";
+import { containsText } from "../../lib/like-search";
 
 /** Rows read per page while building a summary or an export. */
 export const RESULTS_PAGE = 500;
@@ -39,7 +40,7 @@ function where(formId: string, q: ResponsesQuery): SQL {
   if (from) parts.push(gte(formSubmissions.createdAt, from));
   if (to) parts.push(lt(formSubmissions.createdAt, to));
   const term = (q.q ?? "").trim().slice(0, 100);
-  if (term) parts.push(sql`lower(${formSubmissions.data}) like ${`%${term.toLowerCase().replace(/[\\%_]/g, (m) => `\\${m}`)}%`} escape '\\'`);
+  if (term) parts.push(containsText(formSubmissions.data, term));
   return and(...parts)!;
 }
 

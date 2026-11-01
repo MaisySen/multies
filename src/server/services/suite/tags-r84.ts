@@ -3,12 +3,13 @@
  * this table gives each name its colour and order. Renaming or removing a tag rewrites the tasks that carry it, at
  * most 500 at a time per request (a second call finishes a bigger workspace).
  */
-import { and, asc, eq, isNull, like, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { tasks, workspaceTags } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { isHexColour } from "../../lib/input-checks";
 import { assertWritable, recordWrite, sortableId, type SuiteActor } from "./common";
+import { containsText } from "../../lib/like-search";
 
 export const TAG_COLOURS = ["#2563eb", "#16a34a", "#d97706", "#dc2626", "#9333ea", "#0891b2", "#db2777", "#64748b", "#ca8a04", "#4f46e5"];
 const MAX_TAGS = 200;
@@ -52,9 +53,8 @@ export async function createTag(deps: Deps, actor: SuiteActor, input: { name: st
 
 /** Rewrites one tag name on the tasks that carry it (a rename, or null to take it off). */
 async function rewriteOnTasks(deps: Deps, orgId: string, from: string, to: string | null) {
-  const needle = `%${JSON.stringify(from).slice(1, -1).replace(/[%_]/g, "")}%`;
   const rows = await deps.db.select({ id: tasks.id, labels: tasks.labels }).from(tasks)
-    .where(and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), like(tasks.labels, needle))).limit(REWRITE_MAX);
+    .where(and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), containsText(tasks.labels, JSON.stringify(from).slice(1, -1)))).limit(REWRITE_MAX);
   const now = deps.now();
   let changed = 0;
   for (const r of rows) {

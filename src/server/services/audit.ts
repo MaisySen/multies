@@ -1,7 +1,8 @@
-import { and, desc, eq, gte, like, lt, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, lt, or, type SQL } from "drizzle-orm";
 import type { DB } from "../db";
 import { auditLogs } from "../db/schema";
 import { newId } from "../lib/crypto";
+import { containsText, startsWithText } from "../lib/like-search";
 
 export interface AuditEntry {
   orgId: string;
@@ -70,8 +71,8 @@ export interface AuditFilter { prefixes?: string[]; actor?: string; from?: Date;
 export function auditFilterCond(f: AuditFilter | undefined): SQL | undefined {
   if (!f) return undefined;
   const c: (SQL | undefined)[] = [];
-  if (f.prefixes?.length) c.push(or(...f.prefixes.map((p) => like(auditLogs.action, `${p.replace(/[%_]/g, "")}%`))));
-  if (f.actor) c.push(like(auditLogs.actorEmail, `%${f.actor.replace(/[%_]/g, "")}%`));
+  if (f.prefixes?.length) c.push(or(...f.prefixes.map((p) => startsWithText(auditLogs.action, p))));
+  if (f.actor) c.push(containsText(auditLogs.actorEmail, f.actor));
   if (f.from) c.push(gte(auditLogs.createdAt, f.from));
   if (f.to) c.push(lt(auditLogs.createdAt, f.to));
   return c.length ? and(...c) : undefined;

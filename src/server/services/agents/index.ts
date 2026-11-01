@@ -6,7 +6,7 @@
  * sends before they leave), the plan's monthly agent message allowance, and an audit log
  * entry for everything an agent does.
  */
-import { and, asc, count, desc, eq, gt, gte, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, lt, sql, type SQL } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import {
   agentEvents, agentMailboxAccess, agents, apiKeys, attachments, auditLogs, domains, mailboxes, messages, sendApprovals,
@@ -27,6 +27,7 @@ import { mailboxScope } from "../team";
 import { agentMessage, extractCodes, extractLinks, latestText } from "./parse";
 import { listThreadStates, threadViewCond, type ThreadView } from "../mail/thread-state";
 import { inChunks, inIds } from "../../lib/sql-chunks";
+import { containsAny } from "../../lib/like-search";
 
 type Agent = typeof agents.$inferSelect;
 type Mailbox = typeof mailboxes.$inferSelect;
@@ -389,10 +390,9 @@ export async function readThread(deps: Deps, actor: Actor, threadId: string, ori
 /** Searches subject, sender, recipients and body in the actor's mailboxes. */
 export async function searchMessages(deps: Deps, actor: Actor, query: string, limit = 25) {
   const scope = await scopeFor(deps, actor);
-  const term = `%${query.trim().toLowerCase().replace(/[!%_]/g, (ch) => `!${ch}`)}%`;
   const fields = [messages.subject, messages.fromAddress, messages.fromName, messages.text, messages.to];
   const rows = await deps.db.select().from(messages)
-    .where(and(eq(messages.orgId, actor.orgId), scopeCond(scope), sql`${messages.folder} <> 'trash'`, or(...fields.map((f) => sql`lower(${f}) like ${term} escape '!'`))))
+    .where(and(eq(messages.orgId, actor.orgId), scopeCond(scope), sql`${messages.folder} <> 'trash'`, containsAny(fields, query.trim())))
     .orderBy(desc(messages.date)).limit(Math.min(Math.max(limit, 1), 100));
   return rows.map((m) => ({
     id: m.id, threadId: m.threadId, mailboxId: m.mailboxId, folder: m.folder, subject: m.subject, snippet: m.snippet,
