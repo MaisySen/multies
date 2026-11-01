@@ -156,6 +156,7 @@ ESIGN_V2 = "on"
 HELP_CENTER = "on" # R122: help center, verifier v4 PASS WITH BUGS 21:24 UTC Oct 31
 DOCS_PLUS_R103 = "on" # R103: Docs plus (link library, save a page, doc comments, spell check); verifier v10 PASS 03:31 UTC Nov 1
 DAV_SYNC_R99 = "on" # R99: calendar and contacts sync, verifier v10 PASS WITH BUGS 03:02 UTC Nov 1
+MAIL_ARCHIVE_R111 = "on" # R111: mail archive and retention (no policy anywhere until an admin turns one on), verifier v11 PASS WITH BUGS 05:01 UTC Nov 1
 DOC_ENGINE_URL = "https://doctool.multies.si"
 DOC_ENGINE_KEY_ID = "prod-1"
 # R43b: imports carry on after their page closes (the upload is kept, the 15 minute pass finishes it and sends one
