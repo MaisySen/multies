@@ -87,7 +87,8 @@ describe("CHAT_CHANNELS in the web app", () => {
     expect(panes.filter(panesFor({ chatChannels: false }))).not.toContain(channels);
     expect(panes.filter(panesFor(undefined))).not.toContain(channels);
     expect(panes.filter(panesFor({ chatChannels: true }))).toContain(channels);
-    expect(panes.filter(panesFor({})).length).toBe(panes.length - 1);
+    expect(panes.filter(panesFor({})).length).toBe(panes.length - 2); // R111: Archive and retention is also flag gated
+    expect(panes.filter(panesFor({ mailArchive: true })).map((p) => p.to)).toContain("/app/settings/mail-archive");
 
     expect(PALETTE_PAGES.find((p) => p.id === "p-chat-channels")?.flag).toBe("chatChannels");
     const cmd = navCommands.find((c) => c.to === "/app/settings/channels")!;
