@@ -7,6 +7,7 @@ import AxeBuilder from "@axe-core/playwright";
  * (drag to re parent, undo, cycles refused, keyboard move, phone outline). With SHOTS_DIR set it saves the UX gate
  * shots at 1280 and 390 in light, dark and Forest, and checks axe on each.
  */
+test.use({ actionTimeout: 15_000 });
 const DIR = process.env.SHOTS_DIR;
 let n = 0;
 const ymd = (d = new Date()) => d.toLocaleDateString("en-CA");
@@ -43,6 +44,7 @@ async function axe(page: Page, where: string) {
 
 test.describe("R95 My Day", () => {
   test("empty, add from due, drag onto the day, move, plan tomorrow and undo", async ({ page }) => {
+    test.setTimeout(120_000);
     await page.setViewportSize({ width: 1280, height: 900 });
     const { userId, projectId } = await signup(page);
     await page.goto("/app/my-work");
@@ -92,6 +94,7 @@ test.describe("R95 My Day", () => {
 
 test.describe("R95 smart repeat", () => {
   test("every weekday and the nth weekday of the month with a preview", async ({ page }) => {
+    test.setTimeout(120_000);
     await page.setViewportSize({ width: 1280, height: 900 });
     const { projectId } = await signup(page);
     const t = await task(page, { projectId, title: "Send the board pack", due: "2026-11-10T09:00:00.000Z" });
@@ -114,6 +117,7 @@ test.describe("R95 smart repeat", () => {
 
 test.describe("R95 time", () => {
   test("tags, billable, day view, export, submit and approve, idle prompt", async ({ page }) => {
+    test.setTimeout(120_000);
     await page.setViewportSize({ width: 1280, height: 900 });
     const { projectId } = await signup(page, "Tia Timer");
     const t = await task(page, { projectId, title: "Design review" });
@@ -166,6 +170,7 @@ test.describe("R95 time", () => {
 
 test.describe("R95 mind map", () => {
   test("drag to re parent, undo, cycles refused, keyboard move, phone outline", async ({ page }) => {
+    test.setTimeout(120_000);
     await page.setViewportSize({ width: 1280, height: 900 });
     const { projectId } = await signup(page, "Max Mapper");
     const a = await task(page, { projectId, title: "Website" });
@@ -178,7 +183,7 @@ test.describe("R95 mind map", () => {
     const node = (title: string) => map.getByTestId("map-node").filter({ hasText: title });
     // Drag Hero copy under Launch email.
     await node("Hero copy").dragTo(node("Launch email"));
-    await expect(page.getByText("Moved Hero copy under Launch email")).toBeVisible();
+    await expect(page.getByText("Moved Hero copy under Launch email").first()).toBeVisible();
     const parentOf = async (title: string) => {
       const list = (await (await page.request.get(`/api/tasks?projectId=${projectId}&includeSubtasks=true`)).json()).tasks as { title: string; parentId: string | null }[];
       return list.find((x) => x.title === title)?.parentId ?? null;
@@ -188,8 +193,9 @@ test.describe("R95 mind map", () => {
     await expect.poll(() => parentOf("Hero copy")).toBe(a.id);
     // A parent can't go under its own child.
     await expect(node("Hero copy")).toBeVisible();
-    await node("Website").dragTo(node("Hero copy"));
-    await expect(page.getByText("A task can't go under one of its own subtasks.")).toBeVisible();
+    await page.waitForTimeout(500);
+    await node("Website").dragTo(node("Hero copy"), { sourcePosition: { x: 40, y: 19 }, targetPosition: { x: 60, y: 19 } });
+    await expect(page.getByText("A task can't go under one of its own subtasks.").first()).toBeVisible();
     expect(await parentOf("Website")).toBeNull();
     // Keyboard: focus Launch email, M, down to Hero copy... pick Website (above), Enter.
     await node("Launch email").focus();

@@ -270,7 +270,7 @@ function DayColumn({ day, isToday, items, onPlace, onRemove, onFinish }: {
                     <TaskLine it={it} onFinish={onFinish} />
                     <span className="shrink-0 text-[11.5px] tabular-nums text-muted max-sm:hidden">{clockOf(it.start!)} to {clockOf(it.start! + minutes)}</span>
                   </div>
-                  <div className={cn("absolute right-1 top-0.5 flex gap-0.5 rounded-md bg-surface/95 opacity-0 shadow-sm transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100", short && "top-0")}>
+                  <div className={cn("absolute right-1 top-0.5 z-10 flex gap-0.5 rounded-md bg-surface/95 opacity-0 shadow-sm transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100", short && "top-0")}>
                     <IconBtn label={`Move ${it.task.title} earlier`} onClick={() => onPlace({ itemId: it.id, start: it.start! - 15, title: it.task.title })}><IconChevronUp size={13} /></IconBtn>
                     <IconBtn label={`Move ${it.task.title} later`} onClick={() => onPlace({ itemId: it.id, start: it.start! + 15, title: it.task.title })}><IconChevronDown size={13} /></IconBtn>
                     <IconBtn label={`Make ${it.task.title} longer`} onClick={() => onPlace({ itemId: it.id, start: it.start!, minutes: it.minutes + 15, title: it.task.title })}><IconPlus size={13} /></IconBtn>

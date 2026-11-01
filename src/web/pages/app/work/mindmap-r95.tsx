@@ -64,7 +64,7 @@ export function MindMap({ tasks, projectName, projectColor, onOpen, onMove }: {
   const move = async (id: string, target: string) => {
     const t = byId.get(id); if (!t) return;
     const to = target === ROOT ? null : target;
-    if (id === target || wouldCycle(parentOf, id, to)) { toast.error("A task can't go under one of its own subtasks."); return; }
+    if (id === target || wouldCycle(parentOf, id, to)) { const msg = "A task can't go under one of its own subtasks."; setLive(msg); toast.error(msg); return; }
     if ((t.parentId ?? null) === to) return;
     const from = t.parentId ?? null;
     try {
@@ -100,10 +100,10 @@ export function MindMap({ tasks, projectName, projectColor, onOpen, onMove }: {
   const height = Math.max(...placed.map((p) => p.y)) + ROW_H + 24;
   const xy = (p: Placed) => ({ x: 12 + p.depth * COL_W, y: 12 + p.y });
   return (
-    <div className="relative min-h-0 flex-1 overflow-auto rounded-xl border border-line bg-surface" ref={box} data-testid="mind-map" role="tree" aria-label={`${projectName} mind map`}>
+    <div className="relative min-h-0 flex-1 overflow-auto rounded-xl border border-line bg-surface" ref={box} data-testid="mind-map">
       <p className="sr-only" aria-live="polite">{live}</p>
       {moving && <div className="sticky left-0 top-0 z-10 bg-brand/10 px-4 py-2 text-[12.5px]" role="status">Moving {byId.get(moving)?.title}: pick a task and press Enter, or Escape to cancel.</div>}
-      <div className="relative" style={{ width, height }}>
+      <div className="relative" style={{ width, height }} role="tree" aria-label={`${projectName} mind map`}>
         <svg className="pointer-events-none absolute inset-0" width={width} height={height} aria-hidden>
           {placed.filter((p) => p.parent).map((p) => {
             const a = xy(pos.get(p.parent!)!), b = xy(p);

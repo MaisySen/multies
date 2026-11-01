@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-tasks-plus",
+    date: "2026-11-01",
+    title: "My Day, time blocking and a task mind map",
+    body: "Plan today from My Work and drag tasks onto your day to block time. Repeat tasks every weekday, on the second Tuesday, or after they are done, and take turns between people. Tag time, see a day view, submit your week for approval, and rearrange a project as a mind map.",
+  },
+  {
     id: "2026-11-01-newsletters",
     date: "2026-11-01",
     title: "Newsletters and welcome emails in Merge",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "Signing with an email code, templates and a check page",
     body: "Tools, Sign now emails each signer a one time code and asks them to agree to sign electronically, and keeps a full signing record with time, time zone, device and document fingerprints that you can download. Save a request as a template and send it again, or send a one signer template to a list of up to 50 people. Anyone can check a signed copy on the public check page, which reads only the file's fingerprint.",
-  },
-  {
-    id: "2026-10-31-tools-round-c",
-    date: "2026-10-31",
-    title: "Fix a PDF, slides, image links and everyday utilities",
-    body: "Tools, Fix a PDF repairs a damaged PDF, makes it open fast on the web, or locks it with a password. You can put a QR code or barcode on any page, read every comment in a PDF, and turn slides and drawings (PPTX, PPT, ODP, ODG) into a PDF or into each other. Image links resize, crop and convert a picture from Files by its link, and the utilities cover JSON, Base64, hashes, colours, units, timestamps, regex and a link preview.",
   },
   {
     id: "2026-10-28-whats-new",
