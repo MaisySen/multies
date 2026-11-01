@@ -17,13 +17,13 @@ const { keepaliveExit, KEEPALIVE_MAX_BYTES, rescueAdd, rescueRemove, rescueDecis
 /** R111 extra 1: the web side of undo send surviving a closed tab. */
 describe("keepalive hand over", () => {
   it("is not ready until the request is built, then posts the same body with keepalive and the same key", () => {
-    let body: unknown;
+    const box: { body?: unknown } = {};
     const f = vi.fn(async () => new Response("{}"));
-    const x = keepaliveExit("/mail/send", "send_abc12345", () => body, f as unknown as typeof fetch);
+    const x = keepaliveExit("/mail/send", "send_abc12345", () => box.body, f as unknown as typeof fetch);
     expect(x.ready()).toBe(false);
     x.fire();
     expect(f).not.toHaveBeenCalled();
-    body = { to: ["a@b.co"], text: "hi" };
+    box.body = { to: ["a@b.co"], text: "hi" };
     expect(x.ready()).toBe(true);
     x.fire();
     expect(f).toHaveBeenCalledTimes(1);
@@ -32,7 +32,7 @@ describe("keepalive hand over", () => {
     expect(init.keepalive).toBe(true);
     expect(init.method).toBe("POST");
     expect((init.headers as Record<string, string>)["idempotency-key"]).toBe("send_abc12345");
-    expect(init.body).toBe(JSON.stringify(body));
+    expect(init.body).toBe(JSON.stringify(box.body));
   });
 
   it("refuses a body over the keepalive cap (big attachments), so the page asks before leaving instead", () => {
