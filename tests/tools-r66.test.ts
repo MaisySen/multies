@@ -211,7 +211,7 @@ describe("R66 MB-258 and MB-260: a run survives refresh, Back and a dropped conn
 describe("R66 MB-259: held features are a plain not found page", () => {
   it("gates every feature page in the router and keeps /sign off the Worker while e-sign is off", () => {
     const router = readFileSync("src/web/router.tsx", "utf8");
-    for (const f of ['features={["merge_mail"]}', 'features={["esign"]}', "features={AI_FEATURES}", 'features={["folders", "index"]}']) expect(router).toContain(f);
+    for (const f of ['features={["merge_mail", "merge_plus_r109"]}', 'features={["esign"]}', "features={AI_FEATURES}", 'features={["folders", "index"]}']) expect(router).toContain(f);
     const gate = readFileSync("src/web/components/tools/feature-gate.tsx", "utf8");
     expect(gate).toContain("<NotFound embedded />"); // R67: one main landmark inside the app layout
     expect(gate.slice(gate.indexOf("export function"))).not.toMatch(/admin|legal|signature/i);

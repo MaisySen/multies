@@ -24,6 +24,9 @@ const PUBLIC_OK = new Set([
   "GET /api/mcp-tools",
   // R83: the TikTok webhook address answers a plain ok to the developer portal's check (no data; events are POSTed and signed).
   "GET /api/connections/webhooks/tiktok",
+  // R109: the open pixel always answers its gif; the signup confirm page only shows a button (the POST checks the token),
+  // so mail scanners that fetch links never confirm anyone.
+  "GET /api/campaign-public/o/:file", "GET /api/campaign-public/confirm/:token",
 ]);
 
 const fill = (path: string) => path.replace(/:[a-zA-Z]+(\{[^}]*\})?/g, "x1").replace(/\*$/, "x1");
