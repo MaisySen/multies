@@ -342,15 +342,15 @@ function Questions({ poll, act }: { poll: PollView; act: Act }) {
       {!poll.questions?.length ? <p className="text-[12.5px] text-subtle">No questions yet.</p> : (
         <ol className="space-y-1.5" aria-label="Questions">
           {poll.questions.map((q) => (
-            <li key={q.id} className={cn("flex items-start gap-2 rounded-lg border border-line px-2 py-1.5", q.answered && "opacity-70")} data-testid="qa-item">
-              <button type="button" aria-pressed={q.upvoted} aria-label={`Upvote: ${q.body}`} disabled={!poll.canVote || q.mineQuestion || q.answered}
+            <li key={q.id} className={cn("flex items-start gap-2 rounded-lg border border-line px-2 py-1.5", q.answered && "bg-fill")} data-testid="qa-item">
+              <button type="button" aria-pressed={q.upvoted} aria-label={`${q.votes} ${q.votes === 1 ? "upvote" : "upvotes"}, upvote ${q.body}`} disabled={!poll.canVote || q.mineQuestion || q.answered}
                 onClick={() => void act(`/chat-plus/questions/${q.id}/upvote`)} data-testid="qa-upvote"
                 className={cn("flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-md border text-[11px] tabular-nums", q.upvoted ? "border-brand text-brand-hover" : "border-line text-muted", "disabled:cursor-default")}>
                 <span aria-hidden>▲</span>{q.votes}
               </button>
               <div className="min-w-0 flex-1">
                 <p className="text-[13px]">{q.body}</p>
-                <p className="text-[11.5px] text-subtle">{q.authorName}{q.answered ? " · answered" : ""}</p>
+                <p className="text-[11.5px] text-muted">{q.authorName}{q.answered ? " · answered" : ""}</p>
               </div>
               {poll.canManage && <Button variant="ghost" size="sm" onClick={() => void act(`/chat-plus/questions/${q.id}/answered`, { answered: !q.answered })}>{q.answered ? "Reopen" : "Answered"}</Button>}
             </li>
