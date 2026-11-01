@@ -25,6 +25,8 @@ export interface PublicConfig {
   searchR98?: boolean;
   /** R94: CRM timeline (notes are searchable with R98). */
   crmTimeline?: boolean;
+  /** R99: calendar and contacts sync (CalDAV and CardDAV). */
+  davSync?: boolean;
   appName: string;
   mode: "production" | "development";
   demoEnabled: boolean;

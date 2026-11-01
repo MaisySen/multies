@@ -1313,5 +1313,17 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX `social_account_state_inbox_idx` ON `social_account_state` (`inbox_synced_at`);",
       "CREATE TABLE `social_test_accounts` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`name` text NOT NULL,\n\t`broken` integer DEFAULT 0 NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);"
     ]
+  },
+  {
+    "name": "0124_r99_dav_sync",
+    "statements": [
+      "-- R99 (Nov 1): calendar and contacts sync (CalDAV and CardDAV). Additive only.\n-- App passwords: one person in one workspace, only a SHA-256 hash kept, named, revocable (the row is deleted).\nCREATE TABLE IF NOT EXISTS `dav_app_passwords` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`user_id` text NOT NULL REFERENCES `users`(`id`) ON DELETE cascade,\n\t`name` text NOT NULL,\n\t`token_hash` text NOT NULL,\n\t`hint` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`last_used_at` integer\n);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `dav_app_passwords_hash_uq` ON `dav_app_passwords` (`token_hash`);",
+      "CREATE INDEX IF NOT EXISTS `dav_app_passwords_user_idx` ON `dav_app_passwords` (`org_id`,`user_id`);",
+      "-- Sync tokens (RFC 6578): a snapshot of (name, etag) per collection per app password; a few kept, older ones pruned.\nCREATE TABLE IF NOT EXISTS `dav_sync_states` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`password_id` text NOT NULL REFERENCES `dav_app_passwords`(`id`) ON DELETE cascade,\n\t`collection` text NOT NULL,\n\t`members` text NOT NULL,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX IF NOT EXISTS `dav_sync_states_pw_idx` ON `dav_sync_states` (`password_id`,`collection`,`created_at`);",
+      "-- The resource name a phone chose for an item it created (so it finds the item under the same name), and its UID.\nCREATE TABLE IF NOT EXISTS `dav_names` (\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`collection` text NOT NULL,\n\t`name` text NOT NULL,\n\t`entity_id` text NOT NULL,\n\t`uid` text,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `collection`, `name`)\n);",
+      "CREATE INDEX IF NOT EXISTS `dav_names_entity_idx` ON `dav_names` (`org_id`,`collection`,`entity_id`);"
+    ]
   }
 ];

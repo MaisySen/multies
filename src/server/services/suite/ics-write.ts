@@ -96,3 +96,18 @@ export function buildFeed(input: { meetings: FeedMeeting[]; dues: FeedDue[]; nam
   lines.push("END:VCALENDAR");
   return icsDocument(lines);
 }
+
+/**
+ * R99: one calendar object resource for CalDAV (RFC 4791 4.1): the same event lines as the feed, without METHOD
+ * or the feed's name and refresh lines, and with the UID the phone chose when the phone made the event.
+ */
+export function buildObject(input: { meetings: FeedMeeting[]; dues: FeedDue[] }, opts: { uid?: string | null; prodId?: string } = {}) {
+  const feedOnly = /^(METHOD|X-WR-CALNAME|REFRESH-INTERVAL|X-PUBLISHED-TTL)[:;]/;
+  let lines = buildFeed(input).split("\r\n").filter((l) => l && !feedOnly.test(l));
+  lines = lines.map((l) => (l.startsWith("PRODID:") ? `PRODID:${opts.prodId ?? "-//Multies//Calendar sync//EN"}` : l));
+  if (opts.uid) {
+    const i = lines.findIndex((l) => l.startsWith("UID:"));
+    if (i >= 0) lines[i] = foldLine(`UID:${opts.uid.replace(/[\r\n]/g, "")}`);
+  }
+  return lines.join("\r\n") + "\r\n";
+}

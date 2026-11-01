@@ -83,6 +83,7 @@ import { meetingNotesRoutes } from "./routes/meeting-notes";
 import { meetingLiveRoutes, publicMeetingLiveRoutes } from "./routes/meeting-live-r31";
 import { meetingLobbyRoutes, publicMeetingLobbyRoutes } from "./routes/meeting-lobby-r32";
 import { calendarFeedRoutes, calendarRoutes } from "./routes/calendar-sync";
+import { davRoutes, davSettingsRoutes, davWellKnown } from "./routes/dav"; // R99
 import { threadStateRoutes } from "./routes/thread-state";
 import { threadCollabRoutes } from "./routes/thread-collab";
 import { taskBulkRoutes } from "./routes/tasks-bulk";
@@ -426,6 +427,7 @@ export function createApp(deps: Deps) {
       toolFeatures: deps.config.tools.enabled ? activeToolFeatures(deps) : [],
       // R122: the help center in Docs (HELP_CENTER=on).
       helpCenter: !!deps.config.helpCenter,
+      davSync: !!deps.config.davSync,
       // R43: whether the import pages say a run carries on after the page closes (BACKGROUND_COPY).
       backgroundCopy: !!deps.config.backgroundCopy,
       // R89: whiteboards, diagrams, mind map and Present in Docs (DOCS_VISUAL; on unless "off").
@@ -525,6 +527,7 @@ export function createApp(deps: Deps) {
   app.route("/api/threads", threadCollabRoutes()); // Round 22: thread presence and shared drafts
   app.route("/api/developer", developerRoutes());
   app.route("/api/oauth", oauthRoutes());
+  app.on(["GET", "HEAD", "PROPFIND", "OPTIONS"], ["/.well-known/caldav", "/.well-known/carddav"], davWellKnown); // R99
   app.route("/.well-known", oauthWellKnownRoutes());
   app.route("/api/agents", agentRoutes());
   app.route("/api/approvals", approvalRoutes());
@@ -592,6 +595,8 @@ export function createApp(deps: Deps) {
   app.route("/api/epics", epicRoutes());
   app.route("/api/calendar", calendarRoutes()); // Round 23: calendar feed and other calendars
   app.route("/cal", calendarFeedRoutes()); // Round 23: public calendar feed /cal/<token>.ics
+  app.route("/api/dav", davSettingsRoutes()); // R99: app passwords for calendar and contacts sync
+  app.route("/dav", davRoutes()); // R99: CalDAV and CardDAV with app passwords
   app.route("/api/share-links", shareLinkRoutes()); // R26 (MB-87): read only share links
   app.route("/api/dashboards-plus", dashboardsPlusRoutes()); // R91: links, reports, alerts, sources, questions
   app.route("/api/dash-public", dashboardsPublicRoutes()); // R91: public dashboard links and report unsubscribe

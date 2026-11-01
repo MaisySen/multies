@@ -3404,3 +3404,38 @@ export const chatPollVotes = sqliteTable("chat_poll_votes", {
   reason: text("reason").notNull().default(""),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.pollId, t.voter, t.choice] })]);
+
+// ---------------------------------------------------------------- R99: calendar and contacts sync (CalDAV and CardDAV)
+
+/** R99: an app password for phone and desktop calendar and contacts apps. Only the SHA-256 hash is kept; revoking deletes the row. */
+export const davAppPasswords = sqliteTable("dav_app_passwords", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  /** The last four characters, to tell two passwords apart. */
+  hint: text("hint").notNull(),
+  createdAt: createdAt(),
+  /** Written at most every 10 minutes. */
+  lastUsedAt: ts("last_used_at"),
+}, (t) => [uniqueIndex("dav_app_passwords_hash_uq").on(t.tokenHash), index("dav_app_passwords_user_idx").on(t.orgId, t.userId)]);
+
+/** R99: a sync token (RFC 6578) is a stored snapshot of a collection's { name: etag } for one app password. */
+export const davSyncStates = sqliteTable("dav_sync_states", {
+  id: text("id").primaryKey(),
+  passwordId: text("password_id").notNull().references(() => davAppPasswords.id, { onDelete: "cascade" }),
+  collection: text("collection").notNull(),
+  members: text("members").notNull(),
+  createdAt: createdAt(),
+}, (t) => [index("dav_sync_states_pw_idx").on(t.passwordId, t.collection, t.createdAt)]);
+
+/** R99: the resource name (and UID) a phone chose for an item it created. */
+export const davNames = sqliteTable("dav_names", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  collection: text("collection").notNull(),
+  name: text("name").notNull(),
+  entityId: text("entity_id").notNull(),
+  uid: text("uid"),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.collection, t.name] }), index("dav_names_entity_idx").on(t.orgId, t.collection, t.entityId)]);

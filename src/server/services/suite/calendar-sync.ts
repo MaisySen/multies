@@ -99,7 +99,7 @@ export async function disableFeed(deps: Deps, actor: SuiteActor) {
 }
 
 /** Meetings and due tasks in [from, to) for one person, or (person null) for the whole workspace. */
-async function workItems(deps: Deps, orgId: string, person: { id: string; email: string } | null, from: Date, to: Date, opts: { includeTasks: boolean; limit: number }) {
+export async function workItems(deps: Deps, orgId: string, person: { id: string; email: string } | null, from: Date, to: Date, opts: { includeTasks: boolean; limit: number }) {
   const rows = await deps.db.select().from(meetings).where(and(
     eq(meetings.orgId, orgId), isNull(meetings.deletedAt), lt(meetings.startsAt, to),
     or(gte(meetings.startsAt, new Date(from.getTime() - DAY)), isNotNull(meetings.recurrence)),
@@ -122,7 +122,7 @@ async function workItems(deps: Deps, orgId: string, person: { id: string; email:
   return { meetings: mine.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()).slice(0, opts.limit), dues };
 }
 
-async function zoneOf(deps: Deps, orgId: string, userId: string | null) {
+export async function zoneOf(deps: Deps, orgId: string, userId: string | null) {
   const u = userId ? await deps.db.select({ tz: users.timezone }).from(users).where(eq(users.id, userId)).get() : undefined;
   if (u?.tz) return u.tz;
   const o = await deps.db.select({ tz: organizations.timezone }).from(organizations).where(eq(organizations.id, orgId)).get();
