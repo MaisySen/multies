@@ -38,6 +38,7 @@ async function sentCount(ctx: BrowserContext, subject: string) {
 }
 
 test("closing the tab during the countdown still sends it, exactly once", async ({ page, context }) => {
+  test.setTimeout(120_000);
   await demo(page);
   const subject = `Closed tab ${Date.now()}`;
   await composeAndSend(page, subject);
@@ -48,7 +49,11 @@ test("closing the tab during the countdown still sends it, exactly once", async 
   expect(asked).toBe(false);
   const { p, n } = await sentCount(context, subject);
   expect(n).toBe(1);
-  expect(await p.evaluate(() => localStorage.getItem("multies-held-sends"))).toBeNull();
+  // The closed page could not clear its copy; the next visit (past the hold and the grace) confirms it went and says so.
+  await p.waitForTimeout(20_000);
+  await p.goto("/app");
+  await expect(p.getByText("Sent to someone@example.com")).toBeVisible({ timeout: 20_000 });
+  await expect.poll(() => p.evaluate(() => localStorage.getItem("multies-held-sends"))).toBeNull();
 });
 
 test("leaving the page for another site during the countdown sends it once", async ({ page, context }) => {
@@ -78,10 +83,12 @@ test("if the hand over never reaches the server, the next visit puts it back in 
   test.setTimeout(120_000);
   await demo(page);
   const subject = `Never arrived ${Date.now()}`;
-  // The connection drops as the tab closes: the keepalive send is cut off.
-  await page.route("**/api/mail/send", (r) => r.abort());
   await composeAndSend(page, subject);
+  // The connection drops as the tab closes: the hand over can't reach the server.
+  await context.setOffline(true);
   await page.close({ runBeforeUnload: true });
+  await new Promise((r) => setTimeout(r, 1000));
+  await context.setOffline(false);
   // Past the hold and the grace, so it can't be a live hold in another tab.
   await new Promise((r) => setTimeout(r, 27_000));
   const p = await context.newPage();
