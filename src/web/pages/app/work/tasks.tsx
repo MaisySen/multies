@@ -11,6 +11,7 @@ import { GROUP_LABEL, isGroupBy, type GroupBy } from "@/web/lib/task-groups-r84"
 import { IconListTree, IconAssign, IconBoard, IconMore, IconBookmark, IconCalendarDays, IconChevronDown, IconChevronUp, IconClose, IconList, IconMountain, IconPlus, IconSettings2, IconSliders, IconSprint, IconTeam, IconTimeline, IconTrash, IconTag, IconRows, type IconComponent } from "@/web/components/ui/icon";
 
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
+import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
 import { emptyTasksCopy, hasTaskFilters } from "@/web/lib/empty-states";
 import { BoardSkeleton, TasksEmpty } from "./tasks-empty";
 import { CalendarSkeleton, PanelListSkeleton, TimelineSkeleton } from "@/web/components/skeletons-r36"; // R36
@@ -263,6 +264,7 @@ export function TasksPage() {
     try { await api.del(`/tasks/views/${v.id}`); await qc.invalidateQueries({ queryKey: sk.views }); if (activeViewId === v.id) set({ v: null }); } catch (e) { showError(e as Error); }
   };
 
+  if (projects.isError && !projects.data) return <LoadError onRetry={() => projects.refetch()} />; // T1G (T1-8)
   if (projects.isPending) return <div className="space-y-3"><Skeleton className="h-8 w-48" /><Skeleton className="h-64" /></div>;
 
   return (
@@ -406,6 +408,8 @@ export function TasksPage() {
         <ClashScope projectId={projectId || undefined} enabled={view === "list" || view === "board"}>{/* R38: one date clash check for the list or board */}
         {!list.length ? (
           <EmptyState icon={<IconBoard />} title="No projects yet" body="Make a task from any email, or start a project. Your first project is set up for you." action={<Button onClick={() => setNewTask({})}>New task</Button>} />
+        ) : tasks.isError && !tasks.data ? (
+          <LoadError onRetry={() => tasks.refetch()} className="rounded-xl border border-line bg-surface" />
         ) : tasks.isPending ? (
           view === "board" && project ? <BoardSkeleton columns={Math.min(project.statuses.length || 4, 5)} /> : <SkeletonRows rows={8} rowHeight={41} label="Loading tasks" className="rounded-xl border border-line bg-surface" />
         ) : !(tasks.data ?? []).length && view !== "workload" && view !== "sprints" && (filtered || view === "list" || (view === "board" && !project)) ? (

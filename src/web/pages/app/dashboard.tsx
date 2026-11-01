@@ -13,15 +13,16 @@ import type { Dashboard } from "@/web/lib/types";
 import { LOCALE } from "@/shared/locale";
 import { FreeAddressCard } from "@/web/components/free-address";
 import { useProjects } from "./work/data"; // R40 (MB-214)
+import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
 
 export function DashboardPage() {
   const me = useMe();
-  const { data, isPending, error } = useDashboard();
+  const { data, isPending, error, refetch } = useDashboard();
   const first = displayFirstName(me.data?.user.name, me.data?.user.email); // R41 (MB-224)
   return (
     <>
       <PageHeader title="Overview" description={`Good ${dayPart()}${first ? `, ${first}` : ""}. Here's how mail is flowing across your workspace.`} actions={<ButtonLink to="/app/mail" variant="secondary" size="sm"><IconInbox className="h-4 w-4" />Open mail</ButtonLink>} />
-      {error && <Card className="p-6 text-sm text-bad">Couldn't load the overview: {error.message}</Card>}
+      {error && !data && <LoadError onRetry={() => refetch()} className="rounded-xl border border-line bg-surface" />}{/* T1G (T1-8) */}
       {isPending ? <DashboardSkeleton /> : data && (
         <div className="space-y-6">
           {data.usage.domains === 0 && <FreeAddressCard />}

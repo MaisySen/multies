@@ -40,8 +40,10 @@ import { BoardPatchSchema } from "./board-schema-r34";
 import { idempotency, idempotentId, sessionIdempotencyScope } from "../lib/idempotency"; // R40 (MB-201)
 
 // R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
-const Q_SUITE_1 = z.object({ q: z.string().max(200).optional(), projectId: z.string().optional(), linkedType: z.enum(["project", "task", "thread", "contact", "deal"]).optional(), linkedId: z.string().optional() });
-const Q_SUITE_2 = z.object({ q: z.string().max(200).optional(), companyId: z.string().optional(), limit: z.coerce.number().int().min(1).max(500).optional(), offset: z.coerce.number().int().min(0).optional() });
+// T1G (T1-3): a search longer than 200 characters is cut to 200 like every other list search, never refused.
+const SearchQ = z.string().optional().transform((v) => (v === undefined ? undefined : v.slice(0, 200)));
+const Q_SUITE_1 = z.object({ q: SearchQ, projectId: z.string().optional(), linkedType: z.enum(["project", "task", "thread", "contact", "deal"]).optional(), linkedId: z.string().optional() });
+const Q_SUITE_2 = z.object({ q: SearchQ, companyId: z.string().optional(), limit: z.coerce.number().int().min(1).max(500).optional(), offset: z.coerce.number().int().min(0).optional() });
 const Q_SUITE_3 = z.object({ unread: z.string().optional(), category: z.string().max(20).optional(), limit: z.coerce.number().int().min(1).max(200).optional(), before: z.string().max(64).optional(), view: z.enum(TRIAGE_VIEWS).optional() });
 const Q_SUITE_4 = z.object({ since: z.coerce.number().int().min(0).default(0), limit: z.coerce.number().int().min(1).max(1000).default(500) });
 

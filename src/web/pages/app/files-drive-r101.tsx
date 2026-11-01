@@ -5,6 +5,8 @@
  * stars, trash with restore, bulk move, zip download (made in the browser) and sharing My files with teammates.
  * Brand library: tags, notes, download at a set width (resized in the browser), copy link. Admins edit it.
  */
+import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
+import { isServerLoadError, queryRetry } from "@/web/lib/load-errors-t1g";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
@@ -136,7 +138,7 @@ export function DrivePage({ attachments, mailOn }: { attachments: ReactNode; mai
     placeholderData: keepPreviousData,
     queryFn: ({ pageParam }) => api.get<DriveList>(`/drive/list?view=${view}${folderId ? `&folder=${encodeURIComponent(folderId)}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}&cursor=${pageParam}`),
     getNextPageParam: (last) => last.next ?? undefined,
-    retry: (n, e) => (e as { status?: number }).status !== 404 && n < 2,
+    retry: queryRetry, // T1G: never retries a 404; a server failure shows Retry in seconds
   });
   const usage = useQuery({ queryKey: ["drive", "usage"], enabled: view !== "mail", queryFn: () => api.get<DriveUsage>("/drive/usage"), staleTime: 60_000 });
   const tags = useQuery({ queryKey: ["drive", "tags"], enabled: view === "brand", queryFn: () => api.get<{ tags: { tag: string; count: number }[] }>("/drive/tags") });
@@ -289,7 +291,9 @@ export function DrivePage({ attachments, mailOn }: { attachments: ReactNode; mai
             )}
             {list.isPending ? (
               <div className="space-y-3 p-4" aria-busy="true">{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-11 w-full" />)}</div>
-            ) : list.isError ? (
+            ) : list.isError && isServerLoadError(list.error) && !list.data ? (
+              <LoadError onRetry={() => list.refetch()} />
+            ) : list.isError && !isServerLoadError(list.error) ? (
               <EmptyState icon={<IconFolder />} title={(list.error as { status?: number }).status === 404 ? "You can't open this folder" : "Files didn't load"}
                 body={(list.error as { status?: number }).status === 404 ? "It may have moved, gone to the trash, or not be shared with you." : "Check your connection and try again."}
                 action={(list.error as { status?: number }).status === 404 ? <Button size="sm" variant="secondary" onClick={() => go({ view: "team" })}>Go to team files</Button> : <Button size="sm" variant="secondary" onClick={() => void list.refetch()}>Try again</Button>} />

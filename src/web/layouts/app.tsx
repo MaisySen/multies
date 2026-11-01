@@ -42,6 +42,7 @@ import { JoinInvitePrompt } from "@/web/components/join-invite-prompt-r41"; // R
 import { api } from "@/web/lib/api";
 import { clearMeCache, isSignedOut } from "@/web/lib/me-cache"; // R40 (MB-200)
 import { ReconnectingPill, ReconnectScreen } from "@/web/components/reconnecting-r40"; // R40 (MB-200)
+import { LoadErrorStrip } from "@/web/components/load-error-t1g"; // T1G (T1-8)
 import { browserTimeZone, initials, setDisplayTimeZone } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { AppSkeleton } from "./app-skeleton";
@@ -327,6 +328,7 @@ export function AppLayout() {
         <OfflineBanner />
         {!!me.error && <ReconnectingPill onRetry={() => void me.refetch()} />}
         <PendingInviteBanner />
+        <LoadErrorStrip />{/* T1G (T1-8): a failed read never leaves a page on skeletons without a word */}
         <main id="main" tabIndex={-1} ref={setMainEl} className={cn("min-h-0 flex-1 overflow-x-hidden outline-none", isMail ? "overflow-hidden" : "overflow-y-auto overscroll-y-contain")}>
           {isMail ? <Outlet /> : <div key={loc.pathname.split("/").slice(0, 3).join("/")} className={pageFrameClass(loc.pathname)} data-page-width={pageWidth(loc.pathname)}><Outlet /></div>}
         </main>

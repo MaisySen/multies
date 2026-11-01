@@ -30,6 +30,7 @@ import { PendingBubbles } from "./chat-pending-r33";
 import { newClientMsgId, pendingFor } from "@/web/lib/chat-outbox";
 import { BlockedHiddenRow, useModeration } from "./report-sheet-r35"; // R35: report and block
 import { AnnouncementsFeed, AnnouncementsNav, ChatPlusAdd, MoveToTopic, PollCard, TopicBar, useChatPlus, type Topic } from "./chat-plus-r96"; // R96
+import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
 import { CallButton, CallCard, ChatSearch, JumpToUnread, ReactionPicker, Reactions, callPath, flashMessage, useFirstUnread, type ChatSearchResult, type Reaction } from "./chat-r20";
 
 export interface ChatChannel {
@@ -395,7 +396,7 @@ export function ChatPage() {
         {plus.on && <AnnouncementsNav active={annView} onOpen={() => navigate("/app/chat?view=announcements")} />}
         <div className="mb-1 flex items-center justify-between px-2"><h2 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Channels</h2>
           <Button variant="ghost" size="icon" aria-label="New channel" onClick={() => setCreating("channel")}><IconPlus className="h-4 w-4" /></Button></div>
-        {channels.isPending ? <Skeleton className="h-24" /> : <ul className="space-y-0.5">{chans.map((c) => navItem(c, c.private ? <IconLock className="h-3.5 w-3.5" aria-hidden /> : <IconHash className="h-3.5 w-3.5" aria-hidden />))}</ul>}
+        {channels.isError && !channels.data ? <LoadError compact onRetry={() => channels.refetch()} /> : channels.isPending ? <Skeleton className="h-24" /> : <ul className="space-y-0.5">{chans.map((c) => navItem(c, c.private ? <IconLock className="h-3.5 w-3.5" aria-hidden /> : <IconHash className="h-3.5 w-3.5" aria-hidden />))}</ul>}
         <div className="mb-1 mt-4 flex items-center justify-between px-2"><h2 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Direct messages</h2>
           <Button variant="ghost" size="icon" aria-label="New direct message" onClick={() => setCreating("dm")}><IconPlus className="h-4 w-4" /></Button></div>
         <ul className="space-y-0.5">{dms.map((c) => navItem(c, <IconTeam className="h-3.5 w-3.5" aria-hidden />))}</ul>
@@ -442,7 +443,7 @@ export function ChatPage() {
               <div ref={scrollContent}>
               <CatchupCard key={`catchup-${current.id}`} type="channel" id={current.id} />
               <JumpToUnread key={current.id} first={firstUnread.data} onJump={(id) => { stick.release(); if (!flashMessage(id)) openThread({ id } as ChatMessage); }} />
-              {messages.isPending ? <Skeleton className="h-40" /> : !shown?.length ? pendingFor(outboxItems, current.id, null).length ? null : topicId ? (
+              {messages.isError && !messages.data ? <LoadError onRetry={() => messages.refetch()} /> : messages.isPending ? <Skeleton className="h-40" /> : !shown?.length ? pendingFor(outboxItems, current.id, null).length ? null : topicId ? (
                 <EmptyState icon={<IconChat />} title="No messages in this topic yet" body="Write the first one below. It goes into this topic." />
               ) : (
                 <EmptyState icon={<IconChat />} art={<NoChatArt />} title="Nothing here yet" body="Say hello. Mention people with @, link a task with its ref, or turn any message into a task." />

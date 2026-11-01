@@ -5,7 +5,8 @@ import { createRoot, hydrateRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "react-router";
 import { preloadAuthPages, router } from "./router";
-import { api, ApiError } from "./lib/api";
+import { api } from "./lib/api";
+import { queryRetry } from "./lib/load-errors-t1g"; // T1G
 import { qk } from "./lib/queries";
 import type { PublicConfig } from "./lib/types";
 import { captureWarning, scheduleSentry } from "./lib/sentry";
@@ -51,7 +52,7 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 15_000,
       refetchOnWindowFocus: true,
-      retry: (count, err) => !(err instanceof ApiError && err.status >= 400 && err.status < 500) && count < 2,
+      retry: queryRetry, // T1G (T1-8): a failed read shows its error in seconds, not after ten
     },
   },
 });

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { IconCheck, IconCopy } from "./icon";
 import { cn } from "@/web/lib/cn";
+import { useMarkSkeleton } from "@/web/lib/load-errors-t1g"; // T1G (T1-8)
 import { toast } from "sonner";
 
 export function Card({ className, children, ...rest }: { className?: string; children: ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
@@ -25,6 +26,7 @@ export function Badge({ tone = "neutral", children, dot, className }: { tone?: T
 }
 
 export function Skeleton({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  useMarkSkeleton(); // T1G: the app frame offers Retry when a failed read leaves this on screen
   return <div className={cn("skeleton h-4", className)} style={style} aria-hidden />;
 }
 

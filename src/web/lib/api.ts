@@ -38,6 +38,9 @@ interface RequestOptions {
   headers?: Record<string, string>;
 }
 
+/** T1G (T1-8): how long one read may take before it is given up (not retried here; the query retries it once). */
+export const READ_TIMEOUT = { ms: 30_000 };
+
 /** R40: backoff between automatic retries of a GET (or a keyed write). Tests may shorten it. */
 export const retryDelays = { ms: [300, 900] as number[] };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -63,18 +66,28 @@ export function takeEarlyRead(path: string, now = Date.now()): Promise<Response>
 
 async function once<T>(method: string, path: string, body: unknown, headers: Record<string, string>): Promise<T> {
   let res: Response;
+  let text: string;
+  // T1G (T1-8): a read that never answers is given up after READ_TIMEOUT, so a page shows Retry instead of waiting forever.
+  const ctl = method === "GET" && typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), READ_TIMEOUT.ms) : null;
   try {
-    const early = method === "GET" && !Object.keys(headers).length ? takeEarlyRead(path) : null;
-    res = early ? await early : await fetch(`/api${path}`, {
-      method,
-      credentials: "same-origin",
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  } catch {
-    throw new ApiError(0, "network", UNREACHABLE_MESSAGE);
+    try {
+      const early = method === "GET" && !Object.keys(headers).length ? takeEarlyRead(path) : null;
+      res = early ? await early : await fetch(`/api${path}`, {
+        method,
+        credentials: "same-origin",
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        ...(ctl ? { signal: ctl.signal } : {}),
+      });
+      text = await res.text();
+    } catch {
+      if (ctl?.signal.aborted) throw new ApiError(0, "timeout", UNREACHABLE_MESSAGE);
+      throw new ApiError(0, "network", UNREACHABLE_MESSAGE);
+    }
+  } finally {
+    if (timer) clearTimeout(timer);
   }
-  const text = await res.text();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let json: any = null;
   try { json = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
@@ -107,7 +120,7 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Re
     try {
       return await once<T>(method, path, body, headers);
     } catch (err) {
-      if (i >= delays.length || !isTransientError(err)) throw err;
+      if (i >= delays.length || !isTransientError(err) || (err as ApiError).code === "timeout") throw err;
       await sleep(delays[i]!);
     }
   }

@@ -19,6 +19,8 @@ import { AddressCard, VisitsPlanner, useMapsOn } from "./maps-r115"; // R115
 import { CompanyPicker, ImportContactsDialog, NewCompanyDialog, SegmentBar, filtersQuery, hasFilters, type SegFilters, type Segment } from "./crm-contacts-r94"; // R94
 import { ContactPortalButton, PortalsTab, usePortalsOn } from "./portals"; // R120
 import { useInvoicesOn } from "./invoices-r105"; // R105
+import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
+import { isServerLoadError } from "@/web/lib/load-errors-t1g";
 
 interface Company { id: string; name: string; domain: string | null; contactCount: number; lastContactAt: string | null }
 interface ThreadRow { threadId: string; subject: string; lastAt: string; firstAt: string; count: number; lastDirection: "inbound" | "outbound"; snippet: string; messageId: string }
@@ -68,7 +70,7 @@ export function ContactsPage() {
       </div>
       {crm.on && tab === "people" && <SegmentBar segment={segment} setSegment={setSegment} filters={filters} setFilters={setFilters} />}
       {tab === "portals" ? <PortalsTab query={q} /> : tab === "visits" ? <VisitsPlanner /> : tab === "people" ? (
-        people.isPending ? <Skeleton className="h-48" /> : !people.data?.contacts.length ? (
+        people.isError && !people.data ? <LoadError onRetry={() => people.refetch()} /> : people.isPending ? <Skeleton className="h-48" /> : !people.data?.contacts.length ? (
           <EmptyState icon={<IconTeam />} art={q ? <NoSearchResultsArt /> : <NoContactsArt />} title={q || filtered ? "Nobody matches" : "No contacts yet"} body={filtered ? "Nobody fits these filters right now. Change them or pick Everyone." : "When mail arrives or you send to someone outside your team, they show up here with their company."} />
         ) : (
           <Card className="divide-y divide-line overflow-hidden" data-testid="contact-list">
@@ -87,7 +89,7 @@ export function ContactsPage() {
             ))}
           </Card>
         )
-      ) : companies.isPending ? <Skeleton className="h-48" /> : !companies.data?.length ? (
+      ) : companies.isError && !companies.data ? <LoadError onRetry={() => companies.refetch()} /> : companies.isPending ? <Skeleton className="h-48" /> : !companies.data?.length ? (
         <EmptyState icon={<IconBuilding />} art={<NoContactsArt />} title="No companies yet" body="Companies come from your contacts' work email domains. Free mail like Gmail never makes a company." />
       ) : (
         <Card className="divide-y divide-line overflow-hidden">
@@ -144,7 +146,8 @@ export function ContactPage() {
   const crm = useCrmTimelineOn(); // R94
   const maps = useMapsOn(); // R115
   if (q.isPending) return <div className="space-y-3"><Skeleton className="h-10 w-1/2" /><Skeleton className="h-64" /></div>;
-  if (q.error) return <EmptyState icon={<IconTeam />} title="Contact not found" body="It may have been removed." action={<Button onClick={() => navigate("/app/contacts")}>All contacts</Button>} />;
+  if (q.error && !isServerLoadError(q.error)) return <EmptyState icon={<IconTeam />} title="Contact not found" body="It may have been removed." action={<Button onClick={() => navigate("/app/contacts")}>All contacts</Button>} />;
+  if (!q.data) return <LoadError onRetry={() => q.refetch()} />; // T1G (T1-8): a server failure is not "not found"
   const { contact: c, timeline, tasks, deals } = q.data;
   const saveNotes = async () => {
     if (notes === null || notes === c.notes) return;

@@ -22,6 +22,7 @@ import { AttachmentTools } from "./mail/attachment-tools";
 import { ATTACHMENT_FOLDERS, ATTACHMENT_FOLDER_LABELS, isAttachmentFolder, type AttachmentFolder, type FileFolders, type FileItem } from "@/shared/attachment-folders";
 import type { ToolsInfo } from "@/shared/tools";
 import { DrivePage } from "./files-drive-r101";
+import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
 
 const sizeOf = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / (1024 * 1024)).toFixed(1)} MB`);
 const dateOf = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: new Date(iso).getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
@@ -64,6 +65,8 @@ function MailAttachments({ embedded = false }: { embedded?: boolean }) {
     getNextPageParam: (last) => last.next ?? undefined,
   });
 
+  // T1G (T1-8): a failed read is said plainly, never "not on here yet" or skeletons forever.
+  if ((config.isError && !config.data) || (tools.isError && !tools.data)) return <div className="w-full"><LoadError onRetry={() => Promise.all([config.isError ? config.refetch() : null, tools.isError ? tools.refetch() : null])} /></div>;
   if (tools.isPending) return <div className="w-full"><Skeleton className="h-8 w-48" /></div>;
   if (!features.includes("folders")) return <div className="w-full"><EmptyState icon={<IconFile />} title="Files is not on here yet" body="Your workspace will see Files once it is switched on." /></div>;
   const items = list.data?.pages.flatMap((p) => p.items) ?? [];
@@ -103,7 +106,9 @@ function MailAttachments({ embedded = false }: { embedded?: boolean }) {
             <h2 className="text-[15px] font-semibold">{searching ? `Attachments with "${q}"` : ATTACHMENT_FOLDER_LABELS[folder]}</h2>
             {list.isFetching && <span className="text-xs text-subtle">Loading</span>}
           </div>
-          {list.isPending ? (
+          {list.isError && !list.data ? (
+            <LoadError onRetry={() => list.refetch()} />
+          ) : list.isPending ? (
             <div className="space-y-3 p-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
           ) : items.length === 0 ? (
             <EmptyState icon={<IconAttachment />} title={searching ? "Nothing found inside attachments" : "No files here yet"}

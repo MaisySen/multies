@@ -34,6 +34,8 @@ import type { PMNode } from "@/web/lib/mindmap-tree";
 import { DocCommentsButton, DocCommentsPanel } from "./doc-comments-r103"; // R103
 import { SpellButton } from "@/web/components/spell-check-r103";
 import { SpellAttrs, fixInEditor } from "./doc-spell-r103";
+import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
+import { isServerLoadError } from "@/web/lib/load-errors-t1g";
 
 const MindMapView = lazyPage(() => import("./docs-visual/mindmap-view"), "MindMapView");
 const PresentOverlay = lazyPage(() => import("./docs-visual/present"), "PresentOverlay");
@@ -70,7 +72,7 @@ export function DocsPage() {
       <div className="min-w-0 flex-1">
       <PageHeader title="Docs" description="Briefs, meeting notes and plans, linked to tasks, projects, threads and contacts. Agents can read and add to them too." actions={<div className="flex gap-2">{visual && <Button variant="secondary" onClick={() => void create("whiteboard")} data-testid="new-whiteboard"><IconShapes className="h-4 w-4" />New whiteboard</Button>}<Button onClick={() => void create()}><IconPlus className="h-4 w-4" />New doc</Button></div>} />
       <Input aria-label="Search docs" placeholder="Search docs" value={q} onChange={(e) => setQ(e.target.value)} className="mb-4 max-w-sm" />
-      {docs.isPending ? <Skeleton className="h-40" /> : !docs.data?.length ? (
+      {docs.isError && !docs.data ? <LoadError onRetry={() => docs.refetch()} /> : docs.isPending ? <Skeleton className="h-40" /> : !docs.data?.length ? (
         <EmptyState icon={<IconDocs />} art={q ? <NoSearchResultsArt /> : <NoDocsArt />} title={q ? "No docs match" : "No docs yet"} body="Write a brief or notes and link it to the work it belongs to." action={!q && <Button onClick={() => void create()}>New doc</Button>} />
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="doc-list">
@@ -103,6 +105,7 @@ export function DocPage() {
 function PresenterDoc({ start }: { start: number }) {
   const { id = "" } = useParams();
   const q = useQuery({ queryKey: ["doc", id], queryFn: async () => (await api.get<{ doc: Doc }>(`/docs/${id}`)).doc, refetchOnWindowFocus: false });
+  if (!q.data && q.isError) return <div className="p-6"><LoadError onRetry={() => q.refetch()} /></div>; // T1G (T1-8)
   if (!q.data) return <div className="p-6"><Skeleton className="h-64" /></div>;
   return <Suspense fallback={null}><PresenterWindow docId={id} doc={q.data.content as unknown as PMNode} title={q.data.title} start={start} /></Suspense>;
 }
@@ -119,7 +122,8 @@ function DocPageMain() {
   const onReplaced = useCallback((d: Doc) => { qc.setQueryData(["doc", id], d); setReplaced((n) => n + 1); }, [qc, id]);
 
   const body = q.isPending || !collab ? <div className="mx-auto max-w-3xl space-y-3"><Skeleton className="h-9 w-1/2" /><Skeleton className="h-64" /></div>
-    : q.error ? <EmptyState icon={<IconDocs />} title="Doc not found" body="It may have been deleted." action={<Button onClick={() => navigate("/app/docs")}>All docs</Button>} />
+    : q.error && !isServerLoadError(q.error) ? <EmptyState icon={<IconDocs />} title="Doc not found" body="It may have been deleted." action={<Button onClick={() => navigate("/app/docs")}>All docs</Button>} />
+    : q.data === undefined ? <LoadError onRetry={() => q.refetch()} /> // T1G (T1-8): a server failure is not "not found"
     : <DocEditor key={`${id}:${collab.session ? "live" : "solo"}:${replaced}`} doc={q.data} session={collab.session} onReplaced={onReplaced} />;
   // R24.5: the page tree beside the doc.
   return <div className="flex gap-6"><DocTreeSidebar currentId={id} /><div className="min-w-0 flex-1">{body}</div></div>;
