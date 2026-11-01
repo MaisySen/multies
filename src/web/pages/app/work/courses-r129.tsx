@@ -15,7 +15,7 @@ import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { useDialogs } from "@/web/components/ui/confirm";
 import { DateInput, Field, Input, Select, Textarea } from "@/web/components/ui/input";
-import { Badge, Card, EmptyState, Meter, PageHeader, Skeleton, Switch, tableStyles } from "@/web/components/ui/misc";
+import { Badge, Card, EmptyState, PageHeader, Skeleton, Switch, tableStyles } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { useConfig, useMe } from "@/web/lib/queries";
 import { useAssignees, isAgentLike } from "./data";
@@ -43,6 +43,19 @@ export function useCoursesOn() {
 
 function useCourse(id: string) {
   return useQuery({ queryKey: key(id), retry: (n, e) => !(e instanceof ApiError && (e.status === 403 || e.status === 404)) && n < 2, queryFn: () => api.get<Detail>(`/courses/${id}`) });
+}
+
+/** Course progress: brand colour while going, ok colour when done (the shared Meter reads as usage and turns red when full). */
+function ProgressBar({ value, label }: { value: number; label: string }) {
+  const v = Math.max(0, Math.min(100, Math.round(value)));
+  return (
+    <div className="flex items-center gap-2">
+      <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={v} aria-label={label} className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-fill">
+        <div className={cn("h-full rounded-full transition-[width] duration-200", v >= 100 ? "bg-ok" : "bg-brand")} style={{ width: `${v}%` }} />
+      </div>
+      <span className="w-10 shrink-0 text-right text-[12px] tabular-nums text-muted">{v}%</span>
+    </div>
+  );
 }
 
 /** A switch with its words beside it (the shared Switch carries its label for screen readers only). */
@@ -169,12 +182,14 @@ function LearnTab({ detail }: { detail: Detail }) {
   const next = idx >= 0 ? lessons[idx + 1] : undefined;
 
   return (
+    <div className="space-y-4">
+    {me?.completedAt && <CompletedCard course={course} me={me} />}
     <div className="grid gap-6 md:grid-cols-[260px_minmax(0,1fr)]">
       <aside className="space-y-3">
         {me ? (
           <Card className="space-y-2 p-4">
             <div className="flex items-center justify-between text-[13px]"><span className="font-medium">Your progress</span><Badge tone={statusTone(me.status)}>{STATUS_LABEL[me.status]}</Badge></div>
-            <Meter value={me.percent} max={100} label={`${me.percent}% done`} />
+            <ProgressBar value={me.percent} label="Progress" />
             {me.dueAt && !me.completedAt && <p className="text-[12.5px] text-muted">Due {day(me.dueAt)}</p>}
           </Card>
         ) : course.canLearn ? (
@@ -199,9 +214,9 @@ function LearnTab({ detail }: { detail: Detail }) {
         </nav>
       </aside>
       <section className="min-w-0 space-y-4" aria-label="Lesson content">
-        {me?.completedAt && <CompletedCard course={course} me={me} />}
         {active && <LessonView key={active.id} course={course} lesson={active} me={me} done={done(active)} onNext={next ? () => setOpenId(next.id) : undefined} />}
       </section>
+    </div>
     </div>
   );
 }
@@ -265,9 +280,10 @@ function QuizView({ course, lesson, me, onNext }: { course: Course; lesson: Less
   const [answers, setAnswers] = useState<Record<string, number | number[] | string>>({});
   const [result, setResult] = useState<QuizResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const [retake, setRetake] = useState(false);
   const mine = me?.lessons[lesson.id];
   const passMark = lesson.passMark ?? course.passMark;
-  if (!course.canLearn) return <p className="text-[14px] text-muted">{qs.length} questions. Pass mark {passMark}%.</p>;
+  if (!course.canLearn) return <p className="text-[14px] text-muted">{qs.length === 1 ? "1 question" : `${qs.length} questions`}. Pass mark {passMark}%.</p>;
   if (!me) return <p className="text-[14px] text-muted">Start the course to take this quiz.</p>;
   const submit = async () => {
     setBusy(true);
@@ -278,9 +294,15 @@ function QuizView({ course, lesson, me, onNext }: { course: Course; lesson: Less
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   const wrong = new Set(result?.wrong ?? []);
+  if (mine?.passed && !result && !retake) return (
+    <div className="space-y-3">
+      <div role="status" className="rounded-lg border border-ok/40 bg-ok/10 p-3 text-[14px]"><p className="font-medium">You passed this quiz{mine.bestScore !== null ? ` with ${mine.bestScore}%` : ""}</p></div>
+      <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setRetake(true)}>Take it again</Button>{onNext && <Button variant="ghost" onClick={onNext}>Next lesson</Button>}</div>
+    </div>
+  );
   return (
     <div className="space-y-4">
-      <p className="text-[13.5px] text-muted">{qs.length} questions. Pass mark {passMark}%.{mine?.bestScore !== null && mine?.bestScore !== undefined ? ` Your best so far: ${mine.bestScore}%.` : ""}</p>
+      <p className="text-[13.5px] text-muted">{qs.length === 1 ? "1 question" : `${qs.length} questions`}. Pass mark {passMark}%.{mine?.bestScore !== null && mine?.bestScore !== undefined ? ` Your best so far: ${mine.bestScore}%.` : ""}</p>
       {result && (
         <div role="status" className={cn("rounded-lg border p-3 text-[14px]", result.passed ? "border-ok/40 bg-ok/10" : "border-bad/40 bg-bad/10")} data-testid="quiz-result">
           <p className="font-medium">{result.passed ? `You passed with ${result.score}%` : `You scored ${result.score}%. You need ${result.passMark}% to pass.`}</p>
@@ -347,7 +369,7 @@ function BuildTab({ detail }: { detail: Detail }) {
               <span className="w-6 text-[13px] text-muted">{i + 1}</span>
               <div className="min-w-0 flex-1">
                 <button type="button" className="break-words text-left text-[14px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" onClick={() => setEditing(l)}>{l.title}</button>
-                <div className="text-[12.5px] text-muted">{LESSON_LABEL[l.type]}{l.type === "quiz" ? `, ${l.questionCount} questions` : ""}{l.required ? "" : ", optional"}</div>
+                <div className="text-[12.5px] text-muted">{LESSON_LABEL[l.type]}{l.type === "quiz" ? `, ${l.questionCount === 1 ? "1 question" : `${l.questionCount} questions`}` : ""}{l.required ? "" : ", optional"}</div>
               </div>
               <div className="flex gap-1">
                 <Button size="sm" variant="ghost" aria-label={`Move ${l.title} up`} disabled={i === 0} onClick={() => void move(l, "up")}><IconArrowUp className="h-4 w-4" /></Button>
@@ -554,22 +576,22 @@ function ProgressTab({ detail }: { detail: Detail }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <p className="flex-1 text-[13.5px] text-muted">{counts.learners} learners, {counts.completed} completed{counts.overdue ? `, ${counts.overdue} overdue` : ""}</p>
+        <p className="flex-1 text-[13.5px] text-muted">{counts.learners === 1 ? "1 learner" : `${counts.learners} learners`}, {counts.completed} completed{counts.overdue ? `, ${counts.overdue} overdue` : ""}</p>
         {rows.length > 0 && <a href={`/api/courses/${course.id}/progress.csv`} download className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line px-3 text-[14px] font-medium hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" data-testid="export-csv"><IconDownload className="h-4 w-4" />Export CSV</a>}
       </div>
       {!rows.length ? <EmptyState icon={<IconBook />} title="No learners yet" body={course.canBuild ? "Assign the course to see progress here." : "Progress shows here once people start."} /> : (
         <>
-          <div className={cn(tableStyles.wrap, "hidden md:block")}>
+          <div className={cn(tableStyles.wrap, "hidden md:block")} role="region" aria-label="Progress of each learner" tabIndex={0}>
             <table className={tableStyles.table} data-testid="progress-table">
               <thead className={tableStyles.head}><tr><th className={tableStyles.th}>Name</th><th className={tableStyles.th}>Status</th><th className={tableStyles.th}>Progress</th><th className={tableStyles.th}>Quiz score</th><th className={tableStyles.th}>Due</th><th className={tableStyles.th}>Completed</th></tr></thead>
               <tbody className={tableStyles.body}>{rows.map((r) => (
                 <tr key={r.id} className={tableStyles.row}>
                   <td className={tableStyles.td}><div className="font-medium">{r.name}</div><div className="text-[12.5px] text-muted">{r.email}</div></td>
-                  <td className={tableStyles.td}><Badge tone={statusTone(r.status)}>{r.statusLabel}</Badge></td>
-                  <td className={cn(tableStyles.td, "min-w-40")}><Meter value={r.percent} max={100} label={`${r.percent}%`} /></td>
+                  <td className={cn(tableStyles.td, "whitespace-nowrap")}><Badge tone={statusTone(r.status)}>{r.statusLabel}</Badge></td>
+                  <td className={cn(tableStyles.td, "min-w-36")}><ProgressBar value={r.percent} label="Progress" /></td>
                   <td className={tableStyles.td}>{r.bestScore === null ? "" : `${r.bestScore}%`}</td>
-                  <td className={tableStyles.td}>{day(r.dueAt)}</td>
-                  <td className={tableStyles.td}>{day(r.completedAt)}</td>
+                  <td className={cn(tableStyles.td, "whitespace-nowrap")}>{day(r.dueAt)}</td>
+                  <td className={cn(tableStyles.td, "whitespace-nowrap")}>{day(r.completedAt)}</td>
                 </tr>
               ))}</tbody>
             </table>
@@ -577,7 +599,7 @@ function ProgressTab({ detail }: { detail: Detail }) {
           <ul className="space-y-2 md:hidden">{rows.map((r) => (
             <li key={r.id}><Card className="space-y-2 p-4">
               <div className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate font-medium">{r.name}</span><Badge tone={statusTone(r.status)}>{r.statusLabel}</Badge></div>
-              <Meter value={r.percent} max={100} label={`${r.percent}%`} />
+              <ProgressBar value={r.percent} label="Progress" />
               <div className="text-[12.5px] text-muted">{[r.bestScore !== null ? `Quiz ${r.bestScore}%` : "", r.dueAt ? `Due ${day(r.dueAt)}` : "", r.completedAt ? `Completed ${day(r.completedAt)}` : ""].filter(Boolean).join(", ")}</div>
             </Card></li>
           ))}</ul>
@@ -660,7 +682,7 @@ export function MyLearningPage() {
                       {i.dueAt && !i.completedAt && <span>Due {day(i.dueAt)}</span>}{i.completedAt && <span>Completed {day(i.completedAt)}</span>}<span>{i.lessons} lessons</span>
                     </div>
                   </div>
-                  <div className="w-full sm:w-40"><Meter value={i.percent} max={100} label={`${i.percent}%`} /></div>
+                  <div className="w-full sm:w-40"><ProgressBar value={i.percent} label="Progress" /></div>
                   {i.hasCertificate && <a href={`/api/courses/${i.courseId}/certificate.pdf`} download className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line px-3 text-[13.5px] font-medium hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"><IconDownload className="h-4 w-4" />Certificate</a>}
                 </Card>
               </li>

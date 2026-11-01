@@ -155,7 +155,7 @@ test.describe("R129 courses", () => {
     await axe(page, "learn 390");
     await shot(page, "learn-390-light");
     await page.getByTestId("course-tab-progress").click();
-    await expect(page.getByText("1 learners, 0 completed")).toBeVisible();
+    await expect(page.getByText("1 learner, 0 completed")).toBeVisible();
     await noHScroll(page);
     await page.emulateMedia({ colorScheme: "dark" });
     await axe(page, "progress 390 dark");
