@@ -53,7 +53,7 @@ export type CommentOut = ReturnType<typeof presentComment>;
 
 async function rowsFor(deps: Deps, orgId: string, docId: string, threads: CommentThread[], statuses?: CommentStatus[]) {
   return deps.db.select().from(docComments).where(and(eq(docComments.orgId, orgId), eq(docComments.docId, docId), isNull(docComments.deletedAt),
-    inArray(docComments.thread, threads), statuses ? inArray(docComments.status, statuses) : undefined)).orderBy(asc(docComments.createdAt)).limit(PER_DOC_LIMIT);
+    inArray(docComments.thread, threads), statuses ? inArray(docComments.status, statuses) : undefined)).orderBy(asc(docComments.createdAt)).limit(PER_DOC_LIMIT); // D1: two short fixed lists (threads, statuses)
 }
 
 /** Any share link of this doc with comments on (so the panel can show the public tab). */

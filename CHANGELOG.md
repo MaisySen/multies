@@ -6,6 +6,15 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## R103 Docs plus: link library, saved pages, doc comments, spell check (2026-11-01)
+### Added
+- Docs, Link library: keep the team's links with tags, search and a tag filter; remove asks first and keeps any saved doc.
+- Save a page: a public web page becomes a clean doc in Web clips (or a page you pick) with a link back to the source, and downloads as a PDF. Private and internal addresses are refused, with a size and time limit.
+- Doc comments: a Comments panel on every doc for the team and project guests, with mentions and notifications; a Comments switch per shared link lets visitors comment, and each visitor comment waits for review by an owner, an admin or the doc's creator.
+- Spelling: a Check spelling button in docs and mail compose (20 languages, browser spell check with a language choice).
+### Notes
+- Behind DOCS_PLUS_R103 (on in staging). Migration 0125 adds link_library, doc_comments and share_links.comments.
+
 ## R118 Social P2b: inbox, account health, analytics (2026-10-31)
 ### Added
 - Social, Inbox: comments, messages and mentions from Facebook Pages, Instagram and Reddit in one list; assign, mark done, internal notes, saved replies, link to a contact, make a task; the 24 hour reply window on Meta messages; a bell alert for new items.

@@ -97,9 +97,9 @@ describe("CHAT_CHANNELS in the web app", () => {
     // Every other page stays in the menu whatever the switch says (Tools has its own switch, Tools P1).
     // Tools P2 entries also need their own feature on (toolFeatures), so they are left out here.
     const base = navCommands.filter((c) => !c.toolFeature);
-    expect(base.filter((c) => !flagOn(c, {})).map((c) => c.to)).toEqual(["/app/docs/help-center", "/app/tools", "/app/tools/convert", "/app/settings/channels"]); // R122: Help center rides HELP_CENTER // R78: Convert hub rides the Tools switch
-    expect(base.filter((c) => !flagOn(c, { tools: true })).map((c) => c.to)).toEqual(["/app/docs/help-center", "/app/settings/channels"]);
-    expect(base.filter((c) => !flagOn(c, { tools: true, helpCenter: true })).map((c) => c.to)).toEqual(["/app/settings/channels"]);
-    expect(navCommands.filter((c) => !flagOn(c, { tools: true, helpCenter: true, toolFeatures: [...TOOL_FEATURES] })).map((c) => c.to)).toEqual(["/app/settings/channels"]);
+    expect(base.filter((c) => !flagOn(c, {})).map((c) => c.to)).toEqual(["/app/docs/help-center", "/app/docs/links", "/app/docs/links?save=page", "/app/tools", "/app/tools/convert", "/app/settings/channels"]); // R103: Link library rides DOCS_PLUS_R103 // R122: Help center rides HELP_CENTER // R78: Convert hub rides the Tools switch
+    expect(base.filter((c) => !flagOn(c, { tools: true })).map((c) => c.to)).toEqual(["/app/docs/help-center", "/app/docs/links", "/app/docs/links?save=page", "/app/settings/channels"]);
+    expect(base.filter((c) => !flagOn(c, { tools: true, helpCenter: true, docsPlus: true })).map((c) => c.to)).toEqual(["/app/settings/channels"]);
+    expect(navCommands.filter((c) => !flagOn(c, { tools: true, helpCenter: true, docsPlus: true, toolFeatures: [...TOOL_FEATURES] })).map((c) => c.to)).toEqual(["/app/settings/channels"]);
   });
 });
