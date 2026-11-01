@@ -58,6 +58,7 @@ import { mailRoutes } from "./routes/mail";
 import { inboundKeyRoutes, inboundWebhookRoutes } from "./routes/inbound";
 import { deliveryRoutes } from "./routes/deliveries";
 import { dashboardRoutes } from "./routes/dashboard";
+import { homeWidgetsRoutes } from "./routes/home-widgets-r131"; // R131
 import { PLANS } from "@/shared/plans";
 import { migrationDriver, pendingMigrations } from "./db";
 import { inviteRoutes, teamRoutes } from "./routes/team";
@@ -454,6 +455,7 @@ export function createApp(deps: Deps) {
       expenses: deps.config.invoicesEnabled && deps.config.expensesR106, // R106
       tablesR125: !!deps.config.tablesR125, // R125: tables (vv8k gets 404 from the API and no entry points)
       formsPlus: !!deps.config.formsPlus, // R93: chat forms, webhook, embed, feedback boards, calls for submissions
+      homeWidgetsR131: !!deps.config.homeWidgetsR131, // R131: Home widgets
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
       chatChannels: deps.config.channels.enabled,
       // R111: mail archive and retention (MAIL_ARCHIVE_R111=on): the Archive and retention pane and Audit log filters.
@@ -572,6 +574,7 @@ export function createApp(deps: Deps) {
   app.route("/api/mail", mailRoutes());
   app.route("/api/deliveries", deliveryRoutes());
   app.route("/api/dashboard", dashboardRoutes());
+  if (deps.config.homeWidgetsR131) app.route("/api/home-widgets", homeWidgetsRoutes()); // R131: Home widgets layout
   app.route("/api/team", teamRoutes());
   app.route("/api/invites", inviteRoutes());
   app.route("/api/billing", billingRoutes());

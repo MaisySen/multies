@@ -4409,3 +4409,11 @@ export const courseProgress = sqliteTable("course_progress", {
   passed: integer("passed", { mode: "boolean" }).notNull().default(false),
   updatedAt: ts("updated_at"),
 }, (t) => [primaryKey({ columns: [t.learnerId, t.lessonId] })]);
+
+/** R131: a person's Home widgets layout (user_id '' = the workspace default an admin set). JSON in layout. */
+export const homeLayouts = sqliteTable("home_layouts", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  layout: text("layout").notNull(),
+  updatedAt: ts("updated_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.userId] })]);

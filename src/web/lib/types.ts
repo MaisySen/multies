@@ -64,6 +64,7 @@ export interface PublicConfig {
   officeEditR113?: boolean; // R113
   /** R93: chat style forms, webhook, embed bubble, feedback boards, calls for submissions (FORMS_PLUS_R93). */
   formsPlus?: boolean;
+  homeWidgetsR131?: boolean; // R131
   /** R59: chat channels (WhatsApp, Messenger, Instagram) in the shared inbox (CHAT_CHANNELS). Off unless set. */
   chatChannels?: boolean;
   /** R111: mail archive and retention (MAIL_ARCHIVE_R111): the Archive and retention pane and Audit log filters. */

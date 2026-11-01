@@ -1601,5 +1601,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX IF NOT EXISTS `course_learners_due_idx` ON `course_learners` (`due_at`);",
       "CREATE TABLE IF NOT EXISTS `course_progress` (\n\t`learner_id` text NOT NULL,\n\t`lesson_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`done_at` integer,\n\t`score` integer,\n\t`best_score` integer,\n\t`attempts` integer DEFAULT 0 NOT NULL,\n\t`attempt_day` text,\n\t`day_attempts` integer DEFAULT 0 NOT NULL,\n\t`passed` integer DEFAULT false NOT NULL,\n\t`updated_at` integer,\n\tPRIMARY KEY(`learner_id`, `lesson_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);"
     ]
+  },
+  {
+    "name": "0145_home_widgets_r131",
+    "statements": [
+      "-- R131 (Nov 2): Home widgets. One layout per person per workspace, plus the workspace default (user_id ''). Additive only.\nCREATE TABLE IF NOT EXISTS `home_layouts` (\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`layout` text NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `user_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);"
+    ]
   }
 ];

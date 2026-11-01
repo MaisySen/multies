@@ -2,7 +2,8 @@ import { Link } from "react-router";
 import { displayFirstName } from "@/shared/display-name";
 import { IconAgent, IconArrowRight, IconCheck, IconGlobe, IconInbox, IconMention, IconSend, IconTeam, IconUserRound } from "@/web/components/ui/icon";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { qk, useDashboard, useMe } from "@/web/lib/queries";
+import { qk, useConfig, useDashboard, useMe } from "@/web/lib/queries";
+import { lazy, Suspense } from "react";
 import { api } from "@/web/lib/api";
 import { Card, Meter, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { ButtonLink } from "@/web/components/ui/button";
@@ -15,13 +16,22 @@ import { FreeAddressCard } from "@/web/components/free-address";
 import { useProjects } from "./work/data"; // R40 (MB-214)
 import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
 
+/** R131: with Home widgets on, Overview becomes the widget Home and today's overview lives on as one of its widgets. */
+const HomeWidgetsPage = lazy(() => import("./home-widgets-r131").then((m) => ({ default: m.HomeWidgetsPage })));
+
 export function DashboardPage() {
+  const config = useConfig();
+  if (config.data?.homeWidgetsR131) return <Suspense fallback={<OverviewClassic />}><HomeWidgetsPage overview={<OverviewClassic embedded />} /></Suspense>;
+  return <OverviewClassic />;
+}
+
+function OverviewClassic({ embedded }: { embedded?: boolean }) {
   const me = useMe();
   const { data, isPending, error, refetch } = useDashboard();
   const first = displayFirstName(me.data?.user.name, me.data?.user.email); // R41 (MB-224)
   return (
     <>
-      <PageHeader title="Overview" description={`Good ${dayPart()}${first ? `, ${first}` : ""}. Here's how mail is flowing across your workspace.`} actions={<ButtonLink to="/app/mail" variant="secondary" size="sm"><IconInbox className="h-4 w-4" />Open mail</ButtonLink>} />
+      {!embedded && <PageHeader title="Overview" description={`Good ${dayPart()}${first ? `, ${first}` : ""}. Here's how mail is flowing across your workspace.`} actions={<ButtonLink to="/app/mail" variant="secondary" size="sm"><IconInbox className="h-4 w-4" />Open mail</ButtonLink>} />}
       {error && !data && <LoadError onRetry={() => refetch()} className="rounded-xl border border-line bg-surface" />}{/* T1G (T1-8) */}
       {isPending ? <DashboardSkeleton /> : data && (
         <div className="space-y-6">
