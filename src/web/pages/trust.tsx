@@ -58,7 +58,8 @@ function Steps({ items, numbered }: { items: Step[]; numbered?: boolean }) {
 /** R60: the residency table. A real table so screen readers and text readers get rows and columns. */
 function WhereTable() {
   return (
-    <div className="-mx-1 overflow-x-auto">
+    // R100b: the table scrolls sideways at phone width, so its wrapper takes keyboard focus (axe scrollable-region-focusable).
+    <div className="-mx-1 overflow-x-auto rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50" tabIndex={0} role="region" aria-label="Where your data is kept" data-testid="where-table-scroll">
       <table className="w-full min-w-[520px] text-left text-[13px]" data-testid="where-table">
         <caption className="sr-only">Where your data lives</caption>
         <thead><tr className="border-b border-line text-subtle"><th scope="col" className="py-2 pr-3 font-medium">Data</th><th scope="col" className="py-2 pr-3 font-medium">Where</th><th scope="col" className="py-2 font-medium">Notes</th></tr></thead>
@@ -116,7 +117,7 @@ export function TrustPage() {
       <div className="mt-8 space-y-5">
         <Section id="where" icon={IconDatabase} title="Where your data lives" intro={RESIDENCY_ANSWER}>
           <WhereTable />
-          <p className="mt-4 text-[13px] text-subtle">Checked {RESIDENCY_CHECKED}. Also as Markdown: <a href="/trust.md" className="text-brand-hover hover:underline">/trust.md</a>.</p>
+          <p className="mt-4 text-[13px] text-subtle">Checked {RESIDENCY_CHECKED}. Also as Markdown: <a href="/trust.md" className="text-brand-hover underline underline-offset-2 hover:text-fg">/trust.md</a>.</p>
         </Section>
 
         <Section id="residency" icon={IconGlobe} title="Jurisdiction and data residency">
@@ -129,7 +130,7 @@ export function TrustPage() {
 
         <Section id="less-admin" icon={IconCheck} title="Less admin, not more" intro="What Multies can take over, and where it stops.">
           <Steps items={LESS_ADMIN} />
-          <p className="mt-4 text-[13px] text-subtle">Moving tasks over? See <Link to="/switch" className="text-brand-hover hover:underline">bring your work over</Link>.</p>
+          <p className="mt-4 text-[13px] text-subtle">Moving tasks over? See <Link to="/switch" className="text-brand-hover underline underline-offset-2 hover:text-fg">bring your work over</Link>.</p>
         </Section>
 
         <Section id="connections" icon={IconPlug} title="Connections" intro="What connects today, and what is planned. Planned means not available yet.">
@@ -144,7 +145,7 @@ export function TrustPage() {
               </li>
             ))}
           </ul>
-          <p className="mt-4 text-[13px] text-subtle">Developer details: <a href="/docs/api.md" className="text-brand-hover hover:underline">REST API and webhooks</a>.</p>
+          <p className="mt-4 text-[13px] text-subtle">Developer details: <a href="/docs/api.md" className="text-brand-hover underline underline-offset-2 hover:text-fg">REST API and webhooks</a>.</p>
         </Section>
 
         <Section id="subprocessors" icon={IconTeam} title="Sub processors" intro="Only the services Multies actually calls, named by what they do. Optional ones run only when you use that feature. Our Data processing agreement names each one.">
@@ -161,7 +162,7 @@ export function TrustPage() {
               </li>
             ))}
           </ul>
-          <p className="mt-4 text-[13px] text-subtle">The <Link to="/dpa" className="text-brand-hover hover:underline">data processing agreement</Link> sets out how we add or change sub processors.</p>
+          <p className="mt-4 text-[13px] text-subtle">The <Link to="/dpa" className="text-brand-hover underline underline-offset-2 hover:text-fg">data processing agreement</Link> sets out how we add or change sub processors.</p>
         </Section>
 
         <Section id="backups" icon={IconDatabaseBackup} title="Backups"><Facts items={BACKUPS} /></Section>
@@ -181,7 +182,7 @@ export function TrustPage() {
               ))}
             </ol>
           )}
-          <p className="mt-4 text-[13px] text-subtle">Live status is on the <Link to="/status" className="text-brand-hover hover:underline">system status</Link> page.</p>
+          <p className="mt-4 text-[13px] text-subtle">Live status is on the <Link to="/status" className="text-brand-hover underline underline-offset-2 hover:text-fg">system status</Link> page.</p>
         </Section>
 
         <Section id="contact" icon={IconShieldCheck} title="Report a problem" intro="Found a vulnerability or a privacy issue? Tell us and we will reply.">
@@ -189,7 +190,7 @@ export function TrustPage() {
             <IconMail className="h-4 w-4" aria-hidden />{SECURITY_EMAIL}
           </a>
           <p className="mt-4 text-[13px] text-subtle">
-            Machine readable: <a href="/.well-known/security.txt" className="text-brand-hover hover:underline">security.txt</a>. How we handle personal information: <Link to="/privacy" className="text-brand-hover hover:underline">privacy policy</Link>.
+            Machine readable: <a href="/.well-known/security.txt" className="text-brand-hover underline underline-offset-2 hover:text-fg">security.txt</a>. How we handle personal information: <Link to="/privacy" className="text-brand-hover underline underline-offset-2 hover:text-fg">privacy policy</Link>.
           </p>
         </Section>
       </div>
