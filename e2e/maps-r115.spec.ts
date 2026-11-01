@@ -21,6 +21,7 @@ async function demo(page: Page) {
   await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
 }
 async function axe(page: Page, label: string) {
+  await page.waitForTimeout(400); // let colour transitions (theme switch) settle so axe reads the final colours
   const { violations } = await new AxeBuilder({ page }).exclude(".maplibregl-canvas").analyze();
   const bad = violations.filter((v) => v.impact === "serious" || v.impact === "critical");
   expect(bad.map((v) => `${label}: ${v.id} ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(", ")}`)).toEqual([]);
