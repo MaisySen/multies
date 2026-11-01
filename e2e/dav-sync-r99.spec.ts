@@ -137,7 +137,7 @@ test("error state with retry, and no access with the account password", async ({
   await page.route("**/api/dav/passwords", (route) => (fail && route.request().method() === "GET" ? route.fulfill({ status: 500, body: "{}" }) : route.fallback()));
   await page.goto("/app/settings/calendar");
   const card = page.locator("#calendar-sync");
-  await expect(card.getByText("Sync settings did not load")).toBeVisible({ timeout: 15_000 });
+  await expect(card.getByText("Couldn't load this")).toBeVisible({ timeout: 15_000 });
   await shot(page, "r99-error-390-light");
   fail = false;
   await card.getByRole("button", { name: "Try again" }).click();

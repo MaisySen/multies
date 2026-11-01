@@ -77,11 +77,11 @@ test("timeline error shows plain words and Try again works", async ({ page }) =>
   await page.route("**/api/crm/timeline**", (r) => (fail ? r.fulfill({ status: 500, body: "{}" }) : r.continue()));
   await page.goto("/app/contacts");
   await page.getByTestId("contact-list").locator("a").first().click();
-  await expect(page.getByText("The timeline did not load", { exact: false })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("load-error-inline")).toBeVisible({ timeout: 20_000 });
   fail = false;
   await page.getByRole("button", { name: "Try again" }).click();
   await expect(page.getByTestId("crm-composer")).toBeVisible();
-  await expect(page.getByText("The timeline did not load", { exact: false })).toHaveCount(0);
+  await expect(page.getByTestId("load-error-inline")).toHaveCount(0);
 });
 
 test("company by hand: its own page, timeline and a contact joined to it", async ({ page }) => {
