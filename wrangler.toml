@@ -148,7 +148,7 @@ TOOLS_ENABLED = "true"
 # features (ask, translate, extract, expenses, contracts) and the attachment index (index, folders).
 # R94: CRM timeline. On after the verifier PASS on staging d006dfd83822 (31 Oct 19:27 UTC).
 CRM_TIMELINE = "on"
-TOOLS_FEATURES = "editor,forms,compare,ocr_langs,scan,protect,stamps,convert_plus,excel,autoredact,batch,share,rules,workflows,templates,api,file_requests,secrets,links,tools_c,esign"
+TOOLS_FEATURES = "editor,forms,compare,ocr_langs,scan,protect,stamps,convert_plus,excel,autoredact,batch,share,rules,workflows,templates,api,file_requests,secrets,links,tools_c,esign,tools_c2"
 # R107: e-sign v2 (email code, signing record, seal, templates, bulk send). On in prod after the verifier pass; "off" turns new requests back to the old flow.
 # esign itself left that list on 31 Oct (owner unheld e-sign; R107 adds it to TOOLS_FEATURES above after the verifier pass).
 ESIGN_V2 = "on"
