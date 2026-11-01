@@ -90,7 +90,9 @@ export function driveRoutes() {
     .patch("/items/:id", async (c) => c.json({ item: await updateItem(c.var.deps, actor(c), c.req.param("id"), await parseBody(c, PatchBody)) }))
     .put("/items/:id/content", async (c) => {
       const bytes = await readBody(c);
-      return c.json(await addVersion(c.var.deps, actor(c), c.req.param("id"), { bytes, contentType: fileType(c) }));
+      // R113: ?base=<version id> refuses a stale save (409); ?via=editor notes the version as saved in the editor.
+      const via = c.req.query("via");
+      return c.json(await addVersion(c.var.deps, actor(c), c.req.param("id"), { bytes, contentType: fileType(c), base: c.req.query("base") || null, note: via === "editor" ? "Saved in the editor" : null }));
     })
     .get("/items/:id/content", async (c) => {
       const f = await openContent(c.var.deps, actor(c), c.req.param("id"), c.req.query("v") || undefined);

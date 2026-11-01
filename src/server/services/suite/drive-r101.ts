@@ -361,16 +361,18 @@ export async function uploadFile(deps: Deps, a: Actor, body: { space: DriveSpace
   return (await getDetail(deps, a, id)).item;
 }
 
-export async function addVersion(deps: Deps, a: Actor, id: string, body: { contentType?: string | null; bytes: Uint8Array; name?: string }) {
+export async function addVersion(deps: Deps, a: Actor, id: string, body: { contentType?: string | null; bytes: Uint8Array; name?: string; base?: string | null; note?: string | null }) {
   const db = deps.db;
   const { item, acc } = await loadItem(db, a, id);
   if (item.kind !== "file") throw notFound("File");
   if (!acc.edit) throw new HttpError(403, "forbidden", "You can only view this file.");
+  // R113: a save from the editor names the version it started from; a newer one means someone else saved meanwhile.
+  if (body.base && body.base !== item.versionId) throw new HttpError(409, "version_conflict", "Someone saved a newer version of this file while you were editing.");
   checkSize(body.bytes.length);
   await checkQuota(deps, a.orgId, body.bytes.length);
   const contentType = typeOf(body.contentType ?? item.contentType);
   const number = Number(item.versions) + 1;
-  const vid = await writeVersion(deps, a, item.id, number, item.name, contentType, body.bytes, null);
+  const vid = await writeVersion(deps, a, item.id, number, item.name, contentType, body.bytes, body.note ?? null);
   await db.update(driveItems).set({ versionId: vid, versions: number, sizeBytes: body.bytes.length, contentType, updatedBy: a.userId, updatedAt: deps.now().getTime() }).where(eq(driveItems.id, item.id));
   await pruneVersions(deps, a.orgId, item.id);
   return getDetail(deps, a, id);

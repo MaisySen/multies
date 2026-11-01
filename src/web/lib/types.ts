@@ -55,6 +55,7 @@ export interface PublicConfig {
   contractsR108?: boolean;
   /** R92: resources, time polls and events in Work > Booking page (BOOKING_PLUS). */
   bookingPlus?: boolean;
+  officeEditR113?: boolean; // R113
   /** R59: chat channels (WhatsApp, Messenger, Instagram) in the shared inbox (CHAT_CHANNELS). Off unless set. */
   chatChannels?: boolean;
   /** R111: mail archive and retention (MAIL_ARCHIVE_R111): the Archive and retention pane and Audit log filters. */

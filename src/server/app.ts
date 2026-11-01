@@ -440,6 +440,7 @@ export function createApp(deps: Deps) {
       askR110: !!deps.config.askR110,
       invoices: deps.config.invoicesEnabled, // R105
       bookingPlus: deps.config.bookingPlus, // R92: resources, time polls, events
+      officeEditR113: !!deps.config.officeEditR113, // R113: office files in the browser
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
       chatChannels: deps.config.channels.enabled,
       // R111: mail archive and retention (MAIL_ARCHIVE_R111=on): the Archive and retention pane and Audit log filters.

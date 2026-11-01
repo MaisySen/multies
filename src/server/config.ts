@@ -32,6 +32,8 @@ export interface AppConfig {
   crmTimeline?: boolean;
   /** R108: CONTRACTS_R108 (contract templates, guided interview, clause library, reminders). Off unless set. */
   contractsR108?: boolean;
+  /** R113: OFFICE_EDIT_R113 (open DOCX, XLSX, CSV in the browser editors and PPTX as slides; saves are new Files versions). Off unless set. */
+  officeEditR113?: boolean;
   /** R91: DASHBOARDS_PLUS (public links, emailed reports, question builder, alerts, data sources). Off unless set. */
   dashboardsPlus?: boolean;
   dashboardsPlusTestHook?: boolean;
@@ -319,6 +321,7 @@ const EnvSchema = z.object({
   /** R91: dashboards plus (public links, emailed reports, question builder, alerts, data sources). */
   DASHBOARDS_PLUS: z.string().optional(),
   CONTRACTS_R108: z.string().optional(),
+  OFFICE_EDIT_R113: z.string().optional(),
   CLIENT_PORTAL: z.string().optional(),
   MAIL_ARCHIVE_R111: z.string().optional(),
   INVOICES_ENABLED: z.string().optional(), // R105
@@ -659,6 +662,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     crmTimeline: ["1", "true", "on"].includes(String(env.CRM_TIMELINE ?? "").toLowerCase()),
     dashboardsPlus: ["1", "true", "on", "test"].includes(String(env.DASHBOARDS_PLUS ?? "").toLowerCase()),
     contractsR108: ["1", "true", "on"].includes(String(env.CONTRACTS_R108 ?? "").toLowerCase()),
+    officeEditR113: ["1", "true", "on"].includes(String(env.OFFICE_EDIT_R113 ?? "").toLowerCase()),
     // R91: DASHBOARDS_PLUS=test (e2e only) also opens POST /api/dashboards-plus/test/run, which runs the due reports, alerts and refreshes now.
     dashboardsPlusTestHook: String(env.DASHBOARDS_PLUS ?? "").toLowerCase() === "test",
     clientPortal: ["on", "true", "1"].includes(String(env.CLIENT_PORTAL ?? "").toLowerCase()),
