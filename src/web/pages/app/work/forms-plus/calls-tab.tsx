@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
+import { LoadError } from "@/web/components/load-error-t1g";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Textarea } from "@/web/components/ui/input";
 import { Badge, Card, EmptyState, Skeleton, Switch } from "@/web/components/ui/misc";
@@ -90,7 +91,7 @@ export function CallDialog({ form, onClose }: { form: { id: string; name: string
   const d = q.data;
   return (
     <Dialog open onClose={onClose} title={`${form.name}: entries`} className="max-w-3xl" footer={<><a href={`/api/forms-plus/forms/${form.id}/entries.csv`} className="mr-auto inline-flex h-9 items-center rounded-lg px-3 text-[13px] text-muted hover:bg-hover hover:text-fg">Download CSV</a><Button variant="ghost" onClick={onClose}>Close</Button></>}>
-      {q.isPending ? <Skeleton className="h-64" /> : q.isError ? <Card className="p-6 text-center text-[13px]">Couldn't load the entries. <Button size="sm" variant="ghost" onClick={() => void q.refetch()}>Try again</Button></Card> : (
+      {q.isPending ? <Skeleton className="h-64" /> : q.isError ? <Card><LoadError onRetry={() => q.refetch()} compact /></Card> : (
         <div className="space-y-4">
           <SetupEditor formId={form.id} setup={d!.setup} onSaved={refresh} />
           <div className="space-y-2 rounded-lg border border-line p-3">
@@ -167,7 +168,7 @@ export function ReviewQueueTab() {
   const q = useQuery({ queryKey: ["fp-reviews"], queryFn: () => api.get<{ reviews: MyReview[] }>("/forms-plus/reviews") });
   const [open, setOpen] = useState<MyReview | null>(null);
   if (q.isPending) return <Skeleton className="h-40" />;
-  if (q.isError) return <Card className="p-6 text-center text-[13px]">Couldn't load your reviews. <Button size="sm" variant="ghost" onClick={() => void q.refetch()}>Try again</Button></Card>;
+  if (q.isError) return <Card><LoadError onRetry={() => q.refetch()} compact /></Card>;
   const list = q.data!.reviews;
   if (!list.length) return <Card><EmptyState icon={<IconUserCheck />} title="Nothing to review" body="When an admin assigns you entries from a call for submissions, they show up here." /></Card>;
   return (

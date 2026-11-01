@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { api, errorMessage } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
+import { LoadError, LoadErrorInline, LoadFailure } from "@/web/components/load-error-t1g";
 import { Input, Select, Textarea } from "@/web/components/ui/input";
 import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton, StatTile, Switch } from "@/web/components/ui/misc";
 import { Dialog } from "@/web/components/ui/dialog";
@@ -55,7 +56,7 @@ export function SitesPage() {
   const tab = (TABS.find(([k]) => k === params.get("tab"))?.[0] ?? "pages") as Tab;
   const [newOpen, setNewOpen] = useState(params.get("new") === "1");
   if (q.isLoading) return <div className="space-y-3" aria-busy="true"><Skeleton className="h-8 w-48" /><Skeleton className="h-24 w-full" /><Skeleton className="h-14 w-full" /><Skeleton className="h-14 w-full" /></div>;
-  if (q.isError || !q.data) return <Card className="p-6"><p className="font-medium">Couldn't load Sites.</p><p className="mt-1 text-sm text-muted">{errorMessage(q.error)}</p><Button className="mt-3" variant="outline" onClick={() => q.refetch()}>Try again</Button></Card>;
+  if (q.isError || !q.data) return <Card><LoadFailure error={q.error} onRetry={() => q.refetch()} block className="p-6" /></Card>;
   const { site } = q.data;
   if (!site) return <StartSite d={q.data} />;
   return (
@@ -116,7 +117,7 @@ function PagesTab({ site, onNew }: { site: SiteInfo; onNew: () => void }) {
   const q = usePages(true);
   const nav = useNavigate();
   if (q.isLoading) return <div className="space-y-2" aria-busy="true">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}</div>;
-  if (q.isError) return <Card className="p-6"><p className="font-medium">Couldn't load the pages.</p><Button className="mt-3" variant="outline" onClick={() => q.refetch()}>Try again</Button></Card>;
+  if (q.isError) return <Card><LoadError onRetry={() => q.refetch()} /></Card>;
   const pages = q.data?.pages ?? [];
   if (!pages.length) return <EmptyState title={site.canEdit ? "No pages yet" : "Nothing to see yet"} body={site.canEdit ? "Add your first page." : "Published pages and drafts shared with members show here."} action={site.canEdit ? <Button onClick={onNew}><IconPlus className="h-4 w-4" aria-hidden />New page</Button> : undefined} />;
   return (
@@ -174,7 +175,7 @@ function CommentsTab() {
           </Button>
         ))}
       </div>
-      {q.isLoading ? <Skeleton className="h-20 w-full" /> : q.isError ? <Card className="p-6"><p>Couldn't load comments.</p><Button className="mt-3" variant="outline" onClick={() => q.refetch()}>Try again</Button></Card> : !rows.length ? (
+      {q.isLoading ? <Skeleton className="h-20 w-full" /> : q.isError ? <Card className="p-6"><LoadErrorInline onRetry={() => q.refetch()} /></Card> : !rows.length ? (
         <EmptyState title={status === "pending" ? "Nothing waiting" : "No comments here"} body={status === "pending" ? "New comments from visitors wait here until you approve them." : "Comments you move here show in this list."} />
       ) : (
         <Card className="divide-y divide-line p-0">
@@ -200,7 +201,7 @@ function StatsTab() {
   const [days, setDays] = useState(30);
   const q = useQuery({ queryKey: [...KEY, "stats", days], queryFn: () => api.get<StatsOut>(`/sites/stats?days=${days}`) });
   if (q.isLoading) return <Skeleton className="h-40 w-full" />;
-  if (q.isError || !q.data) return <Card className="p-6"><p>Couldn't load stats.</p><Button className="mt-3" variant="outline" onClick={() => q.refetch()}>Try again</Button></Card>;
+  if (q.isError || !q.data) return <Card className="p-6"><LoadErrorInline onRetry={() => q.refetch()} /></Card>;
   const s = q.data;
   const max = Math.max(1, ...s.days.map((d) => d.views));
   return (
@@ -281,7 +282,8 @@ export function SiteEditorPage() {
   if (q.isLoading) return <div className="space-y-3" aria-busy="true"><Skeleton className="h-10 w-64" /><div className="grid gap-4 lg:grid-cols-[360px_1fr]"><Skeleton className="h-96" /><Skeleton className="h-96" /></div></div>;
   if (q.isError || !q.data) {
     const msg = errorMessage(q.error);
-    return <Card className="p-6"><p className="font-medium">{/draft|access/i.test(msg) ? "You can't open this page" : "Couldn't load this page"}</p><p className="mt-1 text-sm text-muted">{msg}</p><div className="mt-3 flex gap-2"><Link className="text-sm underline" to="/app/docs/sites">Back to Sites</Link>{!/draft|access/i.test(msg) && <Button variant="outline" size="sm" onClick={() => q.refetch()}>Try again</Button>}</div></Card>;
+    if (/draft|access/i.test(msg)) return <Card className="p-6"><p className="font-medium">You can't open this page</p><p className="mt-1 text-sm text-muted">{msg}</p><div className="mt-3"><Link className="text-sm underline" to="/app/docs/sites">Back to Sites</Link></div></Card>;
+    return <Card><LoadFailure error={q.error} onRetry={() => q.refetch()} block /><div className="pb-6 text-center"><Link className="text-sm underline" to="/app/docs/sites">Back to Sites</Link></div></Card>;
   }
   return <Editor key={q.data.page.id + q.data.page.updatedAt} page={q.data.page} site={q.data.site} brandColor={q.data.look?.brandColor ?? null} />;
 }

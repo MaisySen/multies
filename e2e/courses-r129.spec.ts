@@ -172,9 +172,9 @@ test.describe("R129 courses", () => {
     const id = await seeded(page, "Error course");
     await page.route(`**/api/courses/${id}`, (r) => r.request().method() === "GET" ? r.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: { code: "boom", message: "Server error" } }) }) : r.continue());
     await page.goto(`/app/docs/${id}`);
-    await expect(page.getByText("Couldn't load this course")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("load-error")).toBeVisible({ timeout: 20_000 });
     await page.unroute(`**/api/courses/${id}`);
-    await page.getByRole("button", { name: "Try again" }).click();
+    await page.getByTestId("load-error-retry").click();
     await expect(page.getByTestId("course-page")).toBeVisible();
     await axe(page, "after retry");
   });

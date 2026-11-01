@@ -9,6 +9,7 @@ import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { timeAgo } from "@/web/lib/format";
 import { Button } from "@/web/components/ui/button";
+import { LoadError } from "@/web/components/load-error-t1g";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
@@ -124,7 +125,7 @@ export function PublicBoardPage() {
             {note && <p role="status" className="rounded-lg bg-fill px-3 py-2 text-[13px]">{note}</p>}
             <Honeypot {...shield.honeypot} />
             {view === "roadmap" ? (
-              road.isPending ? <Skeleton className="h-48" /> : road.isError ? <Card className="p-6 text-center text-[13px]">Couldn't load the roadmap. <Button size="sm" variant="ghost" onClick={() => void road.refetch()}>Try again</Button></Card> : (
+              road.isPending ? <Skeleton className="h-48" /> : road.isError ? <Card><LoadError onRetry={() => road.refetch()} compact /></Card> : (
                 <div className="grid gap-3 md:grid-cols-3" data-testid="pub-roadmap">
                   {ROADMAP_COLUMNS.map((col) => (
                     <section key={col} className="rounded-xl bg-fill/60 p-2.5" aria-label={STATUS_LABELS[col]}>

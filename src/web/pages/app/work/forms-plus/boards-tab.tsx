@@ -9,6 +9,7 @@ import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { timeAgo } from "@/web/lib/format";
 import { Button } from "@/web/components/ui/button";
+import { LoadError } from "@/web/components/load-error-t1g";
 import { Dialog } from "@/web/components/ui/dialog";
 import { useDialogs } from "@/web/components/ui/confirm";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
@@ -127,7 +128,7 @@ function BoardView({ board, onBack }: { board: BoardRow; onBack: () => void }) {
         </form>
       )}
       {view === "roadmap" ? (
-        road.isPending ? <Skeleton className="h-48" /> : road.isError ? <Card className="p-6 text-center text-[13px]">Couldn't load the roadmap. <Button size="sm" variant="ghost" onClick={() => void road.refetch()}>Try again</Button></Card> : (
+        road.isPending ? <Skeleton className="h-48" /> : road.isError ? <Card><LoadError onRetry={() => road.refetch()} compact /></Card> : (
           <div className="grid gap-3 md:grid-cols-3" data-testid="roadmap">
             {ROADMAP_COLUMNS.map((col) => (
               <section key={col} className="rounded-xl bg-fill/60 p-2.5" aria-label={STATUS_LABELS[col]}>
@@ -141,7 +142,7 @@ function BoardView({ board, onBack }: { board: BoardRow; onBack: () => void }) {
           </div>
         )
       ) : data.isPending ? <Skeleton className="h-48" /> : data.isError ? (
-        <Card className="p-6 text-center text-[13px]">Couldn't load the posts. <Button size="sm" variant="ghost" onClick={() => void data.refetch()}>Try again</Button></Card>
+        <Card><LoadError onRetry={() => data.refetch()} compact /></Card>
       ) : !data.data!.posts.length ? (
         <Card><EmptyState icon={<IconMegaphone />} title={q || status ? "No posts match" : "No posts yet"} body={q || status ? "Try another search or status." : "Add the first idea above, or share the board link so people can post and vote."} /></Card>
       ) : (
@@ -191,7 +192,7 @@ export function BoardsTab() {
     <div className="space-y-3">
       {q.data?.canCreate && <div className="flex justify-end"><Button onClick={() => setMaking(true)} data-testid="new-board"><IconPlus className="h-4 w-4" />New board</Button></div>}
       {q.isPending ? <Skeleton className="h-40" /> : q.isError ? (
-        <Card className="p-6 text-center text-[13px]">Couldn't load your boards. <Button size="sm" variant="ghost" onClick={() => void q.refetch()}>Try again</Button></Card>
+        <Card><LoadError onRetry={() => q.refetch()} compact /></Card>
       ) : !q.data!.boards.length ? (
         <Card><EmptyState icon={<IconMegaphone />} title="No feedback boards yet" body="Collect ideas from customers and your team, let people vote, and show what is planned on a public roadmap."
           action={q.data!.canCreate ? <Button onClick={() => setMaking(true)}>New board</Button> : undefined} /></Card>

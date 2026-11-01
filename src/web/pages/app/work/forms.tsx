@@ -12,6 +12,7 @@ import { IconArrowDown, IconArrowUp, IconClipboardList, IconExternalLink, IconPl
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
+import { LoadError } from "@/web/components/load-error-t1g";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { Card, CopyButton, EmptyState, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
@@ -112,7 +113,7 @@ function FormsList({ plus = false, kind = "forms" }: { plus?: boolean; kind?: "f
         </div>
       )}
       {q.isPending ? <Skeleton className="h-40" /> : q.isError ? (
-        <Card className="p-6 text-center text-[13px]">Couldn't load your forms. <Button size="sm" variant="ghost" onClick={() => void q.refetch()}>Try again</Button></Card>
+        <Card><LoadError onRetry={() => q.refetch()} compact /></Card>
       ) : !list.length ? (
         calls
           ? <Card><EmptyState icon={<IconClipboardList />} title="No calls yet" body="Take speaker proposals, grant applications or award entries, then score them with your reviewers." action={<Button onClick={newCall}>Start a call</Button>} /></Card>

@@ -12,6 +12,7 @@ import { IconArrowDown, IconArrowLeft, IconArrowUp, IconBook, IconCheckCircle, I
 import { api, ApiError } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
+import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
 import { Dialog } from "@/web/components/ui/dialog";
 import { useDialogs } from "@/web/components/ui/confirm";
 import { DateInput, Field, Input, Select, Textarea } from "@/web/components/ui/input";
@@ -118,8 +119,9 @@ export function CourseDoc({ docId }: { docId: string }) {
   if (q.isPending) return <div className="mx-auto max-w-5xl space-y-3" aria-busy="true"><Skeleton className="h-9 w-1/2" /><Skeleton className="h-10 w-2/3" /><Skeleton className="h-64" /></div>;
   if (q.error) {
     const draft = q.error instanceof ApiError && q.error.status === 403;
-    return <EmptyState icon={<IconBook />} title={draft ? "This course is not published yet" : "Couldn't load this course"} body={draft ? "You can take it once its editor publishes it." : "Check your connection and try again."}
-      action={draft ? <Button onClick={() => navigate("/app/docs/learning")}>My learning</Button> : <Button onClick={() => void q.refetch()}>Try again</Button>} />;
+    if (!draft) return <LoadError onRetry={() => q.refetch()} />;
+    return <EmptyState icon={<IconBook />} title="This course is not published yet" body="You can take it once its editor publishes it."
+      action={<Button onClick={() => navigate("/app/docs/learning")}>My learning</Button>} />;
   }
   const c = d!.course;
   return (
@@ -264,7 +266,7 @@ function PageLesson({ course, lesson }: { course: Course; lesson: Lesson }) {
   const base = course.guest ? "/guest" : "";
   const q = useQuery({ queryKey: ["course-page", course.id, lesson.id], queryFn: () => api.get<{ page: { id: string; title: string; text: string } | null }>(`${base}/courses/${course.id}/lessons/${lesson.id}/page`) });
   if (q.isPending) return <div className="space-y-2"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-4 w-2/3" /><Skeleton className="h-4 w-1/2" /></div>;
-  if (q.error) return <p className="text-[14px] text-muted">Couldn't load this page. <button type="button" className="underline" onClick={() => void q.refetch()}>Try again</button></p>;
+  if (q.error) return <LoadErrorInline onRetry={() => q.refetch()} />;
   if (!q.data.page) return <p className="text-[14px] text-muted">This page was removed or you can't open it.</p>;
   return (
     <div className="space-y-3">
@@ -551,7 +553,7 @@ function LearnerList({ course }: { course: Course }) {
   return (
     <Card className="space-y-3 p-5">
       <h2 className="text-[16px] font-semibold">Learners</h2>
-      {q.isPending ? <Skeleton className="h-24" /> : q.error ? <p className="text-[13px] text-muted">Couldn't load learners. <button type="button" className="underline" onClick={() => void q.refetch()}>Try again</button></p>
+      {q.isPending ? <Skeleton className="h-24" /> : q.error ? <LoadErrorInline onRetry={() => q.refetch()} />
         : !q.data.rows.length ? <p className="text-[13.5px] text-muted">No one has this course yet.</p>
         : <ul className="divide-y divide-line">{q.data.rows.map((r) => (
           <li key={r.id} className="flex items-center gap-3 py-2">
@@ -571,7 +573,7 @@ function ProgressTab({ detail }: { detail: Detail }) {
   const { course } = detail;
   const q = useProgress(course.id);
   if (q.isPending) return <div className="space-y-2"><Skeleton className="h-16" /><Skeleton className="h-40" /></div>;
-  if (q.error) return <EmptyState icon={<IconBook />} title="Couldn't load progress" body="Check your connection and try again." action={<Button onClick={() => void q.refetch()}>Try again</Button>} />;
+  if (q.error) return <LoadError onRetry={() => q.refetch()} />;
   const { rows, counts } = q.data;
   return (
     <div className="space-y-4">
@@ -666,7 +668,7 @@ export function MyLearningPage() {
       <PageHeader title="My learning" description="Courses assigned to you and the ones you started, with your progress and certificates."
         actions={on && (role === "owner" || role === "admin") ? <Button onClick={() => setNewCourse(true)}><IconPlus className="h-4 w-4" />New course</Button> : undefined} />
       {q.isPending ? <div className="space-y-2" aria-busy="true"><Skeleton className="h-20" /><Skeleton className="h-20" /></div>
-        : q.error ? <EmptyState icon={<IconBook />} title="Couldn't load your courses" body="Check your connection and try again." action={<Button onClick={() => void q.refetch()}>Try again</Button>} />
+        : q.error ? <LoadError onRetry={() => q.refetch()} />
         : !items.length ? <EmptyState icon={<IconBook />} title="Nothing to learn yet" body={role === "owner" || role === "admin" ? "Make a course from your docs and assign it to your team." : "Courses assigned to you show up here."} />
         : groups.filter((g) => g.list.length).map((g) => (
           <section key={g.title} className="mb-6">
