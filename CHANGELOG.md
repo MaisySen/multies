@@ -34,6 +34,10 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Contacts > Visits: pick who you are visiting, put them in the shortest straight line order (nearest neighbour then 2 opt), and open the route in a maps app, in parts of 10 places for long days. Command menu: Plan visits.
 - Address lookups run on the server through free keyless services (Photon for suggestions, Nominatim for a full search) at most once a second each, cached for 30 days under a hash of the query, with 200 live lookups per workspace a day. Migration 0123 (places, geo_cache, geo_usage, geo_throttle), additive.
 - The public booking page shows the meeting place with directions when the host set one. What's new: the "Convert any file" entry moved out to keep the list at 14 (it stays here).
+- Calendar and contacts sync fixes (from the R99 review): after making an app password the shown once password field takes focus, and closing the dialog returns focus to Create app password; Home and End move to the first and last setup guide tab; the synced bookings calendar reads exactly the bookings the app shows (your own booking page).
+- Bookings on /app/scheduling: the list now loads every upcoming booking, 50 at a time with Load more, instead of stopping at the first 100.
+
+
 ### Round 99 (1 Nov 2026)
 
 - Calendar and contacts sync: Multies serves CalDAV and CardDAV at /dav (with /.well-known/caldav and /.well-known/carddav), so iPhone, Android, Mac and Outlook show and edit your meetings, task due dates (all day), bookings (read only) and workspace contacts. Sync tokens send only what changed; a stale ETag answers 412; Multies keeps the fields it owns (invitees, video link, series rules, task status, contact email).
