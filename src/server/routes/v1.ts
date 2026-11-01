@@ -5,6 +5,7 @@
  * Auth: `Authorization: Bearer mm_live_...` (Settings, Developers).
  */
 import { enforceWorkspaceBudget } from "../auth/guards";
+import { assertMailboxNotHeld } from "../services/mail/archive-r111"; // R111
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { apiReferenceBootJs, apiReferenceHtml } from "../lib/api-reference-page";
 import type { Context, MiddlewareHandler } from "hono";
@@ -410,6 +411,7 @@ export function v1Routes() {
   async (c) => {
     const { auth, deps } = c.var;
     const id = c.req.valid("param").id;
+    await assertMailboxNotHeld(deps, auth.orgId, id); // R111: a mailbox on legal hold stays
     await deprovisionMailbox(deps, auth.orgId, id);
     const m = await deleteMailbox(deps.db, auth.orgId, id);
     await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.deleted", targetType: "mailbox", targetId: m.id, metadata: { address: m.address, via: "api" }, ip: c.var.ip });

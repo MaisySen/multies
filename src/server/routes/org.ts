@@ -1,11 +1,12 @@
 import { auditRows, toCsv } from "../services/privacy";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { pageQuery, parseBody, parseQuery, requireAdmin, requireAuth } from "../middleware";
 import { organizations } from "../db/schema";
-import { audit, listAudit } from "../services/audit";
+import { audit, listAudit, type AuditFilter } from "../services/audit";
+import { AUDIT_AREAS } from "@/shared/mail-archive";
 import { getAddons, getOrg, getOrgCached, getPlanCached, overLimits, usage } from "../services/plans";
 import { PLANS, effectiveLimits, isPlanId, PLAN_ORDER } from "@/shared/plans";
 import { badRequest, forbidden, HttpError } from "../lib/errors";
@@ -78,7 +79,8 @@ export function orgRoutes() {
       const { auth, deps } = c.var;
       if (auth.role !== "owner" && auth.role !== "admin") throw forbidden("Only workspace owners and admins can export the audit log.");
       const q = parseQuery(c, Q_ORG_1);
-      const rows = await auditRows(deps, auth.orgId, q.from, q.to);
+      const f = auditFilterFrom(c);
+      const rows = (await auditRows(deps, auth.orgId, q.from ?? f?.from, q.to ?? f?.to)).filter((r) => auditRowMatches(r, f));
       const day = deps.now().toISOString().slice(0, 10);
       const body = q.format === "csv" ? toCsv(rows) : JSON.stringify(rows, null, 2);
       return new Response(body, {
@@ -91,7 +93,23 @@ export function orgRoutes() {
     // R39 security hotfix: the audit log carries IPs, emails and invitation activity, so it is for owners and admins only.
     .get("/audit", requireAdmin, async (c) => {
       const { limit, before } = parseQuery(c, pageQuery);
-      const entries = await listAudit(c.var.deps.db, c.var.auth.orgId, { limit, before });
+      const entries = await listAudit(c.var.deps.db, c.var.auth.orgId, { limit, before, filter: auditFilterFrom(c) });
       return c.json({ entries });
     });
+}
+
+/** R111: the Audit log filters (area, person, from, to as yyyy-mm-dd UTC days), only while MAIL_ARCHIVE_R111 is on. */
+function auditFilterFrom(c: Context<AppEnv>): AuditFilter | undefined {
+  if (!c.var.deps.config.mailArchive) return undefined;
+  const q = (k: string) => (c.req.query(k) ?? "").trim().slice(0, 254);
+  const day = (v: string, add = 0) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(Date.parse(`${v}T00:00:00Z`) + add) : undefined);
+  const area = AUDIT_AREAS.find((a) => a.id === q("area"));
+  const f: AuditFilter = { prefixes: area?.prefixes, actor: q("actor") || undefined, from: day(q("since")), to: day(q("until"), 86_400_000) };
+  return f.prefixes || f.actor || f.from || f.to ? f : undefined;
+}
+function auditRowMatches(r: { action?: unknown; actor?: unknown }, f: AuditFilter | undefined) {
+  if (!f) return true;
+  if (f.prefixes && !f.prefixes.some((p) => String(r.action ?? "").startsWith(p))) return false;
+  if (f.actor && !String(r.actor ?? "").toLowerCase().includes(f.actor.toLowerCase())) return false;
+  return true;
 }

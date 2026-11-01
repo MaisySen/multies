@@ -1,4 +1,4 @@
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, gte, like, lt, or, type SQL } from "drizzle-orm";
 import type { DB } from "../db";
 import { auditLogs } from "../db/schema";
 import { newId } from "../lib/crypto";
@@ -65,12 +65,24 @@ export function redactAuditRow<T extends { targetType?: string | null; targetId?
   return out;
 }
 
-export async function listAudit(db: DB, orgId: string, opts: { limit?: number; before?: Date; agentId?: string } = {}) {
+/** R111: Audit log filters (Activity > Audit log, flag MAIL_ARCHIVE_R111): action prefixes, who did it, a date range. */
+export interface AuditFilter { prefixes?: string[]; actor?: string; from?: Date; to?: Date }
+export function auditFilterCond(f: AuditFilter | undefined): SQL | undefined {
+  if (!f) return undefined;
+  const c: (SQL | undefined)[] = [];
+  if (f.prefixes?.length) c.push(or(...f.prefixes.map((p) => like(auditLogs.action, `${p.replace(/[%_]/g, "")}%`))));
+  if (f.actor) c.push(like(auditLogs.actorEmail, `%${f.actor.replace(/[%_]/g, "")}%`));
+  if (f.from) c.push(gte(auditLogs.createdAt, f.from));
+  if (f.to) c.push(lt(auditLogs.createdAt, f.to));
+  return c.length ? and(...c) : undefined;
+}
+
+export async function listAudit(db: DB, orgId: string, opts: { limit?: number; before?: Date; agentId?: string; filter?: AuditFilter } = {}) {
   const limit = Math.min(opts.limit ?? 50, 200);
   const rows = await db
     .select()
     .from(auditLogs)
-    .where(and(eq(auditLogs.orgId, orgId), opts.before ? lt(auditLogs.createdAt, opts.before) : undefined, opts.agentId ? eq(auditLogs.agentId, opts.agentId) : undefined))
+    .where(and(eq(auditLogs.orgId, orgId), opts.before ? lt(auditLogs.createdAt, opts.before) : undefined, opts.agentId ? eq(auditLogs.agentId, opts.agentId) : undefined, auditFilterCond(opts.filter)))
     .orderBy(desc(auditLogs.createdAt))
     .limit(limit);
   return rows.map((r) => redactAuditRow({ ...r, metadata: r.metadata ? (JSON.parse(r.metadata) as Record<string, unknown>) : null }));

@@ -10,6 +10,7 @@ import { audit } from "../services/audit";
 import { sendMessage } from "../services/mail/send";
 import { toolFilesAsAttachments } from "../services/tools/attach"; // Tools P2
 import { attachmentBytes, storeMessage } from "../services/mail/store";
+import { assertNotHeld } from "../services/mail/archive-r111"; // R111: legal holds
 import { deleteMessagesPermanently, getMessage, getThread, listMessages, mailboxOverview, presentMessage } from "../services/mail/mailbox-view";
 import { badRequest, notFound, tooMany } from "../lib/errors";
 import { fromB64 } from "../lib/crypto";
@@ -198,7 +199,7 @@ export function mailRoutes() {
     .delete("/messages/:id", async (c) => {
       const { db } = c.var.deps;
       const m = await getMessage(db, c.var.auth.orgId, c.req.param("id"), await mailboxScope(db, c.var.auth));
-      if (m.folder === "trash" || m.folder === "drafts") await deleteMessagesPermanently(db, [m]);
+      if (m.folder === "trash" || m.folder === "drafts") { await assertNotHeld(c.var.deps, c.var.auth.orgId, [m]); await deleteMessagesPermanently(db, [m]); }
       else {
         await db.update(messages).set({ folder: "trash" }).where(eq(messages.id, m.id));
         await queueChange(c, [m], "trash");

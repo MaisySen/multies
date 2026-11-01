@@ -1337,5 +1337,16 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX IF NOT EXISTS `doc_comments_status_idx` ON `doc_comments` (`org_id`,`status`,`created_at`);",
       "ALTER TABLE `share_links` ADD `comments` text DEFAULT 'off' NOT NULL;"
     ]
+  },
+  {
+    "name": "0128_r111_mail_archive",
+    "statements": [
+      "-- R111 (Nov 1): mail archive and retention. Additive only. No row here means keep mail forever: nothing is deleted\n-- for a workspace until one of its owners or admins turns a policy on (and a 7 day grace has passed).\nCREATE TABLE IF NOT EXISTS `mail_retention_policies` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`enabled` integer DEFAULT 0 NOT NULL,\n\t`keep_years` integer,\n\t`starts_at` integer,\n\t`enabled_at` integer,\n\t`updated_by` text,\n\t`updated_at` integer NOT NULL,\n\t`last_run_at` integer,\n\t`last_run_deleted` integer DEFAULT 0 NOT NULL,\n\t`total_deleted` integer DEFAULT 0 NOT NULL,\n\t`backlog` integer DEFAULT 0 NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX IF NOT EXISTS `mail_retention_due_idx` ON `mail_retention_policies` (`enabled`,`last_run_at`);",
+      "CREATE TABLE IF NOT EXISTS `mail_legal_holds` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`target_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`note` text,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`released_at` integer,\n\t`released_by` text,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX IF NOT EXISTS `mail_legal_holds_org_idx` ON `mail_legal_holds` (`org_id`,`released_at`);",
+      "CREATE TABLE IF NOT EXISTS `mail_cases` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`filters` text DEFAULT '{}' NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`last_exported_at` integer,\n\t`export_count` integer DEFAULT 0 NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX IF NOT EXISTS `mail_cases_org_idx` ON `mail_cases` (`org_id`,`created_at`);"
+    ]
   }
 ];

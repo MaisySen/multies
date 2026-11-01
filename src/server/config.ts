@@ -22,6 +22,8 @@ export interface AppConfig {
   socialTestNetwork?: boolean;
   /** R120: client portals in Contacts and the public /p pages (CLIENT_PORTAL=on). Off unless set. */
   clientPortal?: boolean;
+  /** R111: mail archive and retention (MAIL_ARCHIVE_R111=on). Off unless set. Even on, nothing is deleted until a workspace admin turns a policy on. */
+  mailArchive?: boolean;
   /** Public booking pages and the scheduling API (SCHEDULING_ENABLED=true). Off unless set. */
   schedulingEnabled: boolean;
   /** R94: CRM_TIMELINE (paged contact and company timeline, logged calls and notes, segments, CSV import, deal forecast). Off unless set. */
@@ -295,6 +297,7 @@ const EnvSchema = z.object({
   /** R91: dashboards plus (public links, emailed reports, question builder, alerts, data sources). */
   DASHBOARDS_PLUS: z.string().optional(),
   CLIENT_PORTAL: z.string().optional(),
+  MAIL_ARCHIVE_R111: z.string().optional(),
   COMPOSIO_API_KEY: z.string().optional(),
   // R83: own sign in for TikTok (Login Kit and Content Posting) and Threads.
   TIKTOK_CLIENT_KEY: z.string().optional(),
@@ -624,6 +627,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     dashboardsPlusTestHook: String(env.DASHBOARDS_PLUS ?? "").toLowerCase() === "test",
     clientPortal: ["on", "true", "1"].includes(String(env.CLIENT_PORTAL ?? "").toLowerCase()),
     searchR98: ["1", "true", "on"].includes(String(env.SEARCH_R98 ?? "").toLowerCase()), // R98
+    mailArchive: ["on", "true", "1"].includes(String(env.MAIL_ARCHIVE_R111 ?? "").toLowerCase()),
     tools: toolsConfig(env),
     links: { flushMs: Math.max(0, Math.min(20_000, Number(env.LINK_CLICK_FLUSH_MS ?? 4000) || 0)) },
     appName: env.APP_NAME ?? "Multies",

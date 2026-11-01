@@ -577,6 +577,10 @@ const handler = {
     ctx.waitUntil(runMaintenanceIfMigrated(deps, { rotate: true }).finally(() => flushReporting()));
     // Tools P2: share and signing, mail merge, AI usage housekeeping and the attachment index, each on its own.
     for (const p of toolsCronPasses(deps)) ctx.waitUntil(p);
+    // R111: mail retention (MAIL_ARCHIVE_R111): only workspaces whose admin turned a policy on, past its 7 day grace.
+    if (deps.config.mailArchive) {
+      ctx.waitUntil(import("../server/services/mail/archive-r111").then((m) => m.runRetentionPass(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "mail.retention_pass" })));
+    }
     // R97: due notification digests (50 a run, only rows whose digest time has come).
     if (deps.config.notificationCentre !== false) {
       ctx.waitUntil(import("../server/services/suite/notify-centre-r97").then((m) => m.runNotificationDigests(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "notify.digest_pass" })));

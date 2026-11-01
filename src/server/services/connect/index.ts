@@ -12,6 +12,7 @@
  *   provider's own SMTP (outbound.ts), so they pass SPF and DKIM as the person's own mail.
  */
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { assertMailboxNotHeld } from "../mail/archive-r111"; // R111
 import type { AuthContext, Deps } from "../../context";
 import { mailboxes, mailConnections, messages, mailSyncOutbox } from "../../db/schema";
 import { decryptSecret, encryptSecret, newId } from "../../lib/crypto";
@@ -199,6 +200,7 @@ export async function reconnect(deps: Deps, auth: AuthContext, id: string, input
 export async function removeConnection(deps: Deps, auth: AuthContext, id: string) {
   const c = await getConnection(deps, auth, id);
   assertCanManage(auth, c);
+  await assertMailboxNotHeld(deps, auth.orgId, c.mailboxId); // R111: a mailbox on legal hold keeps its copy
   await deps.db.delete(mailConnections).where(eq(mailConnections.id, c.id));
   await deps.db.delete(mailboxes).where(and(eq(mailboxes.id, c.mailboxId), eq(mailboxes.orgId, auth.orgId)));
   await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.disconnected", targetType: "mailbox", targetId: c.mailboxId, metadata: { address: c.email } });

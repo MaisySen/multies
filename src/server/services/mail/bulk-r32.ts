@@ -16,6 +16,7 @@ import { queueRemoteChange, type RemoteAction } from "../connect";
 import { localFolderFor } from "../connect/sync";
 import { mailboxScope } from "../team";
 import { deleteMessagesPermanently } from "./mailbox-view";
+import { assertNotHeld } from "./archive-r111";
 import { resolveWhen, type ScheduleActor, type WhenInput } from "./schedules";
 
 export const BULK_MAIL_ACTIONS = ["read", "unread", "star", "unstar", "archive", "inbox", "spam", "trash", "delete", "move", "snooze", "unsnooze"] as const;
@@ -104,7 +105,7 @@ export async function runBulkMail(deps: Deps, actor: ScheduleActor, input: BulkM
     }
     return { updated: queued };
   }
-  if (action === "delete") await deleteMessagesPermanently(deps.db, rows);
+  if (action === "delete") { await assertNotHeld(deps, actor.orgId, rows); await deleteMessagesPermanently(deps.db, rows); } // R111: a legal hold blocks it
   else await deps.db.update(messages).set(SET[action]!).where(inIds(messages.id, own));
   const remote = BULK_REMOTE[action];
   if (remote) await send(rows.filter((r) => r.folder !== "sent" && r.folder !== "drafts"), remote);

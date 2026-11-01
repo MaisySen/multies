@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { assertMailboxNotHeld } from "../services/mail/archive-r111"; // R111
 import type { AppEnv } from "../context";
 import { parseBody, requireAdmin, requireAuth } from "../middleware";
 import { createAliasSchema, createMailboxSchema, updateAliasSchema, updateMailboxSchema } from "@/shared/schemas";
@@ -29,6 +30,7 @@ export function mailboxRoutes() {
     })
     .delete("/:id", requireAdmin, async (c) => {
       const { auth, deps } = c.var;
+      await assertMailboxNotHeld(deps, auth.orgId, c.req.param("id")); // R111: a mailbox on legal hold stays
       // Remove the mail server account first, so a failure there leaves nothing orphaned.
       await deprovisionMailbox(deps, auth.orgId, c.req.param("id"));
       const m = await deleteMailbox(deps.db, auth.orgId, c.req.param("id"));

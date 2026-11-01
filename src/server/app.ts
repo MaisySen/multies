@@ -36,6 +36,7 @@ import { toolsAiRoutes } from "./routes/tools-ai"; // Tools P2: AI documents
 import { mailMergeUnsubscribeRoutes, toolsAutomationRoutes } from "./routes/tools-automation"; // Tools P2: automation
 import { sharePublicRoutes, toolsShareRoutes } from "./routes/tools-share";
 import { portalPublicRoutes, portalRoutes } from "./routes/client-portal"; // R120
+import { mailArchiveRoutes } from "./routes/mail-archive-r111"; // R111
 import { requestPublicRoutes, secretPublicRoutes, toolsRequestRoutes, toolsSecretRoutes } from "./routes/secure-share"; // R88 // Tools P2: share links
 import { bioPublicRoutes, linkPublicRoutes, linksRoutes } from "./routes/links"; // R87: Links in Tools
 import { esignPublicRoutes, toolsEsignRoutes } from "./routes/tools-esign"; // Tools P2: e-sign
@@ -422,6 +423,8 @@ export function createApp(deps: Deps) {
       searchR98: !!deps.config.searchR98,
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
       chatChannels: deps.config.channels.enabled,
+      // R111: mail archive and retention (MAIL_ARCHIVE_R111=on): the Archive and retention pane and Audit log filters.
+      mailArchive: !!deps.config.mailArchive,
       // Tools P1: whether the Tools page and its menu entries show (TOOLS_ENABLED with an engine configured).
       tools: deps.config.tools.enabled,
       // Tools P2: the P2 features on here (TOOLS_FEATURES), so menus can follow each flag without another request.
@@ -467,6 +470,7 @@ export function createApp(deps: Deps) {
   app.route("/api/tools/share", toolsShareRoutes()); // Tools P2: share links
   app.route("/api/tools/requests", toolsRequestRoutes()); // R88: file requests
   app.route("/api/portals", portalRoutes()); // R120: client portals
+  app.route("/api/mail-archive", mailArchiveRoutes()); // R111: mail archive and retention (MAIL_ARCHIVE_R111)
   app.route("/api/tools/secrets", toolsSecretRoutes()); // R88: secret links
   app.route("/api/links", linksRoutes()); // R87: short links, bio pages, go links, link domain
   app.route("/api/tools/esign", toolsEsignRoutes()); // Tools P2: e-sign

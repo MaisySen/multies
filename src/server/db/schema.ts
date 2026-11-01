@@ -3484,3 +3484,49 @@ export const docComments = sqliteTable("doc_comments", {
   editedAt: ts("edited_at"),
   deletedAt: ts("deleted_at"),
 }, (t) => [index("doc_comments_doc_idx").on(t.orgId, t.docId, t.createdAt), index("doc_comments_status_idx").on(t.orgId, t.status, t.createdAt)]);
+/**
+ * R111 (0128): a workspace's mail retention policy. No row, or enabled false, means keep forever: nothing is deleted
+ * until an owner or admin of that workspace turns it on. keep_years null = forever. Deletion starts at starts_at
+ * (7 days after it is turned on or made stricter), one pass a day, legal holds always win.
+ */
+export const mailRetentionPolicies = sqliteTable("mail_retention_policies", {
+  orgId: text("org_id").primaryKey().references(() => organizations.id, { onDelete: "cascade" }),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  keepYears: integer("keep_years"),
+  startsAt: ts("starts_at"),
+  enabledAt: ts("enabled_at"),
+  updatedBy: text("updated_by"),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+  lastRunAt: ts("last_run_at"),
+  lastRunDeleted: integer("last_run_deleted").notNull().default(0),
+  totalDeleted: integer("total_deleted").notNull().default(0),
+  /** 1 while the last pass hit its batch size, so the next cron run carries on instead of waiting a day. */
+  backlog: integer("backlog", { mode: "boolean" }).notNull().default(false),
+}, (t) => [index("mail_retention_due_idx").on(t.enabled, t.lastRunAt)]);
+
+/** R111 (0128): a legal hold on a mailbox or a person. While it is active (released_at null) nothing in scope is deleted. */
+export const mailLegalHolds = sqliteTable("mail_legal_holds", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: ["mailbox", "person"] }).notNull(),
+  targetId: text("target_id").notNull(),
+  name: text("name").notNull(),
+  note: text("note"),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+  releasedAt: ts("released_at"),
+  releasedBy: text("released_by"),
+}, (t) => [index("mail_legal_holds_org_idx").on(t.orgId, t.releasedAt)]);
+
+/** R111 (0128): a saved archive search (a case) that an owner or admin can export as mbox in a ZIP. */
+export const mailCases = sqliteTable("mail_cases", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  /** JSON ArchiveFilters (src/shared/mail-archive.ts). */
+  filters: text("filters").notNull().default("{}"),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+  lastExportedAt: ts("last_exported_at"),
+  exportCount: integer("export_count").notNull().default(0),
+}, (t) => [index("mail_cases_org_idx").on(t.orgId, t.createdAt)]);
