@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconArrowLeft, IconBuilding, IconHandshake, IconMail, IconPlus, IconTasks, IconTeam, IconUpload, IconVideo } from "@/web/components/ui/icon";
+import { IconArrowLeft, IconReceipt, IconBuilding, IconHandshake, IconMail, IconPlus, IconTasks, IconTeam, IconUpload, IconVideo } from "@/web/components/ui/icon";
 import { startMeeting } from "./meeting-start";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -18,6 +18,7 @@ import { CrmTimeline, useCrmTimelineOn } from "./crm-timeline"; // R94
 import { AddressCard, VisitsPlanner, useMapsOn } from "./maps-r115"; // R115
 import { CompanyPicker, ImportContactsDialog, NewCompanyDialog, SegmentBar, filtersQuery, hasFilters, type SegFilters, type Segment } from "./crm-contacts-r94"; // R94
 import { ContactPortalButton, PortalsTab, usePortalsOn } from "./portals"; // R120
+import { useInvoicesOn } from "./invoices-r105"; // R105
 
 interface Company { id: string; name: string; domain: string | null; contactCount: number; lastContactAt: string | null }
 interface ThreadRow { threadId: string; subject: string; lastAt: string; firstAt: string; count: number; lastDirection: "inbound" | "outbound"; snippet: string; messageId: string }
@@ -36,6 +37,7 @@ export function ContactsPage() {
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
   const portalsOn = usePortalsOn().on; // R120
+  const invoicesOn = useInvoicesOn(); // R105
   // R94: segments, filters, import and companies by hand (CRM_TIMELINE).
   const crm = useCrmTimelineOn();
   const [segment, setSegment] = useState<Segment | null>(null);
@@ -54,7 +56,7 @@ export function ContactsPage() {
   return (
     <div>
       <PageHeader title="Contacts" description="Everyone you email with, added automatically, with their companies. Open someone to see every thread, task and deal with them."
-        actions={<><Link to="/app/deals" className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconHandshake className="h-4 w-4" />Deals</Link>{crm.on && (tab === "companies" ? <Button variant="secondary" onClick={() => setNewCompany(true)} data-testid="new-company"><IconBuilding className="h-4 w-4" />New company</Button> : <Button variant="secondary" onClick={() => setImporting(true)} data-testid="import-contacts"><IconUpload className="h-4 w-4" />Import</Button>)}<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />Add contact</Button></>} />
+        actions={<><Link to="/app/deals" className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconHandshake className="h-4 w-4" />Deals</Link>{invoicesOn && <Link to="/app/contacts/invoices" className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconReceipt className="h-4 w-4" />Invoices</Link>}{crm.on && (tab === "companies" ? <Button variant="secondary" onClick={() => setNewCompany(true)} data-testid="new-company"><IconBuilding className="h-4 w-4" />New company</Button> : <Button variant="secondary" onClick={() => setImporting(true)} data-testid="import-contacts"><IconUpload className="h-4 w-4" />Import</Button>)}<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />Add contact</Button></>} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div role="tablist" className="flex rounded-lg bg-fill p-0.5">
           {(["people", "companies", ...(portalsOn ? (["portals"] as const) : []), ...(maps ? (["visits"] as const) : [])] as const).map((t) => (

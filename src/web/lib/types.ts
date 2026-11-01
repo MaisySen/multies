@@ -69,6 +69,8 @@ export interface PublicConfig {
   docsVisual?: boolean;
   /** R115: address cards, the Visits tab and the booking meeting place (MAPS_R115). */
   maps?: boolean;
+  /** R105: invoices and quotes (INVOICES_ENABLED). */
+  invoices?: boolean;
   mxHosts: { host: string; priority: number }[];
   plans: Plan[];
   sentry: { dsn: string; environment: string; release?: string; tracesSampleRate?: number } | null;

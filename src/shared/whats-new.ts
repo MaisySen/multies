@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-invoices",
+    date: "2026-11-01",
+    title: "Invoices and quotes",
+    body: "Send quotes customers can accept online, turn them into invoices in one click, and send tax invoices with your ABN and GST shown, a link to the PDF and your bank details. Record payments, credit notes, repeating invoices and bills, and see what you are owed and the GST for your BAS. Find it in Contacts > Invoices.",
+  },
+  {
     id: "2026-11-01-ask-workspace",
     date: "2026-11-01",
     title: "Ask your workspace",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Share dashboards, email reports, ask your own questions",
     body: "Share a dashboard by link, with an expiry and an optional password, so clients see the numbers without an account. Email it daily, weekly or monthly with a PDF. Build your own card from tasks, deals, form responses, bookings, time, mail or a CSV, and get an alert once when a number crosses a line.",
-  },
-  {
-    id: "2026-11-01-notification-centre",
-    date: "2026-11-01",
-    title: "Quiet hours, digests and mail for notifications",
-    body: "In Settings, Notifications, choose mail as well as the inbox and your phone for each kind of notification, and get it as it happens or in one daily or weekly digest. Set quiet hours in your own time zone, or pause alerts for a while from the Notifications page.",
   },
   {
     id: "2026-10-28-whats-new",

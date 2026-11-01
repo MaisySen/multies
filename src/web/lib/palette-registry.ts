@@ -2,16 +2,16 @@
  * R30: what the command menu can jump to and do, in one list, plus its fuzzy matching.
  * tests/palette-r30.test.ts checks every app page in router.tsx has an entry here.
  */
-import { IconSparkle, IconArchive, IconMapPin, IconBookmark, IconPlugZap, IconMegaphone, IconWrench, IconPenLine, IconActivity, IconAgent, IconAssign, IconBell, IconBook, IconBriefcase, IconCalendarClock, IconCalendarDays, IconChart, IconChats, IconClipboardCheck, IconClipboardList, IconCompose, IconContacts, IconCreditCard, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHandshake, IconInbox, IconKey, IconKeyboard, IconLink, IconMail, IconMention, IconMessageCircle, IconMoon, IconPlug, IconPlus, IconSettings, IconShapes, IconShieldCheck, IconSmartphone, IconSquarePlus, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconUserCog, IconVideo, IconZap, IconAttachment, IconWorkflow, IconTag, IconTable, IconLock } from "@/web/components/ui/icon";
+import { IconSparkle, IconArchive, IconMapPin, IconReceipt, IconBookmark, IconPlugZap, IconMegaphone, IconWrench, IconPenLine, IconActivity, IconAgent, IconAssign, IconBell, IconBook, IconBriefcase, IconCalendarClock, IconCalendarDays, IconChart, IconChats, IconClipboardCheck, IconClipboardList, IconCompose, IconContacts, IconCreditCard, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHandshake, IconInbox, IconKey, IconKeyboard, IconLink, IconMail, IconMention, IconMessageCircle, IconMoon, IconPlug, IconPlus, IconSettings, IconShapes, IconShieldCheck, IconSmartphone, IconSquarePlus, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconUserCog, IconVideo, IconZap, IconAttachment, IconWorkflow, IconTag, IconTable, IconLock } from "@/web/components/ui/icon";
 
 export type PaletteIcon = React.ComponentType<{ className?: string }>;
 /**
  * R59: `flag` names a server switch from /api/config; the page is offered only while it is on.
  * Tools P2: `toolFeature` also needs one of these P2 features in /api/config toolFeatures.
  */
-export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110"; toolFeature?: string[] }
+export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices"; toolFeature?: string[] }
 export type PaletteActionKind = "navigate" | "shortcuts" | "theme" | "external";
-export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110"; toolFeature?: string[] }
+export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices"; toolFeature?: string[] }
 
 export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-my-work", label: "My Work", to: "/app/my-work", icon: IconToday, keywords: ["today", "due", "home", "mentions"] },
@@ -57,6 +57,11 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-contacts", label: "Contacts", to: "/app/contacts", icon: IconContacts, keywords: ["crm", "people", "companies", "customers"] },
   // R115: the Visits tab in Contacts (MAPS_R115).
   { id: "p-visits", label: "Plan visits", to: "/app/contacts?tab=visits", icon: IconMapPin, keywords: ["map", "route", "directions", "visits", "address", "round", "trip"], flag: "maps" },
+  // R105: invoices and quotes in the Contacts area (INVOICES_ENABLED).
+  { id: "p-invoices", label: "Invoices", to: "/app/contacts/invoices", icon: IconReceipt, keywords: ["invoice", "tax invoice", "bill", "gst", "bas", "payments", "owed", "receivables", "credit note", "items"], flag: "invoices" },
+  { id: "p-quotes", label: "Quotes", to: "/app/contacts/invoices?tab=quotes", icon: IconReceipt, keywords: ["quote", "estimate", "proposal", "price"], flag: "invoices" },
+  { id: "p-new-invoice", label: "New invoice", to: "/app/contacts/invoices?new=invoice", icon: IconReceipt, keywords: ["create invoice", "bill a customer"], flag: "invoices" },
+  { id: "p-new-quote", label: "New quote", to: "/app/contacts/invoices?new=quote", icon: IconReceipt, keywords: ["create quote", "estimate"], flag: "invoices" },
   { id: "p-deals", label: "Deals", to: "/app/deals", icon: IconHandshake, keywords: ["crm", "pipeline", "sales"] },
   { id: "p-time", label: "Timesheet", to: "/app/time", icon: IconTimer, keywords: ["time tracking", "hours", "timer"] },
   { id: "p-forms", label: "Forms", to: "/app/forms", icon: IconClipboardList, keywords: ["survey", "intake"] },

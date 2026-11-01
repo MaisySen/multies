@@ -100,6 +100,7 @@ import { agentRoutes, approvalRoutes } from "./routes/agents";
 import { aiRoutes } from "./routes/ai";
 import { webPushRoutes } from "./routes/web-push-r32";
 import { automationRoutes, changeRoutes, companyRoutes, contactRoutes, dealRoutes, docRoutes, notificationRoutes, projectRoutes, pushRoutes, taskRoutes } from "./routes/suite";
+import { invoicePublicRoutes, invoiceRoutes } from "./routes/invoices"; // R105
 import { importRoutes, importRunnerRoutes, integrationRoutes } from "./routes/imports";
 import { workImportRoutes } from "./routes/work-imports";
 import { dataMoveDownloadRoutes, dataMoveRoutes } from "./routes/data-moves";
@@ -436,6 +437,7 @@ export function createApp(deps: Deps) {
       contractsR108: !!deps.config.contractsR108,
       // R110: Ask across the workspace (ASK_R110).
       askR110: !!deps.config.askR110,
+      invoices: deps.config.invoicesEnabled, // R105
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
       chatChannels: deps.config.channels.enabled,
       // R111: mail archive and retention (MAIL_ARCHIVE_R111=on): the Archive and retention pane and Audit log filters.
@@ -576,6 +578,8 @@ export function createApp(deps: Deps) {
   app.route("/api/docs", docVersionRoutes()); // R39: page history
   app.route("/api/docs", docRoutes());
   app.route("/api/contacts", contactRoutes());
+  app.route("/api/invoices", invoiceRoutes()); // R105: invoices and quotes
+  app.route("/api/invoice-view", invoicePublicRoutes()); // R105: the buyer's logged out view link
   app.route("/api/companies", companyRoutes());
   app.route("/api/deals", dealRoutes());
   app.route("/api/crm", crmRoutes()); // R94: CRM timeline (404 unless CRM_TIMELINE)

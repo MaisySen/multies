@@ -582,6 +582,10 @@ const handler = {
     if (deps.config.mailArchive) {
       ctx.waitUntil(import("../server/services/mail/archive-r111").then((m) => m.runRetentionPass(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "mail.retention_pass" })));
     }
+    // R105: repeating invoices and payment reminders (INVOICES_ENABLED), bounded per pass.
+    if (deps.config.invoicesEnabled) {
+      ctx.waitUntil(import("../server/services/invoices/deliver").then((m) => m.runInvoiceCron(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "invoices.cron" })));
+    }
     // R97: due notification digests (50 a run, only rows whose digest time has come).
     if (deps.config.notificationCentre !== false) {
       ctx.waitUntil(import("../server/services/suite/notify-centre-r97").then((m) => m.runNotificationDigests(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "notify.digest_pass" })));

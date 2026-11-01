@@ -81,7 +81,7 @@ export const SECTIONS: Section[] = [
   ] },
 ];
 
-export interface NavFlags { /** R122: the help center in Docs. */ helpCenter?: boolean; /** R103: the link library in Docs. */ docsPlus?: boolean; /** R90: the automation builder is on. */ flows?: boolean; tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts (R117: members too, sent for approval, with Social P2). */ social?: boolean; socialP2?: boolean; /** R118: Social inbox and analytics. */ socialP2b?: boolean; /** R87: Tools > Links is on. */ links?: boolean }
+export interface NavFlags { /** R122: the help center in Docs. */ helpCenter?: boolean; /** R103: the link library in Docs. */ docsPlus?: boolean; /** R90: the automation builder is on. */ flows?: boolean; tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts (R117: members too, sent for approval, with Social P2). */ social?: boolean; socialP2?: boolean; /** R118: Social inbox and analytics. */ socialP2b?: boolean; /** R87: Tools > Links is on. */ links?: boolean; /** R105: invoices and quotes. */ invoices?: boolean }
 
 /** The sections and pages this person can open (switched off features leave no dead links). */
 export function visibleSections(flags: NavFlags): Section[] {
@@ -178,7 +178,7 @@ export function pageTitle(pathname: string, search = "", sections: Section[] = S
   return [...parts, "Multies"].join(" · ");
 }
 
-export type CreateKind = "task" | "doc" | "mail" | "event" | "file" | "post" | "link";
+export type CreateKind = "task" | "doc" | "mail" | "event" | "file" | "post" | "link" | "invoice" | "quote";
 export const CREATE_ITEMS: { kind: CreateKind; label: string; to: string; hint: string }[] = [
   { kind: "task", label: "Task", to: "/app/tasks?new=1", hint: "T" },
   { kind: "doc", label: "Doc", to: "/app/docs?new=1", hint: "D" },
@@ -192,7 +192,9 @@ export function createItems(flags: NavFlags) {
   const items = CREATE_ITEMS.map((c) => (c.kind === "file" && !flags.tools ? { ...c, to: "/app/docs" } : c));
   // R80C: a social post, for the people who can send one.
   // R87: a short link, where Tools > Links is on.
-  const withLink = flags.links ? [...items, { kind: "link" as const, label: "Short link", to: "/app/tools/links?new=1", hint: "" }] : items;
+  const withLinkOnly = flags.links ? [...items, { kind: "link" as const, label: "Short link", to: "/app/tools/links?new=1", hint: "" }] : items;
+  // R105: an invoice or a quote, where invoices are on.
+  const withLink = flags.invoices ? [...withLinkOnly, { kind: "invoice" as const, label: "Invoice", to: "/app/contacts/invoices?new=invoice", hint: "" }, { kind: "quote" as const, label: "Quote", to: "/app/contacts/invoices?new=quote", hint: "" }] : withLinkOnly;
   // P1 layout: it opens the composer in Social (it opened Settings before).
   return flags.social ? [...withLink, { kind: "post" as const, label: "Social post", to: SOCIAL_NEW, hint: "P" }] : withLink;
 }

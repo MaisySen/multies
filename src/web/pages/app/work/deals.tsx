@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, KeyboardSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { IconArrowLeft, IconGrip, IconHandshake, IconPlus } from "@/web/components/ui/icon";
+import { IconArrowLeft, IconGrip, IconHandshake, IconPlus, IconReceipt } from "@/web/components/ui/icon";
+import { useInvoicesOn } from "./invoices-r105"; // R105
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -57,6 +58,7 @@ export function DealsPage() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["deals"], queryFn: () => api.get<{ stages: Stage[]; deals: Deal[] }>("/deals") });
   const [adding, setAdding] = useState(false);
+  const invoicesOn = useInvoicesOn(); // R105
   const crm = useCrmTimelineOn(); // R94
   const [asking, setAsking] = useState<{ deal: Deal; stage: "won" | "lost" } | null>(null);
   const [openDeal, setOpenDeal] = useState<Deal | null>(null);
@@ -83,7 +85,7 @@ export function DealsPage() {
   return (
     <div>
       <Link to="/app/contacts" className="mb-4 inline-flex items-center gap-1 text-[12.5px] text-subtle hover:text-fg"><IconArrowLeft className="h-3.5 w-3.5" />Contacts</Link>
-      <PageHeader title="Deals" description={q.data ? `${aud(open)} open in the pipeline, ex GST.` : "Your sales pipeline."} actions={<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />New deal</Button>} />
+      <PageHeader title="Deals" description={q.data ? `${aud(open)} open in the pipeline, ex GST.` : "Your sales pipeline."} actions={<>{invoicesOn && <Link to="/app/contacts/invoices" className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconReceipt className="h-4 w-4" />Invoices</Link>}<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />New deal</Button></>} />
       {crm.on && !!q.data?.deals.length && <ForecastStrip />}
       {q.isPending ? <Skeleton className="h-64" /> : !q.data?.deals.length ? (
         <EmptyState icon={<IconHandshake />} title="No deals yet" body="Add a deal from a contact, or here. Drag deals across stages as they move." action={<Button onClick={() => setAdding(true)}>New deal</Button>} />

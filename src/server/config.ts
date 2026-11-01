@@ -45,6 +45,8 @@ export interface AppConfig {
   askExclude?: string;
   /** R110: ASK_R110 (Ask across the workspace in Tools and the command menu). Off unless set. */
   askR110?: boolean;
+  /** R105: invoices and quotes (INVOICES_ENABLED=true). Off unless set. */
+  invoicesEnabled: boolean;
   /**
    * Tools P1: document tools on the private document engine. On only when TOOLS_ENABLED=true and the
    * engine address and both keys are set (DOC_ENGINE_URL, DOC_ENGINE_KEY_ID, DOC_ENGINE_KEY, TOOLS_TOKEN_KEY).
@@ -315,6 +317,7 @@ const EnvSchema = z.object({
   CONTRACTS_R108: z.string().optional(),
   CLIENT_PORTAL: z.string().optional(),
   MAIL_ARCHIVE_R111: z.string().optional(),
+  INVOICES_ENABLED: z.string().optional(), // R105
   COMPOSIO_API_KEY: z.string().optional(),
   // R83: own sign in for TikTok (Login Kit and Content Posting) and Threads.
   TIKTOK_CLIENT_KEY: z.string().optional(),
@@ -659,6 +662,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     mapsGeoMock: env.MAPS_GEO_MOCK === "1",
     askExclude: env.ASK_EXCLUDE ?? "", // R110
     askR110: ["1", "true", "on"].includes(String(env.ASK_R110 ?? "").toLowerCase()), // R110
+    invoicesEnabled: env.INVOICES_ENABLED === "true" || env.INVOICES_ENABLED === "1", // R105
     tools: toolsConfig(env),
     links: { flushMs: Math.max(0, Math.min(20_000, Number(env.LINK_CLICK_FLUSH_MS ?? 4000) || 0)) },
     appName: env.APP_NAME ?? "Multies",

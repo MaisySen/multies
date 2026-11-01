@@ -6,6 +6,12 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## R105 Invoices and quotes (2026-11-01)
+
+- Contacts > Invoices: quotes, tax invoices, credit notes (adjustment notes), bills and suppliers, an items catalogue, and reports (aged receivables, GST for BAS on accrual or cash basis). Flag INVOICES_ENABLED.
+- Australian rules: integer cents, GST 10 percent per line with GST free lines, prices including or excluding GST per workspace, the words Tax invoice, supplier name and ABN (checksum), buyer name or ABN from A$1,000, numbers given only at issue and never reused (void, not delete).
+- Send by email with a view link; the logged out page shows that one document, the PDF, bank details (BSB and account) and Accept or Decline on quotes. Payments are recorded by hand; nothing is charged. Reminders before and after the due date and repeating invoices run on the cron. On the test site invoice mail only goes to the QA mailbox.
+
 ## R108 Contracts: templates and guided interviews (2026-11-01)
 ### Added
 - Tools, Templates, Contracts: plain words templates for a service agreement, an NDA (mutual or one way), a contractor agreement, quote terms and a privacy notice, each with the "This is a template, not legal advice" note on the template and the generated document.

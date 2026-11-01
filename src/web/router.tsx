@@ -95,6 +95,9 @@ const ContactsPage = lazyPage(() => contactPages(), "ContactsPage");
 const ContactPage = lazyPage(() => contactPages(), "ContactPage");
 const PortalPage = lazyPage(() => import("./pages/app/work/portals"), "PortalPage"); // R120
 const DealsPage = lazyPage(() => import("./pages/app/work/deals"), "DealsPage");
+const InvoicesPage = lazyPage(() => import("./pages/app/work/invoices-r105"), "InvoicesPage"); // R105
+const InvoiceDocPage = lazyPage(() => import("./pages/app/work/invoices-r105"), "InvoiceDocPage"); // R105
+const InvoiceViewPage = lazyPage(() => import("./pages/invoice-view"), "InvoiceViewPage"); // R105
 const CompanyPage = lazyPage(() => import("./pages/app/work/crm-contacts-r94"), "CompanyPage"); // R94
 const AutomationsPage = lazyPage(() => import("./pages/app/work/automations"), "AutomationsPage");
 // R90: one Automations home (flows, rules, runs), the flow editor and the run log.
@@ -272,6 +275,8 @@ export const router = createBrowserRouter([
       { path: "docs/:id", element: page(<DocPage />) },
       { path: "contacts", element: page(<ContactsPage />) },
       { path: "contacts/portals/:id", element: page(<PortalPage />) }, // R120
+      { path: "contacts/invoices", element: page(<InvoicesPage />) }, // R105
+      { path: "contacts/invoices/:id", element: page(<InvoiceDocPage />) }, // R105
       { path: "contacts/:id", element: page(<ContactPage />) },
       { path: "contacts/companies/:id", element: page(<CompanyPage />) }, // R94
       { path: "deals", element: page(<DealsPage />) },
@@ -354,6 +359,7 @@ export const router = createBrowserRouter([
   { path: "/f/:slug", element: publicPage(<PublicFormPage />), errorElement: <RouteError /> },
   { path: "/m/:token", element: publicPage(<GuestMeetingPage />), errorElement: <RouteError /> },
   { path: "/book/:slug", element: publicPage(<BookingPage />), errorElement: <RouteError /> },
+  { path: "/i/:token", element: publicPage(<InvoiceViewPage />), errorElement: <RouteError /> }, // R105
   { path: "/dash/:token", element: publicPage(<PublicDashboardPage />), errorElement: <RouteError /> }, // R91: public dashboard link
   { path: "/book/:slug/cancel/:id", element: publicPage(<BookingCancelPage />), errorElement: <RouteError /> },
   // A project guest (a client): the invite link, then the one project they can see.
