@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-forms-plus",
+    date: "2026-11-01",
+    title: "Forms that chat, feedback boards and calls for submissions",
+    body: "Forms can ask one question at a time and sit in a chat bubble on your website. Run feedback boards with votes and a roadmap, and collect entries for blind review with scores and a shortlist.",
+  },
+  {
     id: "2026-11-01-tables",
     date: "2026-11-01",
     title: "Tables in Docs",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Addresses, maps and a day of visits",
     body: "Contacts, companies and your booking page can now hold an address: start typing and pick a match to pin it on a map, with directions in one tap. Contacts has a Visits tab: add the people you are seeing today, put them in the shortest order with one tap and open the whole route in your maps app.",
-  },
-  {
-    id: "2026-11-01-mail-archive",
-    date: "2026-11-01",
-    title: "Archive and retention for mail",
-    body: "Admins can keep mail for a set number of years or forever, and see how many messages a policy would remove before turning it on. Legal holds keep a person's or a mailbox's mail from being deleted, and you can search the archive and export a case. Nothing is removed unless an admin turns a policy on.",
   },
     {
     id: "2026-10-28-whats-new",
