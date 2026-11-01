@@ -57,6 +57,15 @@ test("chat: post with a task link, reply in a thread and turn a message into a t
   await msg.getByRole("button", { name: "More message actions" }).click();
   await page.getByRole("menuitem", { name: "Make task" }).click();
   await expect(page).toHaveURL(/\/app\/tasks\?task=tsk_/);
+  // R79 made the side panel the desktop default for task details (View menu: Task details), so the deep link
+  // opens the task docked beside the board on a desktop, and over the page on a phone or with "Over the page".
+  const docked = page.getByRole("complementary", { name: "Task details" });
+  await expect(docked.getByLabel("Title")).toHaveValue(/Can someone pick up/);
+  await expect(page.getByRole("dialog", { name: "Task" })).toHaveCount(0);
+  // The same deep link at phone width opens the task over the page.
+  const url = page.url();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(url);
   await expect(page.getByRole("dialog", { name: "Task" }).getByLabel("Title")).toHaveValue(/Can someone pick up/);
 });
 
@@ -94,7 +103,7 @@ test("goals: a goal with a number key result shows its progress", async () => {
   const goal = page.getByTestId("goal").filter({ hasText: "Win back lapsed clients" });
   await goal.getByRole("button", { name: "Key result" }).click();
   const kr = page.getByRole("dialog", { name: "Add a key result" });
-  await kr.getByLabel("Key result").fill("Repeat orders a month");
+  await kr.getByLabel("Key result", { exact: true }).fill("Repeat orders a month");
   await kr.getByLabel("Target").fill("40");
   await kr.getByLabel("Now").fill("10");
   await kr.getByRole("button", { name: "Add" }).click();
