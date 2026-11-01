@@ -3,10 +3,10 @@
  * to the last), counting from the due date or from when it was finished, the person's time zone (so 9 am stays 9 am
  * across daylight saving), a chores rotation between members, and a preview of the next dates.
  */
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Input, Select } from "@/web/components/ui/input";
 import { cn } from "@/web/lib/cn";
-import { isEveryWeekday, previewDates, WEEKDAYS, type RepeatRule } from "@/shared/tasks-plus-r95";
+import { describeRule, isEveryWeekday, previewDates, WEEKDAYS, type RepeatRule } from "@/shared/tasks-plus-r95";
 
 type Rule = Omit<RepeatRule, "until"> & { until?: string | null; text?: string };
 interface Person { type: "member" | "agent"; id: string; name: string }
@@ -18,7 +18,20 @@ const zone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 type Kind = "" | "daily" | "weekdays" | "weekly" | "monthly" | "yearly";
 const kindOf = (r: Rule | null): Kind => !r ? "" : isEveryWeekday(r) ? "weekdays" : r.freq;
 
-export function RepeatPlus({ value, due, people, onChange }: { value: Rule | null; due: string | null; people: Person[]; onChange: (r: Omit<Rule, "text"> | null) => void }) {
+export function RepeatPlus({ value: saved, due, people, onChange: save }: { value: Rule | null; due: string | null; people: Person[]; onChange: (r: Omit<Rule, "text"> | null) => void }) {
+  // A local draft, so two quick changes (week then weekday) build on each other instead of on the last saved rule.
+  const [value, setValue] = useState<Rule | null>(saved);
+  const sent = useRef<string>(JSON.stringify(saved ? { ...saved, text: undefined } : null));
+  useEffect(() => {
+    const k = JSON.stringify(saved ? { ...saved, text: undefined } : null);
+    if (k !== sent.current) { sent.current = k; setValue(saved); } // changed elsewhere (another tab, a teammate)
+    else setValue((v) => (v && saved ? { ...v, text: saved.text } : v));
+  }, [saved]);
+  const onChange = (r: Omit<Rule, "text"> | null) => {
+    sent.current = JSON.stringify(r ? { ...r, text: undefined } : null);
+    setValue(r ? { ...r, text: undefined } : null);
+    save(r);
+  };
   const kind = kindOf(value);
   const dueDate = due ? new Date(due) : null;
   const base = (): Omit<Rule, "text"> => ({ freq: value?.freq ?? "weekly", interval: value?.interval ?? 1, ...(value?.until ? { until: value.until } : {}),
@@ -120,7 +133,7 @@ export function RepeatPlus({ value, due, people, onChange }: { value: Rule | nul
       )}
       {value && (
         <p className="text-[11.5px] text-subtle" data-testid="repeat-preview">
-          {value.text ? `${value.text}. ` : ""}{preview.length ? `Next: ${preview.map(fmt).join(", ")}` : "No more dates."}{rotate.length > 1 ? ` Turns: ${rotate.length} people.` : ""}
+          {(() => { try { return `${describeRule(value as RepeatRule)}. `; } catch { return value.text ? `${value.text}. ` : ""; } })()}{preview.length ? `Next: ${preview.map(fmt).join(", ")}` : "No more dates."}{rotate.length > 1 ? ` Turns: ${rotate.length} people.` : ""}
         </p>
       )}
     </div>

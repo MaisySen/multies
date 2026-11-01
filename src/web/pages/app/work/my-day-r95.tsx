@@ -246,7 +246,7 @@ function DayColumn({ day, isToday, items, onPlace, onRemove, onFinish }: {
         <h3 className="text-[13px] font-semibold">{isToday ? "Today" : new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })}</h3>
         <span className="text-[12px] text-subtle">{items.length ? `${items.length} blocked, ${Math.round(items.reduce((s, i) => s + i.minutes, 0) / 6) / 10}h` : "No time blocked"}</span>
       </div>
-      <div ref={scroller} className="relative h-[460px] overflow-y-auto overscroll-contain max-sm:h-[380px]" tabIndex={-1}>
+      <div ref={scroller} className="relative h-[460px] overflow-y-auto overscroll-contain rounded-b-[var(--radius-r14)] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand max-sm:h-[380px]" tabIndex={0} role="region" aria-label={isToday ? "Today's schedule" : "Tomorrow's schedule"} data-testid="my-day-scroll">
         <div ref={grid} className="relative" style={{ height: 24 * HOUR_PX }} onDragOver={over} onDragLeave={() => setGhost(null)} onDrop={drop} data-testid="my-day-grid">
           {hours.map((h) => (
             <div key={h} className="absolute inset-x-0 flex" style={{ top: h * HOUR_PX, height: HOUR_PX }} aria-hidden>

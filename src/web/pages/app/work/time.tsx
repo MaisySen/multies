@@ -202,7 +202,7 @@ export function TimesheetPage() {
                   <tr key={`${r.person.id}-${r.project?.id}`} className="border-b border-line/60">
                     <td className="px-4 py-2.5">{r.person.name}{r.person.type === "agent" && <span className="ml-1 text-[11px] text-subtle">agent</span>}</td>
                     <td className="px-2 py-2.5"><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: tone(r.project?.color) }} />{r.project?.name ?? "No project"}</span></td>
-                    {q.data!.days.map((d) => <td key={d} className={cn("px-2 py-2.5 text-right tabular-nums", !r.days[d] && "text-subtle")}>{r.days[d] ? hoursText(r.days[d]) : "-"}</td>)}
+                    {q.data!.days.map((d) => <td key={d} className={cn("px-2 py-2.5 text-right tabular-nums", !r.days[d] && "text-subtle")}>{r.days[d] ? hoursText(r.days[d]) : ""}</td>)}
                     <td className="px-4 py-2.5 text-right font-medium tabular-nums">{hoursText(r.total)}</td>
                   </tr>
                 ))}
@@ -210,7 +210,7 @@ export function TimesheetPage() {
               <tfoot>
                 <tr className="text-[12.5px] font-medium">
                   <td className="px-4 py-2.5" colSpan={2}>Total</td>
-                  {q.data!.days.map((d) => <td key={d} className="px-2 py-2.5 text-right tabular-nums">{q.data!.dayTotals[d] ? hoursText(q.data!.dayTotals[d]) : "-"}</td>)}
+                  {q.data!.days.map((d) => <td key={d} className="px-2 py-2.5 text-right tabular-nums">{q.data!.dayTotals[d] ? hoursText(q.data!.dayTotals[d]) : ""}</td>)}
                   <td className="px-4 py-2.5 text-right tabular-nums" data-testid="timesheet-total">{hoursText(q.data!.total)}</td>
                 </tr>
               </tfoot>

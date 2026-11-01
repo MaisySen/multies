@@ -195,8 +195,8 @@ export function DayTimeline({ entries, day }: { entries: (TimeEntry & { tags?: s
                 {rows.map((e) => {
                   const s = Math.max(0, (Date.parse(e.startedAt) - start) / 86_400_000);
                   const w = Math.max(0.004, e.seconds / 86_400);
-                  return <li key={e.id} className="absolute inset-y-1 overflow-hidden rounded px-1 text-[11px] leading-6 text-white" title={`${e.task?.title ?? e.project?.name ?? "Time"}, ${hm(e.seconds)}`}
-                    style={{ left: `${s * 100}%`, width: `${Math.min(w, 1 - s) * 100}%`, background: tone(e.project?.color) }}>
+                  return <li key={e.id} className="absolute inset-y-1 overflow-hidden rounded border border-line border-l-[3px] bg-elevated px-1 text-[11px] leading-5 text-fg shadow-sm" title={`${e.task?.title ?? e.project?.name ?? "Time"}, ${hm(e.seconds)}`}
+                    style={{ left: `${s * 100}%`, width: `${Math.min(w, 1 - s) * 100}%`, borderLeftColor: tone(e.project?.color) }}>
                     <span className="sr-only">{new Date(e.startedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}, {hm(e.seconds)}, </span>{e.task?.title ?? e.project?.name ?? "Time"}
                   </li>;
                 })}

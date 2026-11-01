@@ -51,6 +51,7 @@ test.describe("R95 My Day", () => {
     const day = page.getByTestId("my-day");
     await expect(day).toBeVisible();
     await expect(day.getByText("Plan your day")).toBeVisible();
+    expect(await axe(page, "my day empty")).toEqual([]);
     const noon = new Date(); noon.setHours(17, 0, 0, 0);
     await task(page, { projectId, title: "Write the launch post", assignee: `member:${userId}`, due: noon.toISOString() });
     await task(page, { projectId, title: "Check the pricing page", assignee: `member:${userId}`, due: noon.toISOString() });
@@ -110,6 +111,13 @@ test.describe("R95 smart repeat", () => {
     await expect(picker.getByTestId("repeat-preview")).toContainText("2nd Tue");
     await picker.getByLabel("Count from").selectOption("done");
     await expect(picker.getByTestId("repeat-preview")).toContainText("after done");
+    // Two quick changes build on each other: the 5th Friday sticks.
+    await picker.getByLabel("Which week").selectOption("5");
+    await picker.getByLabel("Weekday").selectOption("5");
+    await expect(picker.getByTestId("repeat-preview")).toContainText("5th Fri");
+    await expect.poll(async () => { const j = await (await page.request.get(`/api/tasks/${t.id}`)).json(); return (j.task?.repeat ?? j.repeat)?.nth; }).toBe(5);
+    await picker.getByLabel("Which week").selectOption("2");
+    await picker.getByLabel("Weekday").selectOption("2");
     const saved = await (await page.request.get(`/api/tasks/${t.id}`)).json();
     expect(saved.task?.repeat ?? saved.repeat).toMatchObject({ freq: "monthly", nth: 2, nthWeekday: 2, basis: "done" });
   });
@@ -139,6 +147,7 @@ test.describe("R95 time", () => {
     // Day view.
     await page.getByRole("tab", { name: "Day" }).click();
     await expect(page.getByTestId("day-timeline").or(page.getByTestId("day-timeline-empty"))).toBeVisible();
+    expect(await axe(page, "time day view")).toEqual([]);
     await page.getByRole("tab", { name: "Week" }).click();
     // Export.
     const href = await page.getByTestId("time-export").getAttribute("href");
@@ -245,6 +254,18 @@ test.describe("R95 shots and axe", () => {
           errors.push(...await axe(page, `${name} ${w} ${theme}`));
           expect(await page.evaluate(() => document.documentElement.scrollWidth), `${name} ${w} ${theme} no sideways scroll`).toBeLessThanOrEqual(w);
           await shot(page, `r95-${name}-${w}-${theme}`);
+          if (name === "time") {
+            await page.getByRole("tab", { name: "Day" }).click();
+            await expect(page.getByTestId("day-timeline").or(page.getByTestId("day-timeline-empty"))).toBeVisible();
+            errors.push(...await axe(page, `time day ${w} ${theme}`));
+            await shot(page, `r95-timeday-${w}-${theme}`);
+          }
+          if (name === "mywork") {
+            await page.getByRole("tab", { name: "Tomorrow" }).click();
+            await expect(page.getByTestId("my-day-scroll")).toBeVisible();
+            errors.push(...await axe(page, `mywork tomorrow ${w} ${theme}`));
+            await page.getByRole("tab", { name: "Today" }).click();
+          }
         }
       }
     };
