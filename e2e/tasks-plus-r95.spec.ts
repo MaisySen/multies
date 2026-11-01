@@ -118,8 +118,7 @@ test.describe("R95 smart repeat", () => {
     await expect.poll(async () => { const j = await (await page.request.get(`/api/tasks/${t.id}`)).json(); return (j.task?.repeat ?? j.repeat)?.nth; }).toBe(5);
     await picker.getByLabel("Which week").selectOption("2");
     await picker.getByLabel("Weekday").selectOption("2");
-    const saved = await (await page.request.get(`/api/tasks/${t.id}`)).json();
-    expect(saved.task?.repeat ?? saved.repeat).toMatchObject({ freq: "monthly", nth: 2, nthWeekday: 2, basis: "done" });
+    await expect.poll(async () => { const j = await (await page.request.get(`/api/tasks/${t.id}`)).json(); return j.task?.repeat ?? j.repeat; }).toMatchObject({ freq: "monthly", nth: 2, nthWeekday: 2, basis: "done" });
   });
 });
 

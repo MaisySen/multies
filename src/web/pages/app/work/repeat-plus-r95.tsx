@@ -14,23 +14,39 @@ const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const ORD: Record<number, string> = { 1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th", [-1]: "last" };
 const zone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+/** A rule's content as a stable string: keys sorted, empty values and the display text left out. */
+export function ruleKey(r: Partial<Rule> | null | undefined): string {
+  if (!r) return "null";
+  const o = r as Record<string, unknown>;
+  return JSON.stringify(Object.keys(o).filter((k) => k !== "text" && o[k] !== undefined && o[k] !== null).sort().map((k) => [k, o[k]]));
+}
 
 type Kind = "" | "daily" | "weekdays" | "weekly" | "monthly" | "yearly";
 const kindOf = (r: Rule | null): Kind => !r ? "" : isEveryWeekday(r) ? "weekdays" : r.freq;
 
 export function RepeatPlus({ value: saved, due, people, onChange: save }: { value: Rule | null; due: string | null; people: Person[]; onChange: (r: Omit<Rule, "text"> | null) => void }) {
   // A local draft, so two quick changes (week then weekday) build on each other instead of on the last saved rule.
+  // Saved rules are compared by content (keys sorted, text left out): an echo of what this picker sent, or of an older
+  // save, never overwrites the draft; only a rule changed elsewhere does.
   const [value, setValue] = useState<Rule | null>(saved);
-  const sent = useRef<string>(JSON.stringify(saved ? { ...saved, text: undefined } : null));
+  const seen = useRef<Set<string>>(new Set([ruleKey(saved)]));
   useEffect(() => {
-    const k = JSON.stringify(saved ? { ...saved, text: undefined } : null);
-    if (k !== sent.current) { sent.current = k; setValue(saved); } // changed elsewhere (another tab, a teammate)
-    else setValue((v) => (v && saved ? { ...v, text: saved.text } : v));
+    const k = ruleKey(saved);
+    if (seen.current.has(k)) { setValue((v) => (v && saved && ruleKey(v) === k ? { ...v, text: saved.text } : v)); return; }
+    seen.current = new Set([k]);
+    setValue(saved);
   }, [saved]);
+  // Saves wait for a short pause, so a burst of changes is one save and two saves never race each other.
+  const pending = useRef<{ r: Omit<Rule, "text"> | null; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  useEffect(() => () => { const p = pending.current; if (p) { clearTimeout(p.timer); saveRef.current(p.r); } }, []);
   const onChange = (r: Omit<Rule, "text"> | null) => {
-    sent.current = JSON.stringify(r ? { ...r, text: undefined } : null);
-    setValue(r ? { ...r, text: undefined } : null);
-    save(r);
+    seen.current.add(ruleKey(r));
+    setValue(r ? { ...r } : null);
+    if (pending.current) clearTimeout(pending.current.timer);
+    const timer = setTimeout(() => { pending.current = null; saveRef.current(r); }, 450);
+    pending.current = { r, timer };
   };
   const kind = kindOf(value);
   const dueDate = due ? new Date(due) : null;
