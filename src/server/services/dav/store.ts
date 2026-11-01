@@ -6,7 +6,8 @@
  *   contacts  the workspace contacts any member can open in the app (vCard 3.0)
  * Every listing is one bounded, indexed query. Sync tokens are stored snapshots of { name: etag }.
  */
-import { and, asc, desc, eq, gte, inArray, isNull, lt, ne } from "drizzle-orm";
+import { inIds } from "../../lib/sql-chunks";
+import { and, asc, desc, eq, gte, isNull, lt, ne } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { bookings, companies, contacts, davNames, meetings, davSyncStates, projects, schedulingPages, tasks } from "../../db/schema";
 import { sha256Hex } from "../../lib/crypto";
@@ -122,7 +123,7 @@ export async function currentSyncToken(deps: Deps, p: DavPrincipal, col: Collect
   const id = sortableId("dst", now.getTime());
   await deps.db.insert(davSyncStates).values({ id, passwordId: p.passwordId, collection: col, members: json, createdAt: now });
   const stale = latest.slice(SNAPSHOTS_KEPT - 1).map((r) => r.id);
-  if (stale.length) await deps.db.delete(davSyncStates).where(and(eq(davSyncStates.passwordId, p.passwordId), inArray(davSyncStates.id, stale)));
+  if (stale.length) await deps.db.delete(davSyncStates).where(and(eq(davSyncStates.passwordId, p.passwordId), inIds(davSyncStates.id, stale)));
   return syncTokenUrl(deps, id);
 }
 
