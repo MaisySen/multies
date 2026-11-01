@@ -1,6 +1,5 @@
 # iPhone simulator screenshots for the Multies phone app (mobile/ folder). Branch m1-ios-sim only.
-# Runs on a push to m1-ios-sim (GitHub only registers a workflow that is not on main once it has run)
-# or by hand (workflow_dispatch with ref m1-ios-sim). Never runs on main. No signing, no store, no OTA.
+# Runs by hand only: workflow_dispatch with ref m1-ios-sim (registered by its first run). Never runs on main. No signing, no store, no OTA.
 name: iOS simulator shots
 
 on:
@@ -10,8 +9,6 @@ on:
         description: "Space separated app paths to open by deep link"
         required: false
         default: ""
-  push:
-    branches: [m1-ios-sim]
 
 permissions:
   contents: read
@@ -92,21 +89,45 @@ jobs:
           T0=$(date +%s); xcrun simctl launch booted "$BUNDLE_ID"; sleep 25
           xcrun simctl io booted screenshot "$OUT/shots/00-start-light.png"
           echo "start screen after $(( $(date +%s) - T0 )) s"
+          xcrun simctl ui booted appearance dark; sleep 4
+          xcrun simctl io booted screenshot "$OUT/shots/00-start-dark.png" > /dev/null
+          xcrun simctl ui booted appearance light
+          echo "LOGPID=$LOGPID" >> "$GITHUB_ENV"
+          echo "DEV=$DEV" >> "$GITHUB_ENV"
+
+      - name: Sample data and screens by deep link (Maestro taps the Open prompt)
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          OUT="$GITHUB_WORKSPACE/out"; mkdir -p "$OUT/shots"; cd "$OUT/shots"
+          export MAESTRO_CLI_NO_ANALYTICS=1 MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED=true
+          curl -fsSL https://get.maestro.mobile.dev | bash > "$OUT/maestro-install.log" 2>&1
+          export PATH="$HOME/.maestro/bin:$PATH"; maestro --version
           ROUTES="${{ inputs.routes }}"; [ -z "$ROUTES" ] && ROUTES="$DEFAULT_ROUTES"
           for MODE in light dark; do
-            xcrun simctl ui booted appearance $MODE; sleep 3
-            [ $MODE = dark ] && xcrun simctl io booted screenshot "$OUT/shots/00-start-dark.png"
-            i=1
-            for R in $ROUTES; do
-              NAME=$(echo "$R" | sed 's#^/##; s#/#-#g'); [ -z "$NAME" ] && NAME=home
-              xcrun simctl openurl booted "$URL_SCHEME://$R" || true
-              sleep 7
-              xcrun simctl io booted screenshot "$OUT/shots/$(printf %02d $i)-$NAME-$MODE.png" > /dev/null
-              i=$((i+1))
-            done
+            xcrun simctl ui booted appearance $MODE
+            F="$RUNNER_TEMP/flow-$MODE.yaml"
+            { echo "appId: $BUNDLE_ID"; echo "---"; echo "- launchApp"; echo "- waitForAnimationToEnd"
+              echo "- tapOn: {text: \"Explore with sample data\", optional: true}"
+              echo "- waitForAnimationToEnd"; echo "- takeScreenshot: s00-sample-$MODE"
+              i=1
+              for R in $ROUTES; do
+                N=$(echo "$R" | sed 's#^/##; s#/#-#g'); [ -z "$N" ] && N=home
+                echo "- openLink: \"$URL_SCHEME://$R\""
+                echo "- tapOn: {text: \"Open\", optional: true}"
+                echo "- waitForAnimationToEnd"
+                echo "- takeScreenshot: s$(printf %02d $i)-$N-$MODE"
+                i=$((i+1))
+              done; } > "$F"
+            maestro --device "$DEV" test "$F" > "$OUT/maestro-$MODE.log" 2>&1 || { echo "maestro $MODE failed"; tail -15 "$OUT/maestro-$MODE.log"; }
           done
-          xcrun simctl ui booted appearance light
-          pgrep -x Multies > /dev/null && echo "app still running at the end" || echo "APP NOT RUNNING at the end"
+          ls | wc -l
+
+      - name: Logs and crash lines
+        if: always()
+        run: |
+          OUT="$GITHUB_WORKSPACE/out"
+          pgrep -x Multies > /dev/null && echo "app running at the end" || echo "APP NOT RUNNING at the end"
           kill $LOGPID 2>/dev/null || true
           cp ~/Library/Logs/DiagnosticReports/Multies* "$OUT/" 2>/dev/null || true
           grep -iE "crash|fatal|exception|terminat|RCTFatal|Unhandled JS" "$OUT/sim.log" | head -40 > "$OUT/crash-lines.txt" || true
