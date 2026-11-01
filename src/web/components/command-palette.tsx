@@ -20,7 +20,7 @@ import { taskPickerItems, type PickerItem } from "@/web/lib/commands/task-picker
 import { typedActionChange, useTypedAction } from "@/web/lib/commands/typed-action"; // R54
 import { useAppearance } from "@/web/components/theme";
 import { ContentGroups, useContentSearch } from "@/web/components/search-results";
-import { Corrected, FilterBar, NoResults, SearchError, TopHits } from "@/web/components/search-r98"; // R98
+import { Corrected, FilterBar, NoResults, SearchError, TopHits, filterMenuState } from "@/web/components/search-r98"; // R98
 import { NO_FILTERS, TYPE_CHOICES, dropIndex, hasFilters, instantHits, parseFilterWords, useInstantIndex, useSearchR98, type Filters } from "@/web/lib/search-r98"; // R98
 import { useGoLinks } from "@/web/pages/app/tools-links/data"; // R87
 import { useConfig, useDomains, useMailboxes, useMe } from "@/web/lib/queries";
@@ -86,7 +86,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   const { update } = useTaskMutations();
   // R98: typed filter words, the server search with filters, and instant hits from the index in this tab.
   const me = useMe();
-  const members = useMemo(() => (people.data ?? []).filter((p) => p.type === "member" && !p.isAgent).map((p) => ({ id: p.id, name: p.name, email: p.email })), [people.data]);
+  const members = useMemo(() => (people.data ?? []).filter((p) => p.type === "member" && !p.isAgent).map((p) => ({ id: p.id.replace(/^member:/, ""), name: p.name, email: p.email })) /* assignee ids read "member:<user id>" */, [people.data]);
   const liveProjects = useMemo(() => (projects.data ?? []).filter((p) => !p.archived).map((p) => ({ id: p.id, name: p.name, key: p.key })), [projects.data]);
   const parsed = useMemo(() => (r98 ? parseFilterWords(search, members, liveProjects) : { text: search, filters: {}, problems: [] as string[] }), [r98, search, members, liveProjects]);
   const effective: Filters = useMemo(() => ({ ...filters, ...parsed.filters }), [filters, parsed.filters]);
@@ -225,7 +225,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   }, [content.loading, content.data]);
   useEffect(() => { heldEnter.current = false; }, [open]);
   return (
-    <Command.Dialog open={open} onOpenChange={(v) => { if (!v) close(); else onOpenChange(v); }} label="Command menu" filter={paletteScore}
+    <Command.Dialog open={open} onOpenChange={(v) => { if (!v && filterMenuState.open) return; /* R98: Esc closes the filter list first */ if (!v) close(); else onOpenChange(v); }} label="Command menu" filter={paletteScore}
       onKeyDown={(e) => {
         if (e.key === "Backspace" && !search && page) { e.preventDefault(); onPage(null); }
         // R98: Alt and a number picks a type; Backspace in an empty box takes off the last filter.
@@ -253,10 +253,20 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
           placeholder={picker ? picker.title.replace("...", "") : r98 ? "Search everything, or jump to a page" : "Search mail, tasks, docs and chat, or jump to a page"}
           className="h-12 w-full bg-transparent text-[14px] text-fg outline-none placeholder:text-subtle" />
         <span className="max-sm:hidden"><Kbd>Esc</Kbd></span>
-        <button type="button" onClick={close} className="hidden h-9 shrink-0 rounded-lg px-2 text-[15px] text-brand max-sm:block">Cancel</button>
+        <button type="button" onClick={close} className="hidden h-9 shrink-0 rounded-lg px-2 text-[15px] text-brand-hover max-sm:block">Cancel</button>
       </div>
       {r98 && !picker && (search.trim() || hasFilters(filters)) && (
         <FilterBar filters={effective} onChange={setFilters} people={members} projects={liveProjects} notes={!!config.data?.crmTimeline} problems={parsed.problems} />
+      )}
+      {/* R98: notices with buttons sit outside the list (a listbox may only hold options). */}
+      {r98 && !picker && (
+        <>
+          {r98 && content.active && r98s.error && <SearchError onRetry={r98s.retry} />}
+          {r98 && content.active && !r98s.error && r98s.data?.corrected && !strict && <Corrected corrected={r98s.data.corrected} typed={parsed.text} onStrict={() => setStrict(true)} />}
+          {r98 && !typed && content.active && !content.loading && !r98s.error && !hits.length && !r98s.data?.groups.length && (
+            <NoResults search={parsed.text} filtered={hasFilters(effective)} onClear={() => { setFilters(NO_FILTERS); setSearch(parsed.text); }} />
+          )}
+        </>
       )}
       <Command.List ref={listRef} className={cn("max-h-[min(440px,62vh)] overflow-y-auto overscroll-contain py-1 max-sm:max-h-none max-sm:flex-1")}>
         {picker ? (
@@ -285,11 +295,6 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
                   {typed.state === "ready" && !typedProblem && <span className="flex shrink-0 items-center gap-1 text-xs text-subtle"><Kbd>↵</Kbd><span className="max-sm:hidden">{askLabels ? "to check" : "to apply"}</span></span>}
                 </Command.Item>
               </Command.Group>
-            )}
-            {r98 && content.active && r98s.error && <SearchError onRetry={r98s.retry} />}
-            {r98 && content.active && !r98s.error && r98s.data?.corrected && !strict && <Corrected corrected={r98s.data.corrected} typed={parsed.text} onStrict={() => setStrict(true)} />}
-            {r98 && !typed && content.active && !content.loading && !r98s.error && !hits.length && !r98s.data?.groups.length && (
-              <NoResults search={parsed.text} filtered={hasFilters(effective)} onClear={() => { setFilters(NO_FILTERS); setSearch(parsed.text); }} />
             )}
             {!r98 && !typed && !content.loading && !content.data?.groups.length && <Command.Empty className="px-4 py-8 text-center text-sm text-muted"><SmallNoResultsArt /><p className="mt-2 font-medium text-fg">No results for “{search}”</p><p className="mt-0.5 text-xs text-subtle">Try another word, or press ? to see every shortcut.</p></Command.Empty>}
             {group(<Heading icon={IconSparkle}>{task && focus.kind === "task" ? `Task ${task.ref}` : "This message"}</Heading>, contextual.map(toItem), "palette-context")}

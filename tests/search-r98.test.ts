@@ -14,20 +14,6 @@ let ownerId: string;
 let wsKey: string;
 let orgId: string;
 
-async function api(key: string, method: string, path: string, body?: unknown) {
-  const res = await ctx.app.request(`/api/v1${path}`, { method, headers: { authorization: `Bearer ${key}`, host: "localhost", ...(body !== undefined ? { "content-type": "application/json" } : {}) }, body: body !== undefined ? JSON.stringify(body) : undefined });
-  const text = await res.text();
-  let json: any; // eslint-disable-line @typescript-eslint/no-explicit-any
-  try { json = JSON.parse(text); } catch { json = text; }
-  return { status: res.status, body: json };
-}
-async function mcpFor(key: string) {
-  const fetchViaApp = ((url: string | URL, init?: RequestInit) => ctx.app.request(new URL(url).pathname, { ...init, headers: { ...Object.fromEntries(new Headers(init?.headers).entries()), host: "localhost" } })) as typeof fetch;
-  const client = new McpClient({ name: "test", version: "1.0.0" });
-  await client.connect(new StreamableHTTPClientTransport(new URL("http://localhost/api/v1/mcp"), { requestInit: { headers: { authorization: `Bearer ${key}` } }, fetch: fetchViaApp }));
-  return client;
-}
-const data = (r: unknown) => JSON.parse((r as { content: { text: string }[] }).content[0].text);
 
 async function verify() {
   const { body } = await c.get(`/api/domains/${domainId}`);
