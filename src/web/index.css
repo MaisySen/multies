@@ -477,3 +477,12 @@ html[data-density="comfortable"] { --spacing: 0.25rem; }
 .mm-present-btn-light { color: var(--color-fg); }
 .mm-present-btn-light:hover:not(:disabled) { background: var(--color-hover); }
 @media (max-width: 639px) { .mm-present-btn { min-width: 44px; height: 44px; } }
+
+/* W1: product shots on the public pages follow the site theme; only one copy shows (and downloads). */
+.mk-shot-dark { display: none; }
+:root[data-theme="dark"] .mk-shot-light { display: none; }
+:root[data-theme="dark"] .mk-shot-dark { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .mk-shot-light { display: none; }
+  :root:not([data-theme="light"]) .mk-shot-dark { display: block; }
+}

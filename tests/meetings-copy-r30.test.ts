@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 
@@ -12,7 +13,8 @@ describe("Meetings copy reflects recording (R30)", () => {
     expect(src).toContain("you see a banner while it is on");
   });
   it("the landing page no longer says nothing is recorded", () => {
-    const src = read("landing.tsx");
+    // W1: the meetings words moved to the Meetings area page (shared/marketing-areas.ts), linked from the landing grid.
+    const src = read("landing.tsx") + readFileSync("src/shared/marketing-areas.ts", "utf8");
     expect(src).not.toContain("Nothing is recorded");
     expect(src).toContain("Record a call for a transcript and summary");
   });

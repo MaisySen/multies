@@ -526,6 +526,10 @@ function withPageMeta(res: Response, path: string, prerendered = false): Respons
     .on('meta[property="og:url"]', content(url))
     .on('meta[name="twitter:title"]', content(meta.title))
     .on('meta[name="twitter:description"]', content(meta.description))
+    // W1: each product area page has its own link preview picture.
+    .on('meta[property="og:image"]', content(meta.image ?? `${SITE_URL}/og-image.png`))
+    .on('meta[name="twitter:image"]', content(meta.image ?? `${SITE_URL}/og-image.png`))
+    .on('meta[property="og:image:alt"]', content(meta.title))
     .on('link[rel="canonical"]', { element: (el) => { el.setAttribute("href", url); } })
     .on("head", { element: (el) => { if (meta.noindex) el.append('<meta name="robots" content="noindex" />', { html: true }); } })
     // R60 (trust): residency, safe trial and connections as plain HTML for readers that do not run scripts.

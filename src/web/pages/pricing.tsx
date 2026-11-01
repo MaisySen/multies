@@ -10,9 +10,6 @@ import { LOCALE } from "@/shared/locale";
 import { RESIDENCY_ANSWER } from "@/shared/residency";
 import { OFFER_COPY } from "@/shared/offers";
 
-/** Google Workspace Business Starter, per user a month on an annual plan (Google's Australian price list, read 23 October 2026). */
-const GOOGLE_STARTER_AUD = 9.9;
-
 const countryParam = () => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("country"));
 
 /** The price in the visitor's own currency, approximate and for display only. Billing stays in A$. */
@@ -40,9 +37,9 @@ const FAQ: { q: string; a: string }[] = [
   // R60 (trust): the facts come from src/shared/residency.ts, the same source as /trust and /privacy.
   { q: "Where is my email stored?", a: `${RESIDENCY_ANSWER} The full list, store by store, is on our Trust page.` },
   { q: "Can I try Multies without connecting a client mailbox?", a: "Yes. Open the live demo, a sample workspace with made up mail that needs no sign up and is deleted after 24 hours. Or sign up free and take a test address like yourname@mail.multies.si to send and receive real mail. Connect a client mailbox only when you are ready; removing it deletes our copy." },
-  { q: "Will this mean more admin?", a: "It should mean less. Keep your current address by connecting the mailbox over IMAP, import contacts from Google or any address book as a vCard or CSV file, and run mail, tasks, chat and meetings under one sign in. Multies does not replace accounting or industry specific software; it connects to them through webhooks and the API." },
-  { q: "Does it connect to my CRM or WhatsApp?", a: "Any CRM or platform that can send or receive webhooks, or has an API, can pass leads to and from Multies today. There is no ready made connector for specific industry platforms. WhatsApp enquiries in the shared inbox are planned and not available yet." },
-  { q: "I'm on Pro or Business. What changes?", a: "Nothing unless you want it to. Your plan, limits and price stay as they are, and you can add add-ons to the same subscription, or move to Free and keep only the add-ons you use." },
+  { q: "Will this mean more admin?", a: "It should mean less. Keep your current address by connecting the mailbox over IMAP, import contacts from any address book as a vCard or CSV file, and run mail, tasks, chat and meetings under one sign in. Multies does not replace accounting or industry specific software; it connects to them through webhooks and the API." },
+  { q: "Does it connect to my CRM or other tools?", a: "Any CRM or platform that can send or receive webhooks, or has an API, can pass leads to and from Multies today. There is no ready made connector for specific industry platforms. WhatsApp enquiries in the shared inbox are planned and not available yet." },
+  { q: "I'm on an older paid plan. What changes?", a: "Nothing unless you want it to. Your plan, limits and price stay as they are, and you can add add-ons to the same subscription, or move to Free and keep only the add-ons you use." },
 ];
 
 export function PricingPage() {
@@ -78,7 +75,6 @@ function Calculator() {
   const [interval, setInterval] = useState<BillingInterval>("month");
   const charge = chargeFor(addons, 0, interval);
   const limits = effectiveLimits(PLANS.starter, addons);
-  const google = people * GOOGLE_STARTER_AUD;
   const set = (id: AddonId, n: number) => setAddons({ ...addons, [id]: Math.max(0, Math.min(ADDONS[id].maxQuantity, n)) });
   const shortOfSeats = limits.seats < people;
   return (
@@ -131,11 +127,6 @@ function Calculator() {
               {limits.domains} domain{limits.domains === 1 ? "" : "s"}, {limits.mailboxes} mailboxes, {limits.seats} people, {(limits.storageMb / 1024).toLocaleString(LOCALE)} GB and {limits.agentInboxes} agent inboxes. AI is yours to bring, free.
             </p>
             {shortOfSeats && <p className="mt-2 text-sm text-warn">That's room for {limits.seats} people. Add a mailbox pack for every five more.</p>}
-          </div>
-          <div className="border-t border-line pt-4 text-sm">
-            <p className="text-muted">Google Workspace Business Starter for {people} {people === 1 ? "person" : "people"}</p>
-            <p className="mt-1 text-lg font-semibold tabular-nums">{formatPlanPrice(google)} a month</p>
-            <p className="mt-1 text-xs text-subtle">A$9.90 per person a month on an annual plan, from Google's Australian price list (October 2026), excluding GST.</p>
           </div>
         </div>
       </div>

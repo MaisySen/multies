@@ -1,15 +1,19 @@
 import { Link } from "react-router";
-import { WHATS_NEW, formatWhatsNewDate } from "@/shared/whats-new";
+import { WHATS_NEW, formatWhatsNewDate, type WhatsNewEntry } from "@/shared/whats-new";
+import { WHATS_NEW_EARLIER } from "@/shared/whats-new-public";
 import { LOCALE } from "@/shared/locale";
 
-/** R53 (MB-133): the public changelog. The same list the account menu's What's new item points to. */
+/** R53 (MB-133): the public changelog. The same list the account menu's What's new item points to.
+ * W1: also at /whats-new, with the earlier live features below the in-app list (ids already in it are skipped). */
+const inApp = new Set(WHATS_NEW.map((e) => e.id));
+const ENTRIES: readonly WhatsNewEntry[] = [...WHATS_NEW, ...WHATS_NEW_EARLIER.filter((e) => !inApp.has(e.id))].sort((a, b) => b.date.localeCompare(a.date));
 export function ChangelogPage() {
   return (
     <section className="mx-auto max-w-3xl px-5 pb-24 pt-32 sm:pt-36">
       <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">What's new</h1>
       <p className="mt-3 text-muted">What changed in Multies, newest first.</p>
       <ol className="mt-8 divide-y divide-line border-y border-line">
-        {WHATS_NEW.map((e) => (
+        {ENTRIES.map((e) => (
           <li key={e.id} id={e.id} className="grid gap-1.5 py-6 sm:grid-cols-[8.5rem_1fr] sm:gap-6" data-testid="changelog-entry">
             <time dateTime={e.date} className="text-sm tabular-nums text-subtle sm:pt-0.5">{formatWhatsNewDate(e.date, LOCALE)}</time>
             <div className="min-w-0">

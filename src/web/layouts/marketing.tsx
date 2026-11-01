@@ -7,12 +7,14 @@ import { MarketingBottom } from "@/web/components/marketing-bottom";
 import { ButtonLink } from "@/web/components/ui/button";
 import { useSignedIn } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
+import { AREAS } from "@/shared/marketing-areas";
 
+// W1: the areas have their own pages now.
 const links = [
-  { to: "/#features", label: "Product" },
-  { to: "/agents", label: "For agents" },
+  { to: "/features", label: "Features" },
   { to: "/pricing", label: "Pricing" },
-  { to: "/#faq", label: "FAQ" },
+  { to: "/whats-new", label: "What's new" },
+  { to: "/agents", label: "For agents" },
 ];
 
 export function MarketingLayout() {
@@ -75,23 +77,29 @@ export function MarketingLayout() {
       </header>
       <main id="main"><Outlet /></main>
       <footer className="border-t border-line">
-        <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:grid-cols-2 md:grid-cols-6">
+        <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
           <div className="space-y-3 md:col-span-2">
             <Logo />
-            <p className="max-w-xs text-sm text-muted">Professional email on the domain you already own, with tasks, chat and agents built in.</p>
+            <p className="max-w-xs text-sm text-muted">One workspace for your team on your own domain: mail, tasks, chat, docs, files, meetings, booking, contacts and invoices.</p>
             <p className="text-sm text-muted">Questions? <Link to="/contact" className="font-medium text-brand-hover hover:underline">Contact us</Link></p>
           </div>
           <div>
             <h2 className="text-[13px] font-medium text-fg">Product</h2>
             <ul className="mt-3 space-y-2 text-sm text-muted">
-              <li><Link to="/#features" className="hover:text-fg">Features</Link></li>
+              <li><Link to="/features" className="hover:text-fg">All features</Link></li>
               <li><Link to="/pricing" className="hover:text-fg">Pricing</Link></li>
               <li><Link to="/startups" className="hover:text-fg">Free for small teams</Link></li>
               <li><Link to="/switch" className="hover:text-fg">Move to Multies</Link></li>
               <li><Link to="/#faq" className="hover:text-fg">FAQ</Link></li>
               <li><Link to="/check" className="hover:text-fg">Check your domain</Link></li>
               <li><Link to="/status" className="hover:text-fg">System status</Link></li>
-              <li><Link to="/changelog" className="hover:text-fg">What's new</Link></li>
+              <li><Link to="/whats-new" className="hover:text-fg">What's new</Link></li>
+            </ul>
+          </div>
+          <div>
+            <h2 className="text-[13px] font-medium text-fg">Features</h2>
+            <ul className="mt-3 space-y-2 text-sm text-muted">
+              {AREAS.map((a) => <li key={a.slug}><Link to={`/features/${a.slug}`} className="hover:text-fg">{a.name}</Link></li>)}
             </ul>
           </div>
           <div>

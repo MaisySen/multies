@@ -189,6 +189,8 @@ const DeveloperSettings = lazyPage(() => import("./pages/app/developers"), "Deve
 const DeliverabilityPage = lazyPage(() => import("./pages/app/deliverability"), "DeliverabilityPage");
 const StatusPage = lazyPage(() => import("./pages/status"), "StatusPage");
 const ChangelogPage = lazyPage(() => import("./pages/changelog"), "ChangelogPage"); // R53 MB-133
+const FeaturesIndexPage = lazyPage(() => import("./pages/features"), "FeaturesIndexPage"); // W1
+const FeatureAreaRoute = lazyPage(() => import("./pages/features"), "FeatureAreaRoute"); // W1
 const ThanksPage = lazyPage(() => import("./pages/thanks"), "ThanksPage");
 const CheckPage = lazyPage(() => import("./pages/check"), "CheckPage");
 const TrustPage = lazyPage(() => import("./pages/trust"), "TrustPage");
@@ -219,6 +221,9 @@ export const router = createBrowserRouter([
       { path: "/developers/mcp", element: publicPage(<McpDocsPage />) }, // R36: MCP tool docs
       { path: "/status", element: publicPage(<StatusPage />) },
       { path: "/changelog", element: publicPage(<ChangelogPage />) }, // R53: What's new
+      { path: "/whats-new", element: publicPage(<ChangelogPage />) }, // W1: the public What's new address
+      { path: "/features", element: publicPage(<FeaturesIndexPage />) }, // W1
+      { path: "/features/:area", element: publicPage(<FeatureAreaRoute />) }, // W1: one page per product area
       { path: "/privacy", element: publicPage(<LegalPage slug="privacy" />) },
       { path: "/support", element: publicPage(<SupportPage />) },
       { path: "/contact", element: publicPage(<ContactUsPage />) },

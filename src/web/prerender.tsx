@@ -22,6 +22,8 @@ import { DeleteAccountPage, SupportPage } from "./pages/support";
 import { ContactUsPage } from "./pages/contact";
 import { CheckPage } from "./pages/check";
 import { TrustPage } from "./pages/trust";
+import { FeaturesIndexPage, FeatureAreaPage } from "./pages/features";
+import { AREAS } from "../shared/marketing-areas";
 
 /**
  * R30: the landing page rendered to HTML at build time (scripts/prerender-landing.ts), so a phone sees
@@ -116,6 +118,9 @@ const PUBLIC_ELEMENTS: Record<string, () => ReactElement> = {
   "/developers/mcp": () => <McpDocsPage />,
   "/status": () => <StatusPage />,
   "/changelog": () => <ChangelogPage />,
+  "/whats-new": () => <ChangelogPage />,
+  "/features": () => <FeaturesIndexPage />,
+  ...Object.fromEntries(AREAS.map((a) => [`/features/${a.slug}`, () => <FeatureAreaPage area={a} />])),
   "/privacy": () => <LegalPage slug="privacy" />,
   "/support": () => <SupportPage />,
   "/contact": () => <ContactUsPage />,

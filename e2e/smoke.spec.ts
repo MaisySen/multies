@@ -49,7 +49,7 @@ test("developer docs are served as Markdown next to llms.txt (R33)", async ({ re
 
 test("marketing pages render and link to sign up", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("for your team and your AI agents");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("One workspace for your team");
   await page.getByRole("link", { name: "Pricing" }).first().click();
   await expect(page.getByRole("heading", { name: "Work out your price" })).toBeVisible();
 });

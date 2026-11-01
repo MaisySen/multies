@@ -4,6 +4,7 @@
  * link checkers see a real 404. Keep this in step with the router.
  */
 import { SWITCH_SLUGS } from "./switch-sources";
+import { AREA_SLUGS } from "./marketing-areas";
 
 const EXACT = new Set([
   "/", "/pricing", "/agents", "/developers", "/developers/mcp", "/check", "/trust", "/security", "/status", "/changelog", "/privacy", "/support", "/delete-account", "/terms", "/acceptable-use", "/dpa",
@@ -11,6 +12,8 @@ const EXACT = new Set([
 ]);
 // R58 (MB-237): the free plan page, the switch list, and one switch page per tool the import reads (unknown tools are a 404).
 for (const p of ["/startups", "/switch", ...SWITCH_SLUGS.map((s) => `/switch/${s}`)]) EXACT.add(p);
+// W1: the features list, one page per product area, and the public What's new address.
+for (const p of ["/features", "/whats-new", ...AREA_SLUGS.map((s) => `/features/${s}`)]) EXACT.add(p);
 const PREFIXES = ["/app", "/invite/", "/f/", "/m/", "/g/", "/book/", "/go/", "/dash/", "/i/"]; // R105: /i/<token> invoice and quote view; R87: go links (members only); R91: /dash/<token> public dashboards
 
 /** R76: every exact page path, so a test can check each has its own title (seo-meta.ts) and a sitemap entry where public. */

@@ -19,7 +19,8 @@ export function applyMeta(path: string) {
   meta("property", "og:title", m.title);
   meta("property", "og:description", m.description);
   meta("property", "og:url", url);
-  meta("property", "og:image", OG_IMAGE);
+  meta("property", "og:image", m.image ?? OG_IMAGE);
+  meta("name", "twitter:image", m.image ?? OG_IMAGE);
   meta("name", "twitter:title", m.title);
   meta("name", "twitter:description", m.description);
   (tag('link[rel="canonical"]', () => { const l = document.createElement("link"); l.rel = "canonical"; return l; }) as HTMLLinkElement).href = url;

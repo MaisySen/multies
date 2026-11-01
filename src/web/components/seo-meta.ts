@@ -4,15 +4,18 @@
  */
 import { freeHeadline } from "../../shared/free-plan";
 import { SWITCH_SOURCES } from "../../shared/switch-sources";
+import { AREAS } from "../../shared/marketing-areas";
 
 export const SITE_URL = "https://multies.si";
 export const OG_IMAGE = `${SITE_URL}/og-image.png`;
 
-export interface PageMeta { title: string; description: string; noindex?: boolean }
+/** image: the shared link preview picture (W1: one per product area); OG_IMAGE when unset. */
+export interface PageMeta { title: string; description: string; noindex?: boolean; image?: string }
 
 const DEFAULT: PageMeta = {
-  title: "Multies: email on your own domain, with tasks, chat and agents",
-  description: "Professional email on the domain you own, with tasks, team chat, docs and AI agent inboxes built in. Free for small teams, add-ons from A$1 a month.",
+  title: "Multies: one workspace for your team, on your own domain",
+  description: "Mail on your own domain with tasks, chat, docs, files, meetings, booking, contacts, invoices and signing in one place. AI agents help, a person approves. Free to start.",
+  image: `${SITE_URL}/og/home.jpg`,
 };
 
 /** R60: /trust and /security. The description answers the residency question for readers that only see the head. */
@@ -31,6 +34,10 @@ export const PUBLIC_META: Record<string, PageMeta> = {
   "/security": TRUST_META,
   "/status": { title: "System status | Multies", description: "Live status of Multies' web app, API, inbound mail and outbound delivery." },
   "/changelog": { title: "What's new | Multies", description: "What changed in Multies, newest first: new features, fixes and speed improvements." },
+  "/whats-new": { title: "What's new | Multies", description: "New in Multies, newest first: invoices and quotes, booking, Ask, contracts, files, newsletters and more.", image: `${SITE_URL}/og/whats-new.jpg` },
+  // W1: the features list and one page per product area, each with its own link preview picture.
+  "/features": { title: "Features | Multies", description: "Mail, tasks, chat, docs, files, meetings, booking, contacts, invoices, signing, social and AI agents, in one workspace on your own domain.", image: `${SITE_URL}/og/features.jpg` },
+  ...Object.fromEntries(AREAS.map((a) => [`/features/${a.slug}`, { title: a.title, description: a.description, image: `${SITE_URL}/og/${a.slug}.jpg` }])),
   "/privacy": { title: "Privacy policy | Multies", description: "What Multies collects, why, where it is processed and how to delete it. Workspace data, including synced mail, is stored in the Oceania region; some services run in the United States. Not Australia only." },
   "/terms": { title: "Terms of service | Multies", description: "The terms for using Multies' email, work management and agent features." },
   "/acceptable-use": { title: "Acceptable use policy | Multies", description: "What you may and may not send or store with Multies." },
