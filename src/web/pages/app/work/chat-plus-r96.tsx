@@ -245,7 +245,7 @@ export function PollBody({ poll, onChange }: { poll: PollView; onChange: () => v
       {poll.kind === "cloud" && <Cloud poll={poll} act={act} />}
       {poll.kind === "qa" && <Questions poll={poll} act={act} />}
       <footer className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-subtle">
-        <span>{poll.kind === "qa" ? `${poll.questions?.length ?? 0} questions` : `${poll.voters} ${poll.voters === 1 ? "vote" : "votes"}`}{poll.anonymous ? " · anonymous" : ""} · by {poll.createdByName}</span>
+        <span>{poll.kind === "qa" ? `${poll.questions?.length ?? 0} ${(poll.questions?.length ?? 0) === 1 ? "question" : "questions"}` : `${poll.voters} ${poll.voters === 1 ? "vote" : "votes"}`}{poll.anonymous ? " · anonymous" : ""} · by {poll.createdByName}</span>
         {poll.canManage && poll.open && <Button variant="ghost" size="sm" className="ml-auto" onClick={() => void act(`/chat-plus/polls/${poll.id}/close`)} data-testid="poll-close">Close now</Button>}
       </footer>
     </section>
