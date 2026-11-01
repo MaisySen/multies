@@ -43,3 +43,20 @@ export function notInIds(column: SQLWrapper, ids: readonly string[]): SQL | unde
 export function inScope(column: SQLWrapper, scope: readonly string[] | null | undefined): SQL | undefined {
   return scope ? inIds(column, scope) : undefined;
 }
+
+/**
+ * D1 refuses a LIKE pattern longer than 50 bytes ("LIKE or GLOB pattern too complex"), so a pattern built from an
+ * email address (`%"address":"someone@example.com"%`) fails for any address of 37 characters or more. Contact pages
+ * on staging answered 500 for exactly those (R99). `instr` has no such limit and needs no escaping: these match the
+ * lower cased column against a literal needle.
+ */
+export function containsLower(column: SQLWrapper, needle: string): SQL {
+  return sql`instr(lower(${column}), ${needle.toLowerCase()}) > 0`;
+}
+/** True when the lower cased column ends with `suffix` (a LIKE '%suffix' without the pattern length limit). */
+export function endsWithLower(column: SQLWrapper, suffix: string): SQL {
+  const s = suffix.toLowerCase();
+  return sql`substr(lower(${column}), ${-s.length}) = ${s}`;
+}
+/** The JSON address list columns (to, cc) hold `"address":"<email>"`; this is the needle for one address. */
+export const addressNeedle = (email: string) => `"address":"${email.toLowerCase().replace(/"/g, "")}"`;

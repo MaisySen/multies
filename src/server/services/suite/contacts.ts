@@ -8,7 +8,7 @@ import type { Deps } from "../../context";
 import { aliases, appSettings, companies, contacts, deals, domains, mailboxes, messages, tasks } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, scopeOf, parseDate, recordWrite, sortableId, timeline, type SuiteActor } from "./common";
-import { inIds } from "../../lib/sql-chunks";
+import { addressNeedle, containsLower, inIds } from "../../lib/sql-chunks";
 
 const FREE_MAIL = new Set([
   "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "hotmail.com.au", "live.com", "live.com.au", "msn.com", "yahoo.com", "yahoo.com.au", "ymail.com",
@@ -210,10 +210,10 @@ async function contactRow(deps: Deps, orgId: string, idOrEmail: string) {
 
 /** Threads with this person, newest first, within the mailboxes the viewer can open. */
 async function threadsWith(deps: Deps, orgId: string, email: string, scope: string[] | null, limit = 50) {
-  const pattern = `%"address":"${email.replace(/[%_"]/g, "")}"%`;
+  const needle = addressNeedle(email);
   const rows = await deps.db.select({ threadId: messages.threadId, subject: messages.subject, date: messages.date, folder: messages.folder, mailboxId: messages.mailboxId, snippet: messages.snippet, id: messages.id })
     .from(messages).where(and(eq(messages.orgId, orgId), sql`${messages.folder} not in ('drafts','trash')`,
-      or(eq(sql`lower(${messages.fromAddress})`, email), like(sql`lower(${messages.to})`, pattern), like(sql`lower(${messages.cc})`, pattern)),
+      or(eq(sql`lower(${messages.fromAddress})`, email), containsLower(messages.to, needle), containsLower(messages.cc, needle)),
       scope ? inIds(messages.mailboxId, scope) : undefined))
     .orderBy(desc(messages.date)).limit(400);
   const byThread = new Map<string, { threadId: string; subject: string; lastAt: Date; firstAt: Date; count: number; lastDirection: "inbound" | "outbound"; snippet: string; messageId: string; mailboxId: string }>();

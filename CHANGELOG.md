@@ -14,6 +14,10 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Staging only test network (SOCIAL_TEST_NETWORK, refused on multies.si) for end to end checks. Flag SOCIAL_P2B. Migration 0122.
 ## [Unreleased] (rounds 11 to 15)
 
+### Hotfix contacts (1 Nov 2026)
+
+- Contact pages and the CRM timeline answered 500 (shown as Contact not found) for addresses of 37 characters or more, because the database refuses LIKE patterns over 50 bytes; the address match now uses instr. A test emulates the limit.
+
 ### Round 94 (31 Oct 2026)
 
 - CRM timeline: one paged timeline per contact and per company of email, logged notes, calls and meetings, meetings, bookings, form submissions, deal moves and tasks, with filters and a next step kept as a linked task.

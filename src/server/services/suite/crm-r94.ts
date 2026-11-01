@@ -4,11 +4,11 @@
  * forecast. Every source is a bounded, indexed query merged newest first; a member sees only mail from mailboxes
  * they can open and only their own private notes.
  */
-import { and, desc, eq, inArray, isNull, like, or, sql, type SQLWrapper } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql, type SQLWrapper } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { bookings, changes, companies, contacts, crmEntries, crmSegments, deals, formSubmissions, forms, meetings, messages } from "../../db/schema";
 import { badRequest, forbidden, notFound } from "../../lib/errors";
-import { chunkIds, inIds } from "../../lib/sql-chunks";
+import { addressNeedle, chunkIds, containsLower, endsWithLower, inIds } from "../../lib/sql-chunks";
 import { actorOf, assertWritable, createdBy, iso, parseDate, recordWrite, scopeOf, sortableId, type SuiteActor } from "./common";
 import { dealProbability, ensureCompany, isFreeMail, listContacts, presentContact, type ContactSegmentFilters, type DealStage } from "./contacts";
 import type { CsvContact } from "../../../shared/crm-csv";
@@ -84,12 +84,12 @@ const MAIL_SCAN = 2000;
 async function mailSource(deps: Deps, orgId: string, s: Subject, scope: string[] | null, cur: Cursor | null, n: number): Promise<TimelineItem[]> {
   const conds = [];
   for (const email of s.emails.slice(0, s.type === "company" && s.domain ? 0 : 20)) {
-    const pattern = `%"address":"${email.replace(/[%_"]/g, "")}"%`;
-    conds.push(eq(sql`lower(${messages.fromAddress})`, email), like(sql`lower(${messages.to})`, pattern), like(sql`lower(${messages.cc})`, pattern));
+    const needle = addressNeedle(email);
+    conds.push(eq(sql`lower(${messages.fromAddress})`, email), containsLower(messages.to, needle), containsLower(messages.cc, needle));
   }
   if (s.domain) {
     const d = s.domain.replace(/[%_"]/g, "");
-    conds.push(like(sql`lower(${messages.fromAddress})`, `%@${d}`), like(sql`lower(${messages.to})`, `%@${d}"%`), like(sql`lower(${messages.cc})`, `%@${d}"%`));
+    conds.push(endsWithLower(messages.fromAddress, `@${d}`), containsLower(messages.to, `@${d}"`), containsLower(messages.cc, `@${d}"`));
   }
   if (!conds.length) return [];
   if (scope && !scope.length) return [];
