@@ -16,8 +16,8 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
-    id: "2026-11-01-home-widgets",
-    date: "2026-11-01",
+    id: "2026-11-02-home-widgets",
+    date: "2026-11-02",
     title: "Arrange your Home",
     body: "Home is now made of widgets for your tasks, meetings, inbox counts, quick links and more. Drag them into the order you like, change their size or hide them, and admins can set the layout everyone starts with.",
   },
