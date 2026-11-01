@@ -21,6 +21,9 @@ import {
 } from "@/shared/tools-automation";
 import { AutoPage, ResultBox, useRunState } from "./shell";
 import { warmEngine } from "@/web/components/tools/tool-directory";
+import { useSearchParams } from "react-router";
+import { useConfig } from "@/web/lib/queries";
+import { ContractsView } from "./contracts-r108"; // R108: contracts
 
 /** R67: the last invoice and quote number made in this browser, per workspace, so the next one is suggested. */
 const NUMBER_KEYS = { invoice_number: "invoice", quote_number: "quote" } as const;
@@ -112,7 +115,25 @@ function CustomEditor({ start, onDone }: { start: Partial<TemplateDef>; onDone: 
   );
 }
 
+/** R108: Documents and Contracts views of Tools > Templates (Contracts only when CONTRACTS_R108 is on). */
 export function TemplatesPage() {
+  const contracts = !!useConfig().data?.contractsR108;
+  const [params, setParams] = useSearchParams();
+  const view = contracts && params.get("view") === "contracts" ? "contracts" : "documents";
+  if (!contracts) return <DocumentTemplates />;
+  const switcher = (
+    <div className="flex rounded-lg border border-line p-0.5" role="tablist" aria-label="Template kind">
+      {(["documents", "contracts"] as const).map((v) => (
+        <button key={v} role="tab" aria-selected={view === v} data-testid={`templates-view-${v}`} onClick={() => setParams(v === "contracts" ? { view: "contracts" } : {}, { replace: true })}
+          className={cn("min-h-[32px] rounded-md px-3 text-[13px]", view === v ? "bg-fill font-medium text-fg" : "text-muted hover:text-fg")}>{v === "documents" ? "Documents" : "Contracts"}</button>
+      ))}
+    </div>
+  );
+  if (view === "contracts") return <AutoPage entryKey="templates" title="Contracts" description="Plain words contract templates for small businesses. Answer a few questions, check the preview, then save a Doc, download it or send it to sign." actions={switcher} usage={false}><ContractsView /></AutoPage>;
+  return <DocumentTemplates switcher={switcher} />;
+}
+
+function DocumentTemplates({ switcher }: { switcher?: React.ReactNode } = {}) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["tools-templates"], queryFn: () => api.get<Info>("/tools/templates") });
   const [id, setId] = useState("builtin-invoice");
@@ -144,7 +165,7 @@ export function TemplatesPage() {
   const subject = t ? `${t.name}${values.invoice_number ? ` ${values.invoice_number}` : values.quote_number ? ` ${values.quote_number}` : values.subject ? `: ${values.subject}` : ""}` : "";
   return (
     <AutoPage entryKey="templates" title="Document templates" description="Fill in an invoice, quote or letter, check the preview, and get a PDF to send. Invoices work out line totals, GST and the total for you."
-      actions={<Button variant="secondary" onClick={() => setEditing({})}>New template</Button>}>
+      actions={<div className="flex flex-wrap items-center gap-2">{switcher}<Button variant="secondary" onClick={() => setEditing({})}>New template</Button></div>}>
       {editing && <CustomEditor start={editing} onDone={() => setEditing(null)} />}
       {q.isPending ? <Skeleton className="h-96 w-full" /> : t && (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
