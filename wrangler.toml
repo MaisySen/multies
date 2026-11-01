@@ -343,6 +343,7 @@ ANALYTICS_PH = "on"
 POSTHOG_HOST = "https://eu.i.posthog.com"
 TASKS_PLUS_R95 = "on" # R95: tasks plus (My Day, smart repeat, timesheets, mind map)
 DASHBOARDS_PLUS = "on" # R91
+CONTRACTS_R108 = "on" # R108: contracts (staging; prod after verifier PASS)
 # R118: the test network for compose, schedule, approve, inbox and analytics checks (refused on multies.si by code).
 SOCIAL_TEST_NETWORK = "on"
 DOCS_PLUS_R103 = "on" # R103: Docs plus (link library, web clipper, doc comments, spell check)

@@ -1410,5 +1410,16 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE IF NOT EXISTS `drive_shares` (\n\t`item_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`role` text NOT NULL,\n\t`created_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`item_id`, `user_id`)\n);",
       "CREATE INDEX IF NOT EXISTS `drive_shares_user_idx` ON `drive_shares` (`org_id`,`user_id`);"
     ]
+  },
+  {
+    "name": "0130_r108_contracts",
+    "statements": [
+      "-- R108: contracts. Workspace contract templates (built from a standard one), a clause library with versions, and a record of generated contracts. Additive only.\nCREATE TABLE `contract_templates` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`base_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`description` text DEFAULT '' NOT NULL,\n\t`clause_keys` text DEFAULT '[]' NOT NULL,\n\t`retired_at` integer,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `contract_templates_org_idx` ON `contract_templates` (`org_id`,`updated_at`);",
+      "CREATE TABLE `contract_clauses` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`key` text NOT NULL,\n\t`version` integer NOT NULL,\n\t`title` text NOT NULL,\n\t`body` text NOT NULL,\n\t`retired_at` integer,\n\t`created_by` text,\n\t`created_by_name` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `contract_clauses_version_uq` ON `contract_clauses` (`org_id`,`key`,`version`);",
+      "CREATE TABLE `contract_runs` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`template_id` text NOT NULL,\n\t`title` text NOT NULL,\n\t`doc_id` text,\n\t`answers` text DEFAULT '{}' NOT NULL,\n\t`clause_versions` text DEFAULT '{}' NOT NULL,\n\t`task_ids` text DEFAULT '[]' NOT NULL,\n\t`created_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `contract_runs_mine_idx` ON `contract_runs` (`org_id`,`created_by`,`created_at`);"
+    ]
   }
 ];

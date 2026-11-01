@@ -30,6 +30,8 @@ export interface AppConfig {
   schedulingEnabled: boolean;
   /** R94: CRM_TIMELINE (paged contact and company timeline, logged calls and notes, segments, CSV import, deal forecast). Off unless set. */
   crmTimeline?: boolean;
+  /** R108: CONTRACTS_R108 (contract templates, guided interview, clause library, reminders). Off unless set. */
+  contractsR108?: boolean;
   /** R91: DASHBOARDS_PLUS (public links, emailed reports, question builder, alerts, data sources). Off unless set. */
   dashboardsPlus?: boolean;
   dashboardsPlusTestHook?: boolean;
@@ -306,6 +308,7 @@ const EnvSchema = z.object({
   SCHEDULING_ENABLED: z.string().optional(),
   /** R91: dashboards plus (public links, emailed reports, question builder, alerts, data sources). */
   DASHBOARDS_PLUS: z.string().optional(),
+  CONTRACTS_R108: z.string().optional(),
   CLIENT_PORTAL: z.string().optional(),
   MAIL_ARCHIVE_R111: z.string().optional(),
   COMPOSIO_API_KEY: z.string().optional(),
@@ -640,6 +643,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     schedulingEnabled: env.SCHEDULING_ENABLED === "true" || env.SCHEDULING_ENABLED === "1",
     crmTimeline: ["1", "true", "on"].includes(String(env.CRM_TIMELINE ?? "").toLowerCase()),
     dashboardsPlus: ["1", "true", "on", "test"].includes(String(env.DASHBOARDS_PLUS ?? "").toLowerCase()),
+    contractsR108: ["1", "true", "on"].includes(String(env.CONTRACTS_R108 ?? "").toLowerCase()),
     // R91: DASHBOARDS_PLUS=test (e2e only) also opens POST /api/dashboards-plus/test/run, which runs the due reports, alerts and refreshes now.
     dashboardsPlusTestHook: String(env.DASHBOARDS_PLUS ?? "").toLowerCase() === "test",
     clientPortal: ["on", "true", "1"].includes(String(env.CLIENT_PORTAL ?? "").toLowerCase()),

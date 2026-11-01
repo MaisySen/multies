@@ -3667,3 +3667,44 @@ export const driveShares = sqliteTable("drive_shares", {
   createdBy: text("created_by").notNull(),
   createdAt: integer("created_at").notNull(),
 }, (t) => [primaryKey({ columns: [t.itemId, t.userId] }), index("drive_shares_user_idx").on(t.orgId, t.userId)]);
+/** R108: a workspace contract template, made from a standard one (questions come from the base; the clause list is the workspace's). */
+export const contractTemplates = sqliteTable("contract_templates", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  baseId: text("base_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  clauseKeys: text("clause_keys").notNull().default("[]"),
+  retiredAt: ts("retired_at"),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("contract_templates_org_idx").on(t.orgId, t.updatedAt)]);
+
+/** R108: clause library versions. The newest version of a key is the one used; a standard clause is version 0 in code. */
+export const contractClauses = sqliteTable("contract_clauses", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  version: integer("version").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  retiredAt: ts("retired_at"),
+  createdBy: text("created_by"),
+  createdByName: text("created_by_name"),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("contract_clauses_version_uq").on(t.orgId, t.key, t.version)]);
+
+/** R108: a generated contract: which template, answers, the clause versions used, the Doc and reminder tasks made. */
+export const contractRuns = sqliteTable("contract_runs", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  templateId: text("template_id").notNull(),
+  title: text("title").notNull(),
+  docId: text("doc_id"),
+  answers: text("answers").notNull().default("{}"),
+  clauseVersions: text("clause_versions").notNull().default("{}"),
+  taskIds: text("task_ids").notNull().default("[]"),
+  createdBy: text("created_by").notNull(),
+  createdAt: createdAt(),
+}, (t) => [index("contract_runs_mine_idx").on(t.orgId, t.createdBy, t.createdAt)]);

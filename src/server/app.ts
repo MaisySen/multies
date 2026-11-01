@@ -64,6 +64,7 @@ import { sprintRoutes } from "./routes/sprints";
 import { shareLinkRoutes, sharePageRoutes } from "./routes/share-links"; // R26 (MB-87): share links
 import { dashboardsPlusRoutes, dashboardsPublicRoutes } from "./routes/dashboards-r91"; // R91: dashboards plus
 import { myDayRoutes, timesheetRoutes } from "./routes/tasks-plus-r95"; // R95: tasks plus
+import { contractsRoutes } from "./routes/contracts-r108"; // R108: contracts
 import { workloadRoutes } from "./routes/workload";
 import { automationRecipeRoutes } from "./routes/automation-recipes";
 import { flowRoutes } from "./routes/flows";
@@ -430,6 +431,8 @@ export function createApp(deps: Deps) {
       searchR98: !!deps.config.searchR98,
       // R115: maps (MAPS_R115): address cards, visit routes, booking meeting place.
       maps: !!deps.config.mapsR115,
+      // R108: contracts (CONTRACTS_R108): templates, guided interview, clause library, reminders.
+      contractsR108: !!deps.config.contractsR108,
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
       chatChannels: deps.config.channels.enabled,
       // R111: mail archive and retention (MAIL_ARCHIVE_R111=on): the Archive and retention pane and Audit log filters.
@@ -502,6 +505,7 @@ export function createApp(deps: Deps) {
   app.route("/api/org", orgRoutes());
   app.route("/api/branding", brandingRoutes()); // R77: workspace branding and personal themes
   app.route("/api/channels", channelRoutes()); // C1: chat channels in the shared inbox
+  if (deps.config.contractsR108) app.route("/api/contracts", contractsRoutes()); // R108: contracts
   if (deps.config.chatPlus !== false) {
     // R96: chat plus: topics, announcements, decision votes, polls, live Q&A and word clouds.
     app.route("/api/chat-plus", chatPlusRoutes());
