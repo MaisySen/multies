@@ -6,6 +6,15 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## R123 Sites (2026-11-01)
+
+- Docs > Sites (flag SITES_R123, migration 0143): one simple website per workspace at /site/<slug>, pages at /site/<slug>/<page>. Docs shows Sites once a site exists; before that it is reached from Create > Site page and Ctrl K.
+- Block page builder: hero, heading, text, image, button, quote, features, divider, form (embedded link to Forms) and booking (link to a booking page). Live preview in a sandboxed frame uses the same renderer as the public page, with desktop and phone widths. Ctrl S saves, Ctrl Enter publishes.
+- Drafts, versions (saved and published, restore into the draft), publish now or at a set time (promoted on read), take offline. Every published page has a title, description, og:title and og:image (falls back to the workspace logo).
+- Safe blocks only: text is escaped with a small inline format, links must be https, mailto, tel or a site path, and button colours keep AA contrast.
+- Comments: always moderated, the booking spam shield (proof of work, fill time, honeypot), 5 per sender per day by a hashed key. Comments tab to approve, reject or delete.
+- Stats: views per page, day, source and device only. No addresses, cookies or visitor ids.
+
 ## R105 Invoices and quotes (2026-11-01)
 
 - Contacts > Invoices: quotes, tax invoices, credit notes (adjustment notes), bills and suppliers, an items catalogue, and reports (aged receivables, GST for BAS on accrual or cash basis). Flag INVOICES_ENABLED.
