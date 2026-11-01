@@ -13,6 +13,7 @@ import { useMe } from "@/web/lib/queries";
 import { FLOW_TEMPLATES, TRIGGER_LABEL, emptyGraph, type FlowTemplate } from "@/shared/flows";
 import { flowKeys, RUN_STATUS, useFlows, type FlowDto, type RunStatus } from "./api";
 import { RunsList } from "./runs";
+import { LoadError } from "@/web/components/load-error-t1g";
 
 const RulesPageLazy = lazyPage(() => import("../work/automations"), "AutomationsPage");
 const RulesPage = () => <RulesPageLazy embedded />;
@@ -78,7 +79,7 @@ function FlowsTab({ isAdmin }: { isAdmin: boolean }) {
   };
   const pickTemplate = async (t: FlowTemplate) => { const id = await create(t.name, t.graph); if (id) nav(`/app/automations/flows/${id}`); };
   if (q.isPending) return <div className="space-y-3" aria-busy="true"><Skeleton className="h-20" /><Skeleton className="h-20" /><Skeleton className="h-40" /></div>;
-  if (q.isError) return <Card className="p-6"><EmptyState icon={<IconWorkflow />} title="Flows did not load" body="Check your connection and try again." action={<Button variant="outline" onClick={() => void q.refetch()}>Try again</Button>} /></Card>;
+  if (q.isError) return <Card className="p-6"><LoadError onRetry={() => q.refetch()} /></Card>;
   const list = q.data.flows;
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_300px]">

@@ -8,7 +8,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { IconAlertCircle } from "@/web/components/ui/icon";
 import { Button } from "@/web/components/ui/button";
 import { cn } from "@/web/lib/cn";
-import { LOAD_ERROR_BODY, LOAD_ERROR_TITLE, retryFailedLoads, showLoadStrip, useHasFailedLoads, useMarkInlineLoadError, useOnScreenCounts } from "@/web/lib/load-errors-t1g";
+import { ApiError } from "@/web/lib/api";
+import { LOAD_ERROR_BODY, LOAD_ERROR_TITLE, isServerLoadError, retryFailedLoads, showLoadStrip, useHasFailedLoads, useMarkInlineLoadError, useOnScreenCounts } from "@/web/lib/load-errors-t1g";
 
 function useRetrying(run: () => unknown) {
   const [busy, setBusy] = useState(false);
@@ -41,6 +42,22 @@ export function LoadErrorInline({ onRetry, className }: { onRetry: () => unknown
       <IconAlertCircle className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
       <span className="min-w-0 flex-1"><span className="font-medium text-fg">{LOAD_ERROR_TITLE}.</span> <span className="text-muted">{LOAD_ERROR_BODY}</span></span>
       <Button size="sm" variant="secondary" loading={busy} onClick={() => void retry()} data-testid="load-error-retry">Retry</Button>
+    </div>
+  );
+}
+
+/**
+ * F12 (MB-299): a read that failed on our side says the shared words with Retry; a read the server refused (4xx)
+ * keeps the server's own words (for example "Connect this account first"), still with Retry.
+ */
+export function LoadFailure({ error, onRetry, className, block }: { error: unknown; onRetry: () => unknown; className?: string; block?: boolean }) {
+  if (isServerLoadError(error) || !(error instanceof ApiError && error.message)) {
+    return block ? <LoadError onRetry={onRetry} className={className} /> : <LoadErrorInline onRetry={onRetry} className={className} />;
+  }
+  return (
+    <div role="alert" data-testid="load-refused" className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px]", className)}>
+      <span className="min-w-0 flex-1 text-fg">{error.message}</span>
+      <Button size="sm" variant="secondary" onClick={() => void onRetry()}>Retry</Button>
     </div>
   );
 }

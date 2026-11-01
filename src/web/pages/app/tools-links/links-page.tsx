@@ -22,6 +22,7 @@ import { LinkDialog } from "./link-dialog";
 import { QrPanel } from "./qr-panel";
 import { StatsView } from "./stats";
 import { ImportDialog } from "./import-dialog";
+import { LoadFailure } from "@/web/components/load-error-t1g";
 
 const BioEditor = lazyPage(() => import("./bio-editor"), "BioEditor");
 const GoLinksTab = lazyPage(() => import("./go-links"), "GoLinksTab");
@@ -107,7 +108,7 @@ function ShortLinksTab({ onNew }: { onNew: () => void }) {
   });
 
   if (list.isError) return (
-    <Card className="mt-4 p-6 text-center" data-testid="links-error"><p className="font-medium">Couldn't load your links</p><p className="mt-1 text-sm text-muted">{errorMessage(list.error)}</p><Button variant="outline" className="mt-4" onClick={() => void list.refetch()}>Try again</Button></Card>
+    <Card className="mt-4" data-testid="links-error"><LoadFailure block error={list.error} onRetry={() => list.refetch()} /></Card>
   );
 
   return (

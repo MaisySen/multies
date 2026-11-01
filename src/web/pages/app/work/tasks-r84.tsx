@@ -22,6 +22,7 @@ import {
 } from "@/web/components/ui/icon";
 import { applyFormat, mentionAt, mentionHandle, renderNotes, type Fmt } from "@/web/lib/task-text-r84";
 import { isAgentLike, useTags, useWorkspaceFields, type AssigneeOption, type FieldType, type SavedView, type Tag, type WorkspaceField } from "./data";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 export const TAG_PALETTE = ["#2563eb", "#16a34a", "#d97706", "#dc2626", "#9333ea", "#0891b2", "#db2777", "#64748b", "#ca8a04", "#4f46e5"];
 const GREY = "#8a8f98";
@@ -187,7 +188,7 @@ export function TagsDialog({ open, onClose }: { open: boolean; onClose: () => vo
     <Dialog open={open} onClose={onClose} title="Tags" description={admin ? "Tags are shared across the workspace. Renaming one renames it on every task." : "Tags are shared across the workspace. You can add tags; workspace admins rename, recolour and delete them."}>
       {dialogs}
       {tags.error ? (
-        <div className="flex items-center gap-2 text-[13px] text-muted">Tags did not load. <Button size="sm" variant="secondary" onClick={() => void tags.refetch()}>Try again</Button></div>
+        <LoadErrorInline onRetry={() => tags.refetch()} />
       ) : (
         <ul className="space-y-1.5" aria-label="Workspace tags">
           {tags.isLoading && [0, 1, 2].map((i) => <li key={i}><Skeleton className="h-9" /></li>)}
@@ -257,7 +258,7 @@ export function WorkspaceFieldsDialog({ open, onClose }: { open: boolean; onClos
     <Dialog open={open} onClose={onClose} title="Workspace fields" description={admin ? "These fields show on every project, as columns in the task list, in filters and in bulk edit." : "These fields show on every project, as columns in the task list, in filters and in bulk edit. Workspace admins add and change them."}>
       {dialogs}
       {fields.error ? (
-        <div className="flex items-center gap-2 text-[13px] text-muted">Fields did not load. <Button size="sm" variant="secondary" onClick={() => void fields.refetch()}>Try again</Button></div>
+        <LoadErrorInline onRetry={() => fields.refetch()} />
       ) : (
         <ul className="space-y-2" aria-label="Workspace fields list">
           {fields.isLoading && [0, 1].map((i) => <li key={i}><Skeleton className="h-10" /></li>)}

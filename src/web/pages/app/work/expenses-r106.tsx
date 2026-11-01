@@ -19,6 +19,7 @@ import { useConfig } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
 import { abnValid, centsText, money, parseMoney } from "@/shared/invoices";
 import { EVERY, EVERY_LABEL, EXPENSE_CATEGORIES, GST_INVOICE_THRESHOLD_CENTS, RECEIPT_MAX_BYTES, STATUS_LABEL, gstOfTotal, needsTaxInvoice, type Every, type ExpenseStatus } from "@/shared/expenses";
+import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
 
 export const useExpensesOn = () => !!useConfig().data?.expenses;
 
@@ -139,7 +140,7 @@ export function ExpensesTab() {
             </div>
           )}
           {list.isPending ? <div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
-            : list.isError ? <Card className="p-6 text-center"><p className="text-sm">Expenses could not load.</p><Button className="mt-3" variant="secondary" onClick={() => void list.refetch()}>Try again</Button></Card>
+            : list.isError ? <Card className="p-6 text-center"><LoadError onRetry={() => list.refetch()} /></Card>
             : first ? (
               <EmptyState icon={<IconReceipt className="h-6 w-6" />} title="No expenses yet"
                 body={<>Add a photo or PDF of a receipt and the details are filled in for you. You can also drop files here{settings.data?.receiptsAddress ? <>, or forward receipts to <span className="break-all font-medium text-fg">{settings.data.receiptsAddress}</span> from your sign in address</> : null}.</>}
@@ -284,7 +285,7 @@ function ExpenseDialog({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
       ) : undefined}>
       {q.isPending || !form ? <div className="space-y-3"><Skeleton className="h-40 w-full" /><Skeleton className="h-9 w-full" /></div>
-        : q.isError || !e ? <p className="text-sm">This expense could not load.</p>
+        : q.isError || !e ? <LoadErrorInline onRetry={() => q.refetch()} />
         : (
           <div className="grid gap-5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
             <div className="space-y-2">
@@ -393,7 +394,7 @@ function SplitEditor({ form, edit, totalCents, splitSum, onChange }: { form: For
 function Subscriptions({ onOpen }: { onOpen: (id: string) => void }) {
   const q = useQuery({ queryKey: ["expenses", "subs"], queryFn: () => api.get<{ subscriptions: SubRow[]; perYearCents: number }>("/expenses/subscriptions") });
   if (q.isPending) return <div className="space-y-2">{[0, 1].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>;
-  if (q.isError) return <Card className="p-6 text-center"><p className="text-sm">Subscriptions could not load.</p><Button className="mt-3" variant="secondary" onClick={() => void q.refetch()}>Try again</Button></Card>;
+  if (q.isError) return <Card className="p-6 text-center"><LoadError onRetry={() => q.refetch()} /></Card>;
   if (!q.data.subscriptions.length) return <EmptyState icon={<IconRepeat className="h-6 w-6" />} title="No repeating costs yet" body="Mark an expense as repeating, or add two from the same supplier a month apart, and it shows here with the next date and the yearly cost." />;
   return (
     <div>

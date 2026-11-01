@@ -25,6 +25,7 @@ import {
   CURRENCIES, PAYMENT_METHODS, abnValid, bsbValid, accountValid, centsText, docTotals, formatAbn, formatBsb, money, parseMoney, parseQty, qtyText,
   type DocKind, type PriceMode,
 } from "@/shared/invoices";
+import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
 
 export const useInvoicesOn = () => !!useConfig().data?.invoices;
 const BASE = "/app/contacts/invoices";
@@ -185,7 +186,7 @@ function DocList({ kind }: { kind: DocKind }) {
         </div>
       )}
       {list.isPending ? <ListSkeleton />
-        : list.isError ? <Card className="p-6 text-center"><p className="text-sm">These could not load.</p><Button className="mt-3" variant="secondary" onClick={() => void list.refetch()}>Try again</Button></Card>
+        : list.isError ? <Card className="p-6 text-center"><LoadError onRetry={() => list.refetch()} /></Card>
         : first ? <FirstTime kind={kind} />
         : list.data.items.length === 0 ? <p className="rounded-xl border border-dashed border-line p-8 text-center text-sm text-muted">Nothing matches. Try another filter or search.</p>
         : <>
@@ -336,7 +337,7 @@ function ReportsTab() {
       <Card className="p-4">
         <h2 className="text-sm font-semibold">Aged receivables</h2>
         <p className="mb-3 text-[12.5px] text-muted">What customers owe you, by how late it is.</p>
-        {aged.isPending ? <Skeleton className="h-24 w-full" /> : aged.isError ? <p className="text-sm">This report could not load.</p> : (
+        {aged.isPending ? <Skeleton className="h-24 w-full" /> : aged.isError ? <LoadErrorInline onRetry={() => aged.refetch()} /> : (
           <>
             <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
               {BUCKETS.map(([k, label]) => <div key={k} className="rounded-lg bg-fill/60 p-2"><dt className="text-[12px] text-muted">{label}</dt><dd className={cn("font-semibold tabular-nums", k !== "current" && (aged.data.totals[k] ?? 0) > 0 && "text-bad")}>{money(aged.data.totals[k] ?? 0)}</dd></div>)}
@@ -353,7 +354,7 @@ function ReportsTab() {
             {(["accrual", "cash"] as const).map((b) => <button key={b} type="button" aria-pressed={basis === b} onClick={() => setBasis(b)} className={cn("rounded-md px-2.5 py-1 text-[12.5px]", basis === b ? "bg-surface font-medium shadow-sm" : "text-muted")}>{b === "accrual" ? "Accrual" : "Cash"}</button>)}
           </div>
         </div>
-        {gst.isPending ? <Skeleton className="mt-3 h-24 w-full" /> : gst.isError ? <p className="text-sm">This report could not load.</p> : (
+        {gst.isPending ? <Skeleton className="mt-3 h-24 w-full" /> : gst.isError ? <LoadErrorInline onRetry={() => gst.refetch()} /> : (
           <dl className="mt-3 divide-y divide-line text-sm">
             {([["G1 Total sales", gst.data.g1SalesCents], ["1A GST on sales", gst.data.gstOnSalesCents], ["1B GST on purchases", gst.data.gstOnPurchasesCents], [gst.data.netGstCents >= 0 ? "GST to pay" : "GST refund", Math.abs(gst.data.netGstCents)]] as const).map(([k, v], i) => (
               <div key={k} className="flex justify-between gap-2 py-1.5"><dt className={cn(i === 3 && "font-semibold")}>{k}</dt><dd className={cn("tabular-nums", i === 3 && "font-semibold")}>{money(v)}</dd></div>

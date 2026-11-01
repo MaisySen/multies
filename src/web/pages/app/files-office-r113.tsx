@@ -29,8 +29,11 @@ import { runEngine } from "@/web/lib/convert/run";
 import type { ToolOp } from "@/shared/tools";
 import { officeKindOf, type OfficeKind } from "@/shared/office-r113/kind";
 import { useLeaveGuard } from "@/web/components/tools/leave-guard";
+import { LoadError } from "@/web/components/load-error-t1g";
+import { LOAD_ERROR_TITLE } from "@/web/lib/load-errors-t1g";
 
 /** F12 (MB-296): what the leave question says while the editor has unsaved edits. */
+const NOT_AVAILABLE = "This file is not available to you.";
 export const OFFICE_LEAVE_TEXT = "Your changes are not saved yet. If you leave, they will be lost.";
 
 const capOf = (k: OfficeKind) => (k === "pptx" ? OFFICE_CAPS.slideBytes : k === "csv" ? OFFICE_CAPS.csvBytes : OFFICE_CAPS.editBytes);
@@ -113,8 +116,10 @@ export function OfficeEditorPage() {
   if (config.data && !config.data.officeEditR113) return <Shell><EmptyState icon={<IconInfo className="h-6 w-6" />} title="Editing office files is not on yet" body="You can still preview and download this file in Files." action={<BackLink />} /></Shell>;
   if (detail.isError) {
     const status = detail.error instanceof ApiError ? detail.error.status : 0;
-    return <Shell><EmptyState icon={<IconLock className="h-6 w-6" />} title={status === 404 || status === 403 ? "This file is not available to you" : "This file didn't load"} body={status === 404 || status === 403 ? "It may have been moved to trash, or it is not shared with you." : "Check your connection and try again."} action={status === 404 || status === 403 ? <BackLink /> : <Button onClick={() => void detail.refetch()}>Try again</Button>} /></Shell>;
+    if (status !== 404 && status !== 403) return <Shell><LoadError onRetry={() => detail.refetch()} /></Shell>; // F12 (MB-299)
+    return <Shell><EmptyState icon={<IconLock className="h-6 w-6" />} title="This file is not available to you" body="It may have been moved to trash, or it is not shared with you." action={<BackLink />} /></Shell>;
   }
+
   if (!it || !kind || !current) {
     if (it && !kind) return <Shell><EmptyState icon={<IconInfo className="h-6 w-6" />} title="No editor for this kind of file" body="Word (.docx), Excel (.xlsx), CSV and PowerPoint (.pptx) files open here. Download this one to open it on your computer." action={<BackLink />} /></Shell>;
     return <Shell><HeaderSkeleton /><Skeleton className="mx-auto mt-4 h-[60vh] w-full max-w-[816px] rounded-xl" /></Shell>;
@@ -178,7 +183,7 @@ function Loader({ item, kind, version, canEdit, onDirty, builder }: { item: Driv
     staleTime: Infinity, gcTime: 0, retry: false,
     queryFn: async (): Promise<Loaded> => {
       const res = await fetch(contentUrl(item.id, version), { credentials: "include" });
-      if (!res.ok) throw new Error(res.status === 404 ? "This file is not available to you." : "This file didn't load. Check your connection and try again.");
+      if (!res.ok) throw new Error(res.status === 404 ? NOT_AVAILABLE : LOAD_ERROR_TITLE);
       const bytes = new Uint8Array(await res.arrayBuffer());
       if (kind === "docx") return { kind: "docx", ...readDocx(bytes) };
       if (kind === "xlsx") return { kind: "sheet", csv: false, ...readXlsx(bytes) };
@@ -189,8 +194,10 @@ function Loader({ item, kind, version, canEdit, onDirty, builder }: { item: Driv
   if (q.isPending) return kind === "docx" ? <Skeleton className="mx-auto h-[60vh] w-full max-w-[816px] rounded-xl" /> : <GridSkeleton />;
   if (q.isError) {
     const office = q.error instanceof OfficeError;
-    return <EmptyState icon={<IconWarning className="h-6 w-6" />} title={office ? "This file could not be opened here" : "This file didn't load"} body={q.error instanceof Error ? q.error.message : "Try again."}
-      action={office ? <a className="text-[13px] text-brand-hover hover:underline" href={contentUrl(item.id, undefined, true)} download>Download</a> : <Button onClick={() => void q.refetch()}>Try again</Button>} />;
+    const gone = q.error instanceof Error && q.error.message === NOT_AVAILABLE;
+    if (!office && !gone) return <LoadError onRetry={() => q.refetch()} />; // F12 (MB-299)
+    return <EmptyState icon={<IconWarning className="h-6 w-6" />} title={office ? "This file could not be opened here" : NOT_AVAILABLE} body={office && q.error instanceof Error ? q.error.message : "It may have been moved to trash, or it is not shared with you."}
+      action={office ? <a className="text-[13px] text-brand-hover hover:underline" href={contentUrl(item.id, undefined, true)} download>Download</a> : <BackLink />} />;
   }
   const d = q.data;
   if (d.kind === "docx") return <WordEditor doc={d.doc} notes={d.notes} canEdit={canEdit} onDirty={onDirty} builder={builder} />;

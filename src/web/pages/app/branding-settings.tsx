@@ -22,6 +22,7 @@ import {
   FONTS, LOGO_MAX_BYTES, PRESETS, brandCss, checkBrand, logoUrl, paletteFromPixels, parseHex, pickLogo, previewTokens,
   type Appearance, type Brand, type BrandPatch, type FontId, type LogoKind, type Personal, type Radius,
 } from "@/shared/branding";
+import { LoadFailure } from "@/web/components/load-error-t1g";
 
 type Draft = Omit<Brand, "logos">;
 const draftOf = (b: Brand): Draft => { const { logos: _l, ...d } = b; return d; };
@@ -381,7 +382,7 @@ export function BrandingSettings() {
     } catch { toast.error("Couldn't read the logo's colours."); } finally { setExtracting(false); }
   };
 
-  if (q.isError) return <EmptyState icon={<IconWarning />} title="Couldn't load the brand" body="Check your connection, then try again." action={<Button variant="secondary" onClick={() => void q.refetch()}><IconRefresh className="h-4 w-4" />Try again</Button>} />;
+  if (q.isError) return <LoadFailure block error={q.error} onRetry={() => q.refetch()} />;
   if (q.isPending || !draft || !brand || !q.data) {
     return (
       <div className="@container" data-testid="branding-loading">
@@ -516,7 +517,7 @@ export function AppearanceSettings() {
     },
     onError: (e) => showError(e),
   });
-  if (q.isError) return <EmptyState icon={<IconWarning />} title="Couldn't load your appearance" body="Check your connection, then try again." action={<Button variant="secondary" onClick={() => void q.refetch()}><IconRefresh className="h-4 w-4" />Try again</Button>} />;
+  if (q.isError) return <LoadFailure block error={q.error} onRetry={() => q.refetch()} />;
   if (q.isPending || !q.data) {
     return (
       <div className="@container" data-testid="appearance-loading">

@@ -25,6 +25,7 @@ import { NOTIFICATION_FILTER_KEY, readStoredFilter } from "@/web/lib/premium4-r3
 import { AlertStatusLine, DeliverySettings, PauseMenu, useNotificationSettings, useSaveSettings, type ChannelPrefs } from "@/web/components/notification-centre-r97"; // R97
 
 export type NotificationCategory = "mention" | "assignment" | "comment" | "approval" | "due_soon" | "chat" | "email" | "status";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 export interface InboxItem { id: string; type: string; category: NotificationCategory; entityType: string; entityId: string; title: string; actor: { name: string } | null; read: boolean; createdAt: string; link: string; doneAt: string | null; snoozedUntil: string | null }
 interface InboxPage { notifications: InboxItem[]; unread: number; counts: Record<NotificationCategory, number>; hasMore: boolean; view: TriageView; viewCounts: ViewCounts }
 
@@ -274,7 +275,7 @@ export function NotificationSettings() {
       <div><h2 className="text-[15px] font-semibold">Notifications</h2><p className="text-[13.5px] text-muted">{delivery ? "Choose what shows in your inbox, what buzzes your phone and what reaches you by mail. Phone alerts carry no message text, only what to open." : "Choose what shows in your inbox and what buzzes your phone. Phone alerts carry no message text, only what to open."}</p></div>
       <BrowserNotifications />
       {q.isPending ? <Card className="p-0"><SkeletonRows rows={8} label="Loading notification settings" /></Card> : q.isError ? (
-        <Card className="p-4 text-[13.5px]"><p className="mb-2">Notification settings did not load.</p><Button size="sm" variant="secondary" onClick={() => void q.refetch()}>Try again</Button></Card>
+        <Card className="p-4"><LoadErrorInline onRetry={() => q.refetch()} /></Card>
       ) : (<>
         <Card className="p-0">
           {/* R39 premium pass 4: a grouped list with a kind tile per row instead of a bare table. */}

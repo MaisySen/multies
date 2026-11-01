@@ -16,6 +16,7 @@ import { ConfirmDialog } from "@/web/components/ui/confirm";
 import { IconBookmark, IconCopy, IconHash, IconImage, IconPlus, IconText, IconTrash, IconRefresh } from "@/web/components/ui/icon";
 import { LIBRARY_LIMITS, type LibraryItemView, type LibraryKind } from "@/shared/social-p2";
 import { libraryKey, useLibrary } from "./social-composer";
+import { LoadFailure } from "@/web/components/load-error-t1g";
 
 const KIND_LABEL: Record<LibraryKind, string> = { image: "Image", caption: "Caption", hashtags: "Hashtag set" };
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`;
@@ -127,7 +128,7 @@ export function SocialLibrary() {
         </div>
       )}
       {lib.isPending ? <div className="grid grid-cols-2 gap-3 md:grid-cols-4"><Skeleton className="h-40 rounded-xl" /><Skeleton className="h-40 rounded-xl" /></div>
-        : lib.error ? <Card className="p-5"><p className="text-sm text-bad" role="alert">{errorMessage(lib.error, "Couldn't load the library.")}</p><Button variant="outline" size="sm" className="mt-3" onClick={() => void lib.refetch()}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button></Card>
+        : lib.error ? <Card className="p-5"><LoadFailure error={lib.error} onRetry={() => lib.refetch()} /></Card>
         : !shown.length ? (
           <Card><EmptyState icon={<IconBookmark />} title={items.length ? "Nothing matches" : "Your library is empty"} body={items.length ? "Try another filter." : "Keep images, captions and hashtag sets here, then pick them in New post."}
             action={items.length ? undefined : <Button onClick={() => setAdding("image")}><IconPlus className="h-4 w-4" aria-hidden />Add an image</Button>} /></Card>

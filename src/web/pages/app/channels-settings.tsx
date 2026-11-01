@@ -19,6 +19,7 @@ import { ConfirmDialog } from "@/web/components/ui/confirm";
 import { PROVIDER_LABEL, type ChannelSummary, type ChannelsStatus } from "@/shared/channels";
 import { ProviderTile, channelsStatusKey, useChannelsStatus } from "./channels-ui";
 import { connectErrorCopy, parseSignupMessage } from "@/web/lib/chat-channels";
+import { LoadFailure } from "@/web/components/load-error-t1g";
 
 /* ---------- Meta Embedded Signup (v4) ---------- */
 
@@ -139,7 +140,7 @@ function ChannelsSettingsPane() {
   });
 
   if (status.isPending) return <div className="space-y-4" data-testid="channels-settings"><Skeleton className="h-28 rounded-xl" /><Skeleton className="h-40 rounded-xl" /></div>;
-  if (status.error || !s) return <Card className="p-6 text-sm text-bad" data-testid="channels-settings">{errorMessage(status.error, "Couldn't load chat channels. Try again.")}</Card>;
+  if (status.error || !s) return <Card className="p-6" data-testid="channels-settings"><LoadFailure error={status.error} onRetry={() => status.refetch()} /></Card>;
 
   if (!s.available) {
     return (

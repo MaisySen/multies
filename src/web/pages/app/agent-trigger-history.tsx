@@ -15,6 +15,7 @@ import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
 
 export interface TriggerHistoryEntry {
   id: string; at: string; outcome: "fired" | "refused"; source: "schedule" | "webhook" | "manual" | null;
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
   reason: string | null; message: string | null;
   run: { id: string; taskId: string | null; taskRef: string | null } | null;
   actor: { userId: string | null; email: string | null } | null;
@@ -41,7 +42,7 @@ export function TriggerHistory({ triggerId }: { triggerId: string }) {
     staleTime: 0,
   });
   if (q.isLoading) return <SkeletonRows rows={3} rowHeight={36} label="Loading history" />;
-  if (q.isError) return <p className="px-1 py-2 text-[13px] text-bad" role="alert">History could not be loaded.</p>;
+  if (q.isError) return <LoadErrorInline className="px-1 py-2" onRetry={() => q.refetch()} />;
   const entries = q.data?.entries ?? [];
   return (
     <div className="mt-3 border-t border-line pt-3" data-testid={`trigger-history-${triggerId}`}>

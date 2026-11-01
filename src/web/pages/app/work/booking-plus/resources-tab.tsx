@@ -19,6 +19,7 @@ import { DateInput, Field, Input, Select, TimeInput } from "@/web/components/ui/
 import { Badge, Card, EmptyState, Skeleton, Switch } from "@/web/components/ui/misc";
 import { RESOURCE_KINDS, RESOURCE_KIND_LABEL, WEEK_DAYS, durationLabel, type ResourceKind, type WeekDay } from "@/shared/booking-plus";
 import { Section, ZONES, dayLabel, timeLabel, whenLabel, ymd, zone } from "./common";
+import { LoadError } from "@/web/components/load-error-t1g";
 
 interface Resource {
   id: string; name: string; kind: ResourceKind; location: string; description: string; capacity: number | null; timezone: string; days: WeekDay[]; openFrom: string; openTo: string;
@@ -112,7 +113,7 @@ export function ResourcesTab() {
       </div>
 
       {grid.isPending ? <Skeleton className="h-56" />
-        : grid.isError || !g ? <Card><EmptyState title="Resources did not load" body="Check your connection and try again." action={<Button variant="secondary" onClick={() => grid.refetch()}>Try again</Button>} /></Card>
+        : grid.isError || !g ? <Card><LoadError onRetry={() => grid.refetch()} /></Card>
           : !g.resources.length ? (
             <Card><EmptyState icon={<IconBuilding />} title="No resources yet" body={isAdmin ? "Add rooms, desks, vehicles or equipment, set when they can be booked, and your team books them here." : "Your admins have not added any rooms, desks, vehicles or equipment yet."} action={isAdmin ? <Button onClick={() => setEditing("new")}>Add resource</Button> : undefined} /></Card>
           ) : (

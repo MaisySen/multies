@@ -21,6 +21,7 @@ import {
   KEEP_YEAR_CHOICES, RETENTION_GRACE_DAYS, cleanFilters, describeFilters, keepLabel,
   type ArchiveFilters, type ArchiveHit, type LegalHoldView, type MailCaseView, type RetentionPreview, type RetentionView,
 } from "@/shared/mail-archive";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 const TABS = [["retention", "Retention"], ["holds", "Legal holds"], ["search", "Search and export"]] as const;
 type Tab = (typeof TABS)[number][0];
@@ -71,8 +72,9 @@ export function MailArchiveSettings() {
 function PaneSkeleton() {
   return <div className="space-y-4" aria-busy="true" aria-label="Loading"><Skeleton className="h-9 w-80 max-w-full" /><Card className="space-y-3 p-5"><Skeleton className="h-5 w-48" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></Card></div>;
 }
-function ErrorCard({ onRetry, text = "Couldn't load archive and retention." }: { onRetry: () => void; text?: string }) {
-  return <Card className="flex flex-col items-start gap-3 p-5 text-sm sm:flex-row sm:items-center sm:justify-between"><span>{text}</span><Button variant="secondary" size="sm" onClick={onRetry}>Try again</Button></Card>;
+/** F12 (MB-299): the shared failed load words, in a card. */
+function ErrorCard({ onRetry }: { onRetry: () => void }) {
+  return <Card className="p-5"><LoadErrorInline onRetry={onRetry} /></Card>;
 }
 
 function MemberNotice({ policy }: { policy: RetentionView }) {
@@ -204,7 +206,7 @@ function HoldsPanel() {
         <Button onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" aria-hidden />Place a hold</Button>
       </div>
       {holds.isPending ? <Card className="space-y-3 p-5"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-2/3" /></Card>
-        : holds.isError ? <ErrorCard onRetry={() => holds.refetch()} text="Couldn't load legal holds." />
+        : holds.isError ? <ErrorCard onRetry={() => holds.refetch()} />
         : !active.length ? <Card><EmptyState icon={<IconGavel />} title="No active holds" body="Place a hold on a mailbox or a person when mail must be kept for a dispute, audit or investigation." /></Card>
         : (
           <Card className="divide-y divide-line" data-testid="holds-active">
@@ -365,7 +367,7 @@ function SearchPanel() {
       <section aria-labelledby="cases-h" className="space-y-2">
         <h2 id="cases-h" className="text-[15px] font-semibold">Cases</h2>
         {cases.isPending ? <Card className="p-4"><Skeleton className="h-4 w-1/2" /></Card>
-          : cases.isError ? <ErrorCard onRetry={() => cases.refetch()} text="Couldn't load cases." />
+          : cases.isError ? <ErrorCard onRetry={() => cases.refetch()} />
           : !cases.data.cases.length ? <Card><EmptyState icon={<IconArchive />} title="No cases yet" body="Search for the mail you need, then save it as a case to export it as an mbox file in a ZIP." /></Card>
           : (
             <Card className="divide-y divide-line" data-testid="cases-list">

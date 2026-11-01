@@ -298,9 +298,9 @@ export function DrivePage({ attachments, mailOn, docsOn = false }: { attachments
             ) : list.isError && isServerLoadError(list.error) && !list.data ? (
               <LoadError onRetry={() => list.refetch()} />
             ) : list.isError && !isServerLoadError(list.error) ? (
-              <EmptyState icon={<IconFolder />} title={(list.error as { status?: number }).status === 404 ? "You can't open this folder" : "Files didn't load"}
-                body={(list.error as { status?: number }).status === 404 ? "It may have moved, gone to the trash, or not be shared with you." : "Check your connection and try again."}
-                action={(list.error as { status?: number }).status === 404 ? <Button size="sm" variant="secondary" onClick={() => go({ view: "team" })}>Go to team files</Button> : <Button size="sm" variant="secondary" onClick={() => void list.refetch()}>Try again</Button>} />
+              (list.error as { status?: number }).status !== 404 ? <LoadError onRetry={() => list.refetch()} /> : <EmptyState icon={<IconFolder />} title="You can't open this folder"
+                body="It may have moved, gone to the trash, or not be shared with you."
+                action={<Button size="sm" variant="secondary" onClick={() => go({ view: "team" })}>Go to team files</Button>} />
             ) : items.length === 0 ? (
               <DriveEmpty view={view} q={q} tag={tag} inFolder={!!first?.folder} canAdd={canAdd} isAdmin={isAdmin} onUpload={() => fileInput.current?.click()} onFolder={() => setNewFolder(true)} />
             ) : (

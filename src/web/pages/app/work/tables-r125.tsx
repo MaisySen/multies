@@ -25,6 +25,7 @@ import {
   cellText, coerceCell, FIELD_TYPES, guessType, isComputed, LIMITS, OP_LABELS, opsFor, parseCsv, showDate, TEMPLATES, TYPE_LABELS,
   type FilterOp, type LinkLabel, type TCell, type TField, type TFieldType, type TFilter, type TSort, type ViewConfig, type ViewType,
 } from "@/shared/tables-r125";
+import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
 
 /** On when the server flag is on and this workspace is not excluded (an excluded workspace gets 404 from the list). */
 export function useTablesOn() {
@@ -337,7 +338,7 @@ export function TableDoc({ docId }: { docId: string }) {
       )}
 
       {rows.error && (view.type === "grid" || view.type === "kanban") ? (
-        <EmptyState icon={<IconTable />} title="Couldn't load the rows" body="The connection may have dropped." action={<Button onClick={() => void rows.refetch()}>Try again</Button>} />
+        <LoadError onRetry={() => rows.refetch()} />
       ) : view.type === "grid" ? (
         <Grid fields={shown} rows={all} loading={rows.isPending} canEdit={canEdit} widths={cfg.widths ?? {}} groupBy={cfg.groupBy ? fields.find((f) => f.id === cfg.groupBy) ?? null : null}
           filtered={!!search || filters.length > 0} onClearFilters={() => { setQ(""); changeView({ filters: [] }); }}
@@ -775,7 +776,7 @@ function CalendarView({ docId, viewId, fields, by, canEdit, search, filters, onO
         <Button variant="secondary" size="sm" onClick={() => shift(1)}>Next</Button>
         <Button variant="ghost" size="sm" onClick={() => { const n = new Date(); setMonth(new Date(n.getFullYear(), n.getMonth(), 1)); }}>Today</Button>
       </div>
-      {q.error ? <EmptyState icon={<IconCalendar />} title="Couldn't load this month" body="The connection may have dropped." action={<Button onClick={() => void q.refetch()}>Try again</Button>} /> : <>
+      {q.error ? <LoadError onRetry={() => q.refetch()} /> : <>
         <div className="hidden grid-cols-7 overflow-hidden rounded-xl border border-line sm:grid">
           {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => <div key={d} className="border-b border-line bg-fill/60 px-2 py-1.5 text-[12px] font-medium text-muted">{d}</div>)}
           {days.map((d) => {
@@ -1002,7 +1003,7 @@ function RowComments({ docId, rowId, canComment }: { docId: string; rowId: strin
   });
   return (
     <div className="space-y-3" data-testid="row-comments">
-      {list.isPending ? <Skeleton className="h-16" /> : list.error ? <p className="text-[13px] text-bad">Couldn't load the comments.</p>
+      {list.isPending ? <Skeleton className="h-16" /> : list.error ? <LoadErrorInline onRetry={() => list.refetch()} />
         : !list.data.comments.length ? <p className="text-[13px] text-muted">No comments yet.</p>
         : <ul className="space-y-3">{list.data.comments.map((c) => (
             <li key={c.id} className="rounded-lg bg-fill/60 p-3 text-[13px]">
@@ -1022,7 +1023,7 @@ interface RHistory { id: number; verb: string; who: string; at: string; changes:
 function RowHistory({ docId, rowId }: { docId: string; rowId: string }) {
   const list = useQuery({ queryKey: ["table-row-history", docId, rowId], queryFn: () => api.get<{ history: RHistory[] }>(`/tables/${docId}/rows/${rowId}/history`) });
   if (list.isPending) return <Skeleton className="h-24" />;
-  if (list.error) return <p className="text-[13px] text-bad">Couldn't load the history.</p>;
+  if (list.error) return <LoadErrorInline onRetry={() => list.refetch()} />;
   if (!list.data.history.length) return <p className="text-[13px] text-muted">No changes yet.</p>;
   return (
     <ol className="space-y-3" data-testid="row-history">

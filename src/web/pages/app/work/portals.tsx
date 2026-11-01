@@ -17,6 +17,7 @@ import { Avatar, Badge, Card, CopyButton, EmptyState, Skeleton, Switch } from "@
 import { initials, shortDate, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { portalInviteThrottledNote, taskStateLabel, type PortalDetail, type PortalItem, type PortalSummary } from "@/shared/client-portal";
+import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
 
 const MB = 1024 * 1024;
 const sizeText = (n: number) => (n < MB ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / MB).toFixed(n < 10 * MB ? 1 : 0)} MB`);
@@ -36,7 +37,7 @@ export function PortalsTab({ query }: { query: string }) {
   const needle = query.trim().toLowerCase();
   const list = (q.data?.portals ?? []).filter((p) => !needle || p.name.toLowerCase().includes(needle) || (p.contact?.name ?? "").toLowerCase().includes(needle) || (p.company?.name ?? "").toLowerCase().includes(needle));
   if (q.isPending) return <Skeleton className="h-48" />;
-  if (q.isError) return <EmptyState icon={<IconTeam />} title="Client portals did not load" body="Check your connection and try again." action={<Button onClick={() => void q.refetch()}>Try again</Button>} />;
+  if (q.isError) return <LoadError onRetry={() => q.refetch()} />;
   return (
     <div>
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -135,7 +136,8 @@ export function PortalPage() {
   if (q.isPending) return <div className="space-y-3"><Skeleton className="h-10 w-1/2" /><Skeleton className="h-9 w-80" /><Skeleton className="h-64" /></div>;
   if (q.error) {
     const missing = q.error instanceof ApiError && q.error.status === 404;
-    return <EmptyState icon={<IconTeam />} title={missing ? "Portal not found" : "This portal did not load"} body={missing ? "It may have been removed." : "Check your connection and try again."} action={missing ? <Link className="text-accent underline" to="/app/contacts?tab=portals">All portals</Link> : <Button onClick={() => void q.refetch()}>Try again</Button>} />;
+    if (!missing) return <LoadError onRetry={() => q.refetch()} />; // F12 (MB-299)
+    return <EmptyState icon={<IconTeam />} title="Portal not found" body="It may have been removed." action={<Link className="text-accent underline" to="/app/contacts?tab=portals">All portals</Link>} />;
   }
   const d = q.data;
   const p = d.portal;
@@ -293,7 +295,7 @@ function PickShared({ kind, portalId, onClose, refresh }: { kind: "doc" | "task"
       <div className="space-y-3">
         <Field label={kind === "doc" ? "Find a doc" : "Find a task"}>{(f) => <Input {...f} autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by title" />}</Field>
         <div className="max-h-72 divide-y divide-line overflow-y-auto rounded-lg border border-line">
-          {q.isPending ? <Skeleton className="m-3 h-20" /> : q.isError ? <p className="px-3 py-6 text-center text-[13px] text-muted">That list did not load. Close and try again.</p> : list.length ? list.map((x) => (
+          {q.isPending ? <Skeleton className="m-3 h-20" /> : q.isError ? <LoadErrorInline className="px-3 py-6" onRetry={() => q.refetch()} /> : list.length ? list.map((x) => (
             <button key={x.id} type="button" disabled={!!busy} onClick={() => void add(x.id)} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13.5px] hover:bg-hover disabled:opacity-60" data-testid="portal-pick-item">
               {kind === "doc" ? <IconDocs className="h-4 w-4 text-muted" /> : <IconTasks className="h-4 w-4 text-muted" />}<span className="min-w-0 flex-1 truncate">{x.title}</span>{busy === x.id && <span className="text-[12px] text-muted">Sharing</span>}
             </button>

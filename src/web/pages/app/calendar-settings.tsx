@@ -13,6 +13,7 @@ import { nextTabKey } from "@/web/lib/tab-keys";
 import { ConfirmDialog } from "@/web/components/ui/confirm";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows";
 import { useConfig } from "@/web/lib/queries";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 /**
  * Round 23 (R23.4): Settings > Calendar. A personal calendar feed (a secret .ics address that can be
@@ -296,10 +297,7 @@ export function PhoneSyncSection() {
       {list.isPending ? (
         <SkeletonRows rows={2} rowHeight={52} label="Loading app passwords" />
       ) : list.isError || !data ? (
-        <div className="flex flex-col items-start gap-3" role="alert">
-          <p className="text-sm text-muted">Sync settings did not load. Check your connection and try again.</p>
-          <Button variant="secondary" size="sm" onClick={() => list.refetch()}><IconRefresh className="size-4" />Try again</Button>
-        </div>
+        <LoadErrorInline onRetry={() => list.refetch()} />
       ) : (
         <div className="space-y-5" data-testid="dav-sync">
           <ServerFields server={data.server} username={data.username} />

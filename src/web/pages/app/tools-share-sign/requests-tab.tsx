@@ -19,6 +19,7 @@ import {
 } from "@/shared/secure-share";
 import type { KeptUsage } from "@/shared/share-sign";
 import { attachToNewEmail } from "@/web/lib/compose-files";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 const MB = 1024 * 1024;
 const sizeOf = (n: number) => (n < MB ? `${Math.max(1, Math.round(n / 1024))} KB` : n >= 1024 * MB ? `${(n / (1024 * MB)).toFixed(1)} GB` : `${(n / MB).toFixed(n < 10 * MB ? 1 : 0)} MB`);
@@ -81,7 +82,7 @@ function RequestRow({ r, startOpen }: { r: FileRequestInfo; startOpen: boolean }
       {open && (
         <div className="mt-2 rounded-lg bg-fill px-3 py-1 text-sm">
           {detail.isLoading ? <div className="space-y-2 py-2"><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-1/3" /></div>
-            : detail.isError ? <p className="py-3 text-bad">Couldn't load the files. <button type="button" className="font-medium underline" onClick={() => void detail.refetch()}>Try again</button></p>
+            : detail.isError ? <LoadErrorInline onRetry={() => detail.refetch()} />
               : !files.length ? <p className="py-3 text-muted">No files yet. You'll get a notification when the first one arrives.</p>
                 : <ul>{files.map((f) => <FileRow key={f.id} f={f} onDelete={setDel} />)}</ul>}
           <p className="pb-2 pt-1 text-[12px] text-muted">{allowedLabel(r.allowed)} · files up to {sizeOf(r.maxFileBytes)} · kept {r.keepDays} days after they arrive{r.folder ? ` · folder ${r.folder}` : ""}</p>
@@ -205,7 +206,7 @@ export function RequestsTab() {
         </div>
         <Card className="px-5 py-1">
           {list.isLoading ? <div className="space-y-3 py-4"><Skeleton className="h-5 w-2/3" /><Skeleton className="h-4 w-1/3" /></div>
-            : list.isError ? <p className="py-6 text-center text-sm text-bad">Couldn't load your requests. <button type="button" className="font-medium underline" onClick={() => void list.refetch()}>Try again</button></p>
+            : list.isError ? <LoadErrorInline onRetry={() => list.refetch()} />
               : !list.data?.requests.length ? <EmptyState className="py-8" icon={<IconUpload />} title="No file requests yet" body="Make one above and send the link. Files people send show up here." />
                 : <ul>{list.data.requests.map((r) => <RequestRow key={r.id} r={r} startOpen={focus === r.id} />)}</ul>}
         </Card>

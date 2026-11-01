@@ -18,6 +18,7 @@ import { parseCsv } from "@/shared/tools-automation";
 import { CAMPAIGN_STATUS_LABEL, MEMBER_STATUS_LABEL, isEmail, rate, type CampaignStatus, type MemberStatus } from "@/shared/campaigns-r109";
 import { AutoPage } from "./shell";
 import { DocumentsMerge } from "./merge";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 /** A switch with its words beside it (the shared Switch only carries an aria label). Tapping the words flips it too. */
 export function SwitchRow({ label, ...rest }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
@@ -205,8 +206,9 @@ function NewslettersTab() {
   );
 }
 
-export function ErrorBox({ onRetry, text = "This didn't load." }: { onRetry: () => void; text?: string }) {
-  return <Card role="alert" className="flex flex-wrap items-center gap-3 p-4"><p className="flex-1 text-sm">{text}</p><Button size="sm" variant="secondary" onClick={onRetry}>Try again</Button></Card>;
+/** F12 (MB-299): the shared failed load words, in a card. */
+export function ErrorBox({ onRetry }: { onRetry: () => void }) {
+  return <Card className="p-4"><LoadErrorInline onRetry={onRetry} /></Card>;
 }
 
 // ------------------------------------------------------------------ lists
@@ -276,7 +278,7 @@ export function ListPage() {
   return (
     <AutoPage entryKey="merge_mail" title={l?.name ?? "List"} description="People on this list, their consent, and how new people join." usage={false}
       actions={<Link to="/app/tools/merge?tab=lists" className="text-sm text-muted hover:text-fg">Back to lists</Link>}>
-      {q.isPending ? <Skeleton className="h-64 w-full" /> : q.isError || !l ? <ErrorBox onRetry={() => q.refetch()} text="This list didn't load. It may have been archived." /> : (
+      {q.isPending ? <Skeleton className="h-64 w-full" /> : q.isError || !l ? <ErrorBox onRetry={() => q.refetch()} /> : (
         <div className="grid gap-4 [&>*]:min-w-0 2xl:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-4">
             {l.canEdit && <AddPeople list={l} />}

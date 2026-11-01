@@ -21,6 +21,7 @@ import {
   type TikTokPrivacy, type TikTokPublishView, type TikTokVideoView,
 } from "@/shared/direct-social";
 import { AppLogo } from "./apps-settings";
+import { LoadFailure } from "@/web/components/load-error-t1g";
 
 export const directKeys = {
   status: ["direct", "status"] as const,
@@ -74,8 +75,7 @@ export function DirectAccounts() {
   if (status.error || !status.data) {
     return (
       <Card className="p-5" data-testid="direct-accounts">
-        <p className="text-sm text-bad" role="alert">{errorMessage(status.error, "Couldn't load TikTok and Threads.")}</p>
-        <Button variant="outline" size="sm" className="mt-3" onClick={() => void status.refetch()}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button>
+        <LoadFailure error={status.error} onRetry={() => status.refetch()} />
       </Card>
     );
   }
@@ -200,7 +200,7 @@ function TikTokVideos() {
       {q.isPending ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-busy="true">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="aspect-[9/16] rounded-lg" />)}</div>
       ) : q.error ? (
-        <div role="alert" className="text-[13px] text-bad">{errorMessage(q.error, "Couldn't load your videos.")} <button type="button" className="underline" onClick={() => void q.refetch()}>Try again</button></div>
+        <LoadFailure error={q.error} onRetry={() => q.refetch()} />
       ) : own ? (
         pending.length ? null : <p className="text-[13px] text-muted">No videos yet. Videos you post from here show in this list.</p>
       ) : !q.data?.videos.length ? (
@@ -398,7 +398,7 @@ function ThreadsFeed() {
       {q.isPending ? (
         <div aria-busy="true" className="space-y-3"><Skeleton className="h-10 w-56 rounded-lg" /><Skeleton className="h-14 rounded-lg" /><Skeleton className="h-14 rounded-lg" /></div>
       ) : q.error || !q.data ? (
-        <div role="alert" className="text-[13px] text-bad">{errorMessage(q.error, "Couldn't load your Threads profile.")} <button type="button" className="underline" onClick={() => void q.refetch()}>Try again</button></div>
+        <LoadFailure error={q.error} onRetry={() => q.refetch()} />
       ) : (
         <>
           <div className="mb-3 flex items-center gap-3">

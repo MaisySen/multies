@@ -15,6 +15,7 @@ import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { mailDate, shortDate } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 /** Whether CRM_TIMELINE is on here (public config, cached with the rest of the app's config). */
 export function useCrmTimelineOn() {
@@ -74,10 +75,7 @@ export function CrmTimeline({ type, id }: { type: "contact" | "company"; id: str
       {q.isPending ? (
         <div className="space-y-3" aria-label="Loading timeline">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}</div>
       ) : q.error ? (
-        <Card className="flex flex-wrap items-center gap-3 p-4 text-[13.5px]" role="alert">
-          <span className="flex-1">The timeline did not load. Check your connection and try again.</span>
-          <Button variant="secondary" size="sm" onClick={() => void q.refetch()}><IconRefresh className="h-4 w-4" />Try again</Button>
-        </Card>
+        <Card className="p-4"><LoadErrorInline onRetry={() => q.refetch()} /></Card>
       ) : !items.length ? (
         <EmptyState icon={<IconTimeline />} title={kind === "all" ? "Nothing here yet" : "Nothing of this kind yet"} body={kind === "all" ? "Emails, meetings, tasks, deals, forms and bookings show up here on their own. Log a call or a note to start the story." : "Try All to see everything."}
           action={<Button variant="secondary" onClick={() => composerRef.current?.focus()}>Log a note</Button>} className="py-10" />

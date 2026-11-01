@@ -11,6 +11,7 @@ import { BIO_ICON_PATHS } from "@/shared/link-icons";
 import { BIO_ICONS, MAX_BIO_ITEMS, MAX_SOCIALS, SOCIALS, type BioIcon, type BioPageInfo, type BioSocial, type SocialKind } from "@/shared/links";
 import { cn } from "@/web/lib/cn";
 import { useBioPage, plainUrl } from "./data";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 type Draft = Omit<BioPageInfo, "items"> & { items: (BioPageInfo["items"][number] & { key: string })[] };
 const ICON_LABEL: Record<BioIcon, string> = { link: "Link", globe: "Website", mail: "Email", phone: "Phone", calendar: "Calendar", shop: "Shop", doc: "Document", video: "Video", music: "Music", star: "Star", heart: "Heart", map: "Map" };
@@ -82,7 +83,7 @@ export function BioEditor() {
         )}
       </div>
       {q.isError ? (
-        <Card className="p-6 text-center"><p className="font-medium">Couldn't load the page</p><Button variant="outline" className="mt-3" onClick={() => void q.refetch()}>Try again</Button></Card>
+        <Card className="p-6 text-center"><LoadErrorInline onRetry={() => q.refetch()} /></Card>
       ) : !q.data ? (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_262px] 2xl:grid-cols-[minmax(0,1fr)_350px]" aria-busy="true"><Skeleton className="h-96 rounded-xl" /><Skeleton className="h-[560px] rounded-[2rem]" /></div>
       ) : <BioForm key={`${scope}:${q.data.page.id ?? "new"}`} page={q.data.page} scope={scope} />}

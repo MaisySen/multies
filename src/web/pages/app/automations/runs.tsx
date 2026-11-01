@@ -13,6 +13,7 @@ import { cn } from "@/web/lib/cn";
 import { describeNode, nodeById } from "@/shared/flows";
 import { flowKeys, RUN_STATUS, useFlows, useRun, useRuns, type RunDto, type StepDto } from "./api";
 import { useIsAdmin } from "./hub";
+import { LoadError } from "@/web/components/load-error-t1g";
 
 const duration = (a: string, b: string | null) => {
   if (!b) return "";
@@ -46,7 +47,7 @@ export function RunsList({ flowId: fixedFlow }: { flowId?: string } = {}) {
         </Select>
       </div>
       {q.isPending ? <div className="space-y-2" aria-busy="true"><Skeleton className="h-14" /><Skeleton className="h-14" /><Skeleton className="h-14" /></div>
-        : q.isError ? <Card className="p-6"><EmptyState icon={<IconHistory />} title="Runs did not load" body="Check your connection and try again." action={<Button variant="outline" onClick={() => void q.refetch()}>Try again</Button>} /></Card>
+        : q.isError ? <Card className="p-6"><LoadError onRetry={() => q.refetch()} /></Card>
         : !q.data.runs.length ? <Card className="p-2"><EmptyState icon={<IconHistory />} title={status || flowId ? "No runs match" : "No runs yet"} body={status || flowId ? "Try another filter." : "Each time a flow runs, it shows here with every step."} /></Card>
         : (
           <Card className="divide-y divide-line">
@@ -104,7 +105,7 @@ export function RunDetailPage() {
     } catch (e) { showError(e as Error); } finally { setBusy(""); }
   };
   if (q.isPending) return <div className="space-y-3" aria-busy="true"><Skeleton className="h-10 w-64" /><Skeleton className="h-24" /><Skeleton className="h-24" /></div>;
-  if (q.isError) return <Card className="p-6"><EmptyState icon={<IconHistory />} title="This run did not load" body="It may be older than 30 days, or the flow was deleted." action={<Link className="text-[13px] underline" to="/app/automations?tab=runs">Back to runs</Link>} /></Card>;
+  if (q.isError) return <Card className="p-6"><EmptyState icon={<IconHistory />} title="This run is not available" body="It may be older than 30 days, or the flow was deleted." action={<Link className="text-[13px] underline" to="/app/automations?tab=runs">Back to runs</Link>} /></Card>;
   const { run, graph, steps } = q.data;
   const s = RUN_STATUS[run.status];
   const failedNode = run.status === "failed" ? nodeById(graph, run.currentNode) : undefined;

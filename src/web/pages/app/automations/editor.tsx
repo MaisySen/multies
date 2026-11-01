@@ -36,7 +36,7 @@ export function FlowEditorPage() {
   const { id = "" } = useParams();
   const q = useFlow(id);
   if (q.isPending) return <div className="space-y-3" aria-busy="true"><Skeleton className="h-10 w-72" /><Skeleton className="h-[520px]" /></div>;
-  if (q.isError) return <Card className="p-6"><EmptyState icon={<IconWorkflow />} title="This flow did not load" body="It may have been deleted, or the connection dropped." action={<div className="flex gap-2"><Button variant="outline" onClick={() => void q.refetch()}>Try again</Button><Link className="self-center text-[13px] underline" to="/app/automations">All flows</Link></div>} /></Card>;
+  if (q.isError) return <Card className="p-6"><EmptyState icon={<IconWorkflow />} title="This flow is not available" body="It may have been deleted. If not, try again." action={<div className="flex gap-2"><Button variant="outline" onClick={() => void q.refetch()}>Try again</Button><Link className="self-center text-[13px] underline" to="/app/automations">All flows</Link></div>} /></Card>;
   return <Editor key={q.data.id + q.data.updatedAt.slice(0, 0)} flow={q.data} />;
 }
 

@@ -16,6 +16,7 @@ import { ConfirmDialog } from "@/web/components/ui/confirm";
 import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { IconSend } from "@/web/components/ui/icon";
 import { SIGN_BULK_MAX, type SignRequestInfo, type SignTemplateInfo } from "@/shared/share-sign";
+import { LoadFailure } from "@/web/components/load-error-t1g";
 
 const field = "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-brand";
 
@@ -106,7 +107,7 @@ export function TemplatesPanel() {
     onError: (e) => toast.error(errorMessage(e)),
   });
   if (q.isLoading) return <div className="space-y-2" data-testid="tpl-loading">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-16 w-full" />)}</div>;
-  if (q.isError) return <EmptyState title="Templates did not load" body={errorMessage(q.error)} action={<Button variant="outline" onClick={() => q.refetch()}>Try again</Button>} />;
+  if (q.isError) return <LoadFailure block error={q.error} onRetry={() => q.refetch()} />;
   const list = q.data?.templates ?? [];
   if (!list.length) return <EmptyState title="No templates yet" body="Open a document, choose Ask others to sign, place the fields, then Save as template." />;
   return (

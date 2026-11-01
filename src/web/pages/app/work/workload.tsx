@@ -17,6 +17,7 @@ import { Button } from "@/web/components/ui/button";
 import { Avatar, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { tone } from "@/web/components/app-bits";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 type Unit = "points" | "hours";
 export interface WorkloadChip { id: string; ref: string; title: string; projectId: string; project: string; projectColor: string; due: string | null; start: string | null; status: string; points: number | null; unit: Unit }
@@ -139,7 +140,7 @@ export function WorkloadView({ projectId, onOpen }: { projectId?: string; onOpen
   );
 
   if (w.isPending) return <div>{header}<Skeleton className="h-72" /></div>;
-  if (w.isError) return <div>{header}<p className="text-[13px] text-muted">The workload could not load. Try again in a moment.</p></div>;
+  if (w.isError) return <div>{header}<LoadErrorInline onRetry={() => w.refetch()} /></div>;
   if (!people.length) {
     return (
       <div>{header}

@@ -21,6 +21,7 @@ import { cn } from "@/web/lib/cn";
 import { openPalette } from "@/web/lib/shortcuts";
 import { isFavourite, ownsSidebar, resetLayout, setLayout, sidebarHiddenOn, toggleFavourite, toggleSidebar, useLayout, type Favourite } from "@/web/lib/layout-prefs";
 import { breadcrumbs, createItems, pageFor, SOCIAL_NEW, type IconKey, type NavFlags, type Section, type SectionId } from "./shell-nav";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 export const MOD = isMac ? "⌘" : "Ctrl";
@@ -194,7 +195,7 @@ export function ContextSidebar({ section, counts, logo, header, footer }: { sect
                 </div>
               );
             })}
-            {projects.isError && <div className="px-2 py-1 text-[12.5px] text-muted" role="alert">Projects did not load. <button type="button" onClick={() => void projects.refetch()} className="font-medium text-fg underline-offset-2 hover:underline">Try again</button></div>}
+            {projects.isError && <LoadErrorInline className="px-2 py-1" onRetry={() => projects.refetch()} />}
             {projects.isSuccess && !live.length && <div className="px-2 py-1 text-[12.5px] text-subtle">No projects yet. <button type="button" onClick={() => navigate("/app/tasks?newProject=1")} className="font-medium text-fg underline-offset-2 hover:underline">Start one</button></div>}
           </div>}
         </>}

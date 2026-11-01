@@ -19,6 +19,7 @@ import { cn } from "@/web/lib/cn";
 import {
   MAP_ATTRIBUTION, MAX_VISIT_STOPS, bestHint, highlightAfterResults, directionsLinks, orderStops, pathKm, routeLinks, shortAddress, validPoint, type GeoPoint, type GeoResult,
 } from "@/shared/maps-r115";
+import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
 
 // The map code loads only when a map is shown; if it cannot load, the address and links still work.
 const MapView = lazyPage(() => import("./map-view-r115"), "MapView", { quiet: true });
@@ -192,7 +193,7 @@ export function AddressCard({ type, id, title = "Address", hint }: { type: Place
       </div>
       {q.isPending ? <div className="space-y-2"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-28" /></div>
         : q.error ? (
-          <div className="space-y-2" role="alert"><p className="text-muted">Could not load the address.</p><Button size="sm" variant="secondary" onClick={() => void q.refetch()}><IconRefresh className="h-4 w-4" />Try again</Button></div>
+          <div className="space-y-2" role="alert"><LoadErrorInline onRetry={() => q.refetch()} /></div>
         ) : editing ? (
           <div className="space-y-2">
             <AddressField label={title} initial={draft?.address ?? ""} onChange={setDraft} autoFocus />
@@ -264,7 +265,7 @@ export function VisitsPlanner() {
   };
 
   if (q.isPending) return <div className="grid gap-4 lg:grid-cols-[minmax(0,420px)_1fr]"><div className="space-y-2"><Skeleton className="h-16" /><Skeleton className="h-14" /><Skeleton className="h-14" /></div><Skeleton className="h-80 rounded-xl" /></div>;
-  if (q.error) return <EmptyState icon={<IconMapPin />} title="Could not load your visits" body="Check your connection and try again." action={<Button onClick={() => void q.refetch()}><IconRefresh className="h-4 w-4" />Try again</Button>} />;
+  if (q.error) return <LoadError onRetry={() => q.refetch()} />;
   const all = q.data.candidates;
   if (!all.length) return <EmptyState icon={<IconMapPin />} title="No addresses yet" body="Open a contact or a company and add their address. Everyone with an address can then go on a visit plan here." action={<Link to="/app/contacts" className={linkCls}>Go to people</Link>} />;
 

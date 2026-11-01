@@ -31,6 +31,7 @@ import {
 import { AppLogo } from "./apps-settings";
 import { PostedSheet, postsKey, useAccountHealth, whenText } from "./apps-social";
 import { TikTokPostDialog, directKeys } from "./apps-direct";
+import { LoadErrorInline, LoadFailure } from "@/web/components/load-error-t1g";
 
 /* ---------------------------------------------------------------- helpers */
 
@@ -262,7 +263,7 @@ function LibraryPicker({ open, onClose, onImage, onText }: { open: boolean; onCl
           </button>
         ))}
       </div>
-      {lib.isPending ? <Skeleton className="h-32 rounded-lg" /> : lib.error ? <p className="text-sm text-bad" role="alert">{errorMessage(lib.error, "Couldn't load the library.")}</p>
+      {lib.isPending ? <Skeleton className="h-32 rounded-lg" /> : lib.error ? <LoadFailure error={lib.error} onRetry={() => lib.refetch()} />
         : !items.length ? <p className="rounded-lg bg-fill px-3 py-6 text-center text-[13px] text-muted">Nothing here yet. Add some in <Link to="/app/social/library" className="font-medium text-fg underline underline-offset-2">Library</Link>.</p>
         : tab === "image" ? (
           <ul className="grid grid-cols-3 gap-2" data-testid="library-pick-images">
@@ -684,7 +685,7 @@ function TargetField({ account, value, onChange }: { account: ConnectedAccountVi
   const label = `${net.target.label} for ${account.appName}`;
   if (!listed) return <Input aria-label={label} placeholder="Community, for example r/smallbusiness" value={value} onChange={(e) => onChange(e.target.value)} className="h-9 max-w-xs text-sm" />;
   if (q.isPending) return <Skeleton className="h-9 w-56 rounded-lg" />;
-  if (q.error) return <span className="text-bad">Couldn't load your {net.target.label.toLowerCase()}s. <button type="button" className="underline" onClick={() => void q.refetch()}>Try again</button></span>;
+  if (q.error) return <LoadErrorInline onRetry={() => q.refetch()} />;
   if (!q.data?.length) return <span className="text-muted">No {net.target.label.toLowerCase()}s found on this account.</span>;
   return (
     <Select aria-label={label} value={value} onChange={(e) => onChange(e.target.value, q.data?.find((t) => t.id === e.target.value)?.name)} className="h-9 max-w-xs text-sm" data-testid={`target-${account.app}`}>

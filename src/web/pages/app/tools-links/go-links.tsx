@@ -15,6 +15,7 @@ import { IconDocs, IconEdit, IconGlobe, IconHash, IconPlus, IconProject, IconSea
 import { GO_NAME_RE, type GoLinkInfo, type GoTargetKind } from "@/shared/links";
 import { cn } from "@/web/lib/cn";
 import { useGoLinks } from "./data";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 const KINDS: { k: GoTargetKind; label: string; icon: typeof IconDocs }[] = [
   { k: "doc", label: "Doc", icon: IconDocs }, { k: "task", label: "Task", icon: IconTasks }, { k: "project", label: "Project", icon: IconProject }, { k: "url", label: "Web address", icon: IconGlobe },
@@ -52,7 +53,7 @@ export function GoLinksTab() {
         <Button onClick={() => setEditing("new")} data-testid="go-new"><IconPlus className="h-4 w-4" />New go link</Button>
       </div>
       {list.isError ? (
-        <Card className="p-6 text-center"><p className="font-medium">Couldn't load go links</p><Button variant="outline" className="mt-3" onClick={() => void list.refetch()}>Try again</Button></Card>
+        <Card className="p-6 text-center"><LoadErrorInline onRetry={() => list.refetch()} /></Card>
       ) : list.isLoading ? (
         <Card className="divide-y divide-line" aria-busy="true">{[0, 1, 2].map((i) => <div key={i} className="flex gap-3 p-4"><Skeleton className="h-8 w-8 rounded-lg" /><div className="flex-1 space-y-2"><Skeleton className="w-1/4" /><Skeleton className="h-3 w-1/2" /></div></div>)}</Card>
       ) : !links.length ? (

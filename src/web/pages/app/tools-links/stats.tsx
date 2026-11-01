@@ -6,6 +6,7 @@ import { Button } from "@/web/components/ui/button";
 import { IconChart, IconDownload, IconUser, IconShield } from "@/web/components/ui/icon";
 import { STATS_DAYS, type LinkStats, type StatRow } from "@/shared/links";
 import { cn } from "@/web/lib/cn";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 const axis = { stroke: "var(--color-subtle)", fontSize: 11, tickLine: false, axisLine: false } as const;
 const tip = { cursor: { fill: "var(--color-hover)" }, contentStyle: { background: "var(--color-elevated)", border: "1px solid var(--color-line)", borderRadius: 10, fontSize: 12, color: "var(--color-fg)" } } as const;
@@ -52,7 +53,7 @@ export function StatsView({ data, loading, error, days, onDays, csvHref, onRetry
         {csvHref && <a href={csvHref} download className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line-strong px-3 text-[13px] font-medium hover:bg-hover max-sm:min-h-11" data-testid="stats-csv"><IconDownload className="h-4 w-4" aria-hidden />Export CSV</a>}
       </div>
       {error ? (
-        <div className="rounded-xl border border-line p-4 text-sm"><p>Couldn't load the stats.</p>{onRetry && <Button size="sm" variant="outline" className="mt-2" onClick={onRetry}>Try again</Button>}</div>
+        <div className="rounded-xl border border-line p-4"><LoadErrorInline onRetry={onRetry ?? (() => undefined)} /></div>
       ) : loading || !data ? (
         <div className="space-y-3" aria-busy="true"><div className="grid grid-cols-3 gap-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-[92px] rounded-xl" />)}</div><Skeleton className="h-52 rounded-xl" /></div>
       ) : (

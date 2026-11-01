@@ -14,6 +14,7 @@ import { Input, Select, Textarea } from "@/web/components/ui/input";
 import { IconChatQuote, IconClose, IconHistory, IconSparkle } from "@/web/components/ui/icon";
 import { ToolsFrame } from "@/web/components/tools/tools-frame";
 import { useConfig } from "@/web/lib/queries";
+import { LoadFailure } from "@/web/components/load-error-t1g";
 
 type SourceType = "mail" | "tasks" | "docs" | "contacts" | "deals" | "files" | "chat" | "notes";
 interface Source { n: number; type: SourceType; id: string; title: string; subtitle: string; url: string; cited: boolean }
@@ -229,7 +230,7 @@ function AskInner() {
     </ToolsFrame>
   );
   if (state.isPending) return frame(<div className="space-y-3"><Skeleton className="h-28 rounded-xl" /><Skeleton className="h-40 rounded-xl" /></div>);
-  if (state.isError) return frame(<EmptyState title="Ask could not load" body={errorMessage(state.error)} action={<Button onClick={() => void state.refetch()}>Try again</Button>} />);
+  if (state.isError) return frame(<LoadFailure block error={state.error} onRetry={() => state.refetch()} />);
   if (!state.data?.available) return frame(<EmptyState icon={<IconChatQuote className="h-6 w-6" />} title="Ask is not available here" body={state.data?.reason ?? "AI is not available right now. Try again later."} />);
 
   return frame(

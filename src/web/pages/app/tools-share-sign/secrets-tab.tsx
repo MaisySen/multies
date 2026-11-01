@@ -14,6 +14,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { IconCopy, IconFile, IconKey, IconLock, IconShieldCheck, IconTrash } from "@/web/components/ui/icon";
 import { encryptSecret, secretLink } from "@/web/lib/secret-crypto";
 import { SECRET_EXPIRY_CHOICES, SECRET_MAX_FILE_BYTES, SECRET_MAX_TEXT, SECRET_VIEW_CHOICES, type SecretInfo } from "@/shared/secure-share";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 const MB = 1024 * 1024;
 const sizeOf = (n: number) => (n < MB ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / MB).toFixed(1)} MB`);
@@ -180,7 +181,7 @@ export function SecretsTab() {
         <h2 className="mb-2 text-[15px] font-semibold">Your secret links</h2>
         <Card className="px-5 py-1">
           {list.isLoading ? <div className="space-y-3 py-4"><Skeleton className="h-5 w-2/3" /><Skeleton className="h-4 w-1/3" /></div>
-            : list.isError ? <p className="py-6 text-center text-sm text-bad">Couldn't load your secret links. <button type="button" className="font-medium underline" onClick={() => void list.refetch()}>Try again</button></p>
+            : list.isError ? <LoadErrorInline onRetry={() => list.refetch()} />
               : !list.data?.secrets.length ? <EmptyState className="py-8" icon={<IconLock />} title="No secret links yet" body="Make one above. You'll see here when it is opened." />
                 : <ul>{list.data.secrets.map((s) => <SecretRow key={s.id} s={s} />)}</ul>}
         </Card>

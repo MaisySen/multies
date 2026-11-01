@@ -10,6 +10,7 @@ import { Badge, Card, CopyButton, EmptyState, Skeleton } from "@/web/components/
 import { IconGlobe, IconRefresh } from "@/web/components/ui/icon";
 import type { LinkHostInfo } from "@/shared/links";
 import { plainUrl, useLinkHost } from "./data";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 const STATE: Record<LinkHostInfo["status"], { label: string; tone: "ok" | "warn" | "neutral" | "bad"; body: string }> = {
   none: { label: "Not set", tone: "neutral", body: "" },
@@ -31,7 +32,7 @@ export function DomainTab() {
   const check = useMutation({ mutationFn: () => api.post<LinkHostInfo>("/links/host/check", {}), onSuccess: (r) => { done(r); toast[r.status === "failed" || r.status === "pending" ? "error" : "success"](STATE[r.status].label); }, onError: (e) => toast.error(errorMessage(e), { id: "links-domain-error" }) });
   const remove = useMutation({ mutationFn: () => api.del<LinkHostInfo>("/links/host"), onSuccess: (r) => { done(r); toast.success("Back to the standard address"); }, onError: (e) => toast.error(errorMessage(e), { id: "links-domain-error" }) });
 
-  if (q.isError) return <Card className="mt-4 p-6 text-center"><p className="font-medium">Couldn't load the link domain</p><Button variant="outline" className="mt-3" onClick={() => void q.refetch()}>Try again</Button></Card>;
+  if (q.isError) return <Card className="mt-4 p-6 text-center"><LoadErrorInline onRetry={() => q.refetch()} /></Card>;
   if (!h) return <div className="space-y-3 pt-4" aria-busy="true"><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-40 rounded-xl" /></div>;
   const st = STATE[h.status];
   const name = h.host?.split(".")[0] ?? sub;

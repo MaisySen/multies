@@ -21,6 +21,7 @@ import { monthGrid } from "./social";
 import { PlannedHealthNote } from "./social-health"; // R118
 
 export const slotsKey = ["social", "slots"] as const;
+import { LoadFailure } from "@/web/components/load-error-t1g";
 export function useSlots() {
   return useQuery({ queryKey: slotsKey, queryFn: () => api.get<{ slots: SlotView[] }>("/social/slots").then((r) => r.slots), staleTime: 60_000 });
 }
@@ -316,8 +317,7 @@ export function PlannerV2({ canManage, accounts }: { canManage: boolean; account
 
       {posts.isPending ? <Skeleton className="h-96 rounded-xl" />
         : posts.error ? (
-          <Card className="p-5"><p className="text-sm text-bad" role="alert">{errorMessage(posts.error, "Couldn't load posts.")}</p>
-            <Button variant="outline" size="sm" className="mt-3" onClick={() => void posts.refetch()}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button></Card>
+          <Card className="p-5"><LoadFailure error={posts.error} onRetry={() => posts.refetch()} /></Card>
         ) : (<>
           {!all.length && (
             <Card className="mb-4" data-testid="planner-empty">

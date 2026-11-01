@@ -13,6 +13,7 @@ import { DateInput, Field, Input, Select, TimeInput } from "@/web/components/ui/
 import { Badge, Card, CopyButton, EmptyState, Skeleton, Switch } from "@/web/components/ui/misc";
 import { POLL_ANSWER_LABEL, type PollAnswer } from "@/shared/booking-plus";
 import { dayLabel, localIso, timeLabel, ymd, zone } from "./common";
+import { LoadError } from "@/web/components/load-error-t1g";
 
 interface PollRow { id: string; title: string; status: "open" | "closed"; votes: number; options: number; createdAt: string; mine: boolean; url: string }
 interface PollFull {
@@ -34,7 +35,7 @@ export function PollsTab() {
         <Button onClick={() => setCreating(true)}><IconPlus className="h-4 w-4" />New poll</Button>
       </div>
       {list.isPending ? <div className="space-y-2"><Skeleton className="h-16" /><Skeleton className="h-16" /></div>
-        : list.isError ? <Card><EmptyState title="Polls did not load" body="Check your connection and try again." action={<Button variant="secondary" onClick={() => list.refetch()}>Try again</Button>} /></Card>
+        : list.isError ? <Card><LoadError onRetry={() => list.refetch()} /></Card>
           : !list.data.length ? <Card><EmptyState icon={<IconCalendarPlus />} title="No polls yet" body="Find a time that suits a group. People answer Yes, If need be or No for each time." action={<Button onClick={() => setCreating(true)}>New poll</Button>} /></Card>
             : (
               <Card className="divide-y divide-line p-0">

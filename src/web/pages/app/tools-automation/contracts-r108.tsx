@@ -23,6 +23,7 @@ import {
   CONTRACT_NOTE, CONTRACT_NOTE_LONG, buildContract, checkAnswers, plannedReminders, startingAnswers, visibleQuestions,
   type Answers, type BuiltContract, type ClauseText, type ContractTemplateDef, type FillContext, type Question,
 } from "@/shared/contracts-r108";
+import { LoadFailure } from "@/web/components/load-error-t1g";
 
 interface TemplateSummary { id: string; name: string; description: string; category: string; questionCount: number; clauseCount: number; builtIn: boolean; retired: boolean; baseId: string }
 interface Recent { id: string; title: string; docId: string | null; templateId: string; reminders: number; createdAt: string }
@@ -62,7 +63,7 @@ function TemplateGallery({ onOpen, onLibrary }: { onOpen: (id: string) => void; 
     onError: (e) => showError(e),
   });
   if (q.isPending) return <div className="space-y-3"><Skeleton className="h-12 w-full" /><div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-36" />)}</div></div>;
-  if (q.isError) return <EmptyState title="Contracts didn't load" body={errorMessage(q.error)} action={<Button variant="secondary" onClick={() => void q.refetch()}>Try again</Button>} />;
+  if (q.isError) return <LoadFailure block error={q.error} onRetry={() => q.refetch()} />;
   const d = q.data!;
   const ours = d.templates.filter((t) => !t.builtIn);
   const standard = d.templates.filter((t) => t.builtIn);

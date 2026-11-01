@@ -23,6 +23,7 @@ import { ConfirmDialog } from "@/web/components/ui/confirm";
 import { IconClock, IconKey, IconLock, IconMegaphone, IconPlug, IconRefresh, IconSearch, IconTrash } from "@/web/components/ui/icon";
 import { APP_GROUPS, SOCIAL_FIRST, type AppAvailability, type AppGroup, type ConnectedAccountView } from "@/shared/integrations";
 import { DIRECT_NAMES, type DirectAccountView, type DirectStatusResponse } from "@/shared/direct-social";
+import { LoadErrorInline, LoadFailure } from "@/web/components/load-error-t1g";
 
 // R82F (MB-279, MB-280): the two older panes load only when their tab opens, so the Apps tab stays light.
 const MailAccounts = lazyPage(() => import("./connections"), "ConnectionsSettings", { quiet: true });
@@ -180,8 +181,7 @@ function OutsideApps() {
   if (status.error || !status.data) {
     return (
       <Card className="p-6" data-testid="apps-settings">
-        <p className="text-sm text-bad" role="alert">{errorMessage(status.error, "Couldn't load Connections.")}</p>
-        <Button variant="outline" size="sm" className="mt-3" onClick={() => void status.refetch()}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button>
+        <LoadFailure error={status.error} onRetry={() => status.refetch()} />
       </Card>
     );
   }
@@ -339,8 +339,7 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
             <div className="space-y-3 p-4"><Skeleton className="h-10 rounded-lg" /><Skeleton className="h-10 rounded-lg" /></div>
           ) : accounts.error ? (
             <div className="flex flex-wrap items-center gap-3 p-4">
-              <p className="flex-1 text-sm text-bad" role="alert">{errorMessage(accounts.error, "Couldn't load your connected apps.")}</p>
-              <Button variant="outline" size="sm" onClick={() => void accounts.refetch()}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button>
+              <LoadFailure error={accounts.error} onRetry={() => accounts.refetch()} />
             </div>
           ) : connected.length === 0 && ownConnected.length === 0 ? (
             <div className="flex items-center gap-3 p-4 text-sm text-muted" data-testid="apps-none">
@@ -421,8 +420,7 @@ function AppsGallery({ canManage }: { canManage: boolean }) {
 
         {catalog.isPending || (!matches.length && !catalog.complete && !catalog.error) ? <GridSkeleton /> : catalog.error ? (
           <Card className="p-6">
-            <p className="text-sm text-bad" role="alert">Couldn't load the list of apps.</p>
-            <Button variant="outline" size="sm" className="mt-3" onClick={() => void catalog.refetch()}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button>
+            <LoadErrorInline onRetry={() => catalog.refetch()} />
           </Card>
         ) : matches.length === 0 ? (
           <Card><EmptyState icon={<IconSearch />} title="No apps match" body={`Nothing matches "${q.trim()}". Try a shorter word or another category.`} action={<Button variant="outline" size="sm" onClick={() => { setQ(""); setGroup("all"); }}>Clear search</Button>} /></Card>

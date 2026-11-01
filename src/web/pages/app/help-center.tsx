@@ -18,6 +18,8 @@ import {
   IconBook, IconChatQuote, IconCheck, IconExternalLink, IconEye, IconHelp, IconPlus, IconRefresh, IconSearch, IconTrash,
 } from "@/web/components/ui/icon";
 import { POST_STATUS_LABEL, centerSlugProblem, helpfulPercent, type HelpCenterSettings, type PostStatus } from "@/shared/help-center";
+import { LoadError } from "@/web/components/load-error-t1g";
+import { isServerLoadError } from "@/web/lib/load-errors-t1g";
 
 export interface CenterOut {
   settings: HelpCenterSettings | null; suggestedSlug: string; orgName: string; canEdit: boolean; url: string | null;
@@ -47,11 +49,12 @@ function useInvalidate() {
   return () => qc.invalidateQueries({ queryKey: KEY });
 }
 
+/** F12 (MB-299): a refused read (4xx) keeps the server's own words; a failed one shows the shared Retry card. */
 function ErrorCard({ error, retry }: { error: unknown; retry: () => void }) {
+  if (isServerLoadError(error)) return <Card><LoadError onRetry={retry} /></Card>;
   return (
     <Card className="p-6 text-center" role="alert">
-      <p className="font-medium">We couldn't load the help center.</p>
-      <p className="mt-1 text-sm text-muted">{errorMessage(error)}</p>
+      <p className="font-medium">{errorMessage(error)}</p>
       <Button className="mt-4" variant="secondary" onClick={retry}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button>
     </Card>
   );

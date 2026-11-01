@@ -24,6 +24,7 @@ import { useMe } from "@/web/lib/queries";
 import { PlannedHealthNote } from "./social-health"; // R118
 
 export const postsKey = ["social", "posts"] as const;
+import { LoadErrorInline, LoadFailure } from "@/web/components/load-error-t1g";
 
 export const POST_STATUS: Record<PostStatus, { label: string; tone: "ok" | "warn" | "bad" | "neutral" | "brand" }> = {
   scheduled: { label: "Scheduled", tone: "brand" },
@@ -71,7 +72,7 @@ function TargetPicker({ account, value, onChange }: { account: ConnectedAccountV
     return <Input aria-label={label} placeholder="Community, for example r/smallbusiness" value={value} onChange={(e) => onChange(e.target.value)} className="h-9 max-w-xs text-sm" />;
   }
   if (q.isPending) return <Skeleton className="h-9 w-56 rounded-lg" />;
-  if (q.error) return <p className="text-[13px] text-bad">Couldn't load your {net.target.label.toLowerCase()}s. <button type="button" className="underline" onClick={() => void q.refetch()}>Try again</button></p>;
+  if (q.error) return <LoadErrorInline onRetry={() => q.refetch()} />;
   if (!q.data?.length) return <p className="text-[13px] text-muted">No {net.target.label.toLowerCase()}s found on this account.</p>;
   return (
     <Select aria-label={label} value={value} onChange={(e) => onChange(e.target.value, q.data?.find((t) => t.id === e.target.value)?.name)} className="h-9 max-w-xs text-sm">
@@ -101,8 +102,7 @@ export function SocialPanel({ canManage }: { canManage: boolean }) {
   if (accounts.error) {
     return (
       <Card className="p-6">
-        <p className="text-sm text-bad" role="alert">{errorMessage(accounts.error, "Couldn't load your accounts.")}</p>
-        <Button variant="outline" size="sm" className="mt-3" onClick={() => void accounts.refetch()}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button>
+        <LoadFailure error={accounts.error} onRetry={() => accounts.refetch()} />
       </Card>
     );
   }
@@ -432,7 +432,7 @@ export function PostedSheet({ postId, onClose, onViewPosts, onWriteAnother }: { 
         </div>
       )}>
       <div data-testid="posted-sheet" data-status={p?.status ?? "loading"} aria-live="polite">
-        {!p ? (q.error ? <p className="text-sm text-bad" role="alert">{errorMessage(q.error, "Couldn't load the post. It is in Posts.")}</p> : <div className="space-y-2"><Skeleton className="h-10 rounded-lg" /><Skeleton className="h-10 rounded-lg" /></div>) : (
+        {!p ? (q.error ? <LoadFailure error={q.error} onRetry={() => q.refetch()} /> : <div className="space-y-2"><Skeleton className="h-10 rounded-lg" /><Skeleton className="h-10 rounded-lg" /></div>) : (
           <ul className="divide-y divide-line rounded-lg border border-line text-left" aria-label="Where it went">
             {p.targets.map((t) => <TargetRow key={t.accountId} t={t} p={p} canManage />)}
           </ul>
@@ -538,8 +538,7 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
       {posts.isPending ? <div className="space-y-3"><Skeleton className="h-28 rounded-xl" /><Skeleton className="h-28 rounded-xl" /></div>
         : posts.error ? (
           <Card className="p-5">
-            <p className="text-sm text-bad" role="alert">{errorMessage(posts.error, "Couldn't load posts.")}</p>
-            <Button variant="outline" size="sm" className="mt-3" onClick={() => void posts.refetch()}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button>
+            <LoadFailure error={posts.error} onRetry={() => posts.refetch()} />
           </Card>
         ) : !shown.length ? (
           <Card data-testid="posts-empty"><EmptyState icon={<IconMegaphone />} title={FILTER_EMPTY[filter].title} body={FILTER_EMPTY[filter].body} /></Card>

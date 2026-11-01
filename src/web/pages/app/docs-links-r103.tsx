@@ -17,6 +17,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { IconBookmark, IconDocs, IconDownload, IconEdit, IconExternalLink, IconGlobe, IconLink, IconPlus, IconSearch, IconTag, IconTrash } from "@/web/components/ui/icon";
 import { normalizeTags, siteOf } from "@/shared/docs-plus";
 import { DocTreeSidebar } from "./work/doc-tree";
+import { LoadError } from "@/web/components/load-error-t1g";
 
 interface SavedLink { id: string; url: string; title: string; description: string; site: string; tags: string[]; note: string; docId: string | null; createdAt: string; canRemove: boolean }
 interface DocSummary { id: string; title: string }
@@ -169,7 +170,7 @@ export function DocsLinksPage() {
         </div>
         {topTags.length > 0 && <div className="mb-4 flex items-center gap-2"><IconTag className="h-4 w-4 shrink-0 text-subtle" aria-hidden /><TagChips tags={topTags} active={tag} onPick={(t) => setTag((x) => (x === t ? undefined : t))} /></div>}
         {list.isPending ? <div className="grid gap-3 sm:grid-cols-2" aria-busy="true" aria-label="Loading links">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-32" />)}</div>
-          : list.error ? <Card className="p-6 text-center" role="alert"><p className="text-[14px]">Links could not load.</p><Button variant="secondary" className="mt-3" onClick={() => void list.refetch()}>Try again</Button></Card>
+          : list.error ? <Card><LoadError onRetry={() => list.refetch()} /></Card>
             : !list.data?.links.length ? (
               <Card><EmptyState icon={<IconBookmark className="h-5 w-5" />} title={filtered ? "No links match" : "No links yet"}
                 body={filtered ? "Try another word or tag." : "Keep useful links here with tags, or save a public page as a clean doc your team can read and comment on."}

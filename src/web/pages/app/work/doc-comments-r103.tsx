@@ -16,6 +16,7 @@ import { Badge, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Dialog } from "@/web/components/ui/dialog";
 import { IconChat, IconClose, IconEye, IconEyeOff, IconTrash, IconEdit } from "@/web/components/ui/icon";
 import { COMMENT_MAX } from "@/shared/docs-plus";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 export interface DocComment {
   id: string; thread: "team" | "public"; body: string; status: "visible" | "pending" | "hidden";
@@ -146,7 +147,7 @@ export function DocCommentsPanel({ docId, open, onClose }: { docId: string; open
       )}
       <div className="min-h-0 flex-1 overflow-y-auto" role={showPublic ? "tabpanel" : undefined}>
         {q.isPending ? <div className="space-y-3 p-4" aria-busy="true" aria-label="Loading comments"><Skeleton className="h-14" /><Skeleton className="h-14" /></div>
-          : q.error ? <div className="p-4 text-[14px]" role="alert"><p>Comments could not load.</p><Button size="sm" variant="secondary" className="mt-2" onClick={() => void q.refetch()}>Try again</Button></div>
+          : q.error ? <LoadErrorInline className="p-4" onRetry={() => q.refetch()} />
             : !list.length ? <EmptyState className="py-10" icon={<IconChat className="h-5 w-5" />} title={tab === "public" && showPublic ? "No comments on the shared link" : "No comments yet"}
               body={tab === "public" && showPublic ? "Comments people leave on the shared link show here for review first." : "Ask a question or leave a note for the team. Type @ and a name to mention someone."} />
               : <ul className="divide-y divide-line" aria-label={tab === "public" ? "Shared link comments" : "Team comments"}>{list.map((c) => <Item key={c.id} c={c} moderator={!!d?.canModerate} onEdit={(x) => { setEditing(x); setEditBody(x.body); }} onStatus={setStatus} onRemove={setRemoving} />)}</ul>}

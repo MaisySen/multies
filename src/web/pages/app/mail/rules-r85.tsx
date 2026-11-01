@@ -27,6 +27,7 @@ import {
 import { useSplits } from "./splits";
 import { useSavedReplies } from "./saved-replies";
 import { useProjects } from "../work/data";
+import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
 
 const KEY = ["mail", "rules"] as const;
 const useRules = () => useQuery({ queryKey: KEY, queryFn: async () => (await api.get<{ rules: MailRule[] }>("/mail/rules")).rules, staleTime: 15_000 });
@@ -106,7 +107,7 @@ export function MailRulesPage() {
       {rules.isPending || overview.isPending ? (
         <Card className="divide-y divide-line">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="flex items-center gap-3 p-4"><Skeleton className="h-6 w-10" /><div className="flex-1"><Skeleton className="mb-2 h-4 w-40" /><Skeleton className="h-3 w-72 max-w-full" /></div></div>)}</Card>
       ) : rules.isError ? (
-        <EmptyState icon={<IconWarning />} title="Rules didn't load" body="Check your connection and try again." action={<Button variant="secondary" onClick={() => rules.refetch()}>Try again</Button>} />
+        <LoadError onRetry={() => rules.refetch()} />
       ) : !rules.data.length ? (
         <EmptyState icon={<IconWorkflow />} title="No rules yet"
           body={mailboxes.length ? "A rule does the same thing to every matching email, like labelling invoices or answering new customers while you're away." : "Add a mailbox first, then make rules for the mail it gets."}
@@ -333,7 +334,7 @@ function RunLog({ rule, onClose }: { rule: MailRule | null; onClose: () => void 
     <Dialog open={!!rule} onClose={onClose} title={rule ? `Run log: ${rule.name}` : "Run log"} description="The last 50 messages this rule acted on.">
       <div data-testid="rule-runs">
         {runs.isPending ? <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
-          : runs.isError ? <p className="text-[13px] text-bad">The log didn't load. Close this and try again.</p>
+          : runs.isError ? <LoadErrorInline onRetry={() => runs.refetch()} />
           : !runs.data.length ? <p className="py-6 text-center text-[13px] text-subtle">Nothing yet. Runs show here when new mail matches.</p>
           : (
             <ul className="max-h-[60dvh] divide-y divide-line overflow-y-auto">

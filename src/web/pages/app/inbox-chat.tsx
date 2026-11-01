@@ -28,6 +28,7 @@ import { ChannelChip } from "./channels-ui";
 import { chatQuery, closedWindowCopy, fileTooBig, fillTemplate, mergeByDate, sizeLabel, windowPill } from "@/web/lib/chat-channels";
 export { mergeByDate };
 import type { InboxView } from "./inbox-assign";
+import { LoadFailure } from "@/web/components/load-error-t1g";
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
 
@@ -484,7 +485,7 @@ function TemplateSheet({ open, onClose, conversationId, onSent }: { open: boolea
     <Dialog open={open} onClose={onClose} title="Choose a template" description="Approved templates can be sent at any time.">
       <div className="max-h-[60dvh] space-y-2 overflow-y-auto px-6 pb-2 pt-4" data-testid="template-sheet">
         {q.isPending ? <><Skeleton className="h-16 rounded-xl" /><Skeleton className="h-16 rounded-xl" /></>
-          : q.error ? <p className="text-sm text-bad">{errorMessage(q.error, "Couldn't load templates. Try again.")}</p>
+          : q.error ? <LoadFailure error={q.error} onRetry={() => q.refetch()} />
           : !q.data.templates.length ? <p className="text-sm text-muted">No approved templates yet.</p>
           : q.data.templates.map((t) => {
             const on = pick?.name === t.name && pick.language === t.language;
@@ -533,7 +534,7 @@ function NotesSheet({ open, onClose, conversationId }: { open: boolean; onClose:
     <Dialog open={open} onClose={onClose} title="Notes" description="Only your team sees these. The customer never does.">
       <div className="max-h-[50dvh] space-y-3 overflow-y-auto px-6 pt-4" data-testid="chat-notes">
         {q.isPending ? <Skeleton className="h-12 rounded-xl" />
-          : q.error ? <p className="text-sm text-bad">{errorMessage(q.error, "Couldn't load notes.")}</p>
+          : q.error ? <LoadFailure error={q.error} onRetry={() => q.refetch()} />
           : !q.data.notes.length ? <p className="text-sm text-muted">No notes yet.</p>
           : q.data.notes.map((n) => (
             <div key={n.id} className="rounded-xl bg-[#FFF8E1] px-3.5 py-2.5 text-[14px] text-[#3D3200] dark:bg-[#3A3214] dark:text-[#F5E9B8]">

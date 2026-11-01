@@ -17,6 +17,7 @@ import { Skeleton } from "@/web/components/ui/misc";
 import { IconCalendarClock, IconCheck, IconChevronDown, IconChevronUp, IconClose, IconMinus, IconPlus, IconSunrise, IconUndo } from "@/web/components/ui/icon";
 import { addDays, clampBlock, clockOf, fitBlock, minutesText, type Block } from "@/shared/tasks-plus-r95";
 import { tone } from "@/web/components/app-bits";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 interface PlanTask { id: string; ref: string; title: string; status: "todo" | "doing" | "done"; priority: string; due: string | null; project: { id: string; name: string; color: string } | null }
 interface PlanItem { id: string; taskId: string; day: string; start: number | null; minutes: number; position: number; task: PlanTask }
@@ -109,9 +110,7 @@ export function MyDay() {
       {q.isPending ? (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]"><Skeleton className="h-48" /><Skeleton className="h-72" /></div>
       ) : q.isError ? (
-        <div className="elev-1 flex items-center gap-3 rounded-[var(--radius-r14)] bg-surface p-4 text-[13px]" role="alert">
-          <span className="flex-1 text-muted">Your day plan didn't load.</span><Button size="sm" variant="secondary" onClick={() => void q.refetch()}>Try again</Button>
-        </div>
+        <div className="elev-1 rounded-[var(--radius-r14)] bg-surface p-4"><LoadErrorInline onRetry={() => q.refetch()} /></div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
           <DayList items={unscheduled} scheduled={scheduled} suggestions={q.data!.suggestions} onPlace={place} onRemove={remove} onFinish={finish} />

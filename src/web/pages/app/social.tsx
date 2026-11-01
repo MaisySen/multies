@@ -27,6 +27,7 @@ import { useConfig } from "@/web/lib/queries";
 import { ComposerV2, composerAccounts, useDirectStatus, useLibrary } from "./social-composer";
 import { PlannerV2 } from "./social-planner";
 import { SocialLibrary } from "./social-library";
+import { LoadError, LoadFailure } from "@/web/components/load-error-t1g";
 
 /** R117: Social P2 (composer v2, planner v2, drafts and approvals, library) sits behind its own flag. */
 export const useSocialP2 = () => !!useConfig().data?.socialP2;
@@ -82,8 +83,7 @@ export function NewPostButton() {
 export function LoadError({ error, retry, what }: { error: unknown; retry: () => void; what: string }) {
   return (
     <Card className="p-5">
-      <p className="text-sm text-bad" role="alert">{errorMessage(error, `Couldn't load ${what}.`)}</p>
-      <Button variant="outline" size="sm" className="mt-3" onClick={retry}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button>
+      <LoadFailure error={error} onRetry={retry} />
     </Card>
   );
 }

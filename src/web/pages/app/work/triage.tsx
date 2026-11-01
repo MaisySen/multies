@@ -19,6 +19,7 @@ import { timeAgo } from "@/web/lib/format";
 import { showError } from "@/web/lib/show-error";
 import { useAssignees, useProjects, type Task } from "./data";
 import { TriageCommentBar, type CommentMode } from "./triage-comment-r33";
+import { LoadError } from "@/web/components/load-error-t1g";
 
 type TriageSource = "mail" | "form" | "api" | "chat" | "agent";
 type TriageItem = Task & { triage: { state: "pending"; source: TriageSource | null; from: string | null; snoozedUntil?: string | null } | null };
@@ -168,7 +169,7 @@ export function TriagePage() {
         </Select>
       </div>
       {q.isPending ? <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"><Skeleton className="h-72" /><Skeleton className="h-72" /></div> : q.isError ? (
-        <EmptyState icon={<IconInbox />} title="Triage didn't load" body="Check your connection and try again in a moment." />
+        <LoadError onRetry={() => q.refetch()} />
       ) : !items.length ? (
         view === "snoozed"
           ? <EmptyState icon={<IconClock />} title="Nothing snoozed" body="Items you snooze wait here and come back to the queue on the day you pick." />

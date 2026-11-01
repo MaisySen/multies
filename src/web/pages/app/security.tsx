@@ -28,6 +28,7 @@ function YourDataSection() {
       </div>
     </Section>
   );
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 }
 
 /** Security state comes from the session (Better Auth): verified email and 2FA. */
@@ -230,9 +231,8 @@ function DevicesSection() {
     <Section title="Devices" description="Where you're signed in. Sessions end after 30 days without activity.">
       {sessions.isPending ? <Skeleton className="h-24" /> : sessions.isError ? (
         // R73 (MB-272): a failed read said nothing at all before; now it says so and offers a retry.
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line px-3.5 py-3 text-sm" role="alert" data-testid="devices-error">
-          <span className="text-muted">Could not load your devices.</span>
-          <Button size="sm" variant="secondary" loading={sessions.isFetching} onClick={() => void sessions.refetch()}>Try again</Button>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line px-3.5 py-3 text-sm" data-testid="devices-error">
+          <LoadErrorInline className="flex-1" onRetry={() => sessions.refetch()} />
         </div>
       ) : (
         <>

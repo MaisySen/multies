@@ -13,6 +13,7 @@ import { DateInput, Field, Input, Select, Textarea, TimeInput } from "@/web/comp
 import { Badge, Card, CopyButton, EmptyState, Skeleton, StatTile, Switch } from "@/web/components/ui/misc";
 import { formatTicketCode, readScan } from "@/shared/booking-plus";
 import { ZONES, dayLabel, localIso, timeLabel, ymd, zone } from "./common";
+import { LoadError } from "@/web/components/load-error-t1g";
 
 interface EventRow {
   id: string; slug: string; title: string; description: string; location: string; onlineUrl: string; startsAt: string; endsAt: string; timezone: string;
@@ -32,7 +33,7 @@ export function EventsTab() {
         <Button onClick={() => setEditing("new")}><IconPlus className="h-4 w-4" />New event</Button>
       </div>
       {list.isPending ? <div className="space-y-2"><Skeleton className="h-20" /><Skeleton className="h-20" /></div>
-        : list.isError ? <Card><EmptyState title="Events did not load" body="Check your connection and try again." action={<Button variant="secondary" onClick={() => list.refetch()}>Try again</Button>} /></Card>
+        : list.isError ? <Card><LoadError onRetry={() => list.refetch()} /></Card>
           : !list.data.length ? <Card><EmptyState icon={<IconMegaphone />} title="No events yet" body="Make a free event, share its page and people get a QR ticket by email." action={<Button onClick={() => setEditing("new")}>New event</Button>} /></Card>
             : (
               <div className="grid gap-3 md:grid-cols-2">
