@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-chat-plus",
+    date: "2026-11-01",
+    title: "Topics, announcements and votes in Chat",
+    body: "Channels can have topics: pick one from the bar under the channel name to see just that conversation, with its own unread count, and mark it resolved with a tick when it is done. Admins can post announcements that are pinned and show who has seen them, all in one Announcements list. Use Add next to the message box for a poll, a decision (agree, abstain, disagree or block, with the outcome posted when it closes), live questions with upvotes, or a word cloud; during a call, the Live panel runs the same polls and questions.",
+  },
+  {
     id: "2026-11-01-client-portals",
     date: "2026-11-01",
     title: "Client portals for the people you work with",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "Ask for files, and send secrets that delete themselves",
     body: "In Tools, Secure share lets clients upload big files to you through a request link, no account needed. Secret links lock a password or a small file on your device and delete it once opened, and Send securely in a new email does it in one step. Share links now show views as well as downloads.",
-  },
-  {
-    id: "2026-10-31-tools-round-b",
-    date: "2026-10-31",
-    title: "Video, sound, ebooks, archives and Edit a PDF",
-    body: "Tools, Convert any file takes one file or fifty, converts photos, PDFs and spreadsheets in your browser, and now handles videos, sound, EPUB and MOBI ebooks, HEIC photos and ZIP, 7Z and TAR archives. It also makes files smaller and reads scans into searchable PDFs or text. Tools, Edit a PDF adds text, a signature, black out boxes, a watermark and page numbers, all on your device.",
   },
   {
     id: "2026-10-28-whats-new",
