@@ -84,6 +84,9 @@ describe("R99 DAV units", () => {
     expect(first).toContain('"/.well-known/*"');
     const worker = readFileSync("src/entry/worker.ts", "utf8");
     expect(worker).toContain('url.pathname.startsWith("/dav/")');
+    // Staging found /.well-known/caldav answered 404: the Worker must hand both discovery paths to the app.
+    expect(worker).toContain('url.pathname === "/.well-known/caldav"');
+    expect(worker).toContain('url.pathname === "/.well-known/carddav"');
     expect(wr).toMatch(/\[env\.staging\.vars\][\s\S]*DAV_SYNC_R99 = "on"/);
   });
 
