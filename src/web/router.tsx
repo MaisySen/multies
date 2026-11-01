@@ -139,7 +139,10 @@ const SignPage = lazyPage(() => import("./pages/app/tools-share-sign/sign"), "Si
 // Tools P2: automation pages
 const WorkflowsPage = lazyPage(() => import("./pages/app/tools-automation/workflows"), "WorkflowsPage");
 const DocTemplatesPage = lazyPage(() => import("./pages/app/tools-automation/templates"), "TemplatesPage");
-const MergePage = lazyPage(() => import("./pages/app/tools-automation/merge"), "MergePage");
+const MergePage = lazyPage(() => import("./pages/app/tools-automation/campaigns-r109"), "MergeEntry"); // R109: the merge page with newsletters, lists, journeys
+const MergeListPage = lazyPage(() => import("./pages/app/tools-automation/campaigns-r109"), "ListPage");
+const MergeNewsletterPage = lazyPage(() => import("./pages/app/tools-automation/campaigns-r109-editor"), "NewsletterPage");
+const MergeJourneyPage = lazyPage(() => import("./pages/app/tools-automation/campaigns-r109-editor"), "JourneyPage");
 const SchedulingPage = lazyPage(() => import("./pages/app/work/scheduling"), "SchedulingPage");
 const bookPages = () => import("./pages/book");
 const BookingPage = lazyPage(() => bookPages(), "BookingPage");
@@ -309,7 +312,10 @@ export const router = createBrowserRouter([
       { path: "tools/sign", element: page(<ToolFeatureGate features={["esign"]}><SignPage /></ToolFeatureGate>) }, // Tools P2: e-sign
       { path: "tools/workflows", element: page(<ToolFeatureGate features={["workflows"]}><WorkflowsPage /></ToolFeatureGate>) }, // Tools P2: workflows
       { path: "tools/templates", element: page(<ToolFeatureGate features={["templates"]}><DocTemplatesPage /></ToolFeatureGate>) }, // Tools P2: templates
-      { path: "tools/merge", element: page(<ToolFeatureGate features={["merge_mail"]}><MergePage /></ToolFeatureGate>) }, // Tools P2: mail merge
+      { path: "tools/merge", element: page(<ToolFeatureGate features={["merge_mail", "merge_plus_r109"]}><MergePage /></ToolFeatureGate>) }, // Tools P2: mail merge (R109: plus newsletters, lists, journeys)
+      { path: "tools/merge/lists/:id", element: page(<ToolFeatureGate features={["merge_plus_r109"]}><MergeListPage /></ToolFeatureGate>) }, // R109
+      { path: "tools/merge/newsletters/:id", element: page(<ToolFeatureGate features={["merge_plus_r109"]}><MergeNewsletterPage /></ToolFeatureGate>) }, // R109
+      { path: "tools/merge/journeys/:id", element: page(<ToolFeatureGate features={["merge_plus_r109"]}><MergeJourneyPage /></ToolFeatureGate>) }, // R109
       { path: "deliverability", element: page(<DeliverabilityPage />) },
       { path: "admin", element: page(<AdminPage />) },
       { path: "admin/reports", element: page(<ModerationPage />) }, // R35: moderation queue

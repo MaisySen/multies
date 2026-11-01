@@ -4,7 +4,7 @@
  * sends get an unsubscribe line; a daily cap per plan.
  */
 import { PagePreview } from "./page-preview";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -31,6 +31,11 @@ function guess(columns: string[], key: string): string {
   return columns.find((c) => c.toLowerCase() === k) ?? columns.find((c) => c.toLowerCase().includes(k.split(" ")[0])) ?? "";
 }
 
+function Frame({ bare, children }: { bare: boolean; children: ReactNode }) {
+  if (bare) return <div className="space-y-4">{children}</div>;
+  return <AutoPage entryKey="merge_mail" title="Mail merge" description="Send each person their own PDF, made from one template, in their own email from your mailbox.">{children}</AutoPage>;
+}
+
 function RunProgress({ id, onDone }: { id: string; onDone: () => void }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["merge-run", id], queryFn: () => api.get<Progress>(`/tools/merge/${id}`), refetchInterval: (x) => (x.state.data && ["done", "cancelled", "failed"].includes(x.state.data.status) ? false : 3000) });
@@ -51,6 +56,11 @@ function RunProgress({ id, onDone }: { id: string; onDone: () => void }) {
 }
 
 export function MergePage() {
+  return <DocumentsMerge />;
+}
+
+/** The PDF merge (flag merge_mail). `bare` when shown as a tab inside the R109 page, which brings its own frame. */
+export function DocumentsMerge({ bare = false }: { bare?: boolean }) {
   const qc = useQueryClient();
   const info = useQuery({ queryKey: ["tools-merge"], queryFn: () => api.get<MergeInfo>("/tools/merge") });
   const tpls = useQuery({ queryKey: ["tools-templates"], queryFn: () => api.get<{ templates: TemplateDef[]; workspaceName: string; logo: string | null; today: string }>("/tools/templates") });
@@ -125,7 +135,7 @@ export function MergePage() {
     onError: (e) => showError(e),
   });
   return (
-    <AutoPage entryKey="merge_mail" title="Mail merge" description="Send each person their own PDF, made from one template, in their own email from your mailbox.">
+    <Frame bare={bare}>
       {info.isPending ? <Skeleton className="h-64 w-full" /> : info.data && (
         <>
           <p className="text-sm text-muted" data-testid="merge-cap">Today: {info.data.usedToday} of {info.data.cap} people on your plan. Your normal daily sending limit applies too.</p>
@@ -185,6 +195,6 @@ export function MergePage() {
           )}
         </>
       )}
-    </AutoPage>
+    </Frame>
   );
 }
