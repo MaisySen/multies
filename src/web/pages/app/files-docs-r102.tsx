@@ -23,6 +23,7 @@ import {
   DOC_MATCH, DOC_MATCH_LABEL, DOC_TYPES, DOC_TYPE_LABEL, DOC_VIEWS, DOC_VIEW_LABEL, centsLabel, isDocView, parseCentsInput,
   type DocDetail, type DocField, type DocList, type DocMatch, type DocRow, type DocRule, type DocType, type DocView,
 } from "@/shared/doc-inbox";
+import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
 
 const dateLabel = (d: string | null) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }) : "");
 const centsInput = (c: number | null) => (c === null ? "" : (c / 100).toFixed(2));
@@ -132,7 +133,7 @@ export function DocumentsView({ isAdmin }: { isAdmin: boolean }) {
           {list.isPending ? (
             <div className="space-y-3 p-4" data-testid="docs-loading">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
           ) : list.isError ? (
-            <EmptyState icon={<IconFile />} title="Documents did not load" body="Check your connection and try again." action={<Button size="sm" variant="secondary" onClick={() => void list.refetch()}>Try again</Button>} />
+            <LoadError onRetry={() => list.refetch()} />
           ) : items.length === 0 ? (
             <DocsEmpty view={dv} searching={searching} q={q} total={counts?.all ?? 0} isAdmin={isAdmin} onUpload={() => fileInput.current?.click()} onRules={() => set({ rules: "1" })} />
           ) : (
@@ -384,7 +385,7 @@ function RulesDialog({ isAdmin, onClose }: { isAdmin: boolean; onClose: () => vo
         <Button size="sm" variant="secondary" onClick={onClose}>Close</Button>
       </div>}>
       {rules.isPending ? <Skeleton className="h-20 w-full" /> : rules.isError ? (
-        <p className="text-sm text-muted">Rules did not load. <button type="button" className="text-brand-hover underline" onClick={() => void rules.refetch()}>Try again</button></p>
+        <LoadErrorInline onRetry={() => rules.refetch()} />
       ) : list.length === 0 ? (
         <p className="py-4 text-center text-sm text-muted" data-testid="docs-rules-empty">No rules yet. {isAdmin ? "Add one to tag and file documents for you, like every Telstra bill into a Phone folder." : "An admin can add them."}</p>
       ) : (
