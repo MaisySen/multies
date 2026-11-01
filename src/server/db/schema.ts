@@ -4101,3 +4101,65 @@ export const tableViews = sqliteTable("table_views", {
   createdAt: createdAt(),
   updatedAt: ts("updated_at"),
 }, (t) => [index("table_views_doc_idx").on(t.orgId, t.docId, t.position)]);
+
+/** R102 (DOC_INBOX_R102): one row per drive file read for Files > Documents. The text sits in the index database (doc_fts, rowid = id). */
+export const docInbox = sqliteTable("doc_inbox", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  itemId: text("item_id").notNull(),
+  orgId: text("org_id").notNull(),
+  source: text("source", { enum: ["upload", "mail"] }).notNull().default("upload"),
+  mailAttachmentId: text("mail_attachment_id"),
+  addedBy: text("added_by").notNull(),
+  status: text("status", { enum: ["queued", "reading", "done", "failed", "skipped"] }).notNull().default("queued"),
+  jobId: text("job_id"),
+  tries: integer("tries").notNull().default(0),
+  versionId: text("version_id"),
+  docType: text("doc_type"),
+  sender: text("sender"),
+  docDate: text("doc_date"),
+  dueDate: text("due_date"),
+  amount: integer("amount"),
+  gst: integer("gst"),
+  currency: text("currency").notNull().default("AUD"),
+  paid: integer("paid").notNull().default(0),
+  /** Comma separated fields a person corrected. */
+  edited: text("edited").notNull().default(""),
+  /** Comma separated rule ids that matched at the last read. */
+  rules: text("rules").notNull().default(""),
+  checked: integer("checked").notNull().default(0),
+  chars: integer("chars").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+  readAt: integer("read_at"),
+}, (t) => [
+  uniqueIndex("doc_inbox_item_uq").on(t.itemId),
+  index("doc_inbox_org_status_idx").on(t.orgId, t.status),
+  index("doc_inbox_org_created_idx").on(t.orgId, t.createdAt),
+]);
+
+/** R102: the workspace's matching rules for Files > Documents (admins write them). */
+export const docRules = sqliteTable("doc_rules", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  name: text("name").notNull(),
+  match: text("match", { enum: ["any", "all", "exact", "regex", "fuzzy"] }).notNull(),
+  pattern: text("pattern").notNull(),
+  caseSensitive: integer("case_sensitive").notNull().default(0),
+  setTags: text("set_tags").notNull().default(""),
+  setSender: text("set_sender"),
+  setType: text("set_type"),
+  setFolderId: text("set_folder_id"),
+  position: integer("position").notNull().default(0),
+  enabled: integer("enabled").notNull().default(1),
+  createdBy: text("created_by").notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [index("doc_rules_org_idx").on(t.orgId, t.position)]);
+
+/** R102: documents read per workspace per UTC day ("*" = all workspaces). */
+export const docInboxState = sqliteTable("doc_inbox_state", {
+  orgId: text("org_id").primaryKey(),
+  day: text("day").notNull(),
+  n: integer("n").notNull().default(0),
+  updatedAt: integer("updated_at").notNull(),
+});

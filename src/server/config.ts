@@ -236,6 +236,8 @@ export interface AppConfig {
   chatPlus?: boolean;
   /** R95: Tasks plus: My Day time blocks, smart repeat, timesheet submit and approve, time tags and export, mind map (TASKS_PLUS_R95=on). Off unless set. */
   tasksPlus?: boolean;
+  /** R102: Smart document inbox, Files > Documents: reading uploads, rules, detected fields, Unpaid bills and Tax documents (DOC_INBOX_R102=on). Off unless set. */
+  docInbox?: boolean;
   channels: { enabled: boolean; meta?: { appId: string; appSecret: string; verifyToken: string; configId: string; graphVersion: string }; mock: boolean; dailySoftCap: number };
   /**
    * Free addresses (round 17): a Multies-owned domain that every workspace can take an address on
@@ -370,6 +372,7 @@ const EnvSchema = z.object({
   CHAT_PLUS: z.string().optional(),
   FILES_PLUS_R101: z.string().optional(),
   TASKS_PLUS_R95: z.string().optional(),
+  DOC_INBOX_R102: z.string().optional(),
   CHANNELS_DAILY_SOFT_CAP: z.string().optional(),
   TOOLS_ENABLED: z.string().optional(),
   CRM_TIMELINE: z.string().optional(),
@@ -785,6 +788,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     chatPlus: env.CHAT_PLUS !== "off",
     filesPlus: ["on", "true", "1"].includes(String(env.FILES_PLUS_R101 ?? "").toLowerCase()),
     tasksPlus: ["1", "true", "on"].includes(String(env.TASKS_PLUS_R95 ?? "").toLowerCase()),
+    docInbox: ["1", "true", "on"].includes(String(env.DOC_INBOX_R102 ?? "").toLowerCase()),
     operatorInbox: operatorInbox(env.SUPPORT_EMAIL?.trim() || "support@multies.si", env.OPERATOR_INBOX_ORG_ID, env.OPERATOR_INBOX_ADDRESSES),
     freeMail: {
       domain: freeMailDomain(env.FREE_MAIL_DOMAIN, env.APP_URL),

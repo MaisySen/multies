@@ -9,9 +9,9 @@ export type PaletteIcon = React.ComponentType<{ className?: string }>;
  * R59: `flag` names a server switch from /api/config; the page is offered only while it is on.
  * Tools P2: `toolFeature` also needs one of these P2 features in /api/config toolFeatures.
  */
-export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices" | "expenses" | "tablesR125"; toolFeature?: string[] }
+export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices" | "expenses" | "tablesR125" | "docInbox"; toolFeature?: string[] }
 export type PaletteActionKind = "navigate" | "shortcuts" | "theme" | "external";
-export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices" | "expenses" | "tablesR125"; toolFeature?: string[] }
+export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices" | "expenses" | "tablesR125" | "docInbox"; toolFeature?: string[] }
 
 export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-my-work", label: "My Work", to: "/app/my-work", icon: IconToday, keywords: ["today", "due", "home", "mentions"] },
@@ -56,6 +56,8 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-files-team", label: "Team files", to: "/app/files?view=team", icon: IconAttachment, keywords: ["drive", "folders", "upload", "shared files", "documents"], flag: "filesPlus" }, // R101
   { id: "p-files-brand", label: "Brand library", to: "/app/files?view=brand", icon: IconAttachment, keywords: ["logos", "brand assets", "templates", "brand kit", "colours"], flag: "filesPlus" }, // R101
   { id: "p-files-trash", label: "Files trash", to: "/app/files?view=trash", icon: IconAttachment, keywords: ["deleted files", "restore", "recycle bin"], flag: "filesPlus" }, // R101
+  { id: "p-files-docs", label: "Documents", to: "/app/files?view=docs", icon: IconAttachment, keywords: ["bills", "receipts", "tax documents", "unpaid bills", "scan", "inbox"], flag: "docInbox" }, // R102
+  { id: "p-files-doc-rules", label: "Document rules", to: "/app/files?view=docs&rules=1", icon: IconAttachment, keywords: ["sort documents", "tag bills", "auto file"], flag: "docInbox" }, // R102
   { id: "p-goals", label: "Goals", to: "/app/goals", icon: IconTarget, keywords: ["okr", "objectives"] },
   { id: "p-contacts", label: "Contacts", to: "/app/contacts", icon: IconContacts, keywords: ["crm", "people", "companies", "customers"] },
   // R115: the Visits tab in Contacts (MAPS_R115).

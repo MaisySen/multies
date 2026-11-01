@@ -35,6 +35,8 @@ export interface PublicConfig {
   docsPlus?: boolean;
   /** R101: Files plus (FILES_PLUS_R101): the drive and brand library on the Files page. */
   filesPlus?: boolean;
+  /** R102: Smart document inbox (DOC_INBOX_R102): Files > Documents. */
+  docInbox?: boolean;
   appName: string;
   mode: "production" | "development";
   demoEnabled: boolean;

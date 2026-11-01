@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -35,12 +35,12 @@ export function FilesPage() {
   if (config.data?.filesPlus) {
     if (config.data?.tools && tools.isPending) return <div className="w-full"><Skeleton className="h-8 w-48" /></div>;
     const mailOn = !!tools.data?.features?.includes("folders");
-    return <DrivePage mailOn={mailOn} attachments={mailOn ? <MailAttachments embedded /> : null} />;
+    return <DrivePage mailOn={mailOn} docsOn={!!config.data?.docInbox} attachments={mailOn ? <MailAttachments embedded docsOn={!!config.data?.docInbox} /> : null} />;
   }
   return <MailAttachments />;
 }
 
-function MailAttachments({ embedded = false }: { embedded?: boolean }) {
+function MailAttachments({ embedded = false, docsOn = false }: { embedded?: boolean; docsOn?: boolean }) {
   const config = useConfig();
   const tools = useQuery({ queryKey: ["tools"], enabled: !!config.data?.tools, queryFn: () => api.get<ToolsInfo>("/tools"), retry: false });
   const features = tools.data?.features ?? [];
@@ -56,6 +56,8 @@ function MailAttachments({ embedded = false }: { embedded?: boolean }) {
   const navRef = useRef<HTMLElement>(null);
   const counts = useQuery({ queryKey: ["files", "folders"], enabled: features.includes("folders"), queryFn: () => api.get<FileFolders>("/attachment-files/folders"), refetchInterval: 120_000 });
   useEffect(() => { navRef.current?.querySelector<HTMLElement>("[aria-current=page]")?.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }, [folder, searching, counts.data]);
+  // R102: mailboxes whose attachments this person may add to Documents (their own).
+  const addable = useQuery({ queryKey: ["docs", "mailboxes"], enabled: docsOn, queryFn: () => api.get<{ ids: string[] }>("/doc-inbox/mailboxes"), staleTime: 300_000 });
   const list = useInfiniteQuery({
     queryKey: ["files", "list", searching ? `q:${q}` : folder],
     enabled: features.includes("folders"),
@@ -115,7 +117,7 @@ function MailAttachments({ embedded = false }: { embedded?: boolean }) {
               body={searching ? "Try another word. Only attachments that have been read show up here." : indexing?.on === false ? "Reading attachments is off. An admin can turn it on in Settings, General." : "Attachments land here as your mail is read."} />
           ) : (
             <ul className="divide-y divide-line" data-testid="files-list">
-              {items.map((it) => <FileRow key={it.attachmentId} it={it}  thumbs={features.includes("tools_c2")} />)}
+              {items.map((it) => <FileRow key={it.attachmentId} it={it} thumbs={features.includes("tools_c2")} canAddDoc={!!addable.data?.ids.includes(it.mailboxId)} />)}
             </ul>
           )}
           {list.hasNextPage && (
@@ -138,8 +140,14 @@ function FileThumb({ it, on }: { it: FileItem; on: boolean }) {
   return <img src={src} alt="" loading="lazy" width={32} height={32} onError={() => setFailed(true)} className="mt-0.5 h-8 w-8 shrink-0 rounded-lg bg-fill object-cover" data-testid="files-thumb" />;
 }
 
-function FileRow({ it, thumbs = false }: { it: FileItem; thumbs?: boolean }) {
+function FileRow({ it, thumbs = false, canAddDoc = false }: { it: FileItem; thumbs?: boolean; canAddDoc?: boolean }) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const addDoc = useMutation({
+    mutationFn: () => api.post<{ id: string }>("/doc-inbox/from-mail", { attachmentId: it.attachmentId }),
+    onSuccess: (d) => { toast.success("Added to Documents in your My files", { action: { label: "Open", onClick: () => void navigate(`/app/files?view=docs&doc=${encodeURIComponent(d.id)}`) } }); void qc.invalidateQueries({ queryKey: ["docs"] }); },
+    onError: (e) => showError(e),
+  });
   const move = useMutation({
     mutationFn: (folder: AttachmentFolder) => api.put<{ folder: AttachmentFolder }>(`/attachment-files/${encodeURIComponent(it.attachmentId)}/folder`, { folder }),
     onSuccess: (r) => { toast.success(`Moved to ${ATTACHMENT_FOLDER_LABELS[r.folder]}`); void qc.invalidateQueries({ queryKey: ["files"] }); },
@@ -162,6 +170,7 @@ function FileRow({ it, thumbs = false }: { it: FileItem; thumbs?: boolean }) {
         <Link to={it.url} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-muted hover:bg-hover hover:text-fg max-sm:min-h-11" title={it.subject}>
           <span className="max-w-40 truncate">{it.subject}</span><IconChevronRight className="h-3.5 w-3.5" />
         </Link>
+        {canAddDoc && <button type="button" onClick={() => addDoc.mutate()} disabled={addDoc.isPending} className="rounded border border-line px-1.5 py-0.5 text-xs text-muted hover:text-fg max-sm:min-h-11" data-testid="files-add-doc">Add to documents</button>}
         <AttachmentTools id={it.attachmentId} filename={it.filename} compact />
         <Menu label={`Move ${it.filename}`} trigger={<button type="button" className="rounded border border-line px-1.5 py-0.5 text-xs text-muted hover:text-fg max-sm:min-h-11">Move to</button>}>
           <MenuLabel>Move to folder</MenuLabel>

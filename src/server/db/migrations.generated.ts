@@ -1495,6 +1495,18 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0135_r102_doc_inbox",
+    "statements": [
+      "-- R102 (Nov 1): Smart document inbox (DOC_INBOX_R102). Additive only. One row per drive file that is read (text in the\n-- index database doc_fts, rowid = doc_inbox.id), the workspace's matching rules, and the per workspace daily count.\nCREATE TABLE IF NOT EXISTS `doc_inbox` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`item_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`source` text DEFAULT 'upload' NOT NULL,\n\t`mail_attachment_id` text,\n\t`added_by` text NOT NULL,\n\t`status` text DEFAULT 'queued' NOT NULL,\n\t`job_id` text,\n\t`tries` integer DEFAULT 0 NOT NULL,\n\t`version_id` text,\n\t`doc_type` text,\n\t`sender` text,\n\t`doc_date` text,\n\t`due_date` text,\n\t`amount` integer,\n\t`gst` integer,\n\t`currency` text DEFAULT 'AUD' NOT NULL,\n\t`paid` integer DEFAULT 0 NOT NULL,\n\t`edited` text DEFAULT '' NOT NULL,\n\t`rules` text DEFAULT '' NOT NULL,\n\t`checked` integer DEFAULT 0 NOT NULL,\n\t`chars` integer DEFAULT 0 NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`read_at` integer\n);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `doc_inbox_item_uq` ON `doc_inbox` (`item_id`);",
+      "CREATE INDEX IF NOT EXISTS `doc_inbox_org_status_idx` ON `doc_inbox` (`org_id`,`status`);",
+      "CREATE INDEX IF NOT EXISTS `doc_inbox_org_created_idx` ON `doc_inbox` (`org_id`,`created_at`);",
+      "CREATE TABLE IF NOT EXISTS `doc_rules` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`match` text NOT NULL,\n\t`pattern` text NOT NULL,\n\t`case_sensitive` integer DEFAULT 0 NOT NULL,\n\t`set_tags` text DEFAULT '' NOT NULL,\n\t`set_sender` text,\n\t`set_type` text,\n\t`set_folder_id` text,\n\t`position` integer DEFAULT 0 NOT NULL,\n\t`enabled` integer DEFAULT 1 NOT NULL,\n\t`created_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX IF NOT EXISTS `doc_rules_org_idx` ON `doc_rules` (`org_id`,`position`);",
+      "CREATE TABLE IF NOT EXISTS `doc_inbox_state` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`day` text NOT NULL,\n\t`n` integer DEFAULT 0 NOT NULL,\n\t`updated_at` integer NOT NULL\n);"
+    ]
+  },
+  {
     "name": "0138_t1f_search_indexes",
     "statements": [
       "-- T1F (Nov 1): global search under load. Each search group reads its newest matches first; without an index in that\n-- order the database read every row of the workspace and sorted them before taking the first few. These indexes let\n-- it walk newest first and stop as soon as it has enough. Additive only, no data change.\nCREATE INDEX IF NOT EXISTS `messages_org_date_idx` ON `messages` (`org_id`,`date`);",

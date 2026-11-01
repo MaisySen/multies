@@ -25,6 +25,7 @@ import { and, eq } from "drizzle-orm";
 import {
   addVersion, blobsFor, brandTags, createFolder, deleteForever, getDetail, listDrive, manifest, moveItems, openContent, restoreItems, restoreVersion, setShares, starItems, trashItems, updateItem, uploadFile, usage,
 } from "../services/suite/drive-r101";
+import { enqueue as docEnqueue } from "../services/suite/doc-inbox";
 import { DRIVE_LIMITS, DRIVE_SPACES, inlineSafe, isDriveView, parseRange, type DriveSpace } from "@/shared/drive";
 
 const Space = z.enum(DRIVE_SPACES);
@@ -84,7 +85,10 @@ export function driveRoutes() {
       const space = (c.req.query("space") ?? "team") as DriveSpace;
       if (!(DRIVE_SPACES as readonly string[]).includes(space)) throw new HttpError(422, "validation_failed", "Unknown space.");
       const bytes = await readBody(c);
-      return c.json({ item: await uploadFile(c.var.deps, actor(c), { space, parentId: c.req.query("parent") || null, name: c.req.query("name") ?? "", contentType: fileType(c), bytes }) });
+      const item = await uploadFile(c.var.deps, actor(c), { space, parentId: c.req.query("parent") || null, name: c.req.query("name") ?? "", contentType: fileType(c), bytes });
+      // R102: a new upload joins Documents (read in the background, within the daily limit). Brand library files are not read.
+      if (space !== "brand") await docEnqueue(c.var.deps, actor(c), { id: item.id, name: item.name, sizeBytes: item.sizeBytes, kind: "file" });
+      return c.json({ item });
     })
     .get("/items/:id", async (c) => c.json(await getDetail(c.var.deps, actor(c), c.req.param("id"), { trashed: c.req.query("trashed") === "1" })))
     .patch("/items/:id", async (c) => c.json({ item: await updateItem(c.var.deps, actor(c), c.req.param("id"), await parseBody(c, PatchBody)) }))
@@ -92,7 +96,10 @@ export function driveRoutes() {
       const bytes = await readBody(c);
       // R113: ?base=<version id> refuses a stale save (409); ?via=editor notes the version as saved in the editor.
       const via = c.req.query("via");
-      return c.json(await addVersion(c.var.deps, actor(c), c.req.param("id"), { bytes, contentType: fileType(c), base: c.req.query("base") || null, note: via === "editor" ? "Saved in the editor" : null }));
+      const d = await addVersion(c.var.deps, actor(c), c.req.param("id"), { bytes, contentType: fileType(c), base: c.req.query("base") || null, note: via === "editor" ? "Saved in the editor" : null });
+      // R102: a new version is read again (its fields a person corrected stay).
+      if (d.item.space !== "brand") await docEnqueue(c.var.deps, actor(c), { id: d.item.id, name: d.item.name, sizeBytes: d.item.sizeBytes, kind: "file" });
+      return c.json(d);
     })
     .get("/items/:id/content", async (c) => {
       const f = await openContent(c.var.deps, actor(c), c.req.param("id"), c.req.query("v") || undefined);

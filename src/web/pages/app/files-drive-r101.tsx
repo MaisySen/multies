@@ -19,7 +19,7 @@ import { officeActionLabel, officeEditPath, officeKindOf } from "@/shared/office
 import { cn } from "@/web/lib/cn";
 import {
   IconAttachment, IconCheck, IconChevronRight, IconClock, IconClose, IconCopy, IconDownload, IconFile, IconFilePdf, IconFolder, IconFolderPlus, IconGrid, IconHistory, IconImage,
-  IconList, IconMore, IconMove, IconMusic, IconPalette, IconPencilLine, IconSearch, IconShare, IconStar, IconTag, IconTeam, IconTrash, IconUndo, IconUpload, IconUser, IconVideo,
+  IconList, IconMore, IconMove, IconMusic, IconPalette, IconPencilLine, IconReceipt, IconSearch, IconShare, IconStar, IconTag, IconTeam, IconTrash, IconUndo, IconUpload, IconUser, IconVideo,
 } from "@/web/components/ui/icon";
 import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
@@ -28,12 +28,13 @@ import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { Dialog } from "@/web/components/ui/dialog";
 import { ConfirmDialog, PromptDialog } from "@/web/components/ui/confirm";
 import { loadPdfjs } from "@/web/components/tools/pdf-thumb";
+import { DocumentsView } from "./files-docs-r102";
 import {
   DRIVE_LIMITS, VIEW_LABEL, isDriveView, previewKind, sizeLabel,
   type DriveDetail, type DriveItem, type DriveList, type DriveManifest, type DriveRole, type DriveSpace, type DriveUsage, type DriveView,
 } from "@/shared/drive";
 
-type View = DriveView | "mail";
+type View = DriveView | "mail" | "docs";
 const DRIVE_NAV: { view: DriveView; icon: ReactNode }[] = [
   { view: "team", icon: <IconTeam className="h-4 w-4" /> },
   { view: "mine", icon: <IconUser className="h-4 w-4" /> },
@@ -51,6 +52,7 @@ const DESCRIPTION: Record<View, string> = {
   trash: "Items stay here for 30 days, then they are deleted for good.",
   brand: "Logos, templates and brand files for everyone. Admins keep it tidy.",
   mail: "Attachments from your mail, sorted into folders. Search finds words inside them, scans included.",
+  docs: "Bills, receipts and tax papers, read for you. Check what was found and fix anything that is off.",
 };
 const SPACE_FOR: Partial<Record<DriveView, DriveSpace>> = { team: "team", mine: "private", brand: "brand" };
 const contentUrl = (id: string, opts: { inline?: boolean; v?: string } = {}) => `/api/drive/items/${encodeURIComponent(id)}/content?${opts.inline ? "inline=1" : ""}${opts.v ? `&v=${encodeURIComponent(opts.v)}` : ""}`;
@@ -68,7 +70,7 @@ function iconFor(it: Pick<DriveItem, "kind" | "contentType" | "name">, cls = "h-
 }
 
 /** One upload with progress (fetch has no upload progress). */
-function sendFile(url: string, file: Blob, onPct: (n: number) => void): Promise<unknown> {
+export function sendFile(url: string, file: Blob, onPct: (n: number) => void): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);
@@ -89,10 +91,11 @@ function sendFile(url: string, file: Blob, onPct: (n: number) => void): Promise<
 
 interface Upload { id: number; name: string; pct: number; error?: string; done?: boolean }
 
-export function DrivePage({ attachments, mailOn }: { attachments: ReactNode; mailOn: boolean }) {
+export function DrivePage({ attachments, mailOn, docsOn = false }: { attachments: ReactNode; mailOn: boolean; docsOn?: boolean }) {
   const [params, setParams] = useSearchParams();
   const asked = params.get("view");
-  const view: View = asked === "mail" && mailOn ? "mail" : isDriveView(asked) ? asked : "team";
+  const view: View = asked === "mail" && mailOn ? "mail" : asked === "docs" && docsOn ? "docs" : isDriveView(asked) ? asked : "team";
+  const isDrive = view !== "mail" && view !== "docs";
   const folderId = params.get("in");
   const openId = params.get("open");
   const qc = useQueryClient();
@@ -133,14 +136,14 @@ export function DrivePage({ attachments, mailOn }: { attachments: ReactNode; mai
 
   const list = useInfiniteQuery({
     queryKey: ["drive", "list", view, folderId ?? "", q],
-    enabled: view !== "mail",
+    enabled: isDrive,
     initialPageParam: "0",
     placeholderData: keepPreviousData,
     queryFn: ({ pageParam }) => api.get<DriveList>(`/drive/list?view=${view}${folderId ? `&folder=${encodeURIComponent(folderId)}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}&cursor=${pageParam}`),
     getNextPageParam: (last) => last.next ?? undefined,
     retry: queryRetry, // T1G: never retries a 404; a server failure shows Retry in seconds
   });
-  const usage = useQuery({ queryKey: ["drive", "usage"], enabled: view !== "mail", queryFn: () => api.get<DriveUsage>("/drive/usage"), staleTime: 60_000 });
+  const usage = useQuery({ queryKey: ["drive", "usage"], enabled: isDrive, queryFn: () => api.get<DriveUsage>("/drive/usage"), staleTime: 60_000 });
   const tags = useQuery({ queryKey: ["drive", "tags"], enabled: view === "brand", queryFn: () => api.get<{ tags: { tag: string; count: number }[] }>("/drive/tags") });
   const first = list.data?.pages[0];
   const allItems = useMemo(() => list.data?.pages.flatMap((p) => p.items) ?? [], [list.data]);
@@ -206,7 +209,7 @@ export function DrivePage({ attachments, mailOn }: { attachments: ReactNode; mai
 
   // Keyboard: U uploads, Shift+N makes a folder, Escape clears the selection.
   useEffect(() => {
-    if (view === "mail") return;
+    if (!isDrive) return;
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "u" && canAdd) { e.preventDefault(); fileInput.current?.click(); }
@@ -215,7 +218,7 @@ export function DrivePage({ attachments, mailOn }: { attachments: ReactNode; mai
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [view, canAdd, selected.size]);
+  }, [view, canAdd, selected.size, isDrive]);
 
   const onDragEnter = (e: DragEvent) => { if (!e.dataTransfer.types.includes("Files")) return; e.preventDefault(); dragDepth.current++; setDragging(true); };
   const onDragLeave = () => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); };
@@ -236,10 +239,10 @@ export function DrivePage({ attachments, mailOn }: { attachments: ReactNode; mai
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const openItem = (it: DriveItem) => { if (view === "trash") { go({ open: it.id }); return; } if (it.kind === "folder") go({ in: it.id }); else go({ open: it.id }); };
 
-  const title = view === "mail" ? "Mail attachments" : first?.folder?.name ?? VIEW_LABEL[view];
+  const title = view === "mail" ? "Mail attachments" : view === "docs" ? "Documents" : first?.folder?.name ?? VIEW_LABEL[view];
   const header = (
     <PageHeader eyebrow="Tools" title="Files" description={DESCRIPTION[view]}
-      actions={canAdd ? (
+      actions={canAdd && isDrive ? (
         <div className="flex gap-2">
           {view !== "brand" && <Button variant="secondary" size="sm" onClick={() => setNewFolder(true)} data-testid="drive-new-folder"><IconFolderPlus className="h-4 w-4" />New folder</Button>}
           <Button size="sm" onClick={() => fileInput.current?.click()} data-testid="drive-upload"><IconUpload className="h-4 w-4" />Upload</Button>
@@ -258,7 +261,8 @@ export function DrivePage({ attachments, mailOn }: { attachments: ReactNode; mai
           <p className="hidden px-3 pb-1 pt-3 text-xs font-medium text-subtle md:block">Library</p>
           <NavButton active={view === "brand"} onClick={() => go({ view: "brand" })} icon={<IconPalette className="h-4 w-4" />} label={VIEW_LABEL.brand} testId="drive-nav-brand" />
           {mailOn && <NavButton active={view === "mail"} onClick={() => go({ view: "mail" })} icon={<IconAttachment className="h-4 w-4" />} label="Mail attachments" testId="drive-nav-mail" />}
-          {usage.data && view !== "mail" && (
+          {docsOn && <NavButton active={view === "docs"} onClick={() => go({ view: "docs" })} icon={<IconReceipt className="h-4 w-4" />} label="Documents" testId="drive-nav-docs" />}
+          {usage.data && isDrive && (
             <div className="hidden px-3 pt-4 md:block" data-testid="drive-usage">
               <div className="h-1.5 overflow-hidden rounded-full bg-fill" role="progressbar" aria-label="Files storage used" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((usage.data.usedBytes / usage.data.quotaBytes) * 100)}>
                 <div className="h-full rounded-full bg-brand" style={{ width: `${Math.min(100, (usage.data.usedBytes / usage.data.quotaBytes) * 100)}%` }} />
@@ -268,7 +272,7 @@ export function DrivePage({ attachments, mailOn }: { attachments: ReactNode; mai
           )}
         </nav>
 
-        {view === "mail" ? <div className="min-w-0">{attachments}</div> : (
+        {view === "mail" ? <div className="min-w-0">{attachments}</div> : view === "docs" ? <DocumentsView isAdmin={isAdmin} /> : (
           <Card className="relative min-w-0 overflow-hidden" onDragEnter={onDragEnter} onDragOver={(e: DragEvent) => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); }} onDragLeave={onDragLeave} onDrop={onDrop} data-testid="drive-card">
             <div className="flex flex-col gap-2 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <Breadcrumbs path={first?.path ?? [{ id: null, name: VIEW_LABEL[view] }]} view={first?.view ?? view} onGo={(id) => go({ in: id })} onDrop={moveDrop} />
@@ -341,7 +345,7 @@ export function DrivePage({ attachments, mailOn }: { attachments: ReactNode; mai
       </div>
 
       {uploads.length > 0 && <UploadTray uploads={uploads} onClose={() => setUploads([])} />}
-      {openId && view !== "mail" && <PreviewPanel id={openId} trashed={view === "trash"} onClose={() => go({ open: null })} onShare={() => setSharing(openId)} isAdmin={isAdmin} onChanged={refresh} />}
+      {openId && isDrive && <PreviewPanel id={openId} trashed={view === "trash"} onClose={() => go({ open: null })} onShare={() => setSharing(openId)} isAdmin={isAdmin} onChanged={refresh} />}
       <PromptDialog open={newFolder} onClose={() => setNewFolder(false)} title="New folder" label="Folder name" confirmLabel="Create" placeholder="Untitled folder"
         validate={(v) => (v.trim() ? null : "Give the folder a name.")}
         onSubmit={(name) => { setNewFolder(false); void api.post("/drive/folders", { space: SPACE_FOR[view as DriveView] ?? "team", parentId: folderId, name }).then(() => { toast.success("Folder created"); refresh(); }, showError); }} />
@@ -360,7 +364,7 @@ export function DrivePage({ attachments, mailOn }: { attachments: ReactNode; mai
   );
 }
 
-function NavButton({ active, onClick, icon, label, testId }: { active: boolean; onClick: () => void; icon: ReactNode; label: string; testId: string }) {
+export function NavButton({ active, onClick, icon, label, testId }: { active: boolean; onClick: () => void; icon: ReactNode; label: string; testId: string }) {
   return (
     <button type="button" onClick={onClick} aria-current={active ? "page" : undefined} data-testid={testId}
       className={cn("flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13.5px] transition-colors duration-150 max-sm:min-h-11",

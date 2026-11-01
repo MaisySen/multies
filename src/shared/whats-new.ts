@@ -79,7 +79,7 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     id: "2026-11-01-files-plus",
     date: "2026-11-01",
     title: "Folders, versions and a brand library in Files",
-    body: "Files now has Team files, My files, Shared with me, Starred, Recent and Trash: drag files in, make folders, preview images, PDFs, video and audio, and share your own files with a teammate. Every file keeps up to 20 versions you can restore, deleted files wait 30 days in Trash, and you can move or download many at once as a zip. The Brand library keeps logos and templates with tags for everyone to use, and only admins can change it.",
+    body: "Files now has Team files, My files, Shared with me, Starred, Recent and Trash: drag files in, make folders, preview images, PDFs, video and audio, and share your own files with a teammate. Every file keeps up to 20 versions you can restore, deleted files wait 30 days in Trash, and you can move or download many at once as a zip. The Brand library keeps logos and templates with tags for everyone to use, and only admins can change it, and Documents reads your bills, receipts and tax papers, finds the dates, amounts and GST, and rules tag and file them, with Unpaid bills and Tax documents one tap away.",
   },
   {
     id: "2026-11-01-maps-visits",

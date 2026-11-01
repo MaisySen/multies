@@ -663,3 +663,26 @@ export async function brandTags(deps: Deps, orgId: string) {
   for (const r of rows) for (const t of (r.tags || "").split(",").filter(Boolean)) counts.set(t, (counts.get(t) ?? 0) + 1);
   return [...counts].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).slice(0, 50).map(([tag, count]) => ({ tag, count }));
 }
+
+// ------------------------------------------------------------------ R102 (Files > Documents) hooks
+
+/** R102: what the actor may do with each of these files, by the same check as every drive route. Files it cannot open are left out. Callers pass at most a page. */
+export async function accessForRows(db: DB, a: Actor, rows: Row[]): Promise<Map<string, { edit: boolean }>> {
+  const out = new Map<string, { edit: boolean }>();
+  for (const r of rows.slice(0, 200)) {
+    if (r.orgId !== a.orgId || r.trashedAt || r.kind !== "file") continue;
+    const chain = r.space === "private" && r.ownerId !== a.userId ? await ancestors(db, a.orgId, r.parentId) : [];
+    const acc = await accessOf(db, a, r, chain);
+    if (acc.view) out.set(r.id, { edit: acc.edit });
+  }
+  return out;
+}
+
+/** R102: the current version's bytes of a file, for reading its text (no actor: the caller has checked the workspace). */
+export async function currentBytes(deps: Deps, orgId: string, itemId: string): Promise<{ bytes: Uint8Array; name: string; contentType: string; versionId: string } | null> {
+  const item = await deps.db.select().from(driveItems).where(and(eq(driveItems.orgId, orgId), eq(driveItems.id, itemId))).get();
+  if (!item || item.kind !== "file" || item.trashedAt || !item.versionId) return null;
+  const v = await deps.db.select().from(driveVersions).where(and(eq(driveVersions.itemId, item.id), eq(driveVersions.id, item.versionId))).get();
+  if (!v) return null;
+  return { bytes: await blobsFor(deps).readAll(v.blobKey, Number(v.parts), Number(v.sizeBytes)), name: item.name, contentType: v.contentType, versionId: v.id };
+}

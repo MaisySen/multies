@@ -121,6 +121,7 @@ import { WIDGET_JS } from "./routes/widget-script"; // R119
 import { meetingRecordingRoutes } from "./routes/meeting-recordings";
 import { chatPlusRoutes, guestChatPlusRoutes } from "./routes/chat-plus-r96";
 import { driveRoutes } from "./routes/drive-r101"; // R101
+import { docInboxRoutes } from "./routes/doc-inbox-r102"; // R102
 import { checkRoutes } from "./routes/check";
 import { guestSearchRoutes, myWorkRoutes, searchRoutes } from "./routes/search";
 import { fieldRoutes, fileRoutes, guestAdminRoutes, guestRoutes, portfolioRoutes } from "./routes/suite-r8";
@@ -460,6 +461,8 @@ export function createApp(deps: Deps) {
       docsPlus: !!deps.config.docsPlus,
       // R101: Files plus (FILES_PLUS_R101=on): the drive and brand library on the Files page.
       filesPlus: !!deps.config.filesPlus,
+      // R102: Smart document inbox, Files > Documents (DOC_INBOX_R102=on, needs Files plus).
+      docInbox: !!deps.config.filesPlus && !!deps.config.docInbox,
       // R43: whether the import pages say a run carries on after the page closes (BACKGROUND_COPY).
       backgroundCopy: !!deps.config.backgroundCopy,
       // R89: whiteboards, diagrams, mind map and Present in Docs (DOCS_VISUAL; on unless "off").
@@ -623,6 +626,7 @@ export function createApp(deps: Deps) {
   app.route("/api/guests", guestAdminRoutes());
   app.route("/api/files", fileRoutes());
   app.route("/api/drive", driveRoutes()); // R101: Files plus (FILES_PLUS_R101)
+  app.route("/api/doc-inbox", docInboxRoutes()); // R102: Smart document inbox (DOC_INBOX_R102)
   app.route("/api/doc-images", docImageRoutes()); // R32: images in docs (file storage only)
   app.route("/api/tools-c2", toolsC2Routes()); // R100b: link preview (SSRF guarded)
   app.route("/api/img", imageLinkRoutes()); // R100b: image links (resize, crop, format)

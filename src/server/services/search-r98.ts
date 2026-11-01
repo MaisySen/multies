@@ -21,6 +21,7 @@ import { scopeOf, type SuiteActor } from "./suite/common";
 import { plainText } from "./suite/chat";
 import { notBlockedBy } from "./suite/reports-r35";
 import { searchAttachmentText } from "./tools/attachment-index";
+import { searchDocs } from "./suite/doc-inbox";
 import {
   excerpt, readableChannels, SEARCH_BUDGET_MS, SEARCH_DEFAULT_LIMIT, SEARCH_LABELS, SEARCH_MAX_CHARS, SEARCH_MIN_CHARS, SEARCH_TYPES_R98,
   type SearchItem, type SearchResult, type SearchType, type SearchViewer,
@@ -360,8 +361,15 @@ async function fileGroup(c: Ctx): Promise<Candidate[]> {
       c.person ? eq(chatMessages.authorId, c.person.id) : undefined, range(chatFiles.createdAt, c.f), onlyIds(c, chatFiles.id), matchAll([sql`${chatFiles.filename}`], c.words, c.fuzzy),
       notBlockedBy(chatMessages.authorId, userOf(c.v))))
     .orderBy(desc(chatFiles.createdAt)).limit(n) : Promise.resolve([]);
-  const [a, b] = await Promise.all([onTasks, inChat]);
+  // R102: Files > Documents whose text matches, only those the person can open (the drive's own check). People only; no person or project filter.
+  const me = userOf(c.v);
+  const inDocs = c.v.kind === "actor" && me && c.deps.config.filesPlus && c.deps.config.docInbox && !c.person && !c.f.project && !c.f.from && !c.f.to
+    ? searchDocs(c.deps, { orgId, userId: me, email: c.v.actor.email ?? "", role: c.v.actor.role ?? "member" }, c.words.join(" "), n).catch(() => [])
+    : Promise.resolve([]);
+  const [a, b, d] = await Promise.all([onTasks, inChat, inDocs]);
   return [
+    ...d.map((r) => ({ title: r.name, body: r.snippet, at: r.at, item: { type: "files" as const, id: r.itemId, title: r.name, subtitle: `In Documents · ${sizeLabel(r.sizeBytes)}`, snippet: r.snippet,
+      url: `/app/files?view=docs&doc=${encodeURIComponent(r.itemId)}`, at: iso(r.at) } })),
     ...a.map((r) => ({ title: r.filename, body: "", at: new Date(r.createdAt).getTime(), item: { type: "files" as const, id: r.id, title: r.filename, subtitle: `On ${r.taskTitle} · ${sizeLabel(r.sizeBytes)}`, snippet: "",
       url: c.v.kind === "guest" ? `/guest?task=${encodeURIComponent(r.taskId)}` : `/app/tasks?project=${encodeURIComponent(r.projectId)}&task=${encodeURIComponent(r.taskId)}`, at: iso(r.createdAt) } })),
     ...b.map((r) => {

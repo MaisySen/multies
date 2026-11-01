@@ -25,7 +25,9 @@ const server = http.createServer(async (req, res) => {
     const raw = Buffer.from(await f.arrayBuffer()).toString("latin1");
     const text = raw.startsWith("%PDF")
       ? "Harbour Supplies Pty Ltd\nTAX INVOICE\nABN 51 824 753 556\nInvoice number 2207\nOffice chairs x 4\nTotal $1,980.00 including GST\nPayment terms 14 days"
-      : raw;
+      : raw.startsWith("\x89PNG")
+        ? "Deskgear\nRECEIPT\nDate 3 November 2026\nTwo keyboards\nGST $5.90\nTotal paid $64.90\nThank you for your purchase"
+        : raw;
     const id = `idx${++n}job`;
     jobs.set(id, { id, text, status: "done" });
     return json(202, { id, op: url.searchParams.get("op"), status: "queued" });
