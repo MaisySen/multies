@@ -11,7 +11,7 @@ export const THUMB_MAX_BYTES = 15 * 1024 * 1024;
 
 type Pdfjs = typeof import("pdfjs-dist");
 let loader: Promise<Pdfjs> | null = null;
-function loadPdfjs(): Promise<Pdfjs> {
+export function loadPdfjs(): Promise<Pdfjs> {
   loader ??= Promise.all([import("pdfjs-dist"), import("pdfjs-dist/build/pdf.worker.min.mjs?url")]).then(([lib, worker]) => {
     lib.GlobalWorkerOptions.workerSrc = (worker as { default: string }).default;
     return lib;

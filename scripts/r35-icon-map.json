@@ -244,5 +244,11 @@
  "workflow": "FlowArrow",
  "wrench": "Wrench",
  "x-circle": "XCircle",
- "zap": "Lightning"
+ "zap": "Lightning",
+ "folder": "Folder",
+ "folder-plus": "FolderPlus",
+ "palette": "Palette",
+ "grid": "SquaresFour",
+ "music": "MusicNote",
+ "file-pdf": "FilePdf"
 }

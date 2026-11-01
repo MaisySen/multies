@@ -232,7 +232,7 @@ export function AppLayout() {
         </button>
       </div>
       <nav className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 max-lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]" aria-label="App">
-        {navGroups(([...((config.data?.tools ? (x: NavItem[]) => withTools(x, !!config.data?.toolFeatures?.includes("folders")) : (x: NavItem[]) => x)(config.data?.scheduling ? withScheduling : nav)), ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: IconShield, end: false, group: "admin" as const }] : [])] as NavItem[])).map(({ group, items }, gi) => (
+        {navGroups(([...((config.data?.tools ? (x: NavItem[]) => withTools(x, !!config.data?.toolFeatures?.includes("folders") || !!config.data?.filesPlus) : (x: NavItem[]) => x)(config.data?.scheduling ? withScheduling : nav)), ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: IconShield, end: false, group: "admin" as const }] : [])] as NavItem[])).map(({ group, items }, gi) => (
           <div key={group} className={cn(gi > 0 && "pt-4 max-lg:pt-5")}>
           <div data-testid="nav-group" className="px-2.5 pb-1 text-[11.5px] font-semibold text-subtle max-lg:pb-1.5 max-lg:text-[12px] max-lg:uppercase max-lg:tracking-[0.05em]">{GROUP_LABEL[group]}</div>
           {/* R46 mobile: on a phone each group is one rounded card, like the system settings lists. */}
@@ -280,7 +280,7 @@ export function AppLayout() {
 
   // R79: the desktop shell: icon rail, a resizable sidebar for the open section (Cmd or Ctrl + backslash folds it),
   // and a top bar with breadcrumbs, search, Create and View. Tablets and phones keep their own bars (R46).
-  const navFlags = { helpCenter: !!config.data?.helpCenter, docsPlus: !!config.data?.docsPlus, flows: (config.data as { flows?: boolean } | undefined)?.flows !== false, tools: !!config.data?.tools, files: !!config.data?.tools && !!config.data?.toolFeatures?.includes("folders"), scheduling: !!config.data?.scheduling, links: !!config.data?.tools && !!config.data?.toolFeatures?.includes("links"), operator: !!me.data?.user.platformAdmin, social: me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin" || (!!config.data?.socialP2 && !!me.data?.organization), socialP2: !!config.data?.socialP2, socialP2b: !!config.data?.socialP2 && config.data?.socialP2b !== false };
+  const navFlags = { helpCenter: !!config.data?.helpCenter, docsPlus: !!config.data?.docsPlus, flows: (config.data as { flows?: boolean } | undefined)?.flows !== false, tools: !!config.data?.tools, files: !!config.data?.tools && (!!config.data?.toolFeatures?.includes("folders") || !!config.data?.filesPlus), scheduling: !!config.data?.scheduling, links: !!config.data?.tools && !!config.data?.toolFeatures?.includes("links"), operator: !!me.data?.user.platformAdmin, social: me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin" || (!!config.data?.socialP2 && !!me.data?.organization), socialP2: !!config.data?.socialP2, socialP2b: !!config.data?.socialP2 && config.data?.socialP2b !== false };
   const sections = visibleSections(navFlags);
   const section = sectionFor(loc.pathname, sections);
   const navCounts: NavCounts = {

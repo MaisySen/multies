@@ -9,9 +9,9 @@ export type PaletteIcon = React.ComponentType<{ className?: string }>;
  * R59: `flag` names a server switch from /api/config; the page is offered only while it is on.
  * Tools P2: `toolFeature` also needs one of these P2 features in /api/config toolFeatures.
  */
-export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps"; toolFeature?: string[] }
+export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus"; toolFeature?: string[] }
 export type PaletteActionKind = "navigate" | "shortcuts" | "theme" | "external";
-export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps"; toolFeature?: string[] }
+export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus"; toolFeature?: string[] }
 
 export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-my-work", label: "My Work", to: "/app/my-work", icon: IconToday, keywords: ["today", "due", "home", "mentions"] },
@@ -49,6 +49,9 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-tools-merge", label: "Mail merge", to: "/app/tools/merge", icon: IconWrench, keywords: ["merge", "bulk", "personal pdf", "csv", "mailing"], flag: "tools", toolFeature: ["merge_mail"] },
   // Tools P2 (16, 17): smart folders of mail attachments and search inside them.
   { id: "p-files", label: "Files", to: "/app/files", icon: IconAttachment, keywords: ["attachments", "smart folders", "invoices", "receipts", "contracts", "search inside attachments"], flag: "tools", toolFeature: ["folders", "index"] },
+  { id: "p-files-team", label: "Team files", to: "/app/files?view=team", icon: IconAttachment, keywords: ["drive", "folders", "upload", "shared files", "documents"], flag: "filesPlus" }, // R101
+  { id: "p-files-brand", label: "Brand library", to: "/app/files?view=brand", icon: IconAttachment, keywords: ["logos", "brand assets", "templates", "brand kit", "colours"], flag: "filesPlus" }, // R101
+  { id: "p-files-trash", label: "Files trash", to: "/app/files?view=trash", icon: IconAttachment, keywords: ["deleted files", "restore", "recycle bin"], flag: "filesPlus" }, // R101
   { id: "p-goals", label: "Goals", to: "/app/goals", icon: IconTarget, keywords: ["okr", "objectives"] },
   { id: "p-contacts", label: "Contacts", to: "/app/contacts", icon: IconContacts, keywords: ["crm", "people", "companies", "customers"] },
   // R115: the Visits tab in Contacts (MAPS_R115).

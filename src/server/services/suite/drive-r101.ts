@@ -202,14 +202,13 @@ export async function listDrive(deps: Deps, a: Actor, view: DriveView, opts: { f
   if (view === "team" || view === "mine" || view === "brand") {
     const space: DriveSpace = view === "team" ? "team" : view === "mine" ? "private" : "brand";
     let folder: DriveList["folder"] = null, path: DriveCrumb[] = [{ id: null, name: VIEW_LABEL[view] }], canAdd = space !== "brand" || isAdmin(a);
-    let spaceOwner: string | null = space === "private" ? a.userId : null;
+    const spaceOwner: string | null = space === "private" ? a.userId : null;
     let listView: DriveView = view;
     if (opts.folderId) {
       const { item, chain, acc } = await loadItem(db, a, opts.folderId);
       if (item.kind !== "folder") throw notFound("Folder");
       // A folder someone shared with you opens under "Shared with me".
       if (item.space !== space) listView = item.space === "private" ? (item.ownerId === a.userId ? "mine" : "shared") : item.space === "team" ? "team" : "brand";
-      spaceOwner = item.ownerId;
       folder = { id: item.id, name: item.name, canEdit: acc.edit };
       canAdd = acc.edit;
       const visible = [...chain].reverse();

@@ -21,11 +21,25 @@ import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { AttachmentTools } from "./mail/attachment-tools";
 import { ATTACHMENT_FOLDERS, ATTACHMENT_FOLDER_LABELS, isAttachmentFolder, type AttachmentFolder, type FileFolders, type FileItem } from "@/shared/attachment-folders";
 import type { ToolsInfo } from "@/shared/tools";
+import { DrivePage } from "./files-drive-r101";
 
 const sizeOf = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / (1024 * 1024)).toFixed(1)} MB`);
 const dateOf = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: new Date(iso).getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
 
+/** R101: with Files plus on, the page is the drive (Team files, My files, brand library) and mail attachments become one of its sections. */
 export function FilesPage() {
+  const config = useConfig();
+  const tools = useQuery({ queryKey: ["tools"], enabled: !!config.data?.tools, queryFn: () => api.get<ToolsInfo>("/tools"), retry: false });
+  if (config.isPending) return <div className="w-full"><Skeleton className="h-8 w-48" /></div>;
+  if (config.data?.filesPlus) {
+    if (config.data?.tools && tools.isPending) return <div className="w-full"><Skeleton className="h-8 w-48" /></div>;
+    const mailOn = !!tools.data?.features?.includes("folders");
+    return <DrivePage mailOn={mailOn} attachments={mailOn ? <MailAttachments embedded /> : null} />;
+  }
+  return <MailAttachments />;
+}
+
+function MailAttachments({ embedded = false }: { embedded?: boolean }) {
   const config = useConfig();
   const tools = useQuery({ queryKey: ["tools"], enabled: !!config.data?.tools, queryFn: () => api.get<ToolsInfo>("/tools"), retry: false });
   const features = tools.data?.features ?? [];
@@ -54,18 +68,18 @@ export function FilesPage() {
   if (!features.includes("folders")) return <div className="w-full"><EmptyState icon={<IconFile />} title="Files is not on here yet" body="Your workspace will see Files once it is switched on." /></div>;
   const items = list.data?.pages.flatMap((p) => p.items) ?? [];
   const indexing = counts.data?.indexing;
-  const pick = (f: AttachmentFolder) => { setRaw(""); setParams({ folder: f }); };
+  const pick = (f: AttachmentFolder) => { setRaw(""); setParams(embedded ? { view: "mail", folder: f } : { folder: f }); };
 
   return (
-    <div className="w-full" data-testid="files-page">
-      <PageHeader eyebrow="Tools" title="Files" description="Attachments from your mail, sorted into folders. Search finds words inside them, scans included." />
+    <div className="w-full" data-testid={embedded ? "files-mail" : "files-page"}>
+      {!embedded && <PageHeader eyebrow="Tools" title="Files" description="Attachments from your mail, sorted into folders. Search finds words inside them, scans included." />}
       <div className="relative mb-4">
         <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
         <Input value={raw} onChange={(e) => setRaw(e.target.value)} placeholder={features.includes("index") ? "Search inside attachments" : "Search is not on here yet"} disabled={!features.includes("index")}
           aria-label="Search inside attachments" className="pl-9" data-testid="files-search" />
       </div>
-      <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-        <nav ref={navRef} aria-label="Folders" className="flex gap-1.5 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
+      <div className={cn("grid gap-4", !embedded && "md:grid-cols-[220px_1fr]")}>
+        <nav ref={navRef} aria-label="Folders" className={cn("flex gap-1.5 overflow-x-auto pb-1", !embedded && "md:flex-col md:overflow-visible md:pb-0")}>
           {ATTACHMENT_FOLDERS.map((f) => {
             const n = counts.data?.folders.find((x) => x.id === f)?.count;
             const active = !searching && f === folder;
