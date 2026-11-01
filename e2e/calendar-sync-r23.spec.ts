@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { mkdirSync } from "node:fs";
 import type { AddressInfo } from "node:net";
+import { sydneyMonth } from "./support/sydney-month";
 
 /**
  * Round 23 (R23.4) end to end: Settings > Calendar turns on a personal feed whose .ics holds a meeting
@@ -22,7 +23,7 @@ const day = (d: Date) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(
 
 /** A family calendar like Google's secret address: an all day event, a timed one and a weekly one, this month. */
 function familyIcs(now: Date) {
-  const y = now.getUTCFullYear(), m = now.getUTCMonth();
+  const { y, m } = sydneyMonth(now);
   const d = (n: number) => new Date(Date.UTC(y, m, n));
   return [
     "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Test//Family//EN", "X-WR-CALNAME:Family", "X-WR-TIMEZONE:Australia/Sydney",
@@ -66,7 +67,8 @@ test("calendar feed with a meeting, reset, and a calendar link shown read only o
 
   // A meeting and two tasks with due dates this month, so the calendar reads like a real one.
   const now = new Date();
-  const at = (n: number, h: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), n, h)).toISOString();
+  const shown = sydneyMonth(now);
+  const at = (n: number, h: number) => new Date(Date.UTC(shown.y, shown.m, n, h)).toISOString();
   const meeting = await page.request.post(`${BASE}/api/meetings`, { data: { title: "Pricing review with Grace", startsAt: at(14, 0), durationMin: 45 }, headers });
   expect(meeting.status()).toBe(201);
   for (const [title, n] of [["Send Harbour Coffee the quote", 16], ["Board pack", 21]] as const) {
