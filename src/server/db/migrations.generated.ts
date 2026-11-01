@@ -1540,5 +1540,33 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `doc_comments` ADD `row_id` text;",
       "CREATE INDEX `doc_comments_row_idx` ON `doc_comments` (`org_id`,`row_id`,`created_at`) WHERE \"doc_comments\".\"row_id\" IS NOT NULL;"
     ]
+  },
+  {
+    "name": "0142_r93_forms_plus",
+    "statements": [
+      "-- R93: Forms plus. Chat style forms with hidden fields and a signed webhook, feedback boards with votes, and calls\n-- for submissions with reviewers, a rubric and a shortlist. Additive only.\nALTER TABLE `forms` ADD `mode` text DEFAULT 'classic' NOT NULL;",
+      "ALTER TABLE `forms` ADD `plus` text DEFAULT '{}' NOT NULL;",
+      "ALTER TABLE `forms` ADD `webhook_url` text;",
+      "ALTER TABLE `forms` ADD `webhook_secret` text;",
+      "ALTER TABLE `forms` ADD `webhook_failures` integer DEFAULT 0 NOT NULL;",
+      "ALTER TABLE `form_submissions` ADD `meta` text;",
+      "ALTER TABLE `form_submissions` ADD `score` real;",
+      "ALTER TABLE `form_submissions` ADD `review_state` text DEFAULT 'new' NOT NULL;",
+      "CREATE TABLE `form_webhook_log` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`form_id` text NOT NULL,\n\t`submission_id` text,\n\t`ok` integer DEFAULT false NOT NULL,\n\t`http_status` integer,\n\t`error` text,\n\t`ms` integer DEFAULT 0 NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`form_id`) REFERENCES `forms`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `form_webhook_log_form_idx` ON `form_webhook_log` (`form_id`,`created_at`);",
+      "CREATE TABLE `feedback_boards` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`description` text DEFAULT '' NOT NULL,\n\t`slug` text NOT NULL,\n\t`is_public` integer DEFAULT true NOT NULL,\n\t`allow_ideas` integer DEFAULT true NOT NULL,\n\t`moderate` integer DEFAULT true NOT NULL,\n\t`created_by` text NOT NULL,\n\t`archived_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `feedback_boards_org_idx` ON `feedback_boards` (`org_id`);",
+      "CREATE UNIQUE INDEX `feedback_boards_slug_uq` ON `feedback_boards` (`slug`);",
+      "CREATE TABLE `feedback_posts` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`board_id` text NOT NULL,\n\t`title` text NOT NULL,\n\t`body` text DEFAULT '' NOT NULL,\n\t`status` text DEFAULT 'open' NOT NULL,\n\t`author_name` text DEFAULT '' NOT NULL,\n\t`author_email` text,\n\t`author_user_id` text,\n\t`vote_count` integer DEFAULT 0 NOT NULL,\n\t`merged_into_id` text,\n\t`ip_hash` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`board_id`) REFERENCES `feedback_boards`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `feedback_posts_board_idx` ON `feedback_posts` (`board_id`,`status`,`vote_count`);",
+      "CREATE INDEX `feedback_posts_board_new_idx` ON `feedback_posts` (`board_id`,`created_at`);",
+      "CREATE TABLE `feedback_votes` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`board_id` text NOT NULL,\n\t`post_id` text NOT NULL,\n\t`voter_key` text NOT NULL,\n\t`voter_name` text DEFAULT '' NOT NULL,\n\t`voter_email` text,\n\t`token_hash` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`post_id`) REFERENCES `feedback_posts`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `feedback_votes_post_voter_uq` ON `feedback_votes` (`post_id`,`voter_key`);",
+      "CREATE INDEX `feedback_votes_board_voter_idx` ON `feedback_votes` (`board_id`,`voter_key`);",
+      "CREATE TABLE `review_assignments` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`form_id` text NOT NULL,\n\t`submission_id` text NOT NULL,\n\t`reviewer_id` text NOT NULL,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`scores` text DEFAULT '{}' NOT NULL,\n\t`comment` text DEFAULT '' NOT NULL,\n\t`total` real,\n\t`done_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`submission_id`) REFERENCES `form_submissions`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `review_assignments_entry_reviewer_uq` ON `review_assignments` (`submission_id`,`reviewer_id`);",
+      "CREATE INDEX `review_assignments_reviewer_idx` ON `review_assignments` (`org_id`,`reviewer_id`,`status`);",
+      "CREATE INDEX `review_assignments_form_idx` ON `review_assignments` (`form_id`);"
+    ]
   }
 ];

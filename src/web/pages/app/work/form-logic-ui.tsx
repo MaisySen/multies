@@ -16,7 +16,7 @@ import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { LOGIC_OP_LABELS, LOGIC_OPS, MAX_ROUTES, VALUELESS_OPS, type FieldLogic, type FieldRules, type FormFieldType, type FormRoute, type LogicCondition, type LogicOp } from "@/shared/form-logic";
 
-export interface BuilderField { id?: string; label: string; type: FormFieldType; required?: boolean; options?: string[]; placeholder?: string; logic?: FieldLogic | null; rules?: FieldRules | null }
+export interface BuilderField { id?: string; label: string; type: FormFieldType; required?: boolean; options?: string[]; placeholder?: string; logic?: FieldLogic | null; rules?: FieldRules | null; /** R93 */ identity?: boolean; lowLabel?: string; highLabel?: string }
 
 const small = "h-8 text-[13px]";
 

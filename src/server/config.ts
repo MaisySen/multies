@@ -55,6 +55,10 @@ export interface AppConfig {
   invoicesEnabled: boolean;
   /** R92 Booking plus: resources, time polls, free events with QR tickets (BOOKING_PLUS=true, needs scheduling). */
   bookingPlus: boolean;
+  /** R93 Forms plus: chat style forms, webhook, embed bubble, feedback boards, calls for submissions, NPS and CSAT (FORMS_PLUS_R93=true). */
+  formsPlus?: boolean;
+  /** R93: more workspaces (ids, slugs or names, comma separated) kept out of Forms plus; vv8k is always out. */
+  formsPlusExclude?: string;
   /** R92 spam shield proof of work bits (SHIELD_DIFFICULTY, default 14; tests use less). */
   shieldDifficulty: number;
   /** R106: expenses and receipts (EXPENSES_R106=on). Off unless set. */
@@ -336,6 +340,8 @@ const EnvSchema = z.object({
   MAIL_ARCHIVE_R111: z.string().optional(),
   INVOICES_ENABLED: z.string().optional(), // R105
   BOOKING_PLUS: z.string().optional(),
+  FORMS_PLUS_R93: z.string().optional(), // R93
+  FORMS_PLUS_EXCLUDE: z.string().optional(), // R93
   SHIELD_DIFFICULTY: z.string().optional(),
   EXPENSES_R106: z.string().optional(), // R106
   EXPENSES_FAKE_READ: z.string().optional(), // R106 tests only
@@ -691,6 +697,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     tablesExclude: env.TABLES_EXCLUDE ?? "", // R125
     invoicesEnabled: env.INVOICES_ENABLED === "true" || env.INVOICES_ENABLED === "1", // R105
     bookingPlus: (env.SCHEDULING_ENABLED === "true" || env.SCHEDULING_ENABLED === "1") && (env.BOOKING_PLUS === "true" || env.BOOKING_PLUS === "1"),
+    formsPlus: env.FORMS_PLUS_R93 === "true" || env.FORMS_PLUS_R93 === "1", // R93
+    formsPlusExclude: env.FORMS_PLUS_EXCLUDE ?? "", // R93
     shieldDifficulty: env.SHIELD_DIFFICULTY && /^\d{1,2}$/.test(env.SHIELD_DIFFICULTY) ? Math.min(22, Number(env.SHIELD_DIFFICULTY)) : 14,
     expensesR106: ["on", "true", "1"].includes(env.EXPENSES_R106 ?? ""), // R106
     expensesFakeRead: env.EXPENSES_FAKE_READ === "1" && mode !== "production", // R106 tests only

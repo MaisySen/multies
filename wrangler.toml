@@ -181,6 +181,7 @@ AUTH0_SOCIAL_CONNECTIONS = "google-oauth2"
 # Public booking pages and the scheduling API (migration 0021).
 SCHEDULING_ENABLED = "true"
 BOOKING_PLUS = "true" # R92: resources, time polls, free events (on after verifier v16 PASS WITH BUGS 12:31 UTC Nov 1)
+FORMS_PLUS_R93 = "false" # R93: Forms plus; on in production only after the verifier passes
 DASHBOARDS_PLUS = "on" # R91: public links, emailed reports, question builder, alerts, data sources
 CLIENT_PORTAL = "on" # R120: client portals, verifier v7 PASS WITH BUGS 23:42 UTC Oct 31
 INVOICES_ENABLED = "true" # R105: on in production after verifier v15 PASS WITH BUGS 11:47 UTC
@@ -381,6 +382,7 @@ SCHEDULING_ENABLED = "true"
 INVOICES_ENABLED = "true" # R105: invoices and quotes on staging
 BOOKING_PLUS = "true" # R92: resources, time polls, free events (staging; prod after verifier PASS)
 EXPENSES_R106 = "on" # R106: expenses and receipts on staging
+FORMS_PLUS_R93 = "true" # R93: chat forms, webhook, embed bubble, feedback boards, calls for submissions (staging)
 APP_MODE = "production"
 APP_URL = "https://preview.multies.si"
 NOINDEX = "true"

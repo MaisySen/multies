@@ -1313,7 +1313,8 @@ export const forms = sqliteTable("forms", {
   description: text("description").notNull().default(""),
   /** The public address: /f/<slug>. Random, so forms can't be guessed. */
   slug: text("slug").notNull(),
-  target: text("target", { enum: ["task", "contact"] }).notNull().default("task"),
+  /** R93: "review" collects entries for a call for submissions (no task or contact is made). */
+  target: text("target", { enum: ["task", "contact", "review"] }).notNull().default("task"),
   projectId: text("project_id"),
   assigneeType: text("assignee_type", { enum: ["member", "agent"] }),
   assigneeId: text("assignee_id"),
@@ -1327,6 +1328,14 @@ export const forms = sqliteTable("forms", {
   triage: integer("triage", { mode: "boolean" }).notNull().default(false),
   /** R31 (0067): JSON [{ when: { field, op, value }, projectId, assigneeId }]; the first match routes the task. */
   routing: text("routing").notNull().default("[]"),
+  /** R93 (0142): "classic" (all questions on one page) or "chat" (one question at a time). */
+  mode: text("mode", { enum: ["classic", "chat"] }).notNull().default("classic"),
+  /** R93: JSON FormPlus (hidden fields, bubble label, review setup, template); see src/shared/forms-plus.ts. */
+  plus: text("plus").notNull().default("{}"),
+  /** R93: the form's own signed webhook. The secret is encrypted with the app secret. */
+  webhookUrl: text("webhook_url"),
+  webhookSecret: text("webhook_secret"),
+  webhookFailures: integer("webhook_failures").notNull().default(0),
   ...suiteCols(),
 }, (t) => [index("forms_org_idx").on(t.orgId), uniqueIndex("forms_slug_uq").on(t.slug)]);
 
@@ -1340,6 +1349,12 @@ export const formSubmissions = sqliteTable("form_submissions", {
   entityId: text("entity_id"),
   /** A salted hash of the sender's IP, for rate limits. Never the IP itself. */
   ipHash: text("ip_hash"),
+  /** R93: JSON { hidden: { name: value } } from the form link. */
+  meta: text("meta"),
+  /** R93: the NPS (0 to 10) or CSAT (1 to 5) answer, for the score summary. */
+  score: real("score"),
+  /** R93: calls for submissions: new, shortlisted or declined. */
+  reviewState: text("review_state", { enum: ["new", "shortlisted", "declined"] }).notNull().default("new"),
   createdAt: createdAt(),
 }, (t) => [index("form_submissions_form_idx").on(t.formId, t.createdAt)]);
 
@@ -4163,3 +4178,83 @@ export const docInboxState = sqliteTable("doc_inbox_state", {
   n: integer("n").notNull().default(0),
   updatedAt: integer("updated_at").notNull(),
 });
+// ---------------------------------------------------------------- R93 Forms plus (0142)
+
+/** R93: one delivery of a form's own webhook (the last 20 per form are shown). */
+export const formWebhookLog = sqliteTable("form_webhook_log", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  formId: text("form_id").notNull().references(() => forms.id, { onDelete: "cascade" }),
+  submissionId: text("submission_id"),
+  ok: integer("ok", { mode: "boolean" }).notNull().default(false),
+  httpStatus: integer("http_status"),
+  error: text("error"),
+  ms: integer("ms").notNull().default(0),
+  createdAt: createdAt(),
+}, (t) => [index("form_webhook_log_form_idx").on(t.formId, t.createdAt)]);
+
+/** R93: a feedback board (public at /fb/<slug>, or members only). */
+export const feedbackBoards = sqliteTable("feedback_boards", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  slug: text("slug").notNull(),
+  isPublic: integer("is_public", { mode: "boolean" }).notNull().default(true),
+  allowIdeas: integer("allow_ideas", { mode: "boolean" }).notNull().default(true),
+  /** New ideas from visitors wait for approval. */
+  moderate: integer("moderate", { mode: "boolean" }).notNull().default(true),
+  createdBy: text("created_by").notNull(),
+  archivedAt: ts("archived_at"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("feedback_boards_org_idx").on(t.orgId), uniqueIndex("feedback_boards_slug_uq").on(t.slug)]);
+
+/** R93: an idea or request on a board. vote_count is kept on the row so lists sort without counting. */
+export const feedbackPosts = sqliteTable("feedback_posts", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  boardId: text("board_id").notNull().references(() => feedbackBoards.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  status: text("status", { enum: ["pending", "open", "review", "planned", "progress", "done", "closed", "merged"] }).notNull().default("open"),
+  authorName: text("author_name").notNull().default(""),
+  authorEmail: text("author_email"),
+  authorUserId: text("author_user_id"),
+  voteCount: integer("vote_count").notNull().default(0),
+  mergedIntoId: text("merged_into_id"),
+  ipHash: text("ip_hash"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("feedback_posts_board_idx").on(t.boardId, t.status, t.voteCount), index("feedback_posts_board_new_idx").on(t.boardId, t.createdAt)]);
+
+/** R93: one vote per person per post (voter_key: u:<user id> or e:<hashed email>). */
+export const feedbackVotes = sqliteTable("feedback_votes", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  boardId: text("board_id").notNull(),
+  postId: text("post_id").notNull().references(() => feedbackPosts.id, { onDelete: "cascade" }),
+  voterKey: text("voter_key").notNull(),
+  voterName: text("voter_name").notNull().default(""),
+  voterEmail: text("voter_email"),
+  /** A hash of the token a public voter gets back, so only they can take the vote back. */
+  tokenHash: text("token_hash"),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("feedback_votes_post_voter_uq").on(t.postId, t.voterKey), index("feedback_votes_board_voter_idx").on(t.boardId, t.voterKey)]);
+
+/** R93: a reviewer's assignment to one entry of a call for submissions, with their rubric scores. */
+export const reviewAssignments = sqliteTable("review_assignments", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  formId: text("form_id").notNull(),
+  submissionId: text("submission_id").notNull().references(() => formSubmissions.id, { onDelete: "cascade" }),
+  reviewerId: text("reviewer_id").notNull(),
+  status: text("status", { enum: ["pending", "done"] }).notNull().default("pending"),
+  /** JSON { criterionId: score } */
+  scores: text("scores").notNull().default("{}"),
+  comment: text("comment").notNull().default(""),
+  /** Weighted score out of 100. */
+  total: real("total"),
+  doneAt: ts("done_at"),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("review_assignments_entry_reviewer_uq").on(t.submissionId, t.reviewerId), index("review_assignments_reviewer_idx").on(t.orgId, t.reviewerId, t.status), index("review_assignments_form_idx").on(t.formId)]);

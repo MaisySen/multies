@@ -14,6 +14,7 @@ import { dashboard } from "../services/suite/reports";
 import { createMeeting, getMeeting, guestInfo, guestJoin, joinMeeting, listMeetings, meetingIcs, meetingsEnabled, sendInvites, updateMeeting, deleteMeeting } from "../services/suite/meetings";
 import { organizations } from "../db/schema";
 import { FieldLogicSchema, FieldRulesSchema, FormRouteSchema } from "./forms-r31";
+import { ShieldBody } from "./booking-plus";
 import { eq } from "drizzle-orm";
 
 // R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
@@ -31,10 +32,11 @@ export const TimeEntryCreate = z.object({
 export const TimeEntryPatch = z.object({ minutes: z.number().positive().max(1440).optional(), note: z.string().max(500).optional(), billable: z.boolean().optional(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), tags: z.array(z.string().max(64)).max(20).optional() });
 export const TimeQuery = z.object({ from: z.string().optional(), to: z.string().optional(), person: z.string().optional(), projectId: z.string().optional(), taskId: z.string().optional(), tag: z.string().max(64).optional() });
 
-const Field = z.object({ id: z.string().max(40).optional(), label: z.string().min(1).max(120), type: z.enum(["text", "email", "textarea", "phone", "select", "multiselect", "number", "date"]), required: z.boolean().optional(), options: z.array(z.string().max(120)).max(50).optional(), placeholder: z.string().max(120).optional(),
-  logic: FieldLogicSchema.optional(), rules: FieldRulesSchema.optional() }); // R31: show-if logic and answer rules
+const Field = z.object({ id: z.string().max(40).optional(), label: z.string().min(1).max(120), type: z.enum(["text", "email", "textarea", "phone", "select", "multiselect", "number", "date", "rating"]), required: z.boolean().optional(), options: z.array(z.string().max(120)).max(50).optional(), placeholder: z.string().max(120).optional(),
+  logic: FieldLogicSchema.optional(), rules: FieldRulesSchema.optional(),
+  identity: z.boolean().optional(), lowLabel: z.string().max(40).optional(), highLabel: z.string().max(40).optional() }); // R93: blind review, rating labels // R31: show-if logic and answer rules
 export const FormCreate = z.object({
-  name: z.string().trim().min(1).max(120), description: z.string().max(2000).optional(), target: z.enum(["task", "contact"]).optional(),
+  name: z.string().trim().min(1).max(120), description: z.string().max(2000).optional(), target: z.enum(["task", "contact", "review"]).optional(), // R93: review = a call for submissions (Forms plus)
   projectId: z.string().nullable().optional(), assigneeId: z.string().nullable().optional(), fields: z.array(Field).min(1).max(30).optional(),
   successMessage: z.string().max(500).optional(), enabled: z.boolean().optional(),
   triage: z.boolean().optional(),
@@ -131,8 +133,14 @@ export function publicRoutes() {
   return new Hono<AppEnv>()
     .get("/forms/:slug", async (c) => c.json({ form: await publicForm(c.var.deps, c.req.param("slug")) }))
     .post("/forms/:slug", async (c) => {
-      const raw = (await c.req.json().catch(() => ({}))) as { answers?: Record<string, unknown>; turnstileToken?: string; website?: string; elapsedMs?: number };
-      return c.json(await submitForm(c.var.deps, c.req.param("slug"), raw.answers ?? {}, { ip: c.var.ip, turnstileToken: raw.turnstileToken, honeypot: raw.website, elapsedMs: typeof raw.elapsedMs === "number" ? raw.elapsedMs : undefined }));
+      const raw = (await c.req.json().catch(() => ({}))) as { answers?: Record<string, unknown>; turnstileToken?: string; website?: string; elapsedMs?: number; hidden?: unknown; shield?: unknown };
+      // R93: hidden field values and the spam shield answer (checked only when Forms plus is on for the workspace).
+      const hidden = raw.hidden && typeof raw.hidden === "object" && !Array.isArray(raw.hidden) ? raw.hidden as Record<string, unknown> : undefined;
+      const shield = ShieldBody.safeParse(raw.shield);
+      // On Workers the webhook runs after the answer is sent; without an execution context (Node) it runs inline.
+      let defer: ((p: Promise<unknown>) => void) | undefined;
+      try { const ec = c.executionCtx; defer = (p) => ec.waitUntil(p); } catch { defer = undefined; }
+      return c.json(await submitForm(c.var.deps, c.req.param("slug"), raw.answers ?? {}, { ip: c.var.ip, turnstileToken: raw.turnstileToken, honeypot: raw.website, elapsedMs: typeof raw.elapsedMs === "number" ? raw.elapsedMs : undefined, hidden, shield: shield.success ? shield.data : undefined, defer }));
     })
     .get("/meetings/:token", async (c) => c.json({ meeting: await guestInfo(c.var.deps, c.req.param("token")) }))
     .post("/meetings/:token/join", async (c) => {

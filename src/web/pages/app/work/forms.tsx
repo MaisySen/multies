@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router";
+import { useLocation, useParams, useSearchParams } from "react-router";
+import { useConfig } from "@/web/lib/queries";
+import { useShield } from "@/web/lib/use-shield";
+import { FORM_TEMPLATES, pickHidden } from "@/shared/forms-plus";
+import { BoardsTab } from "./forms-plus/boards-tab";
+import { CallDialog, DEFAULT_CALL_FIELDS, ReviewQueueTab } from "./forms-plus/calls-tab";
+import { FormPlusDialog } from "./forms-plus/settings-dialog";
+import { ChatForm, RatingInput, type PublicFormData } from "./forms-plus/chat-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconArrowDown, IconArrowUp, IconClipboardList, IconExternalLink, IconPlus, IconTrash } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
@@ -17,9 +24,9 @@ import { ApiError } from "@/web/lib/api";
 
 type FieldType = FormFieldType;
 type FormField = BuilderField;
-interface Form { id: string; name: string; description: string; slug: string; url: string; target: "task" | "contact"; projectId: string | null; assigneeId: string | null; fields: FormField[]; successMessage: string; enabled: boolean; triage?: boolean; routing?: FormRoute[]; submitCount: number; lastSubmitAt: string | null }
+interface Form { id: string; name: string; description: string; slug: string; url: string; target: "task" | "contact" | "review"; projectId: string | null; assigneeId: string | null; fields: FormField[]; successMessage: string; enabled: boolean; triage?: boolean; routing?: FormRoute[]; submitCount: number; lastSubmitAt: string | null }
 
-const TYPES: Record<FieldType, string> = { text: "Short text", email: "Email", textarea: "Long text", phone: "Phone", select: "Choice", multiselect: "Several choices", number: "Number", date: "Date" };
+const TYPES: Record<FieldType, string> = { text: "Short text", email: "Email", textarea: "Long text", phone: "Phone", select: "Choice", multiselect: "Several choices", number: "Number", date: "Date", rating: "Rating" };
 const withOptions = (t: FieldType) => t === "select" || t === "multiselect";
 /** R31: every builder field gets a stable id up front, so "show if" conditions can point at it. */
 const idFor = (label: string, taken: Set<string>, i: number) => {
@@ -30,22 +37,89 @@ const idFor = (label: string, taken: Set<string>, i: number) => {
 };
 const withIds = (fields: FormField[]) => { const taken = new Set(fields.map((x) => x.id).filter(Boolean) as string[]); return fields.map((x, i) => (x.id ? x : { ...x, id: idFor(x.label, taken, i) })); };
 
+/* R93 Forms plus: with FORMS_PLUS_R93 on, this page gains tabs (kept in ?tab= so links and Back work). */
+type FormsTab = "forms" | "boards" | "calls" | "review";
+const FORMS_TABS: { id: FormsTab; label: string; line: string }[] = [
+  { id: "forms", label: "Forms", line: "A public link anyone can fill in. Each answer becomes a task or a contact, with spam checks built in." },
+  { id: "boards", label: "Feedback boards", line: "Collect ideas, let people vote, and share what is planned on a roadmap." },
+  { id: "calls", label: "Calls for submissions", line: "Take entries, have reviewers score them with a rubric, and build a shortlist." },
+  { id: "review", label: "To review", line: "Entries assigned to you for scoring." },
+];
+
 export function FormsPage() {
+  const config = useConfig();
+  const [params, setParams] = useSearchParams();
+  const refs = useRef<Record<string, HTMLButtonElement | null>>({});
+  if (!config.data?.formsPlus) return <FormsList />;
+  const active: FormsTab = FORMS_TABS.find((t) => t.id === params.get("tab"))?.id ?? "forms";
+  const pick = (id: FormsTab) => setParams((p) => { const n = new URLSearchParams(p); if (id === "forms") n.delete("tab"); else n.set("tab", id); return n; }, { replace: true });
+  const onKey = (e: React.KeyboardEvent) => {
+    const i = FORMS_TABS.findIndex((t) => t.id === active);
+    const n = FORMS_TABS.length;
+    const next = e.key === "ArrowRight" ? FORMS_TABS[(i + 1) % n] : e.key === "ArrowLeft" ? FORMS_TABS[(i - 1 + n) % n] : e.key === "Home" ? FORMS_TABS[0] : e.key === "End" ? FORMS_TABS[n - 1] : null;
+    if (!next) return;
+    e.preventDefault(); pick(next.id); refs.current[next.id]?.focus();
+  };
+  return (
+    <div className="space-y-5">
+      <PageHeader title="Forms" description={FORMS_TABS.find((t) => t.id === active)!.line} />
+      <div role="tablist" aria-label="Forms" onKeyDown={onKey} className="-mx-1 flex gap-1 overflow-x-auto border-b border-line px-1" data-testid="forms-tabs">
+        {FORMS_TABS.map((t) => (
+          <button key={t.id} ref={(el) => { refs.current[t.id] = el; }} type="button" role="tab" id={`forms-tab-${t.id}`} aria-selected={active === t.id} aria-controls={`forms-panel-${t.id}`} tabIndex={active === t.id ? 0 : -1}
+            onClick={() => pick(t.id)}
+            className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-[14px] font-medium outline-none transition-colors duration-150 focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-11 ${active === t.id ? "border-brand text-fg" : "border-transparent text-muted hover:text-fg"}`}>{t.label}</button>
+        ))}
+      </div>
+      <div role="tabpanel" id={`forms-panel-${active}`} aria-labelledby={`forms-tab-${active}`}>
+        {active === "boards" ? <BoardsTab /> : active === "review" ? <ReviewQueueTab /> : <FormsList plus kind={active === "calls" ? "calls" : "forms"} />}
+      </div>
+    </div>
+  );
+}
+
+function FormsList({ plus = false, kind = "forms" }: { plus?: boolean; kind?: "forms" | "calls" }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["forms"], queryFn: () => api.get<{ forms: Form[]; turnstile: boolean }>("/forms") });
   const [editing, setEditing] = useState<Partial<Form> | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
+  const [plusFor, setPlusFor] = useState<Form | null>(null);
+  const [entriesFor, setEntriesFor] = useState<Form | null>(null);
+  const calls = kind === "calls";
+  const list = (q.data?.forms ?? []).filter((f) => (calls ? f.target === "review" : f.target !== "review"));
+  const newCall = () => setEditing({ name: "Call for submissions", target: "review", fields: DEFAULT_CALL_FIELDS as FormField[], successMessage: "Thanks, your entry is in. We'll be in touch." });
+  const fromTemplate = (kindT: string) => {
+    const t = FORM_TEMPLATES.find((x) => x.kind === kindT);
+    setEditing(t ? { name: t.name, description: t.description, target: "task", fields: t.fields as FormField[], successMessage: t.successMessage } : { name: "", target: "task" });
+  };
   const refresh = () => qc.invalidateQueries({ queryKey: ["forms"] });
   const toggle = async (f: Form) => { try { await api.patch(`/forms/${f.id}`, { enabled: !f.enabled }); await refresh(); } catch (e) { showError(e as Error); } };
   return (
     <div>
-      <PageHeader title="Forms" description="A public link anyone can fill in. Each answer becomes a task on your board or a contact, with spam checks built in."
-        actions={<Button onClick={() => setEditing({ name: "", target: "task" })}><IconPlus className="h-4 w-4" />New form</Button>} />
-      {q.isPending ? <Skeleton className="h-40" /> : !q.data!.forms.length ? (
-        <Card><EmptyState icon={<IconClipboardList />} title="No forms yet" body="Make an enquiry form for your website, a support request form or a sign-up list." action={<Button onClick={() => setEditing({ name: "Website enquiry", target: "task" })}>Make an enquiry form</Button>} /></Card>
+      {!plus ? (
+        <PageHeader title="Forms" description="A public link anyone can fill in. Each answer becomes a task on your board or a contact, with spam checks built in."
+          actions={<Button onClick={() => setEditing({ name: "", target: "task" })}><IconPlus className="h-4 w-4" />New form</Button>} />
+      ) : (
+        <div className="mb-3 flex flex-wrap justify-end gap-2">
+          {calls ? <Button onClick={newCall} data-testid="new-call"><IconPlus className="h-4 w-4" />New call</Button> : (
+            <>
+              <Select aria-label="Start from a template" value="" onChange={(e) => fromTemplate(e.target.value)} className="h-9 w-56 text-[13px]" data-testid="form-template">
+                <option value="">Start from a template</option>
+                {FORM_TEMPLATES.map((t) => <option key={t.kind} value={t.kind}>{t.name}</option>)}
+              </Select>
+              <Button onClick={() => setEditing({ name: "", target: "task" })}><IconPlus className="h-4 w-4" />New form</Button>
+            </>
+          )}
+        </div>
+      )}
+      {q.isPending ? <Skeleton className="h-40" /> : q.isError ? (
+        <Card className="p-6 text-center text-[13px]">Couldn't load your forms. <Button size="sm" variant="ghost" onClick={() => void q.refetch()}>Try again</Button></Card>
+      ) : !list.length ? (
+        calls
+          ? <Card><EmptyState icon={<IconClipboardList />} title="No calls yet" body="Take speaker proposals, grant applications or award entries, then score them with your reviewers." action={<Button onClick={newCall}>Start a call</Button>} /></Card>
+          : <Card><EmptyState icon={<IconClipboardList />} title="No forms yet" body="Make an enquiry form for your website, a support request form or a sign-up list." action={<Button onClick={() => setEditing({ name: "Website enquiry", target: "task" })}>Make an enquiry form</Button>} /></Card>
       ) : (
         <Card className="divide-y divide-line">
-          {q.data!.forms.map((f) => (
+          {list.map((f) => (
             <div key={f.id} className="flex flex-wrap items-center gap-3 p-4" data-testid="form-row">
               <Switch checked={f.enabled} onChange={() => void toggle(f)} label={`Turn ${f.name} ${f.enabled ? "off" : "on"}`} />
               <button className="min-w-0 flex-1 text-left" onClick={() => setEditing(f)}>
@@ -55,20 +129,23 @@ export function FormsPage() {
               <div className="flex items-center gap-2">
                 <a href={f.url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] hover:bg-elevated"><IconExternalLink className="h-3.5 w-3.5" />Open</a>
                 <CopyButton value={f.url} label="Copy link" />
-                <Button size="sm" variant="ghost" onClick={() => setViewing(f.id)}>Responses</Button>
+                {calls ? <Button size="sm" variant="ghost" onClick={() => setEntriesFor(f)} data-testid="entries">Entries</Button> : <Button size="sm" variant="ghost" onClick={() => setViewing(f.id)}>Responses</Button>}
+                {plus && !calls && <Button size="sm" variant="ghost" onClick={() => setPlusFor(f)} data-testid="form-more">More</Button>}
               </div>
             </div>
           ))}
         </Card>
       )}
       {q.data && <p className="mt-3 text-[12px] text-subtle">{q.data.turnstile ? "Spam protection: a human check, a hidden trap field and a limit per sender." : "Spam protection: a hidden trap field, a minimum fill time and a limit per sender."}</p>}
-      {editing && <FormEditor initial={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void refresh(); }} />}
+      {plusFor && <FormPlusDialog form={plusFor} onClose={() => setPlusFor(null)} />}
+      {entriesFor && <CallDialog form={entriesFor} onClose={() => setEntriesFor(null)} />}
+      {editing && <FormEditor plus={plus} initial={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void refresh(); }} />}
       {viewing && <FormResults id={viewing} name={q.data?.forms.find((x) => x.id === viewing)?.name ?? "form"} onClose={() => setViewing(null)} />}
     </div>
   );
 }
 
-function FormEditor({ initial, onClose, onSaved }: { initial: Partial<Form>; onClose: () => void; onSaved: () => void }) {
+function FormEditor({ initial, onClose, onSaved, plus = false }: { initial: Partial<Form>; onClose: () => void; onSaved: () => void; plus?: boolean }) {
   const projects = useProjects();
   const people = useAssignees();
   const [f, setF] = useState<Partial<Form>>({ ...initial, fields: withIds(initial.fields ?? [{ label: "Your name", type: "text", required: true }, { label: "Email", type: "email", required: true }, { label: "What do you need?", type: "text", required: true }, { label: "Details", type: "textarea" }]) });
@@ -92,7 +169,7 @@ function FormEditor({ initial, onClose, onSaved }: { initial: Partial<Form>; onC
         <Field label="Name">{(fp) => (<Input {...fp} value={f.name ?? ""} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Website enquiry" />)}</Field>
         <Field label="Intro" hint="Shown at the top of the form.">{(fp) => (<Textarea {...fp} value={f.description ?? ""} onChange={(e) => setF({ ...f, description: e.target.value })} className="min-h-16" />)}</Field>
         <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Each answer makes">{(fp) => (<Select {...fp} value={f.target} onChange={(e) => setF({ ...f, target: e.target.value as "task" | "contact" })}><option value="task">A task</option><option value="contact">A contact</option></Select>)}</Field>
+          {f.target !== "review" && <Field label="Each answer makes">{(fp) => (<Select {...fp} value={f.target} onChange={(e) => setF({ ...f, target: e.target.value as "task" | "contact" })}><option value="task">A task</option><option value="contact">A contact</option></Select>)}</Field>}
           {f.target === "task" && <Field label="In project">{(fp) => (<Select {...fp} value={f.projectId ?? ""} onChange={(e) => setF({ ...f, projectId: e.target.value || null })}><option value="">Default project</option>{projects.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select>)}</Field>}
           {f.target === "task" && <Field label="Assign to">{(fp) => (<Select {...fp} value={f.assigneeId ?? ""} onChange={(e) => setF({ ...f, assigneeId: e.target.value || null })}><option value="">Nobody</option>{people.data?.map((p) => <option key={p.id} value={p.id}>{p.name}{isAgentLike(p) ? " (agent)" : ""}</option>)}</Select>)}</Field>}
         </div>
@@ -103,7 +180,7 @@ function FormEditor({ initial, onClose, onSaved }: { initial: Partial<Form>; onC
               <li key={i} className="rounded-lg border border-line p-2.5">
                 <div className="grid grid-cols-[1fr_130px_auto] items-center gap-2">
                   <Input aria-label={`Field ${i + 1} label`} value={x.label} onChange={(e) => setField(i, { label: e.target.value })} className="h-8 text-[13px]" />
-                  <Select aria-label={`Field ${i + 1} type`} value={x.type} onChange={(e) => setField(i, { type: e.target.value as FieldType })} className="h-8 text-[13px]">{(Object.keys(TYPES) as FieldType[]).map((t) => <option key={t} value={t}>{TYPES[t]}</option>)}</Select>
+                  <Select aria-label={`Field ${i + 1} type`} value={x.type} onChange={(e) => setField(i, { type: e.target.value as FieldType, ...(e.target.value === "rating" ? { rules: { min: 0, max: 10 } } : {}) })} className="h-8 text-[13px]">{(Object.keys(TYPES) as FieldType[]).filter((t) => t !== "rating" || plus || x.type === "rating").map((t) => <option key={t} value={t}>{TYPES[t]}</option>)}</Select>
                   <div className="flex items-center gap-1">
                     <label className="flex items-center gap-1 text-[12px] text-muted"><input type="checkbox" checked={!!x.required} onChange={(e) => setField(i, { required: e.target.checked })} />Required</label>
                     <button disabled={i === 0} onClick={() => move(i, -1)} className="p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label="Move up"><IconArrowUp className="h-3.5 w-3.5" /></button>
@@ -112,6 +189,14 @@ function FormEditor({ initial, onClose, onSaved }: { initial: Partial<Form>; onC
                   </div>
                 </div>
                 {withOptions(x.type) && <Input aria-label="Choices" placeholder="Choices, separated by commas" value={(x.options ?? []).join(", ")} onChange={(e) => setField(i, { options: e.target.value.split(",").map((o) => o.trim()).filter(Boolean) })} className="mt-2 h-8 text-[13px]" />}
+                {x.type === "rating" && (
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                    <Select aria-label="Scale" value={x.rules?.min === 1 ? "1-5" : "0-10"} onChange={(e) => setField(i, { rules: e.target.value === "1-5" ? { min: 1, max: 5 } : { min: 0, max: 10 } })} className="h-8 text-[13px]"><option value="0-10">0 to 10</option><option value="1-5">1 to 5</option></Select>
+                    <Input aria-label="Label at the low end" placeholder="Low end, for example Not likely" value={x.lowLabel ?? ""} maxLength={40} onChange={(e) => setField(i, { lowLabel: e.target.value })} className="h-8 text-[13px]" />
+                    <Input aria-label="Label at the high end" placeholder="High end, for example Very likely" value={x.highLabel ?? ""} maxLength={40} onChange={(e) => setField(i, { highLabel: e.target.value })} className="h-8 text-[13px]" />
+                  </div>
+                )}
+                {f.target === "review" && <label className="mt-2 flex items-center gap-1.5 text-[12px] text-muted"><input type="checkbox" checked={!!x.identity} onChange={(e) => setField(i, { identity: e.target.checked })} />Hide in blind review</label>}
                 <LogicEditor field={x} index={i} earlier={fields.slice(0, i)} onChange={(patch) => setField(i, patch)} />
               </li>
             ))}
@@ -135,9 +220,23 @@ function FormEditor({ initial, onClose, onSaved }: { initial: Partial<Form>; onC
 declare global { interface Window { turnstile?: { render: (el: HTMLElement, opts: { sitekey: string; callback: (t: string) => void; theme?: string }) => string; reset: (id?: string) => void } } }
 
 /** The public form at /f/<slug>. No sign-in. */
+type PublicFormRow = { name: string; description: string; workspace: string; fields: (FormField & { id: string })[]; turnstileSiteKey: string | null; plus?: PublicFormData["plus"] };
+const usePublicForm = (slug: string | undefined) => useQuery({ queryKey: ["public-form", slug], retry: false, queryFn: async () => (await api.get<{ form: PublicFormRow }>(`/public/forms/${slug}`)).form });
+
+/** The public form at /f/<slug> (and /f/<slug>/embed inside the website bubble). R93: chat style when the form asks for it. */
 export function PublicFormPage() {
   const { slug } = useParams();
-  const q = useQuery({ queryKey: ["public-form", slug], retry: false, queryFn: async () => (await api.get<{ form: { name: string; description: string; workspace: string; fields: (FormField & { id: string })[]; turnstileSiteKey: string | null } }>(`/public/forms/${slug}`)).form });
+  const embed = useLocation().pathname.replace(/\/+$/, "").endsWith("/embed");
+  const q = usePublicForm(slug);
+  useEffect(() => { if (q.data) document.title = `${q.data.name} | Multies`; }, [q.data]);
+  if (q.data?.plus && (q.data.plus.mode === "chat" || embed)) return <main className="min-h-dvh bg-bg text-fg"><ChatForm slug={slug!} form={q.data as PublicFormData} embed={embed} /></main>;
+  return <ClassicPublicForm />;
+}
+
+function ClassicPublicForm() {
+  const { slug } = useParams();
+  const q = usePublicForm(slug);
+  const shield = useShield("fplus", "/pub/forms/shield", !!q.data?.plus);
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [trap, setTrap] = useState("");
@@ -169,7 +268,9 @@ export function PublicFormPage() {
     setBusy(true);
     try {
       const sendable = Object.fromEntries(Object.entries(answers).filter(([k]) => shown.has(k)));
-      const r = await api.post<{ ok: boolean; message: string }>(`/public/forms/${slug}`, { answers: sendable, website: trap, turnstileToken: token, elapsedMs: Date.now() - opened.current });
+      // R93: with Forms plus, hidden values from the link and the spam shield ride along.
+      const hidden = q.data?.plus ? pickHidden(q.data.plus.hiddenFields, new URLSearchParams(window.location.search)) : undefined;
+      const r = await shield.send((sh) => api.post<{ ok: boolean; message: string }>(`/public/forms/${slug}`, { answers: sendable, website: trap, turnstileToken: token, elapsedMs: Date.now() - opened.current, hidden, shield: sh ? { ...sh, hp: trap } : undefined }));
       setDone(r.message);
     } catch (e) {
       if (e instanceof ApiError && e.fields && Object.keys(e.fields).length) { setErrors(e.fields); focusFirst(e.fields); } else showError(e as Error);
@@ -196,6 +297,15 @@ export function PublicFormPage() {
                 const common = { name: x.id, "aria-required": x.required || undefined, value: text, placeholder: x.placeholder, onChange: (e: { target: { value: string } }) => setAnswer(x.id, e.target.value) };
                 const label = `${x.label}${x.required ? "" : " (optional)"}`;
                 const animate = x.logic?.conditions.length ? "animate-pop-in motion-reduce:animate-none" : undefined;
+                if (x.type === "rating") {
+                  return (
+                    <div key={x.id} className={animate}>
+                      <div id={`${x.id}-label`} className="mb-1.5 text-[13px] font-medium">{label}</div>
+                      <RatingInput field={x as PublicFormData["fields"][number]} value={text} labelledBy={`${x.id}-label`} onChange={(v) => setAnswer(x.id, v)} />
+                      {errors[x.id] && <p id={`${x.id}-err`} role="alert" className="mt-1 text-[12.5px] text-bad">{errors[x.id]}</p>}
+                    </div>
+                  );
+                }
                 if (x.type === "multiselect") {
                   const picked = Array.isArray(value) ? value : [];
                   return (

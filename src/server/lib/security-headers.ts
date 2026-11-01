@@ -177,3 +177,9 @@ export function withSecurityHeaders(res: Response, o: HeaderOptions): Response {
 export function isHttps(url: string): boolean {
   return url.startsWith("https://");
 }
+
+/** R93: the form shown inside the website bubble (/f/<form>/embed) is the one page other sites may frame. */
+export const EMBED_FORM_PATH = /^\/f\/[A-Za-z0-9_-]{1,64}\/embed\/?$/;
+export function frameableCsp(csp: string): string {
+  return csp.replace(/frame-ancestors [^;]*/, "frame-ancestors *");
+}

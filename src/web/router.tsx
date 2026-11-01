@@ -109,6 +109,7 @@ const TimesheetPage = lazyPage(() => import("./pages/app/work/time"), "Timesheet
 const formPages = () => import("./pages/app/work/forms");
 const FormsPage = lazyPage(() => formPages(), "FormsPage");
 const PublicFormPage = lazyPage(() => formPages(), "PublicFormPage");
+const PublicBoardPage = lazyPage(() => import("./pages/app/work/forms-plus/public-board"), "PublicBoardPage"); // R93
 const ReportsPage = lazyPage(() => import("./pages/app/work/reports"), "ReportsPage");
 const DashboardsPage = lazyPage(() => import("./pages/app/work/dashboards"), "DashboardsPage"); // R24.3
 const meetingPages = () => import("./pages/app/work/meetings");
@@ -369,6 +370,8 @@ export const router = createBrowserRouter([
   },
   // Public pages with no site header: a form anyone can fill in, and a meeting guest link.
   { path: "/f/:slug", element: publicPage(<PublicFormPage />), errorElement: <RouteError /> },
+  { path: "/f/:slug/embed", element: publicPage(<PublicFormPage />), errorElement: <RouteError /> }, // R93: inside the website bubble
+  { path: "/fb/:slug", element: publicPage(<PublicBoardPage />), errorElement: <RouteError /> }, // R93: public feedback board
   { path: "/m/:token", element: publicPage(<GuestMeetingPage />), errorElement: <RouteError /> },
   { path: "/book/poll/:token", element: publicPage(<PollVotePage />), errorElement: <RouteError /> },
   { path: "/book/event/:slug", element: publicPage(<EventRsvpPage />), errorElement: <RouteError /> },

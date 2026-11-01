@@ -11,26 +11,29 @@ import { SHIELD_HONEYPOT_NAME, SHIELD_MIN_FILL_MS, SHIELD_TTL_MS, solveWork, typ
 type Job = { at: number; done: Promise<{ challenge: ShieldChallenge; nonce: number } | null> };
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export function useShield(form: string) {
+/** R93: `path` picks the shield endpoint (forms use /pub/forms/shield); `enabled` false makes it a no op. */
+export function useShield(form: string, path = "/pub/booking/shield", enabled = true) {
   const [hp, setHp] = useState("");
   const job = useRef<Job | null>(null);
   const start = useCallback(() => {
+    if (!enabled) return;
     const at = Date.now();
     job.current = {
       at,
       done: (async () => {
         try {
-          const { challenge } = await api.get<{ challenge: ShieldChallenge }>(`/pub/booking/shield?form=${form}`);
+          const { challenge } = await api.get<{ challenge: ShieldChallenge }>(`${path}?form=${form}`);
           return { challenge, nonce: await solveWork(challenge.salt, challenge.difficulty) };
         } catch {
           return null;
         }
       })(),
     };
-  }, [form]);
+  }, [form, path, enabled]);
   useEffect(() => { start(); }, [start]);
   /** The answer to send with the form. Each challenge works once, so a fresh one starts for the next send. */
   const answer = useCallback(async (fresh = false): Promise<ShieldAnswer | undefined> => {
+    if (!enabled) return undefined;
     // A challenge that failed to load, is close to expiry, or was refused is replaced before sending.
     if (fresh || !job.current || Date.now() - job.current.at > SHIELD_TTL_MS - 120_000) start();
     let current = job.current!;
@@ -40,7 +43,7 @@ export function useShield(form: string) {
     if (age < SHIELD_MIN_FILL_MS + 250) await wait(SHIELD_MIN_FILL_MS + 250 - age);
     start();
     return got ? { ...got, hp } : undefined;
-  }, [hp, start]);
+  }, [hp, start, enabled]);
   /** Sends with the shield; a refused check (other than the hidden field) is retried once with a fresh challenge. */
   const send = useCallback(async <T,>(post: (shield: ShieldAnswer | undefined) => Promise<T>): Promise<T> => {
     try {

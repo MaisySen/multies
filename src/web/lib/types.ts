@@ -60,6 +60,8 @@ export interface PublicConfig {
   /** R92: resources, time polls and events in Work > Booking page (BOOKING_PLUS). */
   bookingPlus?: boolean;
   officeEditR113?: boolean; // R113
+  /** R93: chat style forms, webhook, embed bubble, feedback boards, calls for submissions (FORMS_PLUS_R93). */
+  formsPlus?: boolean;
   /** R59: chat channels (WhatsApp, Messenger, Instagram) in the shared inbox (CHAT_CHANNELS). Off unless set. */
   chatChannels?: boolean;
   /** R111: mail archive and retention (MAIL_ARCHIVE_R111): the Archive and retention pane and Audit log filters. */

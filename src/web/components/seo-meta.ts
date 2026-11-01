@@ -67,7 +67,10 @@ export const NOT_FOUND_META: PageMeta = { title: "Page not found | Multies", des
 export function metaFor(path: string): PageMeta {
   const clean = path.replace(/\/+$/, "") || "/";
   if (PUBLIC_META[clean]) return PUBLIC_META[clean];
-  if (clean === "/app" || clean.startsWith("/app/") || clean.startsWith("/invite/") || clean.startsWith("/f/") || clean.startsWith("/m/") || clean.startsWith("/g/") || clean === "/guest") {
+  // R93: public forms and feedback boards are real pages with their own titles, so shared links preview well.
+  if (clean.startsWith("/f/")) return { title: "Form | Multies", description: "Answer a short form shared with you on Multies. It takes a minute.", noindex: true };
+  if (clean.startsWith("/fb/")) return { title: "Feedback board | Multies", description: "Share ideas, vote on what matters most and follow the roadmap on Multies.", noindex: true };
+  if (clean === "/app" || clean.startsWith("/app/") || clean.startsWith("/invite/") || clean.startsWith("/m/") || clean.startsWith("/g/") || clean === "/guest") {
     return { title: "Multies", description: DEFAULT.description, noindex: true };
   }
   // R92: public booking pages (book a time, time polls, events, tickets) are real pages; shared links must not preview as not found.

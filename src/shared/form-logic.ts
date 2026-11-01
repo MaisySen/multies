@@ -8,8 +8,9 @@
  * question that is hidden is skipped: never required, never checked, and its answer is dropped.
  */
 
-export type FormFieldType = "text" | "email" | "textarea" | "phone" | "select" | "multiselect" | "number" | "date";
-export const FORM_FIELD_TYPES: FormFieldType[] = ["text", "email", "textarea", "phone", "select", "multiselect", "number", "date"];
+/** R93: "rating" is a 0 to 10 or 1 to 5 scale (NPS and CSAT), its range in rules.min and rules.max. */
+export type FormFieldType = "text" | "email" | "textarea" | "phone" | "select" | "multiselect" | "number" | "date" | "rating";
+export const FORM_FIELD_TYPES: FormFieldType[] = ["text", "email", "textarea", "phone", "select", "multiselect", "number", "date", "rating"];
 
 export type LogicOp = "is" | "is_not" | "contains" | "answered" | "not_answered" | "gt" | "lt";
 export const LOGIC_OPS: LogicOp[] = ["is", "is_not", "contains", "answered", "not_answered", "gt", "lt"];
@@ -31,6 +32,15 @@ export interface FieldRules {
 export interface LogicField {
   id: string; label: string; type: FormFieldType; required: boolean; options?: string[];
   logic?: FieldLogic | null; rules?: FieldRules | null;
+  /** R93: hidden from blind reviewers; the labels at the ends of a rating scale. */
+  identity?: boolean; lowLabel?: string; highLabel?: string;
+}
+
+/** R93: a rating question's range (0 to 10 unless set). */
+export function ratingRange(f: Pick<LogicField, "rules">): { min: number; max: number } {
+  const min = f.rules?.min === 1 ? 1 : 0;
+  const max = typeof f.rules?.max === "number" && f.rules.max >= min + 1 && f.rules.max <= 10 ? Math.round(f.rules.max) : 10;
+  return { min, max };
 }
 
 /** How a multi-select answer is stored as one string. */
@@ -155,6 +165,11 @@ export function normaliseRules(type: FormFieldType, raw: unknown): FieldRules | 
     if (typeof r.pattern === "string" && r.pattern.trim()) out.pattern = r.pattern.trim().slice(0, 200);
     if (typeof r.patternMessage === "string" && r.patternMessage.trim()) out.patternMessage = r.patternMessage.trim().slice(0, 120);
   }
+  if (type === "rating") {
+    const a = num(r.min) === 1 ? 1 : 0;
+    const b = Math.round(num(r.max) ?? 10);
+    return { min: a, max: b >= a + 1 && b <= 10 ? b : 10 };
+  }
   if (type === "number") {
     const a = num(r.min), b = num(r.max);
     if (a !== undefined) out.min = a;
@@ -236,6 +251,11 @@ export function fieldError(f: LogicField, text: string): string | null {
     if (n === undefined) return `"${f.label}" should be a number.`;
     if (r.min !== undefined && n < r.min) return `"${f.label}" should be ${r.min} or more.`;
     if (r.max !== undefined && n > r.max) return `"${f.label}" should be ${r.max} or less.`;
+  }
+  if (f.type === "rating") {
+    const { min, max } = ratingRange(f);
+    const n = num(text);
+    if (n === undefined || !Number.isInteger(n) || n < min || n > max) return `Pick a number from ${min} to ${max} for "${f.label}".`;
   }
   if (f.type === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(text)) return `"${f.label}" should be a date.`;
   if (f.type === "select" && f.options?.length && !f.options.includes(text)) return `Pick one of the options for "${f.label}".`;

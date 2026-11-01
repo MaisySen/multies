@@ -9,7 +9,7 @@ import { isD1LimitError, READ_ONLY_BODY } from "./lib/d1-limit";
 import { busyBody, d1BusyKind } from "./lib/d1-busy";
 import { healthView, noteD1LimitHit, readsView, writeBudget } from "./services/write-budget";
 import { deferredCounts } from "./services/write-priority";
-import { API_CSP, CAMPAIGN_PUBLIC_CSP, appCsp, docsCsp, isHttps, securityHeaders } from "./lib/security-headers";
+import { API_CSP, CAMPAIGN_PUBLIC_CSP, EMBED_FORM_PATH, appCsp, docsCsp, frameableCsp, isHttps, securityHeaders } from "./lib/security-headers";
 import { installCspReport } from "./routes/csp-report-r30";
 import type { AppEnv, Deps } from "./context";
 import { HttpError } from "./lib/errors";
@@ -43,6 +43,8 @@ import { mailArchiveRoutes } from "./routes/mail-archive-r111"; // R111
 import { requestPublicRoutes, secretPublicRoutes, toolsRequestRoutes, toolsSecretRoutes } from "./routes/secure-share"; // R88 // Tools P2: share links
 import { bioPublicRoutes, linkPublicRoutes, linksRoutes } from "./routes/links"; // R87: Links in Tools
 import { bookingPlusRoutes, bookingPublicRoutes } from "./routes/booking-plus"; // R92
+import { formsPlusRoutes, formsPublicRoutes } from "./routes/forms-plus"; // R93
+import { FORMS_EMBED_HEADERS, FORMS_EMBED_JS } from "./routes/forms-embed-script"; // R93
 import { esignPublicRoutes, toolsEsignRoutes } from "./routes/tools-esign"; // Tools P2: e-sign
 import { attachmentIndexRoutes } from "./routes/attachment-index"; // Tools P2: attachment index and smart folders
 import { connectionRoutes } from "./routes/connections";
@@ -237,9 +239,11 @@ export function createApp(deps: Deps) {
   app.use("*", async (c, next) => {
     await next();
     const p = c.req.path;
-    if (p === "/widget.js") return; // R119: the chat script loads on other sites (its own headers)
+    if (p === "/widget.js" || p === "/forms-embed.js") return; // R119 chat script, R93 form bubble: load on other sites (own headers)
     const set = p === "/api/v1/reference" ? docsHeaders : p.startsWith("/api/campaign-public/") ? campaignPublicHeaders : p.startsWith("/api/") || p.startsWith("/.well-known/") ? apiHeaders : p.startsWith("/f/") ? formPageHeaders : pageHeaders;
     for (const [k, v] of Object.entries(set)) c.res.headers.set(k, v);
+    // R93: only the form inside the website bubble may be framed by other sites.
+    if (EMBED_FORM_PATH.test(p) && deps.config.formsPlus) { c.res.headers.delete("x-frame-options"); c.res.headers.set("content-security-policy", frameableCsp(formPageHeaders["content-security-policy"])); }
   });
   app.use("/api/*", async (c, next) => {
     await next();
@@ -446,6 +450,7 @@ export function createApp(deps: Deps) {
       officeEditR113: !!deps.config.officeEditR113, // R113: office files in the browser
       expenses: deps.config.invoicesEnabled && deps.config.expensesR106, // R106
       tablesR125: !!deps.config.tablesR125, // R125: tables (vv8k gets 404 from the API and no entry points)
+      formsPlus: !!deps.config.formsPlus, // R93: chat forms, webhook, embed, feedback boards, calls for submissions
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
       chatChannels: deps.config.channels.enabled,
       // R111: mail archive and retention (MAIL_ARCHIVE_R111=on): the Archive and retention pane and Audit log filters.
@@ -505,6 +510,9 @@ export function createApp(deps: Deps) {
   app.route("/api/links", linksRoutes()); // R87: short links, bio pages, go links, link domain
   app.route("/api/booking", bookingPlusRoutes()); // R92: resources, time polls, events
   app.route("/api/pub/booking", bookingPublicRoutes()); // R92: public poll, event and ticket API with the spam shield
+  app.route("/api/forms-plus", formsPlusRoutes()); // R93: form settings, webhook, feedback boards, calls for submissions
+  app.route("/api/pub/forms", formsPublicRoutes()); // R93: public boards, votes and ideas with the spam shield
+  app.get("/forms-embed.js", (c) => (c.var.deps.config.formsPlus ? c.body(FORMS_EMBED_JS, 200, FORMS_EMBED_HEADERS) : c.notFound())); // R93
   app.route("/api/tools/esign", toolsEsignRoutes()); // Tools P2: e-sign
   app.route("/api/tools", toolsRoutes()); // Tools P1: document tools (off unless TOOLS_ENABLED)
   app.route("/api/tools/campaigns", campaignRoutes()); // R109 (flag merge_plus_r109)

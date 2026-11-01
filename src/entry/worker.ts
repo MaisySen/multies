@@ -22,7 +22,7 @@ import { ResilientOutbound } from "../server/services/resilience";
 import { getOrCreateStoredSecret, runMaintenanceIfMigrated } from "../server/services/maintenance";
 import { toolsCronPasses } from "../server/services/tools/p2-cron"; // Tools P2
 import type { Deps, RateLimitBinding } from "../server/context";
-import { API_CSP, appCsp, isHttps, withSecurityHeaders } from "../server/lib/security-headers";
+import { API_CSP, EMBED_FORM_PATH, appCsp, frameableCsp, isHttps, withSecurityHeaders } from "../server/lib/security-headers";
 import { jsonLogger } from "../server/lib/logger";
 import { withAuthRequestState } from "../server/lib/request-state";
 import { S3BodyStore } from "../server/services/storage/body-store";
@@ -463,7 +463,7 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
     const spec = await builtOpenApi(env, url);
     if (spec) return withSecurityHeaders(spec, apiHeaders);
   }
-  if (url.pathname.startsWith("/api/") || (url.pathname === "/delete-account" && request.method === "POST") /* R83: Threads uninstall and delete callbacks */ || WEB_META_PATHS.has(url.pathname) || url.pathname === "/health" || url.pathname === "/healthz" || url.pathname.startsWith("/cal/") || url.pathname.startsWith("/s/") || url.pathname.startsWith("/help/") /* R122: public help center */ || url.pathname.startsWith("/d/") || url.pathname.startsWith("/u/") || url.pathname.startsWith("/x/") /* R88: file requests and secret links */ || url.pathname.startsWith("/l/") || url.pathname.startsWith("/bio/") /* R87: short links and bio pages */ || url.pathname === "/widget.js" || url.pathname.startsWith("/csat/") /* R119: website chat script and the one tap survey */ || url.pathname === "/dav" || url.pathname.startsWith("/dav/") || url.pathname === "/.well-known/caldav" || url.pathname === "/.well-known/carddav" /* R99: CalDAV and CardDAV */ || url.pathname.startsWith("/p/") /* R120: client portal pages */ || (url.pathname.startsWith("/sign/") && await esignOn(env)) /* Tools P2: share and signing pages (R66: /sign is a plain not found page while e-sign is off) */ || url.pathname === "/.well-known/security.txt" || url.pathname.startsWith("/.well-known/oauth-") || url.pathname === "/.well-known/openid-configuration") {
+  if (url.pathname.startsWith("/api/") || (url.pathname === "/delete-account" && request.method === "POST") /* R83: Threads uninstall and delete callbacks */ || WEB_META_PATHS.has(url.pathname) || url.pathname === "/health" || url.pathname === "/healthz" || url.pathname.startsWith("/cal/") || url.pathname.startsWith("/s/") || url.pathname.startsWith("/help/") /* R122: public help center */ || url.pathname.startsWith("/d/") || url.pathname.startsWith("/u/") || url.pathname.startsWith("/x/") /* R88: file requests and secret links */ || url.pathname.startsWith("/l/") || url.pathname.startsWith("/bio/") /* R87: short links and bio pages */ || url.pathname === "/widget.js" || url.pathname === "/forms-embed.js" /* R93 */ || url.pathname.startsWith("/csat/") /* R119: website chat script and the one tap survey */ || url.pathname === "/dav" || url.pathname.startsWith("/dav/") || url.pathname === "/.well-known/caldav" || url.pathname === "/.well-known/carddav" /* R99: CalDAV and CardDAV */ || url.pathname.startsWith("/p/") /* R120: client portal pages */ || (url.pathname.startsWith("/sign/") && await esignOn(env)) /* Tools P2: share and signing pages (R66: /sign is a plain not found page while e-sign is off) */ || url.pathname === "/.well-known/security.txt" || url.pathname.startsWith("/.well-known/oauth-") || url.pathname === "/.well-known/openid-configuration") {
     const { app, deps } = await getReady(env);
     // Hosts without a cron trigger (the hosted preview) run maintenance from requests.
     // Production and staging have cron triggers and must not: every new isolate used to
@@ -480,7 +480,10 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
   pageHeaders ??= { csp: appCsp(cspBase), hsts: isHttps(url.origin) };
   // Public form pages load Cloudflare Turnstile; the rest of the app runs only its own scripts.
   formPageHeaders ??= { csp: appCsp({ ...cspBase, turnstile: true }), hsts: isHttps(url.origin) };
-  const headers = url.pathname.startsWith("/f/") ? formPageHeaders : pageHeaders;
+  let headers = url.pathname.startsWith("/f/") ? formPageHeaders : pageHeaders;
+  // R93: the form inside the website bubble may be framed by other sites (x-frame-options dropped below).
+  const embedForm = EMBED_FORM_PATH.test(url.pathname) && ["true", "1"].includes(envVar(env, "FORMS_PLUS_R93") ?? "");
+  if (embedForm) headers = { ...formPageHeaders, csp: frameableCsp(formPageHeaders.csp) };
   const asset = await env.ASSETS.fetch(request);
   if (asset.status !== 404) {
     const res = withSecurityHeaders(asset, headers);
@@ -500,6 +503,7 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
     : await env.ASSETS.fetch(new Request(new URL("/", url), { headers: request.headers }));
   // Unknown pages still get the app (it shows page-not-found) but with a real 404 status.
   const res = withSecurityHeaders(new Response(request.method === "HEAD" ? null : shell.body, { status: isKnownPage(url.pathname) ? 200 : 404, headers: shell.headers }), headers);
+  if (embedForm) res.headers.delete("x-frame-options"); // R93
   res.headers.set("cache-control", htmlCacheControl("no-cache"));
   const prerendered = typeof __MYMAIL_PUBLIC_HTML__ === "object" && !!publicHtmlFor(url.pathname, __MYMAIL_PUBLIC_HTML__);
   return request.method === "HEAD" ? res : withPageMeta(res, url.pathname, prerendered);

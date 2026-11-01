@@ -58,7 +58,7 @@ const EventBody = z.object({
 const RsvpBody = z.object({ name: z.string().max(200), email: z.string().max(300), shield: ShieldBody.optional() });
 
 /** A per isolate limit plus the shared binding when one is bound (same as the booking page's). */
-function publicLimit(limit: number, key: (c: Context<AppEnv>) => string): MiddlewareHandler<AppEnv> {
+export function publicLimit(limit: number, key: (c: Context<AppEnv>) => string): MiddlewareHandler<AppEnv> {
   const local = new RateLimiter(limit, 60_000);
   return async (c, next) => {
     const k = key(c);

@@ -10,6 +10,10 @@ import { hmacSha256Hex, randomToken } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, recordWrite, sortableId, type SuiteActor } from "./common";
 import { createTask, getProject, parseAssignee, validateAssignee } from "./tasks";
+import { requireShield } from "../spam-shield";
+import { deliverWebhook, formsPlusOn, submissionExtras, webhookPayload } from "../forms-plus/plus";
+import { fillVariables, parsePlus, pickHidden } from "@/shared/forms-plus";
+import type { ShieldAnswer } from "@/shared/spam-shield";
 import { checkAnswers, checkLogic, cleanLogic, FORM_FIELD_TYPES, LOGIC_OPS, MAX_ROUTES, normaliseLogic, normaliseRules, pickRoute, VALUELESS_OPS, type FormFieldType, type FormRoute, type LogicField } from "@/shared/form-logic";
 
 export type FieldType = FormFieldType;
@@ -52,6 +56,10 @@ export function normaliseFields(input: unknown): FormField[] {
     return {
       id, label, type, required: !!f.required, ...(options ? { options } : {}), ...(f.placeholder ? { placeholder: String(f.placeholder).slice(0, 120) } : {}),
       ...(logic ? { logic } : {}), ...(rules ? { rules } : {}),
+      // R93: hide from blind reviewers; a rating scale's end labels.
+      ...(f.identity ? { identity: true } : {}),
+      ...(type === "rating" && f.lowLabel ? { lowLabel: String(f.lowLabel).trim().slice(0, 40) } : {}),
+      ...(type === "rating" && f.highLabel ? { highLabel: String(f.highLabel).trim().slice(0, 40) } : {}),
     } as FormField;
   });
   // R31: a condition on a question that is gone is dropped; loops and conditions on later questions are refused.
@@ -67,6 +75,8 @@ function present(f: FormRow, origin?: string) {
     target: f.target, projectId: f.projectId, assigneeId: f.assigneeType && f.assigneeId ? `${f.assigneeType}:${f.assigneeId}` : null,
     fields: JSON.parse(f.fields) as FormField[], successMessage: f.successMessage, enabled: f.enabled,
     submitCount: f.submitCount, lastSubmitAt: iso(f.lastSubmitAt), triage: !!f.triage, routing: JSON.parse(f.routing || "[]") as FormRoute[], createdAt: f.createdAt.toISOString(), updatedAt: f.updatedAt.toISOString(), version: f.version,
+    // R93: chat style and the Forms plus settings (secret never included).
+    mode: f.mode ?? "classic", plus: parsePlus(f.plus), hasWebhook: !!f.webhookUrl,
   };
 }
 export type Form = ReturnType<typeof present>;
@@ -91,7 +101,7 @@ export async function getForm(deps: Deps, orgId: string, id: string) {
   };
 }
 
-export interface FormInput { /** R31: the first matching rule picks the task's project and assignee. */ routing?: unknown; name: string; description?: string; target?: "task" | "contact"; projectId?: string | null; assigneeId?: string | null; fields?: unknown; successMessage?: string; enabled?: boolean; /** R21: submissions wait in Triage. */ triage?: boolean }
+export interface FormInput { /** R31: the first matching rule picks the task's project and assignee. */ routing?: unknown; name: string; description?: string; target?: "task" | "contact" | "review"; projectId?: string | null; assigneeId?: string | null; fields?: unknown; successMessage?: string; enabled?: boolean; /** R21: submissions wait in Triage. */ triage?: boolean }
 
 /**
  * R31: checks routing rules against the form's questions and this workspace's projects and people.
@@ -120,7 +130,7 @@ export async function normaliseRouting(deps: Deps, orgId: string, fields: FormFi
   return out;
 }
 
-function checkTarget(target: "task" | "contact", fields: FormField[]) {
+function checkTarget(target: "task" | "contact" | "review", fields: FormField[]) {
   if (target === "contact" && !fields.some((f) => f.type === "email")) throw new HttpError(422, "validation_failed", "A form that makes contacts needs an email field.");
 }
 
@@ -130,6 +140,7 @@ export async function createForm(deps: Deps, actor: SuiteActor, input: FormInput
   const name = input.name.trim().slice(0, 120);
   if (!name) throw new HttpError(422, "validation_failed", "Give the form a name.");
   const target = input.target ?? "task";
+  if (target === "review" && !(await formsPlusOn(deps, actor.orgId))) throw new HttpError(422, "validation_failed", "Calls for submissions aren't on for this workspace.");
   const fields = normaliseFields(input.fields ?? (target === "task" ? DEFAULT_TASK_FIELDS : DEFAULT_TASK_FIELDS.slice(0, 2)));
   checkTarget(target, fields);
   const assignee = parseAssignee(input.assigneeId ?? null);
@@ -156,7 +167,10 @@ export async function updateForm(deps: Deps, actor: SuiteActor, id: string, patc
   const set: Partial<FormRow> = { updatedAt: deps.now(), version: f.version + 1 };
   if (patch.name !== undefined) { const n = patch.name.trim().slice(0, 120); if (!n) throw new HttpError(422, "validation_failed", "Give the form a name."); set.name = n; }
   if (patch.description !== undefined) set.description = patch.description.slice(0, 2000);
-  if (patch.target !== undefined) set.target = patch.target;
+  if (patch.target !== undefined) {
+    if (patch.target === "review" && f.target !== "review" && !(await formsPlusOn(deps, actor.orgId))) throw new HttpError(422, "validation_failed", "Calls for submissions aren't on for this workspace.");
+    set.target = patch.target;
+  }
   if (patch.projectId !== undefined) { if (patch.projectId) await getProject(deps, actor.orgId, patch.projectId); set.projectId = patch.projectId; }
   if (patch.assigneeId !== undefined) { const a = parseAssignee(patch.assigneeId); await validateAssignee(deps, actor.orgId, a); set.assigneeType = a?.type ?? null; set.assigneeId = a?.id ?? null; }
   if (patch.fields !== undefined) set.fields = JSON.stringify(normaliseFields(patch.fields));
@@ -168,7 +182,7 @@ export async function updateForm(deps: Deps, actor: SuiteActor, id: string, patc
     const nextFields = JSON.parse(set.fields ?? f.fields) as FormField[];
     set.routing = JSON.stringify(await normaliseRouting(deps, actor.orgId, nextFields, patch.routing !== undefined ? patch.routing : JSON.parse(f.routing || "[]")));
   }
-  checkTarget((set.target ?? f.target) as "task" | "contact", JSON.parse(set.fields ?? f.fields) as FormField[]);
+  checkTarget((set.target ?? f.target) as "task" | "contact" | "review", JSON.parse(set.fields ?? f.fields) as FormField[]);
   await deps.db.update(forms).set(set).where(eq(forms.id, id));
   await recordWrite(deps, actor, { entityType: "form", entityId: id, op: "update", version: f.version + 1, verb: "form.updated" });
   return present(await formRow(deps, actor.orgId, id), deps.config.appUrl);
@@ -192,7 +206,13 @@ async function publicRow(deps: Deps, slug: string) {
 export async function publicForm(deps: Deps, slug: string) {
   const f = await publicRow(deps, slug);
   const org = await deps.db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, f.orgId)).get();
-  return { name: f.name, description: f.description, fields: JSON.parse(f.fields) as FormField[], workspace: org?.name ?? "", turnstileSiteKey: deps.config.turnstile?.siteKey ?? null };
+  // R93: chat style, the hidden field names, the bubble label, and whether the spam shield is needed.
+  const plusOn = await formsPlusOn(deps, f.orgId);
+  const plus = plusOn ? parsePlus(f.plus) : null;
+  return {
+    name: f.name, description: f.description, fields: JSON.parse(f.fields) as FormField[], workspace: org?.name ?? "", turnstileSiteKey: deps.config.turnstile?.siteKey ?? null,
+    ...(plus ? { plus: { mode: f.mode === "chat" ? "chat" : "classic", hiddenFields: plus.hiddenFields, bubbleLabel: plus.bubbleLabel, review: f.target === "review", deadline: plus.review?.deadline ?? null } } : {}),
+  };
 }
 
 export async function verifyTurnstile(deps: Deps, token: string | undefined, ip: string) {
@@ -222,7 +242,11 @@ export function validateAnswers(fields: FormField[], raw: Record<string, unknown
   return answers;
 }
 
-export interface SubmitMeta { ip: string; turnstileToken?: string; honeypot?: string; elapsedMs?: number }
+export interface SubmitMeta {
+  ip: string; turnstileToken?: string; honeypot?: string; elapsedMs?: number;
+  /** R93 (Forms plus): hidden field values from the link, the spam shield answer, and where to run the webhook after the answer. */
+  hidden?: Record<string, unknown>; shield?: ShieldAnswer; defer?: (p: Promise<unknown>) => void;
+}
 
 /**
  * A public submission. Spam is refused quietly where a bot can't learn from the answer:
@@ -234,6 +258,9 @@ export async function submitForm(deps: Deps, slug: string, raw: Record<string, u
   const thanks = { ok: true, message: f.successMessage };
   if (meta.honeypot || (meta.elapsedMs !== undefined && meta.elapsedMs < MIN_FILL_MS)) return thanks;
   if (!(await verifyTurnstile(deps, meta.turnstileToken, meta.ip))) throw new HttpError(422, "captcha_failed", "Please complete the check and try again.");
+  // R93: with Forms plus on, public answers carry the spam shield (signed challenge, proof of work, one use).
+  const plusOn = await formsPlusOn(deps, f.orgId);
+  if (plusOn) await requireShield(deps, "fplus", meta.shield);
   const ipHash = (await hmacSha256Hex(deps.config.appSecret, `form:${meta.ip}`)).slice(0, 32);
   const since = new Date(deps.now().getTime() - 10 * 60_000);
   const recent = await deps.db.select({ n: sql<number>`count(*)` }).from(formSubmissions)
@@ -245,8 +272,11 @@ export async function submitForm(deps: Deps, slug: string, raw: Record<string, u
   const lines = fields.filter((x) => answers[x.id]).map((x) => (x.type === "textarea" ? `${x.label}:\n${answers[x.id]}` : `${x.label}: ${answers[x.id]}`));
   const emailField = fields.find((x) => x.type === "email" && answers[x.id]);
   const nameField = fields.find((x) => /name/i.test(x.id) || /name/i.test(x.label));
-  let entity: { type: "task" | "contact"; id: string };
-  if (f.target === "contact") {
+  let entity: { type: "task" | "contact"; id: string } | null;
+  // R93: a call for submissions keeps each entry for review; no task or contact is made.
+  if (f.target === "review") {
+    entity = null;
+  } else if (f.target === "contact") {
     const email = answers[emailField!.id];
     const { contactIdFor, createContact, updateContact } = await import("./contacts");
     const phone = fields.find((x) => x.type === "phone" && answers[x.id]);
@@ -278,13 +308,24 @@ export async function submitForm(deps: Deps, slug: string, raw: Record<string, u
   }
   const now = deps.now();
   const sid = sortableId("fsb", now.getTime());
+  // R93: hidden values from the link and the NPS or CSAT score are stored with the answer.
+  const plus = plusOn ? parsePlus(f.plus) : null;
+  const hidden = plus ? pickHidden(plus.hiddenFields, meta.hidden) : {};
+  const extras = plus ? submissionExtras(fields, answers, hidden) : {};
   await Promise.all([
-    deps.db.insert(formSubmissions).values({ id: sid, orgId: f.orgId, formId: f.id, data: JSON.stringify(answers), entityType: entity.type, entityId: entity.id, ipHash, createdAt: now }),
+    deps.db.insert(formSubmissions).values({ id: sid, orgId: f.orgId, formId: f.id, data: JSON.stringify(answers), entityType: entity?.type ?? null, entityId: entity?.id ?? null, ipHash, createdAt: now, ...extras }),
     deps.db.update(forms).set({ submitCount: sql`${forms.submitCount} + 1`, lastSubmitAt: now }).where(eq(forms.id, f.id)),
   ]);
   await recordWrite(deps, system, { entityType: "form", entityId: f.id, op: "update", verb: "form.submitted", data: { submissionId: sid, entity },
     event: "form.submitted", eventData: { formId: f.id, form: f.name, submissionId: sid, answers, created: entity } });
   // R90: flows on "a form is sent".
   await (await import("./flows")).fireFlows(deps, f.orgId, "form_submitted", { formId: f.id, form: f.name, summary: lines.join("\n").slice(0, 4000), email: emailField ? answers[emailField.id] : "", name: nameField ? answers[nameField.id] ?? "" : "", link: `${deps.config.appUrl}/app/forms/${f.id}` }, sid);
-  return { ...thanks, created: entity };
+  // R93: the form's own signed webhook, once, after the answer is saved (never holds up the visitor).
+  if (plus && f.webhookUrl && f.webhookSecret && !plus.webhookPaused) {
+    const p = deliverWebhook(deps, f, webhookPayload(f, { id: sid, answers, hidden, score: (extras as { score?: number | null }).score ?? null, createdAt: now }), sid)
+      .catch((err) => deps.reportError?.(err, { where: "form_webhook" }));
+    if (meta.defer) meta.defer(p); else await p;
+  }
+  const message = plus ? fillVariables(f.successMessage, answers, hidden).trim() || f.successMessage : f.successMessage;
+  return { ...thanks, message, created: entity };
 }
