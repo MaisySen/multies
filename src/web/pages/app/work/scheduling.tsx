@@ -1,6 +1,6 @@
 /** Booking page settings: weekly hours, slot rules and the public link, plus the bookings guests made. */
 import { useEffect, useState, type FormEvent } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { IconCalendarClock, IconExternalLink } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
@@ -33,7 +33,13 @@ export function SchedulingPage() {
   const enabled = !!config.data?.scheduling;
   const maps = useMapsOn(); // R115
   const page = useQuery({ queryKey: ["scheduling", "page"], enabled, queryFn: async () => (await api.get<{ page: Page | null }>("/scheduling/page")).page });
-  const bookings = useQuery({ queryKey: ["scheduling", "bookings"], enabled, queryFn: async () => (await api.get<{ bookings: Booking[] }>("/scheduling/bookings?upcoming=1")).bookings });
+  // R115: the list pages through every upcoming booking (Load more), not only the first 100.
+  const bookingPages = useInfiniteQuery({
+    queryKey: ["scheduling", "bookings"], enabled, initialPageParam: "",
+    queryFn: async ({ pageParam }) => api.get<{ bookings: Booking[]; nextCursor: string | null }>(`/scheduling/bookings?upcoming=1&limit=50${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ""}`),
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+  const bookings = { isLoading: bookingPages.isLoading, data: bookingPages.data?.pages.flatMap((p) => p.bookings) };
   const [draft, setDraft] = useState<Omit<Page, "url"> | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -150,6 +156,9 @@ export function SchedulingPage() {
                 )}
               </div>
             ))}
+            {bookingPages.hasNextPage && (
+              <div className="p-2"><Button variant="ghost" className="w-full max-md:min-h-11" loading={bookingPages.isFetchingNextPage} onClick={() => bookingPages.fetchNextPage()} data-testid="bookings-more">Load more</Button></div>
+            )}
           </Card>
         )}
       </section>

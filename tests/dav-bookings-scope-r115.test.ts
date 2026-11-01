@@ -88,3 +88,36 @@ describe("R115 bookings over sync match the app's Bookings list", () => {
     expect((await dav("/dav/cal/bookings/")).status).toBe(401);
   });
 });
+
+describe("R115 the app's Bookings list pages through every booking", () => {
+  it("returns pages of the asked size with a cursor until the last, in start order, without repeats", async () => {
+    const pat = sam; // the member with no page so far (checked empty above) gets one now
+    const patId = await me(pat);
+    const orgId = (await ctx.db.select().from(members).where(eq(members.userId, await me(owner))).get())!.organizationId;
+    const pg = await page(orgId, patId, "Pat calls");
+    const ids: string[] = [];
+    for (let i = 0; i < 125; i++) ids.push(await booking(orgId, pg, `Caller ${i}`));
+    // Two bookings at the same moment still page by id.
+    const same = await booking(orgId, pg, "Same time");
+    await ctx.db.update(bookings).set({ startsAt: (await ctx.db.select().from(bookings).where(eq(bookings.id, ids[60])).get())!.startsAt }).where(eq(bookings.id, same));
+    const first = (await pat.get("/api/scheduling/bookings?upcoming=1")).body as { bookings: { id: string; startsAt: string }[]; nextCursor: string | null };
+    expect(first.bookings).toHaveLength(100);
+    expect(first.nextCursor).toBeTruthy();
+    const seen: { id: string; startsAt: string }[] = [];
+    let cursor = "";
+    for (let n = 0; n < 10; n++) {
+      const r = (await pat.get(`/api/scheduling/bookings?upcoming=1&limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`)).body as typeof first;
+      seen.push(...r.bookings);
+      if (!r.nextCursor) break;
+      expect(r.bookings).toHaveLength(50);
+      cursor = r.nextCursor;
+    }
+    expect(seen).toHaveLength(126);
+    expect(new Set(seen.map((b) => b.id)).size).toBe(126);
+    const times = seen.map((b) => Date.parse(b.startsAt));
+    expect([...times].sort((a, b) => a - b)).toEqual(times);
+    // Another member never pages into Pat's bookings; a broken cursor reads from the start.
+    expect((await maya.get(`/api/scheduling/bookings?limit=50&cursor=${encodeURIComponent(cursor)}`)).body.bookings.every((b: { id: string }) => !ids.includes(b.id))).toBe(true);
+    expect((await pat.get("/api/scheduling/bookings?limit=50&cursor=nonsense")).body.bookings[0].id).toBe(seen[0].id);
+  });
+});

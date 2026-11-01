@@ -14,7 +14,7 @@ import {
   CATALOGUE, connectIntegration, createIncomingHook, deleteIncomingHook, getIncomingHook, listIncomingHooks, listIntegrations, readHookPayload, receiveIncoming, updateIncomingHook,
 } from "../services/suite/integrations";
 import {
-  bookSlot, bookingIcs, cancelByGuest, cancelByHost, getMyPage, guestBooking, listBookings, publicAvailability, savePage, schedulingEnabled,
+  bookSlot, bookingIcs, cancelByGuest, cancelByHost, getMyPage, guestBooking, listBookingsPage, publicAvailability, savePage, schedulingEnabled,
 } from "../services/suite/scheduling";
 import type { SuiteActor } from "../services/suite/common";
 
@@ -33,7 +33,7 @@ export const PageBody = z.object({
   video: z.boolean().optional(), enabled: z.boolean().optional(),
 });
 export const BookBody = z.object({ startsAt: z.string().max(40), name: z.string().max(120), email: z.string().max(200), note: z.string().max(1000).optional(), timezone: z.string().max(60).optional() });
-export const BookingsQuery = z.object({ upcoming: z.enum(["1", "0", "true", "false"]).optional(), status: z.enum(["confirmed", "cancelled"]).optional(), limit: z.coerce.number().int().min(1).max(500).optional() });
+export const BookingsQuery = z.object({ upcoming: z.enum(["1", "0", "true", "false"]).optional(), status: z.enum(["confirmed", "cancelled"]).optional(), limit: z.coerce.number().int().min(1).max(500).optional(), cursor: z.string().max(100).optional() });
 
 const actor = (c: Context<AppEnv>) => c.var.auth as unknown as SuiteActor;
 
@@ -99,7 +99,8 @@ export function schedulingRoutes() {
     .put("/page", async (c) => c.json({ page: await savePage(c.var.deps, actor(c), await parseBody(c, PageBody)) }))
     .get("/bookings", async (c) => {
       const q = parseQuery(c, BookingsQuery);
-      return c.json({ bookings: await listBookings(c.var.deps, actor(c), { upcoming: q.upcoming === "1" || q.upcoming === "true", status: q.status, limit: q.limit }) });
+      // R115: one page at a time; nextCursor is set while more bookings exist (the list loads them with Load more).
+      return c.json(await listBookingsPage(c.var.deps, actor(c), { upcoming: q.upcoming === "1" || q.upcoming === "true", status: q.status, limit: q.limit, cursor: q.cursor }));
     })
     .post("/bookings/:id/cancel", async (c) => c.json(await cancelByHost(c.var.deps, actor(c), c.req.param("id"))));
 }

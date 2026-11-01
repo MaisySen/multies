@@ -6,7 +6,7 @@
  * A booking costs two inserts (meeting and booking); cancelling costs two updates.
  */
 import { inIds } from "../../lib/sql-chunks";
-import { and, asc, eq, gte, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
+import { and, asc, eq, getTableColumns, gt, gte, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { bookings, meetings, organizations, schedulingPages, users } from "../../db/schema";
 import { randomToken, sha256Hex } from "../../lib/crypto";
@@ -354,13 +354,35 @@ export async function ownBookingPageIds(deps: Deps, orgId: string, userId: strin
 
 /** Bookings, newest start last. A person sees their own pages'; an API key sees the workspace's. */
 export async function listBookings(deps: Deps, actor: SuiteActor, q: { upcoming?: boolean; status?: "confirmed" | "cancelled"; limit?: number } = {}) {
+  return (await listBookingsPage(deps, actor, q)).bookings;
+}
+
+/** R115: a cursor for the next page of bookings: the last row's start (ms) and its row number (insertion order). */
+const ROWID = sql<number>`${bookings}.rowid`;
+function bookingCursor(b: { startsAt: Date; rid: number }) { return `${b.startsAt.getTime()}.${b.rid}`; }
+function parseBookingCursor(c: string | undefined): { at: Date; rid: number } | null {
+  const m = c ? /^(\d{1,15})\.(\d{1,15})$/.exec(c) : null;
+  return m ? { at: new Date(Number(m[1])), rid: Number(m[2]) } : null;
+}
+
+/**
+ * R115 (older bug from R99's report): the app's Bookings list read one page (100 rows) and never the rest. Pages are
+ * ordered by start then id; nextCursor is set while more rows exist, and the list loads them with Load more.
+ */
+export async function listBookingsPage(deps: Deps, actor: SuiteActor, q: { upcoming?: boolean; status?: "confirmed" | "cancelled"; limit?: number; cursor?: string } = {}) {
   assertScheduling(deps);
   const own = !actor.apiKeyId && !actor.agentId;
   const pageIds = own ? await ownBookingPageIds(deps, actor.orgId, actor.userId) : null;
-  if (pageIds && !pageIds.length) return [];
-  const rows = await deps.db.select().from(bookings).where(and(
+  if (pageIds && !pageIds.length) return { bookings: [], nextCursor: null as string | null };
+  const limit = Math.min(q.limit ?? 100, 500);
+  const after = parseBookingCursor(q.cursor);
+  const rows = await deps.db.select({ ...getTableColumns(bookings), rid: ROWID }).from(bookings).where(and(
     eq(bookings.orgId, actor.orgId), pageIds ? inIds(bookings.pageId, pageIds) : undefined, // R115: every own page, not only the first
     q.upcoming ? gte(bookings.startsAt, new Date(deps.now().getTime() - 3600_000)) : undefined, q.status ? eq(bookings.status, q.status) : undefined,
-  )).orderBy(asc(bookings.startsAt)).limit(Math.min(q.limit ?? 100, 500));
-  return rows.map((b) => presentBooking(b, deps.config.appUrl));
+    // Same start: the earlier made first (a slot cancelled and booked again keeps its order).
+    after ? or(gt(bookings.startsAt, after.at), and(eq(bookings.startsAt, after.at), gt(ROWID, after.rid))) : undefined,
+  )).orderBy(asc(bookings.startsAt), asc(ROWID)).limit(limit + 1);
+  const more = rows.length > limit;
+  const page = more ? rows.slice(0, limit) : rows;
+  return { bookings: page.map(({ rid: _rid, ...b }) => presentBooking(b, deps.config.appUrl)), nextCursor: more ? bookingCursor(page[page.length - 1]) : null };
 }
