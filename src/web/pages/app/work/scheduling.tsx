@@ -122,6 +122,7 @@ export function SchedulingPage() {
             <Field label="Notice">{(p) => <Select {...p} value={draft.minNoticeMin} onChange={(e) => set("minNoticeMin", Number(e.target.value))}>{([[0, "None"], [60, "1 hour"], [120, "2 hours"], [240, "4 hours"], [1440, "1 day"], [2880, "2 days"]] as [number, string][]).map(([n, l]) => <option key={n} value={n}>{l}</option>)}</Select>}</Field>
           </div>
           <div className="flex items-center justify-between text-sm"><span>Video link on each booking</span><Switch checked={draft.video} onChange={(v) => set("video", v)} label="Video link on each booking" /></div>
+          {maps && !page.data && <p className="text-[12.5px] text-muted" data-testid="meeting-place-later">Save your booking page first, then add a meeting place for meetings in person.</p>}
           {maps && page.data && <AddressCard type="scheduling_page" id="mine" title="Meeting place" hint="Optional. For meetings in person, guests see this place with directions." />}
           <div className="flex items-center justify-between text-sm"><span>Accept bookings</span><Switch checked={draft.enabled} onChange={(v) => set("enabled", v)} label="Accept bookings" /></div>
           <Button type="submit" className="w-full" disabled={busy}>{busy ? "Saving..." : url ? "Save changes" : "Create booking page"}</Button>
