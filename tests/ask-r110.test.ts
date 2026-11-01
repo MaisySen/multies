@@ -271,6 +271,32 @@ describe("change cards, save to a doc, history and prompts", () => {
     expect(JSON.stringify(doc)).toContain("AI answers can be wrong");
   });
 
+  it("asks before saving an answer built from items others cannot open (verifier v13 BLOCKER, privacy)", async () => {
+    const member = await teammate();
+    await note("Pelican pricing is too high", { private: true });
+    const r = await ask(c, "pelican pricing");
+    expect(r.body.message.status).toBe("answered");
+    const docsBefore = (await c.get("/api/docs")).body.docs.length;
+    const refused = await c.post(`/api/ask/messages/${r.body.message.id}/doc`);
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.code ?? refused.body.code).toBe("private_sources");
+    expect(JSON.stringify(refused.body)).toContain("Everyone in the workspace can open a saved doc");
+    expect((await c.get("/api/docs")).body.docs.length).toBe(docsBefore);
+    // Nothing reached the member: no doc, and their own Ask finds nothing.
+    expect((await member.client.get("/api/docs")).body.docs.some((d: { title: string }) => d.title.startsWith("Ask: pelican"))).toBe(false);
+    // The asker can still choose to share, knowingly.
+    const shared = await c.post(`/api/ask/messages/${r.body.message.id}/doc`, { share: true });
+    expect(shared.status).toBe(200);
+    expect((await member.client.get(`/api/docs/${shared.body.docId}`)).status).toBe(200);
+  });
+
+  it("saves at once when every member can open the sources", async () => {
+    await teammate();
+    await c.post("/api/tasks", { title: "Heron launch" });
+    const r = await ask(c, "heron launch");
+    expect((await c.post(`/api/ask/messages/${r.body.message.id}/doc`)).status).toBe(200);
+  });
+
   it("keeps history private, follows up in a thread, and finds old questions", async () => {
     await c.post("/api/tasks", { title: "Heron launch" });
     const first = await ask(c, "heron launch");

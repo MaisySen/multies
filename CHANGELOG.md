@@ -16,6 +16,7 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 ## R110 Ask your workspace (2026-11-01)
 ### Added
 - Tools, Ask your workspace (flag `ASK_R110`, migration 0131): ask a question across mail, docs, tasks, contacts and files. Answers use only items the asker can open, checked at question time (access removed later hides them too), list their sources and carry a note that AI answers can be wrong. Prompt library, private searchable history, save an answer to a doc, and change cards that apply nothing until Apply is clicked. Ctrl K offers "Ask AI" for a typed question. Guests get no Ask.
+- Save to a doc asks first when the answer used items some members cannot open (your own mail, a private channel, a private note): a saved doc is open to the whole workspace, so nothing is shared without that click.
 - Free tier AI only: a per workspace daily cap and an account wide daily cap, counted before each call, with a calm "Daily limit reached" state; the client workspace excluded from Ask stays excluded.
 ### Fixed
 - A long search (about 48 characters or more) in Contacts answered 500 on production: D1 refuses a LIKE pattern over 50 bytes. Contacts, Companies, Docs and Tasks lists, global search, the new search and Ask history now match with instr, with no length limit, and % and _ are plain characters.

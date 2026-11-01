@@ -23,7 +23,7 @@ export function askRoutes() {
     .delete("/threads/:id", async (c) => c.json(await deleteThread(c.var.deps, c.var.auth, c.req.param("id"))))
     .post("/cards/:id/apply", async (c) => c.json({ card: await decideCard(c.var.deps, c.var.auth, c.req.param("id"), "apply", await body(c)) }))
     .post("/cards/:id/dismiss", async (c) => c.json({ card: await decideCard(c.var.deps, c.var.auth, c.req.param("id"), "dismiss") }))
-    .post("/messages/:id/doc", async (c) => c.json(await saveToDoc(c.var.deps, c.var.auth, c.req.param("id"))))
+    .post("/messages/:id/doc", async (c) => { const body = (await c.req.json().catch(() => ({}))) as { share?: unknown }; return c.json(await saveToDoc(c.var.deps, c.var.auth, c.req.param("id"), { share: body?.share })); })
     .get("/prompts", async (c) => c.json(await listPrompts(c.var.deps, c.var.auth)))
     .post("/prompts", async (c) => c.json(await savePrompt(c.var.deps, c.var.auth, await body(c))))
     .delete("/prompts/:id", async (c) => c.json(await deletePrompt(c.var.deps, c.var.auth, c.req.param("id"))));

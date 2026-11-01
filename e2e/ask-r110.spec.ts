@@ -122,6 +122,26 @@ test("save to a doc opens a real doc", async () => {
   await expect(page).toHaveURL(/\/app\/docs\//);
 });
 
+test("save to a doc asks first when the answer used a private item (verifier v13, privacy)", async () => {
+  const page = owner.page;
+  const post = (path: string, data: unknown) => page.request.post(path, { data, headers: owner.headers }).then((r) => r.json());
+  const contact = (await post("/api/contacts", { name: "Gannet Supplies", email: "hello@gannet.example" })).contact;
+  await post("/api/crm/entries", { entityType: "contact", entityId: contact.id, kind: "note", body: "Gannet pricing is our private walk away number", private: true });
+  await page.goto("/app/tools/ask");
+  await askUi(page, "What is the gannet pricing?");
+  const answer = page.getByTestId("ask-answer").last();
+  await expect(answer.getByTestId("ask-source").first()).toContainText(/gannet/i, { timeout: 15_000 });
+  await answer.getByTestId("ask-save-doc").click();
+  const dialog = page.getByRole("dialog", { name: "Share this answer with everyone?" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("Everyone in the workspace can open a saved doc");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(answer.getByTestId("ask-save-doc")).toHaveText("Save to a doc");
+  const docs = (await (await member.page.request.get("/api/docs", { headers: member.headers })).json()).docs as { title: string }[];
+  expect(docs.some((d) => d.title.toLowerCase().includes("gannet"))).toBe(false);
+});
+
 test("history is searchable and private; the command menu asks too", async () => {
   const page = owner.page;
   await page.goto("/app/tools/ask");

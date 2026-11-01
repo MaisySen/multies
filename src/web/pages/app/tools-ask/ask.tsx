@@ -8,6 +8,7 @@ import { Link, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, errorMessage } from "@/web/lib/api";
 import { Button } from "@/web/components/ui/button";
+import { ConfirmDialog } from "@/web/components/ui/confirm";
 import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Input, Select, Textarea } from "@/web/components/ui/input";
 import { IconChatQuote, IconClose, IconHistory, IconSparkle } from "@/web/components/ui/icon";
@@ -54,7 +55,14 @@ function Answer({ m, onSaved }: { m: AskMessage; onSaved: (docId: string) => voi
     mutationFn: ({ id, how }: { id: string; how: "apply" | "dismiss" }) => api.post(`/ask/cards/${encodeURIComponent(id)}/${how}`, how === "apply" ? { projectId: projectId || projects.data?.[0]?.id } : {}),
     onSettled: () => void qc.invalidateQueries({ queryKey: ["ask-thread"] }),
   });
-  const save = useMutation({ mutationFn: () => api.post<{ docId: string }>(`/ask/messages/${encodeURIComponent(m.id)}/doc`), onSuccess: (r) => onSaved(r.docId) });
+  // A saved doc is open to the whole workspace: when the answer used items some people cannot open, the server answers
+  // 409 private_sources and the person decides in a confirm that says so plainly (verifier v13, privacy).
+  const [privateAsk, setPrivateAsk] = useState<string | null>(null);
+  const save = useMutation({
+    mutationFn: (share: boolean) => api.post<{ docId: string }>(`/ask/messages/${encodeURIComponent(m.id)}/doc`, share ? { share: true } : {}),
+    onSuccess: (r) => { setPrivateAsk(null); onSaved(r.docId); },
+    onError: (e) => { if (e instanceof ApiError && e.code === "private_sources") setPrivateAsk(e.message); },
+  });
   const cited = m.sources.filter((s) => s.cited);
   const listed = cited.length ? cited : m.sources;
   return (
@@ -117,12 +125,14 @@ function Answer({ m, onSaved }: { m: AskMessage; onSaved: (docId: string) => voi
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
         <p className="text-xs text-subtle" data-testid="ask-note">{ASK_NOTE}</p>
         {m.status === "answered" && (
-          <Button size="sm" variant="secondary" onClick={() => save.mutate()} disabled={save.isPending || save.isSuccess} data-testid="ask-save-doc">
+          <Button size="sm" variant="secondary" onClick={() => save.mutate(false)} disabled={save.isPending || save.isSuccess} data-testid="ask-save-doc">
             {save.isSuccess ? "Saved to a doc" : save.isPending ? "Saving" : "Save to a doc"}
           </Button>
         )}
       </div>
-      {save.isError && <p role="alert" className="text-xs text-danger">{errorMessage(save.error)}</p>}
+      <ConfirmDialog open={!!privateAsk} onClose={() => setPrivateAsk(null)} onConfirm={() => save.mutate(true)} busy={save.isPending}
+        title="Share this answer with everyone?" description={privateAsk ?? undefined} confirmLabel="Save for everyone" tone="primary" />
+      {save.isError && !privateAsk && !(save.error instanceof ApiError && save.error.code === "private_sources") && <p role="alert" className="text-xs text-danger">{errorMessage(save.error)}</p>}
     </Card>
   );
 }
@@ -173,11 +183,14 @@ function AskInner() {
   useEffect(() => { if (typedQ) setQuestion(typedQ); }, [typedQ]);
   const [notice, setNotice] = useState<{ kind: "limit" | "saved"; docId?: string } | null>(null);
   const [sheet, setSheet] = useState(false);
+  const historyBtn = useRef<HTMLButtonElement>(null);
+  /** Close the history sheet and give focus back to the History button (verifier v13 low: Esc dropped focus to the page). */
+  const closeSheet = () => { setSheet(false); requestAnimationFrame(() => historyBtn.current?.focus()); };
   const box = useRef<HTMLTextAreaElement>(null);
   useEffect(() => { box.current?.focus(); }, [threadId]);
   useEffect(() => {
     if (!sheet) return;
-    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === "Escape") setSheet(false); };
+    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === "Escape") closeSheet(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [sheet]);
@@ -224,7 +237,7 @@ function AskInner() {
       <div className="min-w-0 space-y-4">
         <div className="flex items-center justify-between gap-2 2xl:hidden">
           <span className="text-xs text-subtle sm:hidden" data-testid="ask-usage-phone">{usageLine(usage)}</span>
-          <Button size="sm" variant="secondary" onClick={() => setSheet(true)} aria-haspopup="dialog" data-testid="ask-history-open"><IconHistory className="mr-1.5 h-4 w-4" aria-hidden />History</Button>
+          <Button ref={historyBtn} size="sm" variant="secondary" onClick={() => setSheet(true)} aria-haspopup="dialog" data-testid="ask-history-open"><IconHistory className="mr-1.5 h-4 w-4" aria-hidden />History</Button>
         </div>
 
         {messages.length === 0 && !threadId && !ask.isPending && (
@@ -299,9 +312,9 @@ function AskInner() {
       {!sheet && <aside className="hidden 2xl:block" aria-label="Your questions">{history}</aside>}
       {sheet && (
         <div className="fixed inset-0 z-50 2xl:hidden" role="dialog" aria-modal="true" aria-label="History">
-          <button type="button" className="absolute inset-0 bg-black/40" aria-label="Close history" onClick={() => setSheet(false)} />
+          <button type="button" className="absolute inset-0 bg-black/40" aria-label="Close history" onClick={closeSheet} />
           <div className="absolute inset-x-0 bottom-0 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-surface p-4 shadow-pop sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[360px] sm:rounded-none sm:rounded-l-2xl">
-            <div className="mb-2 flex justify-end"><button type="button" onClick={() => setSheet(false)} className={`grid h-10 w-10 place-items-center rounded-lg text-subtle hover:text-fg ${ring}`} aria-label="Close history"><IconClose className="h-4 w-4" aria-hidden /></button></div>
+            <div className="mb-2 flex justify-end"><button type="button" onClick={closeSheet} className={`grid h-10 w-10 place-items-center rounded-lg text-subtle hover:text-fg ${ring}`} aria-label="Close history"><IconClose className="h-4 w-4" aria-hidden /></button></div>
             {history}
           </div>
         </div>
