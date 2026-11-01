@@ -308,6 +308,9 @@ binding = "AI"
 
 [env.staging.vars]
 HELP_CENTER = "on" # R122: help center
+# ANALYTICS-PH: internal product usage analytics (POSTHOG_KEY and ANALYTICS_HASH_KEY are secrets; the client workspace is always excluded).
+ANALYTICS_PH = "on"
+POSTHOG_HOST = "https://eu.i.posthog.com"
 DASHBOARDS_PLUS = "on" # R91
 # R118: the test network for compose, schedule, approve, inbox and analytics checks (refused on multies.si by code).
 SOCIAL_TEST_NETWORK = "on"
