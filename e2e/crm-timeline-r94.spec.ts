@@ -79,7 +79,7 @@ test("timeline error shows plain words and Try again works", async ({ page }) =>
   await page.getByTestId("contact-list").locator("a").first().click();
   await expect(page.getByTestId("load-error-inline")).toBeVisible({ timeout: 20_000 });
   fail = false;
-  await page.getByRole("button", { name: "Try again" }).click();
+  await page.getByRole("button", { name: "Retry" }).click();
   await expect(page.getByTestId("crm-composer")).toBeVisible();
   await expect(page.getByTestId("load-error-inline")).toHaveCount(0);
 });

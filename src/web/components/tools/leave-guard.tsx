@@ -26,6 +26,7 @@ export function useLeaveGuard(dirty: boolean, what = "your file", description?: 
   }, [dirty]);
   // F12 (MB-296): Back is held by the router and the page put back; the router can drop its "blocked" state while it
   // puts the page back, so the question keeps its own open state and remembers where the move was going.
+  const [open, setOpen] = useState(false);
   const skip = useRef(false);
   const here = useRef(useLocation().pathname);
   const attempt = useRef<{ to: string; pop: boolean } | null>(null);
@@ -33,20 +34,20 @@ export function useLeaveGuard(dirty: boolean, what = "your file", description?: 
     // A move back to this page (the router putting the page back after a held Back) never asks.
     if (skip.current || nextLocation.pathname === here.current || !shouldAsk(dirty, currentLocation, nextLocation, peekCarried().length)) return false;
     attempt.current = { to: nextLocation.pathname + nextLocation.search + nextLocation.hash, pop: historyAction === "POP" };
+    // Back: the page is put back first (a history move of its own, which would close an open dialog), then it asks.
+    if (historyAction === "POP") window.setTimeout(() => setOpen(true), 250); else setOpen(true);
     return true;
   }, [dirty]);
   const blocker = useBlocker(ask);
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-  useEffect(() => { if (blocker.state === "blocked") setOpen(true); }, [blocker.state]);
   useEffect(() => { if (!dirty) setOpen(false); }, [dirty]);
   const stay = () => { if (blocker.state === "blocked") blocker.reset?.(); setOpen(false); };
   const leave = () => {
     setOpen(false);
+    skip.current = true; // nothing asks again on the way out
     if (blocker.state === "blocked") { blocker.proceed?.(); return; }
     const a = attempt.current;
-    if (!a) return;
-    skip.current = true;
+    if (!a) { skip.current = false; return; }
     if (a.pop) void navigate(-1); else void navigate(a.to);
   };
   return (

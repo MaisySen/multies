@@ -140,7 +140,7 @@ test("error state with retry, and no access with the account password", async ({
   await expect(card.getByText("Couldn't load this")).toBeVisible({ timeout: 15_000 });
   await shot(page, "r99-error-390-light");
   fail = false;
-  await card.getByRole("button", { name: "Try again" }).click();
+  await card.getByRole("button", { name: "Retry" }).click();
   await expect(card.getByTestId("dav-empty")).toBeVisible();
   const wrong = await request.fetch(`${baseURL}/dav/`, { method: "PROPFIND", headers: { authorization: basic("demo@example.com", "a-strong-password"), depth: "0" } });
   expect(wrong.status()).toBe(401);
