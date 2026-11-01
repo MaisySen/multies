@@ -11,7 +11,7 @@ describe("R131 home widgets: layout rules", () => {
   });
   it("normalize drops unknown and unavailable widgets, keeps order, appends missing ones hidden", () => {
     const l = normalizeLayout({ v: 1, items: [{ id: "inbox", size: "wide" }, { id: "social", size: "small" }, { id: "tasks", size: "small" }], links: [] }, ["tasks", "inbox", "links"]);
-    expect(l.items).toEqual([{ id: "inbox", size: "wide" }, { id: "tasks", size: "small" }, { id: "links", size: "small", hidden: true }]);
+    expect(l.items).toEqual([{ id: "inbox", size: "wide" }, { id: "tasks", size: "small" }, { id: "links", size: "medium", hidden: true }]);
   });
   it("normalize falls back to the built in layout on junk", () => {
     expect(normalizeLayout("nope", WIDGET_IDS)).toEqual(builtinLayout());
