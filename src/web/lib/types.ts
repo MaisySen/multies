@@ -23,6 +23,8 @@ export interface PublicConfig {
   helpCenter?: boolean;
   /** R98: typo tolerant search with filters and instant results (SEARCH_R98). */
   searchR98?: boolean;
+  /** R110: Ask across the workspace (ASK_R110). */
+  askR110?: boolean;
   /** R94: CRM timeline (notes are searchable with R98). */
   crmTimeline?: boolean;
   /** R99: calendar and contacts sync (CalDAV and CardDAV). */

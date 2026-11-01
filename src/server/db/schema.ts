@@ -3720,3 +3720,44 @@ export const socialAccountProfiles = sqliteTable("social_account_profiles", {
   avatarUrl: text("avatar_url"),
   checkedAt: ts("checked_at").notNull(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.accountId] }), uniqueIndex("social_account_profiles_ext_uq").on(t.orgId, t.app, t.externalId)]);
+// R110: Ask across the workspace (migration 0131). Private to each person; cards apply only on their click.
+export const askThreads = sqliteTable("ask_threads", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+}, (t) => [index("ask_threads_user_idx").on(t.orgId, t.userId, t.updatedAt)]);
+export const askMessages = sqliteTable("ask_messages", {
+  id: text("id").primaryKey(),
+  threadId: text("thread_id").notNull().references(() => askThreads.id, { onDelete: "cascade" }),
+  orgId: text("org_id").notNull(),
+  userId: text("user_id").notNull(),
+  question: text("question").notNull(),
+  answer: text("answer").notNull(),
+  sources: text("sources").notNull().default("[]"),
+  status: text("status").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+}, (t) => [index("ask_messages_thread_idx").on(t.threadId, t.createdAt), index("ask_messages_user_idx").on(t.orgId, t.userId, t.createdAt)]);
+export const askCards = sqliteTable("ask_cards", {
+  id: text("id").primaryKey(),
+  messageId: text("message_id").notNull().references(() => askMessages.id, { onDelete: "cascade" }),
+  orgId: text("org_id").notNull(),
+  userId: text("user_id").notNull(),
+  kind: text("kind").notNull(),
+  targetId: text("target_id"),
+  payload: text("payload").notNull().default("{}"),
+  status: text("status").notNull().default("pending"),
+  resultId: text("result_id"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  decidedAt: integer("decided_at", { mode: "timestamp_ms" }),
+}, (t) => [index("ask_cards_message_idx").on(t.messageId)]);
+export const askPrompts = sqliteTable("ask_prompts", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  text: text("text").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+}, (t) => [index("ask_prompts_user_idx").on(t.orgId, t.userId)]);

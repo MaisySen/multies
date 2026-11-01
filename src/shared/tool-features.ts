@@ -35,6 +35,7 @@ export const TOOL_FEATURES = [
   "tools_c",    // R100 Tools C: fix a PDF (qpdf), QR and barcodes on a PDF, read comments, utilities
   "tools_c2",   // R100b: slides and drawings on the engine, image links, link preview
   "merge_plus_r109", // R109 lists with consent, newsletters and journeys (Spam Act)
+  "ask_r110",   // R110: Ask across the workspace (free AI, capped, only what the asker can open)
 ] as const;
 
 export type ToolFeature = (typeof TOOL_FEATURES)[number];

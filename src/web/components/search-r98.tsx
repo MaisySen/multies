@@ -165,11 +165,18 @@ export function Corrected({ corrected, typed, onStrict }: { corrected: string; t
   );
 }
 
-export function SearchError({ onRetry }: { onRetry: () => void }) {
+/** R110 (R98 low): a bad filter (422) says so plainly instead of the generic line. */
+export function searchErrorText(error?: unknown): string {
+  const e = error as { status?: number } | null | undefined;
+  return e && e.status === 422 ? "That filter is not valid. Change it and try again." : "Search is not answering right now. Commands below still work.";
+}
+
+export function SearchError({ onRetry, error }: { onRetry: () => void; error?: unknown }) {
+  const bad = (error as { status?: number } | null | undefined)?.status === 422;
   return (
     <div role="alert" className="mx-3 my-2 flex items-center gap-2 rounded-lg border border-line bg-subtle/5 px-3 py-2 text-[13px] text-muted" data-testid="search-error">
-      <span className="min-w-0 flex-1">Search is not answering right now. Commands below still work.</span>
-      <button type="button" onClick={onRetry} className="shrink-0 rounded-md px-2 py-1 font-medium text-brand-hover hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand max-sm:min-h-[40px]">Try again</button>
+      <span className="min-w-0 flex-1">{searchErrorText(error)}</span>
+      {!bad && <button type="button" onClick={onRetry} className="shrink-0 rounded-md px-2 py-1 font-medium text-brand-hover hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand max-sm:min-h-[40px]">Try again</button>}
     </div>
   );
 }

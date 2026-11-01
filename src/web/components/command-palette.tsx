@@ -121,6 +121,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   const pages = palette.filter((c) => !c.when && c.group === "Go to").map(toItem);
   // R87: team go links (go/name), when Tools > Links is on.
   const goLinks = useGoLinks(open && !!config.data?.tools && !!config.data?.toolFeatures?.includes("links"));
+  const askOn = !!config.data?.askR110; // R110
   const go = (to: string, label?: string, hint?: string) => () => { if (label) recordRecent({ kind: "item", id: to, label, url: to, hint }); ctx.navigate(to); };
   const goItems: Item[] = (goLinks.data?.links ?? []).map((g) => ({ id: `go-${g.id}`, label: `go/${g.name}`, hint: g.description || g.label || "Go link", icon: IconLink, keywords: [g.name, `go ${g.name}`, g.label ?? "", "go link"], run: g.targetKind === "url" ? () => { close(); window.open(g.href, "_blank", "noopener"); } : go(`/app/go/${g.name}`, `go/${g.name}`, "Go link") }));
   const records: Item[] = [
@@ -262,7 +263,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
       {/* R98: notices with buttons sit outside the list (a listbox may only hold options). */}
       {r98 && !picker && (
         <>
-          {r98 && content.active && r98s.error && <SearchError onRetry={r98s.retry} />}
+          {r98 && content.active && r98s.error && <SearchError onRetry={r98s.retry} error={r98s.error} />}
           {r98 && content.active && !r98s.error && r98s.data?.corrected && !strict && <Corrected corrected={r98s.data.corrected} typed={parsed.text} onStrict={() => setStrict(true)} />}
           {r98 && !typed && content.active && !content.loading && !r98s.error && !hits.length && !r98s.data?.groups.length && (
             <NoResults search={parsed.text} filtered={hasFilters(effective)} onClear={() => { setFilters(NO_FILTERS); setSearch(parsed.text); }} />
@@ -303,6 +304,16 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
             {group(<Heading icon={IconClock}>Recent commands</Heading>, recentCommands, "palette-recent-commands")}
             {r98 && <TopHits hits={hits} search={search} onOpen={openResult} />}
             <ContentGroups state={shown as typeof legacy} search={search} onOpen={openResult} />
+            {/* R110: ask the typed words as a question (Tools feature ask_r110). */}
+            {askOn && search.trim().length >= 3 && (
+              <Command.Group forceMount heading={<Heading icon={IconSparkle}>Ask AI</Heading>} className={groupClass} data-testid="palette-ask">
+                <Command.Item forceMount value={`${search}|ask-ai`} onSelect={() => ctx.navigate(`/app/tools/ask?q=${encodeURIComponent(search.trim())}`)}
+                  className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2.5 text-[13.5px] text-fg transition-colors duration-150 data-[selected=true]:bg-hover motion-reduce:transition-none max-sm:min-h-[44px]">
+                  <IconSparkle className="h-4 w-4 shrink-0 text-brand" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate">Ask AI: {search.trim()}</span>
+                </Command.Item>
+              </Command.Group>
+            )}
             {group(<Heading icon={IconCommand}>Actions</Heading>, actions)}
             {group(<Heading icon={IconArrowRight}>Go to</Heading>, pages)}
             {group(<Heading icon={IconLink}>Go links</Heading>, goItems, "palette-go-links")}

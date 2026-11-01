@@ -8,7 +8,8 @@ import type { ToolFeature } from "@/shared/tool-features";
  * the separate index database (INDEX_DB) is not bound, so the UI hides the search and the routes answer 404.
  */
 export function activeToolFeatures(deps: Pick<Deps, "config" | "indexDb">): ToolFeature[] {
-  const f = deps.config.tools.features;
+  // R110: Ask has its own switch (ASK_R110); it shows in the Tools directory while that is on.
+  const f = deps.config.askR110 ? [...deps.config.tools.features.filter((x) => x !== "ask_r110"), "ask_r110" as const] : deps.config.tools.features.filter((x) => x !== "ask_r110");
   return deps.indexDb ? f : f.filter((x) => x !== "index");
 }
 

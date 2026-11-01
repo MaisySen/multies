@@ -34,6 +34,12 @@ interface Home {
 }
 interface Detail { task: Task; subtasks: Task[]; comments: Comment[]; files: TaskFile[]; customFields: CustomField[] }
 
+/** R110: the item a guest link points at (?task= or ?doc=), read once when the page opens. */
+export function guestLinkParam(key: "task" | "doc", search = typeof window === "undefined" ? "" : window.location.search): string | null {
+  const v = new URLSearchParams(search).get(key);
+  return v && /^[A-Za-z0-9_-]{1,64}$/.test(v) ? v : null;
+}
+
 export function GuestAcceptPage() {
   const { token } = useParams();
   const navigate = useNavigate();
@@ -126,8 +132,9 @@ function TaskView({ id, fields, onClose }: { id: string; fields: CustomField[]; 
 
 export function GuestProjectPage() {
   const q = useQuery({ queryKey: ["guest-home"], retry: false, queryFn: () => api.get<Home>("/guest/me") });
-  const [openTask, setOpenTask] = useState<string | null>(null);
-  const [openDoc, setOpenDoc] = useState<string | null>(null);
+  // R110 (R98 low): a guest search result links to /guest?task=<id> or /guest?doc=<id>; open that item.
+  const [openTask, setOpenTask] = useState<string | null>(() => guestLinkParam("task"));
+  const [openDoc, setOpenDoc] = useState<string | null>(() => (guestLinkParam("task") ? null : guestLinkParam("doc")));
   const navigate = useNavigate();
   const signOut = async () => { await api.post("/guest/signout").catch(() => undefined); navigate("/", { replace: true }); };
   if (q.isPending) return (

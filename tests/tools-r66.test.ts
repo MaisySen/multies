@@ -231,7 +231,7 @@ describe("R66 minors", () => {
   });
   it("search matches whole word starts and skips small words", () => {
     const ai = searchEntries(entries, "ai").map((e) => e.key);
-    expect(ai.every((k) => ["ask", "translate", "extract", "expenses", "contracts"].includes(k))).toBe(true);
+    expect(ai.every((k) => ["ask", "ask-workspace", "translate", "extract", "expenses", "contracts"].includes(k))).toBe(true);
     expect(searchEntries(entries, "pdf to word").map((e) => e.key)).not.toContain("protect");
     expect(searchEntries(entries, "pdf to word")[0].key).toBe("pdf-to-docx");
     expect(searchEntries(entries, "compr").map((e) => e.key)).toContain("compress");

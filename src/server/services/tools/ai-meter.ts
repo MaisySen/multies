@@ -124,7 +124,8 @@ export async function reserveRow(deps: Deps, day: string, row: string, units: nu
 }
 
 /** Moves a reservation by `delta` (negative gives units back). Never below zero. Calls change only on a release. */
-async function adjustRow(deps: Deps, day: string, row: string, delta: number, release = false): Promise<void> {
+/** R110: Ask gives units back through this too. */
+export async function adjustRow(deps: Deps, day: string, row: string, delta: number, release = false): Promise<void> {
   if (delta === 0 && !release) return;
   await deps.db.run(sql`update ai_usage_daily set units = max(0, units + ${delta}), calls = max(0, calls - ${release ? 1 : 0})
     where day = ${day} and org_id = ${row}`);

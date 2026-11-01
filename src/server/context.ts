@@ -33,6 +33,8 @@ export interface Deps {
   importFiles?: import("./services/data-move/kept-file").ImportFileStore;
   /** Tools P2: Workers AI (binding AI). Call only through the AI meter, which holds the free daily cap. */
   ai?: import("./services/tools/p2-bindings").AiRunner;
+  /** R110: a local stand in for Ask in end to end tests only (ASK_AI_FAKE=1 on a localhost APP_URL). */
+  askAi?: import("./services/tools/p2-bindings").AiRunner;
   /** Tools P2: files kept past one job (share links, signing requests) in KV with their own expiry. */
   toolFiles?: import("./services/tools/p2-bindings").ToolFileStore;
   /**

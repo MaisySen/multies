@@ -123,6 +123,7 @@ const NotificationSettings = lazyPage(() => notificationPages(), "NotificationSe
 const TemplatesPage = lazyPage(() => import("./pages/app/work/templates"), "TemplatesPage");
 const ToolsPage = lazyPage(() => import("./pages/app/tools"), "ToolsPage");
 const ToolsAiPage = lazyPage(() => import("./pages/app/tools-ai"), "ToolsAiPage"); // Tools P2: AI documents
+const AskPage = lazyPage(() => import("./pages/app/tools-ask/ask"), "AskPage"); // R110: Ask across the workspace
 const ToolsEditorRoute = lazyPage(() => import("./pages/app/tools-editors/route"), "ToolsEditorRoute"); // Tools P2: editors
 const ConvertHubPage = lazyPage(() => import("./pages/app/tools-convert/convert-hub"), "ConvertHubPage");
 const UtilitiesPage = lazyPage(() => import("./pages/app/tools-c/utilities"), "UtilitiesPage"); // R100
@@ -295,6 +296,7 @@ export const router = createBrowserRouter([
       { path: "meetings/:id", element: page(<MeetingPage />) },
       { path: "scheduling", element: page(<SchedulingPage />) },
       { path: "tools", element: page(<ToolsPage />) }, // Tools P1
+      { path: "tools/ask", element: page(<AskPage />) }, // R110 (ASK_R110; the page shows not found while it is off)
       { path: "tools/ai", element: page(<ToolFeatureGate features={AI_FEATURES}><ToolsAiPage /></ToolFeatureGate>) }, // Tools P2: AI documents
       { path: "tools/convert", element: page(<ConvertHubPage />) },
       { path: "tools/edit-pdf", element: page(<EditPdfPage />) }, // R86 // R78: Convert hub (before the editors' :editor)

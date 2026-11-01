@@ -1423,6 +1423,20 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0131_r110_ask",
+    "statements": [
+      "-- R110: Ask across the workspace. Each person's own questions and answers (private to them), the change cards an\n-- answer proposes (nothing changes until the person clicks Apply) and their saved prompts. Additive only.\nCREATE TABLE `ask_threads` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`title` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `ask_threads_user_idx` ON `ask_threads` (`org_id`,`user_id`,`updated_at`);",
+      "CREATE TABLE `ask_messages` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`thread_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`question` text NOT NULL,\n\t`answer` text NOT NULL,\n\t`sources` text DEFAULT '[]' NOT NULL,\n\t`status` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`thread_id`) REFERENCES `ask_threads`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `ask_messages_thread_idx` ON `ask_messages` (`thread_id`,`created_at`);",
+      "CREATE INDEX `ask_messages_user_idx` ON `ask_messages` (`org_id`,`user_id`,`created_at`);",
+      "CREATE TABLE `ask_cards` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`message_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`target_id` text,\n\t`payload` text DEFAULT '{}' NOT NULL,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`result_id` text,\n\t`created_at` integer NOT NULL,\n\t`decided_at` integer,\n\tFOREIGN KEY (`message_id`) REFERENCES `ask_messages`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `ask_cards_message_idx` ON `ask_cards` (`message_id`);",
+      "CREATE TABLE `ask_prompts` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`title` text NOT NULL,\n\t`text` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `ask_prompts_user_idx` ON `ask_prompts` (`org_id`,`user_id`);"
+    ]
+  },
+  {
     "name": "0134_sa1_social_account_profiles",
     "statements": [
       "-- SA1 (Nov 1): one row per social account the workspace connected: the account's own id on its network, the name and\n-- picture people know it by, and when we last asked. Additive only. The unique index is the server side guard: a\n-- workspace holds one connection per network account, so connecting the same account again refreshes it. The\n-- connections themselves live on the integration platform, so there are no rows to merge here yet; existing\n-- duplicates are merged by the app the first time each workspace's accounts are listed.\nCREATE TABLE IF NOT EXISTS `social_account_profiles` (\n\t`org_id` text NOT NULL,\n\t`account_id` text NOT NULL,\n\t`app` text NOT NULL,\n\t`external_id` text,\n\t`name` text,\n\t`avatar_url` text,\n\t`checked_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `account_id`)\n);",

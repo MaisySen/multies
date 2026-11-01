@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-ask-workspace",
+    date: "2026-11-01",
+    title: "Ask your workspace",
+    body: "Open Tools, then Ask your workspace (or type a question in the command menu and pick Ask AI). Answers come only from items you can open, with the sources listed. Save an answer to a doc, find old questions in your history, and approve any change it suggests: nothing changes until you click Apply.",
+  },
+  {
     id: "2026-11-01-contracts",
     date: "2026-11-01",
     title: "Contract templates, and signing with an email code",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Quiet hours, digests and mail for notifications",
     body: "In Settings, Notifications, choose mail as well as the inbox and your phone for each kind of notification, and get it as it happens or in one daily or weekly digest. Set quiet hours in your own time zone, or pause alerts for a while from the Notifications page.",
-  },
-  {
-    id: "2026-11-01-help-center",
-    date: "2026-11-01",
-    title: "A public help center for your customers",
-    body: "Docs, Help center publishes chosen docs as articles with categories and search, lets visitors ask questions that you approve and answer, and turns a solved ticket into a public answer with the customer's details taken out.",
   },
   {
     id: "2026-10-28-whats-new",

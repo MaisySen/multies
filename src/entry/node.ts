@@ -3,6 +3,7 @@
  *   npm run dev:api   (API on :8787, Vite proxies /api to it)
  *   npm run build && npm start   (one process serves everything)
  */
+import { fakeAskAi, fakeAskAllowed } from "../server/services/ask-fake"; // R110
 import { MemoryToolFileStore } from "../server/services/tools/p2-bindings";
 import { isKnownPage } from "../shared/known-routes";
 import * as Sentry from "@sentry/node";
@@ -80,6 +81,8 @@ const dns = config.dnsResolver === "node" ? new NodeResolver() : new DohResolver
 
 const deps = {
   db, indexDb, config, dns, outbound, now: () => new Date(),
+  // R110: ASK_AI_FAKE=1 on a localhost APP_URL answers Ask locally (end to end tests only).
+  askAi: fakeAskAllowed(process.env) ? fakeAskAi : undefined,
   // Round 23: AI_FAKE=1 on a localhost APP_URL answers the AI providers locally (end to end tests only).
   fetch: ((f: typeof fetch) => (mockDirectAllowed(process.env) ? mockDirectFetch(f) : f))(((f: typeof fetch) => (mockComposioAllowed(process.env) ? mockComposioFetch(f) : f))(fakeAiAllowed(process.env) ? fakeAiFetch(globalThis.fetch.bind(globalThis)) : globalThis.fetch.bind(globalThis))),
   log: jsonLogger({ service: "mymail-api", release: config.release, env: config.sentry.environment }),

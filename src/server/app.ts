@@ -34,6 +34,7 @@ import { toolsRoutes } from "./routes/tools";
 import { activeToolFeatures } from "./services/tools/features"; // Tools P2: "index" only with INDEX_DB
 import { toolsEditorsRoutes } from "./routes/tools-editors"; // Tools P2: editors
 import { toolsAiRoutes } from "./routes/tools-ai"; // Tools P2: AI documents
+import { askRoutes } from "./routes/ask-r110"; // R110: Ask across the workspace
 import { mailMergeUnsubscribeRoutes, toolsAutomationRoutes } from "./routes/tools-automation"; // Tools P2: automation
 import { campaignPublicRoutes, campaignRoutes } from "./routes/campaigns-r109"; // R109: lists, newsletters, journeys
 import { sharePublicRoutes, toolsShareRoutes } from "./routes/tools-share";
@@ -433,6 +434,8 @@ export function createApp(deps: Deps) {
       maps: !!deps.config.mapsR115,
       // R108: contracts (CONTRACTS_R108): templates, guided interview, clause library, reminders.
       contractsR108: !!deps.config.contractsR108,
+      // R110: Ask across the workspace (ASK_R110).
+      askR110: !!deps.config.askR110,
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
       chatChannels: deps.config.channels.enabled,
       // R111: mail archive and retention (MAIL_ARCHIVE_R111=on): the Archive and retention pane and Audit log filters.
@@ -480,6 +483,7 @@ export function createApp(deps: Deps) {
   app.route("/api/mailboxes", mailboxRoutes());
   app.route("/api/free-address", freeAddressRoutes());
   app.route("/api/tools/editors", toolsEditorsRoutes()); // Tools P2: editors (page editor, forms, compare)
+  app.route("/api/ask", askRoutes()); // R110: Ask across the workspace (Tools feature ask_r110)
   app.route("/api/tools/ai", toolsAiRoutes()); // Tools P2: AI documents (ask, translate, invoices, expenses, contracts)
   app.route("/api/tools/share", toolsShareRoutes()); // Tools P2: share links
   app.route("/api/tools/requests", toolsRequestRoutes()); // R88: file requests

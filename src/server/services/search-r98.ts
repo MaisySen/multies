@@ -181,7 +181,13 @@ function matchAll(cols: SQL[], words: string[], fuzzy: boolean): SQL {
 }
 
 interface Candidate { item: SearchItem; title: string; body: string; at: number; /** An exact task key (OPS-12): always first. */ pinned?: boolean }
-interface Ctx { deps: Deps; v: SearchViewer; words: string[]; fuzzy: boolean; limit: number; f: SearchFilters; person: { id: string; email: string } | null }
+interface Ctx {
+  deps: Deps; v: SearchViewer; words: string[]; fuzzy: boolean; limit: number; f: SearchFilters; person: { id: string; email: string } | null;
+  /** R110: only these ids (re-checking that cited sources are still openable, with the very same scope). */
+  ids?: string[];
+}
+/** R110: the id filter of the id-only mode (undefined when not in that mode). */
+const onlyIds = (c: Ctx, col: Parameters<typeof inIds>[0]) => (c.ids ? inIds(col, c.ids) : undefined);
 
 const iso = (d: Date | number | null | undefined) => (d == null ? null : new Date(d).toISOString());
 const isKey = (a: SuiteActor) => !!(a.agentId || a.apiKeyId);
@@ -199,7 +205,7 @@ async function mailGroup(c: Ctx): Promise<Candidate[]> {
     fromName: messages.fromName, fromAddress: messages.fromAddress, snippet: messages.snippet, date: messages.date,
   }).from(messages)
     .where(and(eq(messages.orgId, c.v.actor.orgId), scope ? inIds(messages.mailboxId, scope) : undefined, sql`${messages.folder} <> 'trash'`,
-      c.person ? sql`lower(${messages.fromAddress}) = ${c.person.email.toLowerCase()}` : undefined, range(messages.date, c.f),
+      c.person ? sql`lower(${messages.fromAddress}) = ${c.person.email.toLowerCase()}` : undefined, range(messages.date, c.f), onlyIds(c, messages.id),
       matchAll([sql`${messages.subject}`, sql`${messages.fromName}`, sql`${messages.fromAddress}`, sql`${messages.snippet}`], c.words, c.fuzzy)))
     .orderBy(desc(messages.date)).limit(fetchN(c));
   const seen = new Set<string>();
@@ -226,7 +232,7 @@ async function taskGroup(c: Ctx): Promise<Candidate[]> {
   const cols = { id: tasks.id, title: tasks.title, notes: tasks.notes, number: tasks.number, status: tasks.status, projectId: tasks.projectId, updatedAt: tasks.updatedAt, key: projects.key, projectName: projects.name };
   const base = and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), isNull(tasks.triageState), projectId ? eq(tasks.projectId, projectId) : undefined,
     c.person ? or(and(eq(tasks.assigneeType, "member"), eq(tasks.assigneeId, c.person.id)), eq(tasks.createdById, c.person.id), containsText(tasks.coAssignees, `"member:${c.person.id}"`)) : undefined,
-    range(tasks.updatedAt, c.f));
+    range(tasks.updatedAt, c.f), onlyIds(c, tasks.id));
   const key = c.words.length === 1 ? TASK_KEY.exec(c.words[0]) : null;
   const exact = key ? await c.deps.db.select(cols).from(tasks).innerJoin(projects, eq(projects.id, tasks.projectId))
     .where(and(base, eq(projects.orgId, orgId), sql`upper(${projects.key}) = ${key[1].toUpperCase()}`, eq(tasks.number, Number(key[2])))).limit(1) : [];
@@ -235,7 +241,7 @@ async function taskGroup(c: Ctx): Promise<Candidate[]> {
   const toCand = (t: (typeof rows)[number], pinned = false): Candidate => ({
     title: t.title, body: t.notes, at: new Date(t.updatedAt).getTime(), pinned,
     item: { type: "tasks", id: t.id, title: t.title, subtitle: `${t.key}-${t.number} · ${STATUS_LABEL[t.status]} · ${t.projectName}`,
-      snippet: c.words.every((w) => t.title.toLowerCase().includes(w)) ? "" : excerpt(t.notes, c.words[0]), url: `/app/tasks?project=${encodeURIComponent(t.projectId)}&task=${encodeURIComponent(t.id)}`, at: iso(t.updatedAt) },
+      snippet: c.words.every((w) => t.title.toLowerCase().includes(w)) ? "" : excerpt(t.notes, c.words[0]), url: c.v.kind === "guest" ? `/guest?task=${encodeURIComponent(t.id)}` : `/app/tasks?project=${encodeURIComponent(t.projectId)}&task=${encodeURIComponent(t.id)}`, at: iso(t.updatedAt) },
   });
   return [...exact.map((t) => toCand(t, true)), ...rows.filter((r) => !exact.some((e) => e.id === r.id)).map((t) => toCand(t))];
 }
@@ -245,11 +251,11 @@ async function docGroup(c: Ctx): Promise<Candidate[]> {
   if (c.v.kind === "guest" && c.f.project && c.f.project !== c.v.projectId) return [];
   const rows = await c.deps.db.select({ id: docs.id, title: docs.title, plainText: docs.plainText, updatedAt: docs.updatedAt, kind: docs.kind }).from(docs)
     .where(and(eq(docs.orgId, orgOf(c.v)), isNull(docs.deletedAt), projectId ? eq(docs.projectId, projectId) : undefined,
-      c.person ? eq(docs.createdById, c.person.id) : undefined, range(docs.updatedAt, c.f), matchAll([sql`${docs.title}`, sql`${docs.plainText}`], c.words, c.fuzzy)))
+      c.person ? eq(docs.createdById, c.person.id) : undefined, range(docs.updatedAt, c.f), onlyIds(c, docs.id), matchAll([sql`${docs.title}`, sql`${docs.plainText}`], c.words, c.fuzzy)))
     .orderBy(desc(docs.updatedAt)).limit(fetchN(c));
   return rows.map((d) => ({
     title: d.title, body: d.plainText, at: new Date(d.updatedAt).getTime(),
-    item: { type: "docs", id: d.id, title: d.title || "Untitled", subtitle: d.kind === "whiteboard" ? "Whiteboard" : "Doc", snippet: excerpt(d.plainText, c.words[0]), url: `/app/docs/${encodeURIComponent(d.id)}`, at: iso(d.updatedAt) },
+    item: { type: "docs", id: d.id, title: d.title || "Untitled", subtitle: d.kind === "whiteboard" ? "Whiteboard" : "Doc", snippet: excerpt(d.plainText, c.words[0]), url: c.v.kind === "guest" ? `/guest?doc=${encodeURIComponent(d.id)}` : `/app/docs/${encodeURIComponent(d.id)}`, at: iso(d.updatedAt) },
   }));
 }
 
@@ -272,7 +278,7 @@ async function chatGroup(c: Ctx): Promise<Candidate[]> {
     mentions: chatMessages.mentions, links: chatMessages.links, createdAt: chatMessages.createdAt,
   }).from(chatMessages)
     .where(and(eq(chatMessages.orgId, orgOf(c.v)), inIds(chatMessages.channelId, [...byId.keys()]), isNull(chatMessages.deletedAt),
-      c.person ? eq(chatMessages.authorId, c.person.id) : undefined, range(chatMessages.createdAt, c.f),
+      c.person ? eq(chatMessages.authorId, c.person.id) : undefined, range(chatMessages.createdAt, c.f), onlyIds(c, chatMessages.id),
       matchAll([sql`${chatMessages.body}`], c.words, c.fuzzy), notBlockedBy(chatMessages.authorId, userOf(c.v))))
     .orderBy(desc(chatMessages.createdAt)).limit(fetchN(c));
   return rows.map((m) => {
@@ -288,7 +294,7 @@ async function chatGroup(c: Ctx): Promise<Candidate[]> {
 async function contactGroup(c: Ctx): Promise<Candidate[]> {
   if (c.v.kind !== "actor") return [];
   const rows = await c.deps.db.select({ id: contacts.id, name: contacts.name, email: contacts.email, title: contacts.title, lastContactAt: contacts.lastContactAt, updatedAt: contacts.updatedAt }).from(contacts)
-    .where(and(eq(contacts.orgId, c.v.actor.orgId), isNull(contacts.deletedAt), range(contacts.updatedAt, c.f), matchAll([sql`${contacts.name}`, sql`${contacts.email}`], c.words, c.fuzzy)))
+    .where(and(eq(contacts.orgId, c.v.actor.orgId), isNull(contacts.deletedAt), range(contacts.updatedAt, c.f), onlyIds(c, contacts.id), matchAll([sql`${contacts.name}`, sql`${contacts.email}`], c.words, c.fuzzy)))
     .orderBy(sql`coalesce(${contacts.lastContactAt}, ${contacts.updatedAt}) desc`).limit(fetchN(c));
   return rows.map((r) => ({
     title: `${r.name} ${r.email}`, body: r.title ?? "", at: new Date(r.lastContactAt ?? r.updatedAt).getTime(),
@@ -300,7 +306,7 @@ const STAGE_LABEL = { lead: "Lead", qualified: "Qualified", proposal: "Proposal"
 async function dealGroup(c: Ctx): Promise<Candidate[]> {
   if (c.v.kind !== "actor") return [];
   const rows = await c.deps.db.select({ id: deals.id, title: deals.title, stage: deals.stage, valueCents: deals.valueCents, updatedAt: deals.updatedAt }).from(deals)
-    .where(and(eq(deals.orgId, c.v.actor.orgId), isNull(deals.deletedAt), range(deals.updatedAt, c.f), matchAll([sql`${deals.title}`], c.words, c.fuzzy)))
+    .where(and(eq(deals.orgId, c.v.actor.orgId), isNull(deals.deletedAt), range(deals.updatedAt, c.f), onlyIds(c, deals.id), matchAll([sql`${deals.title}`], c.words, c.fuzzy)))
     .orderBy(desc(deals.updatedAt)).limit(fetchN(c));
   return rows.map((d) => ({
     title: d.title, body: "", at: new Date(d.updatedAt).getTime(),
@@ -309,7 +315,7 @@ async function dealGroup(c: Ctx): Promise<Candidate[]> {
 }
 
 async function attachmentGroup(c: Ctx): Promise<Candidate[]> {
-  if (c.v.kind !== "actor" || c.fuzzy || c.person || c.f.from || c.f.to) return [];
+  if (c.v.kind !== "actor" || c.fuzzy || c.person || c.f.from || c.f.to || c.ids) return [];
   const scope = await scopeOf(c.deps, c.v.actor);
   const rows = await searchAttachmentText(c.deps, c.v.actor.orgId, scope, c.words.join(" "), { limit: c.limit });
   return rows.map((r) => ({
@@ -331,7 +337,7 @@ async function fileGroup(c: Ctx): Promise<Candidate[]> {
   const onTasks = c.deps.db.select({ id: taskFiles.id, filename: taskFiles.filename, sizeBytes: taskFiles.sizeBytes, createdAt: taskFiles.createdAt, by: taskFiles.uploadedByName, taskId: tasks.id, taskTitle: tasks.title, projectId: tasks.projectId })
     .from(taskFiles).innerJoin(tasks, eq(tasks.id, taskFiles.taskId))
     .where(and(eq(taskFiles.orgId, orgId), eq(tasks.orgId, orgId), isNull(tasks.deletedAt), isNull(tasks.triageState), projectId ? eq(tasks.projectId, projectId) : undefined,
-      c.person ? and(eq(taskFiles.uploadedByType, "member"), eq(taskFiles.uploadedById, c.person.id)) : undefined, range(taskFiles.createdAt, c.f),
+      c.person ? and(eq(taskFiles.uploadedByType, "member"), eq(taskFiles.uploadedById, c.person.id)) : undefined, range(taskFiles.createdAt, c.f), onlyIds(c, taskFiles.id),
       matchAll([sql`${taskFiles.filename}`], c.words, c.fuzzy)))
     .orderBy(desc(taskFiles.createdAt)).limit(n);
   const channels = await channelsFor(c);
@@ -339,7 +345,7 @@ async function fileGroup(c: Ctx): Promise<Candidate[]> {
   const inChat = channels.length ? c.deps.db.select({ id: chatFiles.id, filename: chatFiles.filename, sizeBytes: chatFiles.sizeBytes, createdAt: chatFiles.createdAt, channelId: chatFiles.channelId, messageId: chatFiles.messageId, authorId: chatMessages.authorId, parentId: chatMessages.parentId, deletedAt: chatMessages.deletedAt })
     .from(chatFiles).innerJoin(chatMessages, eq(chatMessages.id, chatFiles.messageId))
     .where(and(eq(chatFiles.orgId, orgId), inIds(chatFiles.channelId, [...byId.keys()]), isNull(chatMessages.deletedAt), eq(chatMessages.channelId, chatFiles.channelId),
-      c.person ? eq(chatMessages.authorId, c.person.id) : undefined, range(chatFiles.createdAt, c.f), matchAll([sql`${chatFiles.filename}`], c.words, c.fuzzy),
+      c.person ? eq(chatMessages.authorId, c.person.id) : undefined, range(chatFiles.createdAt, c.f), onlyIds(c, chatFiles.id), matchAll([sql`${chatFiles.filename}`], c.words, c.fuzzy),
       notBlockedBy(chatMessages.authorId, userOf(c.v))))
     .orderBy(desc(chatFiles.createdAt)).limit(n) : Promise.resolve([]);
   const [a, b] = await Promise.all([onTasks, inChat]);
@@ -362,7 +368,7 @@ async function noteGroup(c: Ctx): Promise<Candidate[]> {
   const rows = await c.deps.db.select({ id: crmEntries.id, entityType: crmEntries.entityType, entityId: crmEntries.entityId, kind: crmEntries.kind, body: crmEntries.body, isPrivate: crmEntries.private, authorName: crmEntries.authorName, occurredAt: crmEntries.occurredAt })
     .from(crmEntries)
     .where(and(eq(crmEntries.orgId, c.v.actor.orgId), isNull(crmEntries.deletedAt), or(eq(crmEntries.private, false), eq(crmEntries.createdById, me)),
-      c.person ? eq(crmEntries.createdById, c.person.id) : undefined, range(crmEntries.occurredAt, c.f), matchAll([sql`${crmEntries.body}`], c.words, c.fuzzy)))
+      c.person ? eq(crmEntries.createdById, c.person.id) : undefined, range(crmEntries.occurredAt, c.f), onlyIds(c, crmEntries.id), matchAll([sql`${crmEntries.body}`], c.words, c.fuzzy)))
     .orderBy(desc(crmEntries.occurredAt)).limit(fetchN(c));
   return rows.map((r) => {
     const url = r.entityType === "contact" ? `/app/contacts/${encodeURIComponent(r.entityId)}` : r.entityType === "company" ? `/app/contacts/companies/${encodeURIComponent(r.entityId)}` : `/app/deals?deal=${encodeURIComponent(r.entityId)}`;
@@ -404,6 +410,17 @@ async function personOf(deps: Deps, orgId: string, id: string | null | undefined
   return r;
 }
 
+/** The sources a viewer may search at all (guests: their project's tasks, docs, chat and files; keys: no notes). */
+function allowedTypes(deps: Deps, v: SearchViewer, requested?: SearchType[]): SearchType[] {
+  let types: SearchType[] = requested?.length ? SEARCH_TYPES_R98.filter((t) => requested.includes(t)) : [...SEARCH_TYPES_R98];
+  if (v.kind === "guest") types = types.filter((t) => t === "tasks" || t === "docs" || t === "chat" || t === "files");
+  else if (isKey(v.actor)) types = types.filter((t) => t !== "notes");
+  const tools = deps.config.tools;
+  if (!(tools.enabled && tools.features.includes("index") && deps.indexDb)) types = types.filter((t) => t !== "attachments");
+  if (!deps.config.crmTimeline) types = types.filter((t) => t !== "notes");
+  return types;
+}
+
 /**
  * R98 search: every source the viewer can open, in parallel, each bounded; words in any order; ranked; filtered.
  * A group whose exact pass finds nothing for a word of 4 or more letters runs one typo pass. Answers within the budget.
@@ -415,12 +432,7 @@ export async function searchR98(deps: Deps, v: SearchViewer, rawQuery: string, o
   if (q.length < SEARCH_MIN_CHARS || !words.length) throw new HttpError(422, "validation_failed", `Type at least ${SEARCH_MIN_CHARS} characters to search.`);
   const limit = Math.min(Math.max(Math.trunc(opts.limit ?? SEARCH_DEFAULT_LIMIT), 1), 20);
   const f = opts.filters ?? {};
-  let types: SearchType[] = opts.types?.length ? SEARCH_TYPES_R98.filter((t) => opts.types!.includes(t)) : [...SEARCH_TYPES_R98];
-  if (v.kind === "guest") types = types.filter((t) => t === "tasks" || t === "docs" || t === "chat" || t === "files");
-  else if (isKey(v.actor)) types = types.filter((t) => t !== "notes");
-  const tools = deps.config.tools;
-  if (!(tools.enabled && tools.features.includes("index") && deps.indexDb)) types = types.filter((t) => t !== "attachments");
-  if (!deps.config.crmTimeline) types = types.filter((t) => t !== "notes");
+  let types = allowedTypes(deps, v, opts.types);
   if (f.person) types = types.filter((t) => FILTER_TYPES.person.includes(t));
   if (f.project) types = types.filter((t) => FILTER_TYPES.project.includes(t));
   // A guest cannot filter by person (they cannot see the workspace's people); the filter then finds nothing.
@@ -500,4 +512,56 @@ export async function searchIndex(deps: Deps, a: SuiteActor): Promise<{ items: I
     ...cf.map((r) => { const ch = chName.get(r.channelId)!; return { type: "files" as const, id: r.id, title: r.filename, subtitle: ch.kind === "dm" ? "In a direct message" : `In #${ch.name}`, url: `/app/chat/${encodeURIComponent(r.channelId)}?thread=${encodeURIComponent(r.parentId ?? r.messageId)}`, at: iso(r.createdAt) }; }),
   ];
   return { items, builtAt: new Date().toISOString(), tookMs: Date.now() - started };
+}
+
+// ---------------------------------------------------------------- R110: Ask retrieval and source re-checks
+
+/** A source the asker can open, with its text for the AI (server only; never sent to a browser as is). */
+export interface RetrievedR98 extends SearchItem { body: string; score: number }
+/** Ask cites only these (attachment text has no id re-check yet, so it is left out). */
+export const ASK_SOURCE_TYPES: SearchType[] = ["mail", "tasks", "docs", "contacts", "deals", "files", "chat", "notes"];
+const BODY_CHARS = 1_500;
+
+/**
+ * R110: the same groups, scope and ranking as R98 search, at question time, returning each hit's text.
+ * Anything the viewer cannot open is never read: the permission scope is inside every group's query.
+ */
+export async function retrieveR98(deps: Deps, v: SearchViewer, rawQuery: string, opts: { types?: SearchType[]; limit?: number } = {}): Promise<RetrievedR98[]> {
+  const words = queryWords((rawQuery ?? "").slice(0, SEARCH_MAX_CHARS));
+  if (!words.length) return [];
+  const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 8), 1), 20);
+  const types = allowedTypes(deps, v, opts.types ?? ASK_SOURCE_TYPES).filter((t) => t !== "attachments");
+  const base = { deps, v, words, limit, f: {}, person: null };
+  const scored: { x: Candidate; score: number }[] = [];
+  await Promise.all(types.map(async (t) => {
+    try {
+      for (const fuzzy of [false, true]) {
+        if (fuzzy && !words.some((w) => typoBudget(w))) break;
+        const got = (await GROUPS[t]({ ...base, fuzzy })).flatMap((x) => {
+          const s = x.pinned ? { score: 1000 } : scoreMatch(words, x.title || x.item.title, x.body, fuzzy);
+          return s ? [{ x, score: s.score }] : [];
+        });
+        if (got.length) { scored.push(...got); break; }
+      }
+    } catch (err) { deps.reportError?.(err, { where: "ask_retrieve", type: t }); }
+  }));
+  scored.sort((a, b) => b.score - a.score || b.x.at - a.x.at);
+  return scored.slice(0, limit).map(({ x, score }) => ({ ...x.item, body: `${x.title ? `${x.title}\n` : ""}${x.body}`.replace(/\s+/g, " ").trim().slice(0, BODY_CHARS), score }));
+}
+
+export type SourceRef = { type: SearchType; id: string };
+/**
+ * R110: which of these sources the viewer can open now, by the very same group queries (id-only mode).
+ * Used when a saved answer is reopened, so access removed since then hides it.
+ */
+export async function openableR98(deps: Deps, v: SearchViewer, refs: SourceRef[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  const allowed = new Set(allowedTypes(deps, v, ASK_SOURCE_TYPES));
+  const byType = new Map<SearchType, string[]>();
+  for (const r of refs) if (allowed.has(r.type) && r.type !== "attachments") byType.set(r.type, [...(byType.get(r.type) ?? []), r.id]);
+  await Promise.all([...byType].map(async ([t, ids]) => {
+    const c: Ctx = { deps, v, words: [], fuzzy: false, limit: 20, f: {}, person: null, ids: [...new Set(ids)].slice(0, 40) };
+    for (const x of await GROUPS[t](c)) if (c.ids!.includes(x.item.id)) out.add(`${t}:${x.item.id}`);
+  }));
+  return out;
 }

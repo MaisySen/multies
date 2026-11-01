@@ -157,6 +157,7 @@ TOOLS_ENABLED = "true"
 # R94: CRM timeline. On after the verifier PASS on staging d006dfd83822 (31 Oct 19:27 UTC).
 CRM_TIMELINE = "on"
 SEARCH_R98 = "on" # R98: search with typo tolerance, filters and instant results (verifier v9 PASS WITH BUGS 1 Nov)
+ASK_R110 = "off" # R110: Ask across the workspace (on after the verifier passes)
 TOOLS_FEATURES = "editor,forms,compare,ocr_langs,scan,protect,stamps,convert_plus,excel,autoredact,batch,share,rules,workflows,templates,api,file_requests,secrets,links,tools_c,esign,tools_c2,merge_plus_r109"
 # R107: e-sign v2 (email code, signing record, seal, templates, bulk send). On in prod after the verifier pass; "off" turns new requests back to the old flow.
 # esign itself left that list on 31 Oct (owner unheld e-sign; R107 adds it to TOOLS_FEATURES above after the verifier pass).
@@ -357,6 +358,7 @@ CRM_TIMELINE = "on"
 SEARCH_R98 = "on" # R98: search with typo tolerance, filters and instant results (prod after the verifier passes)
 # R115: maps (address cards, Visits, booking meeting place) on staging; production after the verifier PASS.
 MAPS_R115 = "on"
+ASK_R110 = "on" # R110: Ask across the workspace (free AI, capped; staging all)
 TOOLS_FEATURES = "all"
 CLIENT_PORTAL = "on" # R120: client portals (prod after the verifier passes)
 MAIL_ARCHIVE_R111 = "on" # R111: mail archive and retention (prod after the verifier passes; even on, nothing deletes until a workspace admin turns a policy on)
