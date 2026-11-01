@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-sites",
+    date: "2026-11-01",
+    title: "Build a simple website for your team",
+    body: "Start a site from the Create menu. Build pages from ready blocks with a live preview, save drafts, go back to any version and publish now or at a set time. Add your forms and booking pages, let visitors comment once you approve, and see visits with no personal data kept.",
+  },
+  {
     id: "2026-11-01-forms-plus",
     date: "2026-11-01",
     title: "Forms that chat, feedback boards and calls for submissions",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Folders, versions and a brand library in Files",
     body: "Files now has Team files, My files, Shared with me, Starred, Recent and Trash: drag files in, make folders, preview images, PDFs, video and audio, and share your own files with a teammate. Every file keeps up to 20 versions you can restore, deleted files wait 30 days in Trash, and you can move or download many at once as a zip. The Brand library keeps logos and templates with tags for everyone to use, and only admins can change it, and Documents reads your bills, receipts and tax papers, finds the dates, amounts and GST, and rules tag and file them, with Unpaid bills and Tax documents one tap away.",
-  },
-  {
-    id: "2026-11-01-maps-visits",
-    date: "2026-11-01",
-    title: "Addresses, maps and a day of visits",
-    body: "Contacts, companies and your booking page can now hold an address: start typing and pick a match to pin it on a map, with directions in one tap. Contacts has a Visits tab: add the people you are seeing today, put them in the shortest order with one tap and open the whole route in your maps app.",
   },
     {
     id: "2026-10-28-whats-new",
