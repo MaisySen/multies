@@ -79,6 +79,15 @@ export function ResourcesTab() {
   };
 
   const g = grid.data;
+  // The next day any resource opens, so a closed day (a weekend) is one click from a bookable one.
+  const nextOpen = useMemo(() => {
+    const open = new Set((g?.resources ?? []).flatMap((r) => r.days));
+    if (!open.size) return null;
+    const keys: WeekDay[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+    const d = new Date(`${date}T00:00:00`);
+    for (let i = 0; i < 7; i++) { d.setDate(d.getDate() + 1); if (open.has(keys[d.getDay()])) return ymd(d); }
+    return null;
+  }, [g, date]);
   const opens = (g?.resources ?? []).filter((r) => r.open);
   const windowFrom = opens.length ? Math.min(...opens.map((r) => Date.parse(r.open!.from))) : 0;
   const windowTo = opens.length ? Math.max(...opens.map((r) => Date.parse(r.open!.to))) : 0;
@@ -110,7 +119,12 @@ export function ResourcesTab() {
             <>
               {/* Wider screens: a day grid that scrolls inside its card. Phones: one card per resource with free start times. */}
               <Card className="hidden overflow-hidden p-0 md:block" data-testid="resource-grid">
-                {!hasOpen ? <p className="p-6 text-[14px] text-muted">Everything is closed on {dayLabel(`${date}T12:00:00`)}.</p> : (
+                {!hasOpen ? (
+                  <div className="flex flex-wrap items-center gap-3 p-6">
+                    <p className="text-[14px] text-muted">Everything is closed on {dayLabel(`${date}T12:00:00`)}.</p>
+                    {nextOpen && <Button size="sm" variant="secondary" onClick={() => setDate(nextOpen)}>Go to {dayLabel(`${nextOpen}T12:00:00`)}</Button>}
+                  </div>
+                ) : (
                   <div className="flex">
                     <div className="w-52 shrink-0 border-r border-line">
                       <div className="h-9 border-b border-line" />
@@ -156,6 +170,12 @@ export function ResourcesTab() {
                 )}
               </Card>
               <div className="space-y-3 md:hidden" data-testid="resource-cards">
+                {!hasOpen && nextOpen && (
+                  <div className="flex flex-wrap items-center gap-2 text-[14px] text-muted">
+                    <span>Everything is closed on {dayLabel(`${date}T12:00:00`)}.</span>
+                    <Button size="sm" variant="secondary" onClick={() => setDate(nextOpen)}>Go to {dayLabel(`${nextOpen}T12:00:00`)}</Button>
+                  </div>
+                )}
                 {g.resources.map((r) => {
                   const starts = freeStarts(r, g.bookings);
                   const taken = g.bookings.filter((b) => b.resourceId === r.id);

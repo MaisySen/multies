@@ -274,6 +274,8 @@ test("shots: resources, polls, events and the public pages at 1280 and 390, ligh
         await page.goto(`/app/scheduling?tab=${t}`);
         await expect(page.getByTestId(`${t}-tab`)).toBeVisible({ timeout: 20_000 });
         await page.waitForTimeout(500);
+        const go = page.getByRole("button", { name: /^Go to / }).filter({ visible: true });
+        if (t === "resources" && (await go.count())) { await go.first().click(); await page.waitForTimeout(500); }
         await noHScroll(page);
         await shot(page, `${t}-${w}-${theme}`, w === 1280);
         await axe(page, `${t} ${w} ${theme}`);
