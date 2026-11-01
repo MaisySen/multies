@@ -8,7 +8,7 @@
  */
 import { and, asc, desc, eq, gte, inArray, isNull, lt, ne } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { bookings, companies, contacts, davNames, davSyncStates, projects, schedulingPages, tasks } from "../../db/schema";
+import { bookings, companies, contacts, davNames, meetings, davSyncStates, projects, schedulingPages, tasks } from "../../db/schema";
 import { sha256Hex } from "../../lib/crypto";
 import { HttpError } from "../../lib/errors";
 import { FEED_DAYS_AHEAD, FEED_DAYS_BACK, FEED_MAX_ITEMS, workItems, zoneOf } from "../suite/calendar-sync";
@@ -177,6 +177,13 @@ function mainEvent(body: string) {
   return { title: unescape(prop("SUMMARY")?.value ?? "").trim(), start, endAt, rrule: prop("RRULE")?.value.trim() ?? null, uid: prop("UID")?.value.trim().slice(0, 200) ?? null };
 }
 
+async function idTaken(deps: Deps, orgId: string, col: CollectionId, name: string) {
+  const id = name.replace(/\.(ics|vcf)$/, "");
+  if (col === "contacts") return !!(await deps.db.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.orgId, orgId), eq(contacts.id, id))).get());
+  if (col === "meetings") return !!(await deps.db.select({ id: meetings.id }).from(meetings).where(and(eq(meetings.orgId, orgId), eq(meetings.id, id))).get());
+  return false;
+}
+
 async function rememberName(deps: Deps, p: DavPrincipal, col: CollectionId, name: string, entityId: string, uid: string | null) {
   await deps.db.insert(davNames).values({ orgId: p.orgId, collection: col, name, entityId, uid, createdAt: deps.now() }).onConflictDoNothing();
 }
@@ -195,6 +202,8 @@ export async function putItem(deps: Deps, p: DavPrincipal, col: CollectionId, na
   checkPreconditions(current, h);
   const actor = actorOfPrincipal(p);
   if (current && !current.canWrite) throw fail(403, "read_only", "Only the person who made this meeting, or an admin, can change it.");
+  // A new name must not be the id of an item someone else can see but this person cannot (no shadow copies).
+  if (!current && await idTaken(deps, p.orgId, col, name)) throw fail(403, "read_only", "That item is not in your calendar or address book.");
 
   if (col === "contacts") {
     const card = parseVCard(body);
