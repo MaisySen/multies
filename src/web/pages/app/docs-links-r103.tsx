@@ -68,7 +68,8 @@ function SaveDialog({ mode, open, onClose, initialUrl }: { mode: "page" | "link"
     <Dialog open={open} onClose={onClose} title={mode === "page" ? "Save a page" : "Add a link"}
       description={mode === "page" ? "We save the readable text of a public page as a doc, with a link back to the source." : "Keep a link in the team library with tags."}
       footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={() => void submit()} disabled={!valid || busy} data-testid="save-link-submit">{busy ? (mode === "page" ? "Saving page" : "Saving") : mode === "page" ? "Save page" : "Save link"}</Button></>}>
-      <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (valid && !busy) void submit(); }}>
+      <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (valid && !busy) void submit(); }}
+        onKeyDown={(e) => { if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") { e.preventDefault(); if (valid && !busy) void submit(); } }}>
         <label className="block text-[13px] font-medium">Web address
           <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com/article" inputMode="url" autoFocus className="mt-1" data-testid="save-link-url" aria-invalid={!!error} aria-describedby={error ? "save-link-error" : undefined} />
         </label>

@@ -118,7 +118,8 @@ test("doc comments, shared link comments with review, and spell check", async ({
   const link = (await api<{ link: { id: string; url: string } }>(page, "post", "/api/share-links", { kind: "doc", targetId: doc.id })).link;
   await page.reload();
   await page.getByRole("button", { name: /share/i }).first().click();
-  await page.getByTestId("share-comments-toggle").first().check();
+  await page.getByTestId("share-comments-toggle").first().click();
+  await expect(page.getByTestId("share-comments-toggle").first()).toBeChecked();
   await expect(page.getByText(/Comments on/)).toBeVisible();
   await page.keyboard.press("Escape");
   const visitor = await (await browser.newContext()).newPage();
@@ -126,8 +127,8 @@ test("doc comments, shared link comments with review, and spell check", async ({
   await visitor.goto(path);
   await expect(visitor.getByRole("heading", { name: "Comments" })).toBeVisible();
   await expect(visitor.getByText("Looks good, ship it")).toHaveCount(0); // team comments stay inside
-  await visitor.getByLabel("Name").fill("Sam Visitor");
-  await visitor.getByLabel("Comment").fill("Can we see the timeline?");
+  await visitor.getByLabel("Name", { exact: true }).fill("Sam Visitor");
+  await visitor.getByLabel("Comment", { exact: true }).fill("Can we see the timeline?");
   await visitor.getByRole("button", { name: "Send comment" }).click();
   await expect(visitor.getByText("Thanks. Your comment shows here once the team reviews it.")).toBeVisible();
   await expect(visitor.getByText("Can we see the timeline?")).toHaveCount(0);
@@ -144,10 +145,9 @@ test("doc comments, shared link comments with review, and spell check", async ({
   // A project guest reads and adds team comments on the project's doc.
   const inv = await api<{ guest: { id: string }; inviteUrl?: string }>(page, "post", "/api/guests", { projectId: project.id, email: `guest${Date.now() % 100000}@example.org`, name: "Mia Guest" });
   const url = inv.inviteUrl ?? (await api<{ inviteUrl: string }>(page, "post", `/api/guests/${inv.guest.id}/link`)).inviteUrl;
-  const guest = await (await browser.newContext()).newPage();
+  const guest = await (await browser.newContext({ extraHTTPHeaders: { "x-forwarded-for": `10.103.${Date.now() % 250}.7` } })).newPage();
   await guest.goto(new URL(url).pathname);
-  await guest.getByRole("button", { name: /open|accept|continue/i }).first().click().catch(() => undefined);
-  await guest.getByText("Client brief").first().click();
+  await guest.getByRole("button", { name: "Client brief" }).first().click({ timeout: 20_000 });
   await expect(guest.getByTestId("guest-doc-comments")).toContainText("Looks good, ship it");
   await guest.getByTestId("guest-comment-input").fill("Thanks team");
   await guest.getByRole("button", { name: "Comment" }).click();

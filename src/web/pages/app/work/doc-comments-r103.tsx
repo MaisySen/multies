@@ -89,7 +89,9 @@ function Item({ c, onEdit, onStatus, onRemove, moderator }: { c: DocComment; onE
 
 export function DocCommentsPanel({ docId, open, onClose }: { docId: string; open: boolean; onClose: () => void }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: commentsKey(docId), queryFn: () => api.get<CommentsResponse>(`/docs-plus/docs/${docId}/comments`), enabled: open });
+  const q = useQuery({ queryKey: commentsKey(docId), queryFn: () => api.get<CommentsResponse>(`/docs-plus/docs/${docId}/comments`), enabled: open, refetchOnMount: "always", refetchInterval: open ? 60_000 : false });
+  const refetch = q.refetch;
+  useEffect(() => { if (open) void refetch(); }, [open, refetch]);
   const team = useQuery({ queryKey: ["team"], queryFn: () => api.get<{ members?: { userId?: string; id?: string; name: string }[] }>("/team"), enabled: open, staleTime: 300_000 });
   const people = useMemo(() => (team.data?.members ?? []).map((m) => ({ id: m.userId ?? m.id ?? m.name, name: m.name })).filter((p) => p.name), [team.data]);
   const [tab, setTab] = useState<"team" | "public">("team");

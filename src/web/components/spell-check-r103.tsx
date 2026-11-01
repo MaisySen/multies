@@ -60,7 +60,7 @@ export function SpellButton({ getText, onFix, className, compact }: {
                     {issues.map((i) => (
                       <li key={`${i.word}>${i.suggestion}`} className="flex flex-wrap items-center gap-2 px-3 py-2 text-[14px]">
                         <span className="min-w-0 flex-1"><s className="text-muted">{i.word}</s> <span aria-hidden>to</span> <strong>{i.suggestion}</strong>{i.count > 1 && <span className="text-[12px] text-subtle"> ({i.count} times)</span>}</span>
-                        <Button size="sm" onClick={() => fix([i])} aria-label={`Change ${i.word} to ${i.suggestion}`}>Fix</Button>
+                        <Button size="sm" onClick={() => fix([i])} aria-label={`Fix ${i.word} to ${i.suggestion}`}>Fix</Button>
                         <Button size="sm" variant="ghost" onClick={() => setPref({ ignore: [...pref.ignore, i.word.toLowerCase()].slice(-500) })} aria-label={`Ignore ${i.word}`}>Ignore</Button>
                       </li>
                     ))}

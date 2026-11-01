@@ -36,7 +36,7 @@ function ShareSheet({ kind, targetId, onClose }: { kind: Kind; targetId: string;
   const key = ["share-links", kind, targetId];
   const docsPlus = !!useConfig().data?.docsPlus; // R103: comments on the shared link
   const setComments = async (l: ShareLink, on: boolean) => {
-    try { await api.put(`/docs-plus/share/${l.id}`, { comments: on }); toast.success(on ? "Comments on. New ones wait for your review in the doc." : "Comments off for this link"); void qc.invalidateQueries({ queryKey: key }); } catch (e) { showError(e as Error); }
+    try { await api.put(`/docs-plus/share/${l.id}`, { comments: on }); toast.success(on ? "Comments on. New ones wait for your review in the doc." : "Comments off for this link"); void qc.invalidateQueries({ queryKey: key }); void qc.invalidateQueries({ queryKey: ["doc-comments-r103", targetId] }); } catch (e) { showError(e as Error); }
   };
   const q = useQuery({ queryKey: key, queryFn: () => api.get<{ links: ShareLink[]; allowShareLinks: boolean }>(`/share-links?kind=${kind}&targetId=${encodeURIComponent(targetId)}`) });
   const [expiry, setExpiry] = useState<"never" | "7" | "30">("never");
