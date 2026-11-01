@@ -32,6 +32,8 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Link library, saved pages, comments on docs and spelling",
     body: "Docs has a Link library: keep links with tags, or save a public page as a clean doc you can read later, share or download as a PDF. Comment on any doc, and let people with a shared link comment too, after your review. Check spelling in docs and mail in 20 languages.",
+  },
+  {
     id: "2026-11-01-dav-sync",
     date: "2026-11-01",
     title: "Your calendar and contacts on your phone",
