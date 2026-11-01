@@ -123,13 +123,18 @@ jobs:
               echo "- openLink: \"$URL_SCHEME:///search\""; echo "- tapOn: {text: \"Open\", optional: true}"; echo "- waitForAnimationToEnd"
               echo "- tapOn: {id: \"search\", optional: true}"; echo "- inputText: \"plan\""; echo "- waitForAnimationToEnd"
               echo "- hideKeyboard: {optional: true}"; echo "- waitForAnimationToEnd"; echo "- takeScreenshot: x01-search-results-$MODE"
-              echo "- tapOn: {id: \"search-chip-.*\", index: 1, optional: true}"; echo "- waitForAnimationToEnd"; echo "- takeScreenshot: x02-search-chip-$MODE"
+              echo "- scrollUntilVisible: {element: {id: \"search-results\"}, direction: DOWN, optional: true}"; echo "- waitForAnimationToEnd"; echo "- takeScreenshot: x02-search-chip-$MODE"
               echo "- openLink: \"$URL_SCHEME:///files-item/drv-price\""; echo "- tapOn: {text: \"Open\", optional: true}"; echo "- waitForAnimationToEnd"
               echo "- scroll"; echo "- waitForAnimationToEnd"; echo "- takeScreenshot: x03-file-versions-$MODE"
               echo "- openLink: \"$URL_SCHEME:///contact/con_s1\""; echo "- tapOn: {text: \"Open\", optional: true}"; echo "- waitForAnimationToEnd"
               echo "- scroll"; echo "- waitForAnimationToEnd"; echo "- takeScreenshot: x04-contact-visits-$MODE"
               } > "$F"
+            touch "$OUT/mark-$MODE"
             maestro --device "$DEV" test "$F" > "$OUT/maestro-$MODE.log" 2>&1 || { echo "maestro $MODE failed"; tail -15 "$OUT/maestro-$MODE.log"; }
+            # Maestro may write takeScreenshot files to its own output folder; collect them wherever they landed
+            for D in "$OUT" "$HOME/.maestro" "$RUNNER_TEMP" "${TMPDIR:-/tmp}" /tmp "$HOME"; do
+              [ -d "$D" ] && timeout 60 find "$D" -maxdepth 8 -type f -name '*.png' -newer "$OUT/mark-$MODE" 2>/dev/null
+            done | sort -u | grep -v "^$OUT/shots/" | while read -r P; do echo "found $P"; cp "$P" "$OUT/shots/" 2>/dev/null; done > "$OUT/found-$MODE.txt"; wc -l < "$OUT/found-$MODE.txt"
           done
           ls | wc -l
 
