@@ -91,7 +91,7 @@ export function PollVotePage() {
       if (mine) {
         await api.put(`/pub/booking/polls/${token}/votes/${mine.voteId}`, { editToken: mine.editToken, name, ...(email ? { email } : {}), answers });
       } else {
-        const r = await api.post<{ voteId: string; editToken: string }>(`/pub/booking/polls/${token}/votes`, { name, email: email || undefined, answers, shield: await shield.answer() });
+        const r = await shield.send((s) => api.post<{ voteId: string; editToken: string }>(`/pub/booking/polls/${token}/votes`, { name, email: email || undefined, answers, shield: s }));
         const m = { voteId: r.voteId, editToken: r.editToken };
         try { localStorage.setItem(key, JSON.stringify(m)); } catch { /* private mode */ }
         setMine(m);
@@ -229,7 +229,7 @@ export function EventRsvpPage() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError("Enter a valid email address.");
     setBusy(true);
     try {
-      setDone(await api.post<Rsvped>(`/pub/booking/events/${slug}/rsvp`, { name, email, shield: await shield.answer() }));
+      setDone(await shield.send((s) => api.post<Rsvped>(`/pub/booking/events/${slug}/rsvp`, { name, email, shield: s })));
       void ev.refetch();
     } catch (err) {
       setError(errText(err));

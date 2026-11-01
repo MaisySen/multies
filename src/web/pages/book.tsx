@@ -10,6 +10,7 @@ import { Button } from "@/web/components/ui/button";
 import { Field, Input, Textarea } from "@/web/components/ui/input";
 import { Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { directionsLinks } from "@/shared/maps-r115"; // R115
+import { Honeypot, useShield } from "@/web/lib/use-shield"; // R92
 
 interface PublicPage { page: { slug: string; title: string; description: string; timezone: string; slotMin: number; video: boolean; host: string; organization: string; location?: { address: string; lat: number | null; lon: number | null } }; slots: string[] }
 interface Booked { booking: { id: string; startsAt: string; durationMin: number; guestUrl: string | null; status: string }; cancelUrl: string; icsUrl: string }
@@ -38,6 +39,7 @@ export function BookingPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Booked | null>(null);
+  const shield = useShield("book"); // R92: only checked by the server while Booking plus is on
   const days = useMemo(() => {
     const m = new Map<string, string[]>();
     for (const s of q.data?.slots ?? []) m.set(dayKey(s), [...(m.get(dayKey(s)) ?? []), s]);
@@ -56,7 +58,7 @@ export function BookingPage() {
     if (!slot) return;
     setBusy(true); setError(null);
     try {
-      setDone(await api.post<Booked>(`/book/${encodeURIComponent(slug)}`, { startsAt: slot, name: form.name, email: form.email, note: form.note || undefined, timezone: zone() }));
+      setDone(await shield.send((s) => api.post<Booked>(`/book/${encodeURIComponent(slug)}`, { startsAt: slot, name: form.name, email: form.email, note: form.note || undefined, timezone: zone(), shield: s })));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong. Try again.");
       if (err instanceof ApiError && err.status === 409) { setSlot(null); q.refetch(); }
@@ -132,7 +134,8 @@ export function BookingPage() {
         <Card className="mt-4 p-4">
           <h2 className="text-[15px] font-semibold">Your details</h2>
           <p className="mt-1 text-[13px] text-muted">{full(slot)}</p>
-          <form onSubmit={submit} className="mt-4 space-y-4">
+          <form onSubmit={submit} className="relative mt-4 space-y-4">
+            <Honeypot {...shield.honeypot} />
             <Field label="Name">{(fp) => <Input {...fp} required autoComplete="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={120} />}</Field>
             <Field label="Email">{(fp) => <Input {...fp} required type="email" autoComplete="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} maxLength={200} />}</Field>
             <Field label="Anything to share before the call? (optional)">{(fp) => <Textarea {...fp} rows={3} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} maxLength={1000} />}</Field>

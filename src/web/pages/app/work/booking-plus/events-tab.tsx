@@ -39,7 +39,7 @@ export function EventsTab() {
                 {list.data.map((e) => (
                   <Card key={e.id} className="flex items-start gap-4 p-4 transition-colors duration-150 hover:border-line-strong">
                     <div className="flex w-14 shrink-0 flex-col items-center rounded-lg border border-line bg-fill py-1.5" aria-hidden>
-                      <span className="text-[11px] font-semibold uppercase text-brand">{new Date(e.startsAt).toLocaleDateString(undefined, { month: "short" })}</span>
+                      <span className="text-[11px] font-semibold uppercase text-brand-hover">{new Date(e.startsAt).toLocaleDateString(undefined, { month: "short" })}</span>
                       <span className="text-[20px] font-semibold leading-6">{new Date(e.startsAt).getDate()}</span>
                     </div>
                     <button type="button" onClick={() => setOpenId(e.id)} className="min-w-0 flex-1 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-brand">

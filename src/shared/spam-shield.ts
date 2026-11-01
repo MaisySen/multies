@@ -70,4 +70,4 @@ export async function solveWork(salt: string, difficulty: number, opts: { maxTri
 
 /** Reasons a check fails, for logs and tests (people see one plain message). */
 export type ShieldFailure = "missing" | "bad_signature" | "wrong_form" | "expired" | "too_fast" | "honeypot" | "bad_work" | "reused";
-export const SHIELD_MESSAGE = "We could not check this form. Reload the page and try again.";
+export const SHIELD_MESSAGE = "We could not confirm this was sent by a person. Wait a moment and send it again, or reload the page.";

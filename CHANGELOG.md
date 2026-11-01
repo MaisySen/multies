@@ -11,6 +11,16 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Contacts > Invoices: quotes, tax invoices, credit notes (adjustment notes), bills and suppliers, an items catalogue, and reports (aged receivables, GST for BAS on accrual or cash basis). Flag INVOICES_ENABLED.
 - Australian rules: integer cents, GST 10 percent per line with GST free lines, prices including or excluding GST per workspace, the words Tax invoice, supplier name and ABN (checksum), buyer name or ABN from A$1,000, numbers given only at issue and never reused (void, not delete).
 - Send by email with a view link; the logged out page shows that one document, the PDF, bank details (BSB and account) and Accept or Decline on quotes. Payments are recorded by hand; nothing is charged. Reminders before and after the due date and repeating invoices run on the cron. On the test site invoice mail only goes to the QA mailbox.
+## R92 Booking plus: resources, time polls, free events with QR tickets, spam shield (2026-11-01)
+### Added
+- Work > Booking has Resources, Time polls and Events tabs, behind BOOKING_PLUS.
+- Resources: rooms, desks, vehicles and equipment on a day grid (cards on phones) with open days and hours, shortest and longest booking, a weekly quota per person, approval by admins, and check in from a printed QR code that releases bookings nobody checked in to.
+- Time polls: propose times, share a link, people answer Yes, If need be or No without an account, and picking the best time makes the meeting and emails everyone who left an email.
+- Free events: a public event page with free tickets, a capacity and a waitlist, a QR ticket by email and on its own page, check in at the door by camera or typed code, and an attendee CSV. Paid tickets are not part of this round.
+- Spam shield for public forms (shared module for later forms): a signed challenge with a small proof of work solved in the browser, a hidden field, a minimum fill time and one time use, beside per IP limits. No captcha. While Booking plus is on, the public booking page uses it too.
+### Notes
+- Migration 0132 (additive). "Fix a PDF, slides, image links and everyday utilities" left What's new to keep it at 14.
+- A refused shield check is retried once in the browser with a fresh challenge, and otherwise says why and how to send again.
 
 ## R108 Contracts: templates and guided interviews (2026-11-01)
 ### Added

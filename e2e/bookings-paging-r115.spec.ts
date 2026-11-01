@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { shieldAnswers } from "./support/shield"; // R92
 
 /**
  * R115 (older bug from R99's report): the Bookings list on /app/scheduling read only the first page of bookings.
@@ -25,10 +26,12 @@ test("bookings list loads every page with Load more, at 390 too", async ({ page,
   const pub = (await (await request.get(`/api/book/${slug}?days=21`, { headers: { "x-forwarded-for": ip() } })).json()) as { slots: string[] };
   expect(pub.slots.length).toBeGreaterThan(60);
   const want = 55;
+  // R92: with Booking plus on, every public booking carries a spam shield answer (each works once).
+  const answers = await shieldAnswers(request, "book", 70, { "x-forwarded-for": ip() });
   let made = 0;
   for (const startsAt of pub.slots) {
     if (made >= want) break;
-    const b = await request.post(`/api/book/${slug}`, { headers: { "x-forwarded-for": ip() }, data: { startsAt, name: `Caller ${made + 1}`, email: `caller${made + 1}@example.com`, timezone: "Australia/Sydney" } });
+    const b = await request.post(`/api/book/${slug}`, { headers: { "x-forwarded-for": ip() }, data: { startsAt, name: `Caller ${made + 1}`, email: `caller${made + 1}@example.com`, timezone: "Australia/Sydney", shield: answers.shift() } });
     if (b.status() === 201) made++;
   }
   expect(made).toBe(want);
