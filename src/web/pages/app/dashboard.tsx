@@ -3,7 +3,8 @@ import { displayFirstName } from "@/shared/display-name";
 import { IconAgent, IconArrowRight, IconCheck, IconGlobe, IconInbox, IconMention, IconSend, IconTeam, IconUserRound } from "@/web/components/ui/icon";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { qk, useConfig, useDashboard, useMe } from "@/web/lib/queries";
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
+import { lazyPage } from "@/web/components/lazy-page";
 import { api } from "@/web/lib/api";
 import { Card, Meter, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { ButtonLink } from "@/web/components/ui/button";
@@ -17,7 +18,7 @@ import { useProjects } from "./work/data"; // R40 (MB-214)
 import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
 
 /** R131: with Home widgets on, Overview becomes the widget Home and today's overview lives on as one of its widgets. */
-const HomeWidgetsPage = lazy(() => import("./home-widgets-r131").then((m) => ({ default: m.HomeWidgetsPage })));
+const HomeWidgetsPage = lazyPage(() => import("./home-widgets-r131"), "HomeWidgetsPage");
 
 export function DashboardPage() {
   const config = useConfig();
