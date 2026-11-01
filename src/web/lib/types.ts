@@ -57,6 +57,8 @@ export interface PublicConfig {
   dashboardsPlus?: boolean;
   /** R95: Tasks plus (My Day, smart repeat, timesheet approval, time tags and export, mind map). */
   tasksPlus?: boolean;
+  /** R114: webinar mode for meetings. */
+  webinar?: boolean;
   /** R108: contracts in Tools > Templates. */
   contractsR108?: boolean;
   /** R92: resources, time polls and events in Work > Booking page (BOOKING_PLUS). */

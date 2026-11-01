@@ -1507,6 +1507,21 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0137_r114_webinars",
+    "statements": [
+      "-- R114 (Nov 1): webinar mode for meetings. Additive only. A meeting can be a webinar: people register on a public page\n-- and get a personal link (stored hashed), watch the stage, ask questions, vote in the meeting's polls and chat when the\n-- host allows. The questions and polls are the R96 tables; two columns let a host hide a question or type an answer.\nCREATE TABLE IF NOT EXISTS `webinars` (\n\t`meeting_id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`enabled` integer DEFAULT 1 NOT NULL,\n\t`registration_open` integer DEFAULT 1 NOT NULL,\n\t`slug` text NOT NULL,\n\t`chat_mode` text DEFAULT 'everyone' NOT NULL,\n\t`qa_poll_id` text,\n\t`panelists` text DEFAULT '[]' NOT NULL,\n\t`description` text DEFAULT '' NOT NULL,\n\t`replay_recording_id` text,\n\t`replay_shared` integer DEFAULT 0 NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `webinars_slug_uq` ON `webinars` (`slug`);",
+      "CREATE INDEX IF NOT EXISTS `webinars_org_idx` ON `webinars` (`org_id`);",
+      "CREATE TABLE IF NOT EXISTS `webinar_registrations` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`meeting_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`email` text NOT NULL,\n\t`email_key` text NOT NULL,\n\t`token_hash` text NOT NULL,\n\t`status` text DEFAULT 'registered' NOT NULL,\n\t`joined_at` integer,\n\t`last_seen_at` integer,\n\t`minutes_watched` integer DEFAULT 0 NOT NULL,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `webinar_registrations_email_uq` ON `webinar_registrations` (`meeting_id`,`email_key`);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `webinar_registrations_token_uq` ON `webinar_registrations` (`token_hash`);",
+      "CREATE TABLE IF NOT EXISTS `webinar_chat` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`meeting_id` text NOT NULL,\n\t`author_kind` text NOT NULL,\n\t`author_id` text,\n\t`author_name` text NOT NULL,\n\t`body` text NOT NULL,\n\t`hidden_at` integer,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX IF NOT EXISTS `webinar_chat_meeting_idx` ON `webinar_chat` (`meeting_id`,`id`);",
+      "ALTER TABLE `chat_poll_items` ADD `hidden_at` integer;",
+      "ALTER TABLE `chat_poll_items` ADD `answer` text;"
+    ]
+  },
+  {
     "name": "0138_t1f_search_indexes",
     "statements": [
       "-- T1F (Nov 1): global search under load. Each search group reads its newest matches first; without an index in that\n-- order the database read every row of the workspace and sorted them before taking the first few. These indexes let\n-- it walk newest first and stop as soon as it has enough. Additive only, no data change.\nCREATE INDEX IF NOT EXISTS `messages_org_date_idx` ON `messages` (`org_id`,`date`);",

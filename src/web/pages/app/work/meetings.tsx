@@ -26,6 +26,7 @@ import { useMe } from "@/web/lib/queries";
 import { CallMinutesBanner, CallMinutesUsage } from "./call-minutes-r34"; // R34 (MB-171)
 import { NoMeetingsArt } from "@/web/components/illustrations"; // R36
 import { startMeetingNow } from "./meeting-start"; // R40 (MB-207)
+import { useWebinarOn, WebinarCard } from "./webinar-r114"; // R114
 
 export interface Meeting {
   id: string; title: string; room: string; startsAt: string; durationMin: number; endsAt: string; status: "scheduled" | "ended" | "cancelled";
@@ -229,6 +230,7 @@ export function MeetingPage() {
   const [prejoin, setPrejoin] = useState(() => new URLSearchParams(window.location.search).get("join") === "1");
   const [prefs, setPrefs] = useState<JoinPrefs | undefined>();
   const me = useMe();
+  const webinarOn = useWebinarOn();
   const m = q.data;
   const inCall = useQuery({
     queryKey: ["call-status", id], enabled: prejoin && !!id, refetchInterval: prejoin ? 15_000 : false,
@@ -265,6 +267,7 @@ export function MeetingPage() {
           {m.invitees.length > 0 && m.status === "scheduled" && <div className="mt-3 flex items-center gap-3"><Button size="sm" variant="secondary" onClick={() => void invite()}>{m.invitesSentAt ? "Send invites again" : "Send calendar invites"}</Button>{m.invitesSentAt && <span className="text-[12px] text-subtle">Sent {when(m.invitesSentAt)}</span>}</div>}
         </Card>
       </div>
+      {webinarOn && <WebinarCard meetingId={m.id} status={m.status} />}
       {m.recurrence && (
         <Card className="mt-4 flex items-start gap-3 p-5" data-testid="meeting-series">
           <IconRepeat className="mt-0.5 h-4 w-4 shrink-0 text-muted" />

@@ -119,6 +119,11 @@ const meetingPages = () => import("./pages/app/work/meetings");
 const MeetingsPage = lazyPage(() => meetingPages(), "MeetingsPage");
 const MeetingPage = lazyPage(() => meetingPages(), "MeetingPage");
 const GuestMeetingPage = lazyPage(() => meetingPages(), "GuestMeetingPage");
+const webinarPages = () => import("./pages/app/work/webinar-r114"); // R114: webinar mode
+const WebinarHostPage = lazyPage(() => webinarPages(), "WebinarHostPage");
+const WebinarRegisterPage = lazyPage(() => webinarPages(), "WebinarRegisterPage");
+const WebinarAttendeePage = lazyPage(() => webinarPages(), "WebinarAttendeePage");
+const WebinarReplayPage = lazyPage(() => webinarPages(), "WebinarReplayPage");
 const PortfolioPage = lazyPage(() => import("./pages/app/work/portfolio"), "PortfolioPage");
 const guestPages = () => import("./pages/app/work/guest");
 const GuestAcceptPage = lazyPage(() => guestPages(), "GuestAcceptPage");
@@ -317,6 +322,7 @@ export const router = createBrowserRouter([
       { path: "goals", element: page(<GoalsPage />) },
       { path: "meetings", element: page(<MeetingsPage />) },
       { path: "meetings/:id", element: page(<MeetingPage />) },
+      { path: "meetings/:id/webinar", element: page(<WebinarHostPage />) }, // R114
       { path: "scheduling", element: page(<SchedulingPage />) },
       { path: "tools", element: page(<ToolsPage />) }, // Tools P1
       { path: "tools/ask", element: page(<AskPage />) }, // R110 (ASK_R110; the page shows not found while it is off)
@@ -382,6 +388,9 @@ export const router = createBrowserRouter([
   { path: "/book/poll/:token", element: publicPage(<PollVotePage />), errorElement: <RouteError /> },
   { path: "/book/event/:slug", element: publicPage(<EventRsvpPage />), errorElement: <RouteError /> },
   { path: "/book/ticket/:id", element: publicPage(<TicketPage />), errorElement: <RouteError /> },
+  { path: "/w/:slug", element: publicPage(<WebinarRegisterPage />), errorElement: <RouteError /> }, // R114
+  { path: "/w/a/:token", element: publicPage(<WebinarAttendeePage />), errorElement: <RouteError /> }, // R114
+  { path: "/w/a/:token/replay", element: publicPage(<WebinarReplayPage />), errorElement: <RouteError /> }, // R114
   { path: "/book/:slug", element: publicPage(<BookingPage />), errorElement: <RouteError /> },
   { path: "/i/:token", element: publicPage(<InvoiceViewPage />), errorElement: <RouteError /> }, // R105
   { path: "/dash/:token", element: publicPage(<PublicDashboardPage />), errorElement: <RouteError /> }, // R91: public dashboard link

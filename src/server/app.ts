@@ -93,6 +93,7 @@ import { mailLabelRoutes, mailRuleRoutes } from "./routes/mail-rules-r85";
 import { meetingNotesRoutes } from "./routes/meeting-notes";
 import { meetingLiveRoutes, publicMeetingLiveRoutes } from "./routes/meeting-live-r31";
 import { meetingLobbyRoutes, publicMeetingLobbyRoutes } from "./routes/meeting-lobby-r32";
+import { publicWebinarRoutes, webinarRoutes } from "./routes/webinar-r114"; // R114: webinar mode
 import { calendarFeedRoutes, calendarRoutes } from "./routes/calendar-sync";
 import { davRoutes, davSettingsRoutes, davWellKnown } from "./routes/dav"; // R99
 import { threadStateRoutes } from "./routes/thread-state";
@@ -438,6 +439,7 @@ export function createApp(deps: Deps) {
       // R94: CRM timeline (CRM_TIMELINE): paged timeline, logged calls and notes, segments, CSV import, deal forecast.
       crmTimeline: !!deps.config.crmTimeline,
       tasksPlus: !!deps.config.tasksPlus, // R95
+      webinar: !!deps.config.webinar, // R114: webinar mode for meetings
       // R91: dashboards plus (DASHBOARDS_PLUS): share, reports, question builder, alerts, data sources.
       dashboardsPlus: !!deps.config.dashboardsPlus,
       // R98: typo tolerant search with filters and instant results in the command menu (SEARCH_R98).
@@ -641,6 +643,8 @@ export function createApp(deps: Deps) {
   app.route("/api/public/meeting-live", publicMeetingLiveRoutes()); // R31: guest read only notes
   app.route("/api/meeting-lobby", meetingLobbyRoutes()); // R32: waiting room (members)
   app.route("/api/public/meeting-lobby", publicMeetingLobbyRoutes()); // R32: waiting room (guests)
+  app.route("/api/webinars", webinarRoutes()); // R114: webinar settings, stage and report (members)
+  app.route("/api/public/webinars", publicWebinarRoutes()); // R114: registration and attendee pages
   app.route("/api/public", publicRoutes());
   app.route("/api/check", checkRoutes());
   app.route("/api/fields", fieldRoutes());

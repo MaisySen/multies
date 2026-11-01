@@ -339,13 +339,14 @@ async function minutesLeftForRoom(deps: Deps, m: { orgId: string; room: string }
   await assertCanStartCall(deps, m.orgId, async () => (await roomParticipants(deps, m.room)).length > 0);
 }
 
-export async function livekitToken(deps: Deps, room: string, who: { identity: string; name: string; host: boolean }) {
+export async function livekitToken(deps: Deps, room: string, who: { identity: string; name: string; host: boolean; /** R114: false for webinar attendees (watch only). */ publish?: boolean }) {
   const cfg = deps.config.meetings;
   if (!cfg) throw new HttpError(503, "meetings_off", "Video calls aren't switched on for this workspace yet. The guest link and invite still work once they are.");
   const { AccessToken, TrackSource } = await import("livekit-server-sdk");
   const at = new AccessToken(cfg.apiKey, cfg.apiSecret, { identity: who.identity, name: who.name, ttl: "6h" });
   // Round 23: screen share (with its audio) is allowed for everyone in the room, guests included.
-  at.addGrant({ room, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true, roomAdmin: who.host, canPublishSources: [TrackSource.CAMERA, TrackSource.MICROPHONE, TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO] });
+  const publish = who.publish !== false;
+  at.addGrant({ room, roomJoin: true, canPublish: publish, canSubscribe: true, canPublishData: publish, roomAdmin: who.host, canPublishSources: publish ? [TrackSource.CAMERA, TrackSource.MICROPHONE, TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO] : [] });
   return { url: cfg.url, token: await at.toJwt(), room };
 }
 
@@ -355,7 +356,10 @@ export async function joinMeeting(deps: Deps, actor: SuiteActor, id: string, opt
   if (m.status === "cancelled") throw new HttpError(409, "meeting_cancelled", "This meeting was cancelled.");
   await minutesLeftForRoom(deps, m);
   const identity = actor.agentId ? `agent-${actor.agentId}` : `member-${actor.userId}`;
-  return { meeting: out(deps, m), ...(await livekitToken(deps, m.room, { identity, name: cleanGuestName(opts.name) || actor.name || actor.email || "Host", host: true })) };
+  // R114: in a webinar only hosts and panelists speak; other members watch.
+  const stage = deps.config.webinar ? await (await import("./webinar-r114")).stageRole(deps, actor, m) : null;
+  const host = stage ? stage.host : true;
+  return { meeting: out(deps, m), webinarRole: stage ? (stage.host ? "host" : stage.publish ? "panelist" : "attendee") : null, ...(await livekitToken(deps, m.room, { identity, name: cleanGuestName(opts.name) || actor.name || actor.email || "Host", host, publish: stage ? stage.publish : true })) };
 }
 
 async function guestRow(deps: Deps, token: string) {
@@ -379,5 +383,10 @@ export async function guestJoin(deps: Deps, token: string, name: string, lobbyId
   const clean = admitted ?? name.trim().slice(0, 60);
   if (!clean) throw new HttpError(422, "validation_failed", "Tell the others your name.");
   await minutesLeftForRoom(deps, m);
-  return { title: m.title, ...(await livekitToken(deps, m.room, { identity: `guest-${urlToken(6)}`, name: clean, host: false })) };
+  // R114: in a webinar a guest from the meeting link watches only.
+  const stage = deps.config.webinar ? await (await import("./webinar-r114")).stageRole(deps, null, m) : null;
+  return { title: m.title, ...(await livekitToken(deps, m.room, { identity: `guest-${urlToken(6)}`, name: clean, host: false, publish: stage ? stage.publish : true })) };
 }
+
+/** R114: the same minutes check for a webinar attendee joining. */
+export async function minutesLeftForRoomPublic(deps: Deps, m: { orgId: string; room: string }) { await minutesLeftForRoom(deps, m); }

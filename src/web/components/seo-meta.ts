@@ -77,5 +77,9 @@ export function metaFor(path: string): PageMeta {
   if (clean.startsWith("/book/")) {
     return { title: "Booking | Multies", description: "Book a time, answer a time poll or get a free event ticket on Multies.", noindex: true };
   }
+  // R114: webinar registration, attendee and replay pages are real public pages; a shared registration link must not preview as not found.
+  if (clean.startsWith("/w/")) {
+    return { title: "Webinar | Multies", description: "Register for a webinar on Multies, then watch, ask questions and vote in polls from your own link.", noindex: true };
+  }
   return NOT_FOUND_META;
 }

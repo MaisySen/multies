@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-02-webinars",
+    date: "2026-11-02",
+    title: "Webinars from any meeting",
+    body: "Turn a meeting into a webinar: people register on their own page and watch while hosts and panelists speak. They ask and upvote questions, vote in polls and chat when you allow it, and you get a report of who came with a CSV download.",
+  },
+  {
     id: "2026-11-02-home-widgets",
     date: "2026-11-02",
     title: "Arrange your Home",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Contract templates, and signing with an email code",
     body: "Tools, Templates, Contracts has plain words templates for a service agreement, an NDA, a contractor agreement, quote terms and a privacy notice: answer a few questions, check the preview, then save a Doc, download a PDF or Word file, add renewal reminders as tasks, or send it to sign. Admins keep the workspace's own versions and a clause library with versions. Signing emails each signer a one time code and keeps a full signing record that anyone can check on the public check page.",
-  },
-  {
-    id: "2026-11-01-tasks-plus",
-    date: "2026-11-01",
-    title: "My Day, time blocking and a task mind map",
-    body: "Plan today from My Work and drag tasks onto your day to block time. Repeat tasks every weekday, on the second Tuesday, or after they are done, and take turns between people. Tag time, see a day view, submit your week for approval, and rearrange a project as a mind map.",
   },
   {
     id: "2026-10-28-whats-new",

@@ -248,6 +248,8 @@ export interface AppConfig {
   notificationCentre?: boolean;
   /** R96: chat plus (topics, announcements, decision votes, polls, live Q&A; CHAT_PLUS, on unless "off"). */
   chatPlus?: boolean;
+  /** R114: webinar mode for meetings (WEBINAR_R114=on). Off unless set. */
+  webinar?: boolean;
   /** R95: Tasks plus: My Day time blocks, smart repeat, timesheet submit and approve, time tags and export, mind map (TASKS_PLUS_R95=on). Off unless set. */
   tasksPlus?: boolean;
   /** R102: Smart document inbox, Files > Documents: reading uploads, rules, detected fields, Unpaid bills and Tax documents (DOC_INBOX_R102=on). Off unless set. */
@@ -394,6 +396,7 @@ const EnvSchema = z.object({
   FILES_PLUS_R101: z.string().optional(),
   TASKS_PLUS_R95: z.string().optional(),
   DOC_INBOX_R102: z.string().optional(),
+  WEBINAR_R114: z.string().optional(),
   CHANNELS_DAILY_SOFT_CAP: z.string().optional(),
   TOOLS_ENABLED: z.string().optional(),
   CRM_TIMELINE: z.string().optional(),
@@ -817,6 +820,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     filesPlus: ["on", "true", "1"].includes(String(env.FILES_PLUS_R101 ?? "").toLowerCase()),
     tasksPlus: ["1", "true", "on"].includes(String(env.TASKS_PLUS_R95 ?? "").toLowerCase()),
     docInbox: ["1", "true", "on"].includes(String(env.DOC_INBOX_R102 ?? "").toLowerCase()),
+    webinar: ["1", "true", "on"].includes(String(env.WEBINAR_R114 ?? "").toLowerCase()),
     operatorInbox: operatorInbox(env.SUPPORT_EMAIL?.trim() || "support@multies.si", env.OPERATOR_INBOX_ORG_ID, env.OPERATOR_INBOX_ADDRESSES),
     freeMail: {
       domain: freeMailDomain(env.FREE_MAIL_DOMAIN, env.APP_URL),

@@ -3450,6 +3450,10 @@ export const chatPollItems = sqliteTable("chat_poll_items", {
   authorName: text("author_name").notNull().default(""),
   answeredAt: ts("answered_at"),
   createdAt: createdAt(),
+  /** R114: a host hid this question from attendees. */
+  hiddenAt: ts("hidden_at"),
+  /** R114: a typed answer from the host. */
+  answer: text("answer"),
 }, (t) => [index("chat_poll_items_poll_idx").on(t.pollId)]);
 
 /** R96: one row per voter and choice (an option index, a stance, a question id or a word). */
@@ -4417,3 +4421,52 @@ export const homeLayouts = sqliteTable("home_layouts", {
   layout: text("layout").notNull(),
   updatedAt: ts("updated_at").notNull(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.userId] })]);
+/** R114: webinar mode on a meeting (registration, stage, chat setting, replay). */
+export const webinars = sqliteTable("webinars", {
+  meetingId: text("meeting_id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  registrationOpen: integer("registration_open", { mode: "boolean" }).notNull().default(true),
+  /** The public registration page: /w/<slug>. */
+  slug: text("slug").notNull(),
+  chatMode: text("chat_mode", { enum: ["everyone", "hosts", "off"] }).notNull().default("everyone"),
+  /** The R96 Q&A (chat_polls kind qa) attendees ask in. */
+  qaPollId: text("qa_poll_id"),
+  /** JSON [{ kind: "member" | "registrant", id, name }]: people on stage besides the hosts. */
+  panelists: text("panelists").notNull().default("[]"),
+  description: text("description").notNull().default(""),
+  replayRecordingId: text("replay_recording_id"),
+  replayShared: integer("replay_shared", { mode: "boolean" }).notNull().default(false),
+  createdBy: text("created_by"),
+  createdAt: ts("created_at").notNull(),
+  updatedAt: ts("updated_at").notNull(),
+}, (t) => [uniqueIndex("webinars_slug_uq").on(t.slug), index("webinars_org_idx").on(t.orgId)]);
+
+/** R114: a person registered for a webinar. The personal join link's token is kept only as a hash. */
+export const webinarRegistrations = sqliteTable("webinar_registrations", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  meetingId: text("meeting_id").notNull(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  emailKey: text("email_key").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  status: text("status", { enum: ["registered", "cancelled"] }).notNull().default("registered"),
+  joinedAt: ts("joined_at"),
+  lastSeenAt: ts("last_seen_at"),
+  minutesWatched: integer("minutes_watched").notNull().default(0),
+  createdAt: ts("created_at").notNull(),
+}, (t) => [uniqueIndex("webinar_registrations_email_uq").on(t.meetingId, t.emailKey), uniqueIndex("webinar_registrations_token_uq").on(t.tokenHash)]);
+
+/** R114: the webinar chat beside the stage (the host can hide a message or limit who chats). */
+export const webinarChat = sqliteTable("webinar_chat", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  meetingId: text("meeting_id").notNull(),
+  authorKind: text("author_kind", { enum: ["member", "registrant", "guest"] }).notNull(),
+  authorId: text("author_id"),
+  authorName: text("author_name").notNull(),
+  body: text("body").notNull(),
+  hiddenAt: ts("hidden_at"),
+  createdAt: ts("created_at").notNull(),
+}, (t) => [index("webinar_chat_meeting_idx").on(t.meetingId, t.id)]);

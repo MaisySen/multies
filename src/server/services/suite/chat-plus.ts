@@ -382,6 +382,8 @@ function present_(p: PollRow, viewer: string | null, votes: (typeof chatPollVote
   const questions = items.map((it) => ({
     id: it.id, body: it.body, authorName: it.authorName, votes: up.get(it.id) ?? 0, upvoted: mine.includes(it.id), mineQuestion: !!viewer && it.authorId === viewer,
     answered: !!it.answeredAt, createdAt: it.createdAt.toISOString(),
+    /** R114: a webinar host hid it from attendees, or typed an answer. */
+    hidden: !!it.hiddenAt, answer: it.answer ?? null,
   })).sort((x, y) => Number(x.answered) - Number(y.answered) || y.votes - x.votes || x.createdAt.localeCompare(y.createdAt));
   return { ...base, voters: new Set(items.map((i) => i.authorId)).size, questions };
 }

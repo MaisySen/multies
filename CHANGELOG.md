@@ -39,6 +39,14 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Every save is a new Files version with the note "Saved in the editor"; a save that started from an older version asks first (409 version_conflict). Viewers read only; guests and the client portal get nothing, as in Files.
 - No new dependencies (fflate, fast-xml-parser, papaparse, tiptap and pdf.js were already in use). No migration.
 
+## R114 Webinar mode for meetings (2026-11-01)
+### Added
+- Webinar mode on any meeting (flag `WEBINAR_R114`, migration 0137): hosts and panelists on stage, attendees watch only.
+- Public registration page `/w/<slug>` with a honeypot and form timer bot check, per address limit, duplicate email resend, closed, ended and full states; the personal join link is stored hashed.
+- Attendee page `/w/a/<token>`: stage, questions with upvotes, polls and word clouds on the R96 tables, chat when the host allows it.
+- Host page `/app/meetings/<id>/webinar`: hide, answer or mark questions answered, chat setting (everyone, hosts only, off) and hide a message, launch and close polls, promote and demote panelists, registrations and report with CSV, replay from a finished recording (transcript and summary; no video is kept).
+- Real cap: 100 people per room on the video free plan, and on the free plan as many attendees as the call minutes left allow ("Up to N attendees on your plan").
+- "2026-11-01-tasks-plus" left the What's new list to keep it at 14 and moved to the public earlier list.
 
 ## R108 Contracts: templates and guided interviews (2026-11-01)
 ### Added
