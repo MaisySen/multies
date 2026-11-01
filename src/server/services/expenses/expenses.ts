@@ -86,7 +86,7 @@ export async function saveSettings(deps: Deps, a: Actor, p: { approverIds?: stri
   if (!isAdmin(a)) throw new HttpError(403, "admin_only", "Only owners and admins can change expense settings.");
   if (p.approverIds) {
     const ids = [...new Set(p.approverIds)].slice(0, 50);
-    const found = ids.length ? await deps.db.select({ id: members.userId }).from(members).where(and(eq(members.organizationId, a.orgId), inArray(members.userId, ids))).all() : [];
+    const found = ids.length ? await deps.db.select({ id: members.userId }).from(members).where(and(eq(members.organizationId, a.orgId), inArray(members.userId, ids.slice(0, 90)))).all() : [];
     if (found.length !== ids.length) throw new HttpError(422, "not_member", "Approvers must be people in this workspace.");
     await upsertSettings(deps, a.orgId, { approverIds: JSON.stringify(ids) });
   }
