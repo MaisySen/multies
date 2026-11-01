@@ -106,7 +106,7 @@ jobs:
           ROUTES="${{ inputs.routes }}"; [ -z "$ROUTES" ] && ROUTES="$DEFAULT_ROUTES"
           for MODE in light dark; do
             xcrun simctl ui booted appearance $MODE
-            F="$RUNNER_TEMP/flow-$MODE.yaml"
+            F="$OUT/shots/flow-$MODE.yaml"  # Maestro writes takeScreenshot files next to the flow file
             { echo "appId: $BUNDLE_ID"; echo "---"; echo "- launchApp"; echo "- waitForAnimationToEnd"
               echo "- tapOn: {text: \"Explore with sample data\", optional: true}"
               echo "- waitForAnimationToEnd"; echo "- takeScreenshot: s00-sample-$MODE"
