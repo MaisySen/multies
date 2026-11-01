@@ -6,6 +6,15 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## R101 Files plus: drive and brand library (2026-11-01)
+### Added
+- Files: Team files, My files, Shared with me, Starred, Recent and Trash; folders with breadcrumbs, drag and drop upload and move, Move to, star, rename.
+- Previews in the page for images, PDF pages, video, audio and text; other types show a file card with Open.
+- Versions: every upload of the same file keeps up to 20 versions, each restorable; Trash keeps deleted items 30 days with restore and delete forever.
+- Bulk select: move, trash, star and download as a zip made in the browser (only files the person can open).
+- My files are private; share a file or folder with a teammate as view or edit. Brand library with tags: everyone views and uses, only admins change it; download an image at a chosen width.
+- Behind FILES_PLUS_R101 (migration 0129). File bytes in their own D1 database (FILES_DB), 20 MB per file, 200 MB per workspace. Project guests and client portal visitors get no drive.
+
 ## R103 Docs plus: link library, saved pages, doc comments, spell check (2026-11-01)
 ### Added
 - Docs, Link library: keep the team's links with tags, search and a tag filter; remove asks first and keeps any saved doc.

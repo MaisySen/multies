@@ -117,3 +117,7 @@ Top 5 next builds (for the next leads, after R47's live boards):
 5. MB-239 Idempotency-Key on every POST and webhooks for every object (R52).
 
 Owner decisions: Workers Paid or stay free with budgets; a paid sender before inviting 100 teams; free plan seats (MB-44, plan says 10); Apple team move to Fintex and DSA status; GitHub 2FA (MB-165).
+
+
+## Later: brand library resize links (from R101, Nov 1 2026)
+When an image service ships, give each brand library image a stable link that resizes on the fly (width and format in the link, cached, only for people who can open the item). Until then the brand library has Download at width, done in the browser.

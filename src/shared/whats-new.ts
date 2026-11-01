@@ -22,6 +22,12 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     body: "Tools > Merge now has Newsletters, Lists and Journeys: build a list with each person's consent, write from blocks with merge fields and a live preview, then send, schedule or start a welcome series. Every email has a one click unsubscribe that works across all your lists.",
   },
   {
+    id: "2026-11-01-files-plus",
+    date: "2026-11-01",
+    title: "Folders, versions and a brand library in Files",
+    body: "Files now has Team files, My files, Shared with me, Starred, Recent and Trash: drag files in, make folders, preview images, PDFs, video and audio, and share your own files with a teammate. Every file keeps up to 20 versions you can restore, deleted files wait 30 days in Trash, and you can move or download many at once as a zip. The Brand library keeps logos and templates with tags for everyone to use, and only admins can change it.",
+  },
+  {
     id: "2026-11-01-maps-visits",
     date: "2026-11-01",
     title: "Addresses, maps and a day of visits",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "Fix a PDF, slides, image links and everyday utilities",
     body: "Tools, Fix a PDF repairs a damaged PDF, makes it open fast on the web, or locks it with a password. You can put a QR code or barcode on any page, read every comment in a PDF, and turn slides and drawings (PPTX, PPT, ODP, ODG) into a PDF or into each other. Image links resize, crop and convert a picture from Files by its link, and the utilities cover JSON, Base64, hashes, colours, units, timestamps, regex and a link preview.",
-  },
-  {
-    id: "2026-10-31-crm-timeline",
-    date: "2026-10-31",
-    title: "A timeline for every contact and company",
-    body: "Each contact and company now has one timeline of email, meetings, bookings, forms, deals and tasks, and you can log a note, call or meeting and set the next step. Add companies by hand, import contacts from a CSV file without doubles, and save filters as segments. Deals show a chance to win, why they were won or lost, and a weighted forecast.",
   },
   {
     id: "2026-10-28-whats-new",

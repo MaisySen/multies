@@ -423,7 +423,7 @@ function DriveRow({ it, layout, view, selected, anySelected, onToggle, onOpen, o
 }) {
   const [over, setOver] = useState(false);
   const trash = view === "trash";
-  const meta = [it.location, trash && it.trashedAt ? `Deleted ${dateOf(it.trashedAt)}` : `${it.createdBy.name} · ${dateOf(it.updatedAt)}`, it.kind === "file" ? sizeLabel(it.sizeBytes) : null].filter(Boolean).join(" · ");
+  const meta = [it.location, trash && it.trashedAt ? `Deleted ${dateOf(it.trashedAt)}` : dateOf(it.updatedAt), it.kind === "file" ? sizeLabel(it.sizeBytes) : null, trash ? null : it.createdBy.name].filter(Boolean).join(" · ");
   const onKey = (e: KeyboardEvent<HTMLLIElement>) => {
     if (e.target !== e.currentTarget) return;
     const rows = [...(listRef.current?.querySelectorAll<HTMLElement>("[data-drive-row]") ?? [])];
@@ -480,7 +480,7 @@ function DriveRow({ it, layout, view, selected, anySelected, onToggle, onOpen, o
         <div className="flex items-start gap-1 p-2.5">
           {check}
           <div className="min-w-0 flex-1">
-            <button type="button" onClick={onOpen} className="block w-full truncate text-left text-[13px] font-medium text-fg hover:underline" title={it.name}>{it.name}</button>
+            <button type="button" onClick={onOpen} className="line-clamp-2 block w-full break-words text-left text-[13px] font-medium text-fg hover:underline" title={it.name}>{it.name}</button>
             <p className="truncate text-xs text-subtle">{it.tags.length ? it.tags.join(", ") : meta}</p>
           </div>
           {menu}
@@ -615,7 +615,7 @@ function FilePreview({ it, isAdmin }: { it: DriveItem; isAdmin: boolean }) {
   const src = contentUrl(it.id, { inline: true });
   return (
     <div className="space-y-4">
-      {kind === "image" && <img src={src} alt={it.name} className="mx-auto max-h-[60vh] max-w-full rounded-lg bg-fill object-contain" data-testid="drive-preview-image" />}
+      {kind === "image" && <img src={src} alt={it.name} className="mx-auto h-[min(60vh,28rem)] w-full rounded-lg bg-fill object-contain" data-testid="drive-preview-image" />}
       {kind === "video" && <video src={src} controls preload="metadata" className="max-h-[60vh] w-full rounded-lg bg-black" data-testid="drive-preview-video"><track kind="captions" /></video>}
       {kind === "audio" && <audio src={src} controls className="w-full" data-testid="drive-preview-audio" />}
       {kind === "pdf" && <PdfPages id={it.id} size={it.sizeBytes} />}

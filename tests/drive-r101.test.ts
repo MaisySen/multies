@@ -296,6 +296,39 @@ describe("R101 drive", () => {
     expect(unzipSync).toBeTypeOf("function");
   });
 
+  it("guests get nothing: a project guest and a client portal visitor can't list, open, upload or zip", async () => {
+    const f = (await upload(owner, "plan.txt", "team plan")).body.item;
+    const brand = (await upload(owner, "logo.png", "png", { space: "brand" }, "image/png")).body.item;
+    const mine = (await upload(owner, "notes.txt", "private", { space: "private" })).body.item;
+    const p = (await owner.post("/api/projects", { name: "Harbour site" })).body.project;
+    expect((await owner.post("/api/guests", { projectId: p.id, email: "mia@harbour.coffee", name: "Mia" })).status).toBeLessThan(300);
+    const sent = (ctx.outbound as unknown as { sent?: { text: string }[] }).sent ?? [];
+    const token = sent.map((x) => x.text).reverse().find((x) => x.includes("/g/"))?.match(/\/g\/([A-Za-z0-9_-]+)/)?.[1];
+    expect(token).toBeTruthy();
+    const guest = new Client(ctx.app);
+    expect((await guest.post("/api/guest/accept", { token })).status).toBe(200);
+    expect(guest.cookie).toBeTruthy();
+    const ids = [f.id, brand.id, mine.id];
+    for (const path of ["/api/drive/list?view=team", "/api/drive/list?view=brand", "/api/drive/list?view=shared", "/api/drive/usage", "/api/drive/tags", `/api/drive/manifest?ids=${ids.join(",")}`])
+      expect((await guest.get(path)).status, path).toBe(401);
+    for (const id of ids) {
+      expect((await guest.get(`/api/drive/items/${id}`)).status).toBe(401);
+      expect((await content(guest, id)).status).toBe(401);
+    }
+    expect((await upload(guest, "x.txt", "x")).status).toBe(401);
+    expect((await newVersion(guest, f.id, "changed")).status).toBe(401);
+    expect((await guest.post("/api/drive/folders", { space: "team", name: "Guest" })).status).toBe(401);
+    for (const op of ["move", "trash", "restore", "delete", "star"]) expect((await guest.post(`/api/drive/${op}`, { ids })).status, op).toBe(401);
+    expect((await guest.patch(`/api/drive/items/${f.id}`, { name: "renamed" })).status).toBe(401);
+    // A client portal cookie is not an app session either.
+    const portal = new Client(ctx.app);
+    portal.cookie = "mp_portal=anything";
+    expect((await portal.get("/api/drive/list?view=team")).status).toBe(401);
+    expect((await content(portal, f.id)).status).toBe(401);
+    // Nothing changed for the team.
+    expect(text((await content(owner, f.id)).bytes)).toBe("team plan");
+  });
+
   it("search, recent and quota", async () => {
     await upload(owner, "Invoice March.pdf", "x", {}, "application/pdf");
     await upload(owner, "photo.png", "y", {}, "image/png");

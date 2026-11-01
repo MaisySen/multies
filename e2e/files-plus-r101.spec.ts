@@ -174,3 +174,14 @@ test("6. Forest theme shots", async () => {
     await page.setViewportSize({ width: 1280, height: 900 });
   }
 });
+
+test("7. signed out and project guests: no drive", async ({ browser }) => {
+  const baseURL = test.info().project.use.baseURL;
+  const other = await browser.newContext({ baseURL });
+  const p = await other.newPage();
+  await p.goto("/app/files?view=team");
+  await expect(p).toHaveURL(/\/login/, { timeout: 20_000 });
+  await expect(p.getByTestId("drive-row")).toHaveCount(0);
+  for (const path of ["/api/drive/list?view=team", "/api/drive/list?view=brand", "/api/drive/usage"]) expect((await p.request.get(path)).status(), path).toBe(401);
+  await other.close();
+});
