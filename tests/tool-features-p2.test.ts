@@ -10,7 +10,7 @@ describe("Tools P2 feature flags", () => {
   });
   it("all turns every feature on", () => {
     expect(parseToolFeatures("all")).toEqual([...TOOL_FEATURES]);
-    expect(TOOL_FEATURES.length).toBe(32); // R110: ask_r110; R109: merge_plus_r109; R88: file_requests, secrets; R87: links; R100: tools_c; R100b: tools_c2
+    expect(TOOL_FEATURES.length).toBe(33); // R128: vault_r128; R110: ask_r110; R109: merge_plus_r109; R88: file_requests, secrets; R87: links; R100: tools_c; R100b: tools_c2
   });
 });
 

@@ -36,6 +36,7 @@ export const TOOL_FEATURES = [
   "tools_c2",   // R100b: slides and drawings on the engine, image links, link preview
   "merge_plus_r109", // R109 lists with consent, newsletters and journeys (Spam Act)
   "ask_r110",   // R110: Ask across the workspace (free AI, capped, only what the asker can open)
+  "vault_r128", // R128: team password vault, encrypted in the browser (own switch VAULT_R128)
 ] as const;
 
 export type ToolFeature = (typeof TOOL_FEATURES)[number];

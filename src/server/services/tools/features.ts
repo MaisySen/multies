@@ -9,7 +9,9 @@ import type { ToolFeature } from "@/shared/tool-features";
  */
 export function activeToolFeatures(deps: Pick<Deps, "config" | "indexDb">): ToolFeature[] {
   // R110: Ask has its own switch (ASK_R110); it shows in the Tools directory while that is on.
-  const f = deps.config.askR110 ? [...deps.config.tools.features.filter((x) => x !== "ask_r110"), "ask_r110" as const] : deps.config.tools.features.filter((x) => x !== "ask_r110");
+  const f0 = deps.config.askR110 ? [...deps.config.tools.features.filter((x) => x !== "ask_r110"), "ask_r110" as const] : deps.config.tools.features.filter((x) => x !== "ask_r110");
+  // R128: the vault has its own switch (VAULT_R128) too.
+  const f = deps.config.vaultR128 ? [...f0.filter((x) => x !== "vault_r128"), "vault_r128" as const] : f0.filter((x) => x !== "vault_r128");
   return deps.indexDb ? f : f.filter((x) => x !== "index");
 }
 

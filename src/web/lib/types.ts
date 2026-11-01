@@ -29,6 +29,8 @@ export interface PublicConfig {
   searchR98?: boolean;
   /** R110: Ask across the workspace (ASK_R110). */
   askR110?: boolean;
+  /** R128: team password vault (VAULT_R128). */
+  vaultR128?: boolean;
   /** R94: CRM timeline (notes are searchable with R98). */
   crmTimeline?: boolean;
   /** R99: calendar and contacts sync (CalDAV and CardDAV). */

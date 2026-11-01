@@ -1622,5 +1622,19 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "-- R131 (Nov 2): Home widgets. One layout per person per workspace, plus the workspace default (user_id ''). Additive only.\nCREATE TABLE IF NOT EXISTS `home_layouts` (\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`layout` text NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `user_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);"
     ]
+  },
+  {
+    "name": "0146_r128_vault",
+    "statements": [
+      "-- R128: team password vault. The server keeps only ciphertext: public keys, passphrase wrapped private keys, a hash of the\n-- unlock proof, encrypted folder names and items, per member wrapped folder keys and audit rows (never a value). Additive only.\nCREATE TABLE `vault_accounts` (\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`public_key` text NOT NULL,\n\t`fingerprint` text NOT NULL,\n\t`wrapped_private_key` text NOT NULL,\n\t`kdf_salt` text NOT NULL,\n\t`kdf_iterations` integer NOT NULL,\n\t`auth_hash` text NOT NULL,\n\t`failed_count` integer DEFAULT 0 NOT NULL,\n\t`lockouts` integer DEFAULT 0 NOT NULL,\n\t`locked_until` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY (`org_id`, `user_id`)\n);",
+      "CREATE TABLE `vault_folders` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name_ct` text NOT NULL,\n\t`key_version` integer DEFAULT 1 NOT NULL,\n\t`needs_rotation` integer DEFAULT 0 NOT NULL,\n\t`created_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX `vault_folders_org_idx` ON `vault_folders` (`org_id`);",
+      "CREATE TABLE `vault_folder_keys` (\n\t`folder_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`key_version` integer NOT NULL,\n\t`org_id` text NOT NULL,\n\t`wrapped_key` text NOT NULL,\n\t`access` text DEFAULT 'view' NOT NULL,\n\t`granted_by` text,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY (`folder_id`, `user_id`, `key_version`)\n);",
+      "CREATE INDEX `vault_folder_keys_user_idx` ON `vault_folder_keys` (`org_id`, `user_id`);",
+      "CREATE TABLE `vault_items` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`folder_id` text NOT NULL,\n\t`ct` text NOT NULL,\n\t`key_version` integer NOT NULL,\n\t`created_by` text NOT NULL,\n\t`updated_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX `vault_items_folder_idx` ON `vault_items` (`folder_id`);",
+      "CREATE TABLE `vault_audit` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`user_name` text DEFAULT '' NOT NULL,\n\t`folder_id` text,\n\t`item_id` text,\n\t`action` text NOT NULL,\n\t`field` text,\n\t`at` integer NOT NULL\n);",
+      "CREATE INDEX `vault_audit_org_at_idx` ON `vault_audit` (`org_id`, `at`);"
+    ]
   }
 ];

@@ -57,6 +57,10 @@ export interface AppConfig {
   coursesR129?: boolean;
   /** R129: more workspaces kept out of courses (vv8k is always out). */
   coursesExclude?: string;
+  /** R128: VAULT_R128 (team password vault in Tools). Off unless set. */
+  vaultR128?: boolean;
+  /** R128: more workspaces kept out of the vault; vv8k is always out. */
+  vaultExclude?: string;
   /** R105: invoices and quotes (INVOICES_ENABLED=true). Off unless set. */
   invoicesEnabled: boolean;
   /** R92 Booking plus: resources, time polls, free events with QR tickets (BOOKING_PLUS=true, needs scheduling). */
@@ -408,6 +412,8 @@ const EnvSchema = z.object({
   ASK_R110: z.string().optional(),
   TABLES_R125: z.string().optional(), // R125
   TABLES_EXCLUDE: z.string().optional(), // R125
+  VAULT_R128: z.string().optional(),
+  VAULT_EXCLUDE: z.string().optional(),
   TOOLS_FEATURES: z.string().optional(),
   LINK_CLICK_FLUSH_MS: z.string().optional(), // R87
   SOCIAL_P2: z.string().optional(),
@@ -714,6 +720,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     askR110: ["1", "true", "on"].includes(String(env.ASK_R110 ?? "").toLowerCase()), // R110
     tablesR125: ["1", "true", "on"].includes(String(env.TABLES_R125 ?? "").toLowerCase()), // R125
     tablesExclude: env.TABLES_EXCLUDE ?? "", // R125
+    vaultR128: ["1", "true", "on"].includes(String(env.VAULT_R128 ?? "").toLowerCase()), // R128
+    vaultExclude: env.VAULT_EXCLUDE ?? "", // R128
     invoicesEnabled: env.INVOICES_ENABLED === "true" || env.INVOICES_ENABLED === "1", // R105
     coursesR129: ["1", "true", "on"].includes(String(env.COURSES_R129 ?? "").toLowerCase()), // R129
     coursesExclude: env.COURSES_EXCLUDE ?? "", // R129
