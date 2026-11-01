@@ -53,14 +53,34 @@ test("contact address: pick a suggestion, see the map and directions; no match s
   const options = page.getByRole("listbox", { name: "Matching addresses" }).getByRole("option");
   await expect(options.first()).toContainText("12 Harbour Street", { timeout: 10_000 });
   await expect(page.getByText("Map data from OpenStreetMap contributors").first()).toBeVisible();
+  // Nothing is highlighted until ArrowDown, so ArrowDown then Enter saves the first row shown (verifier v8, 00:38).
+  await expect(options.first()).toHaveAttribute("aria-selected", "false");
+  await box.press("ArrowDown");
+  await expect(options.nth(0)).toHaveAttribute("aria-selected", "true");
   await box.press("ArrowDown");
   await expect(options.nth(1)).toHaveAttribute("aria-selected", "true");
   await box.press("ArrowUp");
+  await expect(options.nth(0)).toHaveAttribute("aria-selected", "true");
   await box.press("Enter");
   await expect(card.getByText("Map pin found.")).toBeVisible();
   await card.getByTestId("address-save").click();
   await expect(card.getByTestId("address-text")).toHaveText("12 Harbour Street, Sydney NSW 2000, Australia");
   await expect(card.getByTestId("map")).toBeVisible();
+  // Map credits: one small collapsed "i" button with underlined links, no library attribution box over the map.
+  await expect(page.locator(".maplibregl-ctrl-attrib")).toHaveCount(0);
+  const credits = card.getByRole("button", { name: "Map credits" });
+  await expect(credits).toHaveAttribute("aria-expanded", "false");
+  await expect(card.getByTestId("map-credits")).toHaveCount(0);
+  await credits.click();
+  await expect(credits).toHaveAttribute("aria-expanded", "true");
+  await expect(card.getByTestId("map-credits").getByRole("link", { name: "© OpenStreetMap contributors" })).toHaveAttribute("href", "https://www.openstreetmap.org/copyright");
+  await expect(card.getByTestId("map-credits").getByRole("link")).toHaveCount(3);
+  await axe(page, "address card, map credits open");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await axe(page, "address card, map credits open, dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await credits.click();
+  await expect(card.getByTestId("map-credits")).toHaveCount(0);
   await expect(card.getByTestId("directions-google")).toHaveAttribute("href", /google\.com\/maps\/dir\/\?api=1&destination=-33\.\d+%2C151\.\d+/);
   await expect(card.getByTestId("directions-apple")).toHaveAttribute("href", /maps\.apple\.com\/\?daddr=-33\./);
   await noHScroll(page);
@@ -111,6 +131,7 @@ test("visits: empty state, add stops, shortest order, maps app links, phone widt
   await expect(stops.nth(1)).toContainText("3 Visit Street");
   await expect(stops.nth(2)).toContainText("2 Visit Street");
   await expect(page.getByTestId("visit-best")).toBeDisabled();
+  await expect(page.getByTestId("visit-best-why")).toHaveText("Already in the shortest order.");
   // Move a stop by keyboard reachable buttons, then back.
   await stops.nth(1).getByRole("button", { name: /Move .* down/ }).click();
   await expect(stops.nth(2)).toContainText("3 Visit Street");

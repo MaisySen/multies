@@ -16,6 +16,12 @@ export const GEO_CACHE_DAYS = 30;
 export const LINK_MAX_POINTS = 10;
 export const MAX_VISIT_STOPS = 25;
 export const MAP_ATTRIBUTION = "Map data from OpenStreetMap contributors";
+/** Credits shown behind the map's small "i" button: the tile host, the tile schema and the map data, each a link. */
+export const MAP_CREDITS: readonly { label: string; href: string }[] = [
+  { label: "OpenFreeMap", href: "https://openfreemap.org/" },
+  { label: "© OpenMapTiles", href: "https://www.openmaptiles.org/" },
+  { label: "© OpenStreetMap contributors", href: "https://www.openstreetmap.org/copyright" },
+];
 
 /** Trim, fold spaces and case, so the same address typed twice hits the cache. */
 export function normaliseQuery(q: string): string {
@@ -165,4 +171,16 @@ function dedupe(parts: string[]) {
 function unique(rs: GeoResult[]) {
   const seen = new Set<string>();
   return rs.filter((r) => { const k = r.address.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 6);
+}
+
+/** Which suggestion stays highlighted when newer results land: the same address if it is still listed, else none. */
+export function highlightAfterResults(prevAddress: string | null, results: readonly { address: string }[]): number {
+  return prevAddress ? results.findIndex((r) => r.address === prevAddress) : -1;
+}
+
+/** Why Shortest order has nothing to do, in plain words (shown beside the disabled button). */
+export function bestHint(located: number, hasStart: boolean): string {
+  if (located < 2) return "Shortest order needs at least two stops with a map pin.";
+  if (located === 2 && !hasStart) return "Two stops are the same distance either way. Add a starting point or a third stop to compare.";
+  return "Already in the shortest order.";
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { makeTestApp, Client } from "./helpers";
 import {
-  GEO_DAILY_CAP, directionsLinks, haversineKm, legs, normaliseQuery, orderStops, parseNominatim, parsePhoton, pathKm, routeLinks, shortAddress, validPoint,
+  GEO_DAILY_CAP, MAP_CREDITS, bestHint, highlightAfterResults, directionsLinks, haversineKm, legs, normaliseQuery, orderStops, parseNominatim, parsePhoton, pathKm, routeLinks, shortAddress, validPoint,
 } from "@/shared/maps-r115";
 import { appCsp } from "@/server/lib/security-headers";
 import { sql } from "drizzle-orm";
@@ -294,5 +294,27 @@ describe("R115 API", () => {
     const pub = await new Client(t.app).get("/api/book/plain-r115?days=7");
     expect(pub.status).toBe(200);
     expect("location" in pub.body.page).toBe(false);
+  });
+});
+
+describe("R115 verifier v8 fixes (staging 3b16457d0584)", () => {
+  it("keeps the highlighted suggestion when newer results re order, else highlights nothing", () => {
+    const nsw = { address: "10 Pitt Street, Sydney NSW 2000, Australia" };
+    const ns = { address: "10 Pitt Street, Sydney, Nova Scotia, Canada" };
+    expect(highlightAfterResults(nsw.address, [ns, nsw])).toBe(1);
+    expect(highlightAfterResults(nsw.address, [ns])).toBe(-1);
+    expect(highlightAfterResults(null, [nsw, ns])).toBe(-1);
+    expect(highlightAfterResults(nsw.address, [])).toBe(-1);
+  });
+  it("map credits: tile host, tile schema and OpenStreetMap, each an https link, no dashes", () => {
+    expect(MAP_CREDITS.map((c) => c.label)).toEqual(["OpenFreeMap", "© OpenMapTiles", "© OpenStreetMap contributors"]);
+    for (const c of MAP_CREDITS) { expect(c.href).toMatch(/^https:\/\//); expect(c.label).not.toMatch(/[\u2013\u2014-]/); }
+  });
+  it("explains why Shortest order has nothing to do", () => {
+    expect(bestHint(2, false)).toMatch(/same distance either way/);
+    expect(bestHint(2, true)).toBe("Already in the shortest order.");
+    expect(bestHint(3, false)).toBe("Already in the shortest order.");
+    expect(bestHint(1, false)).toMatch(/at least two stops/);
+    for (const n of [0, 1, 2, 3]) expect(bestHint(n, false)).not.toMatch(/[\u2013\u2014-]/);
   });
 });

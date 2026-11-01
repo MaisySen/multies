@@ -17,7 +17,7 @@ import { Input } from "@/web/components/ui/input";
 import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import {
-  MAP_ATTRIBUTION, MAX_VISIT_STOPS, directionsLinks, orderStops, pathKm, routeLinks, shortAddress, validPoint, type GeoPoint, type GeoResult,
+  MAP_ATTRIBUTION, MAX_VISIT_STOPS, bestHint, highlightAfterResults, directionsLinks, orderStops, pathKm, routeLinks, shortAddress, validPoint, type GeoPoint, type GeoResult,
 } from "@/shared/maps-r115";
 
 // The map code loads only when a map is shown; if it cannot load, the address and links still work.
@@ -56,6 +56,7 @@ export function AddressField({ initial = "", onChange, label, autoFocus, placeho
   const [state, setState] = useState<"idle" | "loading" | "busy" | "none" | "error">("idle");
   const [message, setMessage] = useState("");
   const seq = useRef(0);
+  const activeAddress = useRef<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const id = useId();
   const listId = `${id}-list`;
@@ -66,7 +67,10 @@ export function AddressField({ initial = "", onChange, label, autoFocus, placeho
     try {
       const r = await api.get<{ results: GeoResult[]; busy?: boolean }>(`/maps/lookup?mode=${mode}&q=${encodeURIComponent(q)}`);
       if (n !== seq.current) return;
-      setResults(r.results); setActive(r.results.length ? 0 : -1);
+      // Keep the row the person highlighted (found again by its address) when newer results land; otherwise nothing is
+      // highlighted until ArrowDown, so ArrowDown then Enter always saves the first row they saw.
+      const keep = highlightAfterResults(activeAddress.current, r.results);
+      setResults(r.results); setActive(keep);
       setState(r.busy ? "busy" : r.results.length ? "idle" : "none");
     } catch (e) {
       if (n !== seq.current) return;
@@ -77,7 +81,7 @@ export function AddressField({ initial = "", onChange, label, autoFocus, placeho
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const type = (v: string) => {
-    setText(v); onChange({ address: v, lat: null, lon: null });
+    setText(v); onChange({ address: v, lat: null, lon: null }); setActive(-1); activeAddress.current = null;
     clearTimeout(timer.current);
     if (v.trim().length < 4) { seq.current++; setOpen(false); setResults([]); setState("idle"); return; }
     timer.current = setTimeout(() => void search(v, "suggest"), 600);
@@ -96,6 +100,7 @@ export function AddressField({ initial = "", onChange, label, autoFocus, placeho
       else if (text.trim().length >= 3) { clearTimeout(timer.current); void search(text, "find"); }
     }
   };
+  activeAddress.current = active >= 0 && results[active] ? results[active].address : null;
   const showList = open && (state !== "idle" || results.length > 0);
   return (
     <div className="relative">
@@ -303,7 +308,8 @@ export function VisitsPlanner() {
 
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="secondary" onClick={() => setPicking(true)} disabled={stops.length >= MAX_VISIT_STOPS} data-testid="visit-add"><IconPlus className="h-4 w-4" />Add stops</Button>
-          {stops.length >= 2 && <Button size="sm" variant="secondary" onClick={reorder} disabled={!canSave} data-testid="visit-best"><IconSparkle className="h-4 w-4" />Shortest order</Button>}
+          {stops.length >= 2 && <Button size="sm" variant="secondary" onClick={reorder} disabled={!canSave} aria-describedby={canSave ? undefined : "visit-best-why"} data-testid="visit-best"><IconSparkle className="h-4 w-4" />Shortest order</Button>}
+          {stops.length >= 2 && !canSave && <span id="visit-best-why" className="text-[12.5px] text-muted" data-testid="visit-best-why">{bestHint(located.length, !!startPoint)}</span>}
           {stops.length > 0 && <Button size="sm" variant="ghost" onClick={() => void copy()}><IconCopy className="h-4 w-4" />Copy list</Button>}
           {stops.length > 0 && <Button size="sm" variant="ghost" onClick={() => setIds([])}>Clear</Button>}
         </div>

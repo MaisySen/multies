@@ -3,10 +3,10 @@
  * Numbered pins, an optional dashed line through them in order, fits every pin in view. Light and dark styles follow
  * the app theme. If the tiles cannot load, the caller's text and links still work and this says so in plain words.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { MAP_ATTRIBUTION } from "@/shared/maps-r115";
+import { MAP_CREDITS } from "@/shared/maps-r115";
 
 export interface MapPoint { lat: number; lon: number; label: string; n?: number }
 
@@ -28,6 +28,8 @@ function brandColour(el: HTMLElement) {
 
 export function MapView({ points, line = false, className, label }: { points: MapPoint[]; line?: boolean; className?: string; label: string }) {
   const box = useRef<HTMLDivElement>(null);
+  const [credits, setCredits] = useState(false);
+  const creditsId = useId();
   const map = useRef<maplibregl.Map | null>(null);
   const markers = useRef<maplibregl.Marker[]>([]);
   const [failed, setFailed] = useState(false);
@@ -49,7 +51,7 @@ export function MapView({ points, line = false, className, label }: { points: Ma
       });
     } catch { setFailed(true); return; }
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
-    m.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: MAP_ATTRIBUTION }), "bottom-right");
+    // Credits are our own small "i" button below (collapsed, underlined links, one line), not the library control.
     m.on("error", (e) => { if (!m.isStyleLoaded() && /style|Failed to fetch|NetworkError/i.test(String(e.error?.message ?? ""))) setFailed(true); });
     map.current = m;
     return () => { m.remove(); map.current = null; };
@@ -89,7 +91,20 @@ export function MapView({ points, line = false, className, label }: { points: Ma
 
   return (
     <div className={className} role="region" aria-label={label}>
-      <div ref={box} className="h-full w-full overflow-hidden rounded-xl border border-line bg-fill" data-testid="map" />
+      <div className="relative h-full w-full">
+        <div ref={box} className="h-full w-full overflow-hidden rounded-xl border border-line bg-fill" data-testid="map" />
+        <div className="absolute bottom-1.5 right-1.5 flex items-end gap-1">
+          {credits && (
+            <p id={creditsId} className="max-w-[260px] rounded-md border border-line bg-surface px-2 py-1 text-[11px] leading-snug text-muted shadow-card" data-testid="map-credits">
+              {MAP_CREDITS.map((c, i) => (
+                <span key={c.href}>{i > 0 && ", "}<a href={c.href} target="_blank" rel="noopener noreferrer" className="text-fg underline underline-offset-2">{c.label}</a></span>
+              ))}
+            </p>
+          )}
+          <button type="button" aria-label="Map credits" aria-expanded={credits} aria-controls={creditsId} onClick={() => setCredits((v) => !v)}
+            className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-line bg-surface text-[12px] font-semibold text-muted shadow-card hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">i</button>
+        </div>
+      </div>
       {failed && <p className="mt-1.5 text-[12.5px] text-muted" role="status">The map could not load. The address and directions still work.</p>}
     </div>
   );
