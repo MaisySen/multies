@@ -7,7 +7,7 @@ import AxeBuilder from "@axe-core/playwright";
  * workspace template; a member sees no admin controls. With SHOTS_DIR set it saves the UX gate screenshots at 1280
  * and 390 in light, dark and Forest and checks each view with axe (serious or critical fails the run).
  */
-test.skip(process.env.CONTRACTS_E2E !== "1", "needs Tools on with the stand in engine: CONTRACTS_E2E=1 TOOLS_ENABLED=true TOOLS_FEATURES=templates,esign,share and DOC_ENGINE_URL at e2e/support/auto-engine.mjs");
+test.skip(process.env.CONTRACTS_E2E !== "1", "needs Tools on with the stand in engine: CONTRACTS_E2E=1 TOOL_FILES=memory TOOLS_ENABLED=true TOOLS_FEATURES=templates,esign,share and DOC_ENGINE_URL at e2e/support/auto-engine.mjs");
 const DIR = process.env.SHOTS_DIR;
 let visitor = 0;
 const ip = () => `10.108.${test.info().workerIndex % 200}.${++visitor}`;
@@ -38,6 +38,9 @@ async function next(page: Page) { await page.getByRole("button", { name: "Next",
 async function answerService(page: Page) {
   await page.getByTestId("contract-template-std-service").getByRole("button", { name: /^Start/ }).click();
   await expect(page.getByTestId("contract-step")).toBeVisible();
+  // R108 (v13 lows): Start puts focus on the template heading, and the breadcrumb names Contracts.
+  await expect(page.getByRole("heading", { level: 2, name: "Service agreement", exact: true })).toBeFocused();
+  if ((page.viewportSize()?.width ?? 0) >= 1280) await expect(page.getByTestId("breadcrumbs")).toContainText("Contracts");
   await expect(page.getByLabel("Your business name")).not.toHaveValue("");
   // Error path: nothing in the client name.
   await next(page);
@@ -94,8 +97,12 @@ for (const size of [{ name: "1280", width: 1280, height: 860 }, { name: "390", w
     await openContracts(page);
     await expect(page.getByText("Service agreement: Multies Demo and Bright Bakery Pty Ltd").or(page.getByText(/Service agreement: .* and Bright Bakery Pty Ltd/)).first()).toBeVisible();
     await answerService(page);
+    // R108 (v13 BLOCKER): the e-sign page must take the finished PDF, not answer "This result has expired".
+    const fromRes = page.waitForResponse((r) => r.url().includes("/api/tools/esign/documents/from"), { timeout: 90_000 });
     await page.getByRole("button", { name: "Send to sign" }).click();
     await expect(page).toHaveURL(/\/app\/tools\/sign\?result=/, { timeout: 60_000 });
+    expect((await fromRes).status()).toBeLessThan(300);
+    await expect(page.getByText("This result has expired")).toHaveCount(0);
     expect(problems).toEqual([]);
   });
 }

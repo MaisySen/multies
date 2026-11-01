@@ -142,7 +142,8 @@ export function breadcrumbs(pathname: string, search: string, ctx: { projectName
   const rest = pathname.slice(hit.page.to.length).split("/").filter(Boolean);
   if (hit.page.to === "/app/settings" && rest[0]) out.push({ label: SUB_LABEL[rest[0]] ?? titleCase(rest[0]) });
   // R82F (MB-283): a tool's own page names itself (an editor slug reads as words).
-  if (hit.page.to === "/app/tools" && rest[0]) out.push({ label: TOOL_SUB[rest[0]] ?? titleCase(rest[0]) });
+  // R108: the Contracts view of Tools > Templates names itself.
+  if (hit.page.to === "/app/tools" && rest[0]) out.push({ label: rest[0] === "templates" && params.get("view") === "contracts" ? "Contracts" : TOOL_SUB[rest[0]] ?? titleCase(rest[0]) });
   // R80C, R82F (MB-279): the tabs of Connections.
   const CONNECTION_SUB: Record<string, string> = { mail: "Mail accounts", webhooks: "Webhooks" };
   if (hit.page.to === "/app/settings/apps" && rest[0] && CONNECTION_SUB[rest[0]]) out.push({ label: CONNECTION_SUB[rest[0]] });

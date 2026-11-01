@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { makeTestApp, Client } from "./helpers";
+import { breadcrumbs } from "@/web/layouts/shell-nav";
 import {
   CONTRACT_NOTE, STANDARD_CLAUSES, STANDARD_TEMPLATES, addYears, applyConditions, buildContract, checkAnswers, checkClauseBody, contractHtml, contractMarkdown,
   displayValue, plannedReminders, standardClause, standardTemplate, startingAnswers, testCondition, unknownPlaceholders, validAbn, validDate, visibleQuestions,
@@ -217,5 +218,12 @@ describe("contracts api", () => {
     expect((await other.get(`/api/contracts/templates/${t.body.id}`)).status).toBe(404);
     expect((await other.post("/api/contracts/generate", { templateId: t.body.id, answers: {} })).status).toBe(404);
     expect((await other.put(`/api/contracts/templates/${t.body.id}`, { name: "Mine", clauseKeys: ["law"] })).status).toBe(404);
+  });
+});
+
+describe("R108 contracts breadcrumb (verifier v13 low)", () => {
+  it("the Contracts view of Tools > Templates names itself", () => {
+    expect(breadcrumbs("/app/tools/templates", "?view=contracts").map((c) => c.label).at(-1)).toBe("Contracts");
+    expect(breadcrumbs("/app/tools/templates", "").map((c) => c.label).at(-1)).toBe("Invoice and letter templates");
   });
 });

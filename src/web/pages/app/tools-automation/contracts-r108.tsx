@@ -4,7 +4,7 @@
  * (the e-sign page). Admins keep the workspace's own versions of templates and a clause library with versions.
  * Every template and generated document carries the "This is a template, not legal advice" note.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -232,6 +232,10 @@ function Interview({ id, onBack }: { id: string; onBack: () => void }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["contracts", "template", id], queryFn: () => api.get<Detail>(`/contracts/templates/${id}`) });
+  // R108 (v13 low): Start moves focus to the template's heading once it has loaded, not to the page body.
+  const headRef = useRef<HTMLHeadingElement>(null);
+  const focused = useRef(false);
+  useEffect(() => { if (!focused.current && headRef.current) { focused.current = true; headRef.current.focus(); } });
   const [answers, setAnswers] = useState<Answers | null>(null);
   const [step, setStep] = useState(0);
   const [showErrors, setShowErrors] = useState(false);
@@ -257,7 +261,7 @@ function Interview({ id, onBack }: { id: string; onBack: () => void }) {
   const sectionErrors = inSection.filter((x) => errors[x.key]);
   const allOk = Object.keys(errors).length === 0;
   const set = (k: string, v: string) => { setAnswers((a) => ({ ...(a ?? {}), [k]: v })); setPdf(null); setMade(null); };
-  const next = () => { if (sectionErrors.length) { setShowErrors(true); toast.error("Some answers need another look."); return; } setShowErrors(false); setStep(cur + 1); };
+  const next = () => { if (sectionErrors.length) { setShowErrors(true); toast.error("Some answers need another look.", { id: "contract-step-error" }); return; } setShowErrors(false); toast.dismiss("contract-step-error"); setStep(cur + 1); };
   const body = { templateId: id, answers };
   const fail = (e: unknown) => {
     const details = (e as { details?: { errors?: Record<string, string> } }).details;
@@ -281,10 +285,12 @@ function Interview({ id, onBack }: { id: string; onBack: () => void }) {
         const job = await api.post<ToolJob>("/contracts/pdf", body);
         const done = await waitForJobDone(job.token);
         const file = await jobFile(done);
-        p = { token: job.token, url: URL.createObjectURL(file), name: file.name };
+        // R108 (v13 BLOCKER): e-sign reads the finished result's download token (as ShareResultLinks does), not the job token.
+        const resultToken = done.downloadUrl?.match(/\/api\/tools\/jobs\/([^/]+)\/download$/)?.[1] ?? done.token;
+        p = { token: resultToken, url: URL.createObjectURL(file), name: file.name };
         setPdf(p);
       }
-      if (then === "sign") navigate(`/app/tools/sign?result=${encodeURIComponent(p.token)}&mode=request`);
+      if (then === "sign") navigate(`/app/tools/sign?result=${encodeURIComponent(p.token)}&name=${encodeURIComponent(p.name)}&mode=request`);
       else { const a = document.createElement("a"); a.href = p.url; a.download = p.name; a.click(); }
     } catch (e) { fail(e); } finally { setBusy(null); }
   };
@@ -303,7 +309,7 @@ function Interview({ id, onBack }: { id: string; onBack: () => void }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <Button variant="ghost" size="sm" onClick={onBack}>Back to templates</Button>
-          <h2 className="mt-1 text-lg font-semibold">{def.name}</h2>
+          <h2 ref={headRef} tabIndex={-1} className="mt-1 text-lg font-semibold focus:outline-none">{def.name}</h2>
         </div>
         <div className="flex rounded-lg border border-line p-0.5 2xl:hidden" role="tablist" aria-label="Questions or preview">
           {(["questions", "preview"] as const).map((p) => <button key={p} role="tab" aria-selected={pane === p} onClick={() => setPane(p)} className={cn("min-h-[36px] rounded-md px-3 text-[13px]", pane === p ? "bg-fill font-medium text-fg" : "text-muted")}>{p === "questions" ? "Questions" : "Preview"}</button>)}
@@ -336,7 +342,7 @@ function Interview({ id, onBack }: { id: string; onBack: () => void }) {
                   <div key={x.key} className="space-y-0.5 px-3 py-2">
                     <dt className="text-xs text-muted">{x.label}</dt>
                     <dd className="flex items-start justify-between gap-3">
-                      <span className={cn("min-w-0 whitespace-pre-line break-words", errors[x.key] && "text-bad")}>{answerText(x) || <span className="text-subtle">Not answered</span>}</span>
+                      <span className={cn("min-w-0 whitespace-pre-line break-words [overflow-wrap:anywhere]", errors[x.key] && "text-bad")}>{answerText(x) || <span className="text-subtle">Not answered</span>}</span>
                       <button className="-my-1 min-h-[32px] shrink-0 rounded-md px-2 text-xs font-medium text-brand hover:bg-hover" onClick={() => setStep(sections.indexOf(x.section))} aria-label={`Change ${x.label}`}>Change</button>
                     </dd>
                   </div>
