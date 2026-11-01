@@ -1,0 +1,128 @@
+# iPhone simulator screenshots for the Multies phone app (mobile/ folder). Branch m1-ios-sim only.
+# Runs on a push to m1-ios-sim (GitHub only registers a workflow that is not on main once it has run)
+# or by hand (workflow_dispatch with ref m1-ios-sim). Never runs on main. No signing, no store, no OTA.
+name: iOS simulator shots
+
+on:
+  workflow_dispatch:
+    inputs:
+      routes:
+        description: "Space separated app paths to open by deep link"
+        required: false
+        default: ""
+  push:
+    branches: [m1-ios-sim]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-sim-shots
+  cancel-in-progress: true
+
+env:
+  APP_DIR: mobile
+  SCHEME: Multies
+  BUNDLE_ID: au.fintex.multies
+  URL_SCHEME: mymail
+  EXPO_PUBLIC_API_BASE: https://preview.multies.si
+  DEFAULT_ROUTES: "/ /sign-in /search /tools /social /files /docs /contacts /visits /mail-merge /tools/mail-merge /mail-archive /sync"
+
+jobs:
+  shots:
+    runs-on: macos-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick Xcode
+        run: |
+          X=$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)
+          sudo xcode-select -s "$X"
+          xcodebuild -version | head -2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
+
+      - name: Install, turn off OTA checks in this copy, prebuild iOS
+        timeout-minutes: 20
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          npm ci --no-audit --no-fund > "$GITHUB_WORKSPACE/out/npm.log" 2>&1 || { tail -40 "$GITHUB_WORKSPACE/out/npm.log"; exit 1; }
+          # The simulator app must run the embedded bundle (staging API), never fetch a production OTA.
+          node -e 'const f="app.json",j=require("./"+f);j.expo.updates={...(j.expo.updates||{}),enabled:false,checkAutomatically:"NEVER"};require("fs").writeFileSync(f,JSON.stringify(j,null,2))'
+          npx expo prebuild --platform ios --no-install --clean > "$GITHUB_WORKSPACE/out/prebuild.log" 2>&1 || { tail -60 "$GITHUB_WORKSPACE/out/prebuild.log"; exit 1; }
+          ls ios | head
+
+      - name: Pods
+        timeout-minutes: 15
+        working-directory: ${{ env.APP_DIR }}/ios
+        run: |
+          pod install > "$GITHUB_WORKSPACE/out/pods.log" 2>&1 || { tail -60 "$GITHUB_WORKSPACE/out/pods.log"; exit 1; }
+
+      - name: Build for simulator (Release, embedded JS, no signing)
+        timeout-minutes: 35
+        working-directory: ${{ env.APP_DIR }}/ios
+        run: |
+          set -o pipefail
+          START=$(date +%s)
+          xcodebuild -workspace "$SCHEME.xcworkspace" -scheme "$SCHEME" -configuration Release \
+            -sdk iphonesimulator -destination "generic/platform=iOS Simulator" ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO \
+            > "$GITHUB_WORKSPACE/out/xcodebuild.log" 2>&1 || { grep -E "error:|BUILD FAILED" "$GITHUB_WORKSPACE/out/xcodebuild.log" | sort -u | head -60; exit 1; }
+          echo "build seconds $(( $(date +%s) - START ))"
+          APP=$(ls -d build/Build/Products/Release-iphonesimulator/*.app | head -1)
+          echo "APP=$PWD/$APP" >> "$GITHUB_ENV"; du -sh "$APP"
+
+      - name: Boot simulator, launch, screenshot
+        timeout-minutes: 15
+        run: |
+          OUT="$GITHUB_WORKSPACE/out"; mkdir -p "$OUT/shots"
+          DEV=$(xcrun simctl list devices available -j | python3 -c 'import json,sys;d=json.load(sys.stdin)["devices"];c=[(r,x) for r,l in d.items() if "iOS" in r for x in l if x["name"].startswith("iPhone") and "Pro" in x["name"] and "Max" not in x["name"]] or [(r,x) for r,l in d.items() if "iOS" in r for x in l if x["name"].startswith("iPhone")];c.sort(key=lambda t:t[0]);print(c[-1][1]["udid"])')
+          xcrun simctl list devices | grep "$DEV" | head -1
+          xcrun simctl boot "$DEV"; xcrun simctl bootstatus "$DEV" -b > /dev/null
+          xcrun simctl ui booted appearance light
+          xcrun simctl install booted "$APP"
+          xcrun simctl spawn booted log stream --level error --style compact --predicate 'process == "Multies"' > "$OUT/sim.log" 2>&1 &
+          LOGPID=$!
+          T0=$(date +%s); xcrun simctl launch booted "$BUNDLE_ID"; sleep 25
+          xcrun simctl io booted screenshot "$OUT/shots/00-start-light.png"
+          echo "start screen after $(( $(date +%s) - T0 )) s"
+          ROUTES="${{ inputs.routes }}"; [ -z "$ROUTES" ] && ROUTES="$DEFAULT_ROUTES"
+          for MODE in light dark; do
+            xcrun simctl ui booted appearance $MODE; sleep 3
+            [ $MODE = dark ] && xcrun simctl io booted screenshot "$OUT/shots/00-start-dark.png"
+            i=1
+            for R in $ROUTES; do
+              NAME=$(echo "$R" | sed 's#^/##; s#/#-#g'); [ -z "$NAME" ] && NAME=home
+              xcrun simctl openurl booted "$URL_SCHEME://$R" || true
+              sleep 7
+              xcrun simctl io booted screenshot "$OUT/shots/$(printf %02d $i)-$NAME-$MODE.png" > /dev/null
+              i=$((i+1))
+            done
+          done
+          xcrun simctl ui booted appearance light
+          pgrep -x Multies > /dev/null && echo "app still running at the end" || echo "APP NOT RUNNING at the end"
+          kill $LOGPID 2>/dev/null || true
+          cp ~/Library/Logs/DiagnosticReports/Multies* "$OUT/" 2>/dev/null || true
+          grep -iE "crash|fatal|exception|terminat|RCTFatal|Unhandled JS" "$OUT/sim.log" | head -40 > "$OUT/crash-lines.txt" || true
+          echo "crash lines: $(wc -l < "$OUT/crash-lines.txt")"; head -15 "$OUT/crash-lines.txt"
+          ls "$OUT/shots" | wc -l
+          xcrun simctl shutdown all || true
+
+      - name: Trim logs
+        if: always()
+        run: |
+          cd "$GITHUB_WORKSPACE/out" 2>/dev/null || exit 0
+          for f in xcodebuild.log pods.log npm.log prebuild.log; do [ -f $f ] && { tail -400 $f > $f.tail; rm $f; }; done; true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-sim-shots
+          path: out/
+          retention-days: 5
