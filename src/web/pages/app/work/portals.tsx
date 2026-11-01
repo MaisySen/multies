@@ -16,7 +16,7 @@ import { Field, Input, Textarea } from "@/web/components/ui/input";
 import { Avatar, Badge, Card, CopyButton, EmptyState, Skeleton, Switch } from "@/web/components/ui/misc";
 import { initials, shortDate, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
-import { taskStateLabel, type PortalDetail, type PortalItem, type PortalSummary } from "@/shared/client-portal";
+import { portalInviteThrottledNote, taskStateLabel, type PortalDetail, type PortalItem, type PortalSummary } from "@/shared/client-portal";
 
 const MB = 1024 * 1024;
 const sizeText = (n: number) => (n < MB ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / MB).toFixed(n < 10 * MB ? 1 : 0)} MB`);
@@ -348,7 +348,7 @@ function PeopleTab({ d, refresh }: TabProps) {
   };
   const invite = async (pid: string, addr: string) => {
     setBusy(`i${pid}`);
-    try { const r = await api.post<{ sent: boolean }>(`/portals/${d.portal.id}/people/${pid}/invite`); setNote(r.sent ? `Sign in link sent to ${addr}.` : `The email to ${addr} did not go out. Copy a link instead.`); } catch (e) { showError(e as Error); } finally { setBusy(null); }
+    try { const r = await api.post<{ sent: boolean; throttled?: boolean }>(`/portals/${d.portal.id}/people/${pid}/invite`); setNote(r.throttled ? portalInviteThrottledNote(addr) : r.sent ? `Sign in link sent to ${addr}.` : `The email to ${addr} did not go out. Copy a link instead.`); } catch (e) { showError(e as Error); } finally { setBusy(null); }
   };
   const link = async (pid: string) => {
     setBusy(`l${pid}`);

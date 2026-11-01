@@ -2,6 +2,10 @@
  * R96: chat plus. Pure rules for topics, decision votes, polls, live Q&A and word clouds, shared by the
  * server, the web app and the tests.
  */
+/** R100b: the reason field on a decision. Block needs a reason, so the field never says optional. */
+export const DECISION_REASON_PLACEHOLDER = "Add a reason";
+export const DECISION_BLOCK_NEEDS_REASON = "Add a reason to block";
+
 export const DECISION_STANCES = ["agree", "abstain", "disagree", "block"] as const;
 export type Stance = (typeof DECISION_STANCES)[number];
 export const STANCE_LABEL: Record<Stance, string> = { agree: "Agree", abstain: "Abstain", disagree: "Disagree", block: "Block" };

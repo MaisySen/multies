@@ -9,6 +9,11 @@ export const PORTAL_MAX_PEOPLE = 25;
 export const PORTAL_MAX_ITEMS = 300;
 export const PORTAL_MESSAGE_MAX = 4000;
 export const PORTAL_LINKS_PER_HOUR = 5;
+/** R100b: Copy link sends no email, so it has its own, roomier cap and does not use up the email cap above. */
+export const PORTAL_COPY_LINKS_PER_HOUR = 20;
+/** R100b: what the team sees when an invite email is held back by the hourly cap. */
+export const portalInviteThrottledNote = (addr: string) =>
+  `Not sent. ${addr} already got ${PORTAL_LINKS_PER_HOUR} sign in emails in the last hour. Use Copy link, or try again later.`;
 export const PORTAL_MAIL_EVERY_MS = 15 * 60_000;
 
 export type PortalItemKind = "file" | "doc" | "task" | "request";

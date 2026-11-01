@@ -305,6 +305,9 @@ export interface ComposerProps {
   campaigns?: string[];
 }
 
+/** R100b: the toast after Post now (the sheet then follows each network). */
+export const POST_NOW_TOAST = "Posting now. Follow it in Posts.";
+
 export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccount, presetLibraryText, presetImage, campaigns = [] }: ComposerProps) {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -402,6 +405,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
       if (later) { toast.success(`Scheduled for ${whenText(r.post.runAt)}`); navigate("/app/social/posts"); return; }
       // The composer clears behind the sheet; TikTok (when picked) opens after it.
       setTiktokAfter(tiktokPicked ? textOf("tiktok") : null);
+      toast.success(POST_NOW_TOAST); // R100b: a plain confirmation besides the sheet
       resetAfterPost();
       setPostedId(r.post.id);
     },
@@ -658,7 +662,10 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
         onImage={(img) => { setImages((c) => (format === "carousel" ? [...c, img].slice(0, 10) : [img])); if (format === "text") setFormat("image"); }}
         onText={(t, kind) => { const join = (cur: string) => (cur.trim() ? `${cur.trimEnd()}${kind === "hashtags" ? " " : "\n\n"}${t}` : t); if (tabApp) setTexts((m) => ({ ...m, [tabApp]: join(m[tabApp] ?? text) })); else setText(join); }} />
       <TikTokPostDialog open={tiktokOpen} onClose={() => { setTiktokOpen(false); setTiktokAfter(null); }} caption={tiktokAfter ?? textOf("tiktok")} />
-      {postedId && <PostedSheet postId={postedId} onClose={() => { setPostedId(null); if (tiktokAfter !== null) setTiktokOpen(true); requestAnimationFrame(() => document.getElementById("social-text")?.focus()); }} />}
+      {postedId && <PostedSheet postId={postedId}
+        // R100b: closing the sheet goes back to the posts list; Write another (or TikTok still to post) stays here.
+        onClose={() => { setPostedId(null); if (tiktokAfter !== null) setTiktokOpen(true); else navigate("/app/social/posts"); }}
+        onWriteAnother={() => { setPostedId(null); if (tiktokAfter !== null) setTiktokOpen(true); requestAnimationFrame(() => document.getElementById("social-text")?.focus()); }} />}
     </div>
   );
 }

@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
+import { useMe } from "@/web/lib/queries";
+import { ReactionPicker, Reactions, type Reaction } from "./chat-r20";
 import { cn } from "@/web/lib/cn";
 import { mailDate } from "@/web/lib/format";
 import { Button } from "@/web/components/ui/button";
@@ -14,7 +16,7 @@ import { Field, Input, Textarea } from "@/web/components/ui/input";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { IconMore, IconPin, IconPlus } from "@/web/components/ui/icons";
-import { CHAT_PLUS_LIMITS as L, DECISION_RESULT_LABEL, POLL_KIND_LABEL, STANCE_LABEL, type PollKind, type Stance } from "@/shared/chat-plus";
+import { CHAT_PLUS_LIMITS as L, DECISION_BLOCK_NEEDS_REASON, DECISION_REASON_PLACEHOLDER, DECISION_RESULT_LABEL, POLL_KIND_LABEL, STANCE_LABEL, type PollKind, type Stance } from "@/shared/chat-plus";
 
 export type Topic = { id: string; channelId: string; name: string; resolved: boolean; unread: number; total: number };
 type Tally = { key: string; label: string; count: number; names: string[] };
@@ -260,7 +262,8 @@ function ChoiceList({ poll, act }: { poll: PollView; act: Act }) {
   const total = Math.max(1, poll.tally?.reduce((t, x) => t + x.count, 0) ?? 0);
   const pick = (key: string) => {
     if (!poll.canVote) return;
-    if (poll.kind === "decision" && key === "block" && !reason.trim()) { setPendingBlock(true); return; }
+    // R100b: Block without a reason says so next to the field and puts the cursor there.
+    if (poll.kind === "decision" && key === "block" && !reason.trim()) { setPendingBlock(true); document.getElementById(`reason-${poll.id}`)?.focus(); return; }
     const mine = poll.mine.includes(key);
     const next = poll.multi ? (mine ? poll.mine.filter((k) => k !== key) : [...poll.mine, key]) : mine ? [] : [key];
     void act(`/chat-plus/polls/${poll.id}/vote`, { choices: next, reason: poll.kind === "decision" ? reason : undefined });
@@ -294,8 +297,10 @@ function ChoiceList({ poll, act }: { poll: PollView; act: Act }) {
       {poll.kind === "decision" && poll.canVote && (
         <div className="mt-2">
           <label className="sr-only" htmlFor={`reason-${poll.id}`}>Your reason</label>
-          <Input id={`reason-${poll.id}`} placeholder={pendingBlock ? "Say why you block, then pick Block again" : "Add a reason (optional)"} value={reason} maxLength={L.reason}
-            aria-invalid={pendingBlock && !reason.trim()} onChange={(e) => { setReason(e.target.value); setPendingBlock(false); }} data-testid="decision-reason" />
+          <Input id={`reason-${poll.id}`} placeholder={pendingBlock ? DECISION_BLOCK_NEEDS_REASON : DECISION_REASON_PLACEHOLDER} value={reason} maxLength={L.reason}
+            aria-invalid={pendingBlock && !reason.trim()} aria-describedby={pendingBlock ? `reason-err-${poll.id}` : undefined}
+            onChange={(e) => { setReason(e.target.value); setPendingBlock(false); }} data-testid="decision-reason" />
+          {pendingBlock && <p id={`reason-err-${poll.id}`} role="alert" className="mt-1 text-[12px] text-bad" data-testid="decision-reason-error">{DECISION_BLOCK_NEEDS_REASON}, then pick Block again.</p>}
         </div>
       )}
       {!!poll.reasons?.length && (
@@ -385,6 +390,11 @@ export function AnnouncementsFeed({ onOpenMessage }: { onOpenMessage: (channelId
   const feed = useAnnouncements(true);
   const qc = useQueryClient();
   const [receipts, setReceipts] = useState<string | null>(null);
+  // R100b: announcements take reactions in the feed too (the same toggle as in the channel).
+  const myId = useMe().data?.user.id;
+  const react = async (messageId: string, emoji: string) => {
+    try { await api.post(`/chat/messages/${messageId}/reactions`, { emoji }); await qc.invalidateQueries({ queryKey: ["chat-plus", "announcements"] }); } catch (e) { showError(e as Error); }
+  };
   const unseen = useMemo(() => (feed.data?.announcements ?? []).filter((a) => !a.seenByMe).map((a) => a.message.id), [feed.data]);
   useEffect(() => {
     if (!unseen.length) return;
@@ -406,7 +416,11 @@ export function AnnouncementsFeed({ onOpenMessage }: { onOpenMessage: (channelId
                 {!a.seenByMe && <span className="rounded bg-brand/15 px-1.5 text-[11px] text-brand-hover">New</span>}
               </div>
               <p className="whitespace-pre-wrap text-[14px]">{a.message.body}</p>
-              <button type="button" className="mt-2 text-[12px] text-muted hover:text-fg hover:underline" onClick={() => setReceipts(a.message.id)} data-testid="announcement-seen">Seen by {a.seenCount} of {a.audience}</button>
+              <Reactions reactions={(a.message as { reactions?: Reaction[] }).reactions} myId={myId} onToggle={(e) => void react(a.message.id, e)} />
+              <div className="mt-2 flex items-center gap-2">
+                <button type="button" className="text-[12px] text-muted hover:text-fg hover:underline" onClick={() => setReceipts(a.message.id)} data-testid="announcement-seen">Seen by {a.seenCount} of {a.audience}</button>
+                <ReactionPicker onPick={(e) => void react(a.message.id, e)} className="relative ml-auto" />
+              </div>
             </li>
           ))}
         </ul>

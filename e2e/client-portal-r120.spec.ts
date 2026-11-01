@@ -112,6 +112,29 @@ test("a client's session never opens another client's portal", async ({ page, br
   await client.context().close();
 });
 
+test("R100b: at the hourly email cap the team hears plainly that the invite was not sent; Copy link still works", async ({ page }) => {
+  test.setTimeout(120_000);
+  await demo(page);
+  const list = ((await (await page.request.get("/api/contacts")).json()) as { contacts: { id: string; email?: string | null }[] }).contacts.filter((c) => c.email);
+  const made = await page.request.post("/api/portals", { data: { contactId: list[list.length - 1]!.id } });
+  expect(made.status()).toBe(201);
+  const id = ((await made.json()) as { portal: { id: string } }).portal.id;
+  await page.goto(`/app/contacts/portals/${id}`);
+  await page.getByRole("tab", { name: "People" }).click();
+  const note = page.getByRole("status").filter({ hasText: /sign in|Not sent|go out/ });
+  for (let i = 0; i < 5; i++) {
+    await page.getByTestId("portal-invite").first().click();
+    await expect(note).toBeVisible(); // "sent" or, with no mail sender on this local server, "did not go out"
+    await expect(note).not.toContainText("Not sent.");
+    await expect(page.getByTestId("portal-invite").first()).toBeEnabled();
+  }
+  await page.getByTestId("portal-invite").first().click();
+  await expect(note).toContainText("Not sent.");
+  await expect(note).toContainText("Use Copy link, or try again later.");
+  await page.getByTestId("portal-copy-link").first().click();
+  await expect(page.getByTestId("portal-link-value")).toContainText("/in/");
+});
+
 test("shots and axe: team pages and the client's space at 1280 and 390, light, dark and Forest", async ({ page, browser }) => {
   test.skip(!DIR, "shots only");
   test.setTimeout(300_000);

@@ -4,7 +4,8 @@
  * portal and the person, and every item read checks the item's portal. Files live in the kept files store (plan
  * caps hold); file requests are R88 requests; docs and tasks are read live so the client sees today's state.
  */
-import { sql } from "drizzle-orm";
+import { and, count, eq, gt, like, sql } from "drizzle-orm";
+import { auditLogs } from "../../db/schema";
 import type { AuthContext, Deps } from "../../context";
 import { HttpError, badRequest, forbidden, notFound, tooMany } from "../../lib/errors";
 import { decryptSecret, encryptSecret, newId, randomToken, sha256Hex } from "../../lib/crypto";
@@ -15,7 +16,7 @@ import { changesOf, dropKeptFiles, keepFile, readKeptFile } from "../tools/kept-
 import { cleanName } from "../tools/share";
 import { createRequest, setRequestOpen } from "../tools/file-requests";
 import {
-  PORTAL_FILE_KEEP_DAYS, PORTAL_LINKS_PER_HOUR, PORTAL_LINK_MINUTES, PORTAL_MAIL_EVERY_MS, PORTAL_MAX_ITEMS, PORTAL_MAX_PEOPLE, PORTAL_MESSAGE_MAX,
+  PORTAL_COPY_LINKS_PER_HOUR, PORTAL_FILE_KEEP_DAYS, PORTAL_LINKS_PER_HOUR, PORTAL_LINK_MINUTES, PORTAL_MAIL_EVERY_MS, PORTAL_MAX_ITEMS, PORTAL_MAX_PEOPLE, PORTAL_MESSAGE_MAX,
   PORTAL_SESSION_DAYS, cleanFolder, emailOk, type PortalDetail, type PortalItem, type PortalItemKind, type PortalMessage, type PortalPerson,
   type PortalSummary, type PortalTaskState,
 } from "@/shared/client-portal";
@@ -205,11 +206,28 @@ export async function removePerson(deps: Deps, auth: AuthContext, id: string, pe
   return { ok: true };
 }
 
-/** A one time sign in link for one person (15 minutes). The token is kept only as its SHA-256. */
-async function mintLink(deps: Deps, p: PortalRow, personId: string): Promise<string> {
+/** R100b: Copy link minted for this person in the last hour (from the audit rows Copy link writes). */
+async function copiedSince(deps: Deps, p: PortalRow, personId: string, since: number): Promise<number> {
+  const r = await deps.db.select({ n: count() }).from(auditLogs).where(and(
+    eq(auditLogs.orgId, p.org_id), eq(auditLogs.action, "portal.link_copied"), eq(auditLogs.targetId, p.id),
+    gt(auditLogs.createdAt, new Date(since)), like(auditLogs.metadata, `%"personId":"${personId}"%`)));
+  return Number(r[0]?.n ?? 0);
+}
+
+/**
+ * A one time sign in link for one person (15 minutes). The token is kept only as its SHA-256.
+ * R100b: emailed links are capped at PORTAL_LINKS_PER_HOUR per person and Copy link does not count toward that cap
+ * (it has its own PORTAL_COPY_LINKS_PER_HOUR). A held back link logs a portal.link_throttled line.
+ */
+async function mintLink(deps: Deps, p: PortalRow, personId: string, via: "mail" | "copy"): Promise<string> {
   const now = deps.now().getTime();
-  const recent = await deps.db.get<{ n: number }>(sql`select count(*) as n from client_portal_links where person_id = ${personId} and created_at > ${now - 60 * 60_000}`);
-  if (Number(recent?.n ?? 0) >= PORTAL_LINKS_PER_HOUR) throw tooMany("Too many sign in links for this person in the last hour. Try again later.");
+  const since = now - 60 * 60_000;
+  const recent = Number((await deps.db.get<{ n: number }>(sql`select count(*) as n from client_portal_links where person_id = ${personId} and created_at > ${since}`))?.n ?? 0);
+  const over = via === "copy" ? recent >= PORTAL_COPY_LINKS_PER_HOUR : recent - (await copiedSince(deps, p, personId, since)) >= PORTAL_LINKS_PER_HOUR;
+  if (over) {
+    console.warn(JSON.stringify({ event: "portal.link_throttled", portalId: p.id, personId, via }));
+    throw tooMany(via === "copy" ? "Too many sign in links for this person in the last hour. Try again later." : "Not sent. This person already got the most sign in emails allowed in an hour. Try again later.");
+  }
   const token = randomToken(32);
   await deps.db.run(sql`insert into client_portal_links (token_hash, portal_id, person_id, expires_at, created_at) values (${await sha256Hex(token)}, ${p.id}, ${personId}, ${now + PORTAL_LINK_MINUTES * 60_000}, ${now})`);
   return `${portalUrl(deps, p.key)}/in/${token}`;
@@ -243,17 +261,20 @@ async function mailLink(deps: Deps, p: PortalRow, person: PersonRow, url: string
 export async function invitePerson(deps: Deps, auth: AuthContext, id: string, personId: string) {
   const p = await managed(deps, auth, id);
   const person = await liveTeamPerson(deps, p, personId);
-  const sent = await mailLink(deps, p, person, await mintLink(deps, p, person.id), true);
+  let url: string;
+  // R100b: at the hourly email cap the team hears plainly that nothing went out (never "sent").
+  try { url = await mintLink(deps, p, person.id, "mail"); } catch (e) { if (e instanceof HttpError && e.status === 429) return { sent: false, throttled: true }; throw e; }
+  const sent = await mailLink(deps, p, person, url, true);
   await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "portal.invited", targetType: "client_portal", targetId: p.id });
-  return { sent };
+  return { sent, throttled: false };
 }
 
 /** Team: a one time sign in link to send some other way (chat, text). */
 export async function copyLink(deps: Deps, auth: AuthContext, id: string, personId: string) {
   const p = await managed(deps, auth, id);
   const person = await liveTeamPerson(deps, p, personId);
-  const url = await mintLink(deps, p, person.id);
-  await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "portal.link_copied", targetType: "client_portal", targetId: p.id });
+  const url = await mintLink(deps, p, person.id, "copy");
+  await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "portal.link_copied", targetType: "client_portal", targetId: p.id, metadata: { personId: person.id }, at: deps.now() });
   return { url, expiresInMinutes: PORTAL_LINK_MINUTES };
 }
 
@@ -396,7 +417,8 @@ export async function requestClientLink(deps: Deps, p: PortalRow, rawEmail: stri
   const person = await deps.db.get<PersonRow>(sql`select * from client_portal_people where portal_id = ${p.id} and email = ${email} and removed_at is null`);
   if (!person) return;
   let url: string;
-  try { url = await mintLink(deps, p, person.id); } catch (e) { if (e instanceof HttpError && e.status === 429) return; throw e; }
+  // The public form stays neutral at the cap (no hint whether the address is on the list); the throttle is logged.
+  try { url = await mintLink(deps, p, person.id, "mail"); } catch (e) { if (e instanceof HttpError && e.status === 429) return; throw e; }
   await mailLink(deps, p, person, url, false);
 }
 

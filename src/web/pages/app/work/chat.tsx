@@ -18,6 +18,7 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { Avatar, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { useMe } from "@/web/lib/queries";
+import { useStickToBottom } from "@/web/lib/stick-to-bottom";
 import { composerHint, isPhoneWidth, isTouchOnly } from "@/web/lib/phone";
 import { shouldOpenDefaultChannel } from "./chat-list-r49";
 import { messageActions } from "@/web/lib/message-actions";
@@ -300,7 +301,8 @@ export function ChatPage() {
     void api.post(`/chat/channels/${currentId}/read`, {}).then(() => qc.invalidateQueries({ queryKey: ["chat", "channels"] })).catch(() => undefined);
   }, [currentId, lastId, qc, unreadChecked]);
   const bottom = useRef<HTMLDivElement>(null);
-  useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [lastId]);
+  const scrollBox = useRef<HTMLDivElement>(null);
+  const scrollContent = useRef<HTMLDivElement>(null);
 
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ["chat", "messages"] }), qc.invalidateQueries({ queryKey: ["chat", "thread"] }), qc.invalidateQueries({ queryKey: ["chat", "channels"] }), qc.invalidateQueries({ queryKey: ["chat", "pins"] })]);
   const send = (parentId?: string) => async (body: string, files: File[]) => {
@@ -342,15 +344,19 @@ export function ChatPage() {
     navigate(`/app/chat/${r.channelId}?m=${r.id}`);
   };
   const jumpTo = params.get("m");
+  // R100b: open at the newest message and stay there while cards and pictures load (not one screen above it).
+  const stick = useStickToBottom(scrollBox, scrollContent, `${current?.id ?? ""}:${topicId ?? ""}`, !!jumpTo);
+  useEffect(() => { if (!jumpTo) stick.toEnd(); }, [lastId]); // eslint-disable-line react-hooks/exhaustive-deps -- only when a new message arrives
   useEffect(() => {
     if (!jumpTo || !messages.data) return;
+    stick.release();
     if (!flashMessage(jumpTo)) setParams((p) => { p.delete("m"); p.set("thread", jumpTo); return p; }, { replace: true });
     else setParams((p) => { p.delete("m"); return p; }, { replace: true });
-  }, [jumpTo, messages.data, setParams]);
+  }, [jumpTo, messages.data, setParams, stick]);
   /** Scrolls to a pinned message when it is on screen, otherwise opens it beside the channel. */
   const openPin = (m: ChatMessage) => {
     const el = document.getElementById(`m-${m.id}`);
-    if (el) { el.scrollIntoView({ block: "center" }); el.classList.add("bg-hover"); window.setTimeout(() => el.classList.remove("bg-hover"), 1500); }
+    if (el) { stick.release(); el.scrollIntoView({ block: "center" }); el.classList.add("bg-hover"); window.setTimeout(() => el.classList.remove("bg-hover"), 1500); }
     else openThread(m);
   };
   // R35: the server leaves blocked people's messages out; live events are dropped here too.
@@ -432,9 +438,10 @@ export function ChatPage() {
             </header>
             {plus.on && current.kind === "channel" && <TopicBar channelId={current.id} topicId={topicId} onPick={setTopicId} canAdmin={isAdmin} />}
             <PinnedBar pins={pins.data ?? []} onOpen={openPin} onUnpin={(m) => void togglePin(m)} />
-            <div className="flex-1 overflow-y-auto px-2 py-2">
+            <div ref={scrollBox} className="flex-1 overflow-y-auto px-2 py-2" data-testid="chat-scroll">
+              <div ref={scrollContent}>
               <CatchupCard key={`catchup-${current.id}`} type="channel" id={current.id} />
-              <JumpToUnread key={current.id} first={firstUnread.data} onJump={(id) => { if (!flashMessage(id)) openThread({ id } as ChatMessage); }} />
+              <JumpToUnread key={current.id} first={firstUnread.data} onJump={(id) => { stick.release(); if (!flashMessage(id)) openThread({ id } as ChatMessage); }} />
               {messages.isPending ? <Skeleton className="h-40" /> : !shown?.length ? pendingFor(outboxItems, current.id, null).length ? null : topicId ? (
                 <EmptyState icon={<IconChat />} title="No messages in this topic yet" body="Write the first one below. It goes into this topic." />
               ) : (
@@ -442,6 +449,7 @@ export function ChatPage() {
               ) : <ul>{hiddenHere && <BlockedHiddenRow />}{shown.map((m) => row(m))}</ul>}
               <PendingBubbles outbox={live.outbox} channelId={current.id} parentId={null} authorName={me.data?.user.name ?? undefined} />
               <div ref={bottom} />
+              </div>
             </div>
             <ChatLiveLine store={live.typing} channelId={current.id} degraded={live.degraded} />
             {plus.on && !current.archived && (

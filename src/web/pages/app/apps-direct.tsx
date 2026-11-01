@@ -235,7 +235,7 @@ function useVideoDuration(file: File | null) {
 /** R117: also opened from the composer (Video or Story or reel with TikTok picked), with the caption carried over. */
 export function TikTokPostDialog({ open, onClose, caption }: { open: boolean; onClose: () => void; caption?: string }) {
   const qc = useQueryClient();
-  const creator = useQuery({ queryKey: keys.creator, queryFn: () => api.get<{ creator: TikTokCreatorInfo }>("/direct/tiktok/creator").then((r) => r.creator), staleTime: 0, gcTime: 0 });
+  const creator = useQuery({ queryKey: keys.creator, queryFn: () => api.get<{ creator: TikTokCreatorInfo }>("/direct/tiktok/creator").then((r) => r.creator), staleTime: 0, gcTime: 0, enabled: open }); // R100b: the composer keeps this dialog mounted; only ask TikTok when it is open (no 409 when TikTok is not connected)
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [title, setTitle] = useState(caption ?? "");

@@ -410,7 +410,7 @@ function TargetRow({ t, p, canManage }: { t: PostTargetView; p: SocialPostView; 
  * Oct 31: after Post now, a sheet follows the post until every network has answered: a tick and Open post for each
  * one that took it, the reason and a fix for one that did not. The composer is already clear behind it.
  */
-export function PostedSheet({ postId, onClose, onViewPosts }: { postId: string; onClose: () => void; onViewPosts?: (p: SocialPostView) => void }) {
+export function PostedSheet({ postId, onClose, onViewPosts, onWriteAnother }: { postId: string; onClose: () => void; onViewPosts?: (p: SocialPostView) => void; onWriteAnother?: () => void }) {
   const navigate = useNavigate();
   const q = useQuery({
     queryKey: [...postsKey, "one", postId],
@@ -427,7 +427,7 @@ export function PostedSheet({ postId, onClose, onViewPosts }: { postId: string; 
     <Dialog open onClose={onClose} title={title} description={description} className="sm:max-w-lg"
       footer={(
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="secondary" className="max-sm:w-full" onClick={onClose}>Write another</Button>
+          <Button variant="secondary" className="max-sm:w-full" onClick={onWriteAnother ?? onClose} data-testid="write-another">Write another</Button>
           <Button className="max-sm:w-full" onClick={view} data-testid="view-in-posts">View in Posts</Button>
         </div>
       )}>

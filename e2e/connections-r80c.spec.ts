@@ -76,6 +76,9 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     await expect(page.getByTestId("social-post").first().getByText("Posted").first()).toBeVisible();
 
     // Hotfix Oct 31: a refused post says the real reason in plain words, with Reconnect when that is the fix.
+    // R100b: with TikTok not connected the composer never asks TikTok for the creator check (no 409 in the console).
+    const creatorCalls: string[] = [];
+    page.on("request", (q) => { if (q.url().includes("/api/direct/tiktok/creator")) creatorCalls.push(q.url()); });
     await page.goto("/app/social/new");
     await page.getByTestId("pick-linkedin").getByRole("checkbox").check();
     await page.getByTestId("social-text").fill("EXPIRED sign in check");
@@ -83,6 +86,7 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     await page.getByTestId("social-submit").click();
     // Oct 31: Post now opens a sheet that follows the post until each network answers.
     const sheet = page.getByTestId("posted-sheet");
+    await expect(page.getByText("Posting now. Follow it in Posts.")).toBeVisible(); // R100b: a toast too
     await expect(sheet).toHaveAttribute("data-status", "failed", { timeout: 15_000 });
     await expect(page.getByRole("dialog")).toContainText("Not posted");
     await expect(sheet.getByTestId("post-target-error")).toHaveAttribute("data-code", "reconnect");
@@ -93,6 +97,16 @@ for (const [label, w, h] of [["desktop", 1280, 860], ["phone", 390, 844]] as con
     await expect(failed.getByTestId("post-target-error")).toHaveAttribute("data-code", "reconnect");
     await expect(failed.getByText("The sign in for this account has expired. Reconnect it, then try again.")).toBeVisible();
     await expect(failed.getByRole("button", { name: "Reconnect LinkedIn" })).toBeVisible();
+    // R100b: closing the sheet (not Write another) goes back to the posts list.
+    await page.goto("/app/social/new");
+    await page.getByTestId("pick-linkedin").getByRole("checkbox").check();
+    await page.getByTestId("social-text").fill("EXPIRED second check");
+    await page.getByRole("radio", { name: "Now" }).click();
+    await page.getByTestId("social-submit").click();
+    await expect(page.getByTestId("posted-sheet")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/\/app\/social\/posts$/);
+    expect(creatorCalls).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     if (process.env.SHOTS_DIR) {
       for (const scheme of ["light", "dark"] as const) {

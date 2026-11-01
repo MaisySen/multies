@@ -3,11 +3,11 @@
  * email link sign in, and the scoped client session: a session for one portal never opens another portal, an item
  * of another portal, or anything after the person is removed or the portal archived.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { sql } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { MemoryToolFileStore } from "@/server/services/tools/p2-bindings";
-import { cleanFolder, emailOk, taskStateLabel } from "@/shared/client-portal";
+import { PORTAL_COPY_LINKS_PER_HOUR, PORTAL_LINKS_PER_HOUR, cleanFolder, emailOk, portalInviteThrottledNote, taskStateLabel } from "@/shared/client-portal";
 import { keyShapeOk, linkShapeOk } from "@/server/services/portal/client-portal";
 
 const ON = { CLIENT_PORTAL: "on", APP_URL: "http://localhost" };
@@ -192,8 +192,39 @@ describe("R120 client portal", () => {
     const v = new Visitor(t);
     const path = pathOf(l.body.url);
     expect((await v.post(path, { ft: (await v.get(path)).ft })).status).toBe(410);
-    for (let i = 0; i < 4; i++) expect((await t.c.post(`/api/portals/${p.id}/people/${p.person}/link`)).status).toBe(200);
+    // R100b: Copy link has its own cap (20 an hour) and does not use up the email cap.
+    for (let i = 0; i < PORTAL_COPY_LINKS_PER_HOUR - 1; i++) expect((await t.c.post(`/api/portals/${p.id}/people/${p.person}/link`)).status).toBe(200);
     expect((await t.c.post(`/api/portals/${p.id}/people/${p.person}/link`)).status).toBe(429);
+  });
+
+  it("R100b: Copy link does not count toward the email cap; a held back invite says so; the public form stays neutral", async () => {
+    const t = await setup();
+    const p = await portal(t);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      for (let i = 0; i < 6; i++) expect((await t.c.post(`/api/portals/${p.id}/people/${p.person}/link`)).status).toBe(200);
+      for (let i = 0; i < PORTAL_LINKS_PER_HOUR; i++) {
+        const r = await t.c.post(`/api/portals/${p.id}/people/${p.person}/invite`);
+        expect(r.status).toBe(200);
+        expect(r.body.throttled).toBe(false);
+      }
+      const held = await t.c.post(`/api/portals/${p.id}/people/${p.person}/invite`);
+      expect(held.status).toBe(200);
+      expect(held.body).toMatchObject({ sent: false, throttled: true });
+      const before = Number((await t.db.all<{ n: number }>(sql`select count(*) as n from client_portal_links`))[0]!.n);
+      // The client's own request at the cap: same neutral answer, nothing minted, a throttle line logged.
+      const v = new Visitor(t);
+      const page = await v.get(`/p/${p.key}`);
+      const r = await v.post(`/p/${p.key}/login`, { ft: page.ft, email: "sam@client.co" });
+      expect(r.status).toBe(303);
+      expect(Number((await t.db.all<{ n: number }>(sql`select count(*) as n from client_portal_links`))[0]!.n)).toBe(before);
+      expect(warn.mock.calls.some((c) => String(c[0]).includes("portal.link_throttled"))).toBe(true);
+      // An hour later the email cap is free again.
+      t.advance(61 * 60_000);
+      expect((await t.c.post(`/api/portals/${p.id}/people/${p.person}/invite`)).body.throttled).toBe(false);
+      expect(portalInviteThrottledNote("sam@client.co")).toBe(`Not sent. sam@client.co already got ${PORTAL_LINKS_PER_HOUR} sign in emails in the last hour. Use Copy link, or try again later.`);
+      expect(portalInviteThrottledNote("x@y.co")).not.toMatch(/[\u2013\u2014]/);
+    } finally { warn.mockRestore(); }
   });
 
   it("keeps a client inside their own portal", async () => {

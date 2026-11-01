@@ -72,7 +72,10 @@ test("R96 topics, polls, decisions, questions and word clouds", async ({ page })
   await page.getByTestId("poll-create").click();
   const decision = page.getByTestId("poll-card").filter({ hasText: "Move standup to 10" });
   await decision.getByTestId("poll-choice").filter({ hasText: "Block" }).click();
-  await expect(decision.getByTestId("decision-reason")).toHaveAttribute("placeholder", /Say why you block/);
+  // R100b: the field never says optional; Block without a reason says so next to the field.
+  await expect(decision.getByTestId("decision-reason")).toHaveAttribute("placeholder", "Add a reason to block");
+  await expect(decision.getByTestId("decision-reason-error")).toHaveText("Add a reason to block, then pick Block again.");
+  await expect(decision.getByTestId("decision-reason")).toBeFocused();
   await decision.getByTestId("decision-reason").fill("Clashes with client calls");
   await decision.getByTestId("poll-choice").filter({ hasText: "Block" }).click();
   await expect(decision.getByTestId("decision-standing")).toContainText("Blocked");
@@ -132,6 +135,10 @@ test("R96 announcements, seen by, dark, Forest and phone", async ({ page }) => {
   await page.getByTestId("announcements-nav").click();
   await expect(page).toHaveURL(/view=announcements/);
   const item = page.getByTestId("announcement").filter({ hasText: "Office closed on Friday" });
+  // R100b: announcements take reactions in the feed.
+  await item.getByTestId("reaction-add").click();
+  await page.getByRole("button", { name: /^React with/ }).first().click();
+  await expect(item.getByTestId("reaction").first()).toContainText("1");
   await expect(item).toBeVisible();
   await expect(item.getByTestId("announcement-seen")).toContainText(/Seen by 1 of \d+/);
   await item.getByTestId("announcement-seen").click();
@@ -167,4 +174,21 @@ test("R96 announcements, seen by, dark, Forest and phone", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await views("390-forest");
   expect(problems).toEqual([]);
+});
+
+test("R100b chat opens at the newest message", async ({ page }) => {
+  await demo(page);
+  await page.setViewportSize({ width: 390, height: 760 });
+  await openGeneral(page);
+  for (let i = 1; i <= 14; i++) await say(page, `Line ${i} of a long day in chat`);
+  await expect(page.getByText("Line 14 of a long day in chat")).toBeVisible();
+  await page.waitForLoadState("networkidle").catch(() => undefined);
+  await page.waitForTimeout(2000); // let the last sends leave the outbox
+  await page.goto("/app/settings");
+  await openGeneral(page);
+  await expect(page.getByText("Line 14 of a long day in chat")).toBeInViewport({ timeout: 10_000 });
+  await page.waitForTimeout(1500);
+  const gap = await page.getByTestId("chat-scroll").evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
+  expect(gap).toBeLessThan(100);
+  await expect(page.getByText("Line 14 of a long day in chat")).toBeInViewport();
 });
