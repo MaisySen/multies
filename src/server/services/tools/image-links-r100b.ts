@@ -67,7 +67,7 @@ export async function transformImage(deps: Deps, auth: ImageAuth, src: { bytes: 
     if (s.status === "done") break;
     if (s.status === "failed") throw new HttpError(422, "tool_input", s.error || "This picture could not be changed.");
     if (s.status === "expired") throw new HttpError(503, "tools_unavailable", "Tools are warming up. Try again in a few seconds.");
-    if (Date.now() + wait > deadline) throw new HttpError(504, "tools_slow", "That took too long. Try a smaller size.");
+    if (Date.now() + wait > deadline) throw new HttpError(503, "tools_slow", "That took too long. Try a smaller size.");
     await sleep(wait);
   }
   const out = await engineJobOutput(deps, auth.orgId, auth.userId, jobId);

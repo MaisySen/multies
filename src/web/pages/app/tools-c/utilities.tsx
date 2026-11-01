@@ -10,6 +10,8 @@ import { Button } from "@/web/components/ui/button";
 import { Input, Select, Textarea } from "@/web/components/ui/input";
 import { CopyButton } from "@/web/components/ui/misc";
 import { QrCode } from "@/web/components/qr";
+import { api, errorMessage } from "@/web/lib/api";
+import { useToolFeatures } from "@/web/pages/app/tools-editors/runner";
 import { NotFound } from "@/web/pages/not-found";
 import {
   HASH_ALGOS, UNIT_GROUPS, UtilError, base64ToUtf8, colourFormats, contrast, convertData, convertUnit, diffLines, diffStats,
@@ -19,7 +21,7 @@ import {
 const ring = "outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface";
 const mono = "font-mono text-[13px] leading-relaxed";
 
-export interface UtilityDef { id: string; name: string; line: string; words: string }
+export interface UtilityDef { id: string; name: string; line: string; words: string; /** R100b: shown only when this Tools feature is on. */ feature?: "tools_c2"; /** Runs on our server, not on the device. */ server?: boolean }
 export const UTILITIES: UtilityDef[] = [
   { id: "data", name: "JSON, YAML and CSV", line: "Tidy, check and convert data", words: "json yaml csv format pretty minify validate convert" },
   { id: "base64", name: "Base64", line: "Encode and decode text", words: "base64 encode decode" },
@@ -31,6 +33,7 @@ export const UTILITIES: UtilityDef[] = [
   { id: "time", name: "Timestamps", line: "Unix time to a date and back", words: "time timestamp unix epoch date" },
   { id: "diff", name: "Text diff", line: "See what changed between two texts", words: "diff compare text changes" },
   { id: "regex", name: "Regex tester", line: "Test a pattern and see every match", words: "regex regular expression pattern match" },
+  { id: "link-preview", name: "Link preview", line: "See the card a link makes before you share it", words: "link url preview card open graph title image share unfurl", feature: "tools_c2", server: true },
 ];
 
 /** Runs a function and keeps its error as a plain sentence for under the input. */
@@ -329,17 +332,84 @@ function RegexTool() {
   );
 }
 
-const TOOL_VIEW: Record<string, () => ReactNode> = { data: DataTool, base64: Base64Tool, hash: HashTool, uuid: UuidTool, qr: QrTool, colour: ColourTool, units: UnitsTool, time: TimeTool, diff: DiffTool, regex: RegexTool };
+
+/* ---------------- R100b: link preview ---------------- */
+
+interface LinkPreviewResult { url: string; finalUrl: string; title: string; description: string; siteName: string; image: string | null }
+
+function LinkPreviewTool() {
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [card, setCard] = useState<LinkPreviewResult | null>(null);
+  const [imgOk, setImgOk] = useState(true);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const run = async () => {
+    const v = url.trim();
+    if (!v) { setError("Type or paste a link first."); inputRef.current?.focus(); return; }
+    setBusy(true); setError(null); setImgOk(true);
+    try { setCard(await api.post<LinkPreviewResult>("/tools-c2/link-preview", { url: v })); }
+    catch (e) { setCard(null); setError(errorMessage(e, "That link could not be previewed. Check it and try again.")); }
+    finally { setBusy(false); }
+  };
+  const md = card ? `[${card.title.replace(/[[\]]/g, "")}](${card.finalUrl})` : "";
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const html = card ? `<a href="${esc(card.finalUrl)}">${esc(card.title)}</a>` : "";
+  const host = card ? (() => { try { return new URL(card.finalUrl).hostname.replace(/^www\./, ""); } catch { return card.siteName; } })() : "";
+  return (
+    <div className="mx-auto max-w-2xl space-y-4">
+      <form className="flex flex-col gap-2 sm:flex-row" onSubmit={(e) => { e.preventDefault(); void run(); }}>
+        <label className="min-w-0 flex-1"><span className="sr-only">Link</span>
+          <Input ref={inputRef} type="url" inputMode="url" autoComplete="url" placeholder="https://example.org/page" value={url} onChange={(e) => { setUrl(e.target.value); if (error) setError(null); }} aria-invalid={!!error} aria-describedby={error ? "util-error-line" : undefined} data-testid="link-preview-url" />
+        </label>
+        <Button type="submit" disabled={busy} data-testid="link-preview-run">{busy ? "Fetching" : "Preview"}</Button>
+      </form>
+      <div id="util-error-line"><ErrorLine text={error} /></div>
+      <p className="text-[13px] text-muted">We fetch the page from our server so your device never calls the site. Private and local addresses are refused.</p>
+      <div aria-live="polite" aria-busy={busy}>
+        {busy && (
+          <div className="overflow-hidden rounded-2xl border border-line bg-surface" data-testid="link-preview-loading">
+            <div className="aspect-[1.91/1] w-full animate-pulse bg-fill" />
+            <div className="space-y-2 p-4"><div className="h-4 w-2/3 animate-pulse rounded bg-fill" /><div className="h-3 w-full animate-pulse rounded bg-fill" /><div className="h-3 w-1/2 animate-pulse rounded bg-fill" /></div>
+          </div>
+        )}
+        {!busy && card && (
+          <article className="overflow-hidden rounded-2xl border border-line bg-surface" data-testid="link-preview-card">
+            {card.image && imgOk && <img src={card.image} alt="" loading="lazy" onError={() => setImgOk(false)} className="aspect-[1.91/1] w-full bg-fill object-cover" data-testid="link-preview-image" />}
+            <div className="space-y-1.5 p-4">
+              <p className="truncate text-[12.5px] text-muted">{card.siteName && card.siteName !== host ? `${card.siteName} · ${host}` : host}</p>
+              <h2 className="line-clamp-2 text-[16px] font-semibold leading-snug" data-testid="link-preview-title">{card.title}</h2>
+              {card.description && <p className="line-clamp-3 text-[13.5px] text-muted" data-testid="link-preview-description">{card.description}</p>}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3">
+              <a href={card.finalUrl} target="_blank" rel="noopener noreferrer" className={`inline-flex h-9 items-center rounded-lg border border-line px-3 text-[13px] font-medium hover:bg-hover ${ring}`} data-testid="link-preview-open">Open page</a>
+              <CopyButton value={md} label="Copy as Markdown" />
+              <CopyButton value={html} label="Copy as HTML" />
+            </div>
+          </article>
+        )}
+        {!busy && !card && !error && (
+          <div className="rounded-2xl border border-dashed border-line px-4 py-8 text-center text-[13.5px] text-muted" data-testid="link-preview-empty">Paste a link to see its title, picture and description, the way it shows in chat and mail.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const TOOL_VIEW: Record<string, () => ReactNode> = { "link-preview": LinkPreviewTool, data: DataTool, base64: Base64Tool, hash: HashTool, uuid: UuidTool, qr: QrTool, colour: ColourTool, units: UnitsTool, time: TimeTool, diff: DiffTool, regex: RegexTool };
 
 export function UtilitiesPage() {
   const { id } = useParams();
-  const def = id ? UTILITIES.find((u) => u.id === id) : null;
+  const features = useToolFeatures();
+  const shown = UTILITIES.filter((u) => !u.feature || features.on(u.feature));
+  const def = id ? shown.find((u) => u.id === id) : null;
+  if (id && !def && !features.ready) return null; // a feature tile: wait for the Tools features before saying not found
   if (id && !def) return <NotFound embedded />;
   if (!def) {
     return (
-      <ToolsFrame entryKey="utilities" title="Utilities" description="Small everyday helpers for data, text, colours and time. Everything stays on your device." usage={false} testId="utilities-page">
+      <ToolsFrame entryKey="utilities" title="Utilities" description={features.on("tools_c2") ? "Small everyday helpers for data, text, colours, time and links. All but Link preview run on your device." : "Small everyday helpers for data, text, colours and time. Everything stays on your device."} usage={false} testId="utilities-page">
         <ul className="grid gap-2 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3" data-testid="utilities-grid">
-          {UTILITIES.map((u) => (
+          {shown.map((u) => (
             <li key={u.id}><Link to={`/app/tools/utilities/${u.id}`} className={`flex min-h-16 flex-col justify-center rounded-xl border border-line bg-surface px-4 py-3 transition-colors hover:border-brand/50 hover:bg-hover ${ring}`} data-testid={`utility-${u.id}`}>
               <span className="text-[14.5px] font-semibold">{u.name}</span><span className="text-[13px] text-muted">{u.line}</span>
             </Link></li>
@@ -350,7 +420,7 @@ export function UtilitiesPage() {
   }
   const View = TOOL_VIEW[def.id];
   return (
-    <ToolsFrame entryKey="utilities" title={def.name} description={`${def.line}. Nothing you type leaves your device.`} usage={false} wide testId={`utility-page-${def.id}`}>
+    <ToolsFrame entryKey="utilities" title={def.name} description={def.server ? `${def.line}.` : `${def.line}. Nothing you type leaves your device.`} usage={false} wide testId={`utility-page-${def.id}`}>
       <View />
     </ToolsFrame>
   );

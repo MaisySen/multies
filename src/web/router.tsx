@@ -126,6 +126,7 @@ const ToolsEditorRoute = lazyPage(() => import("./pages/app/tools-editors/route"
 const ConvertHubPage = lazyPage(() => import("./pages/app/tools-convert/convert-hub"), "ConvertHubPage");
 const UtilitiesPage = lazyPage(() => import("./pages/app/tools-c/utilities"), "UtilitiesPage"); // R100
 const PdfFixPage = lazyPage(() => import("./pages/app/tools-c/pdf-pages"), "PdfFixPage"); // R100
+const ImageLinksPage = lazyPage(() => import("./pages/app/tools-c/image-links"), "ImageLinksPage"); // R100b
 const PdfCodesPage = lazyPage(() => import("./pages/app/tools-c/pdf-pages"), "PdfCodesPage"); // R100
 const PdfCommentsPage = lazyPage(() => import("./pages/app/tools-c/pdf-pages"), "PdfCommentsPage"); // R100
 const EditPdfPage = lazyPage(() => import("./pages/app/tools-edit-pdf/edit-pdf"), "EditPdfPage"); // R86: Edit PDF on the device // R78: Convert hub
@@ -295,6 +296,7 @@ export const router = createBrowserRouter([
       { path: "go/:name", element: page(<ToolFeatureGate features={["links"]}><GoOpenPage /></ToolFeatureGate>) }, // R87: go links
       { path: "tools/utilities", element: page(<ToolFeatureGate features={["tools_c"]}><UtilitiesPage /></ToolFeatureGate>) }, // R100
       { path: "tools/utilities/:id", element: page(<ToolFeatureGate features={["tools_c"]}><UtilitiesPage /></ToolFeatureGate>) }, // R100
+      { path: "tools/image-links", element: page(<ToolFeatureGate features={["tools_c2"]}><ImageLinksPage /></ToolFeatureGate>) }, // R100b
       { path: "tools/pdf-fix", element: page(<ToolFeatureGate features={["tools_c"]}><PdfFixPage /></ToolFeatureGate>) }, // R100
       { path: "tools/pdf-codes", element: page(<ToolFeatureGate features={["tools_c"]}><PdfCodesPage /></ToolFeatureGate>) }, // R100
       { path: "tools/pdf-comments", element: page(<ToolFeatureGate features={["tools_c"]}><PdfCommentsPage /></ToolFeatureGate>) }, // R100

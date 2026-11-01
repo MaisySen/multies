@@ -13,6 +13,7 @@ import { showError } from "@/web/lib/show-error";
 import { useConfig } from "@/web/lib/queries";
 import { useDebounced } from "@/web/lib/search";
 import { cn } from "@/web/lib/cn";
+import { DEFAULT_IMAGE_PARAMS, imageLink } from "@/shared/image-links";
 import { IconAttachment, IconChevronRight, IconFile, IconSearch } from "@/web/components/ui/icon";
 import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Input } from "@/web/components/ui/input";
@@ -95,7 +96,7 @@ export function FilesPage() {
               body={searching ? "Try another word. Only attachments that have been read show up here." : indexing?.on === false ? "Reading attachments is off. An admin can turn it on in Settings, General." : "Attachments land here as your mail is read."} />
           ) : (
             <ul className="divide-y divide-line" data-testid="files-list">
-              {items.map((it) => <FileRow key={it.attachmentId} it={it} />)}
+              {items.map((it) => <FileRow key={it.attachmentId} it={it}  thumbs={features.includes("tools_c2")} />)}
             </ul>
           )}
           {list.hasNextPage && (
@@ -109,7 +110,16 @@ export function FilesPage() {
   );
 }
 
-function FileRow({ it }: { it: FileItem }) {
+/** R100b: a smart cropped thumbnail for pictures when image links are on; the file icon otherwise or on any error. */
+function FileThumb({ it, on }: { it: FileItem; on: boolean }) {
+  const [failed, setFailed] = useState(false);
+  const isImage = /\.(png|jpe?g|gif|webp)$/i.test(it.filename);
+  if (!on || !isImage || failed) return <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-fill text-muted"><IconFile className="h-4 w-4" /></span>;
+  const src = imageLink("file", it.attachmentId, { ...DEFAULT_IMAGE_PARAMS, w: 64, h: 64, fit: "cover", crop: "smart", fmt: "webp" });
+  return <img src={src} alt="" loading="lazy" width={32} height={32} onError={() => setFailed(true)} className="mt-0.5 h-8 w-8 shrink-0 rounded-lg bg-fill object-cover" data-testid="files-thumb" />;
+}
+
+function FileRow({ it, thumbs = false }: { it: FileItem; thumbs?: boolean }) {
   const qc = useQueryClient();
   const move = useMutation({
     mutationFn: (folder: AttachmentFolder) => api.put<{ folder: AttachmentFolder }>(`/attachment-files/${encodeURIComponent(it.attachmentId)}/folder`, { folder }),
@@ -119,7 +129,7 @@ function FileRow({ it }: { it: FileItem }) {
   return (
     <li className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-4" data-testid="files-row">
       <div className="flex min-w-0 flex-1 items-start gap-3">
-        <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-fill text-muted"><IconFile className="h-4 w-4" /></span>
+        <FileThumb it={it} on={thumbs} />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="truncate text-[13.5px] font-medium text-fg">{it.filename}</span>

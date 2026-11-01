@@ -23,7 +23,7 @@ export function decodeEntities(s: string): string {
 }
 
 const clean = (s: string | undefined, max: number) => {
-  const t = decodeEntities((s ?? "").replace(/<[^>]*>/g, " ")).replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
+  const t = decodeEntities((s ?? "").replace(/<[^>]*>/g, " ")).replace(/\p{Cc}+/gu, " ").replace(/\s+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
 };
 
