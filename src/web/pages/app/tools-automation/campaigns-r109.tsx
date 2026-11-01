@@ -134,7 +134,7 @@ function NewDialog({ open, onClose, kind }: { open: boolean; onClose: () => void
   useEffect(() => { if (!listId && lists.data?.lists[0]) setListId(lists.data.lists[0].id); }, [lists.data, listId]);
   const create = useMutation({
     mutationFn: () => api.post<{ id: string }>(kind === "newsletter" ? `${B}/newsletters` : `${B}/journeys`, kind === "newsletter" ? { name, listId } : { name, listId, starter }),
-    onSuccess: (r) => { onClose(); nav(`/tools/merge/${kind === "newsletter" ? "newsletters" : "journeys"}/${r.id}`); },
+    onSuccess: (r) => { onClose(); nav(`/app/tools/merge/${kind === "newsletter" ? "newsletters" : "journeys"}/${r.id}`); },
     onError: (e) => showError(e),
   });
   const ok = name.trim() && listId;
@@ -185,7 +185,7 @@ function NewslettersTab() {
       {!lists.data?.lists.length ? <NoListsYet what="Newsletters" /> : !rows.length
         ? <EmptyState title="No newsletters yet" body="Write one with headings, text, buttons and pictures, send yourself a test, then send it or pick a time." action={<Button onClick={() => setOpen(true)}>New newsletter</Button>} />
         : <ul className="space-y-2">{rows.map((n) => (
-          <Row key={n.id} to={`/tools/merge/newsletters/${n.id}`} testId="r109-newsletter-row" title={n.name}
+          <Row key={n.id} to={`/app/tools/merge/newsletters/${n.id}`} testId="r109-newsletter-row" title={n.name}
             sub={<>{n.listName} · {n.status === "sent" || n.status === "sending" ? `${n.stats.sent} sent, ${rate(n.stats.opened, n.stats.sent)} opened, ${rate(n.stats.clicked, n.stats.sent)} clicked` : n.status === "scheduled" ? `Goes out ${when(n.scheduledAt)}` : n.subject || "No subject yet"}</>}
             right={<Badge tone={statusTone(n.status)}>{CAMPAIGN_STATUS_LABEL[n.status]}</Badge>} />
         ))}</ul>}
@@ -207,7 +207,7 @@ function NewListDialog({ open, onClose, isAdmin }: { open: boolean; onClose: () 
   const [doubleOptIn, setDoubleOptIn] = useState(true);
   const create = useMutation({
     mutationFn: () => api.post<ListSummary>(`${B}/lists`, { name, visibility, doubleOptIn }),
-    onSuccess: (l) => { qc.invalidateQueries({ queryKey: ["r109-lists"] }); onClose(); nav(`/tools/merge/lists/${l.id}`); },
+    onSuccess: (l) => { qc.invalidateQueries({ queryKey: ["r109-lists"] }); onClose(); nav(`/app/tools/merge/lists/${l.id}`); },
     onError: (e) => showError(e),
   });
   return (
@@ -241,7 +241,7 @@ function ListsTab() {
       </div>
       {!rows.length ? <EmptyState title="No lists yet" body="Make a list, then add people who said yes: paste them, upload a CSV, pick from your contacts, or share a signup form." action={<Button onClick={() => setOpen(true)}>New list</Button>} />
         : <ul className="space-y-2">{rows.map((l) => (
-          <Row key={l.id} to={`/tools/merge/lists/${l.id}`} testId="r109-list-row" title={l.name}
+          <Row key={l.id} to={`/app/tools/merge/lists/${l.id}`} testId="r109-list-row" title={l.name}
             sub={<>{l.subscribed} subscribed{l.pending ? ` · ${l.pending} waiting to confirm` : ""}{l.unsubscribed ? ` · ${l.unsubscribed} unsubscribed` : ""}</>}
             right={<><Badge>{l.visibility === "workspace" ? "Workspace" : "Private"}</Badge>{l.signupOn && <Badge tone="brand">Signup form on</Badge>}</>} />
         ))}</ul>}
@@ -260,11 +260,11 @@ export function ListPage() {
   const [offset, setOffset] = useState(0);
   const q = useQuery({ queryKey: ["r109-list", id, search, status, offset], queryFn: () => api.get<{ list: ListSummary; members: Member[]; more: boolean }>(`${B}/lists/${id}?${new URLSearchParams({ q: search, status, offset: String(offset) })}`), placeholderData: (p) => p });
   const remove = useMutation({ mutationFn: (mid: string) => api.del(`${B}/lists/${id}/members/${mid}`), onSuccess: () => qc.invalidateQueries({ queryKey: ["r109-list", id] }), onError: (e) => showError(e) });
-  const archive = useMutation({ mutationFn: () => api.del(`${B}/lists/${id}`), onSuccess: () => { qc.invalidateQueries({ queryKey: ["r109-lists"] }); nav("/tools/merge?tab=lists"); }, onError: (e) => showError(e) });
+  const archive = useMutation({ mutationFn: () => api.del(`${B}/lists/${id}`), onSuccess: () => { qc.invalidateQueries({ queryKey: ["r109-lists"] }); nav("/app/tools/merge?tab=lists"); }, onError: (e) => showError(e) });
   const l = q.data?.list;
   return (
     <AutoPage entryKey="merge_mail" title={l?.name ?? "List"} description="People on this list, their consent, and how new people join." usage={false}
-      actions={<Link to="/tools/merge?tab=lists" className="text-sm text-muted hover:text-fg">Back to lists</Link>}>
+      actions={<Link to="/app/tools/merge?tab=lists" className="text-sm text-muted hover:text-fg">Back to lists</Link>}>
       {q.isPending ? <Skeleton className="h-64 w-full" /> : q.isError || !l ? <ErrorBox onRetry={() => q.refetch()} text="This list didn't load. It may have been archived." /> : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-4">
@@ -455,7 +455,7 @@ function JourneysTab() {
       {!lists.data?.lists.length ? <NoListsYet what="Journeys" /> : !q.data.journeys.length
         ? <EmptyState title="No journeys yet" body="Start with the welcome series: a welcome when someone joins, and a reminder three days later only if they didn't open it." action={<Button onClick={() => setOpen(true)}>New journey</Button>} />
         : <ul className="space-y-2">{q.data.journeys.map((j) => (
-          <Row key={j.id} to={`/tools/merge/journeys/${j.id}`} testId="r109-journey-row" title={j.name} sub={`${j.listName} · ${j.steps.length} ${j.steps.length === 1 ? "email" : "emails"} · ${j.enrolled} started`}
+          <Row key={j.id} to={`/app/tools/merge/journeys/${j.id}`} testId="r109-journey-row" title={j.name} sub={`${j.listName} · ${j.steps.length} ${j.steps.length === 1 ? "email" : "emails"} · ${j.enrolled} started`}
             right={<Badge tone={statusTone(j.status)}>{j.status === "active" ? "On" : j.status === "paused" ? "Paused" : "Draft"}</Badge>} />
         ))}</ul>}
       <NewDialog open={open} onClose={() => setOpen(false)} kind="journey" />

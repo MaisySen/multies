@@ -446,7 +446,13 @@ export async function scheduleCampaign(deps: Deps, auth: AuthContext, id: string
   if (when < now - 60_000) throw badRequest("Pick a time in the future.");
   if (when > now + 90 * 86_400_000) throw badRequest("Schedule up to 90 days ahead.");
   await deps.db.run(sql`update campaigns set status = 'scheduled', scheduled_at = ${when}, error = null, updated_at = ${now} where id = ${id} and status = 'draft'`);
-  await enqueue(deps, "campaign.batch", { id }, { orgId: auth.orgId, delayMs: Math.max(0, when - now), maxAttempts: 3 });
+  if (when - now <= 5_000) {
+    // Send now: take the list snapshot in this request so the page shows the totals at once; the sends are queued jobs.
+    try { await runCampaignBatch(deps, id); } catch (err) {
+      deps.log?.warn("campaigns.batch_inline_failed", { id, error: String(err) });
+      await enqueue(deps, "campaign.batch", { id }, { orgId: auth.orgId, maxAttempts: 3 });
+    }
+  } else await enqueue(deps, "campaign.batch", { id }, { orgId: auth.orgId, delayMs: when - now, maxAttempts: 3 });
   return getCampaign(deps, auth, id);
 }
 

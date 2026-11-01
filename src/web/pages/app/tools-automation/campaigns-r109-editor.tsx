@@ -96,14 +96,14 @@ export function NewsletterPage() {
   const save = useMutation({ mutationFn: () => api.patch<Newsletter>(`${B}/newsletters/${id}`, { name: d!.name, subject: d!.subject, preheader: d!.preheader, blocks: d!.blocks, track: d!.track, listId: d!.listId, mailboxId: d!.mailboxId }), onSuccess: (r) => { set(r); setNote("Saved."); }, onError: (e) => showError(e) });
   const act = useMutation({
     mutationFn: async (a: { path: string; body?: unknown }) => { if (dirty) set(await api.patch<Newsletter>(`${B}/newsletters/${id}`, { name: d!.name, subject: d!.subject, preheader: d!.preheader, blocks: d!.blocks, track: d!.track, listId: d!.listId, mailboxId: d!.mailboxId })); return api.post<Newsletter>(`${B}/newsletters/${id}/${a.path}`, a.body ?? {}); },
-    onSuccess: (r, a) => { if (a.path === "test") setNote(`Test sent to ${(r as unknown as { to: string }).to}.`); else if (a.path === "duplicate") nav(`/tools/merge/newsletters/${r.id}`); else { set(r); setNote(null); qc.invalidateQueries({ queryKey: ["r109-info"] }); } },
+    onSuccess: (r, a) => { if (a.path === "test") setNote(`Test sent to ${(r as unknown as { to: string }).to}.`); else if (a.path === "duplicate") nav(`/app/tools/merge/newsletters/${r.id}`); else { set(r); setNote(null); qc.invalidateQueries({ queryKey: ["r109-info"] }); } },
     onError: (e) => showError(e),
   });
-  const del = useMutation({ mutationFn: () => api.del(`${B}/newsletters/${id}`), onSuccess: () => { qc.invalidateQueries({ queryKey: ["r109-newsletters"] }); nav("/tools/merge"); }, onError: (e) => showError(e) });
+  const del = useMutation({ mutationFn: () => api.del(`${B}/newsletters/${id}`), onSuccess: () => { qc.invalidateQueries({ queryKey: ["r109-newsletters"] }); nav("/app/tools/merge"); }, onError: (e) => showError(e) });
   useSaveKey(() => { if (dirty && draft) save.mutate(); }, !!draft);
   return (
     <AutoPage entryKey="merge_mail" title={n?.name ?? "Newsletter"} description={n ? `To ${n.list.name}` : ""} usage={false}
-      actions={<Link to="/tools/merge" className="text-sm text-muted hover:text-fg">Back to newsletters</Link>}>
+      actions={<Link to="/app/tools/merge" className="text-sm text-muted hover:text-fg">Back to newsletters</Link>}>
       {q.isPending || !d ? (q.isError ? <ErrorBox onRetry={() => q.refetch()} /> : <Skeleton className="h-96 w-full" />) : (
         <div className="space-y-4 pb-20 lg:pb-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -208,12 +208,12 @@ export function JourneyPage() {
   const set = (r: Journey) => { qc.setQueryData(["r109-journey", id], r); qc.invalidateQueries({ queryKey: ["r109-journeys"] }); };
   const save = useMutation({ mutationFn: () => api.patch<Journey>(`${B}/journeys/${id}`, { name: d!.name, steps: d!.steps, sendHour: d!.sendHour, mailboxId: d!.mailboxId }), onSuccess: set, onError: (e) => showError(e) });
   const status = useMutation({ mutationFn: async (s: "start" | "pause") => { if (dirty && s === "start") set(await api.patch<Journey>(`${B}/journeys/${id}`, { name: d!.name, steps: d!.steps, sendHour: d!.sendHour, mailboxId: d!.mailboxId })); return api.post<Journey>(`${B}/journeys/${id}/${s}`); }, onSuccess: set, onError: (e) => showError(e) });
-  const del = useMutation({ mutationFn: () => api.del(`${B}/journeys/${id}`), onSuccess: () => { qc.invalidateQueries({ queryKey: ["r109-journeys"] }); nav("/tools/merge?tab=journeys"); }, onError: (e) => showError(e) });
+  const del = useMutation({ mutationFn: () => api.del(`${B}/journeys/${id}`), onSuccess: () => { qc.invalidateQueries({ queryKey: ["r109-journeys"] }); nav("/app/tools/merge?tab=journeys"); }, onError: (e) => showError(e) });
   useSaveKey(() => { if (dirty && editable) save.mutate(); }, !!editable);
   const setStep = (i: number, s: JourneyStep) => d && setD({ ...d, steps: d.steps.map((x, k) => (k === i ? s : x)) });
   return (
     <AutoPage entryKey="merge_mail" title={j?.name ?? "Journey"} description={j ? `For people who join ${j.listName}` : ""} usage={false}
-      actions={<Link to="/tools/merge?tab=journeys" className="text-sm text-muted hover:text-fg">Back to journeys</Link>}>
+      actions={<Link to="/app/tools/merge?tab=journeys" className="text-sm text-muted hover:text-fg">Back to journeys</Link>}>
       {q.isPending || !d ? (q.isError ? <ErrorBox onRetry={() => q.refetch()} /> : <Skeleton className="h-96 w-full" />) : (
         <div className="space-y-4">
           <Card className="flex flex-wrap items-center gap-3 p-4">
