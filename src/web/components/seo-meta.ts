@@ -63,5 +63,9 @@ export function metaFor(path: string): PageMeta {
   if (clean === "/app" || clean.startsWith("/app/") || clean.startsWith("/invite/") || clean.startsWith("/f/") || clean.startsWith("/m/") || clean.startsWith("/g/") || clean === "/guest") {
     return { title: "Multies", description: DEFAULT.description, noindex: true };
   }
+  // R92: public booking pages (book a time, time polls, events, tickets) are real pages; shared links must not preview as not found.
+  if (clean.startsWith("/book/")) {
+    return { title: "Booking | Multies", description: "Book a time, answer a time poll or get a free event ticket on Multies.", noindex: true };
+  }
   return NOT_FOUND_META;
 }
