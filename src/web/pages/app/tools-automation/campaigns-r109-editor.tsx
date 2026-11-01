@@ -14,7 +14,7 @@ import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { Badge, Card, Skeleton, StatTile, Switch } from "@/web/components/ui/misc";
 import { CAMPAIGN_STATUS_LABEL, rate, type Block, type CampaignStatus, type JourneyStep } from "@/shared/campaigns-r109";
 import { AutoPage } from "./shell";
-import { B, DailyLimit, ErrorBox, useInfo, useLists, type ListSummary } from "./campaigns-r109";
+import { B, DailyLimit, ErrorBox, SwitchRow, useInfo, useLists, type ListSummary } from "./campaigns-r109";
 
 const FIELDS_HINT = "Use {{first_name}}, {{name}}, {{email}} or any column you imported. Add a fallback with a bar: {{first_name | there}}.";
 const NEW_BLOCK: Record<Block["type"], Block> = {
@@ -39,13 +39,13 @@ export function BlockEditor({ blocks, onChange, disabled }: { blocks: Block[]; o
           {b.type === "heading" && <Input aria-label="Heading text" value={b.text} disabled={disabled} maxLength={200} onChange={(e) => set(i, { ...b, text: e.target.value })} />}
           {b.type === "text" && <Textarea aria-label="Text" rows={5} value={b.text} disabled={disabled} maxLength={10000} onChange={(e) => set(i, { ...b, text: e.target.value })} />}
           {b.type === "button" && (
-            <div className="grid gap-2 sm:grid-cols-[1fr_2fr]">
+            <div className="grid gap-2 [&>*]:min-w-0 sm:grid-cols-[1fr_2fr]">
               <Input aria-label="Button label" value={b.label} disabled={disabled} maxLength={60} onChange={(e) => set(i, { ...b, label: e.target.value })} />
               <Input aria-label="Button link" value={b.url} disabled={disabled} inputMode="url" onChange={(e) => set(i, { ...b, url: e.target.value })} />
             </div>
           )}
           {b.type === "image" && (
-            <div className="grid gap-2 sm:grid-cols-[2fr_1fr]">
+            <div className="grid gap-2 [&>*]:min-w-0 sm:grid-cols-[2fr_1fr]">
               <Input aria-label="Picture link" value={b.url} disabled={disabled} inputMode="url" onChange={(e) => set(i, { ...b, url: e.target.value })} />
               <Input aria-label="Picture description" placeholder="Describe it" value={b.alt} disabled={disabled} maxLength={200} onChange={(e) => set(i, { ...b, alt: e.target.value })} />
             </div>
@@ -105,7 +105,7 @@ export function NewsletterPage() {
     <AutoPage entryKey="merge_mail" title={n?.name ?? "Newsletter"} description={n ? `To ${n.list.name}` : ""} usage={false}
       actions={<Link to="/app/tools/merge" className="text-sm text-muted hover:text-fg">Back to newsletters</Link>}>
       {q.isPending || !d ? (q.isError ? <ErrorBox onRetry={() => q.refetch()} /> : <Skeleton className="h-96 w-full" />) : (
-        <div className="space-y-4 pb-20 lg:pb-0">
+        <div className="space-y-4 pb-44 sm:pb-24 lg:pb-0">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={n!.status === "sent" ? "ok" : n!.status === "draft" ? "neutral" : n!.status === "cancelled" ? "bad" : "brand"}>{CAMPAIGN_STATUS_LABEL[n!.status]}</Badge>
             {n!.scheduledAt && n!.status === "scheduled" && <span className="text-sm text-muted">Goes out {new Date(n!.scheduledAt).toLocaleString()}</span>}
@@ -116,11 +116,11 @@ export function NewsletterPage() {
           </div>
           {n!.error && <p role="status" className="rounded-lg border border-line bg-surface px-3 py-2 text-sm">{n!.error}</p>}
           {!draft && <Results n={n!} onAction={(p) => act.mutate({ path: p })} busy={act.isPending} />}
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="grid gap-4 [&>*]:min-w-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div className={`min-w-0 space-y-4 ${showPreview ? "hidden lg:block" : ""}`}>
               <Card className="space-y-3 p-4">
                 <Field label="Name" hint="Only you and your team see this.">{(p) => <Input {...p} value={d.name} disabled={!draft} maxLength={120} onChange={(e) => setD({ ...d, name: e.target.value })} />}</Field>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 [&>*]:min-w-0 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
                   <Field label="List">{(p) => (
                     <Select {...p} value={d.listId} disabled={!draft} onChange={(e) => setD({ ...d, listId: e.target.value })}>
                       {(lists.data?.lists ?? [n!.list]).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -149,7 +149,7 @@ export function NewsletterPage() {
             </div>
           </div>
           {draft && (
-            <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface/95 p-3 backdrop-blur lg:static lg:rounded-lg lg:border lg:p-4">
+            <div className="fixed inset-x-0 bottom-[var(--tabbar-h,0px)] z-20 border-t border-line bg-surface/95 p-3 backdrop-blur lg:static lg:rounded-lg lg:border lg:p-4">
               <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2">
                 <Button size="sm" variant="ghost" className="lg:hidden" onClick={() => setShowPreview((v) => !v)} aria-pressed={showPreview}>{showPreview ? "Edit" : "Preview"}</Button>
                 <Button size="sm" variant="secondary" onClick={() => save.mutate()} disabled={!dirty || save.isPending} title="Ctrl Enter">Save</Button>
@@ -218,7 +218,7 @@ export function JourneyPage() {
         <div className="space-y-4">
           <Card className="flex flex-wrap items-center gap-3 p-4">
             <Badge tone={j!.status === "active" ? "ok" : j!.status === "paused" ? "warn" : "neutral"}>{j!.status === "active" ? "On" : j!.status === "paused" ? "Paused" : "Draft"}</Badge>
-            <p className="min-w-0 flex-1 text-sm text-muted">{j!.enrolled} started · {j!.active} on their way. New people who join the list start it; people already on the list don't.</p>
+            <p className="min-w-0 flex-1 basis-64 text-sm text-muted">{j!.enrolled} started · {j!.active} on their way. New people who join the list start it; people already on the list don't.</p>
             {j!.status === "active"
               ? <Button size="sm" variant="secondary" onClick={() => status.mutate("pause")} disabled={status.isPending}>Pause</Button>
               : <Button size="sm" onClick={() => status.mutate("start")} disabled={!j!.canSend || status.isPending} data-testid="r109-journey-start">{j!.status === "paused" ? "Resume" : "Turn on"}</Button>}
@@ -226,7 +226,7 @@ export function JourneyPage() {
           </Card>
           {!j!.canSend && <p className="text-[12.5px] text-muted">Only admins can turn on a journey for a list shared with the whole workspace.</p>}
           {j!.status === "active" && <p className="text-[12.5px] text-muted">Pause the journey to change it. While paused nobody gets the next email; on resume it picks up where each person was.</p>}
-          <Card className="grid gap-3 p-4 sm:grid-cols-3">
+          <Card className="grid gap-3 p-4 sm:grid-cols-3 [&>*]:min-w-0">
             <Field label="Name">{(p) => <Input {...p} value={d.name} disabled={!editable} maxLength={120} onChange={(e) => setD({ ...d, name: e.target.value })} />}</Field>
             <Field label="Sends from">{(p) => (
               <Select {...p} value={d.mailboxId ?? ""} disabled={!editable} onChange={(e) => setD({ ...d, mailboxId: e.target.value || null })}>
@@ -250,7 +250,7 @@ export function JourneyPage() {
                       {st && <span className="text-[12px] text-muted">{st.sent} sent · {rate(st.opened, st.sent)} opened · {rate(st.clicked, st.sent)} clicked</span>}
                       {editable && <Button size="sm" variant="ghost" onClick={() => setD({ ...d, steps: d.steps.filter((_, k) => k !== i) })} aria-label={`Delete email ${i + 1}`}>Delete</Button>}
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
+                    <div className="grid gap-3 [&>*]:min-w-0 sm:grid-cols-[160px_1fr]">
                       <Field label={i === 0 ? "Wait after joining" : "Wait after the last email"}>{(p) => (
                         <Select {...p} value={s.delayDays} disabled={!editable} onChange={(e) => setStep(i, { ...s, delayDays: Number(e.target.value) })}>
                           {[0, 1, 2, 3, 5, 7, 10, 14, 21, 30, 60, 90].map((n) => <option key={n} value={n}>{n === 0 ? "No wait" : `${n} ${n === 1 ? "day" : "days"}`}</option>)}
@@ -258,7 +258,7 @@ export function JourneyPage() {
                       )}</Field>
                       <Field label="Subject" hint={FIELDS_HINT}>{(p) => <Input {...p} value={s.subject} disabled={!editable} maxLength={200} onChange={(e) => setStep(i, { ...s, subject: e.target.value })} />}</Field>
                     </div>
-                    {i > 0 && <div className="flex items-center gap-2"><Switch checked={s.onlyIfNotOpened} disabled={!editable} onChange={(v) => setStep(i, { ...s, onlyIfNotOpened: v })} label="Only if they didn't open the last email" /><span aria-hidden="true" className="text-sm text-fg">Only if they didn't open the last email</span></div>}
+                    {i > 0 && <SwitchRow checked={s.onlyIfNotOpened} disabled={!editable} onChange={(v) => setStep(i, { ...s, onlyIfNotOpened: v })} label="Only if they didn't open the last email" />}
                     <BlockEditor blocks={s.blocks} disabled={!editable} onChange={(blocks) => setStep(i, { ...s, blocks })} />
                   </Card>
                 </li>

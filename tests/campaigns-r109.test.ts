@@ -78,6 +78,14 @@ describe("R109 rules", () => {
     expect(skipStep({ onlyIfNotOpened: false }, true)).toBe(false);
     expect(allowedBy([], "a@b.io")).toBe(true);
     expect(allowedBy(["@qa.test", "me@x.io"], "Box@QA.test")).toBe(true);
+    // "name+*@domain": the QA mailbox and its +tags, nothing else on that domain
+    const qa = ["@staging-qa.invalid", "qa.box+*@mail.qa.test"];
+    expect(allowedBy(qa, "qa.box@mail.qa.test")).toBe(true);
+    expect(allowedBy(qa, "QA.Box+news7@mail.qa.test")).toBe(true);
+    expect(allowedBy(qa, "someone@mail.qa.test")).toBe(false);
+    expect(allowedBy(qa, "qa.boxer@mail.qa.test")).toBe(false);
+    expect(allowedBy(qa, "qa.box+x@evil.test")).toBe(false);
+    expect(allowedBy(["@staging-qa.invalid"], "jo@example.com")).toBe(false); // staging without the secret sends to nobody
     expect(allowedBy(["@qa.test"], "someone@gmail.com")).toBe(false);
   });
 });

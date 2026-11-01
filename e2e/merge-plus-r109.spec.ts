@@ -178,6 +178,17 @@ test("shots and axe: 1280 and 390, light, dark and Forest", async ({ page, baseU
     await page.waitForTimeout(300);
     const wide = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     if (wide) problems.push(`${tag} ${name}: sideways scroll`);
+    // A field or button that sticks out of the card it sits in (clipped, so the page itself does not scroll).
+    const out = await page.evaluate(() => [...document.querySelectorAll("main input, main select, main textarea, main button")].flatMap((el) => {
+      const r = el.getBoundingClientRect(); if (!r.width) return [];
+      let p = el.parentElement; while (p && p.tagName !== "MAIN" && getComputedStyle(p).overflowX === "visible") p = p.parentElement;
+      if (p && /auto|scroll/.test(getComputedStyle(p).overflowX)) return []; // a scroll strip (tabs) is meant to scroll
+      let card = el.parentElement; while (card && card.tagName !== "MAIN" && !(parseFloat(getComputedStyle(card).borderRightWidth) > 0)) card = card.parentElement;
+      if (card && card.tagName !== "MAIN" && r.right > card.getBoundingClientRect().right + 1) return [`${el.tagName.toLowerCase()} ${el.getAttribute("aria-label") ?? el.textContent?.trim().slice(0, 24) ?? ""} out of its card`];
+      const box = p ? p.getBoundingClientRect() : { left: 0, right: window.innerWidth };
+      return r.right > Math.min(box.right, window.innerWidth) + 1 ? [`${el.tagName.toLowerCase()} ${el.getAttribute("aria-label") ?? el.textContent?.trim().slice(0, 24) ?? ""} ${Math.round(r.right)}>${Math.round(Math.min(box.right, window.innerWidth))}`] : [];
+    }).slice(0, 4));
+    if (out.length) problems.push(`${tag} ${name}: sticks out: ${out.join(", ")}`);
     problems.push(...(await axe(page, `${tag} ${name}`)));
     await page.screenshot({ path: `${DIR}/${name}-${tag}.png`, fullPage: true });
   };

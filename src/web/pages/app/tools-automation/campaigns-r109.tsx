@@ -19,6 +19,17 @@ import { CAMPAIGN_STATUS_LABEL, MEMBER_STATUS_LABEL, isEmail, rate, type Campaig
 import { AutoPage } from "./shell";
 import { DocumentsMerge } from "./merge";
 
+/** A switch with its words beside it (the shared Switch only carries an aria label). Tapping the words flips it too. */
+export function SwitchRow({ label, ...rest }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
+  return (
+    <label className="flex min-h-[40px] items-center justify-between gap-3">
+      <span className="min-w-0 text-sm text-fg">{label}</span>
+      <Switch label={label} {...rest} />
+    </label>
+  );
+}
+
+
 export interface ListSummary {
   id: string; name: string; description: string; visibility: "workspace" | "private"; mine: boolean; doubleOptIn: boolean; allowInferred: boolean; signupOn: boolean;
   signupKey: string | null; mailboxId: string | null; senderName: string; senderAddress: string; tz: string; canEdit: boolean; canSend: boolean;
@@ -220,7 +231,7 @@ function NewListDialog({ open, onClose, isAdmin }: { open: boolean; onClose: () 
             <option value="workspace">Whole workspace</option><option value="private">Just me</option>
           </Select>
         )}</Field>
-        <Switch checked={doubleOptIn} onChange={setDoubleOptIn} label="People who sign up confirm by email first" />
+        <SwitchRow checked={doubleOptIn} onChange={setDoubleOptIn} label="People who sign up confirm by email first" />
       </form>
     </Dialog>
   );
@@ -266,7 +277,7 @@ export function ListPage() {
     <AutoPage entryKey="merge_mail" title={l?.name ?? "List"} description="People on this list, their consent, and how new people join." usage={false}
       actions={<Link to="/app/tools/merge?tab=lists" className="text-sm text-muted hover:text-fg">Back to lists</Link>}>
       {q.isPending ? <Skeleton className="h-64 w-full" /> : q.isError || !l ? <ErrorBox onRetry={() => q.refetch()} text="This list didn't load. It may have been archived." /> : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="grid gap-4 [&>*]:min-w-0 2xl:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-4">
             {l.canEdit && <AddPeople list={l} />}
             <Card className="space-y-3 p-4">
@@ -338,9 +349,9 @@ function ListSettings({ list }: { list: ListSummary }) {
       )}</Field>
       {!ro && <Button size="sm" onClick={() => save.mutate({ name: f.name, senderName: f.senderName, senderAddress: f.senderAddress, mailboxId: f.mailboxId, tz: f.tz })} disabled={!dirty || save.isPending}>Save settings</Button>}
       <div className="space-y-2 border-t border-line pt-3">
-        <Switch checked={list.doubleOptIn} disabled={ro} onChange={(v) => save.mutate({ doubleOptIn: v })} label="Signups confirm by email first" />
-        <Switch checked={list.allowInferred} disabled={ro} onChange={(v) => save.mutate({ allowInferred: v })} label="Allow inferred consent (existing customers)" />
-        <Switch checked={list.signupOn} disabled={ro || !list.mailboxId} onChange={(v) => save.mutate({ signupOn: v })} label="Public signup form" />
+        <SwitchRow checked={list.doubleOptIn} disabled={ro} onChange={(v) => save.mutate({ doubleOptIn: v })} label="Signups confirm by email first" />
+        <SwitchRow checked={list.allowInferred} disabled={ro} onChange={(v) => save.mutate({ allowInferred: v })} label="Allow inferred consent (existing customers)" />
+        <SwitchRow checked={list.signupOn} disabled={ro || !list.mailboxId} onChange={(v) => save.mutate({ signupOn: v })} label="Public signup form" />
         {!list.mailboxId && !ro && <p className="text-[12px] text-muted">Pick a mailbox first, so confirm emails can go out.</p>}
         {list.signupOn && signupUrl && (
           <div className="flex gap-2"><Input aria-label="Signup form link" readOnly value={signupUrl} onFocus={(e) => e.currentTarget.select()} /><Button size="sm" variant="secondary" onClick={() => navigator.clipboard?.writeText(signupUrl)}>Copy</Button></div>
@@ -398,7 +409,7 @@ function AddPeople({ list }: { list: ListSummary }) {
           <Button size="sm" variant={mode === "contacts" ? "secondary" : "ghost"} aria-pressed={mode === "contacts"} onClick={() => setMode("contacts")}>From contacts</Button>
         </div>
       </div>
-      <fieldset className="grid gap-3 sm:grid-cols-2">
+      <fieldset className="grid min-w-0 gap-3 sm:grid-cols-2 [&>*]:min-w-0">
         <legend className="sr-only">Consent</legend>
         <Field label="How they said yes">{(p) => (
           <Select {...p} value={kind} onChange={(e) => setKind(e.target.value as "express" | "inferred")}>

@@ -252,5 +252,10 @@ export function rate(n: number, of: number): string {
 export function allowedBy(allow: string[], email: string): boolean {
   if (!allow.length) return true;
   const e = normEmail(email);
-  return allow.some((a) => (a.startsWith("@") ? e.endsWith(a) : e === a));
+  return allow.some((a) => {
+    if (a.startsWith("@")) return e.endsWith(a);
+    const wild = /^([^@+*]+)\+\*(@[^@*]+)$/.exec(a); // "name+*@domain": the mailbox and any of its +tags
+    if (wild) return e.endsWith(wild[2]) && (e === `${wild[1]}${wild[2]}` || (e.startsWith(`${wild[1]}+`) && !e.slice(wild[1].length + 1, -wild[2].length).includes("@")));
+    return e === a;
+  });
 }
