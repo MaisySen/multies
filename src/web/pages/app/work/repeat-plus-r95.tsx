@@ -48,7 +48,10 @@ export function RepeatPlus({ value, due, people, onChange }: { value: Rule | nul
     const next = rotate.includes(key) ? rotate.filter((k) => k !== key) : [...rotate, key];
     emit({ ...base(), ...value, rotate: next.length ? next : undefined } as Omit<Rule, "text">);
   };
-  const fmt = (d: Date) => d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+  const fmt = (d: Date) => { // in the rule's own time zone, so "2nd Tue" reads as a Tuesday wherever the viewer is
+    try { return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: value?.tz || undefined }); }
+    catch { return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }); }
+  };
 
   return (
     <div className="space-y-2" data-testid="repeat-picker">
