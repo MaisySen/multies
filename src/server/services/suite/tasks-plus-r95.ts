@@ -4,7 +4,7 @@
  * src/shared/tasks-plus-r95.ts. Everything here reads only on its own routes and on time writes, never on a
  * hot read route.
  */
-import { and, asc, desc, eq, inArray, isNull, lt, ne, gte } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, lt, ne, gte } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { dayPlanItems, organizations, projects, tasks, timesheets, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
@@ -155,7 +155,7 @@ export async function planNextDay(deps: Deps, actor: SuiteActor, day: string) {
   const now = deps.now();
   let pos = nextRows.length;
   for (const m of plan.moves) await deps.db.update(dayPlanItems).set({ day: next, startMin: m.start, position: pos++, updatedAt: now }).where(eq(dayPlanItems.id, m.id));
-  if (plan.drops.length) await deps.db.delete(dayPlanItems).where(and(eq(dayPlanItems.orgId, actor.orgId), inArray(dayPlanItems.id, plan.drops)));
+  if (plan.drops.length) await deps.db.delete(dayPlanItems).where(and(eq(dayPlanItems.orgId, actor.orgId), inIds(dayPlanItems.id, plan.drops)));
   return { day, next, moved: plan.moves.length, kept: plan.moves.filter((m) => m.start !== null).length, merged: plan.drops.length, undo };
 }
 
