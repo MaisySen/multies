@@ -42,6 +42,7 @@ import { portalPublicRoutes, portalRoutes } from "./routes/client-portal"; // R1
 import { mailArchiveRoutes } from "./routes/mail-archive-r111"; // R111
 import { requestPublicRoutes, secretPublicRoutes, toolsRequestRoutes, toolsSecretRoutes } from "./routes/secure-share"; // R88 // Tools P2: share links
 import { bioPublicRoutes, linkPublicRoutes, linksRoutes } from "./routes/links"; // R87: Links in Tools
+import { COMMENTS_JS, COMMENTS_JS_HEADERS, sitePublicRoutes, sitesRoutes } from "./routes/sites"; // R123: Sites
 import { bookingPlusRoutes, bookingPublicRoutes } from "./routes/booking-plus"; // R92
 import { formsPlusRoutes, formsPublicRoutes } from "./routes/forms-plus"; // R93
 import { FORMS_EMBED_HEADERS, FORMS_EMBED_JS } from "./routes/forms-embed-script"; // R93
@@ -461,6 +462,7 @@ export function createApp(deps: Deps) {
       toolFeatures: deps.config.tools.enabled ? activeToolFeatures(deps) : [],
       // R122: the help center in Docs (HELP_CENTER=on).
       helpCenter: !!deps.config.helpCenter,
+      sites: !!deps.config.sites, // R123
       davSync: !!deps.config.davSync,
       // R103: Docs plus (DOCS_PLUS_R103=on).
       docsPlus: !!deps.config.docsPlus,
@@ -545,6 +547,12 @@ export function createApp(deps: Deps) {
     app.route("/csat", surveyRoutes());
   }
   if (deps.config.docsPlus) app.route("/api/docs-plus", docsPlusRoutes()); // R103: link library, clipper, doc comments
+  if (deps.config.sites) {
+    // R123: Sites (team API) and the public pages /site/<slug> (only the live snapshot of published pages).
+    app.route("/api/sites", sitesRoutes());
+    app.route("/site", sitePublicRoutes());
+    app.get("/site-assets/comments.js", (c) => c.body(COMMENTS_JS, 200, COMMENTS_JS_HEADERS));
+  }
   if (deps.config.helpCenter) {
     // R122: the help center (team API) and its public pages /help/<slug> (only what a workspace published).
     app.route("/api/help-center", helpCenterRoutes());

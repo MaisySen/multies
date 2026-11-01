@@ -4258,3 +4258,82 @@ export const reviewAssignments = sqliteTable("review_assignments", {
   doneAt: ts("done_at"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("review_assignments_entry_reviewer_uq").on(t.submissionId, t.reviewerId), index("review_assignments_reviewer_idx").on(t.orgId, t.reviewerId, t.status), index("review_assignments_form_idx").on(t.formId)]);
+
+
+// ---------------------------------------------------------------------------------------------------------------
+// R123: Sites (page builder, comments, page view counts)
+// ---------------------------------------------------------------------------------------------------------------
+export const sites = sqliteTable("sites", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  slug: text("slug").notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  commentsOn: integer("comments_on", { mode: "boolean" }).notNull().default(true),
+  /** JSON array of user ids who may build, publish and moderate besides owners and admins. */
+  editors: text("editors").notNull().default("[]"),
+  homePageId: text("home_page_id"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [uniqueIndex("sites_slug_uq").on(t.slug), uniqueIndex("sites_org_uq").on(t.orgId)]);
+
+export const sitePages = sqliteTable("site_pages", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  siteId: text("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  slug: text("slug").notNull(),
+  title: text("title").notNull(),
+  status: text("status", { enum: ["draft", "scheduled", "published"] }).notNull().default("draft"),
+  draftBlocks: text("draft_blocks").notNull().default("[]"),
+  seoTitle: text("seo_title").notNull().default(""),
+  description: text("description").notNull().default(""),
+  image: text("image").notNull().default(""),
+  /** JSON snapshot visitors see now ({ title, blocks, seoTitle, description, image }); null when not public. */
+  live: text("live"),
+  /** JSON snapshot that goes live at publishAt. */
+  next: text("next"),
+  publishAt: integer("publish_at"),
+  publishedAt: integer("published_at"),
+  membersCanView: integer("members_can_view", { mode: "boolean" }).notNull().default(false),
+  commentsOn: integer("comments_on", { mode: "boolean" }).notNull().default(true),
+  hasUnpublished: integer("has_unpublished", { mode: "boolean" }).notNull().default(true),
+  views: integer("views").notNull().default(0),
+  position: integer("position").notNull().default(0),
+  updatedBy: text("updated_by"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [uniqueIndex("site_pages_slug_uq").on(t.siteId, t.slug), index("site_pages_org_idx").on(t.orgId, t.position)]);
+
+export const sitePageVersions = sqliteTable("site_page_versions", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  pageId: text("page_id").notNull().references(() => sitePages.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: ["saved", "published"] }).notNull().default("saved"),
+  snapshot: text("snapshot").notNull(),
+  createdBy: text("created_by"),
+  createdAt: integer("created_at").notNull(),
+}, (t) => [index("site_page_versions_page_idx").on(t.pageId, t.createdAt)]);
+
+export const siteComments = sqliteTable("site_comments", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  pageId: text("page_id").notNull().references(() => sitePages.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  body: text("body").notNull(),
+  status: text("status", { enum: ["pending", "approved", "rejected"] }).notNull().default("pending"),
+  /** A keyed hash of the sender for the per day limit; the address itself is never stored. */
+  senderKey: text("sender_key").notNull(),
+  moderatedBy: text("moderated_by"),
+  createdAt: integer("created_at").notNull(),
+}, (t) => [index("site_comments_page_idx").on(t.pageId, t.status, t.createdAt), index("site_comments_org_idx").on(t.orgId, t.status, t.createdAt), index("site_comments_sender_idx").on(t.senderKey, t.createdAt)]);
+
+export const sitePageStats = sqliteTable("site_page_stats", {
+  /** pageId:day:source:device */
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  pageId: text("page_id").notNull().references(() => sitePages.id, { onDelete: "cascade" }),
+  day: text("day").notNull(),
+  source: text("source").notNull(),
+  device: text("device").notNull(),
+  views: integer("views").notNull().default(0),
+}, (t) => [index("site_page_stats_org_idx").on(t.orgId, t.day)]);

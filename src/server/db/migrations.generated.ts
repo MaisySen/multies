@@ -1568,5 +1568,24 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX `review_assignments_reviewer_idx` ON `review_assignments` (`org_id`,`reviewer_id`,`status`);",
       "CREATE INDEX `review_assignments_form_idx` ON `review_assignments` (`form_id`);"
     ]
+  },
+  {
+    "name": "0143_r123_sites",
+    "statements": [
+      "-- R123 (Nov 1): Sites. One site per workspace with pages built from typed blocks (draft, scheduled and published\n-- snapshots), page versions, moderated comments and page view counts (counts only: no address, no visitor id, no cookie).\n-- Additive only.\nCREATE TABLE IF NOT EXISTS `sites` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`slug` text NOT NULL,\n\t`name` text NOT NULL,\n\t`description` text DEFAULT '' NOT NULL,\n\t`comments_on` integer DEFAULT 1 NOT NULL,\n\t`editors` text DEFAULT '[]' NOT NULL,\n\t`home_page_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `sites_slug_uq` ON `sites` (`slug`);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `sites_org_uq` ON `sites` (`org_id`);",
+      "CREATE TABLE IF NOT EXISTS `site_pages` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`site_id` text NOT NULL REFERENCES `sites`(`id`) ON DELETE cascade,\n\t`slug` text NOT NULL,\n\t`title` text NOT NULL,\n\t`status` text DEFAULT 'draft' NOT NULL,\n\t`draft_blocks` text DEFAULT '[]' NOT NULL,\n\t`seo_title` text DEFAULT '' NOT NULL,\n\t`description` text DEFAULT '' NOT NULL,\n\t`image` text DEFAULT '' NOT NULL,\n\t`live` text,\n\t`next` text,\n\t`publish_at` integer,\n\t`published_at` integer,\n\t`members_can_view` integer DEFAULT 0 NOT NULL,\n\t`comments_on` integer DEFAULT 1 NOT NULL,\n\t`has_unpublished` integer DEFAULT 1 NOT NULL,\n\t`views` integer DEFAULT 0 NOT NULL,\n\t`position` integer DEFAULT 0 NOT NULL,\n\t`updated_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `site_pages_slug_uq` ON `site_pages` (`site_id`,`slug`);",
+      "CREATE INDEX IF NOT EXISTS `site_pages_org_idx` ON `site_pages` (`org_id`,`position`);",
+      "CREATE TABLE IF NOT EXISTS `site_page_versions` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`page_id` text NOT NULL REFERENCES `site_pages`(`id`) ON DELETE cascade,\n\t`kind` text DEFAULT 'saved' NOT NULL,\n\t`snapshot` text NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX IF NOT EXISTS `site_page_versions_page_idx` ON `site_page_versions` (`page_id`,`created_at`);",
+      "CREATE TABLE IF NOT EXISTS `site_comments` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`page_id` text NOT NULL REFERENCES `site_pages`(`id`) ON DELETE cascade,\n\t`name` text NOT NULL,\n\t`body` text NOT NULL,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`sender_key` text NOT NULL,\n\t`moderated_by` text,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX IF NOT EXISTS `site_comments_page_idx` ON `site_comments` (`page_id`,`status`,`created_at`);",
+      "CREATE INDEX IF NOT EXISTS `site_comments_org_idx` ON `site_comments` (`org_id`,`status`,`created_at`);",
+      "CREATE INDEX IF NOT EXISTS `site_comments_sender_idx` ON `site_comments` (`sender_key`,`created_at`);",
+      "CREATE TABLE IF NOT EXISTS `site_page_stats` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`page_id` text NOT NULL REFERENCES `site_pages`(`id`) ON DELETE cascade,\n\t`day` text NOT NULL,\n\t`source` text NOT NULL,\n\t`device` text NOT NULL,\n\t`views` integer DEFAULT 0 NOT NULL\n);",
+      "CREATE INDEX IF NOT EXISTS `site_page_stats_org_idx` ON `site_page_stats` (`org_id`,`day`);"
+    ]
   }
 ];

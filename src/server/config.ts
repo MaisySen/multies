@@ -226,6 +226,10 @@ export interface AppConfig {
   esignV2?: boolean;
   /** R122: the help center in Docs and the public /help pages (HELP_CENTER=on). Off unless set; each workspace turns its own on. */
   helpCenter?: boolean;
+  /** R123: Sites in Docs and the public /site pages (SITES_R123=on). Off unless set; nothing shows until an admin starts a site. */
+  sites?: boolean;
+  /** R123: more workspaces (ids, slugs or names, comma separated) kept out of Sites; vv8k is always out. */
+  sitesExclude?: string;
   /** R99: calendar and contacts sync, CalDAV and CardDAV at /dav with app passwords (DAV_SYNC_R99=on). Off unless set. */
   davSync?: boolean;
   /** R103: Docs plus (link library, web clipper, doc comments, spell check), DOCS_PLUS_R103=on. */
@@ -371,6 +375,8 @@ const EnvSchema = z.object({
   HELPDESK: z.string().optional(),
   ESIGN_V2: z.string().optional(),
   HELP_CENTER: z.string().optional(),
+  SITES_R123: z.string().optional(),
+  SITES_EXCLUDE: z.string().optional(),
   DAV_SYNC_R99: z.string().optional(),
   DOCS_PLUS_R103: z.string().optional(),
   DOCS_PLUS_FAKE_WEB: z.string().optional(),
@@ -789,6 +795,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     helpdesk: env.HELPDESK !== "off",
     esignV2: env.ESIGN_V2 !== "off",
     helpCenter: ["on", "true", "1"].includes(String(env.HELP_CENTER ?? "").toLowerCase()),
+    sites: ["on", "true", "1"].includes(String(env.SITES_R123 ?? "").toLowerCase()),
+    sitesExclude: env.SITES_EXCLUDE ?? "",
     davSync: ["on", "true", "1"].includes(String(env.DAV_SYNC_R99 ?? "").toLowerCase()),
     docsPlus: ["on", "true", "1"].includes(String(env.DOCS_PLUS_R103 ?? "").toLowerCase()),
     docsPlusFakeWeb: env.DOCS_PLUS_FAKE_WEB === "1" && !/multies\.si/.test(String(env.APP_URL ?? "")),
