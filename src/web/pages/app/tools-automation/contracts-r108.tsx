@@ -67,7 +67,7 @@ function TemplateGallery({ onOpen, onLibrary }: { onOpen: (id: string) => void; 
   const ours = d.templates.filter((t) => !t.builtIn);
   const standard = d.templates.filter((t) => t.builtIn);
   const card = (t: TemplateSummary) => (
-    <Card key={t.id} data-testid={`contract-template-${t.id}`} className={cn("flex flex-col gap-2 p-4", t.retired && "opacity-70")}>
+    <Card key={t.id} data-testid={`contract-template-${t.id}`} className={cn("flex flex-col gap-2 p-4", t.retired && "border-dashed bg-fill/40")}>
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-[15px] font-semibold leading-snug">{t.name}</h3>
         <div className="flex shrink-0 gap-1">{t.retired ? <Badge tone="warn">Retired</Badge> : !t.builtIn ? <Badge tone="brand">Your version</Badge> : <Badge>{t.category}</Badge>}</div>

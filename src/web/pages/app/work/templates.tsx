@@ -10,6 +10,8 @@ import { useDialogs } from "@/web/components/ui/confirm";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { Link } from "react-router";
+import { useConfig } from "@/web/lib/queries";
 
 interface Template { id: string; kind: "project" | "task" | "doc"; name: string; description: string; category: string; builtin: boolean; taskCount: number }
 interface Project { id: string; name: string }
@@ -17,6 +19,7 @@ interface Project { id: string; name: string }
 const today = () => new Date().toISOString().slice(0, 10);
 
 export function TemplatesPage() {
+  const contracts = !!useConfig().data?.contractsR108; // R108
   const { confirm, dialogs } = useDialogs();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -46,6 +49,12 @@ export function TemplatesPage() {
       {dialogs}
       <PageHeader title="Project templates" description="Start a project with its statuses, fields and tasks already in place. Due dates count from the start date you pick."
         actions={<div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => setSaving(true)}>Save a project as a template</Button><Button size="sm" onClick={() => setWriting(true)}><IconPlus className="h-4 w-4" />New template</Button></div>} />
+      {contracts && (
+        <Card data-testid="contracts-entry" className="mb-5 flex flex-wrap items-center justify-between gap-3 p-4">
+          <div className="min-w-0"><p className="text-[14px] font-semibold">Contract templates</p><p className="text-[13px] text-muted">Service agreements, NDAs, contractor agreements, quote terms and a privacy notice, filled in by answering a few questions.</p></div>
+          <Link to="/app/tools/templates?view=contracts" className="shrink-0 text-[13px] font-medium text-brand hover:underline">Open contracts</Link>
+        </Card>
+      )}
       {q.isPending ? <Skeleton className="h-64" /> : (
         <>
           <h2 className="mb-3 text-[15px] font-semibold">Starter gallery</h2>

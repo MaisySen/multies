@@ -122,7 +122,9 @@ describe("R53 whats-new list", () => {
     // R101: Files plus took the place of "2026-10-31-crm-timeline" (the oldest after What's new itself); it stays in CHANGELOG.md.
     // R95: "2026-10-31-tools-round-c" (the oldest after What's new itself) made room for Tasks plus; it stays in CHANGELOG.md.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-31-tools-round-c")).toBe(false);
-    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-01-tasks-plus", "2026-11-01-newsletters", "2026-11-01-files-plus", "2026-11-01-maps-visits", "2026-11-01-mail-archive", "2026-11-01-docs-plus", "2026-11-01-dav-sync", "2026-11-01-chat-plus", "2026-11-01-client-portals", "2026-11-01-dashboards-plus", "2026-11-01-notification-centre", "2026-11-01-help-center", "2026-10-31-esign-v2", "2026-10-28-whats-new"]);
+    // R108: Contracts merged the e-signing entry ("2026-10-31-esign-v2") into its own, so the list stays at 14.
+    expect(WHATS_NEW.some((e) => e.id === "2026-10-31-esign-v2")).toBe(false);
+    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-01-contracts", "2026-11-01-tasks-plus", "2026-11-01-newsletters", "2026-11-01-files-plus", "2026-11-01-maps-visits", "2026-11-01-mail-archive", "2026-11-01-docs-plus", "2026-11-01-dav-sync", "2026-11-01-chat-plus", "2026-11-01-client-portals", "2026-11-01-dashboards-plus", "2026-11-01-notification-centre", "2026-11-01-help-center", "2026-10-28-whats-new"]);
     for (const id of ["2026-10-28-more-safe-retries", "2026-10-28-lighter-mail-sync", "2026-10-28-safe-retries", "2026-10-28-quicker-task-lists", "2026-10-27-steadier-my-work"]) {
       expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);
     }

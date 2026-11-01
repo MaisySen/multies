@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-contracts",
+    date: "2026-11-01",
+    title: "Contract templates, and signing with an email code",
+    body: "Tools, Templates, Contracts has plain words templates for a service agreement, an NDA, a contractor agreement, quote terms and a privacy notice: answer a few questions, check the preview, then save a Doc, download a PDF or Word file, add renewal reminders as tasks, or send it to sign. Admins keep the workspace's own versions and a clause library with versions. Signing emails each signer a one time code and keeps a full signing record that anyone can check on the public check page.",
+  },
+  {
     id: "2026-11-01-tasks-plus",
     date: "2026-11-01",
     title: "My Day, time blocking and a task mind map",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "A public help center for your customers",
     body: "Docs, Help center publishes chosen docs as articles with categories and search, lets visitors ask questions that you approve and answer, and turns a solved ticket into a public answer with the customer's details taken out.",
-  },
-  {
-    id: "2026-10-31-esign-v2",
-    date: "2026-10-31",
-    title: "Signing with an email code, templates and a check page",
-    body: "Tools, Sign now emails each signer a one time code and asks them to agree to sign electronically, and keeps a full signing record with time, time zone, device and document fingerprints that you can download. Save a request as a template and send it again, or send a one signer template to a list of up to 50 people. Anyone can check a signed copy on the public check page, which reads only the file's fingerprint.",
   },
   {
     id: "2026-10-28-whats-new",
