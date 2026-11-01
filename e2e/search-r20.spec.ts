@@ -78,7 +78,8 @@ test("Cmd+K finds a word in a doc, a task and a chat message and opens each; My 
   await taskResult.click();
   await expect(page).toHaveURL(/\/app\/tasks\?project=.+&task=tsk_/);
   expect(page.url()).toContain(taskUrl!.split("task=")[1]);
-  await expect(page.getByRole("dialog", { name: "Task" })).toBeVisible();
+  // R79: task details open in the side panel on a desktop.
+  await expect(page.getByRole("complementary", { name: "Task details" }).getByLabel("Title")).toBeVisible();
 
   // The chat message, by keyboard: arrows to it, Enter opens it.
   await page.keyboard.press("Escape");
@@ -93,7 +94,7 @@ test("Cmd+K finds a word in a doc, a task and a chat message and opens each; My 
 
   // Too short a query searches nothing; nothing found says so.
   dialog = await openSearch(page, "zzqx nothing here");
-  await expect(dialog.getByText(/Nothing matches/)).toBeVisible();
+  await expect(dialog.getByText(/Nothing matches|No results for/).first()).toBeVisible(); // R98 copy when SEARCH_R98 is on
   await page.keyboard.press("Escape");
 
   // My Work: first in the nav, my task due today is there and opens.
