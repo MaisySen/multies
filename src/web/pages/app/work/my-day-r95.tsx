@@ -78,10 +78,11 @@ export function MyDay() {
   };
 
   const planTomorrow = useMutation({
-    mutationFn: () => api.post<{ moved: number; kept: number; undo: Undo[] }>("/my-day/plan-tomorrow", { day }),
+    mutationFn: () => api.post<{ moved: number; kept: number; merged?: number; undo: Undo[] }>("/my-day/plan-tomorrow", { day }),
     onSuccess: (r) => {
       refresh();
-      toast(r.moved ? `Moved ${r.moved} to tomorrow${r.kept ? `, ${r.kept} at the same time` : ""}` : "Nothing left to move", r.moved ? { action: { label: "Undo", onClick: () => void api.post("/my-day/restore", { items: r.undo }).then(refresh, (e) => showError(e as Error)) } } : undefined);
+      const n = r.moved + (r.merged ?? 0); // merged: already on tomorrow's list, so today's copy goes
+      toast(n ? `Moved ${n} to tomorrow${r.kept ? `, ${r.kept} at the same time` : ""}` : "Nothing left to move", n ? { action: { label: "Undo", onClick: () => void api.post("/my-day/restore", { items: r.undo }).then(refresh, (e) => showError(e as Error)) } } : undefined);
     },
     onError: (e) => showError(e as Error),
   });
