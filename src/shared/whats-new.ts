@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-02-courses",
+    date: "2026-11-02",
+    title: "Courses for staff training",
+    body: "In Docs, build a course from your pages, file and video links and a quiz with a pass mark. Assign it to people with a due date and they get reminders, follow their progress in My learning and download a certificate when they finish. Admins and managers see everyone's progress and can export it as CSV.",
+  },
+  {
     id: "2026-11-01-sites",
     date: "2026-11-01",
     title: "Build a simple website for your team",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Newsletters and welcome emails in Merge",
     body: "Tools > Merge now has Newsletters, Lists and Journeys: build a list with each person's consent, write from blocks with merge fields and a live preview, then send, schedule or start a welcome series. Every email has a one click unsubscribe that works across all your lists.",
-  },
-  {
-    id: "2026-11-01-files-plus",
-    date: "2026-11-01",
-    title: "Folders, versions and a brand library in Files",
-    body: "Files now has Team files, My files, Shared with me, Starred, Recent and Trash: drag files in, make folders, preview images, PDFs, video and audio, and share your own files with a teammate. Every file keeps up to 20 versions you can restore, deleted files wait 30 days in Trash, and you can move or download many at once as a zip. The Brand library keeps logos and templates with tags for everyone to use, and only admins can change it, and Documents reads your bills, receipts and tax papers, finds the dates, amounts and GST, and rules tag and file them, with Unpaid bills and Tax documents one tap away.",
   },
     {
     id: "2026-10-28-whats-new",
