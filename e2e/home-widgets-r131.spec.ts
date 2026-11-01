@@ -61,7 +61,7 @@ test.describe("R131 home widgets", () => {
   test("first view, empty states, quick link, add and hide, axe in three themes", async ({ browser }) => {
     const page = await signUp(browser);
     await page.goto("/app");
-    await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
     expect(await order(page)).toEqual(["tasks", "calendar", "inbox", "links", "overview"]);
     await expect(page.getByTestId("widget-calendar").getByText("No meetings today.")).toBeVisible();
     await expect(page.getByTestId("widget-links").getByText("Add the links you open every day.")).toBeVisible();
@@ -94,6 +94,7 @@ test.describe("R131 home widgets", () => {
     await page.getByTestId("done-home").click();
     await expect(page.getByTestId("home-note")).toHaveText("Home saved.");
     expect(await order(page)).toEqual(["tasks", "inbox", "links", "overview", "dashboards"]);
+    await page.getByTestId("widget-dashboards").scrollIntoViewIfNeeded(); // below the fold: it reads when scrolled near
     await expect(page.getByTestId("widget-dashboards").getByText(/No dashboards yet/)).toBeVisible();
     // reset brings the default back
     await page.getByTestId("customize-home").click();
@@ -112,8 +113,11 @@ test.describe("R131 home widgets", () => {
     // keyboard: space picks up, arrow moves, space drops
     await page.getByTestId("drag-overview").focus();
     await page.keyboard.press("Space");
+    await page.waitForTimeout(250);
     await page.keyboard.press("ArrowUp");
+    await page.waitForTimeout(400);
     await page.keyboard.press("Space");
+    await page.waitForTimeout(400);
     await expect.poll(() => order(page)).not.toEqual(["calendar", "tasks", "inbox", "links", "overview"]);
     const afterKeys = await order(page);
     expect(afterKeys.indexOf("overview")).toBeLessThan(4);
@@ -127,10 +131,13 @@ test.describe("R131 home widgets", () => {
     await page.mouse.up();
     await expect.poll(async () => (await order(page))[0]).toBe("links");
     const final = await order(page);
+    await page.waitForTimeout(500);
+    const saved = page.waitForResponse((r) => r.url().includes("/api/home-widgets") && r.request().method() === "PUT");
     await page.getByTestId("done-home").click();
+    expect((await saved).status()).toBe(200);
     await expect(page.getByTestId("home-note")).toHaveText("Home saved.");
     await page.reload();
-    expect(await order(page)).toEqual(final);
+    await expect.poll(() => order(page)).toEqual(final);
   });
 
   test("one failing widget shows Retry while the rest load", async ({ browser }) => {
@@ -158,6 +165,7 @@ test.describe("R131 home widgets", () => {
     await theme(page, "light");
     await page.getByTestId("customize-home").click();
     await expect(page.getByTestId("reorder-sheet")).toBeVisible();
+    await page.waitForTimeout(400);
     await shot(page, "home-390-sheet");
     expect(await axe(page).catch(() => [])).toEqual([]);
     await page.getByTestId("sheet-down-tasks").click();

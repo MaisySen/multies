@@ -12,10 +12,10 @@ export type WidgetSize = (typeof WIDGET_SIZES)[number];
 
 export const WIDGET_INFO: Record<WidgetId, { title: string; blurb: string; size: WidgetSize }> = {
   tasks: { title: "My tasks", blurb: "Overdue and due today", size: "medium" },
-  calendar: { title: "Today and next", blurb: "Your meetings today and the next one", size: "small" },
-  inbox: { title: "Inbox counts", blurb: "Mail, chat, notifications and triage", size: "small" },
-  links: { title: "Quick links", blurb: "Links you open often", size: "small" },
-  overview: { title: "Workspace overview", blurb: "Mail sent, domains and recent activity", size: "wide" },
+  calendar: { title: "Today and next", blurb: "Your meetings today and the next one", size: "medium" },
+  inbox: { title: "Inbox counts", blurb: "Mail, chat, notifications and triage", size: "medium" },
+  links: { title: "Quick links", blurb: "Links you open often", size: "medium" },
+  overview: { title: "Workspace summary", blurb: "Mail sent, domains and recent activity", size: "wide" },
   social: { title: "Social inbox", blurb: "Comments and messages assigned to you", size: "medium" },
   feeds: { title: "Feeds", blurb: "Latest runs from your page and feed watches", size: "medium" },
   dashboards: { title: "Dashboards", blurb: "Open a dashboard in one click", size: "medium" },

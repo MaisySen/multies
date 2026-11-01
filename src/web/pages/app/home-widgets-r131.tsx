@@ -259,8 +259,12 @@ function WidgetCard({ item, editing, index, count, overview, links, onMove, onSi
         )}
         <span className="text-subtle [&_svg]:h-4 [&_svg]:w-4" aria-hidden="true">{ICON[item.id]}</span>
         <h2 id={`hw-${item.id}`} className="min-w-0 flex-1 truncate text-[14px] font-semibold text-fg">{info.title}</h2>
-        {editing ? (
-          <div className="flex items-center gap-1">
+        {!editing && open ? <Link to={open} className="rounded-md px-1.5 py-1 text-[12.5px] font-medium text-muted hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">Open</Link> : null}
+      </header>
+      {editing ? (
+        <div className="flex min-h-24 flex-col items-center justify-center gap-3 px-4 py-4 text-center" data-testid={`placeholder-${item.id}`}>
+          <p className="text-[13px] text-muted">{info.blurb}</p>
+          <div className="flex flex-wrap items-center justify-center gap-1">
             <button type="button" onClick={() => onMove(-1)} disabled={index === 0} aria-label={`Move ${info.title} up`} className="grid h-8 w-8 place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`up-${item.id}`}><IconArrowUp className="h-4 w-4" /></button>
             <button type="button" onClick={() => onMove(1)} disabled={index === count - 1} aria-label={`Move ${info.title} down`} className="grid h-8 w-8 place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`down-${item.id}`}><IconArrowDown className="h-4 w-4" /></button>
             <Select aria-label={`Size of ${info.title}`} value={item.size} onChange={(e) => onSize(e.target.value as WidgetSize)} className="h-8 w-auto py-0 text-[13px]" data-testid={`size-${item.id}`}>
@@ -268,9 +272,8 @@ function WidgetCard({ item, editing, index, count, overview, links, onMove, onSi
             </Select>
             <button type="button" onClick={onHide} aria-label={`Hide ${info.title}`} className="grid h-8 w-8 place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`hide-${item.id}`}><IconEyeOff className="h-4 w-4" /></button>
           </div>
-        ) : open ? <Link to={open} className="rounded-md px-1.5 py-1 text-[12.5px] font-medium text-muted hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">Open</Link> : null}
-      </header>
-      <div className={cn(editing && "pointer-events-none select-none opacity-90")} aria-hidden={editing || undefined}>{body}</div>
+        </div>
+      ) : body}
     </section>
   );
 }
@@ -393,7 +396,7 @@ export function HomeWidgetsPage({ overview }: { overview: ReactNode }) {
   const actions = editing ? (
     <div className="flex flex-wrap items-center gap-2">
       {hidden.length > 0 && (
-        <Menu label="Add widget" trigger={<span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line-strong bg-surface px-3 text-[13px] font-medium text-fg hover:bg-hover" data-testid="add-widget"><IconPlus className="h-4 w-4" />Add widget</span>}>
+        <Menu label="Add widget" trigger={<button type="button" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line-strong bg-surface px-3 text-[13px] font-medium text-fg hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid="add-widget"><IconPlus className="h-4 w-4" />Add widget</button>}>
           {hidden.map((h) => <MenuItem key={h.id} icon={ICON[h.id]} hint={WIDGET_INFO[h.id].blurb} onSelect={() => update(h.id, { hidden: false })}>{WIDGET_INFO[h.id].title}</MenuItem>)}
         </Menu>
       )}
@@ -408,7 +411,7 @@ export function HomeWidgetsPage({ overview }: { overview: ReactNode }) {
 
   return (
     <>
-      <PageHeader title="Home" description={editing ? "Drag widgets to arrange them, or use the arrows. Space picks up a widget and the arrow keys move it." : `Good ${dayPart()}${first ? `, ${first}` : ""}. Here's your day at a glance.`} actions={actions} />
+      <PageHeader title="Overview" description={editing ? "Drag widgets to arrange them, or use the arrows. Space picks up a widget and the arrow keys move it." : `Good ${dayPart()}${first ? `, ${first}` : ""}. Here's your day at a glance.`} actions={actions} />
       <p className="sr-only" aria-live="polite">{say}</p>
       {note && <div role="status" className="mb-4 rounded-lg bg-fill px-3 py-2 text-[13px] text-fg" data-testid="home-note">{note}</div>}
       {visible.length === 0 ? (
