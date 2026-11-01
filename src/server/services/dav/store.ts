@@ -7,7 +7,7 @@
  * Every listing is one bounded, indexed query. Sync tokens are stored snapshots of { name: etag }.
  */
 import { inIds } from "../../lib/sql-chunks";
-import { and, asc, desc, eq, gte, isNull, lt, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, ne } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { bookings, companies, contacts, davNames, meetings, davSyncStates, projects, schedulingPages, tasks } from "../../db/schema";
 import { sha256Hex } from "../../lib/crypto";
@@ -18,7 +18,7 @@ import { createContact, deleteContact, updateContact } from "../suite/contacts";
 import { buildObject, type FeedMeeting } from "../suite/ics-write";
 import { parseComponents, parseDuration, parseWhen } from "../suite/ics-parse";
 import { createMeeting, deleteMeeting, updateMeeting } from "../suite/meetings";
-import { zonedDate } from "../suite/scheduling";
+import { ownBookingPageIds, zonedDate } from "../suite/scheduling";
 import { updateTask } from "../suite/tasks";
 import { actorOfPrincipal, type DavPrincipal } from "./app-passwords";
 import { buildVCard, parseVCard } from "./vcard";
@@ -88,8 +88,11 @@ export async function entries(deps: Deps, p: DavPrincipal, col: CollectionId): P
     });
   }
   if (col === "bookings") {
+    // R115 (R99 low): exactly the pages the app's Bookings list reads (ownBookingPageIds), for members and admins alike.
+    const pageIds = await ownBookingPageIds(deps, p.orgId, p.userId);
+    if (!pageIds.length) return [];
     const rows = await deps.db.select({ b: bookings, page: schedulingPages.title }).from(bookings).innerJoin(schedulingPages, eq(schedulingPages.id, bookings.pageId))
-      .where(and(eq(bookings.orgId, p.orgId), eq(schedulingPages.userId, p.userId), gte(bookings.startsAt, new Date(from.getTime() - DAY)), lt(bookings.startsAt, to)))
+      .where(and(eq(bookings.orgId, p.orgId), inArray(bookings.pageId, pageIds), gte(bookings.startsAt, new Date(from.getTime() - DAY)), lt(bookings.startsAt, to)))
       .orderBy(asc(bookings.startsAt)).limit(FEED_MAX_ITEMS);
     return rows.map(({ b, page }) => {
       const changed = b.cancelledAt ?? b.createdAt;

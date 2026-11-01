@@ -53,12 +53,16 @@ test("create an app password with the keyboard, sign in to the calendar server w
   await page.keyboard.press("Enter");
   const pwBox = dialog.getByTestId("dav-password");
   await expect(pwBox).toHaveValue(/^[a-z2-9]{5}(-[a-z2-9]{5}){3}$/);
+  // R115 (R99 low): focus moves to the shown-once password, not the page body.
+  await expect(pwBox).toBeFocused();
   const pw = await pwBox.inputValue();
   if (DIR) await page.screenshot({ path: `${DIR}/r99-password-1280-light.png` });
   expect(await axe(page, "password dialog")).toEqual([]);
   const username = await dialog.locator("input").nth(2).inputValue();
   await dialog.getByTestId("dav-done").click();
   await expect(dialog).toBeHidden();
+  // R115 (R99 low): closing gives focus back to the button that opened the dialog.
+  await expect(card.getByTestId("dav-create")).toBeFocused();
   const row = card.getByTestId("dav-list").locator("li").filter({ hasText: "Test iPhone" });
   await expect(row).toContainText("Never used");
   await expect(row).toContainText(pw.slice(-4));
@@ -80,6 +84,13 @@ test("create an app password with the keyboard, sign in to the calendar server w
   await page.keyboard.press("ArrowRight");
   await expect(card.getByRole("tab", { name: "Outlook" })).toHaveAttribute("aria-selected", "true");
   await expect(card.getByTestId("dav-guide-steps")).toContainText("calendar feed above");
+  // R115 (R99 low): Home and End jump to the first and last guide tab.
+  await page.keyboard.press("Home");
+  await expect(card.getByRole("tab", { name: "iPhone and iPad" })).toHaveAttribute("aria-selected", "true");
+  await expect(card.getByRole("tab", { name: "iPhone and iPad" })).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(card.getByRole("tab", { name: "Outlook" })).toHaveAttribute("aria-selected", "true");
+  await expect(card.getByRole("tab", { name: "Outlook" })).toBeFocused();
   await card.getByRole("tab", { name: "iPhone and iPad" }).click();
   await shot(page, "r99-list-1280-light");
   expect(await axe(page, "list")).toEqual([]);

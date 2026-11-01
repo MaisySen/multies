@@ -9,16 +9,26 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
   open: boolean; onClose: () => void; title: string; description?: ReactNode; children?: ReactNode; footer?: ReactNode; className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // R115 (R99 low): the control that opened the dialog gets focus back on close, however it closed (Esc, Close, Done).
+  const opener = useRef<HTMLElement | null>(null);
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
     if (open && !d.open) {
+      const active = document.activeElement;
+      opener.current = active instanceof HTMLElement && active !== document.body ? active : null;
       d.showModal();
       // R56 (MB-243): showModal() focuses the first focusable element, the Close button, after React's autoFocus already
       // ran on a field that was not yet shown. A field asking for focus (data-autofocus, set by Input and Textarea) gets it back.
       d.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     }
     if (!open && d.open) d.close();
+    if (!open && opener.current) {
+      const back = opener.current;
+      opener.current = null;
+      const lost = !document.activeElement || document.activeElement === document.body || d.contains(document.activeElement);
+      if (back.isConnected && lost) back.focus();
+    }
   }, [open]);
   return (
     <dialog

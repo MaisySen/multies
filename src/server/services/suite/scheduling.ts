@@ -5,7 +5,7 @@
  * guest link, an .ics file and a confirmation email through system mail. No paid calendar APIs.
  * A booking costs two inserts (meeting and booking); cancelling costs two updates.
  */
-import { and, asc, eq, gte, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { bookings, meetings, organizations, schedulingPages, users } from "../../db/schema";
 import { randomToken, sha256Hex } from "../../lib/crypto";
@@ -342,16 +342,23 @@ export async function cancelByHost(deps: Deps, actor: SuiteActor, id: string) {
   return { booking: presentBooking(await cancel(deps, b, "host", actor.name || "Your host"), deps.config.appUrl) };
 }
 
-/** Bookings, newest start last. A person sees their own page's; an API key sees the workspace's. */
+/**
+ * R115 (R99 low): the scheduling pages whose bookings a person can open: their own pages in this workspace, admins
+ * included (an admin opens only their own booking pages too). The app's Bookings list and the synced bookings
+ * calendar (/dav/cal/bookings/) both read this, so a phone shows exactly what the app shows.
+ */
+export async function ownBookingPageIds(deps: Deps, orgId: string, userId: string): Promise<string[]> {
+  return (await deps.db.select({ id: schedulingPages.id }).from(schedulingPages).where(and(eq(schedulingPages.orgId, orgId), eq(schedulingPages.userId, userId)))).map((r) => r.id);
+}
+
+/** Bookings, newest start last. A person sees their own pages'; an API key sees the workspace's. */
 export async function listBookings(deps: Deps, actor: SuiteActor, q: { upcoming?: boolean; status?: "confirmed" | "cancelled"; limit?: number } = {}) {
   assertScheduling(deps);
   const own = !actor.apiKeyId && !actor.agentId;
-  const pageIds = own
-    ? (await deps.db.select({ id: schedulingPages.id }).from(schedulingPages).where(and(eq(schedulingPages.orgId, actor.orgId), eq(schedulingPages.userId, actor.userId)))).map((r) => r.id)
-    : null;
+  const pageIds = own ? await ownBookingPageIds(deps, actor.orgId, actor.userId) : null;
   if (pageIds && !pageIds.length) return [];
   const rows = await deps.db.select().from(bookings).where(and(
-    eq(bookings.orgId, actor.orgId), pageIds ? eq(bookings.pageId, pageIds[0]) : undefined,
+    eq(bookings.orgId, actor.orgId), pageIds ? inArray(bookings.pageId, pageIds) : undefined, // R115: every own page, not only the first
     q.upcoming ? gte(bookings.startsAt, new Date(deps.now().getTime() - 3600_000)) : undefined, q.status ? eq(bookings.status, q.status) : undefined,
   )).orderBy(asc(bookings.startsAt)).limit(Math.min(q.limit ?? 100, 500));
   return rows.map((b) => presentBooking(b, deps.config.appUrl));

@@ -9,6 +9,7 @@ import { CopyButton, Switch } from "@/web/components/ui/misc";
 import { Field, Input } from "@/web/components/ui/input";
 import { Section } from "./settings";
 import { Dialog } from "@/web/components/ui/dialog";
+import { nextTabKey } from "@/web/lib/tab-keys";
 import { ConfirmDialog } from "@/web/components/ui/confirm";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows";
 import { useConfig } from "@/web/lib/queries";
@@ -169,6 +170,7 @@ export function OtherCalendarsSection() {
 }
 
 // ---------------------------------------------------------------- R99: sync with your phone (CalDAV and CardDAV)
+// R115 (R99 lows): the shown-once password field takes focus when the create form is replaced (it used to drop to the page body).
 
 export interface AppPasswordView { id: string; name: string; hint: string; createdAt: string; lastUsedAt: string | null }
 interface AppPasswordList { passwords: AppPasswordView[]; server: string; username: string; max: number }
@@ -216,10 +218,9 @@ function SyncGuides({ server }: { server: string }) {
   let host = server;
   try { host = new URL(server).host; } catch { /* keep the address */ }
   const onKey = (e: React.KeyboardEvent) => {
-    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const next = nextTabKey(GUIDES, tab, e.key); // R115 (R99 low): Home and End too
+    if (!next) return;
     e.preventDefault();
-    const i = GUIDES.indexOf(tab) + (e.key === "ArrowRight" ? 1 : -1);
-    const next = GUIDES[(i + GUIDES.length) % GUIDES.length];
     setTab(next);
     document.getElementById(`dav-guide-tab-${next}`)?.focus();
   };
@@ -344,7 +345,7 @@ export function PhoneSyncSection() {
             <Field label="App password">
               {(p) => (
                 <div className="flex items-center gap-2">
-                  <Input {...p} readOnly value={made.password} data-testid="dav-password" onFocus={(e) => e.currentTarget.select()} className="font-mono text-[15px] tracking-wide" />
+                  <Input {...p} readOnly autoFocus value={made.password} data-testid="dav-password" onFocus={(e) => e.currentTarget.select()} className="font-mono text-[15px] tracking-wide" />
                   <CopyButton value={made.password} toastText="App password copied" />
                 </div>
               )}
