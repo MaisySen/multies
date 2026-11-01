@@ -46,6 +46,12 @@ export const RepeatRule = z.object({
   weekdays: z.array(z.number().int().min(0).max(6)).max(7).optional().openapi({ description: "Weekly: days of the week, 0 Sunday to 6 Saturday." }),
   monthDay: z.number().int().min(1).max(31).optional().openapi({ description: "Monthly: day of the month (short months use their last day)." }),
   until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().openapi({ description: "Stop repeating after this date, YYYY-MM-DD." }),
+  // R95: smart repeat.
+  nth: z.number().int().min(-1).max(5).optional().openapi({ description: "Monthly: the nth weekday (1 to 5, -1 the last; a missing 5th falls back to the last)." }),
+  nthWeekday: z.number().int().min(0).max(6).optional().openapi({ description: "Monthly with nth: the weekday, 0 Sunday to 6 Saturday." }),
+  basis: z.enum(["due", "done"]).optional().openapi({ description: "Count the next date from the due date (default) or from when it was finished." }),
+  tz: z.string().max(64).optional().openapi({ description: "Time zone the dates are counted in, e.g. Australia/Sydney (keeps the wall clock time across daylight saving)." }),
+  rotate: z.array(z.string().max(100)).max(20).optional().openapi({ description: "Hand each next task to the next person: member:<id> in order." }),
 }).nullable().optional().openapi("RepeatRule", { description: "Finishing a repeating task makes the next one, with the dates moved on. null stops repeating." });
 
 export const TaskCreate = z.object({
