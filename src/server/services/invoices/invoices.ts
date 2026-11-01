@@ -5,7 +5,8 @@
  * per workspace counter, and is never reused: an issued document can be voided, never deleted.
  * Members can view and draft; owners and admins issue, void, take payments and change settings.
  */
-import { and, asc, desc, eq, inArray, isNotNull, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { containsAny, containsText } from "../../lib/like-search";
 import type { Deps } from "../../context";
 import { contacts, invoiceDocs, invoiceItems, invoiceLines, invoicePayments, invoiceRepeats, invoiceSettings, invoiceSuppliers } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
@@ -69,7 +70,7 @@ async function takeNumber(deps: Deps, orgId: string, kind: DocKind): Promise<num
 export interface ItemInput { name: string; description?: string; unitCents: number; gstFree?: boolean }
 function checkCents(n: number, what = "amount") { if (!Number.isSafeInteger(n) || Math.abs(n) > MAX_CENTS) throw new HttpError(422, "bad_amount", `That ${what} is not a valid amount.`); }
 export async function listItems(deps: Deps, orgId: string, q?: string) {
-  const where = and(eq(invoiceItems.orgId, orgId), sql`${invoiceItems.archivedAt} is null`, q ? like(invoiceItems.name, `%${q.replace(/[%_]/g, "").slice(0, 40)}%`) : undefined);
+  const where = and(eq(invoiceItems.orgId, orgId), sql`${invoiceItems.archivedAt} is null`, q ? containsText(invoiceItems.name, q) : undefined);
   return deps.db.select().from(invoiceItems).where(where).orderBy(asc(invoiceItems.name)).limit(500).all();
 }
 export async function createItem(deps: Deps, a: Actor, i: ItemInput) {
@@ -280,7 +281,7 @@ export async function listDocs(deps: Deps, orgId: string, q: { kind: DocKind; st
   const t = today(deps);
   const where = [eq(invoiceDocs.orgId, orgId), eq(invoiceDocs.kind, q.kind)];
   if (q.contactId) where.push(eq(invoiceDocs.contactId, q.contactId));
-  if (q.q) { const s = `%${q.q.replace(/[%_]/g, "").slice(0, 40)}%`; /* D1 refuses LIKE patterns over 50 bytes */ where.push(or(like(invoiceDocs.number, s), like(invoiceDocs.buyerName, s), like(invoiceDocs.buyerEmail, s), like(invoiceDocs.reference, s))!); }
+  if (q.q) where.push(containsAny([invoiceDocs.number, invoiceDocs.buyerName, invoiceDocs.buyerEmail, invoiceDocs.reference], q.q)); // LK1 helper: long searches stay under D1 pattern limits
   if (q.state === "draft") where.push(eq(invoiceDocs.status, "draft"));
   else if (q.state === "void") where.push(eq(invoiceDocs.status, "void"));
   else if (q.state === "paid") where.push(eq(invoiceDocs.status, "issued"), sql`${invoiceDocs.paidCents} + ${invoiceDocs.creditedCents} >= ${invoiceDocs.totalCents}`);
