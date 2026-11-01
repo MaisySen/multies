@@ -1003,8 +1003,8 @@ export const docs = sqliteTable("docs", {
   parentId: text("parent_id"),
   /** R24: order among siblings, fractional so a move writes one row. */
   position: real("position").notNull().default(0),
-  /** R89: "doc", or "whiteboard" for a doc that is one board (set by the server from the content, never sent). */
-  kind: text("kind", { enum: ["doc", "whiteboard"] }).notNull().default("doc"),
+  /** R89: "doc", or "whiteboard" for a doc that is one board (set by the server from the content, never sent). R125: "table" for a table doc (set at create, never changed). */
+  kind: text("kind", { enum: ["doc", "whiteboard", "table"] }).notNull().default("doc"),
   ...suiteCols(),
 }, (t) => [index("docs_org_idx").on(t.orgId, t.updatedAt)]);
 
@@ -3524,7 +3524,9 @@ export const docComments = sqliteTable("doc_comments", {
   createdAt: createdAt(),
   editedAt: ts("edited_at"),
   deletedAt: ts("deleted_at"),
-}, (t) => [index("doc_comments_doc_idx").on(t.orgId, t.docId, t.createdAt), index("doc_comments_status_idx").on(t.orgId, t.status, t.createdAt)]);
+  /** R125: a comment on one row of a table doc (null for a comment on the doc). */
+  rowId: text("row_id"),
+}, (t) => [index("doc_comments_row_idx").on(t.orgId, t.rowId, t.createdAt).where(sql`${t.rowId} IS NOT NULL`), index("doc_comments_doc_idx").on(t.orgId, t.docId, t.createdAt), index("doc_comments_status_idx").on(t.orgId, t.status, t.createdAt)]);
 /**
  * R111 (0128): a workspace's mail retention policy. No row, or enabled false, means keep forever: nothing is deleted
  * until an owner or admin of that workspace turns it on. keep_years null = forever. Deletion starts at starts_at
@@ -4040,3 +4042,62 @@ export const expenses = sqliteTable("expenses", {
   submittedAt: ts("submitted_at"),
   createdAt: ts("created_at").notNull(), updatedAt: ts("updated_at").notNull(),
 }, (t) => [index("expenses_org_user_idx").on(t.orgId, t.userId, t.createdAt), index("expenses_org_status_idx").on(t.orgId, t.status, t.createdAt), index("expenses_org_supplier_idx").on(t.orgId, t.supplier)]);
+
+// ---------------------------------------------------------------- R125: tables (a doc type, kind "table")
+
+/** R125: one row per table doc: who may edit, the next row number and the live row count (so a page never counts). */
+export const docTables = sqliteTable("doc_tables", {
+  docId: text("doc_id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  /** "everyone": every member edits; "admins": owners, admins and the creator edit, the rest view. */
+  editAccess: text("edit_access", { enum: ["everyone", "admins"] }).notNull().default("everyone"),
+  nextSeq: integer("next_seq").notNull().default(1),
+  rowCount: integer("row_count").notNull().default(0),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at"),
+}, (t) => [index("doc_tables_org_idx").on(t.orgId)]);
+
+/** R125: a column. `config` is JSON (options, currency, link target, lookup, formula). The lowest position is the primary field. */
+export const tableFields = sqliteTable("table_fields", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  docId: text("doc_id").notNull(),
+  name: text("name").notNull(),
+  type: text("type").notNull(),
+  config: text("config").notNull().default("{}"),
+  position: real("position").notNull().default(0),
+  width: integer("width"),
+  createdAt: createdAt(),
+  deletedAt: ts("deleted_at"),
+}, (t) => [index("table_fields_doc_idx").on(t.orgId, t.docId, t.position)]);
+
+/** R125: a row. `cells` is JSON keyed by field id; `search_text` is its text cells for the LK1 search. */
+export const tableRows = sqliteTable("table_rows", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  docId: text("doc_id").notNull(),
+  seq: integer("seq").notNull(),
+  position: real("position").notNull(),
+  cells: text("cells").notNull().default("{}"),
+  searchText: text("search_text").notNull().default(""),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+  updatedBy: text("updated_by"),
+  updatedAt: ts("updated_at"),
+  deletedAt: ts("deleted_at"),
+  version: integer("version").notNull().default(1),
+}, (t) => [index("table_rows_doc_pos_idx").on(t.orgId, t.docId, t.position), index("table_rows_doc_seq_idx").on(t.orgId, t.docId, t.seq)]);
+
+/** R125: a saved view (grid, kanban, calendar or form) with its settings as JSON. */
+export const tableViews = sqliteTable("table_views", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  docId: text("doc_id").notNull(),
+  name: text("name").notNull(),
+  type: text("type", { enum: ["grid", "kanban", "calendar", "form"] }).notNull(),
+  config: text("config").notNull().default("{}"),
+  position: real("position").notNull().default(0),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at"),
+}, (t) => [index("table_views_doc_idx").on(t.orgId, t.docId, t.position)]);

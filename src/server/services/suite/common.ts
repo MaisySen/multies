@@ -51,7 +51,7 @@ export function assertWritable(a: SuiteActor) {
   if (a.scope === "read") throw new HttpError(403, "read_only_key", "This API key can only read.");
 }
 
-export type EntityType = "task" | "project" | "doc" | "contact" | "company" | "deal" | "automation" | "comment" | "view" | "time_entry" | "form" | "meeting" | "custom_field" | "guest" | "file" | "channel" | "chat_message" | "goal" | "key_result" | "template";
+export type EntityType = "task" | "project" | "doc" | "contact" | "company" | "deal" | "automation" | "comment" | "view" | "time_entry" | "form" | "meeting" | "custom_field" | "guest" | "file" | "channel" | "chat_message" | "goal" | "key_result" | "template" | "table_row";
 
 /**
  * Records one write: a single `changes` row carrying the activity fields (R33: 3 rows written with its indexes,

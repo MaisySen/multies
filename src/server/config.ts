@@ -47,6 +47,10 @@ export interface AppConfig {
   askExclude?: string;
   /** R110: ASK_R110 (Ask across the workspace in Tools and the command menu). Off unless set. */
   askR110?: boolean;
+  /** R125: tables, a doc type (TABLES_R125). Off unless set. */
+  tablesR125?: boolean;
+  /** R125: more workspaces kept out of tables (vv8k is always out). */
+  tablesExclude?: string;
   /** R105: invoices and quotes (INVOICES_ENABLED=true). Off unless set. */
   invoicesEnabled: boolean;
   /** R92 Booking plus: resources, time polls, free events with QR tickets (BOOKING_PLUS=true, needs scheduling). */
@@ -375,6 +379,8 @@ const EnvSchema = z.object({
   MAPS_GEO_MOCK: z.string().optional(),
   ASK_EXCLUDE: z.string().optional(),
   ASK_R110: z.string().optional(),
+  TABLES_R125: z.string().optional(), // R125
+  TABLES_EXCLUDE: z.string().optional(), // R125
   TOOLS_FEATURES: z.string().optional(),
   LINK_CLICK_FLUSH_MS: z.string().optional(), // R87
   SOCIAL_P2: z.string().optional(),
@@ -678,6 +684,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     mapsGeoMock: env.MAPS_GEO_MOCK === "1",
     askExclude: env.ASK_EXCLUDE ?? "", // R110
     askR110: ["1", "true", "on"].includes(String(env.ASK_R110 ?? "").toLowerCase()), // R110
+    tablesR125: ["1", "true", "on"].includes(String(env.TABLES_R125 ?? "").toLowerCase()), // R125
+    tablesExclude: env.TABLES_EXCLUDE ?? "", // R125
     invoicesEnabled: env.INVOICES_ENABLED === "true" || env.INVOICES_ENABLED === "1", // R105
     bookingPlus: (env.SCHEDULING_ENABLED === "true" || env.SCHEDULING_ENABLED === "1") && (env.BOOKING_PLUS === "true" || env.BOOKING_PLUS === "1"),
     shieldDifficulty: env.SHIELD_DIFFICULTY && /^\d{1,2}$/.test(env.SHIELD_DIFFICULTY) ? Math.min(22, Number(env.SHIELD_DIFFICULTY)) : 14,

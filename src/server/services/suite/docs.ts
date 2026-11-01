@@ -155,6 +155,7 @@ export async function createDoc(deps: Deps, actor: SuiteActor, input: { title: s
 export async function updateDoc(deps: Deps, actor: SuiteActor, id: string, patch: { title?: string; content?: unknown; text?: string; version?: number; ifVersion?: number; links?: LinkTarget[] }, opts: { history?: boolean } = {}) {
   assertWritable(actor);
   const d = await docRow(deps, actor.orgId, id);
+  if (d.kind === "table" && (patch.content !== undefined || patch.text !== undefined)) throw new HttpError(409, "table_doc", "This doc is a table. Change it in the table itself."); // R125
   const expected = patch.version ?? patch.ifVersion; // R28: ifVersion is the API's name for it
   if (expected !== undefined && expected !== d.version) throw versionConflict(d.version);
   // MB-58: plain text replaces the body too, with the same rules as create (# headings, - bullets).

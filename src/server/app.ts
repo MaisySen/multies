@@ -103,6 +103,7 @@ import { webPushRoutes } from "./routes/web-push-r32";
 import { automationRoutes, changeRoutes, companyRoutes, contactRoutes, dealRoutes, docRoutes, notificationRoutes, projectRoutes, pushRoutes, taskRoutes } from "./routes/suite";
 import { invoicePublicRoutes, invoiceRoutes } from "./routes/invoices"; // R105
 import { expenseRoutes } from "./routes/expenses"; // R106
+import { tableRoutes } from "./routes/tables-r125"; // R125
 import { importRoutes, importRunnerRoutes, integrationRoutes } from "./routes/imports";
 import { workImportRoutes } from "./routes/work-imports";
 import { dataMoveDownloadRoutes, dataMoveRoutes } from "./routes/data-moves";
@@ -443,6 +444,7 @@ export function createApp(deps: Deps) {
       bookingPlus: deps.config.bookingPlus, // R92: resources, time polls, events
       officeEditR113: !!deps.config.officeEditR113, // R113: office files in the browser
       expenses: deps.config.invoicesEnabled && deps.config.expensesR106, // R106
+      tablesR125: !!deps.config.tablesR125, // R125: tables (vv8k gets 404 from the API and no entry points)
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
       chatChannels: deps.config.channels.enabled,
       // R111: mail archive and retention (MAIL_ARCHIVE_R111=on): the Archive and retention pane and Audit log filters.
@@ -587,6 +589,7 @@ export function createApp(deps: Deps) {
   app.route("/api/contacts", contactRoutes());
   app.route("/api/invoices", invoiceRoutes()); // R105: invoices and quotes
   app.route("/api/expenses", expenseRoutes()); // R106: expenses and receipts
+  app.route("/api/tables", tableRoutes()); // R125: tables (a doc type)
   app.route("/api/invoice-view", invoicePublicRoutes()); // R105: the buyer's logged out view link
   app.route("/api/companies", companyRoutes());
   app.route("/api/deals", dealRoutes());

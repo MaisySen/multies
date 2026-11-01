@@ -4,6 +4,7 @@
  * workspace session). The same services back the REST API (v1-suite-r8.ts) and MCP.
  */
 import { addGuestComment, listForGuest } from "../services/docs-plus/comments"; // R103
+import { assertTablesOn, listRows, tableDetail } from "../services/tables-r125"; // R125
 import { Hono, type Context, type MiddlewareHandler } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { z } from "zod";
@@ -131,6 +132,9 @@ export function guestRoutes() {
     })
     .get("/files/:id", async (c) => download(await readFile(c.var.deps, c.var.guest.guest.orgId, c.req.param("id"), c.var.guest.guest.projectId)))
     .get("/docs/:id", async (c) => c.json({ doc: await guestDoc(c.var.deps, c.var.guest, c.req.param("id")) }))
+    // R125: a guest reads tables in their project (read only; linked rows outside it stay hidden).
+    .get("/tables/:id", async (c) => { await assertTablesOn(c.var.deps, c.var.guest.guest.orgId); return c.json(await tableDetail(c.var.deps, { kind: "guest", actor: c.var.guest.actor, projectId: c.var.guest.guest.projectId }, c.req.param("id"))); })
+    .get("/tables/:id/rows", async (c) => { await assertTablesOn(c.var.deps, c.var.guest.guest.orgId); return c.json(await listRows(c.var.deps, { kind: "guest", actor: c.var.guest.actor, projectId: c.var.guest.guest.projectId }, c.req.param("id"), { cursor: c.req.query("cursor") || undefined, q: (c.req.query("q") ?? "").slice(0, 200) || undefined, viewId: c.req.query("view") || undefined })); })
     // R103: comments on the project's docs (DOCS_PLUS_R103=on).
     .get("/r103/docs/:id/comments", async (c) => {
       if (!c.var.deps.config.docsPlus) return c.json({ error: { code: "not_found", message: "Not found" } }, 404);

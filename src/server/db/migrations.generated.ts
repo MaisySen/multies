@@ -1512,5 +1512,21 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX `expenses_org_status_idx` ON `expenses` (`org_id`,`status`,`created_at`);",
       "CREATE INDEX `expenses_org_supplier_idx` ON `expenses` (`org_id`,`supplier`);"
     ]
+  },
+  {
+    "name": "0140_tables_r125",
+    "statements": [
+      "-- R125: tables, a doc type (docs.kind \"table\"). A row per table in doc_tables, its fields, rows (cells as JSON) and views.\n-- Row comments ride doc_comments with a new row_id. Additive only.\nCREATE TABLE `doc_tables` (\n\t`doc_id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`edit_access` text DEFAULT 'everyone' NOT NULL,\n\t`next_seq` integer DEFAULT 1 NOT NULL,\n\t`row_count` integer DEFAULT 0 NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `doc_tables_org_idx` ON `doc_tables` (`org_id`);",
+      "CREATE TABLE `table_fields` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`doc_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`type` text NOT NULL,\n\t`config` text DEFAULT '{}' NOT NULL,\n\t`position` real DEFAULT 0 NOT NULL,\n\t`width` integer,\n\t`created_at` integer NOT NULL,\n\t`deleted_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `table_fields_doc_idx` ON `table_fields` (`org_id`,`doc_id`,`position`);",
+      "CREATE TABLE `table_rows` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`doc_id` text NOT NULL,\n\t`seq` integer NOT NULL,\n\t`position` real NOT NULL,\n\t`cells` text DEFAULT '{}' NOT NULL,\n\t`search_text` text DEFAULT '' NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_by` text,\n\t`updated_at` integer,\n\t`deleted_at` integer,\n\t`version` integer DEFAULT 1 NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `table_rows_doc_pos_idx` ON `table_rows` (`org_id`,`doc_id`,`position`);",
+      "CREATE INDEX `table_rows_doc_seq_idx` ON `table_rows` (`org_id`,`doc_id`,`seq`);",
+      "CREATE TABLE `table_views` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`doc_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`type` text NOT NULL,\n\t`config` text DEFAULT '{}' NOT NULL,\n\t`position` real DEFAULT 0 NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `table_views_doc_idx` ON `table_views` (`org_id`,`doc_id`,`position`);",
+      "ALTER TABLE `doc_comments` ADD `row_id` text;",
+      "CREATE INDEX `doc_comments_row_idx` ON `doc_comments` (`org_id`,`row_id`,`created_at`) WHERE \"doc_comments\".\"row_id\" IS NOT NULL;"
+    ]
   }
 ];
