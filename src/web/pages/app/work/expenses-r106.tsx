@@ -13,7 +13,7 @@ import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { ConfirmDialog } from "@/web/components/ui/confirm";
-import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
+import { DateInput, Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { Badge, Card, EmptyState, Skeleton, Switch, tableStyles } from "@/web/components/ui/misc";
 import { useConfig } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
@@ -310,7 +310,7 @@ function ExpenseDialog({ id, onClose }: { id: string; onClose: () => void }) {
                 <Field label="Supplier" hint={filledHint("supplier")}>{(p) => <Input {...p} value={form.supplier} maxLength={200} onChange={(x) => set("supplier", x.target.value)} />}</Field>
                 <Field label="Supplier ABN" hint={filledHint("supplierAbn")} error={abnOk ? undefined : "An ABN has 11 digits. Check it."}>
                   {(p) => <Input {...p} value={form.supplierAbn} inputMode="numeric" maxLength={20} placeholder="11 digits" onChange={(x) => set("supplierAbn", x.target.value)} />}</Field>
-                <Field label="Date" hint={filledHint("spentOn")}>{(p) => <Input {...p} type="date" value={form.spentOn} onChange={(x) => set("spentOn", x.target.value)} />}</Field>
+                <Field label="Date" hint={filledHint("spentOn")}>{(p) => <DateInput {...p} value={form.spentOn} onChange={(x) => set("spentOn", x.target.value)} />}</Field>
                 <Field label="Category" hint={filledHint("category")}>
                   {(p) => <Select {...p} value={form.category} onChange={(x) => set("category", x.target.value)}>
                     <option value="">Choose</option>{EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -321,8 +321,8 @@ function ExpenseDialog({ id, onClose }: { id: string; onClose: () => void }) {
                 <Field label="GST" hint={[filledHint("gstCents"), totalCents ? `One eleventh is ${money(gstOfTotal(totalCents))}` : ""].filter(Boolean).join(". ") || undefined}>
                   {(p) => <Input {...p} value={form.gst} inputMode="decimal" placeholder="0.00" onChange={(x) => set("gst", x.target.value)} />}</Field>
                 <div className="flex flex-col gap-2 sm:col-span-2">
-                  <Switch checked={form.gstClaimable && !needsInvoice && gstCents > 0} onChange={(v) => set("gstClaimable", v)} label="GST can be claimed" disabled={!edit || needsInvoice || gstCents <= 0} />
-                  <Switch checked={form.reimbursable} onChange={(v) => set("reimbursable", v)} label="Pay me back (I paid with my own money)" disabled={!edit} />
+                  <div className="flex items-center gap-3"><Switch checked={form.gstClaimable && !needsInvoice && gstCents > 0} onChange={(v) => set("gstClaimable", v)} label="GST can be claimed" disabled={!edit || needsInvoice || gstCents <= 0} /><span aria-hidden className={cn("text-sm", (!edit || needsInvoice || gstCents <= 0) && "text-muted")}>GST can be claimed</span></div>
+                  <div className="flex items-center gap-3"><Switch checked={form.reimbursable} onChange={(v) => set("reimbursable", v)} label="Pay me back (I paid with my own money)" disabled={!edit} /><span aria-hidden className={cn("text-sm", !edit && "text-muted")}>Pay me back (I paid with my own money)</span></div>
                 </div>
                 <Field label="Repeats" className="sm:col-span-1">
                   {(p) => <Select {...p} value={form.every} onChange={(x) => set("every", x.target.value)}>
