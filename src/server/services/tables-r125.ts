@@ -12,6 +12,7 @@ import { inIds } from "../lib/sql-chunks";
 import type { Deps } from "../context";
 import { changes, docComments, docs, docTables, organizations, tableFields, tableRows, tableViews } from "../db/schema";
 import { HttpError, notFound } from "../lib/errors";
+import { workspaceUsage } from "./workspace-budget";
 import { containsText } from "../lib/like-search";
 import { createDoc } from "./suite/docs";
 import { actorOf, assertWritable, recordWrite, sortableId, type SuiteActor } from "./suite/common";
@@ -759,9 +760,28 @@ export async function updateSettings(deps: Deps, actor: SuiteActor, docId: strin
 
 export interface ImportColumn { name: string; type: TFieldType; fieldId?: string | null; skip?: boolean }
 /** Imports CSV rows (the header already removed). New tables make their fields from the columns; an existing table maps columns onto fields. */
+/** Each imported row writes about this many database rows: the row itself and its three index entries. */
+export const IMPORT_ROW_WRITES = 4;
+/** An import may use at most this share of the workspace's daily change allowance, so normal work keeps going. */
+export const IMPORT_BUDGET_SHARE = 0.75;
+
+/** Refuses an import that would use up the workspace's change allowance for the day (and lock its other writes until midnight UTC). */
+async function assertImportFitsBudget(deps: Deps, orgId: string, rows: number) {
+  const daily = deps.config.workspaceBudget.daily;
+  if (!daily || rows <= 0) return;
+  let used = 0;
+  try { used = (await workspaceUsage(deps, orgId)).used; } catch (err) { deps.reportError?.(err, { where: "tables.importBudget" }); return; }
+  const room = Math.max(0, Math.floor((daily * IMPORT_BUDGET_SHARE - used) / IMPORT_ROW_WRITES));
+  if (rows <= room) return;
+  throw unprocessable("import_budget", room > 0
+    ? `This file is too big to bring in today. You can import up to ${room.toLocaleString("en-AU")} rows today, so split the file and import the rest tomorrow.`
+    : "This workspace has made a lot of changes today, so imports open again at midnight UTC.");
+}
+
 export async function importCsv(deps: Deps, actor: SuiteActor, body: { docId?: string; title?: string; parentId?: string | null; columns: ImportColumn[]; rows: string[][] }) {
   assertWritable(actor);
   if (body.rows.length > LIMITS.importRows) throw unprocessable("too_many_rows", `A CSV file can bring in up to ${LIMITS.importRows.toLocaleString("en-AU")} rows at a time.`);
+  await assertImportFitsBudget(deps, actor.orgId, body.rows.length);
   if (!body.columns.length || body.columns.length > LIMITS.fields) throw unprocessable("columns", `A CSV file needs 1 to ${LIMITS.fields} columns.`);
   let docId = body.docId;
   let fields: TField[];

@@ -220,3 +220,17 @@ describe("R125 tables API", () => {
     expect((await t.c.call("DELETE", `/api/tables/${tb.id}/comments/${cm.body.comment.id}`)).status).toBe(200);
   });
 });
+
+describe("R125 import and the workspace change allowance", () => {
+  it("refuses an import that would use up the day's allowance, and takes one that fits", async () => {
+    const { c } = await setup({ TABLES_R125: "on", WORKSPACE_DAILY_WRITES: "2000" });
+    const cols = [{ name: "Name", type: "text" }];
+    const big = await c.post("/api/tables/import", { title: "Too big", columns: cols, rows: Array.from({ length: 1000 }, (_, i) => [`Row ${i}`]) });
+    expect(big.status).toBe(422);
+    expect(JSON.stringify(big.body)).toContain("import_budget");
+    expect(JSON.stringify(big.body)).not.toMatch(/[\u2013\u2014]/);
+    const small = await c.post("/api/tables/import", { title: "Fits", columns: cols, rows: Array.from({ length: 20 }, (_, i) => [`Row ${i}`]) });
+    expect(small.status).toBe(201);
+    expect(small.body.imported).toBe(20);
+  });
+});

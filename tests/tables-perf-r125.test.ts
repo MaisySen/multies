@@ -5,7 +5,7 @@ import { makeTestApp, Client } from "./helpers";
 
 describe("R125 tables at 5,000 rows", () => {
   it("imports 5,000 rows and pages, searches, sorts and filters quickly", async () => {
-    const ctx = await makeTestApp({ TABLES_R125: "on" });
+    const ctx = await makeTestApp({ TABLES_R125: "on", WORKSPACE_DAILY_WRITES: "0" });
     const c = new Client(ctx.app);
     await c.signup("perf-r125@acme.io", "Perf", "Acme");
     const statuses = ["Lead", "Won", "Lost"];
