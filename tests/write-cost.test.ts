@@ -301,7 +301,7 @@ it("triage (round 21): accept costs the task update plus its one partial index e
   await u.post(`/api/triage/${a}/accept`, { priority: "high" });
   const accept = take() - limiter;
   // The triage_state flag leaves the triage partial index (1) and the task joins the two R40 list indexes (2). No other row.
-  expect(accept - update).toBe(7); // R49 (0087/0088 counts triggers): was 3: an accepted task now joins its project status bucket (the summary the project list reads)
+  expect(accept - update).toBe(8); // T1F (0138): +1, an accepted task enters the newest first search index // R49 (0087/0088 counts triggers): was 3: an accepted task now joins its project status bucket (the summary the project list reads)
   await u.get("/api/triage"); await u.get("/api/triage/count"); await u.get("/api/tasks");
   expect(take()).toBe(0);
   await u.post(`/api/triage/${b}/decline`, { reason: "spam" });
@@ -1031,7 +1031,7 @@ it("API speed (R25): 0052 swaps two indexes for composites, so a task or message
   // Same number of full indexes as before 0052 (one replaced on each table): 6 each, primary key included, as on main.
   expect(full("messages")).toContain("messages_org_folder_date_idx");
   expect(full("messages")).not.toContain("messages_org_idx");
-  expect(full("messages").length).toBe(5); // R32 (0072): messages_mailbox_provider_msgid_idx is partial
+  expect(full("messages").length).toBe(6); // T1F (0138): + messages_org_date_idx (search reads newest first) // R32 (0072): messages_mailbox_provider_msgid_idx is partial
   expect(full("tasks")).toContain("tasks_org_project_cover_idx");
   expect(full("tasks")).not.toContain("tasks_org_project_idx");
   expect(full("tasks").length).toBe(3); // R32 (0072): tasks_parent_idx, tasks_org_thread_idx and tasks_org_due_idx are partial
@@ -1039,7 +1039,7 @@ it("API speed (R25): 0052 swaps two indexes for composites, so a task or message
   await createTask(ctx.deps, actor, { title: "Warm up", projectId });
   const take = meter(ctx.db);
   await createTask(ctx.deps, actor, { title: "Ship it", projectId });
-  expect(take()).toBe(15) // R49 (0087/0088 counts triggers): 15, the task joins its project status bucket (the meter books the trigger row with the tasks indexes; local D1 measures +1 row). // R40 (0082): 11, two entries in the task list indexes that make a page of tasks read about 50 rows instead of every task. R33 (0073): 9, one change row (3) instead of activity (4) plus change (2), and the number claim on project_counters (1) instead of projects (3). R32 (0072): 14, three NULL index entries fewer (no parent, thread or due date). Measured on main 93dc6c7 before 0052: 16; R27 adds 1, the creator's task_watchers row (WITHOUT ROWID, no other index);
+  expect(take()).toBe(16) // T1F (0138): 16, + the newest first search index entry. R49 (0087/0088 counts triggers): 15, the task joins its project status bucket (the meter books the trigger row with the tasks indexes; local D1 measures +1 row). // R40 (0082): 11, two entries in the task list indexes that make a page of tasks read about 50 rows instead of every task. R33 (0073): 9, one change row (3) instead of activity (4) plus change (2), and the number claim on project_counters (1) instead of projects (3). R32 (0072): 14, three NULL index entries fewer (no parent, thread or due date). Measured on main 93dc6c7 before 0052: 16; R27 adds 1, the creator's task_watchers row (WITHOUT ROWID, no other index);
   // The read cache, the intl cache and the ETag path add no writes.
   for (const p of ["/api/config", "/api/team/people", "/api/tasks/assignees", "/api/projects", `/api/tasks?projectId=${projectId}`, "/api/my-work"]) {
     expect((await u.get(p)).status, p).toBe(200);
@@ -1171,7 +1171,7 @@ it("R26: support@ on the company domain costs what any inbound delivery costs, a
   const once = take();
   // Measured 7: one UPDATE of the messages row (the meter counts the row and its 6 full indexes). Still 7 after R32 (0072):
   // this update sets provider_message_id_header, so the now partial messages_mailbox_provider_msgid_idx gains its entry.
-  expect(once).toBe(7);
+  expect(once).toBe(8); // T1F (0138): the meter counts every full index; messages has one more (messages_org_date_idx)
   await handleResendEvent(deps, { type: "email.sent", data: { email_id: "em_r26" } });
   expect(take()).toBe(0);
 });

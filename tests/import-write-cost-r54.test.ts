@@ -75,7 +75,8 @@ describe("R54 import write cost", () => {
     expect(body.stopped).toBeNull();
     // Measured 16.24 (100 rows) and 16.10 (500 rows) units per row; about 1.05 write statements per row.
     // R55: children first with the parent's counts on its insert: 13.04 and 12.90 (no parent count updates).
-    expect(units / n).toBeLessThanOrEqual(14);
+    // T1F (0138): +1 per task row for the newest first search index (tasks_org_updated_live_idx): 14.07 measured.
+    expect(units / n).toBeLessThanOrEqual(15);
     expect(s.writes / n).toBeLessThanOrEqual(1.2);
   }, 120_000);
 });

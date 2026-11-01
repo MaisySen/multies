@@ -194,8 +194,9 @@ describe("R32 write amplification (migration 0072)", () => {
   // R33 (0073: one change row per write, the number claim on project_counters), measured on base 231f54f -> r33-d1:
   //   task create 14 -> 9, task title 10 -> 7, task move 13 -> 8, comment (http) 16 -> 13, bulk move of 2 (http) 22 -> 20,
   //   doc save 9 -> 6, doc create 9 -> 6, task status 4 -> 4, chat send 11 -> 11.
-  const BUDGET = { taskCreate: 15, // R49 (0088): +4, the task joins its project status bucket (meter books the trigger row with the tasks indexes; local D1 +1). R40 (0082): +2 task list index entries
-     taskUpdateStatus: 5, taskUpdateTitle: 8, chatSend: 11, docSave: 6, mailReceive: 17, signIn: 12, cronPass: 3 };
+  const BUDGET = { taskCreate: 16, // T1F (0138): +1, the newest first search index entry (tasks_org_updated_live_idx).
+    // R49 (0088): +4, the task joins its project status bucket (meter books the trigger row with the tasks indexes; local D1 +1). R40 (0082): +2 task list index entries
+     taskUpdateStatus: 5, taskUpdateTitle: 8, chatSend: 11, docSave: 6, mailReceive: 18, /* T1F (0138): +1 messages_org_date_idx */ signIn: 12, cronPass: 3 };
   it("locks the per action write cost", async () => {
     const ctx = await makeTestApp();
     const u = new Client(ctx.app);
