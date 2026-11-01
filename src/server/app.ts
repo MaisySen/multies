@@ -2,6 +2,7 @@ import { productAnalyticsRoutes } from "./routes/product-analytics";
 import { productAnalyticsActions } from "./services/product-analytics";
 import { docsMarkdown, DOCS_MD_PATHS, llmsFullTxt, llmsTxt, MCP_TOOLS_MD_PATH, versionJson } from "./routes/web-meta-r32";
 import { crmRoutes } from "./routes/crm-r94"; // R94: CRM timeline
+import { mapsRoutes } from "./routes/maps-r115"; // R115: maps
 import { recordWorkspaceWrites, runMetered, workspaceHealthView } from "./services/workspace-budget";
 import { Hono, type Context } from "hono";
 import { isD1LimitError, READ_ONLY_BODY } from "./lib/d1-limit";
@@ -421,6 +422,8 @@ export function createApp(deps: Deps) {
       dashboardsPlus: !!deps.config.dashboardsPlus,
       // R98: typo tolerant search with filters and instant results in the command menu (SEARCH_R98).
       searchR98: !!deps.config.searchR98,
+      // R115: maps (MAPS_R115): address cards, visit routes, booking meeting place.
+      maps: !!deps.config.mapsR115,
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
       chatChannels: deps.config.channels.enabled,
       // R111: mail archive and retention (MAIL_ARCHIVE_R111=on): the Archive and retention pane and Audit log filters.
@@ -558,6 +561,7 @@ export function createApp(deps: Deps) {
   app.route("/api/companies", companyRoutes());
   app.route("/api/deals", dealRoutes());
   app.route("/api/crm", crmRoutes()); // R94: CRM timeline (404 unless CRM_TIMELINE)
+  app.route("/api/maps", mapsRoutes()); // R115: maps (404 unless MAPS_R115)
   app.route("/api/automations/recipes", automationRecipeRoutes()); // R24.4: automation recipes
   app.route("/api/automations", automationRoutes());
   app.route("/api/flows", flowRoutes()); // R90: automation builder

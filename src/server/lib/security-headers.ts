@@ -58,6 +58,8 @@ export function socketOrigins(url: string | undefined, withHttp: boolean): strin
 const TURNSTILE = "https://challenges.cloudflare.com";
 const CF_INSIGHTS_SCRIPT = "https://static.cloudflareinsights.com";
 const CF_INSIGHTS = "https://cloudflareinsights.com";
+/** R115: free map tiles, styles and fonts for contact and visit maps (keyless). */
+const MAP_TILES = "https://tiles.openfreemap.org";
 const SENTRY_INGEST = ["https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io", "https://*.ingest.de.sentry.io"];
 
 /**
@@ -81,7 +83,7 @@ export function appCsp(opts: CspOptions = {}): string {
     "img-src": ["'self'", "data:", "blob:", "https:"],
     "font-src": ["'self'", "data:"],
     // Video meetings: LiveKit Cloud or a self-hosted LiveKit server, over secure WebSockets.
-    "connect-src": unique(["'self'", ...socketOrigins(opts.appUrl, false), ...SENTRY_INGEST, ...(opts.analytics ? [CF_INSIGHTS] : []), ...LIVEKIT_CLOUD, ...socketOrigins(opts.livekitUrl, true), ...(opts.connectSrc ?? [])]),
+    "connect-src": unique(["'self'", ...socketOrigins(opts.appUrl, false), ...SENTRY_INGEST, ...(opts.analytics ? [CF_INSIGHTS] : []), ...LIVEKIT_CLOUD, ...socketOrigins(opts.livekitUrl, true), MAP_TILES, ...(opts.connectSrc ?? [])]),
     "media-src": ["'self'", "blob:"],
     "frame-src": ["'self'", "blob:", ...(opts.turnstile ? [TURNSTILE] : [])],
     "worker-src": ["'self'", "blob:"],

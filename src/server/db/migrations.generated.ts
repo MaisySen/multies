@@ -1315,6 +1315,16 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0123_r115_maps",
+    "statements": [
+      "-- R115: maps. One saved address per contact, company or booking page (with its map point when found), a shared cache\n-- of address lookups keyed by a hash of the query (the query text is not stored), a daily lookup count per workspace,\n-- and one row per lookup service so the whole app calls each at most once a second. Additive only.\nCREATE TABLE `places` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`entity_type` text NOT NULL,\n\t`entity_id` text NOT NULL,\n\t`address` text NOT NULL,\n\t`lat` real,\n\t`lon` real,\n\t`created_by_type` text DEFAULT 'member' NOT NULL,\n\t`created_by_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`version` integer DEFAULT 1 NOT NULL,\n\t`deleted_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `places_entity_uq` ON `places` (`org_id`,`entity_type`,`entity_id`);",
+      "CREATE TABLE `geo_cache` (\n\t`key` text PRIMARY KEY NOT NULL,\n\t`results` text NOT NULL,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE TABLE `geo_usage` (\n\t`org_id` text NOT NULL,\n\t`day` text NOT NULL,\n\t`count` integer DEFAULT 0 NOT NULL,\n\tPRIMARY KEY(`org_id`, `day`)\n);",
+      "CREATE TABLE `geo_throttle` (\n\t`service` text PRIMARY KEY NOT NULL,\n\t`next_at` integer DEFAULT 0 NOT NULL\n);"
+    ]
+  },
+  {
     "name": "0124_r99_dav_sync",
     "statements": [
       "-- R99 (Nov 1): calendar and contacts sync (CalDAV and CardDAV). Additive only.\n-- App passwords: one person in one workspace, only a SHA-256 hash kept, named, revocable (the row is deleted).\nCREATE TABLE IF NOT EXISTS `dav_app_passwords` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`user_id` text NOT NULL REFERENCES `users`(`id`) ON DELETE cascade,\n\t`name` text NOT NULL,\n\t`token_hash` text NOT NULL,\n\t`hint` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`last_used_at` integer\n);",

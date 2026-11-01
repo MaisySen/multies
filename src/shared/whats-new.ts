@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-maps-visits",
+    date: "2026-11-01",
+    title: "Addresses, maps and a day of visits",
+    body: "Contacts, companies and your booking page can now hold an address: start typing and pick a match to pin it on a map, with directions in one tap. Contacts has a Visits tab: add the people you are seeing today, put them in the shortest order with one tap and open the whole route in your maps app.",
+  },
+  {
     id: "2026-11-01-mail-archive",
     date: "2026-11-01",
     title: "Archive and retention for mail",
@@ -26,8 +32,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Link library, saved pages, comments on docs and spelling",
     body: "Docs has a Link library: keep links with tags, or save a public page as a clean doc you can read later, share or download as a PDF. Comment on any doc, and let people with a shared link comment too, after your review. Check spelling in docs and mail in 20 languages.",
-  },
-  {
     id: "2026-11-01-dav-sync",
     date: "2026-11-01",
     title: "Your calendar and contacts on your phone",
@@ -86,12 +90,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "Social: plan, reply and see results",
     body: "Social has an Inbox for comments, messages and mentions from every account, with assigning, saved replies and notes, and Analytics with reach, clicks and your best times to post. Pick a format, give each network its own text and see a live preview before you send, now with TikTok videos and Threads posts in the same composer. The Planner has week, month and list views, weekly time slots to fill and drag to move, members can send posts for approval in Home, Approvals, and Library keeps images, captions and hashtag sets by campaign.",
-  },
-  {
-    id: "2026-10-31-automation-flows",
-    date: "2026-10-31",
-    title: "Flows: automations you can see",
-    body: "Automations has a new home under Agents, where you build a flow on a canvas from a trigger, conditions with yes and no paths, waits, an approval step and actions. Flows can watch a web page or a news feed, gather items into a morning digest, or send signed events to a webhook. Every run shows each step with what went in and what came out, and a failed run can be tried again from that step.",
   },
   {
     id: "2026-10-28-whats-new",

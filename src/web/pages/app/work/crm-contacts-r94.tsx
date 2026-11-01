@@ -18,6 +18,7 @@ import { cn } from "@/web/lib/cn";
 import { CSV_FIELDS, CSV_FIELD_LABELS, CSV_MAX_BYTES, checkRows, guessMapping, parseCsv, type CsvMapping } from "@/shared/crm-csv";
 import { CrmTimeline } from "./crm-timeline";
 import type { Contact } from "./data";
+import { AddressCard, useMapsOn } from "./maps-r115"; // R115
 
 const aud = (n: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(n);
 
@@ -248,6 +249,7 @@ export function CompanyPage() {
   const q = useQuery({ queryKey: ["company", id], queryFn: () => api.get<CompanyDetail>(`/companies/${id}`) });
   const [notes, setNotes] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const maps = useMapsOn(); // R115
   if (q.isPending) return <div className="space-y-3"><Skeleton className="h-10 w-1/2" /><Skeleton className="h-64" /></div>;
   if (q.error) return <EmptyState icon={<IconBuilding />} title="Company not found" body="It may have been removed." action={<Button onClick={() => navigate("/app/contacts?tab=companies")}>All companies</Button>} />;
   const { company: c, contacts, deals } = q.data;
@@ -270,6 +272,7 @@ export function CompanyPage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0"><CrmTimeline type="company" id={c.id} /></div>
         <aside className="space-y-4">
+          {maps && <AddressCard type="company" id={c.id} />}
           <Card className="p-4">
             <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-subtle">People</h2>
             {!contacts.length ? <p className="text-[13px] text-muted">Nobody yet. Open a contact and pick this company.</p> : (

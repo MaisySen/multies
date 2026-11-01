@@ -205,3 +205,10 @@ Copyright 2022 Luca Ongaro. Licensed under the MIT License: permission is hereby
 obtaining a copy of this software and associated documentation files, to deal in the software without restriction,
 subject to including this copyright and permission notice in all copies or substantial portions of the software.
 The software is provided "as is", without warranty of any kind.
+## maplibre-gl (BSD 3 clause)
+
+Copyright (c) 2023, MapLibre contributors; Copyright (c) 2014, Mapbox. Used for the maps on contacts, companies and the Visits tab (R115), loaded only when a map is shown. Dependencies: @mapbox/point-geometry, @mapbox/tiny-sdf, @mapbox/unitbezier, @mapbox/vector-tile, @mapbox/whoots-js (ISC or BSD), @mapbox/jsonlint-lines-primitives (MIT), @maplibre/maplibre-gl-style-spec, @maplibre/geojson-vt, @maplibre/vt-pbf, @maplibre/mlt (ISC, BSD or MIT), earcut, kdbush, potpack, quickselect, tinyqueue (ISC), gl-matrix, murmurhash-js, json-stringify-pretty-compact, pbf, protocol-buffers-schema, resolve-protobuf-schema (MIT or BSD).
+
+## Map tiles and address data (R115)
+
+Map tiles from OpenFreeMap (free, no key). Map data and address lookups from OpenStreetMap contributors, available under the Open Database License; lookups through the public Nominatim and Photon services under their usage policies (identifying agent, at most one request a second each, results cached). The attribution "Map data from OpenStreetMap contributors" shows on every map and address search.

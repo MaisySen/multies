@@ -33,6 +33,10 @@ export interface AppConfig {
   dashboardsPlusTestHook?: boolean;
   /** R98: SEARCH_R98 (typo tolerant search with filters, files and notes, and the instant index). Off unless set. */
   searchR98?: boolean;
+  /** R115: MAPS_R115 (address lookup on contacts, companies and booking pages, map pins, visit routes). Off unless set. */
+  mapsR115?: boolean;
+  /** R115: MAPS_GEO_MOCK=1 answers address lookups from a fixed local list (e2e and local runs only; never set on Workers). */
+  mapsGeoMock?: boolean;
   /**
    * Tools P1: document tools on the private document engine. On only when TOOLS_ENABLED=true and the
    * engine address and both keys are set (DOC_ENGINE_URL, DOC_ENGINE_KEY_ID, DOC_ENGINE_KEY, TOOLS_TOKEN_KEY).
@@ -334,6 +338,8 @@ const EnvSchema = z.object({
   CRM_TIMELINE: z.string().optional(),
   /** R98: typo tolerant, filtered search with files and notes, and the instant index in the command menu. Off unless set. */
   SEARCH_R98: z.string().optional(),
+  MAPS_R115: z.string().optional(),
+  MAPS_GEO_MOCK: z.string().optional(),
   TOOLS_FEATURES: z.string().optional(),
   LINK_CLICK_FLUSH_MS: z.string().optional(), // R87
   SOCIAL_P2: z.string().optional(),
@@ -628,6 +634,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     clientPortal: ["on", "true", "1"].includes(String(env.CLIENT_PORTAL ?? "").toLowerCase()),
     searchR98: ["1", "true", "on"].includes(String(env.SEARCH_R98 ?? "").toLowerCase()), // R98
     mailArchive: ["on", "true", "1"].includes(String(env.MAIL_ARCHIVE_R111 ?? "").toLowerCase()),
+    mapsR115: ["1", "true", "on"].includes(String(env.MAPS_R115 ?? "").toLowerCase()),
+    mapsGeoMock: env.MAPS_GEO_MOCK === "1",
     tools: toolsConfig(env),
     links: { flushMs: Math.max(0, Math.min(20_000, Number(env.LINK_CLICK_FLUSH_MS ?? 4000) || 0)) },
     appName: env.APP_NAME ?? "Multies",

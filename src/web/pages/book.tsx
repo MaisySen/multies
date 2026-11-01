@@ -2,15 +2,16 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { IconCalendarX, IconClock, IconDue, IconVideo } from "@/web/components/ui/icon";
+import { IconMapPin, IconCalendarX, IconClock, IconDue, IconVideo } from "@/web/components/ui/icon";
 import { api, ApiError } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
 import { Logo } from "@/web/components/logo";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input, Textarea } from "@/web/components/ui/input";
 import { Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
+import { directionsLinks } from "@/shared/maps-r115"; // R115
 
-interface PublicPage { page: { slug: string; title: string; description: string; timezone: string; slotMin: number; video: boolean; host: string; organization: string }; slots: string[] }
+interface PublicPage { page: { slug: string; title: string; description: string; timezone: string; slotMin: number; video: boolean; host: string; organization: string; location?: { address: string; lat: number | null; lon: number | null } }; slots: string[] }
 interface Booked { booking: { id: string; startsAt: string; durationMin: number; guestUrl: string | null; status: string }; cancelUrl: string; icsUrl: string }
 
 const zone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -92,6 +93,13 @@ export function BookingPage() {
           {p.video && <span className="inline-flex items-center gap-1.5"><IconVideo className="h-4 w-4" aria-hidden />Video call, no app needed</span>}
           <span>Times in {zone().replace(/_/g, " ")}</span>
         </p>
+        {p.location && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]" data-testid="book-location">
+            <span className="inline-flex min-w-0 items-center gap-1.5 text-fg"><IconMapPin className="h-4 w-4 shrink-0 text-muted" aria-hidden /><span className="break-words">{p.location.address}</span></span>
+            <a href={directionsLinks(p.location).google} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-fg underline decoration-brand underline-offset-2 hover:text-brand sm:min-h-0">Get directions</a>
+            <a href={directionsLinks(p.location).apple} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-fg underline decoration-brand underline-offset-2 hover:text-brand sm:min-h-0">Apple Maps</a>
+          </div>
+        )}
       </header>
 
       {!days.length ? (
@@ -102,7 +110,7 @@ export function BookingPage() {
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
             {days.map(([k, list]) => (
               <button key={k} type="button" aria-pressed={k === current} onClick={() => { setDay(k); setSlot(null); }}
-                className={cn("min-h-11 shrink-0 rounded-xl border px-3 py-2 text-left text-sm transition-colors", k === current ? "border-brand bg-brand/10 text-brand" : "border-line hover:bg-hover")}>
+                className={cn("min-h-11 shrink-0 rounded-xl border px-3 py-2 text-left text-sm transition-colors", k === current ? "border-brand bg-brand/10 text-fg ring-1 ring-brand" : "border-line hover:bg-hover")}>
                 <span className="block font-medium">{dayLabel(list[0])}</span>
                 <span className="block text-[12px] text-muted">{list.length === 1 ? "1 time" : `${list.length} times`}</span>
               </button>

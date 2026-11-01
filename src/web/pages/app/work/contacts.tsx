@@ -15,6 +15,7 @@ import { cn } from "@/web/lib/cn";
 import type { Contact, Task } from "./data";
 import { NoContactsArt, NoSearchResultsArt } from "@/web/components/illustrations"; // R36
 import { CrmTimeline, useCrmTimelineOn } from "./crm-timeline"; // R94
+import { AddressCard, VisitsPlanner, useMapsOn } from "./maps-r115"; // R115
 import { CompanyPicker, ImportContactsDialog, NewCompanyDialog, SegmentBar, filtersQuery, hasFilters, type SegFilters, type Segment } from "./crm-contacts-r94"; // R94
 import { ContactPortalButton, PortalsTab, usePortalsOn } from "./portals"; // R120
 
@@ -26,11 +27,12 @@ interface ContactDetail { contact: Contact; threads: ThreadRow[]; tasks: Task[];
 
 export const aud = (n: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(n);
 
-const TAB_LABEL = { people: "People", companies: "Companies", portals: "Client portals" } as const; // R120
+const TAB_LABEL = { people: "People", companies: "Companies", portals: "Client portals", visits: "Visits" } as const; // R120, R115
 
 export function ContactsPage() {
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") === "companies" ? "companies" : params.get("tab") === "portals" ? "portals" : "people"; // R120: portals
+  const maps = useMapsOn(); // R115
+  const tab = params.get("tab") === "companies" ? "companies" : params.get("tab") === "portals" ? "portals" : params.get("tab") === "visits" && maps ? "visits" : "people"; // R120: portals; R115: visits
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
   const portalsOn = usePortalsOn().on; // R120
@@ -55,15 +57,15 @@ export function ContactsPage() {
         actions={<><Link to="/app/deals" className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconHandshake className="h-4 w-4" />Deals</Link>{crm.on && (tab === "companies" ? <Button variant="secondary" onClick={() => setNewCompany(true)} data-testid="new-company"><IconBuilding className="h-4 w-4" />New company</Button> : <Button variant="secondary" onClick={() => setImporting(true)} data-testid="import-contacts"><IconUpload className="h-4 w-4" />Import</Button>)}<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />Add contact</Button></>} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div role="tablist" className="flex rounded-lg bg-fill p-0.5">
-          {(["people", "companies", ...(portalsOn ? (["portals"] as const) : [])] as const).map((t) => (
+          {(["people", "companies", ...(portalsOn ? (["portals"] as const) : []), ...(maps ? (["visits"] as const) : [])] as const).map((t) => (
             <button key={t} role="tab" aria-selected={tab === t} onClick={() => setParams(t === "people" ? {} : { tab: t })} className={cn("rounded-md px-3 py-1.5 text-[13px]", tab === t ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")} data-testid={`contacts-tab-${t}`}>{TAB_LABEL[t]}</button>
           ))}
         </div>
-        <Input aria-label="Search contacts" placeholder={tab === "people" ? "Search by name or email" : tab === "portals" ? "Search portals" : "Search companies"} value={q} onChange={(e) => setQ(e.target.value)} className="h-9 max-w-xs" />
+        {tab !== "visits" && <Input aria-label="Search contacts" placeholder={tab === "people" ? "Search by name or email" : tab === "portals" ? "Search portals" : "Search companies"} value={q} onChange={(e) => setQ(e.target.value)} className="h-9 max-w-xs" />}
         {tab === "people" && people.data && <span className="text-[12.5px] text-subtle">{people.data.total} {people.data.total === 1 ? "person" : "people"}</span>}
       </div>
       {crm.on && tab === "people" && <SegmentBar segment={segment} setSegment={setSegment} filters={filters} setFilters={setFilters} />}
-      {tab === "portals" ? <PortalsTab query={q} /> : tab === "people" ? (
+      {tab === "portals" ? <PortalsTab query={q} /> : tab === "visits" ? <VisitsPlanner /> : tab === "people" ? (
         people.isPending ? <Skeleton className="h-48" /> : !people.data?.contacts.length ? (
           <EmptyState icon={<IconTeam />} art={q ? <NoSearchResultsArt /> : <NoContactsArt />} title={q || filtered ? "Nobody matches" : "No contacts yet"} body={filtered ? "Nobody fits these filters right now. Change them or pick Everyone." : "When mail arrives or you send to someone outside your team, they show up here with their company."} />
         ) : (
@@ -138,6 +140,7 @@ export function ContactPage() {
   const q = useQuery({ queryKey: ["contact", id], queryFn: () => api.get<ContactDetail>(`/contacts/${id}`) });
   const [notes, setNotes] = useState<string | null>(null);
   const crm = useCrmTimelineOn(); // R94
+  const maps = useMapsOn(); // R115
   if (q.isPending) return <div className="space-y-3"><Skeleton className="h-10 w-1/2" /><Skeleton className="h-64" /></div>;
   if (q.error) return <EmptyState icon={<IconTeam />} title="Contact not found" body="It may have been removed." action={<Button onClick={() => navigate("/app/contacts")}>All contacts</Button>} />;
   const { contact: c, timeline, tasks, deals } = q.data;
@@ -211,6 +214,7 @@ export function ContactPage() {
             </dl>
           </Card>
           {crm.on && <CompanyPicker contactId={c.id} companyId={c.company?.id ?? null} />}
+          {maps && <AddressCard type="contact" id={c.id} />}
           <div>
             <label htmlFor="contact-notes" className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Notes</label>
             <Textarea id="contact-notes" className="mt-2 min-h-28 text-[13px]" value={notes ?? c.notes} onChange={(e) => setNotes(e.target.value)} onBlur={saveNotes} placeholder="What matters about this person" />

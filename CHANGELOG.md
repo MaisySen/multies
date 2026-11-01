@@ -28,6 +28,12 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Staging only test network (SOCIAL_TEST_NETWORK, refused on multies.si) for end to end checks. Flag SOCIAL_P2B. Migration 0122.
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 115 (1 Nov 2026)
+
+- Maps (flag MAPS_R115): an address card on contacts, companies and the booking page with search as you type, a map pin (free OpenFreeMap tiles) and directions in Apple Maps or Google Maps; an address can also be saved as typed.
+- Contacts > Visits: pick who you are visiting, put them in the shortest straight line order (nearest neighbour then 2 opt), and open the route in a maps app, in parts of 10 places for long days. Command menu: Plan visits.
+- Address lookups run on the server through free keyless services (Photon for suggestions, Nominatim for a full search) at most once a second each, cached for 30 days under a hash of the query, with 200 live lookups per workspace a day. Migration 0123 (places, geo_cache, geo_usage, geo_throttle), additive.
+- The public booking page shows the meeting place with directions when the host set one. What's new: the "Convert any file" entry moved out to keep the list at 14 (it stays here).
 ### Round 99 (1 Nov 2026)
 
 - Calendar and contacts sync: Multies serves CalDAV and CardDAV at /dav (with /.well-known/caldav and /.well-known/carddav), so iPhone, Android, Mac and Outlook show and edit your meetings, task due dates (all day), bookings (read only) and workspace contacts. Sync tokens send only what changed; a stale ETag answers 412; Multies keeps the fields it owns (invitees, video link, series rules, task status, contact email).

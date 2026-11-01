@@ -214,12 +214,14 @@ export async function publicAvailability(deps: Deps, slug: string, q: { from?: s
   const now = deps.now();
   const from = q.from && !Number.isNaN(Date.parse(q.from)) ? new Date(Math.max(Date.parse(q.from), now.getTime())) : now;
   const to = new Date(from.getTime() + Math.min(Math.max(q.days ?? 14, 1), 31) * 86400_000);
-  const [host, org] = await Promise.all([
+  const [host, org, location] = await Promise.all([
     deps.db.select({ name: users.name }).from(users).where(eq(users.id, p.userId)).get(),
     deps.db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, p.orgId)).get(),
+    // R115: the meeting place the host set (MAPS_R115 only; one indexed read).
+    deps.config.mapsR115 ? import("../maps-r115").then((m) => m.bookingPlace(deps, p.orgId, p.id)) : Promise.resolve(null),
   ]);
   const slots = computeSlots(rulesOf(p), await busyFor(deps, p, from, to), now, from, to);
-  return { page: { slug: p.slug, title: p.title, description: p.description, timezone: p.timezone, slotMin: p.slotMin, video: p.video, host: host?.name ?? "", organization: org?.name ?? "", maxDaysAhead: p.maxDaysAhead }, slots };
+  return { page: { slug: p.slug, title: p.title, description: p.description, timezone: p.timezone, slotMin: p.slotMin, video: p.video, host: host?.name ?? "", organization: org?.name ?? "", maxDaysAhead: p.maxDaysAhead, ...(location ? { location } : {}) }, slots };
 }
 
 const when = (d: Date, tz: string) => new Intl.DateTimeFormat("en-AU", { timeZone: tz, weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(d);

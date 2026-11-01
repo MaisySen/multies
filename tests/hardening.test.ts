@@ -37,7 +37,7 @@ describe("security headers", () => {
       "img-src": "'self' data: blob: https:",
       "font-src": "'self' data:",
       // R30: no more "any wss:"; LiveKit Cloud by name (self-hosted LIVEKIT_URL and APP_URL are added when set).
-      "connect-src": "'self' https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io wss://*.livekit.cloud https://*.livekit.cloud",
+      "connect-src": "'self' https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io wss://*.livekit.cloud https://*.livekit.cloud https://tiles.openfreemap.org",
       "media-src": "'self' blob:",
       "frame-src": "'self' blob:",
       "worker-src": "'self' blob:",

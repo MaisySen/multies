@@ -10,6 +10,7 @@ import { Button } from "@/web/components/ui/button";
 import { useDialogs } from "@/web/components/ui/confirm";
 import { Field, Input, Select, Textarea, TimeInput } from "@/web/components/ui/input";
 import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
+import { AddressCard, useMapsOn } from "./maps-r115"; // R115
 
 type Day = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 type Hours = Partial<Record<Day, [string, string][]>>;
@@ -30,6 +31,7 @@ export function SchedulingPage() {
   const config = useConfig();
   const qc = useQueryClient();
   const enabled = !!config.data?.scheduling;
+  const maps = useMapsOn(); // R115
   const page = useQuery({ queryKey: ["scheduling", "page"], enabled, queryFn: async () => (await api.get<{ page: Page | null }>("/scheduling/page")).page });
   const bookings = useQuery({ queryKey: ["scheduling", "bookings"], enabled, queryFn: async () => (await api.get<{ bookings: Booking[] }>("/scheduling/bookings?upcoming=1")).bookings });
   const [draft, setDraft] = useState<Omit<Page, "url"> | null>(null);
@@ -77,7 +79,7 @@ export function SchedulingPage() {
         <Card className="flex flex-wrap items-center gap-3 p-4">
           <div className="min-w-0 flex-1">
             <div className="text-[12.5px] text-muted">Your public link</div>
-            <a href={url} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-brand" data-testid="booking-link">{url}</a>
+            <a href={url} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-fg underline decoration-brand underline-offset-2 hover:text-brand" data-testid="booking-link">{url}</a>
           </div>
           {!page.data?.enabled && <Badge tone="warn">Paused</Badge>}
           <CopyButton value={url} label="Copy link" />
@@ -120,6 +122,7 @@ export function SchedulingPage() {
             <Field label="Notice">{(p) => <Select {...p} value={draft.minNoticeMin} onChange={(e) => set("minNoticeMin", Number(e.target.value))}>{([[0, "None"], [60, "1 hour"], [120, "2 hours"], [240, "4 hours"], [1440, "1 day"], [2880, "2 days"]] as [number, string][]).map(([n, l]) => <option key={n} value={n}>{l}</option>)}</Select>}</Field>
           </div>
           <div className="flex items-center justify-between text-sm"><span>Video link on each booking</span><Switch checked={draft.video} onChange={(v) => set("video", v)} label="Video link on each booking" /></div>
+          {maps && page.data && <AddressCard type="scheduling_page" id="mine" title="Meeting place" hint="Optional. For meetings in person, guests see this place with directions." />}
           <div className="flex items-center justify-between text-sm"><span>Accept bookings</span><Switch checked={draft.enabled} onChange={(v) => set("enabled", v)} label="Accept bookings" /></div>
           <Button type="submit" className="w-full" disabled={busy}>{busy ? "Saving..." : url ? "Save changes" : "Create booking page"}</Button>
         </Card>
@@ -140,7 +143,7 @@ export function SchedulingPage() {
                 </div>
                 {b.status === "cancelled" ? <Badge>Cancelled</Badge> : (
                   <>
-                    {b.meetingUrl && <a href={b.meetingUrl} className="text-sm text-brand">Meeting</a>}
+                    {b.meetingUrl && <a href={b.meetingUrl} className="text-sm text-fg underline decoration-brand underline-offset-2 hover:text-brand">Meeting</a>}
                     <Button size="sm" variant="ghost" onClick={() => cancel(b)} aria-label={`Cancel booking with ${b.name}`}>Cancel</Button>
                   </>
                 )}

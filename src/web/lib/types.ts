@@ -59,6 +59,8 @@ export interface PublicConfig {
   backgroundCopy?: boolean;
   /** R89: whiteboards, diagrams, mind map mode and Present in Docs (DOCS_VISUAL, on unless "off"). */
   docsVisual?: boolean;
+  /** R115: address cards, the Visits tab and the booking meeting place (MAPS_R115). */
+  maps?: boolean;
   mxHosts: { host: string; priority: number }[];
   plans: Plan[];
   sentry: { dsn: string; environment: string; release?: string; tracesSampleRate?: number } | null;

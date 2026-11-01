@@ -331,6 +331,8 @@ TOOLS_ENABLED = "true"
 # R94: CRM timeline on staging.
 CRM_TIMELINE = "on"
 SEARCH_R98 = "on" # R98: search with typo tolerance, filters and instant results (prod after the verifier passes)
+# R115: maps (address cards, Visits, booking meeting place) on staging; production after the verifier PASS.
+MAPS_R115 = "on"
 TOOLS_FEATURES = "all"
 CLIENT_PORTAL = "on" # R120: client portals (prod after the verifier passes)
 MAIL_ARCHIVE_R111 = "on" # R111: mail archive and retention (prod after the verifier passes; even on, nothing deletes until a workspace admin turns a policy on)

@@ -3530,3 +3530,38 @@ export const mailCases = sqliteTable("mail_cases", {
   lastExportedAt: ts("last_exported_at"),
   exportCount: integer("export_count").notNull().default(0),
 }, (t) => [index("mail_cases_org_idx").on(t.orgId, t.createdAt)]);
+
+/**
+ * R115 (0123, MAPS_R115): one saved address per contact, company or booking page. lat and lon are set when the
+ * address was picked from a lookup (or found later); an address typed by hand without a match has none.
+ */
+export const places = sqliteTable("places", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  entityType: text("entity_type", { enum: ["contact", "company", "scheduling_page"] }).notNull(),
+  entityId: text("entity_id").notNull(),
+  address: text("address").notNull(),
+  lat: real("lat"),
+  lon: real("lon"),
+  ...suiteCols(),
+}, (t) => [uniqueIndex("places_entity_uq").on(t.orgId, t.entityType, t.entityId)]);
+
+/** R115: address lookup results shared by every workspace, keyed by a hash of service and query (no query text kept). */
+export const geoCache = sqliteTable("geo_cache", {
+  key: text("key").primaryKey(),
+  results: text("results").notNull(),
+  createdAt: createdAt(),
+});
+
+/** R115: live lookups a workspace made on one UTC day, for the daily cap (cache hits do not count). */
+export const geoUsage = sqliteTable("geo_usage", {
+  orgId: text("org_id").notNull(),
+  day: text("day").notNull(),
+  count: integer("count").notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.orgId, t.day] })]);
+
+/** R115: the earliest moment (ms) the next call to each lookup service may go out, so the app keeps to 1 a second. */
+export const geoThrottle = sqliteTable("geo_throttle", {
+  service: text("service").primaryKey(),
+  nextAt: integer("next_at").notNull().default(0),
+});
