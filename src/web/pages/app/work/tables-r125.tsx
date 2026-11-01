@@ -26,7 +26,12 @@ import {
   type FilterOp, type LinkLabel, type TCell, type TField, type TFieldType, type TFilter, type TSort, type ViewConfig, type ViewType,
 } from "@/shared/tables-r125";
 
-export const useTablesOn = () => !!useConfig().data?.tablesR125;
+/** On when the server flag is on and this workspace is not excluded (an excluded workspace gets 404 from the list). */
+export function useTablesOn() {
+  const flag = !!useConfig().data?.tablesR125;
+  const list = useQuery({ queryKey: ["tables-list"], enabled: flag, staleTime: 300_000, retry: false, queryFn: () => api.get<{ tables: { id: string; title: string }[] }>("/tables") });
+  return flag && list.isSuccess;
+}
 
 interface View { id: string; name: string; type: ViewType; config: ViewConfig; position: number }
 interface Detail {
@@ -35,7 +40,7 @@ interface Detail {
 }
 export interface Row { id: string; seq: number; version: number; values: Record<string, TCell>; labels: Record<string, LinkLabel[]>; hidden?: Record<string, number>; errors?: Record<string, string> }
 interface Page { rows: Row[]; nextCursor: string | null; total: number }
-type Undo = { kind: "cells"; before: { id: string; cells: Record<string, TCell> }[] } | { kind: "create"; ids: string[] } | { kind: "delete"; ids: string[] };
+type Undo = { kind: "cells"; before: { id: string; cells: Record<string, TCell> }[] } | { kind: "create"; ids: string[] } | { kind: "delete"; ids: string[] } | { kind: "multi"; parts: Undo[] };
 type Linked = Detail["linked"];
 
 const VIEW_ICONS: Record<ViewType, ReactNode> = { grid: <IconGrid className="h-4 w-4" />, kanban: <IconColumns className="h-4 w-4" />, calendar: <IconCalendar className="h-4 w-4" />, form: <IconList className="h-4 w-4" /> };
@@ -225,10 +230,14 @@ export function TableDoc({ docId }: { docId: string }) {
     const u = undo.current.pop();
     setUndoCount(undo.current.length);
     if (!u) return;
+    const one = async (x: Undo): Promise<void> => {
+      if (x.kind === "cells") await api.patch(`/tables/${docId}/rows`, { rows: x.before.map((b) => ({ id: b.id, cells: b.cells })) });
+      if (x.kind === "create") await api.post(`/tables/${docId}/rows/delete`, { ids: x.ids });
+      if (x.kind === "delete") await api.post(`/tables/${docId}/rows/restore`, { ids: x.ids });
+      if (x.kind === "multi") for (const p of [...x.parts].reverse()) await one(p);
+    };
     try {
-      if (u.kind === "cells") await api.patch(`/tables/${docId}/rows`, { rows: u.before.map((b) => ({ id: b.id, cells: b.cells })) });
-      if (u.kind === "create") await api.post(`/tables/${docId}/rows/delete`, { ids: u.ids });
-      if (u.kind === "delete") await api.post(`/tables/${docId}/rows/restore`, { ids: u.ids });
+      await one(u);
       toast("Undone");
     } catch (e) { showError(e as Error); }
     refresh();
@@ -238,6 +247,22 @@ export function TableDoc({ docId }: { docId: string }) {
     onSuccess: (r) => { pushUndo({ kind: "create", ids: r.rows.map((x) => x.id) }); refresh(); },
     onError: (e) => showError(e as Error),
   });
+  /** A paste is one step to undo: the changed cells and any rows it added. */
+  const paste = useCallback(async (changes: { row: Row; cells: Record<string, unknown> }[], extra: Record<string, unknown>[]) => {
+    const parts: Undo[] = [];
+    try {
+      if (changes.length) {
+        await api.patch(`/tables/${docId}/rows`, { rows: changes.map((c) => ({ id: c.row.id, cells: c.cells })) });
+        parts.push({ kind: "cells", before: changes.map((c) => ({ id: c.row.id, cells: Object.fromEntries(Object.keys(c.cells).map((k) => [k, c.row.values[k] ?? null])) })) });
+      }
+      if (extra.length) {
+        const r = await api.post<{ rows: Row[] }>(`/tables/${docId}/rows`, { rows: extra });
+        parts.push({ kind: "create", ids: r.rows.map((x) => x.id) });
+      }
+    } catch (e) { showError(e as Error); }
+    if (parts.length) pushUndo({ kind: "multi", parts });
+    refresh();
+  }, [docId, pushUndo, refresh]);
   const removeRows = useMutation({
     mutationFn: (ids: string[]) => api.post(`/tables/${docId}/rows/delete`, { ids }),
     onSuccess: (_r, ids) => { pushUndo({ kind: "delete", ids }); refresh(); toast(ids.length === 1 ? "Row deleted" : `${ids.length} rows deleted`, { action: { label: "Undo", onClick: () => void runUndo() } }); },
@@ -277,13 +302,15 @@ export function TableDoc({ docId }: { docId: string }) {
         {d.table.canManage && <Button variant="ghost" size="sm" onClick={() => setSettings(true)} aria-label="Who can edit"><IconSettings className="h-4 w-4" /></Button>}
       </div>
 
-      <div className="-mx-1 flex items-center gap-1 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Views">
+      <div className="-mx-1 flex items-center gap-1 overflow-x-auto px-1 pb-1">
+      <div className="flex items-center gap-1" role="tablist" aria-label="Views">
         {d.views.map((v) => (
           <button key={v.id} role="tab" aria-selected={v.id === view.id} onClick={() => setViewId(v.id)}
             className={cn("flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium transition-colors", v.id === view.id ? "bg-fill text-fg" : "text-muted hover:bg-hover")}>
             {VIEW_ICONS[v.type]}{v.name}
           </button>
         ))}
+      </div>
         {canEdit && <button onClick={() => setNewView(true)} className="flex min-h-[36px] shrink-0 items-center gap-1 rounded-lg px-3 text-[13px] text-muted hover:bg-hover" data-testid="add-view"><IconPlus className="h-4 w-4" />View</button>}
       </div>
 
@@ -313,7 +340,7 @@ export function TableDoc({ docId }: { docId: string }) {
       ) : view.type === "grid" ? (
         <Grid fields={shown} rows={all} loading={rows.isPending} canEdit={canEdit} widths={cfg.widths ?? {}} groupBy={cfg.groupBy ? fields.find((f) => f.id === cfg.groupBy) ?? null : null}
           filtered={!!search || filters.length > 0} onClearFilters={() => { setQ(""); changeView({ filters: [] }); }}
-          onSave={saveCells} onAdd={(list) => addRows.mutate(list)} onOpen={setOpenRow} onUndo={() => void runUndo()} onDelete={(ids) => removeRows.mutate(ids)}
+          onSave={saveCells} onPaste={(c, x) => void paste(c, x)} onAdd={(list) => addRows.mutate(list)} onOpen={setOpenRow} onUndo={() => void runUndo()} onDelete={(ids) => removeRows.mutate(ids)}
           onField={(f) => setFieldDlg({ field: f })} onAddField={() => setFieldDlg({})} onImport={() => setImporting(true)}
           onResize={(fid, w) => changeView({ widths: { ...(cfg.widths ?? {}), [fid]: w } })}
           more={rows.hasNextPage ? () => void rows.fetchNextPage() : undefined} loadingMore={rows.isFetchingNextPage} />
@@ -457,6 +484,7 @@ const DEFAULT_W = 180;
 interface GridProps {
   fields: TField[]; rows: Row[]; loading: boolean; canEdit: boolean; widths: Record<string, number>; groupBy: TField | null; filtered: boolean;
   onClearFilters: () => void; onSave: (c: { row: Row; cells: Record<string, unknown> }[]) => void; onAdd: (list: Record<string, unknown>[]) => void; onOpen: (id: string) => void;
+  onPaste: (changes: { row: Row; cells: Record<string, unknown> }[], extra: Record<string, unknown>[]) => void;
   onUndo: () => void; onDelete: (ids: string[]) => void; onField: (f: TField) => void; onAddField: () => void; onImport: () => void; onResize: (fid: string, w: number) => void;
   more?: () => void; loadingMore: boolean;
 }
@@ -578,8 +606,7 @@ function Grid(props: GridProps) {
       const row = rows[act.r + i];
       if (row) changes.push({ row, cells }); else extra.push(cells);
     });
-    if (changes.length) props.onSave(changes);
-    if (extra.length) props.onAdd(extra);
+    if (changes.length || extra.length) props.onPaste(changes, extra);
     toast(`Pasted ${block.length} ${block.length === 1 ? "row" : "rows"}${bad ? `. ${bad} cells did not fit and were skipped.` : ""}`);
   };
 
@@ -606,7 +633,7 @@ function Grid(props: GridProps) {
                 <span aria-hidden className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-brand/40" onMouseDown={(e) => { e.preventDefault(); setDrag({ fid: f.id, x: e.clientX, w: width(f) }); }} />
               </div>
             ))}
-            {canEdit && <button className="flex min-h-[36px] w-11 shrink-0 items-center justify-center text-muted hover:bg-hover" onClick={props.onAddField} aria-label="Add a field" data-testid="add-field"><IconPlus className="h-4 w-4" /></button>}
+            {canEdit && <div role="columnheader" className="flex shrink-0"><button className="flex min-h-[36px] w-11 items-center justify-center text-muted hover:bg-hover" onClick={props.onAddField} aria-label="Add a field" data-testid="add-field"><IconPlus className="h-4 w-4" /></button></div>}
           </div>
           {rows.map((r, ri) => (
             <div key={r.id} role="rowgroup">

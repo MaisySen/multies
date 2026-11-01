@@ -7,7 +7,8 @@
  * Linked records and lookups only show rows from tables the viewer can open. Rows are paged; text filters go through
  * LK1 (containsText); field filters use json_extract on field ids taken from the saved field list, never from input.
  */
-import { and, asc, desc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql, type SQL } from "drizzle-orm";
+import { inIds } from "../lib/sql-chunks";
 import type { Deps } from "../context";
 import { changes, docComments, docs, docTables, organizations, tableFields, tableRows, tableViews } from "../db/schema";
 import { HttpError, notFound } from "../lib/errors";
@@ -92,7 +93,7 @@ async function openableTables(deps: Deps, viewer: Viewer, ids: string[]): Promis
   const want = [...new Set(ids)].filter((x) => ID.test(x)).slice(0, 50);
   const out = new Map<string, { title: string }>();
   if (!want.length) return out;
-  const rows = await deps.db.select({ id: docs.id, title: docs.title, kind: docs.kind, projectId: docs.projectId }).from(docs).where(and(eq(docs.orgId, viewer.actor.orgId), inArray(docs.id, want), isNull(docs.deletedAt)));
+  const rows = await deps.db.select({ id: docs.id, title: docs.title, kind: docs.kind, projectId: docs.projectId }).from(docs).where(and(eq(docs.orgId, viewer.actor.orgId), inIds(docs.id, want), isNull(docs.deletedAt)));
   for (const r of rows) if (r.kind === "table" && (viewer.kind === "member" || r.projectId === viewer.projectId)) out.set(r.id, { title: r.title });
   return out;
 }
@@ -366,7 +367,7 @@ async function assertRefs(deps: Deps, viewer: Viewer, fields: TField[], cells: R
     if (f.type === "link") {
       const t = f.config.tableId ?? "";
       if (!(await openableTables(deps, viewer, [t])).has(t)) throw notFound("Table");
-      const found = await deps.db.select({ id: tableRows.id }).from(tableRows).where(and(eq(tableRows.orgId, viewer.actor.orgId), eq(tableRows.docId, t), inArray(tableRows.id, v), isNull(tableRows.deletedAt)));
+      const found = await deps.db.select({ id: tableRows.id }).from(tableRows).where(and(eq(tableRows.orgId, viewer.actor.orgId), eq(tableRows.docId, t), inIds(tableRows.id, v), isNull(tableRows.deletedAt)));
       if (found.length !== v.length) throw unprocessable("bad_link", `${f.name}: a linked row was not found.`);
     } else if (f.type === "attachment") {
       for (const id of v) {
@@ -417,7 +418,7 @@ async function present(deps: Deps, viewer: Viewer, docId: string, fields: TField
     const ids = [...new Set(parsed.flatMap((p) => (Array.isArray(p.cells[f.id]) ? p.cells[f.id] as string[] : [])))].filter((id) => !linkedRows.has(id));
     const tf = targetFields.get(t)!;
     for (let i = 0; i < ids.length; i += 90) {
-      const got = await deps.db.select({ id: tableRows.id, cells: tableRows.cells, seq: tableRows.seq }).from(tableRows).where(and(eq(tableRows.orgId, orgId), eq(tableRows.docId, t), inArray(tableRows.id, ids.slice(i, i + 90)), isNull(tableRows.deletedAt)));
+      const got = await deps.db.select({ id: tableRows.id, cells: tableRows.cells, seq: tableRows.seq }).from(tableRows).where(and(eq(tableRows.orgId, orgId), eq(tableRows.docId, t), inIds(tableRows.id, ids.slice(i, i + 90)), isNull(tableRows.deletedAt)));
       for (const g of got) { const c = parseCells(g.cells); linkedRows.set(g.id, { cells: c, label: (tf[0] ? cellText(tf[0], c[tf[0].id] ?? null) : "") || `Row ${g.seq}` }); }
     }
   }
@@ -621,7 +622,7 @@ export async function createRows(deps: Deps, actor: SuiteActor, docId: string, l
   const ids = await insertRows(deps, actor, docId, fields, checked);
   for (const id of ids.slice(0, 20)) await recordWrite(deps, actor, { entityType: "table_row" as never, entityId: id, op: "create", verb: opts.formViewId ? "submitted" : "created", data: { docId } });
   await touch(deps, actor.orgId, docId);
-  const rows = await deps.db.select().from(tableRows).where(and(eq(tableRows.orgId, actor.orgId), inArray(tableRows.id, ids.slice(0, 90))));
+  const rows = await deps.db.select().from(tableRows).where(and(eq(tableRows.orgId, actor.orgId), inIds(tableRows.id, ids.slice(0, 90))));
   rows.sort((a, b) => a.seq - b.seq);
   return present(deps, viewer, docId, fields, rows);
 }
@@ -637,7 +638,7 @@ export async function updateRows(deps: Deps, actor: SuiteActor, docId: string, u
   for (const u of checked) await assertRefs(deps, viewer, fields, u.cells);
   const before = new Map<string, RowRow>();
   for (let i = 0; i < checked.length; i += 90) {
-    const got = await deps.db.select().from(tableRows).where(and(eq(tableRows.orgId, actor.orgId), eq(tableRows.docId, docId), inArray(tableRows.id, checked.slice(i, i + 90).map((u) => u.id)), isNull(tableRows.deletedAt)));
+    const got = await deps.db.select().from(tableRows).where(and(eq(tableRows.orgId, actor.orgId), eq(tableRows.docId, docId), inIds(tableRows.id, checked.slice(i, i + 90).map((u) => u.id)), isNull(tableRows.deletedAt)));
     for (const g of got) before.set(g.id, g);
   }
   const now = deps.now();
@@ -668,7 +669,7 @@ export async function updateRows(deps: Deps, actor: SuiteActor, docId: string, u
   if (writes.length) await touch(deps, actor.orgId, docId);
   const ids = checked.map((u) => u.id);
   const rows: RowRow[] = [];
-  for (let i = 0; i < ids.length; i += 90) rows.push(...await deps.db.select().from(tableRows).where(and(eq(tableRows.orgId, actor.orgId), inArray(tableRows.id, ids.slice(i, i + 90)))));
+  for (let i = 0; i < ids.length; i += 90) rows.push(...await deps.db.select().from(tableRows).where(and(eq(tableRows.orgId, actor.orgId), inIds(tableRows.id, ids.slice(i, i + 90)))));
   rows.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
   return present(deps, viewer, docId, fields, rows);
 }
@@ -681,7 +682,7 @@ export async function deleteRows(deps: Deps, actor: SuiteActor, docId: string, i
   let n = 0;
   for (let i = 0; i < clean.length; i += 90) {
     const r = await deps.db.update(tableRows).set({ deletedAt: restore ? null : deps.now(), updatedAt: deps.now(), updatedBy: actor.userId || null })
-      .where(and(eq(tableRows.orgId, actor.orgId), eq(tableRows.docId, docId), inArray(tableRows.id, clean.slice(i, i + 90)), restore ? sql`${tableRows.deletedAt} is not null` : isNull(tableRows.deletedAt))).returning({ id: tableRows.id });
+      .where(and(eq(tableRows.orgId, actor.orgId), eq(tableRows.docId, docId), inIds(tableRows.id, clean.slice(i, i + 90)), restore ? sql`${tableRows.deletedAt} is not null` : isNull(tableRows.deletedAt))).returning({ id: tableRows.id });
     n += r.length;
     for (const x of r.slice(0, 20)) await recordWrite(deps, actor, { entityType: "table_row" as never, entityId: x.id, op: restore ? "update" : "delete", verb: restore ? "restored" : "deleted", data: { docId } });
   }
