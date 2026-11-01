@@ -84,6 +84,8 @@ export function PdfFixPage() {
   const [file, setFile] = useState<File | null>(null);
   const [op, setOp] = useState<FixOp>("repair");
   const [current, setCurrent] = useState("");
+  const [pwOpen, setPwOpen] = useState(false);
+  const currentRef = useRef<HTMLInputElement>(null);
   const [pw, setPw] = useState(""); const [pw2, setPw2] = useState(""); const [owner, setOwner] = useState("");
   const [allowPrint, setAllowPrint] = useState(true); const [allowCopy, setAllowCopy] = useState(false);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
@@ -101,10 +103,18 @@ export function PdfFixPage() {
       if (op === "repair" && !notes.length) notes.push("No problems were found; the file was rewritten cleanly.");
       if (op === "encrypt") notes.push("Keep the password safe. Nobody, including us, can open the file without it.");
       setResult({ bytes: out.bytes, notes });
-    } catch (e) { setError((e as Error).message || "This PDF could not be fixed."); }
+    } catch (e) {
+      const msg = (e as Error).message || "This PDF could not be fixed.";
+      setError(msg);
+      if (/password/i.test(msg)) {
+        // Locked or wrong password: open the password box and put the cursor there so they can try again at once.
+        setPwOpen(true);
+        requestAnimationFrame(() => { currentRef.current?.focus(); currentRef.current?.select(); });
+      }
+    }
     finally { setBusy(false); }
   };
-  const reset = () => { setFile(null); setResult(null); setError(null); setPw(""); setPw2(""); setOwner(""); setCurrent(""); };
+  const reset = () => { setFile(null); setResult(null); setError(null); setPw(""); setPw2(""); setOwner(""); setCurrent(""); setPwOpen(false); };
   return (
     <ToolsFrame entryKey="pdf-fix" title="Fix a PDF" description="Repair a damaged PDF, make it open fast on the web, or lock it with a password. It all happens on your device." usage={false} testId="pdf-fix">
       {leaveGuard}
@@ -131,10 +141,10 @@ export function PdfFixPage() {
               <label className="flex min-h-11 items-center gap-2 text-[14px]"><input type="checkbox" checked={allowCopy} onChange={(e) => setAllowCopy(e.target.checked)} className={ring} />Allow copying text</label>
             </div>
           )}
-          <details className="rounded-xl border border-line px-3 py-2 text-[13px]"><summary className={`cursor-pointer py-1 font-medium ${ring}`}>This PDF already has a password</summary>
-            <label className="mt-2 block space-y-1.5"><span className="block text-muted">Its current password</span><Input type="password" autoComplete="off" value={current} onChange={(e) => setCurrent(e.target.value)} data-testid="pdf-fix-current" /></label>
+          <details open={pwOpen} onToggle={(e) => setPwOpen((e.currentTarget as HTMLDetailsElement).open)} className="rounded-xl border border-line px-3 py-2 text-[13px]"><summary className={`cursor-pointer py-1 font-medium ${ring}`}>This PDF already has a password</summary>
+            <label className="mt-2 block space-y-1.5"><span className="block text-muted">Its current password</span><Input ref={currentRef} type="password" autoComplete="off" value={current} onChange={(e) => { setCurrent(e.target.value); if (error && /password/i.test(error)) setError(null); }} aria-invalid={!!error && /password/i.test(error)} aria-describedby={error ? "pdf-fix-error" : undefined} data-testid="pdf-fix-current" /></label>
           </details>
-          {error && <p role="alert" className="text-[13px] text-bad" data-testid="pdf-fix-error">{error}</p>}
+          {error && <p role="alert" id="pdf-fix-error" className="text-[13px] text-bad" data-testid="pdf-fix-error">{error}</p>}
           <div className="flex items-center gap-3">
             <Button type="button" onClick={() => void run()} disabled={busy || (op === "encrypt" && (!pw || mismatch))} data-testid="pdf-fix-run">{busy ? "Working" : FIX_OPS.find((o) => o.id === op)!.label}</Button>
             {busy && <span className="text-[13px] text-muted" aria-live="polite">Working on your device. Big files take a little longer.</span>}

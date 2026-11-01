@@ -27,10 +27,17 @@ export function qpdfArgs(op: FixOp, opts: { password?: string; encrypt?: Encrypt
   return [...pre, "--encrypt", e.userPassword, owner, "256", `--print=${e.allowPrint ? "full" : "none"}`, `--extract=${e.allowCopy ? "y" : "n"}`, "--", "in.pdf", "out.pdf"];
 }
 
-/** Turns qpdf's exit code and messages into a result or a plain sentence. Exit 3 means it worked with warnings. */
-export function readOutcome(code: number, errors: string[]): "ok" | "warnings" {
+export const LOCKED_MESSAGE = "This PDF is locked. Type its current password and try again.";
+export const WRONG_PASSWORD_MESSAGE = "That password is not right. Check it and try again.";
+
+/** Turns qpdf's exit code and messages into a result or a plain sentence. Exit 3 means it worked with warnings.
+ * `ctx.encrypted` and `ctx.password` let a failed open of a locked file read as a wrong password: qpdf writes
+ * "invalid password" to the console, not to printErr, so the exit code alone often carries it. */
+export function readOutcome(code: number, errors: string[], ctx: { encrypted?: boolean; password?: string } = {}): "ok" | "warnings" {
   const all = errors.join("\n");
-  if (/invalid password/i.test(all)) throw new QpdfError("This PDF is locked. Type its current password and try again.");
+  if (/invalid password/i.test(all) || (code === 2 && ctx.encrypted && !/not a PDF file|can't find PDF header/i.test(all))) {
+    throw new QpdfError(ctx.password ? WRONG_PASSWORD_MESSAGE : LOCKED_MESSAGE);
+  }
   if (code === 0) return "ok";
   if (code === 3) return "warnings";
   if (/not a PDF file|can't find PDF header|unable to find trailer/i.test(all)) throw new QpdfError("This file is too damaged to fix, or it is not a PDF.");
@@ -69,7 +76,7 @@ export async function runQpdf(input: Uint8Array, op: FixOp, opts: { password?: s
     const status = (e as { status?: number })?.status;
     code = typeof status === "number" ? status : 2;
   }
-  const outcome = readOutcome(code, errors);
+  const outcome = readOutcome(code, errors, { encrypted: looksEncrypted(input), password: opts.password });
   let bytes: Uint8Array;
   try { bytes = q.FS.readFile("out.pdf"); } catch { throw new QpdfError("This PDF could not be fixed. It may be too damaged."); }
   return { bytes, warnings: outcome === "warnings" ? errors.filter((l) => /warning/i.test(l)).slice(0, 20).map((l) => l.replace(/^.*?(warning|WARNING):\s*/, "").replace(/in\.pdf/g, "the file")) : [] };
@@ -84,11 +91,11 @@ export function looksEncrypted(input: Uint8Array): boolean {
 
 /** What the page calls: qpdf first; for Repair, if qpdf cannot rebuild the file, a second reader rebuilds its index. */
 export async function fixPdf(input: Uint8Array, op: FixOp, opts: { password?: string; encrypt?: EncryptOptions } = {}, factory?: QpdfFactory, extra: Record<string, unknown> = {}): Promise<FixResult> {
-  if (!opts.password && looksEncrypted(input)) throw new QpdfError("This PDF is locked. Type its current password and try again.");
+  if (!opts.password && looksEncrypted(input)) throw new QpdfError(LOCKED_MESSAGE);
   try {
     return await runQpdf(input, op, opts, factory, extra);
   } catch (e) {
-    if (op !== "repair" || !(e instanceof QpdfError) || /locked|empty|100 MB/.test(e.message)) throw e;
+    if (op !== "repair" || !(e instanceof QpdfError) || looksEncrypted(input) || /locked|password|empty|100 MB/.test(e.message)) throw e;
     const { PDFDocument } = await import("pdf-lib");
     let doc;
     try { doc = await PDFDocument.load(input, { throwOnInvalidObject: false, updateMetadata: false }); } catch { throw new QpdfError("This file is too damaged to fix, or it is not a PDF."); }
