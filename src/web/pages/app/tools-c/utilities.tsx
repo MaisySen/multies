@@ -360,7 +360,7 @@ function LinkPreviewTool() {
     <div className="mx-auto max-w-2xl space-y-4">
       <form className="flex flex-col gap-2 sm:flex-row" onSubmit={(e) => { e.preventDefault(); void run(); }}>
         <label className="min-w-0 flex-1"><span className="sr-only">Link</span>
-          <Input ref={inputRef} type="url" inputMode="url" autoComplete="url" placeholder="https://example.org/page" value={url} onChange={(e) => { setUrl(e.target.value); if (error) setError(null); }} aria-invalid={!!error} aria-describedby={error ? "util-error-line" : undefined} data-testid="link-preview-url" />
+          <Input ref={inputRef} type="text" inputMode="url" spellCheck={false} autoCapitalize="off" autoComplete="url" placeholder="https://example.org/page" value={url} onChange={(e) => { setUrl(e.target.value); if (error) setError(null); }} aria-invalid={!!error} aria-describedby={error ? "util-error-line" : undefined} data-testid="link-preview-url" />
         </label>
         <Button type="submit" disabled={busy} data-testid="link-preview-run">{busy ? "Fetching" : "Preview"}</Button>
       </form>

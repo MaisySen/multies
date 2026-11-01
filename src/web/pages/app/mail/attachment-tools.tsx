@@ -9,6 +9,7 @@ import type { ComponentType } from "react";
 import {
   IconCalendarClock, IconChatQuote, IconColumns, IconDocs, IconEyeOff, IconFilePlus, IconFilter, IconGlobe, IconLink, IconMinimize,
   IconPenLine, IconReceipt, IconRefresh, IconSearch, IconWrench, IconCamera,
+  IconImage, IconShapes,
 } from "@/web/components/ui/icon";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { useConfig } from "@/web/lib/queries";
@@ -24,8 +25,9 @@ export function attachmentActions(filename: string, features: readonly string[],
   const tools = new Map(toolsForFile(filename, features).map((t) => [t.op, t]));
   const tool = (op: string, icon: Action["icon"]): Action | null => { const t = tools.get(op as never); return t ? { key: op, label: t.label, icon, to: `/app/tools?op=${op}&${q}` } : null; };
   const page = (key: string, ok: boolean, label: string, icon: Action["icon"], to: string): Action | null => (ok ? { key, label, icon, to: `${to}${to.includes("?") ? "&" : "?"}${q}` } : null);
-  const pdf = /\.pdf$/i.test(filename), office = /\.(docx|xlsx|pptx|odt|ods|odp)$/i.test(filename), docx = /\.docx$/i.test(filename);
-  const image = /\.(png|jpe?g|webp)$/i.test(filename), sheet = /\.(xlsx|xls|csv)$/i.test(filename);
+  const slides = /\.(pptx|ppt|odp|odg)$/i.test(filename); // R100b
+  const pdf = /\.pdf$/i.test(filename), office = /\.(docx|xlsx|pptx|odt|ods|odp|ppt|odg)$/i.test(filename), docx = /\.docx$/i.test(filename);
+  const image = /\.(png|jpe?g|webp|gif)$/i.test(filename), sheet = /\.(xlsx|xls|csv)$/i.test(filename);
   const list: (Action | null)[] = pdf ? [
     tool("compress", IconMinimize),
     page("organize", on("editor"), "Edit pages", IconColumns, "/app/tools/pages"),
@@ -37,6 +39,7 @@ export function attachmentActions(filename: string, features: readonly string[],
     tool("redact", IconEyeOff),
   ] : office || sheet ? [
     tool("convert", IconRefresh),
+    slides ? tool("slides-convert", IconShapes) : null,
     sheet ? tool("excel-clean", IconFilter) : null,
     page("share", on("share"), "Share as a link", IconLink, "/app/tools/share"),
     docx ? page("ask", on("ask"), "Ask this document", IconChatQuote, "/app/tools/ai?feature=ask") : null,
@@ -44,6 +47,7 @@ export function attachmentActions(filename: string, features: readonly string[],
     docx ? page("contracts", on("contracts"), "Contract dates", IconCalendarClock, "/app/tools/ai?feature=contracts") : null,
   ] : image ? [
     tool("images-to-pdf", IconFilePlus),
+    page("image-links", on("tools_c2"), "Image link", IconImage, "/app/tools/image-links"),
     tool("scan-clean", IconCamera),
     page("extract", on("extract"), "Invoice to a sheet", IconReceipt, "/app/tools/ai?feature=extract"),
     page("ask", on("ask"), "Ask this document", IconChatQuote, "/app/tools/ai?feature=ask"),

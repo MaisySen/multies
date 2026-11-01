@@ -23,7 +23,9 @@ const MATCHES = { matches: [
 const XLSX = Buffer.from(zipSync({ "[Content_Types].xml": Buffer.from("<Types/>"), "xl/workbook.xml": Buffer.from("<workbook/>") }, { level: 0 }));
 const TYPES = { pdf: "application/pdf", json: "application/json", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", csv: "text/csv", txt: "text/plain", md: "text/markdown", zip: "application/zip",
   // R86: video, audio and photo results.
-  mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm", mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4", gif: "image/gif", jpg: "image/jpeg", png: "image/png" };
+  mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm", mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4", gif: "image/gif", jpg: "image/jpeg", png: "image/png",
+  // R100b
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", odp: "application/vnd.oasis.opendocument.presentation", odg: "application/vnd.oasis.opendocument.graphics", svg: "image/svg+xml" };
 const CLIP = readFileSync(new URL("../fixtures/convert/clip.mp4", import.meta.url));
 const JPG = readFileSync(new URL("../fixtures/convert/photo-b.jpg", import.meta.url));
 const PNG = readFileSync(new URL("../fixtures/convert/photo-a.png", import.meta.url));
@@ -33,6 +35,9 @@ function output(op, fields, name = "") {
   // R86: media and photos come back as the type asked for; compress halves a PDF or video.
   if (op === "media-convert") { const t = fields.to || "mp4"; return [t, t === "gif" ? PNG : CLIP.subarray(0, Math.max(1000, CLIP.length >> 1))]; }
   if (op === "media-compress") return [AUDIO.has(name.split(".").pop().toLowerCase()) ? "m4a" : "mp4", CLIP.subarray(0, CLIP.length >> 1)];
+  // R100b: slides and drawings come back as the type asked for; the image op returns a small PNG.
+  if (op === "slides-convert") { const t = fields.to || "pdf"; return [t, t === "pdf" ? PDF : t === "svg" ? Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>') : XLSX]; }
+  if (op === "image-transform") return [fields.format === "jpeg" ? "jpg" : "png", fields.format === "jpeg" ? JPG : PNG];
   if (op === "photo-convert") return [fields.to === "png" ? "png" : "jpg", fields.to === "png" ? PNG : JPG];
   if (op === "pii-find") return ["json", Buffer.from(JSON.stringify(MATCHES))];
   if (op === "pdf-tables" || op === "excel-merge" || op === "excel-clean") return ["xlsx", XLSX];
