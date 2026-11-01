@@ -313,10 +313,9 @@ export async function askQuestion(deps: Deps, actor: SuiteActor, input: { questi
 export async function listThreads(deps: Deps, actor: SuiteActor, q?: string) {
   const userId = assertPerson(actor);
   const term = (q ?? "").trim().toLowerCase().slice(0, 100);
-  const like = `%${term.replace(/[!%_]/g, (c) => `!${c}`)}%`;
   const rows = term
     ? await deps.db.all<{ id: string; title: string; updated_at: number }>(sql`select t.id, t.title, t.updated_at from ask_threads t where t.org_id = ${actor.orgId} and t.user_id = ${userId}
-        and (lower(t.title) like ${like} escape '!' or exists (select 1 from ask_messages m where m.thread_id = t.id and (lower(m.question) like ${like} escape '!' or lower(m.answer) like ${like} escape '!')))
+        and (instr(lower(t.title), ${term}) > 0 or exists (select 1 from ask_messages m where m.thread_id = t.id and (instr(lower(m.question), ${term}) > 0 or instr(lower(m.answer), ${term}) > 0)))
         order by t.updated_at desc limit 50`)
     : await deps.db.all<{ id: string; title: string; updated_at: number }>(sql`select id, title, updated_at from ask_threads where org_id = ${actor.orgId} and user_id = ${userId} order by updated_at desc limit 50`);
   return rows.map((r) => ({ id: r.id, title: r.title, updatedAt: new Date(r.updated_at).toISOString() }));
