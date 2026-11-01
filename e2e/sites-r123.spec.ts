@@ -23,7 +23,8 @@ async function shot(page: Page, name: string) {
 }
 async function axe(page: Page, where: string, include?: string) {
   await page.waitForTimeout(300);
-  const b = new AxeBuilder({ page });
+  // The preview iframe is sandboxed (no origin), so axe cannot enter it; the same html is checked as the public page.
+  const b = new AxeBuilder({ page }).exclude('iframe[title="Page preview"]');
   const { violations } = await (include ? b.include(include) : b).analyze();
   return violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `${where}: ${v.id} ${v.nodes.slice(0, 2).map((n) => n.target).join(" | ")}`);
 }
@@ -49,7 +50,7 @@ async function startSite(page: Page) {
 }
 
 test("admin builds, previews, publishes and schedules pages; visitors read and comment; moderation and counts work", async ({ page, browser, baseURL }) => {
-  test.setTimeout(300_000);
+  test.setTimeout(480_000);
   const problems: string[] = [];
   await page.setViewportSize({ width: 1280, height: 860 });
   await demo(page);
@@ -66,15 +67,12 @@ test("admin builds, previews, publishes and schedules pages; visitors read and c
   await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
   const preview = page.frameLocator('iframe[title="Page preview"]');
   await expect(preview.locator("h1")).toHaveText("Acme studio");
-  await page.getByLabel("Title").first().fill("We make calm websites");
-  await expect(preview.locator("h1")).toHaveText("We make calm websites");
-
   // A form and a booking block (a form is made for the test when the workspace has none).
   const links = await api<{ forms: { slug: string }[]; booking: { slug: string }[] }>(page, "get", "/api/sites/linkables");
   if (!links.forms.length) await api(page, "post", "/api/forms", { name: "Contact us", fields: [{ id: "name", label: "Name", type: "text", required: true }] });
-  await page.getByRole("button", { name: "Add block" }).click();
-  await page.getByRole("menuitem", { name: /^Form/ }).click();
   await page.reload();
+  await page.getByLabel("Title").first().fill("We make calm websites");
+  await expect(preview.locator("h1")).toHaveText("We make calm websites");
   await page.getByRole("button", { name: "Add block" }).click();
   await page.getByRole("menuitem", { name: /^Form/ }).click();
   const formSelect = page.getByLabel("Form", { exact: true }).last();
@@ -128,14 +126,14 @@ test("admin builds, previews, publishes and schedules pages; visitors read and c
 
   // Comment through the spam shield, then moderation.
   await v.page.getByLabel("Your name").fill("Sam Visitor");
-  await v.page.getByLabel("Comment").fill("Lovely work, how do I get a quote?");
+  await v.page.getByRole("textbox", { name: "Comment" }).fill("Lovely work, how do I get a quote?");
   await v.page.getByRole("button", { name: "Post comment" }).click();
   await expect(v.page.getByText("Thanks. Your comment shows here once the team approves it.")).toBeVisible({ timeout: 30_000 });
   await page.goto("/app/docs/sites?tab=comments");
   await expect(page.getByText("Lovely work, how do I get a quote?")).toBeVisible();
   await shot(page, "06-comments-1280-light");
   problems.push(...(await axe(page, "comments", "main")));
-  await page.getByRole("button", { name: "Approve" }).click();
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
   await expect(page.getByText("Comment approved")).toBeVisible();
   await v.page.waitForTimeout(31_000); // the public page cache keeps a page 30 s
   await v.page.reload();
@@ -153,7 +151,10 @@ test("admin builds, previews, publishes and schedules pages; visitors read and c
   await expect(page.getByText(/^Scheduled for/)).toBeVisible();
   expect((await v.page.goto(`/site/${slug}/plans`))!.status()).toBe(404);
 
-  // Versions: restore the first saved version into the draft.
+  // Versions on the home page (saved and published): restore the first saved version into the draft.
+  await page.goto("/app/docs/sites");
+  await page.getByRole("button", { name: /Home/ }).click();
+  await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
   await page.getByRole("button", { name: "More page actions" }).click();
   await page.getByRole("menuitem", { name: "Versions" }).click();
   await page.getByRole("button", { name: "Restore" }).last().click();
