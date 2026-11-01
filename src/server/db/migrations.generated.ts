@@ -1493,5 +1493,13 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- SA1 (Nov 1): one row per social account the workspace connected: the account's own id on its network, the name and\n-- picture people know it by, and when we last asked. Additive only. The unique index is the server side guard: a\n-- workspace holds one connection per network account, so connecting the same account again refreshes it. The\n-- connections themselves live on the integration platform, so there are no rows to merge here yet; existing\n-- duplicates are merged by the app the first time each workspace's accounts are listed.\nCREATE TABLE IF NOT EXISTS `social_account_profiles` (\n\t`org_id` text NOT NULL,\n\t`account_id` text NOT NULL,\n\t`app` text NOT NULL,\n\t`external_id` text,\n\t`name` text,\n\t`avatar_url` text,\n\t`checked_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `account_id`)\n);",
       "CREATE UNIQUE INDEX IF NOT EXISTS `social_account_profiles_ext_uq` ON `social_account_profiles` (`org_id`,`app`,`external_id`);"
     ]
+  },
+  {
+    "name": "0138_t1f_search_indexes",
+    "statements": [
+      "-- T1F (Nov 1): global search under load. Each search group reads its newest matches first; without an index in that\n-- order the database read every row of the workspace and sorted them before taking the first few. These indexes let\n-- it walk newest first and stop as soon as it has enough. Additive only, no data change.\nCREATE INDEX IF NOT EXISTS `messages_org_date_idx` ON `messages` (`org_id`,`date`);",
+      "CREATE INDEX IF NOT EXISTS `tasks_org_updated_live_idx` ON `tasks` (`org_id`,`updated_at`) WHERE \"tasks\".\"deleted_at\" IS NULL AND \"tasks\".\"triage_state\" IS NULL;",
+      "CREATE INDEX IF NOT EXISTS `contacts_org_recent_live_idx` ON `contacts` (`org_id`,coalesce(\"last_contact_at\", \"updated_at\")) WHERE \"contacts\".\"deleted_at\" IS NULL;"
+    ]
   }
 ];

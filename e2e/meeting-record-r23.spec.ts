@@ -98,7 +98,8 @@ test("with a key, chunks become a transcript, the summary shows on the meeting p
 
   // Delete takes a recording and its transcript away.
   await page.goto(`/app/meetings/${meetingId}`);
-  page.once("dialog", (d) => void d.accept());
+  // Delete asks in the app's own dialog (it replaced the browser's confirm box).
   await page.getByTestId("recording-item").last().getByTestId("recording-delete").click();
+  await page.getByRole("dialog").getByRole("button", { name: "Delete recording" }).click();
   await expect(page.getByTestId("recording-item")).toHaveCount(1);
 });

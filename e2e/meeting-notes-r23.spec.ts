@@ -53,8 +53,9 @@ test("meeting notes: agenda, action items with @mention and due date, tasks made
   await expect(items).toHaveCount(3, { timeout: 10_000 });
   await expect(items.nth(0)).toContainText("Book the venue");
   await expect(page.getByLabel("Assignee for Book the venue")).toHaveValue(`member:${me.id}`);
-  await expect(page.getByLabel("Due date for Book the venue")).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
-  await expect(page.getByLabel("Due date for Send the press kit to partners")).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
+  // R67 (MB-250): date fields show the workspace's order (dd/mm/yyyy here); the value sent stays ISO (checked on the tasks below).
+  await expect(page.getByLabel("Due date for Book the venue")).toHaveValue(/^\d{2}\/\d{2}\/\d{4}$/);
+  await expect(page.getByLabel("Due date for Send the press kit to partners")).toHaveValue(/^\d{2}\/\d{2}\/\d{4}$/);
   await expect(page.getByLabel("Assignee for Check catering quotes")).toHaveValue("");
   // The third one stays for later: take it off by checking it in the notes (done in the meeting).
   await editor.locator('ul[data-type="taskList"] li').nth(2).locator("input[type=checkbox]").check();
@@ -79,6 +80,7 @@ test("meeting notes: agenda, action items with @mention and due date, tasks made
   expect(tasks).toHaveLength(1);
   expect(tasks[0].assignee?.id).toBe(me.id);
   expect(tasks[0].due).toBeTruthy();
+  expect(String(tasks[0].due)).toMatch(/^\d{4}-\d{2}-\d{2}/); // stored ISO, whatever the field shows
   await page.goto("/app/my-work");
   await expect(page.getByTestId("mywork-due")).toContainText("Send the press kit to partners", { timeout: 10_000 });
 

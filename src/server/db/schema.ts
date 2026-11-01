@@ -303,6 +303,7 @@ export const messages = sqliteTable("messages", {
   index("messages_thread_idx").on(t.threadId),
   // R25 (0052): replaces messages_org_idx (org_id); the org prefix still serves org only lookups.
   index("messages_org_folder_date_idx").on(t.orgId, t.folder, t.date),
+  index("messages_org_date_idx").on(t.orgId, t.date), // T1F: search reads newest first
   // Dedupe by Message-ID (connected mailbox sync, imports) and thread lookups by In-Reply-To.
   index("messages_mailbox_msgid_idx").on(t.mailboxId, t.messageIdHeader),
   index("messages_mailbox_provider_msgid_idx").on(t.mailboxId, t.providerMessageIdHeader).where(sql`${t.providerMessageIdHeader} IS NOT NULL`),
@@ -938,6 +939,7 @@ export const tasks = sqliteTable("tasks", {
   // instead of reading and sorting every task of the workspace or project (927 rows for a page of 50 on HQ).
   index("tasks_org_live_pos_idx").on(t.orgId, t.position, sql`${t.createdAt} desc`).where(sql`${t.deletedAt} IS NULL AND ${t.triageState} IS NULL`),
   index("tasks_org_project_live_pos_idx").on(t.orgId, t.projectId, t.position, sql`${t.createdAt} desc`).where(sql`${t.deletedAt} IS NULL AND ${t.triageState} IS NULL`),
+  index("tasks_org_updated_live_idx").on(t.orgId, t.updatedAt).where(sql`${t.deletedAt} IS NULL AND ${t.triageState} IS NULL`), // T1F: search reads newest first
 ]);
 
 /**
@@ -1059,7 +1061,7 @@ export const contacts = sqliteTable("contacts", {
   firstContactAt: ts("first_contact_at"),
   lastContactAt: ts("last_contact_at"),
   ...suiteCols(),
-}, (t) => [uniqueIndex("contacts_org_email_uq").on(t.orgId, t.email), index("contacts_org_last_idx").on(t.orgId, t.lastContactAt), index("contacts_company_idx").on(t.companyId).where(sql`${t.companyId} IS NOT NULL`)]);
+}, (t) => [uniqueIndex("contacts_org_email_uq").on(t.orgId, t.email), index("contacts_org_last_idx").on(t.orgId, t.lastContactAt), index("contacts_org_recent_live_idx").on(t.orgId, sql`coalesce(${t.lastContactAt}, ${t.updatedAt})`).where(sql`${t.deletedAt} IS NULL`), index("contacts_company_idx").on(t.companyId).where(sql`${t.companyId} IS NOT NULL`)]);
 
 /** A simple sales pipeline. Values are in cents, AUD. */
 export const deals = sqliteTable("deals", {

@@ -185,6 +185,15 @@ interface Ctx {
   deps: Deps; v: SearchViewer; words: string[]; fuzzy: boolean; limit: number; f: SearchFilters; person: { id: string; email: string } | null;
   /** R110: only these ids (re-checking that cited sources are still openable, with the very same scope). */
   ids?: string[];
+  /** T1F: lookups every group of one search shares (the readable channels, the mailbox scope), read once per search. */
+  memo?: Map<string, Promise<unknown>>;
+}
+/** T1F: runs a per search lookup once and shares it between groups and the typo pass (no memo: runs it as before). */
+function once<T>(c: Ctx, key: string, fn: () => Promise<T>): Promise<T> {
+  if (!c.memo) return fn();
+  let p = c.memo.get(key) as Promise<T> | undefined;
+  if (!p) { p = fn(); c.memo.set(key, p); p.catch(() => c.memo?.delete(key)); }
+  return p;
 }
 /** R110: the id filter of the id-only mode (undefined when not in that mode). */
 const onlyIds = (c: Ctx, col: Parameters<typeof inIds>[0]) => (c.ids ? inIds(col, c.ids) : undefined);
@@ -198,7 +207,7 @@ const userOf = (v: SearchViewer) => (v.kind === "actor" && !isKey(v.actor) && v.
 
 async function mailGroup(c: Ctx): Promise<Candidate[]> {
   if (c.v.kind !== "actor") return [];
-  const scope = await scopeOf(c.deps, c.v.actor);
+  const scope = await once(c, "scope", () => scopeOf(c.deps, (c.v as Extract<SearchViewer, { kind: "actor" }>).actor));
   if (scope && !scope.length) return [];
   const rows = await c.deps.db.select({
     id: messages.id, threadId: messages.threadId, mailboxId: messages.mailboxId, folder: messages.folder, subject: messages.subject,
@@ -260,7 +269,10 @@ async function docGroup(c: Ctx): Promise<Candidate[]> {
 }
 
 async function channelsFor(c: Ctx) {
-  let channels = await readableChannels(c.deps, c.v);
+  return once(c, "channelsFor", () => channelsForUncached(c));
+}
+async function channelsForUncached(c: Ctx) {
+  let channels = await once(c, "channels", () => readableChannels(c.deps, c.v));
   if (c.f.project) {
     const withProject = await c.deps.db.select({ id: chatChannels.id }).from(chatChannels).where(and(eq(chatChannels.orgId, orgOf(c.v)), eq(chatChannels.projectId, c.f.project)));
     const ok = new Set(withProject.map((r) => r.id));
@@ -316,7 +328,7 @@ async function dealGroup(c: Ctx): Promise<Candidate[]> {
 
 async function attachmentGroup(c: Ctx): Promise<Candidate[]> {
   if (c.v.kind !== "actor" || c.fuzzy || c.person || c.f.from || c.f.to || c.ids) return [];
-  const scope = await scopeOf(c.deps, c.v.actor);
+  const scope = await once(c, "scope", () => scopeOf(c.deps, (c.v as Extract<SearchViewer, { kind: "actor" }>).actor));
   const rows = await searchAttachmentText(c.deps, c.v.actor.orgId, scope, c.words.join(" "), { limit: c.limit });
   return rows.map((r) => ({
     title: r.filename || "", body: r.snip ?? "", at: Number(r.date),
@@ -421,6 +433,23 @@ function allowedTypes(deps: Deps, v: SearchViewer, requested?: SearchType[]): Se
   return types;
 }
 
+/** T1F: the database's own "too busy" answers (D1 overloaded or its queue full), told apart from real query errors. */
+export function isOverload(err: unknown): boolean {
+  const seen = new Set<unknown>();
+  for (let e: unknown = err; e && !seen.has(e); e = (e as { cause?: unknown }).cause) {
+    seen.add(e);
+    if (/overloaded|queued for too long|too many requests queued/i.test(String((e as { message?: unknown }).message ?? e))) return true;
+  }
+  return false;
+}
+let lastOverloadReport = 0;
+/** T1F: true at most once a minute (per server), so a burst of busy answers is one report, not hundreds. */
+export function overloadReportDue(now: number): boolean {
+  if (now - lastOverloadReport < 60_000) return false;
+  lastOverloadReport = now;
+  return true;
+}
+
 /**
  * R98 search: every source the viewer can open, in parallel, each bounded; words in any order; ranked; filtered.
  * A group whose exact pass finds nothing for a word of 4 or more letters runs one typo pass. Answers within the budget.
@@ -438,7 +467,7 @@ export async function searchR98(deps: Deps, v: SearchViewer, rawQuery: string, o
   // A guest cannot filter by person (they cannot see the workspace's people); the filter then finds nothing.
   if (v.kind === "guest" && f.person) types = [];
   const person = v.kind === "guest" ? null : await personOf(deps, v.actor.orgId, f.person);
-  const base = { deps, v, words, limit, f, person };
+  const base = { deps, v, words, limit, f, person, memo: new Map<string, Promise<unknown>>() };
   const done = new Map<SearchType, SearchItem[]>();
   const fixes = new Map<string, string>();
   const runOne = async (t: SearchType) => {
@@ -448,7 +477,13 @@ export async function searchR98(deps: Deps, v: SearchViewer, rawQuery: string, o
     for (const [k, val] of loose.corrected) if (!fixes.has(k)) fixes.set(k, val);
     return loose.items;
   };
-  const all = Promise.all(types.map((t) => runOne(t).then((items) => { done.set(t, items); }, (err) => { deps.reportError?.(err, { where: "search_r98", type: t }); done.set(t, []); })));
+  let overloaded = false;
+  const all = Promise.all(types.map((t) => runOne(t).then((items) => { done.set(t, items); }, (err) => {
+    // T1F: a database too busy to answer (heavy load) leaves that group out and marks the answer partial, like the time
+    // budget does; it is reported at most once a minute per server instead of once per group per search.
+    if (isOverload(err)) { overloaded = true; if (overloadReportDue(Date.now())) deps.reportError?.(err, { where: "search_r98_overloaded", type: t }); } else deps.reportError?.(err, { where: "search_r98", type: t });
+    done.set(t, []);
+  })));
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<"timeout">((resolve) => { timer = setTimeout(() => resolve("timeout"), opts.budgetMs ?? SEARCH_BUDGET_MS); });
   const outcome = await Promise.race([all.then(() => "done" as const), timeout]);
@@ -456,7 +491,7 @@ export async function searchR98(deps: Deps, v: SearchViewer, rawQuery: string, o
   const groups = types.filter((t) => done.has(t)).map((t) => ({ type: t, label: SEARCH_LABELS[t], items: done.get(t)! })).filter((g) => g.items.length > 0);
   const lower = q.toLowerCase();
   const corrected = fixes.size ? queryWords(lower).map((w) => fixes.get(w) ?? w).join(" ") : undefined;
-  return { query: lower, groups, tookMs: Date.now() - started, partial: outcome === "timeout", ...(corrected && corrected !== lower ? { corrected } : {}), filters: f };
+  return { query: lower, groups, tookMs: Date.now() - started, partial: outcome === "timeout" || overloaded, ...(corrected && corrected !== lower ? { corrected } : {}), filters: f };
 }
 
 // ---------------------------------------------------------------- the instant index
@@ -531,7 +566,7 @@ export async function retrieveR98(deps: Deps, v: SearchViewer, rawQuery: string,
   if (!words.length) return [];
   const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 8), 1), 20);
   const types = allowedTypes(deps, v, opts.types ?? ASK_SOURCE_TYPES).filter((t) => t !== "attachments");
-  const base = { deps, v, words, limit, f: {}, person: null };
+  const base = { deps, v, words, limit, f: {}, person: null, memo: new Map<string, Promise<unknown>>() };
   const scored: { x: Candidate; score: number }[] = [];
   await Promise.all(types.map(async (t) => {
     try {
