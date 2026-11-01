@@ -45,6 +45,8 @@ export interface SendExtras {
   noQueue?: boolean;
   /** R34: an operator's "Send anyway" on a queued message: skips the guard (never the kill switch). */
   overrideCap?: boolean;
+  /** R109: extra headers for bulk mail (List-Unsubscribe, List-Unsubscribe-Post). */
+  headers?: Record<string, string>;
 }
 
 /** R34: holds a person's message until midnight UTC as a scheduled send that carries the reason. */
@@ -231,7 +233,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
       const sent = await outbound.send({
         from, to: only(input.to), cc: only(input.cc), bcc: only(input.bcc), replyTo,
         subject: input.subject, text: input.text, html: outHtml, messageId: messageIdHeader, inReplyTo, references,
-        attachments: atts,
+        attachments: atts, headers: extra.headers,
       });
       for (const address of external) {
         await logDelivery(db, { orgId: auth.orgId, messageId: sentId, direction: "outbound", fromAddress: mb.address, toAddress: address, subject: input.subject, status: sent.status, provider: sent.provider, providerMessageId: sent.providerMessageId ?? null, detail: sent.detail ?? null });

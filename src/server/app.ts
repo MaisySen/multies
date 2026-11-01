@@ -35,6 +35,7 @@ import { activeToolFeatures } from "./services/tools/features"; // Tools P2: "in
 import { toolsEditorsRoutes } from "./routes/tools-editors"; // Tools P2: editors
 import { toolsAiRoutes } from "./routes/tools-ai"; // Tools P2: AI documents
 import { mailMergeUnsubscribeRoutes, toolsAutomationRoutes } from "./routes/tools-automation"; // Tools P2: automation
+import { campaignPublicRoutes, campaignRoutes } from "./routes/campaigns-r109"; // R109: lists, newsletters, journeys
 import { sharePublicRoutes, toolsShareRoutes } from "./routes/tools-share";
 import { portalPublicRoutes, portalRoutes } from "./routes/client-portal"; // R120
 import { mailArchiveRoutes } from "./routes/mail-archive-r111"; // R111
@@ -281,6 +282,7 @@ export function createApp(deps: Deps) {
   app.use("/api/*", async (c, next) => {
     // Signed webhooks, the API-key REST API and the import runner (token) never use cookies, so CSRF does not apply.
     const p = c.req.path;
+    if (p.startsWith("/api/campaign-public/")) return next(); // R109: cookie free public pages keyed by a random token (one click unsubscribe is a form POST by design, RFC 8058)
     if (p.startsWith("/api/widget/")) return next(); // R119: the website chat is public and cookie free (origin checked per key)
     if (p.startsWith("/api/inbound/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/connections/webhooks/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/") || p.startsWith("/api/hooks/in/") || p.startsWith("/api/hooks/agent-runs/") || isOAuthPublic(p)) return next();
     return csrfGuard(c, next);
@@ -478,8 +480,10 @@ export function createApp(deps: Deps) {
   app.route("/api/links", linksRoutes()); // R87: short links, bio pages, go links, link domain
   app.route("/api/tools/esign", toolsEsignRoutes()); // Tools P2: e-sign
   app.route("/api/tools", toolsRoutes()); // Tools P1: document tools (off unless TOOLS_ENABLED)
+  app.route("/api/tools/campaigns", campaignRoutes()); // R109 (flag merge_plus_r109)
   app.route("/api/tools", toolsAutomationRoutes()); // Tools P2: automation (rules, workflows, templates, mail merge)
-  app.route("/api/mail-merge", mailMergeUnsubscribeRoutes()); // Tools P2: automation (public mail merge unsubscribe)
+  app.route("/api/mail-merge", mailMergeUnsubscribeRoutes());
+  app.route("/api/campaign-public", campaignPublicRoutes()); // R109: one click unsubscribe, counts, signup (cookie free, token keyed) // Tools P2: automation (public mail merge unsubscribe)
   app.route("/api/attachment-files", attachmentIndexRoutes()); // Tools P2: attachment index and smart folders
   app.route("/api/connections/webhooks", directWebhookRoutes()); // R83: before the session routes below
   app.route("/api/connections", connectionRoutes());

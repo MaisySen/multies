@@ -18,6 +18,8 @@ export interface AppConfig {
   socialP2?: boolean;
   /** R118: Social inbox, account health alerts and analytics (SOCIAL_P2B, on unless "off"). */
   socialP2b?: boolean;
+  /** R109: on staging, bulk mail (newsletters, journeys, confirm emails) only to these addresses or @domains (CAMPAIGN_SEND_ALLOW). Empty = no limit. */
+  campaignSendAllow?: string[];
   /** R118: the staging only test network (SOCIAL_TEST_NETWORK=on and a staging or local APP_URL; refused on multies.si). */
   socialTestNetwork?: boolean;
   /** R120: client portals in Contacts and the public /p pages (CLIENT_PORTAL=on). Off unless set. */
@@ -349,6 +351,7 @@ const EnvSchema = z.object({
   POSTHOG_HOST: z.string().optional(),
   ANALYTICS_HASH_KEY: z.string().optional(),
   ANALYTICS_EXCLUDE: z.string().optional(),
+  CAMPAIGN_SEND_ALLOW: z.string().optional(),
   SOCIAL_TEST_NETWORK: z.string().optional(),
   DOC_ENGINE_URL: z.string().optional(),
   DOC_ENGINE_KEY_ID: z.string().optional(),
@@ -625,6 +628,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     flows: env.FLOWS !== "off",
     socialP2: env.SOCIAL_P2 !== "off",
     socialP2b: env.SOCIAL_P2B !== "off",
+    campaignSendAllow: (env.CAMPAIGN_SEND_ALLOW ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
     socialTestNetwork: testNetworkAllowed(env),
     schedulingEnabled: env.SCHEDULING_ENABLED === "true" || env.SCHEDULING_ENABLED === "1",
     crmTimeline: ["1", "true", "on"].includes(String(env.CRM_TIMELINE ?? "").toLowerCase()),

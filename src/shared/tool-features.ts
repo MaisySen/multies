@@ -34,6 +34,7 @@ export const TOOL_FEATURES = [
   "links",      // R87 short links, QR, click stats, bio page, go links
   "tools_c",    // R100 Tools C: fix a PDF (qpdf), QR and barcodes on a PDF, read comments, utilities
   "tools_c2",   // R100b: slides and drawings on the engine, image links, link preview
+  "merge_plus_r109", // R109 lists with consent, newsletters and journeys (Spam Act)
 ] as const;
 
 export type ToolFeature = (typeof TOOL_FEATURES)[number];

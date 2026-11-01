@@ -15,6 +15,8 @@ export interface OutboundMessage {
   inReplyTo?: string;
   references?: string;
   attachments?: { filename: string; contentType: string; content: Uint8Array }[];
+  /** R109: extra headers (List-Unsubscribe and List-Unsubscribe-Post on bulk mail). Never Message-ID or threading headers. */
+  headers?: Record<string, string>;
 }
 
 export interface OutboundResult {
@@ -89,7 +91,7 @@ export class ResendOutbound implements OutboundProvider {
   }
 
   async send(msg: OutboundMessage): Promise<OutboundResult> {
-    const headers: Record<string, string> = { "Message-ID": msg.messageId };
+    const headers: Record<string, string> = { ...(msg.headers ?? {}), "Message-ID": msg.messageId };
     if (msg.inReplyTo) headers["In-Reply-To"] = msg.inReplyTo;
     if (msg.references) headers["References"] = msg.references;
     let res: Awaited<ReturnType<Resend["emails"]["send"]>>;

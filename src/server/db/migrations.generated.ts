@@ -1349,6 +1349,30 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0127_r109_campaigns",
+    "statements": [
+      "-- R109: Mail merge plus. Lists with consent records, newsletters (campaigns) with per recipient stats,\n-- journeys (welcome series and follow ups). Unsubscribes stay in merge_unsubscribes (one list across the\n-- workspace) and bounces and complaints in suppressions. Additive only.\nCREATE TABLE `audience_lists` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`description` text DEFAULT '' NOT NULL,\n\t`visibility` text DEFAULT 'workspace' NOT NULL,\n\t`owner_user_id` text NOT NULL,\n\t`double_opt_in` integer DEFAULT 1 NOT NULL,\n\t`allow_inferred` integer DEFAULT 0 NOT NULL,\n\t`signup_key` text NOT NULL,\n\t`signup_on` integer DEFAULT 0 NOT NULL,\n\t`mailbox_id` text,\n\t`sender_name` text DEFAULT '' NOT NULL,\n\t`sender_address` text DEFAULT '' NOT NULL,\n\t`tz` text DEFAULT 'Australia/Sydney' NOT NULL,\n\t`member_count` integer DEFAULT 0 NOT NULL,\n\t`archived_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX `audience_lists_org_idx` ON `audience_lists` (`org_id`,`updated_at`);",
+      "CREATE UNIQUE INDEX `audience_lists_signup_key_uq` ON `audience_lists` (`signup_key`);",
+      "CREATE TABLE `audience_members` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`list_id` text NOT NULL,\n\t`email` text NOT NULL,\n\t`name` text DEFAULT '' NOT NULL,\n\t`fields` text DEFAULT '{}' NOT NULL,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`consent_kind` text DEFAULT 'express' NOT NULL,\n\t`consent_source` text DEFAULT '' NOT NULL,\n\t`consent_at` integer,\n\t`confirm_token` text,\n\t`confirmed_at` integer,\n\t`unsubscribed_at` integer,\n\t`added_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX `audience_members_list_email_uq` ON `audience_members` (`list_id`,`email`);",
+      "CREATE INDEX `audience_members_org_email_idx` ON `audience_members` (`org_id`,`email`);",
+      "CREATE INDEX `audience_members_list_status_idx` ON `audience_members` (`list_id`,`status`,`created_at`);",
+      "CREATE UNIQUE INDEX `audience_members_confirm_uq` ON `audience_members` (`confirm_token`);",
+      "CREATE TABLE `campaigns` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`list_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`mailbox_id` text,\n\t`kind` text DEFAULT 'newsletter' NOT NULL,\n\t`journey_id` text,\n\t`name` text NOT NULL,\n\t`subject` text DEFAULT '' NOT NULL,\n\t`preheader` text DEFAULT '' NOT NULL,\n\t`blocks` text DEFAULT '[]' NOT NULL,\n\t`track` integer DEFAULT 1 NOT NULL,\n\t`status` text DEFAULT 'draft' NOT NULL,\n\t`scheduled_at` integer,\n\t`total` integer DEFAULT 0 NOT NULL,\n\t`sent` integer DEFAULT 0 NOT NULL,\n\t`failed` integer DEFAULT 0 NOT NULL,\n\t`skipped` integer DEFAULT 0 NOT NULL,\n\t`opened` integer DEFAULT 0 NOT NULL,\n\t`clicked` integer DEFAULT 0 NOT NULL,\n\t`unsubscribed` integer DEFAULT 0 NOT NULL,\n\t`bounced` integer DEFAULT 0 NOT NULL,\n\t`error` text,\n\t`sent_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX `campaigns_org_idx` ON `campaigns` (`org_id`,`kind`,`updated_at`);",
+      "CREATE TABLE `campaign_recipients` (\n\t`campaign_id` text NOT NULL,\n\t`idx` integer NOT NULL,\n\t`org_id` text NOT NULL,\n\t`member_id` text,\n\t`email` text NOT NULL,\n\t`name` text DEFAULT '' NOT NULL,\n\t`data` text DEFAULT '{}' NOT NULL,\n\t`token` text NOT NULL,\n\t`status` text DEFAULT 'queued' NOT NULL,\n\t`error` text,\n\t`send_after` integer,\n\t`sent_at` integer,\n\t`opened_at` integer,\n\t`clicked_at` integer,\n\tPRIMARY KEY(`campaign_id`, `idx`)\n);",
+      "CREATE UNIQUE INDEX `campaign_recipients_token_uq` ON `campaign_recipients` (`token`);",
+      "CREATE INDEX `campaign_recipients_status_idx` ON `campaign_recipients` (`campaign_id`,`status`);",
+      "CREATE TABLE `journeys` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`list_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`mailbox_id` text,\n\t`name` text NOT NULL,\n\t`status` text DEFAULT 'draft' NOT NULL,\n\t`steps` text DEFAULT '[]' NOT NULL,\n\t`send_hour` integer DEFAULT 9 NOT NULL,\n\t`enrolled` integer DEFAULT 0 NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX `journeys_org_idx` ON `journeys` (`org_id`,`updated_at`);",
+      "CREATE INDEX `journeys_list_idx` ON `journeys` (`list_id`,`status`);",
+      "CREATE TABLE `journey_enrollments` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`journey_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`member_id` text NOT NULL,\n\t`email` text NOT NULL,\n\t`step` integer DEFAULT 0 NOT NULL,\n\t`next_at` integer,\n\t`status` text DEFAULT 'active' NOT NULL,\n\t`last_token` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX `journey_enrollments_uq` ON `journey_enrollments` (`journey_id`,`member_id`);",
+      "CREATE INDEX `journey_enrollments_due_idx` ON `journey_enrollments` (`journey_id`,`status`,`next_at`);"
+    ]
+  },
+  {
     "name": "0128_r111_mail_archive",
     "statements": [
       "-- R111 (Nov 1): mail archive and retention. Additive only. No row here means keep mail forever: nothing is deleted\n-- for a workspace until one of its owners or admins turns a policy on (and a 7 day grace has passed).\nCREATE TABLE IF NOT EXISTS `mail_retention_policies` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`enabled` integer DEFAULT 0 NOT NULL,\n\t`keep_years` integer,\n\t`starts_at` integer,\n\t`enabled_at` integer,\n\t`updated_by` text,\n\t`updated_at` integer NOT NULL,\n\t`last_run_at` integer,\n\t`last_run_deleted` integer DEFAULT 0 NOT NULL,\n\t`total_deleted` integer DEFAULT 0 NOT NULL,\n\t`backlog` integer DEFAULT 0 NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",

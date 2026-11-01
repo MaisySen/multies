@@ -18,7 +18,7 @@ export async function composeRaw(msg: OutboundMessage): Promise<string> {
   const composer = new MailComposer({
     from: msg.from.name ? { name: msg.from.name, address: msg.from.address } : msg.from.address,
     to: msg.to, cc: msg.cc, bcc: msg.bcc, replyTo: msg.replyTo, subject: msg.subject, text: msg.text, html: msg.html,
-    messageId: msg.messageId, inReplyTo: msg.inReplyTo, references: msg.references,
+    messageId: msg.messageId, inReplyTo: msg.inReplyTo, references: msg.references, headers: msg.headers,
     attachments: (msg.attachments ?? []).map((a) => ({ filename: a.filename, contentType: a.contentType, content: Buffer.from(a.content) })),
   });
   const buf = await new Promise<Buffer>((resolve, reject) => composer.compile().build((err, out) => (err ? reject(err) : resolve(out))));
