@@ -206,6 +206,8 @@ export interface AppConfig {
   docsPlus?: boolean;
   /** R103: local end to end runs only: the clipper reads a pretend web (DOCS_PLUS_FAKE_WEB=1). */
   docsPlusFakeWeb?: boolean;
+  /** R101: Files plus, the workspace drive and brand library on the Files page (FILES_PLUS_R101=on). Off unless set. */
+  filesPlus?: boolean;
   /** R97: notification centre: mail channel, digests, quiet hours, pause (NOTIFICATION_CENTRE, on unless "off"). */
   notificationCentre?: boolean;
   /** R96: chat plus (topics, announcements, decision votes, polls, live Q&A; CHAT_PLUS, on unless "off"). */
@@ -335,6 +337,7 @@ const EnvSchema = z.object({
   DOCS_PLUS_FAKE_WEB: z.string().optional(),
   NOTIFICATION_CENTRE: z.string().optional(),
   CHAT_PLUS: z.string().optional(),
+  FILES_PLUS_R101: z.string().optional(),
   CHANNELS_DAILY_SOFT_CAP: z.string().optional(),
   TOOLS_ENABLED: z.string().optional(),
   CRM_TIMELINE: z.string().optional(),
@@ -733,6 +736,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     docsPlusFakeWeb: env.DOCS_PLUS_FAKE_WEB === "1" && !/multies\.si/.test(String(env.APP_URL ?? "")),
     notificationCentre: env.NOTIFICATION_CENTRE !== "off",
     chatPlus: env.CHAT_PLUS !== "off",
+    filesPlus: ["on", "true", "1"].includes(String(env.FILES_PLUS_R101 ?? "").toLowerCase()),
     operatorInbox: operatorInbox(env.SUPPORT_EMAIL?.trim() || "support@multies.si", env.OPERATOR_INBOX_ORG_ID, env.OPERATOR_INBOX_ADDRESSES),
     freeMail: {
       domain: freeMailDomain(env.FREE_MAIL_DOMAIN, env.APP_URL),

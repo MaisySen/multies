@@ -41,6 +41,8 @@ export interface Deps {
    * Without it, indexing and search inside attachments stay off.
    */
   indexDb?: import("./db").DB;
+  /** R101: the separate database for drive file bytes (binding FILES_DB); absent = the main database. */
+  filesDb?: import("./db").DB;
   /** Opens TCP or TLS connections to mail servers (connected mailboxes). Workers inject cloudflare:sockets; Node uses node:net. */
   openSocket?: import("./services/connect/socket").SocketOpener;
   /** Opens IMAP sessions for connected mailboxes. Defaults to ImapFlow; tests inject an in-memory server. */

@@ -3565,3 +3565,66 @@ export const geoThrottle = sqliteTable("geo_throttle", {
   service: text("service").primaryKey(),
   nextAt: integer("next_at").notNull().default(0),
 });
+// R101 (migration 0129): Files plus. The workspace drive and the brand library. Bytes live in the S3 body store when
+// configured, else in the separate FILES_DB database (drive_blobs, made on first use), never in this database.
+export const driveItems = sqliteTable("drive_items", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  space: text("space", { enum: ["team", "private", "brand"] }).notNull(),
+  /** The person whose My files it sits in (private space only). */
+  ownerId: text("owner_id"),
+  parentId: text("parent_id"),
+  kind: text("kind", { enum: ["folder", "file"] }).notNull(),
+  name: text("name").notNull(),
+  contentType: text("content_type"),
+  sizeBytes: integer("size_bytes").notNull().default(0),
+  versionId: text("version_id"),
+  versions: integer("versions").notNull().default(0),
+  tags: text("tags").notNull().default(""),
+  note: text("note"),
+  createdBy: text("created_by").notNull(),
+  createdByName: text("created_by_name").notNull().default(""),
+  updatedBy: text("updated_by"),
+  trashedAt: integer("trashed_at"),
+  trashedBy: text("trashed_by"),
+  trashRootId: text("trash_root_id"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [
+  index("drive_items_parent_idx").on(t.orgId, t.space, t.parentId),
+  index("drive_items_owner_idx").on(t.orgId, t.ownerId),
+  index("drive_items_trash_idx").on(t.orgId, t.trashRootId),
+  index("drive_items_updated_idx").on(t.orgId, t.updatedAt),
+]);
+
+export const driveVersions = sqliteTable("drive_versions", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  itemId: text("item_id").notNull(),
+  number: integer("number").notNull(),
+  name: text("name").notNull(),
+  contentType: text("content_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  blobKey: text("blob_key").notNull(),
+  parts: integer("parts").notNull(),
+  note: text("note"),
+  createdBy: text("created_by").notNull(),
+  createdByName: text("created_by_name").notNull().default(""),
+  createdAt: integer("created_at").notNull(),
+}, (t) => [index("drive_versions_item_idx").on(t.itemId, t.number), index("drive_versions_org_idx").on(t.orgId, t.blobKey)]);
+
+export const driveStars = sqliteTable("drive_stars", {
+  userId: text("user_id").notNull(),
+  itemId: text("item_id").notNull(),
+  orgId: text("org_id").notNull(),
+  createdAt: integer("created_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.userId, t.itemId] }), index("drive_stars_org_idx").on(t.orgId, t.userId)]);
+
+export const driveShares = sqliteTable("drive_shares", {
+  itemId: text("item_id").notNull(),
+  userId: text("user_id").notNull(),
+  orgId: text("org_id").notNull(),
+  role: text("role", { enum: ["view", "edit"] }).notNull(),
+  createdBy: text("created_by").notNull(),
+  createdAt: integer("created_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.itemId, t.userId] }), index("drive_shares_user_idx").on(t.orgId, t.userId)]);

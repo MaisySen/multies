@@ -137,6 +137,7 @@ function bootWith(env: WorkerEnv, db: DB, vars: Record<string, string | undefine
     toolFiles: env.IMPORT_FILES ? kvToolFileStore(env.IMPORT_FILES) : undefined,
     // Tools P2 (17): the attachment text index lives in its own D1 database (no virtual table in the main one).
     indexDb: env.INDEX_DB ? drizzle(withReadRetry(env.INDEX_DB) as never, { schema }) as unknown as DB : undefined,
+    filesDb: env.FILES_DB ? drizzle(withReadRetry(env.FILES_DB) as never, { schema }) as unknown as DB : undefined, // R101
     openSocket: workerSocketOpener,
     dispatchMailSync: mailSyncDispatcher(env),
     loadMailBody: mailBodyDispatcher(env),

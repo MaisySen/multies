@@ -29,6 +29,8 @@ export interface PublicConfig {
   davSync?: boolean;
   /** R103: Docs plus (link library, web clipper, doc comments, spell check). */
   docsPlus?: boolean;
+  /** R101: Files plus (FILES_PLUS_R101): the drive and brand library on the Files page. */
+  filesPlus?: boolean;
   appName: string;
   mode: "production" | "development";
   demoEnabled: boolean;

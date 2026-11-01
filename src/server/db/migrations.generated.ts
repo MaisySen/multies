@@ -1382,5 +1382,22 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE IF NOT EXISTS `mail_cases` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`filters` text DEFAULT '{}' NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`last_exported_at` integer,\n\t`export_count` integer DEFAULT 0 NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
       "CREATE INDEX IF NOT EXISTS `mail_cases_org_idx` ON `mail_cases` (`org_id`,`created_at`);"
     ]
+  },
+  {
+    "name": "0129_r101_files_plus",
+    "statements": [
+      "-- R101 (Nov 1): Files plus. Additive only: the workspace drive (items, versions, stars, shares). File bytes are not\n-- stored here (S3 body store or the separate FILES_DB database).\nCREATE TABLE IF NOT EXISTS `drive_items` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`space` text NOT NULL,\n\t`owner_id` text,\n\t`parent_id` text,\n\t`kind` text NOT NULL,\n\t`name` text NOT NULL,\n\t`content_type` text,\n\t`size_bytes` integer DEFAULT 0 NOT NULL,\n\t`version_id` text,\n\t`versions` integer DEFAULT 0 NOT NULL,\n\t`tags` text DEFAULT '' NOT NULL,\n\t`note` text,\n\t`created_by` text NOT NULL,\n\t`created_by_name` text DEFAULT '' NOT NULL,\n\t`updated_by` text,\n\t`trashed_at` integer,\n\t`trashed_by` text,\n\t`trash_root_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX IF NOT EXISTS `drive_items_parent_idx` ON `drive_items` (`org_id`,`space`,`parent_id`);",
+      "CREATE INDEX IF NOT EXISTS `drive_items_owner_idx` ON `drive_items` (`org_id`,`owner_id`);",
+      "CREATE INDEX IF NOT EXISTS `drive_items_trash_idx` ON `drive_items` (`org_id`,`trash_root_id`);",
+      "CREATE INDEX IF NOT EXISTS `drive_items_updated_idx` ON `drive_items` (`org_id`,`updated_at`);",
+      "CREATE TABLE IF NOT EXISTS `drive_versions` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`item_id` text NOT NULL,\n\t`number` integer NOT NULL,\n\t`name` text NOT NULL,\n\t`content_type` text NOT NULL,\n\t`size_bytes` integer NOT NULL,\n\t`blob_key` text NOT NULL,\n\t`parts` integer NOT NULL,\n\t`note` text,\n\t`created_by` text NOT NULL,\n\t`created_by_name` text DEFAULT '' NOT NULL,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX IF NOT EXISTS `drive_versions_item_idx` ON `drive_versions` (`item_id`,`number`);",
+      "CREATE INDEX IF NOT EXISTS `drive_versions_org_idx` ON `drive_versions` (`org_id`,`blob_key`);",
+      "CREATE TABLE IF NOT EXISTS `drive_stars` (\n\t`user_id` text NOT NULL,\n\t`item_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`user_id`, `item_id`)\n);",
+      "CREATE INDEX IF NOT EXISTS `drive_stars_org_idx` ON `drive_stars` (`org_id`,`user_id`);",
+      "CREATE TABLE IF NOT EXISTS `drive_shares` (\n\t`item_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`role` text NOT NULL,\n\t`created_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`item_id`, `user_id`)\n);",
+      "CREATE INDEX IF NOT EXISTS `drive_shares_user_idx` ON `drive_shares` (`org_id`,`user_id`);"
+    ]
   }
 ];

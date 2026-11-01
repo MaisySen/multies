@@ -71,6 +71,13 @@ database_id = "d30b4e9f-12ad-400d-8655-8a1ac0d2f4ef"
 migrations_dir = "drizzle-index"
 migrations_table = "d1_migrations"
 
+[[d1_databases]]
+binding = "FILES_DB"
+# R101: drive file bytes (base64 chunks in drive_blobs, made by the app on first use), kept apart so the main
+# database never grows with files. Free plan, location hint "oc". Backed up with the drive metadata in "mymail-au".
+database_name = "multies-files"
+database_id = "a7ff31dd-ccef-449d-acf3-43191545ad0b"
+
 # Doc co-editing rooms: one Durable Object per doc (src/server/collab/durable-object.ts),
 # SQLite storage backend, which the Workers Free plan includes. Not inherited by envs,
 # so staging declares its own below.
@@ -261,6 +268,12 @@ database_id = "08d976da-d092-4982-a49b-b5e79b9e1f0d"
 migrations_dir = "drizzle-index"
 migrations_table = "d1_migrations"
 
+[[env.staging.d1_databases]]
+binding = "FILES_DB"
+# R101: drive file bytes for staging.
+database_name = "multies-files-staging"
+database_id = "9df45db2-9c1b-409e-bc15-454035e1b30d"
+
 [[env.staging.durable_objects.bindings]]
 name = "DOC_ROOMS"
 class_name = "DocRoom"
@@ -320,6 +333,7 @@ binding = "AI"
 # R109: staging bulk mail (newsletters, journeys, signup confirms) fails closed: only the QA mailbox, set as the
 # CAMPAIGN_SEND_ALLOW_EXTRA secret, is added to this list. Never real people from staging.
 CAMPAIGN_SEND_ALLOW = "@staging-qa.invalid"
+FILES_PLUS_R101 = "on" # R101: Files plus (drive and brand library); prod after the verifier passes
 HELP_CENTER = "on" # R122: help center
 DAV_SYNC_R99 = "on" # R99: calendar and contacts sync (staging)
 # ANALYTICS-PH: internal product usage analytics (POSTHOG_KEY and ANALYTICS_HASH_KEY are secrets; the client workspace is always excluded).
