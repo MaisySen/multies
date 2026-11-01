@@ -178,6 +178,7 @@ BACKGROUND_COPY = "true"
 AUTH0_SOCIAL_CONNECTIONS = "google-oauth2"
 # Public booking pages and the scheduling API (migration 0021).
 SCHEDULING_ENABLED = "true"
+BOOKING_PLUS = "true" # R92: resources, time polls, free events (on after verifier v16 PASS WITH BUGS 12:31 UTC Nov 1)
 DASHBOARDS_PLUS = "on" # R91: public links, emailed reports, question builder, alerts, data sources
 CLIENT_PORTAL = "on" # R120: client portals, verifier v7 PASS WITH BUGS 23:42 UTC Oct 31
 INVOICES_ENABLED = "true" # R105: on in production after verifier v15 PASS WITH BUGS 11:47 UTC
