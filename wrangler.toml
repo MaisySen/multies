@@ -219,6 +219,8 @@ VAPID_PUBLIC_KEY = "BD5idyEC8Z2t0LROHN_FwSS6mKaQ_Ki8d8YPKqM-pnhC4hi9mDccU9dmNtZK
 
 # R43: an import's upload waits here until the run ends (7 days at most), so the scheduled pass can finish it after the
 # page closes. Workers KV free plan: 1 GB stored, 1,000 writes and 100,000 reads a day (account wide, staging included).
+MAPS_R115 = "on" # R115: maps, address cards, visits, booking meeting place (verifier v11 PASS 1 Nov)
+
 [[kv_namespaces]]
 binding = "IMPORT_FILES"
 id = "91f62eee9a38454f9b6a74e40fc4172d"
