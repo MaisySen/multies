@@ -144,7 +144,7 @@ export function NewsletterPage() {
             <div className={`min-w-0 space-y-3 ${showPreview ? "" : "hidden lg:block"}`}>
               <Card className="overflow-hidden p-0">
                 <p className="border-b border-line px-4 py-2 text-[12.5px] text-muted">{preview.data ? `Preview for ${preview.data.person.email}${dirty ? ", save to update" : ""}` : "Preview"}</p>
-                {preview.data ? <iframe title="Email preview" sandbox="" srcDoc={preview.data.html} className="h-[560px] w-full bg-white" data-testid="r109-preview" /> : <Skeleton className="h-[560px] w-full" />}
+                {preview.data ? <iframe title="Email preview" sandbox="allow-same-origin" srcDoc={preview.data.html} className="h-[560px] w-full bg-white" data-testid="r109-preview" /> : <Skeleton className="h-[560px] w-full" />}
               </Card>
             </div>
           </div>
@@ -258,7 +258,7 @@ export function JourneyPage() {
                       )}</Field>
                       <Field label="Subject" hint={FIELDS_HINT}>{(p) => <Input {...p} value={s.subject} disabled={!editable} maxLength={200} onChange={(e) => setStep(i, { ...s, subject: e.target.value })} />}</Field>
                     </div>
-                    {i > 0 && <Switch checked={s.onlyIfNotOpened} disabled={!editable} onChange={(v) => setStep(i, { ...s, onlyIfNotOpened: v })} label="Only if they didn't open the last email" />}
+                    {i > 0 && <div className="flex items-center gap-2"><Switch checked={s.onlyIfNotOpened} disabled={!editable} onChange={(v) => setStep(i, { ...s, onlyIfNotOpened: v })} label="Only if they didn't open the last email" /><span aria-hidden="true" className="text-sm text-fg">Only if they didn't open the last email</span></div>}
                     <BlockEditor blocks={s.blocks} disabled={!editable} onChange={(blocks) => setStep(i, { ...s, blocks })} />
                   </Card>
                 </li>

@@ -121,6 +121,16 @@ const form = (ctx: Ctx, path: string, body: Record<string, string>) =>
   ctx.app.request(path, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(body).toString() });
 
 describe("R109 API", () => {
+  it("lets the public unsubscribe and signup pages post their own form, with no scripts, while the API stays locked", async () => {
+    const ctx = await setup();
+    const pub = (await ctx.app.request("/api/campaign-public/u/preview")).headers.get("content-security-policy") ?? "";
+    expect(pub).toContain("form-action 'self'");
+    expect(pub).not.toContain("script-src");
+    expect(pub).toContain("frame-ancestors 'none'");
+    const api = (await ctx.app.request("/api/tools/campaigns/lists")).headers.get("content-security-policy") ?? "";
+    expect(api).toContain("form-action 'none'");
+  });
+
   it("is not found while merge_plus_r109 is off", async () => {
     const ctx = await setup({ ...ON, TOOLS_FEATURES: "merge_mail" });
     expect((await ctx.c.get("/api/tools/campaigns/lists")).status).toBe(404);

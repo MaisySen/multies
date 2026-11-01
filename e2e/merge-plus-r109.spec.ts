@@ -22,7 +22,11 @@ async function demo(page: Page) {
 }
 
 async function axe(page: Page, tag: string) {
-  const { violations } = await new AxeBuilder({ page }).include("main").analyze();
+  // The email preview is a sandboxed frame of the message itself (no scripts); it is checked as HTML in unit tests, not as app UI.
+  // Buttons fade between their disabled and enabled looks; stop motion so axe reads the settled colours, not a mid fade frame.
+  await page.addStyleTag({ content: "*,*::before,*::after{transition:none!important;animation:none!important}" });
+  await page.waitForTimeout(100);
+  const { violations } = await new AxeBuilder({ page }).include("main").exclude('[data-testid="r109-preview"]').analyze();
   return violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `${tag}: ${v.id} ${v.nodes.slice(0, 3).map((n) => n.target).join(" | ")}`);
 }
 
@@ -105,6 +109,7 @@ test("newsletter: compose with merge fields, preview, send now, schedule and bac
   await expect(page.getByText("Scheduled").first()).toBeVisible();
   await page.getByRole("button", { name: "Back to draft" }).click();
   await expect(page.getByText("Draft").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Delete heading" })).toBeEnabled();
   expect(await axe(page, "editor")).toEqual([]);
 });
 

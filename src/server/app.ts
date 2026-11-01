@@ -9,7 +9,7 @@ import { isD1LimitError, READ_ONLY_BODY } from "./lib/d1-limit";
 import { busyBody, d1BusyKind } from "./lib/d1-busy";
 import { healthView, noteD1LimitHit, readsView, writeBudget } from "./services/write-budget";
 import { deferredCounts } from "./services/write-priority";
-import { API_CSP, appCsp, docsCsp, isHttps, securityHeaders } from "./lib/security-headers";
+import { API_CSP, CAMPAIGN_PUBLIC_CSP, appCsp, docsCsp, isHttps, securityHeaders } from "./lib/security-headers";
 import { installCspReport } from "./routes/csp-report-r30";
 import type { AppEnv, Deps } from "./context";
 import { HttpError } from "./lib/errors";
@@ -217,6 +217,7 @@ export function createApp(deps: Deps) {
   });
   const hsts = isHttps(deps.config.appUrl);
   const apiHeaders = securityHeaders({ csp: API_CSP, hsts });
+  const campaignPublicHeaders = securityHeaders({ csp: CAMPAIGN_PUBLIC_CSP, hsts }); // R109: its pages post their own forms
   const docsHeaders = securityHeaders({ csp: docsCsp(), hsts });
   // Pages served by this app (the Node server serves the SPA too) get the page policy.
   // R67 (QA5 #11): the zone adds Cloudflare's cookieless analytics beacon to pages this worker makes (the public sign and
@@ -228,7 +229,7 @@ export function createApp(deps: Deps) {
     await next();
     const p = c.req.path;
     if (p === "/widget.js") return; // R119: the chat script loads on other sites (its own headers)
-    const set = p === "/api/v1/reference" ? docsHeaders : p.startsWith("/api/") || p.startsWith("/.well-known/") ? apiHeaders : p.startsWith("/f/") ? formPageHeaders : pageHeaders;
+    const set = p === "/api/v1/reference" ? docsHeaders : p.startsWith("/api/campaign-public/") ? campaignPublicHeaders : p.startsWith("/api/") || p.startsWith("/.well-known/") ? apiHeaders : p.startsWith("/f/") ? formPageHeaders : pageHeaders;
     for (const [k, v] of Object.entries(set)) c.res.headers.set(k, v);
   });
   app.use("/api/*", async (c, next) => {

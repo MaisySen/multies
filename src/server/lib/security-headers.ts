@@ -130,6 +130,10 @@ export function docsCsp(): string {
 /** JSON responses never render, so the API gets the tightest possible policy. */
 export const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 
+/** R109: the cookie free campaign pages (unsubscribe, signup, confirm) are small HTML pages with their own
+ *  inline style and a form that posts back to the same origin. No scripts, no frames, nothing third party. */
+export const CAMPAIGN_PUBLIC_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+
 function serialize(d: Record<string, string[]>): string {
   return Object.entries(d).map(([k, v]) => (v.length ? `${k} ${v.join(" ")}` : k)).join("; ");
 }
