@@ -23,7 +23,7 @@ env:
   BUNDLE_ID: au.fintex.multies
   URL_SCHEME: mymail
   EXPO_PUBLIC_API_BASE: https://preview.multies.si
-  DEFAULT_ROUTES: "/ /files /files?view=team&folder=drv-clients /files?view=brand /files-item/drv-price /docs /doc/doc_plan /doc/comments/doc_plan /doc/share/doc_plan /contacts /contact/con_s1 /visits /settings"
+  DEFAULT_ROUTES: "/ /files /files?view=team&folder=drv-clients /files?view=brand /files-item/drv-price /docs /doc/doc_plan /doc/comments/doc_plan /doc/share/doc_plan /contacts /contact/con_s1 /visits /settings /mail-merge /journey/jr_s1 /mail-archive /sync"
 
 jobs:
   shots:

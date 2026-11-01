@@ -3,6 +3,7 @@ import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native"
 import { router, useFocusEffect } from "expo-router";
 import { Banner, Button, EmptyState, Icon, Skeleton } from "@/components/ui";
 import { FileChip, RecentStrip, ToolGroup, ToolSearch, openOnWeb } from "@/components/tool-ui";
+import { MailMergeEntry } from "@/components/m1-more";
 import { useTools } from "@/lib/queries";
 import { useOffline } from "@/lib/offline";
 import { useSession } from "@/lib/session";
@@ -69,6 +70,7 @@ export default function Tools() {
       refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => { q.refetch(); }} />}>
       <View style={{ paddingHorizontal: space.lg, gap: space.sm }}>
         <ToolSearch value={query} onChange={setQuery} />
+        <MailMergeEntry hidden={!!query} />
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: left.left === 0 ? colors.bad : left.left <= 3 ? colors.warn : colors.ok }} />
           <Text style={{ color: left.left === 0 ? colors.bad : colors.muted, fontSize: 14, fontWeight: "500" }} testID="tools-usage">{runsLeftLabel(left)}</Text>

@@ -3,6 +3,7 @@
  * screens render on the web build and in tests with no server. Kept in memory only.
  */
 import { ApiError } from "@/api/errors";
+import { m1MoreRoute, sampleM1More, type M1MoreState } from "./m1-more";
 import type { ContactView, PlaceView, VisitCandidate } from "@/lib/contacts";
 
 const iso = (t: number) => new Date(t).toISOString();
@@ -56,6 +57,8 @@ function visitCandidates(s: M1WorkState): VisitCandidate[] {
 /** Answers the routes this part owns, or undefined to let the next sample route try. */
 export function m1WorkRoute(s: M1WorkState, method: string, path: string, params: Record<string, string>, body: unknown, now: number): unknown {
   void body; void now;
+  const more = m1MoreRoute((s.more ??= sampleM1More(now)) as M1MoreState, method, path, body, now);
+  if (more !== undefined) return more;
   const parts = path.split("/").filter(Boolean);
   if (method === "GET" && path === "/config") {
     return { maps: true, mailArchive: true, davSync: true, filesPlus: true, docsPlus: true, searchR98: true, tools: true, toolFeatures: ["merge_plus_r109"] };
