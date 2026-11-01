@@ -22,7 +22,7 @@ import { plainText } from "./suite/chat";
 import { notBlockedBy } from "./suite/reports-r35";
 import { searchAttachmentText } from "./tools/attachment-index";
 import {
-  excerpt, readableChannels, SEARCH_BUDGET_MS, SEARCH_DEFAULT_LIMIT, SEARCH_LABELS, SEARCH_MAX_CHARS, SEARCH_MIN_CHARS, SEARCH_TYPES,
+  excerpt, readableChannels, SEARCH_BUDGET_MS, SEARCH_DEFAULT_LIMIT, SEARCH_LABELS, SEARCH_MAX_CHARS, SEARCH_MIN_CHARS, SEARCH_TYPES_R98,
   type SearchItem, type SearchResult, type SearchType, type SearchViewer,
 } from "./search";
 
@@ -70,12 +70,17 @@ export function editDistance(a: string, b: string, max = 2): number {
 export function typoPieces(word: string): string[] {
   if (typoBudget(word) === 0) return [];
   const h = Math.ceil(word.length / 2);
-  const pieces = [word.slice(0, h), word.slice(h)];
-  if (h - 1 >= 3) pieces.push(word.slice(0, h - 1));
+  // A swap across the middle breaks both halves; one letter shorter on each side is whole again.
+  const pieces = [word.slice(0, h), word.slice(h), word.slice(0, h - 1), word.slice(h + 1)];
   return [...new Set(pieces.filter((p) => p.length >= 2))];
 }
 
-const tokensOf = (text: string) => text.toLowerCase().normalize("NFKC").split(/[^\p{L}\p{N}@._'-]+/u).filter(Boolean);
+/** Words of a text, plus the parts of joined words ("lease-floorplan.png" also gives "lease", "floorplan", "png"). */
+const tokensOf = (text: string) => {
+  const words = text.toLowerCase().normalize("NFKC").split(/[^\p{L}\p{N}@._'-]+/u).filter(Boolean);
+  const parts = words.flatMap((w) => (/[@._'-]/.test(w) ? w.split(/[@._'-]+/).filter(Boolean) : []));
+  return parts.length ? [...words, ...parts] : words;
+};
 
 /** The closest word in `text` to `word` within its typo budget (prefix aware: "invo" is close to "invoice"), or null. */
 export function closeWord(word: string, text: string): { word: string; distance: number } | null {
@@ -409,7 +414,7 @@ export async function searchR98(deps: Deps, v: SearchViewer, rawQuery: string, o
   if (q.length < SEARCH_MIN_CHARS || !words.length) throw new HttpError(422, "validation_failed", `Type at least ${SEARCH_MIN_CHARS} characters to search.`);
   const limit = Math.min(Math.max(Math.trunc(opts.limit ?? SEARCH_DEFAULT_LIMIT), 1), 20);
   const f = opts.filters ?? {};
-  let types = opts.types?.length ? SEARCH_TYPES.filter((t) => opts.types!.includes(t)) : [...SEARCH_TYPES];
+  let types: SearchType[] = opts.types?.length ? SEARCH_TYPES_R98.filter((t) => opts.types!.includes(t)) : [...SEARCH_TYPES_R98];
   if (v.kind === "guest") types = types.filter((t) => t === "tasks" || t === "docs" || t === "chat" || t === "files");
   else if (isKey(v.actor)) types = types.filter((t) => t !== "notes");
   const tools = deps.config.tools;

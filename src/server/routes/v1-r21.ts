@@ -50,7 +50,7 @@ export function registerR21Routes(api: OpenAPIHono<AppEnv>, keyAuth: MiddlewareH
     { request: { query: SearchQ } }),
   async (c) => {
     const q = c.req.query("q") ?? "";
-    const out = await searchEverything(c.var.deps, { kind: "actor", actor: actor(c) }, q, { types: parseTypes(c.req.query("types")), limit: limitOf(c.req.query("limit"), 20) });
+    const out = await searchEverything(c.var.deps, { kind: "actor", actor: actor(c) }, q, { types: parseTypes(c.req.query("types"), !!c.var.deps.config.searchR98), limit: limitOf(c.req.query("limit"), 20) });
     return send(c, out);
   });
 

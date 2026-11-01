@@ -32,7 +32,7 @@ export function searchRoutes() {
     })
     .get("/", async (c) => {
       const { deps, auth } = c.var;
-      const out = await searchEverything(deps, { kind: "actor", actor: auth }, c.req.query("q") ?? "", { ...r98Opts(c.var.deps, (k) => c.req.query(k)), types: parseTypes(c.req.query("types")), limit: limitOf(c.req.query("limit")), ...r98Opts(deps, (k) => c.req.query(k)) });
+      const out = await searchEverything(deps, { kind: "actor", actor: auth }, c.req.query("q") ?? "", { types: parseTypes(c.req.query("types"), !!deps.config.searchR98), limit: limitOf(c.req.query("limit")), ...r98Opts(deps, (k) => c.req.query(k)) });
       c.var.log?.info("search", { ms: out.tookMs, groups: out.groups.length, partial: out.partial });
       c.header("Server-Timing", `search;dur=${out.tookMs}`);
       return c.json(out);
@@ -65,6 +65,6 @@ export function guestSearchRoutes() {
     .use("*", requireGuest)
     .get("/", async (c) => {
       const g = c.var.guest.guest;
-      return c.json(await searchEverything(c.var.deps, { kind: "guest", orgId: g.orgId, projectId: g.projectId }, c.req.query("q") ?? "", { types: parseTypes(c.req.query("types")), limit: limitOf(c.req.query("limit")) }));
+      return c.json(await searchEverything(c.var.deps, { kind: "guest", orgId: g.orgId, projectId: g.projectId }, c.req.query("q") ?? "", { ...r98Opts(c.var.deps, (k) => c.req.query(k)), types: parseTypes(c.req.query("types"), !!c.var.deps.config.searchR98), limit: limitOf(c.req.query("limit")) }));
     });
 }
