@@ -61,6 +61,8 @@ describe("R53 whats-new list", () => {
 
   it("keeps What's new itself; R55 pruned the entries nobody can see (they stay in CHANGELOG.md)", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-10-28-whats-new")).toBe(true);
+    // R125: "Share dashboards, email reports" (the oldest after What's new itself) made room for Tables in Docs.
+    expect(WHATS_NEW.some((e) => e.id === "2026-11-01-dashboards-plus")).toBe(false);
     // R69: the list stays at 14, so the oldest entry after What's new itself ("Tell the command menu what to do") made room.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-28-command-menu-actions")).toBe(false);
     // R85: the oldest after What's new itself made room for Inbox tabs, labels and mail rules.
@@ -126,7 +128,9 @@ describe("R53 whats-new list", () => {
     // R110: Ask joined, so the oldest after What's new itself (Help center) made room. R105: invoices and quotes joined at the top and "2026-11-01-notification-centre" made room; both stay in CHANGELOG.md.
     // R92: booking plus joined at the top; "2026-11-01-dashboards-plus", the oldest after What's new itself, made room (it stays in CHANGELOG.md).
     expect(WHATS_NEW.some((e) => e.id === "2026-11-01-dashboards-plus")).toBe(false);
-    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-01-booking-plus", "2026-11-01-invoices", "2026-11-01-ask-workspace", "2026-11-01-contracts", "2026-11-01-tasks-plus", "2026-11-01-newsletters", "2026-11-01-files-plus", "2026-11-01-maps-visits", "2026-11-01-mail-archive", "2026-11-01-docs-plus", "2026-11-01-dav-sync", "2026-11-01-chat-plus", "2026-11-01-client-portals", "2026-10-28-whats-new"]);
+    // R125: tables joined at the top; "2026-11-01-client-portals", the oldest after What's new itself, made room (it stays in CHANGELOG.md).
+    expect(WHATS_NEW.some((e) => e.id === "2026-11-01-client-portals")).toBe(false);
+    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-01-tables", "2026-11-01-booking-plus", "2026-11-01-invoices", "2026-11-01-ask-workspace", "2026-11-01-contracts", "2026-11-01-tasks-plus", "2026-11-01-newsletters", "2026-11-01-files-plus", "2026-11-01-maps-visits", "2026-11-01-mail-archive", "2026-11-01-docs-plus", "2026-11-01-dav-sync", "2026-11-01-chat-plus", "2026-10-28-whats-new"]);
     expect(WHATS_NEW.some((e) => e.id === "2026-11-01-help-center")).toBe(false);
     for (const id of ["2026-10-28-more-safe-retries", "2026-10-28-lighter-mail-sync", "2026-10-28-safe-retries", "2026-10-28-quicker-task-lists", "2026-10-27-steadier-my-work"]) {
       expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);

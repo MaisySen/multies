@@ -192,7 +192,7 @@ export function TableDoc({ docId }: { docId: string }) {
   const [newView, setNewView] = useState(false);
   const undo = useRef<Undo[]>([]);
   const [undoCount, setUndoCount] = useState(0);
-  const { confirm, dialogs } = useDialogs();
+  const { confirm: ask, dialogs } = useDialogs();
   useEffect(() => { const t = setTimeout(() => setSearch(q.trim()), 250); return () => clearTimeout(t); }, [q]);
   const d = detail.data;
   const view = d?.views.find((v) => v.id === viewId) ?? d?.views[0];
@@ -329,7 +329,7 @@ export function TableDoc({ docId }: { docId: string }) {
             {canEdit && <Button variant="ghost" size="sm" onClick={() => void runUndo()} disabled={!undoCount} aria-label="Undo the last change" title="Undo (Ctrl Z)" data-testid="undo"><IconUndo className="h-4 w-4" /></Button>}
             {canEdit && <Button variant="ghost" size="sm" onClick={() => setImporting(true)} aria-label="Import a CSV file"><IconUpload className="h-4 w-4" /></Button>}
             <a className="inline-flex min-h-[36px] items-center rounded-lg px-2 text-muted hover:bg-hover" href={`/api/tables/${docId}/export.csv?view=${view.id}`} aria-label="Export as CSV" data-testid="export-csv" download><IconDownload className="h-4 w-4" /></a>
-            {canEdit && d.views.length > 1 && <Button variant="ghost" size="sm" aria-label={`Delete the view ${view.name}`} onClick={() => void confirm({ title: `Delete the view "${view.name}"?`, description: "The rows stay.", confirmLabel: "Delete view", tone: "danger" }).then((ok) => { if (ok) delView.mutate(view.id); })}><IconTrash className="h-4 w-4" /></Button>}
+            {canEdit && d.views.length > 1 && <Button variant="ghost" size="sm" aria-label={`Delete the view ${view.name}`} onClick={() => void ask({ title: `Delete the view "${view.name}"?`, description: "The rows stay.", confirmLabel: "Delete view", tone: "danger" }).then((ok) => { if (ok) delView.mutate(view.id); })}><IconTrash className="h-4 w-4" /></Button>}
             {canEdit && view.type === "grid" && <Button size="sm" onClick={() => addRows.mutate([{}])} disabled={addRows.isPending} data-testid="add-row"><IconPlus className="h-4 w-4" />Row</Button>}
           </div>
         </div>
@@ -1033,7 +1033,7 @@ function FieldDialog({ docId, field, fields, canEdit, onClose, onDone }: { docId
   const [linkFieldId, setLinkFieldId] = useState(field?.config.linkFieldId ?? "");
   const [targetFieldId, setTargetFieldId] = useState(field?.config.targetFieldId ?? "");
   const [formula, setFormula] = useState(field?.config.formula ?? "");
-  const { confirm, dialogs } = useDialogs();
+  const { confirm: ask, dialogs } = useDialogs();
   const tables = useQuery({ queryKey: ["tables-list"], enabled: type === "link", queryFn: () => api.get<{ tables: { id: string; title: string }[] }>("/tables") });
   const linkField = fields.find((f) => f.id === linkFieldId && f.type === "link");
   const target = useQuery({ queryKey: qk(linkField?.config.tableId ?? ""), enabled: type === "lookup" && !!linkField?.config.tableId, queryFn: () => api.get<Detail>(`/tables/${linkField!.config.tableId}`) });
@@ -1063,7 +1063,7 @@ function FieldDialog({ docId, field, fields, canEdit, onClose, onDone }: { docId
   }
   return (
     <Dialog open onClose={onClose} title={field ? "Edit field" : "Add a field"} className="max-w-lg"
-      footer={<>{field && !isPrimary && <Button variant="danger" className="mr-auto" onClick={() => void confirm({ title: `Delete the field "${field.name}"?`, description: "Everything in it goes too.", confirmLabel: "Delete field", tone: "danger" }).then((ok) => { if (ok) del.mutate(); })}>Delete</Button>}
+      footer={<>{field && !isPrimary && <Button variant="danger" className="mr-auto" onClick={() => void ask({ title: `Delete the field "${field.name}"?`, description: "Everything in it goes too.", confirmLabel: "Delete field", tone: "danger" }).then((ok) => { if (ok) del.mutate(); })}>Delete</Button>}
         <Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={() => save.mutate()} disabled={!ready || save.isPending} data-testid="field-save">{field ? "Save" : "Add field"}</Button></>}>
       <div className="space-y-3">
         <div><label className={label13} htmlFor="field-name">Name</label><Input id="field-name" value={name} maxLength={LIMITS.name} onChange={(e) => setName(e.target.value)} autoFocus /></div>
