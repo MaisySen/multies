@@ -7,7 +7,7 @@
  * Every listing is one bounded, indexed query. Sync tokens are stored snapshots of { name: etag }.
  */
 import { inIds } from "../../lib/sql-chunks";
-import { and, asc, desc, eq, gte, inArray, isNull, lt, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lt, ne } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { bookings, companies, contacts, davNames, meetings, davSyncStates, projects, schedulingPages, tasks } from "../../db/schema";
 import { sha256Hex } from "../../lib/crypto";
@@ -92,7 +92,7 @@ export async function entries(deps: Deps, p: DavPrincipal, col: CollectionId): P
     const pageIds = await ownBookingPageIds(deps, p.orgId, p.userId);
     if (!pageIds.length) return [];
     const rows = await deps.db.select({ b: bookings, page: schedulingPages.title }).from(bookings).innerJoin(schedulingPages, eq(schedulingPages.id, bookings.pageId))
-      .where(and(eq(bookings.orgId, p.orgId), inArray(bookings.pageId, pageIds), gte(bookings.startsAt, new Date(from.getTime() - DAY)), lt(bookings.startsAt, to)))
+      .where(and(eq(bookings.orgId, p.orgId), inIds(bookings.pageId, pageIds), gte(bookings.startsAt, new Date(from.getTime() - DAY)), lt(bookings.startsAt, to)))
       .orderBy(asc(bookings.startsAt)).limit(FEED_MAX_ITEMS);
     return rows.map(({ b, page }) => {
       const changed = b.cancelledAt ?? b.createdAt;

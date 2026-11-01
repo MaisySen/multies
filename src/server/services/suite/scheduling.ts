@@ -5,7 +5,8 @@
  * guest link, an .ics file and a confirmation email through system mail. No paid calendar APIs.
  * A booking costs two inserts (meeting and booking); cancelling costs two updates.
  */
-import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
+import { inIds } from "../../lib/sql-chunks";
+import { and, asc, eq, gte, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { bookings, meetings, organizations, schedulingPages, users } from "../../db/schema";
 import { randomToken, sha256Hex } from "../../lib/crypto";
@@ -358,7 +359,7 @@ export async function listBookings(deps: Deps, actor: SuiteActor, q: { upcoming?
   const pageIds = own ? await ownBookingPageIds(deps, actor.orgId, actor.userId) : null;
   if (pageIds && !pageIds.length) return [];
   const rows = await deps.db.select().from(bookings).where(and(
-    eq(bookings.orgId, actor.orgId), pageIds ? inArray(bookings.pageId, pageIds) : undefined, // R115: every own page, not only the first
+    eq(bookings.orgId, actor.orgId), pageIds ? inIds(bookings.pageId, pageIds) : undefined, // R115: every own page, not only the first
     q.upcoming ? gte(bookings.startsAt, new Date(deps.now().getTime() - 3600_000)) : undefined, q.status ? eq(bookings.status, q.status) : undefined,
   )).orderBy(asc(bookings.startsAt)).limit(Math.min(q.limit ?? 100, 500));
   return rows.map((b) => presentBooking(b, deps.config.appUrl));
