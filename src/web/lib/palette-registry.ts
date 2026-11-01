@@ -9,9 +9,9 @@ export type PaletteIcon = React.ComponentType<{ className?: string }>;
  * R59: `flag` names a server switch from /api/config; the page is offered only while it is on.
  * Tools P2: `toolFeature` also needs one of these P2 features in /api/config toolFeatures.
  */
-export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices"; toolFeature?: string[] }
+export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices" | "expenses"; toolFeature?: string[] }
 export type PaletteActionKind = "navigate" | "shortcuts" | "theme" | "external";
-export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices"; toolFeature?: string[] }
+export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "invoices" | "expenses"; toolFeature?: string[] }
 
 export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-my-work", label: "My Work", to: "/app/my-work", icon: IconToday, keywords: ["today", "due", "home", "mentions"] },
@@ -62,6 +62,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-visits", label: "Plan visits", to: "/app/contacts?tab=visits", icon: IconMapPin, keywords: ["map", "route", "directions", "visits", "address", "round", "trip"], flag: "maps" },
   // R105: invoices and quotes in the Contacts area (INVOICES_ENABLED).
   { id: "p-invoices", label: "Invoices", to: "/app/contacts/invoices", icon: IconReceipt, keywords: ["invoice", "tax invoice", "bill", "gst", "bas", "payments", "owed", "receivables", "credit note", "items"], flag: "invoices" },
+  { id: "p-expenses", label: "Expenses", to: "/app/contacts/invoices?tab=expenses", icon: IconReceipt, keywords: ["expense", "receipt", "receipts", "reimburse", "claim", "gst credit", "subscriptions"], flag: "expenses" }, // R106
   { id: "p-quotes", label: "Quotes", to: "/app/contacts/invoices?tab=quotes", icon: IconReceipt, keywords: ["quote", "estimate", "proposal", "price"], flag: "invoices" },
   { id: "p-new-invoice", label: "New invoice", to: "/app/contacts/invoices?new=invoice", icon: IconReceipt, keywords: ["create invoice", "bill a customer"], flag: "invoices" },
   { id: "p-new-quote", label: "New quote", to: "/app/contacts/invoices?new=quote", icon: IconReceipt, keywords: ["create quote", "estimate"], flag: "invoices" },

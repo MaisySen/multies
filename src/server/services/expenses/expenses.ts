@@ -28,6 +28,7 @@ const isAdmin = (a: Actor) => a.role === "owner" || a.role === "admin";
 export const DAILY_RECEIPTS = 100; // per person per day, all sources
 export const MAIL_RECEIPTS_MAX = 5; // attachments taken from one mail
 const PAGE = 50;
+const parseList = <T>(s: string, fallback: T): T => { try { return JSON.parse(s) as T; } catch { return fallback; } };
 
 // ---------------------------------------------------------------- access
 
@@ -46,8 +47,7 @@ export async function excludedOrg(deps: Deps, orgId: string): Promise<boolean> {
 export interface Settings { receiptsToken: string | null; approverIds: string[]; requireApproval: boolean }
 export async function getSettings(deps: Deps, orgId: string): Promise<Settings> {
   const s = await deps.db.select().from(expenseSettings).where(eq(expenseSettings.orgId, orgId)).get();
-  let ids: string[] = [];
-  try { ids = s ? (JSON.parse(s.approverIds) as string[]).filter((x) => typeof x === "string") : []; } catch { ids = []; }
+  const ids = s ? parseList<unknown[]>(s.approverIds, []).filter((x): x is string => typeof x === "string") : [];
   return { receiptsToken: s?.receiptsToken ?? null, approverIds: ids, requireApproval: s?.requireApproval ?? true };
 }
 
@@ -107,7 +107,6 @@ async function rowFor(deps: Deps, a: Actor, id: string, s?: Settings): Promise<{
 
 // ---------------------------------------------------------------- presenting
 
-const parseList = <T>(s: string, fallback: T): T => { try { return JSON.parse(s) as T; } catch { return fallback; } };
 
 export function present(r: Row, a: Actor, approver: boolean) {
   const splits = parseList<Split[]>(r.splits, []);

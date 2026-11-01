@@ -183,6 +183,7 @@ BOOKING_PLUS = "true" # R92: resources, time polls, free events (on after verifi
 DASHBOARDS_PLUS = "on" # R91: public links, emailed reports, question builder, alerts, data sources
 CLIENT_PORTAL = "on" # R120: client portals, verifier v7 PASS WITH BUGS 23:42 UTC Oct 31
 INVOICES_ENABLED = "true" # R105: on in production after verifier v15 PASS WITH BUGS 11:47 UTC
+EXPENSES_R106 = "off" # R106: expenses and receipts; on after the verifier passes
 # The app's public address. The workers.dev address keeps working (same Worker, same data);
 # www.multies.si redirects to the apex and app.multies.si serves the app too.
 APP_URL = "https://multies.si"
@@ -375,6 +376,7 @@ VAPID_PUBLIC_KEY = "BF_cIsJn0Z-3EUSVQQMet8dFzCp6t0v_1CqHoFoM9rMO7GAU76vlb0p_06bm
 SCHEDULING_ENABLED = "true"
 INVOICES_ENABLED = "true" # R105: invoices and quotes on staging
 BOOKING_PLUS = "true" # R92: resources, time polls, free events (staging; prod after verifier PASS)
+EXPENSES_R106 = "on" # R106: expenses and receipts on staging
 APP_MODE = "production"
 APP_URL = "https://preview.multies.si"
 NOINDEX = "true"

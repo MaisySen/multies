@@ -24,8 +24,8 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
     id: "2026-11-01-invoices",
     date: "2026-11-01",
-    title: "Invoices and quotes",
-    body: "Send quotes customers can accept online, turn them into invoices in one click, and send tax invoices with your ABN and GST shown, a link to the PDF and your bank details. Record payments, credit notes, repeating invoices and bills, and see what you are owed and the GST for your BAS. Find it in Contacts > Invoices.",
+    title: "Invoices, quotes and expenses",
+    body: "Send quotes customers can accept online, turn them into invoices in one click, and send tax invoices with your ABN and GST shown, a link to the PDF and your bank details. Record payments, credit notes, repeating invoices, bills and expenses (snap or forward a receipt and it is read, checked for GST and sent for approval), and see what you are owed and the GST for your BAS. Find it all in Contacts > Invoices.",
   },
   {
     id: "2026-11-01-ask-workspace",

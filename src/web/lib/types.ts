@@ -74,6 +74,8 @@ export interface PublicConfig {
   maps?: boolean;
   /** R105: invoices and quotes (INVOICES_ENABLED). */
   invoices?: boolean;
+  /** R106: expenses and receipts. */
+  expenses?: boolean;
   mxHosts: { host: string; priority: number }[];
   plans: Plan[];
   sentry: { dsn: string; environment: string; release?: string; tracesSampleRate?: number } | null;

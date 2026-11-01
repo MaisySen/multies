@@ -19,6 +19,7 @@ import { ConfirmDialog } from "@/web/components/ui/confirm";
 import { DateInput, Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { Badge, Card, EmptyState, PageHeader, Skeleton, Switch, tableStyles } from "@/web/components/ui/misc";
 import { useConfig } from "@/web/lib/queries";
+import { ExpensesTab, useExpensesOn } from "./expenses-r106"; // R106
 import { cn } from "@/web/lib/cn";
 import {
   CURRENCIES, PAYMENT_METHODS, abnValid, bsbValid, accountValid, centsText, docTotals, formatAbn, formatBsb, money, parseMoney, parseQty, qtyText,
@@ -50,15 +51,16 @@ interface DocFull extends DocRow {
 interface Item { id: string; name: string; description: string; unitCents: number; gstFree: boolean }
 interface Supplier { id: string; name: string; abn: string | null; email: string | null }
 
-const TABS = [
+const ALL_TABS = [
   { id: "invoices", label: "Invoices", kind: "invoice" as DocKind },
   { id: "quotes", label: "Quotes", kind: "quote" as DocKind },
   { id: "credits", label: "Credit notes", kind: "credit_note" as DocKind },
   { id: "bills", label: "Bills", kind: "bill" as DocKind },
+  { id: "expenses", label: "Expenses" }, // R106, only with the expenses flag
   { id: "items", label: "Items" },
   { id: "reports", label: "Reports" },
 ] as const;
-type TabId = (typeof TABS)[number]["id"];
+type TabId = (typeof ALL_TABS)[number]["id"];
 
 const STATE_LABEL: Record<string, string> = { draft: "Draft", unpaid: "Unpaid", part_paid: "Part paid", paid: "Paid", overdue: "Overdue", void: "Void", issued: "Sent", accepted: "Accepted", declined: "Declined" };
 const STATE_TONE: Record<string, "neutral" | "ok" | "warn" | "bad" | "brand"> = { draft: "neutral", unpaid: "brand", part_paid: "warn", paid: "ok", overdue: "bad", void: "neutral", issued: "brand", accepted: "ok", declined: "bad" };
@@ -80,6 +82,8 @@ function useSettings() {
 // ---------- the area page ----------
 export function InvoicesPage() {
   const [params, setParams] = useSearchParams();
+  const expensesOn = useExpensesOn(); // R106
+  const TABS = ALL_TABS.filter((t) => t.id !== "expenses" || expensesOn);
   const tab = (TABS.find((t) => t.id === params.get("tab"))?.id ?? "invoices") as TabId;
   const settings = useSettings();
   const [setup, setSetup] = useState(false);
@@ -107,7 +111,7 @@ export function InvoicesPage() {
           {kindTab && <NewDocButton kind={kindTab.kind} />}
         </>}
       />
-      {settings.data && !settings.data.settings.ready && (
+      {settings.data && !settings.data.settings.ready && tab !== "expenses" && (
         <Card className="mb-4 flex flex-wrap items-center gap-3 border-warn/40 p-4" role="status">
           <IconWarning className="h-5 w-5 shrink-0 text-warn" aria-hidden />
           <p className="min-w-0 flex-1 text-sm">{canManage ? "Add your business name and ABN before you issue your first tax invoice." : "An admin needs to add the business name and ABN before invoices can be issued. You can still make drafts."}</p>
@@ -127,7 +131,7 @@ export function InvoicesPage() {
         ))}
       </div>
       <div role="tabpanel" id={`inv-panel-${tab}`} aria-labelledby={`inv-tab-${tab}`}>
-        {kindTab ? <DocList key={kindTab.kind} kind={kindTab.kind} /> : tab === "items" ? <ItemsTab canManage={canManage} /> : <ReportsTab />}
+        {kindTab ? <DocList key={kindTab.kind} kind={kindTab.kind} /> : tab === "expenses" ? <ExpensesTab /> : tab === "items" ? <ItemsTab canManage={canManage} /> : <ReportsTab />}
       </div>
       {setup && settings.data && <SettingsDialog initial={settings.data.settings} onClose={() => setSetup(false)} />}
     </div>
