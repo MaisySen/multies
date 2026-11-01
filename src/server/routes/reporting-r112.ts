@@ -40,7 +40,7 @@ async function readWithFiles<T extends z.ZodTypeAny>(c: Context<AppEnv>, schema:
   const type = c.req.header("content-type") ?? "";
   if (!type.startsWith("multipart/form-data")) return { body: (await parseBody(c, schema)) as z.infer<T>, files: [] };
   const form = await c.req.parseBody({ all: true });
-  let raw: unknown = {};
+  let raw: unknown;
   try { raw = JSON.parse(typeof form.data === "string" ? form.data : "{}"); } catch { throw new HttpError(422, "validation_failed", "The form could not be read."); }
   const parsed = schema.safeParse(raw);
   if (!parsed.success) throw new HttpError(422, "validation_failed", "Some fields are not valid.");

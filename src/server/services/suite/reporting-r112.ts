@@ -137,6 +137,7 @@ function checkFiles(files: UploadFile[], already: number) {
   if (already + files.length > L.filesPerCase) throw new HttpError(422, "too_many_files", `A report can hold up to ${L.filesPerCase} files.`);
   for (const f of files) if (f.bytes.length > L.fileBytes) throw new HttpError(413, "file_too_large", `Files can be up to ${Math.round(L.fileBytes / (1024 * 1024))} MB here.`);
 }
+// eslint-disable-next-line no-control-regex -- strip control characters from a file name
 const cleanName = (n: string) => n.replace(/[\\/\u0000-\u001f]/g, "").trim().slice(0, 160) || "file";
 
 async function saveFiles(deps: Deps, orgId: string, caseId: string, files: UploadFile[], t: number): Promise<ReportFileView[]> {

@@ -45,6 +45,7 @@ async function pub(method: string, path: string, body?: unknown, cookie = "") {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await res.text();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test helper reads any JSON body
   let json: any = null; try { json = JSON.parse(text); } catch { /* binary */ }
   return { status: res.status, body: json, headers: res.headers };
 }
