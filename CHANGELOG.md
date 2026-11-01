@@ -28,6 +28,11 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Staging only test network (SOCIAL_TEST_NETWORK, refused on multies.si) for end to end checks. Flag SOCIAL_P2B. Migration 0122.
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 109 (1 Nov 2026)
+
+- Mail merge, newsletters and journeys in Tools > Merge, behind merge_plus_r109: lists with a consent record per person (express, or inferred only where the list allows it), signup page with double opt in, block editor with merge fields, fallbacks and the workspace brand, test send, send now or schedule, private open and click counts, bounces and complaints, and journeys (a simple step list on the jobs queue with waits in the list's time zone and "only if they didn't open").
+- Spam Act: sender name and address in every email, List-Unsubscribe and List-Unsubscribe-Post headers plus a footer link, unsubscribes honoured at once across every list and never re-added by import, sending within the workspace's daily mail limit. Staging bulk mail goes only to the QA mailbox and fails closed. The public unsubscribe and signup pages have their own tight policy so their forms post.
+
 ### Round 115 (1 Nov 2026)
 
 - Maps (flag MAPS_R115): an address card on contacts, companies and the booking page with search as you type, a map pin (free OpenFreeMap tiles) and directions in Apple Maps or Google Maps; an address can also be saved as typed.

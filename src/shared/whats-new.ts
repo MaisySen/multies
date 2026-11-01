@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-newsletters",
+    date: "2026-11-01",
+    title: "Newsletters and welcome emails in Merge",
+    body: "Tools > Merge now has Newsletters, Lists and Journeys: build a list with each person's consent, write from blocks with merge fields and a live preview, then send, schedule or start a welcome series. Every email has a one click unsubscribe that works across all your lists.",
+  },
+  {
     id: "2026-11-01-maps-visits",
     date: "2026-11-01",
     title: "Addresses, maps and a day of visits",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "A timeline for every contact and company",
     body: "Each contact and company now has one timeline of email, meetings, bookings, forms, deals and tasks, and you can log a note, call or meeting and set the next step. Add companies by hand, import contacts from a CSV file without doubles, and save filters as segments. Deals show a chance to win, why they were won or lost, and a weighted forecast.",
-  },
-  {
-    id: "2026-10-31-social-planner-library",
-    date: "2026-10-31",
-    title: "Social: plan, reply and see results",
-    body: "Social has an Inbox for comments, messages and mentions from every account, with assigning, saved replies and notes, and Analytics with reach, clicks and your best times to post. Pick a format, give each network its own text and see a live preview before you send, now with TikTok videos and Threads posts in the same composer. The Planner has week, month and list views, weekly time slots to fill and drag to move, members can send posts for approval in Home, Approvals, and Library keeps images, captions and hashtag sets by campaign.",
   },
   {
     id: "2026-10-28-whats-new",

@@ -115,12 +115,11 @@ describe("R53 whats-new list", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-10-31-tools-round-b")).toBe(false);
     // R103: the oldest after What's new itself (2026-10-31-links) made room for the link library, comments and spelling.
     // R111: Archive and retention took the place of the oldest after What's new itself ("2026-10-31-docs-visual"); it stays in CHANGELOG.md.
-    expect(WHATS_NEW.some((e) => e.id === "2026-10-31-docs-visual")).toBe(false);
     // R115: "2026-10-31-secure-share" (the oldest after What's new itself) made room for maps and visits.
-    expect(WHATS_NEW.some((e) => e.id === "2026-10-31-secure-share")).toBe(false);
     // R115 (rebased on R111): "2026-10-31-automation-flows" (the oldest after What's new itself) made room for maps and visits; it stays in CHANGELOG.md.
-    expect(WHATS_NEW.some((e) => e.id === "2026-10-31-automation-flows")).toBe(false);
-    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-01-maps-visits", "2026-11-01-mail-archive", "2026-11-01-docs-plus", "2026-11-01-dav-sync", "2026-11-01-chat-plus", "2026-11-01-client-portals", "2026-11-01-dashboards-plus", "2026-11-01-notification-centre", "2026-11-01-help-center", "2026-10-31-esign-v2", "2026-10-31-tools-round-c", "2026-10-31-crm-timeline", "2026-10-31-social-planner-library", "2026-10-28-whats-new"]);
+    // R109: newsletters joined at the top; "Social planner library", the oldest after What's new itself, made room; it stays in CHANGELOG.md.
+    for (const gone of ["2026-10-31-docs-visual", "2026-10-31-secure-share", "2026-10-31-automation-flows", "2026-10-31-social-planner-library"]) expect(WHATS_NEW.some((e) => e.id === gone), gone).toBe(false);
+    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-01-newsletters", "2026-11-01-maps-visits", "2026-11-01-mail-archive", "2026-11-01-docs-plus", "2026-11-01-dav-sync", "2026-11-01-chat-plus", "2026-11-01-client-portals", "2026-11-01-dashboards-plus", "2026-11-01-notification-centre", "2026-11-01-help-center", "2026-10-31-esign-v2", "2026-10-31-tools-round-c", "2026-10-31-crm-timeline", "2026-10-28-whats-new"]);
     for (const id of ["2026-10-28-more-safe-retries", "2026-10-28-lighter-mail-sync", "2026-10-28-safe-retries", "2026-10-28-quicker-task-lists", "2026-10-27-steadier-my-work"]) {
       expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);
     }
