@@ -4,13 +4,14 @@
  * Owners, admins and the site's editors build, publish and moderate; members see published pages and the drafts an editor
  * shared with them; nothing is read across workspaces (every query carries the workspace id).
  */
-import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../context";
 import { runBatch } from "../db";
 import { forms, members, organizations, schedulingPages, siteComments, sitePageStats, sitePageVersions, sitePages, sites, users } from "../db/schema";
 import { hmacSha256Hex, newId } from "../lib/crypto";
 import { HttpError, badRequest, conflict, forbidden, notFound } from "../lib/errors";
 import { IsolateCache } from "../lib/isolate-cache";
+import { inIds } from "../lib/sql-chunks";
 import { getBrand } from "../routes/branding";
 import {
   BlockError, MAX_COMMENT, MAX_DESCRIPTION, MAX_PAGES, MAX_TITLE, MAX_VERSIONS, cleanBlocks, newBlock, pageSlugProblem, safeImageUrl, siteSlugProblem, slugify, statusOf,
@@ -138,7 +139,7 @@ export async function updateSite(deps: Deps, a: AuthContext, patch: { name?: str
   if (patch.editors !== undefined) {
     if (!isAdmin(a)) throw forbidden("Only admins can choose site editors.");
     const ids = [...new Set(patch.editors.map(String))].slice(0, 50);
-    const ok = ids.length ? await deps.db.select({ id: members.userId }).from(members).where(and(eq(members.organizationId, a.orgId), inArray(members.userId, ids))).all() : [];
+    const ok = ids.length ? await deps.db.select({ id: members.userId }).from(members).where(and(eq(members.organizationId, a.orgId), inIds(members.userId, ids))).all() : [];
     set.editors = JSON.stringify(ok.map((r) => r.id));
   }
   if (patch.homePageId !== undefined) { await pageOf(deps, a, patch.homePageId); set.homePageId = patch.homePageId; }
@@ -262,7 +263,7 @@ const snapshotOf = (p: PageRow): Snapshot => ({ title: p.title, blocks: parse<Bl
 async function addVersion(deps: Deps, a: AuthContext, p: PageRow, kind: "saved" | "published", at = nowMs(deps)) {
   await deps.db.insert(sitePageVersions).values({ id: newId("spv"), orgId: a.orgId, pageId: p.id, kind, snapshot: JSON.stringify(snapshotOf(p)), createdBy: a.userId, createdAt: at });
   const old = await deps.db.select({ id: sitePageVersions.id }).from(sitePageVersions).where(eq(sitePageVersions.pageId, p.id)).orderBy(desc(sitePageVersions.createdAt)).limit(50).offset(MAX_VERSIONS).all();
-  if (old.length) await deps.db.delete(sitePageVersions).where(inArray(sitePageVersions.id, old.map((o) => o.id)));
+  if (old.length) await deps.db.delete(sitePageVersions).where(inIds(sitePageVersions.id, old.map((o) => o.id)));
 }
 
 /** Publishes the draft now, or schedules it (at, in ms, in the future). The page stays as it is for visitors until then. */
@@ -494,5 +495,3 @@ export async function flushViews(deps: Deps): Promise<void> {
   try { await runBatch(deps.db, stmts); } catch (e) { (deps.log ?? console).error?.("[sites] view flush failed", { error: String((e as Error)?.message ?? e), rows: rows.length }); }
 }
 export const pendingViewCount = () => pendingViews.size;
-// keep imports used by type only checks quiet
-void lt;

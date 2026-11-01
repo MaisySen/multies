@@ -61,7 +61,7 @@ export function siteSlugProblem(slug: string): string | null {
 /** A link target people may use: https, http, mailto or a path on this site. Anything else (javascript:, data:) is null. */
 export function safeUrl(raw: string, opts: { allowMailto?: boolean; allowPath?: boolean } = { allowMailto: true, allowPath: true }): string | null {
   const s = String(raw ?? "").trim();
-  if (!s || s.length > MAX_URL || /[\u0000-\u001f\s]/.test(s)) return null;
+  if (!s || s.length > MAX_URL || /\s/.test(s) || [...s].some((ch) => ch.charCodeAt(0) < 32)) return null;
   if (opts.allowPath !== false && s.startsWith("/") && !s.startsWith("//") && !s.startsWith("/\\")) return s;
   if (opts.allowMailto !== false && /^mailto:[^@\s]+@[^@\s]+$/i.test(s)) return s;
   try {
