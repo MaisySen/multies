@@ -1,5 +1,9 @@
 /** Booking page settings: weekly hours, slot rules and the public link, plus the bookings guests made. */
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useSearchParams } from "react-router";
+import { ResourcesTab } from "./booking-plus/resources-tab";
+import { PollsTab } from "./booking-plus/polls-tab";
+import { EventsTab } from "./booking-plus/events-tab";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { IconCalendarClock, IconExternalLink } from "@/web/components/ui/icon";
@@ -26,7 +30,7 @@ const localZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC
 const fmt = (s: string) => new Date(s).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 const WEEKDAYS: [string, string] = ["09:00", "17:00"];
 
-export function SchedulingPage() {
+function BookingPageTab({ embedded = false }: { embedded?: boolean }) {
   const { confirm, dialogs } = useDialogs();
   const config = useConfig();
   const qc = useQueryClient();
@@ -80,7 +84,7 @@ export function SchedulingPage() {
   return (
     <div className="max-w-4xl space-y-6">
       {dialogs}
-      <PageHeader title="Booking page" description="Share a link so clients and partners can pick a time that suits you. Bookings become meetings with a video link." />
+      {!embedded && <PageHeader title="Booking page" description="Share a link so clients and partners can pick a time that suits you. Bookings become meetings with a video link." />}
       {url && (
         <Card className="flex flex-wrap items-center gap-3 p-4">
           <div className="min-w-0 flex-1">
@@ -162,6 +166,48 @@ export function SchedulingPage() {
           </Card>
         )}
       </section>
+    </div>
+  );
+}
+
+/* R92 Booking plus: with BOOKING_PLUS on, this page gains tabs (the tab lives in ?tab= so links and Back work). */
+
+type BookingTab = "page" | "resources" | "polls" | "events";
+const BOOKING_TABS: { id: BookingTab; label: string; line: string }[] = [
+  { id: "page", label: "Booking page", line: "Share a link so clients and partners can pick a time that suits you." },
+  { id: "resources", label: "Resources", line: "Book rooms, desks, vehicles and equipment, with rules your admins set." },
+  { id: "polls", label: "Time polls", line: "Find a time that suits a group. People vote without an account." },
+  { id: "events", label: "Events", line: "Free events with QR tickets, a waitlist and check in at the door." },
+];
+
+export function SchedulingPage() {
+  const config = useConfig();
+  const [params, setParams] = useSearchParams();
+  const refs = useRef<Record<string, HTMLButtonElement | null>>({});
+  if (!config.data?.bookingPlus) return <BookingPageTab />;
+  const asked = params.get("tab") as BookingTab | null;
+  const active: BookingTab = BOOKING_TABS.find((t) => t.id === asked)?.id ?? "page";
+  const pick = (id: BookingTab) => setParams((p) => { const n = new URLSearchParams(p); if (id === "page") n.delete("tab"); else n.set("tab", id); return n; }, { replace: true });
+  const onKey = (e: KeyboardEvent) => {
+    const i = BOOKING_TABS.findIndex((t) => t.id === active);
+    const n = BOOKING_TABS.length;
+    const next = e.key === "ArrowRight" ? BOOKING_TABS[(i + 1) % n] : e.key === "ArrowLeft" ? BOOKING_TABS[(i - 1 + n) % n] : e.key === "Home" ? BOOKING_TABS[0] : e.key === "End" ? BOOKING_TABS[n - 1] : null;
+    if (!next) return;
+    e.preventDefault(); pick(next.id); refs.current[next.id]?.focus();
+  };
+  return (
+    <div className="space-y-5">
+      <PageHeader title="Booking" description={BOOKING_TABS.find((t) => t.id === active)!.line} />
+      <div role="tablist" aria-label="Booking" onKeyDown={onKey} className="-mx-1 flex gap-1 overflow-x-auto border-b border-line px-1" data-testid="booking-tabs">
+        {BOOKING_TABS.map((t) => (
+          <button key={t.id} ref={(el) => { refs.current[t.id] = el; }} type="button" role="tab" id={`booking-tab-${t.id}`} aria-selected={active === t.id} aria-controls={`booking-panel-${t.id}`} tabIndex={active === t.id ? 0 : -1}
+            onClick={() => pick(t.id)}
+            className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-[14px] font-medium outline-none transition-colors duration-150 focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-11 ${active === t.id ? "border-brand text-fg" : "border-transparent text-muted hover:text-fg"}`}>{t.label}</button>
+        ))}
+      </div>
+      <div role="tabpanel" id={`booking-panel-${active}`} aria-labelledby={`booking-tab-${active}`}>
+        {active === "resources" ? <ResourcesTab /> : active === "polls" ? <PollsTab /> : active === "events" ? <EventsTab /> : <BookingPageTab embedded />}
+      </div>
     </div>
   );
 }

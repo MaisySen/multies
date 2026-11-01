@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-booking-plus",
+    date: "2026-11-01",
+    title: "Book rooms, find a time together, run free events",
+    body: "In Booking, new tabs let you book rooms, desks, vehicles and equipment on a day grid, with rules your admins set and QR check in. Time polls find a time that suits a group, and people answer without an account. Free events get a page, QR tickets by email, a waitlist and check in at the door from your phone.",
+  },
+  {
     id: "2026-11-01-invoices",
     date: "2026-11-01",
     title: "Invoices and quotes",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Client portals for the people you work with",
     body: "In Contacts, Client portals gives each client a private space they open from an email link, no password needed. Share files, docs and task updates, ask them for files, and message back and forth. Each client only ever sees their own space.",
-  },
-  {
-    id: "2026-11-01-dashboards-plus",
-    date: "2026-11-01",
-    title: "Share dashboards, email reports, ask your own questions",
-    body: "Share a dashboard by link, with an expiry and an optional password, so clients see the numbers without an account. Email it daily, weekly or monthly with a PDF. Build your own card from tasks, deals, form responses, bookings, time, mail or a CSV, and get an alert once when a number crosses a line.",
   },
   {
     id: "2026-10-28-whats-new",

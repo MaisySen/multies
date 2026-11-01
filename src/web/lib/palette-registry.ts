@@ -26,6 +26,9 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-save-page", label: "Save a web page", to: "/app/docs/links?save=page", icon: IconDocs, keywords: ["clip", "clipper", "web clip", "save page", "archive", "snapshot", "pdf"], flag: "docsPlus" }, // R103
   { id: "p-meetings", label: "Meetings", to: "/app/meetings", icon: IconVideo, keywords: ["calls", "video", "calendar"] },
   { id: "p-scheduling", label: "Booking page", to: "/app/scheduling", icon: IconCalendarClock, keywords: ["scheduling", "book", "calendar link"] },
+  { id: "p-booking-resources", label: "Book a room or desk", to: "/app/scheduling?tab=resources", icon: IconCalendarClock, keywords: ["resources", "room", "desk", "vehicle", "equipment"] }, // R92
+  { id: "p-booking-polls", label: "Time polls", to: "/app/scheduling?tab=polls", icon: IconCalendarClock, keywords: ["poll", "find a time", "vote"] }, // R92
+  { id: "p-booking-events", label: "Events and tickets", to: "/app/scheduling?tab=events", icon: IconCalendarClock, keywords: ["event", "rsvp", "ticket", "check in"] }, // R92
   // Tools P1: shown only when the server has Tools on (flag "tools").
   { id: "p-tools", label: "Tools", to: "/app/tools", icon: IconWrench, keywords: ["pdf", "compress", "merge", "convert", "documents", "word to pdf"], flag: "tools" },
   { id: "p-tools-convert", label: "Convert files", to: "/app/tools/convert", icon: IconWrench, keywords: ["convert", "heic", "webp", "avif", "png", "jpg", "image to pdf", "csv to excel", "excel to csv", "split pdf", "rotate pdf", "page numbers"], flag: "tools" }, // R78

@@ -3877,3 +3877,129 @@ export const invoiceRepeats = sqliteTable("invoice_repeats", {
   createdBy: text("created_by").notNull(),
   createdAt: createdAt(),
 }, (t) => [index("invoice_repeats_due_idx").on(t.active, t.nextRun), index("invoice_repeats_org_idx").on(t.orgId)]);
+/* R92 Booking plus: resources, time polls, free events with QR tickets, and the spam shield's spent challenges. */
+
+/** A bookable room, desk, vehicle or piece of equipment with its booking rules. */
+export const bookingResources = sqliteTable("booking_resources", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  kind: text("kind", { enum: ["room", "desk", "vehicle", "equipment"] }).notNull().default("room"),
+  location: text("location").notNull().default(""),
+  description: text("description").notNull().default(""),
+  capacity: integer("capacity"),
+  timezone: text("timezone").notNull(),
+  /** JSON list of open days, e.g. ["mon","tue"]. */
+  days: text("days").notNull(),
+  openFrom: text("open_from").notNull().default("08:00"),
+  openTo: text("open_to").notNull().default("18:00"),
+  stepMin: integer("step_min").notNull().default(30),
+  minMin: integer("min_min").notNull().default(30),
+  maxMin: integer("max_min").notNull().default(240),
+  /** Most minutes one member may hold in a week (Monday start), null for no limit. */
+  quotaMinWeek: integer("quota_min_week"),
+  needsApproval: integer("needs_approval", { mode: "boolean" }).notNull().default(false),
+  checkinRequired: integer("checkin_required", { mode: "boolean" }).notNull().default(false),
+  releaseAfterMin: integer("release_after_min").notNull().default(15),
+  checkinKey: text("checkin_key").notNull(),
+  createdBy: text("created_by").notNull(),
+  archivedAt: ts("archived_at"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("booking_resources_org_idx").on(t.orgId)]);
+
+export const resourceBookings = sqliteTable("resource_bookings", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  resourceId: text("resource_id").notNull().references(() => bookingResources.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  userName: text("user_name").notNull().default(""),
+  title: text("title").notNull().default(""),
+  startsAt: ts("starts_at").notNull(),
+  endsAt: ts("ends_at").notNull(),
+  status: text("status", { enum: ["pending", "confirmed", "declined", "cancelled", "released"] }).notNull().default("confirmed"),
+  checkedInAt: ts("checked_in_at"),
+  decidedBy: text("decided_by"),
+  decidedAt: ts("decided_at"),
+  createdAt: createdAt(),
+}, (t) => [index("resource_bookings_res_idx").on(t.resourceId, t.startsAt), index("resource_bookings_org_idx").on(t.orgId, t.status, t.startsAt), index("resource_bookings_user_idx").on(t.orgId, t.userId, t.startsAt)]);
+
+/** A group time poll: guests vote on proposed times without an account; the host picks the winner. */
+export const timePolls = sqliteTable("time_polls", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  createdBy: text("created_by").notNull(),
+  token: text("token").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  location: text("location").notNull().default(""),
+  durationMin: integer("duration_min").notNull().default(30),
+  timezone: text("timezone").notNull(),
+  video: integer("video", { mode: "boolean" }).notNull().default(true),
+  status: text("status", { enum: ["open", "closed"] }).notNull().default("open"),
+  winnerOptionId: text("winner_option_id"),
+  meetingId: text("meeting_id"),
+  deadlineAt: ts("deadline_at"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [uniqueIndex("time_polls_token_uq").on(t.token), index("time_polls_org_idx").on(t.orgId, t.createdAt)]);
+
+export const timePollOptions = sqliteTable("time_poll_options", {
+  id: text("id").primaryKey(),
+  pollId: text("poll_id").notNull().references(() => timePolls.id, { onDelete: "cascade" }),
+  startsAt: ts("starts_at").notNull(),
+}, (t) => [index("time_poll_options_poll_idx").on(t.pollId, t.startsAt)]);
+
+export const timePollVotes = sqliteTable("time_poll_votes", {
+  id: text("id").primaryKey(),
+  pollId: text("poll_id").notNull().references(() => timePolls.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  email: text("email").notNull().default(""),
+  /** JSON { optionId: "yes" | "maybe" | "no" }. */
+  answers: text("answers").notNull(),
+  editTokenHash: text("edit_token_hash").notNull(),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("time_poll_votes_poll_idx").on(t.pollId, t.createdAt)]);
+
+/** A free event with RSVP tickets, capacity and a waitlist. Paid tickets are held. */
+export const bookingEvents = sqliteTable("booking_events", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  createdBy: text("created_by").notNull(),
+  slug: text("slug").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  location: text("location").notNull().default(""),
+  onlineUrl: text("online_url").notNull().default(""),
+  startsAt: ts("starts_at").notNull(),
+  endsAt: ts("ends_at").notNull(),
+  timezone: text("timezone").notNull(),
+  capacity: integer("capacity"),
+  waitlist: integer("waitlist", { mode: "boolean" }).notNull().default(true),
+  status: text("status", { enum: ["draft", "published", "cancelled"] }).notNull().default("draft"),
+  goingCount: integer("going_count").notNull().default(0),
+  waitlistCount: integer("waitlist_count").notNull().default(0),
+  checkedInCount: integer("checked_in_count").notNull().default(0),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [uniqueIndex("booking_events_slug_uq").on(t.slug), index("booking_events_org_idx").on(t.orgId, t.startsAt)]);
+
+export const eventTickets = sqliteTable("event_tickets", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").notNull().references(() => bookingEvents.id, { onDelete: "cascade" }),
+  orgId: text("org_id").notNull(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  status: text("status", { enum: ["going", "waitlist", "cancelled"] }).notNull(),
+  codeHash: text("code_hash").notNull(),
+  checkedInAt: ts("checked_in_at"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [uniqueIndex("event_tickets_email_uq").on(t.eventId, t.email), index("event_tickets_code_idx").on(t.eventId, t.codeHash), index("event_tickets_status_idx").on(t.eventId, t.status, t.createdAt)]);
+
+/** Spam shield challenges already used once (kept until they expire). */
+export const shieldSpent = sqliteTable("shield_spent", {
+  id: text("id").primaryKey(),
+  expiresAt: integer("expires_at").notNull(),
+}, (t) => [index("shield_spent_exp_idx").on(t.expiresAt)]);

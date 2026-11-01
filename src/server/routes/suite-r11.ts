@@ -16,6 +16,8 @@ import {
 import {
   bookSlot, bookingIcs, cancelByGuest, cancelByHost, getMyPage, guestBooking, listBookingsPage, publicAvailability, savePage, schedulingEnabled,
 } from "../services/suite/scheduling";
+import { ShieldBody } from "./booking-plus";
+import { requireShield } from "../services/spam-shield";
 import type { SuiteActor } from "../services/suite/common";
 
 const Event = z.string().refine((e) => e === "*" || (WEBHOOK_EVENTS as readonly string[]).includes(e), "Unknown event.");
@@ -32,7 +34,7 @@ export const PageBody = z.object({
   slotMin: z.number().int().optional(), bufferMin: z.number().int().optional(), maxDaysAhead: z.number().int().optional(), minNoticeMin: z.number().int().optional(),
   video: z.boolean().optional(), enabled: z.boolean().optional(),
 });
-export const BookBody = z.object({ startsAt: z.string().max(40), name: z.string().max(120), email: z.string().max(200), note: z.string().max(1000).optional(), timezone: z.string().max(60).optional() });
+export const BookBody = z.object({ startsAt: z.string().max(40), name: z.string().max(120), email: z.string().max(200), note: z.string().max(1000).optional(), timezone: z.string().max(60).optional(), shield: ShieldBody.optional() /* R92 */ });
 export const BookingsQuery = z.object({ upcoming: z.enum(["1", "0", "true", "false"]).optional(), status: z.enum(["confirmed", "cancelled"]).optional(), limit: z.coerce.number().int().min(1).max(500).optional(), cursor: z.string().max(100).optional() });
 
 const actor = (c: Context<AppEnv>) => c.var.auth as unknown as SuiteActor;
@@ -120,7 +122,12 @@ export function bookRoutes() {
       const days = Number(c.req.query("days") ?? "14");
       return c.json(await publicAvailability(c.var.deps, c.req.param("slug"), { from: c.req.query("from"), days: Number.isFinite(days) ? days : 14 }));
     })
-    .post("/:slug", writes, async (c) => c.json(await bookSlot(c.var.deps, c.req.param("slug"), await parseBody(c, BookBody)), 201));
+    .post("/:slug", writes, async (c) => {
+      const b = await parseBody(c, BookBody);
+      // R92: with Booking plus on, the booking page carries the spam shield (signed challenge, proof of work, honeypot).
+      if (c.var.deps.config.bookingPlus) await requireShield(c.var.deps, "book", b.shield);
+      return c.json(await bookSlot(c.var.deps, c.req.param("slug"), b), 201);
+    });
 }
 
 type ParentVars = { deps: AppEnv["Variables"]["deps"]; ip: string; requestId: string; log: AppEnv["Variables"]["log"] };

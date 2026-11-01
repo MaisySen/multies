@@ -152,6 +152,11 @@ const bookPages = () => import("./pages/book");
 const BookingPage = lazyPage(() => bookPages(), "BookingPage");
 const PublicDashboardPage = lazyPage(() => import("./pages/public-dashboard"), "PublicDashboardPage"); // R91
 const BookingCancelPage = lazyPage(() => bookPages(), "BookingCancelPage");
+// R92: public time poll, event and ticket pages (logged out, phone first).
+const bookPlusPages = () => import("./pages/book-plus");
+const PollVotePage = lazyPage(() => bookPlusPages(), "PollVotePage");
+const EventRsvpPage = lazyPage(() => bookPlusPages(), "EventRsvpPage");
+const TicketPage = lazyPage(() => bookPlusPages(), "TicketPage");
 const GoalsPage = lazyPage(() => import("./pages/app/work/goals"), "GoalsPage");
 const ActivityPage = lazyPage(() => import("./pages/app/activity"), "ActivityPage");
 const settings = () => import("./pages/app/settings");
@@ -358,6 +363,9 @@ export const router = createBrowserRouter([
   // Public pages with no site header: a form anyone can fill in, and a meeting guest link.
   { path: "/f/:slug", element: publicPage(<PublicFormPage />), errorElement: <RouteError /> },
   { path: "/m/:token", element: publicPage(<GuestMeetingPage />), errorElement: <RouteError /> },
+  { path: "/book/poll/:token", element: publicPage(<PollVotePage />), errorElement: <RouteError /> },
+  { path: "/book/event/:slug", element: publicPage(<EventRsvpPage />), errorElement: <RouteError /> },
+  { path: "/book/ticket/:id", element: publicPage(<TicketPage />), errorElement: <RouteError /> },
   { path: "/book/:slug", element: publicPage(<BookingPage />), errorElement: <RouteError /> },
   { path: "/i/:token", element: publicPage(<InvoiceViewPage />), errorElement: <RouteError /> }, // R105
   { path: "/dash/:token", element: publicPage(<PublicDashboardPage />), errorElement: <RouteError /> }, // R91: public dashboard link

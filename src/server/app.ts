@@ -42,6 +42,7 @@ import { portalPublicRoutes, portalRoutes } from "./routes/client-portal"; // R1
 import { mailArchiveRoutes } from "./routes/mail-archive-r111"; // R111
 import { requestPublicRoutes, secretPublicRoutes, toolsRequestRoutes, toolsSecretRoutes } from "./routes/secure-share"; // R88 // Tools P2: share links
 import { bioPublicRoutes, linkPublicRoutes, linksRoutes } from "./routes/links"; // R87: Links in Tools
+import { bookingPlusRoutes, bookingPublicRoutes } from "./routes/booking-plus"; // R92
 import { esignPublicRoutes, toolsEsignRoutes } from "./routes/tools-esign"; // Tools P2: e-sign
 import { attachmentIndexRoutes } from "./routes/attachment-index"; // Tools P2: attachment index and smart folders
 import { connectionRoutes } from "./routes/connections";
@@ -438,6 +439,7 @@ export function createApp(deps: Deps) {
       // R110: Ask across the workspace (ASK_R110).
       askR110: !!deps.config.askR110,
       invoices: deps.config.invoicesEnabled, // R105
+      bookingPlus: deps.config.bookingPlus, // R92: resources, time polls, events
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
       chatChannels: deps.config.channels.enabled,
       // R111: mail archive and retention (MAIL_ARCHIVE_R111=on): the Archive and retention pane and Audit log filters.
@@ -493,6 +495,8 @@ export function createApp(deps: Deps) {
   app.route("/api/mail-archive", mailArchiveRoutes()); // R111: mail archive and retention (MAIL_ARCHIVE_R111)
   app.route("/api/tools/secrets", toolsSecretRoutes()); // R88: secret links
   app.route("/api/links", linksRoutes()); // R87: short links, bio pages, go links, link domain
+  app.route("/api/booking", bookingPlusRoutes()); // R92: resources, time polls, events
+  app.route("/api/pub/booking", bookingPublicRoutes()); // R92: public poll, event and ticket API with the spam shield
   app.route("/api/tools/esign", toolsEsignRoutes()); // Tools P2: e-sign
   app.route("/api/tools", toolsRoutes()); // Tools P1: document tools (off unless TOOLS_ENABLED)
   app.route("/api/tools/campaigns", campaignRoutes()); // R109 (flag merge_plus_r109)

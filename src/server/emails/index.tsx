@@ -53,6 +53,17 @@ export function Notice(p: { brand: Brand; title: string; text: string; action?: 
   return <Layout brand={p.brand} preview={p.text.slice(0, 120)} title={p.title} action={p.action} reason="You received this because of activity on your account with"><Paras text={p.text} /></Layout>;
 }
 
+/** R92: an event ticket with its QR code (a PNG, mail clients do not show SVG) and the code to read out. */
+export function EventTicket(p: { brand: Brand; title: string; text: string; qrUrl: string | null; code: string | null; action: Action }) {
+  return (
+    <Layout brand={p.brand} preview={p.text.slice(0, 120)} title={p.title} action={p.action} reason="You received this because you signed up for an event with">
+      <Paras text={p.text} />
+      {p.qrUrl && <Section style={{ textAlign: "center", padding: "8px 0 4px" }}><Img src={p.qrUrl} width="200" height="200" alt={`Ticket QR code ${p.code ?? ""}`} style={{ margin: "0 auto", borderRadius: "8px" }} /></Section>}
+      {p.code && <Text style={{ ...s.p, textAlign: "center", fontSize: "20px", letterSpacing: "2px", fontWeight: 600 }}>{p.code}</Text>}
+    </Layout>
+  );
+}
+
 export function Verify(p: { brand: Brand; name: string; email: string; url: string }) {
   return (
     <Layout brand={p.brand} preview={`Confirm ${p.email} for ${p.brand.appName}`} title="Confirm your email" action={{ label: "Confirm email", url: p.url }} reason="You received this because this address signed up for">
