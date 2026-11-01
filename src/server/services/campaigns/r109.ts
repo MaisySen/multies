@@ -501,6 +501,7 @@ export async function runCampaignBatch(deps: Deps, id: string) {
     await deps.db.run(sql`update campaigns set total = ${ok.length}, skipped = ${skipped}, status = case when ${ok.length} = 0 then 'sent' else status end where id = ${id}`);
     if (!ok.length) return;
   }
+  await deps.db.run(sql`update campaigns set error = null where id = ${id} and error like 'Today%'`);
   const queued = await deps.db.all<{ idx: number }>(sql`select idx from campaign_recipients where campaign_id = ${id} and status = 'queued' and (send_after is null or send_after <= ${now}) order by idx limit 2000`);
   if (!queued.length) return;
   const s = await deps.db.get<{ plan: keyof typeof MERGE_DAILY_CAP }>(sql`select plan from organizations where id = ${c.org_id}`);
@@ -514,7 +515,7 @@ export async function runCampaignBatch(deps: Deps, id: string) {
     const rest = queued.slice(today).map((q) => q.idx);
     for (let i = 0; i < rest.length; i += 80) await deps.db.run(sql`update campaign_recipients set send_after = ${next} where campaign_id = ${id} and idx in (${sql.join(rest.slice(i, i + 80).map((x) => sql`${x}`), sql`, `)})`);
     await enqueue(deps, "campaign.batch", { id }, { orgId: c.org_id, delayMs: Math.max(60_000, next - now + (today * CAMPAIGN_SPACING_SECONDS * 1000)), maxAttempts: 3 });
-    await deps.db.run(sql`update campaigns set error = ${today === 0 ? "Today's sending limit is used up. The rest goes out tomorrow." : null} where id = ${id}`);
+    await deps.db.run(sql`update campaigns set error = ${"Today's sending limit is reached. The rest goes out tomorrow."} where id = ${id}`);
   }
 }
 
