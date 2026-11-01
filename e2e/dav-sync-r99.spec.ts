@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { execFileSync } from "node:child_process";
 
 /**
  * R99 end to end: Settings > Calendar, Sync with your phone. Create an app password (keyboard only), see it once,
@@ -133,4 +134,14 @@ test("error state with retry, and no access with the account password", async ({
   const wrong = await request.fetch(`${baseURL}/dav/`, { method: "PROPFIND", headers: { authorization: basic("demo@example.com", "a-strong-password"), depth: "0" } });
   expect(wrong.status()).toBe(401);
   expect(wrong.headers()["www-authenticate"]).toContain("Basic");
+});
+
+test("the scripted calendar client check (what the verifier reruns on staging) passes", async ({ page, baseURL }) => {
+  test.setTimeout(120_000);
+  await demo(page);
+  const origin = new URL(page.url()).origin;
+  const made = await (await page.request.post("/api/dav/passwords", { headers: { origin }, data: { name: "Script" } })).json();
+  const out = execFileSync("node", ["scripts/dav-check.mjs", baseURL!], { env: { ...process.env, DAV_USER: made.username, DAV_PASSWORD: made.password }, encoding: "utf8", timeout: 60_000 });
+  expect(out).toContain("DAV CHECK PASS");
+  expect(out).not.toContain(made.password);
 });

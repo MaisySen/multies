@@ -190,7 +190,7 @@ function when(iso: string | null) {
 
 function ServerFields({ server, username }: { server: string; username: string }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-3">
       <Field label="Server address">
         {(p) => (
           <div className="flex items-center gap-2">
