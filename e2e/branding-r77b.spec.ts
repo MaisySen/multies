@@ -31,7 +31,7 @@ test("every branding action works and shows at once", async ({ page }) => {
   await page.getByRole("button", { name: "Forest", exact: true }).click();
   await expect(page.getByRole("button", { name: "Forest", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => previewBrand(page)).not.toBe(p0);
-  await expect.poll(() => brandVar(page)).toBe("#15803d");
+  await expect.poll(() => brandVar(page)).toBe("#137839");
   await expect(bar).toContainText("Unsaved changes");
 
   // Discard puts the saved look back.

@@ -18,12 +18,12 @@ test("an admin brands the workspace, it survives a reload with no flash, and res
   await page.getByRole("button", { name: "Forest", exact: true }).click();
   await expect(page.getByRole("button", { name: "Forest", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Save brand" }).click();
-  await expect.poll(brandVar).toBe("#15803d");
+  await expect.poll(brandVar).toBe("#137839");
 
   // A reload paints the saved brand from the boot script, before the app runs.
   await page.goto("/app/settings/branding", { waitUntil: "commit" });
   await page.waitForFunction(() => !!document.head);
-  await expect.poll(brandVar).toBe("#15803d");
+  await expect.poll(brandVar).toBe("#137839");
   await expect(page.locator("style#brand-tokens")).toHaveCount(1);
 
   // Everyone has their own appearance page.
@@ -34,5 +34,5 @@ test("an admin brands the workspace, it survives a reload with no flash, and res
   await page.goto("/app/settings/branding");
   await page.getByRole("button", { name: "Reset to Multies default" }).click();
   await page.getByRole("button", { name: "Reset", exact: true }).click();
-  await expect.poll(brandVar).not.toBe("#15803d");
+  await expect.poll(brandVar).not.toBe("#137839");
 });
