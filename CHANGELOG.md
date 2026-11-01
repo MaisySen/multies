@@ -14,6 +14,12 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Staging only test network (SOCIAL_TEST_NETWORK, refused on multies.si) for end to end checks. Flag SOCIAL_P2B. Migration 0122.
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 99 (1 Nov 2026)
+
+- Calendar and contacts sync: Multies serves CalDAV and CardDAV at /dav (with /.well-known/caldav and /.well-known/carddav), so iPhone, Android, Mac and Outlook show and edit your meetings, task due dates (all day), bookings (read only) and workspace contacts. Sync tokens send only what changed; a stale ETag answers 412; Multies keeps the fields it owns (invitees, video link, series rules, task status, contact email).
+- Per person app passwords in Settings, Calendar, Sync with your phone: shown once, stored hashed, named, last used shown, revoked at once, audit events on create and revoke. The account password never opens /dav. Setup guides per device and an unsigned configuration profile for iPhone and Mac.
+- Flag DAV_SYNC_R99 (staging on). Migration 0124 (dav_app_passwords, dav_sync_states, dav_names). scripts/dav-check.mjs is a scripted client check for staging.
+
 ### Hotfix contacts (1 Nov 2026)
 
 - Contact pages and the CRM timeline answered 500 (shown as Contact not found) for addresses of 37 characters or more, because the database refuses LIKE patterns over 50 bytes; the address match now uses instr. A test emulates the limit.

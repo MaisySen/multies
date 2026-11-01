@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-01-dav-sync",
+    date: "2026-11-01",
+    title: "Your calendar and contacts on your phone",
+    body: "In Settings, Calendar, Sync with your phone: make an app password for each device and your meetings, task due dates, bookings and workspace contacts show up in the calendar and contacts apps on your phone and computer. Edits on the phone come back to Multies, and you can stop any device at once.",
+  },
+  {
     id: "2026-11-01-chat-plus",
     date: "2026-11-01",
     title: "Topics, announcements and votes in Chat",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-31",
     title: "Short links, QR codes and a link in bio page",
     body: "Tools, Links turns a long address into a short link with a QR code in your brand colour, an end date, a password or a click limit, and shows clicks by day, country and device with bots left out. Each person and the workspace can have a bio page, and go links like go/onboarding open a doc, task or project for your team.",
-  },
-  {
-    id: "2026-10-31-secure-share",
-    date: "2026-10-31",
-    title: "Ask for files, and send secrets that delete themselves",
-    body: "In Tools, Secure share lets clients upload big files to you through a request link, no account needed. Secret links lock a password or a small file on your device and delete it once opened, and Send securely in a new email does it in one step. Share links now show views as well as downloads.",
   },
   {
     id: "2026-10-28-whats-new",
