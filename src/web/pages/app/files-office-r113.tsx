@@ -213,7 +213,7 @@ function WordEditor({ doc, notes, canEdit, onDirty, builder }: { doc: PMNode; no
     content: doc as never,
     editable: canEdit,
     immediatelyRender: true,
-    editorProps: { attributes: { class: "prose-doc min-h-[50vh] px-6 py-6 outline-none sm:px-12 sm:py-10", "aria-label": "Document", role: "textbox", "aria-multiline": "true" } },
+    editorProps: { attributes: { class: "mm-prose min-h-[50vh] px-6 py-6 outline-none sm:px-12 sm:py-10", "aria-label": "Document", role: "textbox", "aria-multiline": "true" } },
     onUpdate: () => onDirty(),
   });
   useEffect(() => { builder.current = editor ? () => ({ bytes: writeDocx(editor.getJSON() as PMNode), type: MIME.docx }) : null; return () => { builder.current = null; }; }, [editor, builder]);

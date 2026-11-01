@@ -21,6 +21,15 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 ### Notes
 - Migration 0132 (additive). "Fix a PDF, slides, image links and everyday utilities" left What's new to keep it at 14.
 - A refused shield check is retried once in the browser with a fresh challenge, and otherwise says why and how to send again.
+## R113 Office files in the browser (2026-11-01)
+### Added
+- Files: Open in editor for Word (.docx), Excel (.xlsx) and CSV files, and View slides for PowerPoint (.pptx), from the row menu and the preview panel (flag OFFICE_EDIT_R113).
+- Word editor: headings, bold, italic, underline, strike, links, bullet and numbered lists, quotes, code, tables and pictures, read in the browser and saved back to .docx. A list of what is not kept (headers, comments, tracked changes, colours) shows when it applies.
+- Sheet editor: all sheets as tabs, a formula bar and SUM, AVERAGE, MIN, MAX, COUNT, COUNTA, IF, ROUND, ABS, AND, OR, NOT and CONCAT with cell refs, ranges and other sheet refs; saved back to .xlsx (formulas kept) or .csv (values). Up to 5,000 rows, 100 columns and 200,000 cells; bigger files open view only. Phones view only.
+- Slides: drawn by the Tools engine and shown with a slide strip; a text outline when slides cannot be drawn.
+- Every save is a new Files version with the note "Saved in the editor"; a save that started from an older version asks first (409 version_conflict). Viewers read only; guests and the client portal get nothing, as in Files.
+- No new dependencies (fflate, fast-xml-parser, papaparse, tiptap and pdf.js were already in use). No migration.
+
 
 ## R108 Contracts: templates and guided interviews (2026-11-01)
 ### Added
