@@ -55,7 +55,7 @@ describe("R117 planner and composer helpers", () => {
     expect(social({})).not.toContain("Library");
     expect(social({ socialP2: true })).toContain("Library");
   });
-  it("what's new stays at 14 with the planner entry near the top", () => {
+  it("what's new stays at 14; the planner entry rotated out and stays in the changelog", async () => {
     expect(WHATS_NEW.length).toBeLessThanOrEqual(14);
     // R97: newer rounds add their entry above. R101: the planner entry aged out of the list at 14 (it stays in CHANGELOG.md); every entry stays without dashes.
     for (const e of WHATS_NEW) expect(e.body).not.toMatch(/[\u2013\u2014-]/);
