@@ -39,6 +39,8 @@ export const TYPE_CATEGORY: Record<string, Category> = {
   "thread_mention": "mention",
   "task.watch_comment": "comment", // R27: watchers
   "task.watch_status": "status", // R27: watchers
+  "doc.mentioned": "mention", // R103: doc comments
+  "doc.commented": "comment", // R103
 };
 export const categoryOf = (type: string): Category => TYPE_CATEGORY[type] ?? "status";
 const typesOf = (c: Category) => Object.entries(TYPE_CATEGORY).filter(([, v]) => v === c).map(([k]) => k);
@@ -154,6 +156,7 @@ export async function notify(deps: Deps, orgId: string, userId: string, n: { typ
 export function linkFor(n: { entityType: string; entityId: string; type: string }, chatChannelId?: string | null) {
   switch (n.entityType) {
     case "task": return `/app/tasks?task=${encodeURIComponent(n.entityId)}`;
+    case "doc": return `/app/docs/${encodeURIComponent(n.entityId)}?comments=1`; // R103
     case "chat_message": return chatChannelId ? `/app/chat/${encodeURIComponent(chatChannelId)}?m=${encodeURIComponent(n.entityId)}` : "/app/chat";
     case "approval": return "/app/approvals";
     case "social_post": return n.type === "social.post_review" ? "/app/approvals" : `/app/social/posts#post-${encodeURIComponent(n.entityId)}`;

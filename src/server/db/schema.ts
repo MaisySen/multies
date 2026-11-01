@@ -1928,6 +1928,8 @@ export const shareLinks = sqliteTable("share_links", {
   createdAt: createdAt(),
   expiresAt: ts("expires_at"),
   revokedAt: ts("revoked_at"),
+  /** R103: "on" lets people with the link read approved comments and post comments that wait for review. */
+  comments: text("comments", { enum: ["off", "on"] }).notNull().default("off"),
 }, (t) => [uniqueIndex("share_links_token_uq").on(t.tokenHash)]);
 
 /**
@@ -3439,3 +3441,46 @@ export const davNames = sqliteTable("dav_names", {
   uid: text("uid"),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.collection, t.name] }), index("dav_names_entity_idx").on(t.orgId, t.collection, t.entityId)]);
+/** R103: the team link library. One row per workspace and normalised address; a web clip keeps the doc it made. */
+export const linkLibrary = sqliteTable("link_library", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  url: text("url").notNull(),
+  urlKey: text("url_key").notNull(),
+  title: text("title").notNull().default(""),
+  description: text("description").notNull().default(""),
+  site: text("site").notNull().default(""),
+  /** JSON array of lower case tags. */
+  tags: text("tags").notNull().default("[]"),
+  note: text("note").notNull().default(""),
+  docId: text("doc_id"),
+  createdBy: text("created_by").notNull(),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+  deletedAt: ts("deleted_at"),
+}, (t) => [index("link_library_org_idx").on(t.orgId, t.deletedAt, t.createdAt), uniqueIndex("link_library_key_uq").on(t.orgId, t.urlKey)]);
+
+/**
+ * R103: comments on docs. thread "team" is for the workspace and the doc's project guests; thread "public" is for
+ * people with a share link (their posts wait for review) and the team's public replies.
+ */
+export const docComments = sqliteTable("doc_comments", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  docId: text("doc_id").notNull(),
+  thread: text("thread", { enum: ["team", "public"] }).notNull().default("team"),
+  shareLinkId: text("share_link_id"),
+  authorType: text("author_type", { enum: ["member", "guest", "visitor"] }).notNull().default("member"),
+  authorId: text("author_id"),
+  authorName: text("author_name").notNull().default(""),
+  /** A visitor's email, never shown publicly. */
+  authorEmail: text("author_email"),
+  body: text("body").notNull(),
+  status: text("status", { enum: ["visible", "pending", "hidden"] }).notNull().default("visible"),
+  mentions: text("mentions").notNull().default("[]"),
+  moderatedBy: text("moderated_by"),
+  moderatedAt: ts("moderated_at"),
+  createdAt: createdAt(),
+  editedAt: ts("edited_at"),
+  deletedAt: ts("deleted_at"),
+}, (t) => [index("doc_comments_doc_idx").on(t.orgId, t.docId, t.createdAt), index("doc_comments_status_idx").on(t.orgId, t.status, t.createdAt)]);

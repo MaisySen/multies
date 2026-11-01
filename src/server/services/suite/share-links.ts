@@ -27,7 +27,7 @@ export const SHARE_BOARD_MAX_CARDS = 500;
 
 type Actor = SuiteActor & { scope?: string; agentId?: string | null; guest?: boolean };
 
-const readMeta = (raw: string | null | undefined): Record<string, unknown> => {
+export const readMeta = (raw: string | null | undefined): Record<string, unknown> => {
   if (!raw) return {};
   try { const v = JSON.parse(raw); return v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {}; } catch { return {}; }
 };
@@ -79,10 +79,11 @@ export function shareUrl(deps: Deps, token: string) {
 }
 
 type Row = typeof shareLinks.$inferSelect;
-const isActive = (r: Pick<Row, "revokedAt" | "expiresAt">, now: Date) => !r.revokedAt && (!r.expiresAt || r.expiresAt.getTime() > now.getTime());
+export const isActive = (r: Pick<Row, "revokedAt" | "expiresAt">, now: Date) => !r.revokedAt && (!r.expiresAt || r.expiresAt.getTime() > now.getTime());
 const present = (r: Row) => ({
   id: r.id, kind: r.kind, targetId: r.targetId, showWorkspaceName: r.showWorkspace, createdBy: r.createdBy,
   createdAt: r.createdAt.toISOString(), expiresAt: r.expiresAt ? r.expiresAt.toISOString() : null,
+  comments: r.comments ?? "off", // R103
 });
 
 export interface CreateShareInput { kind: ShareKind; targetId: string; expiresInDays?: 7 | 30 | null; showWorkspaceName?: boolean }
@@ -132,7 +133,7 @@ export type PublicShare =
   | { kind: "doc"; workspace: string | null; title: string; html: string }
   | { kind: "project_board"; workspace: string | null; title: string; color: string; columns: PublicColumn[]; truncated: boolean };
 
-const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
+export const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 
 /** What /s/<token> shows, or null when the token is unknown, revoked, expired, its target is gone or links are off. Reads only. */
 export async function publicShare(deps: Deps, token: string): Promise<PublicShare | null> {

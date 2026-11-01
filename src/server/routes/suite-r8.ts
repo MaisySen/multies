@@ -3,6 +3,7 @@
  * files on tasks, plus the guest's own endpoints (a separate guest session cookie, never a
  * workspace session). The same services back the REST API (v1-suite-r8.ts) and MCP.
  */
+import { addGuestComment, listForGuest } from "../services/docs-plus/comments"; // R103
 import { Hono, type Context, type MiddlewareHandler } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { z } from "zod";
@@ -129,7 +130,16 @@ export function guestRoutes() {
       return c.json({ file: await addFile(c.var.deps, g.actor, c.req.param("id"), decodeUpload(b), { type: "guest", id: g.guest.id, name: g.actor.name }, g.guest.projectId) }, 201);
     })
     .get("/files/:id", async (c) => download(await readFile(c.var.deps, c.var.guest.guest.orgId, c.req.param("id"), c.var.guest.guest.projectId)))
-    .get("/docs/:id", async (c) => c.json({ doc: await guestDoc(c.var.deps, c.var.guest, c.req.param("id")) }));
+    .get("/docs/:id", async (c) => c.json({ doc: await guestDoc(c.var.deps, c.var.guest, c.req.param("id")) }))
+    // R103: comments on the project's docs (DOCS_PLUS_R103=on).
+    .get("/r103/docs/:id/comments", async (c) => {
+      if (!c.var.deps.config.docsPlus) return c.json({ error: { code: "not_found", message: "Not found" } }, 404);
+      return c.json(await listForGuest(c.var.deps, c.var.guest, c.req.param("id")));
+    })
+    .post("/r103/docs/:id/comments", async (c) => {
+      if (!c.var.deps.config.docsPlus) return c.json({ error: { code: "not_found", message: "Not found" } }, 404);
+      return c.json({ comment: await addGuestComment(c.var.deps, c.var.guest, c.req.param("id"), (await parseBody(c, CommentCreate)).body) }, 201);
+    });
 
   return new Hono<GuestEnv>()
     .post("/accept", async (c) => {

@@ -106,6 +106,7 @@ import { formRoutes, meetingRoutes, publicRoutes, reportRoutes, timeRoutes } fro
 import { formResultsRoutes } from "./routes/forms-r31";
 import { helpdeskRoutes, surveyRoutes, widgetRoutes, WIDGET_JS_HEADERS } from "./routes/helpdesk"; // R119
 import { helpCenterRoutes, helpPublicRoutes } from "./routes/help-center"; // R122
+import { docsPlusRoutes } from "./routes/docs-plus"; // R103
 import { WIDGET_JS } from "./routes/widget-script"; // R119
 import { meetingRecordingRoutes } from "./routes/meeting-recordings";
 import { chatPlusRoutes, guestChatPlusRoutes } from "./routes/chat-plus-r96";
@@ -428,6 +429,8 @@ export function createApp(deps: Deps) {
       // R122: the help center in Docs (HELP_CENTER=on).
       helpCenter: !!deps.config.helpCenter,
       davSync: !!deps.config.davSync,
+      // R103: Docs plus (DOCS_PLUS_R103=on).
+      docsPlus: !!deps.config.docsPlus,
       // R43: whether the import pages say a run carries on after the page closes (BACKGROUND_COPY).
       backgroundCopy: !!deps.config.backgroundCopy,
       // R89: whiteboards, diagrams, mind map and Present in Docs (DOCS_VISUAL; on unless "off").
@@ -494,6 +497,7 @@ export function createApp(deps: Deps) {
     app.get("/widget.js", (c) => c.body(WIDGET_JS, 200, WIDGET_JS_HEADERS));
     app.route("/csat", surveyRoutes());
   }
+  if (deps.config.docsPlus) app.route("/api/docs-plus", docsPlusRoutes()); // R103: link library, clipper, doc comments
   if (deps.config.helpCenter) {
     // R122: the help center (team API) and its public pages /help/<slug> (only what a workspace published).
     app.route("/api/help-center", helpCenterRoutes());

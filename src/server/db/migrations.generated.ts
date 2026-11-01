@@ -1325,5 +1325,17 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- The resource name a phone chose for an item it created (so it finds the item under the same name), and its UID.\nCREATE TABLE IF NOT EXISTS `dav_names` (\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`collection` text NOT NULL,\n\t`name` text NOT NULL,\n\t`entity_id` text NOT NULL,\n\t`uid` text,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `collection`, `name`)\n);",
       "CREATE INDEX IF NOT EXISTS `dav_names_entity_idx` ON `dav_names` (`org_id`,`collection`,`entity_id`);"
     ]
+  },
+  {
+    "name": "0125_r103_docs_plus",
+    "statements": [
+      "-- R103 (Oct 31): Docs plus. Additive only: the team link library (web clips keep the doc they made), comments on docs\n-- (team, guest and public link threads, with moderation), and a per share link comments switch (off by default).\nCREATE TABLE IF NOT EXISTS `link_library` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`url` text NOT NULL,\n\t`url_key` text NOT NULL,\n\t`title` text DEFAULT '' NOT NULL,\n\t`description` text DEFAULT '' NOT NULL,\n\t`site` text DEFAULT '' NOT NULL,\n\t`tags` text DEFAULT '[]' NOT NULL,\n\t`note` text DEFAULT '' NOT NULL,\n\t`doc_id` text,\n\t`created_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`deleted_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX IF NOT EXISTS `link_library_org_idx` ON `link_library` (`org_id`,`deleted_at`,`created_at`);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `link_library_key_uq` ON `link_library` (`org_id`,`url_key`);",
+      "CREATE TABLE IF NOT EXISTS `doc_comments` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`doc_id` text NOT NULL,\n\t`thread` text DEFAULT 'team' NOT NULL,\n\t`share_link_id` text,\n\t`author_type` text DEFAULT 'member' NOT NULL,\n\t`author_id` text,\n\t`author_name` text DEFAULT '' NOT NULL,\n\t`author_email` text,\n\t`body` text NOT NULL,\n\t`status` text DEFAULT 'visible' NOT NULL,\n\t`mentions` text DEFAULT '[]' NOT NULL,\n\t`moderated_by` text,\n\t`moderated_at` integer,\n\t`created_at` integer NOT NULL,\n\t`edited_at` integer,\n\t`deleted_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX IF NOT EXISTS `doc_comments_doc_idx` ON `doc_comments` (`org_id`,`doc_id`,`created_at`);",
+      "CREATE INDEX IF NOT EXISTS `doc_comments_status_idx` ON `doc_comments` (`org_id`,`status`,`created_at`);",
+      "ALTER TABLE `share_links` ADD `comments` text DEFAULT 'off' NOT NULL;"
+    ]
   }
 ];
