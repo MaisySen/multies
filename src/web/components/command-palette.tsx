@@ -270,7 +270,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
           )}
         </>
       )}
-      <Command.List ref={listRef} className={cn("max-h-[min(440px,62vh)] overflow-y-auto overscroll-contain py-1 max-sm:max-h-none max-sm:flex-1")}>
+      <Command.List ref={listRef} aria-busy={content.loading ? true : undefined} className={cn("max-h-[min(440px,62vh)] overflow-y-auto overscroll-contain py-1 max-sm:max-h-none max-sm:flex-1")}>
         {picker ? (
           <>
             {!task && <div className="px-4 py-8 text-center text-sm text-muted">Loading the task</div>}

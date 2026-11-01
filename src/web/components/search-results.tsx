@@ -18,9 +18,9 @@ export function ContentGroups({ state, search, onOpen }: { state: ReturnType<typ
   return (
     <>
       {state.loading && !groups.length && (
-        <Command.Loading>
-          <div className="flex items-center gap-2 px-4 py-3 text-[13px] text-muted" data-testid="search-loading"><Spinner className="h-3.5 w-3.5" />Searching mail, tasks, docs and chat</div>
-        </Command.Loading>
+        // Not cmdk's Loading: its role=progressbar is not allowed inside a listbox (axe aria-required-children, R98 low).
+        // The list says it is busy instead (aria-busy on Command.List in the palette).
+        <div className="flex items-center gap-2 px-4 py-3 text-[13px] text-muted" data-testid="search-loading"><Spinner className="h-3.5 w-3.5" />Searching mail, tasks, docs and chat</div>
       )}
       {groups.map((g) => {
         const Icon = ICONS[g.type];
