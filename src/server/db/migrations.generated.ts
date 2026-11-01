@@ -1349,6 +1349,17 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0126_r95_tasks_plus",
+    "statements": [
+      "-- R95 (Nov 1): Tasks plus. Additive only: My Day time blocks per person and day, weekly timesheet submit and\n-- approve, and tags on time entries.\nCREATE TABLE IF NOT EXISTS `day_plan_items` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`task_id` text NOT NULL,\n\t`day` text NOT NULL,\n\t`start_min` integer,\n\t`minutes` integer DEFAULT 30 NOT NULL,\n\t`position` real DEFAULT 0 NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `day_plan_items_person_day_task` ON `day_plan_items` (`org_id`,`user_id`,`day`,`task_id`);",
+      "CREATE TABLE IF NOT EXISTS `timesheets` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`person_id` text NOT NULL,\n\t`week_start` text NOT NULL,\n\t`status` text DEFAULT 'open' NOT NULL,\n\t`note` text DEFAULT '' NOT NULL,\n\t`submitted_at` integer,\n\t`decided_by` text,\n\t`decided_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`version` integer DEFAULT 1 NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `timesheets_person_week` ON `timesheets` (`org_id`,`person_id`,`week_start`);",
+      "CREATE INDEX IF NOT EXISTS `timesheets_org_status_idx` ON `timesheets` (`org_id`,`status`,`week_start`);",
+      "ALTER TABLE `time_entries` ADD `tags` text DEFAULT '[]' NOT NULL;"
+    ]
+  },
+  {
     "name": "0127_r109_campaigns",
     "statements": [
       "-- R109: Mail merge plus. Lists with consent records, newsletters (campaigns) with per recipient stats,\n-- journeys (welcome series and follow ups). Unsubscribes stay in merge_unsubscribes (one list across the\n-- workspace) and bounces and complaints in suppressions. Additive only.\nCREATE TABLE `audience_lists` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`description` text DEFAULT '' NOT NULL,\n\t`visibility` text DEFAULT 'workspace' NOT NULL,\n\t`owner_user_id` text NOT NULL,\n\t`double_opt_in` integer DEFAULT 1 NOT NULL,\n\t`allow_inferred` integer DEFAULT 0 NOT NULL,\n\t`signup_key` text NOT NULL,\n\t`signup_on` integer DEFAULT 0 NOT NULL,\n\t`mailbox_id` text,\n\t`sender_name` text DEFAULT '' NOT NULL,\n\t`sender_address` text DEFAULT '' NOT NULL,\n\t`tz` text DEFAULT 'Australia/Sydney' NOT NULL,\n\t`member_count` integer DEFAULT 0 NOT NULL,\n\t`archived_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",

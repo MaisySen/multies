@@ -265,8 +265,8 @@ export const SHEET_LOCKED: SheetStatus[] = ["submitted", "approved"];
 
 /** One step of a week's timesheet. Self = the sheet is the actor's own; admin = workspace owner or admin. */
 export function sheetStep(status: SheetStatus, action: SheetAction, who: { self: boolean; admin: boolean }):
-  { ok: true; status: SheetStatus } | { ok: false; status: number; code: string; message: string } {
-  const no = (code: string, message: string, s = 409) => ({ ok: false as const, status: s, code, message });
+  { ok: true; status: SheetStatus } | { ok: false; status: 403 | 409; code: string; message: string } {
+  const no = (code: string, message: string, s: 403 | 409 = 409) => ({ ok: false as const, status: s, code, message });
   if (action === "submit" || action === "withdraw") {
     if (!who.self) return no("not_your_timesheet", "Only the person can submit or take back their own week.", 403);
     if (action === "submit") return status === "open" || status === "returned" ? { ok: true, status: "submitted" } : no("timesheet_" + status, status === "approved" ? "This week is already approved." : "This week is already submitted.");

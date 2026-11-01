@@ -8,6 +8,7 @@ import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, parseQuery, requireAdmin, requireAuth } from "../middleware";
 import { addEntry, deleteEntry, listEntries, runningTimer, startTimer, stopTimer, timesheet, updateEntry } from "../services/suite/time";
+import { entriesCsv } from "../services/suite/tasks-plus-r95";
 import { createForm, deleteForm, getForm, listForms, publicForm, submitForm, updateForm } from "../services/suite/forms";
 import { dashboard } from "../services/suite/reports";
 import { createMeeting, getMeeting, guestInfo, guestJoin, joinMeeting, listMeetings, meetingIcs, meetingsEnabled, sendInvites, updateMeeting, deleteMeeting } from "../services/suite/meetings";
@@ -19,15 +20,16 @@ import { eq } from "drizzle-orm";
 const Q_SUITE_R7_1 = z.object({ upcoming: z.string().optional(), sourceType: z.enum(["thread", "task", "contact"]).optional(), sourceId: z.string().optional() });
 
 export const TimeStart = z.object({ taskId: z.string().min(1), note: z.string().max(500).optional() });
-export const TimeStop = z.object({ entryId: z.string().optional() });
+export const TimeStop = z.object({ entryId: z.string().optional(), at: z.string().max(40).optional() /* R95: drop idle time */ });
 export const TimeEntryCreate = z.object({
   taskId: z.string().nullable().optional(), projectId: z.string().nullable().optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), startedAt: z.string().optional(),
   minutes: z.number().positive().max(1440), note: z.string().max(500).optional(), billable: z.boolean().optional(),
   person: z.string().regex(/^(member|agent):[A-Za-z0-9_-]+$/).optional(),
+  tags: z.array(z.string().max(64)).max(20).optional(), // R95
 });
-export const TimeEntryPatch = z.object({ minutes: z.number().positive().max(1440).optional(), note: z.string().max(500).optional(), billable: z.boolean().optional(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() });
-export const TimeQuery = z.object({ from: z.string().optional(), to: z.string().optional(), person: z.string().optional(), projectId: z.string().optional(), taskId: z.string().optional() });
+export const TimeEntryPatch = z.object({ minutes: z.number().positive().max(1440).optional(), note: z.string().max(500).optional(), billable: z.boolean().optional(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), tags: z.array(z.string().max(64)).max(20).optional() });
+export const TimeQuery = z.object({ from: z.string().optional(), to: z.string().optional(), person: z.string().optional(), projectId: z.string().optional(), taskId: z.string().optional(), tag: z.string().max(64).optional() });
 
 const Field = z.object({ id: z.string().max(40).optional(), label: z.string().min(1).max(120), type: z.enum(["text", "email", "textarea", "phone", "select", "multiselect", "number", "date"]), required: z.boolean().optional(), options: z.array(z.string().max(120)).max(50).optional(), placeholder: z.string().max(120).optional(),
   logic: FieldLogicSchema.optional(), rules: FieldRulesSchema.optional() }); // R31: show-if logic and answer rules
@@ -70,6 +72,14 @@ export function timeRoutes() {
     .use("*", requireAuth)
     .get("/", async (c) => c.json({ entries: await listEntries(c.var.deps, c.var.auth, parseQuery(c, TimeQuery)) }))
     .get("/running", async (c) => c.json({ entry: await runningTimer(c.var.deps, c.var.auth) }))
+    .get("/export.csv", async (c) => { // R95: the filtered entries as a CSV file
+      if (!c.var.deps.config.tasksPlus) return c.json({ error: { code: "not_found", message: "Not found." } }, 404);
+      const tz = await orgTimeZone(c);
+      const rows = await listEntries(c.var.deps, c.var.auth, parseQuery(c, TimeQuery));
+      const q = parseQuery(c, TimeQuery);
+      const name = `time-${(q.from ?? "").slice(0, 10) || "recent"}${q.to ? `-to-${q.to.slice(0, 10)}` : ""}.csv`.replace(/[^A-Za-z0-9._-]/g, "");
+      return c.body(entriesCsv(rows, tz), 200, { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store" });
+    })
     .get("/timesheet", async (c) => c.json(await timesheet(c.var.deps, c.var.auth, { ...parseQuery(c, TimeQuery), timeZone: await orgTimeZone(c) })))
     .post("/start", async (c) => c.json({ entry: await startTimer(c.var.deps, c.var.auth, await parseBody(c, TimeStart)) }, 201))
     .post("/stop", async (c) => c.json({ entry: await stopTimer(c.var.deps, c.var.auth, await parseBody(c, TimeStop)) }))

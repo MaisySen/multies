@@ -10,6 +10,15 @@ import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, parseDate, recordWrite, sortableId, type SuiteActor } from "./common";
 import { resolveTaskId } from "./tasks";
 import { inIds } from "../../lib/sql-chunks";
+import { cleanTags } from "../../../shared/tasks-plus-r95";
+
+/** R95: the timesheet lock (a submitted or approved week), loaded lazily so time.ts keeps no new import cycle. */
+async function weekOpen(deps: Deps, actor: SuiteActor, person: Person, at: Date) {
+  if (!deps.config.tasksPlus) return;
+  const { assertWeekOpen } = await import("./tasks-plus-r95");
+  await assertWeekOpen(deps, actor, person, at);
+}
+const tagsOf = (r: { tags?: string | null }) => { try { return cleanTags(JSON.parse(r.tags || "[]")); } catch { return []; } };
 
 type EntryRow = typeof timeEntries.$inferSelect;
 export interface Person { type: "member" | "agent"; id: string }
@@ -61,7 +70,7 @@ async function present(deps: Deps, orgId: string, rows: EntryRow[]) {
       projectId: r.projectId, project: p ? { id: p.id, name: p.name, key: p.key, color: p.color } : null,
       person: { type: r.personType, id: r.personId, name }, personId: `${r.personType}:${r.personId}`,
       startedAt: r.startedAt.toISOString(), endedAt: iso(r.endedAt), running: !r.endedAt, seconds: entrySeconds(r, now),
-      note: r.note, billable: r.billable, source: r.source, createdAt: r.createdAt.toISOString(), version: r.version,
+      note: r.note, billable: r.billable, tags: tagsOf(r), source: r.source, createdAt: r.createdAt.toISOString(), version: r.version,
     };
   });
 }
@@ -86,9 +95,11 @@ export async function runningTimer(deps: Deps, actor: SuiteActor) {
   return row ? (await present(deps, actor.orgId, [row]))[0] : null;
 }
 
-async function stopRow(deps: Deps, actor: SuiteActor, row: EntryRow) {
+async function stopRow(deps: Deps, actor: SuiteActor, row: EntryRow, at?: Date) {
   const now = deps.now();
-  const seconds = entrySeconds(row, now);
+  // R95: "drop the away time" stops the timer at the last activity instead of now (never before it started).
+  const until = at && at.getTime() < now.getTime() ? new Date(Math.max(at.getTime(), row.startedAt.getTime())) : now;
+  const seconds = entrySeconds(row, until);
   const endedAt = new Date(row.startedAt.getTime() + seconds * 1000);
   await deps.db.update(timeEntries).set({ endedAt, seconds, updatedAt: now, version: row.version + 1 }).where(eq(timeEntries.id, row.id));
   await recordWrite(deps, actor, { entityType: "time_entry", entityId: row.id, op: "update", version: row.version + 1, verb: "time.stopped", data: { seconds, taskId: row.taskId },
@@ -105,6 +116,7 @@ export async function startTimer(deps: Deps, actor: SuiteActor, input: { taskId:
   }
   const p = personOf(actor);
   const t = await taskInfo(deps, actor.orgId, input.taskId);
+  await weekOpen(deps, actor, p, deps.now());
   const running = await deps.db.select().from(timeEntries)
     .where(and(eq(timeEntries.orgId, actor.orgId), eq(timeEntries.personType, p.type), eq(timeEntries.personId, p.id), isNull(timeEntries.endedAt), isNull(timeEntries.deletedAt)));
   for (const r of running) await stopRow(deps, actor, r);
@@ -120,7 +132,7 @@ export async function startTimer(deps: Deps, actor: SuiteActor, input: { taskId:
 }
 
 /** Stops this person's running timer (or the one named). Returns the stopped entry, or null if none ran. */
-export async function stopTimer(deps: Deps, actor: SuiteActor, input: { entryId?: string } = {}) {
+export async function stopTimer(deps: Deps, actor: SuiteActor, input: { entryId?: string; at?: string } = {}) {
   assertWritable(actor);
   let row: EntryRow | undefined;
   if (input.entryId) {
@@ -133,11 +145,13 @@ export async function stopTimer(deps: Deps, actor: SuiteActor, input: { entryId?
       .where(and(eq(timeEntries.orgId, actor.orgId), eq(timeEntries.personType, p.type), eq(timeEntries.personId, p.id), isNull(timeEntries.endedAt), isNull(timeEntries.deletedAt))).get();
     if (!row) return null;
   }
-  await stopRow(deps, actor, row);
+  const at = input.at ? parseDate(input.at) : null;
+  if (input.at && (!at || Number.isNaN(at.getTime()))) throw new HttpError(422, "validation_failed", "at must be a date and time.");
+  await stopRow(deps, actor, row, at ?? undefined);
   return (await present(deps, actor.orgId, [await entryRow(deps, actor.orgId, row.id)]))[0];
 }
 
-export interface ManualEntryInput { taskId?: string | null; projectId?: string | null; date?: string; startedAt?: string; minutes: number; note?: string; billable?: boolean; person?: string }
+export interface ManualEntryInput { taskId?: string | null; projectId?: string | null; date?: string; startedAt?: string; minutes: number; note?: string; billable?: boolean; person?: string; tags?: string[] }
 
 function parsePerson(v: string | undefined, actor: SuiteActor): Person {
   if (!v) return personOf(actor);
@@ -164,10 +178,11 @@ export async function addEntry(deps: Deps, actor: SuiteActor, input: ManualEntry
   const startedAt = input.startedAt ? parseDate(input.startedAt)! : input.date ? new Date(`${input.date}T09:00:00.000Z`) : new Date(now.getTime() - input.minutes * 60_000);
   if (Number.isNaN(startedAt.getTime())) throw new HttpError(422, "validation_failed", "Not a date.");
   const seconds = Math.round(input.minutes * 60);
+  await weekOpen(deps, actor, p, startedAt);
   const id = opts.id ?? sortableId("tim", now.getTime());
   await deps.db.insert(timeEntries).values({
     id, orgId: actor.orgId, taskId, projectId, personType: p.type, personId: p.id, startedAt, endedAt: new Date(startedAt.getTime() + seconds * 1000), seconds,
-    note: (input.note ?? "").slice(0, 500), billable: input.billable ?? true, source: "manual", ...createdBy(actor), createdAt: now, updatedAt: now,
+    note: (input.note ?? "").slice(0, 500), billable: input.billable ?? true, tags: JSON.stringify(cleanTags(input.tags ?? [])), source: "manual", ...createdBy(actor), createdAt: now, updatedAt: now,
   });
   await recordWrite(deps, actor, { entityType: "time_entry", entityId: id, op: "create", verb: "time.added", data: { taskId, seconds },
     event: "time_entry.created", eventData: { id, taskId, projectId, seconds, running: false } });
@@ -175,10 +190,11 @@ export async function addEntry(deps: Deps, actor: SuiteActor, input: ManualEntry
   return (await present(deps, actor.orgId, [await entryRow(deps, actor.orgId, id)]))[0];
 }
 
-export async function updateEntry(deps: Deps, actor: SuiteActor, id: string, patch: { minutes?: number; note?: string; billable?: boolean; date?: string }) {
+export async function updateEntry(deps: Deps, actor: SuiteActor, id: string, patch: { minutes?: number; note?: string; billable?: boolean; date?: string; tags?: string[] }) {
   assertWritable(actor);
   const e = await entryRow(deps, actor.orgId, id);
   assertOwnOrLead(actor, e);
+  await weekOpen(deps, actor, { type: e.personType, id: e.personId }, e.startedAt);
   const set: Partial<EntryRow> = { updatedAt: deps.now(), version: e.version + 1 };
   if (patch.minutes !== undefined) {
     if (!e.endedAt) throw new HttpError(409, "timer_running", "Stop the timer before changing its length.");
@@ -189,11 +205,13 @@ export async function updateEntry(deps: Deps, actor: SuiteActor, id: string, pat
   if (patch.date) {
     const d = new Date(`${patch.date}T09:00:00.000Z`);
     if (Number.isNaN(d.getTime())) throw new HttpError(422, "validation_failed", "Not a date.");
+    await weekOpen(deps, actor, { type: e.personType, id: e.personId }, d);
     set.startedAt = d;
     if (e.endedAt) set.endedAt = new Date(d.getTime() + (set.seconds ?? e.seconds) * 1000);
   }
   if (patch.note !== undefined) set.note = patch.note.slice(0, 500);
   if (patch.billable !== undefined) set.billable = patch.billable;
+  if (patch.tags !== undefined) set.tags = JSON.stringify(cleanTags(patch.tags));
   await deps.db.update(timeEntries).set(set).where(eq(timeEntries.id, id));
   await recordWrite(deps, actor, { entityType: "time_entry", entityId: id, op: "update", version: e.version + 1, verb: "time.updated", event: "time_entry.updated", eventData: { id, taskId: e.taskId } });
   return (await present(deps, actor.orgId, [await entryRow(deps, actor.orgId, id)]))[0];
@@ -203,12 +221,13 @@ export async function deleteEntry(deps: Deps, actor: SuiteActor, id: string) {
   assertWritable(actor);
   const e = await entryRow(deps, actor.orgId, id);
   assertOwnOrLead(actor, e);
+  await weekOpen(deps, actor, { type: e.personType, id: e.personId }, e.startedAt);
   await deps.db.update(timeEntries).set({ deletedAt: deps.now(), updatedAt: deps.now(), version: e.version + 1 }).where(eq(timeEntries.id, id));
   await recordWrite(deps, actor, { entityType: "time_entry", entityId: id, op: "delete", version: e.version + 1, verb: "time.deleted" });
   return { ok: true };
 }
 
-export interface EntryFilters { from?: string; to?: string; person?: string; projectId?: string; taskId?: string; limit?: number }
+export interface EntryFilters { from?: string; to?: string; person?: string; projectId?: string; taskId?: string; limit?: number; /** R95 */ tag?: string }
 
 function rangeOf(f: { from?: string; to?: string }, now: Date) {
   const to = f.to ? new Date(parseDate(f.to)!.getTime() + (f.to.length === 10 ? DAY : 0)) : new Date(now.getTime() + DAY);
@@ -226,7 +245,9 @@ async function filteredRows(deps: Deps, actor: SuiteActor, f: EntryFilters) {
     const [type, id] = f.person === "me" ? [personOf(actor).type, personOf(actor).id] : f.person.split(":");
     conds.push(eq(timeEntries.personType, type as "member" | "agent"), eq(timeEntries.personId, id));
   }
-  return deps.db.select().from(timeEntries).where(and(...conds)).orderBy(desc(timeEntries.startedAt)).limit(Math.min(f.limit ?? 2000, 5000));
+  const rows = await deps.db.select().from(timeEntries).where(and(...conds)).orderBy(desc(timeEntries.startedAt)).limit(Math.min(f.limit ?? 2000, 5000));
+  const tag = f.tag ? cleanTags([f.tag])[0] : null; // R95
+  return tag ? rows.filter((r) => tagsOf(r).includes(tag)) : rows;
 }
 
 export async function listEntries(deps: Deps, actor: SuiteActor, f: EntryFilters = {}) {

@@ -1257,11 +1257,50 @@ export const timeEntries = sqliteTable("time_entries", {
   note: text("note").notNull().default(""),
   billable: integer("billable", { mode: "boolean" }).notNull().default(true),
   source: text("source", { enum: ["timer", "manual"] }).notNull().default("timer"),
+  /** R95 (0126): JSON string[] of short lower case tags. */
+  tags: text("tags").notNull().default("[]"),
   ...suiteCols(),
 }, (t) => [
   index("time_entries_org_person_idx").on(t.orgId, t.personId, t.startedAt),
   index("time_entries_org_project_idx").on(t.orgId, t.projectId, t.startedAt),
   index("time_entries_task_idx").on(t.taskId),
+]);
+
+/** R95 (0126): My Day. A task on a person's plan for a day, with a time block (start minute of the day) or none. */
+export const dayPlanItems = sqliteTable("day_plan_items", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  taskId: text("task_id").notNull(),
+  /** YYYY-MM-DD on the person's own calendar. */
+  day: text("day").notNull(),
+  /** Minutes after midnight the block starts; null = on the day's list without a time. */
+  startMin: integer("start_min"),
+  minutes: integer("minutes").notNull().default(30),
+  position: real("position").notNull().default(0),
+  createdAt: ts("created_at").notNull(),
+  updatedAt: ts("updated_at").notNull(),
+}, (t) => [uniqueIndex("day_plan_items_person_day_task").on(t.orgId, t.userId, t.day, t.taskId)]);
+
+/** R95 (0126): a person's week of time: submitted by them, approved or returned by an admin. */
+export const timesheets = sqliteTable("timesheets", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  /** The member's user id. */
+  personId: text("person_id").notNull(),
+  /** Monday of the week, YYYY-MM-DD in the workspace time zone. */
+  weekStart: text("week_start").notNull(),
+  status: text("status", { enum: ["open", "submitted", "approved", "returned"] }).notNull().default("open"),
+  note: text("note").notNull().default(""),
+  submittedAt: ts("submitted_at"),
+  decidedBy: text("decided_by"),
+  decidedAt: ts("decided_at"),
+  createdAt: ts("created_at").notNull(),
+  updatedAt: ts("updated_at").notNull(),
+  version: integer("version").notNull().default(1),
+}, (t) => [
+  uniqueIndex("timesheets_person_week").on(t.orgId, t.personId, t.weekStart),
+  index("timesheets_org_status_idx").on(t.orgId, t.status, t.weekStart),
 ]);
 
 /** A public form: each submission makes a task or a contact. */

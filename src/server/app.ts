@@ -63,6 +63,7 @@ import { epicRoutes } from "./routes/suite-r21-types";
 import { sprintRoutes } from "./routes/sprints";
 import { shareLinkRoutes, sharePageRoutes } from "./routes/share-links"; // R26 (MB-87): share links
 import { dashboardsPlusRoutes, dashboardsPublicRoutes } from "./routes/dashboards-r91"; // R91: dashboards plus
+import { myDayRoutes, timesheetRoutes } from "./routes/tasks-plus-r95"; // R95: tasks plus
 import { workloadRoutes } from "./routes/workload";
 import { automationRecipeRoutes } from "./routes/automation-recipes";
 import { flowRoutes } from "./routes/flows";
@@ -422,6 +423,7 @@ export function createApp(deps: Deps) {
       flows: deps.config.flows !== false, // R90
       // R94: CRM timeline (CRM_TIMELINE): paged timeline, logged calls and notes, segments, CSV import, deal forecast.
       crmTimeline: !!deps.config.crmTimeline,
+      tasksPlus: !!deps.config.tasksPlus, // R95
       // R91: dashboards plus (DASHBOARDS_PLUS): share, reports, question builder, alerts, data sources.
       dashboardsPlus: !!deps.config.dashboardsPlus,
       // R98: typo tolerant search with filters and instant results in the command menu (SEARCH_R98).
@@ -579,6 +581,8 @@ export function createApp(deps: Deps) {
   app.route("/api/push", pushRoutes());
   app.route("/api/changes", changeRoutes());
   app.route("/api/time", timeRoutes());
+  app.route("/api/my-day", myDayRoutes()); // R95: My Day plan and time blocks
+  app.route("/api/timesheets", timesheetRoutes()); // R95: timesheet submit and approve
   app.route("/api/forms", formRoutes());
   app.route("/api/forms", formResultsRoutes()); // R31: logic and results
   app.route("/api/reports", reportRoutes());

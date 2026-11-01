@@ -212,6 +212,8 @@ export interface AppConfig {
   notificationCentre?: boolean;
   /** R96: chat plus (topics, announcements, decision votes, polls, live Q&A; CHAT_PLUS, on unless "off"). */
   chatPlus?: boolean;
+  /** R95: Tasks plus: My Day time blocks, smart repeat, timesheet submit and approve, time tags and export, mind map (TASKS_PLUS_R95=on). Off unless set. */
+  tasksPlus?: boolean;
   channels: { enabled: boolean; meta?: { appId: string; appSecret: string; verifyToken: string; configId: string; graphVersion: string }; mock: boolean; dailySoftCap: number };
   /**
    * Free addresses (round 17): a Multies-owned domain that every workspace can take an address on
@@ -338,6 +340,7 @@ const EnvSchema = z.object({
   NOTIFICATION_CENTRE: z.string().optional(),
   CHAT_PLUS: z.string().optional(),
   FILES_PLUS_R101: z.string().optional(),
+  TASKS_PLUS_R95: z.string().optional(),
   CHANNELS_DAILY_SOFT_CAP: z.string().optional(),
   TOOLS_ENABLED: z.string().optional(),
   CRM_TIMELINE: z.string().optional(),
@@ -737,6 +740,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     notificationCentre: env.NOTIFICATION_CENTRE !== "off",
     chatPlus: env.CHAT_PLUS !== "off",
     filesPlus: ["on", "true", "1"].includes(String(env.FILES_PLUS_R101 ?? "").toLowerCase()),
+    tasksPlus: ["1", "true", "on"].includes(String(env.TASKS_PLUS_R95 ?? "").toLowerCase()),
     operatorInbox: operatorInbox(env.SUPPORT_EMAIL?.trim() || "support@multies.si", env.OPERATOR_INBOX_ORG_ID, env.OPERATOR_INBOX_ADDRESSES),
     freeMail: {
       domain: freeMailDomain(env.FREE_MAIL_DOMAIN, env.APP_URL),

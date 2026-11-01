@@ -11,7 +11,7 @@ import { HttpError, notFound } from "../../lib/errors";
 import { latestText } from "../agents/parse";
 import { computeForRows } from "./computed";
 import { clearForeignValues, fieldFilterConditions, fieldOrderBy, listFields, setTaskFieldValues, valuesForTasks, type FieldFilter } from "./fields";
-import { normaliseRule, nextOccurrence, describeRule, type RepeatRule } from "./recurrence";
+import { normaliseRule, nextOccurrence, describeRule, repeatBase, nextInRotation, type RepeatRule } from "./recurrence";
 import { actorOf, assertWritable, createdBy, scopeOf, iso, parseDate, recordWrite, sortableId, timeline, type SuiteActor } from "./common";
 import { checkTypeRules, topLevelCondition, type TaskType } from "./task-types";
 import { claimNumbers } from "./project-counter";
@@ -717,7 +717,15 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
   if (patch.due !== undefined) { set.dueAt = parseDate(patch.due); set.reminderSentFor = null; changed.due = patch.due; }
   if (patch.parentId !== undefined) {
     if (patch.parentId === t.id) throw new HttpError(422, "validation_failed", "A task can't be its own parent.");
-    if (patch.parentId) await taskRow(deps, actor.orgId, patch.parentId);
+    if (patch.parentId) {
+      await taskRow(deps, actor.orgId, patch.parentId);
+      // R95: a task can't go under its own subtask (the mind map moves branches; a loop would hide them).
+      let at: string | null = patch.parentId;
+      for (let i = 0; at && i < 50; i++) {
+        if (at === t.id) throw new HttpError(422, "parent_cycle", "A task can't go under one of its own subtasks.");
+        at = (await deps.db.select({ parentId: tasks.parentId }).from(tasks).where(and(eq(tasks.orgId, actor.orgId), eq(tasks.id, at))).get())?.parentId ?? null;
+      }
+    }
     set.parentId = patch.parentId;
   }
   if (patch.type !== undefined || patch.parentId !== undefined) {
@@ -830,12 +838,27 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
  * title, notes, assignee, priority, labels, custom fields and subtasks (reset to to do), with
  * the start and due dates moved on by the rule. The finished task keeps its history and drops the rule.
  */
+/** R95: chores rotation. The next task goes to the next person on the list who is still in the workspace. */
+async function rotatedAssignee(deps: Deps, orgId: string, rule: RepeatRule, current: Assignee | null): Promise<Assignee | null> {
+  if (!rule.rotate?.length) return current;
+  let key = current ? `${current.type}:${current.id}` : null;
+  for (let i = 0; i < rule.rotate.length; i++) {
+    key = nextInRotation(rule.rotate, key);
+    if (!key) break;
+    const [type, id] = key.split(":");
+    const next = { type: type as Assignee["type"], id };
+    try { await validateAssignee(deps, orgId, next); return next; } catch { /* left the workspace: try the one after */ }
+  }
+  return current;
+}
+
 async function spawnRepeat(deps: Deps, actor: SuiteActor, taskId: string) {
   const t = await taskRow(deps, actor.orgId, taskId);
   if (!t.repeatRule) return null;
   const rule = JSON.parse(t.repeatRule) as RepeatRule;
   const now = deps.now();
-  const base = t.dueAt ?? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const base0 = t.dueAt ?? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const base = rule.basis === "done" && t.dueAt ? repeatBase(rule, t.dueAt, now) : base0; // R95: "after done" counts from when it was finished, keeping the due time
   // Never make the next one in the past when a task is finished late.
   let due = nextOccurrence(rule, base);
   for (let i = 0; due && due.getTime() < now.getTime() - 86_400_000 && i < 400; i++) due = nextOccurrence(rule, due);
@@ -845,7 +868,7 @@ async function spawnRepeat(deps: Deps, actor: SuiteActor, taskId: string) {
   const fields = (await valuesForTasks(deps, actor.orgId, [t.id])).get(t.id) ?? {};
   const next = await createTask(deps, actor, {
     title: t.title, notes: t.notes, projectId: t.projectId, status: "todo",
-    assignee: t.assigneeType && t.assigneeId ? { type: t.assigneeType, id: t.assigneeId } : null,
+    assignee: await rotatedAssignee(deps, actor.orgId, rule, t.assigneeType && t.assigneeId ? { type: t.assigneeType, id: t.assigneeId } : null),
     priority: t.priority, labels: JSON.parse(t.labels) as string[], parentId: t.parentId,
     start: t.startAt ? new Date(t.startAt.getTime() + shift).toISOString() : null, due: due.toISOString(),
     fields: Object.keys(fields).length ? fields : undefined, repeat: rule, type: t.type,
