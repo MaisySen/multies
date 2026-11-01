@@ -13,15 +13,15 @@ import { Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Input, Select } from "@/web/components/ui/input";
 import { Dialog } from "@/web/components/ui/dialog";
-import { IconCalendarDays, IconChevronRight, IconClock, IconMove, IconPlus, IconRefresh, IconTrash, IconBack } from "@/web/components/ui/icon";
+import { IconCalendarDays, IconChevronRight, IconClock, IconMove, IconPlus, IconTrash, IconBack } from "@/web/components/ui/icon";
 import type { SocialPostView } from "@/shared/integrations";
 import { freeSlots, networkLabel, slotTimes, type SlotRule, type SlotView } from "@/shared/social-p2";
 import { POST_STATUS, postsKey, useSocialPosts, whenText } from "./apps-social";
 import { monthGrid } from "./social";
 import { PlannedHealthNote } from "./social-health"; // R118
+import { LoadFailure } from "@/web/components/load-error-t1g";
 
 export const slotsKey = ["social", "slots"] as const;
-import { LoadFailure } from "@/web/components/load-error-t1g";
 export function useSlots() {
   return useQuery({ queryKey: slotsKey, queryFn: () => api.get<{ slots: SlotView[] }>("/social/slots").then((r) => r.slots), staleTime: 60_000 });
 }

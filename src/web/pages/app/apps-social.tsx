@@ -22,9 +22,9 @@ import {
 import { AppLogo, useAppAccounts } from "./apps-settings";
 import { useMe } from "@/web/lib/queries";
 import { PlannedHealthNote } from "./social-health"; // R118
+import { LoadErrorInline, LoadFailure } from "@/web/components/load-error-t1g";
 
 export const postsKey = ["social", "posts"] as const;
-import { LoadErrorInline, LoadFailure } from "@/web/components/load-error-t1g";
 
 export const POST_STATUS: Record<PostStatus, { label: string; tone: "ok" | "warn" | "bad" | "neutral" | "brand" }> = {
   scheduled: { label: "Scheduled", tone: "brand" },

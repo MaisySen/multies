@@ -26,9 +26,9 @@ import {
 } from "@/shared/channels";
 import { ChannelChip } from "./channels-ui";
 import { chatQuery, closedWindowCopy, fileTooBig, fillTemplate, mergeByDate, sizeLabel, windowPill } from "@/web/lib/chat-channels";
+import { LoadFailure } from "@/web/components/load-error-t1g";
 export { mergeByDate };
 import type { InboxView } from "./inbox-assign";
-import { LoadFailure } from "@/web/components/load-error-t1g";
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
 

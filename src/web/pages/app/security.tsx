@@ -15,6 +15,7 @@ import { QrCode } from "@/web/components/qr";
 import { timeAgo } from "@/web/lib/format";
 import { AccountSection, Section } from "./settings";
 import { BlockedPeople } from "./work/report-sheet-r35"; // R35
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 /** Privacy rights (APP 12, GDPR Articles 15 and 20): a copy of everything held about you. */
 function YourDataSection() {
@@ -28,7 +29,6 @@ function YourDataSection() {
       </div>
     </Section>
   );
-import { LoadErrorInline } from "@/web/components/load-error-t1g";
 }
 
 /** Security state comes from the session (Better Auth): verified email and 2FA. */

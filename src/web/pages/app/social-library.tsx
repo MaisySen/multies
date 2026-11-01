@@ -13,7 +13,7 @@ import { Button } from "@/web/components/ui/button";
 import { Input, Select, Textarea } from "@/web/components/ui/input";
 import { Dialog } from "@/web/components/ui/dialog";
 import { ConfirmDialog } from "@/web/components/ui/confirm";
-import { IconBookmark, IconCopy, IconHash, IconImage, IconPlus, IconText, IconTrash, IconRefresh } from "@/web/components/ui/icon";
+import { IconBookmark, IconCopy, IconHash, IconImage, IconPlus, IconText, IconTrash } from "@/web/components/ui/icon";
 import { LIBRARY_LIMITS, type LibraryItemView, type LibraryKind } from "@/shared/social-p2";
 import { libraryKey, useLibrary } from "./social-composer";
 import { LoadFailure } from "@/web/components/load-error-t1g";

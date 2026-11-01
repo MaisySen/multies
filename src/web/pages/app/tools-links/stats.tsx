@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Skeleton, StatTile } from "@/web/components/ui/misc";
-import { Button } from "@/web/components/ui/button";
+
 import { IconChart, IconDownload, IconUser, IconShield } from "@/web/components/ui/icon";
 import { STATS_DAYS, type LinkStats, type StatRow } from "@/shared/links";
 import { cn } from "@/web/lib/cn";

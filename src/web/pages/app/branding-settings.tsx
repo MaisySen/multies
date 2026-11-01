@@ -12,7 +12,7 @@ import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
-import { EmptyState, Skeleton, Switch } from "@/web/components/ui/misc";
+import { Skeleton, Switch } from "@/web/components/ui/misc";
 import { useDialogs } from "@/web/components/ui/confirm";
 import { IconCheck, IconCheckCircle, IconImage, IconInbox, IconLock, IconMonitor, IconMoon, IconRefresh, IconSearch, IconSparkle, IconTasks, IconToday, IconTrash, IconUpload, IconWarning, IconDocs, IconMail } from "@/web/components/ui/icon";
 import { AppearanceControl, useAppearance } from "@/web/components/theme";

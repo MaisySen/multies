@@ -27,7 +27,7 @@ import { useConfig } from "@/web/lib/queries";
 import { ComposerV2, composerAccounts, useDirectStatus, useLibrary } from "./social-composer";
 import { PlannerV2 } from "./social-planner";
 import { SocialLibrary } from "./social-library";
-import { LoadError, LoadFailure } from "@/web/components/load-error-t1g";
+import { LoadFailure } from "@/web/components/load-error-t1g";
 
 /** R117: Social P2 (composer v2, planner v2, drafts and approvals, library) sits behind its own flag. */
 export const useSocialP2 = () => !!useConfig().data?.socialP2;
@@ -80,7 +80,8 @@ export function NewPostButton() {
   return <ButtonLink to="/app/social/new" size="sm" data-testid="new-post"><IconCompose className="h-4 w-4" aria-hidden />New post</ButtonLink>;
 }
 
-export function LoadError({ error, retry, what }: { error: unknown; retry: () => void; what: string }) {
+/** F12 (MB-299): `what` is kept for the callers; the words are the shared failed load words now. */
+export function LoadError({ error, retry }: { error: unknown; retry: () => void; what: string }) {
   return (
     <Card className="p-5">
       <LoadFailure error={error} onRetry={retry} />

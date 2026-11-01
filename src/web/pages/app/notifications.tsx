@@ -23,9 +23,9 @@ import { CaughtUpArt } from "@/web/components/illustrations"; // R36
 import { KindTile } from "@/web/components/premium4-r39"; // R39 premium pass 4
 import { NOTIFICATION_FILTER_KEY, readStoredFilter } from "@/web/lib/premium4-r39";
 import { AlertStatusLine, DeliverySettings, PauseMenu, useNotificationSettings, useSaveSettings, type ChannelPrefs } from "@/web/components/notification-centre-r97"; // R97
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 export type NotificationCategory = "mention" | "assignment" | "comment" | "approval" | "due_soon" | "chat" | "email" | "status";
-import { LoadErrorInline } from "@/web/components/load-error-t1g";
 export interface InboxItem { id: string; type: string; category: NotificationCategory; entityType: string; entityId: string; title: string; actor: { name: string } | null; read: boolean; createdAt: string; link: string; doneAt: string | null; snoozedUntil: string | null }
 interface InboxPage { notifications: InboxItem[]; unread: number; counts: Record<NotificationCategory, number>; hasMore: boolean; view: TriageView; viewCounts: ViewCounts }
 

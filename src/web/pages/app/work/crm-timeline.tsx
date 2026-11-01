@@ -6,7 +6,7 @@ import { useRef, useState } from "react";
 import { Link } from "react-router";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { IconCalendarClock, IconCheck, IconClipboardList, IconDue, IconEdit, IconHandshake, IconLock, IconMail, IconMeetings, IconNotes, IconPhone, IconRefresh, IconTasks, IconTimeline, IconTrash } from "@/web/components/ui/icon";
+import { IconCalendarClock, IconCheck, IconClipboardList, IconDue, IconEdit, IconHandshake, IconLock, IconMail, IconMeetings, IconNotes, IconPhone, IconTasks, IconTimeline, IconTrash } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";

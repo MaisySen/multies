@@ -12,10 +12,10 @@ import { timeAgo, zonedDateTime } from "@/web/lib/format";
 import { Badge } from "@/web/components/ui/misc";
 import { TRIGGER_REFUSALS } from "@/web/components/app-bits";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 export interface TriggerHistoryEntry {
   id: string; at: string; outcome: "fired" | "refused"; source: "schedule" | "webhook" | "manual" | null;
-import { LoadErrorInline } from "@/web/components/load-error-t1g";
   reason: string | null; message: string | null;
   run: { id: string; taskId: string | null; taskRef: string | null } | null;
   actor: { userId: string | null; email: string | null } | null;

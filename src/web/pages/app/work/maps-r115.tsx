@@ -8,7 +8,7 @@ import { lazyPage } from "@/web/components/lazy-page";
 import { Link } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { IconArrowDown, IconArrowUp, IconArrowUpRight, IconClose, IconCopy, IconEdit, IconMapPin, IconPlus, IconRefresh, IconSparkle, IconTrash } from "@/web/components/ui/icon";
+import { IconArrowDown, IconArrowUp, IconArrowUpRight, IconClose, IconCopy, IconEdit, IconMapPin, IconPlus, IconSparkle, IconTrash } from "@/web/components/ui/icon";
 import { ApiError, api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";

@@ -49,9 +49,9 @@ import { ArchiveOlderSheet } from "./mail/archive-older-r45"; // R45 (MB-137)
 import { archiveOlderOffered, emptyInboxTitle } from "./mail/archive-older-offer"; // R46
 import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33 offline
 import { SNOOZE_WORDS, emptySelection, prune, selectAll, selectRange, setSelectionCount, toggleOne, undoPlan, UNDO_MS, type BulkCall, type Selection } from "@/web/lib/mail-selection"; // R32
+import { LoadError } from "@/web/components/load-error-t1g";
 
 type View = Folder | "starred" | "snoozed" | "scheduled" | `f:${string}`;
-import { LoadError } from "@/web/components/load-error-t1g";
 const FOLDER_UI: { id: View; label: string; icon: IconComponent }[] = [
   { id: "inbox", label: "Inbox", icon: IconInbox },
   { id: "starred", label: "Starred", icon: IconStar },
