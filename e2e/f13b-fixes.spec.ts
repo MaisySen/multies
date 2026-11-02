@@ -153,6 +153,12 @@ test("top bar Create menu opens for the owner at 1280 on My Work, Tools and Temp
   page.on("pageerror", (e) => errors.push(e.message));
   await page.setViewportSize({ width: 1280, height: 860 });
   await demo(page);
+  // The staging QA workspace has a site, which is what adds Site page and Blog post to the owner's menu.
+  await page.goto("/app/docs/sites");
+  await page.getByLabel("Site name").fill("F13b studio");
+  await page.getByLabel("Site address").fill(`f13b-${uniq()}`);
+  await page.getByRole("button", { name: "Start a site" }).click();
+  await expect(page.getByRole("tab", { name: "Blog" })).toBeVisible({ timeout: 20_000 });
   for (const path of ["/app/my-work", "/app/tools", "/app/tools/templates?view=contracts"]) {
     await page.goto(path);
     await page.getByTestId("create-menu").click();
