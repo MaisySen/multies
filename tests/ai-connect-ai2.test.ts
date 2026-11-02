@@ -304,6 +304,7 @@ describe("AI2 one tap OpenRouter sign in", () => {
   async function start(ctx: Awaited<ReturnType<typeof setup>>) {
     const res = await ctx.app.request("/api/ai/oauth/openrouter/start", { headers: { cookie: ctx.c.cookie, host: "localhost" } });
     expect(res.status).toBe(302);
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer"); // MB-322: the global header must not win here
     const loc = new URL(res.headers.get("location")!);
     const nonce = /mm_ai_oauth=([^;]+)/.exec(res.headers.get("set-cookie") ?? "")![1]!;
     return { loc, nonce };
@@ -326,6 +327,7 @@ describe("AI2 one tap OpenRouter sign in", () => {
     expect(rows[0]!.stateHash).not.toBe(state);
     const res = await callback(ctx, { code: "the-code", state }, nonce);
     expect(res.headers.get("location")).toBe("/app/settings?ai_connected=openrouter#ai");
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer");
     const ex = ctx.calls.find((x) => x.url === "https://openrouter.ai/api/v1/auth/keys")!;
     const body = JSON.parse(ex.body) as { code: string; code_verifier: string; code_challenge_method: string };
     expect(body.code).toBe("the-code");
