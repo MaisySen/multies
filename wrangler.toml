@@ -396,6 +396,7 @@ SEARCH_R98 = "on" # R98: search with typo tolerance, filters and instant results
 # R115: maps (address cards, Visits, booking meeting place) on staging; production after the verifier PASS.
 MAPS_R115 = "on"
 ASK_R110 = "on" # R110: Ask across the workspace (free AI, capped; staging all)
+ASK_TD1 = "on" # TD1: Ask v2 and AI trust controls (staging only until verifier PASS)
 VAULT_R128 = "on" # R128: team password vault (staging all)
 PEOPLE_R126 = "on" # R126: staff directory, onboarding, assets (staging all)
 TOOLS_FEATURES = "all"
