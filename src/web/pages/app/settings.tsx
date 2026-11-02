@@ -40,6 +40,7 @@ export const SETTINGS_GROUPS: { label: string; items: Pane[] }[] = [
     { to: "/app/settings", label: "General", end: true, icon: IconSliders, tint: "#8E8E93", keywords: "time zone language country workspace name logo share links agents keys tools documents export delete workspace" },
     { to: "/app/settings/branding", label: "Branding", icon: IconSparkle, tint: "#FF2D55", keywords: "brand theme logo colours colors company font corners dark light preset accent sidebar" }, // R77
     { to: "/app/settings/team", label: "Team", icon: IconTeam, tint: "#0071E3", keywords: "members invite roles admin agents guests remove" },
+    { to: "/app/settings/team-ai", label: "Team AI", icon: IconSparkle, tint: "#AF52DE", keywords: "ai assistant memory remember instructions prompts routines schedule automation chat answers key" }, // TD8
     { to: "/app/settings/channels", label: "Chat channels", icon: IconChats, tint: "#25D366", keywords: "whatsapp messenger instagram facebook meta chat channels connect number customers" }, // C1
     { to: "/app/settings/apps", label: "Connections", icon: IconPlugZap, tint: "#5E5CE6", keywords: "apps integrations social media post schedule facebook instagram linkedin pinterest reddit youtube slack notion hubspot connect connected accounts mailbox imap smtp gmail outlook webhooks zapier" }, // R80C; R82F (MB-279): mail accounts and webhooks live here too
     { to: "/app/settings/billing", label: "Billing", icon: IconCreditCard, tint: "#34C759", keywords: "plan invoices card upgrade receipts tax" },
@@ -96,8 +97,8 @@ export function paneFor(path: string): Pane {
   return all.find((p) => p.to !== "/app/settings" && (clean === p.to || clean.startsWith(p.to + "/"))) ?? all[0];
 }
 /** R59: panes tied to a server switch (chat channels, CHAT_CHANNELS) are listed only while it is on. */
-export function panesFor(config: { chatChannels?: boolean; mailArchive?: boolean; reporting?: boolean; toursR130?: boolean } | undefined, role?: string | null): (p: Pane) => boolean {
-  return (p) => (p.to !== "/app/settings/tours" || (!!config?.toursR130 && (role === "owner" || role === "admin"))) && (p.to !== "/app/settings/channels" || !!config?.chatChannels) && (p.to !== "/app/settings/mail-archive" || !!config?.mailArchive) && (p.to !== "/app/settings/data-requests" || !!config?.reporting);
+export function panesFor(config: { chatChannels?: boolean; mailArchive?: boolean; reporting?: boolean; toursR130?: boolean; teamaiTd8?: boolean } | undefined, role?: string | null): (p: Pane) => boolean {
+  return (p) => (p.to !== "/app/settings/tours" || (!!config?.toursR130 && (role === "owner" || role === "admin"))) && (p.to !== "/app/settings/channels" || !!config?.chatChannels) && (p.to !== "/app/settings/mail-archive" || !!config?.mailArchive) && (p.to !== "/app/settings/data-requests" || !!config?.reporting) && (p.to !== "/app/settings/team-ai" || !!config?.teamaiTd8);
 }
 export function matchPanes(q: string): Pane[] {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);

@@ -200,6 +200,7 @@ const StaffProfilePage = lazyPage(() => peopleR126Profile(), "StaffProfilePage")
 const AssetPage = lazyPage(() => peopleR126Profile(), "AssetPage"); // R126
 const AssetLabelsPage = lazyPage(() => peopleR126Profile(), "AssetLabelsPage"); // R126
 const OnboardingSettingsPage = lazyPage(() => import("./pages/app/people-r126/onboarding-settings"), "OnboardingSettingsPage"); // R126
+const TeamAiPage = lazyPage(() => import("./pages/app/teamai-td8"), "TeamAiPage"); // TD8
 const BillingSettings = lazyPage(() => import("./pages/app/billing"), "BillingSettings");
 const AuthEmailSettings = lazyPage(() => import("./pages/app/auth-email-settings"), "AuthEmailSettings"); // R27
 const ChannelsSettings = lazyPage(() => import("./pages/app/channels-settings"), "ChannelsSettings"); // C1
@@ -400,6 +401,7 @@ export const router = createBrowserRouter([
           { path: "appearance", element: page(<AppearanceSettings />) }, // R77
           { path: "team", element: page(<TeamSettings />) },
           { path: "team/onboarding", element: page(<OnboardingSettingsPage />) }, // R126
+          { path: "team-ai", element: page(<TeamAiPage />) }, // TD8: Team AI (TEAMAI_TD8)
           { path: "channels", element: page(<ChannelsSettings />) }, // C1
           { path: "apps", element: page(<AppsSettings />) }, // R80C: Connections hub
           { path: "apps/social", element: <MovedSocial /> }, // P1 layout: Social posts moved to Social

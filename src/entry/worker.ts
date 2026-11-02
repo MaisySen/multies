@@ -610,6 +610,10 @@ const handler = {
     if (deps.config.coursesR129) {
       ctx.waitUntil(import("../server/services/courses-r129").then((m) => m.runCourseReminders(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "courses.reminders" })));
     }
+    // TD8: Team AI routines due now and runs left waiting (TEAMAI_TD8), 10 runs a pass on the workspace's own key.
+    if (deps.config.teamaiTd8) {
+      ctx.waitUntil(import("../server/services/teamai-td8").then((m) => m.runTeamAiPass(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "teamai.pass" })));
+    }
     // R97: due notification digests (50 a run, only rows whose digest time has come).
     if (deps.config.notificationCentre !== false) {
       ctx.waitUntil(import("../server/services/suite/notify-centre-r97").then((m) => m.runNotificationDigests(deps)).catch((err: unknown) => deps.reportError?.(err, { where: "notify.digest_pass" })));

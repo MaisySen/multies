@@ -102,6 +102,7 @@ const tick = () => {
   void runMaintenanceIfMigrated(deps).catch((err) => console.error("[maintenance]", err));
   // R129: course reminders (self hosted servers run the same pass as the cloud cron).
   if (deps.config.coursesR129) void import("../server/services/courses-r129").then((m) => m.runCourseReminders(deps)).catch((err) => console.error("[courses.reminders]", err));
+  if (deps.config.teamaiTd8) void import("../server/services/teamai-td8").then((m) => m.runTeamAiPass(deps)).catch(() => console.error("[teamai.pass] failed")); // TD8
   // R97: due notification digests (self hosted servers run the same pass as the cloud cron).
   if (deps.config.notificationCentre !== false) {
     void import("../server/services/suite/notify-centre-r97").then((m) => m.runNotificationDigests(deps)).catch((err) => console.error("[notify.digest]", err));

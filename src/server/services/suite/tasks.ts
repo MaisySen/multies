@@ -653,6 +653,7 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
   }
   // R24.4: task_created rules (one read of the workspace's rules; triage items wait until accepted).
   if (!triage) await (await import("./automations-r24")).runTaskEvent(deps, actor, "task_created", task);
+  if (!triage && deps.config.teamaiTd8) await (await import("../teamai-td8")).onTaskCreated(deps, actor, task); // TD8: routines on a new task
   return task;
 }
 

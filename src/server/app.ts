@@ -40,6 +40,7 @@ import { vaultRoutes } from "./routes/vault-r128"; // R128: team password vault
 import { peopleRoutes } from "./routes/people-r126"; // R126: staff, onboarding, assets
 import { mentionsRoutes } from "./routes/mentions-td5"; // TD5: record mentions and References
 import { oneInboxRoutes } from "./routes/one-inbox-td6"; // TD6: One inbox
+import { teamAiRoutes } from "./routes/teamai-td8"; // TD8: Team AI
 import { mailMergeUnsubscribeRoutes, toolsAutomationRoutes } from "./routes/tools-automation"; // Tools P2: automation
 import { campaignPublicRoutes, campaignRoutes } from "./routes/campaigns-r109"; // R109: lists, newsletters, journeys
 import { sharePublicRoutes, toolsShareRoutes } from "./routes/tools-share";
@@ -203,6 +204,17 @@ export function createApp(deps: Deps) {
     return c.json({ error: { code: "internal", message: "Something went wrong on our side.", ...(eventId ? { details: { eventId } } : {}) } }, 500);
   };
 
+  // TD8 Team AI: a request that queued an assistant run (a chat question, a new task, a form response) runs it after
+  // the response, so answers land in seconds; the cron pass picks up anything left. Nothing happens with the flag off.
+  app.use("/api/*", async (c, next) => {
+    await next();
+    if (!deps.config.teamaiTd8) return;
+    const { takePending, drainPending } = await import("./services/teamai-td8");
+    const orgs = takePending();
+    if (!orgs.length) return;
+    const work = drainPending(deps, orgs).catch((err: unknown) => { deps.reportError?.(err, { where: "teamai.drain" }); });
+    try { c.executionCtx.waitUntil(work); } catch { if (deps.config.mode === "production") void work; else await work; }
+  });
   // R31: the session cookie travels as __Host-mymail.session_token in production (dual read of the old name).
   app.use("*", hostSessionCookie(deps.config.mode === "production"));
   // R40 (MB-199): any write and any sign in route (sign out, confirming an address) drops the in-isolate copy of this cookie's session first.
@@ -475,6 +487,7 @@ export function createApp(deps: Deps) {
       peopleR126: !!deps.config.peopleR126, // R126: staff directory, onboarding, assets
       mentionsTd5: !!deps.config.mentionsTd5, // TD5: record mentions and References
       inboxTd6: !!deps.config.inboxTd6, // TD6: One inbox
+      teamaiTd8: !!deps.config.teamaiTd8, // TD8: Team AI
       invoices: deps.config.invoicesEnabled, // R105
       coursesR129: !!deps.config.coursesR129, // R129: courses (vv8k gets 404 from the API and no entry points)
       bookingPlus: deps.config.bookingPlus, // R92: resources, time polls, events
@@ -551,6 +564,7 @@ export function createApp(deps: Deps) {
   app.route("/api/people", peopleRoutes()); // R126: staff directory, onboarding, assets (PEOPLE_R126)
   app.route("/api/mentions", mentionsRoutes()); // TD5: record mentions and References (MENTIONS_TD5)
   app.route("/api/one-inbox", oneInboxRoutes()); // TD6: One inbox (INBOX_TD6)
+  app.route("/api/team-ai", teamAiRoutes()); // TD8: Team AI (TEAMAI_TD8)
   app.route("/api/ask", askRoutes()); // R110: Ask across the workspace (Tools feature ask_r110)
   app.route("/api/ai-trust", aiTrustRoutes()); // TD1: AI on or off per workspace, provider and region
   app.route("/api/tools/ai", toolsAiRoutes()); // Tools P2: AI documents (ask, translate, invoices, expenses, contracts)

@@ -82,6 +82,8 @@ export interface AppConfig {
   peopleR126?: boolean;
   /** TD6: INBOX_TD6 (One inbox: mail, chat, mentions, tasks and assistant replies sorted Important and Noise). Off unless set. */
   inboxTd6?: boolean;
+  /** TD8: TEAMAI_TD8 (workspace AI memory, instruction sets, routines, assistant in chat; own key only). Off unless set. */
+  teamaiTd8?: boolean;
   /** R126: more workspaces kept out of People; vv8k is always out. */
   peopleExclude?: string;
   /** TD5: MENTIONS_TD5 (record mentions, References panels, per viewer chat cards). Off unless set. */
@@ -480,6 +482,7 @@ const EnvSchema = z.object({
   MENTIONS_TD5: z.string().optional(),
   MENTIONS_EXCLUDE: z.string().optional(),
   INBOX_TD6: z.string().optional(),
+  TEAMAI_TD8: z.string().optional(),
   PEOPLE_EXCLUDE: z.string().optional(),
   VAULT_EXCLUDE: z.string().optional(),
   TOOLS_FEATURES: z.string().optional(),
@@ -803,6 +806,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     vaultR128: ["1", "true", "on"].includes(String(env.VAULT_R128 ?? "").toLowerCase()), // R128
     peopleR126: ["1", "true", "on"].includes(String(env.PEOPLE_R126 ?? "").toLowerCase()), // R126
     inboxTd6: ["1", "true", "on"].includes(String(env.INBOX_TD6 ?? "").toLowerCase()), // TD6
+    teamaiTd8: ["1", "true", "on"].includes(String(env.TEAMAI_TD8 ?? "").toLowerCase()), // TD8
     peopleExclude: env.PEOPLE_EXCLUDE ?? "", // R126
     mentionsTd5: ["1", "true", "on"].includes(String(env.MENTIONS_TD5 ?? "").toLowerCase()), // TD5
     mentionsExclude: env.MENTIONS_EXCLUDE ?? "", // TD5

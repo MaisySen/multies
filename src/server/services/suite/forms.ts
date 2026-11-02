@@ -397,6 +397,7 @@ async function saveSubmission(deps: Deps, f: FormRow, fields: FormField[], answe
     event: "form.submitted", eventData: { formId: f.id, form: f.name, submissionId: sid, answers, created: entity } });
   // R90: flows on "a form is sent".
   await (await import("./flows")).fireFlows(deps, f.orgId, "form_submitted", { formId: f.id, form: f.name, summary: lines.join("\n").slice(0, 4000), email: emailField ? answers[emailField.id] : "", name: nameField ? answers[nameField.id] ?? "" : "", link: `${deps.config.appUrl}/app/forms/${f.id}` }, sid);
+  if (deps.config.teamaiTd8) await (await import("../teamai-td8")).onFormResponse(deps, f.orgId, f.id, sid); // TD8: routines on a form response
   // R93: the form's own signed webhook, once, after the answer is saved (never holds up the visitor).
   if (plus && f.webhookUrl && f.webhookSecret && !plus.webhookPaused) {
     const p = deliverWebhook(deps, f, webhookPayload(f, { id: sid, answers, hidden, score: (extras as { score?: number | null }).score ?? null, createdAt: now }), sid)
