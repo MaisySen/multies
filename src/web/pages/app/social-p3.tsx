@@ -2,6 +2,7 @@
  * R132: Social P3 pieces of the composer (flag SOCIAL_P3_R132): pin details for Pinterest, best time chips under
  * Post at, the writing help menu and the Snapchat share button. Rules live in src/shared/social-p3.ts.
  */
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/web/lib/api";
@@ -58,7 +59,7 @@ export function BestTimeChips({ apps, onPick }: { apps: string[]; onPick: (iso: 
     staleTime: 5 * 60_000,
   });
   if (q.isLoading) return <div className="flex gap-2" aria-busy="true" aria-label="Loading best times"><Skeleton className="h-9 w-24 rounded-full" /><Skeleton className="h-9 w-24 rounded-full" /><Skeleton className="h-9 w-24 rounded-full" /></div>;
-  if (q.isError || !q.data) return <p className="text-[12.5px] text-muted" data-testid="best-times-error">Couldn't load best times. <button type="button" className="font-medium underline underline-offset-2" onClick={() => void q.refetch()}>Try again</button></p>;
+  if (q.isError || !q.data) return <LoadErrorInline onRetry={() => q.refetch()} className="text-[12.5px]" />;
   const d = q.data;
   return (
     <div className="space-y-1.5" data-testid="best-times">
