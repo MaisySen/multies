@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-02-ai-connect",
+    date: "2026-11-02",
+    title: "AI that works from the start",
+    body: "Built in AI works with no key needed, up to a daily limit for your workspace. Admins can also connect their own AI in Settings, AI: paste a key and the provider is found for you, pick from the live model list and test it before saving.",
+  },
+  {
     id: "2026-11-02-get-started",
     date: "2026-11-02",
     title: "Get started list and quick tours",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Forms that chat, feedback boards and calls for submissions",
     body: "Forms can ask one question at a time and sit in a chat bubble on your website. Run feedback boards with votes and a roadmap, and collect entries for blind review with scores and a shortlist.",
-  },
-  {
-    id: "2026-11-01-clear-errors",
-    date: "2026-11-01",
-    title: "Clear errors with Retry",
-    body: "If a page cannot load, you see a plain message and a Retry button instead of endless loading, and anything already on screen stays.",
   },
   {
     id: "2026-10-28-whats-new",
