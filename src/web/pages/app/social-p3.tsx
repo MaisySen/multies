@@ -91,11 +91,11 @@ export function WritingHelp({ text, apps, onText, onTexts, restore }: { text: st
         const n = Object.keys(r.texts ?? {}).length;
         if (!n) { toast.success("Already fits every network you picked."); return; }
         onTexts(r.texts!);
-        toast.success(`Fitted for ${n === 1 ? "1 network" : `${n} networks`}. Each has its own text now.`, { action: { label: "Undo", onClick: restore } });
+        toast.success(`Fitted for ${n === 1 ? "1 network" : `${n} networks`}. Each has its own text now.`, { action: { label: "Undo", onClick: restore }, duration: 20000 });
         return;
       }
       onText(r.text);
-      toast.success(`Rewritten. ${r.left} left today.`, { action: { label: "Undo", onClick: restore } });
+      toast.success(`Rewritten. ${r.left} left today.`, { action: { label: "Undo", onClick: restore }, duration: 20000 });
     },
     onError: (e) => toast.error(errorMessage(e, "Couldn't rewrite this. Try again.")),
   });

@@ -97,6 +97,8 @@ test("snapchat share page has the share button and no share without a link", asy
   expect(res?.headers()["content-security-policy"]).toContain("https://sdk.snapkit.com");
   await expect(page).toHaveTitle("Share to Snapchat");
   await expect(page.locator(".snapchat-creative-kit-share")).toHaveAttribute("data-share-url", "https://acme.example/mugs");
+  // v24 BLOCKER: the plain link works even when the share script cannot load.
+  await expect(page.getByRole("link", { name: "Open in Snapchat" })).toHaveAttribute("href", "https://www.snapchat.com/scan?attachmentUrl=" + encodeURIComponent("https://acme.example/mugs"));
   const bad = await page.goto("/share/snapchat?u=javascript:alert(1)");
   expect(bad?.status()).toBe(400);
   await expect(page.getByRole("heading", { name: "Nothing to share" })).toBeVisible();

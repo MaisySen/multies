@@ -209,16 +209,22 @@ export async function writeHelp(deps: Deps, auth: AuthContext, input: { action: 
 const esc = (v: string) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 /** The small share page: the Snapchat share button for one https link, and nothing else. No session, no data. */
+/** R132: Snapchat's own web share address for a link. Works without the share script (the plain fallback on the share page). */
+export function snapWebShareUrl(link: string): string {
+  return `https://www.snapchat.com/scan?attachmentUrl=${encodeURIComponent(link)}`;
+}
+
 export function snapSharePage(link: string | undefined, appId: string | null): { status: number; html: string } {
   const ok = !!link && isHttpsLink(link);
   const body = ok
-    ? `<h1>Share to Snapchat</h1><p>Tap the button to open Snapchat with this link attached. Paste your caption there.</p>
+    ? `<h1>Share to Snapchat</h1><p>Tap Open in Snapchat to share this link. Paste your caption there.</p>
+<p><a class="open" href="${esc(snapWebShareUrl(link!))}" rel="noopener noreferrer">Open in Snapchat</a></p>
 <div class="snapchat-creative-kit-share" data-theme="dark" data-size="large" data-share-url="${esc(link!)}"></div>
 <p class="link">${esc(link!)}</p><script async src="https://sdk.snapkit.com/js/v1/create.js"></script>`
     : `<h1>Nothing to share</h1><p>This share link is missing its web address. Go back to the composer and try again.</p>`;
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>Share to Snapchat</title>${appId ? `<meta property="snapchat:app_id" content="${esc(appId)}">` : ""}
-<style>body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:32px 20px;background:#fafafa;color:#1a1a1a;max-width:520px;margin:0 auto}h1{font-size:22px;margin:0 0 8px}p{margin:0 0 16px;color:#444}.link{word-break:break-all;font-size:14px;color:#555}@media (prefers-color-scheme:dark){body{background:#141414;color:#eee}p,.link{color:#bbb}}</style>
+<style>body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:32px 20px;background:#fafafa;color:#1a1a1a;max-width:520px;margin:0 auto}h1{font-size:22px;margin:0 0 8px}p{margin:0 0 16px;color:#444}.link{word-break:break-all;font-size:14px;color:#555}.open{display:inline-flex;align-items:center;min-height:44px;padding:0 20px;border-radius:999px;background:#fffc00;color:#000;font-weight:600;text-decoration:none}.open:focus-visible{outline:3px solid #1a73e8;outline-offset:2px}@media (prefers-color-scheme:dark){body{background:#141414;color:#eee}p,.link{color:#bbb}}</style>
 </head><body><main>${body}</main></body></html>`;
   return { status: ok ? 200 : 400, html };
 }

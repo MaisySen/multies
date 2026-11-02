@@ -74,6 +74,15 @@ describe("R132 pure rules", () => {
     expect(snapSharePage("http://acme.com", null).status).toBe(400);
   });
 
+  it("the share page always has a plain Open in Snapchat link, and only its own policy allows the share script's eval", async () => {
+    const page = snapSharePage("https://acme.com/a?b=1", null);
+    expect(page.html).toContain('href="https://www.snapchat.com/scan?attachmentUrl=https%3A%2F%2Facme.com%2Fa%3Fb%3D1"');
+    expect(page.html).toContain(">Open in Snapchat</a>");
+    const { snapShareCsp, appCsp } = await import("../src/server/lib/security-headers");
+    expect(snapShareCsp()).toMatch(/script-src 'self' 'unsafe-eval' https:\/\/sdk\.snapkit\.com/);
+    expect(appCsp({})).not.toContain("'unsafe-eval'");
+  });
+
   it("maps YouTube comment threads and the reply body", () => {
     const now = new Date("2026-11-01T10:00:00Z");
     const items = mapYoutubeThreads({ items: [

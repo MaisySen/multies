@@ -119,11 +119,14 @@ export const SNAP_SDK = "https://sdk.snapkit.com";
 export function snapShareCsp(): string {
   return serialize({
     "default-src": ["'self'"],
-    "script-src": ["'self'", SNAP_SDK],
+    // R132 (v24 BLOCKER 00:11 UTC Nov 2): the Snap share script evaluates strings, so this one page (no session, no
+    // data, one https link) allows eval; every other page keeps its own policy without it.
+    "script-src": ["'self'", "'unsafe-eval'", SNAP_SDK],
     "style-src": ["'self'", "'unsafe-inline'", SNAP_SDK],
     "img-src": ["'self'", "data:", "https:"],
     "frame-src": [SNAP_SDK, "https://*.snapchat.com"],
-    "connect-src": ["'self'", SNAP_SDK, "https://*.snapchat.com"],
+    "connect-src": ["'self'", SNAP_SDK, "https://api.snapkit.com", "https://*.snapchat.com"],
+    "font-src": ["'self'", "https://snapnet-cdn.storage.googleapis.com"], // the share button's own font
     "object-src": ["'none'"],
     "base-uri": ["'self'"],
     "form-action": ["'self'"],
