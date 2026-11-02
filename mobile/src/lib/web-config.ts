@@ -1,23 +1,29 @@
+/**
+ * M1 (1.10.9): the web app's feature flags (GET /api/config), read once and kept for five minutes, so a phone screen
+ * shows only what the web shows. A server that does not answer (offline, older server) counts every flag as off.
+ */
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "./session";
 
-/**
- * M1: the web app's feature flags (GET /api/config), fetched once and kept for the session, so the phone shows a
- * feature only where the web does. Unknown or missing flags read as off. The sample workspace has every M1 flag on.
- */
-export interface WebConfig { filesPlus?: boolean; docsPlus?: boolean; searchR98?: boolean; maps?: boolean; mailArchive?: boolean; davSync?: boolean; [k: string]: unknown }
+export interface WebConfig {
+  maps?: boolean; mailArchive?: boolean; davSync?: boolean; filesPlus?: boolean; docsPlus?: boolean; searchR98?: boolean;
+  mergePlus?: boolean; [key: string]: unknown;
+}
 
-export const SAMPLE_WEB_CONFIG: WebConfig = { filesPlus: true, docsPlus: true, searchR98: true, maps: true, mailArchive: true, davSync: true };
+export const webConfigKey = ["web-config"] as const;
 
-export const webConfigKey = (mode: string) => ["web-config", mode] as const;
+/** True only when the flag is exactly true. */
+export function flagOn(c: WebConfig | null | undefined, name: string): boolean { return !!c && c[name] === true; }
 
 export function useWebConfig() {
-  const { transport, mode, status } = useSession();
+  const { api, transport, status } = useSession();
+  void api;
   return useQuery({
-    queryKey: webConfigKey(mode),
+    queryKey: webConfigKey,
     enabled: status === "signedIn",
-    queryFn: async (): Promise<WebConfig> => (mode === "sample" ? SAMPLE_WEB_CONFIG : (await transport.request<WebConfig>("GET", "/config")) ?? {}),
-    staleTime: 10 * 60_000,
-    retry: 1,
+    queryFn: async (): Promise<WebConfig> => {
+      try { return ((await transport.request<WebConfig>("GET", "/config")) ?? {}) as WebConfig; } catch { return {}; }
+    },
+    staleTime: 5 * 60_000,
   });
 }

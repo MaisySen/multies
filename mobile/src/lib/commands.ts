@@ -24,7 +24,7 @@ export const COMMAND_IDS = [
   // Go to
   "go-i", "go-t", "go-d", "go-c", "go-m", "go-n",
   // App actions
-  "compose", "new-task", "search-mail", "runs", "tools", "settings", "social-new", "social", "social-inbox", "files",
+  "compose", "new-task", "search-mail", "runs", "tools", "settings", "social-new", "social", "social-inbox", "contacts", "visits",
   // Task actions (long-press on a task row)
   "task-status", "task-assignee", "task-priority", "task-label", "task-due",
   // Mail actions (long-press and swipe on a mail row)
@@ -51,7 +51,8 @@ export const COMMANDS: Command[] = [
   { id: "social-new", title: "New social post", scope: "app", icon: "send", keywords: ["facebook", "linkedin", "instagram", "post", "share"] },
   { id: "social-inbox", title: "Social inbox", scope: "app", icon: "inbox", keywords: ["comments", "messages", "mentions", "reply", "facebook", "instagram"] },
   { id: "social", title: "Social posts", scope: "app", icon: "send", keywords: ["facebook", "linkedin", "posted", "accounts"] },
-  { id: "files", title: "Files", scope: "app", icon: "layers", keywords: ["drive", "folders", "upload", "team files", "my files", "brand library", "logos", "trash"] },
+  { id: "contacts", title: "Contacts", scope: "app", icon: "user", keywords: ["people", "customers", "clients", "phone", "address", "call"] },
+  { id: "visits", title: "Plan visits", scope: "app", icon: "map-pin", keywords: ["maps", "route", "directions", "stops", "addresses"] },
   { id: "settings", title: "Settings", scope: "app", icon: "settings", keywords: ["preferences", "account", "version"] },
 
   { id: "task-status", title: "Change status", scope: "task", icon: "check-circle", web: ["S"], keywords: ["move", "done"] },
@@ -171,7 +172,8 @@ export function createHandlers(d: CommandDeps): Record<CommandId, CommandHandler
     "social-new": () => d.navigate({ pathname: "/social", params: { tab: "new" } }),
     social: () => d.navigate("/social"),
     "social-inbox": () => d.navigate({ pathname: "/social", params: { tab: "inbox" } }),
-    files: () => d.navigate("/files"),
+    contacts: () => d.navigate("/contacts"),
+    visits: () => d.navigate("/visits"),
     "task-status": task("status"),
     "task-assignee": task("assignee"),
     "task-priority": task("priority"),
