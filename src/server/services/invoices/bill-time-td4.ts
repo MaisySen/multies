@@ -6,7 +6,8 @@
  * voiding the invoice releases the time (src/server/services/invoices/bill-release-td4.ts), with an audit entry.
  * Owners and admins only: rates and amounts are manager data. Money is integer cents. Never touches Stripe or plans.
  */
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, lt, sql } from "drizzle-orm";
+import { inIds } from "../../lib/sql-chunks";
 import type { Deps } from "../../context";
 import { billProjects, billRates, billRuns, contacts, invoiceDocs, invoiceLines, organizations, projects, tasks, timeEntries, users, agents } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
@@ -73,8 +74,8 @@ interface RateBook { ws: { rateCents: number | null; currency: string; rounding:
 async function rateBook(deps: Deps, orgId: string, projectIds: string[]): Promise<RateBook> {
   const ids = [...new Set([WS, ...projectIds])].slice(0, 90);
   const [ps, rs] = await Promise.all([
-    deps.db.select().from(billProjects).where(and(eq(billProjects.orgId, orgId), inArray(billProjects.projectId, ids))).all(),
-    deps.db.select().from(billRates).where(and(eq(billRates.orgId, orgId), inArray(billRates.projectId, ids))).limit(2000).all(),
+    deps.db.select().from(billProjects).where(and(eq(billProjects.orgId, orgId), inIds(billProjects.projectId, ids))).all(),
+    deps.db.select().from(billRates).where(and(eq(billRates.orgId, orgId), inIds(billRates.projectId, ids))).limit(2000).all(),
   ]);
   const proj = new Map(ps.map((p) => [p.projectId, { rateCents: p.rateCents, currency: p.currency, rounding: p.rounding, contactId: p.contactId }]));
   return { ws: proj.get(WS) ?? null, proj, person: new Map(rs.map((r) => [`${r.projectId}|${r.personId}`, r.rateCents])) };
@@ -93,9 +94,9 @@ async function names(deps: Deps, rows: { personType: string; personId: string; t
   const tchunks: string[][] = [];
   for (let i = 0; i < tids.length; i += 90) tchunks.push(tids.slice(i, i + 90));
   const [us, ags, ...ts] = await Promise.all([
-    mids.length ? deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, mids)).all() : [],
-    aids.length ? deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(and(eq(agents.orgId, orgId), inArray(agents.id, aids))).all() : [],
-    ...tchunks.map((c) => deps.db.select({ id: tasks.id, number: tasks.number, title: tasks.title, projectId: tasks.projectId }).from(tasks).where(and(eq(tasks.orgId, orgId), inArray(tasks.id, c))).all()),
+    mids.length ? deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inIds(users.id, mids)).all() : [],
+    aids.length ? deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(and(eq(agents.orgId, orgId), inIds(agents.id, aids))).all() : [],
+    ...tchunks.map((c) => deps.db.select({ id: tasks.id, number: tasks.number, title: tasks.title, projectId: tasks.projectId }).from(tasks).where(and(eq(tasks.orgId, orgId), inIds(tasks.id, c))).all()),
   ]);
   const person = new Map<string, string>([...us.map((u) => [personKeyOf("member", u.id), u.name || u.email] as [string, string]), ...ags.map((g) => [personKeyOf("agent", g.id), g.name] as [string, string])]);
   const task = new Map<string, { number: number; title: string }>(ts.flat().map((t) => [t.id, { number: t.number, title: t.title }]));
@@ -208,7 +209,7 @@ export async function createRun(deps: Deps, a: Actor, r: RunInput) {
   for (let i = 0; i < ids.length; i += CHUNK) {
     const part = ids.slice(i, i + CHUNK);
     const got = await deps.db.update(timeEntries).set({ billedDocId: docId, billedAt: now })
-      .where(and(live(a.orgId), eq(timeEntries.projectId, view.project.id), inArray(timeEntries.id, part))).returning({ id: timeEntries.id });
+      .where(and(live(a.orgId), eq(timeEntries.projectId, view.project.id), inIds(timeEntries.id, part))).returning({ id: timeEntries.id });
     claimed += got.length;
     if (got.length !== part.length) break;
   }
@@ -246,9 +247,9 @@ export async function listRuns(deps: Deps, a: Actor) {
   const rows = await deps.db.select().from(billRuns).where(eq(billRuns.orgId, a.orgId)).orderBy(desc(billRuns.createdAt)).limit(50).all();
   if (!rows.length) return { runs: [] };
   const [docs, prs, cs] = await Promise.all([
-    deps.db.select({ id: invoiceDocs.id, number: invoiceDocs.number, status: invoiceDocs.status }).from(invoiceDocs).where(and(eq(invoiceDocs.orgId, a.orgId), inArray(invoiceDocs.id, [...new Set(rows.map((r) => r.docId))]))).all(),
-    deps.db.select({ id: projects.id, name: projects.name }).from(projects).where(and(eq(projects.orgId, a.orgId), inArray(projects.id, [...new Set(rows.map((r) => r.projectId))]))).all(),
-    deps.db.select({ id: contacts.id, name: contacts.name, email: contacts.email }).from(contacts).where(and(eq(contacts.orgId, a.orgId), inArray(contacts.id, [...new Set(rows.map((r) => r.contactId).filter(Boolean) as string[])].concat([""])))).all(),
+    deps.db.select({ id: invoiceDocs.id, number: invoiceDocs.number, status: invoiceDocs.status }).from(invoiceDocs).where(and(eq(invoiceDocs.orgId, a.orgId), inIds(invoiceDocs.id, [...new Set(rows.map((r) => r.docId))]))).all(),
+    deps.db.select({ id: projects.id, name: projects.name }).from(projects).where(and(eq(projects.orgId, a.orgId), inIds(projects.id, [...new Set(rows.map((r) => r.projectId))]))).all(),
+    deps.db.select({ id: contacts.id, name: contacts.name, email: contacts.email }).from(contacts).where(and(eq(contacts.orgId, a.orgId), inIds(contacts.id, [...new Set(rows.map((r) => r.contactId).filter(Boolean) as string[])]))).all(),
   ]);
   const dm = new Map(docs.map((d) => [d.id, d])), pm = new Map(prs.map((p) => [p.id, p.name])), cm = new Map(cs.map((c) => [c.id, c.name || c.email]));
   return { runs: rows.map((r) => presentRun(r, dm.get(r.docId)?.number ?? null, dm.get(r.docId)?.status ?? (r.status === "released" ? null : "deleted"), pm.get(r.projectId), r.contactId ? cm.get(r.contactId) : null)) };
@@ -295,10 +296,10 @@ export async function summary(deps: Deps, a: Actor) {
   const pids = [...new Set(rows.map((r) => r.projectId as string))].slice(0, 80);
   const [book, prs] = await Promise.all([
     rateBook(deps, a.orgId, pids),
-    deps.db.select({ id: projects.id, name: projects.name, deletedAt: projects.deletedAt }).from(projects).where(and(eq(projects.orgId, a.orgId), inArray(projects.id, pids))).all(),
+    deps.db.select({ id: projects.id, name: projects.name, deletedAt: projects.deletedAt }).from(projects).where(and(eq(projects.orgId, a.orgId), inIds(projects.id, pids))).all(),
   ]);
   const cids = [...new Set(pids.map((p) => book.proj.get(p)?.contactId).filter(Boolean) as string[])];
-  const cs = cids.length ? await deps.db.select({ id: contacts.id, name: contacts.name, email: contacts.email }).from(contacts).where(and(eq(contacts.orgId, a.orgId), inArray(contacts.id, cids))).all() : [];
+  const cs = cids.length ? await deps.db.select({ id: contacts.id, name: contacts.name, email: contacts.email }).from(contacts).where(and(eq(contacts.orgId, a.orgId), inIds(contacts.id, cids))).all() : [];
   const pm = new Map(prs.filter((p) => !p.deletedAt).map((p) => [p.id, p.name])), cm = new Map(cs.map((c) => [c.id, c.name || c.email]));
   const groups = new Map<string, { key: string; name: string; clientId: string | null; projectId: string; projects: number; seconds: number; amountCents: number; currency: string; missingRate: boolean }>();
   for (const r of rows) {
