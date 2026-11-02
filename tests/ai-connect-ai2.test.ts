@@ -195,7 +195,7 @@ describe("AI2 routes", () => {
     await c.post("/api/ai/connect", { apiKey: ANT });
     const ok = await c.post("/api/ai/test", {});
     expect(ok.body.ok).toBe(true);
-    expect(ok.body.message).toMatch(/^Connected\. Replies in \d+\.\d s$/);
+    expect(ok.body.message).toMatch(/^Connected\. Replies in (under 0\.1|\d+\.\d) s$/);
     const call = calls.find((x) => x.url === "https://api.anthropic.com/v1/messages")!;
     expect(JSON.parse(call.body).max_tokens).toBe(16);
     const cases: [number, string][] = [[401, AI2_RESULT_TEXT.key_refused], [402, AI2_RESULT_TEXT.no_credit], [404, AI2_RESULT_TEXT.model_unavailable], [429, AI2_RESULT_TEXT.rate_limited], [500, AI2_RESULT_TEXT.provider_error]];

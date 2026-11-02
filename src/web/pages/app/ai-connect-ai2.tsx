@@ -231,12 +231,13 @@ function ModelAndTest({ status }: { status: AiStatus }) {
           <Button size="sm" variant="outline" onClick={() => void list.refetch()}>Try again</Button>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-[1fr_2fr]">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           <Field label="Find a model">{(p) => <Input {...p} type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search" autoComplete="off" data-testid="ai2-model-search" />}</Field>
           <Field label="Model" hint={list.data?.note ?? `${list.data?.models.length ?? 0} models from ${status.providerName}.`}>
             {(p) => (
-              <div className="flex gap-2">
-                <Select {...p} className="flex-1" value={current} onChange={(e) => e.target.value && e.target.value !== current && save.mutate(e.target.value)} disabled={save.isPending} data-testid="ai2-model-select">
+              <div className="flex min-w-0 items-start gap-2">
+                <div className="min-w-0 flex-1 overflow-hidden">
+                <Select {...p} className="w-full min-w-0 truncate" value={current} onChange={(e) => e.target.value && e.target.value !== current && save.mutate(e.target.value)} disabled={save.isPending} data-testid="ai2-model-select">
                   {!currentShown && current && <option value={current}>{current} (saved)</option>}
                   {rec && !filter && (
                     <optgroup label="Recommended">
@@ -247,7 +248,8 @@ function ModelAndTest({ status }: { status: AiStatus }) {
                     {shown.filter((m) => filter || m.id !== rec?.id).map((m) => <option key={m.id} value={m.id}>{m.name === m.id ? m.id : `${m.name} (${m.id})`}</option>)}
                   </optgroup>
                 </Select>
-                <Button variant="outline" size="icon" onClick={() => refresh.mutate()} loading={refresh.isPending} aria-label="Reload the model list"><IconRefresh className="h-4 w-4" aria-hidden /></Button>
+                </div>
+                <Button variant="outline" size="icon" className="shrink-0" onClick={() => refresh.mutate()} loading={refresh.isPending} aria-label="Reload the model list"><IconRefresh className="h-4 w-4" aria-hidden /></Button>
               </div>
             )}
           </Field>

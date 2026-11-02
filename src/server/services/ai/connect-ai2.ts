@@ -282,7 +282,7 @@ export async function testConnection(deps: Deps, auth: AuthContext, model?: stri
   const ms = Date.now() - started;
   await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "ai_key.tested", targetType: "ai_key", targetId: k.provider, metadata: { provider: k.provider, model: m, result: code, ...(status ? { status } : {}) } });
   const ok = code === "ok";
-  return { ok, code, ms: ok ? ms : null, model: m, message: ok ? `Connected. Replies in ${(ms / 1000).toFixed(1)} s` : AI2_RESULT_TEXT[code] };
+  return { ok, code, ms: ok ? ms : null, model: m, message: ok ? `Connected. Replies in ${ms < 100 ? "under 0.1" : (ms / 1000).toFixed(1)} s` : AI2_RESULT_TEXT[code] };
 }
 
 /**
