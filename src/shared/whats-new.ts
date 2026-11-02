@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-02-staff",
+    date: "2026-11-02",
+    title: "Staff, onboarding and equipment",
+    body: "Contacts has a Staff directory with an org chart and who is away. Admins build onboarding checklists that become tasks from a start date, and keep an equipment register with QR labels.",
+  },
+  {
     id: "2026-11-02-polish",
     date: "2026-11-02",
     title: "Smoother Courses, Tables, Vault and more",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Faster search",
     body: "Search across mail, tasks, docs and files stays quick when the whole team is busy.",
-  },
-  {
-    id: "2026-11-01-office-files",
-    date: "2026-11-01",
-    title: "Office files in the browser",
-    body: "Edit Word files and Excel sheets with working formulas right in Files, save each change as a version, and view slides.",
   },
   {
     id: "2026-10-28-whats-new",
