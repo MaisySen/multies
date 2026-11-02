@@ -196,7 +196,7 @@ function AwayView({ people }: { people: StaffPerson[] }) {
             <caption className="sr-only">Who is away from {fmtDate(start)} to {fmtDate(end)}</caption>
             <thead><tr>
               <th scope="col" className="sticky left-0 z-10 bg-surface px-3 py-2 text-left font-medium text-muted">Person</th>
-              {days.map((d) => <th key={d} scope="col" className={cn("px-1 py-2 text-center font-medium", d === today ? "text-brand" : "text-muted")}>{dayLabel(d)}</th>)}
+              {days.map((d) => <th key={d} scope="col" aria-current={d === today ? "date" : undefined} className={cn("px-1 py-2 text-center font-medium", d === today ? "text-fg underline decoration-brand decoration-2 underline-offset-4" : "text-muted")}>{dayLabel(d)}</th>)}
             </tr></thead>
             <tbody>
               {people.map((p) => {
