@@ -58,6 +58,7 @@ export async function editTaskComment(deps: Deps, a: SuiteActor, id: string, bod
   if (!text) throw new HttpError(422, "validation_failed", "A comment can't be empty. Delete it instead.");
   const now = deps.now();
   await deps.db.update(taskComments).set({ body: text.slice(0, COMMENT_MAX), updatedAt: now, version: c.version + 1 }).where(eq(taskComments.id, c.id));
+  await (await import("../mentions-td5")).syncRefs(deps, a, { type: "task_comment", id: c.id, parentType: "task", parentId: t.id }, text.slice(0, COMMENT_MAX)); // TD5
   await deps.db.update(tasks).set({ updatedAt: now }).where(eq(tasks.id, t.id));
   const out = presentComment({ ...c, body: text.slice(0, COMMENT_MAX), updatedAt: now, version: c.version + 1 });
   await recordWrite(deps, a, { entityType: "task", entityId: t.id, op: "update", version: t.version, verb: "edited a comment", data: { commentId: c.id, excerpt: text.slice(0, 140) },
@@ -72,6 +73,7 @@ export async function deleteTaskComment(deps: Deps, a: SuiteActor, id: string) {
   if (!isAuthor(a, c) && !admin) throw new HttpError(403, "forbidden", "Only the author or an admin can delete a comment.");
   const now = deps.now();
   await deps.db.update(taskComments).set({ deletedAt: now, updatedAt: now }).where(eq(taskComments.id, c.id));
+  await (await import("../mentions-td5")).removeSource(deps, a.orgId, { type: "task_comment", id: c.id }); // TD5
   await recordWrite(deps, a, { entityType: "task", entityId: t.id, op: "update", version: t.version, verb: "deleted a comment", data: { commentId: c.id },
     event: "comment.deleted", eventData: { id: c.id, object: "comment", taskId: t.id } }); // R51 (MB-239)
   return { ok: true };

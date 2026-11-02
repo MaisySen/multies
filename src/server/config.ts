@@ -82,6 +82,10 @@ export interface AppConfig {
   peopleR126?: boolean;
   /** R126: more workspaces kept out of People; vv8k is always out. */
   peopleExclude?: string;
+  /** TD5: MENTIONS_TD5 (record mentions, References panels, per viewer chat cards). Off unless set. */
+  mentionsTd5?: boolean;
+  /** TD5: more workspaces kept out of mentions; vv8k is always out. */
+  mentionsExclude?: string;
   /** R128: VAULT_R128 (team password vault in Tools). Off unless set. */
   vaultR128?: boolean;
   /** R128: more workspaces kept out of the vault; vv8k is always out. */
@@ -468,6 +472,8 @@ const EnvSchema = z.object({
   TABLES_EXCLUDE: z.string().optional(), // R125
   VAULT_R128: z.string().optional(),
   PEOPLE_R126: z.string().optional(),
+  MENTIONS_TD5: z.string().optional(),
+  MENTIONS_EXCLUDE: z.string().optional(),
   PEOPLE_EXCLUDE: z.string().optional(),
   VAULT_EXCLUDE: z.string().optional(),
   TOOLS_FEATURES: z.string().optional(),
@@ -791,6 +797,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     vaultR128: ["1", "true", "on"].includes(String(env.VAULT_R128 ?? "").toLowerCase()), // R128
     peopleR126: ["1", "true", "on"].includes(String(env.PEOPLE_R126 ?? "").toLowerCase()), // R126
     peopleExclude: env.PEOPLE_EXCLUDE ?? "", // R126
+    mentionsTd5: ["1", "true", "on"].includes(String(env.MENTIONS_TD5 ?? "").toLowerCase()), // TD5
+    mentionsExclude: env.MENTIONS_EXCLUDE ?? "", // TD5
     vaultExclude: env.VAULT_EXCLUDE ?? "", // R128
     invoicesEnabled: env.INVOICES_ENABLED === "true" || env.INVOICES_ENABLED === "1", // R105
     coursesR129: ["1", "true", "on"].includes(String(env.COURSES_R129 ?? "").toLowerCase()), // R129

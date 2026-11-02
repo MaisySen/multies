@@ -4684,3 +4684,19 @@ export const billRuns = sqliteTable("bill_runs", {
   releasedBy: text("released_by"),
   releaseReason: text("release_reason"),
 }, (t) => [index("bill_runs_org_idx").on(t.orgId, t.createdAt), index("bill_runs_doc_idx").on(t.orgId, t.docId)]);
+/**
+ * TD5 (0156): which text mentions which record. One row per (source, target); the source is the text that holds the
+ * token (a chat message, a task description, a task or doc comment, a contact note) and parent is the record that text
+ * lives on (the channel, task, doc or contact). No titles or text are stored. WITHOUT ROWID.
+ */
+export const recordRefs = sqliteTable("record_refs", {
+  orgId: text("org_id").notNull(),
+  sourceType: text("source_type").notNull(),
+  sourceId: text("source_id").notNull(),
+  parentType: text("parent_type"),
+  parentId: text("parent_id"),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id").notNull(),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.sourceType, t.sourceId, t.targetType, t.targetId] }), index("record_refs_target_idx").on(t.orgId, t.targetType, t.targetId, t.createdAt), index("record_refs_parent_idx").on(t.orgId, t.parentType, t.parentId)]);

@@ -39,6 +39,8 @@ export interface PublicConfig {
   peopleR126?: boolean;
   /** TD1: Ask v2 and AI trust controls (ASK_TD1). */
   askTd1?: boolean;
+  /** TD5: record mentions and References panels (MENTIONS_TD5). */
+  mentionsTd5?: boolean;
   /** R128: team password vault (VAULT_R128). */
   vaultR128?: boolean;
   /** R94: CRM timeline (notes are searchable with R98). */

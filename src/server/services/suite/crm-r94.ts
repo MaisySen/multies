@@ -255,6 +255,7 @@ export async function createEntry(deps: Deps, a: Actor, i: EntryInput) {
     outcome: i.kind === "call" ? i.outcome ?? null : null, durationMin: i.kind === "note" ? null : i.durationMin ?? null,
     occurredAt: at > now ? now : at, private: !!i.private, authorName: who.name, ...createdBy(a), createdAt: now, updatedAt: now,
   });
+  await (await import("../mentions-td5")).syncRefs(deps, { orgId: a.orgId, userId: a.userId }, { type: "note", id, parentType: i.entityType, parentId: i.entityId }, body); // TD5
   if (!i.private) await recordWrite(deps, a, { entityType: i.entityType, entityId: i.entityId, op: "update", verb: i.kind === "call" ? "call_logged" : i.kind === "meeting" ? "meeting_logged" : "note_added", data: { entryId: id } });
   const row = await deps.db.select().from(crmEntries).where(eq(crmEntries.id, id)).get();
   return presentEntry(row!, a);
@@ -283,6 +284,7 @@ export async function updateEntry(deps: Deps, a: Actor, id: string, p: Partial<P
     ...(p.private !== undefined && r.createdById === actorOf(a).id ? { private: p.private } : {}),
     updatedAt: now, version: r.version + 1,
   }).where(eq(crmEntries.id, id));
+  if (p.body !== undefined) await (await import("../mentions-td5")).syncRefs(deps, { orgId: a.orgId, userId: a.userId }, { type: "note", id, parentType: r.entityType, parentId: r.entityId }, body); // TD5
   return presentEntry((await deps.db.select().from(crmEntries).where(eq(crmEntries.id, id)).get())!, a);
 }
 
@@ -290,6 +292,7 @@ export async function deleteEntry(deps: Deps, a: Actor, id: string) {
   assertWritable(a);
   const r = await ownEntry(deps, a, id);
   await deps.db.update(crmEntries).set({ deletedAt: deps.now(), updatedAt: deps.now(), version: r.version + 1 }).where(eq(crmEntries.id, id));
+  await (await import("../mentions-td5")).removeSource(deps, a.orgId, { type: "note", id }); // TD5
   return { ok: true as const, id };
 }
 

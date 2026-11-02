@@ -109,6 +109,7 @@ export async function syncDocLinks(deps: Deps, orgId: string, docId: string, bod
   const fresh = want.filter((w) => !haveKeys.has(key(w)));
   for (const g of gone) await deps.db.delete(docLinks).where(and(eq(docLinks.sourceDocId, docId), eq(docLinks.targetType, g.type), eq(docLinks.targetId, g.id)));
   if (fresh.length) await deps.db.insert(docLinks).values(fresh.map((f) => ({ orgId, sourceDocId: docId, targetType: f.type, targetId: f.id }))).onConflictDoNothing();
+  await (await import("../mentions-td5")).syncDocRefs(deps, orgId, docId, want); // TD5: page links show in References too
   return { added: fresh.length, removed: gone.length };
 }
 

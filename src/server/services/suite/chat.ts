@@ -392,7 +392,8 @@ export async function listMessages(deps: Deps, channelId: string, q: { limit?: n
 
 export async function channelMessages(deps: Deps, a: SuiteActor, channelId: string, q: { limit?: number; before?: string; since?: string; topicId?: string }) {
   const c = await visibleChannel(deps, a, channelId);
-  return listMessages(deps, c.id, q, isKey(a) ? null : a.userId);
+  const r = await listMessages(deps, c.id, q, isKey(a) ? null : a.userId);
+  return { ...r, messages: await (await import("../mentions-td5")).viewerChatLinks(deps, a, r.messages) }; // TD5: cards per reader
 }
 
 async function messageRow(deps: Deps, orgId: string, id: string) {
@@ -404,7 +405,8 @@ async function messageRow(deps: Deps, orgId: string, id: string) {
 export async function getMessage(deps: Deps, a: SuiteActor, id: string) {
   const m = await messageRow(deps, a.orgId, id);
   const channel = await getChannel(deps, a, m.channelId);
-  return { message: (await present(deps, [m]))[0], channel };
+  const [message] = await (await import("../mentions-td5")).viewerChatLinks(deps, a, await present(deps, [m])); // TD5: cards per reader
+  return { message, channel };
 }
 
 export async function threadOf(deps: Deps, orgId: string, m: MessageRow, viewer?: string | null) {
@@ -417,7 +419,9 @@ export async function threadOf(deps: Deps, orgId: string, m: MessageRow, viewer?
 export async function getThread(deps: Deps, a: SuiteActor, id: string) {
   const m = await messageRow(deps, a.orgId, id);
   await visibleChannel(deps, a, m.channelId);
-  return threadOf(deps, a.orgId, m, isKey(a) ? null : a.userId);
+  const t = await threadOf(deps, a.orgId, m, isKey(a) ? null : a.userId);
+  const [message, ...replies] = await (await import("../mentions-td5")).viewerChatLinks(deps, a, [t.message, ...t.replies]); // TD5: cards per reader
+  return { ...t, message, replies };
 }
 
 async function resolveLinks(deps: Deps, a: SuiteActor, raw: { type: ChatLink["type"]; id: string }[]): Promise<ChatLink[]> {
@@ -498,6 +502,7 @@ async function writeMessage(deps: Deps, a: SuiteActor, c: ChannelRow, author: Au
     body, mentions: JSON.stringify(mentions), mentionKeys: mentions.map((m) => (m.type === "channel" ? "channel" : `${m.type}:${m.id}`)).join(" "),
     links: JSON.stringify(links), topicId, createdAt: now, updatedAt: now,
   });
+  await (await import("../mentions-td5")).syncRefs(deps, { orgId: c.orgId, userId: author.type === "member" ? author.id : null }, { type: "chat", id, parentType: "channel", parentId: c.id }, body); // TD5
   if (topicId) await deps.db.update(chatTopics).set({ lastMessageAt: now }).where(eq(chatTopics.id, topicId));
   if (files.length) await storeFiles(deps, c.orgId, c.id, id, files);
   if (parent) await deps.db.update(chatMessages).set({ replyCount: sql`${chatMessages.replyCount} + 1`, lastReplyAt: now, updatedAt: now }).where(eq(chatMessages.id, parent.id));
@@ -590,6 +595,7 @@ export async function editMessage(deps: Deps, a: SuiteActor, id: string, body: s
   const links = await resolveLinks(deps, a, parsed.links);
   const now = deps.now();
   await deps.db.update(chatMessages).set({ body: text, mentions: JSON.stringify(mentions), mentionKeys: mentions.map((x) => (x.type === "channel" ? "channel" : `${x.type}:${x.id}`)).join(" "), links: JSON.stringify(links), editedAt: now, updatedAt: now }).where(eq(chatMessages.id, m.id));
+  await (await import("../mentions-td5")).syncRefs(deps, { orgId: a.orgId, userId: a.userId }, { type: "chat", id: m.id, parentType: "channel", parentId: m.channelId }, text); // TD5
   const out = (await present(deps, [await messageRow(deps, a.orgId, id)]))[0];
   await emitEvent(deps, a.orgId, "chat.message.updated", { message: out });
   await publishChat(deps, c, { t: "message", op: "updated", channelId: c.id, message: out });
@@ -600,6 +606,7 @@ export async function editMessage(deps: Deps, a: SuiteActor, id: string, body: s
 async function softDelete(deps: Deps, orgId: string, m: MessageRow, c: ChannelRow) {
   const now = deps.now();
   await deps.db.update(chatMessages).set({ deletedAt: now, updatedAt: now, body: "", mentions: "[]", mentionKeys: "", links: "[]" }).where(eq(chatMessages.id, m.id));
+  await (await import("../mentions-td5")).removeSource(deps, orgId, { type: "chat", id: m.id }); // TD5
   await deps.db.delete(chatFiles).where(eq(chatFiles.messageId, m.id));
   await emitEvent(deps, orgId, "chat.message.deleted", { messageId: m.id, channelId: m.channelId });
   // R32: open chats swap in the same "deleted" placeholder the next read would show.

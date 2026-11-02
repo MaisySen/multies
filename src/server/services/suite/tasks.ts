@@ -625,6 +625,7 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
     ...(triage ? { triageState: "pending" as const, triageSource: triage.source, sourceFrom: source.from ?? triage.from ?? null } : {}),
   };
   await deps.db.insert(tasks).values(row);
+  if (row.notes.includes("<#")) await (await import("../mentions-td5")).syncRefs(deps, actor, { type: "task", id }, row.notes); // TD5
   if (input.fields && Object.keys(input.fields).length) await setTaskFieldValues(deps, actor.orgId, { id, projectId: project.id }, input.fields);
   if (source.messageId) {
     const m = await deps.db.select({ fromAddress: messages.fromAddress }).from(messages).where(eq(messages.id, source.messageId)).get();
@@ -799,6 +800,7 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
   if (Object.keys(changed).length || patch.position !== undefined) {
     await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "update", version: task.version, verb, data: changed, event: "task.updated", eventData: { task, changed: Object.keys(changed) } });
   }
+  if (patch.notes !== undefined && patch.notes !== t.notes) await (await import("../mentions-td5")).syncRefs(deps, actor, { type: "task", id: t.id }, patch.notes); // TD5
   // R84: people newly @mentioned in the description hear it once (not on every save of the same text).
   if (patch.notes !== undefined && patch.notes.includes("@") && patch.notes !== t.notes) {
     const was = new Set(await mentionedMembers(deps, actor.orgId, t.notes));
@@ -905,6 +907,7 @@ export async function addComment(deps: Deps, actor: SuiteActor, idOrRef: string,
   const id = opts.id ?? sortableId("cmt", now.getTime()); // R51 (MB-239)
   const by = createdBy(actor);
   await deps.db.insert(taskComments).values({ id, orgId: actor.orgId, taskId: t.id, authorName: actor.name || actor.email, body: text.slice(0, 20_000), ...by, createdAt: now, updatedAt: now });
+  await (await import("../mentions-td5")).syncRefs(deps, actor, { type: "task_comment", id, parentType: "task", parentId: t.id }, text.slice(0, 20_000)); // TD5
   await deps.db.update(tasks).set({ updatedAt: now }).where(eq(tasks.id, t.id));
   const comment = { id, taskId: t.id, body: text, author: { type: by.createdByType, id: by.createdById, name: actor.name || actor.email }, createdAt: now.toISOString() };
   await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "update", version: t.version, verb: "commented", data: { commentId: id, excerpt: text.slice(0, 140) }, event: ["task.commented", "comment.created"], eventData: { id, object: "comment", taskId: t.id, comment } }); // R51 (MB-239): comment.created too

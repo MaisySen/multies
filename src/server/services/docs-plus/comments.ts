@@ -97,6 +97,7 @@ export async function addMemberComment(deps: Deps, actor: SuiteActor, docId: str
   const id = sortableId("dcm", now.getTime());
   const name = actor.name || actor.email || "Someone";
   await deps.db.insert(docComments).values({ id, orgId: actor.orgId, docId, thread, authorType: "member", authorId: actor.userId, authorName: name.slice(0, 120), body, status: "visible", createdAt: now });
+  if (thread === "team") await (await import("../mentions-td5")).syncRefs(deps, actor, { type: "doc_comment", id, parentType: "doc", parentId: docId }, body); // TD5
   const mentions = thread === "team" ? await tellPeople(deps, d, { id: actor.userId, name }, body) : [];
   if (mentions.length) await deps.db.update(docComments).set({ mentions: JSON.stringify(mentions) }).where(eq(docComments.id, id));
   const r = await deps.db.select().from(docComments).where(eq(docComments.id, id)).get();
@@ -118,6 +119,7 @@ export async function changeComment(deps: Deps, actor: SuiteActor, id: string, p
   if (patch.body !== undefined) {
     if (!(r.authorType === "member" && r.authorId === actor.userId)) throw forbidden("Only the author can edit a comment.");
     await deps.db.update(docComments).set({ body: cleanBody(patch.body), editedAt: now }).where(eq(docComments.id, id));
+    if (r.thread === "team") await (await import("../mentions-td5")).syncRefs(deps, actor, { type: "doc_comment", id, parentType: "doc", parentId: r.docId }, cleanBody(patch.body)); // TD5
   }
   if (patch.status !== undefined) {
     if (!mod) throw forbidden("Only owners, admins and the person who made this doc review comments.");
@@ -134,6 +136,7 @@ export async function removeComment(deps: Deps, actor: SuiteActor, id: string) {
   const mine = r.authorType === "member" && r.authorId === actor.userId;
   if (!mine && !canModerate(actor, d)) throw forbidden("Only the author, an owner, an admin or the person who made this doc can remove a comment.");
   await deps.db.update(docComments).set({ deletedAt: deps.now(), moderatedBy: mine ? null : actor.userId }).where(eq(docComments.id, id));
+  await (await import("../mentions-td5")).removeSource(deps, actor.orgId, { type: "doc_comment", id }); // TD5
   return { ok: true };
 }
 

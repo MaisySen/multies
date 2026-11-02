@@ -1745,5 +1745,13 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX IF NOT EXISTS `bill_runs_org_idx` ON `bill_runs` (`org_id`,`created_at`);",
       "CREATE INDEX IF NOT EXISTS `bill_runs_doc_idx` ON `bill_runs` (`org_id`,`doc_id`);"
     ]
+  },
+  {
+    "name": "0156_td5_record_refs",
+    "statements": [
+      "-- TD5 mentions: which text mentions which record (no titles, no text). Additive only.\nCREATE TABLE `record_refs` (\n\t`org_id` text NOT NULL,\n\t`source_type` text NOT NULL,\n\t`source_id` text NOT NULL,\n\t`parent_type` text,\n\t`parent_id` text,\n\t`target_type` text NOT NULL,\n\t`target_id` text NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`source_type`, `source_id`, `target_type`, `target_id`)\n) WITHOUT ROWID;",
+      "CREATE INDEX `record_refs_target_idx` ON `record_refs` (`org_id`,`target_type`,`target_id`,`created_at`);",
+      "CREATE INDEX `record_refs_parent_idx` ON `record_refs` (`org_id`,`parent_type`,`parent_id`);"
+    ]
   }
 ];
