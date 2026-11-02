@@ -1732,5 +1732,18 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "-- TD3 (Nov 2): meetings to tasks. Suggested action items from a meeting's transcript or notes, each accepted\n-- (one real task) or discarded by a person. Keyed by (org_id, meeting_id, id) WITHOUT ROWID so a meeting's list\n-- reads the key prefix with no secondary index. Additive only.\nCREATE TABLE IF NOT EXISTS `meeting_suggestions` (\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`meeting_id` text NOT NULL,\n\t`id` text NOT NULL,\n\t`source` text NOT NULL,\n\t`source_id` text,\n\t`title` text NOT NULL,\n\t`quote` text,\n\t`assignee_type` text,\n\t`assignee_id` text,\n\t`due` text,\n\t`status` text DEFAULT 'open' NOT NULL,\n\t`task_id` text,\n\t`created_by` text NOT NULL,\n\t`decided_by` text,\n\t`decided_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `meeting_id`, `id`)\n) WITHOUT ROWID;"
     ]
+  },
+  {
+    "name": "0155_td4_bill_time",
+    "statements": [
+      "-- TD4 (Nov 2): time to invoice. Billed time entries point at the draft or issued invoice that carries them, so the same\n-- time can not be billed twice; rates and the client per project; one row per billing run for the record and CSV.\n-- Additive only.\nALTER TABLE `time_entries` ADD `billed_doc_id` text;",
+      "ALTER TABLE `time_entries` ADD `billed_at` integer;",
+      "CREATE INDEX IF NOT EXISTS `time_entries_billed_idx` ON `time_entries` (`org_id`,`billed_doc_id`) WHERE `billed_doc_id` IS NOT NULL;",
+      "CREATE TABLE IF NOT EXISTS `bill_projects` (\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`project_id` text NOT NULL,\n\t`contact_id` text,\n\t`currency` text DEFAULT 'AUD' NOT NULL,\n\t`rate_cents` integer,\n\t`rounding` integer DEFAULT 0 NOT NULL,\n\t`updated_by` text,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY (`org_id`, `project_id`)\n);",
+      "CREATE TABLE IF NOT EXISTS `bill_rates` (\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`project_id` text NOT NULL,\n\t`person_id` text NOT NULL,\n\t`rate_cents` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY (`org_id`, `project_id`, `person_id`)\n);",
+      "CREATE TABLE IF NOT EXISTS `bill_runs` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`project_id` text NOT NULL,\n\t`contact_id` text,\n\t`doc_id` text NOT NULL,\n\t`date_from` text NOT NULL,\n\t`date_to` text NOT NULL,\n\t`rounding` integer DEFAULT 0 NOT NULL,\n\t`entry_count` integer DEFAULT 0 NOT NULL,\n\t`seconds` integer DEFAULT 0 NOT NULL,\n\t`amount_cents` integer DEFAULT 0 NOT NULL,\n\t`currency` text DEFAULT 'AUD' NOT NULL,\n\t`status` text DEFAULT 'open' NOT NULL,\n\t`created_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`released_at` integer,\n\t`released_by` text,\n\t`release_reason` text\n);",
+      "CREATE INDEX IF NOT EXISTS `bill_runs_org_idx` ON `bill_runs` (`org_id`,`created_at`);",
+      "CREATE INDEX IF NOT EXISTS `bill_runs_doc_idx` ON `bill_runs` (`org_id`,`doc_id`);"
+    ]
   }
 ];

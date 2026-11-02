@@ -102,6 +102,8 @@ export interface AppConfig {
   shieldDifficulty: number;
   /** R106: expenses and receipts (EXPENSES_R106=on). Off unless set. */
   expensesR106: boolean;
+  /** TD4: time to invoice, billing runs that lock billed time (BILL_TD4=on). Off unless set. */
+  billTd4?: boolean;
   /** R106 tests only: a receipt's own bytes are read as its text (never in production). */
   expensesFakeRead?: boolean;
   /**
@@ -408,6 +410,7 @@ const EnvSchema = z.object({
   FORMS_PLUS_EXCLUDE: z.string().optional(), // R93
   SHIELD_DIFFICULTY: z.string().optional(),
   EXPENSES_R106: z.string().optional(), // R106
+  BILL_TD4: z.string().optional(), // TD4
   EXPENSES_FAKE_READ: z.string().optional(), // R106 tests only
   COMPOSIO_API_KEY: z.string().optional(),
   // R83: own sign in for TikTok (Login Kit and Content Posting) and Threads.
@@ -799,6 +802,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     formsPlusExclude: env.FORMS_PLUS_EXCLUDE ?? "", // R93
     shieldDifficulty: env.SHIELD_DIFFICULTY && /^\d{1,2}$/.test(env.SHIELD_DIFFICULTY) ? Math.min(22, Number(env.SHIELD_DIFFICULTY)) : 14,
     expensesR106: ["on", "true", "1"].includes(env.EXPENSES_R106 ?? ""), // R106
+    billTd4: ["on", "true", "1"].includes(env.BILL_TD4 ?? ""), // TD4
     expensesFakeRead: env.EXPENSES_FAKE_READ === "1" && mode !== "production", // R106 tests only
     tools: toolsConfig(env),
     links: { flushMs: Math.max(0, Math.min(20_000, Number(env.LINK_CLICK_FLUSH_MS ?? 4000) || 0)) },

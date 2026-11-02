@@ -1285,8 +1285,12 @@ export const timeEntries = sqliteTable("time_entries", {
   source: text("source", { enum: ["timer", "manual"] }).notNull().default("timer"),
   /** R95 (0126): JSON string[] of short lower case tags. */
   tags: text("tags").notNull().default("[]"),
+  /** TD4 (0155): the invoice (draft or issued) this time is billed on; set only by a billing run, cleared when that invoice is deleted or voided. */
+  billedDocId: text("billed_doc_id"),
+  billedAt: ts("billed_at"),
   ...suiteCols(),
 }, (t) => [
+  index("time_entries_billed_idx").on(t.orgId, t.billedDocId).where(sql`${t.billedDocId} IS NOT NULL`),
   index("time_entries_org_person_idx").on(t.orgId, t.personId, t.startedAt),
   index("time_entries_org_project_idx").on(t.orgId, t.projectId, t.startedAt),
   index("time_entries_task_idx").on(t.taskId),
@@ -4639,3 +4643,44 @@ export const tourProgress = sqliteTable("tour_progress", {
   data: text("data"),
   updatedAt: integer("updated_at").notNull(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.userId, t.key] })]);
+
+// TD4 (0155): time to invoice. project_id '' is the workspace default row; rounding is minutes (0 = exact seconds).
+export const billProjects = sqliteTable("bill_projects", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  projectId: text("project_id").notNull(),
+  contactId: text("contact_id"),
+  currency: text("currency").notNull().default("AUD"),
+  rateCents: integer("rate_cents"),
+  rounding: integer("rounding").notNull().default(0),
+  updatedBy: text("updated_by"),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [primaryKey({ columns: [t.orgId, t.projectId] })]);
+/** TD4: a person's rate on one project, or on every project when project_id is ''. */
+export const billRates = sqliteTable("bill_rates", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  projectId: text("project_id").notNull(),
+  personId: text("person_id").notNull(),
+  rateCents: integer("rate_cents").notNull(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [primaryKey({ columns: [t.orgId, t.projectId, t.personId] })]);
+/** TD4: one billing run: which time went onto which invoice; released when that invoice is deleted or voided. */
+export const billRuns = sqliteTable("bill_runs", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  projectId: text("project_id").notNull(),
+  contactId: text("contact_id"),
+  docId: text("doc_id").notNull(),
+  dateFrom: text("date_from").notNull(),
+  dateTo: text("date_to").notNull(),
+  rounding: integer("rounding").notNull().default(0),
+  entryCount: integer("entry_count").notNull().default(0),
+  seconds: integer("seconds").notNull().default(0),
+  amountCents: integer("amount_cents").notNull().default(0),
+  currency: text("currency").notNull().default("AUD"),
+  status: text("status", { enum: ["open", "released"] }).notNull().default("open"),
+  createdBy: text("created_by").notNull(),
+  createdAt: createdAt(),
+  releasedAt: ts("released_at"),
+  releasedBy: text("released_by"),
+  releaseReason: text("release_reason"),
+}, (t) => [index("bill_runs_org_idx").on(t.orgId, t.createdAt), index("bill_runs_doc_idx").on(t.orgId, t.docId)]);

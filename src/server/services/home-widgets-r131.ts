@@ -7,6 +7,7 @@ import type { AuthContext, Deps } from "../context";
 import { homeLayouts } from "../db/schema";
 import { forbidden } from "../lib/errors";
 import { builtinLayout, HomeLayout, normalizeLayout, WIDGET_IDS, type HomeWidgetsView, type WidgetId } from "@/shared/home-widgets-r131";
+import { billTimeOn } from "@/shared/bill-time-td4"; // TD4
 
 const WORKSPACE = "";
 type Actor = Pick<AuthContext, "orgId" | "userId" | "role">;
@@ -14,8 +15,9 @@ type Actor = Pick<AuthContext, "orgId" | "userId" | "role">;
 const isManager = (a: Actor) => a.role === "owner" || a.role === "admin";
 
 /** Widgets this workspace can show: social and feeds only where those areas are on; the rest read the person's own data. */
-export function availableWidgets(deps: Pick<Deps, "config">): WidgetId[] {
-  return WIDGET_IDS.filter((id) => (id === "social" ? deps.config.socialP2b !== false : id === "feeds" ? deps.config.flows !== false : true));
+export function availableWidgets(deps: Pick<Deps, "config">, a?: Pick<Actor, "role">): WidgetId[] {
+  return WIDGET_IDS.filter((id) => (id === "social" ? deps.config.socialP2b !== false : id === "feeds" ? deps.config.flows !== false
+    : id === "billing" ? billTimeOn(deps.config) && !!a && isManager(a as Actor) : true)); // TD4: time to bill, owners and admins with BILL_TD4
 }
 
 function parse(raw: string | null | undefined): unknown {
@@ -28,10 +30,12 @@ export async function getHomeWidgets(deps: Deps, a: Actor): Promise<HomeWidgetsV
     .where(and(eq(homeLayouts.orgId, a.orgId), inArray(homeLayouts.userId, [a.userId, WORKSPACE]))).all();
   const mine = rows.find((r) => r.userId === a.userId && a.userId !== WORKSPACE);
   const ws = rows.find((r) => r.userId === WORKSPACE);
-  const available = availableWidgets(deps);
+  const available = availableWidgets(deps, a);
   const src = mine ? "mine" : ws ? "workspace" : "builtin";
   const raw = mine ? parse(mine.layout) : ws ? parse(ws.layout) : builtinLayout();
-  return { layout: normalizeLayout(raw, available), source: src, hasWorkspaceDefault: !!ws, canSetDefault: isManager(a), available };
+  const layout = normalizeLayout(raw, available);
+  if (src === "builtin" && available.includes("billing")) layout.items = layout.items.map((x) => (x.id === "billing" ? { id: x.id, size: x.size } : x)); // TD4: managers see it first time
+  return { layout, source: src, hasWorkspaceDefault: !!ws, canSetDefault: isManager(a), available };
 }
 
 async function put(deps: Deps, orgId: string, userId: string, layout: HomeLayout) {
@@ -42,7 +46,7 @@ async function put(deps: Deps, orgId: string, userId: string, layout: HomeLayout
 }
 
 export async function saveMyLayout(deps: Deps, a: Actor, layout: HomeLayout): Promise<HomeWidgetsView> {
-  await put(deps, a.orgId, a.userId, normalizeLayout(layout, availableWidgets(deps)));
+  await put(deps, a.orgId, a.userId, normalizeLayout(layout, availableWidgets(deps, a)));
   return getHomeWidgets(deps, a);
 }
 

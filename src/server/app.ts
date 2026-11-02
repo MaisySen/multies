@@ -117,6 +117,7 @@ import { webPushRoutes } from "./routes/web-push-r32";
 import { automationRoutes, changeRoutes, companyRoutes, contactRoutes, dealRoutes, docRoutes, notificationRoutes, projectRoutes, pushRoutes, taskRoutes } from "./routes/suite";
 import { invoicePublicRoutes, invoiceRoutes } from "./routes/invoices"; // R105
 import { expenseRoutes } from "./routes/expenses"; // R106
+import { billTimeRoutes } from "./routes/bill-time-td4"; // TD4
 import { tableRoutes } from "./routes/tables-r125"; // R125
 import { courseRoutes } from "./routes/courses-r129"; // R129
 import { importRoutes, importRunnerRoutes, integrationRoutes } from "./routes/imports";
@@ -474,6 +475,7 @@ export function createApp(deps: Deps) {
       bookingPlus: deps.config.bookingPlus, // R92: resources, time polls, events
       officeEditR113: !!deps.config.officeEditR113, // R113: office files in the browser
       expenses: deps.config.invoicesEnabled && deps.config.expensesR106, // R106
+      billTd4: !!deps.config.invoicesEnabled && !!deps.config.billTd4, // TD4: time to invoice (owners and admins)
       tablesR125: !!deps.config.tablesR125, // R125: tables (vv8k gets 404 from the API and no entry points)
       polishPol1: !!deps.config.polishPol1, // POL1: tables and courses to the trash with restore
       formsPlus: !!deps.config.formsPlus, // R93: chat forms, webhook, embed, feedback boards, calls for submissions
@@ -672,6 +674,7 @@ export function createApp(deps: Deps) {
   app.route("/api/contacts", contactRoutes());
   app.route("/api/invoices", invoiceRoutes()); // R105: invoices and quotes
   app.route("/api/expenses", expenseRoutes()); // R106: expenses and receipts
+  app.route("/api/bill-time", billTimeRoutes()); // TD4: time to invoice
   app.route("/api/tables", tableRoutes()); // R125: tables (a doc type)
   app.route("/api/courses", courseRoutes()); // R129: courses (a doc type)
   app.route("/api/invoice-view", invoicePublicRoutes()); // R105: the buyer's logged out view link

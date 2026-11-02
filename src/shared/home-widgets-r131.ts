@@ -5,7 +5,7 @@
  */
 import { z } from "zod";
 
-export const WIDGET_IDS = ["tasks", "calendar", "inbox", "links", "overview", "social", "feeds", "dashboards"] as const;
+export const WIDGET_IDS = ["tasks", "calendar", "inbox", "links", "overview", "social", "feeds", "dashboards", "billing"] as const;
 export type WidgetId = (typeof WIDGET_IDS)[number];
 export const WIDGET_SIZES = ["small", "medium", "wide"] as const;
 export type WidgetSize = (typeof WIDGET_SIZES)[number];
@@ -19,6 +19,7 @@ export const WIDGET_INFO: Record<WidgetId, { title: string; blurb: string; size:
   social: { title: "Social inbox", blurb: "Comments and messages assigned to you", size: "medium" },
   feeds: { title: "Feeds", blurb: "Latest runs from your page and feed watches", size: "medium" },
   dashboards: { title: "Dashboards", blurb: "Open a dashboard in one click", size: "medium" },
+  billing: { title: "Time to bill", blurb: "Hours still to bill and their value per client", size: "medium" }, // TD4, owners and admins
 };
 
 export const MAX_LINKS = 12;

@@ -71,6 +71,7 @@ async function present(deps: Deps, orgId: string, rows: EntryRow[]) {
       person: { type: r.personType, id: r.personId, name }, personId: `${r.personType}:${r.personId}`,
       startedAt: r.startedAt.toISOString(), endedAt: iso(r.endedAt), running: !r.endedAt, seconds: entrySeconds(r, now),
       note: r.note, billable: r.billable, tags: tagsOf(r), source: r.source, createdAt: r.createdAt.toISOString(), version: r.version,
+      billed: !!r.billedDocId, // TD4: on an invoice, so it can not be changed
     };
   });
 }
@@ -194,6 +195,7 @@ export async function updateEntry(deps: Deps, actor: SuiteActor, id: string, pat
   assertWritable(actor);
   const e = await entryRow(deps, actor.orgId, id);
   assertOwnOrLead(actor, e);
+  if (e.billedDocId) throw new HttpError(409, "billed_locked", "This time is on an invoice. Delete or void that invoice to change it.");
   await weekOpen(deps, actor, { type: e.personType, id: e.personId }, e.startedAt);
   const set: Partial<EntryRow> = { updatedAt: deps.now(), version: e.version + 1 };
   if (patch.minutes !== undefined) {
@@ -212,7 +214,8 @@ export async function updateEntry(deps: Deps, actor: SuiteActor, id: string, pat
   if (patch.note !== undefined) set.note = patch.note.slice(0, 500);
   if (patch.billable !== undefined) set.billable = patch.billable;
   if (patch.tags !== undefined) set.tags = JSON.stringify(cleanTags(patch.tags));
-  await deps.db.update(timeEntries).set(set).where(eq(timeEntries.id, id));
+  const done = await deps.db.update(timeEntries).set(set).where(and(eq(timeEntries.id, id), isNull(timeEntries.billedDocId))).returning({ id: timeEntries.id });
+  if (!done.length) throw new HttpError(409, "billed_locked", "This time is on an invoice. Delete or void that invoice to change it.");
   await recordWrite(deps, actor, { entityType: "time_entry", entityId: id, op: "update", version: e.version + 1, verb: "time.updated", event: "time_entry.updated", eventData: { id, taskId: e.taskId } });
   return (await present(deps, actor.orgId, [await entryRow(deps, actor.orgId, id)]))[0];
 }
@@ -221,8 +224,10 @@ export async function deleteEntry(deps: Deps, actor: SuiteActor, id: string) {
   assertWritable(actor);
   const e = await entryRow(deps, actor.orgId, id);
   assertOwnOrLead(actor, e);
+  if (e.billedDocId) throw new HttpError(409, "billed_locked", "This time is on an invoice. Delete or void that invoice to change it.");
   await weekOpen(deps, actor, { type: e.personType, id: e.personId }, e.startedAt);
-  await deps.db.update(timeEntries).set({ deletedAt: deps.now(), updatedAt: deps.now(), version: e.version + 1 }).where(eq(timeEntries.id, id));
+  const gone = await deps.db.update(timeEntries).set({ deletedAt: deps.now(), updatedAt: deps.now(), version: e.version + 1 }).where(and(eq(timeEntries.id, id), isNull(timeEntries.billedDocId))).returning({ id: timeEntries.id });
+  if (!gone.length) throw new HttpError(409, "billed_locked", "This time is on an invoice. Delete or void that invoice to change it.");
   await recordWrite(deps, actor, { entityType: "time_entry", entityId: id, op: "delete", version: e.version + 1, verb: "time.deleted" });
   return { ok: true };
 }

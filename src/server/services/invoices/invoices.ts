@@ -16,6 +16,7 @@ import {
   ATO_PROBLEM_TEXT, MAX_CENTS, MAX_LINES, addDays, ageBucket, atoProblems, abnValid, accountValid, bsbValid, cleanAbn, docNumber, docTitle, docTotals,
   gstInPayment, nextRun, payState, type AgeBucket, type DocKind, type LineInput, type PriceMode, type Repeat,
 } from "@/shared/invoices";
+import { releaseBilledTime } from "./bill-release-td4"; // TD4
 
 export type Actor = SuiteActor & { role?: "owner" | "admin" | "member" };
 type Doc = typeof invoiceDocs.$inferSelect;
@@ -185,6 +186,7 @@ export async function deleteDraft(deps: Deps, a: Actor, id: string) {
   if (d.status !== "draft") throw new HttpError(409, "issued_cannot_delete", "Issued documents keep their number. Void it instead.");
   await deps.db.delete(invoiceLines).where(eq(invoiceLines.docId, id));
   await deps.db.delete(invoiceDocs).where(eq(invoiceDocs.id, id));
+  await releaseBilledTime(deps, a, id, "draft_deleted"); // TD4: billed time on this draft can be billed again
   return { ok: true };
 }
 
@@ -230,6 +232,7 @@ export async function voidDoc(deps: Deps, a: Actor, id: string, reason: string) 
   if (d.creditedCents > 0) throw new HttpError(409, "has_credits", "Void its adjustment notes first.");
   await deps.db.update(invoiceDocs).set({ status: "void", voidedAt: deps.now(), voidReason: reason.trim().slice(0, 300) || null, updatedAt: deps.now() }).where(eq(invoiceDocs.id, id));
   if (d.kind === "credit_note" && d.sourceId) await deps.db.update(invoiceDocs).set({ creditedCents: sql`max(0, ${invoiceDocs.creditedCents} - ${d.totalCents})`, updatedAt: deps.now() }).where(eq(invoiceDocs.id, d.sourceId));
+  if (d.kind === "invoice") await releaseBilledTime(deps, a, id, "voided"); // TD4
   return docDetail(deps, a, id);
 }
 
