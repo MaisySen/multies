@@ -771,7 +771,7 @@ export const IMPORT_BUDGET_SHARE = 0.75;
 async function assertImportFitsBudget(deps: Deps, orgId: string, rows: number) {
   const daily = deps.config.workspaceBudget.daily;
   if (!daily || rows <= 0) return;
-  let used = 0;
+  let used: number;
   try { used = (await workspaceUsage(deps, orgId)).used; } catch (err) { deps.reportError?.(err, { where: "tables.importBudget" }); return; }
   const room = Math.max(0, Math.floor((daily * IMPORT_BUDGET_SHARE - used) / IMPORT_ROW_WRITES));
   if (rows <= room) return;
