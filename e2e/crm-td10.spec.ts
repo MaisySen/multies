@@ -29,6 +29,8 @@ async function person(browser: Browser, email: string, name: string): Promise<Pe
   return { ctx, page, headers };
 }
 async function axe(page: Page, label: string) {
+  // Judge the settled page: wait for running CSS transitions and animations (theme, hover and entry fades) to finish.
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"), undefined, { timeout: 10_000 }).catch(() => {});
   const { violations } = await new AxeBuilder({ page }).analyze();
   const bad = violations.filter((v) => v.impact === "serious" || v.impact === "critical");
   expect(bad.map((v) => `${label}: ${v.id} ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(", ")}`)).toEqual([]);
@@ -146,6 +148,8 @@ test.describe("TD10 on", () => {
       await expect(page.getByTestId("suggestion-row")).toHaveCount(n - 1);
     }
     await expect(page.getByText("Nothing to update")).toBeVisible();
+    // Stacked Undo toasts fade behind each other while they animate; judge the empty state once they have gone.
+    await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 20_000 });
     await shot(page, "td10-empty-1280-light");
     await axe(page, "empty");
   });
