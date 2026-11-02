@@ -23,7 +23,7 @@ const HomeWidgetsPage = lazyPage(() => import("./home-widgets-r131"), "HomeWidge
 
 export function DashboardPage() {
   const config = useConfig();
-  if (config.data?.homeWidgetsR131) return <><GetStartedCard /><Suspense fallback={<OverviewClassic />}><HomeWidgetsPage overview={<OverviewClassic embedded />} /></Suspense></>;
+  if (config.data?.homeWidgetsR131) return <Suspense fallback={<OverviewClassic />}><HomeWidgetsPage overview={<OverviewClassic embedded />} /></Suspense>; // R130: the checklist lives on My Work here, so the widget grid never shifts
   return <OverviewClassic />;
 }
 

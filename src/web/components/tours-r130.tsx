@@ -439,7 +439,7 @@ export function ToursHost() {
       {s.running && <TourRunner key={s.running.tour.id + String(s.running.preview)} run={s.running} onEnd={end} />}
       {pick && <PickerBar pick={pick} onDone={() => setPick(null)} />}
       <Dialog open={s.panel && !!view} onClose={() => set({ panel: false })} title="Get started" className="max-w-lg">
-        {view && <ChecklistPanel view={view} embedded onNavigate={() => set({ panel: false })} />}
+        {view && s.panel && <ChecklistPanel view={view} embedded onNavigate={() => set({ panel: false })} />}
       </Dialog>
       <Dialog open={s.list} onClose={() => set({ list: false })} title="Tours" description="Short walk throughs of where things live.">
         <ul className="divide-y divide-line" data-testid="tours-list">
