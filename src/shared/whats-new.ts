@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-03-forms-pro",
+    date: "2026-11-03",
+    title: "Branded forms that open and close on time",
+    body: "Give a form your colours, font and logo, close it on a date or after a number of answers, or add a password. People can save and finish later from a link, and you see views, completions and where people stop.",
+  },
+  {
     id: "2026-11-02-one-inbox",
     date: "2026-11-02",
     title: "One inbox",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-02",
     title: "Anonymous reports and data requests",
     body: "Give your people a page to report a concern without an account, then reply in a private two way chat with a handler, status and deadlines. In Settings, Data requests lets someone get a copy of their data or have it deleted, after they confirm their email.",
-  },
-  {
-    id: "2026-11-02-webinars",
-    date: "2026-11-02",
-    title: "Webinars from any meeting",
-    body: "Turn a meeting into a webinar: people register on their own page and watch while hosts and panelists speak. They ask and upvote questions, vote in polls and chat when you allow it, and you get a report of who came with a CSV download.",
   },
   {
     id: "2026-10-28-whats-new",

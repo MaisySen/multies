@@ -6,6 +6,10 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## TD7 Forms pro B (2026-11-03)
+
+- Forms pro (flag FORMS_TD7; migration 0159 forms_td7): brand kit from fixed choices (colour, background, font, workspace logo), close date, answer limit with an atomic last place, closed message, form password (hashed, 10 tries per 15 minutes per address then 429), save and finish later with a signed 7 day link, cookie free views and completion with drop off per question, import from pasted lines or CSV, AI draft through the workspace AI routing (own key or built in AI behind the TD1 switch, never billed). Works with the TD2 renderer; file and signature uploads answer 410 on a closed form and 401 on a locked form before any bytes are read. No payment field. Page Content-Security-Policy unchanged.
+
 ## TD6 One inbox (2026-11-02)
 
 - One inbox at /app/one-inbox (flag INBOX_TD6; migration 0157 adds inbox_lane_rules_td6, inbox_item_state_td6 and an agent runs index): notifications, recent Inbox mail from mailboxes the person can read, assistant replies and mentions of tasks assigned to the person (read through the References check) in one list, sorted Important and Noise by rules; moves are remembered per sender or source; done, snooze, read, bulk and keyboard keys. No AI and no provider call; ids and state only are stored.

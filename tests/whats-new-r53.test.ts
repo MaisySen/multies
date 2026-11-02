@@ -147,7 +147,9 @@ describe("R53 whats-new list", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-11-02-courses")).toBe(false);
     // TD6: one inbox joined at the top; "2026-11-02-home-widgets" moved to the public earlier list.
     expect(WHATS_NEW.some((e) => e.id === "2026-11-02-home-widgets")).toBe(false);
-    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-02-one-inbox", "2026-11-02-mentions", "2026-11-02-bill-time", "2026-11-02-meeting-tasks", "2026-11-02-ai-connect", "2026-11-02-get-started", "2026-11-02-staff", "2026-11-02-polish", "2026-11-02-menu", "2026-11-02-social-more-networks", "2026-11-02-blog", "2026-11-02-anonymous-reports", "2026-11-02-webinars", "2026-10-28-whats-new"]);
+    // TD7: branded forms joined at the top; "2026-11-02-webinars" (the oldest after What's new itself) moved to the public earlier list.
+    expect(WHATS_NEW.some((e) => e.id === "2026-11-02-webinars")).toBe(false);
+    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-03-forms-pro", "2026-11-02-one-inbox", "2026-11-02-mentions", "2026-11-02-bill-time", "2026-11-02-meeting-tasks", "2026-11-02-ai-connect", "2026-11-02-get-started", "2026-11-02-staff", "2026-11-02-polish", "2026-11-02-menu", "2026-11-02-social-more-networks", "2026-11-02-blog", "2026-11-02-anonymous-reports", "2026-10-28-whats-new"]);
     // TD4: bill time joined at the top; "2026-11-01-sites" (the oldest after What's new itself) moved to the public earlier list.
     expect(WHATS_NEW.some((e) => e.id === "2026-11-01-sites")).toBe(false);
     // R132: more from Social joined at the top; "2026-11-01-invoices" (the oldest after What's new itself) moved to the public earlier list.
