@@ -63,6 +63,16 @@ export async function launchReports(store: KV, f: Facts, logs: LogEntry[], now: 
   return out.slice(0, 6);
 }
 
+/** The app was started in the background and is now opened: watch the next 10 s as a launch. */
+export async function armLaunch(store: KV, now: number): Promise<void> {
+  try {
+    const raw = await store.get(MARKER);
+    if (!raw) return;
+    const m = JSON.parse(raw);
+    await store.set(MARKER, JSON.stringify({ ...m, at: now, stable: false }));
+  } catch { /* best effort */ }
+}
+
 /** Called once the app has been up STABLE_AFTER_MS: this launch did not crash early. */
 export async function markStable(store: KV): Promise<void> {
   try {

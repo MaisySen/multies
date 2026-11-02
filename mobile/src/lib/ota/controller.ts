@@ -6,7 +6,7 @@
  */
 import type { KV } from "@/lib/kv";
 import type { VersionFacts } from "@/lib/app-version";
-import { launchReports, markStable, STABLE_AFTER_MS, type LogEntry } from "./lifecycle";
+import { armLaunch, launchReports, markStable, STABLE_AFTER_MS, type LogEntry } from "./lifecycle";
 import { applyPendingOnResume, decideApply, DEFAULT_CONFIG, needsStoreUpdate, shouldCheck, shouldShowWhatsNew, type CheckReason, type MobileConfig, type OsName } from "./policy";
 import type { Telemetry } from "./telemetry";
 import type { WhatsNewItem } from "./whats-new.generated";
@@ -49,6 +49,8 @@ export type OtaDeps = {
   noticeMs?: number;
   /** Wait before the launch check, so it never races the download expo-updates starts natively at launch. */
   launchCheckDelayMs?: number;
+  /** AppState.currentState when the app started. iOS can start the app in the background (a push wakes it). */
+  launchAppState?: () => string | null | undefined;
 };
 
 const LAST_CHECK = "ota:last-check-at";
@@ -62,6 +64,8 @@ export function createOtaController(d: OtaDeps) {
   const listeners = new Set<(s: OtaState) => void>();
   const set = (p: Partial<OtaState>) => { state = { ...state, ...p }; for (const l of listeners) l(state); };
   let backgroundAt: number | null = null;
+  // Started in the background: the 10 s crash window starts the first time the app is actually opened.
+  let armOnActive = false;
   let configAt = 0;
   let pending = false;
   let checking: Promise<void> | null = null;
@@ -136,7 +140,14 @@ export function createOtaController(d: OtaDeps) {
         try { logs = await u.readLogEntriesAsync(24 * 3600_000); } catch { /* older native module */ }
         const reports = await launchReports(d.store, { updateId: f.updateId, embedded: f.embedded, emergency: u.isEmergencyLaunch, emergencyReason: u.emergencyLaunchReason }, logs, now());
         for (const r of reports) await d.telemetry.record(r);
-        timer(() => { void markStable(d.store); }, STABLE_AFTER_MS);
+        if (d.launchAppState?.() === "background") {
+          // iOS woke the app for a push and will suspend it, so the 10 s timer may never run and iOS
+          // ends the process later. That is not a crash (Sentry MYMAIL-WEB-Q, WEB-K, WEB-H).
+          await markStable(d.store);
+          armOnActive = true;
+        } else {
+          timer(() => { void markStable(d.store); }, STABLE_AFTER_MS);
+        }
       }
 
       // What's new: once, on the first start of a newer JavaScript version (never on a fresh install).
@@ -156,6 +167,11 @@ export function createOtaController(d: OtaDeps) {
 
     /** AppState changes: "active" after time away checks again (throttled), background marks the launch stable. */
     async onAppState(next: string) {
+      if (next === "active" && armOnActive) {
+        armOnActive = false;
+        await armLaunch(d.store, now());
+        timer(() => { void markStable(d.store); }, STABLE_AFTER_MS);
+      }
       if (next === "background" || next === "inactive") {
         if (backgroundAt === null) backgroundAt = now();
         if (next === "background") void markStable(d.store);

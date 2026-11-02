@@ -16,6 +16,9 @@ import { createTelemetry, installationId } from "./telemetry";
 import { WHATS_NEW } from "./whats-new.generated";
 import { CriticalUpdateNotice, StoreUpdateScreen, WhatsNewSheet } from "@/components/ota";
 
+/** Read once at module load: "background" when iOS started the app for a push. */
+const LAUNCH_APP_STATE = AppState.currentState;
+
 const OtaContext = createContext<{ state: OtaState; controller: OtaController } | null>(null);
 
 /** The controller's state and actions for screens (Settings, About). Null on web and in tests. */
@@ -59,6 +62,7 @@ function controller(): OtaController | null {
     store,
     telemetry,
     notes: WHATS_NEW,
+    launchAppState: () => LAUNCH_APP_STATE,
     cachedConfig: async () => (await cachedAppConfig(store))?.config ?? null,
     fetchConfig: () => {
       const f = facts();

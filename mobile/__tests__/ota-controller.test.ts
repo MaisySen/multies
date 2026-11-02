@@ -21,7 +21,7 @@ function fakeUpdates(o: Partial<UpdatesApi> = {}): UpdatesApi & { calls: string[
   };
 }
 
-function setup(o: { updates?: UpdatesApi; config?: Partial<MobileConfig>; f?: Partial<VersionFacts>; store?: ReturnType<typeof memoryKV>; setTimer?: (fn: () => void, ms: number) => number } = {}) {
+function setup(o: { updates?: UpdatesApi; config?: Partial<MobileConfig>; f?: Partial<VersionFacts>; store?: ReturnType<typeof memoryKV>; setTimer?: (fn: () => void, ms: number) => number; launchAppState?: string } = {}) {
   let clock = 1_000_000_000;
   const store = o.store ?? memoryKV();
   const records: { event: string; updateId: string | null }[] = [];
@@ -32,7 +32,7 @@ function setup(o: { updates?: UpdatesApi; config?: Partial<MobileConfig>; f?: Pa
     os: "ios", facts: () => ({ ...facts, ...o.f }), updates, store, telemetry,
     fetchConfig: async () => config, cachedConfig: async () => null,
     notes: { "1.9.6": [{ title: "What's new", body: "A sheet." }] },
-    now: () => clock, setTimer: o.setTimer ?? ((fn) => { fn(); return 0; }), noticeMs: 0, launchCheckDelayMs: 0,
+    now: () => clock, setTimer: o.setTimer ?? ((fn) => { fn(); return 0; }), noticeMs: 0, launchCheckDelayMs: 0, launchAppState: () => o.launchAppState,
   });
   return { c, store, records, telemetry, updates, tick: (ms: number) => { clock += ms; } };
 }
@@ -171,5 +171,40 @@ describe("launch reports", () => {
     expect(r.map((x) => [x.event, x.updateId])).toEqual([["failed", null], ["failed", "bad-1"]]);
     await markStable(store);
     expect(await launchReports(store, { ...base, embedded: true, updateId: null }, logs, 2)).toEqual([]);
+  });
+});
+
+describe("background launches (WEB-Q)", () => {
+  const marker = async (store: ReturnType<typeof memoryKV>) => JSON.parse((await store.get("ota:launch-marker")) as string);
+
+  it("a launch iOS started in the background and then ended is not reported as a crash", async () => {
+    const store = memoryKV();
+    const first = setup({ store, launchAppState: "background", setTimer: () => 0 });
+    await first.c.start();
+    expect((await marker(store)).stable).toBe(true);
+    // iOS ends the suspended process; the next start runs a newer update.
+    const second = setup({ store, f: { updateId: "run-2" }, setTimer: () => 0 });
+    await second.c.start();
+    expect(second.records.map((r) => r.event)).not.toContain("launch_crash");
+  });
+
+  it("the crash window starts when a background launch is opened, and still catches an early exit", async () => {
+    const store = memoryKV();
+    const first = setup({ store, launchAppState: "background", setTimer: () => 0 });
+    await first.c.start();
+    await first.c.onAppState("active");
+    expect((await marker(store)).stable).toBe(false);
+    const second = setup({ store, setTimer: () => 0 });
+    await second.c.start();
+    expect(second.records.map((r) => [r.event, r.updateId])).toContainEqual(["launch_crash", "run-1"]);
+  });
+
+  it("a normal foreground launch still reports an early exit", async () => {
+    const store = memoryKV();
+    const first = setup({ store, launchAppState: "active", setTimer: () => 0 });
+    await first.c.start();
+    const second = setup({ store, setTimer: () => 0 });
+    await second.c.start();
+    expect(second.records.map((r) => r.event)).toContain("launch_crash");
   });
 });
