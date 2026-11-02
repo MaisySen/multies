@@ -27,7 +27,7 @@ export async function signedInUrl(transport: Pick<Transport, "request">, path: s
   const plain = `${base}${next}`;
   if (linkMissing) return plain;
   try {
-    const r = await transport.request<{ code?: string }>("POST", "/auth/mobile/web-link");
+    const r = await transport.request<{ code?: string }>("POST", "/auth/mobile/web-link", { next });
     const code = typeof r?.code === "string" && /^[A-Za-z0-9_-]{20,128}$/.test(r.code) ? r.code : null;
     return code ? `${base}/auth/mobile/web?code=${code}&next=${encodeURIComponent(next)}` : plain;
   } catch (e) {

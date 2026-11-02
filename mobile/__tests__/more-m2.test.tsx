@@ -116,7 +116,7 @@ describe("signed in web pages", () => {
     expect(await signedInUrl(ok as never, "/app/forms", "https://multies.si")).toBe(`https://multies.si/auth/mobile/web?code=${code}&next=%2Fapp%2Fforms`);
     await signedInUrl(ok as never, "/app/forms", "https://multies.si");
     expect(ok.request).toHaveBeenCalledTimes(2);
-    expect(ok.request).toHaveBeenCalledWith("POST", "/auth/mobile/web-link");
+    expect(ok.request).toHaveBeenCalledWith("POST", "/auth/mobile/web-link", expect.objectContaining({ next: expect.stringMatching(/^\/app\//) }));
     const junk = { request: jest.fn(async () => ({ code: "../x" })) };
     expect(await signedInUrl(junk as never, "/app/forms", "https://multies.si")).toBe("https://multies.si/app/forms");
     const limited = { request: jest.fn(async () => { throw new ApiError(429, "rate_limited", "Slow down"); }) };
