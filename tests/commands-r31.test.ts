@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { movedPath } from "@/shared/nav-menu"; // R121
 import { describe, expect, it } from "vitest";
 import { COMMANDS, SEQUENCE_MS, activeScopes, bindCommand, commandById, idleKeys, inSheet, isPlainKeys, readKeys, runCommand, registerCommandModule, type CommandContext } from "@/web/lib/commands";
 import { getFocus, setFocus, setFocusList, stepFocus, clearFocus } from "@/web/lib/commands/focus";
@@ -46,7 +47,8 @@ describe("R31 one command registry", () => {
       .filter(({ at }) => !app.slice(at, app.indexOf("\n", at)).includes("<Moved")) // R82F: a moved address redirects to its new page
       .filter(({ p }) => p !== "/app" && !p.includes(":") && p !== "admin" && !p.startsWith("admin/")) // operator pages stay out of the menu
       .map(({ p, at }) => (p === "settings" ? "/app/settings" : at > settingsAt ? `/app/settings/${p}` : `/app/${p}`));
-    const nav = new Set(COMMANDS.filter((c) => c.group === "Go to" && c.palette).map((c) => c.to));
+    // R121: with P2 on, a go to command for a moved page opens its new home (Settings, Mail setup), so both count.
+    const nav = new Set(COMMANDS.filter((c) => c.group === "Go to" && c.palette).flatMap((c) => [c.to, c.to ? movedPath(c.to) ?? c.to : c.to]));
     expect(paths.filter((p) => !nav.has(p))).toEqual([]);
   });
 
