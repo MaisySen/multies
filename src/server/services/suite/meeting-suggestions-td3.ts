@@ -351,7 +351,7 @@ export async function followUp(deps: Deps, a: SuiteActor, meetingId: string) {
   for (const i of notes?.actionItems ?? []) if (i.task && !seen.has(normalise(i.task.title))) { seen.add(normalise(i.task.title)); tasks.push({ title: i.task.title, owner: i.assignee?.name ?? null, due: i.task.due ?? i.due }); }
   const tz = await zoneOf(deps, a, { recurrenceTz: m.recurrence?.timezone ?? null });
   let date: string;
-  try { date = new Date(m.startsAt).toLocaleDateString("en", { weekday: "long", day: "numeric", month: "long", timeZone: tz }); } catch { date = m.startsAt.slice(0, 10); }
+  try { date = new Date(m.startsAt).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: tz }); } catch { date = m.startsAt.slice(0, 10); }
   const mail = followUpEmail({ title: m.title, date, senderName: me?.name ?? null, summary, decisions, tasks: tasks.slice(0, 40) });
   return { to, subject: mail.subject, text: mail.text, counts: { tasks: tasks.length, decisions: decisions.length } };
 }

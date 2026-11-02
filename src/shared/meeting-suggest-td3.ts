@@ -114,7 +114,7 @@ export interface FollowUpInput {
   tasks: { title: string; owner: string | null; due: string | null }[];
 }
 
-const dueLabel = (d: string) => new Date(`${d.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+const dueLabel = (d: string) => new Date(`${d.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
 /** The follow up email: plain text, no dashes, every part optional but the greeting and sign off. */
 export function followUpEmail(i: FollowUpInput): { subject: string; text: string } {
