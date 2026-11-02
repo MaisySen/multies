@@ -131,5 +131,6 @@ for (const path of ["/drive/list?view=team", "/drive/usage", "/drive/tags"]) {
 
 const failed = results.filter((r) => !r.pass);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);
-fs.writeFileSync(new URL("../m1-files-smoke.json", import.meta.url), JSON.stringify({ at: new Date().toISOString(), base: BASE, results }, null, 1));
+fs.mkdirSync("/home/user/tab/files/catalogue/verify/m1/files", { recursive: true });
+fs.writeFileSync("/home/user/tab/files/catalogue/verify/m1/files/smoke.json", JSON.stringify({ at: new Date().toISOString(), base: BASE, results }, null, 1));
 process.exit(failed.length ? 1 : 0);
