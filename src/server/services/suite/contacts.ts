@@ -16,7 +16,7 @@ const FREE_MAIL = new Set([
   "icloud.com", "me.com", "mac.com", "aol.com", "proton.me", "protonmail.com", "pm.me", "gmx.com", "zoho.com", "fastmail.com", "bigpond.com", "bigpond.net.au",
   "optusnet.com.au", "iinet.net.au", "tpg.com.au", "westnet.com.au", "internode.on.net", "dodo.com.au", "outlook.com.au", "mail.com", "hey.com",
 ]);
-const ROBOT = /^(no-?reply|do-?not-?reply|mailer-daemon|postmaster|bounces?|notif(y|ications?)|alerts?|receipts?|calendar|dmarc(-?reports?)?|reports?|digest|updates|newsletters?|news)([+._-].*)?@/i;
+export const ROBOT = /^(no-?reply|do-?not-?reply|mailer-daemon|postmaster|bounces?|notif(y|ications?)|alerts?|receipts?|calendar|dmarc(-?reports?)?|reports?|digest|updates|newsletters?|news)([+._-].*)?@/i;
 
 export const isFreeMail = (domain: string) => FREE_MAIL.has(domain.toLowerCase());
 
@@ -27,12 +27,12 @@ export function companyNameFromDomain(domain: string) {
 }
 
 /** Addresses on the workspace's own domains are teammates and agents, not contacts. */
-async function ownDomains(deps: Deps, orgId: string) {
+export async function ownDomains(deps: Deps, orgId: string) {
   const rows = await deps.db.select({ name: domains.name }).from(domains).where(eq(domains.orgId, orgId));
   return new Set(rows.map((r) => r.name.toLowerCase()));
 }
 
-async function isOwnAddress(deps: Deps, orgId: string, address: string, own?: Set<string>) {
+export async function isOwnAddress(deps: Deps, orgId: string, address: string, own?: Set<string>) {
   const domain = address.split("@")[1]?.toLowerCase() ?? "";
   if ((own ?? (await ownDomains(deps, orgId))).has(domain)) return true;
   const [mb, al] = await Promise.all([

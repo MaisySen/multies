@@ -36,6 +36,7 @@ import { toolsEditorsRoutes } from "./routes/tools-editors"; // Tools P2: editor
 import { toolsAiRoutes } from "./routes/tools-ai"; // Tools P2: AI documents
 import { askRoutes } from "./routes/ask-r110"; // R110: Ask across the workspace
 import { aiTrustRoutes } from "./routes/ai-trust-td1"; // TD1: AI trust controls
+import { crmTd10Routes } from "./routes/crm-td10"; // TD10: CRM suggestions, saved analyses, shortcut switch
 import { vaultRoutes } from "./routes/vault-r128"; // R128: team password vault
 import { peopleRoutes } from "./routes/people-r126"; // R126: staff, onboarding, assets
 import { mentionsRoutes } from "./routes/mentions-td5"; // TD5: record mentions and References
@@ -483,6 +484,7 @@ export function createApp(deps: Deps) {
       // R110: Ask across the workspace (ASK_R110).
       askR110: !!deps.config.askR110,
       askTd1: !!deps.config.askTd1, // TD1: Ask v2 and AI trust controls
+      crmTd10: !!deps.config.crmTd10, // TD10: CRM suggestions, saved analyses, shortcut switch
       vaultR128: !!deps.config.vaultR128, // R128: team password vault
       peopleR126: !!deps.config.peopleR126, // R126: staff directory, onboarding, assets
       mentionsTd5: !!deps.config.mentionsTd5, // TD5: record mentions and References
@@ -567,6 +569,7 @@ export function createApp(deps: Deps) {
   app.route("/api/team-ai", teamAiRoutes()); // TD8: Team AI (TEAMAI_TD8)
   app.route("/api/ask", askRoutes()); // R110: Ask across the workspace (Tools feature ask_r110)
   app.route("/api/ai-trust", aiTrustRoutes()); // TD1: AI on or off per workspace, provider and region
+  app.route("/api/crm-td10", crmTd10Routes()); // TD10: CRM suggestions from mail, saved analyses, shortcut switch
   app.route("/api/tools/ai", toolsAiRoutes()); // Tools P2: AI documents (ask, translate, invoices, expenses, contracts)
   app.route("/api/tools/share", toolsShareRoutes()); // Tools P2: share links
   app.route("/api/tools/requests", toolsRequestRoutes()); // R88: file requests

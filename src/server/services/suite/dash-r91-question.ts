@@ -60,6 +60,7 @@ export function tableDefs(): Record<Exclude<QTable, "source">, TableDef> {
       title: { label: "Title", kind: "text", expr: sql`${deals.title}` },
       value: { label: "Value", kind: "number", expr: sql`(${deals.valueCents} / 100.0)`, format: "money" },
       close: { label: "Expected close", kind: "date", expr: sql`${deals.expectedCloseAt}` },
+      closed: { label: "Closed", kind: "date", expr: sql`${deals.closedAt}` }, // TD10: revenue by month
       created: { label: "Created", kind: "date", expr: sql`${deals.createdAt}` },
     } },
     forms: { label: "Form responses", from: sql`${formSubmissions}`, countOnly: true, fields: {

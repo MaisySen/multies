@@ -1789,5 +1789,17 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `form_stats_td7` (\n\t`form_id` text NOT NULL,\n\t`day` text NOT NULL,\n\t`views` integer DEFAULT 0 NOT NULL,\n\t`starts` integer DEFAULT 0 NOT NULL,\n\t`completions` integer DEFAULT 0 NOT NULL,\n\tPRIMARY KEY(`form_id`, `day`)\n);",
       "CREATE TABLE `form_reach_td7` (\n\t`form_id` text NOT NULL,\n\t`field_id` text NOT NULL,\n\t`n` integer DEFAULT 0 NOT NULL,\n\tPRIMARY KEY(`form_id`, `field_id`)\n);"
     ]
+  },
+  {
+    "name": "0161_crm_td10",
+    "statements": [
+      "CREATE TABLE `crm_suggestions_td10` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`target_type` text NOT NULL,\n\t`target_id` text,\n\t`dedupe_key` text NOT NULL,\n\t`fields_json` text DEFAULT '{}' NOT NULL,\n\t`message_id` text,\n\t`message_at` integer NOT NULL,\n\t`status` text DEFAULT 'open' NOT NULL,\n\t`decided_by` text,\n\t`decided_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `crm_suggestions_td10_key_uq` ON `crm_suggestions_td10` (`org_id`,`dedupe_key`);",
+      "CREATE INDEX `crm_suggestions_td10_open_idx` ON `crm_suggestions_td10` (`org_id`,`status`,`message_at`);",
+      "CREATE TABLE `crm_scan_td10` (\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`scanned_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `user_id`)\n);",
+      "CREATE TABLE `saved_analyses_td10` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`owner_user_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`template` text NOT NULL,\n\t`filters_json` text DEFAULT '{}' NOT NULL,\n\t`shared` integer DEFAULT false NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`deleted_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `saved_analyses_td10_org_idx` ON `saved_analyses_td10` (`org_id`,`updated_at`);",
+      "CREATE TABLE `user_prefs_td10` (\n\t`user_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`shortcuts_off` integer DEFAULT false NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`user_id`, `org_id`)\n);"
+    ]
   }
 ];

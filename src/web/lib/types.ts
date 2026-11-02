@@ -44,6 +44,8 @@ export interface PublicConfig {
   inboxTd6?: boolean; // TD6: One inbox
   /** TD8: Team AI (TEAMAI_TD8). */
   teamaiTd8?: boolean;
+  /** TD10: CRM suggestions, saved analyses, shortcut switch (CRM_TD10). */
+  crmTd10?: boolean;
   /** R128: team password vault (VAULT_R128). */
   vaultR128?: boolean;
   /** R94: CRM timeline (notes are searchable with R98). */

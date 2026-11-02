@@ -4762,3 +4762,50 @@ export const formReachTd7 = sqliteTable("form_reach_td7", {
   fieldId: text("field_id").notNull(),
   n: integer("n").notNull().default(0),
 }, (t) => [primaryKey({ columns: [t.formId, t.fieldId] })]);
+
+/** TD10 (0161): a CRM change read from mail, waiting for a person to accept or discard it. Holds derived fields only, never message text. */
+export const crmSuggestionsTd10 = sqliteTable("crm_suggestions_td10", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  mailboxId: text("mailbox_id").notNull(),
+  kind: text("kind", { enum: ["contact_details", "new_contact", "last_contacted", "next_step"] }).notNull(),
+  targetType: text("target_type", { enum: ["contact", "deal", "email"] }).notNull(),
+  targetId: text("target_id"),
+  dedupeKey: text("dedupe_key").notNull(),
+  fieldsJson: text("fields_json").notNull().default("{}"),
+  messageId: text("message_id"),
+  messageAt: integer("message_at", { mode: "timestamp_ms" }).notNull(),
+  status: text("status", { enum: ["open", "accepted", "discarded"] }).notNull().default("open"),
+  decidedBy: text("decided_by"),
+  decidedAt: integer("decided_at", { mode: "timestamp_ms" }),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+}, (t) => [uniqueIndex("crm_suggestions_td10_key_uq").on(t.orgId, t.dedupeKey), index("crm_suggestions_td10_open_idx").on(t.orgId, t.status, t.messageAt)]);
+
+/** TD10 (0161): when a person last checked mail for suggestions (one check a minute). */
+export const crmScanTd10 = sqliteTable("crm_scan_td10", {
+  orgId: text("org_id").notNull(),
+  userId: text("user_id").notNull(),
+  scannedAt: integer("scanned_at", { mode: "timestamp_ms" }).notNull(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.userId] })]);
+
+/** TD10 (0161): a saved analysis made from a template, private or shared with the workspace. */
+export const savedAnalysesTd10 = sqliteTable("saved_analyses_td10", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  ownerUserId: text("owner_user_id").notNull(),
+  name: text("name").notNull(),
+  template: text("template").notNull(),
+  filtersJson: text("filters_json").notNull().default("{}"),
+  shared: integer("shared", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+}, (t) => [index("saved_analyses_td10_org_idx").on(t.orgId, t.updatedAt)]);
+
+/** TD10 (0161): per person preferences; shortcutsOff turns single key shortcuts off. */
+export const userPrefsTd10 = sqliteTable("user_prefs_td10", {
+  userId: text("user_id").notNull(),
+  orgId: text("org_id").notNull(),
+  shortcutsOff: integer("shortcuts_off", { mode: "boolean" }).notNull().default(false),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+}, (t) => [primaryKey({ columns: [t.userId, t.orgId] })]);
