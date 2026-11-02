@@ -89,7 +89,7 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="thread/[id]" options={{ title: "" }} />
         <Stack.Screen name="compose" options={{ presentation: "modal", title: "New message" }} />
-        <Stack.Screen name="search" options={{ title: "Search mail" }} />
+        <Stack.Screen name="search" options={{ title: "Search" }} />
         <Stack.Screen name="approval/[id]" options={{ title: "Review message" }} />
         <Stack.Screen name="task/[id]" options={{ title: "Task" }} />
         <Stack.Screen name="task/new" options={{ presentation: "modal", title: "New task" }} />
@@ -102,6 +102,10 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="social-inbox/[id]" options={{ headerLargeTitle: false, title: "Conversation" }} />
         <Stack.Screen name="social-post/[id]" options={{ headerLargeTitle: false, title: "Post" }} />
         <Stack.Screen name="social-posted/[id]" options={{ headerLargeTitle: false, title: "", headerBackVisible: false, gestureEnabled: false }} />
+        <Stack.Screen name="docs" options={{ headerLargeTitle: false, title: "Docs" }} />
+        <Stack.Screen name="doc/[id]" options={{ title: "" }} />
+        <Stack.Screen name="doc/comments/[id]" options={{ presentation: "modal", title: "Comments" }} />
+        <Stack.Screen name="doc/share/[id]" options={{ presentation: "modal", title: "Share" }} />
         <Stack.Screen name="people" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "People" }} />
         <Stack.Screen name="tools" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Tools" }} />
         <Stack.Screen name="files" options={{ headerLargeTitle: false, title: "Files" }} />

@@ -14,6 +14,7 @@ import { sampleSocial, socialRoute } from "./social";
 import { mailExtrasRoute, sampleListExtras, sampleMailExtras, sampleSnooze } from "./mail-r85";
 import { snoozeUntil, type SnoozePreset } from "@/lib/snooze";
 import { driveRoute, sampleDrive } from "./drive";
+import { docsRoute, sampleDocs } from "./docs"; // M1
 
 /**
  * The sample workspace runs entirely on the device with no server. It answers the same paths the
@@ -28,6 +29,7 @@ export class SampleTransport implements Transport {
   private email = sampleEmail(Date.now());
   private runs = sampleRuns(Date.now(), this.data.work);
   private social = sampleSocial(Date.now());
+  private docs = sampleDocs(Date.now()); // M1
   private mail = sampleMailExtras(Date.now(), this.data.messages);
   /** M1: the drive (Files). */
   private drive = sampleDrive(Date.now());
@@ -45,6 +47,7 @@ export class SampleTransport implements Transport {
     this.email = sampleEmail(Date.now());
     this.runs = sampleRuns(Date.now(), this.data.work);
     this.social = sampleSocial(Date.now());
+    this.docs = sampleDocs(Date.now()); // M1
     this.mail = sampleMailExtras(Date.now(), this.data.messages);
     this.drive = sampleDrive(Date.now());
     this.blocks = [];
@@ -65,6 +68,9 @@ export class SampleTransport implements Transport {
 
     // M1: the drive (Files).
     if (path.startsWith("/drive/")) return json(driveRoute(this.drive, method, rawPath, body));
+    // M1: global search, Docs, comments and share links.
+    const docs = docsRoute(this.docs, this.data.messages, method, path, params, body, Date.now());
+    if (docs !== undefined) return json(docs);
 
     // 1.10.5: social posts and accounts.
     const social = socialRoute(this.social, method, path.startsWith("/social/inbox") ? rawPath : path, body, Date.now());
