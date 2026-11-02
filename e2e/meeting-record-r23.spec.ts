@@ -52,7 +52,7 @@ test("without a key, the meeting page shows the setup prompt and it opens Settin
   await page.goto(`/app/meetings/${meetingId}`);
   const section = page.getByTestId("recording-section");
   await expect(section).toBeVisible();
-  await expect(section.getByTestId("record-setup")).toContainText("Add your OpenAI or Groq key in Settings > AI to record and transcribe. Multies doesn't charge for this; your provider bills your key.");
+  await expect(section.getByTestId("record-setup")).toContainText("Recording and transcripts need an AI key that can turn speech into text. Add one in Settings > AI."); // POL1: no provider names on the page
   const link = section.getByTestId("record-setup-link");
   await expect(link).toHaveAttribute("href", "/app/settings#ai");
   // Starting without a key is refused with the code the room's Record button opens the prompt on.

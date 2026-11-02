@@ -24,7 +24,7 @@ import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
-import { LoadError } from "@/web/components/load-error-t1g";
+import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
 import { IconArrowDown, IconArrowUp, IconBell, IconCalendar, IconChat, IconCheck, IconDashboard, IconExternalLink, IconEyeOff, IconGrip, IconInbox, IconLink, IconMail, IconMegaphone, IconPlus, IconSliders, IconTasks, IconTrash, IconWorkflow, IconClipboardList, IconGauge } from "@/web/components/ui/icon";
 
 export const homeWidgetsKey = ["home-widgets"] as const;
@@ -265,8 +265,8 @@ function WidgetCard({ item, editing, index, count, overview, links, onMove, onSi
         <div className="flex min-h-24 flex-col items-center justify-center gap-3 px-4 py-4 text-center" data-testid={`placeholder-${item.id}`}>
           <p className="text-[13px] text-muted">{info.blurb}</p>
           <div className="flex flex-wrap items-center justify-center gap-1">
-            <button type="button" onClick={() => onMove(-1)} disabled={index === 0} aria-label={`Move ${info.title} up`} className="grid h-8 w-8 place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`up-${item.id}`}><IconArrowUp className="h-4 w-4" /></button>
-            <button type="button" onClick={() => onMove(1)} disabled={index === count - 1} aria-label={`Move ${info.title} down`} className="grid h-8 w-8 place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`down-${item.id}`}><IconArrowDown className="h-4 w-4" /></button>
+            <button type="button" onClick={() => { onMove(-1); if (index - 1 === 0) requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-testid="down-${item.id}"]`)?.focus()); }} disabled={index === 0} aria-label={`Move ${info.title} up`} className="grid h-9 w-9 place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`up-${item.id}`}><IconArrowUp className="h-4 w-4" /></button>
+            <button type="button" onClick={() => { onMove(1); if (index + 1 === count - 1) requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-testid="up-${item.id}"]`)?.focus()); }} disabled={index === count - 1} aria-label={`Move ${info.title} down`} className="grid h-9 w-9 place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`down-${item.id}`}><IconArrowDown className="h-4 w-4" /></button>
             <Select aria-label={`Size of ${info.title}`} value={item.size} onChange={(e) => onSize(e.target.value as WidgetSize)} className="h-8 w-auto py-0 text-[13px]" data-testid={`size-${item.id}`}>
               {WIDGET_SIZES.map((sz) => <option key={sz} value={sz}>{SIZE_LABEL[sz]}</option>)}
             </Select>
@@ -359,6 +359,20 @@ export function HomeWidgetsPage({ overview }: { overview: ReactNode }) {
   const reset = useMutation({ mutationFn: () => api.del<HomeWidgetsView>("/home-widgets"), onSuccess: (v) => { apply(v); setDraft(null); setNote("Home is back to the default."); }, onError: () => setNote("Couldn't reset. Try again.") });
   const setDefault = useMutation({ mutationFn: (l: HomeLayout) => api.put<HomeWidgetsView>("/home-widgets/default", l), onSuccess: (v) => { apply(v); setNote("Saved as the workspace default. People who have not arranged their own Home now see it."); }, onError: () => setNote("Couldn't save the default. Try again.") });
   useEffect(() => { if (!note) return; const t = setTimeout(() => setNote(null), 4000); return () => clearTimeout(t); }, [note]);
+  // POL1: Escape leaves Customize without saving, unless a menu, a dialog or a keyboard drag has it.
+  useEffect(() => {
+    if (!editing) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (document.querySelector('[role="dialog"], [role="menu"]') || document.activeElement?.getAttribute("aria-pressed") === "true") return;
+      setDraft(null); setSay("Customize closed. Nothing changed.");
+      requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('[data-testid="customize-home"]')?.focus());
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [editing]);
+  // POL1: when the saved layout can't be read, say so and keep Customize closed so it can't save over a layout we never saw.
+  const layoutFailed = !!q.error && !q.data;
 
   const edit = (fn: (l: HomeLayout) => HomeLayout) => setDraft((d) => fn(d ?? saved));
   const update = (id: WidgetId, patch: Partial<LayoutItem>) => edit((l) => ({ ...l, items: l.items.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
@@ -406,13 +420,14 @@ export function HomeWidgetsPage({ overview }: { overview: ReactNode }) {
       <Button size="sm" onClick={() => save.mutate(layout)} loading={save.isPending} data-testid="done-home"><IconCheck className="h-4 w-4" />Done</Button>
     </div>
   ) : (
-    <Button variant="secondary" size="sm" onClick={() => (phone ? setSheetOpen(true) : setDraft(saved))} data-testid="customize-home"><IconSliders className="h-4 w-4" />Customize</Button>
+    <Button variant="secondary" size="sm" disabled={layoutFailed} onClick={() => (phone ? setSheetOpen(true) : setDraft(saved))} data-testid="customize-home"><IconSliders className="h-4 w-4" />Customize</Button>
   );
 
   return (
     <>
       <PageHeader title="Overview" description={editing ? "Drag widgets to arrange them, or use the arrows. Space picks up a widget and the arrow keys move it." : `Good ${dayPart()}${first ? `, ${first}` : ""}. Here's your day at a glance.`} actions={actions} />
       <p className="sr-only" aria-live="polite">{say}</p>
+      {layoutFailed && <LoadErrorInline onRetry={() => q.refetch()} className="mb-4 rounded-lg bg-fill px-3 py-2" />}
       {note && <div role="status" className="mb-4 rounded-lg bg-fill px-3 py-2 text-[13px] text-fg" data-testid="home-note">{note}</div>}
       {visible.length === 0 ? (
         <div className="rounded-[var(--radius-r14)] border border-dashed border-line-strong px-6 py-12 text-center" data-testid="home-empty">

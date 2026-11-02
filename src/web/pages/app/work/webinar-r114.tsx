@@ -18,6 +18,8 @@ import { Button, ButtonLink } from "@/web/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton, StatTile, Switch, tableStyles } from "@/web/components/ui/misc";
 import { IconDownload, IconVideo } from "@/web/components/ui/icon";
+import { LoadFailure } from "@/web/components/load-error-t1g"; // POL1
+import { usePageTitle } from "@/web/lib/page-title-pol1"; // POL1
 import { Logo } from "@/web/components/logo";
 import { useConfig, useTeam } from "@/web/lib/queries";
 
@@ -73,7 +75,7 @@ export function WebinarCard({ meetingId, status }: { meetingId: string; status: 
         </div>
         {w?.canManage && status === "scheduled" && <Switch checked={!!w.enabled} onChange={(v) => void toggle(v)} label="Make this a webinar" disabled={busy} />}
       </div>
-      {q.isPending ? <Skeleton className="mt-3 h-10" /> : q.error ? <p className="mt-3 text-[13px] text-bad">{(q.error as Error).message}</p> : w && w.enabled ? (
+      {q.isPending ? <Skeleton className="mt-3 h-10" /> : q.error ? <LoadFailure error={q.error} onRetry={() => q.refetch()} className="mt-3" /> : w && w.enabled ? (
         <div className="mt-3 space-y-3">
           {w.registrationUrl && <div className="flex items-center gap-2"><Input readOnly value={w.registrationUrl} aria-label="Registration link" className="font-mono text-[12.5px]" /><CopyButton value={w.registrationUrl} /></div>}
           <p className="text-[12.5px] text-muted" data-testid="webinar-cap">{w.cap.text}</p>
@@ -111,7 +113,9 @@ export function WebinarHostPage() {
   const q = useQuery({ queryKey: ["webinar", id], queryFn: async () => (await api.get<{ webinar: WebinarSettings }>(`/webinars/${id}`)).webinar });
   const [tab, setTab] = useState<Tab>("live");
   const w = q.data, m = meeting.data;
-  if (q.error || meeting.error) return <Card className="p-6 text-[13px] text-bad">{((q.error || meeting.error) as Error).message}</Card>;
+  usePageTitle(m ? [`${m.title || "Meeting"} webinar`, "Meetings"] : null); // POL1
+  // POL1: the shared card with Retry (a refused read keeps its own words), retrying whichever read failed.
+  if (q.error || meeting.error) return <Card data-testid="webinar-error"><LoadFailure error={q.error || meeting.error} onRetry={() => { if (meeting.error) void meeting.refetch(); if (q.error) void q.refetch(); }} block /></Card>;
   if (!w || !m) return <Skeleton className="h-40" />;
   if (!w.enabled) return <Card><EmptyState icon={<IconVideo />} title="Webinar mode is off" body="Turn it on from the meeting page to get a registration page." action={<ButtonLink to={`/app/meetings/${id}`} variant="secondary">Back to the meeting</ButtonLink>} /></Card>;
   const tabs: { id: Tab; label: string; show: boolean }[] = [
@@ -144,7 +148,7 @@ function LiveTab({ meetingId }: { meetingId: string }) {
     if (q.error instanceof ApiError && q.error.status === 403) return (
       <div data-testid="webinar-not-host"><EmptyState icon={<IconVideo />} title="Hosts and panelists run this webinar" body="You can join from the meeting page and watch. Ask the host to add you as a panelist if you need to speak or see the questions." action={<ButtonLink to={`/app/meetings/${meetingId}`} variant="secondary">Back to the meeting</ButtonLink>} /></div>
     );
-    return <Card className="p-5 text-[13px] text-bad">{(q.error as Error).message}</Card>;
+    return <Card><LoadFailure error={q.error} onRetry={() => q.refetch()} block /></Card>; // POL1
   }
   if (!q.data) return <Skeleton className="h-60" />;
   const d = q.data;
@@ -334,7 +338,7 @@ function StagePanel({ meetingId, d, onChange }: { meetingId: string; d: Live; on
 
 function ReportTab({ meetingId }: { meetingId: string; panelists: Panelist[] }) {
   const q = useQuery({ queryKey: ["webinar-report", meetingId], queryFn: () => api.get<Report>(`/webinars/${meetingId}/report`) });
-  if (q.error) return <Card className="p-5 text-[13px] text-bad">{(q.error as Error).message}</Card>;
+  if (q.error) return <Card><LoadFailure error={q.error} onRetry={() => q.refetch()} block /></Card>; // POL1
   if (!q.data) return <Skeleton className="h-60" />;
   const r = q.data;
   return (

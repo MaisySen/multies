@@ -3,13 +3,15 @@
  * workspace: pages built from typed blocks with a live preview (the same renderer as the public page), drafts, versions,
  * publish now or later, SEO fields, moderated comments and page view counts with no personal data.
  */
+import { quickRetry } from "@/web/lib/quick-retry-pol1"; // POL1
+import { usePageTitle } from "@/web/lib/page-title-pol1"; // POL1
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api, errorMessage } from "@/web/lib/api";
+import { api, ApiError, errorMessage } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
-import { Button } from "@/web/components/ui/button";
+import { Button, ButtonLink } from "@/web/components/ui/button";
 import { LoadError, LoadErrorInline, LoadFailure } from "@/web/components/load-error-t1g";
 import { Input, Select, Textarea } from "@/web/components/ui/input";
 import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton, StatTile, Switch } from "@/web/components/ui/misc";
@@ -17,7 +19,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { ConfirmDialog } from "@/web/components/ui/confirm";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import {
-  IconArrowDown, IconArrowLeft, IconArrowUp, IconCheck, IconChevronDown, IconExternalLink, IconGlobe, IconHistory, IconMonitor, IconPlus, IconSettings, IconSmartphone, IconTrash,
+  IconArrowDown, IconArrowLeft, IconArrowUp, IconCheck, IconChevronDown, IconDocs, IconExternalLink, IconGlobe, IconHistory, IconMonitor, IconPlus, IconSettings, IconSmartphone, IconTrash,
 } from "@/web/components/ui/icon";
 import {
   BLOCK_HINT, BLOCK_LABEL, MAX_BLOCKS, MAX_DESCRIPTION, STATUS_LABEL, newBlock, pageSlugProblem, renderPageHtml, siteSlugProblem, slugify,
@@ -29,7 +31,7 @@ interface SiteOut { site: SiteInfo | null; canStart: boolean; suggestedSlug: str
 interface Linkables { forms: { slug: string; title: string }[]; booking: { slug: string; title: string }[]; people: { id: string; name: string; role: string }[] }
 
 const KEY = ["sites"];
-export const useSite = () => useQuery({ queryKey: KEY, queryFn: () => api.get<SiteOut>("/sites") });
+export const useSite = () => useQuery({ queryKey: KEY, ...quickRetry, queryFn: () => api.get<SiteOut>("/sites") }); // POL1: error card in about a second
 const usePages = (on: boolean) => useQuery({ queryKey: [...KEY, "pages"], enabled: on, queryFn: () => api.get<{ pages: PageSummary[] }>("/sites/pages") });
 const useLinkables = (on: boolean) => useQuery({ queryKey: [...KEY, "linkables"], enabled: on, queryFn: () => api.get<Linkables>("/sites/linkables"), staleTime: 60_000 });
 const fmt = (ms: number) => new Date(ms).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -284,6 +286,8 @@ export function SiteEditorPage() {
   const q = useQuery({ queryKey: [...KEY, "page", pageId], queryFn: () => api.get<{ page: PageDetail; site: SiteInfo; look?: { brandColor: string | null } }>(`/sites/pages/${pageId}`), retry: false });
   if (q.isLoading) return <div className="space-y-3" aria-busy="true"><Skeleton className="h-10 w-64" /><div className="grid gap-4 lg:grid-cols-[360px_1fr]"><Skeleton className="h-96" /><Skeleton className="h-96" /></div></div>;
   if (q.isError || !q.data) {
+    // POL1: a deleted page says so with the way back, no Retry that can't work.
+    if (q.error instanceof ApiError && q.error.status === 404) return <Card><EmptyState icon={<IconDocs />} title="This page was deleted or moved" body="Pick another page in Sites, or make a new one." action={<ButtonLink variant="secondary" to="/app/docs/sites">Back to Sites</ButtonLink>} /></Card>;
     const msg = errorMessage(q.error);
     if (/draft|access/i.test(msg)) return <Card className="p-6"><p className="font-medium">You can't open this page</p><p className="mt-1 text-sm text-muted">{msg}</p><div className="mt-3"><Link className="text-sm underline" to="/app/docs/sites">Back to Sites</Link></div></Card>;
     return <Card><LoadFailure error={q.error} onRetry={() => q.refetch()} block /><div className="pb-6 text-center"><Link className="text-sm underline" to="/app/docs/sites">Back to Sites</Link></div></Card>;
@@ -292,6 +296,7 @@ export function SiteEditorPage() {
 }
 
 function Editor({ page, site, brandColor }: { page: PageDetail; site: SiteInfo; brandColor: string | null }) {
+  usePageTitle([page.title || "Untitled page", "Sites"]); // POL1
   const qc = useQueryClient();
   const nav = useNavigate();
   const [d, setD] = useState<Draft>(() => draftOf(page));

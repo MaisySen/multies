@@ -34,6 +34,7 @@ import { pageBoardExport } from "./docs-visual/whiteboard-view";
 import type { PMNode } from "@/web/lib/mindmap-tree";
 import { DocCommentsButton, DocCommentsPanel } from "./doc-comments-r103"; // R103
 import { CourseDoc, NewCourseDialog, useCoursesOn } from "./courses-r129"; // R129
+import { TrashDialog, usePolishOn } from "@/web/components/trash-pol1"; // POL1
 import { SpellButton } from "@/web/components/spell-check-r103";
 import { SpellAttrs, fixInEditor } from "./doc-spell-r103";
 import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
@@ -65,6 +66,8 @@ export function DocsPage() {
   const [newTable, setNewTable] = useState(false);
   const coursesOn = useCoursesOn(); // R129
   const [newCourse, setNewCourse] = useState(false);
+  const polishOn = usePolishOn(); // POL1: Docs, Trash for deleted tables and courses
+  const [trashOpen, setTrashOpen] = useState(false);
   useEffect(() => {
     const n = params.get("new");
     if (n === "table" && tablesOn && !started.current) { started.current = true; setNewTable(true); return; }
@@ -80,7 +83,8 @@ export function DocsPage() {
       <DocTreeSidebar />
       <div className="min-w-0 flex-1">
       {newCourse && <NewCourseDialog open onClose={() => setNewCourse(false)} />}
-      <PageHeader title="Docs" description="Briefs, meeting notes and plans, linked to tasks, projects, threads and contacts. Agents can read and add to them too." actions={<div className="flex flex-wrap gap-2">{coursesOn && <Link to="/app/docs/learning" className="inline-flex min-h-9 items-center rounded-lg px-3 text-[14px] font-medium text-muted hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" data-testid="my-learning-link">My learning</Link>}{coursesOn && <Button variant="secondary" onClick={() => setNewCourse(true)} data-testid="new-course"><IconBook className="h-4 w-4" />New course</Button>}{tablesOn && <Button variant="secondary" onClick={() => setNewTable(true)} data-testid="new-table"><IconTable className="h-4 w-4" />New table</Button>}{visual && <Button variant="secondary" onClick={() => void create("whiteboard")} data-testid="new-whiteboard"><IconShapes className="h-4 w-4" />New whiteboard</Button>}<Button onClick={() => void create()}><IconPlus className="h-4 w-4" />New doc</Button></div>} />
+      {trashOpen && <TrashDialog open onClose={() => setTrashOpen(false)} />}
+      <PageHeader title="Docs" description="Briefs, meeting notes and plans, linked to tasks, projects, threads and contacts. Agents can read and add to them too." actions={<div className="flex flex-wrap gap-2">{polishOn && (tablesOn || coursesOn) && <Button variant="ghost" onClick={() => setTrashOpen(true)} data-testid="docs-trash"><IconTrash className="h-4 w-4" />Trash</Button>}{coursesOn && <Link to="/app/docs/learning" className="inline-flex min-h-9 items-center rounded-lg px-3 text-[14px] font-medium text-muted hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" data-testid="my-learning-link">My learning</Link>}{coursesOn && <Button variant="secondary" onClick={() => setNewCourse(true)} data-testid="new-course"><IconBook className="h-4 w-4" />New course</Button>}{tablesOn && <Button variant="secondary" onClick={() => setNewTable(true)} data-testid="new-table"><IconTable className="h-4 w-4" />New table</Button>}{visual && <Button variant="secondary" onClick={() => void create("whiteboard")} data-testid="new-whiteboard"><IconShapes className="h-4 w-4" />New whiteboard</Button>}<Button onClick={() => void create()}><IconPlus className="h-4 w-4" />New doc</Button></div>} />
       <Input aria-label="Search docs" placeholder="Search docs" value={q} onChange={(e) => setQ(e.target.value)} className="mb-4 max-w-sm" />
       {docs.isError && !docs.data ? <LoadError onRetry={() => docs.refetch()} /> : docs.isPending ? <Skeleton className="h-40" /> : !docs.data?.length ? (
         <EmptyState icon={<IconDocs />} art={q ? <NoSearchResultsArt /> : <NoDocsArt />} title={q ? "No docs match" : "No docs yet"} body="Write a brief or notes and link it to the work it belongs to." action={!q && <Button onClick={() => void create()}>New doc</Button>} />

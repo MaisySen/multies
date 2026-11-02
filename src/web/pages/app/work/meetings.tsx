@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
+import { quickRetry } from "@/web/lib/quick-retry-pol1"; // POL1
 import { Link, useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LiveKitRoom, VideoConference } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { IconCalendarClock, IconDownload, IconEdit, IconMail, IconRepeat, IconVideo, IconVideoOff } from "@/web/components/ui/icon";
+import { IconCalendarClock, IconDownload, IconEdit, IconMail, IconMegaphone, IconRepeat, IconVideo, IconVideoOff } from "@/web/components/ui/icon";
+import { LoadFailure } from "@/web/components/load-error-t1g"; // POL1 (MB-312)
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { isoToZonedInput, tz, zonedDateTime, zonedInputToIso } from "@/web/lib/format";
@@ -12,7 +14,7 @@ import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
-import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
 import { Logo } from "@/web/components/logo";
 import { MeetingNotes } from "./meeting-notes";
 import { RecordingLayer, RecordingSection } from "./meeting-recording";
@@ -145,12 +147,14 @@ const PREJOIN_NOTE = "Press Enter to join. If the call is recorded, you see a ba
 const VIDEO_OFF = "Video calls aren't switched on for this workspace yet. You can still schedule meetings and send invites, and the same links start working once it is.";
 
 export function MeetingsPage() {
-  const q = useQuery({ queryKey: ["meetings"], queryFn: () => api.get<{ meetings: Meeting[]; videoEnabled: boolean }>("/meetings") });
+  const q = useQuery({ queryKey: ["meetings"], ...quickRetry, queryFn: () => api.get<{ meetings: Meeting[]; videoEnabled: boolean }>("/meetings") });
   // Weekly series come back as one entry per upcoming occurrence (worked out on the server, nothing stored).
   const soon = useQuery({ queryKey: ["meetings", "upcoming"], queryFn: () => api.get<{ meetings: Meeting[] }>("/meetings?upcoming=1") });
   // R79: the shell's Create menu opens Schedule a meeting with ?new=1.
   const [open, setOpen] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new") === "1");
   const [starting, setStarting] = useState(false);
+  const [asWebinar, setAsWebinar] = useState(false); // POL1 (MB-318): the Webinar button opens Schedule with webinar mode on
+  const webinarOn = useWebinarOn();
   const navigate = useNavigate();
   const now = Date.now();
   const upcoming = (soon.data?.meetings ?? q.data?.meetings ?? []).filter((m) => m.status === "scheduled" && new Date(m.endsAt).getTime() > now - 3600_000).sort((a, b) => a.startsAt.localeCompare(b.startsAt));
@@ -158,10 +162,10 @@ export function MeetingsPage() {
   const past = q.data?.meetings.filter((m) => !upcomingIds.has(m.id) && !(m.recurrence && m.status === "scheduled")) ?? [];
   return (
     <div>
-      <PageHeader title="Meetings" description="Video meetings in the browser, started from a thread, task or contact. Guests join with a link, no account needed. Record a call to get a transcript and summary; everyone in the call sees when it is on." actions={<div className="flex items-center gap-2"><Button variant="secondary" onClick={() => setOpen(true)}><IconCalendarClock className="h-4 w-4" />Schedule</Button><Button onClick={() => { setStarting(true); void startMeetingNow(navigate).finally(() => setStarting(false)); }} loading={starting} data-testid="meeting-start-now"><IconVideo className="h-4 w-4" />Start now</Button></div>} />
+      <PageHeader title="Meetings" description="Video meetings in the browser, started from a thread, task or contact. Guests join with a link, no account needed. Record a call to get a transcript and summary; everyone in the call sees when it is on." actions={<div className="flex flex-wrap items-center gap-2"><Button variant="secondary" onClick={() => { setAsWebinar(false); setOpen(true); }} data-testid="meeting-schedule"><IconCalendarClock className="h-4 w-4" />Schedule</Button>{webinarOn && <Button variant="secondary" onClick={() => { setAsWebinar(true); setOpen(true); }} data-testid="meeting-new-webinar"><IconMegaphone className="h-4 w-4" />Webinar</Button>}<Button onClick={() => { setStarting(true); void startMeetingNow(navigate).finally(() => setStarting(false)); }} loading={starting} data-testid="meeting-start-now"><IconVideo className="h-4 w-4" />Start now</Button></div>} />
       <CallMinutesUsage className="-mt-3 mb-4" />
       {q.data && !q.data.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><IconVideoOff className="mt-0.5 h-4 w-4 shrink-0" />{VIDEO_OFF}</Card>}
-      {q.isPending ? <Skeleton className="h-40" /> : !q.data!.meetings.length ? (
+      {q.isPending ? <Skeleton className="h-40" /> : q.error || !q.data ? <Card data-testid="meetings-error"><LoadFailure error={q.error} onRetry={() => q.refetch()} block /></Card> : !q.data.meetings.length ? (
         <Card><EmptyState icon={<IconVideo />} art={<NoMeetingsArt />} title="No meetings yet" body="Start one now and share the guest link, schedule one for later, or start a meeting from any email thread, task or contact." /></Card>
       ) : (
         <div className="space-y-6">
@@ -182,13 +186,14 @@ export function MeetingsPage() {
           ) : null)}
         </div>
       )}
-      <ScheduleDialog open={open} onClose={() => setOpen(false)} onMade={(id) => navigate(`/app/meetings/${id}`)} />
+      <ScheduleDialog key={asWebinar ? "webinar" : "meeting"} open={open} webinar={asWebinar} webinarOn={webinarOn} onClose={() => setOpen(false)} onMade={(id) => navigate(`/app/meetings/${id}`)} />
     </div>
   );
 }
 
-function ScheduleDialog({ open, onClose, onMade }: { open: boolean; onClose: () => void; onMade: (id: string) => void }) {
+function ScheduleDialog({ open, onClose, onMade, webinar: startAsWebinar = false, webinarOn = false }: { open: boolean; onClose: () => void; onMade: (id: string) => void; webinar?: boolean; webinarOn?: boolean }) {
   const [title, setTitle] = useState("");
+  const [webinar, setWebinar] = useState(startAsWebinar); // POL1 (MB-318)
   const [at, setAt] = useState(() => { const d = new Date(Date.now() + 3600_000); d.setUTCMinutes(0, 0, 0); return isoToZonedInput(d); });
   const [duration, setDuration] = useState("30");
   const [guests, setGuests] = useState("");
@@ -200,13 +205,24 @@ function ScheduleDialog({ open, onClose, onMade }: { open: boolean; onClose: () 
       const invitees = guests.split(/[\s,;]+/).map((g) => g.trim()).filter(Boolean);
       const r = await api.post<{ meeting: Meeting; invites: { status: string } | null }>("/meetings", { title: title || undefined, startsAt: zonedInputToIso(at), durationMin: Number(duration), invitees, sendInvites: send && invitees.length > 0, ...(repeat.every !== "none" ? { recurrence: repeatBody(repeat) } : {}) });
       if (r.invites?.status === "sent") toast.success("Invites sent");
+      // POL1 (MB-318): webinar mode in the same step; if it can't be turned on, the meeting still stands and the page has the switch.
+      if (webinar && webinarOn) {
+        try { await api.patch(`/webinars/${r.meeting.id}`, { enabled: true }); toast.success("Webinar scheduled. Share the registration link from its page."); }
+        catch (e) { showError(e as Error); }
+      }
       onClose(); onMade(r.meeting.id);
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   return (
-    <Dialog open={open} onClose={onClose} title="Schedule a meeting" footer={<><Button variant="ghost" onClick={() => void save(false)} loading={busy}>Save without inviting</Button><Button onClick={() => void save(true)} loading={busy}>Save and send invites</Button></>}>
+    <Dialog open={open} onClose={onClose} title={webinar && webinarOn ? "Schedule a webinar" : "Schedule a meeting"} footer={<><Button variant="ghost" onClick={() => void save(false)} loading={busy}>Save without inviting</Button><Button onClick={() => void save(true)} loading={busy}>Save and send invites</Button></>}>
       <div className="space-y-3">
-        <Field label="Title">{(fp) => (<Input {...fp} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Meeting" />)}</Field>
+        <Field label="Title">{(fp) => (<Input {...fp} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={webinar && webinarOn ? "Webinar" : "Meeting"} />)}</Field>
+        {webinarOn && (
+          <div className="flex items-start justify-between gap-3 rounded-lg border border-line p-3" data-testid="schedule-webinar">
+            <div className="min-w-0 text-[13px]"><div className="font-medium text-fg">Make it a webinar</div><div className="text-muted">Hosts and panelists are on stage. Everyone else registers with a link, watches, asks questions and votes in polls.</div></div>
+            <Switch checked={webinar} onChange={setWebinar} label="Make it a webinar" />
+          </div>
+        )}
         <div className="grid grid-cols-[1fr_110px] gap-3">
           <Field label={`Starts (${tz()})`}>{(fp) => (<Input {...fp} type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />)}</Field>
           <Field label="Minutes">{(fp) => (<Input {...fp} type="number" min={5} max={480} value={duration} onChange={(e) => setDuration(e.target.value)} />)}</Field>
@@ -245,7 +261,7 @@ export function MeetingPage() {
     try { const r = await api.post<{ status: string }>(`/meetings/${id}/invite`, {}); toast.success(r.status === "sent" ? "Invites sent" : "Invites are waiting for approval"); void qc.invalidateQueries({ queryKey: ["meeting", id] }); } catch (e) { showError(e as Error); }
   };
   const setStatus = async (status: "ended" | "cancelled") => { try { await api.patch(`/meetings/${id}`, { status }); void qc.invalidateQueries({ queryKey: ["meeting", id] }); } catch (e) { showError(e as Error); } };
-  if (!m) return q.error ? <p className="text-sm text-muted">{(q.error as Error).message}</p> : <Skeleton className="h-40" />;
+  if (!m) return q.error ? <Card data-testid="meeting-error"><LoadFailure error={q.error} onRetry={() => q.refetch()} block /></Card> : <Skeleton className="h-40" />; // POL1
   if (join) return <div><PageHeader title={m.title} actions={<Button variant="secondary" onClick={() => setJoin(null)}>Leave</Button>} /><Room join={join} prefs={prefs} member title={m.title} onLeave={() => setJoin(null)} /></div>;
   if (prejoin) return <div className="py-2"><PreJoin title={m.title} who={{ mode: "member", name: me.data?.user?.name || me.data?.user?.email || "you" }} inCall={inCall.data?.participants.map((p) => p.name)} busy={busy} footnote={PREJOIN_NOTE} onJoin={(p) => void enter(p)} onCancel={() => setPrejoin(false)} /></div>;
   const source = m.source ? (m.source.type === "task" ? { to: `/app/tasks?task=${m.source.id}`, label: "the task" } : m.source.type === "contact" ? { to: `/app/contacts/${m.source.id}`, label: "the contact" } : { to: `/app/mail`, label: "the thread" }) : null;

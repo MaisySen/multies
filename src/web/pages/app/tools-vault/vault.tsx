@@ -3,6 +3,7 @@
  * by owners and admins, items encrypted on this device, reveal and copy audited first, secure share by secret link,
  * auto lock. Key model: files/catalogue/r128/DESIGN.md. Nothing secret is ever put in a URL, a query key or an error.
  */
+import { quickRetry } from "@/web/lib/quick-retry-pol1"; // POL1
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -27,7 +28,7 @@ export function VaultPage() {
   const config = useConfig();
   const qc = useQueryClient();
   const isOpen = useVaultOpen();
-  const state = useQuery({ queryKey: vk.state, queryFn: getState, enabled: !!config.data?.vaultR128, retry: (n, e) => !(e instanceof ApiError && e.status === 404) && n < 2 });
+  const state = useQuery({ queryKey: vk.state, queryFn: getState, enabled: !!config.data?.vaultR128, ...quickRetry }); // POL1: the shared quick retry (a 404, the vault being off, is never retried)
   // Locking drops every decrypted thing from memory, not only the keys.
   useEffect(() => onLock(() => { qc.removeQueries({ queryKey: vk.folders }); qc.removeQueries({ queryKey: ["vault", "items"] }); qc.removeQueries({ queryKey: ["vault", "access"] }); }), [qc]);
 

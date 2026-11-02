@@ -5,6 +5,7 @@
  * is the meeting page's "Recording and transcript" list. Transcripts run on the workspace's own OpenAI or
  * Groq key; without one the Record control opens a setup prompt.
  */
+import { LoadErrorInline } from "@/web/components/load-error-t1g"; // POL1
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRoomContext } from "@livekit/components-react";
@@ -32,6 +33,9 @@ export interface RecordingSetup { ready: boolean; provider: string | null; provi
 interface RecordingList { recordings: Recording[]; setup: RecordingSetup }
 
 export const SETUP_TEXT = "Add your OpenAI or Groq key in Settings > AI to record and transcribe. Multies doesn't charge for this; your provider bills your key.";
+/** POL1: what the meeting page says while recording is not set up (admins can act, members are told who can). */
+export const SETUP_ADMIN_TEXT = "Recording and transcripts need an AI key that can turn speech into text. Add one in Settings > AI. Multies doesn't charge for this.";
+export const SETUP_MEMBER_TEXT = "Recording isn't set up for this workspace yet. An admin can turn it on in Settings > AI.";
 export const CONSENT_TEXT = "Everyone in the call sees that this is being recorded.";
 const isSetupCode = (code: string | null | undefined) => !!code && code.startsWith("recording_needs_");
 
@@ -47,11 +51,14 @@ export function RecordSetupPrompt({ setup, compact }: { setup: Pick<RecordingSet
     <div className={compact ? "" : "flex items-start gap-3"} data-testid="record-setup">
       {!compact && <IconKey className="mt-0.5 h-4 w-4 shrink-0 text-muted" />}
       <div className="min-w-0 flex-1 text-[13px]">
-        {wrong && <p className="mb-1 text-muted">{setup?.providerName} keys can't transcribe audio.</p>}
-        <p className="text-fg">{SETUP_TEXT}</p>
-        {setup?.canConfigure
-          ? <ButtonLink size="sm" variant="secondary" className="mt-3" to="/app/settings#ai" data-testid="record-setup-link">Open Settings &gt; AI</ButtonLink>
-          : <p className="mt-2 text-muted" data-testid="record-ask-admin">Ask an admin to add an AI key.</p>}
+        {/* POL1: plain words without provider names; only people who can act are asked to. */}
+        {setup?.canConfigure ? (
+          <>
+            {wrong && <p className="mb-1 text-muted">The AI key in Settings can't turn speech into text.</p>}
+            <p className="text-fg">{SETUP_ADMIN_TEXT}</p>
+            <ButtonLink size="sm" variant="secondary" className="mt-3" to="/app/settings#ai" data-testid="record-setup-link">Open Settings &gt; AI</ButtonLink>
+          </>
+        ) : <p className="text-muted" data-testid="record-ask-admin">{SETUP_MEMBER_TEXT}</p>}
       </div>
     </div>
   );
@@ -225,10 +232,10 @@ export function RecordingSection({ meetingId }: { meetingId: string }) {
         <IconDocs className="h-4 w-4 text-muted" />
         <h2 className="text-[13px] font-semibold">Recording and transcript</h2>
       </div>
-      {!data ? <SkeletonRows rows={2} rowHeight={40} label="Loading recording" className="mt-2" /> : (
+      {!data ? (q.error ? <LoadErrorInline onRetry={() => q.refetch()} className="mt-3" /> : <SkeletonRows rows={2} rowHeight={40} label="Loading recording" className="mt-2" />) : ( // POL1: a failed read says so
         <>
           {!data.recordings.length && (data.setup.ready
-            ? <p className="mt-2 text-[13px] text-muted">No recordings yet. Press Record in the call to transcribe it with your {data.setup.providerName} key; the summary is posted to the chat afterwards.</p>
+            ? <p className="mt-2 text-[13px] text-muted">No recordings yet. Press Record in the call to get a transcript; the summary is posted to the chat afterwards.</p>
             : <div className="mt-3"><RecordSetupPrompt setup={data.setup} /></div>)}
           <ul className="mt-3 space-y-3">
             {data.recordings.map((r) => (

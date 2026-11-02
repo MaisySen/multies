@@ -5,7 +5,7 @@
  * three templates, undo of the last changes. Behind the `tablesR125` flag. All copy sentence case, no dashes.
  */
 import { usePageTitle } from "@/web/lib/page-title-pol1"; // POL1
-import { queryRetry } from "@/web/lib/load-errors-t1g"; // POL1
+import { quickRetry } from "@/web/lib/quick-retry-pol1"; // POL1
 import { MoreMenu, useTrashAction } from "@/web/components/trash-pol1"; // POL1 (MB-313)
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
@@ -15,7 +15,7 @@ import {
   IconCalendar, IconChat, IconChevronDown, IconClose, IconColumns, IconDownload, IconEye, IconEyeOff, IconFilter, IconGrid, IconHistory, IconList, IconLock, IconMaximize,
   IconPlus, IconSearch, IconSettings, IconSort, IconTable, IconTrash, IconUndo, IconUpload,
 } from "@/web/components/ui/icon";
-import { api } from "@/web/lib/api";
+import { api, ApiError } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
@@ -185,7 +185,7 @@ function CsvImportDialog({ open, onClose, onDone, into }: { open: boolean; onClo
 export function TableDoc({ docId }: { docId: string }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const detail = useQuery({ queryKey: qk(docId), retry: queryRetry, queryFn: () => api.get<Detail>(`/tables/${docId}`) }); // POL1: the shared quick retry
+  const detail = useQuery({ queryKey: qk(docId), ...quickRetry, queryFn: () => api.get<Detail>(`/tables/${docId}`) }); // POL1: the shared quick retry
   const [viewId, setViewId] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [search, setSearch] = useState("");

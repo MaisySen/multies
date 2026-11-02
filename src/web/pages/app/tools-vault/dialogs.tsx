@@ -12,7 +12,7 @@ import { LOAD_ERROR_BODY, LOAD_ERROR_TITLE } from "@/web/lib/load-errors-t1g";
 import { Dialog } from "@/web/components/ui/dialog";
 import { ConfirmDialog } from "@/web/components/ui/confirm";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
-import { IconCopy, IconEye, IconEyeOff, IconRefresh, IconTrash, IconUserMinus, IconWarning } from "@/web/components/ui/icon";
+import { IconCheck, IconCopy, IconEye, IconEyeOff, IconRefresh, IconTrash, IconUserMinus, IconWarning } from "@/web/components/ui/icon";
 import { encryptSecret, secretLink } from "@/web/lib/secret-crypto";
 import {
   GEN_DEFAULT, derivePassKeys, entropyBits, generatePassword, newFolderKey, openPrivateKey, passphraseProblem, randomId, rewrapPrivateKey,
@@ -115,16 +115,20 @@ export function ItemFormDialog({ folder, item, open, onClose }: { folder: DecFol
 function SecretRow({ label, value, field, folder, item, secret }: { label: string; value: string; field: string; folder: DecFolder; item: DecItem; secret: boolean }) {
   const [shown, setShown] = useState(!secret);
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false); // POL1: the button itself says it worked
+  useEffect(() => { if (!copied) return; const t = setTimeout(() => setCopied(false), 2000); return () => clearTimeout(t); }, [copied]);
   if (!value) return null;
   const reveal = async () => {
+    if (busy) return;
     if (shown) { setShown(false); return; }
     setBusy(true);
     try { await auditView(folder.id, item.id, "reveal", field); setShown(true); } catch { toast.error("Couldn't record the view, so it stays hidden. Try again."); } finally { setBusy(false); }
   };
   const copy = async () => {
+    if (busy) return;
     setBusy(true);
     try { await auditView(folder.id, item.id, "copy", field); } catch { toast.error("Couldn't record the copy, so nothing was copied. Try again."); setBusy(false); return; }
-    try { await copySecret(value); toast.success(`${label} copied. The clipboard clears in 30 seconds.`); } catch { toast.error("Couldn't copy here. Reveal it and copy by hand."); } finally { setBusy(false); }
+    try { await copySecret(value); setCopied(true); toast.success(`${label} copied. The clipboard clears in 30 seconds.`); } catch { toast.error("Couldn't copy here. Reveal it and copy by hand."); } finally { setBusy(false); }
   };
   const href = field === "url" ? safeUrl(value) : null;
   return (
@@ -134,8 +138,9 @@ function SecretRow({ label, value, field, folder, item, secret }: { label: strin
         <div className={`min-w-0 flex-1 break-all ${secret ? mono : "text-[15px]"}`} data-testid={`vault-value-${field}`}>
           {shown ? (href ? <a href={href} target="_blank" rel="noopener noreferrer" className="text-brand-hover underline">{value}</a> : <span className="whitespace-pre-wrap">{value}</span>) : "••••••••••••"}
         </div>
-        {secret && <Button type="button" variant="ghost" size="icon" disabled={busy} aria-label={shown ? `Hide ${label.toLowerCase()}` : `Reveal ${label.toLowerCase()}`} onClick={() => void reveal()} data-testid={`vault-reveal-${field}`}>{shown ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}</Button>}
-        <Button type="button" variant="ghost" size="icon" disabled={busy} aria-label={`Copy ${label.toLowerCase()}`} onClick={() => void copy()} data-testid={`vault-copy-${field}`}><IconCopy className="h-4 w-4" /></Button>
+        {secret && <Button type="button" variant="ghost" size="icon" aria-disabled={busy || undefined} aria-label={shown ? `Hide ${label.toLowerCase()}` : `Reveal ${label.toLowerCase()}`} onClick={() => void reveal()} data-testid={`vault-reveal-${field}`}>{shown ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}</Button>}
+        <Button type="button" variant="ghost" size="icon" aria-disabled={busy || undefined} aria-label={copied ? `${label} copied` : `Copy ${label.toLowerCase()}`} onClick={() => void copy()} data-testid={`vault-copy-${field}`}>{copied ? <IconCheck className="h-4 w-4 text-ok" /> : <IconCopy className="h-4 w-4" />}</Button>
+        <span className="sr-only" aria-live="polite">{copied ? `${label} copied` : ""}</span>
       </div>
     </div>
   );

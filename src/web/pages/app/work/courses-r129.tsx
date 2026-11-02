@@ -4,7 +4,7 @@
  * My learning lives at /app/docs/learning. Quizzes are scored on the server; this page never sees the answer key
  * unless the person can build the course.
  */
-import { useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -20,7 +20,7 @@ import { Badge, Card, EmptyState, PageHeader, Skeleton, Switch, tableStyles } fr
 import { cn } from "@/web/lib/cn";
 import { useConfig, useMe } from "@/web/lib/queries";
 import { usePageTitle } from "@/web/lib/page-title-pol1"; // POL1
-import { queryRetry } from "@/web/lib/load-errors-t1g"; // POL1
+import { quickRetry } from "@/web/lib/quick-retry-pol1"; // POL1
 import { MoreMenu, useTrashAction } from "@/web/components/trash-pol1"; // POL1 (MB-313)
 import { useAssignees, isAgentLike } from "./data";
 import { LESSON_LABEL, LESSON_TYPES, STATUS_LABEL, type LearnerStatus, type LessonType, type PublicQuestion, type Question, type QuestionType } from "@/shared/courses-r129";
@@ -46,7 +46,7 @@ export function useCoursesOn() {
 }
 
 function useCourse(id: string) {
-  return useQuery({ queryKey: key(id), retry: queryRetry, queryFn: () => api.get<Detail>(`/courses/${id}`) });
+  return useQuery({ queryKey: key(id), ...quickRetry, queryFn: () => api.get<Detail>(`/courses/${id}`) });
 }
 
 /** Course progress: brand colour while going, ok colour when done (the shared Meter reads as usage and turns red when full). */
