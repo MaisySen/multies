@@ -56,6 +56,13 @@ async function withTranscript(meetingId: string, by: string, text = TRANSCRIPT) 
 const count = (t: string) => (ctx.db as unknown as { $client: { prepare: (q: string) => { get: () => { n: number } } } }).$client.prepare(t === "tasks" ? "select count(*) n from tasks where deleted_at is null" : `select count(*) n from ${t}`).get().n;
 
 describe("suggestion parsing (pure)", () => {
+  it("reads a bare array, fenced JSON, other list keys and one item (MB-331)", () => {
+    expect(parseSuggestions('[{"text":"Send the shortlist","quote":"q"}]').map((x) => x.title)).toEqual(["Send the shortlist"]);
+    expect(parseSuggestions('Sure.\n```json\n{"action_items":[{"title":"Draft the budget"}]}\n```').map((x) => x.title)).toEqual(["Draft the budget"]);
+    expect(parseSuggestions('{"tasks":["Book the room"]}').map((x) => x.title)).toEqual(["Book the room"]);
+    expect(parseSuggestions('{"text":"Call the client","owner":"Sam"}')[0]).toMatchObject({ title: "Call the client", owner: "Sam" });
+    expect(parseSuggestions("No action items here.")).toEqual([]);
+  });
   it("reads items, drops duplicates and junk, caps the length", () => {
     const s = parseSuggestions('Sure! {"actionItems": [{"text": "  Send the deck ", "owner": "Kai", "due": "Fri", "quote": "Kai sends the deck Fri"}, "Call the bank", {"title": "send the deck"}, {"nope": 1}, 42]}');
     expect(s).toEqual([{ title: "Send the deck", owner: "Kai", due: "Fri", quote: "Kai sends the deck Fri" }, { title: "Call the bank", owner: null, due: null, quote: null }]);
@@ -148,6 +155,33 @@ describe("meetings to tasks", () => {
     const off = await c.post(`/api/meeting-td3/${m.id}/suggest`, { source: "recording", recordingId: "rec_1" });
     expect(off.status).toBe(409);
     expect(builtinCalls).toBe(1);
+  });
+
+  it("built in AI answers as already parsed JSON, as a bare array in words, or with nothing: suggestions or a clear none (MB-331)", async () => {
+    await setup({ MEET_TD3: "on", AI_CONNECT_AI2: "on" });
+    const pasted = ["Tom, can you send the venue shortlist to the team by Friday?", "Yes, I will send the venue shortlist by Friday.", "I will draft the budget summary next week."].join("\n");
+    const items = [
+      { text: "Send the venue shortlist to the team", owner: "Tom", due: "Friday", quote: "I will send the venue shortlist by Friday." },
+      { text: "Draft the budget summary", owner: null, due: "next week", quote: "I will draft the budget summary next week." },
+    ];
+    const replies: unknown[] = [
+      { actionItems: items }, // the service hands back JSON already parsed
+      `Here are the action items:\n\`\`\`json\n${JSON.stringify(items)}\n\`\`\``, // a bare array inside words and a code fence
+      "There are no action items in this text.",
+    ];
+    let builtinCalls = 0;
+    ctx.deps.ai = { run: async () => ({ response: replies[builtinCalls++], usage: { prompt_tokens: 60, completion_tokens: 80 } }) };
+    const m = await meeting();
+    for (const want of [2, 2, 0]) {
+      const r = await c.post(`/api/meeting-td3/${m.id}/suggest`, { source: "pasted", text: pasted });
+      expect(r.status).toBe(200);
+      expect(r.body.added).toBe(want);
+      const open = r.body.suggestions.filter((s: { status: string }) => s.status === "open");
+      expect(open).toHaveLength(want);
+      for (const s of open) expect(pasted).toContain(s.quote);
+    }
+    expect(builtinCalls).toBe(3);
+    expect(aiCalls).toBe(0);
   });
 
   it("with no key, built in AI flag on but no binding: no_key, no call", async () => {

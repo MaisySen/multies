@@ -201,7 +201,7 @@ export async function suggest(deps: Deps, a: SuiteActor, meetingId: string, inpu
   const take = fresh.slice(0, Math.max(0, MAX_OPEN - keep));
   await deps.db.delete(meetingSuggestions).where(and(eq(meetingSuggestions.orgId, a.orgId), eq(meetingSuggestions.meetingId, meetingId), eq(meetingSuggestions.status, "open"), ne(meetingSuggestions.source, "manual")));
   if (take.length) await deps.db.insert(meetingSuggestions).values(take);
-  deps.log?.info("meeting_td3.suggested", { meetingId, count: take.length, provider: answer.provider });
+  deps.log?.info("meeting_td3.suggested", { meetingId, count: take.length, parsed: raw.length, answered: !!answer.text, provider: answer.provider }); // counts only, never the text
   return { suggestions: await view(deps, a, meetingId), added: take.length };
 }
 

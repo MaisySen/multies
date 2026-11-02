@@ -52,6 +52,9 @@ export function MeetingSuggestions({ meetingId }: { meetingId: string }) {
   const [showText, setShowText] = useState(false);
   const [adding, setAdding] = useState<{ title: string; quote: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // After a run that found nothing, say so plainly (until the source or text changes).
+  const [noneFound, setNoneFound] = useState(false);
+  useEffect(() => { setNoneFound(false); }, [src, pasted]);
   const [selection, setSelection] = useState("");
   const pane = useRef<HTMLPreElement>(null);
 
@@ -88,7 +91,8 @@ export function MeetingSuggestions({ meetingId }: { meetingId: string }) {
     const body = source === "notes" ? { source: "notes" } : source === "pasted" ? { source: "pasted", text: pasted } : { source: "recording", recordingId: source.slice(4) };
     const r = await api.post<{ suggestions: Suggestion[]; added: number }>(`/meeting-td3/${meetingId}/suggest`, body);
     setList(r.suggestions);
-    toast.success(r.added ? `${r.added} ${r.added === 1 ? "suggestion" : "suggestions"} ready to review` : "No new action items found");
+    setNoneFound(!r.added);
+    toast.success(r.added ? `${r.added} ${r.added === 1 ? "suggestion" : "suggestions"} ready to review` : "No action items found in this text");
   });
   const accept = (s: Suggestion) => run(s.id, async () => {
     const r = await api.post<{ suggestion: Suggestion | null }>(`/meeting-td3/${meetingId}/suggestions/${s.id}/accept`, {});
@@ -174,7 +178,9 @@ export function MeetingSuggestions({ meetingId }: { meetingId: string }) {
         setAdding(null); setSelection(""); await refresh(); toast.success("Task created");
       })} />}
 
-      {!v.suggestions.length && <p className="mt-4 text-[13px] text-muted" data-testid="meeting-suggest-empty">No suggestions yet. Pick what to read from and press Suggest, or select lines and make tasks by hand.</p>}
+      {!v.suggestions.length && (noneFound
+        ? <p className="mt-4 text-[13px] text-muted" role="status" data-testid="meeting-suggest-none">No action items found in this text. Try another source, or select lines and make tasks by hand.</p>
+        : <p className="mt-4 text-[13px] text-muted" data-testid="meeting-suggest-empty">No suggestions yet. Pick what to read from and press Suggest, or select lines and make tasks by hand.</p>)}
 
       {open.length > 0 && (
         <ul className="mt-4 space-y-2" aria-label="Suggestions to review">

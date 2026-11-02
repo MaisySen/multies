@@ -197,7 +197,9 @@ async function runFree(deps: Deps, req: AiRequest): Promise<{ texts: string[]; a
   if (req.task === "chat") {
     const maxTokens = req.maxTokens ?? 400;
     const out = (await ai.run(CHAT_MODEL, { messages: [{ role: "system", content: req.system }, { role: "user", content: req.user }], max_tokens: maxTokens, temperature: 0.2 })) as ChatOut;
-    const text = typeof out?.response === "string" ? out.response.trim() : "";
+    // The service may hand back an answer that is JSON already parsed (an object or array) instead of text: keep it as JSON text.
+    const resp: unknown = out?.response;
+    const text = typeof resp === "string" ? resp.trim() : resp && typeof resp === "object" ? JSON.stringify(resp) : "";
     const pin = out?.usage?.prompt_tokens, pout = out?.usage?.completion_tokens;
     const actual = typeof pin === "number" && typeof pout === "number"
       ? unitsFor(CHAT_MODEL, pin, pout)
