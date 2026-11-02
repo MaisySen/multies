@@ -13,6 +13,7 @@ import { IconBookmark, IconArrowRightLeft, IconLink, IconMegaphone, IconReceipt,
   IconHelp, IconInbox, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconSidebar, IconSliders,
   IconSquarePlus, IconStar, IconHandshake, IconUserRound, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconVideo, IconWrench, IconZap,
   IconPenLine, type IconComponent,
+  IconLayers,
 } from "@/web/components/ui/icon";
 import { buttonClass } from "@/web/components/ui/button";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
@@ -31,6 +32,7 @@ const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigat
 export const MOD = isMac ? "⌘" : "Ctrl";
 
 export const NAV_ICONS: Record<IconKey, IconComponent> = {
+  oneInbox: IconLayers, // TD6
   home: IconHome, mail: IconInbox, tasks: IconTasks, docs: IconDocs, tools: IconWrench, chat: IconMessageCircle, dashboards: IconDashboard, workspace: IconSettings,
   today: IconToday, overview: IconDashboard, bell: IconBell, triage: IconTodo, approvals: IconApprovals, activity: IconActivity, sharedInbox: IconChats,
   mailboxes: IconTeam, domains: IconGlobe, deliverability: IconShieldCheck, goals: IconTarget, portfolio: IconBriefcase, timesheet: IconTimer,

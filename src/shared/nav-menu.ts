@@ -10,9 +10,10 @@ export type IconKey =
   | "goals" | "portfolio" | "timesheet" | "templates" | "automations" | "files" | "forms" | "meetings" | "booking" | "contacts"
   | "reports" | "agents" | "integrations" | "connections" | "settings" | "operator" | "convert"
   | "social" | "planner" | "posts" | "accounts" | "library" | "help" | "socialInbox" | "analytics" | "sites"
-  | "people" | "deals"; // R121
+  | "people" | "deals" // R121
+  | "oneInbox"; // TD6
 
-export type NavFlagKey = "sites" | "tools" | "files" | "scheduling" | "operator" | "flows" | "socialP2" | "helpCenter" | "socialP2b" | "docsPlus";
+export type NavFlagKey = "sites" | "tools" | "files" | "scheduling" | "operator" | "flows" | "socialP2" | "helpCenter" | "socialP2b" | "docsPlus" | "inboxTd6";
 export interface NavPage { to: string; label: string; icon: IconKey; end?: boolean; flag?: NavFlagKey }
 export interface Section { id: SectionId; label: string; icon: IconKey; to: string; pages: NavPage[] }
 export type NavFlagSet = Partial<Record<NavFlagKey, boolean>>;
@@ -22,6 +23,7 @@ export const SECTIONS_P1: Section[] = [
   { id: "home", label: "Home", icon: "home", to: "/app/my-work", pages: [
     { to: "/app/my-work", label: "My Work", icon: "today" },
     { to: "/app", label: "Overview", icon: "overview", end: true },
+    { to: "/app/one-inbox", label: "One inbox", icon: "oneInbox", flag: "inboxTd6" }, // TD6: shown only with INBOX_TD6 on the web
     { to: "/app/notifications", label: "Notifications", icon: "bell" },
     { to: "/app/triage", label: "Triage", icon: "triage" },
     { to: "/app/approvals", label: "Approvals", icon: "approvals" },

@@ -9,13 +9,14 @@ export type PaletteIcon = React.ComponentType<{ className?: string }>;
  * R59: `flag` names a server switch from /api/config; the page is offered only while it is on.
  * Tools P2: `toolFeature` also needs one of these P2 features in /api/config toolFeatures.
  */
-export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog" | "toursR130" | "billTd4"; toolFeature?: string[] }
+export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "inboxTd6" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog" | "toursR130" | "billTd4"; toolFeature?: string[] }
 export type PaletteActionKind = "navigate" | "shortcuts" | "theme" | "external";
-export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog" | "billTd4"; toolFeature?: string[] }
+export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "inboxTd6" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog" | "billTd4"; toolFeature?: string[] }
 
 export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-my-work", label: "My Work", to: "/app/my-work", icon: IconToday, keywords: ["today", "due", "home", "mentions"] },
   { id: "p-overview", label: "Overview", to: "/app", icon: IconDashboard, keywords: ["dashboard", "home"] },
+  { id: "p-one-inbox", label: "One inbox", to: "/app/one-inbox", icon: IconInbox, keywords: ["inbox", "important", "noise", "everything", "mentions", "unread"], flag: "inboxTd6" }, // TD6
   { id: "p-notifications", label: "Notifications", to: "/app/notifications", icon: IconBell, keywords: ["alerts", "inbox"] },
   { id: "p-chat", label: "Chat", to: "/app/chat", icon: IconMessageCircle, keywords: ["channels", "messages", "dm", "direct message"] },
   { id: "p-tasks", label: "Tasks", to: "/app/tasks", icon: IconTasks, keywords: ["board", "list", "kanban", "projects", "todo"] },

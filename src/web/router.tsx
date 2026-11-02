@@ -145,6 +145,7 @@ const guestPages = () => import("./pages/app/work/guest");
 const GuestAcceptPage = lazyPage(() => guestPages(), "GuestAcceptPage");
 const GuestProjectPage = lazyPage(() => guestPages(), "GuestProjectPage");
 const ChatPage = lazyPage(() => import("./pages/app/work/chat"), "ChatPage");
+const OneInboxPage = lazyPage(() => import("./pages/app/one-inbox-td6"), "OneInboxPage"); // TD6
 const notificationPages = () => import("./pages/app/notifications");
 const NotificationsPage = lazyPage(() => notificationPages(), "NotificationsPage");
 const NotificationSettings = lazyPage(() => notificationPages(), "NotificationSettings");
@@ -353,6 +354,7 @@ export const router = createBrowserRouter([
       { path: "portfolio", element: page(<PortfolioPage />) },
       { path: "chat", element: page(<ChatPage />) },
       { path: "chat/:id", element: page(<ChatPage />) },
+      { path: "one-inbox", element: page(<OneInboxPage />) }, // TD6 (INBOX_TD6)
       { path: "notifications", element: page(<NotificationsPage />) },
       { path: "templates", element: page(<TemplatesPage />) },
       { path: "goals", element: page(<GoalsPage />) },

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { HostSlot, useStableHost } from "./stable-host"; // R100: the page survives the 1024 px layout switch
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconFlag, IconMapPin, IconActivity, IconAgent, IconAttachment, IconMegaphone, IconBell, IconBriefcase, IconCalendarClock, IconChart, IconChats, IconCheck, IconChevronsUpDown, IconClipboardCheck, IconClipboardList, IconClose, IconContacts, IconDashboard, IconDocs, IconFlask, IconGlobe, IconInbox, IconKeyboard, IconLogOut, IconMenu, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUserCog, IconVideo, IconWrench, IconZap, type IconComponent } from "@/web/components/ui/icon";
+import { IconLayers, IconFlag, IconMapPin, IconActivity, IconAgent, IconAttachment, IconMegaphone, IconBell, IconBriefcase, IconCalendarClock, IconChart, IconChats, IconCheck, IconChevronsUpDown, IconClipboardCheck, IconClipboardList, IconClose, IconContacts, IconDashboard, IconDocs, IconFlask, IconGlobe, IconInbox, IconKeyboard, IconLogOut, IconMenu, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUserCog, IconVideo, IconWrench, IconZap, type IconComponent } from "@/web/components/ui/icon";
 import { Logo } from "@/web/components/logo";
 import { BrandTokens, WorkspaceMark, WorkspaceWideLogo } from "@/web/lib/brand"; // R77: workspace brand
 import { AppearanceControl } from "@/web/components/theme";
@@ -41,6 +41,7 @@ import { workspaceTabs } from "@/web/lib/workspace-tabs-r58"; // R58 (MB-245)
 import { PendingInviteBanner } from "@/web/components/pending-invite-banner-r39"; // R39 (MB-202)
 import { JoinInvitePrompt } from "@/web/components/join-invite-prompt-r41"; // R41 (MB-221)
 import { api } from "@/web/lib/api";
+import { ONE_INBOX_PATH, useOneInboxCount } from "@/web/lib/one-inbox-td6"; // TD6
 import { clearMeCache, isSignedOut } from "@/web/lib/me-cache"; // R40 (MB-200)
 import { ReconnectingPill, ReconnectScreen } from "@/web/components/reconnecting-r40"; // R40 (MB-200)
 import { LoadErrorStrip } from "@/web/components/load-error-t1g"; // T1G (T1-8)
@@ -111,6 +112,8 @@ const withTools = (items: NavItem[], files = false): NavItem[] => items.flatMap(
   ...(files ? [{ to: "/app/files", label: "Files", icon: IconAttachment, group: "work" as const }] : [])] : [n]));
 
 /** The booking page sits under Meetings when the server has scheduling switched on. */
+/** TD6: One inbox sits above Notifications in the phone drawer while INBOX_TD6 is on. */
+const withOneInbox = (on: boolean, items: NavItem[]): NavItem[] => (on ? items.flatMap((n) => (n.to === "/app/notifications" ? [{ to: ONE_INBOX_PATH, label: "One inbox", icon: IconLayers, group: "work" as const }, n] : [n])) : items);
 const withScheduling: NavItem[] = nav.flatMap((n) => (n.to === "/app/meetings" ? [n, { to: "/app/scheduling", label: "Booking page", icon: IconCalendarClock, group: "work" as const }] : [n]));
 
 export function AppLayout() {
@@ -170,6 +173,7 @@ export function AppLayout() {
   const pendingCount = approvals.data?.length ?? 0;
   // R34: every badge reads GET /api/counts (one query, 304 when nothing moved) instead of one request per area.
   const counts = useCounts(!!me.data?.organization);
+  const oneInbox = useOneInboxCount(!!config.data?.inboxTd6 && !!me.data?.organization); // TD6
   const unreadNotes = { data: counts.data?.notifications.unread };
   const triageCount = { data: counts.data?.triage };
   const openReports = useOpenReportCount(!!me.data?.user.platformAdmin); // R35: moderation queue badge
@@ -241,11 +245,12 @@ export function AppLayout() {
 
   // R79: the desktop shell: icon rail, a resizable sidebar for the open section (Cmd or Ctrl + backslash folds it),
   // and a top bar with breadcrumbs, search, Create and View. Tablets and phones keep their own bars (R46).
-  const navFlags = { sites: !!config.data?.sites && !!sitesUse.data?.inUse, sitesCreate: !!config.data?.sites && (!!sitesUse.data?.canStart || !!sitesUse.data?.inUse), blogCreate: !!config.data?.sites && !!config.data?.blog && !!sitesUse.data?.canEdit, // R124
+  const navFlags = { inboxTd6: !!config.data?.inboxTd6, sites: !!config.data?.sites && !!sitesUse.data?.inUse, sitesCreate: !!config.data?.sites && (!!sitesUse.data?.canStart || !!sitesUse.data?.inUse), blogCreate: !!config.data?.sites && !!config.data?.blog && !!sitesUse.data?.canEdit, // R124
     helpCenter: !!config.data?.helpCenter, docsPlus: !!config.data?.docsPlus, flows: (config.data as { flows?: boolean } | undefined)?.flows !== false, tools: !!config.data?.tools, files: !!config.data?.tools && (!!config.data?.toolFeatures?.includes("folders") || !!config.data?.filesPlus), scheduling: !!config.data?.scheduling, links: !!config.data?.tools && !!config.data?.toolFeatures?.includes("links"), operator: !!me.data?.user.platformAdmin, social: me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin" || (!!config.data?.socialP2 && !!me.data?.organization), socialP2: !!config.data?.socialP2, socialP2b: !!config.data?.socialP2 && config.data?.socialP2b !== false, invoices: !!config.data?.invoices };
   const sections = visibleSections(navFlags);
   const section = sectionFor(loc.pathname, sections);
   const navCounts: NavCounts = {
+    [ONE_INBOX_PATH]: { n: oneInbox.data ?? 0, label: `${oneInbox.data ?? 0} unread important`, alert: true }, // TD6
     "/app/notifications": { n: unreadNotes.data ?? 0, label: `${unreadNotes.data ?? 0} unread`, alert: true },
     "/app/triage": { n: triageCount.data ?? 0, label: `${triageCount.data ?? 0} waiting in Triage`, alert: true },
     "/app/approvals": { n: pendingCount, label: `${pendingCount} waiting`, alert: true },
@@ -270,7 +275,7 @@ export function AppLayout() {
       {/* R121 (P2 menu): every section as a tile with its count, then New social post and Settings (plan section 9). */}
       {config.data?.navP2 ? <MoreSheet sections={sections} counts={navCounts} active={section.id} canPost={navFlags.social} onNavigate={() => setDrawer(false)} /> : (
       <nav className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 max-lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]" aria-label="App">
-        {navGroups(([...((config.data?.tools ? (x: NavItem[]) => withTools(x, !!config.data?.toolFeatures?.includes("folders") || !!config.data?.filesPlus) : (x: NavItem[]) => x)(config.data?.scheduling ? withScheduling : nav)), ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: IconShield, end: false, group: "admin" as const }] : [])] as NavItem[])).map(({ group, items }, gi) => (
+        {navGroups(withOneInbox(!!config.data?.inboxTd6, ([...((config.data?.tools ? (x: NavItem[]) => withTools(x, !!config.data?.toolFeatures?.includes("folders") || !!config.data?.filesPlus) : (x: NavItem[]) => x)(config.data?.scheduling ? withScheduling : nav)), ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: IconShield, end: false, group: "admin" as const }] : [])] as NavItem[]))).map(({ group, items }, gi) => (
           <div key={group} className={cn(gi > 0 && "pt-4 max-lg:pt-5")}>
           <div data-testid="nav-group" className="px-2.5 pb-1 text-[11.5px] font-semibold text-subtle max-lg:pb-1.5 max-lg:text-[12px] max-lg:uppercase max-lg:tracking-[0.05em]">{GROUP_LABEL[group]}</div>
           {/* R46 mobile: on a phone each group is one rounded card, like the system settings lists. */}
