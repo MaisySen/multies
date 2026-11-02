@@ -150,7 +150,7 @@ export async function resolveAbout(deps: Deps, actor: SuiteActor, raw: unknown):
   if (!a) throw new HttpError(422, "validation_failed", "That item cannot be asked about.");
   const v: SearchViewer = { kind: "actor", actor };
   if (a.kind === "meetings") {
-    let docId: string | null = null, extra = "";
+    let docId: string | null, extra: string;
     try {
       const n = await meetingNotes(deps, actor, a.id);
       docId = n.doc?.id ?? null;

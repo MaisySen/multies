@@ -29,6 +29,7 @@ import { useAssignees, useProjects, useTaskDetail, useTaskMutations, type Task }
 import { Kbd } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { SmallNoResultsArt } from "@/web/components/illustrations";
+import { MeaningGroup } from "@/web/components/palette-meaning-td1"; // TD1
 
 type Item = { id: string; label: string; hint?: string; icon: React.ComponentType<{ className?: string }>; run: () => void; keywords?: string[]; current?: boolean; keys?: string[]; sequence?: boolean };
 
@@ -123,6 +124,9 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   // R87: team go links (go/name), when Tools > Links is on.
   const goLinks = useGoLinks(open && !!config.data?.tools && !!config.data?.toolFeatures?.includes("links"));
   const askOn = !!config.data?.askR110; // R110
+  // TD1: leave out of "Matches by meaning" whatever the other groups already list.
+  const meaningExclude = new Set<string>(hitKeys);
+  for (const g of ((shown as { data?: { groups?: { items?: { type: string; id: string }[] }[] } } | undefined)?.data?.groups ?? [])) for (const i of g.items ?? []) meaningExclude.add(`${i.type}:${i.id}`);
   const go = (to: string, label?: string, hint?: string) => () => { if (label) recordRecent({ kind: "item", id: to, label, url: to, hint }); ctx.navigate(to); };
   const goItems: Item[] = (goLinks.data?.links ?? []).map((g) => ({ id: `go-${g.id}`, label: `go/${g.name}`, hint: g.description || g.label || "Go link", icon: IconLink, keywords: [g.name, `go ${g.name}`, g.label ?? "", "go link"], run: g.targetKind === "url" ? () => { close(); window.open(g.href, "_blank", "noopener"); } : go(`/app/go/${g.name}`, `go/${g.name}`, "Go link") }));
   const records: Item[] = [
@@ -311,6 +315,8 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
             {!search.trim() && group(<Heading icon={IconArrowRight}>Go to</Heading>, pages)}
             {group(<Heading icon={IconLink}>Go links</Heading>, goItems, "palette-go-links")}
             {group(<Heading icon={IconGlobe}>Domains and mailboxes</Heading>, records)}
+            {/* TD1: items that match by meaning or close words, not listed above (ASK_TD1). */}
+            {askOn && !!config.data?.askTd1 && !page && <MeaningGroup q={parsed.text} enabled={open && parsed.text.trim().length >= 3} exclude={meaningExclude} heading={<Heading icon={IconSparkle}>Matches by meaning</Heading>} className={groupClass} onOpen={openResult} />}
             {/* R110: ask the typed words as a question; F13: always the last option (Tools feature ask_r110). */}
             {askOn && search.trim().length >= 3 && (
               <Command.Group forceMount heading={<Heading icon={IconSparkle}>Ask AI</Heading>} className={groupClass} data-testid="palette-ask">
