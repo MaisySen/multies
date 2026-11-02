@@ -27,6 +27,7 @@ async function person(browser: Browser, email: string, name: string): Promise<Pe
   return { ctx, page, headers, id: "" };
 }
 async function axe(page: Page, label: string) {
+  await page.mouse.move(0, 0); // axe reads the resting state, not a hover left over from an earlier click
   const { violations } = await new AxeBuilder({ page }).exclude("[data-sonner-toaster]").analyze();
   const bad = violations.filter((v) => v.impact === "serious" || v.impact === "critical");
   expect(bad.map((v) => `${label}: ${v.id} ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(", ")}`)).toEqual([]);
