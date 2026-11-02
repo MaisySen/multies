@@ -45,6 +45,9 @@ async function putFile(auth: FileAuth, path: string, f: PickedFile, onProgress?:
   return { status: r.status, body: r.body };
 }
 
+/** M2: raw byte upload (PUT, x-multies-upload: 1) to any upload route, for Expenses receipts. */
+export function uploadRaw<T>(io: DriveIo, path: string, f: PickedFile, onProgress?: (fraction: number) => void) { return send<T>(io, path, f, onProgress); }
+
 async function send<T>(io: DriveIo, path: string, f: PickedFile, onProgress?: (fraction: number) => void): Promise<T> {
   if (tooBig(f.size)) throw Object.assign(new Error(tooBigLine()), { status: 413 });
   if (!io.auth) {

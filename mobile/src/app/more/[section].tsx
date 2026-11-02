@@ -11,7 +11,8 @@ import { Button, EmptyState, Icon, Loading } from "@/components/ui";
 import { useCounts } from "@/lib/queries";
 import { useSession } from "@/lib/session";
 import { useNavMenu } from "@/lib/nav-menu-queries";
-import { colorFor, countOf, countText, iconFor, nativeRoute } from "@/lib/nav-menu";
+import { colorFor, countOf, countText, iconFor, nativeRoute, sectionExtras } from "@/lib/nav-menu";
+import { useWebConfig } from "@/lib/web-config";
 import { openWebPage } from "@/lib/web-open";
 import { FEATURES } from "@/config";
 import { colors, space } from "@/theme";
@@ -28,7 +29,9 @@ export default function MoreSection() {
   const { transport } = useSession();
   const q = useNavMenu();
   const counts = useCounts();
-  const s = q.data?.menu.sections.find((x) => x.id === section);
+  const cfg = useWebConfig();
+  const found = q.data?.menu.sections.find((x) => x.id === section);
+  const s = found ? { ...found, pages: [...found.pages, ...sectionExtras(found.id, cfg.data as Record<string, unknown> | undefined, found.pages.map((p) => p.to))] } : undefined;
   const live = q.data?.problem === "offline" ? null : counts.data;
   const web = <View style={{ flexDirection: "row", alignItems: "center" }}><Icon name="external-link" size={15} color={colors.subtle} /></View>;
 

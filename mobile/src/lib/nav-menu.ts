@@ -102,7 +102,7 @@ export const colorFor = (sectionId: string): TileColor => COLOR[sectionId] ?? "b
 const NATIVE: Record<string, string> = {
   "/app": "/today", "/app/my-work": "/today", "/app/notifications": "/notifications", "/app/approvals": "/approvals",
   "/app/mail": "/inbox", "/app/chat": "/chat", "/app/meetings": "/meetings", "/app/tasks": "/tasks", "/app/portfolio": "/portfolio",
-  "/app/docs": "/docs", "/app/files": "/files", "/app/social": "/social", "/app/contacts": "/contacts", "/app/deals": "/deals", "/app/tools": "/tools",
+  "/app/docs": "/docs", "/app/files": "/files", "/app/social": "/social", "/app/contacts": "/contacts", "/app/deals": "/deals", "/app/expenses": "/expenses", "/app/tools": "/tools",
   "/app/automations/runs": "/runs", "/app/activity": "/activity", "/app/settings": "/settings",
 };
 /** The app screen for a web page, or null when it opens on the web. Tasks needs the app's tasks switch. */
@@ -142,4 +142,19 @@ export const visibleSections = (m: NavMenu, hidden: readonly string[]) => m.sect
 export function withUsed(m: NavMenu, used: Record<string, boolean>): NavMenu {
   const sections = m.sections.map((s) => ({ ...s, pages: s.pages.filter((p) => !p.whenUsed || used[p.whenUsed] === true) })).filter((s) => s.pages.length > 0);
   return { ...m, sections };
+}
+
+/**
+ * Pages the web reaches from inside a section's own pages (not in the menu model), that the app lists in that section
+ * when the workspace has them switched on (GET /api/config flags): Expenses and Invoices live under Contacts on the web.
+ * The server still decides who may open them.
+ */
+export function sectionExtras(sectionId: string, flags: Record<string, unknown> | null | undefined, have: readonly string[]): MenuPage[] {
+  const on = (k: string) => !!flags && flags[k] === true;
+  const out: MenuPage[] = [];
+  if (sectionId === "contacts") {
+    if (on("expenses")) out.push({ to: "/app/expenses", label: "Expenses", icon: "deals" });
+    if (on("invoices")) out.push({ to: "/app/contacts/invoices", label: "Invoices", icon: "reports" });
+  }
+  return out.filter((p) => !have.includes(p.to));
 }

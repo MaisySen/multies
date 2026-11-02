@@ -1,5 +1,6 @@
 import { SAMPLE_NAV_MENU } from "./nav-menu";
 import { dealsRoute, sampleDeals } from "./deals";
+import { expensesRoute, sampleExpenses } from "./expenses";
 import type { Method, RequestOptions, Transport } from "@/api/transport";
 import { sampleJob, sampleToolsInfo } from "./tools";
 import { ApiError } from "@/api/errors";
@@ -37,6 +38,7 @@ export class SampleTransport implements Transport {
   /** M1: the drive (Files). */
   private drive = sampleDrive(Date.now());
   private dealStore = { deals: sampleDeals() };
+  private expenseStore = { items: sampleExpenses(), seq: 1 };
   /** R35: report and block in the sample workspace, kept in memory only. */
   private blocks: { userId: string; name: string; avatarUrl: string | null; createdAt: string }[] = [];
   private reports = 0;
@@ -58,6 +60,7 @@ export class SampleTransport implements Transport {
     this.mail = sampleMailExtras(Date.now(), this.data.messages);
     this.drive = sampleDrive(Date.now());
     this.dealStore = { deals: sampleDeals() };
+    this.expenseStore = { items: sampleExpenses(), seq: 1 };
     this.blocks = [];
     this.reports = 0;
   }
@@ -79,6 +82,8 @@ export class SampleTransport implements Transport {
     // M2: deals.
     const deal = dealsRoute(this.dealStore, method, path, body);
     if (deal !== undefined) return json(deal);
+    const exp = expensesRoute(this.expenseStore, method, path, params, body);
+    if (exp !== undefined) return json(exp);
     // M1: the drive (Files).
     if (path.startsWith("/drive/")) return json(driveRoute(this.drive, method, rawPath, body));
     // M1: global search, Docs, comments and share links.

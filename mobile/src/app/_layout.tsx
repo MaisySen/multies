@@ -104,6 +104,8 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="social-posted/[id]" options={{ headerLargeTitle: false, title: "", headerBackVisible: false, gestureEnabled: false }} />
         <Stack.Screen name="deals" options={{ headerLargeTitle: false, title: "Deals" }} />
         <Stack.Screen name="deal/[id]" options={{ headerLargeTitle: false, title: "Deal" }} />
+        <Stack.Screen name="expenses" options={{ headerLargeTitle: false, title: "Expenses" }} />
+        <Stack.Screen name="expense/[id]" options={{ headerLargeTitle: false, title: "Expense" }} />
         <Stack.Screen name="more/[section]" options={{ headerLargeTitle: false, title: "" }} />
         <Stack.Screen name="docs" options={{ headerLargeTitle: false, title: "Docs" }} />
         <Stack.Screen name="doc/[id]" options={{ title: "" }} />
