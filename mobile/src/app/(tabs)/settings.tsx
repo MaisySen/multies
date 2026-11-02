@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSession } from "@/lib/session";
 import { useWebConfig } from "@/lib/web-config";
 import { useBlocks, useNotificationCount, useOverview, useTools } from "@/lib/queries";
+import { useFilesAccess } from "@/lib/drive-queries";
 import { permissionGranted, registerPush, type PushState } from "@/lib/push";
 import { kv } from "@/lib/kv";
 import { bytes } from "@/lib/format";
@@ -32,6 +33,7 @@ export default function Settings() {
   const insets = useSafeAreaInsets();
   const blocksQ = useBlocks();
   const tools = useTools();
+  const files = useFilesAccess();
   // 1.10.8: open conversations in the Social inbox, shown on the Social row.
   const socialSt = useSocialStatus();
   const socialInbox = badgeText(useInboxBadge(!!socialSt.data?.available).data);
@@ -97,8 +99,10 @@ export default function Settings() {
       <Row tile="blue" icon="inbox" label="Email addresses" value={overview.data ? String(overview.data.filter((m) => m.kind !== "agent").length) : undefined} onPress={() => router.push("/email-setup")} testID="email-setup-link" />
       <Row tile="purple" icon="cpu" label="Agent inboxes" value={overview.data ? String(overview.data.filter((m) => m.kind === "agent").length) : undefined} />
       <Row tile="gray" icon="hard-drive" label="Storage used" value={overview.data ? bytes(used) : undefined} />
+      {files.on ? <Row tile="blue" icon="layers" label="Files" value="Team, mine and brand" onPress={() => router.push("/files")} testID="files-link" /> : null}
       {tools.data ? <Row tile="brand" icon="wrench" label="Tools" value="PDF and Office" onPress={() => router.push("/tools")} testID="tools-link" /> : null}
       <Row tile="pink" icon="send" label="Social" value={socialInbox ? `${socialInbox} open in inbox` : "Posts, inbox and accounts"} onPress={() => router.push("/social")} testID="social-link" />
+      {me?.organization ? <Row tile="blue" icon="file-text" label="Docs" value="Read, comment and share" onPress={() => router.push("/docs")} testID="docs-link" /> : null}
       <Row tile="green" icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="meetings" />
       <Row tile="orange" icon="layers" label="Portfolio" onPress={() => router.push("/portfolio")} testID="portfolio-link" />
       {me?.organization ? <Row tile="blue" icon="user" label="Contacts" value={webCfg.data?.maps === true ? "People and visits" : undefined} onPress={() => router.push("/contacts")} testID="contacts-link" /> : null}

@@ -58,7 +58,7 @@ export function m1WorkRoute(s: M1WorkState, method: string, path: string, params
   void body; void now;
   const parts = path.split("/").filter(Boolean);
   if (method === "GET" && path === "/config") {
-    return { maps: true, mailArchive: true, davSync: true, filesPlus: true, docsPlus: true, searchR98: true, mergePlus: true };
+    return { maps: true, mailArchive: true, davSync: true, filesPlus: true, docsPlus: true, searchR98: true, tools: true, toolFeatures: ["merge_plus_r109"] };
   }
   if (parts[0] === "contacts" && method === "GET") {
     if (parts.length === 1) {
