@@ -2,7 +2,7 @@
  * R94 CRM timeline (CRM_TIMELINE): one paged activity stream per contact or company, a composer to log a note, call
  * or meeting, and the pinned next step. Server: /api/crm (routes/crm-r94.ts).
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -12,6 +12,8 @@ import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
+import { CommentText, useEditableTokens, useMentionPicker, useMentionsOn } from "@/web/components/mentions-td5"; // TD5
+import { labelsToTokens } from "@/shared/mentions-td5"; // TD5
 import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { mailDate, shortDate } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -103,6 +105,8 @@ function Composer({ type, id, textareaRef }: { type: "contact" | "company"; id: 
   const qc = useQueryClient();
   const [kind, setKind] = useState<"note" | "call" | "meeting">("note");
   const [body, setBody] = useState("");
+  const on = useMentionsOn(); // TD5: @ in a note links records
+  const picker = useMentionPicker(textareaRef, body, setBody, [], { enabled: on, above: false });
   const [outcome, setOutcome] = useState("connected");
   const [minutes, setMinutes] = useState("");
   const [isPrivate, setPrivate] = useState(false);
@@ -112,8 +116,8 @@ function Composer({ type, id, textareaRef }: { type: "contact" | "company"; id: 
     if (!canSave || busy) return;
     setBusy(true);
     try {
-      await api.post("/crm/entries", { entityType: type, entityId: id, kind, body, private: isPrivate, ...(kind === "call" ? { outcome } : {}), ...(kind !== "note" && minutes ? { durationMin: Number(minutes) } : {}) });
-      setBody(""); setMinutes(""); setPrivate(false);
+      await api.post("/crm/entries", { entityType: type, entityId: id, kind, body: on ? picker.toTokens(body) : body, private: isPrivate, ...(kind === "call" ? { outcome } : {}), ...(kind !== "note" && minutes ? { durationMin: Number(minutes) } : {}) });
+      setBody(""); setMinutes(""); setPrivate(false); picker.reset();
       toast(kind === "call" ? "Call logged" : kind === "meeting" ? "Meeting logged" : "Note added");
       await refresh(qc, type, id);
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
@@ -128,9 +132,13 @@ function Composer({ type, id, textareaRef }: { type: "contact" | "company"; id: 
         ))}
       </div>
       <label htmlFor={`crm-body-${type}`} className="sr-only">{kind === "call" ? "Call summary" : kind === "meeting" ? "Meeting summary" : "Note"}</label>
-      <Textarea id={`crm-body-${type}`} ref={textareaRef} value={body} onChange={(e) => setBody(e.target.value)} rows={2} className="min-h-16 text-[13.5px]"
+      <div className="relative">
+      {picker.list}
+      <Textarea id={`crm-body-${type}`} ref={textareaRef} value={body} onChange={(e) => { setBody(e.target.value); if (on) requestAnimationFrame(picker.sync); }} rows={2} className="min-h-16 text-[13.5px]"
+        onClick={on ? picker.sync : undefined} aria-activedescendant={on ? picker.activeId : undefined} aria-autocomplete={on ? "list" : undefined}
         placeholder={kind === "call" ? "What did you talk about? (optional)" : kind === "meeting" ? "What was agreed?" : "Write a note. Only your team sees it."}
-        onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); void save(); } }} />
+        onKeyDown={(e) => { if (on && picker.onKeyDown(e)) return; if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); void save(); } }} />
+      </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {kind === "call" && (
           <label className="flex items-center gap-2 text-[12.5px] text-muted">Outcome
@@ -282,14 +290,17 @@ function TimelineRow({ item: i, type, id }: { item: TimelineItem; type: "contact
 function EntryCard({ entry: e, at, who, type, id }: { entry: Entry; at: string; who: React.ReactNode; type: "contact" | "company"; id: string }) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
-  const [text, setText] = useState(e.body);
+  const on = useMentionsOn(); // TD5: record tokens show as @[Title] while editing
+  const editable = useEditableTokens(e.body, on);
+  const [text, setText] = useState(editable.text);
+  useEffect(() => { if (!editing) setText(editable.text); }, [editable.text, editing]);
   const [busy, setBusy] = useState(false);
   const Ico = e.kind === "call" ? IconPhone : e.kind === "meeting" ? IconMeetings : IconNotes;
   const title = e.kind === "call" ? "Call" : e.kind === "meeting" ? "Meeting" : "Note";
   const bits = [title, e.kind === "call" ? outcomeLabel(e.outcome) : null, e.durationMin ? `${e.durationMin} min` : null, e.authorName].filter(Boolean).join(" · ");
   const save = async () => {
     setBusy(true);
-    try { await api.patch(`/crm/entries/${e.id}`, { body: text }); setEditing(false); await refresh(qc, type, id); } catch (err) { showError(err as Error); } finally { setBusy(false); }
+    try { await api.patch(`/crm/entries/${e.id}`, { body: on ? labelsToTokens(text, editable.map) : text }); setEditing(false); await refresh(qc, type, id); } catch (err) { showError(err as Error); } finally { setBusy(false); }
   };
   const remove = async () => {
     try {
@@ -309,10 +320,10 @@ function EntryCard({ entry: e, at, who, type, id }: { entry: Entry; at: string; 
         <div className="mt-2">
           <label htmlFor={`edit-${e.id}`} className="sr-only">Edit</label>
           <Textarea id={`edit-${e.id}`} value={text} onChange={(x) => setText(x.target.value)} rows={3} className="text-[13.5px]" autoFocus />
-          <div className="mt-2 flex justify-end gap-2"><Button size="sm" variant="secondary" onClick={() => { setEditing(false); setText(e.body); }}>Cancel</Button><Button size="sm" loading={busy} disabled={e.kind !== "call" && !text.trim()} onClick={() => void save()}>Save</Button></div>
+          <div className="mt-2 flex justify-end gap-2"><Button size="sm" variant="secondary" onClick={() => { setEditing(false); setText(editable.text); }}>Cancel</Button><Button size="sm" loading={busy} disabled={e.kind !== "call" && !text.trim()} onClick={() => void save()}>Save</Button></div>
         </div>
       ) : (
-        e.body && <p className="mt-1 whitespace-pre-wrap break-words text-[13.5px]">{e.body}</p>
+        e.body && <p className="mt-1 whitespace-pre-wrap break-words text-[13.5px]"><CommentText text={e.body} /></p>
       )}
       {e.canEdit && !editing && (
         <div className="mt-1 flex justify-end gap-1 opacity-100 transition-opacity duration-150 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">

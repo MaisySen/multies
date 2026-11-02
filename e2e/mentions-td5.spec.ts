@@ -125,6 +125,27 @@ test("task description: @ by keyboard, chip in view, References both ways, Escap
   await expect(page.getByTestId("references-panel").getByTestId("refs-in")).toContainText("Ship orbit launch");
 });
 
+test("contact note: @ links the doc, the note shows a chip, the doc lists the contact", async () => {
+  test.skip(OFF, "flag off run");
+  const page = owner.page;
+  expect((await page.request.post("/api/contacts", { headers: owner.headers, data: { name: "Pat Person", email: `pat-td5-${Date.now()}@example.com` } })).ok()).toBe(true);
+  await page.goto("/app/contacts");
+  await expect(page.getByTestId("contact-list")).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId("contact-list").locator("a", { hasText: "Pat Person" }).first().click();
+  const box = page.getByTestId("crm-composer").getByRole("textbox");
+  await box.click();
+  await box.pressSequentially("Send @orbit l");
+  const opt = page.getByTestId("mention-picker-td5").getByRole("option", { name: /Orbit launch plan/ });
+  await expect(opt).toBeVisible();
+  for (let i = 0; i < 6; i++) { if (await opt.getAttribute("aria-selected") === "true") break; await box.press("ArrowDown"); }
+  await box.press("Enter");
+  await expect(box).toHaveValue(/@\[Orbit launch plan\]/);
+  await page.getByTestId("crm-save").click();
+  await expect(page.getByTestId("crm-entry").locator("a.ref-chip", { hasText: "Orbit launch plan" })).toBeVisible();
+  await page.goto(`/app/docs/${docId}`);
+  await expect(page.getByTestId("references-panel").getByTestId("refs-in")).toContainText("Pat Person");
+});
+
 test("member reads a private channel mention as Restricted item; panel states", async () => {
   test.skip(OFF, "flag off run");
   const priv = (await (await owner.page.request.post("/api/chat/channels", { data: { name: "board-room", private: true }, headers: owner.headers })).json()).channel.id;

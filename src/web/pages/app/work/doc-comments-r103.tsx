@@ -12,6 +12,8 @@ import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
 import { Textarea } from "@/web/components/ui/input";
+import { CommentText, useEditableTokens, useMentionPicker, useMentionsOn } from "@/web/components/mentions-td5"; // TD5
+import { labelsToTokens } from "@/shared/mentions-td5"; // TD5
 import { Badge, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Dialog } from "@/web/components/ui/dialog";
 import { IconChat, IconClose, IconEye, IconEyeOff, IconTrash, IconEdit } from "@/web/components/ui/icon";
@@ -44,19 +46,24 @@ export function DocCommentsButton({ docId, open, onToggle }: { docId: string; op
 function Composer({ placeholder, onSend, people, busy, testId }: { placeholder: string; onSend: (body: string) => Promise<boolean>; people: { id: string; name: string }[]; busy: boolean; testId: string }) {
   const [body, setBody] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
-  const token = /(?:^|\s)@([^\s@]{0,30})$/.exec(body)?.[1];
+  // TD5: with MENTIONS_TD5 on, one keyboard picker offers people and records (team comments only).
+  const on = useMentionsOn() && testId === "doc-comment-input";
+  const picker = useMentionPicker(ref, body, setBody, people.map((p) => ({ key: p.id, name: p.name, insert: `@${p.name} ` })), { enabled: on });
+  const token = on ? undefined : /(?:^|\s)@([^\s@]{0,30})$/.exec(body)?.[1];
   const matches = token !== undefined ? people.filter((p) => p.name.toLowerCase().includes(token.toLowerCase())).slice(0, 5) : [];
   const pick = (name: string) => { setBody((b) => b.replace(/@([^\s@]{0,30})$/, `@${name} `)); ref.current?.focus(); };
-  const send = async () => { if (body.trim() && (await onSend(body))) setBody(""); };
+  const send = async () => { const out = on ? picker.toTokens(body) : body; if (out.trim() && (await onSend(out))) { setBody(""); picker.reset(); } };
   return (
-    <div className="border-t border-line p-3">
+    <div className="relative border-t border-line p-3">
+      {on && picker.list}
       {matches.length > 0 && (
         <ul className="mb-2 flex flex-wrap gap-1" aria-label="Mention someone">
           {matches.map((p) => <li key={p.id}><button type="button" onClick={() => pick(p.name)} className="min-h-9 rounded-md border border-line px-2 text-[13px] hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">@{p.name}</button></li>)}
         </ul>
       )}
-      <Textarea ref={ref} value={body} onChange={(e) => setBody(e.target.value)} placeholder={placeholder} rows={3} maxLength={COMMENT_MAX} aria-label="Comment" data-testid={testId}
-        onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send(); } }} />
+      <Textarea ref={ref} value={body} onChange={(e) => { setBody(e.target.value); if (on) requestAnimationFrame(picker.sync); }} placeholder={placeholder} rows={3} maxLength={COMMENT_MAX} aria-label="Comment" data-testid={testId}
+        onClick={on ? picker.sync : undefined} aria-activedescendant={on ? picker.activeId : undefined} aria-autocomplete={on ? "list" : undefined}
+        onKeyDown={(e) => { if (on && picker.onKeyDown(e)) return; if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send(); } }} />
       <div className="mt-2 flex items-center justify-between gap-2">
         <span className="text-[12px] text-subtle max-sm:hidden">Ctrl Enter to send</span>
         <Button size="sm" disabled={!body.trim() || busy} onClick={() => void send()}>Comment</Button>
@@ -77,7 +84,7 @@ function Item({ c, onEdit, onStatus, onRemove, moderator }: { c: DocComment; onE
         <span className="text-subtle">{timeAgo(c.createdAt)}{c.editedAt ? ", edited" : ""}</span>
       </div>
       {moderator && c.author.email && <p className="text-[12px] text-subtle">{c.author.email}</p>}
-      <p className="mt-1 whitespace-pre-wrap break-words text-[14px] leading-relaxed">{c.body}</p>
+      <p className="mt-1 whitespace-pre-wrap break-words text-[14px] leading-relaxed"><CommentText text={c.body} /></p>
       <div className="mt-2 flex flex-wrap gap-1">
         {moderator && c.status !== "visible" && <Button size="sm" variant="secondary" onClick={() => onStatus(c, "visible")}><IconEye className="h-3.5 w-3.5" />{c.status === "pending" ? "Approve" : "Show"}</Button>}
         {moderator && c.status === "visible" && <Button size="sm" variant="ghost" onClick={() => onStatus(c, "hidden")}><IconEyeOff className="h-3.5 w-3.5" />Hide</Button>}
@@ -98,6 +105,9 @@ export function DocCommentsPanel({ docId, open, onClose }: { docId: string; open
   const [tab, setTab] = useState<"team" | "public">("team");
   const [editing, setEditing] = useState<DocComment | null>(null);
   const [editBody, setEditBody] = useState("");
+  const mentionsOn = useMentionsOn(); // TD5: record tokens show as @[Title] while editing
+  const editable = useEditableTokens(editing?.body ?? "", mentionsOn);
+  useEffect(() => { if (editing) setEditBody(editable.text); }, [editing, editable.text]);
   const [removing, setRemoving] = useState<DocComment | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => { if (open) closeRef.current?.focus(); }, [open]);
@@ -118,7 +128,7 @@ export function DocCommentsPanel({ docId, open, onClose }: { docId: string; open
   };
   const saveEdit = async () => {
     if (!editing) return;
-    try { await api.patch(`/docs-plus/comments/${editing.id}`, { body: editBody }); setEditing(null); void refresh(); } catch (e) { showError(e as Error); }
+    try { await api.patch(`/docs-plus/comments/${editing.id}`, { body: mentionsOn ? labelsToTokens(editBody, editable.map) : editBody }); setEditing(null); void refresh(); } catch (e) { showError(e as Error); }
   };
   const remove = async () => {
     if (!removing) return;
