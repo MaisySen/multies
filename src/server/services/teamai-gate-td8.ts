@@ -1,10 +1,10 @@
 /**
- * TD8 Team AI: the one gate for the per workspace AI switch. True means the workspace allows AI; false means no provider
- * call anywhere in Team AI. Points at TD1's switch (ai-trust-td1.ts) once TD1 is on main; until then AI is allowed,
- * as on main today.
+ * TD8 Team AI: the one gate for the per workspace AI switch (TD1, ai-trust-td1.ts). True means the workspace allows AI;
+ * false means no provider call anywhere in Team AI (the run is logged as skipped, the page shows the off state).
  */
 import type { Deps } from "../context";
+import { aiAllowed } from "./ai-trust-td1";
 
-export async function teamAiSwitchOn(_deps: Deps, _orgId: string): Promise<boolean> {
-  return true;
+export async function teamAiSwitchOn(deps: Deps, orgId: string): Promise<boolean> {
+  return aiAllowed(deps, orgId);
 }
