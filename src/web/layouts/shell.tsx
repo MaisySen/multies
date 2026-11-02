@@ -273,9 +273,10 @@ export function ViewMenu() {
   // R82F (MB-285): density lives only here now; with no choice of your own it shows what the workspace look uses.
   const density = layout.density ?? workspaceDensity();
   return (
-    <Menu label="View" align="end" trigger={
+    // F13b (MB-316): "Layout", so it is not a second "View" next to a page's own views.
+    <Menu label="Layout" align="end" trigger={
       <button type="button" data-testid="view-menu" className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-muted transition-colors hover:bg-hover hover:text-fg">
-        <IconSliders className="h-4 w-4" aria-hidden /><span className="@max-[40rem]:sr-only">View</span>
+        <IconSliders className="h-4 w-4" aria-hidden /><span className="@max-[40rem]:sr-only">Layout</span>
       </button>}>
       <MenuItem checked={!sidebarHiddenOn(layout, loc.pathname)} hint={`${MOD} \\`} onSelect={() => toggleSidebar(loc.pathname)}>Sidebar</MenuItem>
       <div className="my-1 border-t border-line" />

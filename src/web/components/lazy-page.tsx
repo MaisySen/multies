@@ -91,9 +91,9 @@ export function PageLoadFailed({ offline, onRetry }: { offline: boolean; onRetry
   return (
     <div role="alert" data-testid="page-load-failed" className="flex min-h-[50dvh] flex-col items-center justify-center px-6 py-14 text-center">
       <div className="mb-4 grid h-12 w-12 place-items-center rounded-full bg-fill text-muted [&_svg]:h-5 [&_svg]:w-5" aria-hidden><IconWifiOff /></div>
-      <h2 className="text-[15px] font-semibold">Could not load this page</h2>
+      <h2 className="text-[15px] font-semibold">{offline ? "You are offline" : "Could not load this page"}</h2>{/* F13b (MB-304) */}
       <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted">
-        {offline ? "You are offline. Check your connection. This page opens by itself when you are back online." : "Check your connection."}
+        {offline ? "This page opens by itself when you are back online. What you already opened still works." : "Check your connection."}
       </p>
       <div className="mt-5"><Button variant="secondary" onClick={onRetry} data-testid="page-load-retry">Retry</Button></div>
     </div>
