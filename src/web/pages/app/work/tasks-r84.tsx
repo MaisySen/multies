@@ -359,7 +359,7 @@ export function useMentions(ref: RefObject<HTMLInputElement | HTMLTextAreaElemen
   const members = people.filter((p) => p.type === "member");
   // TD5: with MENTIONS_TD5 on, one picker offers people and records (records go in as @[Title] and save as tokens).
   const on = useMentionsOn();
-  const picker = useMentionPicker(ref, value, setValue, members.map((p) => ({ key: p.id, name: p.name, insert: `@${mentionHandle(p, members)} `, hint: `@${mentionHandle(p, members)}` })), { enabled: on, initialMap });
+  const picker = useMentionPicker(ref, value, setValue, members.map((p) => ({ key: p.id, name: p.name, insert: `@${mentionHandle(p, members)} `, hint: `@${mentionHandle(p, members)}` })), { enabled: on, initialMap, testId: "mention-list" });
   const [at, setAt] = useState<{ start: number; query: string } | null>(null);
   const [active, setActive] = useState(0);
   const matches = at ? members.filter((p) => p.name.toLowerCase().includes(at.query.toLowerCase()) || (p.email ?? "").toLowerCase().startsWith(at.query.toLowerCase())).slice(0, 6) : [];

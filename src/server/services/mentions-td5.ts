@@ -10,7 +10,8 @@
  *
  * Nothing here stores or logs text: the index keeps ids only, and a failed index write reports { where, sourceType }.
  */
-import { and, desc, eq, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm";
+import { inIds } from "@/server/lib/sql-chunks";
+import { and, desc, eq, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../context";
 import {
   chatChannels, chatMembers, contacts, crmEntries, deals, docs, forms, invoiceDocs, meetings, messages, projects, recordRefs, tasks,
@@ -95,7 +96,7 @@ async function idsIn(deps: Deps, orgId: string, type: RefType, ids: string[]): P
     case "task": {
       const plain = list.filter((x) => !/^[A-Za-z0-9]{1,6}-\d+$/.test(x));
       const refs = list.filter((x) => /^[A-Za-z0-9]{1,6}-\d+$/.test(x));
-      const rows = plain.length ? await db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.orgId, orgId), inArray(tasks.id, plain))) : [];
+      const rows = plain.length ? await db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.orgId, orgId), inIds(tasks.id, plain))) : [];
       const out: { id: string; ref?: string }[] = rows;
       if (refs.length) {
         const { resolveTaskId } = await import("./suite/tasks");
@@ -103,15 +104,15 @@ async function idsIn(deps: Deps, orgId: string, type: RefType, ids: string[]): P
       }
       return out;
     }
-    case "project": return db.select({ id: projects.id }).from(projects).where(and(eq(projects.orgId, orgId), inArray(projects.id, list)));
-    case "doc": return db.select({ id: docs.id }).from(docs).where(and(eq(docs.orgId, orgId), inArray(docs.id, list)));
-    case "contact": return db.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.orgId, orgId), inArray(contacts.id, list)));
-    case "deal": return db.select({ id: deals.id }).from(deals).where(and(eq(deals.orgId, orgId), inArray(deals.id, list)));
-    case "meeting": return db.select({ id: meetings.id }).from(meetings).where(and(eq(meetings.orgId, orgId), inArray(meetings.id, list)));
-    case "form": return db.select({ id: forms.id }).from(forms).where(and(eq(forms.orgId, orgId), inArray(forms.id, list)));
-    case "invoice": return db.select({ id: invoiceDocs.id }).from(invoiceDocs).where(and(eq(invoiceDocs.orgId, orgId), inArray(invoiceDocs.id, list)));
+    case "project": return db.select({ id: projects.id }).from(projects).where(and(eq(projects.orgId, orgId), inIds(projects.id, list)));
+    case "doc": return db.select({ id: docs.id }).from(docs).where(and(eq(docs.orgId, orgId), inIds(docs.id, list)));
+    case "contact": return db.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.orgId, orgId), inIds(contacts.id, list)));
+    case "deal": return db.select({ id: deals.id }).from(deals).where(and(eq(deals.orgId, orgId), inIds(deals.id, list)));
+    case "meeting": return db.select({ id: meetings.id }).from(meetings).where(and(eq(meetings.orgId, orgId), inIds(meetings.id, list)));
+    case "form": return db.select({ id: forms.id }).from(forms).where(and(eq(forms.orgId, orgId), inIds(forms.id, list)));
+    case "invoice": return db.select({ id: invoiceDocs.id }).from(invoiceDocs).where(and(eq(invoiceDocs.orgId, orgId), inIds(invoiceDocs.id, list)));
     case "thread": {
-      const rows = await db.select({ id: messages.threadId }).from(messages).where(and(eq(messages.orgId, orgId), inArray(messages.threadId, list)));
+      const rows = await db.select({ id: messages.threadId }).from(messages).where(and(eq(messages.orgId, orgId), inIds(messages.threadId, list)));
       return rows.filter((r): r is { id: string } => !!r.id);
     }
   }
@@ -199,7 +200,7 @@ export async function resolveRefs(deps: Deps, a: A, refs: RecordRef[]): Promise<
         }
         if (!real.size) break;
         const rows = await db.select({ id: tasks.id, title: tasks.title, number: tasks.number, projectId: tasks.projectId, deletedAt: tasks.deletedAt, key: projects.key, projectName: projects.name })
-          .from(tasks).leftJoin(projects, eq(projects.id, tasks.projectId)).where(and(eq(tasks.orgId, orgId), inArray(tasks.id, [...real.keys()])));
+          .from(tasks).leftJoin(projects, eq(projects.id, tasks.projectId)).where(and(eq(tasks.orgId, orgId), inIds(tasks.id, [...real.keys()])));
         for (const r of rows) {
           const k = real.get(r.id)!;
           if (r.deletedAt) continue;
@@ -208,37 +209,37 @@ export async function resolveRefs(deps: Deps, a: A, refs: RecordRef[]): Promise<
         break;
       }
       case "project": {
-        const rows = await db.select({ id: projects.id, name: projects.name, key: projects.key, deletedAt: projects.deletedAt }).from(projects).where(and(eq(projects.orgId, orgId), inArray(projects.id, ids)));
+        const rows = await db.select({ id: projects.id, name: projects.name, key: projects.key, deletedAt: projects.deletedAt }).from(projects).where(and(eq(projects.orgId, orgId), inIds(projects.id, ids)));
         for (const r of rows) if (!r.deletedAt) ok("project", r.id, r.id, r.name, `Project · ${r.key}`, refUrl({ type: "project", id: r.id }));
         break;
       }
       case "doc": {
-        const rows = await db.select({ id: docs.id, title: docs.title, kind: docs.kind, deletedAt: docs.deletedAt }).from(docs).where(and(eq(docs.orgId, orgId), inArray(docs.id, ids)));
+        const rows = await db.select({ id: docs.id, title: docs.title, kind: docs.kind, deletedAt: docs.deletedAt }).from(docs).where(and(eq(docs.orgId, orgId), inIds(docs.id, ids)));
         for (const r of rows) if (!r.deletedAt) ok("doc", r.id, r.id, r.title, r.kind === "whiteboard" ? "Whiteboard" : r.kind === "table" ? "Table" : "Doc", refUrl({ type: "doc", id: r.id }));
         break;
       }
       case "contact": {
-        const rows = await db.select({ id: contacts.id, name: contacts.name, email: contacts.email, deletedAt: contacts.deletedAt }).from(contacts).where(and(eq(contacts.orgId, orgId), inArray(contacts.id, ids)));
+        const rows = await db.select({ id: contacts.id, name: contacts.name, email: contacts.email, deletedAt: contacts.deletedAt }).from(contacts).where(and(eq(contacts.orgId, orgId), inIds(contacts.id, ids)));
         for (const r of rows) if (!r.deletedAt) ok("contact", r.id, r.id, r.name || r.email || "Contact", "Contact", refUrl({ type: "contact", id: r.id }));
         break;
       }
       case "deal": {
-        const rows = await db.select({ id: deals.id, title: deals.title, deletedAt: deals.deletedAt }).from(deals).where(and(eq(deals.orgId, orgId), inArray(deals.id, ids)));
+        const rows = await db.select({ id: deals.id, title: deals.title, deletedAt: deals.deletedAt }).from(deals).where(and(eq(deals.orgId, orgId), inIds(deals.id, ids)));
         for (const r of rows) if (!r.deletedAt) ok("deal", r.id, r.id, r.title, "Deal", refUrl({ type: "deal", id: r.id }));
         break;
       }
       case "meeting": {
-        const rows = await db.select({ id: meetings.id, title: meetings.title, startsAt: meetings.startsAt, deletedAt: meetings.deletedAt }).from(meetings).where(and(eq(meetings.orgId, orgId), inArray(meetings.id, ids)));
+        const rows = await db.select({ id: meetings.id, title: meetings.title, startsAt: meetings.startsAt, deletedAt: meetings.deletedAt }).from(meetings).where(and(eq(meetings.orgId, orgId), inIds(meetings.id, ids)));
         for (const r of rows) if (!r.deletedAt) ok("meeting", r.id, r.id, r.title, `Meeting · ${(iso(r.startsAt) ?? "").slice(0, 10)}`, refUrl({ type: "meeting", id: r.id }));
         break;
       }
       case "form": {
-        const rows = await db.select({ id: forms.id, name: forms.name, deletedAt: forms.deletedAt }).from(forms).where(and(eq(forms.orgId, orgId), inArray(forms.id, ids)));
+        const rows = await db.select({ id: forms.id, name: forms.name, deletedAt: forms.deletedAt }).from(forms).where(and(eq(forms.orgId, orgId), inIds(forms.id, ids)));
         for (const r of rows) if (!r.deletedAt) ok("form", r.id, r.id, r.name, "Form", refUrl({ type: "form", id: r.id }));
         break;
       }
       case "invoice": {
-        const rows = await db.select({ id: invoiceDocs.id, kind: invoiceDocs.kind, number: invoiceDocs.number, buyerName: invoiceDocs.buyerName }).from(invoiceDocs).where(and(eq(invoiceDocs.orgId, orgId), inArray(invoiceDocs.id, ids)));
+        const rows = await db.select({ id: invoiceDocs.id, kind: invoiceDocs.kind, number: invoiceDocs.number, buyerName: invoiceDocs.buyerName }).from(invoiceDocs).where(and(eq(invoiceDocs.orgId, orgId), inIds(invoiceDocs.id, ids)));
         for (const r of rows) {
           if (!isAdmin(a)) { restricted("invoice", r.id); continue; }
           ok("invoice", r.id, r.id, `${r.kind === "quote" ? "Quote" : "Invoice"} ${r.number ?? "draft"}`, r.buyerName ?? "Invoice", refUrl({ type: "invoice", id: r.id }));
@@ -334,9 +335,9 @@ async function resolveChannels(deps: Deps, a: A, items: { id: string; messageId?
   const ids = [...new Set(items.map((x) => x.id))].slice(0, RESOLVE_MAX);
   if (!ids.length) return out;
   const rows = await deps.db.select({ id: chatChannels.id, kind: chatChannels.kind, name: chatChannels.name, isPrivate: chatChannels.isPrivate }).from(chatChannels)
-    .where(and(eq(chatChannels.orgId, a.orgId), inArray(chatChannels.id, ids)));
+    .where(and(eq(chatChannels.orgId, a.orgId), inIds(chatChannels.id, ids)));
   const mine = new Set((await deps.db.select({ id: chatMembers.channelId }).from(chatMembers)
-    .where(and(eq(chatMembers.userId, a.userId!), inArray(chatMembers.channelId, ids)))).map((r) => r.id));
+    .where(and(eq(chatMembers.userId, a.userId!), inIds(chatMembers.channelId, ids)))).map((r) => r.id));
   for (const r of rows) {
     const open = r.kind === "channel" && !r.isPrivate;
     if (!open && !mine.has(r.id)) { out.set(`channel:${r.id}`, { state: "restricted", type: "channel", id: r.id }); continue; }
@@ -350,7 +351,7 @@ async function resolveChannels(deps: Deps, a: A, items: { id: string; messageId?
 async function hiddenNotes(deps: Deps, a: A, noteIds: string[]): Promise<Set<string>> {
   if (!noteIds.length) return new Set();
   const rows = await deps.db.select({ id: crmEntries.id, private: crmEntries.private, by: crmEntries.createdById, deletedAt: crmEntries.deletedAt }).from(crmEntries)
-    .where(and(eq(crmEntries.orgId, a.orgId), inArray(crmEntries.id, [...new Set(noteIds)])));
+    .where(and(eq(crmEntries.orgId, a.orgId), inIds(crmEntries.id, [...new Set(noteIds)])));
   return new Set(rows.filter((r) => r.deletedAt || (r.private && r.by !== a.userId)).map((r) => r.id));
 }
 

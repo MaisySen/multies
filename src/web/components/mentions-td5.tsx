@@ -5,6 +5,8 @@
  */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
 import { Link } from "react-router";
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
+import { LOAD_ERROR_TITLE } from "@/web/lib/load-errors-t1g";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
 import { useConfig } from "@/web/lib/queries";
@@ -54,7 +56,7 @@ export interface PickPerson { key: string; name: string; insert: string; hint?: 
  * The @ picker for a text box: people first, then records the reader can see, newest first. Arrows move, Enter or Tab
  * picks, Escape closes. A record goes in as an @[Title] label and turns into its token with toTokens() on save.
  */
-export function useMentionPicker(ref: RefObject<HTMLInputElement | HTMLTextAreaElement | null>, value: string, setValue: (v: string) => void, people: PickPerson[], opts: { enabled: boolean; above?: boolean; initialMap?: Record<string, string> }) {
+export function useMentionPicker(ref: RefObject<HTMLInputElement | HTMLTextAreaElement | null>, value: string, setValue: (v: string) => void, people: PickPerson[], opts: { enabled: boolean; above?: boolean; testId?: string; initialMap?: Record<string, string> }) {
   const [at, setAt] = useState<{ start: number; query: string } | null>(null);
   const [active, setActive] = useState(0);
   const map = useRef<Record<string, string>>({});
@@ -64,7 +66,17 @@ export function useMentionPicker(ref: RefObject<HTMLInputElement | HTMLTextAreaE
   const peopleHits = at ? people.filter((p) => !q || p.name.toLowerCase().split(/\s+/).some((w) => w.startsWith(q)) || p.name.toLowerCase().includes(q)).slice(0, 5) : [];
   const records = at && opts.enabled ? (search.data?.records ?? []) : [];
   const items: ({ kind: "person"; p: PickPerson } | { kind: "record"; r: PickItem })[] = [...peopleHits.map((p) => ({ kind: "person" as const, p })), ...records.map((r) => ({ kind: "record" as const, r }))];
-  const sync = () => { const el = ref.current; if (el) { setAt(atQuery(el.value, el.selectionStart ?? el.value.length)); setActive(0); } };
+  // Escape dismisses this @word; it reopens once the word changes (a sync queued before the Escape does not undo it).
+  const dismissed = useRef<{ start: number; query: string } | null>(null);
+  const close = () => { if (at) dismissed.current = at; else { const el = ref.current; if (el) dismissed.current = atQuery(el.value, el.selectionStart ?? el.value.length); } setAt(null); };
+  const sync = () => {
+    const el = ref.current;
+    if (!el) return;
+    const next = atQuery(el.value, el.selectionStart ?? el.value.length);
+    const d = dismissed.current;
+    setAt(next && d && d.start === next.start && d.query === next.query ? null : next);
+    setActive(0);
+  };
   const pick = (i: number) => {
     const el = ref.current;
     const it = items[i];
@@ -85,18 +97,18 @@ export function useMentionPicker(ref: RefObject<HTMLInputElement | HTMLTextAreaE
     requestAnimationFrame(() => { el.focus(); const pos = at.start + word.length; el.setSelectionRange(pos, pos); });
   };
   const onKeyDown = (e: ReactKeyboardEvent): boolean => {
-    if (!at || !items.length) { if (at && e.key === "Escape") { e.preventDefault(); setAt(null); return true; } return false; }
+    if (!at || !items.length) { if (at && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); return true; } return false; }
     if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => (a + 1) % items.length); return true; }
     if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => (a - 1 + items.length) % items.length); return true; }
     if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pick(Math.min(active, items.length - 1)); return true; }
-    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setAt(null); return true; }
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); return true; }
     return false;
   };
   const loading = !!at && opts.enabled && search.isFetching && !records.length;
   const failed = !!at && opts.enabled && search.isError;
   const open = !!at && (items.length > 0 || loading || failed);
   const list = open ? (
-    <div className={cn("absolute left-0 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-elevated p-1 shadow-pop", opts.above === false ? "top-full mt-1" : "bottom-full mb-1")} data-testid="mention-picker-td5">
+    <div className={cn("absolute left-0 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-elevated p-1 shadow-pop", opts.above === false ? "top-full mt-1" : "bottom-full mb-1")} data-testid={opts.testId ?? "mention-picker-td5"}>
       <ul role="listbox" aria-label="Mention a person or a record" className="max-h-72 overflow-y-auto">
         {items.map((it, i) => (
           <li key={it.kind === "person" ? `p:${it.p.key}` : `r:${it.r.type}:${it.r.id}`} role="option" aria-selected={i === active} id={`mention-opt-${i}`}
@@ -108,7 +120,7 @@ export function useMentionPicker(ref: RefObject<HTMLInputElement | HTMLTextAreaE
           </li>
         ))}
         {loading && <li className="px-2 py-1.5" aria-busy="true"><Skeleton className="h-4 w-40" /></li>}
-        {failed && !items.length && <li className="flex items-center justify-between gap-2 px-2 py-1.5 text-[12.5px] text-muted" role="alert">Could not load records.<button type="button" className="rounded px-2 py-1 text-brand-hover hover:bg-hover" onMouseDown={(e) => { e.preventDefault(); void search.refetch(); }}>Retry</button></li>}
+        {failed && !items.length && <li className="flex items-center justify-between gap-2 px-2 py-1.5 text-[12.5px] text-muted" role="alert">{LOAD_ERROR_TITLE}.<button type="button" className="rounded px-2 py-1 text-brand-hover hover:bg-hover" onMouseDown={(e) => { e.preventDefault(); void search.refetch(); }}>Retry</button></li>}
       </ul>
     </div>
   ) : null;
@@ -213,10 +225,7 @@ function RefList({ type, id, dir, label, stamp }: { type: RefType; id: string; d
       {q.isPending ? (
         <div className="space-y-1.5" aria-busy="true" data-testid={`refs-${dir}-loading`}><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-3/4" /></div>
       ) : q.isError && !items.length ? (
-        <div role="alert" className="flex items-center justify-between gap-2 rounded-md border border-line px-3 py-2 text-[12.5px] text-muted" data-testid={`refs-${dir}-error`}>
-          <span>{offline ? "You are offline. References load when you are back online." : "Could not load references."}</span>
-          <Button size="sm" variant="secondary" onClick={() => void q.refetch()}>Retry</Button>
-        </div>
+        <div data-testid={`refs-${dir}-error`}><LoadErrorInline className="rounded-md border border-line px-3 py-2" onRetry={() => q.refetch()} /></div>
       ) : !items.length ? (
         <p className="rounded-md border border-dashed border-line px-3 py-2 text-[12.5px] text-subtle" data-testid={`refs-${dir}-empty`}>
           {dir === "in" ? "Nothing mentions this yet. Type @ in a chat, task or comment to link it." : "This does not mention anything yet. Type @ in its text to link a record."}

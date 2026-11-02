@@ -106,13 +106,13 @@ test("task description: @ by keyboard, chip in view, References both ways, Escap
   await page.getByTestId("edit-description").first().click();
   const ta = page.locator("textarea:focus");
   await ta.pressSequentially("See @orbit");
-  await expect(page.getByTestId("mention-picker-td5")).toBeVisible();
+  await expect(page.getByTestId("mention-list")).toBeVisible();
   await ta.press("Escape");
-  await expect(page.getByTestId("mention-picker-td5")).toHaveCount(0);
+  await expect(page.locator('[data-testid="mention-list"]:visible')).toHaveCount(0);
   await ta.pressSequentially(" l");
-  await expect(page.getByTestId("mention-picker-td5").getByRole("option", { name: /Orbit launch plan/ })).toBeVisible();
+  await expect(page.getByTestId("mention-list").getByRole("option", { name: /Orbit launch plan/ })).toBeVisible();
   for (let i = 0; i < 6; i++) {
-    if (await page.getByTestId("mention-picker-td5").getByRole("option", { name: /Orbit launch plan/ }).getAttribute("aria-selected") === "true") break;
+    if (await page.getByTestId("mention-list").getByRole("option", { name: /Orbit launch plan/ }).getAttribute("aria-selected") === "true") break;
     await ta.press("ArrowDown");
   }
   await ta.press("Enter");
