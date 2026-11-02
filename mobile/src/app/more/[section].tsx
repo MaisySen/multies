@@ -1,10 +1,12 @@
 /**
+ * M3 (1.10.11): app screens first, web only pages grouped at the end (no "All of" row).
  * M2 (1.10.10): one section of More: the pages the server lists for this person (web R121 menu), each in its app
  * screen where one exists, else the web page in the in-app browser, signed in. Settings adds the web's Mail setup
  * pages. The section's own web home is always the last row, so everything the web has under it stays one tap away.
  */
 import { ScrollView, View } from "react-native";
-import { router, Stack, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
+import { ScreenHeader } from "@/components/m3-ui";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GroupRow, InsetGroup } from "@/components/grouped";
 import { Button, EmptyState, Icon, Loading } from "@/components/ui";
@@ -35,45 +37,44 @@ export default function MoreSection() {
   const live = q.data?.problem === "offline" ? null : counts.data;
   const web = <View style={{ flexDirection: "row", alignItems: "center" }}><Icon name="external-link" size={15} color={colors.subtle} /></View>;
 
-  if (q.isPending) return <View style={{ flex: 1, backgroundColor: colors.bg }}><Stack.Screen options={{ title: "" }} /><Loading label="Loading" rows={5} /></View>;
+  if (q.isPending) return <View style={{ flex: 1, backgroundColor: colors.bg }}><ScreenHeader title="More" back="More" /><Loading label="Loading" rows={5} /></View>;
   if (!s) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg }} testID="more-section-missing">
-        <Stack.Screen options={{ title: "" }} />
+        <ScreenHeader title="More" back="More" />
         <EmptyState icon="layers" title="This section isn't here" body="It may be off for your workspace or your role."
           action={<Button label="Retry" onPress={() => q.refetch()} testID="more-section-retry" />} />
       </View>
     );
   }
-  const hasHome = s.pages.some((p) => p.to === s.to);
-  const mailSetup = s.id === "workspace" ? q.data?.menu.mailSetup ?? [] : [];
+  // M3 (1.10.11): pages with an app screen first; pages that only exist on the web sit in their own group at the end,
+  // said plainly, and open inside the app with a Done button. No "All of" row: everything the section has is listed.
+  const mailSetup = s.id === "workspace" ? (q.data?.menu.mailSetup ?? []).map((m) => ({ to: m.to, label: m.label, icon: m.label === "Routing" ? "automations" : m.label.toLowerCase() })) : [];
+  const all = [...s.pages, ...mailSetup.filter((m) => !s.pages.some((p) => p.to === m.to))];
+  const isNative = (to: string) => !!nativeRoute(to, { tasks: FEATURES.tasks });
+  const native = all.filter((p) => isNative(p.to));
+  const webOnly = all.filter((p) => !isNative(p.to));
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }} testID={`more-section-${s.id}`}>
-      <Stack.Screen options={{ title: s.label }} />
+      <ScreenHeader title={s.label} back="More" />
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: insets.bottom + space.xl }}>
-        <InsetGroup>
-          {s.pages.map((p) => {
-            const n = countOf(live, p.count);
-            const native = !!nativeRoute(p.to, { tasks: FEATURES.tasks });
-            return (
-              <GroupRow key={p.to} testID={`more-page-${p.to}`} label={p.label} icon={iconFor(p.icon)} tile={colorFor(s.id)}
-                value={n > 0 ? countText(n) : null} right={native ? undefined : web} chevron={native}
-                hint={native ? undefined : "Opens the web page"} onPress={() => openPage(p.to, transport)} />
-            );
-          })}
-        </InsetGroup>
-        {mailSetup.length ? (
-          <InsetGroup header="Mail setup">
-            {mailSetup.map((m) => (
-              <GroupRow key={m.to} testID={`more-page-${m.to}`} label={m.label} icon={iconFor(m.label === "Routing" ? "automations" : m.label.toLowerCase())}
-                tile="gray" right={web} chevron={false} hint="Opens the web page" onPress={() => openPage(m.to, transport)} />
-            ))}
+        {native.length ? (
+          <InsetGroup>
+            {native.map((p) => {
+              const n = countOf(live, (p as { count?: string }).count);
+              return (
+                <GroupRow key={p.to} testID={`more-page-${p.to}`} label={p.label} icon={iconFor(p.icon)} tile={colorFor(s.id)}
+                  value={n > 0 ? countText(n) : null} chevron onPress={() => openPage(p.to, transport)} />
+              );
+            })}
           </InsetGroup>
         ) : null}
-        {!hasHome ? (
-          <InsetGroup footer="Everything in this section, as on the web.">
-            <GroupRow testID="more-section-web" label={`All of ${s.label}`} icon="globe" tile="gray" right={web} chevron={false}
-              hint="Opens the web page" onPress={() => openWebPage(transport, s.to).catch(() => {})} />
+        {webOnly.length ? (
+          <InsetGroup header="On the web" footer="These open inside the app, already signed in. Tap Done to come back." testID="more-web-group">
+            {webOnly.map((p) => (
+              <GroupRow key={p.to} testID={`more-page-${p.to}`} label={p.label} icon={iconFor(p.icon)} tile="gray" right={web} chevron={false}
+                hint="Opens inside the app" onPress={() => openPage(p.to, transport)} />
+            ))}
           </InsetGroup>
         ) : null}
       </ScrollView>

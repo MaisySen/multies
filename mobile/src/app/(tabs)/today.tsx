@@ -55,7 +55,7 @@ export default function Today() {
         </View>
         <View style={{ flexDirection: "row", gap: space.md }}>
           <Stat testID="today-mentions" icon="mention" tile="purple" value={b.mentions} label={b.mentions === 1 ? "Mention" : "Mentions"} onPress={() => go("/chat")} />
-          <Stat testID="today-approvals" icon="approvals" tile="green" value={b.approvals} label="Approvals waiting" onPress={() => go("/approvals")} />
+          <Stat testID="today-approvals" icon="approvals" tile="green" value={b.approvals} label="Approvals waiting" onPress={() => go("/review")} />
         </View>
 
         <PressableCard onPress={() => go("/meetings")} testID="today-meeting" accessibilityRole="button"

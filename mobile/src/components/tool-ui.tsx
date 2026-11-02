@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import * as WebBrowser from "expo-web-browser";
-import { API_BASE } from "@/config";
 import { ActionSheet } from "./action-sheet";
 import { Field, Icon, Segmented, TILE, type IconName } from "./ui";
 import { tick } from "@/lib/haptics";
@@ -10,6 +8,7 @@ import { middleTruncate, sizeLabel, SECTION_TILE, type Entry } from "@/lib/tool-
 import { toolTakes, type ToolDef, type ToolOption } from "@/lib/tools";
 import type { Attachment, MessageSummary } from "@/api/types";
 import { colors, radius, space, TOUCH } from "@/theme";
+import { openWeb } from "@/lib/web-open";
 
 /**
  * Tools P2 on the phone: the pieces the Tools screen and every tool screen share (search, tool rows, file chips,
@@ -18,7 +17,7 @@ import { colors, radius, space, TOUCH } from "@/theme";
 
 /** Opens a Tools page that needs the web (page editor, forms, compare, share links, workflows, templates) in the in app browser. */
 export function openOnWeb(path: string) {
-  WebBrowser.openBrowserAsync(`${API_BASE}${path}`, { dismissButtonStyle: "done", controlsColor: colors.brand }).catch(() => {});
+  void openWeb(path);
 }
 
 /** The search field at the top of Tools. */

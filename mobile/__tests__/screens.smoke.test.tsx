@@ -299,9 +299,10 @@ it("settings render", async () => {
   expect(mockPush).toHaveBeenCalledWith("/delete-account");
   // Free app: nothing to buy, no prices and no upgrade or billing buttons (App Store 3.1.1).
   expect(screen.queryByText(/upgrade|billing|purchase|subscribe|per month|A\$\d/i)).toBeNull();
-  await fireEvent.press(screen.getByTestId("meetings"));
-  expect(mockPush).toHaveBeenCalledWith("/meetings");
-  await fireEvent.press(screen.getByTestId("portfolio-link"));
-  expect(mockPush).toHaveBeenCalledWith("/portfolio");
+  // M3 (1.10.11): Settings is settings; features (Meetings, Portfolio, Files...) live in More only.
+  expect(screen.queryByTestId("meetings")).toBeNull();
+  expect(screen.queryByTestId("portfolio-link")).toBeNull();
+  await fireEvent.press(screen.getByTestId("mail-settings-link"));
+  expect(mockPush).toHaveBeenCalledWith("/mail-settings");
   expect(screen.getByText("English (Australia)", { exact: false })).toBeTruthy();
 });

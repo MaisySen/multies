@@ -100,7 +100,7 @@ export async function notifyApprovals(count: number, firstSubject?: string) {
     content: {
       title: count === 1 ? "An agent wants to send a message" : `${count} messages waiting for approval`,
       body: firstSubject ? `"${firstSubject}". Tap to review.` : "Tap to review.",
-      data: { url: "/approvals" },
+      data: { url: "/review" },
     },
     trigger: Platform.OS === "android" ? { channelId: CHANNELS.approvals } : null,
   });

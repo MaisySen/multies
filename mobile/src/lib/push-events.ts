@@ -31,7 +31,7 @@ export function routeForPush(d: PushData): string | null {
   if (d.type === "message.received") return `/thread/${id}`;
   // A mention in a shared inbox thread's team notes: the server sends the newest message id (mid), which the thread screen opens.
   if (d.type === "thread_mention") return d.mid ? `/thread/${encodeURIComponent(d.mid)}` : "/notifications";
-  if (d.type === "approval.requested") return d.id ? `/approval/${id}` : "/approvals";
+  if (d.type === "approval.requested") return d.id ? `/approval/${id}` : "/review";
   if (d.type.startsWith("task.")) return `/task/${id}`;
   if (d.type === "automation.email" && d.id.startsWith("msg_")) return `/thread/${id}`;
   // Chat pushes carry the chat message id; that screen looks it up and opens the channel (and thread).

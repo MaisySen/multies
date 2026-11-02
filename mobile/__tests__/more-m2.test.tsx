@@ -85,7 +85,8 @@ describe("menu model", () => {
     expect(nativeRoute("/app/expenses")).toBe("/expenses");
     expect(nativeRoute("/app/files/")).toBe("/files");
     expect(nativeRoute("/app/tasks", { tasks: false })).toBeNull();
-    expect(nativeRoute("/app/forms")).toBeNull();
+    expect(nativeRoute("/app/forms")).toBe("/forms"); // M3: an app screen now
+    expect(nativeRoute("/app/dashboards")).toBeNull();
   });
   test("counts follow the server's keys", () => {
     const counts = { mail: { inbox: 4 }, chat: { unread: 2, mentions: 1 }, notifications: { unread: 3 }, triage: 1, tasks: { dueToday: 0, overdue: 0 } };
@@ -100,8 +101,9 @@ describe("menu model", () => {
     expect(canHide("home")).toBe(false);
   });
   test("Expenses and Invoices join Contacts only when switched on", () => {
-    expect(sectionExtras("contacts", { expenses: true, invoices: true }, []).map((p) => p.label)).toEqual(["Expenses", "Invoices"]);
-    expect(sectionExtras("contacts", { expenses: false }, [])).toEqual([]);
+    expect(sectionExtras("contacts", { expenses: true, invoices: true }, []).map((p) => p.label)).toEqual(["Team", "Expenses", "Invoices"]); // M3: Team (people) moved here from Settings
+    expect(sectionExtras("contacts", { expenses: false }, []).map((p) => p.label)).toEqual(["Team"]);
+    expect(sectionExtras("contacts", { expenses: false }, ["/app/people"])).toEqual([]);
     expect(sectionExtras("tools", { expenses: true }, [])).toEqual([]);
   });
   test("the fallback lists only screens the app has", () => {
@@ -208,11 +210,12 @@ describe("More sections", () => {
     await waitFor(() => expect(mockOpenWeb).toHaveBeenCalled());
     expect(mockOpenWeb.mock.calls[0][0]).toMatch(/\/app\/contacts\/invoices$/);
   });
-  test("Settings lists Mail setup", async () => {
+  test("Settings lists the Mail setup pages", async () => {
     mockParams = { section: "workspace" };
     await wrap(<MoreSection />);
     await screen.findByTestId("more-section-workspace");
-    expect(screen.getByText("Mail setup")).toBeTruthy();
+    // M3: mail setup pages join the section: app screens first, the rest under "On the web".
+    expect(screen.getByTestId("more-web-group")).toBeTruthy();
     expect(screen.getByTestId("more-page-/app/settings/domains")).toBeTruthy();
   });
   test("a section the person cannot see says so", async () => {

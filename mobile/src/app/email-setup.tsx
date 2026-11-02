@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import { Alert, Platform, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import { Badge, Banner, Button, Icon, type IconName } from "@/components/ui";
 import { useConnectionActions, useConnections, useFreeAddress, useOverview } from "@/lib/queries";
 import { connectionStatusLabel, connectionTone, lastSyncLabel, type ConnectionView } from "@/lib/mail-connect";
 import { WEB_PAGES } from "@/config";
 import { colors, font, radius, space } from "@/theme";
+import { openWeb } from "@/lib/web-open";
 
 /**
  * Email addresses: the three ways to get one (connect an existing mailbox, a free address on the
@@ -36,7 +36,7 @@ export default function EmailSetup() {
 
       <Option icon="link" title="Connect your email" testID="option-connect"
         body="Gmail, Outlook, iCloud, Yahoo, Zoho or any other mailbox. Your mail syncs here and you send as that address."
-        onPress={() => (connectOff ? WebBrowser.openBrowserAsync(WEB_PAGES.connections) : router.push("/connect-mailbox"))} />
+        onPress={() => (connectOff ? openWeb(WEB_PAGES.connections) : router.push("/connect-mailbox"))} />
 
       {f && f.enabled && (mine || f.available) ? (
         <Option icon="at-sign" testID="option-free"
@@ -48,7 +48,7 @@ export default function EmailSetup() {
 
       <Option icon="globe" title="Use your own domain" testID="option-domain"
         body="Mail on your business name, like you@yourcompany.com. Set up on the web, where you add the DNS records."
-        external onPress={() => WebBrowser.openBrowserAsync(WEB_PAGES.domains)} />
+        external onPress={() => openWeb(WEB_PAGES.domains)} />
 
       {connections.length ? (
         <View style={{ gap: space.sm, marginTop: space.md }}>

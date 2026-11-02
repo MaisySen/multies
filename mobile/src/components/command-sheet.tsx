@@ -1,9 +1,7 @@
 import { useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { API_BASE } from "@/config";
 import { closeCommandSheet, useCommandSheetOpen } from "@/lib/command-sheet-store";
 import { commandsFor, createHandlers, searchCommands, type Command } from "@/lib/commands";
 import { useFilesAccess } from "@/lib/drive-queries";
@@ -11,6 +9,7 @@ import { useReduceMotion } from "@/lib/motion";
 import { tick } from "@/lib/haptics";
 import { Icon } from "./ui";
 import { colors, radius, space, TOUCH } from "@/theme";
+import { openAppPath } from "@/lib/web-open";
 
 /**
  * R31: the command sheet, the phone's version of the web command menu. Same command ids and titles
@@ -28,7 +27,7 @@ export function CommandSheet() {
   const list = useMemo(() => searchCommands(q, all), [q, all]);
   const handlers = useMemo(() => createHandlers({
     navigate: (href) => router.push(href as never),
-    openWeb: (path) => { WebBrowser.openBrowserAsync(`${API_BASE}${path}`).catch(() => {}); },
+    openWeb: (path) => { void openAppPath(path); },
   }), []);
   const close = () => { setQ(""); closeCommandSheet(); };
   const run = (c: Command) => { tick(); close(); setTimeout(() => handlers[c.id]({}), 0); };

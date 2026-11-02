@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import * as WebBrowser from "expo-web-browser";
-import { API_BASE } from "@/config";
 import type { HttpTransport, Transport } from "@/api/transport";
 import { useSession } from "./session";
 import { canSearch, searchPath, type SearchResult, type TypeChoice } from "./global-search";
 import { expiryDays, noAccess, type CommentList, type CommentStatus, type CommentView, type DocTree, type DocView, type Expiry, type ShareLink, type ShareList } from "./docs";
+import { openWeb } from "./web-open";
 
 /** M1: global search, the Docs tree, the doc reader, comments and share links. Never kept on the phone. */
 export const docsKeys = {
@@ -82,7 +81,7 @@ export function imageHeaders(transport: Transport): () => Record<string, string>
 
 /** Opens a web app page in the in-app browser (editing a doc, things the phone does not do). */
 export async function openWebPath(path: string) {
-  try { await WebBrowser.openBrowserAsync(`${API_BASE}${path}`); } catch { /* the person closed it or no browser */ }
+  await openWeb(path); // M3: signed in, inside the app
 }
 
 /** Plain words for a failed request, never a code. */

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import { Banner, Button, Chip, EmptyState, Icon, Loading } from "@/components/ui";
 import { useNotifications, useReadNotifications } from "@/lib/queries";
 import { useOffline } from "@/lib/offline";
@@ -10,6 +9,7 @@ import { timeAgo } from "@/lib/format";
 import { NOTIFICATION_FILTERS, categoryIcon, notificationTarget, sortNotifications } from "@/lib/notifications";
 import type { AppNotification } from "@/api/types";
 import { colors, font, radius, space } from "@/theme";
+import { openAppPath } from "@/lib/web-open";
 
 /** The plain list, for a server older than R31 triage. One place for mentions, assignments, comments, approvals, due dates and chat. */
 export function LegacyNotifications() {
@@ -26,7 +26,7 @@ export function LegacyNotifications() {
     if (!n.read) read.mutate({ ids: [n.id] });
     const target = notificationTarget(n, API_BASE);
     if (target.kind === "route") router.push(target.href as never);
-    else if (target.kind === "web") WebBrowser.openBrowserAsync(target.url).catch(() => {});
+    else if (target.kind === "web") void openAppPath(target.url);
   };
 
   const list = q.data ? sortNotifications(q.data.notifications) : [];

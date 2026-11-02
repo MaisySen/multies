@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import { Banner, Button, Chip, Field, Icon, Segmented } from "@/components/ui";
 import { useConnectionActions, useConnectMailbox } from "@/lib/queries";
 import {
@@ -10,6 +9,7 @@ import {
 } from "@/lib/mail-connect";
 import { ApiError } from "@/api/errors";
 import { colors, font, radius, space } from "@/theme";
+import { openInApp } from "@/lib/web-open";
 
 const STEP_LABEL = { imap: "Receiving mail (IMAP)", smtp: "Sending mail (SMTP)" } as const;
 const SECURITY: { id: ConnectSecurity; label: string }[] = [{ id: "tls", label: "SSL/TLS" }, { id: "starttls", label: "STARTTLS" }];
@@ -103,7 +103,7 @@ export default function ConnectMailbox() {
           hint={preset.help} />
         {preset.appPasswordUrl ? (
           <Button variant="ghost" icon="external-link" label={`Make an app password at ${preset.label}`} testID="app-password-link"
-            onPress={() => WebBrowser.openBrowserAsync(preset.appPasswordUrl!)} style={{ alignSelf: "flex-start", minHeight: 36, paddingHorizontal: 0 }} />
+            onPress={() => { void openInApp(preset.appPasswordUrl!); }} style={{ alignSelf: "flex-start", minHeight: 36, paddingHorizontal: 0 }} />
         ) : null}
         {preset.oauthPreferred && !reconnectId ? (
           <Banner tone="warn" icon="info" text="Microsoft turns off app passwords on many accounts. If the test says Microsoft's own sign in is needed, use a free address or your own domain for now." />

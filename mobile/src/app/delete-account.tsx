@@ -2,12 +2,12 @@ import { useState } from "react";
 import { Alert, Platform, ScrollView, Text, View } from "react-native";
 import { GroupRow, InsetGroup } from "@/components/grouped";
 import { warning } from "@/lib/haptics";
-import * as WebBrowser from "expo-web-browser";
 import { Button, Card, Field } from "@/components/ui";
 import { useSession } from "@/lib/session";
 import { CONFIRM_WORD, confirmTyped, deleteAccountMessage } from "@/lib/delete-account";
 import { LINKS } from "@/config";
 import { colors, font, space } from "@/theme";
+import { openInApp } from "@/lib/web-open";
 
 /** In-app account deletion, which the App Store and Google Play both require. */
 export default function DeleteAccount() {
@@ -16,7 +16,7 @@ export default function DeleteAccount() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const openWeb = () => WebBrowser.openBrowserAsync(LINKS.deleteAccount);
+  const openOnWeb = () => openInApp(LINKS.deleteAccount);
 
   if (mode === "sample") {
     const leave = async () => { setBusy(true); try { await deleteAccount(); } finally { setBusy(false); } };
@@ -28,7 +28,7 @@ export default function DeleteAccount() {
           <Text style={font.small}>With a real account, this screen deletes your login and the workspaces only you use, straight from the app.</Text>
         </Card>
         <Button variant="ghost" icon="log-out" label="Leave the sample workspace" onPress={leave} loading={busy} testID="leave-sample" />
-        <Button variant="ghost" icon="external-link" label="Delete account on the web" onPress={openWeb} testID="delete-on-web" />
+        <Button variant="ghost" icon="external-link" label="Delete account on the web" onPress={openOnWeb} testID="delete-on-web" />
       </ScrollView>
     );
   }
@@ -62,7 +62,7 @@ export default function DeleteAccount() {
       <Text style={font.tiny}>Signed up with Google? Leave the password empty.</Text>
       {error ? <Text style={{ color: colors.bad }} accessibilityRole="alert" testID="delete-error">{error}</Text> : null}
       <Button variant="danger" icon="user-x" label="Delete my account" onPress={confirm} loading={busy} disabled={!ready} testID="confirm-delete" />
-      <Button variant="ghost" icon="external-link" label="Delete account on the web" onPress={openWeb} testID="delete-on-web" />
+      <Button variant="ghost" icon="external-link" label="Delete account on the web" onPress={openOnWeb} testID="delete-on-web" />
       </View>
     </ScrollView>
   );

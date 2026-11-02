@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Alert, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { router, Stack } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Banner, Button, EmptyState, Icon, IconButton, LargeTitle, Loading, Segmented } from "./ui";
 import { ActionSheet, type SheetOption } from "./action-sheet";
@@ -25,6 +24,7 @@ import { timeAgo } from "@/lib/format";
 import { categoryIcon, notificationTarget } from "@/lib/notifications";
 import type { AppNotification } from "@/api/types";
 import { colors, font, radius, space } from "@/theme";
+import { openAppPath } from "@/lib/web-open";
 
 /**
  * R31: notifications as a triage inbox. Inbox is what still needs you, Later is snoozed, Done is
@@ -48,7 +48,7 @@ export function TriageInbox({ tab = false }: { tab?: boolean }) {
     if (!n.read) read.mutate({ ids: [n.id] });
     const target = notificationTarget(n, API_BASE);
     if (target.kind === "route") router.push(target.href as never);
-    else if (target.kind === "web") WebBrowser.openBrowserAsync(target.url).catch(() => {});
+    else if (target.kind === "web") void openAppPath(target.url);
   };
   const fail = (e: Error) => Alert.alert("That didn't save", e.message);
   const done = (n: AppNotification) => undo.push(n.id, "Marked done", () => act.mutate({ id: n.id, action: "done" }, { onError: fail }));

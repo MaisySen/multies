@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
-import * as WebBrowser from "expo-web-browser";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, Banner, Icon, TILE } from "@/components/ui";
 import { Logo } from "@/components/logo";
@@ -8,6 +7,7 @@ import { useSession } from "@/lib/session";
 import { IdpError } from "@/lib/idp";
 import { LINKS, SAMPLE_ONLY } from "@/config";
 import { colors, font, shadow, space } from "@/theme";
+import { openInApp } from "@/lib/web-open";
 
 /**
  * Sign in and sign up happen on the Multies sign in page in the system browser (email and
@@ -64,9 +64,9 @@ export default function SignIn() {
           {/* R35 (Apple 1.2): people agree to the terms, which have no tolerance for objectionable content or abusive users. Kept above the buttons. */}
           <Text style={[font.small, { textAlign: "center", fontSize: 13, lineHeight: 18 }]} testID="agree-line">
             By continuing you agree to the{" "}
-            <Text style={{ color: colors.brand, fontWeight: "600" }} accessibilityRole="link" onPress={() => WebBrowser.openBrowserAsync(LINKS.terms)} testID="terms-link">Terms</Text>
+            <Text style={{ color: colors.brand, fontWeight: "600" }} accessibilityRole="link" onPress={() => openInApp(LINKS.terms)} testID="terms-link">Terms</Text>
             {" "}and the{" "}
-            <Text style={{ color: colors.brand, fontWeight: "600" }} accessibilityRole="link" onPress={() => WebBrowser.openBrowserAsync(LINKS.acceptableUse)} testID="aup-link">Acceptable use policy</Text>
+            <Text style={{ color: colors.brand, fontWeight: "600" }} accessibilityRole="link" onPress={() => openInApp(LINKS.acceptableUse)} testID="aup-link">Acceptable use policy</Text>
             , including no tolerance for objectionable content or abusive users.
           </Text>
           <Button label="Continue with Multies" onPress={() => go("signin")} loading={busy === "signin"} disabled={SAMPLE_ONLY || busy !== null} testID="sign-in"
@@ -78,7 +78,7 @@ export default function SignIn() {
           <Text style={[font.tiny, { textAlign: "center", lineHeight: 17 }]}>
             Use your email, a one time code, a passkey, or your Google, Apple or GitHub account.
           </Text>
-          <Button variant="ghost" label="Help signing in" icon="life-buoy" onPress={() => WebBrowser.openBrowserAsync(LINKS.support)} />
+          <Button variant="ghost" label="Help signing in" icon="life-buoy" onPress={() => openInApp(LINKS.support)} />
         </View>
       </ScrollView>
     </SafeAreaView>

@@ -5,6 +5,7 @@ import { isMissingEndpoint } from "./moderation";
 import { API_BASE, WEB_PAGES } from "@/config";
 import { INBOX_STALE_MS, inboxQuery, putItem, type InboxFilter, type InboxItemView, type InboxListResponse, type InboxNoteView, type InboxPatch, type InboxThreadResponse } from "./social-inbox";
 import { mergePosts, stillSending, syncIds, type NewSocialPost, type SocialPostView } from "./social";
+import { openWeb } from "./web-open";
 
 /** 1.10.5: social posts and accounts on the phone. Never cached on the phone: they change on the server. */
 export const socialKeys = {
@@ -204,7 +205,7 @@ export function useSocialActions() {
 
 /** TikTok and Threads sign in runs on multies.si itself (it needs the web session), so it opens the web page. */
 export async function openWebSocialAccounts() {
-  await WebBrowser.openBrowserAsync(WEB_PAGES.socialAccounts);
+  await openWeb(WEB_PAGES.socialAccounts); // M3: signed in, inside the app
 }
 
 /* 1.10.6: which part of Social to show when going back to it (the screen after posting opens Posts with "View in Posts"). */

@@ -106,6 +106,6 @@ describe("Social screen", () => {
     expect(screen.getAllByText("@harbourbakery").length).toBe(2);
     expect(screen.getByTestId("connect-pinterest")).toBeTruthy();
     await fireEvent.press(screen.getByTestId("direct-connect-tiktok"));
-    await waitFor(() => expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith(WEB_PAGES.socialAccounts));
+    await waitFor(() => expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith(WEB_PAGES.socialAccounts, expect.anything()));
   });
 });

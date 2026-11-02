@@ -71,7 +71,8 @@ export default function TabsLayout() {
       <Tabs.Screen name="approvals" options={{ title: "Approvals", href: null, tabBarIcon: ({ color, focused }) => <Icon name="approvals" size={25} filled={focused} color={color as string} />, tabBarBadge: waiting || undefined, tabBarAccessibilityLabel: waiting ? `Approvals, ${waiting} waiting` : "Approvals" }} />
       <Tabs.Screen name="chat" options={{ title: "Chat", tabBarIcon: ({ color, focused }) => <Icon name="chat" size={25} filled={focused} color={color as string} />, tabBarBadge: chatUnread || undefined,
         tabBarAccessibilityLabel: chatUnread ? `Chat, ${chatUnread} unread${chatMentions ? `, ${chatMentions} ${chatMentions === 1 ? "mention" : "mentions"}` : ""}` : "Chat" }} />
-      <Tabs.Screen name="activity" options={{ title: "Activity", tabBarIcon: ({ color, focused }) => <Icon name="bell" size={25} filled={focused} color={color as string} />, tabBarBadge: activity || undefined,
+      {/* M3 (1.10.11): five tabs. Activity is the same inbox as the bell on Today, so it left the bar (still a route for old links). */}
+      <Tabs.Screen name="activity" options={{ title: "Activity", href: null, tabBarIcon: ({ color, focused }) => <Icon name="bell" size={25} filled={focused} color={color as string} />, tabBarBadge: activity || undefined,
         tabBarAccessibilityLabel: activity ? `Activity, ${activity} unread` : "Activity" }} />
       <Tabs.Screen name="tasks" options={{ title: "Tasks", href: FEATURES.tasks ? undefined : null, tabBarIcon: ({ color, focused }) => <Icon name="tasks" size={25} filled={focused} color={color as string} />,
         tabBarBadge: due || undefined, tabBarAccessibilityLabel: due ? `Tasks, ${due} due today or overdue` : "Tasks" }} />

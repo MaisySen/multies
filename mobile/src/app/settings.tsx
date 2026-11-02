@@ -1,18 +1,14 @@
-import { useInboxBadge, useSocialStatus } from "@/lib/social-queries";
-import { badgeText } from "@/lib/social-inbox";
 import { useEffect, useState } from "react";
 import { Alert, Platform, ScrollView, Text, View } from "react-native";
-import { router, Stack } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
+import { router } from "expo-router";
+import { ScreenHeader } from "@/components/m3-ui";
 import * as Localization from "expo-localization";
-import { Avatar, Badge, Card, LargeTitle, Row, SectionTitle, Segmented } from "@/components/ui";
+import { Avatar, Badge, Card, Row, SectionTitle, Segmented } from "@/components/ui";
 import { useUndoSeconds, parseUndoSeconds, UNDO_SEND_CHOICES } from "@/lib/undo-send";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSession } from "@/lib/session";
 import { flagOn, toolFeatureOn, useWebConfig } from "@/lib/web-config";
-import { useBlocks, useNotificationCount, useOverview, useTools } from "@/lib/queries";
-import { useFilesAccess } from "@/lib/drive-queries";
+import { useBlocks, useNotificationCount, useOverview } from "@/lib/queries";
 import { permissionGranted, registerPush, type PushState } from "@/lib/push";
 import { kv } from "@/lib/kv";
 import { bytes } from "@/lib/format";
@@ -22,6 +18,7 @@ import { currentVersionFacts, updateDetail, versionLabel } from "@/lib/app-versi
 import { UpdateRows } from "@/components/update-rows";
 import { GestureSettings } from "@/components/gesture-settings";
 import { biometricAvailable, biometricLabel, getBiometricLock, setBiometricLock } from "@/lib/native-features";
+import { openWeb } from "@/lib/web-open";
 
 const PLAN_LABEL: Record<string, string> = { free: "Free", starter: "Starter", pro: "Pro", business: "Business" };
 
@@ -30,13 +27,7 @@ export default function Settings() {
   const overview = useOverview();
   const inbox = useNotificationCount();
   const [undoSeconds, setUndoSeconds] = useUndoSeconds();
-  const insets = useSafeAreaInsets();
   const blocksQ = useBlocks();
-  const tools = useTools();
-  const files = useFilesAccess();
-  // 1.10.8: open conversations in the Social inbox, shown on the Social row.
-  const socialSt = useSocialStatus();
-  const socialInbox = badgeText(useInboxBadge(!!socialSt.data?.available).data);
   // M1 (1.10.9): the web's feature flags, for the Contacts, Mail merge, Mail archive and Sync rows.
   const webCfg = useWebConfig();
   const version = currentVersionFacts();
@@ -72,15 +63,15 @@ export default function Settings() {
     if (Platform.OS === "web") return signOut();
     Alert.alert("Sign out?", "Mail and tasks saved on this phone are removed when you sign out.", [{ text: "Cancel", style: "cancel" }, { text: "Sign out", style: "destructive", onPress: () => signOut() }]);
   };
-  const open = (url: string) => WebBrowser.openBrowserAsync(url);
+  const open = (url: string) => openWeb(url); // M3: inside the app, signed in for the web app's pages
   const blockedCount = blocksQ.data?.blocks.length ?? 0;
   const locale = Localization.getLocales()[0];
   const used = overview.data?.reduce((n, m) => n + m.usedBytes, 0) ?? 0;
 
   return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }} testID="settings-screen">
+    <ScreenHeader title="Settings" />
     <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ paddingBottom: space.xxl }}>
-      <Stack.Screen options={{ title: "Settings" }} />
-      <LargeTitle title="Settings" top={insets.top} />
       <Card style={{ margin: space.lg, flexDirection: "row", gap: space.md, alignItems: "center" }}>
         <Avatar name={me?.user.name || me?.user.email || "?"} size={48} />
         <View style={{ flex: 1, gap: 2 }}>
@@ -100,19 +91,11 @@ export default function Settings() {
       <Row tile="blue" icon="inbox" label="Email addresses" value={overview.data ? String(overview.data.filter((m) => m.kind !== "agent").length) : undefined} onPress={() => router.push("/email-setup")} testID="email-setup-link" />
       <Row tile="purple" icon="cpu" label="Agent inboxes" value={overview.data ? String(overview.data.filter((m) => m.kind === "agent").length) : undefined} />
       <Row tile="gray" icon="hard-drive" label="Storage used" value={overview.data ? bytes(used) : undefined} />
-      {files.on ? <Row tile="blue" icon="layers" label="Files" value="Team, mine and brand" onPress={() => router.push("/files")} testID="files-link" /> : null}
-      {tools.data ? <Row tile="brand" icon="wrench" label="Tools" value="PDF and Office" onPress={() => router.push("/tools")} testID="tools-link" /> : null}
-      <Row tile="pink" icon="send" label="Social" value={socialInbox ? `${socialInbox} open in inbox` : "Posts, inbox and accounts"} onPress={() => router.push("/social")} testID="social-link" />
-      {me?.organization ? <Row tile="blue" icon="file-text" label="Docs" value="Read, comment and share" onPress={() => router.push("/docs")} testID="docs-link" /> : null}
-      <Row tile="green" icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="meetings" />
-      <Row tile="orange" icon="layers" label="Portfolio" onPress={() => router.push("/portfolio")} testID="portfolio-link" />
-      {me?.organization ? <Row tile="blue" icon="user" label="Contacts" value={webCfg.data?.maps === true ? "People and visits" : undefined} onPress={() => router.push("/contacts")} testID="contacts-link" /> : null}
       {me?.organization && webCfg.data && toolFeatureOn(webCfg.data, "merge_plus_r109") ? <Row tile="blue" icon="mail" label="Mail merge" value="Newsletters and journeys" onPress={() => router.push("/mail-merge")} testID="mail-merge-link" /> : null}
       {me?.organization && flagOn(webCfg.data, "mailArchive") ? <Row tile="indigo" icon="archive" label="Mail archive" value="Retention and holds" onPress={() => router.push("/mail-archive")} testID="mail-archive-link" /> : null}
       {me?.organization && flagOn(webCfg.data, "davSync") ? <Row tile="green" icon="calendar" label="Calendar and contacts sync" onPress={() => router.push("/sync")} testID="sync-link" /> : null}
-      <Row tile="teal" icon="users" label="People" onPress={() => router.push("/people")} testID="people-link" />
-      <Row tile="purple" icon="bot" label="Agent runs" onPress={() => router.push("/runs")} testID="runs-link" />
-      <Row tile="gray" icon="external-link" label="Domains and team, on the web" onPress={() => open(WEB_PAGES.team)} />
+      <Row tile="gray" icon="external-link" label="Team and domains" onPress={() => open(WEB_PAGES.team)} />
+      {/* M3 (1.10.11): features (Files, Tools, Social, Docs, Meetings, Portfolio, Contacts, People, Agent runs) live in More only, so Settings is settings. */}
 
       {lockAvailable ? (
         <>
@@ -164,5 +147,6 @@ export default function Settings() {
         <Text style={[font.tiny, { textAlign: "center", marginTop: space.xs }]} testID="app-update">{updateDetail(version)}</Text>
       ) : null}
     </ScrollView>
+    </View>
   );
 }

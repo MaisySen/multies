@@ -100,10 +100,15 @@ export const colorFor = (sectionId: string): TileColor => COLOR[sectionId] ?? "b
 
 /** Web pages the app has its own screen for. Anything else opens the web page in the in-app browser. */
 const NATIVE: Record<string, string> = {
-  "/app": "/today", "/app/my-work": "/today", "/app/notifications": "/notifications", "/app/approvals": "/approvals",
+  "/app": "/today", "/app/my-work": "/today", "/app/notifications": "/notifications", "/app/approvals": "/review",
   "/app/mail": "/inbox", "/app/chat": "/chat", "/app/meetings": "/meetings", "/app/tasks": "/tasks", "/app/portfolio": "/portfolio",
   "/app/docs": "/docs", "/app/files": "/files", "/app/social": "/social", "/app/contacts": "/contacts", "/app/deals": "/deals", "/app/expenses": "/expenses", "/app/tools": "/tools",
-  "/app/automations/runs": "/runs", "/app/activity": "/activity", "/app/settings": "/settings",
+  "/app/automations/runs": "/runs", "/app/activity": "/notifications", "/app/settings": "/settings",
+  // M3 (1.10.11): new app screens, and web pages an existing app screen already covers.
+  "/app/people": "/people", "/app/goals": "/goals", "/app/forms": "/forms", "/app/time": "/time", "/app/automations": "/automations",
+  "/app/triage": "/notifications", "/app/inbox": "/inbox", "/app/tools/convert": "/tools",
+  "/app/social/inbox": "/social?tab=inbox", "/app/social/posts": "/social?tab=posts", "/app/social/new": "/social?tab=new", "/app/social/accounts": "/social?tab=accounts",
+  "/app/settings/mail": "/mail-settings", "/app/settings/mailboxes": "/email-setup",
 };
 /** The app screen for a web page, or null when it opens on the web. Tasks needs the app's tasks switch. */
 export function nativeRoute(to: string, opts: { tasks: boolean } = { tasks: true }): string | null {
@@ -153,6 +158,7 @@ export function sectionExtras(sectionId: string, flags: Record<string, unknown> 
   const on = (k: string) => !!flags && flags[k] === true;
   const out: MenuPage[] = [];
   if (sectionId === "contacts") {
+    out.push({ to: "/app/people", label: "Team", icon: "people" }); // M3: was only in Settings
     if (on("expenses")) out.push({ to: "/app/expenses", label: "Expenses", icon: "deals" });
     if (on("invoices")) out.push({ to: "/app/contacts/invoices", label: "Invoices", icon: "reports" });
   }

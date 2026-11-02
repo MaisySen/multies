@@ -179,7 +179,7 @@ describe("Email addresses screen", () => {
     const WebBrowser = require("expo-web-browser");
     WebBrowser.openBrowserAsync.mockClear?.();
     await fireEvent.press(screen.getByTestId("option-domain"));
-    expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://multies.si/app/domains");
+    expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://multies.si/app/domains", expect.anything());
   });
 
   it("syncs now and removes after asking", async () => {
@@ -202,7 +202,7 @@ describe("Email addresses screen", () => {
     const WebBrowser = require("expo-web-browser");
     await wrap(<EmailSetup />, t);
     await screen.findByText("Get a free @mail.multies.si address");
-    await waitFor(async () => { await fireEvent.press(screen.getByTestId("option-connect")); expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://multies.si/app/settings/apps/mail"); });
+    await waitFor(async () => { await fireEvent.press(screen.getByTestId("option-connect")); expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://multies.si/app/settings/apps/mail", expect.anything()); });
     expect(mockPush).not.toHaveBeenCalledWith("/connect-mailbox");
   });
 });
@@ -259,7 +259,7 @@ describe("Connect your email screen", () => {
     const WebBrowser = require("expo-web-browser");
     await wrap(<Connect />);
     await fireEvent.press(screen.getByTestId("app-password-link"));
-    expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://myaccount.google.com/apppasswords");
+    expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://myaccount.google.com/apppasswords", expect.anything());
   });
 
   it("reconnects with only a new password", async () => {

@@ -106,7 +106,14 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="deal/[id]" options={{ headerLargeTitle: false, title: "Deal" }} />
         <Stack.Screen name="expenses" options={{ headerLargeTitle: false, title: "Expenses" }} />
         <Stack.Screen name="expense/[id]" options={{ headerLargeTitle: false, title: "Expense" }} />
-        <Stack.Screen name="more/[section]" options={{ headerLargeTitle: false, title: "" }} />
+        <Stack.Screen name="more/[section]" options={{ headerLargeTitle: false, title: "More" }} />
+        <Stack.Screen name="settings" options={{ title: "Settings" }} />
+        <Stack.Screen name="review" options={{ title: "Approvals" }} />
+        <Stack.Screen name="goals" options={{ title: "Goals" }} />
+        <Stack.Screen name="forms" options={{ title: "Forms" }} />
+        <Stack.Screen name="form/[id]" options={{ title: "Responses" }} />
+        <Stack.Screen name="time" options={{ title: "Time" }} />
+        <Stack.Screen name="automations" options={{ title: "Automations" }} />
         <Stack.Screen name="docs" options={{ headerLargeTitle: false, title: "Docs" }} />
         <Stack.Screen name="doc/[id]" options={{ title: "" }} />
         <Stack.Screen name="doc/comments/[id]" options={{ presentation: "modal", title: "Comments" }} />

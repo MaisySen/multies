@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import { Banner, Button, Chip, EmptyState, Field, Icon, IconButton, Loading, Segmented } from "@/components/ui";
 import { ActionSheet } from "@/components/action-sheet";
 import { ConfirmSheet } from "@/components/social";
@@ -18,6 +17,7 @@ import { shortDate } from "@/lib/format";
 import { success, tick, warning } from "@/lib/haptics";
 import { showQuickToast } from "@/lib/quick-actions";
 import { colors, font, radius, space, TOUCH } from "@/theme";
+import { openWeb } from "@/lib/web-open";
 
 /** 1.10.7: one mail rule (what it does, its recent runs, Run on recent mail, Edit, Delete) or the form for a new one. */
 export default function MailRuleScreen() {
@@ -90,7 +90,7 @@ function RuleDetail({ rule, onEdit }: { rule: MailRule; onEdit: () => void }) {
         {web ? (
           <View style={{ marginHorizontal: space.lg, marginTop: space.md, padding: space.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.brandLine, gap: space.sm }} testID="rule-web-only">
             <Text style={{ color: colors.fg, fontSize: 14, lineHeight: 20 }}>This rule sends mail to other people, so it is changed on the web. Here you can turn it on or off, or delete it.</Text>
-            <Pressable onPress={() => { tick(); void WebBrowser.openBrowserAsync(WEB_PAGES.mailRules); }} accessibilityRole="link" testID="rule-open-web" style={{ minHeight: 32, justifyContent: "center" }}>
+            <Pressable onPress={() => { tick(); void openWeb(WEB_PAGES.mailRules); }} accessibilityRole="link" testID="rule-open-web" style={{ minHeight: 32, justifyContent: "center" }}>
               <Text style={{ color: colors.brand, fontWeight: "600", fontSize: 15 }}>Change it on the web</Text>
             </Pressable>
           </View>

@@ -3,6 +3,14 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.10.11 (OTA, runs on Android versionCode 16 and iOS build 20), 2 Nov 2026
+
+- A proper phone app: Goals, Forms with every response, Time for the week and Automations are screens in the app now, not web pages. Approvals has its own screen with a back button.
+- Every screen you open has a back button and a large title, and Today when you opened it from a notification, so you never get stuck.
+- Five tabs: Today, Inbox, Chat, Tasks and More. Activity is the bell on Today.
+- More shows the pages the app has first. The few that still live on the web sit together under On the web, open inside the app already signed in, and Done brings you back.
+- Settings is just settings now. Files, Tools, Social, Docs, Meetings, Portfolio, Contacts and Agent runs are in More.
+
 ## 1.10.10 (OTA, runs on Android versionCode 16 and iOS build 20), 2 Nov 2026
 
 - More: every section of your workspace as a grid with counts, the same menu as the web. Tap a section to open its pages, here in the app where they exist, else the web page signed in. Hide sections you don't use and reset any time.

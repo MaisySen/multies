@@ -164,7 +164,7 @@ export function createHandlers(d: CommandDeps): Record<CommandId, CommandHandler
     "go-d": () => d.openWeb("/app/docs"),
     "go-c": () => d.navigate("/chat"),
     "go-m": () => d.navigate("/meetings"),
-    "go-n": () => d.navigate("/activity"),
+    "go-n": () => d.navigate("/notifications"),
     compose: () => d.navigate("/compose"),
     "new-task": () => d.navigate("/task/new"),
     "search-mail": () => d.navigate("/search"),

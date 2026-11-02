@@ -1,3 +1,4 @@
+import { registerWebTransport } from "./web-transport";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { endpoints, type Api } from "@/api/endpoints";
 import { HttpTransport, type Transport } from "@/api/transport";
@@ -52,6 +53,8 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
   const sample = useMemo(() => new SampleTransport(), []);
   const transport: Transport = transportOverride ?? (mode === "sample" ? sample : live);
   const api = useMemo(() => endpoints(transport), [transport]);
+  // M3 (1.10.11): web app pages opened from anywhere use this session, signed in (never in the sample workspace).
+  useEffect(() => { registerWebTransport(mode === "live" && !transportOverride ? transport : null); }, [mode, transport, transportOverride]);
 
   const clearLocal = useCallback(async () => {
     jarRef.current = {};

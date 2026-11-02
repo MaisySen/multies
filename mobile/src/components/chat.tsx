@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Alert, Modal, Platform, Pressable, Share, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import * as Clipboard from "expo-clipboard";
 import { Avatar, Icon, IconButton, type IconName } from "@/components/ui";
 import { API_BASE } from "@/config";
@@ -13,6 +12,7 @@ import type { ChatAttachment, ChatLink, ChatMessage, ChatPerson } from "@/api/ty
 import { colors, font, radius, space, TOUCH } from "@/theme";
 import { useReduceMotion } from "@/lib/motion";
 import { thud } from "@/lib/haptics";
+import { openInApp } from "@/lib/web-open";
 
 const LINK_ICON: Record<ChatLink["type"], IconName> = { task: "check-square", thread: "mail", doc: "file-text" };
 
@@ -20,7 +20,7 @@ const LINK_ICON: Record<ChatLink["type"], IconName> = { task: "check-square", th
 export function openLink(l: ChatLink) {
   if (l.type === "task") router.push({ pathname: "/task/[id]", params: { id: l.id } });
   else if (l.type === "thread") router.push({ pathname: "/thread/[id]", params: { id: l.messageId ?? l.id } });
-  else WebBrowser.openBrowserAsync(`${API_BASE}/app/docs/${encodeURIComponent(l.id)}`).catch(() => {});
+  else router.push({ pathname: "/doc/[id]", params: { id: l.id } }); // M3: docs read in the app
 }
 
 /** The file address on the server. The signed link opens in the system browser with no sign in; older servers send none. */
@@ -57,7 +57,7 @@ function AttachmentRow({ a, messageId, sample }: { a: ChatAttachment; messageId:
   };
   const open = async () => {
     if (sample) { Alert.alert("Sample file", "Files in the sample workspace are examples, so there is nothing to open."); return; }
-    WebBrowser.openBrowserAsync(await freshUrl()).catch(() => {});
+    await openInApp(await freshUrl());
   };
   const share = async () => {
     if (sample) return;
