@@ -311,6 +311,8 @@ describe("TD9 live project view", () => {
     await t.db.run(sql`insert into invoice_docs (id, org_id, kind, status, number, total_cents, currency, view_token, created_by, created_at, updated_at) values ('inv_draft', ${org}, 'invoice', 'draft', null, 100, 'AUD', null, 'u', ${now}, ${now})`);
     const picked = await t.c.get(`/api/portals/${p.id}/pick?kind=invoice`);
     expect(picked.body.items.map((x: { id: string }) => x.id)).toEqual(["inv_td9"]);
+    expect((await t.c.get(`/api/portals/${p.id}/pick?kind=invoice&q=0001`)).body.items.length).toBe(1);
+    expect((await t.c.get(`/api/portals/${p.id}/pick?kind=invoice&q=${encodeURIComponent("%")}`)).body.items.length).toBe(0);
     expect((await t.c.post(`/api/portals/${p.id}/items`, { kind: "invoice", refId: "inv_draft" })).status).toBe(404);
     await share(t, p.id, "invoice", "inv_td9");
     const v = new Visitor(t);

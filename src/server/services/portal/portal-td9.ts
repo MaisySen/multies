@@ -16,6 +16,7 @@ import { notify } from "../suite/notify";
 import { sendSystemEmail } from "../system-mail";
 import { getTask } from "../suite/tasks";
 import { changesOf } from "../tools/kept-files";
+import { containsAny, containsText } from "../../lib/like-search";
 import { canManage, countItems, insertItem, managed, orgName, portalOf, portalUrl, type PortalRow } from "./client-portal";
 import { PORTAL_MAIL_EVERY_MS } from "@/shared/client-portal";
 import {
@@ -87,20 +88,19 @@ export type NewKind = "project" | "invoice" | "form";
 
 export async function pick(deps: Deps, auth: AuthContext, portalId: string, kind: NewKind, q: string) {
   const p = await portalOf(deps, auth, portalId);
-  const like = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`).slice(0, 80)}%`;
   if (kind === "project") {
     const rows = await deps.db.all<{ id: string; name: string; key: string }>(sql`select id, name, key from projects where org_id = ${p.org_id} and deleted_at is null and archived_at is null
-      ${q ? sql`and name like ${like} escape '\\'` : sql``} order by name limit 50`);
+      ${q ? sql`and ${containsText(sql`name`, q)}` : sql``} order by name limit 50`);
     return rows.map((r) => ({ id: r.id, title: r.name, sub: r.key }));
   }
   if (kind === "invoice") {
     const rows = await deps.db.all<{ id: string; kind: string; number: string | null; buyer_name: string | null; total_cents: number; currency: string; status: string }>(sql`select id, kind, number, buyer_name, total_cents, currency, status
       from invoice_docs where org_id = ${p.org_id} and kind in ('invoice', 'quote') and status in ('issued', 'accepted') and view_token is not null
-      ${q ? sql`and (number like ${like} escape '\\' or buyer_name like ${like} escape '\\')` : sql``} order by created_at desc limit 50`);
+      ${q ? sql`and ${containsAny([sql`number`, sql`buyer_name`], q)}` : sql``} order by created_at desc limit 50`);
     return rows.map((r) => ({ id: r.id, title: `${r.kind === "quote" ? "Quote" : "Invoice"} ${r.number ?? ""}`.trim(), sub: `${r.buyer_name ?? ""}${r.buyer_name ? " · " : ""}${money(r.total_cents, r.currency)}` }));
   }
   const rows = await deps.db.all<{ id: string; name: string }>(sql`select id, name from forms where org_id = ${p.org_id} and enabled = 1 and deleted_at is null
-    ${q ? sql`and name like ${like} escape '\\'` : sql``} order by name limit 50`);
+    ${q ? sql`and ${containsText(sql`name`, q)}` : sql``} order by name limit 50`);
   return rows.map((r) => ({ id: r.id, title: r.name, sub: "Form" }));
 }
 
