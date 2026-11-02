@@ -16,7 +16,8 @@ export const portalInviteThrottledNote = (addr: string) =>
   `Not sent. ${addr} already got ${PORTAL_LINKS_PER_HOUR} sign in emails in the last hour. Use Copy link, or try again later.`;
 export const PORTAL_MAIL_EVERY_MS = 15 * 60_000;
 
-export type PortalItemKind = "file" | "doc" | "task" | "request";
+/** TD9 adds project, invoice and form (only with PORTAL_TD9 on). */
+export type PortalItemKind = "file" | "doc" | "task" | "request" | "project" | "invoice" | "form";
 export type PortalTaskState = "todo" | "doing" | "done";
 
 export interface PortalSummary {
@@ -33,11 +34,15 @@ export interface PortalItem {
   open?: boolean; received?: number;
   /** False when the doc, task or request behind it was deleted. */
   live: boolean;
+  /** TD9: projects show progress; invoices their amount and state; invoices and forms their client link; files the project they sit under. */
+  progress?: { done: number; total: number }; amount?: string; status?: string; url?: string | null; projectId?: string | null;
 }
 export interface PortalMessage { id: string; fromClient: boolean; author: string; body: string; at: string }
 export interface PortalDetail {
   portal: PortalSummary & { welcome: string | null; showBrand: boolean };
   people: PortalPerson[]; items: PortalItem[]; messages: PortalMessage[]; canManage: boolean; requestsOn: boolean;
+  /** TD9 (PORTAL_TD9): access per area, projects, invoices, forms and comments are on. */
+  td9?: boolean;
 }
 
 export const taskStateLabel = (s: PortalTaskState | null | undefined) => (s === "done" ? "Done" : s === "doing" ? "In progress" : "To do");

@@ -36,6 +36,9 @@ import {
   type PortalRow,
 } from "../services/portal/client-portal";
 import { PORTAL_SESSION_DAYS, taskStateLabel } from "@/shared/client-portal";
+import { portalTd9TeamRoutes } from "./portal-td9"; // TD9
+import { LIVE_JS, TD9_CSS, formsBody, homeStatsTd9, invoicesBody, projectHtml, projectJson, projectsBody, taskHtml, tasksBodyTd9, td9Tabs, type Td9Tab } from "./portal-td9-pages"; // TD9
+import { addShared as addSharedTd9, clientComment, clientItem, clientProject, clientTask, filterForLevels, levelsFor, td9On } from "../services/portal/portal-td9"; // TD9
 
 const on = (c: Context<AppEnv>) => !!c.var.deps.config.clientPortal;
 const MAX_FILE = 25 * 1024 * 1024;
@@ -53,6 +56,7 @@ const PersonBody = z.object({ email: z.string().max(254), name: z.string().max(2
 const ItemBody = z.object({ kind: z.enum(["doc", "task"]), refId: z.string().min(1).max(64) });
 const RequestBody = z.object({ title: z.string().max(200), message: z.string().max(2000).nullable().optional() });
 const MessageBody = z.object({ body: z.string().max(5000) });
+const ItemBodyTd9 = z.object({ kind: z.enum(["doc", "task", "project", "invoice", "form"]), refId: z.string().min(1).max(64) }); // TD9
 
 export function portalRoutes() {
   const links = new RateLimiter(30, 60 * 60_000); // sign in links a team member can send or copy in an hour
@@ -93,13 +97,21 @@ export function portalRoutes() {
       const f = await teamFile(c.var.deps, c.var.auth, c.req.param("id"), c.req.param("itemId"));
       return c.body(f.bytes as Uint8Array<ArrayBuffer>, 200, { "content-type": f.type, "content-disposition": attachmentDisposition(f.name), "cache-control": "private, no-store", "x-content-type-options": "nosniff" });
     })
-    .post("/:id/items", async (c) => c.json(await addShared(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, ItemBody)), 201))
+    .post("/:id/items", async (c) => {
+      if (td9On(c.var.deps)) { // TD9: projects, invoices and forms can be shared too
+        const b = await parseBody(c, ItemBodyTd9);
+        if (b.kind === "doc" || b.kind === "task") return c.json(await addShared(c.var.deps, c.var.auth, c.req.param("id"), { kind: b.kind, refId: b.refId }), 201);
+        return c.json(await addSharedTd9(c.var.deps, c.var.auth, c.req.param("id"), b.kind, b.refId), 201);
+      }
+      return c.json(await addShared(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, ItemBody)), 201);
+    })
     .post("/:id/requests", async (c) => {
       if (!(await requestsOn(c))) throw new HttpError(400, "requests_off", "Turn on Tools for this workspace to ask for files.");
       return c.json(await addRequest(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, RequestBody)), 201);
     })
     .delete("/:id/items/:itemId", async (c) => c.json(await removeItem(c.var.deps, c.var.auth, c.req.param("id"), c.req.param("itemId"))))
-    .post("/:id/messages", async (c) => c.json({ message: await teamMessage(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, MessageBody)).body) }, 201));
+    .post("/:id/messages", async (c) => c.json({ message: await teamMessage(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, MessageBody)).body) }, 201))
+    .route("/", portalTd9TeamRoutes()); // TD9: each path answers 404 while PORTAL_TD9 is off
 }
 
 // ---- public pages ----
@@ -215,6 +227,32 @@ function homeBody(p: PortalRow, d: Data) {
 <h2 class="sec-h" style="margin-top:22px">Latest message</h2>${last ? `<p><b>${esc(last.author)}</b> <span class="meta">${when(last.at)}</span></p><p style="white-space:pre-wrap">${esc(last.body.slice(0, 280))}${last.body.length > 280 ? "..." : ""}</p><p><a href="/p/${esc(p.key)}?tab=messages">Open messages</a></p>` : `<p class="muted">Nothing yet. <a href="/p/${esc(p.key)}?tab=messages">Send a message</a></p>`}`;
 }
 
+/** TD9: the same space with each area shown only at View or Comment for this person. */
+async function spacePageTd9(c: Context<AppEnv>, p: PortalRow, person: { id: string; name: string | null; email: string }, q: string | undefined) {
+  const levels = await levelsFor(c.var.deps, person.id);
+  const raw = await clientData(c.var.deps, p);
+  const d = { ...raw, items: filterForLevels(raw.items, levels) };
+  const tabs = td9Tabs(levels);
+  const tab = (tabs.some((t) => t[0] === q) ? q : "home") as Td9Tab;
+  const { head, style } = await brand(c, p, d.workspace);
+  const ft = await formToken(c, "portal", p.id);
+  const key = p.key;
+  const body = tab === "files" ? filesBody(p, d) : tab === "docs" ? docsBody(p, d) : tab === "tasks" ? tasksBodyTd9(key, d.items) : tab === "projects" ? projectsBody(key, d.items)
+    : tab === "invoices" ? invoicesBody(d.items) : tab === "forms" ? formsBody(d.items) : tab === "messages" ? await messagesBody(c, p, d, person.name || person.email) : homeBodyTd9(p, d, levels);
+  const nav = `<nav class="ptabs" aria-label="Sections">${tabs.map(([k, label]) => `<a href="/p/${esc(key)}${k === "home" ? "" : `?tab=${k}`}"${k === tab ? ' aria-current="page"' : ""}>${label}</a>`).join("")}</nav>`;
+  return publicPage(p.name, `${style}${PAGE_CSS}${TD9_CSS}<header class="top">${head}<form class="out" method="post" action="/p/${esc(key)}/out"><input type="hidden" name="ft" value="${ft}"><button class="act" type="submit">Sign out</button></form></header>
+<main class="portal wide"><div class="card" data-testid="portal-space"><h1>${esc(p.name)}</h1><p class="lead">Signed in as ${esc(person.email)}</p>${p.welcome && tab === "home" ? `<p class="msg" style="white-space:pre-wrap">${esc(p.welcome)}</p>` : ""}
+${nav}<section aria-label="${esc(tabs.find((t) => t[0] === tab)![1])}">${body}</section></div>
+<p class="muted small center" style="margin-top:16px">A private space from ${esc(d.workspace || "your team")}, made with Multies.</p></main>`);
+}
+function homeBodyTd9(p: PortalRow, d: Data, levels: Awaited<ReturnType<typeof levelsFor>>) {
+  const reqs = d.items.filter((i) => i.kind === "request");
+  const last = d.messages[d.messages.length - 1];
+  return `${reqs.length ? `<p class="msg"><b>${reqs.length === 1 ? "1 request for files" : `${reqs.length} requests for files`}</b> waiting for you. <a href="/p/${esc(p.key)}?tab=files">See what's asked</a></p>` : ""}
+${homeStatsTd9(p.key, d.items, levels)}
+<h2 class="sec-h" style="margin-top:22px">Latest message</h2>${last ? `<p><b>${esc(last.author)}</b> <span class="meta">${when(last.at)}</span></p><p style="white-space:pre-wrap">${esc(last.body.slice(0, 280))}${last.body.length > 280 ? "..." : ""}</p><p><a href="/p/${esc(p.key)}?tab=messages">Open messages</a></p>` : `<p class="muted">Nothing yet. <a href="/p/${esc(p.key)}?tab=messages">Send a message</a></p>`}`;
+}
+
 async function spacePage(c: Context<AppEnv>, p: PortalRow, person: { name: string | null; email: string }, tab: Tab) {
   const d = await clientData(c.var.deps, p);
   const { head, style } = await brand(c, p, d.workspace);
@@ -249,6 +287,7 @@ export function portalPublicRoutes() {
       const person = await session(c, p);
       if (!person) return signInPage(c, p, c.req.query("sent") ? "If that email can use this space, a sign in link is on its way. Check your inbox." : null);
       const q = c.req.query("tab");
+      if (td9On(c.var.deps)) return c.html(await spacePageTd9(c, p, person, q), 200, PUBLIC_HEADERS); // TD9
       const tab = (TABS.some((t) => t[0] === q) ? q : "home") as Tab;
       return c.html(await spacePage(c, p, person, tab), 200, PUBLIC_HEADERS);
     })
@@ -286,8 +325,10 @@ export function portalPublicRoutes() {
     .get("/:key/f/:item", async (c) => {
       const p = await load(c);
       if (!p) return gone(c);
-      if (!(await session(c, p))) return c.redirect(`/p/${p.key}`, 303);
+      const who = await session(c, p);
+      if (!who) return c.redirect(`/p/${p.key}`, 303);
       try {
+        if (td9On(c.var.deps)) await clientItem(c.var.deps, p, who, c.req.param("item"), ["file"]); // TD9: Files at None answers 404
         const f = await clientFile(c.var.deps, p, c.req.param("item"));
         return c.body(f.bytes as Uint8Array<ArrayBuffer>, 200, { ...PUBLIC_HEADERS, "content-type": f.type, "content-disposition": attachmentDisposition(f.name), "x-content-type-options": "nosniff" });
       } catch (e) { if (e instanceof HttpError && e.status === 404) { const m = plain("This file is no longer shared", "Ask the person who shared it for a new copy.", 404); return c.html(m.html, 404, PUBLIC_HEADERS); } throw e; }
@@ -298,7 +339,7 @@ export function portalPublicRoutes() {
       const person = await session(c, p);
       if (!person) return c.redirect(`/p/${p.key}`, 303);
       let d: { title: string; content: unknown };
-      try { d = await clientDoc(c.var.deps, p, c.req.param("item")); } catch (e) { if (e instanceof HttpError && e.status === 404) { const m = plain("This doc is no longer shared", "Ask the person who shared it for a new link.", 404); return c.html(m.html, 404, PUBLIC_HEADERS); } throw e; }
+      try { if (td9On(c.var.deps)) await clientItem(c.var.deps, p, person, c.req.param("item"), ["doc"]); d = await clientDoc(c.var.deps, p, c.req.param("item")); } catch (e) { if (e instanceof HttpError && e.status === 404) { const m = plain("This doc is no longer shared", "Ask the person who shared it for a new link.", 404); return c.html(m.html, 404, PUBLIC_HEADERS); } throw e; }
       const ws = await wsName(c, p);
       const { head, style } = await brand(c, p, ws);
       return c.html(publicPage(d.title, `${style}${PAGE_CSS}<header class="top">${head}</header><main class="portal wide"><p><a href="/p/${esc(p.key)}?tab=docs">Back to docs</a></p><div class="card"><h1>${esc(d.title)}</h1><article class="doc" data-testid="portal-doc">${renderDocHtml(d.content, c.var.deps.config.appUrl)}</article></div></main>`), 200, PUBLIC_HEADERS);
@@ -313,6 +354,65 @@ export function portalPublicRoutes() {
       if (!(await publicPostOk(c, "portal", p.id, f.ft))) return c.redirect(`/p/${p.key}?tab=messages`, 303);
       try { await clientMessage(c.var.deps, p, person, f.body ?? ""); } catch (e) { if (!(e instanceof HttpError)) throw e; }
       return c.redirect(`/p/${p.key}?tab=messages`, 303);
+    })
+    // ---- TD9 (PORTAL_TD9): the live project view, a task's page and its thread ----
+    .get("/_/live-td9.js", (c) => {
+      if (!td9On(c.var.deps)) return gone(c);
+      return c.body(LIVE_JS, 200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=300", "x-content-type-options": "nosniff" });
+    })
+    .get("/:key/project/:item", async (c) => {
+      if (!opens.take(c.var.ip)) return busy(c);
+      const p = await load(c);
+      if (!p || !td9On(c.var.deps)) return gone(c);
+      const person = await session(c, p);
+      if (!person) return c.redirect(`/p/${p.key}`, 303);
+      let v: Awaited<ReturnType<typeof clientProject>>;
+      try { v = await clientProject(c.var.deps, p, person, c.req.param("item")); } catch (e) { if (e instanceof HttpError && e.status === 404) { const m = plain("This project is not shared with you", "Ask the person who shared this space if you need it.", 404); return c.html(m.html, 404, PUBLIC_HEADERS); } throw e; }
+      const ws = await wsName(c, p);
+      const { head, style } = await brand(c, p, ws);
+      const ft = await formToken(c, "portal", p.id);
+      return c.html(publicPage(v.title, `${style}${PAGE_CSS}${TD9_CSS}<header class="top">${head}</header><main class="portal wide">${projectHtml(p.key, c.req.param("item"), v, ft)}</main>`, { script: "/p/_/live-td9.js" }), 200, PUBLIC_HEADERS);
+    })
+    .get("/:key/project/:item/live.json", async (c) => {
+      if (!opens.take(c.var.ip)) return c.json({ error: { code: "rate_limited", message: "Try again in a minute." } }, 429, { ...PUBLIC_HEADERS, "retry-after": "60" });
+      const p = await load(c);
+      if (!p || !td9On(c.var.deps)) return c.json({ error: { code: "not_found", message: "Not found." } }, 404, PUBLIC_HEADERS);
+      const person = await session(c, p);
+      if (!person) return c.json({ error: { code: "unauthorized", message: "Sign in again." } }, 401, PUBLIC_HEADERS);
+      try { return c.json(projectJson(p.key, await clientProject(c.var.deps, p, person, c.req.param("item"))), 200, PUBLIC_HEADERS); } catch (e) { if (e instanceof HttpError && e.status === 404) return c.json({ error: { code: "not_found", message: "Not found." } }, 404, PUBLIC_HEADERS); throw e; }
+    })
+    .get("/:key/t/:item", async (c) => {
+      if (!opens.take(c.var.ip)) return busy(c);
+      const p = await load(c);
+      if (!p || !td9On(c.var.deps)) return gone(c);
+      const person = await session(c, p);
+      if (!person) return c.redirect(`/p/${p.key}`, 303);
+      let t: Awaited<ReturnType<typeof clientTask>>;
+      try { t = await clientTask(c.var.deps, p, person, c.req.param("item")); } catch (e) { if (e instanceof HttpError && e.status === 404) { const m = plain("This task is not shared with you", "Ask the person who shared this space if you need it.", 404); return c.html(m.html, 404, PUBLIC_HEADERS); } throw e; }
+      const ws = await wsName(c, p);
+      const { head, style } = await brand(c, p, ws);
+      const ft = await formToken(c, "portal", p.id);
+      return c.html(publicPage(t.title, `${style}${PAGE_CSS}${TD9_CSS}<header class="top">${head}</header><main class="portal wide">${taskHtml(p.key, c.req.param("item"), t, ft)}</main>`), 200, PUBLIC_HEADERS);
+    })
+    .post("/:key/c/:item", async (c) => {
+      if (!posts.take(c.var.ip)) return busy(c);
+      const p = await load(c);
+      if (!p || !td9On(c.var.deps)) return gone(c);
+      const person = await session(c, p);
+      if (!person) return c.redirect(`/p/${p.key}`, 303);
+      const f = await formOf(c);
+      const back = (kind: string) => `/p/${p.key}/${kind === "project" ? "project" : "t"}/${encodeURIComponent(c.req.param("item"))}`;
+      let kind = "task";
+      try {
+        if (!(await publicPostOk(c, "portal", p.id, f.ft))) { const m = plain("That form expired", "Go back, reload the page and try again.", 403); return c.html(m.html, 403, PUBLIC_HEADERS); }
+        kind = (await clientComment(c.var.deps, p, person, c.req.param("item"), f.body ?? "")).kind;
+      } catch (e) {
+        if (!(e instanceof HttpError)) throw e;
+        if (e.status === 404) { const m = plain("This is not shared with you", "Ask the person who shared this space if you need it.", 404); return c.html(m.html, 404, PUBLIC_HEADERS); }
+        if (e.status === 403) { const m = plain("You can read this but not comment", "Ask the team if you need to reply.", 403); return c.html(m.html, 403, PUBLIC_HEADERS); }
+        const m = plain("Your comment was not posted", e.message, 400); return c.html(m.html, 400, PUBLIC_HEADERS);
+      }
+      return c.redirect(back(kind), 303);
     })
     .post("/:key/out", async (c) => {
       const p = await load(c);

@@ -46,6 +46,7 @@ import { mailMergeUnsubscribeRoutes, toolsAutomationRoutes } from "./routes/tool
 import { campaignPublicRoutes, campaignRoutes } from "./routes/campaigns-r109"; // R109: lists, newsletters, journeys
 import { sharePublicRoutes, toolsShareRoutes } from "./routes/tools-share";
 import { portalPublicRoutes, portalRoutes } from "./routes/client-portal"; // R120
+import { itemCommentRoutes } from "./routes/portal-td9"; // TD9
 import { mailArchiveRoutes } from "./routes/mail-archive-r111"; // R111
 import { requestPublicRoutes, secretPublicRoutes, toolsRequestRoutes, toolsSecretRoutes } from "./routes/secure-share"; // R88 // Tools P2: share links
 import { bioPublicRoutes, linkPublicRoutes, linksRoutes } from "./routes/links"; // R87: Links in Tools
@@ -485,6 +486,7 @@ export function createApp(deps: Deps) {
       askR110: !!deps.config.askR110,
       askTd1: !!deps.config.askTd1, // TD1: Ask v2 and AI trust controls
       crmTd10: !!deps.config.crmTd10, // TD10: CRM suggestions, saved analyses, shortcut switch
+      portalTd9: !!(deps.config.clientPortal && deps.config.portalTd9), // TD9: portal access per area, project view, private comments
       vaultR128: !!deps.config.vaultR128, // R128: team password vault
       peopleR126: !!deps.config.peopleR126, // R126: staff directory, onboarding, assets
       mentionsTd5: !!deps.config.mentionsTd5, // TD5: record mentions and References
@@ -574,6 +576,7 @@ export function createApp(deps: Deps) {
   app.route("/api/tools/share", toolsShareRoutes()); // Tools P2: share links
   app.route("/api/tools/requests", toolsRequestRoutes()); // R88: file requests
   app.route("/api/portals", portalRoutes()); // R120: client portals
+  app.route("/api/item-comments", itemCommentRoutes()); // TD9: private comments on tasks and projects (PORTAL_TD9)
   app.route("/api/mail-archive", mailArchiveRoutes()); // R111: mail archive and retention (MAIL_ARCHIVE_R111)
   app.route("/api/tools/secrets", toolsSecretRoutes()); // R88: secret links
   app.route("/api/links", linksRoutes()); // R87: short links, bio pages, go links, link domain

@@ -46,6 +46,7 @@ export interface PublicConfig {
   teamaiTd8?: boolean;
   /** TD10: CRM suggestions, saved analyses, shortcut switch (CRM_TD10). */
   crmTd10?: boolean;
+  portalTd9?: boolean;
   /** R128: team password vault (VAULT_R128). */
   vaultR128?: boolean;
   /** R94: CRM timeline (notes are searchable with R98). */

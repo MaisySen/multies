@@ -21,6 +21,7 @@ import {
   type PortalSummary, type PortalTaskState,
 } from "@/shared/client-portal";
 import { containsText } from "../../lib/like-search";
+import { td9On, td9States } from "./portal-td9"; // TD9
 
 export interface PortalRow {
   id: string; org_id: string; key: string; name: string; contact_id: string | null; company_id: string | null; welcome: string | null;
@@ -28,7 +29,7 @@ export interface PortalRow {
   team_notified_at: number | null; client_notified_at: number | null; archived_at: number | null;
 }
 interface PersonRow { id: string; portal_id: string; org_id: string; email: string; name: string | null; contact_id: string | null; created_at: number; last_seen_at: number | null; removed_at: number | null }
-interface ItemRow { id: string; portal_id: string; org_id: string; kind: PortalItemKind; ref_id: string; title: string; folder: string | null; bytes: number | null; content_type: string | null; token_enc: string | null; created_at: number; removed_at: number | null }
+interface ItemRow { id: string; portal_id: string; org_id: string; kind: PortalItemKind; ref_id: string; title: string; folder: string | null; bytes: number | null; content_type: string | null; token_enc: string | null; created_at: number; removed_at: number | null; project_id?: string | null }
 interface MessageRow { id: string; from_client: number; author: string; body: string; created_at: number }
 
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -42,12 +43,12 @@ export const linkShapeOk = (t: string) => /^[A-Za-z0-9_-]{43}$/.test(t);
 /** Owners and admins manage every portal; a member manages the portals they made. Everyone in the workspace can read and reply. */
 export const canManage = (auth: AuthContext, p: Pick<PortalRow, "created_by">) => auth.role !== "member" || p.created_by === auth.userId;
 
-async function portalOf(deps: Deps, auth: AuthContext, id: string): Promise<PortalRow> {
+export async function portalOf(deps: Deps, auth: AuthContext, id: string): Promise<PortalRow> {
   const p = await deps.db.get<PortalRow>(sql`select * from client_portals where id = ${id} and org_id = ${auth.orgId}`);
   if (!p) throw notFound("Portal");
   return p;
 }
-async function managed(deps: Deps, auth: AuthContext, id: string): Promise<PortalRow> {
+export async function managed(deps: Deps, auth: AuthContext, id: string): Promise<PortalRow> {
   const p = await portalOf(deps, auth, id);
   if (!canManage(auth, p)) throw forbidden("Only the person who made this portal or an admin can change it.");
   return p;
@@ -125,13 +126,17 @@ async function itemsOf(deps: Deps, p: PortalRow): Promise<PortalItem[]> {
   const tasks = ids("task").length ? await deps.db.all<{ id: string; status: PortalTaskState; due_at: number | null; title: string }>(sql`select id, status, due_at, title from tasks where org_id = ${p.org_id} and deleted_at is null and id in (${inList(ids("task"))})`) : [];
   const docs = ids("doc").length ? await deps.db.all<{ id: string; title: string }>(sql`select id, title from docs where org_id = ${p.org_id} and deleted_at is null and id in (${inList(ids("doc"))})`) : [];
   const reqs = ids("request").length ? await deps.db.all<{ id: string; uploads: number; closed_at: number | null; expires_at: number }>(sql`select id, uploads, closed_at, expires_at from tool_file_requests where org_id = ${p.org_id} and id in (${inList(ids("request"))})`) : [];
+  const td9 = rows.some((r) => r.kind === "project" || r.kind === "invoice" || r.kind === "form") ? await td9States(deps, p.org_id, rows) : null; // TD9
   const files = ids("file").length ? await deps.db.all<{ id: string }>(sql`select id from tool_files where org_id = ${p.org_id} and deleted_at is null and expires_at > ${now} and id in (${inList(ids("file"))})`) : [];
   return rows.map((r) => {
     const base = { id: r.id, kind: r.kind, refId: r.ref_id, title: r.title, folder: r.folder, bytes: r.bytes, addedAt: iso(r.created_at) };
     if (r.kind === "task") { const t = tasks.find((x) => x.id === r.ref_id); return { ...base, title: t?.title ?? r.title, state: t?.status ?? null, due: t?.due_at ? iso(t.due_at) : null, live: !!t }; }
     if (r.kind === "doc") { const d = docs.find((x) => x.id === r.ref_id); return { ...base, title: d?.title || r.title, live: !!d }; }
     if (r.kind === "request") { const q = reqs.find((x) => x.id === r.ref_id); return { ...base, open: !!q && !q.closed_at && q.expires_at > now, received: q?.uploads ?? 0, live: !!q }; }
-    return { ...base, live: files.some((x) => x.id === r.ref_id) };
+    if (r.kind === "project") { const s = td9?.project(r.ref_id); return { ...base, title: s?.title ?? r.title, progress: s?.progress ?? { done: 0, total: 0 }, live: !!s }; }
+    if (r.kind === "invoice") { const s = td9?.invoice(r.ref_id); return { ...base, title: s?.title ?? r.title, amount: s?.amount, status: s?.status, due: s?.due ?? null, url: s?.url ?? null, live: !!s }; }
+    if (r.kind === "form") { const s = td9?.form(r.ref_id); return { ...base, title: s?.title ?? r.title, url: s?.url ?? null, live: !!s }; }
+    return { ...base, projectId: r.project_id ?? null, live: files.some((x) => x.id === r.ref_id) };
   });
 }
 
@@ -153,7 +158,7 @@ export async function portalDetail(deps: Deps, auth: AuthContext, id: string, re
     deps.db.all<PersonRow>(sql`select * from client_portal_people where portal_id = ${p.id} and removed_at is null order by created_at limit ${PORTAL_MAX_PEOPLE}`),
     itemsOf(deps, p), messagesOf(deps, p.id),
   ]);
-  return { portal: { ...s, unread: false, welcome: p.welcome, showBrand: !!p.show_brand }, people: people.map(personOut), items, messages, canManage: canManage(auth, p), requestsOn };
+  return { portal: { ...s, unread: false, welcome: p.welcome, showBrand: !!p.show_brand }, people: people.map(personOut), items, messages, canManage: canManage(auth, p), requestsOn, ...(td9On(deps) ? { td9: true } : {}) };
 }
 
 export async function updatePortal(deps: Deps, auth: AuthContext, id: string, patch: { name?: string; welcome?: string | null; showBrand?: boolean; archived?: boolean }) {
@@ -241,7 +246,7 @@ async function liveTeamPerson(deps: Deps, p: PortalRow, personId: string): Promi
   return r;
 }
 
-async function orgName(deps: Deps, orgId: string) {
+export async function orgName(deps: Deps, orgId: string) {
   return (await deps.db.get<{ name: string }>(sql`select name from organizations where id = ${orgId}`))?.name ?? "Your team";
 }
 
@@ -279,12 +284,12 @@ export async function copyLink(deps: Deps, auth: AuthContext, id: string, person
   return { url, expiresInMinutes: PORTAL_LINK_MINUTES };
 }
 
-async function countItems(deps: Deps, portalId: string) {
+export async function countItems(deps: Deps, portalId: string) {
   const r = await deps.db.get<{ n: number }>(sql`select count(*) as n from client_portal_items where portal_id = ${portalId} and removed_at is null`);
   if (Number(r?.n ?? 0) >= PORTAL_MAX_ITEMS) throw badRequest(`A portal can hold up to ${PORTAL_MAX_ITEMS} items. Remove some first.`);
 }
 
-async function insertItem(deps: Deps, auth: AuthContext, p: PortalRow, it: { kind: PortalItemKind; refId: string; title: string; folder?: string | null; bytes?: number | null; contentType?: string | null; tokenEnc?: string | null }) {
+export async function insertItem(deps: Deps, auth: AuthContext, p: PortalRow, it: { kind: PortalItemKind; refId: string; title: string; folder?: string | null; bytes?: number | null; contentType?: string | null; tokenEnc?: string | null }) {
   const id = newId("pti");
   await deps.db.run(sql`insert into client_portal_items (id, portal_id, org_id, kind, ref_id, title, folder, bytes, content_type, token_enc, added_by, created_at)
     values (${id}, ${p.id}, ${p.org_id}, ${it.kind}, ${it.refId}, ${it.title.slice(0, 200)}, ${it.folder ?? null}, ${it.bytes ?? null}, ${it.contentType ?? null}, ${it.tokenEnc ?? null}, ${auth.userId}, ${deps.now().getTime()})`);

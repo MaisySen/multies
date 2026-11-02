@@ -1791,6 +1791,18 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0160_portal_td9",
+    "statements": [
+      "CREATE TABLE `client_portal_access` (\n\t`person_id` text NOT NULL,\n\t`area` text NOT NULL,\n\t`portal_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`level` text NOT NULL,\n\t`updated_by` text,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`person_id`, `area`)\n);",
+      "CREATE INDEX `client_portal_access_portal_idx` ON `client_portal_access` (`portal_id`);",
+      "ALTER TABLE `client_portal_items` ADD `project_id` text;",
+      "CREATE TABLE `portal_milestones` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`project_id` text NOT NULL,\n\t`title` text NOT NULL,\n\t`due_date` text,\n\t`done_at` integer,\n\t`position` integer NOT NULL DEFAULT 0,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`deleted_at` integer\n);",
+      "CREATE INDEX `portal_milestones_project_idx` ON `portal_milestones` (`org_id`, `project_id`);",
+      "CREATE TABLE `item_comments` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`target_kind` text NOT NULL,\n\t`target_id` text NOT NULL,\n\t`portal_id` text,\n\t`author_user_id` text,\n\t`author_person_id` text,\n\t`author_name` text NOT NULL,\n\t`to_user_id` text,\n\t`to_person_id` text,\n\t`body` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`deleted_at` integer\n);",
+      "CREATE INDEX `item_comments_target_idx` ON `item_comments` (`org_id`, `target_kind`, `target_id`, `created_at`);"
+    ]
+  },
+  {
     "name": "0161_crm_td10",
     "statements": [
       "CREATE TABLE `crm_suggestions_td10` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`target_type` text NOT NULL,\n\t`target_id` text,\n\t`dedupe_key` text NOT NULL,\n\t`fields_json` text DEFAULT '{}' NOT NULL,\n\t`message_id` text,\n\t`message_at` integer NOT NULL,\n\t`status` text DEFAULT 'open' NOT NULL,\n\t`decided_by` text,\n\t`decided_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
