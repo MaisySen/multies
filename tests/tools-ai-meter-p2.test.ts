@@ -1,5 +1,5 @@
 /**
- * Tools P2 H3: the AI meter. The global stop (9,000 units a day) and the workspace share are reserved in D1
+ * Tools P2 H3: the AI meter. The global stop (8,000 units a day, 80% of the free 10,000) and the workspace share are reserved in D1
  * before deps.ai.run is ever called; concurrent reservations cannot pass the cap.
  */
 import { describe, it, expect, vi } from "vitest";
@@ -101,7 +101,7 @@ describe("Tools P2 AI meter", () => {
     // Business share (4,000) so the workspace share does not stop it first; the global row starts near the cap.
     await db.run(sql`update organizations set plan = 'business' where id = ${orgId}`);
     const day = dayOf(deps.now());
-    await db.run(sql`insert into ai_usage_daily (day, org_id, units, calls) values (${day}, ${GLOBAL_ROW}, 8000, 1)`);
+    await db.run(sql`insert into ai_usage_daily (day, org_id, units, calls) values (${day}, ${GLOBAL_ROW}, ${GLOBAL_DAILY_UNITS - 1000}, 1)`);
     const ai = fakeAi(() => ({ response: "x" })); // no usage reported: settles to an estimate
     deps.ai = ai;
     const req = { task: "chat" as const, system: "s", user: "u".repeat(30000), maxTokens: 400 };
