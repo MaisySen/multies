@@ -5,17 +5,21 @@ import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { useMe } from "@/web/lib/queries";
-import { Badge } from "@/web/components/ui/misc";
+import { Badge, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { Section } from "./settings";
 import { AiUsageLine, useAiUsage } from "./tools-ai"; // Tools P2: today's AI use for document helpers
 import { useConfig } from "@/web/lib/queries";
+import type { Ai2ProviderCard } from "@/shared/ai-connect-ai2";
+import { AiConnectPanel, type BuiltinStatus } from "./ai-connect-ai2"; // AI2
 
-export type AiProviderId = "openai" | "anthropic" | "openrouter" | "groq";
+export type AiProviderId = "openai" | "anthropic" | "openrouter" | "groq" | "gemini" | "mistral" | "deepseek" | "custom";
 export interface AiStatus {
   connected: boolean; provider: AiProviderId | null; providerName: string | null; model: string | null; keyHint: string | null;
   providers: { id: AiProviderId; name: string; defaultModel: string; keysUrl: string }[];
+  /** AI2 (AI_CONNECT_AI2): set only while the flag is on. */
+  ai2?: boolean; cards?: Ai2ProviderCard[]; builtin?: BuiltinStatus; baseHost?: string | null;
   mcp: { url: string; docs: string };
   message: string;
 }
@@ -48,6 +52,25 @@ export function AiSection() {
   const isAdmin = me.data?.organization?.role !== "member";
   const d = status.data;
   const info = d?.providers.find((p) => p.id === provider);
+  // AI2: the new screen while AI_CONNECT_AI2 is on; off keeps the form below exactly as it was.
+  if (config.data?.aiConnectAi2 && d?.ai2) {
+    return (
+      <Section id="ai" title="AI" description={<>Multies never charges for AI. Built-in AI works with no key, or connect your own provider.</>}>
+        <div className="space-y-4 text-sm">
+          <AiConnectPanel status={d} isAdmin={isAdmin} />
+          {toolsAi.data && (
+            <div className="space-y-1 border-t border-line pt-4">
+              <p className="font-medium">AI document helpers today</p>
+              <AiUsageLine usage={toolsAi.data} />
+            </div>
+          )}
+        </div>
+      </Section>
+    );
+  }
+  if (config.data?.aiConnectAi2 && status.isLoading) {
+    return <Section id="ai" title="AI" description="Loading"><div className="space-y-2" aria-busy="true"><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /></div></Section>;
+  }
   return (
     <Section id="ai" title="AI" description={<>{BYO_AI_LINE} Multies never charges for AI. <Link className="underline underline-offset-2 hover:text-fg" to="/agents#mcp">MCP setup</Link></>}>
       <div className="space-y-4 text-sm">

@@ -699,14 +699,38 @@ export const integrations = sqliteTable("integrations", {
  */
 export const aiKeys = sqliteTable("ai_keys", {
   orgId: text("org_id").primaryKey().references(() => organizations.id, { onDelete: "cascade" }),
-  provider: text("provider", { enum: ["openai", "anthropic", "openrouter", "groq"] }).notNull(),
+  provider: text("provider", { enum: ["openai", "anthropic", "openrouter", "groq", "gemini", "mistral", "deepseek", "custom"] }).notNull(),
   model: text("model").notNull(),
   keyEnc: text("key_enc").notNull(),
+  /** AI2 (migration 0150): the https base address of a custom OpenAI compatible server; null for the named providers. */
+  baseUrl: text("base_url"),
   /** The last 4 characters, to show which key is saved. */
   keyHint: text("key_hint").notNull(),
   updatedByUserId: text("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+});
+
+/** AI2 (migration 0150): a workspace's live model list, read with its own key, kept 10 minutes. */
+export const aiModelCache = sqliteTable("ai_model_cache", {
+  orgId: text("org_id").primaryKey().references(() => organizations.id, { onDelete: "cascade" }),
+  /** Which saved key the list belongs to (provider, base address and key hint, hashed); a new key misses the cache. */
+  fingerprint: text("fingerprint").notNull(),
+  modelsJson: text("models_json").notNull(),
+  live: integer("live", { mode: "boolean" }).notNull().default(true),
+  fetchedAt: ts("fetched_at").notNull(),
+});
+
+/** AI2 (migration 0150): one tap OpenRouter sign in. The PKCE verifier stays here (encrypted), never in the browser. */
+export const aiOauthStates = sqliteTable("ai_oauth_states", {
+  /** SHA-256 of the state sent to OpenRouter (the raw state is never stored). */
+  stateHash: text("state_hash").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  /** SHA-256 of the httpOnly browser nonce, so the return must come back to the same browser. */
+  nonceHash: text("nonce_hash").notNull(),
+  verifierEnc: text("verifier_enc").notNull(),
+  createdAt: ts("created_at").notNull(),
 });
 
 /**

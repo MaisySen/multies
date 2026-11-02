@@ -85,14 +85,15 @@ describe("Tools P2 AI meter", () => {
     expect(await rowUnits(db, day, GLOBAL_ROW)).toBe(0);
   });
 
-  it("concurrent reservations cannot pass 9,000", async () => {
+  it("concurrent reservations cannot pass 8,000 (80% of the free 10,000)", async () => {
     const { deps, db } = await setup();
     const day = dayOf(deps.now());
     const results = await Promise.all(Array.from({ length: 64 }, () => reserveRow(deps, day, GLOBAL_ROW, 300, GLOBAL_DAILY_UNITS)));
-    expect(results.filter(Boolean).length).toBe(30);
-    expect(await rowUnits(db, day, GLOBAL_ROW)).toBe(9000);
-    expect(await reserveRow(deps, day, GLOBAL_ROW, 1, GLOBAL_DAILY_UNITS)).toBe(false);
-    expect(await rowUnits(db, day, GLOBAL_ROW)).toBe(9000);
+    expect(results.filter(Boolean).length).toBe(26);
+    expect(await rowUnits(db, day, GLOBAL_ROW)).toBe(7800);
+    expect(await reserveRow(deps, day, GLOBAL_ROW, 300, GLOBAL_DAILY_UNITS)).toBe(false);
+    expect(await rowUnits(db, day, GLOBAL_ROW)).toBe(7800);
+    expect(GLOBAL_DAILY_UNITS).toBeLessThanOrEqual(8_000);
   });
 
   it("concurrent askAi calls from many workspaces stop at the global cap and never call the AI past it", async () => {

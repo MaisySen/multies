@@ -34,6 +34,10 @@ export interface AppConfig {
   contractsR108?: boolean;
   /** R113: OFFICE_EDIT_R113 (open DOCX, XLSX, CSV in the browser editors and PPTX as slides; saves are new Files versions). Off unless set. */
   officeEditR113?: boolean;
+  /** AI2: AI_CONNECT_AI2 (Settings, AI: live model picker, connection test, one tap OpenRouter, key detection, more providers). Off unless set: today's screen. */
+  aiConnectAi2?: boolean;
+  /** AI2: OpenRouter's sign in page (OPENROUTER_AUTH_URL). Unset means https://openrouter.ai/auth; local end to end runs point it at the stand in. */
+  openRouterAuthUrl?: string;
   /** R131: HOME_WIDGETS_R131 (drag to arrange widgets on Home, Overview). Off unless set: Overview unchanged. */
   homeWidgetsR131?: boolean;
   /** R130: TOURS_R130 (Get started checklist, product tours, tour builder). Off unless set: nothing visible, routes 404. */
@@ -382,6 +386,8 @@ const EnvSchema = z.object({
   HOME_WIDGETS_R131: z.string().optional(),
   TOURS_R130: z.string().optional(), // R130
   TOURS_EXCLUDE: z.string().optional(), // R130
+  AI_CONNECT_AI2: z.string().optional(), // AI2
+  OPENROUTER_AUTH_URL: z.string().optional(), // AI2
   SOCIAL_P3_R132: z.string().optional(),
   SOCIAL_YOUTUBE_UPLOAD_R132: z.string().optional(),
   SOCIAL_GBP_R132: z.string().optional(),
@@ -752,6 +758,9 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     homeWidgetsR131: ["1", "true", "on"].includes(String(env.HOME_WIDGETS_R131 ?? "").toLowerCase()),
     toursR130: ["1", "true", "on"].includes(String(env.TOURS_R130 ?? "").toLowerCase()), // R130
     toursExclude: env.TOURS_EXCLUDE ?? "", // R130
+    aiConnectAi2: ["1", "true", "on"].includes(String(env.AI_CONNECT_AI2 ?? "").toLowerCase()), // AI2
+    // AI2: only an https sign in page is taken (the local stand in is https://openrouter.mock/auth).
+    openRouterAuthUrl: /^https:\/\/[^\s]+$/.test(String(env.OPENROUTER_AUTH_URL ?? "")) ? String(env.OPENROUTER_AUTH_URL) : undefined,
     socialP3R132: ["1", "true", "on"].includes(String(env.SOCIAL_P3_R132 ?? "").toLowerCase()),
     socialYoutubeUploadR132: ["1", "true", "on"].includes(String(env.SOCIAL_YOUTUBE_UPLOAD_R132 ?? "").toLowerCase()),
     socialGbpR132: ["1", "true", "on"].includes(String(env.SOCIAL_GBP_R132 ?? "").toLowerCase()),

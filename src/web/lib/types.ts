@@ -82,6 +82,7 @@ export interface PublicConfig {
   formsTd2?: boolean;
   homeWidgetsR131?: boolean; // R131
   toursR130?: boolean; // R130
+  aiConnectAi2?: boolean; // AI2: Settings, AI connect screen
   /** R112: anonymous reporting channel (Forms > Reports) and data requests (Settings > Data requests) (REPORTING_R112). */
   reporting?: boolean;
   socialP3R132?: boolean; socialYoutubeUploadR132?: boolean; socialGbpR132?: boolean; // R132

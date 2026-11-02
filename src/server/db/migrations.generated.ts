@@ -1694,6 +1694,15 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0150_ai_connect_ai2",
+    "statements": [
+      "-- AI2 (Nov 2): connect AI properly. A custom OpenAI compatible server's base address on the saved key, the live\n-- model list cache (10 minutes, per workspace) and the one tap OpenRouter sign in state (PKCE verifier kept here,\n-- encrypted, 10 minutes, one use). Additive only.\nALTER TABLE `ai_keys` ADD COLUMN `base_url` text;",
+      "CREATE TABLE IF NOT EXISTS `ai_model_cache` (\n\t`org_id` text PRIMARY KEY NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`fingerprint` text NOT NULL,\n\t`models_json` text NOT NULL,\n\t`live` integer DEFAULT 1 NOT NULL,\n\t`fetched_at` integer NOT NULL\n);",
+      "CREATE TABLE IF NOT EXISTS `ai_oauth_states` (\n\t`state_hash` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`user_id` text NOT NULL REFERENCES `users`(`id`) ON DELETE cascade,\n\t`nonce_hash` text NOT NULL,\n\t`verifier_enc` text NOT NULL,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX IF NOT EXISTS `ai_oauth_states_created_idx` ON `ai_oauth_states` (`created_at`);"
+    ]
+  },
+  {
     "name": "0151_ai_trust_td1",
     "statements": [
       "CREATE TABLE `ai_trust` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`enabled` integer NOT NULL,\n\t`updated_by` text,\n\t`updated_at` integer NOT NULL\n);",

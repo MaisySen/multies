@@ -33,7 +33,11 @@ const SYSTEM = [
 async function ask(deps: Deps, orgId: string, req: AiCompletion): Promise<{ text: string | null; provider: string }> {
   await assertAiAllowed(deps, orgId); // TD1: AI off means no provider call
   const ai = await providerFor(deps, orgId);
-  if (!ai) throw aiKeyRequired();
+  if (!ai) {
+    // AI2: with no key of its own, a workspace's assistant runs on built-in AI inside the free daily budget.
+    if (deps.config.aiConnectAi2 && deps.ai) return (await import("./builtin-ai2")).askBuiltin(deps, orgId, req);
+    throw aiKeyRequired();
+  }
   try {
     return { text: await ai.complete(req), provider: ai.name };
   } catch (err) {

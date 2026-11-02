@@ -783,7 +783,8 @@ function Assistant({ messageId, onDraft }: { messageId: string; onDraft: (text: 
   const triage = useMutation({ mutationFn: () => api.post<{ triage: { category: string; priority: string; reason: string } }>("/ai/triage", { messageId }), onError: (e) => showError(e) });
   const draft = useMutation({ mutationFn: () => api.post<{ text: string }>("/ai/draft", { messageId }), onSuccess: (r) => onDraft(r.text), onError: (e) => showError(e) });
   if (!status.data) return null;
-  if (!status.data.connected) {
+  // AI2: built-in AI (free, capped daily) runs the assistant when the workspace has no key of its own.
+  if (!status.data.connected && !status.data.builtin?.active) {
     return (
       <section aria-label="Assistant" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-elevated/60 p-3 text-sm text-muted max-sm:hidden">
         <IconSparkle className="h-4 w-4 text-brand-hover" aria-hidden />

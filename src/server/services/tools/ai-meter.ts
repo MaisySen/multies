@@ -6,7 +6,7 @@
  *
  * The free allocation is 10,000 units a UTC day for the whole account and anything over it bills the card.
  * So before every free call the estimated units are RESERVED in D1 with one upsert whose WHERE clause holds
- * the cap: the global row ("*") never passes GLOBAL_DAILY_UNITS (9,000), and the workspace row never passes
+ * the cap: the global row ("*") never passes GLOBAL_DAILY_UNITS (8,000), and the workspace row never passes
  * its plan's share. SQLite runs each statement atomically, so concurrent reservations cannot pass the cap.
  * The estimate is deliberately high (tokens counted from UTF-8 bytes, the full output allowance, a margin);
  * after the call the reservation is settled to the figure the answer reports (or a high estimate of it).
@@ -19,8 +19,12 @@ import { providerFor } from "../ai/keys";
 import { dayOf } from "./usage";
 import { aiAllowed } from "../ai-trust-td1"; // TD1: AI trust gate
 
-/** The account's free daily allocation is 10,000 units; this hard stop leaves 1,000 for estimate error. */
-export const GLOBAL_DAILY_UNITS = 9_000;
+/**
+ * The account's free daily allocation is 10,000 units (Workers AI pricing, checked Oct 20 2026 edition on Nov 2 2026).
+ * AI2: this hard stop is 80% of it (it was 9,000), now that the inbox assistant can run on built-in AI too. With the
+ * high estimates (1.3 margin, full output allowance reserved) real use stays further under; nothing can bill.
+ */
+export const GLOBAL_DAILY_UNITS = 8_000;
 import { AI_OFF_MESSAGE } from "@/shared/ask-td1"; // TD1: AI trust gate
 /** Each workspace's share of the free daily units, by plan. The only place these numbers live. */
 export const AI_DAILY_UNITS: Record<PlanId, number> = { starter: 500, pro: 2_000, business: 4_000 };
