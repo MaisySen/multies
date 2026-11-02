@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-02-mentions",
+    date: "2026-11-02",
+    title: "Mention any record",
+    body: "Type @ in chat, a task, a comment or a contact note to link a task, project, doc, contact, deal, meeting, form or invoice. Every record shows what mentions it and what it mentions, and people without access see a restricted card.",
+  },
+  {
     id: "2026-11-02-bill-time",
     date: "2026-11-02",
     title: "Bill time",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-02",
     title: "Arrange your Home",
     body: "Home is now made of widgets for your tasks, meetings, inbox counts, quick links and more. Drag them into the order you like, change their size or hide them, and admins can set the layout everyone starts with.",
-  },
-  {
-    id: "2026-11-02-courses",
-    date: "2026-11-02",
-    title: "Courses for staff training",
-    body: "In Docs, build a course from your pages, file and video links and a quiz with a pass mark. Assign it to people with a due date and they get reminders, follow their progress in My learning and download a certificate when they finish. Admins and managers see everyone's progress and can export it as CSV.",
   },
   {
     id: "2026-10-28-whats-new",

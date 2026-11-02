@@ -5,6 +5,7 @@
 import { WHATS_NEW, type WhatsNewEntry } from "./whats-new";
 
 export const WHATS_NEW_EARLIER: readonly WhatsNewEntry[] = [
+  { id: "2026-11-02-courses", date: "2026-11-02", title: "Courses for staff training", body: "In Docs, build a course from your pages, file and video links and a quiz with a pass mark. Assign it to people with a due date and they get reminders, follow their progress in My learning and download a certificate when they finish. Admins and managers see everyone's progress and can export it as CSV." }, // TD5: moved from the in app list
   { id: "2026-11-01-sites", date: "2026-11-01", title: "Build a simple website for your team", body: "Start a site from the Create menu. Build pages from ready blocks with a live preview, save drafts, go back to any version and publish now or at a set time. Add your forms and booking pages, let visitors comment once you approve, and see visits with no personal data kept." },
   { id: "2026-11-01-forms-plus", date: "2026-11-01", title: "Forms that chat, feedback boards and calls for submissions", body: "Forms can ask one question at a time and sit in a chat bubble on your website. Run feedback boards with votes and a roadmap, and collect entries for blind review with scores and a shortlist." },
   { id: "2026-11-01-clear-errors", date: "2026-11-01", title: "Clear errors with Retry", body: "If a page cannot load, you see a plain message and a Retry button instead of endless loading, and anything already on screen stays." }, // AI2: moved from the in app list (cap 14 kept)

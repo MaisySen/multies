@@ -6,6 +6,11 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## TD5 Universal mentions and references (2026-11-02)
+
+- Typing @ in chat, task description and comments, doc comments and contact notes offers people and records (tasks, projects, docs, contacts, deals, meetings, forms, invoices) the reader can see, keyboard first (flag MENTIONS_TD5; migration 0156 record_refs, no titles or text stored).
+- References panel (Mentioned in and Mentions) on task, doc, contact, deal, meeting, form and invoice; chat chips resolve per reader, so people without access see Restricted item; deleted targets show Deleted item; edits remove stale links; other workspaces 404, flag off 404.
+
 ## TD4 Time to invoice (2026-11-02)
 
 - Invoices and quotes has a Bill time tab (owners and admins, flag BILL_TD4): unbilled billable time by person and task at the most specific rate, rounding per entry stated on each line, Create draft invoice makes a draft in the existing invoices with integer cents; billed entries are locked to the invoice by a conditional update so two runs can never bill the same time, and deleting the draft or voiding the invoice releases them (migration 0155).
