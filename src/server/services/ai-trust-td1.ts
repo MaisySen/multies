@@ -58,7 +58,7 @@ export async function aiTrustState(deps: Deps, orgId: string, role: string): Pro
   const own = key ? whereOf(key.provider) : null;
   const providers = own
     ? [...(deps.config.askR110 ? [{ use: "Ask", ...builtin }] : []), { use: "Mail, meetings and Tools AI", ...own }]
-    : [{ use: deps.config.askR110 ? "Ask and Tools AI" : "Tools AI", ...builtin }];
+    : [{ use: [deps.config.askR110 ? "Ask" : null, "Tools AI", deps.config.aiConnectAi2 ? "mail" : null].filter(Boolean).join(", ").replace(/, ([^,]*)$/, " and $1"), ...builtin }];
   return {
     controls: !!deps.config.askTd1, on, source: trust ? "admin" : "default",
     canChange: !!deps.config.askTd1 && (role === "owner" || role === "admin"),

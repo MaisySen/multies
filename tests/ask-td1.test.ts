@@ -5,6 +5,7 @@ import { crmEntries } from "@/server/db/schema";
 import { cosine, parseAbout, stemOf, widenWords } from "@/server/services/ask-td1";
 import { askAi } from "@/server/services/tools/ai-meter";
 import { deliverInbound } from "@/server/services/mail/delivery";
+import { saveAiKey } from "@/server/services/ai/keys";
 import { coverageLine, whereOf } from "@/shared/ask-td1";
 
 /** TD1 Ask v2: AI trust gate (off means no provider call), coverage, gone sources, ask about this, meaning search, log scrub. */
@@ -37,6 +38,16 @@ const ask = async (cl: Client, question: string, about?: string) => {
   const r = await cl.post("/api/ask", { question, about });
   return { status: r.status, body: r.body as { thread: { id: string }; message: Msg; code?: string; error?: { code?: string } } };
 };
+async function mailMessage() {
+  const domainId = (await c.post("/api/domains", { name: "acme.io" })).body.domain.id;
+  const box = (await c.post("/api/mailboxes", { domainId, localPart: "hello", displayName: "Hello" })).body.mailbox;
+  await deliverInbound(ctx.deps, {
+    envelopeFrom: "maria@blueharbor.example", rcptTo: "hello@acme.io", sizeBytes: 500, via: "test",
+    email: { messageId: "<td1@blueharbor.example>", from: { address: "maria@blueharbor.example", name: "Maria" }, to: [{ address: "hello@acme.io" }], cc: [], subject: "Moving",
+      text: "Can we move this week?", date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+  } as never);
+  return (await c.get(`/api/mail/messages?mailboxId=${box.id}&folder=inbox`)).body.messages[0].id as string;
+}
 const turnOn = async () => expect((await c.put("/api/ai-trust", { enabled: true })).status).toBe(200);
 
 async function setup(env: Record<string, string>) {
@@ -148,14 +159,7 @@ describe("TD1 on", () => {
     expect((await c.put("/api/ai-trust", { enabled: false })).body.on).toBe(false);
     expect((await ask(c, "anything at all")).status).toBe(409);
     // Mail AI on the workspace's own key refuses too, with no provider call.
-    const domainId = (await c.post("/api/domains", { name: "acme.io" })).body.domain.id;
-    const box = (await c.post("/api/mailboxes", { domainId, localPart: "hello", displayName: "Hello" })).body.mailbox;
-    await deliverInbound(ctx.deps, {
-      envelopeFrom: "maria@blueharbor.example", rcptTo: "hello@acme.io", sizeBytes: 500, via: "test",
-      email: { messageId: "<td1@blueharbor.example>", from: { address: "maria@blueharbor.example", name: "Maria" }, to: [{ address: "hello@acme.io" }], cc: [], subject: "Moving",
-        text: "Can we move this week?", date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
-    } as never);
-    const messageId = (await c.get(`/api/mail/messages?mailboxId=${box.id}&folder=inbox`)).body.messages[0].id;
+    const messageId = await mailMessage();
     for (const path of ["/api/ai/summary", "/api/ai/draft"]) {
       const r = await c.post(path, { messageId });
       expect(r.status).toBe(409);
@@ -231,5 +235,42 @@ describe("TD1 on", () => {
     const all = logged.join(" ").toLowerCase();
     expect(all).not.toContain("zebrafinch");
     expect(all).not.toContain("fake-local-key");
+  });
+});
+
+describe("TD1 with built in AI (AI2): off means no provider call on every new path", () => {
+  beforeEach(() => setup({ ASK_TD1: "on", AI_CONNECT_AI2: "on" }));
+
+  it("mail AI runs on built in AI by default and stops with no call once an admin turns AI off", async () => {
+    const messageId = await mailMessage();
+    expect((await c.get("/api/ai-trust")).body.providers[0].use).toContain("mail");
+    const on = await c.post("/api/ai/summary", { messageId });
+    expect(on.status).toBe(200);
+    const calls = prompts.length;
+    expect(calls).toBeGreaterThan(0);
+    await c.put("/api/ai-trust", { enabled: false });
+    for (const path of ["/api/ai/summary", "/api/ai/draft", "/api/ai/triage"]) {
+      const r = await c.post(path, { messageId });
+      if (r.status !== 200) expect(r.body.error.code).toBe("ai_off");
+    }
+    expect(prompts).toHaveLength(calls);
+    expect(fetched).toHaveLength(0);
+  });
+
+  it("connect, test, live model list and the OpenRouter finish make no provider call while AI is off", async () => {
+    // AI2 proves a pasted key before saving it (MB-321), so the saved key is set up directly here.
+    const me = (await c.get("/api/account/me")).body as { user: { id: string; email: string } };
+    await saveAiKey(ctx.deps, { orgId, userId: me.user.id, email: me.user.email } as never, { provider: "openai", apiKey: "fake-local-key-for-tests" });
+    await c.put("/api/ai-trust", { enabled: false });
+    fetched = [];
+    expect((await c.post("/api/ai/test", {})).body.error.code).toBe("ai_off");
+    expect((await c.post("/api/ai/connect", { apiKey: "sk-proj-fakefakefakefakefakefake" })).body.error.code).toBe("ai_off");
+    const m = await c.post("/api/ai/models", { refresh: true });
+    expect(m.status).toBe(409); // AI2 answers the list with the plain off words (the panel shows AI is off)
+    expect(m.body.error.code).toBe("ai_off");
+    const cb = await c.get("/api/ai/oauth/openrouter/callback?code=abc&state=def");
+    expect(cb.status).toBe(302);
+    expect(fetched).toHaveLength(0);
+    expect(prompts).toHaveLength(0);
   });
 });
