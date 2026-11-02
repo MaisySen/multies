@@ -195,7 +195,7 @@ SOCIAL_P3_R132 = "on" # R132: social posting upgrades (best times, writing help,
 NAV_P2_R121 = "on" # R121: layout plan P2 navigation (Contacts section, Mail setup in Settings, Files in Docs), verifier v25 PASS WITH BUGS 02:18 UTC Nov 2
 COURSES_R129 = "on" # R129: courses in Docs, verifier v21 PASS 20:14 UTC Nov 1
 HOME_WIDGETS_R131 = "on" # R131: Home widgets, verifier v21 PASS 20:47 UTC Nov 1
-POLISH_POL1 = "off" # POL1: tables and courses to the trash with restore (on after verifier PASS)
+POLISH_POL1 = "on" # POL1: tables and courses to the trash with restore (on after v26 PASS 03:32 UTC Nov 2)
 WEBINAR_R114 = "on" # R114: webinar mode for meetings, verifier v22 PASS 21:23 UTC Nov 1
 # The app's public address. The workers.dev address keeps working (same Worker, same data);
 # www.multies.si redirects to the apex and app.multies.si serves the app too.
