@@ -83,7 +83,7 @@ export interface TeamAiState {
 
 /** One line of text: trims, folds runs of spaces and drops control characters (keeps new lines when asked). */
 export function cleanText(raw: unknown, max: number, keepLines = false): string {
-  const s = String(raw ?? "").replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "");
+  const s = [...String(raw ?? "").replace(/\r\n?/g, "\n")].filter((ch) => { const c = ch.charCodeAt(0); return c === 9 || c === 10 || (c >= 32 && c !== 127); }).join("");
   const out = keepLines ? s.split("\n").map((l) => l.replace(/[ \t]+/g, " ").trimEnd()).join("\n").replace(/\n{3,}/g, "\n\n").trim() : s.replace(/\s+/g, " ").trim();
   return out.slice(0, max);
 }
