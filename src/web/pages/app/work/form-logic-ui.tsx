@@ -14,9 +14,14 @@ import { Input, Select } from "@/web/components/ui/input";
 import { Skeleton } from "@/web/components/ui/misc";
 import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
-import { LOGIC_OP_LABELS, LOGIC_OPS, MAX_ROUTES, VALUELESS_OPS, type FieldLogic, type FieldRules, type FormFieldType, type FormRoute, type LogicCondition, type LogicOp } from "@/shared/form-logic";
+import { Td2Logic } from "./forms-td2/builder-td2";
+import { formatBytes } from "@/shared/forms-td2";
+import { useQueryClient } from "@tanstack/react-query";
+import { showError } from "@/web/lib/show-error";
+import { isLayout, LOGIC_OP_LABELS, LOGIC_OPS, MAX_ROUTES, VALUELESS_OPS, type FieldLogic, type FieldRules, type FormFieldType, type FormRoute, type LogicCondition, type LogicOp } from "@/shared/form-logic";
 
-export interface BuilderField { id?: string; label: string; type: FormFieldType; required?: boolean; options?: string[]; placeholder?: string; logic?: FieldLogic | null; rules?: FieldRules | null; /** R93 */ identity?: boolean; lowLabel?: string; highLabel?: string }
+export interface BuilderField { id?: string; label: string; type: FormFieldType; required?: boolean; options?: string[]; placeholder?: string; logic?: FieldLogic | null; rules?: FieldRules | null; /** R93 */ identity?: boolean; lowLabel?: string; highLabel?: string;
+  /** TD2 (FORMS_TD2) */ requireWhen?: FieldLogic | null; disableWhen?: FieldLogic | null; fileTypes?: string[]; maxSizeMb?: number; maxFiles?: number; display?: "stars"; text?: string; imageId?: string; imageAlt?: string }
 
 const small = "h-8 text-[13px]";
 
@@ -35,7 +40,7 @@ function NumberRule({ label, value, onChange, min = 0 }: { label: string; value:
 }
 
 /** The panel under one field in the builder. `earlier` are the questions above it (the only ones a condition may use). */
-export function LogicEditor({ field, index, earlier, onChange }: { field: BuilderField; index: number; earlier: BuilderField[]; onChange: (patch: Partial<BuilderField>) => void }) {
+export function LogicEditor({ field, index, earlier, onChange, td2 = false }: { field: BuilderField; index: number; earlier: BuilderField[]; onChange: (patch: Partial<BuilderField>) => void; td2?: boolean }) {
   const [open, setOpen] = useState(logicCount(field) > 0);
   const logic = field.logic ?? null;
   const rules = field.rules ?? {};
@@ -57,7 +62,7 @@ export function LogicEditor({ field, index, earlier, onChange }: { field: Builde
       </button>
       {open && (
         <div className="mt-2 space-y-3 rounded-lg bg-elevated/60 p-2.5">
-          <div>
+          {td2 ? <Td2Logic field={field} earlier={earlier} onChange={onChange} /> : <div>
             <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px] font-medium">
               Show this question if
               {conds.length > 1 && (
@@ -96,8 +101,8 @@ export function LogicEditor({ field, index, earlier, onChange }: { field: Builde
               <Button size="sm" variant="ghost" className="mt-1" onClick={() => setConds([...conds, { field: usable[usable.length - 1].id!, op: "is", value: "" }])}><IconPlus className="h-3.5 w-3.5" />Add condition</Button>
             )}
             {conds.length > 0 && <p className="mt-1 text-[12px] text-subtle">A hidden question is skipped, so it is never required.</p>}
-          </div>
-          {field.type !== "select" && field.type !== "date" && (
+          </div>}
+          {field.type !== "select" && field.type !== "date" && (!td2 || (!isLayout(field.type) && !["time", "datetime", "url", "file", "signature", "rating"].includes(field.type))) && (
             <div className="space-y-1.5">
               <div className="text-[12.5px] font-medium">Answer rules</div>
               {(field.type === "text" || field.type === "textarea" || field.type === "phone" || field.type === "email") && <>
@@ -175,7 +180,43 @@ export function RoutingEditor({ fields, routes, onChange, projects, people }: {
 // ------------------------------------------------------------------ results
 
 interface ResponseRow { id: string; answers: Record<string, string>; entityType: string | null; entityId: string | null; createdAt: string }
-interface ResponsesPage { fields: { id: string; label: string; type: string }[]; responses: ResponseRow[]; total: number; limit: number; offset: number }
+interface ResponseFile { id: string; name: string; size: number; type: string; kind: string; fieldId: string }
+interface ResponsesPage { fields: { id: string; label: string; type: string }[]; responses: ResponseRow[]; total: number; limit: number; offset: number; /** TD2 */ files?: Record<string, ResponseFile[]> }
+
+/** TD2: a response's files for one question: signatures and images as small pictures, other files as downloads. */
+function FilesCell({ formId, files }: { formId: string; files: ResponseFile[] }) {
+  if (!files.length) return null;
+  return (
+    <div className="flex flex-col gap-1">
+      {files.map((x) => {
+        const href = `/api/forms/${encodeURIComponent(formId)}/uploads/${encodeURIComponent(x.id)}`;
+        return x.type.startsWith("image/") ? (
+          <a key={x.id} href={`${href}?inline=1`} target="_blank" rel="noreferrer" className="inline-block w-fit rounded border border-line bg-white p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" title={x.name}>
+            <img src={`${href}?inline=1`} alt={x.kind === "signature" ? "Signature" : x.name} className="h-10 max-w-[160px] object-contain" loading="lazy" />
+          </a>
+        ) : (
+          <a key={x.id} href={href} download className="inline-flex max-w-[240px] items-center gap-1 text-brand-hover hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" data-testid="response-file">
+            <IconDownload className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{x.name}</span><span className="shrink-0 text-subtle">{formatBytes(x.size)}</span>
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
+function DeleteResponse({ formId, responseId }: { formId: string; responseId: string }) {
+  const qc = useQueryClient();
+  const [sure, setSure] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const go = async () => {
+    setBusy(true);
+    try { await api.del(`/forms/${encodeURIComponent(formId)}/responses/${encodeURIComponent(responseId)}`); await qc.invalidateQueries({ queryKey: ["form-responses", formId] }); await qc.invalidateQueries({ queryKey: ["form-summary", formId] }); }
+    catch (e) { showError(e as Error); setSure(false); } finally { setBusy(false); }
+  };
+  return sure
+    ? <span className="inline-flex gap-1"><Button size="sm" variant="ghost" className="text-bad" loading={busy} onClick={() => void go()} data-testid="response-delete-confirm">Delete for good</Button><Button size="sm" variant="ghost" onClick={() => setSure(false)}>Keep</Button></span>
+    : <Button size="sm" variant="ghost" onClick={() => setSure(true)} aria-label="Delete this response and its files" data-testid="response-delete">Delete</Button>;
+}
 type Question =
   | { id: string; label: string; type: string; kind: "choice"; answered: number; counts: { option: string; count: number }[] }
   | { id: string; label: string; type: string; kind: "number"; answered: number; average: number | null; min: number | null; max: number | null }
@@ -243,10 +284,13 @@ export function FormResults({ id, name, onClose }: { id: string; name: string; o
                     {data.responses.map((r) => (
                       <tr key={r.id} className="border-b border-line last:border-0 align-top" data-testid="response-row">
                         <td className="whitespace-nowrap px-3 py-2 text-subtle" title={new Date(r.createdAt).toLocaleString()}>{timeAgo(r.createdAt)}</td>
-                        {data.fields.map((f) => <td key={f.id} className="max-w-[260px] px-3 py-2"><span className="line-clamp-3 whitespace-pre-wrap">{r.answers[f.id] ?? ""}</span></td>)}
+                        {data.fields.map((f) => <td key={f.id} className="max-w-[260px] px-3 py-2">{data.files && (f.type === "file" || f.type === "signature")
+                          ? <FilesCell formId={id} files={(data.files[r.id] ?? []).filter((x) => x.fieldId === f.id)} />
+                          : <span className="line-clamp-3 whitespace-pre-wrap">{r.answers[f.id] ?? ""}</span>}</td>)}
                         <td className="whitespace-nowrap px-3 py-2">
                           {r.entityType === "task" && r.entityId && <Link className="text-brand-hover hover:underline" to={`/app/tasks?view=list&task=${r.entityId}`}>Task</Link>}
                           {r.entityType === "contact" && r.entityId && <Link className="text-brand-hover hover:underline" to={`/app/contacts/${r.entityId}`}>Contact</Link>}
+                          {data.files && <DeleteResponse formId={id} responseId={r.id} />}
                         </td>
                       </tr>
                     ))}

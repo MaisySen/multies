@@ -1699,5 +1699,15 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `ai_trust` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`enabled` integer NOT NULL,\n\t`updated_by` text,\n\t`updated_at` integer NOT NULL\n);",
       "ALTER TABLE `ask_messages` ADD `meta` text;"
     ]
+  },
+  {
+    "name": "0153_forms_td2",
+    "statements": [
+      "-- TD2 (Nov 2): Forms pro. Form settings (progress bar, one question at a time) and files or signatures sent with a\n-- public form. Bytes stay in the existing file storage; this table only holds who, where and how big. Additive only.\nALTER TABLE `forms` ADD `td2` text;",
+      "CREATE TABLE IF NOT EXISTS `form_uploads` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`form_id` text NOT NULL REFERENCES `forms`(`id`) ON DELETE cascade,\n\t`field_id` text NOT NULL,\n\t`submission_id` text,\n\t`kind` text DEFAULT 'file' NOT NULL,\n\t`name` text NOT NULL,\n\t`content_type` text NOT NULL,\n\t`size` integer NOT NULL,\n\t`parts` integer DEFAULT 1 NOT NULL,\n\t`ip_hash` text,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX IF NOT EXISTS `form_uploads_sender_idx` ON `form_uploads` (`form_id`,`ip_hash`,`created_at`);",
+      "CREATE INDEX IF NOT EXISTS `form_uploads_submission_idx` ON `form_uploads` (`submission_id`);",
+      "CREATE INDEX IF NOT EXISTS `form_uploads_org_idx` ON `form_uploads` (`org_id`,`created_at`);"
+    ]
   }
 ];

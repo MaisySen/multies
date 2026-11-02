@@ -8,10 +8,11 @@ import { and, asc, desc, eq, gte, isNull, lt, sql, type SQL } from "drizzle-orm"
 import type { Deps } from "../../context";
 import { formSubmissions, forms } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
-import { answerList, normaliseLogic, normaliseRules, type FieldLogic, type FieldRules } from "@/shared/form-logic";
+import { answerList, isLayout, normaliseLogic, normaliseRules, type FieldLogic, type FieldRules } from "@/shared/form-logic";
 import type { SuiteActor } from "./common";
 import { normaliseFields, updateForm, type FormField } from "./forms";
 import { containsText } from "../../lib/like-search";
+import { filesFor } from "../forms-td2/uploads";
 
 /** Rows read per page while building a summary or an export. */
 export const RESULTS_PAGE = 500;
@@ -50,7 +51,8 @@ function present(s: typeof formSubmissions.$inferSelect) {
 
 /** One page of responses, newest first unless sorted by a question (sort: "createdAt" or a field id). */
 export async function formResponses(deps: Deps, orgId: string, formId: string, q: ResponsesQuery = {}) {
-  const { fields } = await formFor(deps, orgId, formId);
+  const { fields: allFields } = await formFor(deps, orgId, formId);
+  const fields = allFields.filter((x) => !isLayout(x.type)); // TD2: layout blocks take no answer
   const limit = Math.max(1, Math.min(200, Math.floor(q.limit ?? 50)));
   const offset = Math.max(0, Math.floor(q.offset ?? 0));
   const dir = q.dir === "asc" ? asc : desc;
@@ -69,6 +71,8 @@ export async function formResponses(deps: Deps, orgId: string, formId: string, q
   return {
     fields: fields.map((f) => ({ id: f.id, label: f.label, type: f.type })),
     responses: rows.map(present), total: Number(total?.n ?? 0), limit, offset,
+    // TD2: each response's files and signatures (names and sizes only; bytes open through the signed in file path).
+    ...(deps.config.formsTd2 ? { files: await filesFor(deps, orgId, formId, rows.map((r) => r.id)) } : {}),
   };
 }
 
@@ -96,7 +100,8 @@ export type QuestionSummary =
 
 /** A summary per question over the matching responses. */
 export async function formSummary(deps: Deps, orgId: string, formId: string, q: Pick<ResponsesQuery, "from" | "to" | "q"> = {}) {
-  const { fields } = await formFor(deps, orgId, formId);
+  const { fields: allFields } = await formFor(deps, orgId, formId);
+  const fields = allFields.filter((x) => !isLayout(x.type)); // TD2: layout blocks take no answer
   const acc = fields.map((f) => ({ f, answered: 0, counts: new Map<string, number>((f.options ?? []).map((o) => [o, 0])), sum: 0, nums: 0, min: Infinity, max: -Infinity, latest: [] as { answer: string; at: string }[] }));
   let total = 0, first: string | null = null, last: string | null = null;
   for await (const r of scan(deps, formId, q)) {
@@ -131,7 +136,8 @@ export function csvCell(v: string): string {
 
 /** Every matching response as CSV (newest first, up to RESULTS_SCAN_MAX rows). */
 export async function formResponsesCsv(deps: Deps, orgId: string, formId: string, q: Pick<ResponsesQuery, "from" | "to" | "q"> = {}) {
-  const { row, fields } = await formFor(deps, orgId, formId);
+  const { row, fields: allFields } = await formFor(deps, orgId, formId);
+  const fields = allFields.filter((x) => !isLayout(x.type)); // TD2: layout blocks take no answer
   const lines = [["Submitted at", ...fields.map((f) => f.label)].map(csvCell).join(",")];
   for await (const r of scan(deps, formId, q)) {
     const a = JSON.parse(r.data) as Record<string, string>;
@@ -152,11 +158,11 @@ export async function setFieldLogic(deps: Deps, actor: SuiteActor, formId: strin
     if (i !== at) return f;
     const out: FormField = { ...f };
     if (input.required !== undefined) out.required = !!input.required;
-    if (input.logic !== undefined) { const l = normaliseLogic(input.logic); if (l) out.logic = l; else delete out.logic; }
+    if (input.logic !== undefined) { const l = normaliseLogic(input.logic, { td2: !!deps.config.formsTd2 }); if (l) out.logic = l; else delete out.logic; }
     if (input.rules !== undefined) { const r = normaliseRules(f.type, input.rules); if (r) out.rules = r; else delete out.rules; }
     return out;
   });
-  normaliseFields(next); // throws 422 with the problem before anything is written
+  normaliseFields(next, { td2: !!deps.config.formsTd2 }); // throws 422 with the problem before anything is written
   const form = await updateForm(deps, actor, formId, { fields: next });
   return { form, field: form.fields.find((f) => f.id === fieldId)! };
 }

@@ -16,7 +16,9 @@ export const LogicCondition = z.object({
   op: z.enum(["is", "is_not", "contains", "answered", "not_answered", "gt", "lt"]),
   value: z.string().max(200).optional(),
 });
-export const FieldLogicSchema = z.object({ join: z.enum(["all", "any"]).default("all"), conditions: z.array(LogicCondition).max(10) }).nullable();
+export const FieldLogicSchema = z.object({ join: z.enum(["all", "any"]).default("all"), conditions: z.array(LogicCondition).max(10),
+  // TD2 (FORMS_TD2): groups of conditions and "hide when"; dropped by the service with the flag off.
+  groups: z.array(z.object({ join: z.enum(["all", "any"]).default("all"), conditions: z.array(LogicCondition).max(10) })).max(5).optional(), action: z.enum(["show", "hide"]).optional() }).nullable();
 export const FieldRulesSchema = z.object({
   minLength: z.number().int().min(0).max(100_000).optional(), maxLength: z.number().int().min(0).max(100_000).optional(),
   min: z.number().optional(), max: z.number().optional(),

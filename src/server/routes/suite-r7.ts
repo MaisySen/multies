@@ -4,6 +4,7 @@
  * link). The same services back the REST API (v1-suite.ts) and the MCP tools.
  */
 import { Hono } from "hono";
+import { TD2_FIELD_TYPES, type FormFieldType } from "@/shared/form-logic";
 import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, parseQuery, requireAdmin, requireAuth } from "../middleware";
@@ -32,15 +33,20 @@ export const TimeEntryCreate = z.object({
 export const TimeEntryPatch = z.object({ minutes: z.number().positive().max(1440).optional(), note: z.string().max(500).optional(), billable: z.boolean().optional(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), tags: z.array(z.string().max(64)).max(20).optional() });
 export const TimeQuery = z.object({ from: z.string().optional(), to: z.string().optional(), person: z.string().optional(), projectId: z.string().optional(), taskId: z.string().optional(), tag: z.string().max(64).optional() });
 
-const Field = z.object({ id: z.string().max(40).optional(), label: z.string().min(1).max(120), type: z.enum(["text", "email", "textarea", "phone", "select", "multiselect", "number", "date", "rating"]), required: z.boolean().optional(), options: z.array(z.string().max(120)).max(50).optional(), placeholder: z.string().max(120).optional(),
+const Field = z.object({ id: z.string().max(40).optional(), label: z.string().max(120), type: z.enum(TD2_FIELD_TYPES as [FormFieldType, ...FormFieldType[]]), required: z.boolean().optional(), options: z.array(z.string().max(120)).max(50).optional(), placeholder: z.string().max(120).optional(),
   logic: FieldLogicSchema.optional(), rules: FieldRulesSchema.optional(),
-  identity: z.boolean().optional(), lowLabel: z.string().max(40).optional(), highLabel: z.string().max(40).optional() }); // R93: blind review, rating labels // R31: show-if logic and answer rules
+  identity: z.boolean().optional(), lowLabel: z.string().max(40).optional(), highLabel: z.string().max(40).optional(), // R93: blind review, rating labels // R31: show-if logic and answer rules
+  // TD2 (FORMS_TD2): the service accepts these only with the flag on (off: the new types are refused as before).
+  requireWhen: FieldLogicSchema.optional(), disableWhen: FieldLogicSchema.optional(),
+  fileTypes: z.array(z.string().max(20)).max(10).optional(), maxSizeMb: z.number().int().min(1).max(10).optional(), maxFiles: z.number().int().min(1).max(5).optional(),
+  display: z.enum(["stars"]).optional(), text: z.string().max(2000).optional(), imageId: z.string().max(64).optional(), imageAlt: z.string().max(200).optional() });
 export const FormCreate = z.object({
   name: z.string().trim().min(1).max(120), description: z.string().max(2000).optional(), target: z.enum(["task", "contact", "review"]).optional(), // R93: review = a call for submissions (Forms plus)
-  projectId: z.string().nullable().optional(), assigneeId: z.string().nullable().optional(), fields: z.array(Field).min(1).max(30).optional(),
+  projectId: z.string().nullable().optional(), assigneeId: z.string().nullable().optional(), fields: z.array(Field).min(1).max(60).optional(), // TD2: 60 items, 30 questions (checked in the service)
   successMessage: z.string().max(500).optional(), enabled: z.boolean().optional(),
   triage: z.boolean().optional(),
   routing: z.array(FormRouteSchema).max(10).optional(), // R31
+  td2: z.object({ progress: z.boolean().optional(), oneAtATime: z.boolean().optional() }).optional(), // TD2
 });
 export const FormPatch = FormCreate.partial();
 

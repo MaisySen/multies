@@ -20,16 +20,23 @@ import { Card, CopyButton, EmptyState, PageHeader, Skeleton, Switch } from "@/we
 import { Logo } from "@/web/components/logo";
 import { timeAgo } from "@/web/lib/format";
 import { useAssignees, useProjects, isAgentLike } from "./data";
-import { checkAnswers, checkLogic, MULTI_SEPARATOR, visibleFieldIds, type FormFieldType, type FormRoute } from "@/shared/form-logic";
+import { checkAnswers, checkLogic, cleanLogic, isLayout, MULTI_SEPARATOR, TD2_ANSWER_TYPES, visibleFieldIds, type FormFieldType, type FormRoute } from "@/shared/form-logic";
+import { DEFAULT_TD2, type Td2Settings } from "@/shared/forms-td2";
+import { BLOCKS, newBlock, TD2_TYPE_LABELS, Td2FieldSettings, Td2FormSettings } from "./forms-td2/builder-td2";
+import { PublicFormTd2, type Td2PublicForm } from "./forms-td2/public-form-td2";
 import { FormResults, LogicEditor, RoutingEditor, type BuilderField } from "./form-logic-ui";
 import { ApiError } from "@/web/lib/api";
 import { ScrollRow } from "@/web/components/ui/scroll-row"; // F13b
 
 type FieldType = FormFieldType;
 type FormField = BuilderField;
-interface Form { id: string; name: string; description: string; slug: string; url: string; target: "task" | "contact" | "review"; projectId: string | null; assigneeId: string | null; fields: FormField[]; successMessage: string; enabled: boolean; triage?: boolean; routing?: FormRoute[]; submitCount: number; lastSubmitAt: string | null }
+interface Form { id: string; name: string; description: string; slug: string; url: string; target: "task" | "contact" | "review"; projectId: string | null; assigneeId: string | null; fields: FormField[]; successMessage: string; enabled: boolean; triage?: boolean; routing?: FormRoute[]; submitCount: number; lastSubmitAt: string | null; /** TD2 */ td2?: Td2Settings }
 
-const TYPES: Record<FieldType, string> = { text: "Short text", email: "Email", textarea: "Long text", phone: "Phone", select: "Choice", multiselect: "Several choices", number: "Number", date: "Date", rating: "Rating" };
+const BASE_TYPES = { text: "Short text", email: "Email", textarea: "Long text", phone: "Phone", select: "Choice", multiselect: "Several choices", number: "Number", date: "Date", rating: "Rating" } as const;
+/** TD2: with FORMS_TD2 on the type list also offers the new answer types (layout blocks come from Add block). */
+const TYPES: Record<FieldType, string> = { ...BASE_TYPES, ...(TD2_TYPE_LABELS as Record<FieldType, string>) };
+const typeChoices = (td2: boolean, current: FieldType, plus: boolean): FieldType[] =>
+  [...(Object.keys(BASE_TYPES) as FieldType[]), ...(td2 ? TD2_ANSWER_TYPES : [])].filter((t) => (t !== "rating" || plus || td2 || current === "rating")).concat(!td2 && !(current in BASE_TYPES) ? [current] : []);
 const withOptions = (t: FieldType) => t === "select" || t === "multiselect";
 /** R31: every builder field gets a stable id up front, so "show if" conditions can point at it. */
 const idFor = (label: string, taken: Set<string>, i: number) => {
@@ -154,6 +161,7 @@ function FormsList({ plus = false, kind = "forms" }: { plus?: boolean; kind?: "f
 }
 
 function FormEditor({ initial, onClose, onSaved, plus = false }: { initial: Partial<Form>; onClose: () => void; onSaved: () => void; plus?: boolean }) {
+  const td2 = !!useConfig().data?.formsTd2; // TD2
   const projects = useProjects();
   const people = useAssignees();
   const [f, setF] = useState<Partial<Form>>({ ...initial, fields: withIds(initial.fields ?? [{ label: "Your name", type: "text", required: true }, { label: "Email", type: "email", required: true }, { label: "What do you need?", type: "text", required: true }, { label: "Details", type: "textarea" }]) });
@@ -162,11 +170,11 @@ function FormEditor({ initial, onClose, onSaved, plus = false }: { initial: Part
   const setField = (i: number, patch: Partial<FormField>) => setF({ ...f, fields: fields.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
   const move = (i: number, d: number) => { const next = [...fields]; const [x] = next.splice(i, 1); next.splice(i + d, 0, x); setF({ ...f, fields: next }); };
   // R31: conditions on a removed question go with it; the first logic problem shows above Save.
-  const removeField = (i: number) => { const gone = fields[i].id; setF({ ...f, fields: fields.filter((_, j) => j !== i).map((x) => (x.logic && gone ? { ...x, logic: x.logic.conditions.some((c) => c.field === gone) ? (x.logic.conditions.filter((c) => c.field !== gone).length ? { ...x.logic, conditions: x.logic.conditions.filter((c) => c.field !== gone) } : null) : x.logic } : x)) }); };
+  const removeField = (i: number) => { if (td2) { setF({ ...f, fields: cleanLogic(fields.filter((_, j) => j !== i).map((x) => ({ ...x, id: x.id ?? "", required: !!x.required }))) }); return; } const gone = fields[i].id; setF({ ...f, fields: fields.filter((_, j) => j !== i).map((x) => (x.logic && gone ? { ...x, logic: x.logic.conditions.some((c) => c.field === gone) ? (x.logic.conditions.filter((c) => c.field !== gone).length ? { ...x.logic, conditions: x.logic.conditions.filter((c) => c.field !== gone) } : null) : x.logic } : x)) }); };
   const problem = checkLogic(fields.map((x) => ({ ...x, id: x.id ?? "", required: !!x.required })))[0];
   const save = async () => {
     setBusy(true);
-    const body = { name: f.name, description: f.description ?? "", target: f.target, projectId: f.projectId || null, assigneeId: f.assigneeId || null, successMessage: f.successMessage, fields: fields.map((x) => ({ ...x, options: withOptions(x.type) ? x.options : undefined, logic: x.logic ?? undefined, rules: x.rules ?? undefined })), ...(f.target !== "contact" ? { triage: f.triage ?? !f.id, routing: (f.routing ?? []).filter((r) => fields.some((x) => x.id === r.when.field)) } : {}) };
+    const body = { name: f.name, description: f.description ?? "", target: f.target, projectId: f.projectId || null, assigneeId: f.assigneeId || null, successMessage: f.successMessage, fields: fields.map((x) => ({ ...x, options: withOptions(x.type) ? x.options : undefined, logic: x.logic ?? undefined, rules: x.rules ?? undefined, ...(td2 ? { requireWhen: x.requireWhen ?? undefined, disableWhen: x.disableWhen ?? undefined } : {}) })), ...(td2 ? { td2: f.td2 ?? DEFAULT_TD2 } : {}), ...(f.target !== "contact" ? { triage: f.triage ?? !f.id, routing: (f.routing ?? []).filter((r) => fields.some((x) => x.id === r.when.field)) } : {}) };
     try { if (f.id) await api.patch(`/forms/${f.id}`, body); else await api.post("/forms", body); onSaved(); } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   const remove = async () => { if (!f.id) return; try { await api.del(`/forms/${f.id}`); onSaved(); } catch (e) { showError(e as Error); } };
@@ -186,11 +194,13 @@ function FormEditor({ initial, onClose, onSaved, plus = false }: { initial: Part
           <ul className="space-y-2">
             {fields.map((x, i) => (
               <li key={i} className="rounded-lg border border-line p-2.5">
-                <div className="grid grid-cols-[1fr_130px_auto] items-center gap-2">
+                <div className={td2 ? "grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_150px_auto]" : "grid grid-cols-[1fr_130px_auto] items-center gap-2"} data-testid={td2 ? `builder-item-${x.type}` : undefined}>
                   <Input aria-label={`Field ${i + 1} label`} value={x.label} onChange={(e) => setField(i, { label: e.target.value })} className="h-8 text-[13px]" />
-                  <Select aria-label={`Field ${i + 1} type`} value={x.type} onChange={(e) => setField(i, { type: e.target.value as FieldType, ...(e.target.value === "rating" ? { rules: { min: 0, max: 10 } } : {}) })} className="h-8 text-[13px]">{(Object.keys(TYPES) as FieldType[]).filter((t) => t !== "rating" || plus || x.type === "rating").map((t) => <option key={t} value={t}>{TYPES[t]}</option>)}</Select>
+                  {td2 && isLayout(x.type) ? <span className="hidden h-8 items-center rounded-md bg-elevated px-2 text-[12.5px] text-muted sm:inline-flex">{TYPES[x.type]}</span> : (
+                  <Select aria-label={`Field ${i + 1} type`} value={x.type} onChange={(e) => setField(i, { type: e.target.value as FieldType, ...(e.target.value === "rating" ? { rules: { min: 0, max: 10 } } : {}) })} className={td2 ? "order-3 col-span-2 h-8 text-[13px] sm:order-none sm:col-span-1" : "h-8 text-[13px]"}>{(td2 ? typeChoices(true, x.type, plus) : (Object.keys(BASE_TYPES) as FieldType[]).filter((t) => t !== "rating" || plus || x.type === "rating")).map((t) => <option key={t} value={t}>{TYPES[t]}</option>)}</Select>
+                  )}
                   <div className="flex items-center gap-1">
-                    <label className="flex items-center gap-1 text-[12px] text-muted"><input type="checkbox" checked={!!x.required} onChange={(e) => setField(i, { required: e.target.checked })} />Required</label>
+                    {!(td2 && isLayout(x.type)) && <label className="flex items-center gap-1 text-[12px] text-muted"><input type="checkbox" checked={!!x.required} onChange={(e) => setField(i, { required: e.target.checked })} />Required</label>}
                     <button disabled={i === 0} onClick={() => move(i, -1)} className="p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label="Move up"><IconArrowUp className="h-3.5 w-3.5" /></button>
                     <button disabled={i === fields.length - 1} onClick={() => move(i, 1)} className="p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label="Move down"><IconArrowDown className="h-3.5 w-3.5" /></button>
                     <button onClick={() => removeField(i)} className="p-1 text-subtle hover:text-bad" aria-label="Remove field"><IconTrash className="h-3.5 w-3.5" /></button>
@@ -204,12 +214,19 @@ function FormEditor({ initial, onClose, onSaved, plus = false }: { initial: Part
                     <Input aria-label="Label at the high end" placeholder="High end, for example Very likely" value={x.highLabel ?? ""} maxLength={40} onChange={(e) => setField(i, { highLabel: e.target.value })} className="h-8 text-[13px]" />
                   </div>
                 )}
-                {f.target === "review" && <label className="mt-2 flex items-center gap-1.5 text-[12px] text-muted"><input type="checkbox" checked={!!x.identity} onChange={(e) => setField(i, { identity: e.target.checked })} />Hide in blind review</label>}
-                <LogicEditor field={x} index={i} earlier={fields.slice(0, i)} onChange={(patch) => setField(i, patch)} />
+                {td2 && <Td2FieldSettings field={x} onChange={(patch) => setField(i, patch)} />}
+                {f.target === "review" && !(td2 && isLayout(x.type)) && <label className="mt-2 flex items-center gap-1.5 text-[12px] text-muted"><input type="checkbox" checked={!!x.identity} onChange={(e) => setField(i, { identity: e.target.checked })} />Hide in blind review</label>}
+                {!(td2 && (x.type === "divider" || x.type === "page")) && <LogicEditor field={x} index={i} earlier={fields.slice(0, i)} onChange={(patch) => setField(i, patch)} td2={td2} />}
               </li>
             ))}
           </ul>
           <Button size="sm" variant="ghost" className="mt-2" onClick={() => setF({ ...f, fields: [...fields, { id: idFor("question", new Set(fields.map((x) => x.id ?? "")), fields.length), label: "New question", type: "text" }] })}><IconPlus className="h-3.5 w-3.5" />Add field</Button>
+          {td2 && (
+            <Select aria-label="Add a block" value="" onChange={(e) => { const t = e.target.value as FieldType; if (t) setF({ ...f, fields: [...fields, newBlock(t, idFor(t, new Set(fields.map((x) => x.id ?? "")), fields.length))] }); }} className="ml-2 inline-flex h-8 w-auto text-[13px]" data-testid="add-block">
+              <option value="">Add block</option>
+              {BLOCKS.map((b) => <option key={b.type} value={b.type}>{b.label}</option>)}
+            </Select>
+          )}
           {problem && <p role="alert" className="mt-2 text-[12.5px] text-bad" data-testid="logic-problem">{problem.message}</p>}
         </div>
         {f.target === "task" && <RoutingEditor fields={fields} routes={f.routing ?? []} onChange={(routing) => setF({ ...f, routing })} projects={projects.data ?? []} people={(people.data ?? []).map((p) => ({ id: p.id, name: isAgentLike(p) ? `${p.name} (agent)` : p.name }))} />}
@@ -219,6 +236,7 @@ function FormEditor({ initial, onClose, onSaved, plus = false }: { initial: Part
             <Switch checked={f.triage ?? !f.id} onChange={(v) => setF({ ...f, triage: v })} label="Send to triage" />
           </div>
         )}
+        {td2 && <Td2FormSettings value={f.td2 ?? DEFAULT_TD2} onChange={(v) => setF({ ...f, td2: v })} />}
         <Field label="Thank-you message">{(fp) => (<Input {...fp} value={f.successMessage ?? "Thanks, we got it. We'll be in touch."} onChange={(e) => setF({ ...f, successMessage: e.target.value })} />)}</Field>
       </div>
     </Dialog>
@@ -228,7 +246,7 @@ function FormEditor({ initial, onClose, onSaved, plus = false }: { initial: Part
 declare global { interface Window { turnstile?: { render: (el: HTMLElement, opts: { sitekey: string; callback: (t: string) => void; theme?: string }) => string; reset: (id?: string) => void } } }
 
 /** The public form at /f/<slug>. No sign-in. */
-type PublicFormRow = { name: string; description: string; workspace: string; fields: (FormField & { id: string })[]; turnstileSiteKey: string | null; plus?: PublicFormData["plus"] };
+type PublicFormRow = { name: string; description: string; workspace: string; fields: (FormField & { id: string })[]; turnstileSiteKey: string | null; plus?: PublicFormData["plus"]; /** TD2 */ td2?: Td2Settings };
 const usePublicForm = (slug: string | undefined) => useQuery({ queryKey: ["public-form", slug], retry: false, queryFn: async () => (await api.get<{ form: PublicFormRow }>(`/public/forms/${slug}`)).form });
 
 /** The public form at /f/<slug> (and /f/<slug>/embed inside the website bubble). R93: chat style when the form asks for it. */
@@ -236,8 +254,21 @@ export function PublicFormPage() {
   const { slug } = useParams();
   const embed = useLocation().pathname.replace(/\/+$/, "").endsWith("/embed");
   const q = usePublicForm(slug);
+  const td2On = !!useConfig().data?.formsTd2;
   useEffect(() => { if (q.data) document.title = `${q.data.name} | Multies`; }, [q.data]);
-  if (q.data?.plus && (q.data.plus.mode === "chat" || embed)) return <main className="min-h-dvh bg-bg text-fg"><ChatForm slug={slug!} form={q.data as PublicFormData} embed={embed} /></main>;
+  // TD2: a form with the new pieces always uses the Forms pro page (chat style becomes one question at a time).
+  const td2 = q.data?.td2;
+  const pro = !!td2 && !!q.data?.fields.some((x) => TD2_ANSWER_TYPES.includes(x.type) || isLayout(x.type) || !!x.requireWhen || !!x.disableWhen || !!x.logic?.groups?.length || x.logic?.action === "hide" || x.display === "stars");
+  const chat = !!q.data?.plus && (q.data.plus.mode === "chat" || embed);
+  if (q.data && chat && !pro) return <main className="min-h-dvh bg-bg text-fg"><ChatForm slug={slug!} form={q.data as PublicFormData} embed={embed} /></main>;
+  if (q.data && td2) return <PublicFormTd2 slug={slug!} form={q.data as Td2PublicForm} oneAtATime={chat} embed={embed} />;
+  // TD2: a form that could not load (not a missing one) offers Retry.
+  if (td2On && q.isError && !(q.error instanceof ApiError && q.error.status === 404)) return (
+    <main className="min-h-dvh bg-bg px-4 py-10 text-fg"><div className="mx-auto max-w-lg"><Card className="p-8 text-center" data-testid="form-load-error">
+      <h1 className="text-lg font-semibold">Couldn't load this form</h1><p className="mt-1 text-[13px] text-muted">Check your connection and try again.</p>
+      <Button className="mt-4" onClick={() => void q.refetch()} loading={q.isFetching}>Retry</Button>
+    </Card></div></main>
+  );
   return <ClassicPublicForm />;
 }
 

@@ -1336,6 +1336,8 @@ export const forms = sqliteTable("forms", {
   webhookUrl: text("webhook_url"),
   webhookSecret: text("webhook_secret"),
   webhookFailures: integer("webhook_failures").notNull().default(0),
+  /** TD2 (0153): JSON { progress, oneAtATime } (src/shared/forms-td2.ts); null = defaults. */
+  td2: text("td2"),
   ...suiteCols(),
 }, (t) => [index("forms_org_idx").on(t.orgId), uniqueIndex("forms_slug_uq").on(t.slug)]);
 
@@ -1357,6 +1359,25 @@ export const formSubmissions = sqliteTable("form_submissions", {
   reviewState: text("review_state", { enum: ["new", "shortlisted", "declined"] }).notNull().default("new"),
   createdAt: createdAt(),
 }, (t) => [index("form_submissions_form_idx").on(t.formId, t.createdAt)]);
+
+/**
+ * TD2 (0153): a file or signature sent with a public form. The bytes live in the existing file storage
+ * (key "fu/<org>/<id>"); submission_id stays null until the answer is sent, and unsent ones go after a day.
+ */
+export const formUploads = sqliteTable("form_uploads", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  formId: text("form_id").notNull().references(() => forms.id, { onDelete: "cascade" }),
+  fieldId: text("field_id").notNull(),
+  submissionId: text("submission_id"),
+  kind: text("kind", { enum: ["file", "signature"] }).notNull().default("file"),
+  name: text("name").notNull(),
+  contentType: text("content_type").notNull(),
+  size: integer("size").notNull(),
+  parts: integer("parts").notNull().default(1),
+  ipHash: text("ip_hash"),
+  createdAt: createdAt(),
+}, (t) => [index("form_uploads_sender_idx").on(t.formId, t.ipHash, t.createdAt), index("form_uploads_submission_idx").on(t.submissionId), index("form_uploads_org_idx").on(t.orgId, t.createdAt)]);
 
 /** A video meeting (LiveKit room) with a guest link, started from a thread, task or contact. */
 export const meetings = sqliteTable("meetings", {

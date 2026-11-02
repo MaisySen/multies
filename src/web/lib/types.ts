@@ -78,6 +78,8 @@ export interface PublicConfig {
   officeEditR113?: boolean; // R113
   /** R93: chat style forms, webhook, embed bubble, feedback boards, calls for submissions (FORMS_PLUS_R93). */
   formsPlus?: boolean;
+  /** TD2: Forms pro (FORMS_TD2). */
+  formsTd2?: boolean;
   homeWidgetsR131?: boolean; // R131
   /** R112: anonymous reporting channel (Forms > Reports) and data requests (Settings > Data requests) (REPORTING_R112). */
   reporting?: boolean;

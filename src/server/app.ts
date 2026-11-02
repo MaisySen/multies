@@ -127,6 +127,7 @@ import { SECURITY_EMAIL } from "@/shared/trust";
 import { authEmailSettingsRoutes } from "./routes/auth-email-settings-r27";
 import { formRoutes, meetingRoutes, publicRoutes, reportRoutes, timeRoutes } from "./routes/suite-r7";
 import { formResultsRoutes } from "./routes/forms-r31";
+import { formsTd2PublicRoutes, formsTd2Routes } from "./routes/forms-td2"; // TD2
 import { helpdeskRoutes, surveyRoutes, widgetRoutes, WIDGET_JS_HEADERS } from "./routes/helpdesk"; // R119
 import { helpCenterRoutes, helpPublicRoutes } from "./routes/help-center"; // R122
 import { docsPlusRoutes } from "./routes/docs-plus"; // R103
@@ -473,6 +474,7 @@ export function createApp(deps: Deps) {
       tablesR125: !!deps.config.tablesR125, // R125: tables (vv8k gets 404 from the API and no entry points)
       polishPol1: !!deps.config.polishPol1, // POL1: tables and courses to the trash with restore
       formsPlus: !!deps.config.formsPlus, // R93: chat forms, webhook, embed, feedback boards, calls for submissions
+      formsTd2: !!deps.config.formsTd2, // TD2: Forms pro
       homeWidgetsR131: !!deps.config.homeWidgetsR131, // R131: Home widgets
       reporting: !!deps.config.reporting, // R112: anonymous reporting channel and data requests
       socialP3R132: !!deps.config.socialP3R132, // R132: Social P3
@@ -683,6 +685,7 @@ export function createApp(deps: Deps) {
   app.route("/api/timesheets", timesheetRoutes()); // R95: timesheet submit and approve
   app.route("/api/forms", formRoutes());
   app.route("/api/forms", formResultsRoutes()); // R31: logic and results
+  app.route("/api/forms", formsTd2Routes()); // TD2: response files, delete a response (FORMS_TD2)
   app.route("/api/reports", reportRoutes());
   app.route("/api/meetings", meetingRoutes());
   app.route("/api/meeting-notes", meetingNotesRoutes()); // Round 23: agenda and notes doc, action items
@@ -693,6 +696,7 @@ export function createApp(deps: Deps) {
   app.route("/api/public/meeting-lobby", publicMeetingLobbyRoutes()); // R32: waiting room (guests)
   app.route("/api/webinars", webinarRoutes()); // R114: webinar settings, stage and report (members)
   app.route("/api/public/webinars", publicWebinarRoutes()); // R114: registration and attendee pages
+  app.route("/api/public", formsTd2PublicRoutes()); // TD2: form uploads and image blocks (FORMS_TD2)
   app.route("/api/public", publicRoutes());
   app.route("/api/check", checkRoutes());
   app.route("/api/fields", fieldRoutes());
