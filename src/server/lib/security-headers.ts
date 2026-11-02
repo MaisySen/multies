@@ -114,19 +114,17 @@ export const SCALAR_CDN = `https://cdn.jsdelivr.net/npm/@scalar/api-reference@${
  * script (R30: no inline script and no 'unsafe-inline' in script-src any more). That page holds
  * no user data, so it gets its own policy.
  */
-/** R132: the Snapchat share page loads Snapchat's share button script; it holds no user data, so it gets its own policy. */
-export const SNAP_SDK = "https://sdk.snapkit.com";
+/**
+ * R132: the Snapchat share page holds no user data and loads no outside script (root rule 01:10 UTC Nov 2: no page
+ * policy is loosened for it). Its only script is our own copy button file.
+ */
 export function snapShareCsp(): string {
   return serialize({
     "default-src": ["'self'"],
-    // R132 (v24 BLOCKER 00:11 UTC Nov 2): the Snap share script evaluates strings, so this one page (no session, no
-    // data, one https link) allows eval; every other page keeps its own policy without it.
-    "script-src": ["'self'", "'unsafe-eval'", SNAP_SDK],
-    "style-src": ["'self'", "'unsafe-inline'", SNAP_SDK],
-    "img-src": ["'self'", "data:", "https:"],
-    "frame-src": [SNAP_SDK, "https://*.snapchat.com"],
-    "connect-src": ["'self'", SNAP_SDK, "https://api.snapkit.com", "https://*.snapchat.com"],
-    "font-src": ["'self'", "https://snapnet-cdn.storage.googleapis.com"], // the share button's own font
+    "script-src": ["'self'"],
+    "style-src": ["'self'", "'unsafe-inline'"],
+    "img-src": ["'self'", "data:"],
+    "connect-src": ["'self'"],
     "object-src": ["'none'"],
     "base-uri": ["'self'"],
     "form-action": ["'self'"],

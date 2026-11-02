@@ -90,15 +90,27 @@ test("composer: pin details, best time chips, writing help with Undo, Snapchat s
   await expect(page).toHaveURL(/\/app\/social\/posts/, { timeout: 15_000 });
 });
 
-test("snapchat share page has the share button and no share without a link", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  const res = await page.goto("/share/snapchat?u=" + encodeURIComponent("https://acme.example/mugs"));
-  expect(res?.status()).toBe(200);
-  expect(res?.headers()["content-security-policy"]).toContain("https://sdk.snapkit.com");
-  await expect(page).toHaveTitle("Share to Snapchat");
-  await expect(page.locator(".snapchat-creative-kit-share")).toHaveAttribute("data-share-url", "https://acme.example/mugs");
-  // v24 BLOCKER: the plain link works even when the share script cannot load.
-  await expect(page.getByRole("link", { name: "Open in Snapchat" })).toHaveAttribute("href", "https://www.snapchat.com/scan?attachmentUrl=" + encodeURIComponent("https://acme.example/mugs"));
+test("snapchat share page: Open in Snapchat and Copy link, no outside script, and no share without a link", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const outside: string[] = [];
+  page.on("request", (r) => { const h = new URL(r.url()).hostname; if (/^https?:/.test(r.url()) && h !== "localhost" && h !== "127.0.0.1") outside.push(r.url()); });
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.setViewportSize(scheme === "dark" ? { width: 390, height: 844 } : { width: 1280, height: 860 });
+    const res = await page.goto("/share/snapchat?u=" + encodeURIComponent("https://acme.example/mugs"));
+    expect(res?.status()).toBe(200);
+    const csp = res?.headers()["content-security-policy"] ?? "";
+    expect(csp).not.toContain("unsafe-eval");
+    expect(csp).not.toContain("snapkit");
+    await expect(page).toHaveTitle("Share to Snapchat");
+    await expect(page.getByRole("link", { name: "Open in Snapchat" })).toHaveAttribute("href", "https://www.snapchat.com/scan?attachmentUrl=" + encodeURIComponent("https://acme.example/mugs"));
+    await expect(page.getByLabel("Link to share")).toHaveValue("https://acme.example/mugs");
+    await page.getByRole("button", { name: "Copy link" }).click();
+    await expect(page.getByRole("status")).toHaveText("Link copied. Paste it in Snapchat.");
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("https://acme.example/mugs");
+    expect(outside).toEqual([]);
+    await axe(page, `snap-share-${scheme}`);
+  }
   const bad = await page.goto("/share/snapchat?u=javascript:alert(1)");
   expect(bad?.status()).toBe(400);
   await expect(page.getByRole("heading", { name: "Nothing to share" })).toBeVisible();

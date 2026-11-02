@@ -209,22 +209,27 @@ export async function writeHelp(deps: Deps, auth: AuthContext, input: { action: 
 const esc = (v: string) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 /** The small share page: the Snapchat share button for one https link, and nothing else. No session, no data. */
+/** R132: the share page's only script, served from our own origin (no outside script, no page policy exception). */
+export const SNAP_COPY_JS_PATH = "/share/snapchat-copy.js";
+export const SNAP_COPY_JS = `(function(){var b=document.getElementById("copy-link"),i=document.getElementById("share-link"),s=document.getElementById("copy-status");if(!b||!i||!s)return;function done(ok){s.textContent=ok?"Link copied. Paste it in Snapchat.":"Couldn't copy. Select the link and copy it.";}b.addEventListener("click",function(){var v=b.getAttribute("data-link")||i.value;if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(v).then(function(){done(true)},function(){i.focus();i.select();var ok=false;try{ok=document.execCommand("copy")}catch(e){}done(ok)})}else{i.focus();i.select();var ok=false;try{ok=document.execCommand("copy")}catch(e){}done(ok)}});})();`;
+
 /** R132: Snapchat's own web share address for a link. Works without the share script (the plain fallback on the share page). */
 export function snapWebShareUrl(link: string): string {
   return `https://www.snapchat.com/scan?attachmentUrl=${encodeURIComponent(link)}`;
 }
 
-export function snapSharePage(link: string | undefined, appId: string | null): { status: number; html: string } {
+export function snapSharePage(link: string | undefined, _appId: string | null = null): { status: number; html: string } {
   const ok = !!link && isHttpsLink(link);
   const body = ok
-    ? `<h1>Share to Snapchat</h1><p>Tap Open in Snapchat to share this link. Paste your caption there.</p>
-<p><a class="open" href="${esc(snapWebShareUrl(link!))}" rel="noopener noreferrer">Open in Snapchat</a></p>
-<div class="snapchat-creative-kit-share" data-theme="dark" data-size="large" data-share-url="${esc(link!)}"></div>
-<p class="link">${esc(link!)}</p><script async src="https://sdk.snapkit.com/js/v1/create.js"></script>`
+    ? `<h1>Share to Snapchat</h1><p>Open Snapchat with this link attached, or copy the link and paste it there with your caption.</p>
+<p class="actions"><a class="open" href="${esc(snapWebShareUrl(link!))}" rel="noopener noreferrer">Open in Snapchat</a>
+<button type="button" class="copy" id="copy-link" data-link="${esc(link!)}">Copy link</button></p>
+<label for="share-link" class="lbl">Link to share</label><input id="share-link" class="link" type="text" readonly value="${esc(link!)}">
+<p id="copy-status" class="status" role="status" aria-live="polite"></p><script src="${SNAP_COPY_JS_PATH}"></script>`
     : `<h1>Nothing to share</h1><p>This share link is missing its web address. Go back to the composer and try again.</p>`;
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
-<title>Share to Snapchat</title>${appId ? `<meta property="snapchat:app_id" content="${esc(appId)}">` : ""}
-<style>body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:32px 20px;background:#fafafa;color:#1a1a1a;max-width:520px;margin:0 auto}h1{font-size:22px;margin:0 0 8px}p{margin:0 0 16px;color:#444}.link{word-break:break-all;font-size:14px;color:#555}.open{display:inline-flex;align-items:center;min-height:44px;padding:0 20px;border-radius:999px;background:#fffc00;color:#000;font-weight:600;text-decoration:none}.open:focus-visible{outline:3px solid #1a73e8;outline-offset:2px}@media (prefers-color-scheme:dark){body{background:#141414;color:#eee}p,.link{color:#bbb}}</style>
+<title>Share to Snapchat</title>
+<style>body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:32px 20px;background:#fafafa;color:#1a1a1a;max-width:520px;margin:0 auto}h1{font-size:22px;margin:0 0 8px}p{margin:0 0 16px;color:#444}.link{word-break:break-all;font-size:14px;color:#555}.open{display:inline-flex;align-items:center;min-height:44px;padding:0 20px;border-radius:999px;background:#fffc00;color:#000;font-weight:600;text-decoration:none}.open:focus-visible,.copy:focus-visible,.link:focus-visible{outline:3px solid #1a73e8;outline-offset:2px}.actions{display:flex;flex-wrap:wrap;gap:12px}.copy{min-height:44px;padding:0 20px;border-radius:999px;border:1px solid #1a1a1a;background:#fff;color:#1a1a1a;font:inherit;font-weight:600;cursor:pointer}.lbl{display:block;font-size:14px;font-weight:600;margin:8px 0 4px}input.link{box-sizing:border-box;width:100%;min-height:44px;padding:8px 12px;border:1px solid #888;border-radius:8px;background:#fff;color:#1a1a1a;font:inherit;font-size:14px}.status{min-height:24px;margin-top:8px;font-size:14px}@media (prefers-color-scheme:dark){body{background:#141414;color:#eee}p{color:#bbb}.copy{background:#222;color:#eee;border-color:#bbb}input.link{background:#1e1e1e;color:#eee;border-color:#888}}</style>
 </head><body><main>${body}</main></body></html>`;
   return { status: ok ? 200 : 400, html };
 }

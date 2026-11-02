@@ -554,10 +554,14 @@ export function createApp(deps: Deps) {
   app.route("/api/apps", appConnectionRoutes()); // R80C: Connections hub
   app.route("/api/social", socialRoutes()); // R80C: social posts
   if (deps.config.socialP3R132) {
-    // R132: the Snapchat share page (no session, no data: one https link and Snapchat's share button).
+    // R132: the Snapchat share page (no session, no data: one https link, Open in Snapchat and Copy link; no outside script).
     app.get("/share/snapchat", async (c) => {
       const page = (await import("./services/integrations/social-p3")).snapSharePage(c.req.query("u"), null);
       return c.html(page.html, page.status as 200 | 400, { "cache-control": "no-store", "x-robots-tag": "noindex" });
+    });
+    app.get("/share/snapchat-copy.js", async (c) => {
+      const { SNAP_COPY_JS } = await import("./services/integrations/social-p3");
+      return c.body(SNAP_COPY_JS, 200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=300", "x-robots-tag": "noindex" });
     });
   }
   app.route("/api/fx", fxRoutes());

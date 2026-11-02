@@ -74,13 +74,16 @@ describe("R132 pure rules", () => {
     expect(snapSharePage("http://acme.com", null).status).toBe(400);
   });
 
-  it("the share page always has a plain Open in Snapchat link, and only its own policy allows the share script's eval", async () => {
+  it("the share page has a plain Open in Snapchat link and Copy link, and no outside script or loosened policy", async () => {
     const page = snapSharePage("https://acme.com/a?b=1", null);
     expect(page.html).toContain('href="https://www.snapchat.com/scan?attachmentUrl=https%3A%2F%2Facme.com%2Fa%3Fb%3D1"');
     expect(page.html).toContain(">Open in Snapchat</a>");
-    const { snapShareCsp, appCsp } = await import("../src/server/lib/security-headers");
-    expect(snapShareCsp()).toMatch(/script-src 'self' 'unsafe-eval' https:\/\/sdk\.snapkit\.com/);
-    expect(appCsp({})).not.toContain("'unsafe-eval'");
+    expect(page.html).toContain('<script src="/share/snapchat-copy.js"></script>');
+    expect(page.html).not.toMatch(/<script[^>]+src="https?:/);
+    const { snapShareCsp } = await import("../src/server/lib/security-headers");
+    expect(snapShareCsp()).not.toContain("unsafe-eval");
+    expect(snapShareCsp()).not.toContain("snapkit");
+    expect(snapShareCsp()).toContain("script-src 'self';");
   });
 
   it("maps YouTube comment threads and the reply body", () => {
@@ -256,9 +259,18 @@ describe("R132 API on mocks", () => {
     const res = await ctx.app.request("/share/snapchat?u=" + encodeURIComponent("https://acme.com/spring"));
     expect(res.status).toBe(200);
     const csp = res.headers.get("content-security-policy") ?? "";
-    expect(csp).toContain("https://sdk.snapkit.com");
+    // Root rule (01:10 UTC Nov 2): no outside script and no loosened page policy on this page.
+    expect(csp).not.toContain("unsafe-eval");
+    expect(csp).not.toContain("snapkit");
+    expect(csp).toContain("script-src 'self';");
     expect(csp).toContain("frame-ancestors 'none'");
-    expect(await res.text()).toContain('data-share-url="https://acme.com/spring"');
+    const html = await res.text();
+    expect(html).toContain('value="https://acme.com/spring"');
+    expect(html).toContain(">Copy link</button>");
+    expect(html).not.toContain("snapkit");
+    const js = await ctx.app.request("/share/snapchat-copy.js");
+    expect(js.status).toBe(200);
+    expect(js.headers.get("content-type")).toContain("javascript");
   });
 });
 
@@ -285,6 +297,6 @@ describe("R132 Snapchat share page reaches the app on the Worker", () => {
   it("lists /share/snapchat among the paths the Worker sends to the app", async () => {
     const { readFileSync } = await import("node:fs");
     const src = readFileSync(new URL("../src/entry/worker.ts", import.meta.url), "utf8");
-    expect(src).toContain('url.pathname === "/share/snapchat"');
+    expect(src).toContain('url.pathname.startsWith("/share/snapchat")');
   });
 });
