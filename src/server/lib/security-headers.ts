@@ -114,6 +114,23 @@ export const SCALAR_CDN = `https://cdn.jsdelivr.net/npm/@scalar/api-reference@${
  * script (R30: no inline script and no 'unsafe-inline' in script-src any more). That page holds
  * no user data, so it gets its own policy.
  */
+/** R132: the Snapchat share page loads Snapchat's share button script; it holds no user data, so it gets its own policy. */
+export const SNAP_SDK = "https://sdk.snapkit.com";
+export function snapShareCsp(): string {
+  return serialize({
+    "default-src": ["'self'"],
+    "script-src": ["'self'", SNAP_SDK],
+    "style-src": ["'self'", "'unsafe-inline'", SNAP_SDK],
+    "img-src": ["'self'", "data:", "https:"],
+    "frame-src": [SNAP_SDK, "https://*.snapchat.com"],
+    "connect-src": ["'self'", SNAP_SDK, "https://*.snapchat.com"],
+    "object-src": ["'none'"],
+    "base-uri": ["'self'"],
+    "form-action": ["'self'"],
+    "frame-ancestors": ["'none'"],
+  });
+}
+
 export function docsCsp(): string {
   return serialize({
     "default-src": ["'self'"],

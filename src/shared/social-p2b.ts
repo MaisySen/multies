@@ -21,6 +21,7 @@ export const NETWORK_CAPS: Record<string, NetworkCaps> = {
   threads: caps({ analytics: true, note: "Replies come once Threads approves reply access for Multies." }),
   tiktok: caps({ note: "Videos are posted from the TikTok card. Comments and results are not shared with Multies yet." }),
   twitter: caps({ note: "Posting only." }),
+  youtube: caps({ posts: false, comments: true, note: "Comments on your videos. Uploading videos from Multies comes later." }), // R132
   testnet: caps({ comments: true, messages: true, mentions: true, analytics: true }),
 };
 

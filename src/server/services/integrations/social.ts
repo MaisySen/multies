@@ -22,6 +22,7 @@ import {
   canPublish, cleanCampaign, composerChecks, formatFit, NETWORK_RULES, pollProblem, SOCIAL_FORMATS, textFor,
   type PostExtras, type SocialFormat,
 } from "@/shared/social-p2";
+import { cleanP3, pinArgs, p3SourceApps } from "@/shared/social-p3";
 
 /** Due posts one cron pass takes; the rest wait for the next pass. */
 export const SOCIAL_PASS_LIMIT = 10;
@@ -90,7 +91,7 @@ function cleanTexts(main: string, texts: Record<string, string> | null | undefin
   return Object.keys(out).length ? out : null;
 }
 
-function cleanExtras(x: PostExtras | null | undefined, strict: boolean): PostExtras | null {
+function cleanExtras(x: PostExtras | null | undefined, strict: boolean, p3 = false): PostExtras | null {
   if (!x) return null;
   const firstComment = (x.firstComment ?? "").trim().slice(0, 2000) || null;
   let poll = x.poll ?? null;
@@ -99,7 +100,9 @@ function cleanExtras(x: PostExtras | null | undefined, strict: boolean): PostExt
     const bad = pollProblem(poll);
     if (bad && strict) throw new HttpError(422, "bad_poll", bad);
   }
-  const out: PostExtras = { ...(firstComment ? { firstComment } : {}), ...(poll ? { poll } : {}), ...(x.linkCard ? { linkCard: true } : {}) };
+  // R132: pin, video and business post details ride the same extras (flag SOCIAL_P3_R132), cleaned to known fields.
+  const det = p3 ? cleanP3(x) : null;
+  const out: PostExtras = { ...(firstComment ? { firstComment } : {}), ...(poll ? { poll } : {}), ...(x.linkCard ? { linkCard: true } : {}), ...(det ?? {}) };
   return Object.keys(out).length ? out : null;
 }
 
@@ -138,7 +141,7 @@ async function preparePost(deps: Deps, auth: AuthContext, input: CreatePostInput
   }
   const format: SocialFormat = input.format && (SOCIAL_FORMATS as readonly string[]).includes(input.format) ? input.format : mediaIds.length > 1 ? "carousel" : mediaIds.length ? "image" : "text";
   const texts = cleanTexts(text, input.texts);
-  const extras = cleanExtras(input.extras, strict);
+  const extras = cleanExtras(input.extras, strict, deps.config.socialP3R132 === true);
 
   const now = deps.now();
   let runAt = now;
@@ -721,10 +724,8 @@ export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResu
   },
   async pinterest(ctx) {
     if (!ctx.image) return { status: "skipped", error: "needs_image" };
-    const data = await run(ctx, "PINTEREST_CREATE_PIN", {
-      board_id: ctx.target, description: ctx.text.slice(0, 800), title: ctx.text.split("\n")[0]!.slice(0, 100),
-      media_source: { source_type: "image_base64", content_type: ctx.image.type, data: ctx.image.b64 },
-    });
+    // R132: the pin's own title, destination link and alt text when the post carries them (else the first line as title).
+    const data = await run(ctx, "PINTEREST_CREATE_PIN", pinArgs(ctx.text, ctx.target ?? "", ctx.image, ctx.extras?.pin));
     const id = dig(data, ["id"]);
     return { status: "sent", url: id ? `https://www.pinterest.com/pin/${id}/` : null, remoteId: id };
   },
@@ -921,7 +922,10 @@ export async function accountHealth(deps: Deps, auth: AuthContext, opts: { fresh
   const userId = platformUserId(cp, auth.orgId);
   let accounts: CpAccount[];
   try { accounts = await cp.accounts(userId); } catch (err) { return toHttp(err); }
-  const social = accounts.filter((a) => (a.user_id === undefined || a.user_id === userId) && (a.toolkit?.slug ?? "") in SOCIAL_NETWORKS);
+  // R132: YouTube (and Business Profile when its held flag is on) get health rows too.
+  const p3 = deps.config.socialP3R132 === true ? await import("./social-p3") : null;
+  const extraApps = p3 ? p3SourceApps(p3.p3Flags(deps)) : [];
+  const social = accounts.filter((a) => (a.user_id === undefined || a.user_id === userId) && ((a.toolkit?.slug ?? "") in SOCIAL_NETWORKS || extraApps.includes(a.toolkit?.slug ?? "")));
   const rows = await Promise.all(social.map(async (a): Promise<AccountHealthView> => {
     const app = a.toolkit?.slug ?? "";
     let code: string | null = null;
@@ -935,7 +939,11 @@ export async function accountHealth(deps: Deps, auth: AuthContext, opts: { fresh
           const raw = a as unknown as { state?: { val?: { scope?: unknown; scopes?: unknown } } };
           const sc = raw.state?.val?.scope ?? raw.state?.val?.scopes;
           code = await linkedinHealth(ctx, typeof sc === "string" ? sc : Array.isArray(sc) ? sc.join(",") : null);
-        }
+        } else if (p3 && app === "youtube") {
+          const raw = a as unknown as { state?: { val?: { scope?: unknown; scopes?: unknown } } };
+          const sc = raw.state?.val?.scope ?? raw.state?.val?.scopes;
+          code = await p3.youtubeHealth(ctx, typeof sc === "string" ? sc : Array.isArray(sc) ? sc.join(",") : null);
+        } else if (p3 && app === "pinterest") code = await p3.pinterestHealth(ctx);
       } catch (err) {
         code = err instanceof PublishError ? (err.code === "rejected" || err.code === "network_changed" ? "check_failed" : err.code) : "check_failed";
         deps.log?.warn("social.health_failed", { app, code, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });

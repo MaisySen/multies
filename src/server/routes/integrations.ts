@@ -30,11 +30,20 @@ const PostBody = z.object({
     firstComment: z.string().max(2000).nullable().optional(),
     poll: z.object({ question: z.string().max(200), options: z.array(z.string().max(60)).max(4), days: z.number().int().min(1).max(14) }).nullable().optional(),
     linkCard: z.boolean().optional(),
+    // R132: per network details (cleaned to known fields by the service; kept only when SOCIAL_P3_R132 is on).
+    pin: z.object({ title: z.string().max(300).nullable().optional(), link: z.string().max(2200).nullable().optional(), alt: z.string().max(700).nullable().optional() }).nullable().optional(),
+    youtube: z.object({ title: z.string().max(300).nullable().optional(), privacy: z.enum(["private", "unlisted", "public"]).nullable().optional() }).nullable().optional(),
+    gbp: z.object({
+      type: z.enum(["update", "event", "offer"]).nullable().optional(), title: z.string().max(200).nullable().optional(), start: z.string().max(40).nullable().optional(),
+      end: z.string().max(40).nullable().optional(), coupon: z.string().max(200).nullable().optional(), terms: z.string().max(6000).nullable().optional(), redeem: z.string().max(2200).nullable().optional(),
+    }).nullable().optional(),
   }).nullable().optional(),
   campaign: z.string().max(60).nullable().optional(),
   evergreen: z.boolean().optional(),
   mode: z.enum(["send", "draft", "submit"]).optional(),
 });
+const WriteBody = z.object({ action: z.enum(["shorter", "friendlier", "formal", "hashtags", "fit"]), text: z.string().max(6000), apps: z.array(z.string().max(40)).max(12).optional() }); // R132
+const p3 = () => import("../services/integrations/social-p3"); // R132
 const NoteBody = z.object({ note: z.string().max(1000).optional() });
 const SlotsBody = z.object({ tz: z.string().min(1).max(64), slots: z.array(z.object({ accountId: z.string().max(120).nullable().optional(), weekday: z.number().int().min(0).max(6), minute: z.number().int().min(0).max(1439) })).max(84) });
 const LibraryBody = z.object({ kind: z.enum(["image", "caption", "hashtags"]), name: z.string().max(120), body: z.string().max(6000).nullable().optional(), image: ImageBody.nullable().optional(), campaign: z.string().max(60).nullable().optional() });
@@ -142,6 +151,9 @@ export function socialRoutes() {
     .post("/test-network/signed-out", async (c) => c.json(await (await p2b()).setTestBroken(c.var.deps, c.var.auth, (await parseBody(c, z.object({ broken: z.boolean() }))).broken)))
     .delete("/test-network", async (c) => c.json(await (await p2b()).removeTest(c.var.deps, c.var.auth)))
     // Oct 31: each social account checked without posting (sign in works, posting allowed, a Page reachable).
+    // R132: best times to post (top 3 from the workspace's own results) and writing help on the free AI tier.
+    .get("/best-times", async (c) => c.json(await (await p3()).bestTimesFor(c.var.deps, c.var.auth, c.req.query("apps"), c.req.query("tz"))))
+    .post("/write-help", async (c) => c.json(await (await p3()).writeHelp(c.var.deps, c.var.auth, await parseBody(c, WriteBody))))
     .get("/health", async (c) => c.json({ accounts: await (await social()).accountHealth(c.var.deps, c.var.auth, { fresh: c.req.query("fresh") === "1" }) }))
     .get("/posts/:id", async (c) => c.json({ post: await (await social()).getPost(c.var.deps, c.var.auth.orgId, c.req.param("id")) }))
     .post("/posts", async (c) => {

@@ -5,6 +5,8 @@
  * and approve. No I/O here, so every rule has unit tests.
  */
 
+import { detailsProblem } from "./social-p3";
+
 export const SOCIAL_FORMATS = ["text", "image", "carousel", "video", "story"] as const;
 export type SocialFormat = (typeof SOCIAL_FORMATS)[number];
 export const FORMAT_LABELS: Record<SocialFormat, string> = { text: "Text", image: "Image", carousel: "Carousel", video: "Video", story: "Story or reel" };
@@ -107,7 +109,7 @@ export function pollProblem(p: PollInput | null | undefined): string | null {
   return null;
 }
 
-export interface PostExtras { firstComment?: string | null; poll?: PollInput | null; linkCard?: boolean }
+export interface PostExtras { firstComment?: string | null; poll?: PollInput | null; linkCard?: boolean; /** R132: per network details (pin, youtube, gbp). */ pin?: import("./social-p3").PinDetails | null; youtube?: import("./social-p3").YoutubeDetails | null; gbp?: import("./social-p3").GbpDetails | null }
 
 /** One account's check before sending. */
 export type CheckState = "ready" | "changed" | "out";
@@ -142,6 +144,9 @@ export function composerChecks(input: CheckInput): AccountCheck[] {
     if (input.scheduled && !r.schedule) return out(`${name} posts go out right away, so it can't be scheduled here.`);
     const text = textFor(input.main, input.texts, a.app).trim();
     if (!text && a.app !== "tiktok") return out("Write some text first.");
+    // R132: per network details (pin title, link, alt text), checked only when the post carries them.
+    const p3 = detailsProblem(a.app, text, input.extras ?? null, { format: input.format, imageCount: input.images.length });
+    if (p3) return out(p3);
     const len = charCount(text);
     if (len > r.maxChars) return out(`Too long for ${name}: ${len.toLocaleString("en")} of ${r.maxChars.toLocaleString("en")} characters.`);
     if (a.needsTarget && !(a.target ?? "").trim()) return out(a.app === "pinterest" ? "Pick a board." : a.app === "reddit" ? "Pick a community." : "Pick a Page.");

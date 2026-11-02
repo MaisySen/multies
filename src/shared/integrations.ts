@@ -226,6 +226,7 @@ export const SOCIAL_HEALTH_COPY: Record<string, string> = {
   not_page_admin: "This profile can't post to any Page. Check you are a Page admin, then reconnect.",
   not_finished: "Sign in was not finished. Reconnect to post here.",
   check_failed: "We couldn't check this account just now. You can still post.",
+  no_channel: "This Google account has no YouTube channel. Create one on YouTube, then reconnect.",
 };
 
 /** One account's check, from GET /api/social/health. */

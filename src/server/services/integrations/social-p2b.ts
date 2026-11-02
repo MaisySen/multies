@@ -62,7 +62,9 @@ async function sourceAccounts(deps: Deps, orgId: string): Promise<SourceAccount[
       const userId = platformUserId(cp, orgId);
       for (const a of await cp.accounts(userId)) {
         const app = a.toolkit?.slug ?? "";
-        if ((a.user_id === undefined || a.user_id === userId) && app in SOCIAL_NETWORKS && app !== TEST_NETWORK && statusOf(a.status) === "active") {
+        // R132: YouTube comments come in too (flag SOCIAL_P3_R132).
+        const p3App = deps.config.socialP3R132 === true && app === "youtube";
+        if ((a.user_id === undefined || a.user_id === userId) && (app in SOCIAL_NETWORKS || p3App) && app !== TEST_NETWORK && statusOf(a.status) === "active") {
           out.push({ id: a.id, app, label: a.alias?.trim() || appLabel(app), cp, userId });
         }
       }
@@ -199,6 +201,7 @@ async function pull(deps: Deps, orgId: string, a: SourceAccount): Promise<Incomi
   if (a.app === "facebook") return pullFacebook(deps, a);
   if (a.app === "instagram") return pullInstagram(deps, a);
   if (a.app === "reddit") return pullReddit(deps, a);
+  if (a.app === "youtube" && deps.config.socialP3R132 === true) return (await import("./social-p3")).pullYoutube(ctxOf(deps, a), deps.now());
   return [];
 }
 
@@ -460,6 +463,11 @@ async function sendReply(deps: Deps, auth: AuthContext, r: ItemRow, text: string
   if (r.app === "reddit") {
     const res = await proxyCall(ctx, { endpoint: "https://oauth.reddit.com/api/comment", method: "POST", body: { thing_id: r.remoteId, text, api_type: "json" } });
     if (res.status >= 400) throw new PublishError(res.status === 401 || res.status === 403 ? "reconnect" : "rejected", `reddit ${res.status}`);
+    return;
+  }
+  if (r.app === "youtube" && deps.config.socialP3R132 === true) {
+    if (r.kind !== "comment") throw new PublishError("not_supported", "youtube kind");
+    await (await import("./social-p3")).replyYoutube(ctx, r.remoteId, text);
     return;
   }
   throw new PublishError("not_supported", r.app);

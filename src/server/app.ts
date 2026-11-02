@@ -9,7 +9,7 @@ import { isD1LimitError, READ_ONLY_BODY } from "./lib/d1-limit";
 import { busyBody, d1BusyKind } from "./lib/d1-busy";
 import { healthView, noteD1LimitHit, readsView, writeBudget } from "./services/write-budget";
 import { deferredCounts } from "./services/write-priority";
-import { API_CSP, CAMPAIGN_PUBLIC_CSP, EMBED_FORM_PATH, PRIVATE_PAGE_PATH, appCsp, docsCsp, frameableCsp, isHttps, securityHeaders } from "./lib/security-headers";
+import { API_CSP, CAMPAIGN_PUBLIC_CSP, EMBED_FORM_PATH, PRIVATE_PAGE_PATH, appCsp, docsCsp, frameableCsp, isHttps, securityHeaders, snapShareCsp } from "./lib/security-headers";
 import { installCspReport } from "./routes/csp-report-r30";
 import type { AppEnv, Deps } from "./context";
 import { HttpError } from "./lib/errors";
@@ -238,6 +238,7 @@ export function createApp(deps: Deps) {
   const apiHeaders = securityHeaders({ csp: API_CSP, hsts });
   const campaignPublicHeaders = securityHeaders({ csp: CAMPAIGN_PUBLIC_CSP, hsts }); // R109: its pages post their own forms
   const docsHeaders = securityHeaders({ csp: docsCsp(), hsts });
+  const snapHeaders = securityHeaders({ csp: snapShareCsp(), hsts }); // R132: Snapchat share page
   // Pages served by this app (the Node server serves the SPA too) get the page policy.
   // R67 (QA5 #11): the zone adds Cloudflare's cookieless analytics beacon to pages this worker makes (the public sign and
   // share pages), so its script and reporting host are always allowed; a blocked beacon was a console error on each load.
@@ -249,7 +250,7 @@ export function createApp(deps: Deps) {
     await next();
     const p = c.req.path;
     if (p === "/widget.js" || p === "/forms-embed.js") return; // R119 chat script, R93 form bubble: load on other sites (own headers)
-    const set = p === "/api/v1/reference" ? docsHeaders : p.startsWith("/api/campaign-public/") ? campaignPublicHeaders : p.startsWith("/api/") || p.startsWith("/.well-known/") ? apiHeaders : p.startsWith("/f/") ? formPageHeaders : PRIVATE_PAGE_PATH.test(p) ? privatePageHeaders : pageHeaders;
+    const set = p === "/share/snapchat" && deps.config.socialP3R132 ? snapHeaders : p === "/api/v1/reference" ? docsHeaders : p.startsWith("/api/campaign-public/") ? campaignPublicHeaders : p.startsWith("/api/") || p.startsWith("/.well-known/") ? apiHeaders : p.startsWith("/f/") ? formPageHeaders : PRIVATE_PAGE_PATH.test(p) ? privatePageHeaders : pageHeaders;
     for (const [k, v] of Object.entries(set)) c.res.headers.set(k, v);
     // R93: only the form inside the website bubble may be framed by other sites.
     if (EMBED_FORM_PATH.test(p) && deps.config.formsPlus) { c.res.headers.delete("x-frame-options"); c.res.headers.set("content-security-policy", frameableCsp(formPageHeaders["content-security-policy"])); }
@@ -467,6 +468,9 @@ export function createApp(deps: Deps) {
       formsPlus: !!deps.config.formsPlus, // R93: chat forms, webhook, embed, feedback boards, calls for submissions
       homeWidgetsR131: !!deps.config.homeWidgetsR131, // R131: Home widgets
       reporting: !!deps.config.reporting, // R112: anonymous reporting channel and data requests
+      socialP3R132: !!deps.config.socialP3R132, // R132: Social P3
+      socialYoutubeUploadR132: !!deps.config.socialP3R132 && !!deps.config.socialYoutubeUploadR132, // R132 held
+      socialGbpR132: !!deps.config.socialP3R132 && !!deps.config.socialGbpR132, // R132 held
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
       chatChannels: deps.config.channels.enabled,
       // R111: mail archive and retention (MAIL_ARCHIVE_R111=on): the Archive and retention pane and Audit log filters.
@@ -549,6 +553,13 @@ export function createApp(deps: Deps) {
   app.route("/", deleteAccountCallbackRoutes()); // R83: POST /delete-account (Threads uninstall and delete callbacks)
   app.route("/api/apps", appConnectionRoutes()); // R80C: Connections hub
   app.route("/api/social", socialRoutes()); // R80C: social posts
+  if (deps.config.socialP3R132) {
+    // R132: the Snapchat share page (no session, no data: one https link and Snapchat's share button).
+    app.get("/share/snapchat", async (c) => {
+      const page = (await import("./services/integrations/social-p3")).snapSharePage(c.req.query("u"), null);
+      return c.html(page.html, page.status as 200 | 400, { "cache-control": "no-store", "x-robots-tag": "noindex" });
+    });
+  }
   app.route("/api/fx", fxRoutes());
   app.route("/api/aliases", aliasRoutes());
   app.route("/api/org", orgRoutes());

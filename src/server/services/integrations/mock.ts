@@ -127,6 +127,22 @@ function proxy(state: MockComposioState, body: { connected_account_id?: string; 
     if (method === "POST" && /\/feed$/.test(u.pathname)) return net(200, { id: nid("pg_post") });
     return net(404, { error: { message: "Unknown path", code: 803 } });
   }
+  // R132: YouTube (channel, comment threads, a reply) and Pinterest (account read). acct.data.expired = signed out;
+  // acct.data.noChannel = a Google account with no channel; a reply containing FAIL is turned down.
+  if (u.hostname === "www.googleapis.com" && u.pathname.startsWith("/youtube/v3/")) {
+    if (acct.data.expired) return net(401, { error: { code: 401, message: "Invalid Credentials", errors: [{ reason: "authError" }] } });
+    if (u.pathname.endsWith("/channels")) return net(200, { items: acct.data.noChannel ? [] : [{ id: "UCmock1" }] });
+    if (u.pathname.endsWith("/commentThreads")) return net(200, { items: [
+      { id: "yt_th_1", snippet: { videoId: "vid1", topLevelComment: { id: "yt_c_1", snippet: { videoId: "vid1", textOriginal: "Loved this video, when is part two?", authorDisplayName: "Mia Chen", authorChannelId: { value: "UCfan1" }, publishedAt: "2026-11-01T09:00:00Z" } } } },
+      { id: "yt_th_2", snippet: { videoId: "vid1", topLevelComment: { id: "yt_c_2", snippet: { videoId: "vid1", textOriginal: "Thanks everyone!", authorDisplayName: "Acme", authorChannelId: { value: "UCmock1" }, publishedAt: "2026-11-01T09:05:00Z" } } } },
+    ] });
+    if (u.pathname.endsWith("/comments") && method === "POST") {
+      const t = String((args.snippet as { textOriginal?: unknown } | undefined)?.textOriginal ?? "");
+      return /FAIL/.test(t) ? net(403, { error: { code: 403, message: "The comment cannot be created.", errors: [{ reason: "forbidden" }] } }) : net(200, { id: nid("yt_r") });
+    }
+    return net(404, { error: { code: 404, message: "Not found" } });
+  }
+  if (u.hostname === "api.pinterest.com") return acct.data.expired ? net(401, { code: 2, message: "Authentication failed." }) : net(200, { username: "acme", account_type: "BUSINESS" });
   if (u.hostname === "api.linkedin.com") {
     if (u.pathname === "/v2/userinfo") return acct.data.expired ? net(401, { status: 401, code: "REVOKED_ACCESS_TOKEN", message: "The token used in the request has been revoked by the user" }) : net(200, { sub: String(acct.data.sub ?? "mock1"), name: String(acct.data.name ?? "Ada"), picture: acct.data.picture ?? undefined });
     if (u.pathname.startsWith("/rest/posts/") && method === "DELETE") {

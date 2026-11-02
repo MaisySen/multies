@@ -73,6 +73,7 @@ export interface PublicConfig {
   homeWidgetsR131?: boolean; // R131
   /** R112: anonymous reporting channel (Forms > Reports) and data requests (Settings > Data requests) (REPORTING_R112). */
   reporting?: boolean;
+  socialP3R132?: boolean; socialYoutubeUploadR132?: boolean; socialGbpR132?: boolean; // R132
   /** R59: chat channels (WhatsApp, Messenger, Instagram) in the shared inbox (CHAT_CHANNELS). Off unless set. */
   chatChannels?: boolean;
   /** R111: mail archive and retention (MAIL_ARCHIVE_R111): the Archive and retention pane and Audit log filters. */
