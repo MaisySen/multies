@@ -1,6 +1,7 @@
 import type { Method, RequestOptions, Transport } from "@/api/transport";
 import { sampleJob, sampleToolsInfo } from "./tools";
 import { ApiError } from "@/api/errors";
+import { m1WorkRoute, sampleM1Work } from "./m1-work";
 import type { Approval, Message, SendInput } from "@/api/types";
 import { sampleData } from "./fixtures";
 import { taskRoute } from "./tasks";
@@ -13,8 +14,6 @@ import { runsRoute, sampleRuns } from "./runs";
 import { sampleSocial, socialRoute } from "./social";
 import { mailExtrasRoute, sampleListExtras, sampleMailExtras, sampleSnooze } from "./mail-r85";
 import { snoozeUntil, type SnoozePreset } from "@/lib/snooze";
-import { driveRoute, sampleDrive } from "./drive";
-import { docsRoute, sampleDocs } from "./docs"; // M1
 
 /**
  * The sample workspace runs entirely on the device with no server. It answers the same paths the
@@ -29,13 +28,12 @@ export class SampleTransport implements Transport {
   private email = sampleEmail(Date.now());
   private runs = sampleRuns(Date.now(), this.data.work);
   private social = sampleSocial(Date.now());
-  private docs = sampleDocs(Date.now()); // M1
   private mail = sampleMailExtras(Date.now(), this.data.messages);
-  /** M1: the drive (Files). */
-  private drive = sampleDrive(Date.now());
   /** R35: report and block in the sample workspace, kept in memory only. */
   private blocks: { userId: string; name: string; avatarUrl: string | null; createdAt: string }[] = [];
   private reports = 0;
+  /** M1 (1.10.9): Contacts, Maps, Mail merge, Mail archive and Sync. */
+  private m1work = sampleM1Work(Date.now());
   private toolRuns = 3;
 
   constructor(private latencyMs = 0) {}
@@ -47,9 +45,8 @@ export class SampleTransport implements Transport {
     this.email = sampleEmail(Date.now());
     this.runs = sampleRuns(Date.now(), this.data.work);
     this.social = sampleSocial(Date.now());
-    this.docs = sampleDocs(Date.now()); // M1
+    this.m1work = sampleM1Work(Date.now());
     this.mail = sampleMailExtras(Date.now(), this.data.messages);
-    this.drive = sampleDrive(Date.now());
     this.blocks = [];
     this.reports = 0;
   }
@@ -65,12 +62,6 @@ export class SampleTransport implements Transport {
     const route = `${method} /${parts.map((p, i) => (i > 0 && isId(p) ? ":id" : p)).join("/")}`;
     const id = parts.find((p, i) => i > 0 && isId(p)) ?? "";
     const json = <R>(v: R) => structuredCloneSafe(v) as unknown as T;
-
-    // M1: the drive (Files).
-    if (path.startsWith("/drive/")) return json(driveRoute(this.drive, method, rawPath, body));
-    // M1: global search, Docs, comments and share links.
-    const docs = docsRoute(this.docs, this.data.messages, method, path, params, body, Date.now());
-    if (docs !== undefined) return json(docs);
 
     // 1.10.5: social posts and accounts.
     const social = socialRoute(this.social, method, path.startsWith("/social/inbox") ? rawPath : path, body, Date.now());
@@ -117,6 +108,8 @@ export class SampleTransport implements Transport {
       this.blocks = this.blocks.filter((x) => x.userId !== decodeURIComponent(parts[1]));
       return json({ ok: true });
     }
+    const m1 = m1WorkRoute(this.m1work, method, path, params, body, Date.now());
+    if (m1 !== undefined) return json(m1);
     if (method === "GET" && path === "/portfolio") return json(samplePortfolio(d.work, this.extras, Date.now()));
     if (method === "GET" && path === "/team/people") return json(samplePeople(Date.now()));
     const mail = emailRoute(this.email, d.mailboxes, method, parts, body, Date.now(), params);

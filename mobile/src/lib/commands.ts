@@ -24,7 +24,7 @@ export const COMMAND_IDS = [
   // Go to
   "go-i", "go-t", "go-d", "go-c", "go-m", "go-n",
   // App actions
-  "compose", "new-task", "search-mail", "runs", "tools", "settings", "social-new", "social", "social-inbox", "files", "docs",
+  "compose", "new-task", "search-mail", "runs", "tools", "settings", "social-new", "social", "social-inbox", "contacts", "visits",
   // Task actions (long-press on a task row)
   "task-status", "task-assignee", "task-priority", "task-label", "task-due",
   // Mail actions (long-press and swipe on a mail row)
@@ -45,14 +45,14 @@ export const COMMANDS: Command[] = [
   { id: "go-n", title: "Go to Notifications", scope: "go", icon: "bell", web: ["G", "N"], keywords: ["triage", "activity", "mentions"] },
   { id: "compose", title: "Write an email", scope: "app", icon: "edit-3", web: ["C"], keywords: ["compose", "new message", "send"] },
   { id: "new-task", title: "New task", scope: "app", icon: "plus", keywords: ["create task", "add task", "todo"] },
-  { id: "search-mail", title: "Search", scope: "app", icon: "search", web: ["/"], keywords: ["find"] },
+  { id: "search-mail", title: "Search mail", scope: "app", icon: "search", web: ["/"], keywords: ["find"] },
   { id: "runs", title: "Agent runs", scope: "app", icon: "cpu", keywords: ["agents", "runs", "history"] },
   { id: "tools", title: "Tools", scope: "app", icon: "wrench", keywords: ["pdf", "compress", "merge", "convert", "documents", "word to pdf", "redact", "ocr", "watermark"] },
   { id: "social-new", title: "New social post", scope: "app", icon: "send", keywords: ["facebook", "linkedin", "instagram", "post", "share"] },
   { id: "social-inbox", title: "Social inbox", scope: "app", icon: "inbox", keywords: ["comments", "messages", "mentions", "reply", "facebook", "instagram"] },
-  { id: "docs", title: "Docs", scope: "app", icon: "file-text", keywords: ["pages", "notes", "wiki", "documents", "read", "comments", "share"] },
   { id: "social", title: "Social posts", scope: "app", icon: "send", keywords: ["facebook", "linkedin", "posted", "accounts"] },
-  { id: "files", title: "Files", scope: "app", icon: "layers", keywords: ["drive", "folders", "upload", "team files", "my files", "brand library", "logos", "trash"] },
+  { id: "contacts", title: "Contacts", scope: "app", icon: "user", keywords: ["people", "customers", "clients", "phone", "address", "call"] },
+  { id: "visits", title: "Plan visits", scope: "app", icon: "map-pin", keywords: ["maps", "route", "directions", "stops", "addresses"] },
   { id: "settings", title: "Settings", scope: "app", icon: "settings", keywords: ["preferences", "account", "version"] },
 
   { id: "task-status", title: "Change status", scope: "task", icon: "check-circle", web: ["S"], keywords: ["move", "done"] },
@@ -171,9 +171,9 @@ export function createHandlers(d: CommandDeps): Record<CommandId, CommandHandler
     settings: () => d.navigate("/settings"),
     "social-new": () => d.navigate({ pathname: "/social", params: { tab: "new" } }),
     social: () => d.navigate("/social"),
-    docs: () => d.navigate("/docs"),
     "social-inbox": () => d.navigate({ pathname: "/social", params: { tab: "inbox" } }),
-    files: () => d.navigate("/files"),
+    contacts: () => d.navigate("/contacts"),
+    visits: () => d.navigate("/visits"),
     "task-status": task("status"),
     "task-assignee": task("assignee"),
     "task-priority": task("priority"),
