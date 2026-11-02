@@ -24,7 +24,7 @@ import {
   type Answers, type BuiltContract, type ClauseText, type ContractTemplateDef, type FillContext, type Question,
 } from "@/shared/contracts-r108";
 import { LoadFailure } from "@/web/components/load-error-t1g";
-import { useToolsFocus } from "@/web/components/tools/tools-frame"; // F13b
+import { useToolsFocus } from "@/web/components/tools/tools-focus"; // F13b
 
 interface TemplateSummary { id: string; name: string; description: string; category: string; questionCount: number; clauseCount: number; builtIn: boolean; retired: boolean; baseId: string }
 interface Recent { id: string; title: string; docId: string | null; templateId: string; reminders: number; createdAt: string }

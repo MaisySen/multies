@@ -77,12 +77,17 @@ for (const size of [{ name: "1280", width: 1280, height: 860 }, { name: "390", w
     await answerService(page);
     await expect(page.getByText(/Decide on renewal before the notice date/)).toBeVisible();
     await shot(page, `r108-review-${size.name}-light`, problems);
-    {
+    if (size.width < 1280) {
       await page.getByRole("tab", { name: "Preview" }).click();
       await expect(page.getByTestId("contract-preview")).toBeVisible();
       await shot(page, `r108-preview-${size.name}-light`, problems);
       await page.getByRole("tab", { name: "Questions" }).click();
+    } else {
+      // F13b (MB-309): from 1280 the questions and the preview sit side by side, so there are no tabs
+      await expect(page.getByTestId("contract-preview")).toBeVisible();
+      await expect(page.getByRole("tab", { name: "Preview" })).toBeHidden();
     }
+
     const word = page.waitForEvent("download");
     await page.getByRole("button", { name: "Download Word" }).click();
     expect((await word).suggestedFilename()).toMatch(/^Service agreement.*\.docx$/);

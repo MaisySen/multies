@@ -4,14 +4,9 @@
  * on a wide screen the same rail of every tool on the left, on a phone a clear "All tools" link; a card with the tool's
  * own icon, name, one line and the runs left line. The list and features come from the shared GET /api/tools cache.
  */
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import { ToolsFocusContext } from "./tools-focus"; // F13b (MB-309)
 
-/** F13b (MB-309): a tool view that needs the whole width (the contract interview) hides the rail while it is open. */
-const ToolsFocusContext = createContext<(on: boolean) => void>(() => {});
-export function useToolsFocus() {
-  const set = useContext(ToolsFocusContext);
-  useEffect(() => { set(true); return () => set(false); }, [set]);
-}
 import { Link, useNavigate } from "react-router";
 import { IconArrowLeft, IconSearch } from "@/web/components/ui/icon";
 import { tz } from "@/web/lib/format";

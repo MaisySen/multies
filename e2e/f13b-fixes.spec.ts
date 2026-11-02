@@ -77,21 +77,42 @@ for (const width of [1280, 390]) {
   });
 }
 
-test("contract interview takes the full width at 1280 (MB-309)", async ({ page }) => {
+test("contract interview opens and takes the full width at 1280 (MB-309)", async ({ page }) => {
   test.skip(process.env.CONTRACTS_E2E !== "1", "needs Tools on with the stand in engine (see contracts-r108.spec.ts)");
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
   await page.setViewportSize({ width: 1280, height: 860 });
   await demo(page, "/app/tools/templates?view=contracts");
   await expect(page.getByTestId("contract-note").first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId("tools-rail")).toBeVisible();
   await page.getByTestId("contract-template-std-service").getByRole("button", { name: /^Start/ }).click();
   await expect(page.getByTestId("contract-step")).toBeVisible();
+  await expect(page.getByText("Something went wrong on this page")).toHaveCount(0);
   await expect(page.getByTestId("tools-rail")).toHaveCount(0);
   const step = await page.getByTestId("contract-step").boundingBox();
   const preview = await page.getByTestId("contract-preview").boundingBox();
   expect(step && preview && step.x + step.width <= preview.x).toBeTruthy(); // questions and preview side by side, no overlap
   expect(await noSideScroll(page)).toBe(true);
+  expect(await serious(page)).toEqual([]);
   await page.getByRole("button", { name: "Back to templates" }).click();
   await expect(page.getByTestId("tools-rail")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("contract interview opens at 390 with Questions and Preview tabs (MB-309)", async ({ page }) => {
+  test.skip(process.env.CONTRACTS_E2E !== "1", "needs Tools on with the stand in engine (see contracts-r108.spec.ts)");
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await demo(page, "/app/tools/templates?view=contracts");
+  await expect(page.getByTestId("contract-note").first()).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId("contract-template-std-service").getByRole("button", { name: /^Start/ }).click();
+  await expect(page.getByTestId("contract-step")).toBeVisible();
+  await expect(page.getByText("Something went wrong on this page")).toHaveCount(0);
+  await expect(page.getByRole("tablist", { name: "Questions or preview" })).toBeVisible();
+  expect(await noSideScroll(page)).toBe(true);
+  expect(await serious(page)).toEqual([]);
+  expect(errors).toEqual([]);
 });
 
 for (const scheme of ["light", "dark"] as const) {
