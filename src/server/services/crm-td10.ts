@@ -180,7 +180,7 @@ export async function listSuggestions(deps: Deps, a: Actor): Promise<{ items: Su
   const items: SuggestionView[] = [];
   for (const r of rows) {
     const fields = parseJson<Record<string, string>>(r.fieldsJson, {});
-    let label = ""; let current: Record<string, string | null> | undefined;
+    let label: string; let current: Record<string, string | null> | undefined;
     if (r.targetType === "contact") {
       const c = r.targetId ? cMap.get(r.targetId) : undefined;
       if (!c) continue;
