@@ -212,9 +212,10 @@ export function PrivateComments({ kind, refId }: { kind: "task" | "project"; ref
   const qc = useQueryClient();
   const key = ["td9-private", kind, refId];
   const q = useQuery({ queryKey: key, queryFn: () => api.get<{ comments: Td9Comment[] }>(`/item-comments/${kind}/${refId}`), retry: false });
-  const rec = useQuery({ queryKey: ["td9-recipients", kind, refId], queryFn: () => api.get<{ recipients: Td9Recipient[] }>(`/item-comments/${kind}/${refId}/recipients`), retry: false });
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  // Who can be picked loads only when the composer opens, so opening a task costs one small read.
+  const rec = useQuery({ queryKey: ["td9-recipients", kind, refId], queryFn: () => api.get<{ recipients: Td9Recipient[] }>(`/item-comments/${kind}/${refId}/recipients`), retry: false, enabled: open });
   const send = async (body: string, to: Td9Recipient | null) => {
     if (!to) return false;
     setBusy(true);
