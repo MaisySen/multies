@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-02-get-started",
+    date: "2026-11-02",
+    title: "Get started list and quick tours",
+    body: "A Get started list on Home and My Work ticks itself off as you go. Quick tours show where things live, and admins can build their own tours in Settings, Tours.",
+  },
+  {
     id: "2026-11-02-staff",
     date: "2026-11-02",
     title: "Staff, onboarding and equipment",
@@ -60,8 +66,8 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
     id: "2026-11-02-home-widgets",
     date: "2026-11-02",
-    title: "Arrange your Home and get started",
-    body: "Home is now made of widgets for your tasks, meetings, inbox counts, quick links and more. Drag them into the order you like, change their size or hide them, and admins can set the layout everyone starts with. A Get started list ticks itself off as you go, quick tours show where things live, and admins can build their own in Settings, Tours.",
+    title: "Arrange your Home",
+    body: "Home is now made of widgets for your tasks, meetings, inbox counts, quick links and more. Drag them into the order you like, change their size or hide them, and admins can set the layout everyone starts with.",
   },
   {
     id: "2026-11-02-courses",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Clear errors with Retry",
     body: "If a page cannot load, you see a plain message and a Retry button instead of endless loading, and anything already on screen stays.",
-  },
-  {
-    id: "2026-11-01-faster-search",
-    date: "2026-11-01",
-    title: "Faster search",
-    body: "Search across mail, tasks, docs and files stays quick when the whole team is busy.",
   },
   {
     id: "2026-10-28-whats-new",
