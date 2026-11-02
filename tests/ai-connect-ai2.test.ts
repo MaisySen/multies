@@ -494,7 +494,7 @@ describe("AI2 under the workspace AI switch (TD1)", () => {
     expect(ai.run).not.toHaveBeenCalled();
     const used = await ctx.db.all(sql`select units from ai_usage_daily`);
     expect(used).toEqual([]);
-    expect((await ctx.c.get("/api/ai/status")).body.builtin).toMatchObject({ off: true });
+    expect((await ctx.c.get("/api/ai/status")).body.builtin).toMatchObject({ off: true, active: false }); // MB-330
     expect(ctx.calls).toEqual([]);
   });
 

@@ -127,6 +127,27 @@ test.describe("AI2 connect AI", () => {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(1);
   });
+
+  test("AI switch off: the AI card says AI is off at once and built in AI is not in use, then on again (MB-330)", async ({ browser }) => {
+    test.skip(process.env.E2E_TD1 !== "on", "needs the workspace AI switch (run with E2E_TD1=on)");
+    const page = await signUp(browser, 1280, 900);
+    await openAi(page, "/app/settings/general");
+    await expect(page.getByTestId("ai2-off")).toHaveCount(0);
+    const sw = page.getByRole("switch", { name: "Allow AI in this workspace" });
+    await sw.click();
+    await expect(page.getByTestId("ai2-off")).toBeVisible();
+    await expect(page.getByTestId("ai2-off")).toContainText("AI is off");
+    await expect(page.locator("#ai")).not.toContainText("work right away");
+    const st = await (await page.request.get("/api/ai/status")).json();
+    expect(st.builtin).toMatchObject({ off: true, active: false });
+    await page.reload();
+    await expect(page.getByTestId("ai2-off")).toBeVisible({ timeout: 20_000 });
+    expect(await axe(page)).toEqual([]);
+    await page.getByRole("switch", { name: "Allow AI in this workspace" }).click();
+    await expect(page.getByTestId("ai2-off")).toHaveCount(0);
+    await expect(page.getByTestId("ai2-panel")).toBeVisible();
+    expect((await (await page.request.get("/api/ai/status")).json()).builtin).toMatchObject({ off: false });
+  });
 });
 
 test.describe("AI2 flag off", () => {

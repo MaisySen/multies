@@ -30,6 +30,9 @@ export function AiTrustSection() {
     onSuccess: (r) => {
       qc.setQueryData(["ai-trust"], r);
       void qc.invalidateQueries({ queryKey: ["ask-state"] });
+      // AI2 (MB-330): the AI card and mail assistant read the switch from the AI status; refresh them now.
+      void qc.invalidateQueries({ queryKey: ["ai-status"] });
+      qc.removeQueries({ queryKey: ["ai2-models"] });
       toast.success(r.on ? "AI turned on" : "AI turned off");
     },
     onError: (e) => showError(e as Error),

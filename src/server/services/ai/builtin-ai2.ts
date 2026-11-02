@@ -37,7 +37,7 @@ export async function builtinStatus(deps: Deps, orgId: string) {
     /** TD1 switch: an admin turned AI off here, so no AI path calls any provider. */
     off,
     /** True when the assistant runs on built-in AI now (no own key saved). */
-    active: available && !usage.ownKey,
+    active: available && !off && !usage.ownKey, // MB-330: never "in use" while the workspace switch is off
     paused,
     percent: usage.percent,
     calls: usage.calls,

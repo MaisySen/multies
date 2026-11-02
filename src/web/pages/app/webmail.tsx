@@ -14,7 +14,8 @@ import { useWindowedList } from "@/web/lib/use-windowed-list"; // R43 (MB-210)
 import { IconAgent, IconArchive, IconArrowLeft, IconAttachment, IconBlock, IconClose, IconCompose, IconFile, IconFileEdit, IconForward, IconInbox, IconMove, IconReply, IconSearch, IconSend, IconShieldAlert, IconShieldCheck, IconSparkle, IconStar, IconTrash, type IconComponent, IconSnooze, IconTag, IconWorkflow } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
-import { api } from "@/web/lib/api";
+import { api, ApiError, errorMessage } from "@/web/lib/api";
+import { AI_OFF_MESSAGE } from "@/shared/ask-td1";
 import { qk } from "@/web/lib/queries";
 import type { Folder, Message, MailboxOverview, MessageListItem } from "@/web/lib/types";
 import { Avatar, EmptyState, Kbd, Skeleton } from "@/web/components/ui/misc";
@@ -782,7 +783,22 @@ function Assistant({ messageId, onDraft }: { messageId: string; onDraft: (text: 
   const summary = useMutation({ mutationFn: () => api.post<{ summary: string; actionItems: string[] }>("/ai/summary", { messageId }), onError: (e) => showError(e) });
   const triage = useMutation({ mutationFn: () => api.post<{ triage: { category: string; priority: string; reason: string } }>("/ai/triage", { messageId }), onError: (e) => showError(e) });
   const draft = useMutation({ mutationFn: () => api.post<{ text: string }>("/ai/draft", { messageId }), onSuccess: (r) => onDraft(r.text), onError: (e) => showError(e) });
+  // AI2 (MB-330): a refusal for the switch or the daily limit stays on the page in plain words, not only in a toast.
+  const refused = [summary.error, triage.error, draft.error].find((e) => e instanceof ApiError && (e.code === "ai_off" || e.code === "builtin_ai_limit"));
+  const aiRefusal = refused ? errorMessage(refused) : null;
   if (!status.data) return null;
+  // AI2 (MB-330): the workspace switch is off, so say so plainly instead of offering buttons that would be refused.
+  if (status.data.builtin?.off) {
+    return (
+      <section aria-label="Assistant" role="status" data-testid="mail-ai-off" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-elevated/60 p-3 text-sm text-muted">
+        <IconSparkle className="h-4 w-4 text-subtle" aria-hidden />
+        <span>{AI_OFF_MESSAGE}</span>
+        <span className="ml-auto flex gap-2">
+          <ButtonLink size="sm" variant="ghost" to="/app/settings#ai-trust">Open AI settings</ButtonLink>
+        </span>
+      </section>
+    );
+  }
   // AI2: built-in AI (free, capped daily) runs the assistant when the workspace has no key of its own.
   if (!status.data.connected && !status.data.builtin?.active) {
     return (
@@ -814,6 +830,7 @@ function Assistant({ messageId, onDraft }: { messageId: string; onDraft: (text: 
           {summary.data.actionItems.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">{summary.data.actionItems.map((a) => <li key={a}>{a}</li>)}</ul>}
         </div>
       )}
+      {aiRefusal && <p role="alert" className="mt-3 text-sm text-muted" data-testid="mail-ai-refused">{aiRefusal}</p>}
     </section>
   );
 }
