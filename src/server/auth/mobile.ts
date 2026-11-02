@@ -77,6 +77,20 @@ export function multiesAuthPlugin(deps: Deps) {
         await setSessionCookie(ctx, { session, user });
         return ctx.json({ user: { id: user.id, email: user.email } });
       }),
+      // MH1 (server only, never routed over HTTP): a normal web session for a person whose one time app to web
+      // code was just redeemed (auth/mobile-web-link.ts checks the code, the person and the workspace first).
+      mobileWebSession: createAuthEndpoint("/multies/mobile-web-session", {
+        method: "POST",
+        body: z.object({ userId: z.string().min(1).max(100) }),
+        metadata: { SERVER_ONLY: true },
+      }, async (ctx) => {
+        const user = await ctx.context.internalAdapter.findUserById(ctx.body.userId);
+        if (!user) throw new APIError("UNAUTHORIZED", { message: "Sign in to continue." });
+        const session = await ctx.context.internalAdapter.createSession(user.id, false);
+        if (!session) throw new APIError("INTERNAL_SERVER_ERROR", { message: "We couldn't sign you in just now. Try again in a minute." });
+        await setSessionCookie(ctx, { session, user });
+        return ctx.json({ sessionId: session.id });
+      }),
       idpLogout: createAuthEndpoint("/logout/idp", { method: "GET" }, async (ctx) => {
         const url = idpLogoutUrl(deps.config) ?? `${deps.config.appUrl.replace(/\/$/, "")}/login`;
         throw ctx.redirect(url);

@@ -9,9 +9,11 @@ const SECRET_KEYS = /(pass(word)?|secret|token|api[-_]?key|authorization|cookie|
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const BEARER = /\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}/gi;
 const API_KEY = /\bmm_(live|test)_[A-Za-z0-9]{8,}/g;
+/** MH1: one time codes in a URL written into a message (the app to web handoff, OAuth callbacks). */
+const CODE_PARAM = /([?&](?:code|token)=)[^&\s"'#]+/gi;
 
 export function scrubText(s: string): string {
-  return s.replace(BEARER, "$1[redacted]").replace(API_KEY, "mm_$1_[redacted]").replace(EMAIL, "[email]");
+  return s.replace(BEARER, "$1[redacted]").replace(CODE_PARAM, "$1[redacted]").replace(API_KEY, "mm_$1_[redacted]").replace(EMAIL, "[email]");
 }
 
 export function scrubUrl(raw: string): string {

@@ -89,7 +89,7 @@ export interface AppEnv {
   Variables: { deps: Deps; auth: AuthContext; ip: string; requestId: string; log: Logger; apiKeyOrg?: string };
 }
 
-export type RateLimitScope = "auth" | "api" | "webhooks" | "app";
+export type RateLimitScope = "auth" | "api" | "webhooks" | "app" | "handoff";
 
 /** The shape of a Cloudflare Workers rate limiting binding. */
 export interface RateLimitBinding {

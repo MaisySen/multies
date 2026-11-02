@@ -41,7 +41,7 @@ not_found_handling = "none"
 # robots.txt goes through the Worker so a NOINDEX host (the preview) can answer Disallow: /.
 # Tools P2: /d/* (share link pages) and /sign/* (signing pages) are answered by the Worker. Staging inherits this.
 # R87: /l/* (short links) and /bio/* (link in bio pages) too. R119: /csat/* (survey) and /widget.js (website chat). R120: /p/* (client portal pages).
-run_worker_first = ["/api/*", "/.well-known/*", "/robots.txt", "/cal/*", "/dav", "/dav/*", "/s/*", "/r/*", "/d/*", "/u/*", "/x/*", "/l/*", "/bio/*", "/p/*", "/sign/*", "/health", "/healthz", "/delete-account", "/csat/*", "/widget.js", "/help/*"]
+run_worker_first = ["/api/*", "/auth/mobile/*", "/.well-known/*", "/robots.txt", "/cal/*", "/dav", "/dav/*", "/s/*", "/r/*", "/d/*", "/u/*", "/x/*", "/l/*", "/bio/*", "/p/*", "/sign/*", "/health", "/healthz", "/delete-account", "/csat/*", "/widget.js", "/help/*"]
 
 # Workers AI (Tools P2): document features (ask, translate, invoice reading) use the workspace's own
 # AI key first and otherwise this binding, only inside the account's free daily allocation: the AI meter
@@ -379,6 +379,7 @@ POLISH_POL1 = "on" # POL1: tables and courses to the trash with restore (staging
 WEBINAR_R114 = "on" # R114: webinar mode for meetings (staging; prod after verifier PASS)
 BLOG_R124 = "on" # R124: blog with newsletter in Sites (staging; prod after verifier PASS)
 SOCIAL_P3_R132 = "on" # R132: Social P3 (staging; prod after verifier PASS). Held: SOCIAL_YOUTUBE_UPLOAD_R132, SOCIAL_GBP_R132 stay unset
+MOBILE_WEB_LINK = "on" # MH1: app to web sign in handoff (staging; prod after verifier PASS)
 NAV_P2_R121 = "on" # R121: layout plan P2 navigation (staging; prod after verifier PASS)
 # R118: the test network for compose, schedule, approve, inbox and analytics checks (refused on multies.si by code).
 SOCIAL_TEST_NETWORK = "on"

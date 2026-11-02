@@ -92,6 +92,7 @@ import { taskTeardownRoutes } from "./routes/task-teardown-r27"; // R27 teardown
 import { mailSnippetRoutes } from "./routes/mail-snippets";
 import { countsRoutes } from "./routes/counts-r34"; // R34
 import { navMenuRoutes } from "./routes/nav-menu-r121"; // R121
+import { installMobileWebLink } from "./auth/mobile-web-link"; // MH1
 import { mailPrefRoutes, mailReadStatusRoutes, mailSplitRoutes, openPixelRoutes } from "./routes/mail-splits-r31";
 import { mailLabelRoutes, mailRuleRoutes } from "./routes/mail-rules-r85";
 import { meetingNotesRoutes } from "./routes/meeting-notes";
@@ -252,6 +253,7 @@ export function createApp(deps: Deps) {
     if (p === "/widget.js" || p === "/forms-embed.js") return; // R119 chat script, R93 form bubble: load on other sites (own headers)
     const set = p === "/share/snapchat" && deps.config.socialP3R132 ? snapHeaders : p === "/api/v1/reference" ? docsHeaders : p.startsWith("/api/campaign-public/") ? campaignPublicHeaders : p.startsWith("/api/") || p.startsWith("/.well-known/") ? apiHeaders : p.startsWith("/f/") ? formPageHeaders : PRIVATE_PAGE_PATH.test(p) ? privatePageHeaders : pageHeaders;
     for (const [k, v] of Object.entries(set)) c.res.headers.set(k, v);
+    if (p === "/auth/mobile/web") { c.res.headers.set("referrer-policy", "no-referrer"); c.res.headers.set("cache-control", "no-store"); } // MH1: the handoff code never leaks onward or into a cache
     // R93: only the form inside the website bubble may be framed by other sites.
     if (EMBED_FORM_PATH.test(p) && deps.config.formsPlus) { c.res.headers.delete("x-frame-options"); c.res.headers.set("content-security-policy", frameableCsp(formPageHeaders["content-security-policy"])); }
   });
@@ -518,6 +520,7 @@ export function createApp(deps: Deps) {
   // R39 security hotfix: Better Auth's own organization endpoints (list, read and accept invitations, members,
   // roles) are not used by any client; the app's /api/team and /api/invites routes carry the checks. Closed over HTTP;
   // the server still calls them in process through auth.api.
+  installMobileWebLink(app); // MH1: app to web sign in handoff (MOBILE_WEB_LINK), before the Better Auth catch all
   app.all("/api/auth/organization/*", (c) => c.json({ error: { code: "not_found", message: "Not found." } }, 404));
   app.on(["GET", "POST"], "/api/auth/*", (c) => authFor(deps).handler(c.req.raw));
   app.route("/api/domains", domainRoutes());

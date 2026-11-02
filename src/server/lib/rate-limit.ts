@@ -42,6 +42,8 @@ export const RATE_LIMITS: Record<RateLimitScope, number> = {
   webhooks: 600,
   /** The web app's state-changing calls: per signed-in user, else per IP. */
   app: 300,
+  /** MH1: app to web sign in handoff, per person for new codes and per address for redeems. */
+  handoff: 20,
 };
 
 /**
