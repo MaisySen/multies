@@ -119,7 +119,6 @@ test("tables: New view stays on screen, Row puts focus in the new row, title, tr
   await page.reload();
   await page.getByRole("tab", { name: /Board/ }).last().click();
   await expect(page.getByTestId("kanban")).toBeVisible();
-  console.log("WIDE", JSON.stringify(await page.evaluate(() => [...document.querySelectorAll("body *")].filter((e) => e.getBoundingClientRect().right > 400 && !e.closest("[data-testid=kanban]")).slice(0, 8).map((e) => `${e.tagName}.${String(e.className).slice(0, 70)}|${e.getAttribute("data-testid") ?? ""}|${Math.round(e.getBoundingClientRect().right)}`))));
   await noHScroll(page);
   const box = await page.getByTestId("add-view").boundingBox();
   expect(box && box.x + box.width).toBeLessThanOrEqual(390);
@@ -145,9 +144,10 @@ test("tables: New view stays on screen, Row puts focus in the new row, title, tr
   await axe(page, "trash dialog");
   await page.getByRole("button", { name: "Restore Jobs board" }).click();
   await expect(page.getByTestId("doc-trash-empty")).toBeVisible();
-  // a missing table says so
-  await page.goto("/app/docs/doesnotexist1");
-  await expect(page.getByText(/deleted or moved|Couldn't load this/).first()).toBeVisible();
+  // a table in the trash says so on its own address
+  await page.request.delete(`/api/tables/${t}`, { headers });
+  await page.goto(`/app/docs/${t}`);
+  await expect(page.getByText(/Doc not found|deleted or moved/).first()).toBeVisible();
 });
 
 test("courses: title, member sees no delete, trash and restore, errors in about a second (MB-313, MB-321)", async ({ page, browser }) => {

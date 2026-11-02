@@ -742,7 +742,7 @@ function Kanban({ fields, rows, by, canEdit, loading, onMove, onOpen, onAdd, mor
   const extra = fields.slice(1).filter((f) => f.id !== by.id && !isComputed(f.type) && f.type !== "longtext").slice(0, 2);
   return (
     <div className="min-w-0 max-w-full">
-      <div className="flex w-0 min-w-full gap-3 overflow-x-auto overscroll-x-contain pb-2" data-testid="kanban">{/* POL1 (MB-315): w-0 min-w-full so the columns never count toward the page width */}
+      <div className="relative flex w-0 min-w-full gap-3 overflow-x-auto overscroll-x-contain pb-2" data-testid="kanban">{/* POL1 (MB-315): w-0 min-w-full so the columns never count toward the page width */}
         {cols.map((c) => {
           const items = rows.filter((r) => (r.values[by.id] ?? "") === c.id);
           return (
