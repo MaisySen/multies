@@ -179,13 +179,15 @@ export function MeetingSuggestions({ meetingId }: { meetingId: string }) {
         <ul className="mt-4 space-y-2" aria-label="Suggestions to review">
           {open.map((s) => (
             <li key={s.id} className="rounded-lg border border-line p-3 transition-colors duration-150 hover:bg-hover/40" data-testid="meeting-suggestion">
-              <div className="flex items-start gap-2">
-                <span className="min-w-0 flex-1 text-[13px] font-medium">{s.title}</span>
+              <div className="flex flex-wrap items-start gap-2">
+                <span className="min-w-0 flex-1 basis-full text-[13px] font-medium sm:basis-0">{s.title}</span>
+                <span className="ml-auto flex shrink-0 gap-2">
                 <Button size="sm" onClick={() => void accept(s)} loading={busy === s.id} disabled={off || (!!busy && busy !== s.id)} aria-label={`Accept: ${s.title}`} data-testid="meeting-suggestion-accept"><IconCheck className="h-4 w-4" />Accept</Button>
                 <Button size="sm" variant="ghost" onClick={() => void discard(s)} disabled={off || !!busy} aria-label={`Discard: ${s.title}`} data-testid="meeting-suggestion-discard"><IconClose className="h-4 w-4" />Discard</Button>
+                </span>
               </div>
               {s.quote && <blockquote className="mt-1.5 border-l-2 border-line pl-2 text-[12.5px] text-muted" data-testid="meeting-suggestion-quote">“{s.quote}”</blockquote>}
-              <div className="mt-2 grid grid-cols-2 gap-2">
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <Select aria-label={`Owner for ${s.title}`} className="h-8 text-[12.5px]" value={s.assignee?.id ?? ""} disabled={off} onChange={(e) => void edit(s, { assigneeId: e.target.value || null })}>
                   <option value="">No owner</option>
                   {v.people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
