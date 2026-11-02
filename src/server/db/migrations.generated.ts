@@ -1763,6 +1763,22 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0158_td8_team_ai",
+    "statements": [
+      "-- TD8 Team AI: workspace AI memory (visible notes), saved instruction sets, routines and their run log. Additive only.\nCREATE TABLE `teamai_memory` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`text` text NOT NULL,\n\t`status` text DEFAULT 'active' NOT NULL,\n\t`created_by` text,\n\t`created_by_name` text DEFAULT '' NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_by` text,\n\t`updated_by_name` text DEFAULT '' NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX `teamai_memory_org_idx` ON `teamai_memory` (`org_id`,`status`,`created_at`);",
+      "CREATE TABLE `teamai_instructions` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`owner_id` text NOT NULL,\n\t`owner_name` text DEFAULT '' NOT NULL,\n\t`name` text NOT NULL,\n\t`body` text NOT NULL,\n\t`shared` integer DEFAULT 0 NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX `teamai_instructions_org_idx` ON `teamai_instructions` (`org_id`,`owner_id`);",
+      "CREATE TABLE `teamai_routines` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`instruction_id` text NOT NULL,\n\t`trigger` text NOT NULL,\n\t`hour` integer DEFAULT 9 NOT NULL,\n\t`weekday` integer DEFAULT 1 NOT NULL,\n\t`form_id` text,\n\t`project_id` text,\n\t`output` text DEFAULT 'draft' NOT NULL,\n\t`channel_id` text,\n\t`enabled` integer DEFAULT 1 NOT NULL,\n\t`created_by` text,\n\t`created_by_name` text DEFAULT '' NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`next_run_at` integer,\n\t`last_run_at` integer,\n\t`last_status` text\n);",
+      "CREATE INDEX `teamai_routines_org_idx` ON `teamai_routines` (`org_id`,`trigger`,`enabled`);",
+      "CREATE INDEX `teamai_routines_due_idx` ON `teamai_routines` (`enabled`,`next_run_at`);",
+      "CREATE TABLE `teamai_runs` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`routine_id` text,\n\t`kind` text NOT NULL,\n\t`label` text DEFAULT '' NOT NULL,\n\t`event_key` text NOT NULL,\n\t`status` text DEFAULT 'queued' NOT NULL,\n\t`reason` text,\n\t`ai_source` text,\n\t`output` text DEFAULT 'none' NOT NULL,\n\t`result` text,\n\t`input` text,\n\t`channel_id` text,\n\t`message_id` text,\n\t`actor_id` text,\n\t`actor_name` text DEFAULT '' NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`started_at` integer,\n\t`finished_at` integer\n);",
+      "CREATE UNIQUE INDEX `teamai_runs_event_uq` ON `teamai_runs` (`org_id`,`event_key`);",
+      "CREATE INDEX `teamai_runs_org_idx` ON `teamai_runs` (`org_id`,`created_at`);",
+      "CREATE INDEX `teamai_runs_status_idx` ON `teamai_runs` (`status`,`created_at`);"
+    ]
+  },
+  {
     "name": "0159_forms_td7",
     "statements": [
       "-- TD7 Forms pro B: brand kit, close date, response cap, password (hash only), save and resume, views and completion\n-- counts without cookies. Additive only; nothing reads these tables while FORMS_TD7 is off.\nCREATE TABLE `form_pro_td7` (\n\t`form_id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`settings` text DEFAULT '{}' NOT NULL,\n\t`password_hash` text,\n\t`updated_at` integer NOT NULL\n);",
