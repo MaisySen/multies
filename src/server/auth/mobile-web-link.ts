@@ -115,7 +115,11 @@ export function installMobileWebLink(app: Hono<AppEnv>) {
       id: newId("vrf"), identifier: await webLinkIdentifier(code), value: JSON.stringify(bound),
       expiresAt: new Date(now + WEB_LINK_TTL_SECONDS * 1000),
     });
-    return c.json({ code, expires_in: WEB_LINK_TTL_SECONDS });
+    // The app may send {next}; the answer then also carries the ready made link on our own origin (same code).
+    let rawNext: unknown;
+    try { rawNext = ((await c.req.json()) as { next?: unknown } | null)?.next; } catch { rawNext = undefined; }
+    const url = `${c.var.deps.config.appUrl.replace(/\/$/, "")}/auth/mobile/web?code=${code}&next=${encodeURIComponent(safeNext(rawNext))}`;
+    return c.json({ code, expires_in: WEB_LINK_TTL_SECONDS, url });
   });
 
   app.get("/auth/mobile/web", async (c, next) => {

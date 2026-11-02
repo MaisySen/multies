@@ -171,6 +171,27 @@ describe("MH1 app to web sign in handoff", () => {
     expect(created!.loginMethod).toBe(appSession!.loginMethod ?? "email");
   });
 
+  it("answers the app's {next} with a ready link on our own origin that works once", async () => {
+    const { app, phone } = await setup();
+    const r = await phone.post("/api/auth/mobile/web-link", { next: "/app/expenses?tab=mine" });
+    expect(r.status).toBe(200);
+    const u = new URL(r.body.url as string);
+    expect(u.protocol).toMatch(/^https?:$/);
+    expect(u.pathname).toBe("/auth/mobile/web");
+    expect(u.searchParams.get("code")).toBe(r.body.code);
+    expect(u.searchParams.get("next")).toBe("/app/expenses?tab=mine");
+    const res = await open(app, `${u.pathname}${u.search}`);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/app/expenses?tab=mine");
+    expect(sessionCookie(res)).not.toBeNull();
+    const again = await open(app, `${u.pathname}${u.search}`);
+    expect(again.headers.get("location")).toBe("/login");
+    const evil = await phone.post("/api/auth/mobile/web-link", { next: "https://evil.example/app" });
+    expect(new URL(evil.body.url as string).searchParams.get("next")).toBe("/app");
+    const bare = await phone.post("/api/auth/mobile/web-link");
+    expect(new URL(bare.body.url as string).searchParams.get("next")).toBe("/app");
+  });
+
   it("sends a bad next to /app", async () => {
     const { app, phone } = await setup();
     const code = (await phone.post("/api/auth/mobile/web-link")).body.code as string;
