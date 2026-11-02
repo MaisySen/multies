@@ -18,7 +18,7 @@ import { LoadError } from "@/web/components/load-error-t1g";
 export interface TimeEntry {
   id: string; taskId: string | null; task: { id: string; ref: string; title: string } | null; projectId: string | null;
   project: { id: string; name: string; key: string; color: string } | null; person: { type: "member" | "agent"; id: string; name: string }; personId: string;
-  startedAt: string; endedAt: string | null; running: boolean; seconds: number; note: string; billable: boolean; source: "timer" | "manual";
+  startedAt: string; endedAt: string | null; running: boolean; seconds: number; note: string; billable: boolean; billed?: boolean; source: "timer" | "manual";
   /** R95 */ tags?: string[];
 }
 interface Sheet { from: string; to: string; days: string[]; rows: { person: TimeEntry["person"]; project: TimeEntry["project"]; days: Record<string, number>; total: number; billable: number }[]; dayTotals: Record<string, number>; total: number; entries: TimeEntry[] }
@@ -110,7 +110,7 @@ export function TaskTime({ taskId, total, entries, onChange }: { taskId: string;
               <span className="w-16 shrink-0 font-mono tabular-nums text-fg">{e.running ? "running" : hoursText(e.seconds)}</span>
               <span className="truncate">{e.person.name}{e.note && ` · ${e.note}`}</span>
               <span className="ml-auto shrink-0 text-subtle">{new Date(e.startedAt).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</span>
-              {!e.running && <button className="opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label="Delete time entry" onClick={() => void del(e.id)}><IconTrash className="h-3.5 w-3.5" /></button>}
+              {e.billed ? <span className="rounded-full border border-line px-1.5 text-[11px] text-muted" title="On an invoice. Delete or void that invoice to change it.">Billed</span> : !e.running && <button className="opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label="Delete time entry" onClick={() => void del(e.id)}><IconTrash className="h-3.5 w-3.5" /></button>}
             </li>
           ))}
         </ul>
@@ -227,7 +227,7 @@ export function TimesheetPage() {
                 <span className="hidden text-muted sm:inline">{e.person.name}</span>
                 {plus && <EntryExtras entry={e} onChange={refreshSheet} />}
                 <span className="w-20 text-right text-subtle">{new Date(e.startedAt).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}</span>
-                {!e.running && <button className="text-subtle opacity-0 hover:text-bad group-hover:opacity-100 focus:opacity-100" aria-label="Delete entry" onClick={() => void del(e.id)}><IconTrash className="h-4 w-4" /></button>}
+                {e.billed ? <span className="rounded-full border border-line px-1.5 text-[11px] text-muted" title="On an invoice. Delete or void that invoice to change it.">Billed</span> : !e.running && <button className="text-subtle opacity-0 hover:text-bad group-hover:opacity-100 focus:opacity-100" aria-label="Delete entry" onClick={() => void del(e.id)}><IconTrash className="h-4 w-4" /></button>}
               </div>
             ))}
           </Card>

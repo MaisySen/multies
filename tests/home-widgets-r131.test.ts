@@ -24,7 +24,7 @@ describe("R131 home widgets: layout rules", () => {
     const items = builtinLayout().items;
     expect(moveItem(items, "calendar", -1).map((i) => i.id).slice(0, 2)).toEqual(["calendar", "tasks"]);
     expect(moveItem(items, "tasks", -1)).toBe(items);
-    expect(moveItem(items, "dashboards", 1)).toBe(items);
+    expect(moveItem(items, WIDGET_IDS[WIDGET_IDS.length - 1], 1)).toBe(items);
   });
   it("quick links take http and https only", () => {
     expect(isSafeLinkUrl("https://example.com/a?b=1")).toBe(true);
@@ -34,7 +34,7 @@ describe("R131 home widgets: layout rules", () => {
   it("social and feeds are offered only where those areas are on", () => {
     expect(availableWidgets({ config: { socialP2b: false, flows: false } } as never)).not.toContain("social");
     expect(availableWidgets({ config: { socialP2b: false, flows: false } } as never)).not.toContain("feeds");
-    expect(availableWidgets({ config: {} } as never)).toEqual([...WIDGET_IDS]);
+    expect(availableWidgets({ config: {} } as never)).toEqual(WIDGET_IDS.filter((id) => id !== "billing")); // TD4: billing needs BILL_TD4 and a manager
   });
 });
 

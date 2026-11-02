@@ -49,8 +49,9 @@ export function rangeOf(from: string, to: string, tz: string) {
   const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000;
   if (days > MAX_RUN_DAYS) throw new HttpError(422, "validation_failed", "Pick a range of a year or less.");
   const [fy, fm, fd] = from.split("-").map(Number);
-  const n = new Date(Date.UTC(+to.slice(0, 4), +to.slice(5, 7) - 1, +to.slice(8, 10) + 1));
-  return { start: new Date(zonedTime(tz, fy, fm, fd, 0)), end: new Date(zonedTime(tz, n.getUTCFullYear(), n.getUTCMonth() + 1, n.getUTCDate(), 0)) };
+  const [ty, tm, td] = to.split("-").map(Number);
+  // zonedTime takes a 0 based month and rolls day overflow over, so the end is the next local midnight.
+  return { start: new Date(zonedTime(tz, fy, fm - 1, fd, 0)), end: new Date(zonedTime(tz, ty, tm - 1, td + 1, 0)) };
 }
 
 async function projectRow(deps: Deps, orgId: string, projectId: string) {
