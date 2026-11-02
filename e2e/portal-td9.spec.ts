@@ -116,8 +116,7 @@ test("team shares a project with access by keyboard, a milestone and a private c
   await expect(client.locator("#pv-status")).toContainText(/offline|Could not refresh/);
   await expect(client.locator("#pv-retry")).toBeVisible();
   await shot(client, "client-project-offline-1280-light");
-  await client.context().setOffline(false);
-  await client.locator("#pv-retry").click();
+  await client.context().setOffline(false); // back online refreshes on its own (Retry does the same by hand)
   await expect(client.locator("#pv-status")).toContainText("Updated");
   await expect(client.locator("#pv-retry")).toBeHidden();
 
