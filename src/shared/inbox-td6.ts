@@ -107,7 +107,7 @@ export function mailRead(own: boolean | null | undefined, messageRead: boolean):
 }
 
 /** Keyboard keys for the page (pure so they are unit tested). */
-export type InboxKeyAction = "next" | "prev" | "done" | "snooze" | "toggle-read" | "select" | "move" | "open" | "help";
+export type InboxKeyAction = "next" | "prev" | "done" | "snooze" | "toggle-read" | "select" | "move" | "open";
 export function inboxKeyAction(e: { key: string; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean }): InboxKeyAction | null {
   if (e.metaKey || e.ctrlKey || e.altKey) return null;
   switch (e.key) {
@@ -119,12 +119,11 @@ export function inboxKeyAction(e: { key: string; metaKey?: boolean; ctrlKey?: bo
     case "x": return "select";
     case "m": return "move";
     case "o": case "Enter": return "open";
-    case "?": return "help";
     default: return null;
   }
 }
 export const INBOX_KEYS: { key: string; label: string }[] = [
   { key: "j", label: "Next item" }, { key: "k", label: "Previous item" }, { key: "o", label: "Open" }, { key: "e", label: "Done" },
   { key: "s", label: "Snooze until tomorrow" }, { key: "u", label: "Read or unread" }, { key: "x", label: "Select" },
-  { key: "m", label: "Move to the other tab" }, { key: "?", label: "Show keys" },
+  { key: "m", label: "Move to the other tab" },
 ];
