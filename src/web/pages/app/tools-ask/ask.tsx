@@ -15,14 +15,24 @@ import { IconChatQuote, IconClose, IconHistory, IconSparkle } from "@/web/compon
 import { ToolsFrame } from "@/web/components/tools/tools-frame";
 import { useConfig } from "@/web/lib/queries";
 import { LoadFailure } from "@/web/components/load-error-t1g";
+import { coverageLine, GONE_SOURCE, type AskCoverage } from "@/shared/ask-td1"; // TD1
 
 type SourceType = "mail" | "tasks" | "docs" | "contacts" | "deals" | "files" | "chat" | "notes";
 interface Source { n: number; type: SourceType; id: string; title: string; subtitle: string; url: string; cited: boolean }
 interface ChangeCard { id: string; kind: "task_status" | "deal_stage" | "task_create"; status: "pending" | "applied" | "dismissed"; label: string; detail: string; targetUrl: string | null }
-export interface AskMessage { id: string; question: string; answer: string; status: "answered" | "no_sources" | "limit" | "restricted"; sources: Source[]; cards: ChangeCard[]; createdAt: string }
+export interface AskMessage {
+  id: string; question: string; answer: string; status: "answered" | "no_sources" | "limit" | "restricted"; sources: Source[]; cards: ChangeCard[]; createdAt: string;
+  /** TD1 only. */ gone?: number; coverage?: AskCoverage | null; about?: { type: SourceType; id: string; title: string; url: string } | null;
+}
 interface Usage { used: number; cap: number; left: number; reached: boolean }
 interface Prompt { id: string; title: string; text: string }
-interface State { available: boolean; reason?: string; usage?: Usage; prompts?: { builtIn: Prompt[]; mine: Prompt[] } }
+interface State { available: boolean; reason?: string; usage?: Usage; prompts?: { builtIn: Prompt[]; mine: Prompt[] }; aiOff?: boolean; canEnable?: boolean }
+
+/** TD1: how many cited sources are gone, in plain words (never which ones). */
+export function goneLine(n?: number): string {
+  if (!n) return "";
+  return n === 1 ? `${GONE_SOURCE}.` : `${n} sources are gone or no longer open to you.`;
+}
 interface ThreadRow { id: string; title: string; updatedAt: string }
 
 export const ASK_NOTE = "AI answers can be wrong. Check the sources.";
@@ -45,6 +55,17 @@ export function usageLine(u?: Usage): string {
   if (!u) return "";
   if (u.reached) return "Daily limit reached, try again tomorrow.";
   return `${u.left} of ${u.cap} questions left today`;
+}
+
+function AnswerText({ m }: { m: AskMessage }) {
+  return (
+    <p className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-fg" data-testid="ask-answer-text">
+      {answerParts(m.answer, m.sources).map((p, i) => "text" in p ? <Fragment key={i}>{p.text}</Fragment> : (
+        <Link key={i} to={p.source.url} className={`mx-0.5 inline-flex min-w-5 items-center justify-center rounded bg-brand/10 px-1 text-[12px] font-semibold text-brand-hover no-underline hover:bg-brand/20 ${ring}`}
+          aria-label={`Source ${p.source.n}: ${p.source.title}`} data-testid="ask-cite">{p.source.n}</Link>
+      ))}
+    </p>
+  );
 }
 
 function Answer({ m, onSaved }: { m: AskMessage; onSaved: (docId: string) => void }) {
@@ -70,14 +91,15 @@ function Answer({ m, onSaved }: { m: AskMessage; onSaved: (docId: string) => voi
     <Card className="space-y-3 p-4 sm:p-5" data-testid="ask-answer" data-status={m.status}>
       {m.status === "restricted" ? (
         <p className="text-[14px] text-muted" data-testid="ask-restricted">{m.answer}</p>
+      ) : m.about ? (
+        <>
+          <p className="text-xs text-subtle" data-testid="ask-about-line">About <Link to={m.about.url} className={`font-medium text-brand-hover hover:underline ${ring}`}>{m.about.title}</Link></p>
+          <AnswerText m={m} />
+        </>
       ) : (
-        <p className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-fg" data-testid="ask-answer-text">
-          {answerParts(m.answer, m.sources).map((p, i) => "text" in p ? <Fragment key={i}>{p.text}</Fragment> : (
-            <Link key={i} to={p.source.url} className={`mx-0.5 inline-flex min-w-5 items-center justify-center rounded bg-brand/10 px-1 text-[12px] font-semibold text-brand-hover no-underline hover:bg-brand/20 ${ring}`}
-              aria-label={`Source ${p.source.n}: ${p.source.title}`} data-testid="ask-cite">{p.source.n}</Link>
-          ))}
-        </p>
+        <AnswerText m={m} />
       )}
+      {(m.gone ?? 0) > 0 && <p className="text-[13px] text-muted" data-testid="ask-gone">{goneLine(m.gone)} It is not shown or opened.</p>}
       {m.status === "answered" && listed.length > 0 && (
         <div>
           <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Sources</h3>
@@ -124,7 +146,10 @@ function Answer({ m, onSaved }: { m: AskMessage; onSaved: (docId: string) => voi
         </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
-        <p className="text-xs text-subtle" data-testid="ask-note">{ASK_NOTE}</p>
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="text-xs text-subtle" data-testid="ask-note">{ASK_NOTE}</p>
+          {m.coverage && m.status !== "restricted" && <p className="text-xs text-subtle" data-testid="ask-coverage">{coverageLine(m.coverage)}</p>}
+        </div>
         {m.status === "answered" && (
           <Button size="sm" variant="secondary" onClick={() => save.mutate(false)} disabled={save.isPending || save.isSuccess} data-testid="ask-save-doc">
             {save.isSuccess ? "Saved to a doc" : save.isPending ? "Saving" : "Save to a doc"}
@@ -175,6 +200,10 @@ function AskInner() {
   const qc = useQueryClient();
   const state = useQuery({ queryKey: ["ask-state"], queryFn: () => api.get<State>("/ask/state") });
   const threadId = params.get("thread");
+  // TD1: "Ask about this" opens the page with ?about=<kind>:<id>&title=<shown title>; the server checks access itself.
+  const about = !threadId ? params.get("about") : null;
+  const aboutTitle = params.get("title") ?? "this item";
+  const clearAbout = () => { const p = new URLSearchParams(params); p.delete("about"); p.delete("title"); setParams(p, { replace: true }); };
   const thread = useQuery({ queryKey: ["ask-thread", threadId], enabled: !!threadId, queryFn: () => api.get<{ thread: { id: string; title: string }; messages: AskMessage[] }>(`/ask/threads/${encodeURIComponent(threadId!)}`) });
   const [hq, setHq] = useState("");
   const threads = useQuery({ queryKey: ["ask-threads", hq], queryFn: () => api.get<{ threads: ThreadRow[] }>(`/ask/threads${hq.trim() ? `?q=${encodeURIComponent(hq.trim())}` : ""}`) });
@@ -197,7 +226,7 @@ function AskInner() {
   }, [sheet]);
 
   const ask = useMutation({
-    mutationFn: (q: string) => api.post<{ thread: { id: string }; message: AskMessage; usage: Usage }>("/ask", { question: q, threadId: threadId ?? undefined }),
+    mutationFn: (q: string) => api.post<{ thread: { id: string }; message: AskMessage; usage: Usage }>("/ask", { question: q, threadId: threadId ?? undefined, about: about ?? undefined }),
     onSuccess: (r) => {
       qc.setQueryData(["ask-state"], (s: State | undefined) => (s ? { ...s, usage: r.usage } : s));
       if (r.message.status === "limit") { setNotice({ kind: "limit" }); return; }
@@ -231,6 +260,8 @@ function AskInner() {
   );
   if (state.isPending) return frame(<div className="space-y-3"><Skeleton className="h-28 rounded-xl" /><Skeleton className="h-40 rounded-xl" /></div>);
   if (state.isError) return frame(<LoadFailure block error={state.error} onRetry={() => state.refetch()} />);
+  if (state.data?.aiOff) return frame(<div data-testid="ask-ai-off"><EmptyState icon={<IconChatQuote className="h-6 w-6" />} title="AI is off" body={state.data.reason ?? ""}
+    action={state.data.canEnable ? <Link to="/app/settings#ai-trust" className={`inline-flex min-h-11 items-center rounded-lg bg-brand px-4 text-[14px] font-medium text-brand-fg hover:bg-brand/90 ${ring}`} data-testid="ask-ai-off-settings">Open AI settings</Link> : undefined} /></div>);
   if (!state.data?.available) return frame(<EmptyState icon={<IconChatQuote className="h-6 w-6" />} title="Ask is not available here" body={state.data?.reason ?? "AI is not available right now. Try again later."} />);
 
   return frame(
@@ -281,9 +312,16 @@ function AskInner() {
         )}
 
         <Card className="space-y-2.5 p-3 sm:p-4">
+          {about && (
+            <div className="flex items-center gap-2" data-testid="ask-about">
+              <Badge>About</Badge>
+              <span className="min-w-0 flex-1 truncate text-[13px] text-fg">{aboutTitle}</span>
+              <button type="button" onClick={clearAbout} className={`grid h-10 w-10 place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg ${ring}`} aria-label="Ask about everything instead" data-testid="ask-about-clear"><IconClose className="h-4 w-4" aria-hidden /></button>
+            </div>
+          )}
           <label htmlFor="ask-box" className="sr-only">Your question</label>
           <Textarea id="ask-box" ref={box} rows={2} value={question} maxLength={1000} onChange={(e) => setQuestion(e.target.value)} onKeyDown={onKey}
-            placeholder={threadId ? "Ask a follow up question" : "For example: what did the client say about the launch date?"} data-testid="ask-box" />
+            placeholder={threadId ? "Ask a follow up question" : about ? "Ask about this item, for example: what is still open?" : "For example: what did the client say about the launch date?"} data-testid="ask-box" />
           <div className="flex flex-wrap items-center gap-2">
             <span className="hidden text-xs text-subtle sm:inline" data-testid="ask-usage">{usageLine(usage)}</span>
             <span className="flex-1" />

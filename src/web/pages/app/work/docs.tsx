@@ -39,6 +39,7 @@ import { SpellButton } from "@/web/components/spell-check-r103";
 import { SpellAttrs, fixInEditor } from "./doc-spell-r103";
 import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
 import { isServerLoadError } from "@/web/lib/load-errors-t1g";
+import { AskAboutButton } from "@/web/components/ask-about-td1"; // TD1
 
 const MindMapView = lazyPage(() => import("./docs-visual/mindmap-view"), "MindMapView");
 const PresentOverlay = lazyPage(() => import("./docs-visual/present"), "PresentOverlay");
@@ -136,7 +137,7 @@ function DocPageMain() {
   const onReplaced = useCallback((d: Doc) => { qc.setQueryData(["doc", id], d); setReplaced((n) => n + 1); }, [qc, id]);
 
   // R129: a course doc is its own page (learn, build, assign, progress). R125: a table doc is its own page (grid, kanban, calendar, form) instead of the text editor.
-  const body = (q.data as { kind?: string } | undefined)?.kind === "course" ? <CourseDoc docId={id} /> : q.data?.kind === "table" ? <TableDoc docId={id} /> : q.isPending || !collab ? <div className="mx-auto max-w-3xl space-y-3"><Skeleton className="h-9 w-1/2" /><Skeleton className="h-64" /></div>
+  const body = (q.data as { kind?: string } | undefined)?.kind === "course" ? <CourseDoc docId={id} /> : q.data?.kind === "table" ? <><AskAboutButton kind="tables" id={id} title={q.data?.title} wrap="mb-2 flex justify-end" /><TableDoc docId={id} /></> : q.isPending || !collab ? <div className="mx-auto max-w-3xl space-y-3"><Skeleton className="h-9 w-1/2" /><Skeleton className="h-64" /></div>
     : q.error && !isServerLoadError(q.error) ? <EmptyState icon={<IconDocs />} title="Doc not found" body="It may have been deleted." action={<Button onClick={() => navigate("/app/docs")}>All docs</Button>} />
     : q.data === undefined ? <LoadError onRetry={() => q.refetch()} /> // T1G (T1-8): a server failure is not "not found"
     : <DocEditor key={`${id}:${collab.session ? "live" : "solo"}:${replaced}`} doc={q.data} session={collab.session} onReplaced={onReplaced} />;
@@ -283,6 +284,7 @@ function DocEditor({ doc, session, onReplaced, embed = false }: { doc: Doc; sess
         )}
         <ShareButton kind="doc" targetId={id} />
         {docsPlus && <DocCommentsButton docId={id} open={commentsOpen} onToggle={() => setCommentsOpen((o) => !o)} />}
+        {!embed && <AskAboutButton kind="docs" id={id} title={title} compact />}
         <DocHistoryButton onOpen={openHistory} />
         <button aria-label="Save as template" title="Save as template" className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg"
           onClick={async () => {

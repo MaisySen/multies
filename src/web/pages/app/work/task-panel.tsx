@@ -32,6 +32,7 @@ import { cn } from "@/web/lib/cn";
 import { PRIORITY_LABEL, useAssignees, useProjects, useTaskDetail, useTaskMutations, useTasks, type ActivityEntry, type Priority, type Task } from "./data";
 import { recordRecent } from "@/web/lib/palette-recents"; // R36
 import { LagChip } from "./schedule-r38"; // R38: lead and lag per link
+import { AskAboutButton } from "@/web/components/ask-about-td1"; // TD1
 
 const VERBS: Record<string, string> = {
   created: "created the task", created_from_email: "made this task from an email", updated: "updated it", moved: "moved it", assigned: "changed the assignee",
@@ -133,6 +134,7 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
         {project && <span className="truncate text-[12.5px] text-muted">in {project.name}</span>}
         <div className="ml-auto flex items-center gap-1">
           {t && <WatchButton taskId={t.id} />}
+          {t && <AskAboutButton kind="tasks" id={t.id} title={t.title} compact />}
           {t && !page && <Link to={`/app/tasks/${t.ref}`} aria-label="Open as page" title="Open as page" data-testid="open-task-page" className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:rounded-md sm:p-1.5"><IconMaximize className="h-4 w-4" /></Link>}
           {t && page && <Link to={`/app/tasks?task=${t.id}`} aria-label="Open in side panel" title="Open in side panel" className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:rounded-md sm:p-1.5"><IconSidebar className="h-4 w-4" /></Link>}
           {t && (

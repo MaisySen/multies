@@ -19,6 +19,7 @@ import { CSV_FIELDS, CSV_FIELD_LABELS, CSV_MAX_BYTES, checkRows, guessMapping, p
 import { CrmTimeline } from "./crm-timeline";
 import type { Contact } from "./data";
 import { AddressCard, useMapsOn } from "./maps-r115"; // R115
+import { AskAboutButton } from "@/web/components/ask-about-td1"; // TD1
 
 const aud = (n: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(n);
 
@@ -411,6 +412,7 @@ export function DealDetailsDialog({ deal, onClose }: { deal: { id: string; title
   return (
     <Dialog open onClose={onClose} title={deal.title} footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={busy} onClick={() => void submit()} data-testid="deal-save">Save</Button></>}>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+        <AskAboutButton kind="deals" id={deal.id} title={deal.title} wrap="flex justify-end" />
         <Field label="Value (A$, ex GST)">{(f) => <Input {...f} inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value.replace(/[^0-9.]/g, ""))} />}</Field>
         <Field label="Expected close">{(f) => <Input {...f} type="date" value={close} onChange={(e) => setClose(e.target.value)} />}</Field>
         {closed ? (

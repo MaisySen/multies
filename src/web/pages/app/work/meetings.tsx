@@ -29,6 +29,7 @@ import { CallMinutesBanner, CallMinutesUsage } from "./call-minutes-r34"; // R34
 import { NoMeetingsArt } from "@/web/components/illustrations"; // R36
 import { startMeetingNow } from "./meeting-start"; // R40 (MB-207)
 import { useWebinarOn, WebinarCard } from "./webinar-r114"; // R114
+import { AskAboutButton, useAskAboutOn } from "@/web/components/ask-about-td1"; // TD1
 
 export interface Meeting {
   id: string; title: string; room: string; startsAt: string; durationMin: number; endsAt: string; status: "scheduled" | "ended" | "cancelled";
@@ -235,6 +236,7 @@ function ScheduleDialog({ open, onClose, onMade, webinar: startAsWebinar = false
 }
 
 export function MeetingPage() {
+  const askOn = useAskAboutOn(); // TD1
   const { id } = useParams();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["meeting", id], queryFn: async () => (await api.get<{ meeting: Meeting }>(`/meetings/${id}`)).meeting });
@@ -268,7 +270,7 @@ export function MeetingPage() {
   return (
     <div data-testid="meeting-page">
       <PageHeader title={m.title} description={<>{when(m.startsAt)} · {m.durationMin} minutes{source && <> · started from <Link className="text-brand-hover hover:underline" to={source.to}>{source.label}</Link></>}</>}
-        actions={m.status === "scheduled" ? <Button onClick={() => setPrejoin(true)} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><IconVideo className="h-4 w-4" />Join now</Button> : <Badge>{m.status === "ended" ? "Ended" : "Cancelled"}</Badge>} />
+        actions={askOn ? <div className="flex flex-wrap items-center gap-2"><AskAboutButton kind="meetings" id={m.id} title={m.title} />{m.status === "scheduled" ? <Button onClick={() => setPrejoin(true)} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><IconVideo className="h-4 w-4" />Join now</Button> : <Badge>{m.status === "ended" ? "Ended" : "Cancelled"}</Badge>}</div> : m.status === "scheduled" ? <Button onClick={() => setPrejoin(true)} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><IconVideo className="h-4 w-4" />Join now</Button> : <Badge>{m.status === "ended" ? "Ended" : "Cancelled"}</Badge>} />
       {!m.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><IconVideoOff className="mt-0.5 h-4 w-4 shrink-0" />{VIDEO_OFF}</Card>}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-5">

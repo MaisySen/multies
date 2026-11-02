@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ImportSection, XeroSection } from "./import-section";
 import { AiSection } from "./ai-section";
+import { AiTrustSection } from "./ai-trust-td1"; // TD1
 import { SavedRepliesSection } from "./mail/saved-replies";
 import { ReadStatusSection } from "./mail/splits"; // R31
 import { AttachmentIndexSection } from "./attachment-index-settings"; // Tools P2 (17)
@@ -222,6 +223,7 @@ export function GeneralSettings() {
       <PreferencesSection />
       <WorkspaceSection />
       <Section id="share-links" title="Share links" description="Read only links to a doc or a board for people outside the workspace."><ShareLinksSetting /></Section>
+      <AiTrustSection />
       <AiSection />
       <ToolsSection />
       <AttachmentIndexSection Section={Section} />
