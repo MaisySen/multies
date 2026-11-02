@@ -4,8 +4,11 @@
  * select, calendar by a date, and a form. Row detail opens as a sheet with comments and history. CSV in and out,
  * three templates, undo of the last changes. Behind the `tablesR125` flag. All copy sentence case, no dashes.
  */
+import { usePageTitle } from "@/web/lib/page-title-pol1"; // POL1
+import { queryRetry } from "@/web/lib/load-errors-t1g"; // POL1
+import { MoreMenu, useTrashAction } from "@/web/components/trash-pol1"; // POL1 (MB-313)
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -18,7 +21,7 @@ import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { useDialogs } from "@/web/components/ui/confirm";
 import { Input, Select, Textarea } from "@/web/components/ui/input";
-import { Badge, EmptyState, Skeleton } from "@/web/components/ui/misc";
+import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { useConfig } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
 import {
@@ -36,7 +39,7 @@ export function useTablesOn() {
 
 interface View { id: string; name: string; type: ViewType; config: ViewConfig; position: number }
 interface Detail {
-  table: { id: string; title: string; editAccess: "everyone" | "admins"; rowCount: number; canEdit: boolean; canManage: boolean; guest: boolean };
+  table: { id: string; title: string; editAccess: "everyone" | "admins"; rowCount: number; canEdit: boolean; canManage: boolean; canDelete?: boolean; guest: boolean };
   fields: TField[]; views: View[]; linked: Record<string, { title: string; fields: TField[] }>;
 }
 export interface Row { id: string; seq: number; version: number; values: Record<string, TCell>; labels: Record<string, LinkLabel[]>; hidden?: Record<string, number>; errors?: Record<string, string> }
@@ -182,7 +185,7 @@ function CsvImportDialog({ open, onClose, onDone, into }: { open: boolean; onClo
 export function TableDoc({ docId }: { docId: string }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const detail = useQuery({ queryKey: qk(docId), queryFn: () => api.get<Detail>(`/tables/${docId}`) });
+  const detail = useQuery({ queryKey: qk(docId), retry: queryRetry, queryFn: () => api.get<Detail>(`/tables/${docId}`) }); // POL1: the shared quick retry
   const [viewId, setViewId] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [search, setSearch] = useState("");
@@ -196,6 +199,9 @@ export function TableDoc({ docId }: { docId: string }) {
   const { confirm: ask, dialogs } = useDialogs();
   useEffect(() => { const t = setTimeout(() => setSearch(q.trim()), 250); return () => clearTimeout(t); }, [q]);
   const d = detail.data;
+  usePageTitle(d ? [d.table.title || "Untitled table", "Docs"] : null); // POL1 (MB-321)
+  const trash = useTrashAction("table", docId, d?.table.title ?? "", { rows: d?.table.rowCount }); // POL1 (MB-313)
+  const [focusRow, setFocusRow] = useState<{ id: string; n: number } | null>(null); // POL1 (MB-314)
   const view = d?.views.find((v) => v.id === viewId) ?? d?.views[0];
   const [local, setLocal] = useState<ViewConfig>({});
   useEffect(() => { setLocal({}); }, [view?.id]);
@@ -288,7 +294,9 @@ export function TableDoc({ docId }: { docId: string }) {
   });
 
   if (detail.isPending) return <div className="space-y-3" aria-busy="true"><Skeleton className="h-9 w-1/3" /><Skeleton className="h-10" />{Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-9" />)}</div>;
-  if (detail.error || !d || !view) return <EmptyState icon={<IconTable />} title="Couldn't open this table" body="It may have been deleted, or the connection dropped." action={<div className="flex gap-2"><Button onClick={() => void detail.refetch()}>Try again</Button><Button variant="secondary" onClick={() => navigate("/app/docs")}>All docs</Button></div>} />;
+  // POL1: a missing table says so (no Retry that can't work); any other failure is the shared card with Retry.
+  if (detail.error instanceof ApiError && detail.error.status === 404) return <EmptyState icon={<IconTable />} title="This table was deleted or moved" body="If it was deleted in the last 30 days, you can restore it from Docs, Trash." action={<Button variant="secondary" onClick={() => navigate("/app/docs")}>All docs</Button>} />;
+  if (detail.error || !d || !view) return <Card data-testid="table-load-error"><LoadError onRetry={() => detail.refetch()} /><div className="-mt-10 pb-6 text-center"><Link to="/app/docs" className="text-[13px] text-muted underline-offset-2 hover:text-fg hover:underline">All docs</Link></div></Card>;
   const fields = d.fields;
   const shown = fields.filter((f) => !(cfg.hidden ?? []).includes(f.id));
   const canEdit = d.table.canEdit;
@@ -301,10 +309,14 @@ export function TableDoc({ docId }: { docId: string }) {
         {!canEdit && <Badge tone="neutral"><IconLock className="mr-1 inline h-3 w-3" />You can view this table</Badge>}
         <span className="ml-auto text-[12.5px] text-muted" aria-live="polite">{view.type === "grid" || view.type === "kanban" ? `${total.toLocaleString("en-AU")} ${total === 1 ? "row" : "rows"}` : ""}</span>
         {d.table.canManage && <Button variant="ghost" size="sm" onClick={() => setSettings(true)} aria-label="Who can edit"><IconSettings className="h-4 w-4" /></Button>}
+        {d.table.canDelete && <MoreMenu label="More table actions" testId="table-more" onTrash={() => void trash.run()} />}
+        {trash.dialogs}
       </div>
 
       {/* F12 (R125 low): the tab row scrolls sideways at 390 instead of the View button covering the last tabs. */}
-      <div className="-mx-1 flex min-w-0 max-w-full items-center gap-1 overflow-x-auto px-1 pb-1" data-testid="table-view-tabs">
+      {/* POL1 (MB-315): only the tabs scroll; New view sits outside the scroller so it is always on screen at 390. */}
+      <div className="flex min-w-0 max-w-full items-center gap-1">
+      <div className="-mx-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1 pb-1" data-testid="table-view-tabs">
       <div className="flex shrink-0 items-center gap-1" role="tablist" aria-label="Views">
         {d.views.map((v) => (
           <button key={v.id} role="tab" aria-selected={v.id === view.id} onClick={() => setViewId(v.id)}
@@ -313,7 +325,8 @@ export function TableDoc({ docId }: { docId: string }) {
           </button>
         ))}
       </div>
-        {canEdit && <button onClick={() => setNewView(true)} className="flex min-h-[36px] shrink-0 items-center gap-1 rounded-lg px-3 text-[13px] text-muted hover:bg-hover" data-testid="add-view"><IconPlus className="h-4 w-4" />View</button>}
+        {/* tabs scroller ends */}</div>
+        {canEdit && <button type="button" onClick={() => setNewView(true)} className="flex min-h-[36px] shrink-0 items-center gap-1 rounded-lg px-3 text-[13px] text-muted hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" aria-label="New view" data-testid="add-view"><IconPlus className="h-4 w-4" />New view</button>}
       </div>
 
       {view.type !== "form" && (
@@ -332,7 +345,7 @@ export function TableDoc({ docId }: { docId: string }) {
             {canEdit && <Button variant="ghost" size="sm" onClick={() => setImporting(true)} aria-label="Import a CSV file"><IconUpload className="h-4 w-4" /></Button>}
             <a className="inline-flex min-h-[36px] items-center rounded-lg px-2 text-muted hover:bg-hover" href={`/api/tables/${docId}/export.csv?view=${view.id}`} aria-label="Export as CSV" data-testid="export-csv" download><IconDownload className="h-4 w-4" /></a>
             {canEdit && d.views.length > 1 && <Button variant="ghost" size="sm" aria-label={`Delete the view ${view.name}`} onClick={() => void ask({ title: `Delete the view "${view.name}"?`, description: "The rows stay.", confirmLabel: "Delete view", tone: "danger" }).then((ok) => { if (ok) delView.mutate(view.id); })}><IconTrash className="h-4 w-4" /></Button>}
-            {canEdit && view.type === "grid" && <Button size="sm" onClick={() => addRows.mutate([{}])} disabled={addRows.isPending} data-testid="add-row"><IconPlus className="h-4 w-4" />Row</Button>}
+            {canEdit && view.type === "grid" && <Button size="sm" onClick={() => addRows.mutate([{}], { onSuccess: (r) => { if (r.rows[0]) setFocusRow({ id: r.rows[0].id, n: Date.now() }); } })} disabled={addRows.isPending} data-testid="add-row"><IconPlus className="h-4 w-4" />Row</Button>}
           </div>
         </div>
       )}
@@ -345,7 +358,7 @@ export function TableDoc({ docId }: { docId: string }) {
           onSave={saveCells} onPaste={(c, x) => void paste(c, x)} onAdd={(list) => addRows.mutate(list)} onOpen={setOpenRow} onUndo={() => void runUndo()} onDelete={(ids) => removeRows.mutate(ids)}
           onField={(f) => setFieldDlg({ field: f })} onAddField={() => setFieldDlg({})} onImport={() => setImporting(true)}
           onResize={(fid, w) => changeView({ widths: { ...(cfg.widths ?? {}), [fid]: w } })}
-          more={rows.hasNextPage ? () => void rows.fetchNextPage() : undefined} loadingMore={rows.isFetchingNextPage} />
+          more={rows.hasNextPage ? () => void rows.fetchNextPage() : undefined} loadingMore={rows.isFetchingNextPage} focusRow={focusRow} />
       ) : view.type === "kanban" ? (
         <Kanban fields={fields} rows={all} by={fields.find((f) => f.id === cfg.by && f.type === "select") ?? null} canEdit={canEdit} loading={rows.isPending}
           onMove={(r, f, v) => saveCells([{ row: r, cells: { [f.id]: v } }])} onOpen={setOpenRow} onAdd={(f, v) => addRows.mutate([{ [f.id]: v }])} more={rows.hasNextPage ? () => void rows.fetchNextPage() : undefined} />
@@ -489,6 +502,8 @@ interface GridProps {
   onPaste: (changes: { row: Row; cells: Record<string, unknown> }[], extra: Record<string, unknown>[]) => void;
   onUndo: () => void; onDelete: (ids: string[]) => void; onField: (f: TField) => void; onAddField: () => void; onImport: () => void; onResize: (fid: string, w: number) => void;
   more?: () => void; loadingMore: boolean;
+  /** POL1 (MB-314): a row just added with Row; its first typable cell becomes active and the grid takes focus. */
+  focusRow?: { id: string; n: number } | null;
 }
 function Grid(props: GridProps) {
   const { fields, rows, canEdit } = props;
@@ -515,6 +530,19 @@ function Grid(props: GridProps) {
   const sel = act ? (anchor ? { r0: Math.min(act.r, anchor.r), r1: Math.max(act.r, anchor.r), c0: Math.min(act.c, anchor.c), c1: Math.max(act.c, anchor.c) } : { r0: act.r, r1: act.r, c0: act.c, c1: act.c }) : null;
   const inSel = (r: number, c: number) => !!sel && r >= sel.r0 && r <= sel.r1 && c >= sel.c0 && c <= sel.c1;
   const typable = (f: TField) => canEdit && !isComputed(f.type) && !["link", "attachment", "multiselect", "longtext", "select", "checkbox"].includes(f.type);
+  // POL1 (MB-314): after Row, the new row's first cell you can type in is active and focused, so typing starts at once.
+  const doneFocus = useRef(0);
+  useEffect(() => {
+    const want = props.focusRow;
+    if (!want || doneFocus.current === want.n) return;
+    const r = rows.findIndex((x) => x.id === want.id);
+    if (r < 0) return;
+    doneFocus.current = want.n;
+    const c = Math.max(0, fields.findIndex((f) => typable(f)));
+    setAnchor(null); setAct({ r, c });
+    wrap.current?.focus({ preventScroll: true });
+    requestAnimationFrame(() => document.getElementById(`cell-${r}-${c}`)?.scrollIntoView({ block: "nearest", inline: "nearest" }));
+  }, [props.focusRow, rows, fields]); // eslint-disable-line react-hooks/exhaustive-deps
   const focusGrid = () => { const a = document.activeElement; if (a instanceof HTMLInputElement && wrap.current?.contains(a)) return; wrap.current?.focus({ preventScroll: true }); };
   const commit = (move?: "down" | "right") => {
     if (!act || !edit) return;
@@ -713,8 +741,8 @@ function Kanban({ fields, rows, by, canEdit, loading, onMove, onOpen, onAdd, mor
   const cols = [...(by.config.options ?? []).map((o) => ({ id: o.id, label: o.label, color: o.color })), { id: "", label: "Not set", color: "#64748b" }];
   const extra = fields.slice(1).filter((f) => f.id !== by.id && !isComputed(f.type) && f.type !== "longtext").slice(0, 2);
   return (
-    <div>
-      <div className="flex gap-3 overflow-x-auto pb-2" data-testid="kanban">
+    <div className="min-w-0 max-w-full">
+      <div className="flex min-w-0 max-w-full gap-3 overflow-x-auto overscroll-x-contain pb-2" data-testid="kanban">
         {cols.map((c) => {
           const items = rows.filter((r) => (r.values[by.id] ?? "") === c.id);
           return (

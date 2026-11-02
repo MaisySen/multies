@@ -19,6 +19,8 @@ export interface Me {
 export interface PublicConfig {
   /** R125: tables doc type. */
   tablesR125?: boolean;
+  /** POL1: tables and courses to the trash with restore. */
+  polishPol1?: boolean;
   /** ANALYTICS-PH: internal product usage analytics is on (the browser still honours Do Not Track). */
   analyticsPh?: boolean;
   /** R122: the help center in Docs. */

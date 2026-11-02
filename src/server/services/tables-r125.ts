@@ -7,6 +7,7 @@
  * Linked records and lookups only show rows from tables the viewer can open. Rows are paged; text filters go through
  * LK1 (containsText); field filters use json_extract on field ids taken from the saved field list, never from input.
  */
+import { canTrash } from "./trash-rules-pol1"; // POL1
 import { and, asc, desc, eq, isNull, sql, type SQL } from "drizzle-orm";
 import { inIds } from "../lib/sql-chunks";
 import type { Deps } from "../context";
@@ -107,7 +108,8 @@ export async function tableDetail(deps: Deps, viewer: Viewer, docId: string) {
   const linked: Record<string, { title: string; fields: TField[] }> = {};
   for (const [id, t] of targets) linked[id] = { title: t.title, fields: id === docId ? fields : await fieldsOf(deps, viewer.actor.orgId, id) };
   return {
-    table: { id: docId, title, editAccess: meta.editAccess, rowCount: meta.rowCount, canEdit: canEdit(viewer, meta), canManage: viewer.kind === "member" && viewer.actor.scope !== "read" && (viewer.actor.role === "owner" || viewer.actor.role === "admin" || viewer.actor.userId === meta.createdBy), guest: viewer.kind === "guest" },
+    table: { id: docId, title, editAccess: meta.editAccess, rowCount: meta.rowCount, canEdit: canEdit(viewer, meta), canManage: viewer.kind === "member" && viewer.actor.scope !== "read" && (viewer.actor.role === "owner" || viewer.actor.role === "admin" || viewer.actor.userId === meta.createdBy), guest: viewer.kind === "guest",
+      canDelete: !!deps.config.polishPol1 && viewer.kind === "member" && canTrash(viewer.actor, "table", meta.createdBy) }, // POL1
     fields, views, linked,
   };
 }

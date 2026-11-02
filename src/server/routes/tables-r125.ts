@@ -18,6 +18,7 @@ import {
   addRowComment, assertTablesOn, createField, createRows, createTable, createView, deleteField, deleteRowComment, deleteRows, deleteView, exportCsv, getRow, importCsv,
   listRowComments, listRows, listTables, rowHistory, tableDetail, updateField, updateRows, updateSettings, updateView, type Viewer,
 } from "../services/tables-r125";
+import { trashDoc } from "../services/trash-pol1"; // POL1
 import { FIELD_TYPES, FILTER_OPS, LIMITS, type TFilter, type TSort } from "@/shared/tables-r125";
 
 const id = z.string().regex(/^[\w-]{1,64}$/);
@@ -66,6 +67,7 @@ export function tableRoutes() {
     })
     .post("/import", async (c) => c.json(await importCsv(c.var.deps, c.var.auth, await parseBody(c, ImportIn)), 201))
     .get("/:id", async (c) => c.json(await tableDetail(c.var.deps, member(c), c.req.param("id"))))
+    .delete("/:id", async (c) => c.json(await trashDoc(c.var.deps, c.var.auth, "table", c.req.param("id")))) // POL1 (MB-313): to the trash
     .patch("/:id/settings", async (c) => c.json(await updateSettings(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, z.object({ editAccess: z.enum(["everyone", "admins"]) })))))
     .post("/:id/fields", async (c) => c.json({ field: await createField(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, FieldIn)) }, 201))
     .patch("/:id/fields/:fid", async (c) => c.json(await updateField(c.var.deps, c.var.auth, c.req.param("id"), c.req.param("fid"), await parseBody(c, FieldPatch))))

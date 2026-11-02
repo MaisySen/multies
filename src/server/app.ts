@@ -466,6 +466,7 @@ export function createApp(deps: Deps) {
       officeEditR113: !!deps.config.officeEditR113, // R113: office files in the browser
       expenses: deps.config.invoicesEnabled && deps.config.expensesR106, // R106
       tablesR125: !!deps.config.tablesR125, // R125: tables (vv8k gets 404 from the API and no entry points)
+      polishPol1: !!deps.config.polishPol1, // POL1: tables and courses to the trash with restore
       formsPlus: !!deps.config.formsPlus, // R93: chat forms, webhook, embed, feedback boards, calls for submissions
       homeWidgetsR131: !!deps.config.homeWidgetsR131, // R131: Home widgets
       reporting: !!deps.config.reporting, // R112: anonymous reporting channel and data requests

@@ -15,6 +15,7 @@ import {
   assertCoursesOn, assign, certificatePdf, courseDetail, createCourse, createLesson, deleteLesson, lessonPage, listCourses, markDone, moveLesson, myLearning,
   progressCsv, progressTable, startCourse, submitQuiz, unassign, updateCourse, updateLesson,
 } from "../services/courses-r129";
+import { trashDoc } from "../services/trash-pol1"; // POL1
 import { LESSON_TYPES, LIMITS, QUESTION_TYPES } from "@/shared/courses-r129";
 
 const id = z.string().regex(/^[\w-]{1,64}$/);
@@ -39,6 +40,7 @@ export function courseRoutes() {
     .post("/", async (c) => c.json({ course: await createCourse(c.var.deps, c.var.auth, await parseBody(c, z.object({ title: z.string().max(LIMITS.title).optional(), parentId: id.nullable().optional(), projectId: id.nullable().optional() }).strict())) }, 201))
     .get("/learning", async (c) => c.json(await myLearning(c.var.deps, c.var.auth)))
     .get("/:id", async (c) => c.json(await courseDetail(c.var.deps, { kind: "member", actor: c.var.auth }, c.req.param("id"))))
+    .delete("/:id", async (c) => c.json(await trashDoc(c.var.deps, c.var.auth, "course", c.req.param("id")))) // POL1 (MB-313): to the trash
     .patch("/:id", async (c) => c.json(await updateCourse(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, z.object({
       status: z.enum(["draft", "published"]).optional(), passMark: z.number().int().min(0).max(100).optional(), certificate: z.boolean().optional(),
       editors: z.array(id).max(100).optional(), managers: z.array(id).max(100).optional(),

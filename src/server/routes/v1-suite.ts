@@ -14,6 +14,7 @@ import {
 } from "../services/suite/tasks";
 import { applyTaskQuery, wantsSubtasks } from "../services/suite/task-query"; // R26 (MB-86)
 import { appendToDoc, createDoc, deleteDoc, getDoc, listDocs, updateDoc } from "../services/suite/docs";
+import { guardDocDelete } from "../services/trash-pol1"; // POL1
 import { contactDetail, createDeal, listCompanies, listContacts, listDeals, updateContact, updateDeal, upsertContact } from "../services/suite/contacts";
 import { assigneeOf } from "./suite";
 import { parseFieldFilters } from "../services/suite/fields";
@@ -218,7 +219,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
 
   api.openapi(createRoute({ method: "delete", path: "/docs/{id}", tags: tag("Docs"), summary: "Delete a doc", security: secured,
     request: { params: Id }, responses: { 200: json(z.object({ ok: z.boolean() }), "Deleted."), 401: errors[401], 404: errors[404] } }),
-  async (c) => send(c, await deleteDoc(c.var.deps, actor(c), c.req.valid("param").id)));
+  async (c) => { await guardDocDelete(c.var.deps, actor(c), c.req.valid("param").id); return send(c, await deleteDoc(c.var.deps, actor(c), c.req.valid("param").id)); }); // POL1
 
   // ---------------------------------------------------------------- contacts
   api.openapi(createRoute({ method: "get", path: "/contacts", tags: tag("Contacts"), summary: "List or search contacts", security: secured,

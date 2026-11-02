@@ -4,7 +4,7 @@
  * My learning lives at /app/docs/learning. Quizzes are scored on the server; this page never sees the answer key
  * unless the person can build the course.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -19,6 +19,9 @@ import { DateInput, Field, Input, Select, Textarea } from "@/web/components/ui/i
 import { Badge, Card, EmptyState, PageHeader, Skeleton, Switch, tableStyles } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { useConfig, useMe } from "@/web/lib/queries";
+import { usePageTitle } from "@/web/lib/page-title-pol1"; // POL1
+import { queryRetry } from "@/web/lib/load-errors-t1g"; // POL1
+import { MoreMenu, useTrashAction } from "@/web/components/trash-pol1"; // POL1 (MB-313)
 import { useAssignees, isAgentLike } from "./data";
 import { LESSON_LABEL, LESSON_TYPES, STATUS_LABEL, type LearnerStatus, type LessonType, type PublicQuestion, type Question, type QuestionType } from "@/shared/courses-r129";
 
@@ -26,7 +29,7 @@ import { LESSON_LABEL, LESSON_TYPES, STATUS_LABEL, type LearnerStatus, type Less
 
 interface Lesson { id: string; title: string; type: LessonType; refDocId: string | null; url: string | null; body: string; required: boolean; passMark: number | null; questionCount: number; quiz?: Question[]; questions?: PublicQuestion[] }
 interface Me { id: string; source: string; dueAt: number | null; startedAt: number | null; completedAt: number | null; certificateNo: string | null; status: LearnerStatus; percent: number; lessons: Record<string, { done: boolean; passed: boolean; bestScore: number | null; attempts: number }> }
-interface Course { id: string; title: string; status: "draft" | "published"; passMark: number; certificate: boolean; editors?: string[]; managers?: string[]; createdBy?: string | null; canBuild: boolean; canSeeProgress: boolean; canLearn: boolean; guest: boolean }
+interface Course { id: string; title: string; status: "draft" | "published"; passMark: number; certificate: boolean; editors?: string[]; managers?: string[]; createdBy?: string | null; canBuild: boolean; canDelete?: boolean; canSeeProgress: boolean; canLearn: boolean; guest: boolean }
 interface Detail { course: Course; lessons: Lesson[]; me: Me | null }
 interface ProgressRow { id: string; userId: string; name: string; email: string; source: string; percent: number; done: number; total: number; bestScore: number | null; dueAt: number | null; completedAt: number | null; status: LearnerStatus; statusLabel: string }
 interface QuizResult { score: number; right: number; total: number; passed: boolean; passMark: number; wrong: string[] }
@@ -43,7 +46,7 @@ export function useCoursesOn() {
 }
 
 function useCourse(id: string) {
-  return useQuery({ queryKey: key(id), retry: (n, e) => !(e instanceof ApiError && (e.status === 403 || e.status === 404)) && n < 2, queryFn: () => api.get<Detail>(`/courses/${id}`) });
+  return useQuery({ queryKey: key(id), retry: queryRetry, queryFn: () => api.get<Detail>(`/courses/${id}`) });
 }
 
 /** Course progress: brand colour while going, ok colour when done (the shared Meter reads as usage and turns red when full). */
@@ -115,10 +118,23 @@ export function CourseDoc({ docId }: { docId: string }) {
     ];
   }, [d]);
   const current: Tab | undefined = tabs.find((t) => t.id === (tab ?? initial))?.id ?? tabs[0]?.id;
+  usePageTitle(d ? [d.course.title || "Untitled course", "Docs"] : null); // POL1 (MB-321)
+  const trash = useTrashAction("course", docId, d?.course.title ?? "");
+  // POL1: arrow keys, Home and End move between the course tabs.
+  const onTabKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const i = tabs.findIndex((t) => t.id === current);
+    const next = e.key === "ArrowRight" ? i + 1 : e.key === "ArrowLeft" ? i - 1 : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : null;
+    if (next === null || !tabs.length) return;
+    e.preventDefault();
+    const t = tabs[(next + tabs.length) % tabs.length];
+    setTab(t.id);
+    document.getElementById(`course-tab-${t.id}`)?.focus();
+  };
 
   if (q.isPending) return <div className="mx-auto max-w-5xl space-y-3" aria-busy="true"><Skeleton className="h-9 w-1/2" /><Skeleton className="h-10 w-2/3" /><Skeleton className="h-64" /></div>;
   if (q.error) {
     const draft = q.error instanceof ApiError && q.error.status === 403;
+    if (q.error instanceof ApiError && q.error.status === 404) return <EmptyState icon={<IconBook />} title="This course was deleted or moved" body="If it was deleted in the last 30 days, an admin can restore it from Docs, Trash." action={<Button variant="secondary" onClick={() => navigate("/app/docs")}>All docs</Button>} />; // POL1
     if (!draft) return <LoadError onRetry={() => q.refetch()} />;
     return <EmptyState icon={<IconBook />} title="This course is not published yet" body="You can take it once its editor publishes it."
       action={<Button onClick={() => navigate("/app/docs/learning")}>My learning</Button>} />;
@@ -131,14 +147,16 @@ export function CourseDoc({ docId }: { docId: string }) {
         <h1 className="min-w-0 flex-1 break-words text-[22px] font-semibold tracking-tight">{c.title}</h1>
         <Badge tone={c.status === "published" ? "ok" : "neutral"}>{c.status === "published" ? "Published" : "Draft"}</Badge>
         {c.canBuild && <PublishButton course={c} lessons={d!.lessons.length} />}
+        {c.canDelete && <MoreMenu label="More course actions" testId="course-more" onTrash={() => void trash.run()} />}
+        {trash.dialogs}
       </div>
-      <div role="tablist" aria-label="Course" className="mb-5 flex gap-1 overflow-x-auto border-b border-line">
+      <div role="tablist" aria-label="Course" onKeyDown={onTabKey} className="mb-5 flex gap-1 overflow-x-auto border-b border-line">
         {tabs.map((t) => (
-          <button key={t.id} role="tab" type="button" aria-selected={current === t.id} data-testid={`course-tab-${t.id}`} onClick={() => setTab(t.id)}
+          <button key={t.id} id={`course-tab-${t.id}`} role="tab" type="button" aria-selected={current === t.id} aria-controls="course-panel" tabIndex={current === t.id ? 0 : -1} data-testid={`course-tab-${t.id}`} onClick={() => setTab(t.id)}
             className={cn("-mb-px min-h-11 shrink-0 border-b-2 px-3 text-[14px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand", current === t.id ? "border-brand text-fg" : "border-transparent text-muted hover:text-fg")}>{t.label}</button>
         ))}
       </div>
-      <div role="tabpanel">
+      <div role="tabpanel" id="course-panel" aria-labelledby={current ? `course-tab-${current}` : undefined}>
         {current === "learn" && <LearnTab detail={d!} />}
         {current === "build" && <BuildTab detail={d!} />}
         {current === "assign" && <AssignTab detail={d!} />}
@@ -654,7 +672,7 @@ export function MyLearningPage() {
   const [newCourse, setNewCourse] = useState(false);
   const me = useMe();
   const role = (me.data as { role?: string } | undefined)?.role;
-  useEffect(() => { document.title = "My learning"; }, []);
+  usePageTitle(["My learning", "Docs"]); // POL1 (MB-321)
   if (cfg.isSuccess && !flag) return <EmptyState icon={<IconBook />} title="Courses are not on for this workspace" body="Ask an admin if you expected to see your courses here." />;
   const items = q.data?.items ?? [];
   const groups: { title: string; list: typeof items }[] = [

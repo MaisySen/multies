@@ -16,6 +16,7 @@ import { inIds } from "../lib/sql-chunks";
 import { createDoc } from "./suite/docs";
 import { assertWritable, recordWrite, sortableId, type SuiteActor } from "./suite/common";
 import { notify } from "./suite/notify";
+import { canTrash } from "./trash-rules-pol1"; // POL1
 import { getBrand } from "../routes/branding";
 import {
   checkQuestions, clampMark, courseProgress as progressOf, learnerStatus, LIMITS, publicQuestions, reminderDue, safeLink, scoreQuiz, STATUS_LABEL, toCsv,
@@ -139,7 +140,7 @@ export async function courseDetail(deps: Deps, viewer: Viewer, docId: string) {
     course: {
       id: docId, title, status: meta.status, passMark: meta.passMark, certificate: meta.certificate,
       ...(builder ? { editors: ids(meta.editors), managers: ids(meta.managers), createdBy: meta.createdBy } : {}),
-      canBuild: builder, canSeeProgress: member && canSeeProgress(a, meta), canLearn: member && !!a.userId && a.scope !== "read", guest: !member,
+      canBuild: builder, canDelete: !!deps.config.polishPol1 && member && canTrash(a, "course", meta.createdBy), canSeeProgress: member && canSeeProgress(a, meta), // POL1: canDelete canLearn: member && !!a.userId && a.scope !== "read", guest: !member,
     },
     lessons: lessons.map((l) => lessonFor(l, builder)),
     me,

@@ -38,6 +38,7 @@ import { QUERY_MAX_LENGTH } from "../../shared/task-query";
 import { getBoardSettings, setBoardSettings } from "../services/suite/board-settings"; // R34 (MB-186)
 import { BoardPatchSchema } from "./board-schema-r34";
 import { idempotency, idempotentId, sessionIdempotencyScope } from "../lib/idempotency"; // R40 (MB-201)
+import { guardDocDelete, listTrash, restoreDoc } from "../services/trash-pol1"; // POL1
 
 // R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
 // T1G (T1-3): a search longer than 200 characters is cut to 200 like every other list search, never refused.
@@ -155,9 +156,11 @@ export function docRoutes() {
       return c.json({ docs: await listDocs(c.var.deps, c.var.auth.orgId, { q: q.q, projectId: q.projectId, linkedTo: q.linkedType && q.linkedId ? { type: q.linkedType, id: q.linkedId } : undefined }) });
     })
     .post("/", async (c) => c.json({ doc: await createDoc(c.var.deps, c.var.auth, await parseBody(c, DocCreate)) }, 201))
+    .get("/trash", async (c) => c.json(await listTrash(c.var.deps, c.var.auth))) // POL1: deleted tables and courses (POLISH_POL1)
+    .post("/:id/restore", async (c) => c.json(await restoreDoc(c.var.deps, c.var.auth, c.req.param("id")))) // POL1
     .get("/:id", async (c) => c.json({ doc: await getDoc(c.var.deps, c.var.auth.orgId, c.req.param("id")) }))
     .patch("/:id", async (c) => c.json({ doc: await updateDoc(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, DocPatch)) }))
-    .delete("/:id", async (c) => c.json(await deleteDoc(c.var.deps, c.var.auth, c.req.param("id"))));
+    .delete("/:id", async (c) => { await guardDocDelete(c.var.deps, c.var.auth, c.req.param("id")); return c.json(await deleteDoc(c.var.deps, c.var.auth, c.req.param("id"))); }); // POL1: tables and courses follow the trash rules
 }
 
 export function contactRoutes() {

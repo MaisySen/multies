@@ -56,6 +56,8 @@ export interface AppConfig {
   askR110?: boolean;
   /** R125: tables, a doc type (TABLES_R125). Off unless set. */
   tablesR125?: boolean;
+  /** POL1: P1 polish, new behaviour only (tables and courses to the trash with restore). POLISH_POL1, off unless set. */
+  polishPol1?: boolean;
   /** R125: more workspaces kept out of tables (vv8k is always out). */
   tablesExclude?: string;
   /** R129: courses, a doc type (COURSES_R129). Off unless set. */
@@ -428,6 +430,7 @@ const EnvSchema = z.object({
   ASK_EXCLUDE: z.string().optional(),
   ASK_R110: z.string().optional(),
   TABLES_R125: z.string().optional(), // R125
+  POLISH_POL1: z.string().optional(), // POL1
   TABLES_EXCLUDE: z.string().optional(), // R125
   VAULT_R128: z.string().optional(),
   VAULT_EXCLUDE: z.string().optional(),
@@ -739,6 +742,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     askExclude: env.ASK_EXCLUDE ?? "", // R110
     askR110: ["1", "true", "on"].includes(String(env.ASK_R110 ?? "").toLowerCase()), // R110
     tablesR125: ["1", "true", "on"].includes(String(env.TABLES_R125 ?? "").toLowerCase()), // R125
+    polishPol1: ["1", "true", "on"].includes(String(env.POLISH_POL1 ?? "").toLowerCase()), // POL1
     tablesExclude: env.TABLES_EXCLUDE ?? "", // R125
     vaultR128: ["1", "true", "on"].includes(String(env.VAULT_R128 ?? "").toLowerCase()), // R128
     vaultExclude: env.VAULT_EXCLUDE ?? "", // R128
