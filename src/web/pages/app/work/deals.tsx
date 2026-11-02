@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, KeyboardSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { IconArrowLeft, IconGrip, IconHandshake, IconPlus, IconReceipt } from "@/web/components/ui/icon";
@@ -62,6 +62,10 @@ export function DealsPage() {
   const crm = useCrmTimelineOn(); // R94
   const [asking, setAsking] = useState<{ deal: Deal; stage: "won" | "lost" } | null>(null);
   const [openDeal, setOpenDeal] = useState<Deal | null>(null);
+  // TD5: a mention links to /app/deals?deal=<id>; open that deal once the board is in.
+  const [dealParams] = useSearchParams();
+  const linkedDeal = dealParams.get("deal");
+  useEffect(() => { if (linkedDeal && q.data) { const d = q.data.deals.find((x) => x.id === linkedDeal); if (d) setOpenDeal(d); } }, [linkedDeal, q.data]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor));
   const onDragEnd = async (e: DragEndEvent) => {
     if (!e.over || !q.data) return;

@@ -6,7 +6,7 @@ import { CatchupCard } from "@/web/components/catchup-card"; // R31
 import { chatPollMs, useLiveChat, useOutbox } from "@/web/lib/live-chat"; // R32
 import { ChatLiveLine } from "./chat-live-r32"; // R32
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconAgent, IconAttachment, IconBack, IconBlock, IconChat, IconClose, IconDocs, IconFlag, IconHash, IconInbox, IconLock, IconMail, IconMore, IconPin, IconPinOff, IconPlus, IconSend, IconTasks, IconTeam } from "@/web/components/ui/icon";
+import { IconAgent, IconAttachment, IconBack, IconBlock, IconChat, IconClose, IconDocs, IconFlag, IconHash, IconInbox, IconLink, IconLock, IconMail, IconMore, IconPin, IconPinOff, IconPlus, IconSend, IconTasks, IconTeam } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { formatBytes, initials, mailDate } from "@/web/lib/format";
@@ -31,6 +31,7 @@ import { newClientMsgId, pendingFor } from "@/web/lib/chat-outbox";
 import { BlockedHiddenRow, useModeration } from "./report-sheet-r35"; // R35: report and block
 import { AnnouncementsFeed, AnnouncementsNav, ChatPlusAdd, MoveToTopic, PollCard, TopicBar, useChatPlus, type Topic } from "./chat-plus-r96"; // R96
 import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
+import { useMentionPicker, useMentionsOn } from "@/web/components/mentions-td5"; // TD5
 import { CallButton, CallCard, ChatSearch, JumpToUnread, ReactionPicker, Reactions, callPath, flashMessage, useFirstUnread, type ChatSearchResult, type Reaction } from "./chat-r20";
 
 export interface ChatChannel {
@@ -41,24 +42,27 @@ export interface ChatMessage {
   /** R96 chat plus */
   topicId?: string | null; poll?: { id: string; kind: string; question: string }; announcement?: boolean; updatedAt?: string;
   id: string; channelId: string; parentId: string | null; author: { type: string; id: string | null; name: string; title?: string | null; agent?: boolean }; body: string;
-  mentions: { type: string; id: string; name: string }[]; links: { type: "task" | "thread" | "doc"; id: string; ref: string | null; title: string; messageId?: string }[];
+  mentions: { type: string; id: string; name: string }[]; links: { type: "task" | "thread" | "doc" | "project" | "contact" | "deal" | "meeting" | "form" | "invoice"; id: string; ref: string | null; title: string; messageId?: string; state?: "restricted" | "deleted"; url?: string; subtitle?: string }[];
   attachments: { id: string; filename: string; contentType: string; size: number }[]; replyCount: number; lastReplyAt: string | null; editedAt: string | null; deleted: boolean; createdAt: string;
   pinnedAt?: string | null; pinnedBy?: string | null; reactions?: Reaction[];
 }
 interface Person { id: string; type: "member" | "agent"; name: string; email: string | null; isAgent?: boolean; paused?: boolean }
 
 const TOKEN_RE = /(<@(?:member|agent):[A-Za-z0-9_-]+>|<#(?:task|thread|doc):[A-Za-z0-9_.@-]+>|<!(?:channel|here)>)/g;
+/** TD5: with MENTIONS_TD5 on, every record type is a chip (resolved on the server for this reader). */
+const TOKEN_RE_TD5 = /(<@(?:member|agent):[A-Za-z0-9_-]+>|<#(?:task|thread|doc|project|contact|deal|meeting|form|invoice):[A-Za-z0-9_.@-]+>|<!(?:channel|here)>)/g;
 
 /** Message text with mentions as names and links as chips. Never renders HTML from the message. */
 function Body({ m }: { m: ChatMessage }) {
-  const parts = m.body.split(TOKEN_RE);
+  const on = useMentionsOn();
+  const parts = m.body.split(on ? TOKEN_RE_TD5 : TOKEN_RE);
   return (
     <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed">
       {parts.map((p, i) => {
         const mention = p.match(/^<@(member|agent):(.+)>$/);
         if (mention) { const who = m.mentions.find((x) => x.type === mention[1] && x.id === mention[2]); return <span key={i} className="rounded bg-brand/15 px-1 font-medium text-brand-hover">@{who?.name ?? "someone"}</span>; }
         if (/^<!(channel|here)>$/.test(p)) return <span key={i} className="rounded bg-warn/15 px-1 font-medium text-warn">@channel</span>;
-        const link = p.match(/^<#(task|thread|doc):(.+)>$/);
+        const link = on ? p.match(/^<#(task|thread|doc|project|contact|deal|meeting|form|invoice):(.+)>$/) : p.match(/^<#(task|thread|doc):(.+)>$/);
         if (link) { const l = m.links.find((x) => x.type === link[1] && (x.id === link[2] || x.ref === link[2])); return l ? <LinkChip key={i} l={l} /> : <span key={i}>{link[1]}</span>; }
         return <span key={i}>{p}</span>;
       })}
@@ -67,6 +71,15 @@ function Body({ m }: { m: ChatMessage }) {
 }
 
 function LinkChip({ l }: { l: ChatMessage["links"][number] }) {
+  // TD5: a card the reader may not open says so and carries no title.
+  if (l.state) return <span className="mx-0.5 inline-flex items-center gap-1 rounded-md border border-line bg-fill px-1.5 py-0.5 align-middle text-[12.5px] italic text-muted" data-testid="chat-link-muted"><IconLock className="h-3.5 w-3.5 shrink-0" aria-hidden />{l.state === "restricted" ? "Restricted item" : "Deleted item"}</span>;
+  if (l.url && !["task", "doc", "thread"].includes(l.type)) {
+    return (
+      <Link to={l.url.startsWith("/app/") ? l.url : "#"} className="mx-0.5 inline-flex max-w-full items-center gap-1 rounded-md border border-line bg-surface px-1.5 py-0.5 align-middle text-[12.5px] hover:border-line-strong" data-testid="chat-link">
+        <IconLink className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden /><span className="truncate">{l.title}</span>{l.subtitle && <span className="shrink-0 text-[11.5px] text-subtle">{l.subtitle}</span>}
+      </Link>
+    );
+  }
   const to = l.type === "task" ? `/app/tasks?task=${l.id}` : l.type === "doc" ? `/app/docs/${l.id}` : `/app/mail?m=${l.messageId ?? ""}`;
   const Icon = l.type === "task" ? IconTasks : l.type === "doc" ? IconDocs : IconMail;
   return (
@@ -202,21 +215,25 @@ function Composer({ people, placeholder, onSend, testId, onType }: { people: Per
   // R25 (DF-10): no keyboard hints on touch screens or phone widths, and a real project key as the sample.
   const projects = useProjects();
   const hint = composerHint({ touch: isTouchOnly() || isPhoneWidth(), projectKey: projects.data?.find((p) => !p.archived)?.key });
-  const query = text.match(/(?:^|\s)@([\w.-]*)$/)?.[1];
+  const on = useMentionsOn(); // TD5: one picker for people and records
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const picker = useMentionPicker(inputRef, text, setText, people.filter((p) => !p.paused).map((p) => ({ key: p.id, name: p.name, insert: `@${p.name} `, hint: p.type === "agent" || p.isAgent ? "Agent" : undefined, onPick: () => setPicked((l) => [...l.filter((x) => x.id !== p.id), p]) })), { enabled: on });
+  const query = on ? undefined : text.match(/(?:^|\s)@([\w.-]*)$/)?.[1];
   const matches = query === undefined ? [] : people.filter((p) => !p.paused && p.name.toLowerCase().includes(query.toLowerCase())).slice(0, 6);
   const pick = (p: Person) => { setText((t) => t.replace(/@([\w.-]*)$/, `@${p.name} `)); setPicked((l) => [...l.filter((x) => x.id !== p.id), p]); };
   const submit = async (e?: FormEvent) => {
     e?.preventDefault();
     if (!text.trim() && !files.length) return;
-    let body = text;
+    let body = on ? picker.toTokens(text) : text;
     for (const p of [...picked].sort((a, b) => b.name.length - a.name.length)) body = body.split(`@${p.name}`).join(`<@${p.id}>`);
     if (/(^|\s)@(channel|here)\b/.test(body)) body = body.replace(/(^|\s)@(channel|here)\b/g, "$1<!channel>");
     body = body.replace(/(^|[\s(])([A-Z][A-Z0-9]{1,5}-\d{1,6})\b/g, "$1<#task:$2>");
     setBusy(true);
-    try { await onSend(body, files); setText(""); setFiles([]); setPicked([]); } catch (err) { showError(err as Error); } finally { setBusy(false); }
+    try { await onSend(body, files); setText(""); setFiles([]); setPicked([]); picker.reset(); } catch (err) { showError(err as Error); } finally { setBusy(false); }
   };
   return (
     <form onSubmit={submit} className="relative border-t border-line p-3 max-sm:px-2 max-sm:py-1.5">
+      {on && picker.list}
       {matches.length > 0 && (
         <ul role="listbox" aria-label="Mention someone" className="absolute bottom-full left-3 mb-1 w-64 overflow-hidden rounded-lg border border-line-strong bg-elevated shadow-pop">
           {matches.map((p) => <li key={p.id}><button type="button" role="option" aria-selected={false} onClick={() => pick(p)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-hover"><Avatar label={initials(p.name)} className="h-5 w-5 text-[9px]" />{p.name}{(p.type === "agent" || p.isAgent) && <span className="inline-flex items-center gap-0.5 text-subtle" data-testid="mention-agent-badge"><IconAgent className="h-3 w-3" aria-hidden />Agent</span>}</button></li>)}
@@ -225,8 +242,9 @@ function Composer({ people, placeholder, onSend, testId, onType }: { people: Per
       {files.length > 0 && <div className="mb-2 flex flex-wrap gap-2">{files.map((f, i) => <span key={i} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-0.5 text-[12px]">{f.name}<button type="button" aria-label={`Remove ${f.name}`} onClick={() => setFiles((l) => l.filter((_, j) => j !== i))}><IconClose className="h-3 w-3" /></button></span>)}</div>}
       <div className="flex items-end gap-2">
         <label className="sr-only" htmlFor={`${testId ?? "composer"}-input`}>Message</label>
-        <textarea id={`${testId ?? "composer"}-input`} data-testid={testId} value={text} onChange={(e) => { setText(e.target.value); if (e.target.value) onType?.(); }} rows={1} placeholder={placeholder}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !matches.length) { e.preventDefault(); void submit(); } if (e.key === "Tab" && matches.length) { e.preventDefault(); pick(matches[0]); } }}
+        <textarea ref={inputRef} id={`${testId ?? "composer"}-input`} data-testid={testId} value={text} onChange={(e) => { setText(e.target.value); if (e.target.value) onType?.(); if (on) requestAnimationFrame(picker.sync); }} rows={1} placeholder={placeholder}
+          onClick={on ? picker.sync : undefined} aria-activedescendant={on ? picker.activeId : undefined} aria-expanded={on ? picker.open : undefined} aria-autocomplete={on ? "list" : undefined} role={on ? "combobox" : undefined}
+          onKeyDown={(e) => { if (on && picker.onKeyDown(e)) return; if (e.key === "Enter" && !e.shiftKey && !matches.length) { e.preventDefault(); void submit(); } if (e.key === "Tab" && matches.length) { e.preventDefault(); pick(matches[0]); } }}
           className="max-h-40 min-h-10 flex-1 resize-y rounded-lg border border-line bg-surface px-3 py-2 text-sm max-sm:min-h-11 max-sm:resize-none max-sm:rounded-[22px] max-sm:px-4 max-sm:py-2.5 max-sm:text-[16px] focus:border-brand/70 focus:outline-none focus:ring-4 focus:ring-brand/15" />
         <input ref={fileRef} type="file" multiple className="hidden" onChange={(e) => setFiles((l) => [...l, ...Array.from(e.target.files ?? [])].slice(0, 5))} />
         <Button variant="ghost" size="icon" type="button" aria-label="Attach a file" onClick={() => fileRef.current?.click()}><IconAttachment className="h-4 w-4" /></Button>

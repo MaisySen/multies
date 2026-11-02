@@ -23,6 +23,7 @@ import {
 import { applyFormat, mentionAt, mentionHandle, renderNotes, type Fmt } from "@/web/lib/task-text-r84";
 import { isAgentLike, useTags, useWorkspaceFields, type AssigneeOption, type FieldType, type SavedView, type Tag, type WorkspaceField } from "./data";
 import { LoadErrorInline } from "@/web/components/load-error-t1g";
+import { chipsInHtml, tokenKeys, useEditableTokens, useMentionPicker, useMentionsOn, useResolved } from "@/web/components/mentions-td5"; // TD5
 
 export const TAG_PALETTE = ["#2563eb", "#16a34a", "#d97706", "#dc2626", "#9333ea", "#0891b2", "#db2777", "#64748b", "#ca8a04", "#4f46e5"];
 const GREY = "#8a8f98";
@@ -354,8 +355,11 @@ export function AssigneePicker({ value, people, onChange, label = "Assignees" }:
 // ---------------------------------------------------------------- @mentions
 
 /** Wires @mention suggestions onto an input or textarea. Returns the key handler and the list to render. */
-export function useMentions(ref: RefObject<HTMLInputElement | HTMLTextAreaElement | null>, value: string, setValue: (v: string) => void, people: AssigneeOption[]) {
+export function useMentions(ref: RefObject<HTMLInputElement | HTMLTextAreaElement | null>, value: string, setValue: (v: string) => void, people: AssigneeOption[], initialMap?: Record<string, string>) {
   const members = people.filter((p) => p.type === "member");
+  // TD5: with MENTIONS_TD5 on, one picker offers people and records (records go in as @[Title] and save as tokens).
+  const on = useMentionsOn();
+  const picker = useMentionPicker(ref, value, setValue, members.map((p) => ({ key: p.id, name: p.name, insert: `@${mentionHandle(p, members)} `, hint: `@${mentionHandle(p, members)}` })), { enabled: on, initialMap });
   const [at, setAt] = useState<{ start: number; query: string } | null>(null);
   const [active, setActive] = useState(0);
   const matches = at ? members.filter((p) => p.name.toLowerCase().includes(at.query.toLowerCase()) || (p.email ?? "").toLowerCase().startsWith(at.query.toLowerCase())).slice(0, 6) : [];
@@ -388,7 +392,8 @@ export function useMentions(ref: RefObject<HTMLInputElement | HTMLTextAreaElemen
       ))}
     </ul>
   ) : null;
-  return { onKeyDown, sync, list, open: !!list };
+  if (on) return picker;
+  return { onKeyDown, sync, list, open: !!list, toTokens: (t: string) => t, reset: () => setAt(null), activeId: undefined as string | undefined };
 }
 
 /** The comment box with @mention suggestions. Enter sends (unless picking a person). */
@@ -396,7 +401,7 @@ export function CommentBox({ people, onSend }: { people: AssigneeOption[]; onSen
   const [text, setText] = useState("");
   const ref = useRef<HTMLInputElement>(null);
   const m = useMentions(ref, text, setText, people);
-  const send = async () => { const body = text.trim(); if (!body) return; await onSend(body); setText(""); };
+  const send = async () => { const body = m.toTokens(text).trim(); if (!body) return; await onSend(body); setText(""); m.reset(); };
   return (
     <form className="relative mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); void send(); }}>
       {m.list}
@@ -422,12 +427,15 @@ const TOOLS: { fmt: Fmt; label: string; icon: ReactNode; keys?: string }[] = [
 
 /** The task description: reads as formatted text, click (or Enter) to edit with a toolbar; saves when you leave it. */
 export function DescriptionEditor({ value, onSave, people }: { value: string; onSave: (v: string) => void; people: AssigneeOption[] }) {
-  const [draft, setDraft] = useState(value);
+  const on = useMentionsOn(); // TD5
+  const editable = useEditableTokens(value, on);
+  const resolved = useResolved(on ? tokenKeys(value) : [], on);
+  const [draft, setDraft] = useState(editable.text);
   const [editing, setEditing] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const m = useMentions(ref, draft, setDraft, people);
-  useEffect(() => { if (!editing) setDraft(value); }, [value, editing]);
+  const m = useMentions(ref, draft, setDraft, people, editable.map);
+  useEffect(() => { if (!editing) setDraft(editable.text); }, [editable.text, editing]);
   const run = (fmt: Fmt) => {
     const el = ref.current;
     if (!el) return;
@@ -435,7 +443,7 @@ export function DescriptionEditor({ value, onSave, people }: { value: string; on
     setDraft(r.text);
     requestAnimationFrame(() => { el.focus(); el.setSelectionRange(r.start, r.end); });
   };
-  const finish = () => { setEditing(false); if (draft !== value) onSave(draft); };
+  const finish = () => { setEditing(false); const out = m.toTokens(draft); if (out !== value) onSave(out); };
   if (!editing) {
     return (
       <div className="mt-4">
@@ -445,7 +453,7 @@ export function DescriptionEditor({ value, onSave, people }: { value: string; on
         </div>
         <div onClick={(e) => { if (!(e.target as HTMLElement).closest("a")) setEditing(true); }}
           className="task-notes min-h-16 cursor-text [&_a]:text-brand-hover [&_a]:underline [&_code]:rounded [&_code]:bg-fill [&_code]:px-1 [&_code]:text-[12.5px] [&_h4]:mb-1 [&_h4]:mt-2 [&_h4]:font-semibold [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ul.checks]:list-none [&_ul.checks]:pl-0 [&_.mention]:font-medium [&_.mention]:text-brand-hover rounded-lg border border-transparent px-2.5 py-2 text-[13.5px] leading-relaxed hover:border-line focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" data-testid="description-view">
-          {value ? <div dangerouslySetInnerHTML={{ __html: renderNotes(value) }} /> : <span className="text-subtle">Add a description. Use @ to mention someone.</span>}
+          {value ? <div dangerouslySetInnerHTML={{ __html: on ? chipsInHtml(renderNotes(value), resolved.data) : renderNotes(value) }} /> : <span className="text-subtle">Add a description. Use @ to mention someone.</span>}
         </div>
       </div>
     );

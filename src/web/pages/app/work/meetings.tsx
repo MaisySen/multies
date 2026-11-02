@@ -26,6 +26,7 @@ import { askToJoin, GuestLobby, GuestsWaitSetting, LobbyRequests } from "./lobby
 import { CallSidePanel, CallToolbar, useCallNotesDoc, useCallPanel } from "./call-panel-r31";
 import { loadPrefs, roomMedia } from "@/web/lib/prejoin-prefs";
 import { useConfig, useMe } from "@/web/lib/queries";
+import { ReferencesPanel } from "@/web/components/mentions-td5"; // TD5
 import { CallMinutesBanner, CallMinutesUsage } from "./call-minutes-r34"; // R34 (MB-171)
 import { NoMeetingsArt } from "@/web/components/illustrations"; // R36
 import { startMeetingNow } from "./meeting-start"; // R40 (MB-207)
@@ -305,6 +306,7 @@ export function MeetingPage() {
       </div>
       <MeetingNotes meetingId={m.id} />
       {meetTd3 && <MeetingSuggestions meetingId={m.id} />}
+      <ReferencesPanel type="meeting" id={m.id} />
       {editing && <EditMeetingDialog m={m} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); void qc.invalidateQueries({ queryKey: ["meeting", id] }); void qc.invalidateQueries({ queryKey: ["meetings"] }); }} />}
     </div>
   );

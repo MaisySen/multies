@@ -9,6 +9,7 @@ import { Link, useNavigate } from "react-router";
 import { CatchupCard } from "@/web/components/catchup-card"; // R31
 import { IconAgent, IconCalendar, IconCheckCircle, IconCircle, IconClose, IconCopy, IconDocs, IconLink, IconMail, IconMore, IconTrash, IconUser, IconVideo, IconWarning, IconMaximize, IconSidebar } from "@/web/components/ui/icon";
 import { AssigneePicker, CommentBox, DescriptionEditor, TagPicker } from "./tasks-r84"; // R84
+import { CommentText, ReferencesPanel } from "@/web/components/mentions-td5"; // TD5
 import { TaskTime } from "./time";
 import { RepeatPlus } from "./repeat-plus-r95"; // R95
 import { AddToMyDay } from "./my-day-r95"; // R95
@@ -210,6 +211,7 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
             <div className="min-w-0 lg:col-start-1 lg:row-start-2">
           {t.type === "epic" && <EpicSection epic={t} onChanged={() => void q.refetch()} />}
           <DescriptionEditor value={notes} people={people.data ?? []} onSave={(v) => { setNotes(v); void saveText({ notes: v }); }} />
+          <ReferencesPanel type="task" id={t.id} />
 
           {t.source && (
             <section className="mt-6" aria-label="Email thread">
@@ -284,7 +286,7 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
                   <Avatar label={initials(c.author.name)} className="h-6 w-6 text-[10px]" />
                   <div className="min-w-0">
                     <div className="text-[12px]"><span className="font-medium">{c.author.name}</span>{c.author.type === "agent" && <span className="text-subtle"> (agent)</span>} <span className="text-subtle">{timeAgo(c.createdAt)}</span></div>
-                    <p className="mt-0.5 whitespace-pre-wrap text-[13px] text-muted">{c.body}</p>
+                    <p className="mt-0.5 whitespace-pre-wrap text-[13px] text-muted"><CommentText text={c.body} /></p>
                   </div>
                 </li>
               ))}
@@ -357,6 +359,7 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
 
           {t.type === "epic" && <EpicSection epic={t} onChanged={() => void q.refetch()} />}
           <DescriptionEditor value={notes} people={people.data ?? []} onSave={(v) => { setNotes(v); void saveText({ notes: v }); }} />
+          <ReferencesPanel type="task" id={t.id} />
 
           {t.source && (
             <section className="mt-6" aria-label="Email thread">
@@ -431,7 +434,7 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
                   <Avatar label={initials(c.author.name)} className="h-6 w-6 text-[10px]" />
                   <div className="min-w-0">
                     <div className="text-[12px]"><span className="font-medium">{c.author.name}</span>{c.author.type === "agent" && <span className="text-subtle"> (agent)</span>} <span className="text-subtle">{timeAgo(c.createdAt)}</span></div>
-                    <p className="mt-0.5 whitespace-pre-wrap text-[13px] text-muted">{c.body}</p>
+                    <p className="mt-0.5 whitespace-pre-wrap text-[13px] text-muted"><CommentText text={c.body} /></p>
                   </div>
                 </li>
               ))}

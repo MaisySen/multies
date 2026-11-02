@@ -27,6 +27,7 @@ import {
   type DocKind, type PriceMode,
 } from "@/shared/invoices";
 import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
+import { ReferencesPanel } from "@/web/components/mentions-td5"; // TD5
 
 export const useInvoicesOn = () => !!useConfig().data?.invoices;
 const BASE = "/app/contacts/invoices";
@@ -451,7 +452,12 @@ export function InvoiceDocPage() {
       <Link to={BASE} className="mt-3 inline-block text-sm font-medium text-fg underline underline-offset-2 hover:no-underline">Back to invoices</Link>
     </div>
   );
-  return doc.data.doc.status === "draft" ? <DraftEditor key={doc.data.doc.id + doc.data.doc.status} doc={doc.data.doc} /> : <IssuedView doc={doc.data.doc} />;
+  return (
+    <>
+      {doc.data.doc.status === "draft" ? <DraftEditor key={doc.data.doc.id + doc.data.doc.status} doc={doc.data.doc} /> : <IssuedView doc={doc.data.doc} />}
+      <div className="mx-auto w-full max-w-5xl px-4 pb-10 sm:px-6"><ReferencesPanel type="invoice" id={doc.data.doc.id} /></div>
+    </>
+  );
 }
 const tabOf = (k: DocKind) => (k === "quote" ? "?tab=quotes" : k === "credit_note" ? "?tab=credits" : k === "bill" ? "?tab=bills" : "");
 

@@ -27,6 +27,7 @@ import { PublicFormTd2, type Td2PublicForm } from "./forms-td2/public-form-td2";
 import { FormResults, LogicEditor, RoutingEditor, type BuilderField } from "./form-logic-ui";
 import { ApiError } from "@/web/lib/api";
 import { ScrollRow } from "@/web/components/ui/scroll-row"; // F13b
+import { ReferencesPanel } from "@/web/components/mentions-td5"; // TD5
 
 type FieldType = FormFieldType;
 type FormField = BuilderField;
@@ -96,6 +97,10 @@ function FormsList({ plus = false, kind = "forms" }: { plus?: boolean; kind?: "f
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["forms"], queryFn: () => api.get<{ forms: Form[]; turnstile: boolean }>("/forms") });
   const [editing, setEditing] = useState<Partial<Form> | null>(null);
+  // TD5: a mention links to /app/forms?form=<id>; open that form once the list is in.
+  const [formParams] = useSearchParams();
+  const linkedForm = formParams.get("form");
+  useEffect(() => { if (linkedForm && q.data) { const f = q.data.forms.find((x) => x.id === linkedForm); if (f) setEditing(f); } }, [linkedForm, q.data]);
   const [viewing, setViewing] = useState<string | null>(null);
   const [plusFor, setPlusFor] = useState<Form | null>(null);
   const [entriesFor, setEntriesFor] = useState<Form | null>(null);
@@ -239,6 +244,7 @@ function FormEditor({ initial, onClose, onSaved, plus = false }: { initial: Part
         {td2 && <Td2FormSettings value={f.td2 ?? DEFAULT_TD2} onChange={(v) => setF({ ...f, td2: v })} />}
         <Field label="Thank-you message">{(fp) => (<Input {...fp} value={f.successMessage ?? "Thanks, we got it. We'll be in touch."} onChange={(e) => setF({ ...f, successMessage: e.target.value })} />)}</Field>
       </div>
+      {initial.id && <ReferencesPanel type="form" id={initial.id} />}
     </Dialog>
   );
 }

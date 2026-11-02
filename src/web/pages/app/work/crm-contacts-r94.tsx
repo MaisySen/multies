@@ -18,6 +18,7 @@ import { cn } from "@/web/lib/cn";
 import { CSV_FIELDS, CSV_FIELD_LABELS, CSV_MAX_BYTES, checkRows, guessMapping, parseCsv, type CsvMapping } from "@/shared/crm-csv";
 import { CrmTimeline } from "./crm-timeline";
 import type { Contact } from "./data";
+import { ReferencesPanel } from "@/web/components/mentions-td5"; // TD5
 import { AddressCard, useMapsOn } from "./maps-r115"; // R115
 import { AskAboutButton } from "@/web/components/ask-about-td1"; // TD1
 
@@ -421,6 +422,7 @@ export function DealDetailsDialog({ deal, onClose }: { deal: { id: string; title
           <Field label="Chance to win (%)" hint={`Leave empty to use the stage default (${deal.probabilitySet ? "set by hand now" : `${deal.probability ?? 0}%`}).`}>{(f) => <Input {...f} inputMode="numeric" value={prob} onChange={(e) => setProb(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))} placeholder={String(deal.probability ?? "")} data-testid="deal-probability" />}</Field>
         )}
       </form>
+      <ReferencesPanel type="deal" id={deal.id} />
     </Dialog>
   );
 }

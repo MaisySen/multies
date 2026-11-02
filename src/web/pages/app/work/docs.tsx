@@ -40,6 +40,7 @@ import { SpellAttrs, fixInEditor } from "./doc-spell-r103";
 import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
 import { isServerLoadError } from "@/web/lib/load-errors-t1g";
 import { AskAboutButton } from "@/web/components/ask-about-td1"; // TD1
+import { ReferencesPanel } from "@/web/components/mentions-td5"; // TD5
 
 const MindMapView = lazyPage(() => import("./docs-visual/mindmap-view"), "MindMapView");
 const PresentOverlay = lazyPage(() => import("./docs-visual/present"), "PresentOverlay");
@@ -142,7 +143,7 @@ function DocPageMain() {
     : q.data === undefined ? <LoadError onRetry={() => q.refetch()} /> // T1G (T1-8): a server failure is not "not found"
     : <DocEditor key={`${id}:${collab.session ? "live" : "solo"}:${replaced}`} doc={q.data} session={collab.session} onReplaced={onReplaced} />;
   // R24.5: the page tree beside the doc.
-  return <div className="flex gap-6"><DocTreeSidebar currentId={id} /><div className="min-w-0 flex-1">{body}</div></div>;
+  return <div className="flex gap-6"><DocTreeSidebar currentId={id} /><div className="min-w-0 flex-1">{body}{q.data && <ReferencesPanel type="doc" id={id} className="mx-auto max-w-3xl px-1" />}</div></div>;
 }
 
 /** R124: the doc editor inside another page (a blog post): same editor, co editing and saving, without the tree, back link or delete. */

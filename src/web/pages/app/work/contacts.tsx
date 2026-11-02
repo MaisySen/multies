@@ -22,6 +22,7 @@ import { ContactPortalButton, PortalsTab, usePortalsOn } from "./portals"; // R1
 import { useInvoicesOn } from "./invoices-r105"; // R105
 import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
 import { isServerLoadError } from "@/web/lib/load-errors-t1g";
+import { ReferencesPanel } from "@/web/components/mentions-td5"; // TD5
 
 interface Company { id: string; name: string; domain: string | null; contactCount: number; lastContactAt: string | null }
 interface ThreadRow { threadId: string; subject: string; lastAt: string; firstAt: string; count: number; lastDirection: "inbound" | "outbound"; snippet: string; messageId: string }
@@ -227,6 +228,7 @@ export function ContactPage() {
             <label htmlFor="contact-notes" className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Notes</label>
             <Textarea id="contact-notes" className="mt-2 min-h-28 text-[13px]" value={notes ?? c.notes} onChange={(e) => setNotes(e.target.value)} onBlur={saveNotes} placeholder="What matters about this person" />
           </div>
+          <ReferencesPanel type="contact" id={c.id} className="mt-0" />
         </aside>
       </div>
     </div>
