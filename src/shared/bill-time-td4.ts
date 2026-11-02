@@ -11,9 +11,9 @@ export function billTimeOn(cfg: { invoicesEnabled?: boolean; billTd4?: boolean }
 /** Minutes each entry rounds up to. 0 = exact (whole seconds). */
 export const ROUNDINGS = [0, 1, 6, 15, 30] as const;
 export type Rounding = (typeof ROUNDINGS)[number];
-export const ROUNDING_LABEL: Record<Rounding, string> = {
-  0: "Exact time", 1: "Up to the next minute", 6: "Up to the next 6 minutes", 15: "Up to the next 15 minutes", 30: "Up to the next 30 minutes",
-};
+export const ROUNDING_LABEL: Record<Rounding, string> = { 0: "Exact time", 1: "1 minute", 6: "6 minutes", 15: "15 minutes", 30: "30 minutes" };
+/** One sentence stating the rule, shown beside the total. */
+export function roundingSentence(r: number): string { return r ? `Each entry is rounded up to ${r === 1 ? "the next minute" : `${r} minutes`}.` : "Exact time, no rounding."; }
 export const MAX_RUN_ENTRIES = 500;
 export const MAX_RATE_CENTS = 100_000_00; // 100,000 an hour
 export const MAX_RUN_DAYS = 366;

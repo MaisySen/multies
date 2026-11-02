@@ -605,13 +605,13 @@ function DraftEditor({ doc }: { doc: DocFull }) {
   );
 }
 
-export function ContactPicker({ onPick }: { onPick: (c: { id: string; name: string; email: string }) => void }) {
+export function ContactPicker({ onPick, hint = "Or type the details below" }: { onPick: (c: { id: string; name: string; email: string }) => void; hint?: string }) {
   const [q, setQ] = useState("");
   const query = q.trim();
   const res = useQuery({ queryKey: ["invoices", "contact-pick", query], queryFn: () => api.get<{ contacts: { id: string; name: string; email: string }[] }>(`/contacts?q=${encodeURIComponent(query.slice(0, 40))}`), enabled: query.length >= 2 });
   return (
     <div className="relative">
-      <Field label="Find a contact" hint="Or type the details below">{(p) => <Input {...p} value={q} placeholder="Search by name or email" maxLength={60} onChange={(e) => setQ(e.target.value)} />}</Field>
+      <Field label="Find a contact" hint={hint}>{(p) => <Input {...p} value={q} placeholder="Search by name or email" maxLength={60} onChange={(e) => setQ(e.target.value)} />}</Field>
       {query.length >= 2 && res.data && (
         <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-line bg-surface shadow-lg" role="listbox" aria-label="Contacts">
           {res.data.contacts.length === 0 ? <li className="p-2 text-[13px] text-muted">No contacts match.</li> : res.data.contacts.slice(0, 8).map((c) => (

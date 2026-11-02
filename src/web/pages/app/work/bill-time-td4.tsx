@@ -19,7 +19,7 @@ import { LoadError } from "@/web/components/load-error-t1g";
 import { cn } from "@/web/lib/cn";
 import { useConfig } from "@/web/lib/queries";
 import { CURRENCIES, money, parseMoney } from "@/shared/invoices";
-import { ROUNDINGS, ROUNDING_LABEL, groupRun, hoursText, type Rounding } from "@/shared/bill-time-td4";
+import { ROUNDINGS, ROUNDING_LABEL, groupRun, hoursText, roundingSentence, type Rounding } from "@/shared/bill-time-td4";
 
 export const useBillTimeOn = () => !!(useConfig().data as { billTd4?: boolean } | undefined)?.billTd4;
 
@@ -50,7 +50,7 @@ function useOnline() {
   return on;
 }
 
-export function BillTimeTab({ ContactPicker }: { ContactPicker: (p: { onPick: (c: { id: string; name: string; email: string }) => void }) => React.ReactElement }) {
+export function BillTimeTab({ ContactPicker }: { ContactPicker: (p: { onPick: (c: { id: string; name: string; email: string }) => void; hint?: string }) => React.ReactElement }) {
   const [params, setParams] = useSearchParams();
   const range = useMemo(defaultRange, []);
   const [projectId, setProjectId] = useState(params.get("project") ?? "");
@@ -108,7 +108,7 @@ export function BillTimeTab({ ContactPicker }: { ContactPicker: (p: { onPick: (c
           </Select>)}</Field>
         <Field label="From">{(fp) => <DateInput {...fp} value={from} max={to} onChange={(e) => setFrom(e.target.value)} />}</Field>
         <Field label="To">{(fp) => <DateInput {...fp} value={to} min={from} onChange={(e) => setTo(e.target.value)} />}</Field>
-        <Field label="Rounding" hint="Each entry rounds up">{(fp) => (
+        <Field label="Round each entry up to">{(fp) => (
           <Select {...fp} value={String(shownRounding)} onChange={(e) => setRounding(Number(e.target.value) as Rounding)}>
             {ROUNDINGS.map((r) => <option key={r} value={r}>{ROUNDING_LABEL[r]}</option>)}
           </Select>)}</Field>
@@ -124,7 +124,7 @@ export function BillTimeTab({ ContactPicker }: { ContactPicker: (p: { onPick: (c
                 <p className="truncate text-sm font-medium" data-testid="bill-to">{billTo ? (billTo.name || billTo.email) : "No client picked yet"}</p>
                 <p className="text-[12px] text-subtle">{data.currency} · times in {data.timeZone}</p>
               </div>
-              <div className="w-full sm:w-72"><ContactPicker onPick={setClient} /></div>
+              <div className="w-full sm:w-72"><ContactPicker onPick={setClient} hint="Change who this time is billed to" /></div>
               <Button variant="secondary" onClick={() => setRates(true)}><IconSettings className="h-4 w-4" />Rates</Button>
             </Card>
             {data.entries.length === 0 ? (
@@ -169,13 +169,13 @@ export function BillTimeTab({ ContactPicker }: { ContactPicker: (p: { onPick: (c
                     );
                   })}
                 </div>
-                <Card className="sticky bottom-2 z-10 flex flex-wrap items-center gap-3 p-4 max-sm:bottom-20" data-testid="bill-total">
+                <Card className="flex flex-col gap-3 p-4 sm:sticky sm:bottom-2 sm:z-10 sm:flex-row sm:items-center" data-testid="bill-total">
                   <div className="min-w-0 flex-1 text-sm">
                     <p className="font-medium tabular-nums">{hoursText(totals.qtyMilli)} · {money(totals.amountCents, data.currency)} before tax</p>
-                    <p className="text-[12px] text-muted">{ROUNDING_LABEL[shownRounding]}. GST is added on the invoice as your invoice settings say.</p>
+                    <p className="text-[12px] text-muted">{roundingSentence(shownRounding)} GST is added on the invoice.</p>
                     {blocker && <p className="text-[12px] text-warn" role="status">{blocker}</p>}
                   </div>
-                  <Button onClick={() => create.mutate()} disabled={!!blocker || create.isPending} loading={create.isPending}><IconFilePlus className="h-4 w-4" />Create draft invoice</Button>
+                  <Button className="max-sm:w-full" onClick={() => create.mutate()} disabled={!!blocker || create.isPending} loading={create.isPending}><IconFilePlus className="h-4 w-4" />Create draft invoice</Button>
                 </Card>
               </>
             )}
@@ -214,7 +214,7 @@ function RatesDialog({ open, onClose, data }: { open: boolean; onClose: () => vo
     <Dialog open={open} onClose={onClose} title={`Rates for ${data.project.name}`} description="An hourly rate before tax. A person's rate on this project wins, then the project rate, then the workspace rate.">
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (!bad) save.mutate(); }}>
         <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Workspace rate">{(fp) => <Input {...fp} inputMode="decimal" value={ws} placeholder="0.00" onChange={(e) => setWs(e.target.value)} />}</Field>
+          <Field label="Workspace rate">{(fp) => <Input {...fp} inputMode="decimal" value={ws} placeholder="Not set" onChange={(e) => setWs(e.target.value)} />}</Field>
           <Field label="Project rate">{(fp) => <Input {...fp} inputMode="decimal" value={proj} placeholder="Uses workspace rate" onChange={(e) => setProj(e.target.value)} />}</Field>
           <Field label="Currency">{(fp) => <Select {...fp} value={cur} onChange={(e) => setCur(e.target.value)}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</Select>}</Field>
         </div>
