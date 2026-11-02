@@ -87,10 +87,11 @@ describe("CHAT_CHANNELS in the web app", () => {
     expect(panes.filter(panesFor({ chatChannels: false }))).not.toContain(channels);
     expect(panes.filter(panesFor(undefined))).not.toContain(channels);
     expect(panes.filter(panesFor({ chatChannels: true }))).toContain(channels);
-    expect(panes.filter(panesFor({})).length).toBe(panes.length - 4); // R111: Archive and retention is also flag gated; R112: Data requests too; R130: Tours (flag and admins)
+    expect(panes.filter(panesFor({})).length).toBe(panes.length - 5); // TD8: Team AI; R111: Archive and retention is also flag gated; R112: Data requests too; R130: Tours (flag and admins)
     expect(panes.filter(panesFor({ toursR130: true }, "admin")).map((p) => p.to)).toContain("/app/settings/tours");
     expect(panes.filter(panesFor({ toursR130: true }, "member")).map((p) => p.to)).not.toContain("/app/settings/tours");
     expect(panes.filter(panesFor({ reporting: true, toursR130: true })).map((p) => p.to)).toContain("/app/settings/data-requests");
+    expect(panes.filter(panesFor({ reporting: true })).map((p) => p.to)).toContain("/app/settings/data-requests");
     expect(panes.filter(panesFor({ mailArchive: true })).map((p) => p.to)).toContain("/app/settings/mail-archive");
 
     expect(PALETTE_PAGES.find((p) => p.id === "p-chat-channels")?.flag).toBe("chatChannels");
@@ -101,10 +102,14 @@ describe("CHAT_CHANNELS in the web app", () => {
     // Every other page stays in the menu whatever the switch says (Tools has its own switch, Tools P1).
     // Tools P2 entries also need their own feature on (toolFeatures), so they are left out here.
     // R110: Ask rides its own switch (askR110), checked below.
-    const base = navCommands.filter((c) => !c.toolFeature && c.flag !== "askR110" && c.flag !== "vaultR128" && c.flag !== "peopleR126" && c.flag !== "inboxTd6");
+    const base = navCommands.filter((c) => !c.toolFeature && c.flag !== "askR110" && c.flag !== "vaultR128" && c.flag !== "peopleR126" && c.flag !== "inboxTd6" && c.flag !== "teamaiTd8");
     const oneInbox = navCommands.filter((c) => c.flag === "inboxTd6"); // TD6
     expect(oneInbox.map((c) => c.to)).toEqual(["/app/one-inbox"]);
     expect(oneInbox.every((c) => !flagOn(c, {}) && flagOn(c, { inboxTd6: true }))).toBe(true);
+    // TD8: Team AI rides TEAMAI_TD8.
+    const teamAi = navCommands.find((c) => c.to === "/app/settings/team-ai")!;
+    expect(flagOn(teamAi, {})).toBe(false);
+    expect(flagOn(teamAi, { teamaiTd8: true })).toBe(true);
     // R126: Staff, Org chart, Who is away, Assets, labels and Onboarding ride PEOPLE_R126.
     const people = navCommands.filter((c) => c.flag === "peopleR126");
     expect(people.map((c) => c.to)).toEqual(["/app/contacts/staff", "/app/contacts/staff?view=org", "/app/contacts/staff?view=away", "/app/contacts/staff?view=assets", "/app/contacts/assets/labels", "/app/settings/team/onboarding"]);
@@ -119,6 +124,6 @@ describe("CHAT_CHANNELS in the web app", () => {
     expect(base.filter((c) => !flagOn(c, {})).map((c) => c.to)).toEqual(["/app/docs/help-center", "/app/docs/sites", "/app/docs/sites?tab=blog", "/app/docs/learning", "/app/docs/links", "/app/docs/links?save=page", "/app/tools", "/app/tools/convert", "/app/files?view=team", "/app/files?view=brand", "/app/files?view=trash", "/app/files?view=docs", "/app/files?view=docs&rules=1", "/app/contacts?tab=visits", "/app/contacts/invoices", "/app/contacts/invoices?tab=expenses", "/app/contacts/invoices?tab=time", "/app/contacts/invoices?tab=quotes", "/app/contacts/invoices?new=invoice", "/app/contacts/invoices?new=quote", "/app/forms?tab=reports", "/app/settings/tours", "/app/settings/data-requests", "/app/settings/channels"]); // R101: Files plus entries ride FILES_PLUS_R101 // R115: Plan visits rides MAPS_R115 // R103: Link library rides DOCS_PLUS_R103 // R122: Help center rides HELP_CENTER // R78: Convert hub rides the Tools switch
     expect(base.filter((c) => !flagOn(c, { tools: true })).map((c) => c.to)).toEqual(["/app/docs/help-center", "/app/docs/sites", "/app/docs/sites?tab=blog", "/app/docs/learning", "/app/docs/links", "/app/docs/links?save=page", "/app/files?view=team", "/app/files?view=brand", "/app/files?view=trash", "/app/files?view=docs", "/app/files?view=docs&rules=1", "/app/contacts?tab=visits", "/app/contacts/invoices", "/app/contacts/invoices?tab=expenses", "/app/contacts/invoices?tab=time", "/app/contacts/invoices?tab=quotes", "/app/contacts/invoices?new=invoice", "/app/contacts/invoices?new=quote", "/app/forms?tab=reports", "/app/settings/tours", "/app/settings/data-requests", "/app/settings/channels"]);
     expect(base.filter((c) => !flagOn(c, { tools: true, helpCenter: true, sites: true, docsPlus: true, maps: true, filesPlus: true, invoices: true, expenses: true, billTd4: true, docInbox: true, coursesR129: true, blog: true, reporting: true, toursR130: true })).map((c) => c.to)).toEqual(["/app/settings/channels"]);
-    expect(navCommands.filter((c) => !flagOn(c, { tools: true, helpCenter: true, sites: true, docsPlus: true, maps: true, filesPlus: true, invoices: true, expenses: true, billTd4: true, docInbox: true, coursesR129: true, blog: true, reporting: true, toursR130: true, askR110: true, vaultR128: true, peopleR126: true, inboxTd6: true, toolFeatures: [...TOOL_FEATURES] })).map((c) => c.to)).toEqual(["/app/settings/channels"]);
+    expect(navCommands.filter((c) => !flagOn(c, { tools: true, helpCenter: true, sites: true, docsPlus: true, maps: true, filesPlus: true, invoices: true, expenses: true, billTd4: true, docInbox: true, coursesR129: true, blog: true, reporting: true, toursR130: true, askR110: true, teamaiTd8: true, vaultR128: true, peopleR126: true, inboxTd6: true, toolFeatures: [...TOOL_FEATURES] })).map((c) => c.to)).toEqual(["/app/settings/channels"]);
   });
 });
