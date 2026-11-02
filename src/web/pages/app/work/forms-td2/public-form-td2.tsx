@@ -19,6 +19,7 @@ import { checkAnswers, fieldStates, isLayout, isUpload, MULTI_SEPARATOR, ratingR
 import { acceptFor, allowedKinds, FILE_KINDS, fieldMaxBytes, fieldMaxFiles, formatBytes, splitPages, steps, type Td2Settings } from "@/shared/forms-td2";
 import { RatingInput, type PublicFormData } from "../forms-plus/chat-form";
 import { SignaturePad } from "./signature-pad";
+import { Td7SaveResume, td7Access, td7Body } from "../forms-td7/public-td7"; // TD7
 
 export type Td2Field = LogicField & { placeholder?: string; hasImage?: boolean };
 export interface Td2PublicForm { name: string; description: string; workspace: string; fields: Td2Field[]; td2: Td2Settings; plus?: PublicFormData["plus"] }
@@ -26,13 +27,14 @@ export interface Td2PublicForm { name: string; description: string; workspace: s
 interface UploadItem { key: number; name: string; size: number; pct: number; id?: string; error?: string }
 
 /** One upload with progress (fetch has no upload progress). */
-function sendUpload(url: string, file: Blob, name: string, onPct: (n: number) => void): Promise<{ id: string; name: string; size: number }> {
+function sendUpload(url: string, file: Blob, name: string, onPct: (n: number) => void, access?: string): Promise<{ id: string; name: string; size: number }> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url);
     xhr.setRequestHeader("x-multies-upload", "1");
     xhr.setRequestHeader("x-file-name", encodeURIComponent(name));
     xhr.setRequestHeader("content-type", "application/octet-stream");
+    if (access) xhr.setRequestHeader("x-form-access", access); // TD7: password forms
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) onPct(Math.round((e.loaded / e.total) * 100)); };
     xhr.onerror = () => reject(new Error("Couldn't send the file. Check your connection and try again."));
     xhr.onload = () => {
@@ -68,7 +70,7 @@ function FileField({ slug, field, items, setItems, labelId, errId, disabled }: {
       if (file.size > max) { setItems((p) => [...p, { ...base, error: `Too big. Files can be up to ${formatBytes(max)} here.` }]); continue; }
       if (!extOk(field, file)) { setItems((p) => [...p, { ...base, error: `This file type isn't accepted here. You can send: ${kinds}.` }]); continue; }
       setItems((p) => [...p, base]);
-      sendUpload(`/api/public/forms/${encodeURIComponent(slug)}/uploads?field=${encodeURIComponent(field.id)}`, file, file.name, (pct) => setItems((p) => p.map((x) => (x.key === key ? { ...x, pct } : x))))
+      sendUpload(`/api/public/forms/${encodeURIComponent(slug)}/uploads?field=${encodeURIComponent(field.id)}`, file, file.name, (pct) => setItems((p) => p.map((x) => (x.key === key ? { ...x, pct } : x))), td7Access(slug))
         .then((r) => setItems((p) => p.map((x) => (x.key === key ? { ...x, id: r.id, name: r.name, pct: 100 } : x))))
         .catch((e: Error) => setItems((p) => p.map((x) => (x.key === key ? { ...x, error: e.message } : x))));
     }
@@ -225,7 +227,7 @@ export function PublicFormTd2({ slug, form, oneAtATime: forceOne, embed }: { slu
     try {
       const sendable = Object.fromEntries(Object.entries(all).filter(([k]) => states.shown.has(k) && !states.disabled.has(k)));
       const hidden = form.plus ? pickHidden(form.plus.hiddenFields, new URLSearchParams(window.location.search)) : undefined;
-      const r = await shield.send((sh) => api.post<{ ok: boolean; message: string }>(`/public/forms/${slug}`, { answers: sendable, website: trap, elapsedMs: Date.now() - opened.current, hidden, shield: sh ? { ...sh, hp: trap } : undefined }));
+      const r = await shield.send((sh) => api.post<{ ok: boolean; message: string }>(`/public/forms/${slug}`, { ...td7Body(slug), answers: sendable, website: trap, elapsedMs: Date.now() - opened.current, hidden, shield: sh ? { ...sh, hp: trap } : undefined }));
       setDone(r.message);
       void qc.invalidateQueries({ queryKey: ["public-form", slug] });
     } catch (e) {
@@ -281,7 +283,7 @@ export function PublicFormTd2({ slug, form, oneAtATime: forceOne, embed }: { slu
           onDone={(png) => {
             const key = Date.now();
             setUploads((u) => ({ ...u, [x.id]: [{ key, name: "signature.png", size: png.size, pct: 0 }] }));
-            sendUpload(`/api/public/forms/${encodeURIComponent(slug)}/uploads?field=${encodeURIComponent(x.id)}`, png, "signature.png", () => undefined)
+            sendUpload(`/api/public/forms/${encodeURIComponent(slug)}/uploads?field=${encodeURIComponent(x.id)}`, png, "signature.png", () => undefined, td7Access(slug))
               .then((r) => { setUploads((u) => ({ ...u, [x.id]: [{ key, name: r.name, size: r.size, pct: 100, id: r.id }] })); setSigned((s) => ({ ...s, [x.id]: true })); setErrors((er) => { const n = { ...er }; delete n[x.id]; return n; }); })
               .catch((e: Error) => { setUploads((u) => ({ ...u, [x.id]: [] })); setErrors((er) => ({ ...er, [x.id]: e.message })); });
           }} />
@@ -363,6 +365,7 @@ export function PublicFormTd2({ slug, form, oneAtATime: forceOne, embed }: { slu
                 {pos > 0 && <Button type="button" variant="ghost" onClick={back} data-testid="form-back">Back</Button>}
                 <Button type="submit" className="flex-1" loading={busy} disabled={!online && last} data-testid={last ? "form-send" : "form-next"}>{last ? "Send" : "Next"}</Button>
               </div>
+              <Td7SaveResume slug={slug} form={form} answers={answers} onRestore={setAnswers} />
               {oneAtATime && <p className="text-center text-[12px] text-subtle">Press Enter for next, Shift and Enter to go back.</p>}
             </form>
           </Card>

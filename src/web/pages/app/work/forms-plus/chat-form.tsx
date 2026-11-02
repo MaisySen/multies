@@ -12,6 +12,7 @@ import { IconArrowLeft, IconSend } from "@/web/components/ui/icon";
 import { Honeypot, useShield } from "@/web/lib/use-shield";
 import { answerText, fieldError, MULTI_SEPARATOR, ratingRange, visibleFieldIds, type LogicField } from "@/shared/form-logic";
 import { fillVariables, pickHidden } from "@/shared/forms-plus";
+import { td7Body } from "../forms-td7/public-td7"; // TD7: password access and resume token ride along
 
 export type PublicField = LogicField & { placeholder?: string };
 export interface PublicFormData { name: string; description: string; workspace: string; fields: PublicField[]; plus?: { mode: "classic" | "chat"; hiddenFields: string[]; bubbleLabel: string; review: boolean; deadline: string | null } }
@@ -93,7 +94,7 @@ export function ChatForm({ slug, form, embed }: { slug: string; form: PublicForm
     setBusy(true);
     try {
       const sendable = Object.fromEntries(Object.entries(answers).filter(([k]) => shown.has(k)));
-      const r = await shield.send((s) => api.post<{ ok: boolean; message: string }>(`/public/forms/${slug}`, { answers: sendable, hidden, website: shield.honeypot.value, elapsedMs: Date.now() - opened.current, shield: s }));
+      const r = await shield.send((s) => api.post<{ ok: boolean; message: string }>(`/public/forms/${slug}`, { ...td7Body(slug), answers: sendable, hidden, website: shield.honeypot.value, elapsedMs: Date.now() - opened.current, shield: s }));
       setDone(r.message);
     } catch (e) {
       if (e instanceof ApiError && e.fields && Object.keys(e.fields).length) {

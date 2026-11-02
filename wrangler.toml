@@ -430,6 +430,7 @@ BOOKING_PLUS = "true" # R92: resources, time polls, free events (staging; prod a
 EXPENSES_R106 = "on" # R106: expenses and receipts on staging
 BILL_TD4 = "on" # TD4: time to invoice, billing runs (staging; prod after verifier PASS)
 FORMS_PLUS_R93 = "true" # R93: chat forms, webhook, embed bubble, feedback boards, calls for submissions (staging)
+FORMS_TD7 = "on" # TD7: Forms pro B (staging only until verifier PASS)
 REPORTING_R112 = "on" # R112: anonymous reporting channel and data requests (staging)
 APP_MODE = "production"
 APP_URL = "https://preview.multies.si"

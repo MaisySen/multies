@@ -12,6 +12,7 @@ import { requireAdmin, requireAuth } from "../middleware";
 import { HttpError, notFound } from "../lib/errors";
 import { MAX_UPLOAD_BYTES } from "@/shared/forms-td2";
 import { deleteResponse, formImage, openUpload, receiveUpload } from "../services/forms-td2/uploads";
+import { td7UploadGate } from "../services/suite/forms"; // TD7
 
 /** Reads the raw body with a hard cap, so a huge upload never sits in memory whole. */
 async function readCapped(c: Context<AppEnv>, cap: number): Promise<Uint8Array> {
@@ -45,6 +46,7 @@ export function formsTd2PublicRoutes() {
     // Handlers check the flag themselves: a "*" middleware here would run for every /api/public path.
     .post("/forms/:slug/uploads", async (c) => {
       if (!c.var.deps.config.formsTd2) throw notFound("Form");
+      await td7UploadGate(c.var.deps, c.req.param("slug"), c.req.header("x-form-access")); // TD7: closed 410, password 401, before any bytes are read
       const bytes = await readCapped(c, MAX_UPLOAD_BYTES);
       const out = await receiveUpload(c.var.deps, { slug: c.req.param("slug"), fieldId: (c.req.query("field") ?? "").slice(0, 40), name: fileName(c), bytes, ip: c.var.ip });
       return c.json(out, 201);

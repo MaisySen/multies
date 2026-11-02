@@ -83,6 +83,7 @@ export interface PublicConfig {
   formsPlus?: boolean;
   /** TD2: Forms pro (FORMS_TD2). */
   formsTd2?: boolean;
+  formsTd7?: boolean; // TD7: Forms pro B
   homeWidgetsR131?: boolean; // R131
   toursR130?: boolean; // R130
   aiConnectAi2?: boolean; // AI2: Settings, AI connect screen

@@ -495,3 +495,29 @@ a.ref-chip:hover { text-decoration: underline; }
 a.ref-chip:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 1px; }
 .ref-chip-muted { background: var(--color-fill); color: var(--color-muted); font-style: italic; font-weight: 400; }
 @media (prefers-reduced-motion: reduce) { .ref-chip { transition: none; } }
+/* TD7 Forms pro B: a form brand kit from fixed choices only (no free colours or CSS), set by data attributes. */
+.td7-brand[data-brand-accent="ocean"] { --color-brand: #0b5cad; --color-brand-hover: color-mix(in srgb, #0b5cad 88%, black); --color-brand-soft: color-mix(in srgb, #0b5cad 12%, transparent); --color-accent: #0b5cad; }
+.td7-brand[data-brand-accent="forest"] { --color-brand: #1f6f43; --color-brand-hover: color-mix(in srgb, #1f6f43 88%, black); --color-brand-soft: color-mix(in srgb, #1f6f43 12%, transparent); --color-accent: #1f6f43; }
+.td7-brand[data-brand-accent="plum"] { --color-brand: #7a3e9d; --color-brand-hover: color-mix(in srgb, #7a3e9d 88%, black); --color-brand-soft: color-mix(in srgb, #7a3e9d 12%, transparent); --color-accent: #7a3e9d; }
+.td7-brand[data-brand-accent="coral"] { --color-brand: #b23a0c; --color-brand-hover: color-mix(in srgb, #b23a0c 88%, black); --color-brand-soft: color-mix(in srgb, #b23a0c 12%, transparent); --color-accent: #b23a0c; }
+.td7-brand[data-brand-accent="teal"] { --color-brand: #0f6e66; --color-brand-hover: color-mix(in srgb, #0f6e66 88%, black); --color-brand-soft: color-mix(in srgb, #0f6e66 12%, transparent); --color-accent: #0f6e66; }
+.td7-brand[data-brand-accent="ink"] { --color-brand: #2c2c30; --color-brand-hover: color-mix(in srgb, #2c2c30 88%, black); --color-brand-soft: color-mix(in srgb, #2c2c30 12%, transparent); --color-accent: #2c2c30; }
+:root[data-theme="dark"] .td7-brand[data-brand-accent="ocean"] { --color-brand: #5aa9ff; --color-brand-hover: color-mix(in srgb, #5aa9ff 88%, white); --color-brand-fg: #0b0b0c; --color-accent: #5aa9ff; --color-accent-fg: #0b0b0c; }
+:root[data-theme="dark"] .td7-brand[data-brand-accent="forest"] { --color-brand: #4cc38a; --color-brand-hover: color-mix(in srgb, #4cc38a 88%, white); --color-brand-fg: #0b0b0c; --color-accent: #4cc38a; --color-accent-fg: #0b0b0c; }
+:root[data-theme="dark"] .td7-brand[data-brand-accent="plum"] { --color-brand: #c38ce6; --color-brand-hover: color-mix(in srgb, #c38ce6 88%, white); --color-brand-fg: #0b0b0c; --color-accent: #c38ce6; --color-accent-fg: #0b0b0c; }
+:root[data-theme="dark"] .td7-brand[data-brand-accent="coral"] { --color-brand: #ff8a5c; --color-brand-hover: color-mix(in srgb, #ff8a5c 88%, white); --color-brand-fg: #0b0b0c; --color-accent: #ff8a5c; --color-accent-fg: #0b0b0c; }
+:root[data-theme="dark"] .td7-brand[data-brand-accent="teal"] { --color-brand: #3cc9bb; --color-brand-hover: color-mix(in srgb, #3cc9bb 88%, white); --color-brand-fg: #0b0b0c; --color-accent: #3cc9bb; --color-accent-fg: #0b0b0c; }
+:root[data-theme="dark"] .td7-brand[data-brand-accent="ink"] { --color-brand: #d6d6dc; --color-brand-hover: color-mix(in srgb, #d6d6dc 88%, white); --color-brand-fg: #111113; --color-accent: #d6d6dc; --color-accent-fg: #111113; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .td7-brand[data-brand-accent="ocean"] { --color-brand: #5aa9ff; --color-brand-hover: color-mix(in srgb, #5aa9ff 88%, white); --color-brand-fg: #0b0b0c; --color-accent: #5aa9ff; --color-accent-fg: #0b0b0c; }
+  :root:not([data-theme="light"]) .td7-brand[data-brand-accent="forest"] { --color-brand: #4cc38a; --color-brand-hover: color-mix(in srgb, #4cc38a 88%, white); --color-brand-fg: #0b0b0c; --color-accent: #4cc38a; --color-accent-fg: #0b0b0c; }
+  :root:not([data-theme="light"]) .td7-brand[data-brand-accent="plum"] { --color-brand: #c38ce6; --color-brand-hover: color-mix(in srgb, #c38ce6 88%, white); --color-brand-fg: #0b0b0c; --color-accent: #c38ce6; --color-accent-fg: #0b0b0c; }
+  :root:not([data-theme="light"]) .td7-brand[data-brand-accent="coral"] { --color-brand: #ff8a5c; --color-brand-hover: color-mix(in srgb, #ff8a5c 88%, white); --color-brand-fg: #0b0b0c; --color-accent: #ff8a5c; --color-accent-fg: #0b0b0c; }
+  :root:not([data-theme="light"]) .td7-brand[data-brand-accent="teal"] { --color-brand: #3cc9bb; --color-brand-hover: color-mix(in srgb, #3cc9bb 88%, white); --color-brand-fg: #0b0b0c; --color-accent: #3cc9bb; --color-accent-fg: #0b0b0c; }
+  :root:not([data-theme="light"]) .td7-brand[data-brand-accent="ink"] { --color-brand: #d6d6dc; --color-brand-hover: color-mix(in srgb, #d6d6dc 88%, white); --color-brand-fg: #0b0b0c; --color-accent: #d6d6dc; --color-accent-fg: #0b0b0c; }
+}
+.td7-brand[data-brand-surface="tinted"] { --color-bg: color-mix(in srgb, var(--color-brand) 9%, var(--color-surface)); background: var(--color-bg); }
+.td7-brand[data-brand-font="serif"] { font-family: ui-serif, "New York", Georgia, Cambria, "Times New Roman", serif; }
+.td7-brand[data-brand-font="mono"] { font-family: var(--font-mono); }
+.td7-brand[data-brand-font="sans"] { font-family: var(--font-sans); }
+.td7-bar[data-w="0"] { width: 0%; } .td7-bar[data-w="5"] { width: 5%; } .td7-bar[data-w="10"] { width: 10%; } .td7-bar[data-w="15"] { width: 15%; } .td7-bar[data-w="20"] { width: 20%; } .td7-bar[data-w="25"] { width: 25%; } .td7-bar[data-w="30"] { width: 30%; } .td7-bar[data-w="35"] { width: 35%; } .td7-bar[data-w="40"] { width: 40%; } .td7-bar[data-w="45"] { width: 45%; } .td7-bar[data-w="50"] { width: 50%; } .td7-bar[data-w="55"] { width: 55%; } .td7-bar[data-w="60"] { width: 60%; } .td7-bar[data-w="65"] { width: 65%; } .td7-bar[data-w="70"] { width: 70%; } .td7-bar[data-w="75"] { width: 75%; } .td7-bar[data-w="80"] { width: 80%; } .td7-bar[data-w="85"] { width: 85%; } .td7-bar[data-w="90"] { width: 90%; } .td7-bar[data-w="95"] { width: 95%; } .td7-bar[data-w="100"] { width: 100%; }

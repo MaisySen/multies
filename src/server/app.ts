@@ -51,6 +51,7 @@ import { COMMENTS_JS, COMMENTS_JS_HEADERS, sitePublicRoutes, sitesRoutes } from 
 import { BLOG_JS, BLOG_JS_HEADERS, blogPublicRoutes, blogRoutes } from "./routes/blog-r124"; // R124: blog with newsletter
 import { bookingPlusRoutes, bookingPublicRoutes } from "./routes/booking-plus"; // R92
 import { formsPlusRoutes, formsPublicRoutes } from "./routes/forms-plus"; // R93
+import { formsTd7PublicRoutes, formsTd7Routes } from "./routes/forms-td7"; // TD7
 import { dataRequestPublicRoutes, dataRequestRoutes, reportPublicRoutes, reportingRoutes } from "./routes/reporting-r112"; // R112
 import { FORMS_EMBED_HEADERS, FORMS_EMBED_JS } from "./routes/forms-embed-script"; // R93
 import { esignPublicRoutes, toolsEsignRoutes } from "./routes/tools-esign"; // Tools P2: e-sign
@@ -484,6 +485,7 @@ export function createApp(deps: Deps) {
       polishPol1: !!deps.config.polishPol1, // POL1: tables and courses to the trash with restore
       formsPlus: !!deps.config.formsPlus, // R93: chat forms, webhook, embed, feedback boards, calls for submissions
       formsTd2: !!deps.config.formsTd2, // TD2: Forms pro
+      formsTd7: !!deps.config.formsTd7, // TD7: Forms pro B
       homeWidgetsR131: !!deps.config.homeWidgetsR131, // R131: Home widgets
       toursR130: !!deps.config.toursR130, // R130: guided onboarding (vv8k gets enabled false from /api/tours/me)
       aiConnectAi2: !!deps.config.aiConnectAi2, // AI2: connect AI properly
@@ -561,6 +563,8 @@ export function createApp(deps: Deps) {
   app.route("/api/booking", bookingPlusRoutes()); // R92: resources, time polls, events
   app.route("/api/pub/booking", bookingPublicRoutes()); // R92: public poll, event and ticket API with the spam shield
   app.route("/api/forms-plus", formsPlusRoutes()); // R93: form settings, webhook, feedback boards, calls for submissions
+  app.route("/api/forms", formsTd7Routes()); // TD7: brand kit, close and cap, password, analytics, saved parts, AI draft (FORMS_TD7)
+  app.route("/api/public", formsTd7PublicRoutes()); // TD7: unlock, save and resume, counts, logo (FORMS_TD7)
   app.route("/api/pub/forms", formsPublicRoutes()); // R93: public boards, votes and ideas with the spam shield
   app.route("/api/pub/report", reportPublicRoutes()); // R112: anonymous reports (no IP, user agent, cookie or access log)
   app.route("/api/pub/data-request", dataRequestPublicRoutes()); // R112: data requests with a one time email link

@@ -28,6 +28,8 @@ import { FormResults, LogicEditor, RoutingEditor, type BuilderField } from "./fo
 import { ApiError } from "@/web/lib/api";
 import { ScrollRow } from "@/web/components/ui/scroll-row"; // F13b
 import { ReferencesPanel } from "@/web/components/mentions-td5"; // TD5
+import { Td7Shell, Td7SaveResume, td7Body } from "./forms-td7/public-td7"; // TD7
+import { Td7FormDialog, Td7Starter } from "./forms-td7/owner-td7"; // TD7
 
 type FieldType = FormFieldType;
 type FormField = BuilderField;
@@ -103,6 +105,8 @@ function FormsList({ plus = false, kind = "forms" }: { plus?: boolean; kind?: "f
   useEffect(() => { if (linkedForm && q.data) { const f = q.data.forms.find((x) => x.id === linkedForm); if (f) setEditing(f); } }, [linkedForm, q.data]);
   const [viewing, setViewing] = useState<string | null>(null);
   const [plusFor, setPlusFor] = useState<Form | null>(null);
+  const [proFor, setProFor] = useState<Form | null>(null); // TD7
+  const td7 = !!useConfig().data?.formsTd7; // TD7
   const [entriesFor, setEntriesFor] = useState<Form | null>(null);
   const calls = kind === "calls";
   const list = (q.data?.forms ?? []).filter((f) => (calls ? f.target === "review" : f.target !== "review"));
@@ -151,6 +155,7 @@ function FormsList({ plus = false, kind = "forms" }: { plus?: boolean; kind?: "f
                 <CopyButton value={f.url} label="Copy link" />
                 {calls ? <Button size="sm" variant="ghost" onClick={() => setEntriesFor(f)} data-testid="entries">Entries</Button> : <Button size="sm" variant="ghost" onClick={() => setViewing(f.id)}>Responses</Button>}
                 {plus && !calls && <Button size="sm" variant="ghost" onClick={() => setPlusFor(f)} data-testid="form-more">More</Button>}
+                {td7 && !calls && <Button size="sm" variant="ghost" onClick={() => setProFor(f)} data-testid="td7-more">Settings</Button>}
               </div>
             </div>
           ))}
@@ -158,6 +163,7 @@ function FormsList({ plus = false, kind = "forms" }: { plus?: boolean; kind?: "f
       )}
       {q.data && <p className="mt-3 text-[12px] text-subtle">{q.data.turnstile ? "Spam protection: a human check, a hidden trap field and a limit per sender." : "Spam protection: a hidden trap field, a minimum fill time and a limit per sender."}</p>}
       {plusFor && <FormPlusDialog form={plusFor} onClose={() => setPlusFor(null)} />}
+      {proFor && <Td7FormDialog form={proFor} onClose={() => setProFor(null)} />}
       {entriesFor && <CallDialog form={entriesFor} onClose={() => setEntriesFor(null)} />}
       {editing && <FormEditor plus={plus} initial={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void refresh(); }} />}
       {viewing && <FormResults id={viewing} name={q.data?.forms.find((x) => x.id === viewing)?.name ?? "form"} onClose={() => setViewing(null)} />}
@@ -171,6 +177,7 @@ function FormEditor({ initial, onClose, onSaved, plus = false }: { initial: Part
   const people = useAssignees();
   const [f, setF] = useState<Partial<Form>>({ ...initial, fields: withIds(initial.fields ?? [{ label: "Your name", type: "text", required: true }, { label: "Email", type: "email", required: true }, { label: "What do you need?", type: "text", required: true }, { label: "Details", type: "textarea" }]) });
   const [busy, setBusy] = useState(false);
+  const td7 = !!useConfig().data?.formsTd7; // TD7: import and AI draft for new forms
   const fields = f.fields ?? [];
   const setField = (i: number, patch: Partial<FormField>) => setF({ ...f, fields: fields.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
   const move = (i: number, d: number) => { const next = [...fields]; const [x] = next.splice(i, 1); next.splice(i + d, 0, x); setF({ ...f, fields: next }); };
@@ -194,6 +201,7 @@ function FormEditor({ initial, onClose, onSaved, plus = false }: { initial: Part
           {f.target === "task" && <Field label="In project">{(fp) => (<Select {...fp} value={f.projectId ?? ""} onChange={(e) => setF({ ...f, projectId: e.target.value || null })}><option value="">Default project</option>{projects.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select>)}</Field>}
           {f.target === "task" && <Field label="Assign to">{(fp) => (<Select {...fp} value={f.assigneeId ?? ""} onChange={(e) => setF({ ...f, assigneeId: e.target.value || null })}><option value="">Nobody</option>{people.data?.map((p) => <option key={p.id} value={p.id}>{p.name}{isAgentLike(p) ? " (agent)" : ""}</option>)}</Select>)}</Field>}
         </div>
+        {td7 && !f.id && <Td7Starter onUse={(d) => setF({ ...f, name: f.name?.trim() ? f.name : d.name ?? f.name, description: f.description?.trim() ? f.description : d.description ?? f.description, fields: withIds(d.fields as FormField[]) })} />}
         <div>
           <div className="mb-1.5 text-[13px] font-medium">Fields</div>
           <ul className="space-y-2">
@@ -266,13 +274,14 @@ export function PublicFormPage() {
   const td2 = q.data?.td2;
   const pro = !!td2 && !!q.data?.fields.some((x) => TD2_ANSWER_TYPES.includes(x.type) || isLayout(x.type) || !!x.requireWhen || !!x.disableWhen || !!x.logic?.groups?.length || x.logic?.action === "hide" || x.display === "stars");
   const chat = !!q.data?.plus && (q.data.plus.mode === "chat" || embed);
-  if (q.data && chat && !pro) return <main className="min-h-dvh bg-bg text-fg"><ChatForm slug={slug!} form={q.data as PublicFormData} embed={embed} /></main>;
-  if (q.data && td2) return <PublicFormTd2 slug={slug!} form={q.data as Td2PublicForm} oneAtATime={chat} embed={embed} />;
-  // TD2: a form that could not load (not a missing one) offers Retry.
-  if (td2On && q.isError && !(q.error instanceof ApiError && q.error.status === 404)) return (
-    <main className="min-h-dvh bg-bg px-4 py-10 text-fg"><div className="mx-auto max-w-lg"><Card data-testid="form-load-error"><LoadError onRetry={() => q.refetch()} /></Card></div></main>
-  );
-  return <ClassicPublicForm />;
+  // TD7: brand, closed page, password gate and counts wrap whichever renderer the form uses.
+  const inner = q.data && chat && !pro ? <main className="min-h-dvh bg-bg text-fg"><ChatForm slug={slug!} form={q.data as PublicFormData} embed={embed} /></main>
+    : q.data && td2 ? <PublicFormTd2 slug={slug!} form={q.data as Td2PublicForm} oneAtATime={chat} embed={embed} />
+    // TD2: a form that could not load (not a missing one) offers Retry.
+    : td2On && q.isError && !(q.error instanceof ApiError && q.error.status === 404) ? (
+      <main className="min-h-dvh bg-bg px-4 py-10 text-fg"><div className="mx-auto max-w-lg"><Card data-testid="form-load-error"><LoadError onRetry={() => q.refetch()} /></Card></div></main>
+    ) : <ClassicPublicForm />;
+  return q.data && slug ? <Td7Shell slug={slug} form={q.data}>{inner}</Td7Shell> : inner;
 }
 
 function ClassicPublicForm() {
@@ -304,7 +313,7 @@ function ClassicPublicForm() {
       const sendable = Object.fromEntries(Object.entries(answers).filter(([k]) => shown.has(k)));
       // R93: with Forms plus, hidden values from the link and the spam shield ride along.
       const hidden = q.data?.plus ? pickHidden(q.data.plus.hiddenFields, new URLSearchParams(window.location.search)) : undefined;
-      const r = await shield.send((sh) => api.post<{ ok: boolean; message: string }>(`/public/forms/${slug}`, { answers: sendable, website: trap, turnstileToken: token, elapsedMs: Date.now() - opened.current, hidden, shield: sh ? { ...sh, hp: trap } : undefined }));
+      const r = await shield.send((sh) => api.post<{ ok: boolean; message: string }>(`/public/forms/${slug}`, { ...td7Body(slug), answers: sendable, website: trap, turnstileToken: token, elapsedMs: Date.now() - opened.current, hidden, shield: sh ? { ...sh, hp: trap } : undefined }));
       setDone(r.message);
     } catch (e) {
       if (e instanceof ApiError && e.fields && Object.keys(e.fields).length) { setErrors(e.fields); focusFirst(e.fields); } else showError(e as Error);
@@ -372,6 +381,7 @@ function ClassicPublicForm() {
               {site && <div ref={widget} />}
               <Button type="submit" className="w-full" loading={busy} disabled={!!site && !token}>Send</Button>
             </form>
+            {slug && <Td7SaveResume slug={slug} form={f} answers={answers} onRestore={setAnswers} />}
           </Card>
         )}
         <div className="mt-6 flex items-center justify-center gap-2 text-[12px] text-subtle">Form by <Logo className="h-4" /></div>

@@ -11,6 +11,7 @@ import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, recordWrite, sortableId, type SuiteActor } from "./common";
 import { createTask, getProject, parseAssignee, validateAssignee } from "./tasks";
 import { requireShield } from "../spam-shield";
+import { releaseCap, reserveCap, td7Completed, td7Guard, td7Public } from "../forms-td7/pro"; // TD7
 import { deliverWebhook, formsPlusOn, submissionExtras, webhookPayload } from "../forms-plus/plus";
 import { fillVariables, parsePlus, pickHidden } from "@/shared/forms-plus";
 import type { ShieldAnswer } from "@/shared/spam-shield";
@@ -239,6 +240,12 @@ export async function deleteForm(deps: Deps, actor: SuiteActor, id: string) {
   return { ok: true };
 }
 
+/** TD7: a public upload to a closed form is refused, and a password form needs its access token first. */
+export async function td7UploadGate(deps: Deps, slug: string, access: unknown) {
+  if (!deps.config.formsTd7) return;
+  await td7Guard(deps, await publicRow(deps, slug), access);
+}
+
 async function publicRow(deps: Deps, slug: string) {
   const f = await deps.db.select().from(forms).where(and(eq(forms.slug, slug.toLowerCase()), isNull(forms.deletedAt))).get();
   if (!f || !f.enabled) throw notFound("Form");
@@ -246,9 +253,12 @@ async function publicRow(deps: Deps, slug: string) {
 }
 
 /** What the public form page needs: no ids, no workspace details beyond its name. */
-export async function publicForm(deps: Deps, slug: string) {
+export async function publicForm(deps: Deps, slug: string, opts: { access?: unknown } = {}) {
   const f = await publicRow(deps, slug);
   const org = await deps.db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, f.orgId)).get();
+  // TD7: a closed or locked form shows its name only; no questions until it is open and unlocked.
+  const td7 = await td7Public(deps, f, opts.access);
+  if (td7 && (td7.closed || td7.locked)) return { name: f.name, description: td7.closed ? "" : f.description, fields: [] as FormField[], workspace: org?.name ?? "", turnstileSiteKey: null, td7 };
   // R93: chat style, the hidden field names, the bubble label, and whether the spam shield is needed.
   const plusOn = await formsPlusOn(deps, f.orgId);
   const plus = plusOn ? parsePlus(f.plus) : null;
@@ -257,6 +267,7 @@ export async function publicForm(deps: Deps, slug: string) {
     ...(plus ? { plus: { mode: f.mode === "chat" ? "chat" : "classic", hiddenFields: plus.hiddenFields, bubbleLabel: plus.bubbleLabel, review: f.target === "review", deadline: plus.review?.deadline ?? null } } : {}),
     // TD2: layout and pages; an image block's file id stays private (the page loads it through the form's own image path).
     ...(deps.config.formsTd2 ? { td2: parseTd2(f.td2), fields: (JSON.parse(f.fields) as FormField[]).map((x) => (x.type === "image" ? { ...x, imageId: undefined, hasImage: true } : x)) } : {}),
+    ...(td7 ? { td7 } : {}),
   };
 }
 
@@ -291,6 +302,8 @@ export interface SubmitMeta {
   ip: string; turnstileToken?: string; honeypot?: string; elapsedMs?: number;
   /** R93 (Forms plus): hidden field values from the link, the spam shield answer, and where to run the webhook after the answer. */
   hidden?: Record<string, unknown>; shield?: ShieldAnswer; defer?: (p: Promise<unknown>) => void;
+  /** TD7: the password access token and the resume token of a saved part. */
+  td7?: { access?: unknown; resume?: unknown };
 }
 
 /**
@@ -299,6 +312,7 @@ export interface SubmitMeta {
  */
 export async function submitForm(deps: Deps, slug: string, raw: Record<string, unknown>, meta: SubmitMeta) {
   const f = await publicRow(deps, slug);
+  const td7 = await td7Guard(deps, f, meta.td7?.access); // TD7: close date, response cap and password, on the server
   const fields = JSON.parse(f.fields) as FormField[];
   const thanks = { ok: true, message: f.successMessage };
   if (meta.honeypot || (meta.elapsedMs !== undefined && meta.elapsedMs < MIN_FILL_MS)) return thanks;
@@ -316,17 +330,21 @@ export async function submitForm(deps: Deps, slug: string, raw: Record<string, u
   const answers = validateAnswers(fields, raw, { strict: td2On });
   const now = deps.now();
   const sid = sortableId("fsb", now.getTime());
-  const uploads = td2On ? await attachUploads(deps, f.id, fields, answers, ipHash, sid) : 0;
+  // TD7: one place under the response cap, taken atomically before any upload is tied; given back if saving fails.
+  const reserved = td7 ? await reserveCap(deps, f, td7) : false;
+  let uploads = 0;
   try {
-    return await saveSubmission(deps, f, fields, answers, meta, ipHash, plusOn, now, sid);
+    uploads = td2On ? await attachUploads(deps, f.id, fields, answers, ipHash, sid) : 0;
+    return await saveSubmission(deps, f, fields, answers, meta, { thanks, plusOn, ipHash, reserved, td7: !!td7, now, sid });
   } catch (err) {
     if (uploads) await releaseUploads(deps, sid).catch(() => undefined);
+    if (reserved) await releaseCap(deps, f);
     throw err;
   }
 }
 
-async function saveSubmission(deps: Deps, f: FormRow, fields: FormField[], answers: Record<string, string>, meta: SubmitMeta, ipHash: string, plusOn: boolean, now: Date, sid: string) {
-  const thanks = { ok: true, message: f.successMessage };
+async function saveSubmission(deps: Deps, f: FormRow, fields: FormField[], answers: Record<string, string>, meta: SubmitMeta, ctx: { thanks: { ok: boolean; message: string }; plusOn: boolean; ipHash: string; reserved: boolean; td7: boolean; now: Date; sid: string }) {
+  const { thanks, plusOn, ipHash, now, sid } = ctx;
   const system: SuiteActor = { orgId: f.orgId, userId: "", email: "", name: `Form: ${f.name}`, system: true };
   const shownText = (x: FormField) => (isUpload(x.type) ? uploadSummary(x, answers[x.id]) : answers[x.id]);
   const lines = fields.filter((x) => answers[x.id]).map((x) => (x.type === "textarea" ? `${x.label}:\n${answers[x.id]}` : `${x.label}: ${shownText(x)}`));
@@ -372,8 +390,9 @@ async function saveSubmission(deps: Deps, f: FormRow, fields: FormField[], answe
   const extras = plus ? submissionExtras(fields, answers, hidden) : {};
   await Promise.all([
     deps.db.insert(formSubmissions).values({ id: sid, orgId: f.orgId, formId: f.id, data: JSON.stringify(answers), entityType: entity?.type ?? null, entityId: entity?.id ?? null, ipHash, createdAt: now, ...extras }),
-    deps.db.update(forms).set({ submitCount: sql`${forms.submitCount} + 1`, lastSubmitAt: now }).where(eq(forms.id, f.id)),
+    ...(ctx.reserved ? [] : [deps.db.update(forms).set({ submitCount: sql`${forms.submitCount} + 1`, lastSubmitAt: now }).where(eq(forms.id, f.id))]),
   ]);
+  if (ctx.td7) await td7Completed(deps, f, meta.td7?.resume); // TD7: completion count; the saved part is removed
   await recordWrite(deps, system, { entityType: "form", entityId: f.id, op: "update", verb: "form.submitted", data: { submissionId: sid, entity },
     event: "form.submitted", eventData: { formId: f.id, form: f.name, submissionId: sid, answers, created: entity } });
   // R90: flows on "a form is sent".

@@ -296,3 +296,21 @@ describe("TD2 uploads and answers", () => {
     expect((await mate.call("DELETE", `/api/forms/${form.id}/responses/fsb_x`)).status).toBe(403);
   });
 });
+
+describe("TD2 with TD7 on one form", () => {
+  it("uploads follow the TD7 close date and password, before any bytes are kept", async () => {
+    const t = await setup({ FORMS_TD2: "on", FORMS_TD7: "on", FILES_PLUS_R101: "on", APP_URL: "http://localhost" });
+    const form = await makeForm(t);
+    expect((await upload(t, form.slug, "docs", PDF, "a.pdf")).status).toBe(201);
+    expect((await t.owner.put(`/api/forms/${form.id}/pro`, { settings: { closesAt: "2026-11-01T00:00:00Z" } })).status).toBe(200);
+    const closed = await upload(t, form.slug, "docs", PDF, "b.pdf");
+    expect(closed.status).toBe(410);
+    expect(closed.body.error.code).toBe("form_closed");
+    await t.owner.put(`/api/forms/${form.id}/pro`, { settings: { closesAt: null }, password: "Secret word 77" });
+    expect((await upload(t, form.slug, "docs", PDF, "c.pdf")).status).toBe(401);
+    const ok = await raw(t, "POST", `/api/public/forms/${form.slug}/password`, JSON.stringify({ password: "Secret word 77" }), { "content-type": "application/json", "cf-connecting-ip": "10.1.1.1", origin: "http://localhost" });
+    expect(ok.status).toBe(200);
+    const withAccess = await raw(t, "POST", `/api/public/forms/${form.slug}/uploads?field=docs`, PDF as BodyInit, { "x-multies-upload": "1", "x-file-name": "d.pdf", "content-type": "application/octet-stream", "cf-connecting-ip": "10.1.1.1", origin: "http://localhost", "x-form-access": ok.body.access });
+    expect(withAccess.status).toBe(201);
+  });
+});

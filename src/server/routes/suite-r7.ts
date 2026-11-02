@@ -139,14 +139,14 @@ export function publicRoutes() {
   return new Hono<AppEnv>()
     .get("/forms/:slug", async (c) => c.json({ form: await publicForm(c.var.deps, c.req.param("slug")) }))
     .post("/forms/:slug", async (c) => {
-      const raw = (await c.req.json().catch(() => ({}))) as { answers?: Record<string, unknown>; turnstileToken?: string; website?: string; elapsedMs?: number; hidden?: unknown; shield?: unknown };
+      const raw = (await c.req.json().catch(() => ({}))) as { answers?: Record<string, unknown>; turnstileToken?: string; website?: string; elapsedMs?: number; hidden?: unknown; shield?: unknown; td7Access?: unknown; td7Resume?: unknown };
       // R93: hidden field values and the spam shield answer (checked only when Forms plus is on for the workspace).
       const hidden = raw.hidden && typeof raw.hidden === "object" && !Array.isArray(raw.hidden) ? raw.hidden as Record<string, unknown> : undefined;
       const shield = ShieldBody.safeParse(raw.shield);
       // On Workers the webhook runs after the answer is sent; without an execution context (Node) it runs inline.
       let defer: ((p: Promise<unknown>) => void) | undefined;
       try { const ec = c.executionCtx; defer = (p) => ec.waitUntil(p); } catch { defer = undefined; }
-      return c.json(await submitForm(c.var.deps, c.req.param("slug"), raw.answers ?? {}, { ip: c.var.ip, turnstileToken: raw.turnstileToken, honeypot: raw.website, elapsedMs: typeof raw.elapsedMs === "number" ? raw.elapsedMs : undefined, hidden, shield: shield.success ? shield.data : undefined, defer }));
+      return c.json(await submitForm(c.var.deps, c.req.param("slug"), raw.answers ?? {}, { ip: c.var.ip, turnstileToken: raw.turnstileToken, honeypot: raw.website, elapsedMs: typeof raw.elapsedMs === "number" ? raw.elapsedMs : undefined, hidden, shield: shield.success ? shield.data : undefined, defer, td7: { access: raw.td7Access, resume: raw.td7Resume } }));
     })
     .get("/meetings/:token", async (c) => c.json({ meeting: await guestInfo(c.var.deps, c.req.param("token")) }))
     .post("/meetings/:token/join", async (c) => {

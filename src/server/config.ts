@@ -100,6 +100,8 @@ export interface AppConfig {
   formsPlus?: boolean;
   /** TD2 Forms pro: more field types, layout blocks, file upload, signature, stronger logic, pages, one question at a time (FORMS_TD2=on). Off unless set. */
   formsTd2?: boolean;
+  /** TD7 Forms pro B: brand kit, close date, response cap, password, save and resume, analytics, AI draft and import (FORMS_TD7=on). Off unless set. */
+  formsTd7?: boolean;
   /** R112: anonymous reporting channel (Forms > Reports) and data requests (Settings > Data requests) (REPORTING_R112=on). Off unless set. */
   reporting?: boolean;
   /** R93: more workspaces (ids, slugs or names, comma separated) kept out of Forms plus; vv8k is always out. */
@@ -412,6 +414,7 @@ const EnvSchema = z.object({
   BOOKING_PLUS: z.string().optional(),
   FORMS_PLUS_R93: z.string().optional(), // R93
   FORMS_TD2: z.string().optional(), // TD2
+  FORMS_TD7: z.string().optional(), // TD7
   REPORTING_R112: z.string().optional(), // R112
   FORMS_PLUS_EXCLUDE: z.string().optional(), // R93
   SHIELD_DIFFICULTY: z.string().optional(),
@@ -810,6 +813,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     bookingPlus: (env.SCHEDULING_ENABLED === "true" || env.SCHEDULING_ENABLED === "1") && (env.BOOKING_PLUS === "true" || env.BOOKING_PLUS === "1"),
     formsPlus: env.FORMS_PLUS_R93 === "true" || env.FORMS_PLUS_R93 === "1", // R93
     formsTd2: ["1", "true", "on"].includes(String(env.FORMS_TD2 ?? "").toLowerCase()), // TD2
+    formsTd7: ["1", "true", "on"].includes(String(env.FORMS_TD7 ?? "").toLowerCase()), // TD7
     reporting: ["1", "true", "on"].includes(String(env.REPORTING_R112 ?? "").toLowerCase()), // R112
     formsPlusExclude: env.FORMS_PLUS_EXCLUDE ?? "", // R93
     shieldDifficulty: env.SHIELD_DIFFICULTY && /^\d{1,2}$/.test(env.SHIELD_DIFFICULTY) ? Math.min(22, Number(env.SHIELD_DIFFICULTY)) : 14,

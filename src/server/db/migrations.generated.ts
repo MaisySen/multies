@@ -1761,5 +1761,17 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `inbox_item_state_td6` (\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`ref_id` text NOT NULL,\n\t`read` integer,\n\t`done_at` integer,\n\t`snoozed_until` integer,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `user_id`, `kind`, `ref_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade\n);",
       "CREATE INDEX `agent_runs_creator_td6_idx` ON `agent_runs` (`org_id`, `created_by_user_id`, `finished_at`);"
     ]
+  },
+  {
+    "name": "0159_forms_td7",
+    "statements": [
+      "-- TD7 Forms pro B: brand kit, close date, response cap, password (hash only), save and resume, views and completion\n-- counts without cookies. Additive only; nothing reads these tables while FORMS_TD7 is off.\nCREATE TABLE `form_pro_td7` (\n\t`form_id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`settings` text DEFAULT '{}' NOT NULL,\n\t`password_hash` text,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX `form_pro_td7_org_idx` ON `form_pro_td7` (`org_id`);",
+      "CREATE TABLE `form_partials_td7` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`form_id` text NOT NULL,\n\t`answers` text DEFAULT '{}' NOT NULL,\n\t`answered` integer DEFAULT 0 NOT NULL,\n\t`expires_at` integer NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX `form_partials_td7_form_idx` ON `form_partials_td7` (`form_id`,`updated_at`);",
+      "CREATE INDEX `form_partials_td7_exp_idx` ON `form_partials_td7` (`expires_at`);",
+      "CREATE TABLE `form_stats_td7` (\n\t`form_id` text NOT NULL,\n\t`day` text NOT NULL,\n\t`views` integer DEFAULT 0 NOT NULL,\n\t`starts` integer DEFAULT 0 NOT NULL,\n\t`completions` integer DEFAULT 0 NOT NULL,\n\tPRIMARY KEY(`form_id`, `day`)\n);",
+      "CREATE TABLE `form_reach_td7` (\n\t`form_id` text NOT NULL,\n\t`field_id` text NOT NULL,\n\t`n` integer DEFAULT 0 NOT NULL,\n\tPRIMARY KEY(`form_id`, `field_id`)\n);"
+    ]
   }
 ];

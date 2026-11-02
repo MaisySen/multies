@@ -4724,3 +4724,41 @@ export const inboxItemStateTd6 = sqliteTable("inbox_item_state_td6", {
   snoozedUntil: ts("snoozed_until"),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
 }, (t) => [primaryKey({ columns: [t.orgId, t.userId, t.kind, t.refId] })]);
+// ---------------------------------------------------------------- TD7 Forms pro B (FORMS_TD7)
+
+/** TD7: a form's brand kit, close date, response cap and save and resume settings; the password only as a hash. */
+export const formProTd7 = sqliteTable("form_pro_td7", {
+  formId: text("form_id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  settings: text("settings").notNull().default("{}"),
+  passwordHash: text("password_hash"),
+  updatedAt: ts("updated_at").notNull(),
+}, (t) => [index("form_pro_td7_org_idx").on(t.orgId)]);
+
+/** TD7: a saved part of a form, opened again with a signed link until it expires. */
+export const formPartialsTd7 = sqliteTable("form_partials_td7", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  formId: text("form_id").notNull(),
+  answers: text("answers").notNull().default("{}"),
+  answered: integer("answered").notNull().default(0),
+  expiresAt: ts("expires_at").notNull(),
+  createdAt: ts("created_at").notNull(),
+  updatedAt: ts("updated_at").notNull(),
+}, (t) => [index("form_partials_td7_form_idx").on(t.formId, t.updatedAt), index("form_partials_td7_exp_idx").on(t.expiresAt)]);
+
+/** TD7: views, starts and completions per form per day. Counts only: no cookie, no visitor id. */
+export const formStatsTd7 = sqliteTable("form_stats_td7", {
+  formId: text("form_id").notNull(),
+  day: text("day").notNull(),
+  views: integer("views").notNull().default(0),
+  starts: integer("starts").notNull().default(0),
+  completions: integer("completions").notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.formId, t.day] })]);
+
+/** TD7: how many people reached each question (drop off per question). */
+export const formReachTd7 = sqliteTable("form_reach_td7", {
+  formId: text("form_id").notNull(),
+  fieldId: text("field_id").notNull(),
+  n: integer("n").notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.formId, t.fieldId] })]);
