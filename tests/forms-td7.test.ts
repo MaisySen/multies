@@ -186,7 +186,7 @@ describe("TD7 server enforcement", () => {
     expect(s.status).toBe(200);
     const back = await pub(t, "POST", `/api/public/forms/${f.slug}/partial/load`, { resume: s.body.resume });
     expect(back.body.answers).toEqual({ name: "Ada", msg: ["a"] });
-    expect((await pub(t, "POST", `/api/public/forms/${f.slug}/partial/load`, { resume: s.body.resume.replace(/.$/, "0") })).status).toBe(404);
+    expect((await pub(t, "POST", `/api/public/forms/${f.slug}/partial/load`, { resume: s.body.resume.replace(/.$/, (ch: string) => (ch === "0" ? "1" : "0")) })).status).toBe(404);
     const again = await pub(t, "POST", `/api/public/forms/${f.slug}/partial`, { answers: { name: "Ada L" }, resume: s.body.resume });
     expect(again.body.resume.split(".")[0]).toBe(s.body.resume.split(".")[0]);
     const list = await t.owner.get(`/api/forms/${f.id}/partials`);
