@@ -18,7 +18,6 @@ import { IconCalendarClock, IconCheck, IconChevronDown, IconChevronUp, IconClose
 import { addDays, clampBlock, clockOf, fitBlock, minutesText, type Block } from "@/shared/tasks-plus-r95";
 import { tone } from "@/web/components/app-bits";
 import { LoadErrorInline } from "@/web/components/load-error-t1g";
-import { useAssignees } from "./data"; // F13b
 
 interface PlanTask { id: string; ref: string; title: string; status: "todo" | "doing" | "done"; priority: string; due: string | null; project: { id: string; name: string; color: string } | null }
 interface PlanItem { id: string; taskId: string; day: string; start: number | null; minutes: number; position: number; task: PlanTask }
@@ -38,7 +37,10 @@ export function minuteAt(clientY: number, top: number, scrollTop = 0) {
 
 export function MyDay({ focusTaskId, userEmail }: { focusTaskId?: string | null; userEmail?: string } = {}) {
   const qc = useQueryClient();
-  const people = useAssignees(); // F13b (MB-307): a task typed onto My Day is assigned to you
+  // F13b (MB-307): a task typed onto My Day is assigned to you. Same key and shape as useAssignees in work/data (kept
+  // out of this file so My Work's first load stays small).
+  const people = useQuery({ queryKey: ["assignees"], staleTime: 120_000, enabled: !!userEmail,
+    queryFn: async () => (await api.get<{ assignees: { id: string; type: "member" | "agent"; email: string | null; isAgent?: boolean; paused?: boolean }[] }>("/tasks/assignees")).assignees.filter((p) => !p.paused) });
   const [day, setDay] = useState(localYmd());
   const today = localYmd();
   const tomorrow = addDays(today, 1);

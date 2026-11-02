@@ -1,9 +1,9 @@
 /** My Work (round 20), the Today home since R35: a large dated title, summary cards with depth, a Focus list and quick add. */
-import { lazy, Suspense, useState, type ReactNode } from "react";
+import { Suspense, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
-import { useProjects, useTaskMutations } from "./work/data";
+import { MyWorkNewTask } from "./work/my-work-new-task-load"; // F13b (MB-306)
 import { displayFirstName } from "@/shared/display-name";
 import { Link, useNavigate } from "react-router";
 import { MyDay } from "./work/my-day-r95"; // R95
@@ -78,8 +78,6 @@ const FOCUS_ICON: Record<ReturnType<typeof focusItems>[number]["kind"], { icon: 
   approval: { icon: IconApprovals, cls: "text-warn" }, mail: { icon: IconMail, cls: "text-muted" },
 };
 
-// F13b (MB-306): New task opens the task dialog here instead of leaving for Tasks.
-const NewTaskDialog = lazy(() => import("./work/tasks").then((m) => ({ default: m.NewTaskDialog })));
 
 const QUICK: { to: string; label: string; icon: IconComponent }[] = [
   { to: "/app/mail?compose=1", label: "New email", icon: IconCompose },
@@ -98,8 +96,6 @@ export function MyWorkPage() {
   // toast says it was added with Open.
   const [newTask, setNewTask] = useState(false);
   const [madeTask, setMadeTask] = useState<string | null>(null);
-  const projects = useProjects();
-  const { create } = useTaskMutations();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const made = async (task: { id: string; ref: string }) => {
@@ -224,12 +220,7 @@ export function MyWorkPage() {
           )}
         </>
       )}
-      {newTask && projects.data && (
-        <Suspense fallback={null}>
-          <NewTaskDialog projects={projects.data.filter((p) => !p.archived)} projectId={projects.data.find((p) => !p.archived)?.id} onClose={() => setNewTask(false)}
-            onCreate={async (body, more) => { const r = await create.mutateAsync(body); await made(r.task); if (!more) setNewTask(false); }} />
-        </Suspense>
-      )}
+      {newTask && <Suspense fallback={null}><MyWorkNewTask onClose={() => setNewTask(false)} onMade={made} /></Suspense>}
     </div>
   );
 }
