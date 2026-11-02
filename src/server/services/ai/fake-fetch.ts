@@ -56,6 +56,9 @@ export function fakeAiFetch(real: typeof fetch): typeof fetch {
     if (key.includes("FAKEBAD")) return failure(401, "invalid api key");
     if (key.includes("FAKENOCREDIT")) return failure(402, "insufficient credit");
     if (key.includes("FAKERATE")) return failure(429, "rate limited");
+    // Like the real ones: OpenRouter's model list is public; every other endpoint needs a key.
+    if (url.hostname === "openrouter.ai" && url.pathname === "/api/v1/key") return key ? Response.json({ data: { label: "fake" } }) : failure(401, "missing key");
+    if (!key && !(url.hostname === "openrouter.ai" && url.pathname.endsWith("/models"))) return failure(401, "missing key");
     if ((init?.method ?? "GET") === "GET" && url.pathname.endsWith("/models")) {
       if (key.includes("FAKELISTFAIL")) return failure(500, "list failed");
       return Response.json(FAKE_MODEL_LISTS[url.hostname] ?? { data: [] });

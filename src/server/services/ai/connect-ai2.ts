@@ -286,8 +286,47 @@ export async function testConnection(deps: Deps, auth: AuthContext, model?: stri
 }
 
 /**
+ * True only when the list address refuses a caller with no key. Some lists are public (OpenRouter's, and many
+ * compatible servers), so reading them with a key proves nothing about the key (MB-321).
+ */
+async function listNeedsKey(fetchImpl: typeof fetch, provider: Ai2ProviderId, baseUrl: string | null): Promise<boolean> {
+  const { url, init } = listRequest(provider, "", baseUrl);
+  try {
+    const res = await fetchImpl(url, { ...init, headers: {} });
+    return res.status === 401 || res.status === 403;
+  } catch { return false; }
+}
+
+const refusal = (code: Ai2ResultCode) =>
+  code === "key_refused" || code === "no_credit" ? new HttpError(400, `ai_${code}`, AI2_RESULT_TEXT[code]) : new HttpError(502, "ai_check_failed", AI2_RESULT_TEXT[code]);
+
+/**
+ * Proves the key with a question only a valid key can answer, before anything is saved. Any check that would pass
+ * with no key does not count: OpenRouter's key endpoint, else the model list when it refuses a keyless caller, else
+ * one tiny call on the chosen model. Throws a plain HttpError; never returns or logs the provider's body.
+ */
+export async function proveKey(fetchImpl: typeof fetch, provider: Ai2ProviderId, apiKey: string, baseUrl: string | null, model: string, listRead: boolean): Promise<void> {
+  if (provider === "openrouter") {
+    let res: Response;
+    try { res = await fetchImpl("https://openrouter.ai/api/v1/key", { method: "GET", redirect: "manual", headers: { authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(LIST_TIMEOUT_MS) }); }
+    catch { throw refusal("unreachable"); }
+    if (res.ok) return;
+    const body = res.status >= 300 && res.status < 400 ? "" : await res.text().catch(() => "");
+    throw refusal(res.status >= 300 && res.status < 400 ? "provider_error" : mapFailure(res.status, body));
+  }
+  if (listRead && (await listNeedsKey(fetchImpl, provider, baseUrl))) return;
+  try {
+    const timed: typeof fetch = (input, init) => fetchImpl(input, { ...init, signal: AbortSignal.timeout(TEST_TIMEOUT_MS) });
+    await byoProvider(provider as AiProviderId, apiKey, model, timed, baseUrl).complete({ system: "Reply with the single word OK.", user: "Connection test.", maxTokens: 16 });
+  } catch (err) {
+    throw refusal(err instanceof AiProviderError ? mapFailure(err.status, err.message) : "unreachable");
+  }
+}
+
+/**
  * Connects with a pasted key: cleans it, takes the provider the person picked (or the one the key's format names),
- * checks the key by reading the live model list, then saves it with the recommended model. A refused key is not saved.
+ * reads the live model list, proves the key on an endpoint that needs it (proveKey), and only then saves it with the
+ * recommended model. A refused or unproven key is never saved, and built-in AI stays in use.
  */
 export async function connectWithKey(deps: Deps, auth: AuthContext, input: { apiKey: string; provider?: Ai2ProviderId; baseUrl?: string; model?: string }) {
   const apiKey = cleanPastedKey(input.apiKey);
@@ -306,12 +345,17 @@ export async function connectWithKey(deps: Deps, auth: AuthContext, input: { api
     const code = err instanceof Ai2Failure ? err.code : "unreachable";
     deps.log?.warn("ai2.connect_check_failed", { provider, code });
     if (code === "key_refused" || code === "no_credit") throw new HttpError(400, `ai_${code}`, AI2_RESULT_TEXT[code]);
-    // The list endpoint can be down or missing (some compatible servers) while chat works: save, and say so.
+    // The list endpoint can be down or missing (some compatible servers) while chat works: the key is proven below.
     models = AI2_CURATED_MODELS[provider]; live = false;
   }
   if (input.model) assertModelId(input.model);
   const model = input.model?.trim() || pickRecommended(provider, models);
   if (!model) throw badRequest("This server lists no models. Type a model id under Advanced.");
+  try { await proveKey(deps.fetch, provider, apiKey, baseUrl, model, live); }
+  catch (err) {
+    deps.log?.warn("ai2.connect_proof_failed", { provider, code: err instanceof HttpError ? err.code : "unknown" });
+    throw err;
+  }
   const status = await saveAiKey(deps, auth, { provider: provider as AiProviderId, apiKey, model, baseUrl, via: "paste" });
   await cacheModels(deps, auth.orgId, { provider, baseUrl, keyHint: apiKey.slice(-4) }, models, live);
   return { ...status, live };

@@ -62,7 +62,14 @@ export function aiRoutes() {
         message: BYO_AI_MESSAGE,
       });
     })
-    .put("/key", requireAdmin, async (c) => c.json(await saveAiKey(c.var.deps, c.var.auth, await parseBody(c, KeyInput))))
+    .put("/key", requireAdmin, async (c) => {
+      const b = await parseBody(c, KeyInput);
+      // AI2: with built-in AI as the default, an unproven key must never replace it (MB-321), so this older save
+      // goes through the same proof as /connect. Flag off: today's save exactly.
+      if (!c.var.deps.config.aiConnectAi2) return c.json(await saveAiKey(c.var.deps, c.var.auth, b));
+      await ai2Limit(c);
+      return c.json(await (await connect()).connectWithKey(c.var.deps, c.var.auth, { apiKey: b.apiKey, provider: b.provider, model: b.model || undefined }));
+    })
     .delete("/key", requireAdmin, async (c) => c.json(await deleteAiKey(c.var.deps, c.var.auth)))
     // AI2 (AI_CONNECT_AI2): every route below answers 404 while the flag is off.
     .use("/connect", ai2Only).use("/models", ai2Only).use("/model", ai2Only).use("/test", ai2Only).use("/oauth/*", ai2Only)

@@ -98,7 +98,10 @@ type Call = { url: string; method: string; headers: Record<string, string>; body
 
 async function setup(env: Record<string, string> = { AI_CONNECT_AI2: "on" }) {
   const calls: Call[] = [];
-  let answer: (url: string, init?: RequestInit) => Response = (url) => {
+  let answer: (url: string, init?: RequestInit) => Response = (url, init) => {
+    const h = new Headers(init?.headers);
+    if (url.includes("api.anthropic.com/v1/models") && !h.get("x-api-key")) return new Response("missing key", { status: 401 });
+    if (url.includes("openrouter.ai/api/v1/key")) return h.get("authorization") === `Bearer ${OR_KEY}` ? Response.json({ data: { label: "x" } }) : new Response("no", { status: 401 });
     if (url.includes("api.anthropic.com/v1/models")) return Response.json({ data: [{ id: "claude-sonnet-5-5", display_name: "Claude Sonnet 5.5" }, { id: "claude-haiku-5-5", display_name: "Claude Haiku 5.5" }] });
     if (url.includes("openrouter.ai/api/v1/models")) return Response.json({ data: [{ id: "anthropic/claude-haiku-5.5", name: "Claude Haiku 5.5" }, { id: "openai/gpt-6-luna", name: "GPT 6 Luna" }] });
     if (url.includes("openrouter.ai/api/v1/auth/keys")) return Response.json({ key: OR_KEY });
@@ -182,12 +185,73 @@ describe("AI2 routes", () => {
 
   it("falls back to the curated list when the live list cannot be read", async () => {
     const { c, setAnswer } = await setup();
-    setAnswer(() => new Response("SECRET_BODY", { status: 503 }));
+    setAnswer((url) => url.includes("openrouter.ai/api/v1/key") ? Response.json({ data: { label: "x" } }) : new Response("SECRET_BODY", { status: 503 }));
     const r = await c.post("/api/ai/connect", { apiKey: OR_KEY });
     expect(r.body).toMatchObject({ connected: true, provider: "openrouter", model: AI2_CURATED_MODELS.openrouter[0]!.id, live: false });
     const m = await c.post("/api/ai/models", {});
     expect(m.body.live).toBe(false);
     expect(m.body.note).toBe("Could not load the live list, showing common models.");
+  });
+
+  it("a made up key is never saved for any provider, even where the model list is public (MB-321)", async () => {
+    const { c, db, setAnswer, calls } = await setup();
+    // Only the public lists answer without a key; every endpoint that needs a key refuses these made up ones.
+    setAnswer((url) => {
+      if (url.includes("cloudflare-dns.com")) return Response.json({ Answer: [{ type: 1, data: "93.184.216.34" }] });
+      if (url.includes("openrouter.ai/api/v1/models")) return Response.json({ data: [{ id: "openai/gpt-6-luna", name: "GPT 6 Luna" }] });
+      if (url === "https://llm.example.com/v1/models") return Response.json({ data: [{ id: "my-model" }] });
+      return new Response('{"error":"SECRET_BODY invalid key"}', { status: 401 });
+    });
+    const fakes: { apiKey: string; provider?: string; baseUrl?: string }[] = [
+      { apiKey: "sk-or-v1-" + "0".repeat(64) },
+      { apiKey: "sk-ant-api03-" + "0".repeat(40) },
+      { apiKey: "sk-proj-" + "0".repeat(40), provider: "openai" },
+      { apiKey: "AIza" + "0".repeat(35), provider: "gemini" },
+      { apiKey: "gsk_" + "0".repeat(48), provider: "groq" },
+      { apiKey: "0".repeat(32), provider: "mistral" },
+      { apiKey: "sk-" + "0".repeat(32), provider: "deepseek" },
+      { apiKey: "made-up-server-key-0000", provider: "custom", baseUrl: "https://llm.example.com/v1" },
+    ];
+    for (const f of fakes) {
+      const r = await c.post("/api/ai/connect", f);
+      expect(r.status, f.provider ?? f.apiKey.slice(0, 6)).toBe(400);
+      expect(r.body.error.code).toBe("ai_key_refused");
+      expect(r.body.error.message).toBe(AI2_RESULT_TEXT.key_refused);
+      noSecret(r.body);
+      await db.run(sql`delete from api_rate_limits`);
+    }
+    // The older save route takes the same proof while built-in AI is the default.
+    expect((await c.put("/api/ai/key", { provider: "openrouter", apiKey: "sk-or-v1-" + "0".repeat(64) })).status).toBe(400);
+    expect((await db.select().from(aiKeys).all()).length).toBe(0);
+    const s = await c.get("/api/ai/status");
+    expect(s.body.connected).toBe(false);
+    expect(s.body.builtin).toBeTruthy();
+    // OpenRouter was asked on its key endpoint, with the key in a header and redirects not followed.
+    const k = calls.find((x) => x.url === "https://openrouter.ai/api/v1/key")!;
+    expect(k.headers.authorization).toMatch(/^Bearer sk-or-v1-0+$/);
+    expect(k.redirect).toBe("manual");
+  });
+
+  it("a real key is proven before saving: OpenRouter on its key endpoint, a list that refuses keyless callers, else one tiny call", async () => {
+    const { c, calls, db } = await setup();
+    const or = await c.post("/api/ai/connect", { apiKey: OR_KEY });
+    expect(or.body).toMatchObject({ connected: true, provider: "openrouter", live: true });
+    expect(calls.some((x) => x.url === "https://openrouter.ai/api/v1/key")).toBe(true);
+    await db.run(sql`delete from api_rate_limits`);
+    const n = calls.length;
+    const ant = await c.post("/api/ai/connect", { apiKey: ANT });
+    expect(ant.body).toMatchObject({ connected: true, provider: "anthropic" });
+    // Anthropic's list refuses a keyless caller, so reading it with the key is the proof: no model call was spent.
+    expect(calls.slice(n).some((x) => x.url.includes("/v1/messages"))).toBe(false);
+    expect(calls.slice(n).some((x) => x.url.includes("/v1/models") && !x.headers["x-api-key"])).toBe(true);
+    await db.run(sql`delete from api_rate_limits`);
+    const m = calls.length;
+    // A compatible server with a public list: the key is proven with one tiny call before it is saved.
+    const cu = await c.post("/api/ai/connect", { apiKey: "my-own-server-key-123456", provider: "custom", baseUrl: "https://llm.example.com/v1" });
+    expect(cu.body).toMatchObject({ connected: true, provider: "custom" });
+    const chat = calls.slice(m).find((x) => x.url === "https://llm.example.com/v1/chat/completions")!;
+    expect(chat.headers.authorization).toBe("Bearer my-own-server-key-123456");
+    expect(JSON.parse(chat.body).max_tokens ?? JSON.parse(chat.body).max_completion_tokens).toBe(16);
   });
 
   it("tests the connection with one tiny call and plain results", async () => {
