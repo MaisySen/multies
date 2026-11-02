@@ -28,6 +28,7 @@ async function person(browser: Browser, email: string, name: string): Promise<Pe
 }
 async function axe(page: Page, label: string) {
   await page.mouse.move(0, 0); // axe reads the resting state, not a hover left over from an earlier click
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"), null, { timeout: 5_000 }).catch(() => {}); // and after entrance fades end
   const { violations } = await new AxeBuilder({ page }).exclude("[data-sonner-toaster]").analyze();
   const bad = violations.filter((v) => v.impact === "serious" || v.impact === "critical");
   expect(bad.map((v) => `${label}: ${v.id} ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(", ")}`)).toEqual([]);
