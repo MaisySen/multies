@@ -1,3 +1,4 @@
+import { inIds } from "@/server/lib/sql-chunks";
 /**
  * TD2 (FORMS_TD2): files and signatures sent with a public form, and the images a form shows.
  *
@@ -6,7 +7,7 @@
  * from the bytes, uploads per sender and per form, and form files kept per workspace. Nothing here logs a file
  * name or answer; errors carry only a code.
  */
-import { and, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { driveItems, formUploads, forms } from "../../db/schema";
 import { hmacSha256Hex } from "../../lib/crypto";
@@ -43,7 +44,7 @@ async function removeUploads(deps: Deps, rows: (typeof formUploads.$inferSelect)
   if (!rows.length) return;
   const blobs = blobsFor(deps);
   for (const r of rows) await blobs.delete(blobKey(r.orgId, r.id), Number(r.parts));
-  await deps.db.delete(formUploads).where(inArray(formUploads.id, rows.map((r) => r.id)));
+  await deps.db.delete(formUploads).where(inIds(formUploads.id, rows.map((r) => r.id)));
 }
 
 export interface UploadIn { slug: string; fieldId: string; name: string; bytes: Uint8Array; ip: string }
@@ -100,7 +101,7 @@ export async function attachUploads(deps: Deps, formId: string, fields: LogicFie
     const r = await deps.db.update(formUploads).set({ submissionId })
       .where(and(eq(formUploads.id, w.id), eq(formUploads.formId, formId), eq(formUploads.fieldId, w.field), eq(formUploads.ipHash, ipHash), isNull(formUploads.submissionId))).returning({ id: formUploads.id });
     if (!r.length) {
-      if (taken.length) await deps.db.update(formUploads).set({ submissionId: null }).where(and(inArray(formUploads.id, taken), eq(formUploads.submissionId, submissionId)));
+      if (taken.length) await deps.db.update(formUploads).set({ submissionId: null }).where(and(inIds(formUploads.id, taken), eq(formUploads.submissionId, submissionId)));
       const label = fields.find((x) => x.id === w.field)?.label ?? "the file";
       const msg = `Please add "${label}" again.`;
       throw new HttpError(400, "validation_failed", msg, { field: w.field, fields: { [w.field]: msg } });
@@ -124,7 +125,7 @@ export const uploadSummary = (f: Pick<LogicField, "type">, text: string) => {
 /** The files of some responses (signed in, this workspace only), for the responses table. */
 export async function filesFor(deps: Deps, orgId: string, formId: string, submissionIds: string[]) {
   if (!deps.config.formsTd2 || !submissionIds.length) return {} as Record<string, { id: string; name: string; size: number; type: string; kind: string; fieldId: string }[]>;
-  const rows = await deps.db.select().from(formUploads).where(and(eq(formUploads.orgId, orgId), eq(formUploads.formId, formId), inArray(formUploads.submissionId, submissionIds.slice(0, 200)))).all();
+  const rows = await deps.db.select().from(formUploads).where(and(eq(formUploads.orgId, orgId), eq(formUploads.formId, formId), inIds(formUploads.submissionId, submissionIds.slice(0, 200)))).all();
   const out: Record<string, { id: string; name: string; size: number; type: string; kind: string; fieldId: string }[]> = {};
   for (const r of rows) (out[r.submissionId!] ??= []).push({ id: r.id, name: r.name, size: r.size, type: r.contentType, kind: r.kind, fieldId: r.fieldId });
   return out;
@@ -154,7 +155,7 @@ const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 export async function checkFormImages(deps: Deps, orgId: string, fields: LogicField[]) {
   const ids = [...new Set(fields.filter((f) => f.type === "image" && f.imageId).map((f) => f.imageId!))];
   if (!ids.length) return;
-  const rows = await deps.db.select({ id: driveItems.id, kind: driveItems.kind, contentType: driveItems.contentType, trashedAt: driveItems.trashedAt }).from(driveItems).where(and(eq(driveItems.orgId, orgId), inArray(driveItems.id, ids))).all();
+  const rows = await deps.db.select({ id: driveItems.id, kind: driveItems.kind, contentType: driveItems.contentType, trashedAt: driveItems.trashedAt }).from(driveItems).where(and(eq(driveItems.orgId, orgId), inIds(driveItems.id, ids))).all();
   for (const id of ids) {
     const r = rows.find((x) => x.id === id);
     if (!r || r.kind !== "file" || r.trashedAt || !IMAGE_TYPES.includes(r.contentType ?? "")) throw new HttpError(422, "validation_failed", "An image block needs a PNG, JPEG, GIF or WebP image from Files.");

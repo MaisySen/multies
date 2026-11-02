@@ -264,10 +264,7 @@ export function PublicFormPage() {
   if (q.data && td2) return <PublicFormTd2 slug={slug!} form={q.data as Td2PublicForm} oneAtATime={chat} embed={embed} />;
   // TD2: a form that could not load (not a missing one) offers Retry.
   if (td2On && q.isError && !(q.error instanceof ApiError && q.error.status === 404)) return (
-    <main className="min-h-dvh bg-bg px-4 py-10 text-fg"><div className="mx-auto max-w-lg"><Card className="p-8 text-center" data-testid="form-load-error">
-      <h1 className="text-lg font-semibold">Couldn't load this form</h1><p className="mt-1 text-[13px] text-muted">Check your connection and try again.</p>
-      <Button className="mt-4" onClick={() => void q.refetch()} loading={q.isFetching}>Retry</Button>
-    </Card></div></main>
+    <main className="min-h-dvh bg-bg px-4 py-10 text-fg"><div className="mx-auto max-w-lg"><Card data-testid="form-load-error"><LoadError onRetry={() => q.refetch()} /></Card></div></main>
   );
   return <ClassicPublicForm />;
 }

@@ -55,6 +55,26 @@ const PRO = (oneAtATime = false) => ({ name: "Supplier sign up", target: "task",
   { id: "stars", label: "How was this form?", type: "rating", display: "stars", rules: { min: 1, max: 5 } },
   { id: "sig", label: "Signature", type: "signature", required: true },
 ] });
+const OFF = process.env.FORMS_TD2 === "off";
+test.beforeEach(({}, info) => { test.skip(OFF !== info.title.startsWith("flag off"), OFF ? "TD2 flows need FORMS_TD2 on" : "flag off check runs with FORMS_TD2=off"); });
+
+test("flag off: the builder, the API and the public page are as before", async ({ page }) => {
+  await demo(page);
+  const refused = await page.request.post("/api/forms", { data: { name: "X", target: "task", fields: [{ label: "Your name", type: "text" }, { label: "Upload", type: "file" }] } });
+  expect(refused.status()).toBe(422);
+  const f = await makeForm(page, { name: "Plain", target: "task", td2: { oneAtATime: true }, fields: [{ label: "Your name", type: "text", required: true }, { label: "Email", type: "email", required: true }] });
+  expect(f.td2).toBeUndefined();
+  expect((await page.request.post(`/api/public/forms/${f.slug}/uploads?field=your_name`, { headers: { "x-multies-upload": "1" }, data: Buffer.from("%PDF-1.4") })).status()).toBe(404);
+  await page.goto("/app/forms");
+  await page.getByRole("button", { name: "New form" }).first().click();
+  const dlg = page.getByRole("dialog");
+  await expect(dlg.getByLabel("Field 1 type").locator("option")).toHaveCount(9);
+  await expect(dlg.getByTestId("add-block")).toHaveCount(0);
+  await page.goto(`/f/${f.slug}`);
+  await expect(page.getByLabel("Your name")).toBeVisible();
+  await expect(page.getByTestId("form-progress")).toHaveCount(0);
+});
+
 async function draw(page: Page) {
   const box = (await page.getByTestId("signature-sig").locator("canvas").boundingBox())!;
   await page.mouse.move(box.x + 20, box.y + box.height / 2);
@@ -207,9 +227,12 @@ test("shots: builder and public form at 1280 and 390, light, dark and Forest", a
     for (const w of [1280, 390]) {
       await page.setViewportSize({ width: w, height: w === 390 ? 844 : 860 });
       await page.goto("/app/forms");
-      await page.getByTestId("form-row").filter({ hasText: "Supplier sign up" }).getByRole("button").nth(1).click();
-      await expect(page.getByRole("dialog")).toBeVisible();
-      await page.getByTestId("logic-toggle-5").click();
+      await page.getByRole("button", { name: "New form" }).first().click();
+      const dlg = page.getByRole("dialog");
+      await expect(dlg).toBeVisible();
+      await dlg.getByLabel("Field 4 type").selectOption("file");
+      await dlg.getByTestId("add-block").selectOption("heading");
+      await dlg.getByTestId("logic-toggle-4").click();
       await noHScroll(page);
       await shot(page, `builder-${w}-${theme}`);
       await axe(page, `builder ${w} ${theme}`);

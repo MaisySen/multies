@@ -1,3 +1,4 @@
+import { LoadErrorInline } from "@/web/components/load-error-t1g";
 /**
  * TD2 (FORMS_TD2): builder pieces for Forms pro: the extra question types and layout blocks, upload limits,
  * show or hide with groups of conditions, "required when" and "disabled when", and the form's page settings.
@@ -32,14 +33,14 @@ function Conditions({ list, earlier, onChange, testId }: { list: LogicCondition[
   const usable = earlier.filter((e) => e.id && !isLayout(e.type));
   return (
     <>
-      <ul className="space-y-1.5">
+      <ul className="space-y-1.5" data-testid={`${testId}-conditions`}>
         {list.map((c, ci) => {
           const src = usable.find((u) => u.id === c.field);
           const withOptions = src?.type === "select" || src?.type === "multiselect";
           const ops = LOGIC_OPS.filter((o) => (o === "gt" || o === "lt" ? ["number", "date", "rating", "datetime", "time"].includes(src?.type ?? "") : true));
           const set = (patch: Partial<LogicCondition>) => onChange(list.map((x, j) => (j === ci ? { ...x, ...patch } : x)));
           return (
-            <li key={ci} className="grid grid-cols-[1fr_120px] items-center gap-1.5 sm:grid-cols-[1fr_130px_1fr_auto]" data-testid={testId}>
+            <li key={ci} className="grid grid-cols-[1fr_120px] items-center gap-1.5 sm:grid-cols-[1fr_130px_1fr_auto]" data-testid="logic-condition">
               <Select aria-label="Question" value={c.field} onChange={(e) => set({ field: e.target.value, value: "" })} className={small}>
                 {usable.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
               </Select>
@@ -127,7 +128,7 @@ export function Td2Logic({ field, earlier, onChange }: { field: BuilderField; ea
 function ImagePicker({ value, onChange }: { value?: string; onChange: (id: string) => void }) {
   const q = useQuery({ queryKey: ["drive", "td2-images"], queryFn: () => api.get<DriveList>("/drive/list?view=recent"), staleTime: 60_000 });
   const images = (q.data?.items ?? []).filter((x) => x.kind === "file" && /^image\/(png|jpeg|gif|webp)$/.test(x.contentType ?? ""));
-  if (q.isError) return <p className="text-[12px] text-bad">Couldn't load your images. <button type="button" className="underline" onClick={() => void q.refetch()}>Retry</button></p>;
+  if (q.isError) return <LoadErrorInline onRetry={() => q.refetch()} />;
   return (
     <Select aria-label="Image from Files" value={value ?? ""} onChange={(e) => onChange(e.target.value)} className={small} disabled={q.isPending}>
       <option value="">{q.isPending ? "Loading images" : images.length ? "Choose an image from Files" : "No images in Files yet"}</option>

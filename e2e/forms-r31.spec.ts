@@ -36,8 +36,8 @@ test("a question shown only for one answer, inline errors, and the Responses vie
   const row4 = dlg.locator("li").filter({ has: page.getByLabel("Field 4 label") });
   await row4.getByLabel("Required").check();
   await dlg.getByTestId("logic-toggle-3").click();
-  await row4.getByRole("button", { name: "Add condition" }).click();
-  const cond = row4.getByTestId("logic-condition");
+  await row4.getByRole("button", { name: "Add condition" }).first().click(); // TD2 on: show, require and disable each have one
+  const cond = row4.getByTestId("logic-condition").first();
   await expect(cond.getByLabel("Question")).toHaveValue("what_do_you_need");
   await cond.getByLabel("Value").selectOption("Yes");
   await row4.getByLabel("Shortest").fill("5");
