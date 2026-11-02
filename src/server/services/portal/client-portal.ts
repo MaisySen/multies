@@ -454,7 +454,7 @@ export async function clientData(deps: Deps, p: PortalRow) {
   const [items, messages, ws] = await Promise.all([itemsOf(deps, p), messagesOf(deps, p.id, 100), orgName(deps, p.org_id)]);
   const live = items.filter((i) => i.live && (i.kind !== "request" || i.open));
   const withLinks = await Promise.all(live.map(async (i) => {
-    if (i.kind !== "request") return { ...i, url: null as string | null };
+    if (i.kind !== "request") return { ...i, url: (i.url ?? null) as string | null }; // TD9: invoices and forms carry their client link
     const row = await deps.db.get<{ token_enc: string | null }>(sql`select token_enc from client_portal_items where id = ${i.id}`);
     let url: string | null;
     try { url = row?.token_enc ? await decryptSecret(deps.config.appSecret, row.token_enc) : null; } catch { url = null; }
