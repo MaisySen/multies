@@ -61,3 +61,15 @@ export function quoteForReply(text: string, from: string, iso: string): string {
   const when = new Date(iso).toLocaleString(LOCALE, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
   return `\n\nOn ${when}, ${from} wrote:\n${text.split("\n").map((l) => `> ${l}`).join("\n")}`;
 }
+
+/** A spend date is a calendar day (YYYY-MM-DD), not a moment: never show a clock time for it. */
+export function dayLabel(d: string, now = new Date()): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+  if (!m) return shortDate(d);
+  const day = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
+  const diff = Math.round((today.getTime() - day.getTime()) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  return shortDate(day.toISOString());
+}

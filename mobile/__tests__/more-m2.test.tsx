@@ -287,3 +287,13 @@ describe("Expenses", () => {
     await screen.findByText("Expenses are off for this workspace");
   });
 });
+
+describe("M2 dayLabel (spend dates are days, never a clock time)", () => {
+  const { dayLabel } = require("@/lib/format");
+  const now = new Date(2026, 10, 2, 9, 30);
+  it("says Today and Yesterday, never a time", () => {
+    expect(dayLabel("2026-11-02", now)).toBe("Today");
+    expect(dayLabel("2026-11-01", now)).toBe("Yesterday");
+    expect(dayLabel("2026-10-27", now)).not.toMatch(/am|pm|:/i);
+  });
+});

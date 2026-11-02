@@ -12,7 +12,8 @@ import { Badge, Button, EmptyState, Loading, Segmented } from "@/components/ui";
 import { pickReceipt, useAddReceipt, useExpenses } from "@/lib/expenses-queries";
 import { cents, expenseTitle, reading, statusOf } from "@/lib/expenses";
 import { noAccess, notFoundErr } from "@/lib/contacts-queries";
-import { shortDate } from "@/lib/format";
+import { dayLabel } from "@/lib/format";
+
 import { colors, font, radius, space } from "@/theme";
 
 export default function Expenses() {
@@ -66,7 +67,7 @@ export default function Expenses() {
         ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: colors.line, marginLeft: space.md }} />}
         renderItem={({ item, index }) => {
           const st = statusOf(item.status);
-          const sub = [item.spentOn ? shortDate(item.spentOn) : null, view === "approve" ? item.userName : null, reading(item) ? "Reading receipt" : null].filter(Boolean).join(", ");
+          const sub = [item.spentOn ? dayLabel(item.spentOn) : null, view === "approve" ? item.userName : null, reading(item) ? "Reading receipt" : null].filter(Boolean).join(", ");
           const last = index === data.expenses.length - 1;
           return (
             <View style={{ backgroundColor: colors.surface, overflow: "hidden", borderTopLeftRadius: index === 0 ? radius.lg : 0, borderTopRightRadius: index === 0 ? radius.lg : 0,

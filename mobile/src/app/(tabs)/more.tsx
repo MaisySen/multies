@@ -50,7 +50,7 @@ function Tile({ s, n, width, editing, hidden, onPress, onToggle }: {
             </View>
           ) : null}
       </View>
-      <Text style={[font.body, { color: colors.fg, fontWeight: "600" }]} numberOfLines={2}>{s.label}</Text>
+      <Text style={[font.body, { color: colors.fg, fontWeight: "600", fontSize: 15, lineHeight: 20 }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{s.label}</Text>
     </Pressable>
   );
 }

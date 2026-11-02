@@ -55,9 +55,9 @@ export default function Deals() {
           <View style={{ gap: space.md, paddingTop: space.md }}>
             <View accessible accessibilityLabel={`Open pipeline: ${p.count} deals worth ${money(p.value)}, forecast ${money(p.forecast)}`}
               style={{ flexDirection: "row", backgroundColor: colors.surface, borderRadius: radius.lg, padding: space.md, gap: space.md }} testID="deals-pipeline">
-              <View style={{ flex: 1 }}><Text style={font.tiny}>Open pipeline</Text><Text style={[font.headline, { color: colors.fg }]}>{money(p.value)}</Text></View>
-              <View style={{ flex: 1 }}><Text style={font.tiny}>Forecast</Text><Text style={[font.headline, { color: colors.fg }]}>{money(p.forecast)}</Text></View>
-              <View><Text style={font.tiny}>Open</Text><Text style={[font.headline, { color: colors.fg }]}>{p.count}</Text></View>
+              <View style={{ flex: 1 }}><Text style={font.tiny}>Open pipeline</Text><Text style={[font.headline, { color: colors.fg }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{money(p.value)}</Text></View>
+              <View style={{ flex: 1 }}><Text style={font.tiny}>Forecast</Text><Text style={[font.headline, { color: colors.fg }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{money(p.forecast)}</Text></View>
+              <View style={{ flexShrink: 0, minWidth: 44 }}><Text style={font.tiny}>Open</Text><Text style={[font.headline, { color: colors.fg }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{p.count}</Text></View>
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: TOUCH, paddingHorizontal: space.md, borderRadius: radius.md, backgroundColor: colors.elevated }}>
               <Icon name="search" size={18} color={colors.subtle} />
