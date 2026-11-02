@@ -20,6 +20,7 @@ import { DateInput, Field, Input, Select, Textarea } from "@/web/components/ui/i
 import { Badge, Card, EmptyState, PageHeader, Skeleton, Switch, tableStyles } from "@/web/components/ui/misc";
 import { useConfig } from "@/web/lib/queries";
 import { ExpensesTab, useExpensesOn } from "./expenses-r106"; // R106
+import { BillTimeTab, useBillTimeOn } from "./bill-time-td4"; // TD4
 import { cn } from "@/web/lib/cn";
 import {
   CURRENCIES, PAYMENT_METHODS, abnValid, bsbValid, accountValid, centsText, docTotals, formatAbn, formatBsb, money, parseMoney, parseQty, qtyText,
@@ -58,6 +59,7 @@ const ALL_TABS = [
   { id: "credits", label: "Credit notes", kind: "credit_note" as DocKind },
   { id: "bills", label: "Bills", kind: "bill" as DocKind },
   { id: "expenses", label: "Expenses" }, // R106, only with the expenses flag
+  { id: "time", label: "Bill time" }, // TD4, only with BILL_TD4 for owners and admins
   { id: "items", label: "Items" },
   { id: "reports", label: "Reports" },
 ] as const;
@@ -84,9 +86,10 @@ function useSettings() {
 export function InvoicesPage() {
   const [params, setParams] = useSearchParams();
   const expensesOn = useExpensesOn(); // R106
-  const TABS = ALL_TABS.filter((t) => t.id !== "expenses" || expensesOn);
-  const tab = (TABS.find((t) => t.id === params.get("tab"))?.id ?? "invoices") as TabId;
+  const billOn = useBillTimeOn(); // TD4
   const settings = useSettings();
+  const TABS = ALL_TABS.filter((t) => (t.id !== "expenses" || expensesOn) && (t.id !== "time" || (billOn && !!settings.data?.canManage)));
+  const tab = (TABS.find((t) => t.id === params.get("tab"))?.id ?? "invoices") as TabId;
   const [setup, setSetup] = useState(false);
   const canManage = !!settings.data?.canManage;
   const kindTab = TABS.find((t) => t.id === tab && "kind" in t) as { kind: DocKind } | undefined;
@@ -112,7 +115,7 @@ export function InvoicesPage() {
           {kindTab && <NewDocButton kind={kindTab.kind} />}
         </>}
       />
-      {settings.data && !settings.data.settings.ready && tab !== "expenses" && (
+      {settings.data && !settings.data.settings.ready && tab !== "expenses" && tab !== "time" && (
         <Card className="mb-4 flex flex-wrap items-center gap-3 border-warn/40 p-4" role="status">
           <IconWarning className="h-5 w-5 shrink-0 text-warn" aria-hidden />
           <p className="min-w-0 flex-1 text-sm">{canManage ? "Add your business name and ABN before you issue your first tax invoice." : "An admin needs to add the business name and ABN before invoices can be issued. You can still make drafts."}</p>
@@ -132,7 +135,7 @@ export function InvoicesPage() {
         ))}
       </div>
       <div role="tabpanel" id={`inv-panel-${tab}`} aria-labelledby={`inv-tab-${tab}`}>
-        {kindTab ? <DocList key={kindTab.kind} kind={kindTab.kind} /> : tab === "expenses" ? <ExpensesTab /> : tab === "items" ? <ItemsTab canManage={canManage} /> : <ReportsTab />}
+        {kindTab ? <DocList key={kindTab.kind} kind={kindTab.kind} /> : tab === "expenses" ? <ExpensesTab /> : tab === "time" ? <BillTimeTab ContactPicker={ContactPicker} /> : tab === "items" ? <ItemsTab canManage={canManage} /> : <ReportsTab />}
       </div>
       {setup && settings.data && <SettingsDialog initial={settings.data.settings} onClose={() => setSetup(false)} />}
     </div>
@@ -602,7 +605,7 @@ function DraftEditor({ doc }: { doc: DocFull }) {
   );
 }
 
-function ContactPicker({ onPick }: { onPick: (c: { id: string; name: string; email: string }) => void }) {
+export function ContactPicker({ onPick }: { onPick: (c: { id: string; name: string; email: string }) => void }) {
   const [q, setQ] = useState("");
   const query = q.trim();
   const res = useQuery({ queryKey: ["invoices", "contact-pick", query], queryFn: () => api.get<{ contacts: { id: string; name: string; email: string }[] }>(`/contacts?q=${encodeURIComponent(query.slice(0, 40))}`), enabled: query.length >= 2 });

@@ -107,6 +107,8 @@ export interface PublicConfig {
   invoices?: boolean;
   /** R106: expenses and receipts. */
   expenses?: boolean;
+  /** TD4: time to invoice (billing runs), owners and admins. */
+  billTd4?: boolean;
   /** R129: courses doc type. */
   coursesR129?: boolean;
   mxHosts: { host: string; priority: number }[];

@@ -25,7 +25,10 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
-import { IconArrowDown, IconArrowUp, IconBell, IconCalendar, IconChat, IconCheck, IconDashboard, IconExternalLink, IconEyeOff, IconGrip, IconInbox, IconLink, IconMail, IconMegaphone, IconPlus, IconSliders, IconTasks, IconTrash, IconWorkflow, IconClipboardList, IconGauge } from "@/web/components/ui/icon";
+import { IconArrowDown, IconArrowUp, IconBell, IconCalendar, IconChat, IconCheck, IconDashboard, IconExternalLink, IconEyeOff, IconGrip, IconInbox, IconLink, IconMail, IconMegaphone, IconPlus, IconSliders, IconTasks, IconTrash, IconWorkflow, IconClipboardList, IconGauge, IconTimer } from "@/web/components/ui/icon";
+import { money } from "@/shared/invoices";
+import { hoursText } from "@/shared/bill-time-td4";
+import { ApiError } from "@/web/lib/api";
 
 export const homeWidgetsKey = ["home-widgets"] as const;
 const CACHE = "home-widgets-r131";
@@ -78,9 +81,9 @@ const SPAN: Record<WidgetSize, string> = { small: "md:col-span-1 xl:col-span-2",
 const SIZE_LABEL: Record<WidgetSize, string> = { small: "Small", medium: "Medium", wide: "Wide" };
 const ICON: Record<WidgetId, ReactNode> = {
   tasks: <IconTasks />, calendar: <IconCalendar />, inbox: <IconInbox />, links: <IconLink />, overview: <IconGauge />,
-  social: <IconMegaphone />, feeds: <IconWorkflow />, dashboards: <IconDashboard />,
+  social: <IconMegaphone />, feeds: <IconWorkflow />, dashboards: <IconDashboard />, billing: <IconTimer />,
 };
-const OPEN: Partial<Record<WidgetId, string>> = { tasks: "/app/my-work", calendar: "/app/my-work", inbox: "/app/mail", social: "/app/social/inbox", feeds: "/app/automations", dashboards: "/app/dashboards" };
+const OPEN: Partial<Record<WidgetId, string>> = { tasks: "/app/my-work", calendar: "/app/my-work", inbox: "/app/mail", social: "/app/social/inbox", feeds: "/app/automations", dashboards: "/app/dashboards", billing: "/app/contacts/invoices?tab=time" };
 
 /* ---------- widget bodies ---------- */
 
@@ -181,6 +184,39 @@ function FeedsWidget({ on }: { on: boolean }) {
   return <Rows items={runs.map((r) => ({ id: r.id, title: r.flowName || "Automation", subtitle: `${RUN_STATUS[r.status] ?? r.status} · ${new Date(r.startedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`, url: `/app/automations/runs/${encodeURIComponent(r.id)}`, at: r.startedAt }))} empty="" />;
 }
 
+/* TD4: hours still to bill per client, owners and admins only (the server offers this widget to them alone). */
+interface BillGroup { key: string; name: string; clientId: string | null; projectId: string; projects: number; seconds: number; amountCents: number; currency: string; missingRate: boolean }
+function BillingWidget({ on }: { on: boolean }) {
+  const q = useQuery({ queryKey: ["home-widgets", "billing"], enabled: on, staleTime: 60_000, retry: (n, e) => !(e instanceof ApiError && (e.status === 403 || e.status === 404)) && n < 2,
+    queryFn: () => api.get<{ clients: BillGroup[]; totalSeconds: number; more: number }>("/bill-time/summary") });
+  if (!on || q.isPending) return <Loading />;
+  if (q.error instanceof ApiError && (q.error.status === 403 || q.error.status === 404)) return <Empty text="Only owners and admins can see time to bill." />;
+  if (q.error) return <LoadError compact onRetry={q.refetch} />;
+  const list = q.data?.clients ?? [];
+  if (!list.length) return <Empty text="No time waiting to be billed." />;
+  return (
+    <div data-testid="bill-widget">
+      <ul className="divide-y divide-line">
+        {list.map((g) => (
+          <li key={g.key}>
+            <Link to={`/app/contacts/invoices?tab=time&project=${encodeURIComponent(g.projectId)}`} className="flex min-h-11 items-center gap-3 px-4 py-2.5 hover:bg-hover focus-visible:bg-hover focus-visible:outline-none">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13.5px] text-fg">{g.name}</span>
+                <span className="block truncate text-xs text-subtle">{g.clientId ? (g.projects === 1 ? "1 project" : `${g.projects} projects`) : "No client set yet"}</span>
+              </span>
+              <span className="shrink-0 text-right tabular-nums">
+                <span className="block text-[13.5px] font-medium text-fg">{g.missingRate && !g.amountCents ? "Set a rate" : money(g.amountCents, g.currency)}</span>
+                <span className="block text-xs text-subtle">{hoursText(Math.round(g.seconds / 3.6))}</span>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <p className="border-t border-line px-4 py-2 text-xs text-subtle">{hoursText(Math.round((q.data?.totalSeconds ?? 0) / 3.6))} in the last 12 months{q.data?.more ? `, ${q.data.more} more clients` : ""}. Value before tax, before rounding.</p>
+    </div>
+  );
+}
+
 interface Dash { id: string; name: string; shared: boolean; widgetCount: number }
 function DashboardsWidget({ on }: { on: boolean }) {
   const q = useQuery({ queryKey: ["home-widgets", "dashboards"], enabled: on, staleTime: 60_000, queryFn: () => api.get<{ dashboards: Dash[] }>("/dashboards") });
@@ -238,6 +274,7 @@ function WidgetCard({ item, editing, index, count, overview, links, onMove, onSi
       case "social": return <SocialWidget on={near} />;
       case "feeds": return <FeedsWidget on={near} />;
       case "dashboards": return <DashboardsWidget on={near} />;
+      case "billing": return <BillingWidget on={near} />;
       case "links": return <LinksWidget links={links} onAdd={onAddLink} onRemove={onRemoveLink} />;
       case "overview": return <div className="p-4">{near ? overview : <Loading />}</div>;
     }
