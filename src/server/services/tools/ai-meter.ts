@@ -26,6 +26,12 @@ import { aiAllowed } from "../ai-trust-td1"; // TD1: AI trust gate
  */
 export const GLOBAL_DAILY_UNITS = 8_000;
 import { AI_OFF_MESSAGE } from "@/shared/ask-td1"; // TD1: AI trust gate
+/**
+ * AI2: staging and production share one account's free allocation but keep separate meters (separate databases), so
+ * each deployment may only LOWER its own stop (AI_GLOBAL_DAILY_UNITS): production 7,000 plus staging 1,000 keeps the
+ * two together at 8,000. A missing, invalid or higher value is the 8,000 maximum; nothing can raise it.
+ */
+export const globalCap = (deps: Deps) => Math.min(GLOBAL_DAILY_UNITS, deps.config.aiGlobalDailyUnits ?? GLOBAL_DAILY_UNITS);
 /** Each workspace's share of the free daily units, by plan. The only place these numbers live. */
 export const AI_DAILY_UNITS: Record<PlanId, number> = { starter: 500, pro: 2_000, business: 4_000 };
 /** One call may reserve at most this much; callers split bigger work (translation batches, chunks). */
@@ -141,7 +147,7 @@ export async function adjustRow(deps: Deps, day: string, row: string, delta: num
 export async function reserve(deps: Deps, orgId: string, plan: PlanId, units: number, day: string): Promise<AiRefused | null> {
   if (units > MAX_UNITS_PER_CALL) return { ok: false, reason: "too_big", message: "That is too much text for one AI request. Try a shorter part." };
   if (!(await reserveRow(deps, day, orgId, units, AI_DAILY_UNITS[plan]))) return { ok: false, reason: "workspace_limit", message: FREE_LIMIT_MESSAGE };
-  if (!(await reserveRow(deps, day, GLOBAL_ROW, units, GLOBAL_DAILY_UNITS))) {
+  if (!(await reserveRow(deps, day, GLOBAL_ROW, units, globalCap(deps)))) {
     await adjustRow(deps, day, orgId, -units, true);
     return { ok: false, reason: "limit", message: FREE_LIMIT_MESSAGE };
   }
@@ -303,7 +309,7 @@ export async function aiUsage(deps: Deps, orgId: string): Promise<AiUsage> {
   const units = Number(r?.ou ?? 0), cap = AI_DAILY_UNITS[plan];
   return {
     day, plan, ownKey: Number(r?.k ?? 0) > 0, units, cap, calls: Number(r?.oc ?? 0),
-    globalReached: Number(r?.gu ?? 0) >= GLOBAL_DAILY_UNITS - 50,
+    globalReached: Number(r?.gu ?? 0) >= globalCap(deps) - 50,
     percent: Math.min(100, Math.round((units / cap) * 100)),
   };
 }

@@ -36,6 +36,8 @@ export interface AppConfig {
   officeEditR113?: boolean;
   /** AI2: AI_CONNECT_AI2 (Settings, AI: live model picker, connection test, one tap OpenRouter, key detection, more providers). Off unless set: today's screen. */
   aiConnectAi2?: boolean;
+  /** AI2: this deployment's own lower stop on the shared free AI allocation (AI_GLOBAL_DAILY_UNITS); never above 8,000. */
+  aiGlobalDailyUnits?: number;
   /** AI2: OpenRouter's sign in page (OPENROUTER_AUTH_URL). Unset means https://openrouter.ai/auth; local end to end runs point it at the stand in. */
   openRouterAuthUrl?: string;
   /** R131: HOME_WIDGETS_R131 (drag to arrange widgets on Home, Overview). Off unless set: Overview unchanged. */
@@ -388,6 +390,7 @@ const EnvSchema = z.object({
   TOURS_EXCLUDE: z.string().optional(), // R130
   AI_CONNECT_AI2: z.string().optional(), // AI2
   OPENROUTER_AUTH_URL: z.string().optional(), // AI2
+  AI_GLOBAL_DAILY_UNITS: z.string().optional(), // AI2
   SOCIAL_P3_R132: z.string().optional(),
   SOCIAL_YOUTUBE_UPLOAD_R132: z.string().optional(),
   SOCIAL_GBP_R132: z.string().optional(),
@@ -759,6 +762,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     toursR130: ["1", "true", "on"].includes(String(env.TOURS_R130 ?? "").toLowerCase()), // R130
     toursExclude: env.TOURS_EXCLUDE ?? "", // R130
     aiConnectAi2: ["1", "true", "on"].includes(String(env.AI_CONNECT_AI2 ?? "").toLowerCase()), // AI2
+    aiGlobalDailyUnits: /^\d{1,6}$/.test(String(env.AI_GLOBAL_DAILY_UNITS ?? "")) ? Number(env.AI_GLOBAL_DAILY_UNITS) : undefined, // AI2: only lowers (ai-meter globalCap)
     // AI2: only an https sign in page is taken (the local stand in is https://openrouter.mock/auth).
     openRouterAuthUrl: /^https:\/\/[^\s]+$/.test(String(env.OPENROUTER_AUTH_URL ?? "")) ? String(env.OPENROUTER_AUTH_URL) : undefined,
     socialP3R132: ["1", "true", "on"].includes(String(env.SOCIAL_P3_R132 ?? "").toLowerCase()),

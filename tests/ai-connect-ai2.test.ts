@@ -10,7 +10,7 @@ import { makeTestApp, Client } from "./helpers";
 import { cleanPastedKey, detectProvider, pickRecommended, AI2_CURATED_MODELS, AI2_RESULT_TEXT } from "@/shared/ai-connect-ai2";
 import { checkBaseUrl, isBlockedIp, mapFailure, parseModels, s256, OAUTH_STATE_MS } from "@/server/services/ai/connect-ai2";
 import { askBuiltin, BUILTIN_LIMIT_MESSAGE } from "@/server/services/ai/builtin-ai2";
-import { GLOBAL_DAILY_UNITS, GLOBAL_ROW } from "@/server/services/tools/ai-meter";
+import { GLOBAL_DAILY_UNITS, GLOBAL_ROW, globalCap } from "@/server/services/tools/ai-meter";
 import { dayOf } from "@/server/services/tools/usage";
 import { aiKeys, aiOauthStates, auditLogs } from "@/server/db/schema";
 
@@ -324,6 +324,19 @@ describe("AI2 built-in AI", () => {
     expect(GLOBAL_DAILY_UNITS).toBeLessThanOrEqual(8_000);
     const s = (await ctx.c.get("/api/ai/status")).body;
     expect(s.builtin).toMatchObject({ paused: true, message: BUILTIN_LIMIT_MESSAGE });
+  });
+
+  it("a deployment can only lower the shared stop (staging 1,000, production 7,000), never raise it", async () => {
+    const low = await setup({ AI_CONNECT_AI2: "on", AI_GLOBAL_DAILY_UNITS: "1000" });
+    const ai = fakeAi();
+    low.deps.ai = ai;
+    const day = dayOf(low.deps.now());
+    await low.db.run(sql`insert into ai_usage_daily (day, org_id, units, calls) values (${day}, ${GLOBAL_ROW}, 999, 1)`);
+    await expect(askBuiltin(low.deps, low.orgId, { system: "s", user: "u" })).rejects.toMatchObject({ status: 429 });
+    expect(ai.run).not.toHaveBeenCalled();
+    const high = await setup({ AI_CONNECT_AI2: "on", AI_GLOBAL_DAILY_UNITS: "50000" });
+    expect(globalCap(high.deps)).toBe(8_000);
+    expect(globalCap(low.deps)).toBe(1_000);
   });
 
   it("without the binding there is no built-in AI and nothing to call", async () => {
