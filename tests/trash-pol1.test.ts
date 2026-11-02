@@ -30,7 +30,7 @@ describe("POL1 trash rules", () => {
     expect(canTrash({ role: "member", userId: "u1" }, "table", "u2")).toBe(false);
     expect(canTrash({ role: "member", userId: "u1" }, "course", "u1")).toBe(false);
     expect(canTrash({ role: "owner", userId: "u1", scope: "read" }, "table", "u1")).toBe(false);
-    expect(canTrash({ role: "member", userId: null }, "table", null)).toBe(false);
+    expect(canTrash({ role: "member", userId: null } as unknown as Parameters<typeof canTrash>[0], "table", null)).toBe(false);
   });
   it("titles name the page", () => {
     expect(titleText(["Jobs board", "Docs"])).toBe("Jobs board · Docs · Multies");
