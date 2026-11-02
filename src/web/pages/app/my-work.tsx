@@ -186,7 +186,7 @@ export function MyWorkPage() {
           </div>
           )}
 
-          {plus && <MyDay focusTaskId={madeTask} userId={me.data?.user.id} />}
+          {plus && <MyDay focusTaskId={madeTask} userEmail={me.data?.user.email} />}
 
           {allQuiet ? null : nothing ? (
             <EmptyState className="mb-4" art={<ClearDayArt />} title="You're clear for today" body="Nothing is due, nobody is waiting on you and there are no meetings today." />

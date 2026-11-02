@@ -18,6 +18,7 @@ import { IconCalendarClock, IconCheck, IconChevronDown, IconChevronUp, IconClose
 import { addDays, clampBlock, clockOf, fitBlock, minutesText, type Block } from "@/shared/tasks-plus-r95";
 import { tone } from "@/web/components/app-bits";
 import { LoadErrorInline } from "@/web/components/load-error-t1g";
+import { useAssignees } from "./data"; // F13b
 
 interface PlanTask { id: string; ref: string; title: string; status: "todo" | "doing" | "done"; priority: string; due: string | null; project: { id: string; name: string; color: string } | null }
 interface PlanItem { id: string; taskId: string; day: string; start: number | null; minutes: number; position: number; task: PlanTask }
@@ -35,15 +36,16 @@ export function minuteAt(clientY: number, top: number, scrollTop = 0) {
   return Math.max(0, Math.min(1439, Math.round((clientY - top + scrollTop) / PX_PER_MIN)));
 }
 
-export function MyDay({ focusTaskId, userId }: { focusTaskId?: string | null; userId?: string } = {}) {
+export function MyDay({ focusTaskId, userEmail }: { focusTaskId?: string | null; userEmail?: string } = {}) {
   const qc = useQueryClient();
+  const people = useAssignees(); // F13b (MB-307): a task typed onto My Day is assigned to you
   const [day, setDay] = useState(localYmd());
   const today = localYmd();
   const tomorrow = addDays(today, 1);
   const key = ["my-day", day];
   const q = useQuery({ queryKey: key, queryFn: () => api.get<DayData>(`/my-day?day=${day}&tz=${encodeURIComponent(zone())}`), staleTime: 15_000 });
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["my-day"] }); };
-  const items = q.data?.items ?? [];
+  const items = useMemo(() => q.data?.items ?? [], [q.data]); // F13b: stable for the focus effect
   const blocks: Block[] = items.filter((i) => i.start !== null).map((i) => ({ id: i.id, start: i.start!, minutes: i.minutes }));
   const unscheduled = items.filter((i) => i.start === null);
   const scheduled = items.filter((i) => i.start !== null).sort((a, b) => a.start! - b.start!);
@@ -58,7 +60,9 @@ export function MyDay({ focusTaskId, userId }: { focusTaskId?: string | null; us
   }, [focusId, items]);
   // F13b (MB-307): type a task straight onto the day; it is yours and goes on the list without a time.
   const add = async (title: string) => {
-    const r = await api.create<{ task: { id: string; title: string } }>("/tasks", { title, ...(userId ? { assignee: userId } : {}) });
+    const mine = userEmail ? people.data?.find((p) => p.type === "member" && !p.isAgent && p.email?.toLowerCase() === userEmail.toLowerCase()) : undefined;
+    const assignee = mine ? (mine.id.includes(":") ? mine.id : `member:${mine.id}`) : undefined;
+    const r = await api.create<{ task: { id: string; title: string } }>("/tasks", { title, ...(assignee ? { assignee } : {}) });
     await api.post("/my-day", { day, taskId: r.task.id, start: null, minutes: 30 });
     setLive(`${r.task.title} is on the list.`);
     refresh();
