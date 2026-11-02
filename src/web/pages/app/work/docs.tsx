@@ -140,6 +140,18 @@ function DocPageMain() {
   return <div className="flex gap-6"><DocTreeSidebar currentId={id} /><div className="min-w-0 flex-1">{body}</div></div>;
 }
 
+/** R124: the doc editor inside another page (a blog post): same editor, co editing and saving, without the tree, back link or delete. */
+export function EmbeddedDoc({ docId }: { docId: string }) {
+  const q = useQuery({ queryKey: ["doc", docId], queryFn: async () => (await api.get<{ doc: Doc }>(`/docs/${docId}`)).doc, refetchOnWindowFocus: false });
+  const collab = useCollabSession(docId);
+  const qc = useQueryClient();
+  const [replaced, setReplaced] = useState(0);
+  const onReplaced = useCallback((d: Doc) => { qc.setQueryData(["doc", docId], d); setReplaced((n) => n + 1); }, [qc, docId]);
+  if (q.isPending || !collab) return <div className="space-y-3" aria-busy="true"><Skeleton className="h-9 w-1/2" /><Skeleton className="h-64" /></div>;
+  if (!q.data) return <LoadError onRetry={() => q.refetch()} />;
+  return <DocEditor key={`${docId}:${collab.session ? "live" : "solo"}:${replaced}`} doc={q.data} session={collab.session} onReplaced={onReplaced} embed />;
+}
+
 const EDITOR_PROPS = { attributes: { class: "mm-prose min-h-[50vh] outline-none", "aria-label": "Doc body", role: "textbox", "aria-multiline": "true" } };
 
 const LIVE_EDITOR_PROPS = { ...EDITOR_PROPS, handleKeyDown: liveKeyDown, handleDOMEvents: liveDomEvents };
@@ -150,7 +162,7 @@ const BOARD_KEYS = new Set(["Enter", "Backspace", "Delete"]);
 const BOARD_PROPS = { attributes: { class: "mm-board-doc outline-none", "aria-label": "Whiteboard" }, handleTextInput: () => true, handlePaste: () => true, handleDrop: () => true, handleKeyDown: (_v: unknown, e: KeyboardEvent) => BOARD_KEYS.has(e.key) };
 const LIVE_BOARD_PROPS = { ...BOARD_PROPS, handleDOMEvents: liveDomEvents };
 
-function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSession | null; onReplaced: (d: Doc) => void }) {
+function DocEditor({ doc, session, onReplaced, embed = false }: { doc: Doc; session: CollabSession | null; onReplaced: (d: Doc) => void; /** R124: inside the blog post editor (no back link, breadcrumbs or delete). */ embed?: boolean }) {
   const docsPlus = !!useConfig().data?.docsPlus; // R103
   const [commentsOpen, setCommentsOpen] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("comments") === "1");
   // R36: an opened doc joins "Recently opened" in the command menu (device only, no server write).
@@ -233,7 +245,7 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
     <div className={cn("mx-auto", isBoard ? "max-w-none" : mode === "mindmap" ? "max-w-6xl" : "max-w-3xl")} data-doc-kind={isBoard ? "whiteboard" : "doc"} data-mode={mode}>
       {dialogs}
       <div className="mb-3 flex items-center gap-2 text-[12.5px] text-subtle max-sm:-mx-2 max-sm:-mt-3 max-sm:mb-1 max-sm:gap-0" data-testid="doc-bar">
-        <Link to="/app/docs" className="inline-flex items-center gap-1 hover:text-fg max-sm:h-11 max-sm:shrink-0 max-sm:gap-0.5 max-sm:rounded-lg max-sm:pl-1 max-sm:pr-2 max-sm:text-[16px] max-sm:text-brand-hover max-sm:active:bg-hover"><IconArrowLeft className="h-3.5 w-3.5 max-sm:h-5 max-sm:w-5" />Docs</Link>
+        {!embed && <Link to="/app/docs" className="inline-flex items-center gap-1 hover:text-fg max-sm:h-11 max-sm:shrink-0 max-sm:gap-0.5 max-sm:rounded-lg max-sm:pl-1 max-sm:pr-2 max-sm:text-[16px] max-sm:text-brand-hover max-sm:active:bg-hover"><IconArrowLeft className="h-3.5 w-3.5 max-sm:h-5 max-sm:w-5" />Docs</Link>}
         {session && (
           <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 max-sm:mr-1" data-testid="collab-presence" aria-label={peers.length ? `Also here: ${peers.map((p) => p.name).join(", ")}` : "Only you are here"}>
             <span className="inline-flex items-center gap-1 text-[12px]"><span className="h-1.5 w-1.5 rounded-full bg-good max-sm:h-2 max-sm:w-2" aria-hidden /><span className="max-sm:sr-only">Live</span></span>
@@ -276,9 +288,9 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
           }}>
           <IconTemplate className="h-4 w-4 max-sm:h-5 max-sm:w-5" /><span className="max-2xl:hidden">Save as template</span>
         </button>
-        <button aria-label="Delete doc" className="inline-flex shrink-0 items-center justify-center rounded p-1 hover:text-bad max-sm:h-11 max-sm:w-11 max-sm:rounded-lg" onClick={async () => { if (!(await confirm({ ...deleteDocConfirm(tree.data?.tree, id, title), confirmLabel: "Delete doc" }))) return; await api.del(`/docs/${id}`); void qc.invalidateQueries({ queryKey: ["doc-tree"] }); navigate("/app/docs"); }}><IconTrash className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>
+        {!embed && <button aria-label="Delete doc" className="inline-flex shrink-0 items-center justify-center rounded p-1 hover:text-bad max-sm:h-11 max-sm:w-11 max-sm:rounded-lg" onClick={async () => { if (!(await confirm({ ...deleteDocConfirm(tree.data?.tree, id, title), confirmLabel: "Delete doc" }))) return; await api.del(`/docs/${id}`); void qc.invalidateQueries({ queryKey: ["doc-tree"] }); navigate("/app/docs"); }}><IconTrash className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>}
       </div>
-      <DocBreadcrumbs docId={id} title={title} />
+      {!embed && <DocBreadcrumbs docId={id} title={title} />}
       <h1 className="sr-only">{title || "Untitled doc"}</h1>
       <input aria-label="Doc title" value={title}
         onChange={(ev) => { setTitle(ev.target.value); if (session) meta(session.ydoc).set("title", ev.target.value); }}

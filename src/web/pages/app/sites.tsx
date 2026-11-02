@@ -23,6 +23,7 @@ import {
   BLOCK_HINT, BLOCK_LABEL, MAX_BLOCKS, MAX_DESCRIPTION, STATUS_LABEL, newBlock, pageSlugProblem, renderPageHtml, siteSlugProblem, slugify,
   type Block, type BlockType, type CommentInfo, type PageDetail, type PageSummary, type SiteInfo, type StatsOut, type VersionInfo,
 } from "@/shared/sites";
+import { BlogTab, useBlogOn } from "./blog-r124"; // R124
 
 interface SiteOut { site: SiteInfo | null; canStart: boolean; suggestedSlug: string; orgName: string }
 interface Linkables { forms: { slug: string; title: string }[]; booking: { slug: string; title: string }[]; people: { id: string; name: string; role: string }[] }
@@ -47,14 +48,15 @@ function StatusBadge({ p }: { p: Pick<PageSummary, "status" | "publishAt" | "has
 // Sites page
 // ---------------------------------------------------------------------------------------------------------------
 
-const TABS = [["pages", "Pages"], ["comments", "Comments"], ["stats", "Stats"], ["settings", "Settings"]] as const;
+const TABS = [["pages", "Pages"], ["blog", "Blog"], ["comments", "Comments"], ["stats", "Stats"], ["settings", "Settings"]] as const; // R124: Blog
 type Tab = (typeof TABS)[number][0];
 
 export function SitesPage() {
   const q = useSite();
   const [params, setParams] = useSearchParams();
   const tab = (TABS.find(([k]) => k === params.get("tab"))?.[0] ?? "pages") as Tab;
-  const [newOpen, setNewOpen] = useState(params.get("new") === "1");
+  const [newOpen, setNewOpen] = useState(params.get("new") === "1" && params.get("tab") !== "blog");
+  const blogOn = useBlogOn(); // R124
   if (q.isLoading) return <div className="space-y-3" aria-busy="true"><Skeleton className="h-8 w-48" /><Skeleton className="h-24 w-full" /><Skeleton className="h-14 w-full" /><Skeleton className="h-14 w-full" /></div>;
   if (q.isError || !q.data) return <Card><LoadFailure error={q.error} onRetry={() => q.refetch()} block className="p-6" /></Card>;
   const { site } = q.data;
@@ -64,7 +66,7 @@ export function SitesPage() {
       <PageHeader title="Sites" description="A simple website for your team, with pages, comments and visit counts."
         actions={<>
           <a className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-muted hover:text-fg" href={site.url} target="_blank" rel="noopener noreferrer"><IconExternalLink className="h-4 w-4" aria-hidden />View site</a>
-          {site.canEdit && <Button onClick={() => setNewOpen(true)}><IconPlus className="h-4 w-4" aria-hidden /><span className="max-sm:sr-only">New page</span></Button>}
+          {site.canEdit && tab !== "blog" && <Button onClick={() => setNewOpen(true)}><IconPlus className="h-4 w-4" aria-hidden /><span className="max-sm:sr-only">New page</span></Button>}
         </>} />
       <Card className="mb-5 flex flex-wrap items-center gap-3 p-4">
         <IconGlobe className="h-5 w-5 text-muted" aria-hidden />
@@ -72,13 +74,14 @@ export function SitesPage() {
         <CopyButton value={site.url} label="Copy address" />
       </Card>
       <div role="tablist" aria-label="Sites" className="-mx-1 mb-5 flex gap-1 overflow-x-auto border-b border-line px-1">
-        {TABS.filter(([k]) => site.canEdit || k === "pages").map(([k, label]) => (
+        {TABS.filter(([k]) => (k === "blog" ? blogOn : site.canEdit || k === "pages")).map(([k, label]) => (
           <button key={k} role="tab" aria-selected={tab === k} type="button" onClick={() => setParams((p) => { p.set("tab", k); return p; }, { replace: true })}
             className={cn("relative -mb-px inline-flex min-h-10 shrink-0 items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors max-sm:min-h-11", tab === k ? "border-brand text-fg" : "border-transparent text-muted hover:text-fg")}>{label}</button>
         ))}
       </div>
       <div role="tabpanel">
         {tab === "pages" && <PagesTab site={site} onNew={() => setNewOpen(true)} />}
+        {tab === "blog" && blogOn && <BlogTab />}
         {tab === "comments" && site.canEdit && <CommentsTab />}
         {tab === "stats" && site.canEdit && <StatsTab />}
         {tab === "settings" && site.canEdit && <SettingsTab site={site} />}

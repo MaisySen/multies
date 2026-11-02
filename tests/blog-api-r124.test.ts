@@ -326,7 +326,7 @@ describe("R124 subscribers and email through campaigns", () => {
     // CSV for admins, with consent time and source; addresses never in logs.
     const csv = await owner.get("/api/sites/blog/subscribers.csv");
     expect(csv.status).toBe(200);
-    expect(String(csv.text ?? csv.body)).toContain("reader@x.io");
+    expect(String(csv.body)).toContain("reader@x.io");
     expect(logs.join("\n")).not.toContain("reader@x.io");
   });
 

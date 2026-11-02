@@ -207,11 +207,13 @@ export async function saveAuthor(deps: Deps, a: AuthContext, userId: string, p: 
 
 // ---------------------------------------------------------------- posts
 
-function summaryOf(deps: Deps, s: SiteRow, p: PostRow, names: Map<string, string>, docVersion: number | null | undefined): PostSummary {
+function summaryOf(deps: Deps, s: SiteRow, row: PostRow, names: Map<string, string>, docVersion: number | null | undefined, docTitle?: string | null): PostSummary {
   const now = nowMs(deps);
+  // The post's title is its doc's title (written in the Docs editor).
+  const p = docTitle && docTitle.trim() ? { ...row, title: docTitle.replace(/\s+/g, " ").trim().slice(0, MAX_POST_TITLE) } : row;
   const live = parse<LiveMeta | null>(p.live, null);
   const status = postStatusOf({ live, publishAt: p.publishAt }, now);
-  const metaChanged = !!live && (live.title !== p.title || live.excerpt !== p.excerpt || live.cover !== p.cover || JSON.stringify(live.tags) !== p.tags || live.authorId !== p.authorId);
+  const metaChanged = !!live && (live.title !== p.title || (!!p.excerpt && live.excerpt !== p.excerpt) || live.cover !== p.cover || JSON.stringify(live.tags) !== p.tags || live.authorId !== p.authorId);
   const bodyChanged = !!live && docVersion != null && p.liveVersion != null && docVersion > p.liveVersion;
   return {
     id: p.id, docId: p.docId, slug: p.slug, title: p.title, excerpt: p.excerpt, cover: p.cover, tags: parse<string[]>(p.tags, []), authorId: p.authorId, authorName: p.authorId ? names.get(p.authorId) ?? "" : "",
@@ -226,11 +228,12 @@ export async function listPosts(deps: Deps, a: AuthContext, f: PostQuery = {}): 
   const { s } = await needBlog(deps, a);
   const rows = await deps.db.select().from(blogPosts).where(and(eq(blogPosts.siteId, s.id), eq(blogPosts.orgId, a.orgId))).orderBy(desc(blogPosts.updatedAt)).limit(MAX_POSTS).all();
   const docIds = [...new Set(rows.map((r) => r.docId))];
-  const vers = docIds.length ? await deps.db.select({ id: docs.id, version: docs.version }).from(docs).where(and(eq(docs.orgId, a.orgId), inArray(docs.id, docIds.slice(0, 90)))).all() : [];
-  const v = new Map(vers.map((d) => [d.id, d.version]));
+  const vers: { id: string; version: number; title: string }[] = [];
+  for (let i = 0; i < docIds.length; i += 90) vers.push(...await deps.db.select({ id: docs.id, version: docs.version, title: docs.title }).from(docs).where(and(eq(docs.orgId, a.orgId), inArray(docs.id, docIds.slice(i, i + 90)))).all());
+  const v = new Map(vers.map((d) => [d.id, d]));
   const names = await nameMap(deps, s);
   const edit = canEditSite(a, s);
-  let all = rows.map((r) => summaryOf(deps, s, r, names, v.get(r.docId)));
+  let all = rows.map((r) => summaryOf(deps, s, r, names, v.get(r.docId)?.version, v.get(r.docId)?.title));
   if (!edit) all = all.filter((p) => p.status === "published");
   const tags = [...new Map(all.flatMap((p) => p.tags).map((t) => [tagSlug(t), t])).values()].sort((x, y) => x.localeCompare(y));
   const q = (f.q ?? "").trim().toLowerCase();
@@ -241,8 +244,9 @@ export async function listPosts(deps: Deps, a: AuthContext, f: PostQuery = {}): 
 }
 
 async function detailOf(deps: Deps, a: AuthContext, s: SiteRow, p: PostRow): Promise<PostDetail> {
-  const d = await deps.db.select({ version: docs.version, text: docs.plainText }).from(docs).where(and(eq(docs.id, p.docId), eq(docs.orgId, a.orgId))).get();
-  const sum = summaryOf(deps, s, p, await nameMap(deps, s), d?.version);
+  const d = await deps.db.select({ version: docs.version, text: docs.plainText, title: docs.title }).from(docs).where(and(eq(docs.id, p.docId), eq(docs.orgId, a.orgId))).get();
+  const sum = summaryOf(deps, s, p, await nameMap(deps, s), d?.version, d?.title);
+  if (sum.title !== p.title && canEditSite(a, s)) await deps.db.update(blogPosts).set({ title: sum.title }).where(and(eq(blogPosts.id, p.id), eq(blogPosts.orgId, a.orgId)));
   let emailState: PostDetail["emailState"] = "none";
   if (p.campaignId) {
     const c = await deps.db.get<{ status: string }>(sql`select status from campaigns where id = ${p.campaignId} and org_id = ${a.orgId}`);
@@ -328,7 +332,8 @@ async function snapshot(deps: Deps, a: AuthContext, s: SiteRow, p: PostRow) {
   try { content = JSON.parse(d.content); } catch { content = null; }
   const { html, images } = snapshotHtml(content, blogBase(deps, s.slug), deps.config.appUrl);
   const text = d.plainText ?? "";
-  const meta: LiveMeta = { title: p.title, excerpt: p.excerpt, cover: p.cover, tags: parse<string[]>(p.tags, []), authorId: p.authorId, readMins: readingMinutes(text), text: autoExcerpt(text, 600) };
+  const title = d.title.replace(/\s+/g, " ").trim().slice(0, MAX_POST_TITLE) || p.title;
+  const meta: LiveMeta = { title, excerpt: p.excerpt, cover: p.cover, tags: parse<string[]>(p.tags, []), authorId: p.authorId, readMins: readingMinutes(text), text: autoExcerpt(text, 600) };
   return { html, images, meta, version: d.version };
 }
 
@@ -349,21 +354,21 @@ export async function publishPost(deps: Deps, a: AuthContext, id: string, input:
   const p = await postOf(deps, a, s, id);
   const now = nowMs(deps);
   const bad = scheduleProblem(input.at ?? null, now); if (bad) throw badRequest(bad);
-  if (!p.title.trim()) throw badRequest("Give the post a title.");
   const wasLive = isLive({ live: p.live, publishAt: p.publishAt }, now);
   if (wasLive && input.at && input.at > now + 60_000) throw badRequest("This post is already live. Unpublish it first to schedule it again.");
   const snap = await snapshot(deps, a, s, p);
+  if (!snap.meta.title || snap.meta.title === "Untitled") throw badRequest("Give the post a title.");
   if (!snap.meta.excerpt) snap.meta.excerpt = autoExcerpt(snap.meta.text ?? "");
   if (p.authorId) await ensureAuthor(deps, s, p.authorId).catch(() => undefined);
   const at = wasLive ? p.publishAt ?? now : input.at && input.at > now ? input.at : now;
   const publishedAt = wasLive ? p.publishedAt ?? now : at;
-  await deps.db.update(blogPosts).set({ live: JSON.stringify(snap.meta), liveHtml: snap.html, liveVersion: snap.version, publishAt: at, publishedAt, updatedAt: now, updatedBy: a.userId })
+  await deps.db.update(blogPosts).set({ title: snap.meta.title, live: JSON.stringify(snap.meta), liveHtml: snap.html, liveVersion: snap.version, publishAt: at, publishedAt, updatedAt: now, updatedBy: a.userId })
     .where(and(eq(blogPosts.id, id), eq(blogPosts.orgId, a.orgId)));
   const coverId = docImageId(p.cover);
   await writeImages(deps, s, id, [...snap.images, ...(coverId ? [coverId] : [])]);
   forgetBlog(s.slug);
   let email: PublishResult["email"] = { status: "none", message: "" };
-  if (p.emailOnPublish && !p.campaignId) email = await emailPost(deps, a, s, b, { ...p, publishAt: at, slug: p.slug }, snap.meta, at);
+  if (p.emailOnPublish && !p.campaignId) email = await emailPost(deps, a, s, b, { ...p, title: snap.meta.title, publishAt: at }, snap.meta, at);
   else if (p.campaignId) email = { status: "skipped", message: "This post was already emailed, so subscribers don't get it again." };
   deps.log?.info("blog.published", { org: a.orgId, post: id, scheduled: at > now, email: email.status });
   return { post: await getPost(deps, a, id), email };

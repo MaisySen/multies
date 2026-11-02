@@ -82,7 +82,7 @@ export const SECTIONS: Section[] = [
   ] },
 ];
 
-export interface NavFlags { /** R122: the help center in Docs. */ helpCenter?: boolean; /** R103: the link library in Docs. */ docsPlus?: boolean; /** R90: the automation builder is on. */ flows?: boolean; tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts (R117: members too, sent for approval, with Social P2). */ social?: boolean; socialP2?: boolean; /** R118: Social inbox and analytics. */ socialP2b?: boolean; /** R87: Tools > Links is on. */ links?: boolean; /** R105: invoices and quotes. */ invoices?: boolean; /** R123: the workspace has a site (the Sites page shows only then). */ sites?: boolean; /** R123: Sites is on and this person can start or build it (Create menu). */ sitesCreate?: boolean }
+export interface NavFlags { /** R122: the help center in Docs. */ helpCenter?: boolean; /** R103: the link library in Docs. */ docsPlus?: boolean; /** R90: the automation builder is on. */ flows?: boolean; tools?: boolean; files?: boolean; scheduling?: boolean; operator?: boolean; /** R80C: owners and admins can write social posts (R117: members too, sent for approval, with Social P2). */ social?: boolean; socialP2?: boolean; /** R118: Social inbox and analytics. */ socialP2b?: boolean; /** R87: Tools > Links is on. */ links?: boolean; /** R105: invoices and quotes. */ invoices?: boolean; /** R123: the workspace has a site (the Sites page shows only then). */ sites?: boolean; /** R123: Sites is on and this person can start or build it (Create menu). */ sitesCreate?: boolean; /** R124: the blog is on and this person can write on the site. */ blogCreate?: boolean }
 
 /** The sections and pages this person can open (switched off features leave no dead links). */
 export function visibleSections(flags: NavFlags): Section[] {
@@ -198,6 +198,8 @@ export function createItems(flags: NavFlags) {
   const withLink = flags.invoices ? [...withLinkOnly, { kind: "invoice" as const, label: "Invoice", to: "/app/contacts/invoices?new=invoice", hint: "" }, { kind: "quote" as const, label: "Quote", to: "/app/contacts/invoices?new=quote", hint: "" }] : withLinkOnly;
   // R123: a site page, where Sites is on for this person.
   const withSite = flags.sitesCreate ? [...withLink, { kind: "site" as const, label: "Site page", to: "/app/docs/sites?new=1", hint: "" }] : withLink;
+  // R124: a blog post, where the blog is on and this person writes on the site.
+  const withBlog = flags.blogCreate ? [...withSite, { kind: "blog" as const, label: "Blog post", to: "/app/docs/sites?tab=blog&new=1", hint: "" }] : withSite;
   // P1 layout: it opens the composer in Social (it opened Settings before).
-  return flags.social ? [...withSite, { kind: "post" as const, label: "Social post", to: SOCIAL_NEW, hint: "P" }] : withSite;
+  return flags.social ? [...withBlog, { kind: "post" as const, label: "Social post", to: SOCIAL_NEW, hint: "P" }] : withBlog;
 }

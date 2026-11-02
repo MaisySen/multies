@@ -25,6 +25,8 @@ export interface PublicConfig {
   helpCenter?: boolean;
   /** R123: Sites in Docs (SITES_R123). */
   sites?: boolean;
+  /** R124: the blog in Sites (BLOG_R124). */
+  blog?: boolean;
   /** R98: typo tolerant search with filters and instant results (SEARCH_R98). */
   searchR98?: boolean;
   /** R110: Ask across the workspace (ASK_R110). */

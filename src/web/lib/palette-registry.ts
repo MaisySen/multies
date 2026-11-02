@@ -9,9 +9,9 @@ export type PaletteIcon = React.ComponentType<{ className?: string }>;
  * R59: `flag` names a server switch from /api/config; the page is offered only while it is on.
  * Tools P2: `toolFeature` also needs one of these P2 features in /api/config toolFeatures.
  */
-export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129"; toolFeature?: string[] }
+export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog"; toolFeature?: string[] }
 export type PaletteActionKind = "navigate" | "shortcuts" | "theme" | "external";
-export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129"; toolFeature?: string[] }
+export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog"; toolFeature?: string[] }
 
 export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-my-work", label: "My Work", to: "/app/my-work", icon: IconToday, keywords: ["today", "due", "home", "mentions"] },
@@ -23,6 +23,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-docs", label: "Docs", to: "/app/docs", icon: IconDocs, keywords: ["documents", "notes", "wiki", "pages"] },
   { id: "p-help-center", label: "Help center", to: "/app/docs/help-center", icon: IconDocs, keywords: ["knowledge base", "faq", "questions", "answers", "public help", "articles"], flag: "helpCenter" }, // R122
   { id: "p-sites", label: "Sites", to: "/app/docs/sites", icon: IconDocs, keywords: ["website", "web page", "page builder", "landing page", "publish", "comments"], flag: "sites" }, // R123
+  { id: "p-blog", label: "Blog", to: "/app/docs/sites?tab=blog", icon: IconBook, keywords: ["posts", "articles", "newsletter", "subscribers", "rss"], flag: "blog" }, // R124
   { id: "p-my-learning", label: "My learning", to: "/app/docs/learning", icon: IconBook, keywords: ["courses", "training", "lessons", "certificate", "quiz"], flag: "coursesR129" }, // R129
   { id: "p-link-library", label: "Link library", to: "/app/docs/links", icon: IconDocs, keywords: ["links", "bookmarks", "saved links", "tags", "read later"], flag: "docsPlus" }, // R103
   { id: "p-save-page", label: "Save a web page", to: "/app/docs/links?save=page", icon: IconDocs, keywords: ["clip", "clipper", "web clip", "save page", "archive", "snapshot", "pdf"], flag: "docsPlus" }, // R103
@@ -131,6 +132,7 @@ export const PALETTE_ACTIONS: PaletteAction[] = [
   { id: "task-fields", label: "Workspace fields for tasks", icon: IconTable, kind: "navigate", to: "/app/tasks?view=list&manage=fields", keywords: ["custom fields", "columns", "client", "budget"] }, // R84
   { id: "new-short-link", label: "New short link", icon: IconLink, kind: "navigate", to: "/app/tools/links?new=1", keywords: ["shorten", "short url", "qr code", "link"], flag: "tools", toolFeature: ["links"] }, // R87
   { id: "new-doc", label: "New doc", icon: IconFilePlus, kind: "navigate", to: "/app/docs?new=1", keywords: ["create doc", "page", "note", "write"] },
+  { id: "new-blog-post", label: "New blog post", icon: IconBook, kind: "navigate", to: "/app/docs/sites?tab=blog&new=1", keywords: ["article", "write", "publish", "newsletter"], flag: "blog" }, // R124
   { id: "new-course", label: "New course", icon: IconBook, kind: "navigate", to: "/app/docs?new=course", keywords: ["training", "lesson", "quiz", "learning", "onboarding", "certificate"], flag: "coursesR129" }, // R129
   { id: "new-whiteboard", label: "New whiteboard", icon: IconShapes, kind: "navigate", to: "/app/docs?new=whiteboard", keywords: ["draw", "sketch", "canvas", "board", "diagram", "brainstorm"], flag: "docsVisual" }, // R89
   { id: "new-table", label: "New table", icon: IconTable, kind: "navigate", to: "/app/docs?new=table", keywords: ["database", "spreadsheet", "grid", "kanban", "records", "csv", "list"], flag: "tablesR125" }, // R125
