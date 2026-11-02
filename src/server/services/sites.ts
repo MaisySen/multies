@@ -7,7 +7,7 @@
 import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../context";
 import { runBatch } from "../db";
-import { forms, members, organizations, schedulingPages, siteComments, sitePageStats, sitePageVersions, sitePages, sites, users } from "../db/schema";
+import { forms, members, organizations, schedulingPages, siteBlogs, siteComments, sitePageStats, sitePageVersions, sitePages, sites, users } from "../db/schema";
 import { hmacSha256Hex, newId } from "../lib/crypto";
 import { HttpError, badRequest, conflict, forbidden, notFound } from "../lib/errors";
 import { IsolateCache } from "../lib/isolate-cache";
@@ -45,6 +45,12 @@ async function guard(deps: Deps, a: AuthContext) {
 export function canEditSite(a: AuthContext, site: Pick<SiteRow, "editors"> | null): boolean {
   if (isAdmin(a)) return true;
   return !!site && parse<string[]>(site.editors, []).includes(a.userId);
+}
+/** R124: once the site has a blog, the address blog belongs to it. */
+async function blogAddressFree(deps: Deps, siteId: string, slug: string) {
+  if (slug !== "blog" || !deps.config.blogR124) return;
+  const b = await deps.db.select({ id: siteBlogs.siteId }).from(siteBlogs).where(eq(siteBlogs.siteId, siteId)).get();
+  if (b) throw badRequest("The blog uses the address blog. Pick another one.");
 }
 function needEdit(a: AuthContext, site: SiteRow) {
   if (!canEditSite(a, site)) throw forbidden("Only admins and site editors can change the site.");
@@ -208,6 +214,7 @@ export async function createPage(deps: Deps, a: AuthContext, input: { title: str
   const slug = (input.slug ? String(input.slug).trim().toLowerCase() : slugify(title)).slice(0, 60);
   const bad = pageSlugProblem(slug);
   if (bad) throw badRequest(bad);
+  await blogAddressFree(deps, s.id, slug); // R124
   const now = nowMs(deps);
   const id = newId("spg");
   try {
@@ -231,6 +238,7 @@ export async function savePage(deps: Deps, a: AuthContext, id: string, input: Pa
   if (input.slug !== undefined && input.slug !== p.slug) {
     const bad = pageSlugProblem(input.slug);
     if (bad) throw badRequest(bad);
+    await blogAddressFree(deps, s.id, input.slug); // R124
     set.slug = input.slug;
   }
   if (input.blocks !== undefined) {

@@ -44,6 +44,7 @@ import { mailArchiveRoutes } from "./routes/mail-archive-r111"; // R111
 import { requestPublicRoutes, secretPublicRoutes, toolsRequestRoutes, toolsSecretRoutes } from "./routes/secure-share"; // R88 // Tools P2: share links
 import { bioPublicRoutes, linkPublicRoutes, linksRoutes } from "./routes/links"; // R87: Links in Tools
 import { COMMENTS_JS, COMMENTS_JS_HEADERS, sitePublicRoutes, sitesRoutes } from "./routes/sites"; // R123: Sites
+import { BLOG_JS, BLOG_JS_HEADERS, blogPublicRoutes, blogRoutes } from "./routes/blog-r124"; // R124: blog with newsletter
 import { bookingPlusRoutes, bookingPublicRoutes } from "./routes/booking-plus"; // R92
 import { formsPlusRoutes, formsPublicRoutes } from "./routes/forms-plus"; // R93
 import { dataRequestPublicRoutes, dataRequestRoutes, reportPublicRoutes, reportingRoutes } from "./routes/reporting-r112"; // R112
@@ -477,6 +478,7 @@ export function createApp(deps: Deps) {
       // R122: the help center in Docs (HELP_CENTER=on).
       helpCenter: !!deps.config.helpCenter,
       sites: !!deps.config.sites, // R123
+      blog: !!deps.config.blogR124, // R124: the blog in Sites
       davSync: !!deps.config.davSync,
       // R103: Docs plus (DOCS_PLUS_R103=on).
       docsPlus: !!deps.config.docsPlus,
@@ -568,6 +570,12 @@ export function createApp(deps: Deps) {
   if (deps.config.docsPlus) app.route("/api/docs-plus", docsPlusRoutes()); // R103: link library, clipper, doc comments
   if (deps.config.sites) {
     // R123: Sites (team API) and the public pages /site/<slug> (only the live snapshot of published pages).
+    if (deps.config.blogR124) {
+      // R124: the blog (team API) and its public pages under /site/<slug>/blog, mounted before the site pages.
+      app.route("/api/sites/blog", blogRoutes());
+      app.route("/site", blogPublicRoutes());
+      app.get("/site-assets/blog.js", (c) => c.body(BLOG_JS, 200, BLOG_JS_HEADERS));
+    }
     app.route("/api/sites", sitesRoutes());
     app.route("/site", sitePublicRoutes());
     app.get("/site-assets/comments.js", (c) => c.body(COMMENTS_JS, 200, COMMENTS_JS_HEADERS));

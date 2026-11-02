@@ -4342,6 +4342,70 @@ export const sitePageStats = sqliteTable("site_page_stats", {
   views: integer("views").notNull().default(0),
 }, (t) => [index("site_page_stats_org_idx").on(t.orgId, t.day)]);
 
+// ---------------------------------------------------------------- R124: blog with newsletter (inside Sites, BLOG_R124)
+
+/** R124: one blog per site. Subscribers live in the R109 audience list `listId`; post bodies are docs under `rootDocId`. */
+export const siteBlogs = sqliteTable("site_blogs", {
+  siteId: text("site_id").primaryKey().references(() => sites.id, { onDelete: "cascade" }),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  title: text("title").notNull().default("Blog"),
+  description: text("description").notNull().default(""),
+  listId: text("list_id"),
+  rootDocId: text("root_doc_id"),
+  subscribeOn: integer("subscribe_on", { mode: "boolean" }).notNull().default(true),
+  createdBy: text("created_by"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [uniqueIndex("site_blogs_org_uq").on(t.orgId)]);
+
+/** R124: a post. The body is the doc `docId`; publishing stores an escaped HTML snapshot (`liveHtml`) and its meta (`live`, JSON). */
+export const blogPosts = sqliteTable("blog_posts", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  siteId: text("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  docId: text("doc_id").notNull(),
+  slug: text("slug").notNull(),
+  title: text("title").notNull(),
+  excerpt: text("excerpt").notNull().default(""),
+  cover: text("cover").notNull().default(""),
+  /** JSON array of tag names. */
+  tags: text("tags").notNull().default("[]"),
+  authorId: text("author_id"),
+  live: text("live"),
+  liveHtml: text("live_html"),
+  liveVersion: integer("live_version"),
+  publishAt: integer("publish_at"),
+  publishedAt: integer("published_at"),
+  emailOnPublish: integer("email_on_publish", { mode: "boolean" }).notNull().default(false),
+  campaignId: text("campaign_id"),
+  emailedAt: integer("emailed_at"),
+  createdBy: text("created_by"),
+  updatedBy: text("updated_by"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [uniqueIndex("blog_posts_slug_uq").on(t.siteId, t.slug), index("blog_posts_org_idx").on(t.orgId, t.updatedAt), index("blog_posts_live_idx").on(t.siteId, t.publishAt), index("blog_posts_doc_idx").on(t.docId)]);
+
+/** R124: an author's public profile on a site (a workspace member). */
+export const blogAuthors = sqliteTable("blog_authors", {
+  siteId: text("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  slug: text("slug").notNull(),
+  name: text("name").notNull(),
+  bio: text("bio").notNull().default(""),
+  photo: text("photo").notNull().default(""),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.siteId, t.userId] }), uniqueIndex("blog_authors_slug_uq").on(t.siteId, t.slug)]);
+
+/** R124: doc images a live post or an author profile shows; the public image route serves only these. */
+export const blogImages = sqliteTable("blog_images", {
+  siteId: text("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+  owner: text("owner").notNull(),
+  imageId: text("image_id").notNull(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+}, (t) => [primaryKey({ columns: [t.siteId, t.owner, t.imageId] }), index("blog_images_image_idx").on(t.siteId, t.imageId)]);
+
 // ---------------------------------------------------------------- R129: courses (a doc type, COURSES_R129)
 
 /** R129: one per course doc (docs.kind "course"): its settings. Editors and managers are member user ids (JSON). */

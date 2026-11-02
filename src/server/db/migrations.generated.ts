@@ -1658,5 +1658,21 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE IF NOT EXISTS `data_request_log` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`request_id` text,\n\t`actor_user_id` text,\n\t`actor_label` text NOT NULL,\n\t`action` text NOT NULL,\n\t`kinds` text DEFAULT '[]' NOT NULL,\n\t`counts` text DEFAULT '{}' NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
       "CREATE INDEX IF NOT EXISTS `data_request_log_org_idx` ON `data_request_log` (`org_id`,`created_at`);"
     ]
+  },
+  {
+    "name": "0148_blog_r124",
+    "statements": [
+      "-- R124 (Nov 1): Blog with newsletter, inside Sites. One blog per site; posts keep their body in a doc and publish an\n-- escaped HTML snapshot; authors with public profiles; images of live posts that the public image route may serve.\n-- Subscribers live in an R109 audience list (no new subscriber table). Additive only.\nCREATE TABLE IF NOT EXISTS `site_blogs` (\n\t`site_id` text PRIMARY KEY NOT NULL REFERENCES `sites`(`id`) ON DELETE cascade,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`title` text DEFAULT 'Blog' NOT NULL,\n\t`description` text DEFAULT '' NOT NULL,\n\t`list_id` text,\n\t`root_doc_id` text,\n\t`subscribe_on` integer DEFAULT 1 NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `site_blogs_org_uq` ON `site_blogs` (`org_id`);",
+      "CREATE TABLE IF NOT EXISTS `blog_posts` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`site_id` text NOT NULL REFERENCES `sites`(`id`) ON DELETE cascade,\n\t`doc_id` text NOT NULL,\n\t`slug` text NOT NULL,\n\t`title` text NOT NULL,\n\t`excerpt` text DEFAULT '' NOT NULL,\n\t`cover` text DEFAULT '' NOT NULL,\n\t`tags` text DEFAULT '[]' NOT NULL,\n\t`author_id` text,\n\t`live` text,\n\t`live_html` text,\n\t`live_version` integer,\n\t`publish_at` integer,\n\t`published_at` integer,\n\t`email_on_publish` integer DEFAULT 0 NOT NULL,\n\t`campaign_id` text,\n\t`emailed_at` integer,\n\t`created_by` text,\n\t`updated_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `blog_posts_slug_uq` ON `blog_posts` (`site_id`,`slug`);",
+      "CREATE INDEX IF NOT EXISTS `blog_posts_org_idx` ON `blog_posts` (`org_id`,`updated_at`);",
+      "CREATE INDEX IF NOT EXISTS `blog_posts_live_idx` ON `blog_posts` (`site_id`,`publish_at`);",
+      "CREATE INDEX IF NOT EXISTS `blog_posts_doc_idx` ON `blog_posts` (`doc_id`);",
+      "CREATE TABLE IF NOT EXISTS `blog_authors` (\n\t`site_id` text NOT NULL REFERENCES `sites`(`id`) ON DELETE cascade,\n\t`user_id` text NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`slug` text NOT NULL,\n\t`name` text NOT NULL,\n\t`bio` text DEFAULT '' NOT NULL,\n\t`photo` text DEFAULT '' NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`site_id`, `user_id`)\n);",
+      "CREATE UNIQUE INDEX IF NOT EXISTS `blog_authors_slug_uq` ON `blog_authors` (`site_id`,`slug`);",
+      "CREATE TABLE IF NOT EXISTS `blog_images` (\n\t`site_id` text NOT NULL REFERENCES `sites`(`id`) ON DELETE cascade,\n\t`owner` text NOT NULL,\n\t`image_id` text NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\tPRIMARY KEY(`site_id`, `owner`, `image_id`)\n);",
+      "CREATE INDEX IF NOT EXISTS `blog_images_image_idx` ON `blog_images` (`site_id`,`image_id`);"
+    ]
   }
 ];

@@ -187,7 +187,7 @@ export function buttonColour(brand: string | null | undefined): string {
 export interface RenderSite { name: string; brandColor: string | null; logoUrl: string | null; nav: { title: string; href: string; current?: boolean }[]; homeHref: string }
 export interface RenderPage { title: string; blocks: Block[]; seoTitle?: string; description?: string; image?: string | null; canonical?: string | null }
 export interface RenderLinks { formHref: (slug: string) => string; bookingHref: (slug: string) => string }
-export interface RenderOpts { preview?: boolean; noindex?: boolean; extraHtml?: string; scriptSrc?: string | null; footer?: string }
+export interface RenderOpts { preview?: boolean; noindex?: boolean; extraHtml?: string; scriptSrc?: string | null; footer?: string; /** R124: a ready body instead of blocks (blog pages). */ bodyHtml?: string; /** R124: og:type (article for a post). */ ogType?: string; /** R124: more tags in the head (feed link, article times, blog styles). */ headExtra?: string }
 
 export function blockHtml(b: Block, links: RenderLinks): string {
   switch (b.type) {
@@ -237,17 +237,17 @@ export function renderPageHtml(site: RenderSite, page: RenderPage, links: Render
   const title = (page.seoTitle || page.title || site.name).trim();
   const fullTitle = title === site.name ? title : `${title} | ${site.name}`;
   const desc = (page.description ?? "").trim();
-  const body = page.blocks.map((b) => blockHtml(b, links)).join("\n");
+  const body = opts.bodyHtml ?? page.blocks.map((b) => blockHtml(b, links)).join("\n");
   const head = [
     `<meta charset="utf-8">`, `<meta name="viewport" content="width=device-width, initial-scale=1">`,
     `<title>${escHtml(fullTitle)}</title>`,
     desc ? `<meta name="description" content="${escHtml(desc)}">` : "",
-    `<meta property="og:type" content="website">`, `<meta property="og:title" content="${escHtml(title)}">`, `<meta property="og:site_name" content="${escHtml(site.name)}">`,
+    `<meta property="og:type" content="${escHtml(opts.ogType ?? "website")}">`, `<meta property="og:title" content="${escHtml(title)}">`, `<meta property="og:site_name" content="${escHtml(site.name)}">`,
     desc ? `<meta property="og:description" content="${escHtml(desc)}">` : "",
     page.image ? `<meta property="og:image" content="${escHtml(page.image)}"><meta name="twitter:card" content="summary_large_image">` : `<meta name="twitter:card" content="summary">`,
     page.canonical ? `<link rel="canonical" href="${escHtml(page.canonical)}"><meta property="og:url" content="${escHtml(page.canonical)}">` : "",
     opts.preview || opts.noindex ? `<meta name="robots" content="noindex, nofollow">` : "",
-    `<style>${CSS(buttonColour(site.brandColor))}</style>`,
+    `<style>${CSS(buttonColour(site.brandColor))}</style>`, opts.headExtra ?? "",
   ].filter(Boolean).join("");
   const nav = site.nav.length > 1 ? `<nav aria-label="Pages">${site.nav.map((n) => `<a href="${escHtml(n.href)}"${n.current ? ` aria-current="page"` : ""}>${escHtml(n.title)}</a>`).join("")}</nav>` : "";
   const logo = site.logoUrl ? `<img src="${escHtml(site.logoUrl)}" alt="">` : "";

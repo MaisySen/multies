@@ -255,7 +255,7 @@ export async function signupList(deps: Deps, key: string) {
 }
 
 /** A public signup. Express consent (the tick) with source and time; confirmed by email when the list asks. */
-export async function signupSubmit(deps: Deps, l: ListRow, input: { email: string; name: string }) {
+export async function signupSubmit(deps: Deps, l: ListRow, input: { email: string; name: string }, source = "Signup form") { // R124: the blog passes its own source
   const email = normEmail(input.email);
   if (!isEmail(email)) throw badRequest("Enter a valid email address.");
   const now = deps.now().getTime();
@@ -268,11 +268,11 @@ export async function signupSubmit(deps: Deps, l: ListRow, input: { email: strin
   const token = confirm ? rand(16) : null;
   const status: MemberStatus = confirm ? "pending" : "subscribed";
   let memberId = ex?.id;
-  if (ex) await deps.db.run(sql`update audience_members set name = case when ${input.name.trim()} = '' then name else ${input.name.trim().slice(0, 200)} end, status = ${status}, consent_kind = 'express', consent_source = 'Signup form', consent_at = ${confirm ? ex.consent_at : now}, confirm_token = ${token}, updated_at = ${now} where id = ${ex.id}`);
+  if (ex) await deps.db.run(sql`update audience_members set name = case when ${input.name.trim()} = '' then name else ${input.name.trim().slice(0, 200)} end, status = ${status}, consent_kind = 'express', consent_source = ${source}, consent_at = ${confirm ? ex.consent_at : now}, confirm_token = ${token}, updated_at = ${now} where id = ${ex.id}`);
   else {
     memberId = newId("am");
     await deps.db.run(sql`insert into audience_members (id, org_id, list_id, email, name, fields, status, consent_kind, consent_source, consent_at, confirm_token, created_at, updated_at)
-      values (${memberId}, ${l.org_id}, ${l.id}, ${email}, ${input.name.trim().slice(0, 200)}, '{}', ${status}, 'express', 'Signup form', ${confirm ? null : now}, ${token}, ${now}, ${now})`);
+      values (${memberId}, ${l.org_id}, ${l.id}, ${email}, ${input.name.trim().slice(0, 200)}, '{}', ${status}, 'express', ${source}, ${confirm ? null : now}, ${token}, ${now}, ${now})`);
   }
   await touchList(deps, l.id);
   if (!confirm) { await enrollInJourneys(deps, l.org_id, l.id, memberId!, email); return { status: "subscribed" as const }; }
@@ -285,7 +285,7 @@ export async function confirmSignup(deps: Deps, token: string) {
   const m = await deps.db.get<MemberRow>(sql`select * from audience_members where confirm_token = ${token}`);
   if (!m || m.status !== "pending") return null;
   const now = deps.now().getTime();
-  await deps.db.run(sql`update audience_members set status = 'subscribed', consent_kind = 'express', consent_source = 'Signup form, confirmed by email', consent_at = ${now}, confirmed_at = ${now}, confirm_token = null, updated_at = ${now} where id = ${m.id}`);
+  await deps.db.run(sql`update audience_members set status = 'subscribed', consent_kind = 'express', consent_source = ${`${m.consent_source || "Signup form"}, confirmed by email`.slice(0, 240)}, consent_at = ${now}, confirmed_at = ${now}, confirm_token = null, updated_at = ${now} where id = ${m.id}`);
   await enrollInJourneys(deps, m.org_id, m.list_id, m.id, m.email);
   return m;
 }

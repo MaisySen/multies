@@ -16,6 +16,7 @@ import { issueChallenge, requireShield } from "../services/spam-shield";
 import { deviceOf, isBotAgent, referrerOf } from "@/shared/links";
 import { SHIELD_HONEYPOT_NAME, type ShieldAnswer } from "@/shared/spam-shield";
 import { escHtml, renderPageHtml, type RenderLinks } from "@/shared/sites";
+import { blogNavItem, blogSitemapUrls } from "./blog-r124";
 import {
   createPage, deletePage, getPage, getSite, linkables, listComments, listPages, listVersions, moderateComment, postComment, publicComments, publishPage,
   queueView, resolvePage, sitesInUse, resolveSite, restoreVersion, savePage, siteStats, siteUrl, startSite, unpublishPage, updateSite, type PublicSite,
@@ -126,8 +127,11 @@ export function sitePublicRoutes() {
     const open = site.commentsOn && page.commentsOn;
     const list = open ? await publicComments(deps, site, page.id) : [];
     const appUrl = deps.config.appUrl.replace(/\/+$/, "");
+    const nav = site.nav.map((n) => ({ title: n.title, href: n.id === site.homePageId ? base : `${base}/${n.slug}`, current: n.id === page.id }));
+    const blogNav = deps.config.blogR124 ? await blogNavItem(deps, site) : null; // R124: the blog joins the nav once it has a live post
+    if (blogNav) nav.push({ ...blogNav, current: false });
     const html = renderPageHtml(
-      { name: site.name, brandColor: site.brandColor, logoUrl: site.logoUrl, homeHref: base, nav: site.nav.map((n) => ({ title: n.title, href: n.id === site.homePageId ? base : `${base}/${n.slug}`, current: n.id === page.id })) },
+      { name: site.name, brandColor: site.brandColor, logoUrl: site.logoUrl, homeHref: base, nav },
       { title: page.snap.title, blocks: page.snap.blocks, seoTitle: page.snap.seoTitle, description: page.snap.description || site.description, image: page.snap.image || site.logoUrl || `${appUrl}/og-image.png`, canonical },
       linksFor(deps),
       { extraHtml: open ? commentsHtml(site, page.slug, list, true) : "", scriptSrc: open ? "/site-assets/comments.js" : null, footer: site.name },
@@ -148,6 +152,7 @@ export function sitePublicRoutes() {
     const base = siteUrl(c.var.deps, r.site.slug);
     const urls = r.site.nav.length ? r.site.nav : [];
     const all = await Promise.all(urls.map(async (n) => ((await resolvePage(c.var.deps, r.site, n.id === r.site.homePageId ? null : n.slug)) ? (n.id === r.site.homePageId ? base : `${base}/${n.slug}`) : null)));
+    if (c.var.deps.config.blogR124) all.push(...(await blogSitemapUrls(c.var.deps, r.site))); // R124
     const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${all.filter(Boolean).map((u) => `<url><loc>${escHtml(u!)}</loc></url>`).join("")}</urlset>\n`;
     return c.body(body, 200, { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=600" });
   });
