@@ -130,6 +130,34 @@ describe("meetings to tasks", () => {
     expect(aiCalls).toBe(0);
   });
 
+  it("with no key and built in AI on: ready, suggestions come from built in AI, no paid call; switch off stops it", async () => {
+    await setup({ MEET_TD3: "on", AI_CONNECT_AI2: "on", ASK_TD1: "on" });
+    let builtinCalls = 0;
+    ctx.deps.ai = { run: async () => { builtinCalls++; return { response: answer, usage: { prompt_tokens: 40, completion_tokens: 60 } }; } };
+    const mate = await teammate();
+    const m = await meeting();
+    await withTranscript(m.id, mate.id);
+    expect((await c.get(`/api/meeting-td3/${m.id}`)).body.ai.state).toBe("ready");
+    const r = await c.post(`/api/meeting-td3/${m.id}/suggest`, { source: "recording", recordingId: "rec_1" });
+    expect(r.status).toBe(200);
+    expect(r.body.suggestions.length).toBeGreaterThan(0);
+    expect(builtinCalls).toBe(1);
+    expect(aiCalls).toBe(0);
+    expect((await c.put("/api/ai-trust", { enabled: false })).status).toBe(200);
+    expect((await c.get(`/api/meeting-td3/${m.id}`)).body.ai.state).toBe("off");
+    const off = await c.post(`/api/meeting-td3/${m.id}/suggest`, { source: "recording", recordingId: "rec_1" });
+    expect(off.status).toBe(409);
+    expect(builtinCalls).toBe(1);
+  });
+
+  it("with no key, built in AI flag on but no binding: no_key, no call", async () => {
+    await setup({ MEET_TD3: "on", AI_CONNECT_AI2: "on" });
+    ctx.deps.ai = undefined;
+    const m = await meeting();
+    expect((await c.get(`/api/meeting-td3/${m.id}`)).body.ai.state).toBe("no_key");
+    expect(aiCalls).toBe(0);
+  });
+
   it("with the workspace AI switch off: 409 ai_off, no provider call, manual path still works", async () => {
     await setup({ MEET_TD3: "on", ASK_TD1: "on" });
     const mate = await teammate();

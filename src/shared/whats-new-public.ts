@@ -5,6 +5,7 @@
 import { WHATS_NEW, type WhatsNewEntry } from "./whats-new";
 
 export const WHATS_NEW_EARLIER: readonly WhatsNewEntry[] = [
+  { id: "2026-11-01-forms-plus", date: "2026-11-01", title: "Forms that chat, feedback boards and calls for submissions", body: "Forms can ask one question at a time and sit in a chat bubble on your website. Run feedback boards with votes and a roadmap, and collect entries for blind review with scores and a shortlist." },
   { id: "2026-11-01-clear-errors", date: "2026-11-01", title: "Clear errors with Retry", body: "If a page cannot load, you see a plain message and a Retry button instead of endless loading, and anything already on screen stays." }, // AI2: moved from the in app list (cap 14 kept)
   { id: "2026-11-01-faster-search", date: "2026-11-01", title: "Faster search", body: "Search across mail, tasks, docs and files stays quick when the whole team is busy." },
   { id: "2026-11-01-office-files", date: "2026-11-01", title: "Office files in the browser", body: "Edit Word files and Excel sheets with working formulas right in Files, save each change as a version, and view slides." }, // R126: moved from the in-app list (cap 14)

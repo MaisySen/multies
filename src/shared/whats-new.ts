@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-02-meeting-tasks",
+    date: "2026-11-02",
+    title: "Meetings to tasks",
+    body: "On a meeting page, Suggest reads the transcript, the notes or pasted text and lists the action items with who and when. Accept makes a task, Discard drops it, and Follow up email opens a ready draft for you to send."
+  },
+  {
     id: "2026-11-02-ai-connect",
     date: "2026-11-02",
     title: "AI that works from the start",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Build a simple website for your team",
     body: "Start a site from the Create menu. Build pages from ready blocks with a live preview, save drafts, go back to any version and publish now or at a set time. Add your forms and booking pages, let visitors comment once you approve, and see visits with no personal data kept.",
-  },
-  {
-    id: "2026-11-01-forms-plus",
-    date: "2026-11-01",
-    title: "Forms that chat, feedback boards and calls for submissions",
-    body: "Forms can ask one question at a time and sit in a chat bubble on your website. Run feedback boards with votes and a roadmap, and collect entries for blind review with scores and a shortlist.",
   },
   {
     id: "2026-10-28-whats-new",

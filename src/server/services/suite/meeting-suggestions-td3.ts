@@ -49,8 +49,8 @@ export async function aiGate(deps: Deps, orgId: string): Promise<"ready" | "off"
 }
 /** TD1's per workspace AI switch (the same gate ask() uses): off means no provider call. */
 async function workspaceAiOn(deps: Deps, orgId: string): Promise<boolean> { return (await import("../ai-trust-td1")).aiAllowed(deps, orgId); }
-/** Built in AI (AI2) on this build. Not present yet means no. */
-function builtinReady(_deps: Deps): boolean { return false; }
+/** Built in AI (AI2): the same check ask() uses to route to it (flag on and the existing binding present). Its meter decides each call; it never bills. */
+function builtinReady(deps: Deps): boolean { return !!deps.config.aiConnectAi2 && !!deps.ai; }
 
 function present(r: Row, people: Map<string, ActionPerson>, task: { id: string; ref: string; title: string } | null) {
   const who = r.assigneeId ? people.get(`${r.assigneeType}:${r.assigneeId}`) ?? null : null;
