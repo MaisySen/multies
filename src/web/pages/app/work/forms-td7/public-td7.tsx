@@ -33,9 +33,6 @@ export function Td7Shell({ slug, form, children }: { slug: string; form: WithTd7
   const t = form.td7;
   const counted = useRef<{ view: boolean; start: boolean; reached: Set<string> }>({ view: false, start: false, reached: new Set() });
   const fieldIds = new Set(form.fields.map((f) => f.id));
-  // Closed is decided when the page opens: a refetch after this visitor's own answer (TD2 refreshes the form after
-  // sending) must not swap their thank you for the closed page. A late send is still refused by the server with 410.
-  const [closedAtOpen] = useState(() => !!form.td7?.closed);
   useEffect(() => {
     if (!t || t.closed || t.locked || counted.current.view) return;
     counted.current.view = true;
@@ -53,7 +50,7 @@ export function Td7Shell({ slug, form, children }: { slug: string; form: WithTd7
   return (
     <div className="td7-brand min-h-dvh" data-brand-accent={t.brand.accent} data-brand-surface={t.brand.surface} data-brand-font={t.brand.font} data-testid="td7-brand" onInputCapture={onInput} onChangeCapture={onInput}>
       {t.logo && <div className="flex justify-center px-4 pt-8"><img src={`/api/public/forms/${slug}/logo`} alt={form.workspace ? `${form.workspace} logo` : "Logo"} className="h-10 max-w-[220px] object-contain" data-testid="td7-logo" /></div>}
-      {closedAtOpen ? <ClosedPage form={form} /> : t.locked ? <PasswordGate slug={slug} form={form} /> : children}
+      {t.closed ? <ClosedPage form={form} /> : t.locked ? <PasswordGate slug={slug} form={form} /> : children}
     </div>
   );
 }

@@ -8,7 +8,7 @@ import { CallDialog, DEFAULT_CALL_FIELDS, ReviewQueueTab } from "./forms-plus/ca
 import { FormPlusDialog } from "./forms-plus/settings-dialog";
 import { ReportsTab, useReportAccess } from "./reports-r112/reports-tab"; // R112
 import { ChatForm, RatingInput, type PublicFormData } from "./forms-plus/chat-form";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { replaceEqualDeep, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconArrowDown, IconArrowUp, IconClipboardList, IconExternalLink, IconPlus, IconTrash } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -261,7 +261,11 @@ declare global { interface Window { turnstile?: { render: (el: HTMLElement, opts
 
 /** The public form at /f/<slug>. No sign-in. */
 type PublicFormRow = { name: string; description: string; workspace: string; fields: (FormField & { id: string })[]; turnstileSiteKey: string | null; plus?: PublicFormData["plus"]; /** TD2 */ td2?: Td2Settings };
-const usePublicForm = (slug: string | undefined) => useQuery({ queryKey: ["public-form", slug], retry: false, queryFn: async () => { const access = td7Access(slug); return (await api.get<{ form: PublicFormRow }>(`/public/forms/${slug}`, access ? { headers: { "x-form-access": access } } : undefined)).form; } }); // TD7: an opened password form stays open on refresh
+// TD7: once a visitor has the form open, a refresh that says it closed (often their own answer took the last place,
+// and TD2 refreshes after sending) keeps what they see, so the thank you stays; the server still refuses a late send with 410.
+const td7ClosedOf = (d: unknown) => !!(d as { td7?: { closed?: boolean } } | undefined)?.td7?.closed;
+const keepOpenForm = (prev: unknown, next: unknown) => (prev && !td7ClosedOf(prev) && td7ClosedOf(next) ? prev : replaceEqualDeep(prev, next));
+const usePublicForm = (slug: string | undefined) => useQuery({ queryKey: ["public-form", slug], retry: false, structuralSharing: keepOpenForm, queryFn: async () => { const access = td7Access(slug); return (await api.get<{ form: PublicFormRow }>(`/public/forms/${slug}`, access ? { headers: { "x-form-access": access } } : undefined)).form; } }); // TD7: an opened password form stays open on refresh
 
 /** The public form at /f/<slug> (and /f/<slug>/embed inside the website bubble). R93: chat style when the form asks for it. */
 export function PublicFormPage() {
