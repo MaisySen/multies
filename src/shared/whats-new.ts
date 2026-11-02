@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-02-polish",
+    date: "2026-11-02",
+    title: "Smoother Courses, Tables, Vault and more",
+    body: "Move a table or course to Trash in Docs and restore it within 30 days. Start a webinar straight from Meetings or Schedule, and pages like Sites, Vault and Home recover from errors with one Retry.",
+  },
+  {
     id: "2026-11-02-menu",
     date: "2026-11-02",
     title: "A tidier menu",
@@ -92,12 +98,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Office files in the browser",
     body: "Edit Word files and Excel sheets with working formulas right in Files, save each change as a version, and view slides.",
-  },
-  {
-    id: "2026-10-28-whats-new",
-    date: "2026-10-28",
-    title: "What's new, in the app",
-    body: "The account menu has a What's new item, with a small dot when something new has shipped since you last looked. The same list is on the public changelog page.",
   },
 ];
 
