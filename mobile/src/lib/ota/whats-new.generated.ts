@@ -19,6 +19,18 @@ export const WHATS_NEW: Record<string, WhatsNewItem[]> = {
       "body": "Search, open a contact, tap Get directions to open your maps app, and see past Visits."
     },
     {
+      "title": "Mail merge on the phone",
+      "body": "See newsletters with their status and counts, lists and journeys, and pause, resume or send yourself a test where your role allows. Writing stays on the web."
+    },
+    {
+      "title": "Mail archive in Settings",
+      "body": "Admins see the retention policy, legal holds, saved cases and can search archived mail read only. Members see the policy summary."
+    },
+    {
+      "title": "Calendar and contacts sync in Settings",
+      "body": "Make an app password, see the server address and short steps for iPhone and Android, and revoke passwords you no longer use."
+    },
+    {
       "title": "",
       "body": "When the app restarts to apply an update it no longer counts as a crash."
     }

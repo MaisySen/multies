@@ -10,6 +10,12 @@ Android, CFBundleShortVersionString on iOS).
 - Search everything from one place, with chips to narrow it to mail, contacts, files, docs, tasks and more.
 - Docs open in a clean reader on the phone, with comments and share links.
 - Contacts on the phone: search, open a contact, tap Get directions to open your maps app, and see past Visits.
+- Mail merge on the phone: see newsletters with their status and counts, lists and journeys, and pause, resume
+  or send yourself a test where your role allows. Writing stays on the web.
+- Mail archive in Settings: admins see the retention policy, legal holds, saved cases and can search archived
+  mail read only. Members see the policy summary.
+- Calendar and contacts sync in Settings: make an app password, see the server address and short steps for
+  iPhone and Android, and revoke passwords you no longer use.
 - When the app restarts to apply an update it no longer counts as a crash.
 
 ## 1.10.8 (OTA, runs on Android versionCode 16 and iOS build 20), 1 Nov 2026
