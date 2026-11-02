@@ -23,7 +23,7 @@ test("shell (R79): sections in the rail, with Shared inbox in the Mail section",
   await expect(rail.getByTestId("rail-mail")).toBeVisible();
   await expect(rail.getByTestId("rail-tasks")).toBeVisible();
   await expect(rail.getByTestId("rail-workspace")).toBeVisible();
-  await page.goto("/app/mailboxes");
+  await page.goto("/app/inbox"); // R121: Mailboxes moved to Settings, Mail setup (P2); Shared inbox is the Mail section's own page
   const nav = page.getByTestId("context-sidebar");
   await expect(nav.getByRole("link", { name: "Shared inbox" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Team inbox" })).toHaveCount(0);
@@ -31,8 +31,9 @@ test("shell (R79): sections in the rail, with Shared inbox in the Mail section",
 
 test("domains: the setup page lists every record with copy buttons", async () => {
   await page.goto("/app/domains");
-  await page.locator('a[href^="/app/domains/dom_"]').first().click();
-  await expect(page).toHaveURL(/\/app\/domains\/dom_/);
+  // R121: with P2 on the page lives at /app/settings/domains (the old address redirects there).
+  await page.locator('a[href*="/domains/dom_"]').first().click();
+  await expect(page).toHaveURL(/\/app\/(settings\/)?domains\/dom_/);
   for (const t of ["Ownership", "Inbound mail (MX)", "Sender policy (SPF)", "Signing key (DKIM)", "Policy (DMARC)"]) {
     await expect(page.getByRole("heading", { name: t })).toBeVisible();
   }

@@ -187,8 +187,15 @@ test("P1 phone 390: drawer lists Social and Agents, pages fit, planner is a list
   await page.goto("/app/my-work");
   await page.getByTestId("tab-more").click();
   const drawer = page.getByRole("dialog", { name: "Navigation" });
-  await expect(drawer.getByRole("link", { name: "Agents" })).toBeVisible();
-  await drawer.getByRole("link", { name: "Social" }).click();
+  if ((await (await page.request.get("/api/config")).json()).navP2) {
+    // R121 (P2 menu): More shows section tiles; Social opens its page list.
+    await expect(drawer.getByTestId("more-tile-agents")).toBeVisible();
+    await drawer.getByTestId("more-tile-social").click();
+    await drawer.getByRole("link", { name: "Planner" }).click();
+  } else {
+    await expect(drawer.getByRole("link", { name: "Agents" })).toBeVisible();
+    await drawer.getByRole("link", { name: "Social" }).click();
+  }
   await expect(page).toHaveURL(/\/app\/social$/);
   await expect(page.getByTestId("planner-agenda")).toBeVisible();
   await expect(page.getByTestId("planner-grid")).toBeHidden();
