@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { useConfig } from "@/web/lib/queries"; // R126
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconArrowLeft, IconReceipt, IconBuilding, IconHandshake, IconMail, IconPlus, IconTasks, IconTeam, IconUpload, IconVideo } from "@/web/components/ui/icon";
 import { startMeeting } from "./meeting-start";
@@ -39,6 +40,7 @@ export function ContactsPage() {
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
   const portalsOn = usePortalsOn().on; // R120
+  const peopleOn = !!useConfig().data?.peopleR126; // R126: Staff tab
   const invoicesOn = useInvoicesOn(); // R105
   // R94: segments, filters, import and companies by hand (CRM_TIMELINE).
   const crm = useCrmTimelineOn();
@@ -64,6 +66,7 @@ export function ContactsPage() {
           {(["people", "companies", ...(portalsOn ? (["portals"] as const) : []), ...(maps ? (["visits"] as const) : [])] as const).map((t) => (
             <button key={t} role="tab" aria-selected={tab === t} onClick={() => setParams(t === "people" ? {} : { tab: t })} className={cn("rounded-md px-3 py-1.5 text-[13px]", tab === t ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")} data-testid={`contacts-tab-${t}`}>{TAB_LABEL[t]}</button>
           ))}
+          {peopleOn && <Link to="/app/contacts/staff" role="tab" aria-selected={false} className="rounded-md px-3 py-1.5 text-[13px] text-muted hover:text-fg" data-testid="contacts-tab-staff">Staff</Link>}{/* R126 */}
         </div>
         {tab !== "visits" && <Input aria-label="Search contacts" placeholder={tab === "people" ? "Search by name or email" : tab === "portals" ? "Search portals" : "Search companies"} value={q} onChange={(e) => setQ(e.target.value)} className="h-9 max-w-xs" />}
         {tab === "people" && people.data && <span className="text-[12.5px] text-subtle">{people.data.total} {people.data.total === 1 ? "person" : "people"}</span>}

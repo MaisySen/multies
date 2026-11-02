@@ -1,3 +1,4 @@
+import { useConfig } from "@/web/lib/queries"; // R126
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
@@ -58,6 +59,7 @@ export function TeamSettings() {
   const [inviting, setInviting] = useState(false);
   const [created, setCreated] = useState<(InviteCreated & { email: string }) | null>(null);
   const myRole = me.data?.organization?.role ?? "member";
+  const peopleOn = !!useConfig().data?.peopleR126; // R126
   const canManage = myRole !== "member";
   // R41 (MB-220 follow up): the demo can't send invites (the server answers demo_invites_off); say so before anyone tries.
   const isDemo = !!me.data?.organization?.isDemo;
@@ -78,6 +80,12 @@ export function TeamSettings() {
         <HeadlineTile icon={<IconClock />} value={head.pending} label="Invites pending" tone={head.pending ? "warn" : "neutral"} />
         <HeadlineTile icon={<IconUserCheck />} value={head.seatsLeft} label="Seats left" tone={head.seatsLeft ? "ok" : "warn"} />
       </div>
+      {peopleOn && myRole !== "member" && (
+        <Card className="flex flex-wrap items-center gap-3 p-5" data-testid="team-onboarding">{/* R126 */}
+          <div className="min-w-0 flex-1"><h2 className="text-[15px] font-semibold">Onboarding and offboarding</h2><p className="mt-1 text-sm text-muted">Checklists that turn into tasks when you assign them to someone from their staff profile.</p></div>
+          <Link to="/app/settings/team/onboarding" className="inline-flex h-9 items-center rounded-lg border border-line-strong px-3.5 text-sm hover:bg-hover max-sm:min-h-11">Open checklists</Link>
+        </Card>
+      )}
       <Card>
         <div className="flex flex-col gap-4 border-b border-line p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>

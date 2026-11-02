@@ -192,6 +192,13 @@ const GeneralSettings = lazyPage(() => settings(), "GeneralSettings");
 const MailSettings = lazyPage(() => settings(), "MailSettings");
 const AccountSettings = lazyPage(() => import("./pages/app/security"), "AccountSettings");
 const TeamSettings = lazyPage(() => import("./pages/app/team"), "TeamSettings");
+const peopleR126 = () => import("./pages/app/people-r126/staff"); // R126
+const peopleR126Profile = () => import("./pages/app/people-r126/profile"); // R126
+const StaffPage = lazyPage(() => peopleR126(), "StaffPage"); // R126
+const StaffProfilePage = lazyPage(() => peopleR126Profile(), "StaffProfilePage"); // R126
+const AssetPage = lazyPage(() => peopleR126Profile(), "AssetPage"); // R126
+const AssetLabelsPage = lazyPage(() => peopleR126Profile(), "AssetLabelsPage"); // R126
+const OnboardingSettingsPage = lazyPage(() => import("./pages/app/people-r126/onboarding-settings"), "OnboardingSettingsPage"); // R126
 const BillingSettings = lazyPage(() => import("./pages/app/billing"), "BillingSettings");
 const AuthEmailSettings = lazyPage(() => import("./pages/app/auth-email-settings"), "AuthEmailSettings"); // R27
 const ChannelsSettings = lazyPage(() => import("./pages/app/channels-settings"), "ChannelsSettings"); // C1
@@ -321,6 +328,10 @@ export const router = createBrowserRouter([
       { path: "docs/learning", element: page(<MyLearningPage />) }, // R129: My learning
       { path: "docs/:id", element: page(<DocPage />) },
       { path: "contacts", element: page(<ContactsPage />) },
+      { path: "contacts/staff", element: page(<StaffPage />) }, // R126 (PEOPLE_R126; not found while off)
+      { path: "contacts/staff/:userId", element: page(<StaffProfilePage />) }, // R126
+      { path: "contacts/assets/labels", element: page(<AssetLabelsPage />) }, // R126
+      { path: "contacts/assets/:id", element: page(<AssetPage />) }, // R126: where an asset QR label lands (signed in members only)
       { path: "contacts/portals/:id", element: page(<PortalPage />) }, // R120
       { path: "contacts/invoices", element: page(<InvoicesPage />) }, // R105
       { path: "contacts/invoices/:id", element: page(<InvoiceDocPage />) }, // R105
@@ -385,6 +396,7 @@ export const router = createBrowserRouter([
           { path: "branding", element: page(<BrandingSettings />) }, // R77
           { path: "appearance", element: page(<AppearanceSettings />) }, // R77
           { path: "team", element: page(<TeamSettings />) },
+          { path: "team/onboarding", element: page(<OnboardingSettingsPage />) }, // R126
           { path: "channels", element: page(<ChannelsSettings />) }, // C1
           { path: "apps", element: page(<AppsSettings />) }, // R80C: Connections hub
           { path: "apps/social", element: <MovedSocial /> }, // P1 layout: Social posts moved to Social

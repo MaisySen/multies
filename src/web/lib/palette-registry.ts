@@ -9,9 +9,9 @@ export type PaletteIcon = React.ComponentType<{ className?: string }>;
  * R59: `flag` names a server switch from /api/config; the page is offered only while it is on.
  * Tools P2: `toolFeature` also needs one of these P2 features in /api/config toolFeatures.
  */
-export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog"; toolFeature?: string[] }
+export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog"; toolFeature?: string[] }
 export type PaletteActionKind = "navigate" | "shortcuts" | "theme" | "external";
-export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog"; toolFeature?: string[] }
+export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog"; toolFeature?: string[] }
 
 export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-my-work", label: "My Work", to: "/app/my-work", icon: IconToday, keywords: ["today", "due", "home", "mentions"] },
@@ -64,6 +64,11 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-files-doc-rules", label: "Document rules", to: "/app/files?view=docs&rules=1", icon: IconAttachment, keywords: ["sort documents", "tag bills", "auto file"], flag: "docInbox" }, // R102
   { id: "p-goals", label: "Goals", to: "/app/goals", icon: IconTarget, keywords: ["okr", "objectives"] },
   { id: "p-contacts", label: "Contacts", to: "/app/contacts", icon: IconContacts, keywords: ["crm", "people", "companies", "customers"] },
+  { id: "p-staff", label: "Staff", to: "/app/contacts/staff", icon: IconContacts, keywords: ["staff directory", "employees", "team members", "colleagues", "skills"], flag: "peopleR126" }, // R126
+  { id: "p-org-chart", label: "Org chart", to: "/app/contacts/staff?view=org", icon: IconContacts, keywords: ["org chart", "managers", "reports to", "hierarchy"], flag: "peopleR126" }, // R126
+  { id: "p-staff-away", label: "Who is away", to: "/app/contacts/staff?view=away", icon: IconContacts, keywords: ["leave", "time off", "days off", "away", "holidays"], flag: "peopleR126" }, // R126
+  { id: "p-assets", label: "Assets", to: "/app/contacts/staff?view=assets", icon: IconBriefcase, keywords: ["equipment", "laptops", "asset register", "warranty", "qr labels"], flag: "peopleR126" }, // R126
+  { id: "p-onboarding", label: "Onboarding checklists", to: "/app/settings/team/onboarding", icon: IconBriefcase, keywords: ["onboarding", "offboarding", "new starter", "leaver", "checklist"], flag: "peopleR126" }, // R126
   // R115: the Visits tab in Contacts (MAPS_R115).
   { id: "p-visits", label: "Plan visits", to: "/app/contacts?tab=visits", icon: IconMapPin, keywords: ["map", "route", "directions", "visits", "address", "round", "trip"], flag: "maps" },
   // R105: invoices and quotes in the Contacts area (INVOICES_ENABLED).

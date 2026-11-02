@@ -20,7 +20,7 @@ type Body = Record<string, unknown>;
 const nowMs = (deps: Deps) => deps.now().getTime();
 const isAdmin = (a: A) => a.role === "owner" || a.role === "admin";
 const notFound = () => new HttpError(404, "not_found", "Page not found.");
-const str = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, max) : "");
+const str = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\p{Cc}/gu, " ").trim().slice(0, max) : "");
 const has = (b: Body, k: string) => Object.prototype.hasOwnProperty.call(b, k);
 const parseJson = <T>(s: string | null | undefined, d: T): T => { try { return s ? (JSON.parse(s) as T) : d; } catch { return d; } };
 const today = (deps: Deps) => deps.now().toISOString().slice(0, 10);
