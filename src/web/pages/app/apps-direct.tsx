@@ -131,6 +131,8 @@ function AccountRow({ a, canManage }: { a: DirectAccountView; canManage: boolean
         ) : (
           <p className="mt-0.5 text-[13px] text-muted">{a.available ? BLURB[a.provider] : "Not switched on here yet."}</p>
         )}
+        {/* F13b (MB-308): say what Test mode means and what to do. */}
+        {a.testMode && <p className="mt-1 text-[12.5px] text-muted" data-testid={`direct-${a.provider}-test-mode`}>Test mode: {name} has not approved this app for everyone yet, so only accounts added as testers in its developer settings can connect, and posts go up as private. Make a post public in the {name} app.</p>}
       </div>
       <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
         {a.available && canManage && (!a.connected || a.status === "expired") && (

@@ -24,6 +24,7 @@ import {
   type Answers, type BuiltContract, type ClauseText, type ContractTemplateDef, type FillContext, type Question,
 } from "@/shared/contracts-r108";
 import { LoadFailure } from "@/web/components/load-error-t1g";
+import { useToolsFocus } from "@/web/components/tools/tools-frame"; // F13b
 
 interface TemplateSummary { id: string; name: string; description: string; category: string; questionCount: number; clauseCount: number; builtIn: boolean; retired: boolean; baseId: string }
 interface Recent { id: string; title: string; docId: string | null; templateId: string; reminders: number; createdAt: string }
@@ -230,6 +231,7 @@ function Preview({ built }: { built: BuiltContract }) {
 
 const REVIEW = "Review";
 function Interview({ id, onBack }: { id: string; onBack: () => void }) {
+  useToolsFocus(); // F13b (MB-309): the interview takes the full width; Back to templates brings the rail back
   const navigate = useNavigate();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["contracts", "template", id], queryFn: () => api.get<Detail>(`/contracts/templates/${id}`) });
@@ -312,13 +314,13 @@ function Interview({ id, onBack }: { id: string; onBack: () => void }) {
           <Button variant="ghost" size="sm" onClick={onBack}>Back to templates</Button>
           <h2 ref={headRef} tabIndex={-1} className="mt-1 text-lg font-semibold focus:outline-none">{def.name}</h2>
         </div>
-        <div className="flex rounded-lg border border-line p-0.5 2xl:hidden" role="tablist" aria-label="Questions or preview">
+        <div className="flex rounded-lg border border-line p-0.5 xl:hidden" role="tablist" aria-label="Questions or preview">
           {(["questions", "preview"] as const).map((p) => <button key={p} role="tab" aria-selected={pane === p} onClick={() => setPane(p)} className={cn("min-h-[36px] rounded-md px-3 text-[13px]", pane === p ? "bg-fill font-medium text-fg" : "text-muted")}>{p === "questions" ? "Questions" : "Preview"}</button>)}
         </div>
       </div>
       {q.data!.skipped.length > 0 && <p className="text-xs text-subtle">{q.data!.skipped.length} retired clause{q.data!.skipped.length === 1 ? " is" : "s are"} left out.</p>}
-      <div className="grid gap-4 2xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-        <Card className={cn("space-y-4 p-4", pane !== "questions" && "hidden 2xl:block")}>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+        <Card className={cn("space-y-4 p-4", pane !== "questions" && "hidden xl:block")}>
           <nav aria-label="Interview steps">
             <ol className="flex flex-wrap gap-1.5">
               {sections.map((s, i) => (
@@ -372,7 +374,7 @@ function Interview({ id, onBack }: { id: string; onBack: () => void }) {
             </div>
           )}
         </Card>
-        <div className={cn("min-w-0", pane !== "preview" && "hidden 2xl:block")}><Preview built={built} /></div>
+        <div className={cn("min-w-0", pane !== "preview" && "hidden xl:block")}><Preview built={built} /></div>
       </div>
     </div>
   );

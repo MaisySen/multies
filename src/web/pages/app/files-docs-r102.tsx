@@ -24,6 +24,7 @@ import {
   type DocDetail, type DocField, type DocList, type DocMatch, type DocRow, type DocRule, type DocType, type DocView,
 } from "@/shared/doc-inbox";
 import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
+import { ScrollRow } from "@/web/components/ui/scroll-row"; // F13b
 
 const dateLabel = (d: string | null) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }) : "");
 const centsInput = (c: number | null) => (c === null ? "" : (c / 100).toFixed(2));
@@ -111,7 +112,7 @@ export function DocumentsView({ isAdmin }: { isAdmin: boolean }) {
         <input ref={fileInput} type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.tif,.tiff,.txt,.csv,.md,.docx,.xlsx" data-testid="docs-file-input"
           onChange={(e) => { const f = [...(e.target.files ?? [])]; e.target.value = ""; if (f.length) void upload(f); }} />
         {!searching && (
-          <div ref={tabsRef} role="tablist" aria-label="Document views" onKeyDown={onTabKey} className="flex gap-1 overflow-x-auto border-b border-line px-3 py-2">
+          <ScrollRow ref={tabsRef} role="tablist" aria-label="Document views" onKeyDown={onTabKey} activeKey={dv} className="flex gap-1 border-b border-line px-3 py-2">
             {DOC_VIEWS.map((v) => {
               const n = counts?.[v];
               const active = v === dv;
@@ -124,7 +125,7 @@ export function DocumentsView({ isAdmin }: { isAdmin: boolean }) {
                 </button>
               );
             })}
-          </div>
+          </ScrollRow>
         )}
         {counts?.capped && (
           <p className="border-b border-line bg-fill px-4 py-2 text-xs text-muted" data-testid="docs-capped">Today's reading limit is reached. The rest are read tomorrow.</p>

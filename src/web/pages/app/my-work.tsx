@@ -1,7 +1,11 @@
 /** My Work (round 20), the Today home since R35: a large dated title, summary cards with depth, a Focus list and quick add. */
-import type { ReactNode } from "react";
+import { lazy, Suspense, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { api } from "@/web/lib/api";
+import { useProjects, useTaskMutations } from "./work/data";
 import { displayFirstName } from "@/shared/display-name";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { MyDay } from "./work/my-day-r95"; // R95
 import { IconApprovals, IconCalendarClock, IconCheck, IconChat, IconChevronRight, IconClipboardCheck, IconCompose, IconDocs, IconInbox, IconMail, IconMention, IconPlus, IconAlertCircle, IconRefresh, IconSnooze, IconTasks, IconUserCheck, IconVideo, IconWarning, type IconComponent } from "@/web/components/ui/icon";
 import { ClearDayArt } from "@/web/components/illustrations";
@@ -74,8 +78,10 @@ const FOCUS_ICON: Record<ReturnType<typeof focusItems>[number]["kind"], { icon: 
   approval: { icon: IconApprovals, cls: "text-warn" }, mail: { icon: IconMail, cls: "text-muted" },
 };
 
+// F13b (MB-306): New task opens the task dialog here instead of leaving for Tasks.
+const NewTaskDialog = lazy(() => import("./work/tasks").then((m) => ({ default: m.NewTaskDialog })));
+
 const QUICK: { to: string; label: string; icon: IconComponent }[] = [
-  { to: "/app/tasks?new=1", label: "New task", icon: IconPlus },
   { to: "/app/mail?compose=1", label: "New email", icon: IconCompose },
   { to: "/app/docs?new=1", label: "New doc", icon: IconDocs },
   { to: "/app/meetings", label: "Meeting", icon: IconVideo },
@@ -88,6 +94,25 @@ export function MyWorkPage() {
   const me = useMe();
   const counts = useCounts(true);
   const first = displayFirstName(me.data?.user.name, me.data?.user.email); // R41 (MB-224)
+  // F13b (MB-306): a new task made here stays here. With My Day on it goes on today's list and gets focus; otherwise a
+  // toast says it was added with Open.
+  const [newTask, setNewTask] = useState(false);
+  const [madeTask, setMadeTask] = useState<string | null>(null);
+  const projects = useProjects();
+  const { create } = useTaskMutations();
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const made = async (task: { id: string; ref: string }) => {
+    void qc.invalidateQueries({ queryKey: ["my-work"] });
+    if (plus) {
+      try { await api.post("/my-day", { day: new Date().toLocaleDateString("en-CA"), taskId: task.id, start: null, minutes: 30 }); } catch { /* the task stands; it just is not on the day */ }
+      await qc.invalidateQueries({ queryKey: ["my-day"] });
+      setMadeTask(task.id);
+      toast.success(`Added ${task.ref} to today`);
+    } else {
+      toast.success(`Added ${task.ref}`, { action: { label: "Open", onClick: () => navigate(`/app/tasks?task=${task.id}`) } });
+    }
+  };
   const w = q.data;
   const c = counts.data;
   const nothing = w && !w.overdue.length && !w.dueToday.length && !w.mentions.length && !w.threads.length && !w.assignedThreads?.length && !w.approvals.length && !w.meetings.length && !w.snoozed?.length;
@@ -126,6 +151,9 @@ export function MyWorkPage() {
 
       {/* R46 mobile: one row that scrolls sideways with snap, fading at the right edge so the cut off chip reads as "more". */}
       <div className="no-scrollbar -mx-4 mb-5 flex snap-x snap-mandatory scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 [mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] max-sm:mb-4 sm:mx-0 sm:flex-wrap sm:px-0 sm:[mask-image:none]" role="group" aria-label="Quick add" data-testid="today-quick">
+        <button type="button" onClick={() => setNewTask(true)} data-testid="mywork-new-task" className="pressable elev-1 inline-flex min-h-9 shrink-0 snap-start items-center gap-1.5 rounded-full bg-surface px-3.5 text-[13px] font-medium text-fg hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand max-sm:min-h-11 max-sm:px-4 max-sm:text-[14px]">
+          <IconPlus size={16} className="text-[#0071E3] dark:text-brand-hover" />New task
+        </button>
         {QUICK.map((k) => (
           <Link key={k.label} to={k.to} className="pressable elev-1 inline-flex min-h-9 shrink-0 snap-start items-center gap-1.5 rounded-full bg-surface px-3.5 text-[13px] font-medium text-fg hover:bg-hover max-sm:min-h-11 max-sm:px-4 max-sm:text-[14px] last:mr-6 sm:last:mr-0">
             <k.icon size={16} className="text-[#0071E3] dark:text-brand-hover" />{k.label}
@@ -158,7 +186,7 @@ export function MyWorkPage() {
           </div>
           )}
 
-          {plus && <MyDay />}
+          {plus && <MyDay focusTaskId={madeTask} userId={me.data?.user.id} />}
 
           {allQuiet ? null : nothing ? (
             <EmptyState className="mb-4" art={<ClearDayArt />} title="You're clear for today" body="Nothing is due, nobody is waiting on you and there are no meetings today." />
@@ -195,6 +223,12 @@ export function MyWorkPage() {
           </div>
           )}
         </>
+      )}
+      {newTask && projects.data && (
+        <Suspense fallback={null}>
+          <NewTaskDialog projects={projects.data.filter((p) => !p.archived)} projectId={projects.data.find((p) => !p.archived)?.id} onClose={() => setNewTask(false)}
+            onCreate={async (body, more) => { const r = await create.mutateAsync(body); await made(r.task); if (!more) setNewTask(false); }} />
+        </Suspense>
       )}
     </div>
   );

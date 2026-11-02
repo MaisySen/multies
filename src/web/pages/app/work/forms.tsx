@@ -23,6 +23,7 @@ import { useAssignees, useProjects, isAgentLike } from "./data";
 import { checkAnswers, checkLogic, MULTI_SEPARATOR, visibleFieldIds, type FormFieldType, type FormRoute } from "@/shared/form-logic";
 import { FormResults, LogicEditor, RoutingEditor, type BuilderField } from "./form-logic-ui";
 import { ApiError } from "@/web/lib/api";
+import { ScrollRow } from "@/web/components/ui/scroll-row"; // F13b
 
 type FieldType = FormFieldType;
 type FormField = BuilderField;
@@ -70,13 +71,13 @@ export function FormsPage() {
   return (
     <div className="space-y-5">
       <PageHeader title="Forms" description={tabs.find((t) => t.id === active)!.line} />
-      <div role="tablist" aria-label="Forms" onKeyDown={onKey} className="-mx-1 flex gap-1 overflow-x-auto border-b border-line px-1" data-testid="forms-tabs">
+      <ScrollRow role="tablist" aria-label="Forms" onKeyDown={onKey} activeKey={active} className="flex gap-1 border-b border-line px-1" data-testid="forms-tabs">
         {tabs.map((t) => (
           <button key={t.id} ref={(el) => { refs.current[t.id] = el; }} type="button" role="tab" id={`forms-tab-${t.id}`} aria-selected={active === t.id} aria-controls={`forms-panel-${t.id}`} tabIndex={active === t.id ? 0 : -1}
             onClick={() => pick(t.id)}
             className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-[14px] font-medium outline-none transition-colors duration-150 focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-11 ${active === t.id ? "border-brand text-fg" : "border-transparent text-muted hover:text-fg"}`}>{t.label}</button>
         ))}
-      </div>
+      </ScrollRow>
       <div role="tabpanel" id={`forms-panel-${active}`} aria-labelledby={`forms-tab-${active}`}>
         {active === "reports" ? <ReportsTab /> : active === "boards" ? <BoardsTab /> : active === "review" ? <ReviewQueueTab /> : <FormsList plus kind={active === "calls" ? "calls" : "forms"} />}
       </div>

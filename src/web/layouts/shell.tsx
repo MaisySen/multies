@@ -5,7 +5,7 @@
  */
 import { useEffect, useMemo, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconBookmark, IconArrowRightLeft, IconLink, IconMegaphone, IconReceipt, IconPlugZap, IconCalendarDays, IconSend, IconUserRoundCheck,
   IconActivity, IconAgent, IconApprovals, IconAttachment, IconBell, IconBriefcase, IconCalendarClock, IconCalendarPlus, IconChart, IconChats,
   IconChevronDown, IconChevronRight, IconClipboardList, IconCompose, IconContacts, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHome,
@@ -24,6 +24,7 @@ import { breadcrumbs, createItems, isNavP2, pageFor, SOCIAL_NEW, type IconKey, t
 import { sectionBadge, withoutHidden } from "@/shared/nav-menu"; // R121
 import { openCustomiseMenu } from "@/web/lib/customise-menu"; // R121
 import { LoadErrorInline } from "@/web/components/load-error-t1g";
+import { retryFailedLoads } from "@/web/lib/load-errors-t1g"; // F13b (MB-320)
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 export const MOD = isMac ? "⌘" : "Ctrl";
@@ -109,6 +110,7 @@ export function ContextSidebar({ section, counts, logo, header, footer }: { sect
   const layout = useLayout();
   const loc = useLocation();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const projects = useQuery({
     queryKey: ["projects"], enabled: section.id === "tasks" || layout.favourites.some((f) => f.kind === "project"), staleTime: 30_000,
     queryFn: async () => (await api.get<{ projects: ShellProject[] }>("/projects")).projects,
@@ -203,7 +205,7 @@ export function ContextSidebar({ section, counts, logo, header, footer }: { sect
                 </div>
               );
             })}
-            {projects.isError && <LoadErrorInline className="px-2 py-1" onRetry={() => projects.refetch()} />}
+            {projects.isError && <LoadErrorInline className="px-2 py-1" onRetry={() => Promise.all([projects.refetch(), retryFailedLoads(qc)])} />}
             {projects.isSuccess && !live.length && <div className="px-2 py-1 text-[12.5px] text-subtle">No projects yet. <button type="button" onClick={() => navigate("/app/tasks?newProject=1")} className="font-medium text-fg underline-offset-2 hover:underline">Start one</button></div>}
           </div>}
         </>}

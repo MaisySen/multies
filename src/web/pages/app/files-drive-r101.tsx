@@ -31,6 +31,7 @@ import { ConfirmDialog, PromptDialog } from "@/web/components/ui/confirm";
 import { loadPdfjs } from "@/web/components/tools/pdf-thumb";
 import { DocumentsView } from "./files-docs-r102";
 import {
+import { ScrollRow } from "@/web/components/ui/scroll-row"; // F13b
   DRIVE_LIMITS, VIEW_LABEL, isDriveView, previewKind, sizeLabel,
   type DriveDetail, type DriveItem, type DriveList, type DriveManifest, type DriveRole, type DriveSpace, type DriveUsage, type DriveView,
 } from "@/shared/drive";
@@ -255,8 +256,8 @@ export function DrivePage({ attachments, mailOn, docsOn = false }: { attachments
     <div className="w-full" data-testid="files-page">
       {header}
       <input ref={fileInput} type="file" multiple hidden data-testid="drive-file-input" onChange={(e) => { const f = [...(e.target.files ?? [])]; e.target.value = ""; if (f.length) void upload(f); }} />
-      <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-        <nav aria-label="Files" className="flex gap-1.5 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
+        <ScrollRow as="nav" aria-label="Files" activeKey={view} className="flex gap-1.5 pb-1 md:flex-col md:overflow-visible md:pb-0 md:[mask-image:none] md:[-webkit-mask-image:none]">
           <p className="hidden px-3 pb-1 text-xs font-medium text-subtle md:block">Drive</p>
           {DRIVE_NAV.map((n) => <NavButton key={n.view} active={view === n.view} onClick={() => go({ view: n.view })} icon={n.icon} label={VIEW_LABEL[n.view]} testId={`drive-nav-${n.view}`} />)}
           <p className="hidden px-3 pb-1 pt-3 text-xs font-medium text-subtle md:block">Library</p>
@@ -271,7 +272,7 @@ export function DrivePage({ attachments, mailOn, docsOn = false }: { attachments
               <p className="mt-1.5 text-xs text-subtle">{sizeLabel(usage.data.usedBytes)} of {sizeLabel(usage.data.quotaBytes)} used</p>
             </div>
           )}
-        </nav>
+        </ScrollRow>
 
         {view === "mail" ? <div className="min-w-0">{attachments}</div> : view === "docs" ? <DocumentsView isAdmin={isAdmin} /> : (
           <Card className="relative min-w-0 overflow-hidden" onDragEnter={onDragEnter} onDragOver={(e: DragEvent) => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); }} onDragLeave={onDragLeave} onDrop={onDrop} data-testid="drive-card">
@@ -640,7 +641,8 @@ function FilePreview({ it, isAdmin }: { it: DriveItem; isAdmin: boolean }) {
       {kind === "audio" && <audio src={src} controls className="w-full" data-testid="drive-preview-audio" />}
       {kind === "pdf" && <PdfPages id={it.id} size={it.sizeBytes} />}
       {kind === "text" && <TextPreview id={it.id} />}
-      {(kind === "office" || kind === "none") && (
+      {/* F13b (MB-302): when the editor can open it, the box above says what to do; no "no preview" under it. */}
+      {((kind === "office" && !office) || kind === "none") && (
         <div className="rounded-xl border border-line p-6 text-center" data-testid="drive-preview-none">
           <span className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-fill text-muted">{iconFor(it, "h-6 w-6")}</span>
           <p className="mt-3 text-[13.5px] font-medium">{it.kind === "folder" ? "Folder" : kind === "office" ? "No preview for this office file yet" : "No preview for this kind of file"}</p>

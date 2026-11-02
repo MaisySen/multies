@@ -29,6 +29,7 @@ import { ComposerV2, composerAccounts, useDirectStatus, useLibrary } from "./soc
 import { PlannerV2 } from "./social-planner";
 import { SocialLibrary } from "./social-library";
 import { LoadFailure } from "@/web/components/load-error-t1g";
+import { ScrollRow } from "@/web/components/ui/scroll-row"; // F13b
 
 /** R117: Social P2 (composer v2, planner v2, drafts and approvals, library) sits behind its own flag. */
 export const useSocialP2 = () => !!useConfig().data?.socialP2;
@@ -51,7 +52,7 @@ export function SocialSwitcher() {
   const p2 = useSocialP2();
   const p2b = useSocialP2b();
   return (
-    <nav aria-label="Social" className="-mx-1 mb-4 overflow-x-auto px-1 lg:hidden" data-testid="social-switcher">
+    <ScrollRow as="nav" aria-label="Social" activeKey={pathname} outerClassName="mb-4 lg:hidden" className="px-0.5" data-testid="social-switcher">
       <ul className="flex w-max gap-1 rounded-lg border border-line bg-fill/50 p-1">
         {/* R117: with Library the phone switcher keeps four tabs that fit; New post stays one tap away in each page header. */}
         {SOCIAL_TABS.filter((t) => (p2 ? t.to !== "/app/social/new" || pathname.startsWith("/app/social/new") : t.to !== "/app/social/library"))
@@ -68,7 +69,7 @@ export function SocialSwitcher() {
           );
         })}
       </ul>
-    </nav>
+    </ScrollRow>
   );
 }
 

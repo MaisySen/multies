@@ -12,6 +12,7 @@ import { IconListTree, IconAssign, IconBoard, IconMore, IconBookmark, IconCalend
 
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
 import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
+import { retryFailedLoads } from "@/web/lib/load-errors-t1g"; // F13b (MB-320)
 import { emptyTasksCopy, hasTaskFilters } from "@/web/lib/empty-states";
 import { BoardSkeleton, TasksEmpty } from "./tasks-empty";
 import { CalendarSkeleton, PanelListSkeleton, TimelineSkeleton } from "@/web/components/skeletons-r36"; // R36
@@ -264,7 +265,7 @@ export function TasksPage() {
     try { await api.del(`/tasks/views/${v.id}`); await qc.invalidateQueries({ queryKey: sk.views }); if (activeViewId === v.id) set({ v: null }); } catch (e) { showError(e as Error); }
   };
 
-  if (projects.isError && !projects.data) return <LoadError onRetry={() => projects.refetch()} />; // T1G (T1-8)
+  if (projects.isError && !projects.data) return <LoadError onRetry={() => Promise.all([projects.refetch(), retryFailedLoads(qc)])} />; // T1G (T1-8); F13b (MB-320): one Retry recovers every failed read on screen
   if (projects.isPending) return <div className="space-y-3"><Skeleton className="h-8 w-48" /><Skeleton className="h-64" /></div>;
 
   return (
@@ -409,7 +410,7 @@ export function TasksPage() {
         {!list.length ? (
           <EmptyState icon={<IconBoard />} title="No projects yet" body="Make a task from any email, or start a project. Your first project is set up for you." action={<Button onClick={() => setNewTask({})}>New task</Button>} />
         ) : tasks.isError && !tasks.data ? (
-          <LoadError onRetry={() => tasks.refetch()} className="rounded-xl border border-line bg-surface" />
+          <LoadError onRetry={() => Promise.all([tasks.refetch(), retryFailedLoads(qc)])} className="rounded-xl border border-line bg-surface" />
         ) : tasks.isPending ? (
           view === "board" && project ? <BoardSkeleton columns={Math.min(project.statuses.length || 4, 5)} /> : <SkeletonRows rows={8} rowHeight={41} label="Loading tasks" className="rounded-xl border border-line bg-surface" />
         ) : !(tasks.data ?? []).length && view !== "workload" && view !== "sprints" && (filtered || view === "list" || (view === "board" && !project)) ? (
@@ -460,7 +461,8 @@ export function TasksPage() {
   );
 }
 
-function NewTaskDialog({ projects, projectId, statusId, onClose, onCreate }: { projects: Project[]; projectId?: string; statusId?: string; onClose: () => void; onCreate: (b: Record<string, unknown>, more: boolean) => Promise<void> }) {
+// F13b (MB-306): My Work opens the same dialog in place.
+export function NewTaskDialog({ projects, projectId, statusId, onClose, onCreate }: { projects: Project[]; projectId?: string; statusId?: string; onClose: () => void; onCreate: (b: Record<string, unknown>, more: boolean) => Promise<void> }) {
   const people = useAssignees();
   const [title, setTitle] = useState("");
   const [pid, setPid] = useState(projectId ?? "");

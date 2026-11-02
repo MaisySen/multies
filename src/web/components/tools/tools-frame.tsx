@@ -4,7 +4,14 @@
  * on a wide screen the same rail of every tool on the left, on a phone a clear "All tools" link; a card with the tool's
  * own icon, name, one line and the runs left line. The list and features come from the shared GET /api/tools cache.
  */
-import { useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+
+/** F13b (MB-309): a tool view that needs the whole width (the contract interview) hides the rail while it is open. */
+const ToolsFocusContext = createContext<(on: boolean) => void>(() => {});
+export function useToolsFocus() {
+  const set = useContext(ToolsFocusContext);
+  useEffect(() => { set(true); return () => set(false); }, [set]);
+}
 import { Link, useNavigate } from "react-router";
 import { IconArrowLeft, IconSearch } from "@/web/components/ui/icon";
 import { tz } from "@/web/lib/format";
@@ -91,12 +98,14 @@ export function ToolsFrame({ entryKey, title, description, testId, actions, usag
   const info = useToolsInfo();
   const entries = useMemo(() => buildEntries(info.data?.tools ?? [], info.data?.features ?? []), [info.data]);
   const entry = entries.find((e) => e.key === entryKey);
+  const [focus, setFocus] = useState(false); // F13b (MB-309)
   return (
-    <div className={`mx-auto w-full ${wide ? "max-w-7xl" : "max-w-6xl"} px-4 pb-8 pt-4 sm:px-6 sm:pt-6`} data-testid={testId}>
-      <div className="lg:grid lg:grid-cols-[236px_minmax(0,1fr)] lg:gap-6">
-        <ToolsRail entries={entries} active={entryKey} />
+    <ToolsFocusContext.Provider value={setFocus}>
+    <div className={`mx-auto w-full ${wide || focus ? "max-w-7xl" : "max-w-6xl"} px-4 pb-8 pt-4 sm:px-6 sm:pt-6`} data-testid={testId} data-focus={focus ? "" : undefined}>
+      <div className={focus ? "" : "lg:grid lg:grid-cols-[236px_minmax(0,1fr)] lg:gap-6"}>
+        {!focus && <ToolsRail entries={entries} active={entryKey} />}
         <div className="min-w-0 space-y-5">
-          <Link to="/app/tools" className={`-mb-2 flex min-h-11 w-fit items-center gap-1.5 rounded-lg pr-2 text-[14px] font-medium text-brand-hover lg:hidden ${ring}`} data-testid="tools-back"><IconArrowLeft className="h-4 w-4" aria-hidden />All tools</Link>
+          <Link to="/app/tools" className={`-mb-2 flex min-h-11 w-fit items-center gap-1.5 rounded-lg pr-2 text-[14px] font-medium text-brand-hover ${focus ? "" : "lg:hidden"} ${ring}`} data-testid="tools-back"><IconArrowLeft className="h-4 w-4" aria-hidden />All tools</Link>
           <header className="flex items-start gap-3.5" data-testid="tools-frame-header">
             {entry ? <ToolIcon e={entry} size="lg" /> : <span className="h-11 w-11 shrink-0 rounded-xl bg-fill" aria-hidden />}
             <div className="min-w-0 flex-1">
@@ -112,5 +121,6 @@ export function ToolsFrame({ entryKey, title, description, testId, actions, usag
         </div>
       </div>
     </div>
+    </ToolsFocusContext.Provider>
   );
 }

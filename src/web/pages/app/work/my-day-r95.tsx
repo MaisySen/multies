@@ -35,7 +35,7 @@ export function minuteAt(clientY: number, top: number, scrollTop = 0) {
   return Math.max(0, Math.min(1439, Math.round((clientY - top + scrollTop) / PX_PER_MIN)));
 }
 
-export function MyDay() {
+export function MyDay({ focusTaskId, userId }: { focusTaskId?: string | null; userId?: string } = {}) {
   const qc = useQueryClient();
   const [day, setDay] = useState(localYmd());
   const today = localYmd();
@@ -48,6 +48,22 @@ export function MyDay() {
   const unscheduled = items.filter((i) => i.start === null);
   const scheduled = items.filter((i) => i.start !== null).sort((a, b) => a.start! - b.start!);
   const [live, setLive] = useState("");
+  // F13b (MB-306): a task made from My Work lands on today's list and gets focus there.
+  const [focusId, setFocusId] = useState<string | null>(null);
+  useEffect(() => { if (focusTaskId) { setDay(localYmd()); setFocusId(focusTaskId); } }, [focusTaskId]);
+  useEffect(() => {
+    if (!focusId || !items.some((i) => i.taskId === focusId)) return;
+    document.querySelector<HTMLElement>(`[data-testid="my-day"] [data-task-id="${CSS.escape(focusId)}"] a`)?.focus();
+    setFocusId(null);
+  }, [focusId, items]);
+  // F13b (MB-307): type a task straight onto the day; it is yours and goes on the list without a time.
+  const add = async (title: string) => {
+    const r = await api.create<{ task: { id: string; title: string } }>("/tasks", { title, ...(userId ? { assignee: userId } : {}) });
+    await api.post("/my-day", { day, taskId: r.task.id, start: null, minutes: 30 });
+    setLive(`${r.task.title} is on the list.`);
+    refresh();
+    void qc.invalidateQueries({ queryKey: ["tasks"] });
+  };
 
   const place = async (opts: { itemId?: string; taskId?: string; start: number | null; minutes?: number; title: string }) => {
     const minutes = opts.minutes ?? items.find((i) => i.id === opts.itemId)?.minutes ?? 30;
@@ -113,7 +129,7 @@ export function MyDay() {
         <div className="elev-1 rounded-[var(--radius-r14)] bg-surface p-4"><LoadErrorInline onRetry={() => q.refetch()} /></div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-          <DayList items={unscheduled} scheduled={scheduled} suggestions={q.data!.suggestions} onPlace={place} onRemove={remove} onFinish={finish} />
+          <DayList items={unscheduled} scheduled={scheduled} suggestions={q.data!.suggestions} onPlace={place} onRemove={remove} onFinish={finish} onAdd={add} day={day === today ? "today" : "tomorrow"} />
           <DayColumn day={day} isToday={day === today} items={scheduled} onPlace={place} onRemove={remove} onFinish={finish} />
         </div>
       )}
@@ -135,6 +151,27 @@ function TaskLine({ it, onFinish }: { it: PlanItem; onFinish: (it: PlanItem) => 
   );
 }
 
+/** F13b (MB-307): the add box at the top of the list. Enter adds and keeps the cursor here for the next one. */
+function AddToDay({ onAdd, day }: { onAdd: (title: string) => Promise<void>; day: "today" | "tomorrow" }) {
+  const [title, setTitle] = useState("");
+  const [busy, setBusy] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const submit = async () => {
+    const t = title.trim();
+    if (!t || busy) return;
+    setBusy(true);
+    try { await onAdd(t); setTitle(""); } catch (e) { showError(e as Error); } finally { setBusy(false); requestAnimationFrame(() => input.current?.focus()); }
+  };
+  return (
+    <form className="hairline-b flex items-center gap-2 px-4 py-2" onSubmit={(e) => { e.preventDefault(); void submit(); }} data-testid="my-day-add">
+      <IconPlus className="h-4 w-4 shrink-0 text-subtle" aria-hidden="true" />
+      <Input ref={input} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} placeholder={`Add a task for ${day}`} aria-label={`Add a task for ${day}`}
+        className="h-9 flex-1 border-transparent bg-transparent px-1 text-[13.5px] shadow-none max-sm:h-11" />
+      <Button size="sm" type="submit" variant="secondary" loading={busy} disabled={!title.trim()}>Add</Button>
+    </form>
+  );
+}
+
 function ScheduleAt({ it, onPlace }: { it: PlanItem; onPlace: (o: { itemId: string; start: number | null; title: string }) => void }) {
   const [open, setOpen] = useState(false);
   const [val, setVal] = useState(minutesText(it.start ?? Math.min(1380, Math.ceil(nowMinute() / 15) * 15)));
@@ -147,8 +184,8 @@ function ScheduleAt({ it, onPlace }: { it: PlanItem; onPlace: (o: { itemId: stri
   );
 }
 
-function DayList({ items, scheduled, suggestions, onPlace, onRemove, onFinish }: {
-  items: PlanItem[]; scheduled: PlanItem[]; suggestions: PlanTask[];
+function DayList({ items, scheduled, suggestions, onPlace, onRemove, onFinish, onAdd, day }: {
+  items: PlanItem[]; scheduled: PlanItem[]; suggestions: PlanTask[]; onAdd: (title: string) => Promise<void>; day: "today" | "tomorrow";
   onPlace: (o: { itemId?: string; taskId?: string; start: number | null; title: string }) => void; onRemove: (it: PlanItem) => void; onFinish: (it: PlanItem) => void;
 }) {
   const drag = (e: DragEvent, it: PlanItem) => { e.dataTransfer.setData("text/x-plan-item", it.id); e.dataTransfer.setData("text/plain", it.task.title); e.dataTransfer.effectAllowed = "move"; };
@@ -159,17 +196,18 @@ function DayList({ items, scheduled, suggestions, onPlace, onRemove, onFinish }:
         <h3 className="text-[13px] font-semibold">To do</h3>
         <span className="text-[12px] text-subtle max-sm:hidden">Drag onto the day to block time</span>
       </div>
+      <AddToDay onAdd={onAdd} day={day} />
       {!items.length && !scheduled.length && !suggestions.length ? (
         <div className="px-4 py-6 text-center">
           <p className="text-[14px] font-medium">Plan your day</p>
-          <p className="mt-1 text-[13px] text-muted">Add tasks from any task with Add to My Day, then give them a time.</p>
+          <p className="mt-1 text-[13px] text-muted">Type a task above, or use Add to My Day on any task. Then give it a time.</p>
         </div>
       ) : !items.length ? (
         <p className="px-4 py-3 text-[13px] text-muted">{scheduled.length ? "Everything on today's list has a time." : "Nothing on the list yet."}</p>
       ) : (
         <ul>
           {items.map((it, i) => (
-            <li key={it.id} draggable onDragStart={(e) => drag(e, it)} data-testid="my-day-item"
+            <li key={it.id} draggable onDragStart={(e) => drag(e, it)} data-testid="my-day-item" data-task-id={it.taskId}
               className={cn("group flex min-h-11 cursor-grab items-center gap-2.5 px-4 py-1.5 hover:bg-hover active:cursor-grabbing", i > 0 && "hairline-t")}>
               <TaskLine it={it} onFinish={onFinish} />
               <ScheduleAt it={it} onPlace={(o) => onPlace(o)} />

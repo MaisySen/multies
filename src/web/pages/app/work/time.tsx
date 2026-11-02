@@ -255,7 +255,7 @@ function LogTimeDialog({ open, onClose, onSaved }: { open: boolean; onClose: () 
   return (
     <Dialog open={open} onClose={onClose} title="Log time" footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={() => void save()} loading={saving} disabled={!taskId}>Save</Button></>}>
       <div className="space-y-3">
-        <Field label="Task">{(fp) => (<Select {...fp} value={taskId} onChange={(e) => setTaskId(e.target.value)} aria-label="Task">
+        <Field label="Task">{(fp) => (<Select {...fp} data-autofocus="" value={taskId} onChange={(e) => setTaskId(e.target.value)} aria-label="Task">{/* F13b (MB-305): opens on the task, not Close */}
           <option value="">Pick a task</option>
           {tasks.data?.filter((t) => t.status !== "done").map((t) => <option key={t.id} value={t.id}>{t.ref} {t.title}</option>)}
         </Select>)}</Field>
