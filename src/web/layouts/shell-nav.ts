@@ -116,8 +116,11 @@ export function pageTitle(pathname: string, search = "", sections: Section[] = a
   return [...parts, "Multies"].join(" · ");
 }
 
-export type CreateKind = "task" | "doc" | "mail" | "event" | "file" | "post" | "link" | "invoice" | "quote";
-export const CREATE_ITEMS: { kind: CreateKind; label: string; to: string; hint: string }[] = [
+/** Every kind the Create menu can show; the top bar keeps one icon per kind (F13b MB-309: a kind with no icon crashed it). */
+export const CREATE_KINDS = ["task", "doc", "mail", "event", "file", "post", "link", "invoice", "quote", "site", "blog"] as const;
+export type CreateKind = (typeof CREATE_KINDS)[number];
+export interface CreateItem { kind: CreateKind; label: string; to: string; hint: string }
+export const CREATE_ITEMS: CreateItem[] = [
   { kind: "task", label: "Task", to: "/app/tasks?new=1", hint: "T" },
   { kind: "doc", label: "Doc", to: "/app/docs?new=1", hint: "D" },
   { kind: "mail", label: "Email", to: "/app/mail?compose=1", hint: "M" },
@@ -126,7 +129,7 @@ export const CREATE_ITEMS: { kind: CreateKind; label: string; to: string; hint: 
 ];
 
 /** Create items this workspace can use: a file opens Tools, else Docs (where files can be added to a doc). */
-export function createItems(flags: NavFlags) {
+export function createItems(flags: NavFlags): CreateItem[] {
   const items = CREATE_ITEMS.map((c) => (c.kind === "file" && !flags.tools ? { ...c, to: "/app/docs" } : c));
   // R80C: a social post, for the people who can send one.
   // R87: a short link, where Tools > Links is on.

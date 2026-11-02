@@ -11,7 +11,7 @@ import { IconBookmark, IconArrowRightLeft, IconLink, IconMegaphone, IconReceipt,
   IconChevronDown, IconChevronRight, IconClipboardList, IconCompose, IconContacts, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHome,
   IconHelp, IconInbox, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconSidebar, IconSliders,
   IconSquarePlus, IconStar, IconHandshake, IconUserRound, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconVideo, IconWrench, IconZap,
-  type IconComponent,
+  IconPenLine, type IconComponent,
 } from "@/web/components/ui/icon";
 import { buttonClass } from "@/web/components/ui/button";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
@@ -20,7 +20,7 @@ import { api } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
 import { openPalette } from "@/web/lib/shortcuts";
 import { isFavourite, ownsSidebar, resetLayout, setLayout, sidebarHiddenOn, toggleFavourite, toggleSidebar, useLayout, type Favourite } from "@/web/lib/layout-prefs";
-import { breadcrumbs, createItems, isNavP2, pageFor, SOCIAL_NEW, type IconKey, type NavFlags, type Section, type SectionId } from "./shell-nav";
+import { breadcrumbs, createItems, isNavP2, pageFor, SOCIAL_NEW, type CreateKind, type IconKey, type NavFlags, type Section, type SectionId } from "./shell-nav";
 import { sectionBadge, withoutHidden } from "@/shared/nav-menu"; // R121
 import { openCustomiseMenu } from "@/web/lib/customise-menu"; // R121
 import { LoadErrorInline } from "@/web/components/load-error-t1g";
@@ -248,7 +248,8 @@ export function Breadcrumbs({ projectName }: { projectName?: string | null }) {
   );
 }
 
-const CREATE_ICON: Record<string, IconComponent> = { site: IconGlobe, task: IconSquarePlus, doc: IconFilePlus, mail: IconCompose, event: IconCalendarPlus, file: IconUpload, post: IconMegaphone, link: IconLink, invoice: IconReceipt, quote: IconReceipt };
+// F13b (MB-309): typed by kind, so a new Create item without an icon fails the build instead of crashing the page.
+const CREATE_ICON: Record<CreateKind, IconComponent> = { blog: IconPenLine, site: IconGlobe, task: IconSquarePlus, doc: IconFilePlus, mail: IconCompose, event: IconCalendarPlus, file: IconUpload, post: IconMegaphone, link: IconLink, invoice: IconReceipt, quote: IconReceipt };
 
 /** One Create menu for everything new. */
 export function CreateMenu({ flags }: { flags: NavFlags }) {
@@ -260,7 +261,7 @@ export function CreateMenu({ flags }: { flags: NavFlags }) {
         <IconPlus className="h-4 w-4" aria-hidden />Create<IconChevronDown className="h-3.5 w-3.5 opacity-80" aria-hidden />
       </button>}>
       <MenuLabel>Create</MenuLabel>
-      {items.map((c) => { const Icon = CREATE_ICON[c.kind]; return <MenuItem key={c.kind} icon={<Icon />} onSelect={() => navigate(c.to)}>{c.label}</MenuItem>; })}
+      {items.map((c) => { const Icon = CREATE_ICON[c.kind] ?? IconPlus; return <MenuItem key={c.kind} icon={<Icon />} onSelect={() => navigate(c.to)}>{c.label}</MenuItem>; })}
     </Menu>
   );
 }

@@ -146,6 +146,30 @@ for (const scheme of ["light", "dark"] as const) {
   });
 }
 
+// F13b (MB-309, v28 repro): the owner's top bar Create menu crashed every page at 1280 (React #130) because the Blog post
+// item had no icon. Open it as the demo owner on the pages the verifier used; every item renders and nothing throws.
+test("top bar Create menu opens for the owner at 1280 on My Work, Tools and Templates (MB-309)", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await demo(page);
+  for (const path of ["/app/my-work", "/app/tools", "/app/tools/templates?view=contracts"]) {
+    await page.goto(path);
+    await page.getByTestId("create-menu").click();
+    const menu = page.getByRole("menu");
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: "Blog post" })).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: "Site page" })).toBeVisible();
+    const items = menu.getByRole("menuitem");
+    for (let i = 0; i < await items.count(); i++) await expect(items.nth(i).locator("svg").first()).toBeVisible();
+    await expect(page.getByText("Something went wrong on this page")).toHaveCount(0);
+    expect(await serious(page)).toEqual([]);
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+  }
+  expect(errors).toEqual([]);
+});
+
 test("the layout menu is called Layout (MB-316)", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 860 });
   await demo(page);
