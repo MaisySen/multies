@@ -301,7 +301,8 @@ export async function summary(deps: Deps, a: Actor) {
   const cids = [...new Set(pids.map((p) => book.proj.get(p)?.contactId).filter(Boolean) as string[])];
   const cs = cids.length ? await deps.db.select({ id: contacts.id, name: contacts.name, email: contacts.email }).from(contacts).where(and(eq(contacts.orgId, a.orgId), inIds(contacts.id, cids))).all() : [];
   const pm = new Map(prs.filter((p) => !p.deletedAt).map((p) => [p.id, p.name])), cm = new Map(cs.map((c) => [c.id, c.name || c.email]));
-  const groups = new Map<string, { key: string; name: string; clientId: string | null; projectId: string; projects: number; seconds: number; amountCents: number; currency: string; missingRate: boolean }>();
+  // MB-332: value = sum(seconds x rate cents) / 3600, integer minor units, rounded once per client at the end (no rounded hours).
+  const groups = new Map<string, { key: string; name: string; clientId: string | null; projectId: string; projects: number; seconds: number; amountCents: number; num: number; currency: string; missingRate: boolean }>();
   for (const r of rows) {
     const pid = r.projectId as string;
     if (!pm.has(pid)) continue;
@@ -309,16 +310,16 @@ export async function summary(deps: Deps, a: Actor) {
     const cid = set?.contactId && cm.has(set.contactId) ? set.contactId : null;
     const currency = set?.currency ?? book.ws?.currency ?? "AUD";
     const key = cid ? `c:${cid}:${currency}` : `p:${pid}`;
-    const g = groups.get(key) ?? { key, name: cid ? cm.get(cid)! : pm.get(pid)!, clientId: cid, projectId: pid, projects: 0, seconds: 0, amountCents: 0, currency, missingRate: false };
+    const g = groups.get(key) ?? { key, name: cid ? cm.get(cid)! : pm.get(pid)!, clientId: cid, projectId: pid, projects: 0, seconds: 0, amountCents: 0, num: 0, currency, missingRate: false };
     if (!groups.has(key) || !g.projectId) g.projectId = pid;
     const rate = rateFor(book, pid, personKeyOf(r.personType, r.personId));
     g.seconds += Number(r.seconds) || 0;
-    if (rate == null) g.missingRate = true; else g.amountCents += divRound(divRound((Number(r.seconds) || 0) * 1000, 3600) * rate, 1000);
+    if (rate == null) g.missingRate = true; else { g.num += (Number(r.seconds) || 0) * rate; g.amountCents = divRound(g.num, 3600); }
     groups.set(key, g);
   }
   const projectCount = new Map<string, Set<string>>();
   for (const r of rows) { const pid = r.projectId as string; const set = book.proj.get(pid); const cid = set?.contactId && cm.has(set.contactId) ? set.contactId : null; const key = cid ? `c:${cid}:${set?.currency ?? book.ws?.currency ?? "AUD"}` : `p:${pid}`; if (groups.has(key)) projectCount.set(key, (projectCount.get(key) ?? new Set()).add(pid)); }
-  const list = [...groups.values()].map((g) => ({ ...g, projects: projectCount.get(g.key)?.size ?? 1 })).sort((x, y) => y.amountCents - x.amountCents || y.seconds - x.seconds);
+  const list = [...groups.values()].map(({ num: _num, ...g }) => ({ ...g, projects: projectCount.get(g.key)?.size ?? 1 })).sort((x, y) => y.amountCents - x.amountCents || y.seconds - x.seconds);
   return { clients: list.slice(0, 6), totalSeconds: list.reduce((s, g) => s + g.seconds, 0), more: Math.max(0, list.length - 6) };
 }
 

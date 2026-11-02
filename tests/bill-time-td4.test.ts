@@ -182,6 +182,22 @@ describe("TD4 billing runs", () => {
     expect(availableWidgets(t.deps, { role: "admin" })).toContain("billing");
   });
 
+  it("prices the Home card from seconds, in whole cents rounded once (MB-332)", async () => {
+    const t = await setup();
+    await t.entry(60, "2026-10-05");
+    await t.entry(7, "2026-10-06");
+    await t.c.put("/api/bill-time/setup", { projectId: t.proj.id, rateCents: 15000, contactId: t.contact.id });
+    let s = await t.c.get("/api/bill-time/summary");
+    // 4020 s at 150.00 an hour is 167.50 exactly (rounded hours 1.117 would give 167.55).
+    expect(s.body.clients[0]).toMatchObject({ seconds: 4020, amountCents: 16750 });
+    expect(Number.isInteger(s.body.clients[0].amountCents)).toBe(true);
+    expect(s.body.clients[0]).not.toHaveProperty("num");
+    await t.c.put("/api/bill-time/setup", { projectId: t.proj.id, rateCents: 13333, contactId: t.contact.id });
+    s = await t.c.get("/api/bill-time/summary");
+    // 4020 x 13333 / 3600 = 14888.51, so 14889 cents (rounded hours would give 14893).
+    expect(s.body.clients[0]).toMatchObject({ seconds: 4020, amountCents: 14889 });
+  });
+
   it("shows hours still to bill per client on Home", async () => {
     const t = await setup();
     await t.entry(90, "2026-10-05");
