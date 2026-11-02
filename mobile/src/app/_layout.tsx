@@ -109,6 +109,11 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="contacts" options={{ headerLargeTitle: false, title: "Contacts" }} />
         <Stack.Screen name="contact/[id]" options={{ headerLargeTitle: false, title: "Contact" }} />
         <Stack.Screen name="visits" options={{ headerLargeTitle: false, title: "Visits" }} />
+        <Stack.Screen name="mail-merge" options={{ headerLargeTitle: false, title: "Mail merge" }} />
+        <Stack.Screen name="newsletter/[id]" options={{ headerLargeTitle: false, title: "Newsletter" }} />
+        <Stack.Screen name="journey/[id]" options={{ headerLargeTitle: false, title: "Journey" }} />
+        <Stack.Screen name="mail-archive" options={{ headerLargeTitle: false, title: "Mail archive" }} />
+        <Stack.Screen name="sync" options={{ headerLargeTitle: false, title: "Calendar and contacts sync" }} />
         <Stack.Screen name="people" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "People" }} />
         <Stack.Screen name="tools" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Tools" }} />
         <Stack.Screen name="files" options={{ headerLargeTitle: false, title: "Files" }} />
