@@ -18,6 +18,8 @@ import { initials, shortDate, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { portalInviteThrottledNote, taskStateLabel, type PortalDetail, type PortalItem, type PortalSummary } from "@/shared/client-portal";
 import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
+import { AccessDialog, FileProjectSelect, ItemThreadDialog, MilestonesDialog, PickTd9, type Td9PickKind } from "./portal-td9"; // TD9
+import { IconClipboardList, IconLock, IconProject, IconReceipt } from "@/web/components/ui/icon"; // TD9
 
 const MB = 1024 * 1024;
 const sizeText = (n: number) => (n < MB ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / MB).toFixed(n < 10 * MB ? 1 : 0)} MB`);
@@ -179,7 +181,8 @@ type TabProps = { d: PortalDetail; refresh: () => Promise<unknown> };
 function SharedTab({ d, refresh }: TabProps) {
   const { confirm, dialogs } = useDialogs();
   const [busy, setBusy] = useState<string | null>(null);
-  const [adding, setAdding] = useState<null | "doc" | "task" | "request">(null);
+  const [adding, setAdding] = useState<null | "doc" | "task" | "request" | Td9PickKind>(null);
+  const [td9Open, setTd9Open] = useState<null | { mode: "thread" | "milestones"; item: PortalItem }>(null); // TD9
   const [folder, setFolder] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const can = d.canManage && !d.portal.archived;
@@ -204,7 +207,13 @@ function SharedTab({ d, refresh }: TabProps) {
     { kind: "request", title: "File requests", icon: <IconFileUp className="h-4 w-4" />, empty: "Ask the client for files. They upload from their portal, no account needed." },
     { kind: "doc", title: "Docs", icon: <IconDocs className="h-4 w-4" />, empty: "Share a doc to read. They always see its latest version." },
     { kind: "task", title: "Task updates", icon: <IconTasks className="h-4 w-4" />, empty: "Share tasks so the client sees their status and due date." },
+    ...(d.td9 ? [ // TD9
+      { kind: "project" as const, title: "Projects", icon: <IconProject className="h-4 w-4" />, empty: "Share a project so the client sees its progress and milestones live." },
+      { kind: "invoice" as const, title: "Invoices", icon: <IconReceipt className="h-4 w-4" />, empty: "Share issued invoices and quotes." },
+      { kind: "form" as const, title: "Forms", icon: <IconClipboardList className="h-4 w-4" />, empty: "Share a form for the client to fill in." },
+    ] : []),
   ];
+  const sharedProjects = d.items.filter((i) => i.kind === "project" && i.live); // TD9
   return (
     <div className="space-y-4">
       {dialogs}
@@ -216,6 +225,11 @@ function SharedTab({ d, refresh }: TabProps) {
           {d.requestsOn && <Button variant="secondary" onClick={() => setAdding("request")}><IconFileUp className="h-4 w-4" />Ask for files</Button>}
           <Button variant="secondary" onClick={() => setAdding("doc")}><IconDocs className="h-4 w-4" />Share a doc</Button>
           <Button variant="secondary" onClick={() => setAdding("task")}><IconTasks className="h-4 w-4" />Share a task</Button>
+          {d.td9 && <>
+            <Button variant="secondary" onClick={() => setAdding("project")} data-testid="portal-share-project"><IconProject className="h-4 w-4" />Share a project</Button>
+            <Button variant="secondary" onClick={() => setAdding("invoice")}><IconReceipt className="h-4 w-4" />Share an invoice</Button>
+            <Button variant="secondary" onClick={() => setAdding("form")}><IconClipboardList className="h-4 w-4" />Share a form</Button>
+          </>}
         </div>
       )}
       {groups.filter((g) => g.kind !== "request" || d.requestsOn || d.items.some((i) => i.kind === "request")).map((g) => {
@@ -233,6 +247,8 @@ function SharedTab({ d, refresh }: TabProps) {
                         {it.kind === "file" && <>{it.folder ? `${it.folder} · ` : ""}{it.bytes ? sizeText(it.bytes) : ""}</>}
                         {it.kind === "task" && <>{taskStateLabel(it.state)}{it.due ? ` · Due ${shortDate(it.due)}` : ""}</>}
                         {it.kind === "request" && <>{it.open ? "Open" : "Closed"} · {it.received ?? 0} {it.received === 1 ? "file" : "files"} received</>}
+                        {it.kind === "project" && <>{it.progress?.total ? `${Math.round((it.progress.done / it.progress.total) * 100)}% done · ${it.progress.done} of ${it.progress.total} tasks` : "No tasks yet"}</>}
+                        {it.kind === "invoice" && <>{it.amount ?? ""}{it.status ? ` · ${it.status}` : ""}</>}
                         {!it.live && " · No longer available"}
                         {" · Shared "}{timeAgo(it.addedAt)}
                       </div>
@@ -241,6 +257,9 @@ function SharedTab({ d, refresh }: TabProps) {
                     {it.kind === "request" && <Link className="text-[12.5px] text-accent hover:underline" to={`/app/tools/share?tab=requests&request=${it.refId}`}>See files</Link>}
                     {it.kind === "doc" && <Link className="text-[12.5px] text-accent hover:underline" to={`/app/docs/${it.refId}`}>Open</Link>}
                     {it.kind === "task" && <Link className="text-[12.5px] text-accent hover:underline" to={`/app/tasks?task=${it.refId}`}>Open</Link>}
+                    {d.td9 && it.kind === "file" && can && sharedProjects.length > 0 && <FileProjectSelect portalId={d.portal.id} item={it} projects={sharedProjects} refresh={refresh} />}
+                    {d.td9 && it.kind === "project" && it.live && <Button size="sm" variant="secondary" onClick={() => setTd9Open({ mode: "milestones", item: it })} data-testid="portal-milestones-open">Milestones</Button>}
+                    {d.td9 && (it.kind === "project" || it.kind === "task") && it.live && <Button size="sm" variant="secondary" onClick={() => setTd9Open({ mode: "thread", item: it })} data-testid="portal-thread-open">Comments</Button>}
                     {can && <button type="button" onClick={() => void remove(it)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-fg" aria-label={`Stop sharing ${it.title}`}><IconTrash className="h-4 w-4" /></button>}
                   </li>
                 ))}
@@ -251,6 +270,9 @@ function SharedTab({ d, refresh }: TabProps) {
       })}
       {adding === "request" && <AskForFiles portalId={d.portal.id} onClose={() => setAdding(null)} refresh={refresh} />}
       {(adding === "doc" || adding === "task") && <PickShared kind={adding} portalId={d.portal.id} onClose={() => setAdding(null)} refresh={refresh} />}
+      {(adding === "project" || adding === "invoice" || adding === "form") && <PickTd9 kind={adding} portalId={d.portal.id} onClose={() => setAdding(null)} refresh={refresh} />}
+      {td9Open?.mode === "milestones" && <MilestonesDialog portalId={d.portal.id} item={td9Open.item} onClose={() => setTd9Open(null)} />}
+      {td9Open?.mode === "thread" && <ItemThreadDialog portalId={d.portal.id} item={td9Open.item} people={d.people} onClose={() => setTd9Open(null)} />}
     </div>
   );
 }
@@ -343,6 +365,7 @@ function PeopleTab({ d, refresh }: TabProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState<{ id: string; url: string } | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [access, setAccess] = useState<PortalDetail["people"][number] | null>(null); // TD9
   const can = d.canManage && !d.portal.archived;
   const add = async () => {
     setBusy("add");
@@ -363,6 +386,7 @@ function PeopleTab({ d, refresh }: TabProps) {
   return (
     <div className="space-y-4">
       {dialogs}
+      {access && <AccessDialog portalId={d.portal.id} person={access} onClose={() => setAccess(null)} />}
       {note && <p role="status" className="text-[13px] text-muted">{note}</p>}
       <Card className="divide-y divide-line overflow-hidden" data-testid="portal-people">
         {!d.people.length && <p className="px-4 py-5 text-[13px] text-muted">Nobody can sign in yet. Add the client's email below.</p>}
@@ -370,6 +394,7 @@ function PeopleTab({ d, refresh }: TabProps) {
           <div key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
             <Avatar label={initials(p.name || p.email)} />
             <div className="min-w-0 flex-1"><div className="truncate text-[13.5px] font-medium">{p.name || p.email}</div><div className="truncate text-[12px] text-muted">{p.email} · {p.lastSeenAt ? `Last here ${timeAgo(p.lastSeenAt)}` : "Not signed in yet"}</div></div>
+            {d.td9 && <Button size="sm" variant="secondary" onClick={() => setAccess(p)} data-testid="portal-access-open"><IconLock className="h-4 w-4" />Access</Button>}
             {can && <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="secondary" loading={busy === `i${p.id}`} onClick={() => void invite(p.id, p.email)} data-testid="portal-invite">Email sign in link</Button>
               <Button size="sm" variant="secondary" loading={busy === `l${p.id}`} onClick={() => void link(p.id)} data-testid="portal-copy-link"><IconCopy className="h-4 w-4" />Get link</Button>

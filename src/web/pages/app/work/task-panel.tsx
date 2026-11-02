@@ -14,6 +14,7 @@ import { TaskTime } from "./time";
 import { RepeatPlus } from "./repeat-plus-r95"; // R95
 import { AddToMyDay } from "./my-day-r95"; // R95
 import { useConfig } from "@/web/lib/queries";
+import { PrivateComments } from "./portal-td9"; // TD9
 import { EpicSection, TaskTypeRows } from "./task-type";
 import { SprintFields } from "./sprint-fields";
 import { TaskChecklist } from "./task-checklist"; // R26 (MB-85)
@@ -48,6 +49,7 @@ export function describeActivity(a: ActivityEntry) {
 
 /** R79: docked shows the task in the shell's resizable side panel (desktop, the person's View choice), else over the page. */
 export function TaskPanel({ id, onClose, docked = false, page = false }: { id: string; onClose: () => void; docked?: boolean; /** R84: the full task page (/app/tasks/:ref), two columns. */ page?: boolean }) {
+  const portalTd9 = !!useConfig().data?.portalTd9; // TD9
   const slot = useInspector(docked);
   const q = useTaskDetail(id);
   const projects = useProjects();
@@ -293,6 +295,7 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
             </ul>
             <CommentBox people={people.data ?? []} onSend={async (body) => { try { await api.post(`/tasks/${t.id}/comments`, { body }); await q.refetch(); refresh(); } catch (e) { showError(e as Error); throw e; } }} />
           </section>
+          {portalTd9 && <PrivateComments kind="task" refId={t.id} />} {/* TD9: private comments to one person */}
 
           <section className="mt-6" aria-label="History">
             <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">History</h3>
@@ -441,6 +444,7 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
             </ul>
             <CommentBox people={people.data ?? []} onSend={async (body) => { try { await api.post(`/tasks/${t.id}/comments`, { body }); await q.refetch(); refresh(); } catch (e) { showError(e as Error); throw e; } }} />
           </section>
+          {portalTd9 && <PrivateComments kind="task" refId={t.id} />} {/* TD9: private comments to one person */}
 
           <section className="mt-6" aria-label="History">
             <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">History</h3>

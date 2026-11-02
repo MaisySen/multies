@@ -402,7 +402,7 @@ export function portalPublicRoutes() {
       if (!person) return c.redirect(`/p/${p.key}`, 303);
       const f = await formOf(c);
       const back = (kind: string) => `/p/${p.key}/${kind === "project" ? "project" : "t"}/${encodeURIComponent(c.req.param("item"))}`;
-      let kind = "task";
+      let kind: string;
       try {
         if (!(await publicPostOk(c, "portal", p.id, f.ft))) { const m = plain("That form expired", "Go back, reload the page and try again.", 403); return c.html(m.html, 403, PUBLIC_HEADERS); }
         kind = (await clientComment(c.var.deps, p, person, c.req.param("item"), f.body ?? "")).kind;

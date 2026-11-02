@@ -112,7 +112,7 @@ export async function addShared(deps: Deps, auth: AuthContext, portalId: string,
   const p = await managed(deps, auth, portalId);
   if (p.archived_at) throw badRequest("Restore the portal first.");
   await countItems(deps, p.id);
-  let title: string | null = null;
+  let title: string | null;
   if (kind === "project") title = (await deps.db.get<{ name: string }>(sql`select name from projects where id = ${refId} and org_id = ${p.org_id} and deleted_at is null`))?.name ?? null;
   else if (kind === "invoice") {
     const r = await deps.db.get<{ kind: string; number: string | null }>(sql`select kind, number from invoice_docs where id = ${refId} and org_id = ${p.org_id} and kind in ('invoice', 'quote') and status in ('issued', 'accepted') and view_token is not null`);

@@ -262,7 +262,7 @@ describe("TD9 live project view", () => {
     const t = await setup();
     const p = await portal(t);
     const t1 = await task(t, "Logo concepts");
-    const t2 = await task(t, "Brand guide");
+    await task(t, "Brand guide");
     const projItem = await share(t, p.id, "project", t1.projectId);
     await share(t, p.id, "task", t1.id);
     const up = await upload(t, p.id, new TextEncoder().encode("pdf"), { "content-type": "text/plain", "x-file-name": "moodboard.txt" });
@@ -326,7 +326,7 @@ describe("TD9 live project view", () => {
 describe("TD9 private comments", () => {
   it("shows a private comment only to its author, its target and admins, with no count leak", async () => {
     const t = await setup();
-    const p = await portal(t);
+    await portal(t);
     const mate = await member(t, "mate@acme.io", "Mate");
     const bo = await member(t, "bo@acme.io", "Bo");
     const cy = await member(t, "cy@acme.io", "Cy");
