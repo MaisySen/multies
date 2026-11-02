@@ -13,6 +13,7 @@ import { askBuiltin, BUILTIN_LIMIT_MESSAGE } from "@/server/services/ai/builtin-
 import { GLOBAL_DAILY_UNITS, GLOBAL_ROW, globalCap } from "@/server/services/tools/ai-meter";
 import { dayOf } from "@/server/services/tools/usage";
 import { aiKeys, aiOauthStates, auditLogs } from "@/server/db/schema";
+import { AI_OFF_MESSAGE } from "@/shared/ask-td1";
 
 const ANT = "sk-ant-api03-" + "a".repeat(40) + "WXYZ";
 const OR_KEY = "sk-or-v1-" + "b".repeat(56);
@@ -409,5 +410,98 @@ describe("AI2 built-in AI", () => {
     const ctx = await setup();
     await expect(askBuiltin(ctx.deps, ctx.orgId, { system: "s", user: "u" })).rejects.toMatchObject({ status: 409 });
     expect((await ctx.c.get("/api/ai/status")).body.builtin).toMatchObject({ available: false, active: false });
+  });
+});
+
+describe("AI2 under the workspace AI switch (TD1)", () => {
+  const ON = { AI_CONNECT_AI2: "on", ASK_TD1: "on" };
+  const fakeAi = () => ({ run: vi.fn(async () => ({ response: "Built in answer", usage: { prompt_tokens: 40, completion_tokens: 8 } })) });
+  const req = (ctx: Awaited<ReturnType<typeof setup>>, path: string, nonce?: string) => ctx.app.request(path, { headers: { cookie: `${ctx.c.cookie}${nonce ? `; mm_ai_oauth=${nonce}` : ""}`, host: "localhost" } });
+
+  async function offAfterConnect() {
+    const ctx = await setup(ON);
+    expect((await ctx.c.post("/api/ai/connect", { apiKey: ANT })).status).toBe(200);
+    const res = await req(ctx, "/api/ai/oauth/openrouter/start");
+    const loc = new URL(res.headers.get("location")!);
+    const nonce = /mm_ai_oauth=([^;]+)/.exec(res.headers.get("set-cookie") ?? "")![1]!;
+    expect((await ctx.c.put("/api/ai-trust", { enabled: false })).status).toBe(200);
+    await ctx.db.run(sql`delete from api_rate_limits`);
+    ctx.calls.length = 0;
+    return { ...ctx, state: loc.searchParams.get("state")!, nonce };
+  }
+
+  it("connect with a pasted key: 409 with the plain words and no outbound call", async () => {
+    const ctx = await offAfterConnect();
+    const r = await ctx.c.post("/api/ai/connect", { apiKey: OR_KEY });
+    expect(r.status).toBe(409);
+    expect(r.body.error).toMatchObject({ code: "ai_off", message: AI_OFF_MESSAGE });
+    expect(ctx.calls).toEqual([]);
+  });
+
+  it("the older key save (AI2 path): 409 and no outbound call", async () => {
+    const ctx = await offAfterConnect();
+    const r = await ctx.c.put("/api/ai/key", { provider: "anthropic", apiKey: ANT });
+    expect(r.status).toBe(409);
+    expect(r.body.error.code).toBe("ai_off");
+    expect(ctx.calls).toEqual([]);
+  });
+
+  it("the live model list: 409 and no outbound call, even on a refresh", async () => {
+    const ctx = await offAfterConnect();
+    for (const body of [{}, { refresh: true }]) {
+      const r = await ctx.c.post("/api/ai/models", body);
+      expect(r.status).toBe(409);
+      expect(r.body.error.code).toBe("ai_off");
+    }
+    expect(ctx.calls).toEqual([]);
+  });
+
+  it("test connection: 409 and no outbound call", async () => {
+    const ctx = await offAfterConnect();
+    const r = await ctx.c.post("/api/ai/test", {});
+    expect(r.status).toBe(409);
+    expect(r.body.error.code).toBe("ai_off");
+    expect(ctx.calls).toEqual([]);
+  });
+
+  it("OpenRouter sign in start: back to Settings with the plain words, never to the provider", async () => {
+    const ctx = await offAfterConnect();
+    const before = (await ctx.db.select().from(aiOauthStates).all()).length;
+    const res = await req(ctx, "/api/ai/oauth/openrouter/start");
+    expect(res.status).toBe(302);
+    const loc = res.headers.get("location")!;
+    expect(loc.startsWith("/app/settings?")).toBe(true);
+    expect(new URL(loc, "https://x").searchParams.get("ai_error")).toBe(AI_OFF_MESSAGE);
+    expect(loc).not.toContain("openrouter.ai");
+    expect((await ctx.db.select().from(aiOauthStates).all()).length).toBe(before);
+    expect(ctx.calls).toEqual([]);
+  });
+
+  it("OpenRouter sign in callback: no code for key exchange, and nothing saved", async () => {
+    const ctx = await offAfterConnect();
+    const res = await req(ctx, `/api/ai/oauth/openrouter/callback?${new URLSearchParams({ code: "the-code", state: ctx.state })}`, ctx.nonce);
+    expect(new URL(res.headers.get("location")!, "https://x").searchParams.get("ai_error")).toBe(AI_OFF_MESSAGE);
+    expect(ctx.calls).toEqual([]);
+    expect((await ctx.db.select().from(aiKeys).all())[0]!.provider).toBe("anthropic");
+  });
+
+  it("built-in AI: no reservation and no binding call; the status says AI is off", async () => {
+    const ctx = await setup(ON);
+    const ai = fakeAi();
+    ctx.deps.ai = ai;
+    expect((await ctx.c.put("/api/ai-trust", { enabled: false })).status).toBe(200);
+    await expect(askBuiltin(ctx.deps, ctx.orgId, { system: "s", user: "u" })).rejects.toMatchObject({ status: 409, code: "ai_off", message: AI_OFF_MESSAGE });
+    expect(ai.run).not.toHaveBeenCalled();
+    const used = await ctx.db.all(sql`select units from ai_usage_daily`);
+    expect(used).toEqual([]);
+    expect((await ctx.c.get("/api/ai/status")).body.builtin).toMatchObject({ off: true });
+    expect(ctx.calls).toEqual([]);
+  });
+
+  it("switched back on, the same paths call the provider again", async () => {
+    const ctx = await offAfterConnect();
+    expect((await ctx.c.put("/api/ai-trust", { enabled: true })).status).toBe(200);
+    expect((await ctx.c.post("/api/ai/test", {})).status).toBe(200);
+    expect(ctx.calls.length).toBeGreaterThan(0);
   });
 });

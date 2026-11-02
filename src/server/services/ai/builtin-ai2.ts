@@ -8,12 +8,14 @@
 import type { Deps } from "../../context";
 import { HttpError } from "../../lib/errors";
 import type { AiCompletion } from "./providers";
+import { aiAllowed, assertAiAllowed } from "../ai-trust-td1";
 
 export const BUILTIN_LIMIT_MESSAGE = "Built-in AI has reached today's free limit. It's back tomorrow, or add your own key in Advanced.";
 export const BUILTIN_NAME = "Built-in AI";
 
 /** One completion on built-in AI. Throws a plain HttpError when the meter says no; never falls through to anything billed. */
 export async function askBuiltin(deps: Deps, orgId: string, req: AiCompletion): Promise<{ text: string | null; provider: string }> {
+  await assertAiAllowed(deps, orgId); // TD1 switch off: no reservation and no binding call
   const { askAi } = await import("../tools/ai-meter");
   const r = await askAi(deps, orgId, { task: "chat", system: req.system, user: req.user, maxTokens: req.maxTokens });
   if (r.ok) return { text: r.text.trim() || null, provider: r.source === "own_key" ? "own_key" : "builtin" };
@@ -29,8 +31,11 @@ export async function builtinStatus(deps: Deps, orgId: string) {
   const usage = await aiUsage(deps, orgId);
   const available = !!deps.ai;
   const paused = usage.globalReached || usage.percent >= 100;
+  const off = !(await aiAllowed(deps, orgId));
   return {
     available,
+    /** TD1 switch: an admin turned AI off here, so no AI path calls any provider. */
+    off,
     /** True when the assistant runs on built-in AI now (no own key saved). */
     active: available && !usage.ownKey,
     paused,

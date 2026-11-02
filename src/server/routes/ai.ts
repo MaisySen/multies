@@ -95,7 +95,13 @@ export function aiRoutes() {
       setCookie(c, NONCE_COOKIE, nonce, { path: NONCE_PATH, httpOnly: true, secure: new URL(c.req.url).protocol === "https:", sameSite: "Lax", maxAge: 10 * 60 });
       c.header("cache-control", "no-store");
       c.header("referrer-policy", "no-referrer");
-      return c.redirect(await (await connect()).openRouterStart(c.var.deps, c.var.auth, nonce));
+      try {
+        return c.redirect(await (await connect()).openRouterStart(c.var.deps, c.var.auth, nonce));
+      } catch (err) {
+        // TD1 switch off: back to Settings with the plain words, and no trip to the provider.
+        if (err instanceof HttpError && err.code === "ai_off") return c.redirect(`/app/settings?${new URLSearchParams({ ai_error: err.message })}#ai`);
+        throw err;
+      }
     })
     .get("/oauth/openrouter/callback", requireAdmin, async (c) => {
       const nonce = getCookie(c, NONCE_COOKIE) ?? null;

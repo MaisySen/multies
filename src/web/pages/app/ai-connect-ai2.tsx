@@ -18,8 +18,9 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { IconCheck, IconExternalLink, IconEye, IconEyeOff, IconRefresh, IconSparkle } from "@/web/components/ui/icon";
 import { AI2_RESULT_TEXT, cleanPastedKey, detectProvider, type Ai2Model, type Ai2ProviderCard, type Ai2ProviderId } from "@/shared/ai-connect-ai2";
 import type { AiStatus } from "./ai-section";
+import { AI_OFF_MEMBER, AI_OFF_MESSAGE } from "@/shared/ask-td1";
 
-export interface BuiltinStatus { available: boolean; active: boolean; paused: boolean; percent: number; calls: number; message: string | null }
+export interface BuiltinStatus { off?: boolean; available: boolean; active: boolean; paused: boolean; percent: number; calls: number; message: string | null }
 interface ModelList { provider: Ai2ProviderId; models: Ai2Model[]; recommended: string | null; live: boolean; current: string; note: string | null }
 interface TestResult { ok: boolean; code: keyof typeof AI2_RESULT_TEXT; message: string; ms: number | null; model: string }
 
@@ -38,6 +39,18 @@ export function AiConnectPanel({ status, isAdmin }: { status: AiStatus; isAdmin:
     onError: (e) => showError(e),
   });
   const showConnect = isAdmin && (!status.connected || changing);
+  // TD1 switch off: nothing here may reach a provider, so the panel says so and offers no connect, list or test.
+  if (status.builtin?.off) {
+    return (
+      <div className="space-y-4" data-testid="ai2-panel">
+        <section className={cardClass} role="status" data-testid="ai2-off">
+          <p className="font-medium">AI is off</p>
+          <p className="mt-1 text-sm text-muted">{isAdmin ? AI_OFF_MESSAGE : AI_OFF_MEMBER} While it's off, Multies makes no AI calls, built-in or with your own key.</p>
+          {status.connected && <p className="mt-2 text-sm">Saved: {status.providerName}{status.baseHost ? ` (${status.baseHost})` : ""}, key ending {status.keyHint}.</p>}
+        </section>
+      </div>
+    );
+  }
   return (
     <div className="space-y-4" data-testid="ai2-panel">
       <BuiltinCard builtin={status.builtin} ownKey={status.connected} />

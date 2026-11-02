@@ -16,6 +16,7 @@ import {
   type Ai2Model, type Ai2ProviderId, type Ai2ResultCode,
 } from "../../../shared/ai-connect-ai2";
 import { saveAiKey, savedKey } from "./keys";
+import { assertAiAllowed } from "../ai-trust-td1"; // TD1 switch: AI off means no provider call on any AI2 path
 import { AiProviderError, OPENAI_COMPATIBLE_BASE, byoProvider, type AiProviderId } from "./providers";
 
 export const MODEL_CACHE_MS = 10 * 60_000;
@@ -218,6 +219,7 @@ export interface ModelListView {
 
 /** The saved key's model list: the cache when fresh (10 minutes), else a live read, else the curated list. */
 export async function modelsForWorkspace(deps: Deps, orgId: string, opts: { refresh?: boolean } = {}): Promise<ModelListView> {
+  await assertAiAllowed(deps, orgId);
   const k = await savedKey(deps, orgId);
   if (!k) throw new HttpError(409, "ai_key_required", "Connect a provider first.");
   const provider = k.provider as Ai2ProviderId;
@@ -265,6 +267,7 @@ export interface TestResult { ok: boolean; code: Ai2ResultCode; message: string;
 
 /** One tiny call on the chosen model. The result is plain words; the key and the provider's body never leave. */
 export async function testConnection(deps: Deps, auth: AuthContext, model?: string): Promise<TestResult> {
+  await assertAiAllowed(deps, auth.orgId);
   const k = await savedKey(deps, auth.orgId);
   if (!k) throw new HttpError(409, "ai_key_required", "Connect a provider first.");
   const m = model?.trim() || k.model;
@@ -329,6 +332,7 @@ export async function proveKey(fetchImpl: typeof fetch, provider: Ai2ProviderId,
  * recommended model. A refused or unproven key is never saved, and built-in AI stays in use.
  */
 export async function connectWithKey(deps: Deps, auth: AuthContext, input: { apiKey: string; provider?: Ai2ProviderId; baseUrl?: string; model?: string }) {
+  await assertAiAllowed(deps, auth.orgId);
   const apiKey = cleanPastedKey(input.apiKey);
   const provider = input.provider ?? detectProvider(apiKey);
   if (!provider) throw badRequest("Pick your provider: the key's format doesn't say which one it is.");
@@ -379,6 +383,7 @@ const isLocal = (deps: Deps) => { try { return ["localhost", "127.0.0.1"].includ
 
 /** Starts the sign in: a one use state bound to this person, workspace and browser (nonce), with the verifier kept here. */
 export async function openRouterStart(deps: Deps, auth: AuthContext, nonce: string): Promise<string> {
+  await assertAiAllowed(deps, auth.orgId);
   const now = deps.now();
   // Old unfinished starts go (10 minutes), so the table stays tiny.
   await deps.db.delete(aiOauthStates).where(lt(aiOauthStates.createdAt, new Date(now.getTime() - OAUTH_STATE_MS)));
@@ -396,6 +401,7 @@ export async function openRouterStart(deps: Deps, auth: AuthContext, nonce: stri
 
 /** Finishes the sign in: one use state, same person, workspace and browser, within 10 minutes; then code for key. */
 export async function openRouterFinish(deps: Deps, auth: AuthContext, code: string, state: string, nonce: string | null) {
+  await assertAiAllowed(deps, auth.orgId);
   const fail = (msg = "That sign in expired or was started somewhere else. Start again from Settings, AI.") => new HttpError(400, "oauth_state", msg);
   if (!state || state.length > 200 || !code || code.length > 500) throw fail();
   const hash = await sha256Hex(state);
