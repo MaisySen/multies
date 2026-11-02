@@ -134,7 +134,7 @@ test("tables: New view stays on screen, Row puts focus in the new row, title, tr
   await shot(page, "pol1-table-trash-confirm-1280-light");
   await page.getByRole("button", { name: "Move to trash" }).click();
   await expect(page).toHaveURL(/\/app\/docs$/);
-  await page.getByRole("button", { name: "Undo" }).click();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/app/docs/${t}$`));
   await expect(page.getByTestId("table-doc")).toBeVisible();
   // and from Docs, Trash
