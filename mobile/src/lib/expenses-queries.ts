@@ -16,7 +16,7 @@ const retry = (k: number, e: unknown) => !noAccess(e) && !notFoundErr(e) && k < 
 
 export function useExpenses(view: "mine" | "approve") {
   const { transport, mode } = useSession();
-  return useQuery({ queryKey: [...expenseKeys.all, mode, view], retry, queryFn: () => transport.request<ExpensesResponse>("GET", `/expenses?view=${view}`) });
+  return useQuery({ queryKey: [...expenseKeys.all, mode, view], retry, networkMode: "always", queryFn: () => transport.request<ExpensesResponse>("GET", `/expenses?view=${view}`) });
 }
 
 export function useExpense(id: string | undefined) {

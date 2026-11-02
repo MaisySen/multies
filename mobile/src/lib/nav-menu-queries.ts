@@ -45,6 +45,8 @@ export function useNavMenu() {
     enabled: status === "signedIn",
     staleTime: 5 * 60_000,
     retry: false,
+    // Runs offline too, so the saved menu (or the fallback) shows instead of a spinner that never ends.
+    networkMode: "always",
     queryFn: async () => {
       let problem: MenuProblem = null;
       let menu: NavMenu | null = null;

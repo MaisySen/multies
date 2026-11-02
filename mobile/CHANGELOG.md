@@ -3,6 +3,13 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.10.10 (OTA, runs on Android versionCode 16 and iOS build 20), 2 Nov 2026
+
+- More: every section of your workspace as a grid with counts, the same menu as the web. Tap a section to open its pages, here in the app where they exist, else the web page signed in. Hide sections you don't use and reset any time.
+- Deals on the phone: your pipeline by stage with totals and forecast, search, and each deal's detail with Move to another stage.
+- Expenses on the phone: your expenses and the ones waiting for your approval. Add a receipt from your files and the supplier, total and GST fill in by themselves, then submit it.
+- Fix: opening the app from a notification in the background no longer counts as an early crash.
+
 ## 1.10.9 (OTA, runs on Android versionCode 16 and iOS build 20), 1 Nov 2026
 
 - Files on the phone: Team, Mine, Shared, Starred, Recent and Trash, with folders, upload, versions, preview, move,

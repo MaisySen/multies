@@ -11,7 +11,7 @@ const retry = (k: number, e: unknown) => !noAccess(e) && !notFoundErr(e) && k < 
 
 export function useDeals() {
   const { transport, mode } = useSession();
-  return useQuery({ queryKey: [...dealKeys.all, mode], retry, queryFn: () => transport.request<DealsResponse>("GET", "/deals") });
+  return useQuery({ queryKey: [...dealKeys.all, mode], retry, networkMode: "always", queryFn: () => transport.request<DealsResponse>("GET", "/deals") });
 }
 
 export function useMoveDeal() {
