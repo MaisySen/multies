@@ -258,7 +258,7 @@ function OneInbox() {
                               {it.snoozedUntil ? ` · back ${timeAgo(it.snoozedUntil).replace(/ ago$/, "")}` : ""}{it.read ? "" : " · unread"}
                             </span>
                           </button>
-                          <div className={cn("flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none max-sm:-mt-2 max-sm:basis-full max-sm:justify-end [@media(hover:none)]:opacity-100", focus === k && "opacity-100")}>
+                          <div className={cn("flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none max-sm:-mt-2 max-sm:basis-full max-sm:justify-end max-sm:opacity-100 [@media(hover:none)]:opacity-100", focus === k && "opacity-100")}>
                             {view !== "done" && <IconBtn label="Done (E)" onClick={() => void done([it])}><IconCheck /></IconBtn>}
                             {view !== "done" && <IconBtn label="Snooze (S)" onClick={() => setSnoozeFor(snoozeFor === k ? null : k)}><IconClock /></IconBtn>}
                             {view !== "inbox" && <IconBtn label="Back to inbox" onClick={() => void restore(it)}><IconInbox /></IconBtn>}
