@@ -163,7 +163,7 @@ PEOPLE_R126 = "on" # R126: staff directory, onboarding, assets, verifier v28 PAS
 TOURS_R130 = "on" # R130: guided onboarding, checklist, tours, tour builder, verifier v31 PASS WITH BUGS 11:37 UTC Nov 2 on staging
 ASK_TD1 = "on" # TD1: Ask v2 and AI on or off (default on), verifier v29 PASS 08:56 UTC Nov 2 on staging 5c8d092f8ff0
 FORMS_TD2 = "on" # TD2: Forms pro A, verifier v30 PASS 10:06 UTC Nov 2 on staging 68e59ea4121b
-MENTIONS_TD5 = "off" # TD5: record mentions and References (on only after the verifier passes it on staging)
+MENTIONS_TD5 = "on" # TD5: record mentions and References (production after verifier v34 PASS on staging c8bc6f4c5cd0)
 TOOLS_FEATURES = "editor,forms,compare,ocr_langs,scan,protect,stamps,convert_plus,excel,autoredact,batch,share,rules,workflows,templates,api,file_requests,secrets,links,tools_c,esign,tools_c2,merge_plus_r109"
 # R107: e-sign v2 (email code, signing record, seal, templates, bulk send). On in prod after the verifier pass; "off" turns new requests back to the old flow.
 # esign itself left that list on 31 Oct (owner unheld e-sign; R107 adds it to TOOLS_FEATURES above after the verifier pass).
