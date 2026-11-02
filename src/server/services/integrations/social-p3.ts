@@ -17,6 +17,7 @@ import {
   isHttpsLink, writePrompt, type BestTimesResponse, type P3Flags, type WriteAction,
 } from "@/shared/social-p3";
 import { NETWORK_RULES } from "@/shared/social-p2";
+import { assertAiAllowed } from "../ai-trust-td1"; // TD1: AI trust gate
 
 export function p3Flags(deps: Deps): P3Flags {
   const p3 = deps.config.socialP3R132 === true;
@@ -161,6 +162,7 @@ async function writesLeft(deps: Deps, orgId: string, day: string): Promise<numbe
 }
 
 async function rewrite(deps: Deps, orgId: string, action: WriteAction, text: string, max: number | null, day: string): Promise<string> {
+  await assertAiAllowed(deps, orgId); // TD1: AI off means no provider call
   const runner = deps.askAi ?? deps.ai;
   if (!runner) throw new HttpError(503, "ai_unavailable", "Writing help isn't available right now.");
   const p = writePrompt(action, text, max);

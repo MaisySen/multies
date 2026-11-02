@@ -17,6 +17,7 @@ import { deferrableWrite } from "../write-priority";
 import { notBlockedBy } from "./reports-r35"; // R35: blocked people's messages stay out of the digest
 
 export const CATCHUP_TYPES = ["channel", "task", "doc"] as const;
+import { assertAiAllowed } from "../ai-trust-td1"; // TD1: AI trust gate
 export type CatchupType = (typeof CATCHUP_TYPES)[number];
 /** At most one last-visit write per person and item per minute. */
 export const VISIT_THROTTLE_MS = 60_000;
@@ -201,6 +202,7 @@ export function digestText(d: CatchupDigest): string {
 /** A short summary on the workspace's own AI key (409 ai_key_required without one). Reads the newest items too. */
 export async function summariseSince(deps: Deps, a: SuiteActor, type: CatchupType, id: string) {
   const d = await getCatchup(deps, a, type, id);
+  await assertAiAllowed(deps, a.orgId); // TD1: AI off means no provider call
   const { providerFor } = await import("../ai/keys");
   const ai = await providerFor(deps, a.orgId);
   if (!ai) throw new HttpError(409, "ai_key_required", "Summaries run on your workspace's own AI key. Add one in Settings, or read the digest.");

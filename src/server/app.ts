@@ -35,6 +35,7 @@ import { activeToolFeatures } from "./services/tools/features"; // Tools P2: "in
 import { toolsEditorsRoutes } from "./routes/tools-editors"; // Tools P2: editors
 import { toolsAiRoutes } from "./routes/tools-ai"; // Tools P2: AI documents
 import { askRoutes } from "./routes/ask-r110"; // R110: Ask across the workspace
+import { aiTrustRoutes } from "./routes/ai-trust-td1"; // TD1: AI trust controls
 import { vaultRoutes } from "./routes/vault-r128"; // R128: team password vault
 import { peopleRoutes } from "./routes/people-r126"; // R126: staff, onboarding, assets
 import { mailMergeUnsubscribeRoutes, toolsAutomationRoutes } from "./routes/tools-automation"; // Tools P2: automation
@@ -461,6 +462,7 @@ export function createApp(deps: Deps) {
       contractsR108: !!deps.config.contractsR108,
       // R110: Ask across the workspace (ASK_R110).
       askR110: !!deps.config.askR110,
+      askTd1: !!deps.config.askTd1, // TD1: Ask v2 and AI trust controls
       vaultR128: !!deps.config.vaultR128, // R128: team password vault
       peopleR126: !!deps.config.peopleR126, // R126: staff directory, onboarding, assets
       invoices: deps.config.invoicesEnabled, // R105
@@ -532,6 +534,7 @@ export function createApp(deps: Deps) {
   app.route("/api/vault", vaultRoutes()); // R128: team password vault (VAULT_R128)
   app.route("/api/people", peopleRoutes()); // R126: staff directory, onboarding, assets (PEOPLE_R126)
   app.route("/api/ask", askRoutes()); // R110: Ask across the workspace (Tools feature ask_r110)
+  app.route("/api/ai-trust", aiTrustRoutes()); // TD1: AI on or off per workspace, provider and region
   app.route("/api/tools/ai", toolsAiRoutes()); // Tools P2: AI documents (ask, translate, invoices, expenses, contracts)
   app.route("/api/tools/share", toolsShareRoutes()); // Tools P2: share links
   app.route("/api/tools/requests", toolsRequestRoutes()); // R88: file requests

@@ -54,6 +54,8 @@ export interface AppConfig {
   askExclude?: string;
   /** R110: ASK_R110 (Ask across the workspace in Tools and the command menu). Off unless set. */
   askR110?: boolean;
+  /** TD1: ASK_TD1 (Ask v2: cited answers with coverage, meaning search, ask about this, AI trust controls). Off unless set; off = R110 exactly. */
+  askTd1?: boolean;
   /** R125: tables, a doc type (TABLES_R125). Off unless set. */
   tablesR125?: boolean;
   /** POL1: P1 polish, new behaviour only (tables and courses to the trash with restore). POLISH_POL1, off unless set. */
@@ -436,6 +438,7 @@ const EnvSchema = z.object({
   MAPS_GEO_MOCK: z.string().optional(),
   ASK_EXCLUDE: z.string().optional(),
   ASK_R110: z.string().optional(),
+  ASK_TD1: z.string().optional(), // TD1
   TABLES_R125: z.string().optional(), // R125
   POLISH_POL1: z.string().optional(), // POL1
   TABLES_EXCLUDE: z.string().optional(), // R125
@@ -750,6 +753,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     mapsGeoMock: env.MAPS_GEO_MOCK === "1",
     askExclude: env.ASK_EXCLUDE ?? "", // R110
     askR110: ["1", "true", "on"].includes(String(env.ASK_R110 ?? "").toLowerCase()), // R110
+    askTd1: ["1", "true", "on"].includes(String(env.ASK_TD1 ?? "").toLowerCase()), // TD1
     tablesR125: ["1", "true", "on"].includes(String(env.TABLES_R125 ?? "").toLowerCase()), // R125
     polishPol1: ["1", "true", "on"].includes(String(env.POLISH_POL1 ?? "").toLowerCase()), // POL1
     tablesExclude: env.TABLES_EXCLUDE ?? "", // R125

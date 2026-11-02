@@ -14,6 +14,7 @@ import { scopeFor } from "../agents";
 import { latestText } from "../agents/parse";
 import { providerFor } from "./keys";
 import { AI_PROVIDER_INFO, AiProviderError, type AiCompletion } from "./providers";
+import { assertAiAllowed } from "../ai-trust-td1"; // TD1: AI trust gate
 
 export { AI_PROVIDERS, AI_PROVIDER_INFO, byoProvider, isAiProviderId, type AiCompletion, type AiProvider, type AiProviderId } from "./providers";
 export { aiKeyStatus, deleteAiKey, saveAiKey } from "./keys";
@@ -30,6 +31,7 @@ const SYSTEM = [
 
 /** Runs one completion on the workspace's own key. Throws when there is no key or the provider fails. */
 async function ask(deps: Deps, orgId: string, req: AiCompletion): Promise<{ text: string | null; provider: string }> {
+  await assertAiAllowed(deps, orgId); // TD1: AI off means no provider call
   const ai = await providerFor(deps, orgId);
   if (!ai) throw aiKeyRequired();
   try {

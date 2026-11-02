@@ -3762,6 +3762,8 @@ export const askMessages = sqliteTable("ask_messages", {
   sources: text("sources").notNull().default("[]"),
   status: text("status").notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  /** TD1 (0151): JSON { coverage, about } shown with the answer. Null on older answers. */
+  meta: text("meta"),
 }, (t) => [index("ask_messages_thread_idx").on(t.threadId, t.createdAt), index("ask_messages_user_idx").on(t.orgId, t.userId, t.createdAt)]);
 export const askCards = sqliteTable("ask_cards", {
   id: text("id").primaryKey(),
@@ -4534,3 +4536,11 @@ export const webinarChat = sqliteTable("webinar_chat", {
   hiddenAt: ts("hidden_at"),
   createdAt: ts("created_at").notNull(),
 }, (t) => [index("webinar_chat_meeting_idx").on(t.meetingId, t.id)]);
+
+/** TD1 (0151): AI trust controls. One row per workspace once an admin decides; no row = off, unless the workspace saved its own AI key. */
+export const aiTrust = sqliteTable("ai_trust", {
+  orgId: text("org_id").primaryKey(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull(),
+  updatedBy: text("updated_by"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});

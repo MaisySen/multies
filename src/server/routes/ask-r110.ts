@@ -9,6 +9,7 @@ import { HttpError } from "../lib/errors";
 import {
   askQuestion, askState, decideCard, deletePrompt, deleteThread, getThread, listPrompts, listThreads, savePrompt, saveToDoc,
 } from "../services/ask-r110";
+import { meaningSearch } from "../services/ask-td1"; // TD1
 
 const body = async (c: Context<AppEnv>) => (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
 
@@ -17,6 +18,11 @@ export function askRoutes() {
     .use("*", requireAuth)
     .use("*", async (c, next) => { if (!c.var.deps.config.askR110) throw new HttpError(404, "not_found", "Page not found."); c.header("Cache-Control", "private, no-store"); await next(); })
     .get("/state", async (c) => c.json(await askState(c.var.deps, c.var.auth)))
+    // TD1: meaning search across the items the asker can open (no answer, no Ask cap used). 404 while ASK_TD1 is off.
+    .get("/search", async (c) => {
+      if (!c.var.deps.config.askTd1) throw new HttpError(404, "not_found", "Page not found.");
+      return c.json(await meaningSearch(c.var.deps, c.var.auth, c.req.query("q")));
+    })
     .post("/", async (c) => c.json(await askQuestion(c.var.deps, c.var.auth, await body(c))))
     .get("/threads", async (c) => c.json({ threads: await listThreads(c.var.deps, c.var.auth, c.req.query("q")) }))
     .get("/threads/:id", async (c) => c.json(await getThread(c.var.deps, c.var.auth, c.req.param("id"))))

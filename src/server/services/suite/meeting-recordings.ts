@@ -22,6 +22,7 @@ import { aiKeyStatus } from "../ai/keys";
 import { assertWritable, iso, sortableId, type SuiteActor } from "./common";
 import { getMeeting, type Meeting } from "./meetings";
 import { inIds } from "../../lib/sql-chunks";
+import { aiAllowed } from "../ai-trust-td1"; // TD1: AI trust gate
 
 type Row = typeof meetingRecordings.$inferSelect;
 export interface ActionItem { text: string; assignee: string | null; due: string | null }
@@ -246,8 +247,11 @@ export async function stopRecording(deps: Deps, a: SuiteActor, meetingId: string
   if (!text) {
     set = { status: "done", summary: null, error: "Nothing was transcribed: the recording had no speech, or no audio reached the server." };
   } else {
-    const ai = await providerFor(deps, a.orgId);
-    if (!ai) {
+    const allowed = await aiAllowed(deps, a.orgId); // TD1: AI off, no provider call
+    const ai = allowed ? await providerFor(deps, a.orgId) : null;
+    if (!allowed) {
+      set = { status: "done", summary: null, error: "AI is off in this workspace, so no summary was written. The transcript is kept." };
+    } else if (!ai) {
       set = { status: "failed", error: "The workspace's AI key was removed before the summary. The transcript is kept." };
     } else {
       try {

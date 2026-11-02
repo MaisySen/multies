@@ -1692,5 +1692,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `asset_events` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`asset_id` text NOT NULL,\n\t`action` text NOT NULL,\n\t`user_id` text,\n\t`by_user_id` text,\n\t`by_name` text DEFAULT '' NOT NULL,\n\t`detail` text DEFAULT '' NOT NULL,\n\t`at` integer NOT NULL\n);",
       "CREATE INDEX `asset_events_asset_idx` ON `asset_events` (`asset_id`, `at`);"
     ]
+  },
+  {
+    "name": "0151_ai_trust_td1",
+    "statements": [
+      "CREATE TABLE `ai_trust` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`enabled` integer NOT NULL,\n\t`updated_by` text,\n\t`updated_at` integer NOT NULL\n);",
+      "ALTER TABLE `ask_messages` ADD `meta` text;"
+    ]
   }
 ];

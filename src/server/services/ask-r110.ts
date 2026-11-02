@@ -25,6 +25,9 @@ import type { SearchType, SearchViewer } from "./search";
 import { adjustRow, CHAT_MODEL, estimateTokens, planOf, reserve, reserveRow, unitsFor } from "./tools/ai-meter";
 import { dayOf } from "./tools/usage";
 import type { PlanId } from "@/shared/plans";
+import { aiAllowed, assertAiAllowed } from "./ai-trust-td1"; // TD1
+import { resolveAbout, retrieveTd1 } from "./ask-td1"; // TD1
+import { AI_OFF_MEMBER, AI_OFF_MESSAGE, type AskCoverage } from "@/shared/ask-td1"; // TD1
 
 // ---------------------------------------------------------------- caps (the only place these numbers live)
 
@@ -191,6 +194,12 @@ export interface StoredSource { n: number; type: SearchType; id: string; title: 
 export interface CardOut { id: string; kind: Proposal["kind"]; status: "pending" | "applied" | "dismissed"; label: string; detail: string; targetUrl: string | null; resultId: string | null }
 export interface MessageOut {
   id: string; question: string; answer: string; status: "answered" | "no_sources" | "limit" | "restricted"; sources: StoredSource[]; cards: CardOut[]; createdAt: string;
+  /** TD1 (ASK_TD1 only): cited sources that are gone or no longer open to the asker (shown as gone, never named or linked). */
+  gone?: number;
+  /** TD1 (ASK_TD1 only): what the answer read and could not see. */
+  coverage?: AskCoverage | null;
+  /** TD1 (ASK_TD1 only): the item the question was about, while the asker can still open it. */
+  about?: { type: SearchType; id: string; title: string; url: string } | null;
 }
 
 const now = (deps: Deps) => deps.now().getTime();
@@ -204,7 +213,7 @@ function cardText(kind: string, payload: Record<string, unknown>): { label: stri
   return { label: "Create a task", detail: String(payload.title ?? "") };
 }
 
-type MsgRow = { id: string; thread_id: string; question: string; answer: string; sources: string; status: string; created_at: number };
+type MsgRow = { id: string; thread_id: string; question: string; answer: string; sources: string; status: string; created_at: number; meta?: string | null };
 type CardRow = { id: string; message_id: string; kind: string; target_id: string | null; payload: string; status: string; result_id: string | null };
 
 const parseJson = <T,>(s: string, d: T): T => { try { return JSON.parse(s) as T; } catch { return d; } };
@@ -228,10 +237,19 @@ export async function present(deps: Deps, actor: SuiteActor, rows: MsgRow[]): Pr
       const targetUrl = c.kind === "task_create" ? (c.result_id ? `/app/tasks?task=${encodeURIComponent(c.result_id)}` : null) : String(p.url ?? "") || null;
       return [{ id: c.id, kind: c.kind as Proposal["kind"], status: c.status as CardOut["status"], ...t, targetUrl, resultId: c.result_id }];
     });
-    return {
+    const out: MessageOut = {
       id: r.id, question: r.question, answer: lost ? RESTRICTED_MESSAGE : r.answer, status: lost ? "restricted" : (r.status as MessageOut["status"]),
       sources: visible, cards: myCards, createdAt: new Date(r.created_at).toISOString(),
     };
+    if (deps.config.askTd1) {
+      // TD1: say how many cited sources are gone (never which), what the answer read, and the about item if still open.
+      const meta = parseJson<{ coverage?: AskCoverage; about?: boolean }>(r.meta ?? "", {});
+      out.gone = src.filter((s) => s.cited && !ok.has(`${s.type}:${s.id}`)).length;
+      out.coverage = meta.coverage ?? null;
+      const first = src[0];
+      out.about = meta.about && first && ok.has(`${first.type}:${first.id}`) ? { type: first.type, id: first.id, title: first.title, url: first.url } : null;
+    }
+    return out;
   });
 }
 
@@ -245,19 +263,25 @@ async function threadOf(deps: Deps, orgId: string, userId: string, id: string) {
 
 export interface AskResult { thread: { id: string; title: string }; message: MessageOut; usage: AskUsage }
 
-export async function askQuestion(deps: Deps, actor: SuiteActor, input: { question?: unknown; threadId?: unknown }): Promise<AskResult> {
+export async function askQuestion(deps: Deps, actor: SuiteActor, input: { question?: unknown; threadId?: unknown; about?: unknown }): Promise<AskResult> {
   const userId = assertPerson(actor);
   const question = String(input.question ?? "").replace(/\s+/g, " ").trim();
   if (question.length < 3) throw new HttpError(422, "validation_failed", "Type a question of at least 3 characters.");
   if (question.length > ASK_QUESTION_MAX) throw new HttpError(422, "validation_failed", `Keep the question under ${ASK_QUESTION_MAX} characters.`);
   if (await excluded(deps, actor.orgId)) throw new HttpError(403, "ask_unavailable", EXCLUDED_MESSAGE);
+  const td1 = !!deps.config.askTd1;
+  if (td1) await assertAiAllowed(deps, actor.orgId); // TD1: AI off means nothing is read and no provider call
   const threadId = input.threadId ? String(input.threadId) : null;
   const thread = threadId ? await threadOf(deps, actor.orgId, userId, threadId) : null;
   const [previous] = thread ? await deps.db.all<{ question: string; answer: string }>(sql`select question, answer from ask_messages where thread_id = ${thread.id} and status = 'answered' order by created_at desc limit 1`) : [];
 
   const v: SearchViewer = { kind: "actor", actor };
   // Retrieval needs the previous question's words too, so a follow up ("and when is it due?") still finds the item.
-  const sources = await retrieveFor(deps, v, previous ? `${question} ${previous.question}` : question);
+  const asked = previous ? `${question} ${previous.question}` : question;
+  // TD1: the about item (re checked now, 404 when it cannot be opened) comes first; meaning search widens the rest.
+  const about = td1 && input.about ? await resolveAbout(deps, actor, input.about) : null;
+  const got = td1 ? await retrieveTd1(deps, v, actor.orgId, asked, about) : null;
+  const sources = got ? got.sources : await retrieveFor(deps, v, asked);
   const day = dayOf(deps.now());
   const plan = await planOf(deps, actor.orgId);
 
@@ -265,7 +289,7 @@ export async function askQuestion(deps: Deps, actor: SuiteActor, input: { questi
   if (sources.length) {
     const runner = deps.askAi ?? deps.ai;
     if (!runner) throw new HttpError(503, "ai_unavailable", "AI is not available right now. Try again later.");
-    const p = buildPrompt(question, sources, previous);
+    const p = buildPrompt(about ? `(This is about source [1], ${about.title}.) ${question}` : question, sources, previous); // TD1: about item
     const est = unitsFor(CHAT_MODEL, estimateTokens(p.system) + estimateTokens(p.user) + OVERHEAD_TOKENS, ASK_MAX_TOKENS);
     if (!(await reserveAsk(deps, actor.orgId, plan, est, day))) {
       const usage = await askUsage(deps, actor.orgId);
@@ -296,15 +320,16 @@ export async function askQuestion(deps: Deps, actor: SuiteActor, input: { questi
   else await deps.db.run(sql`insert into ask_threads (id, org_id, user_id, title, created_at, updated_at) values (${tid}, ${actor.orgId}, ${userId}, ${title}, ${t}, ${t})`);
   const stored: StoredSource[] = sources.map((s, i) => ({ n: i + 1, type: s.type, id: s.id, title: s.title, subtitle: s.subtitle ?? "", url: s.url, cited: cited.includes(i + 1) }));
   const mid = newId();
-  await deps.db.run(sql`insert into ask_messages (id, thread_id, org_id, user_id, question, answer, sources, status, created_at)
-    values (${mid}, ${tid}, ${actor.orgId}, ${userId}, ${question}, ${answer}, ${JSON.stringify(stored)}, ${status}, ${t})`);
+  const meta = got ? JSON.stringify({ coverage: got.coverage, about: !!about }) : null;
+  await deps.db.run(sql`insert into ask_messages (id, thread_id, org_id, user_id, question, answer, sources, status, created_at, meta)
+    values (${mid}, ${tid}, ${actor.orgId}, ${userId}, ${question}, ${answer}, ${JSON.stringify(stored)}, ${status}, ${t}, ${meta})`);
   for (const pr of proposals) {
     const src = pr.kind === "task_create" ? null : sources[pr.source - 1];
     const payload = pr.kind === "task_create" ? { title: pr.title } : { ...(pr.kind === "task_status" ? { status: pr.status } : { stage: pr.stage }), title: src!.title, url: src!.url };
     await deps.db.run(sql`insert into ask_cards (id, message_id, org_id, user_id, kind, target_id, payload, status, created_at)
       values (${newId()}, ${mid}, ${actor.orgId}, ${userId}, ${pr.kind}, ${src?.id ?? null}, ${JSON.stringify(payload)}, 'pending', ${t})`);
   }
-  const [row] = await deps.db.all<MsgRow>(sql`select id, thread_id, question, answer, sources, status, created_at from ask_messages where id = ${mid}`);
+  const [row] = await deps.db.all<MsgRow>(sql`select id, thread_id, question, answer, sources, status, created_at, meta from ask_messages where id = ${mid}`);
   const [message] = await present(deps, actor, [row]);
   return { thread: { id: tid, title }, message, usage: await askUsage(deps, actor.orgId) };
 }
@@ -325,7 +350,7 @@ export async function listThreads(deps: Deps, actor: SuiteActor, q?: string) {
 export async function getThread(deps: Deps, actor: SuiteActor, id: string) {
   const userId = assertPerson(actor);
   const t = await threadOf(deps, actor.orgId, userId, id);
-  const rows = await deps.db.all<MsgRow>(sql`select id, thread_id, question, answer, sources, status, created_at from ask_messages where thread_id = ${t.id} order by created_at limit 50`);
+  const rows = await deps.db.all<MsgRow>(sql`select id, thread_id, question, answer, sources, status, created_at, meta from ask_messages where thread_id = ${t.id} order by created_at limit 50`);
   return { thread: { id: t.id, title: t.title }, messages: await present(deps, actor, rows) };
 }
 
@@ -338,7 +363,7 @@ export async function deleteThread(deps: Deps, actor: SuiteActor, id: string) {
 
 async function ownMessage(deps: Deps, actor: SuiteActor, id: string) {
   const userId = assertPerson(actor);
-  const [row] = await deps.db.all<MsgRow>(sql`select id, thread_id, question, answer, sources, status, created_at from ask_messages where id = ${id} and org_id = ${actor.orgId} and user_id = ${userId} limit 1`);
+  const [row] = await deps.db.all<MsgRow>(sql`select id, thread_id, question, answer, sources, status, created_at, meta from ask_messages where id = ${id} and org_id = ${actor.orgId} and user_id = ${userId} limit 1`);
   if (!row) throw new HttpError(404, "not_found", "That answer was not found.");
   const [m] = await present(deps, actor, [row]);
   return m;
@@ -462,5 +487,10 @@ export async function deletePrompt(deps: Deps, actor: SuiteActor, id: string) {
 export async function askState(deps: Deps, actor: SuiteActor) {
   assertPerson(actor);
   if (await excluded(deps, actor.orgId)) return { available: false, reason: EXCLUDED_MESSAGE };
+  if (deps.config.askTd1 && !(await aiAllowed(deps, actor.orgId))) {
+    // TD1: AI is off until an admin turns it on. Admins get the switch; members get who to ask.
+    const admin = actor.role === "owner" || actor.role === "admin";
+    return { available: false, reason: admin ? AI_OFF_MESSAGE : AI_OFF_MEMBER, aiOff: true, canEnable: admin };
+  }
   return { available: !!(deps.askAi ?? deps.ai), usage: await askUsage(deps, actor.orgId), prompts: await listPrompts(deps, actor) };
 }

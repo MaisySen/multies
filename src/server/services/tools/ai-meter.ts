@@ -17,9 +17,11 @@ import type { Deps } from "../../context";
 import { isPlanId, type PlanId } from "@/shared/plans";
 import { providerFor } from "../ai/keys";
 import { dayOf } from "./usage";
+import { aiAllowed } from "../ai-trust-td1"; // TD1: AI trust gate
 
 /** The account's free daily allocation is 10,000 units; this hard stop leaves 1,000 for estimate error. */
 export const GLOBAL_DAILY_UNITS = 9_000;
+import { AI_OFF_MESSAGE } from "@/shared/ask-td1"; // TD1: AI trust gate
 /** Each workspace's share of the free daily units, by plan. The only place these numbers live. */
 export const AI_DAILY_UNITS: Record<PlanId, number> = { starter: 500, pro: 2_000, business: 4_000 };
 /** One call may reserve at most this much; callers split bigger work (translation batches, chunks). */
@@ -248,6 +250,7 @@ async function runFree(deps: Deps, req: AiRequest): Promise<{ texts: string[]; a
 /** The one door to AI for Tools. Never throws for a refusal; returns a plain message the UI can show. */
 export async function askAi(deps: Deps, orgId: string, req: AiRequest): Promise<AiResult> {
   if (req.task === "translate" && req.texts.length === 0) return { ok: true, source: "free", text: "", texts: [], units: 0 };
+  if (!(await aiAllowed(deps, orgId))) return { ok: false, reason: "unavailable", message: AI_OFF_MESSAGE }; // TD1: AI off, no provider call
   const own = await providerFor(deps, orgId).catch(() => null);
   if (own) return runOwnKey(own, req);
   if (!deps.ai) return { ok: false, reason: "unavailable", message: UNAVAILABLE_MESSAGE };

@@ -608,3 +608,19 @@ export async function openableR98(deps: Deps, v: SearchViewer, refs: SourceRef[]
   }));
   return out;
 }
+
+/**
+ * TD1: these items with their text, only when the viewer can open them now (the very same group queries, id-only mode).
+ * Used by "Ask about this": an item the viewer cannot open is simply not returned.
+ */
+export async function retrieveRefsR98(deps: Deps, v: SearchViewer, refs: SourceRef[]): Promise<RetrievedR98[]> {
+  const allowed = new Set(allowedTypes(deps, v, ASK_SOURCE_TYPES));
+  const out: RetrievedR98[] = [];
+  for (const r of refs.slice(0, 5)) {
+    if (!allowed.has(r.type) || r.type === "attachments") continue;
+    const c: Ctx = { deps, v, words: [], fuzzy: false, limit: 20, f: {}, person: null, ids: [r.id] };
+    const hit = (await GROUPS[r.type](c)).find((x) => x.item.id === r.id);
+    if (hit) out.push({ ...hit.item, body: `${hit.title ? `${hit.title}\n` : ""}${hit.body}`.replace(/\s+/g, " ").trim().slice(0, BODY_CHARS), score: 1000 });
+  }
+  return out;
+}

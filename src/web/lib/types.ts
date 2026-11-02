@@ -37,6 +37,8 @@ export interface PublicConfig {
   askR110?: boolean;
   /** R126: staff directory, onboarding, assets (PEOPLE_R126). */
   peopleR126?: boolean;
+  /** TD1: Ask v2 and AI trust controls (ASK_TD1). */
+  askTd1?: boolean;
   /** R128: team password vault (VAULT_R128). */
   vaultR128?: boolean;
   /** R94: CRM timeline (notes are searchable with R98). */

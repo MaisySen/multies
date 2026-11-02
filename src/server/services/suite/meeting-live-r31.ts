@@ -24,6 +24,7 @@ import { ensureNotesDocOnce, zoneOf } from "./meeting-notes";
 import { notBlockedBy } from "./reports-r35"; // R35: meeting chat leaves out blocked people
 
 export const NOTES_MESSAGE_PREFIX = "Notes for this call: ";
+import { assertAiAllowed } from "../ai-trust-td1"; // TD1: AI trust gate
 /** People joining this long after the start see the So far panel open on its own. */
 export const LATE_JOIN_MS = 5 * 60_000;
 const MAX_DECISIONS = 20;
@@ -149,6 +150,7 @@ export async function summarySoFar(deps: Deps, a: SuiteActor, meetingId: string)
 /** "Write a summary": the digest rewritten by the workspace's own model key. 409 without a key. */
 export async function writeSummarySoFar(deps: Deps, a: SuiteActor, meetingId: string) {
   const s = await summarySoFar(deps, a, meetingId);
+  await assertAiAllowed(deps, a.orgId); // TD1: AI off means no provider call
   const { providerFor } = await import("../ai/keys");
   const ai = await providerFor(deps, a.orgId);
   if (!ai) throw new HttpError(409, "no_ai_key", "Add your workspace's own AI key in Settings to write a summary. The So far digest works without one.");
