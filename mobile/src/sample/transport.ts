@@ -1,4 +1,5 @@
 import { SAMPLE_NAV_MENU } from "./nav-menu";
+import { dealsRoute, sampleDeals } from "./deals";
 import type { Method, RequestOptions, Transport } from "@/api/transport";
 import { sampleJob, sampleToolsInfo } from "./tools";
 import { ApiError } from "@/api/errors";
@@ -35,6 +36,7 @@ export class SampleTransport implements Transport {
   private mail = sampleMailExtras(Date.now(), this.data.messages);
   /** M1: the drive (Files). */
   private drive = sampleDrive(Date.now());
+  private dealStore = { deals: sampleDeals() };
   /** R35: report and block in the sample workspace, kept in memory only. */
   private blocks: { userId: string; name: string; avatarUrl: string | null; createdAt: string }[] = [];
   private reports = 0;
@@ -55,6 +57,7 @@ export class SampleTransport implements Transport {
     this.m1work = sampleM1Work(Date.now());
     this.mail = sampleMailExtras(Date.now(), this.data.messages);
     this.drive = sampleDrive(Date.now());
+    this.dealStore = { deals: sampleDeals() };
     this.blocks = [];
     this.reports = 0;
   }
@@ -73,6 +76,9 @@ export class SampleTransport implements Transport {
 
     // M2: the web menu (R121) for the More grid.
     if (method === "GET" && path === "/nav/menu") return json(SAMPLE_NAV_MENU);
+    // M2: deals.
+    const deal = dealsRoute(this.dealStore, method, path, body);
+    if (deal !== undefined) return json(deal);
     // M1: the drive (Files).
     if (path.startsWith("/drive/")) return json(driveRoute(this.drive, method, rawPath, body));
     // M1: global search, Docs, comments and share links.

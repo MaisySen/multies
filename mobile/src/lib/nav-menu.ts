@@ -102,7 +102,7 @@ export const colorFor = (sectionId: string): TileColor => COLOR[sectionId] ?? "b
 const NATIVE: Record<string, string> = {
   "/app": "/today", "/app/my-work": "/today", "/app/notifications": "/notifications", "/app/approvals": "/approvals",
   "/app/mail": "/inbox", "/app/chat": "/chat", "/app/meetings": "/meetings", "/app/tasks": "/tasks", "/app/portfolio": "/portfolio",
-  "/app/docs": "/docs", "/app/files": "/files", "/app/social": "/social", "/app/contacts": "/contacts", "/app/tools": "/tools",
+  "/app/docs": "/docs", "/app/files": "/files", "/app/social": "/social", "/app/contacts": "/contacts", "/app/deals": "/deals", "/app/tools": "/tools",
   "/app/automations/runs": "/runs", "/app/activity": "/activity", "/app/settings": "/settings",
 };
 /** The app screen for a web page, or null when it opens on the web. Tasks needs the app's tasks switch. */
