@@ -1,9 +1,12 @@
 /**
  * TD8 Team AI (flag TEAMAI_TD8): workspace AI memory, saved instruction sets, routines and the assistant in chat channels.
  *
- * Own key only: every model call goes through the workspace's own AI key (providerFor). No built in AI, no shared meter,
- * no binding, nothing billed to Multies. The per workspace AI switch is checked before every call: off means no provider
- * call at all; the run is logged as skipped and the page shows a clear off state.
+ * AI source: the workspace's own AI key when it has one (providerFor; no free limit, no meter use). Without a key, the
+ * existing built in AI through the one Tools door (askAi: the existing binding, the single shared meter with its hard
+ * daily cap reserved before each call, never billed) on the strongest rated model (STRONG_CHAT_MODEL), under a per
+ * workspace limit of free runs per day or week (TEAMAI_FREE_DAILY_CALLS, TEAMAI_FREE_PERIOD) claimed atomically before
+ * the call. Same memory, instruction sets, routines and citations either way. No new binding. The per workspace AI
+ * switch is checked before every call: off means no provider call at all; the run is logged as skipped and the page shows a clear off state.
  *
  * Nothing is remembered without a visible entry: the assistant reads only active memory entries on the Team AI page.
  * Routines write a draft (kept in the run log) or a chat message, never an email. Chat answers use only items that the
@@ -21,9 +24,10 @@ import { AiProviderError, type AiProvider } from "./ai/providers";
 import { isAskExcluded, retrieveFor } from "./ask-r110";
 import { openableR98, type RetrievedR98 } from "./search-r98";
 import { teamAiSwitchOn } from "./teamai-gate-td8";
+import { askAi, STRONG_CHAT_MODEL } from "./tools/ai-meter";
 import {
   TEAMAI_CAPS as CAP, REASON_TEXT, ROUTINE_OUTPUTS, ROUTINE_TRIGGERS, citedNumbers, cleanText, dayStart, mentionsAssistant, nextRunAt, questionOf,
-  type InstructionSet, type MemoryEntry, type Routine, type RoutineOutput, type RoutineTrigger, type RunEntry, type RunKind, type RunStatus, type TeamAiState,
+  FREE_LIMIT_REPLY, freeWindowStart, type InstructionSet, type MemoryEntry, type Routine, type RoutineOutput, type RoutineTrigger, type RunEntry, type RunKind, type RunStatus, type TeamAiState,
 } from "@/shared/teamai-td8";
 
 type A = SuiteActor;
@@ -63,9 +67,17 @@ async function memberActor(deps: Deps, orgId: string, userId: string): Promise<A
 }
 
 /** The AI state the page shows: the switch, whether a key is connected (never the key) and today's use. */
+const freeLimitOf = (deps: Deps) => deps.config.teamaiFreeDailyCalls ?? 50;
+const freePeriodOf = (deps: Deps): "day" | "week" => (deps.config.teamaiFreePeriod === "week" ? "week" : "day");
+const freeSince = (deps: Deps) => freeWindowStart(deps.now().getTime(), freePeriodOf(deps));
+async function freeUsedNow(deps: Deps, orgId: string): Promise<number> {
+  const [r] = await deps.db.all<{ n: number }>(sql`select count(*) as n from teamai_runs where org_id = ${orgId} and created_at >= ${freeSince(deps)} and ai_source = 'free'`);
+  return Number(r?.n ?? 0);
+}
 async function aiState(deps: Deps, orgId: string) {
-  const [on, key] = await Promise.all([teamAiSwitchOn(deps, orgId), aiKeyStatus(deps, orgId)]);
-  return { on, key: key.connected, provider: key.providerName };
+  const [on, key, freeUsed] = await Promise.all([teamAiSwitchOn(deps, orgId), aiKeyStatus(deps, orgId), freeUsedNow(deps, orgId)]);
+  const source: "own_key" | "built_in" | "none" = key.connected ? "own_key" : deps.ai ? "built_in" : "none";
+  return { on, key: key.connected, provider: key.connected ? key.providerName : null, source, freeUsed, freeLimit: freeLimitOf(deps), freePeriod: freePeriodOf(deps) };
 }
 async function usedToday(deps: Deps, orgId: string): Promise<number> {
   const [r] = await deps.db.all<{ n: number }>(sql`select count(*) as n from teamai_runs where org_id = ${orgId} and created_at >= ${dayStart(deps.now().getTime())}
@@ -471,6 +483,37 @@ async function finish(deps: Deps, r: RunRow, status: RunStatus, reason: string |
   if (r.routine_id) await deps.db.run(sql`update teamai_routines set last_run_at = ${now}, last_status = ${status} where id = ${r.routine_id} and org_id = ${r.org_id}`);
 }
 
+/**
+ * Built in AI for a workspace with no key: claims one of today's free runs for this run in one statement (so two runs at
+ * once cannot pass the limit), then goes through askAi, which checks the AI switch again, reserves on the single shared
+ * meter before the call and never bills. A refusal made before any call gives the free run back.
+ */
+async function callBuiltIn(deps: Deps, r: RunRow, req: { system: string; user: string }): Promise<string> {
+  if (!deps.ai) throw new RunStop("no_key", "skipped"); // no key and no built in AI here: nothing can run
+  const claimed = await deps.db.all<{ id: string }>(sql`update teamai_runs set ai_source = 'free' where id = ${r.id} and org_id = ${r.org_id}
+    and (select count(*) from teamai_runs where org_id = ${r.org_id} and created_at >= ${freeSince(deps)} and ai_source = 'free') < ${freeLimitOf(deps)} returning id`);
+  if (!claimed.length) throw new RunStop("free_limit", "skipped");
+  const giveBack = async () => { try { await deps.db.run(sql`update teamai_runs set ai_source = null where id = ${r.id} and org_id = ${r.org_id}`); } catch { /* the run still ends skipped */ } };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, rej) => { timer = setTimeout(() => rej(new RunStop("timeout")), CAP.callTimeoutMs); });
+  try {
+    const res = await Promise.race([askAi(deps, r.org_id, { task: "chat", system: req.system, user: req.user, maxTokens: CAP.answerTokens, model: STRONG_CHAT_MODEL }), deadline]);
+    if (!res.ok) {
+      if (res.reason === "error") throw new RunStop("provider_error");
+      await giveBack();
+      if (res.reason === "limit" || res.reason === "workspace_limit") throw new RunStop("free_limit", "skipped");
+      if (res.reason === "too_big") throw new RunStop("too_big", "skipped");
+      throw new RunStop((await teamAiSwitchOn(deps, r.org_id)) ? "ai_unavailable" : "ai_off", "skipped");
+    }
+    const out = cleanText(res.text ?? "", CAP.draftChars, true);
+    if (!out) throw new RunStop("empty");
+    return out;
+  } catch (err) {
+    if (err instanceof RunStop) throw err;
+    throw new RunStop("provider_error");
+  } finally { if (timer) clearTimeout(timer); }
+}
+
 /** Calls the workspace's provider with a deadline. The prompt and answer never reach a log. */
 async function callProvider(p: AiProvider, req: { system: string; user: string }): Promise<string> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -593,9 +636,21 @@ export async function processRun(deps: Deps, runId: string): Promise<void> {
       user = `${notesBlock(notes)}Instruction (${ins.name}):\n${ins.body}\n\n${item ? `Item (data):\n${item}\n\n` : ""}Today is ${new Date(now).toISOString().slice(0, 10)}.`;
     }
 
+    // Own key first (no free limit, no meter); otherwise built in AI under the free limit and the shared cap.
     const provider = await providerFor(deps, r.org_id);
-    if (!provider) throw new RunStop("no_key", "skipped");
-    let text = await callProvider(provider, { system, user });
+    let text: string;
+    try {
+      text = provider ? await callProvider(provider, { system, user }) : await callBuiltIn(deps, r, { system, user });
+    } catch (e) {
+      // In a thread, say plainly that today's free runs are used up (a fixed line, no AI call) instead of going quiet.
+      if (e instanceof RunStop && e.reason === "free_limit" && r.kind === "mention" && poster && channelId) {
+        const { postMessage } = await import("./suite/chat");
+        const m = await postMessage(deps, poster, channelId, { body: FREE_LIMIT_REPLY, parentId });
+        await finish(deps, r, "skipped", "free_limit", { messageId: m.id });
+        return;
+      }
+      throw e;
+    }
 
     if (r.kind === "mention" && sources.length) {
       const cited = citedNumbers(text, sources.length);

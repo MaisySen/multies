@@ -82,8 +82,12 @@ export interface AppConfig {
   peopleR126?: boolean;
   /** TD6: INBOX_TD6 (One inbox: mail, chat, mentions, tasks and assistant replies sorted Important and Noise). Off unless set. */
   inboxTd6?: boolean;
-  /** TD8: TEAMAI_TD8 (workspace AI memory, instruction sets, routines, assistant in chat; own key only). Off unless set. */
+  /** TD8: TEAMAI_TD8 (workspace AI memory, instruction sets, routines, assistant in chat; own key, else free built in AI under a daily limit). Off unless set. */
   teamaiTd8?: boolean;
+  /** TD8: built in AI runs per workspace per period (TEAMAI_FREE_PERIOD) for Team AI when the workspace has no key of its own (TEAMAI_FREE_DAILY_CALLS, default 50). */
+  teamaiFreeDailyCalls?: number;
+  /** TD8: the window that limit counts over, "day" (default) or "week" (Monday 00:00 UTC), TEAMAI_FREE_PERIOD. */
+  teamaiFreePeriod?: "day" | "week";
   /** R126: more workspaces kept out of People; vv8k is always out. */
   peopleExclude?: string;
   /** TD5: MENTIONS_TD5 (record mentions, References panels, per viewer chat cards). Off unless set. */
@@ -483,6 +487,8 @@ const EnvSchema = z.object({
   MENTIONS_EXCLUDE: z.string().optional(),
   INBOX_TD6: z.string().optional(),
   TEAMAI_TD8: z.string().optional(),
+  TEAMAI_FREE_DAILY_CALLS: z.string().optional(),
+  TEAMAI_FREE_PERIOD: z.string().optional(),
   PEOPLE_EXCLUDE: z.string().optional(),
   VAULT_EXCLUDE: z.string().optional(),
   TOOLS_FEATURES: z.string().optional(),
@@ -807,6 +813,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     peopleR126: ["1", "true", "on"].includes(String(env.PEOPLE_R126 ?? "").toLowerCase()), // R126
     inboxTd6: ["1", "true", "on"].includes(String(env.INBOX_TD6 ?? "").toLowerCase()), // TD6
     teamaiTd8: ["1", "true", "on"].includes(String(env.TEAMAI_TD8 ?? "").toLowerCase()), // TD8
+    teamaiFreeDailyCalls: (() => { const n = Number.parseInt(String(env.TEAMAI_FREE_DAILY_CALLS ?? ""), 10); return Number.isFinite(n) && n >= 0 ? Math.min(n, 1_000) : 50; })(), // TD8
+    teamaiFreePeriod: String(env.TEAMAI_FREE_PERIOD ?? "").toLowerCase() === "week" ? "week" : "day", // TD8
     peopleExclude: env.PEOPLE_EXCLUDE ?? "", // R126
     mentionsTd5: ["1", "true", "on"].includes(String(env.MENTIONS_TD5 ?? "").toLowerCase()), // TD5
     mentionsExclude: env.MENTIONS_EXCLUDE ?? "", // TD5

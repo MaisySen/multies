@@ -42,6 +42,9 @@ export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday",
 export const REASON_TEXT: Record<string, string> = {
   ai_off: "AI is off for this workspace",
   no_key: "No AI key is connected",
+  free_limit: "Free AI limit for this workspace reached. Add your own AI key in Settings for unlimited use",
+  ai_unavailable: "Built in AI is not available right now. Try again later or add your own AI key",
+  too_big: "Too much text for one free AI request",
   cap: "Daily limit reached",
   provider_error: "The AI provider did not answer",
   timeout: "The AI provider took too long",
@@ -73,7 +76,8 @@ export interface RunEntry {
 }
 export interface TeamAiState {
   isAdmin: boolean;
-  ai: { on: boolean; key: boolean; provider: string | null };
+  /** source: own_key = the workspace's key (no daily free limit); built_in = free built in AI under the daily limit; none = nothing can run. */
+  ai: { on: boolean; key: boolean; provider: string | null; source: "own_key" | "built_in" | "none"; freeUsed: number; freeLimit: number; freePeriod: "day" | "week" };
   usedToday: number;
   caps: { runsPerDay: number; routinesMax: number; memoryMax: number };
   channels: { id: string; name: string; private: boolean }[];
@@ -160,4 +164,15 @@ export function describeSchedule(r: Pick<Routine, "trigger" | "hour" | "weekday"
   if (r.trigger === "daily") return `Every day at ${hh}`;
   if (r.trigger === "weekly") return `Every ${WEEKDAYS[r.weekday] ?? "Monday"} at ${hh}`;
   return TRIGGER_LABEL[r.trigger];
+}
+
+/** The friendly line the assistant posts in a thread when the workspace's free built in AI runs are used up (no AI call is made). */
+export const FREE_LIMIT_REPLY = "This workspace's free AI runs are used up for now. Add your own AI key in Settings for unlimited use, or ask again later.";
+
+/** Start of the free limit window: the UTC day, or the week from Monday 00:00 UTC. */
+export function freeWindowStart(now: number, period: "day" | "week"): number {
+  const d = dayStart(now);
+  if (period === "day") return d;
+  const back = (new Date(d).getUTCDay() + 6) % 7;
+  return d - back * 86_400_000;
 }

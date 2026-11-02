@@ -89,6 +89,20 @@ function AiStatus({ s }: { s: TeamAiState }) {
       </Card>
     );
   }
+  if (s.ai.source === "built_in") {
+    const left = Math.max(0, s.ai.freeLimit - s.ai.freeUsed);
+    const when = s.ai.freePeriod === "week" ? "this week" : "today";
+    return (
+      <Card className="mb-4 p-4" data-testid="teamai-built-in" role="status">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[14px] font-semibold text-fg">Ready on free built in AI</p>
+          <Badge tone={left === 0 ? "warn" : "neutral"}>{left} of {s.ai.freeLimit} free runs left {when}</Badge>
+        </div>
+        <p className="mt-1 text-[13px] text-muted">Your workspace has no AI key of its own, so Team AI uses free built in AI with a {s.ai.freePeriod === "week" ? "weekly" : "daily"} limit. It is never charged. Ask in any channel: type <span className="font-mono text-fg">@assistant</span> and your question.{left === 0 ? (s.ai.freePeriod === "week" ? " This week's free runs are used up; they come back on Monday." : " Today's free runs are used up; they come back tomorrow.") : ""}</p>
+        {s.isAdmin && <Link to="/app/settings" className="mt-2 inline-flex min-h-9 items-center text-[13px] font-medium text-brand-hover hover:underline">Add your own key for unlimited use</Link>}
+      </Card>
+    );
+  }
   if (!s.ai.key) {
     return (
       <Card className="mb-4 p-4" data-testid="teamai-no-key" role="status">
@@ -217,7 +231,7 @@ function InstructionsTab({ s }: { s: TeamAiState }) {
     try { await api.del(`/team-ai/instructions/${encodeURIComponent(i.id)}`); await qc.invalidateQueries({ queryKey: qk.instructions }); toast.success("Instruction set deleted"); } catch (e) { toast.error(errorMessage(e)); }
   };
   const items = q.data?.instructions ?? [];
-  const canRun = s.ai.on && s.ai.key;
+  const canRun = s.ai.on && s.ai.source !== "none";
   return (
     <section aria-label="Instructions" className="space-y-3">
       <div className="flex justify-end"><Button size="sm" onClick={() => setEdit({ ins: null })} data-testid="ins-new">New instruction set</Button></div>
@@ -234,7 +248,7 @@ function InstructionsTab({ s }: { s: TeamAiState }) {
                     <p className="mt-1 line-clamp-2 whitespace-pre-wrap break-words text-[13px] text-muted">{i.body}</p>
                   </div>
                   <div className="flex shrink-0 gap-1">
-                    <Button size="sm" variant="secondary" loading={busy === i.id} disabled={!canRun} onClick={() => void run(i)} title={canRun ? undefined : "Needs AI on and a key"}>Try it</Button>
+                    <Button size="sm" variant="secondary" loading={busy === i.id} disabled={!canRun} onClick={() => void run(i)} title={canRun ? undefined : "Needs AI on and an AI source"}>Try it</Button>
                     {i.canEdit && <Button size="sm" variant="ghost" onClick={() => setEdit({ ins: i })} aria-label={`Edit ${i.name}`}>Edit</Button>}
                     {i.canEdit && <Button size="sm" variant="ghost" onClick={() => void remove(i)} aria-label={`Delete ${i.name}`}>Delete</Button>}
                   </div>
@@ -363,7 +377,7 @@ function RoutinesTab({ s }: { s: TeamAiState }) {
                 {s.isAdmin && (
                   <div className="flex shrink-0 flex-wrap items-center gap-1">
                     <Switch checked={r.enabled} onChange={(x) => void toggle(r, x)} label={`${r.name} on`} />
-                    <Button size="sm" variant="secondary" loading={busy === r.id} disabled={!s.ai.on || !s.ai.key} onClick={() => void runNow(r)}>Run now</Button>
+                    <Button size="sm" variant="secondary" loading={busy === r.id} disabled={!s.ai.on || s.ai.source === "none"} onClick={() => void runNow(r)}>Run now</Button>
                     <Button size="sm" variant="ghost" onClick={() => setEdit({ r })} aria-label={`Edit ${r.name}`}>Edit</Button>
                     <Button size="sm" variant="ghost" onClick={() => void remove(r)} aria-label={`Delete ${r.name}`}>Delete</Button>
                   </div>

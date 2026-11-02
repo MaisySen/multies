@@ -87,7 +87,7 @@ describe("TD8 flag and access", () => {
     const st = await m.get("/api/team-ai/state");
     expect(st.status).toBe(200);
     expect(st.body.isAdmin).toBe(false);
-    expect(st.body.ai).toEqual({ on: true, key: false, provider: null });
+    expect(st.body.ai).toMatchObject({ on: true, key: false, provider: null, source: "none", freeUsed: 0 });
     expect(JSON.stringify(st.body)).not.toMatch(/sk-/);
     const a = await t.admin.post("/api/team-ai/memory", { text: "Our refund window is 30 days" });
     expect(a.status).toBe(201);

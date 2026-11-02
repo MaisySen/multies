@@ -47,6 +47,8 @@ export const TRANSLATE_MODEL = "@cf/meta/m2m100-1.2b";
  * group whose answer is not a clean JSON array of the same length.
  */
 export const TRANSLATE_LLM = "@cf/meta/llama-4-scout-17b-16e-instruct";
+/** TD8: the strongest chat model on the existing binding whose rate is already on this meter (same model as TRANSLATE_LLM). */
+export const STRONG_CHAT_MODEL = TRANSLATE_LLM;
 /** Lines and characters per translation call on TRANSLATE_LLM. */
 const LLM_GROUP_LINES = 12, LLM_GROUP_CHARS = 2_400;
 
@@ -72,7 +74,8 @@ export type TranslateLanguage = keyof typeof TRANSLATE_LANGUAGES;
 export const isTranslateLanguage = (v: unknown): v is TranslateLanguage => typeof v === "string" && Object.hasOwn(TRANSLATE_LANGUAGES, v);
 
 export type AiRequest =
-  | { task: "chat"; system: string; user: string; maxTokens?: number }
+  /** model: the built in chat model; CHAT_MODEL unless the caller asks for STRONG_CHAT_MODEL (TD8 Team AI). Both are rated below. */
+  | { task: "chat"; system: string; user: string; maxTokens?: number; model?: typeof CHAT_MODEL | typeof STRONG_CHAT_MODEL }
   | { task: "translate"; texts: string[]; target: TranslateLanguage; source?: string };
 
 export type AiSource = "own_key" | "free";
@@ -93,7 +96,7 @@ export function unitsFor(model: string, tokensIn: number, tokensOut: number): nu
 /** The units a request reserves before it runs (input counted, full output allowance assumed). */
 export function estimateUnits(req: AiRequest): number {
   if (req.task === "chat") {
-    return unitsFor(CHAT_MODEL, estimateTokens(req.system) + estimateTokens(req.user) + OVERHEAD_TOKENS, req.maxTokens ?? 400);
+    return unitsFor(req.model ?? CHAT_MODEL, estimateTokens(req.system) + estimateTokens(req.user) + OVERHEAD_TOKENS, req.maxTokens ?? 400);
   }
   let tin = 0, tout = 0;
   for (const t of req.texts) { const n = estimateTokens(t) + 4; tin += n; tout += n * 2 + 8; }
@@ -196,14 +199,15 @@ async function runFree(deps: Deps, req: AiRequest): Promise<{ texts: string[]; a
   const ai = deps.ai!;
   if (req.task === "chat") {
     const maxTokens = req.maxTokens ?? 400;
-    const out = (await ai.run(CHAT_MODEL, { messages: [{ role: "system", content: req.system }, { role: "user", content: req.user }], max_tokens: maxTokens, temperature: 0.2 })) as ChatOut;
+    const model = req.model ?? CHAT_MODEL;
+    const out = (await ai.run(model, { messages: [{ role: "system", content: req.system }, { role: "user", content: req.user }], max_tokens: maxTokens, temperature: 0.2 })) as ChatOut;
     // The service may hand back an answer that is JSON already parsed (an object or array) instead of text: keep it as JSON text.
     const resp: unknown = out?.response;
     const text = typeof resp === "string" ? resp.trim() : resp && typeof resp === "object" ? JSON.stringify(resp) : "";
     const pin = out?.usage?.prompt_tokens, pout = out?.usage?.completion_tokens;
     const actual = typeof pin === "number" && typeof pout === "number"
-      ? unitsFor(CHAT_MODEL, pin, pout)
-      : unitsFor(CHAT_MODEL, estimateTokens(req.system) + estimateTokens(req.user) + OVERHEAD_TOKENS, Math.min(maxTokens, estimateTokens(text) + 8));
+      ? unitsFor(model, pin, pout)
+      : unitsFor(model, estimateTokens(req.system) + estimateTokens(req.user) + OVERHEAD_TOKENS, Math.min(maxTokens, estimateTokens(text) + 8));
     return { texts: [text], actual };
   }
   const texts: string[] = new Array<string>(req.texts.length).fill("");

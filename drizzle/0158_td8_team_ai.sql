@@ -63,6 +63,7 @@ CREATE TABLE `teamai_runs` (
 	`event_key` text NOT NULL,
 	`status` text DEFAULT 'queued' NOT NULL,
 	`reason` text,
+	`ai_source` text,
 	`output` text DEFAULT 'none' NOT NULL,
 	`result` text,
 	`input` text,
