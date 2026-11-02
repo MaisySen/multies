@@ -130,3 +130,36 @@ test("the layout menu is called Layout (MB-316)", async ({ page }) => {
   await demo(page);
   await expect(page.getByTestId("view-menu")).toHaveAccessibleName(/Layout/);
 });
+
+test("doc tree: a table and a course go to the trash from Page actions, with Undo (POL1 follow up)", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await demo(page);
+  const origin = new URL(page.url()).origin;
+  const headers = { origin };
+  const tTitle = `Jobs ${uniq()}`;
+  const cTitle = `Safety ${uniq()}`;
+  const t = await page.request.post("/api/tables", { data: { title: tTitle, template: "jobs" }, headers });
+  expect(t.ok(), await t.text()).toBe(true);
+  const c = await page.request.post("/api/courses", { data: { title: cTitle }, headers });
+  expect(c.ok(), await c.text()).toBe(true);
+  await page.goto("/app/docs");
+  for (const [title, done] of [[tTitle, "Table moved to the trash"], [cTitle, "Course moved to the trash"]] as const) {
+    const row = page.getByTestId(`tree-row-${title}`);
+    await expect(row).toBeVisible({ timeout: 20_000 });
+    await row.hover();
+    await page.getByRole("button", { name: `Page actions for ${title}` }).click();
+    await page.getByRole("menuitem", { name: "Move to trash" }).click();
+    const dialog = page.getByRole("alertdialog").or(page.getByRole("dialog")).last();
+    await expect(dialog).toBeVisible();
+    expect(await serious(page)).toEqual([]);
+    await dialog.getByRole("button", { name: /trash/i }).click();
+    await expect(page.getByText(done)).toBeVisible();
+    await expect(page.getByTestId(`tree-row-${title}`)).toHaveCount(0);
+    if (title === tTitle) {
+      await page.getByRole("button", { name: "Undo" }).click();
+      await expect(page).toHaveURL(/\/app\/docs\//);
+      await page.goto("/app/docs");
+      await expect(page.getByTestId(`tree-row-${title}`)).toBeVisible({ timeout: 20_000 });
+    }
+  }
+});

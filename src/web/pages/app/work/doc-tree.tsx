@@ -13,9 +13,11 @@ import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { cn } from "@/web/lib/cn";
+import { useTrashAction, usePolishOn } from "@/web/components/trash-pol1"; // F13b
+import { IconTrash } from "@/web/components/ui/icon";
 
 export const MAX_DEPTH = 6;
-export interface TreeNode { id: string; title: string; parentId: string | null; position: number; depth: number; children: TreeNode[]; kind?: "whiteboard" }
+export interface TreeNode { id: string; title: string; parentId: string | null; position: number; depth: number; children: TreeNode[]; kind?: "whiteboard" | "table" | "course" }
 interface TreeAnswer { tree: TreeNode[]; count: number; truncated: boolean }
 interface Backlink { id: string; title: string; snippet: string; updatedAt: string }
 
@@ -170,6 +172,10 @@ function TreeItem({ node, siblings, index, parent, currentId, collapsed, toggle,
   const next = siblings[index + 1];
   const active = node.id === currentId;
   const style = drag.transform ? { transform: `translate3d(${drag.transform.x}px, ${drag.transform.y}px, 0)`, zIndex: 20 } : undefined;
+  // F13b (POL1 follow up): tables and courses go to the trash from the tree too (the server checks who may).
+  const trashKind = node.kind === "table" || node.kind === "course" ? node.kind : null;
+  const polish = usePolishOn();
+  const trash = useTrashAction(trashKind ?? "table", node.id, node.title || "Untitled");
   return (
     <li role="treeitem" aria-expanded={hasKids ? open : undefined} aria-selected={active} aria-level={node.depth}>
       <Gap id={node.id} />
@@ -191,7 +197,9 @@ function TreeItem({ node, siblings, index, parent, currentId, collapsed, toggle,
             <MenuItem icon={<IconArrowDown />} onSelect={() => { if (next) void move(node.id, { afterId: next.id }); }}>Move down</MenuItem>
             <MenuItem icon={<IconIndent />} onSelect={() => { if (prev) void move(node.id, { parentId: prev.id }); }}>Indent</MenuItem>
             <MenuItem icon={<IconOutdent />} onSelect={() => { if (parent) void move(node.id, { parentId: parent.parentId, afterId: parent.id }); }}>Outdent</MenuItem>
+            {polish && trashKind && <MenuItem danger icon={<IconTrash />} onSelect={() => void trash.run()}>Move to trash</MenuItem>}
           </Menu>
+          {polish && trashKind && trash.dialogs}
         </div>
       </div>
       {hasKids && open && (

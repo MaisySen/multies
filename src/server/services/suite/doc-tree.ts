@@ -121,7 +121,7 @@ function hostsOf(deps: Deps): string[] {
 // ---------------------------------------------------------------- tree
 
 export interface TreeRow { id: string; title: string; parentId: string | null; position: number; projectId: string | null; updatedAt: Date; kind?: string | null }
-export interface TreeNode { id: string; title: string; parentId: string | null; position: number; projectId: string | null; updatedAt: string; depth: number; children: TreeNode[]; /** R89: shown only when not a plain doc. */ kind?: "whiteboard" }
+export interface TreeNode { id: string; title: string; parentId: string | null; position: number; projectId: string | null; updatedAt: string; depth: number; children: TreeNode[]; /** R89: shown only when not a plain doc (F13b: tables and courses too, for Move to trash). */ kind?: "whiteboard" | "table" | "course" }
 
 /** Who is reading: a workspace member or key (orgId), or a guest limited to one project. */
 export interface DocViewer { orgId: string; projectId?: string }
@@ -137,7 +137,7 @@ const order = (a: { position: number; id: string }, b: { position: number; id: s
 /** Nests rows; a page whose parent is gone or out of view sits at the top. */
 export function buildTree(rows: TreeRow[]): TreeNode[] {
   const nodes = new Map<string, TreeNode>();
-  for (const r of rows) nodes.set(r.id, { id: r.id, title: r.title, parentId: r.parentId, position: r.position, projectId: r.projectId, updatedAt: new Date(r.updatedAt).toISOString(), depth: 1, children: [], ...(r.kind === "whiteboard" ? { kind: "whiteboard" as const } : {}) });
+  for (const r of rows) nodes.set(r.id, { id: r.id, title: r.title, parentId: r.parentId, position: r.position, projectId: r.projectId, updatedAt: new Date(r.updatedAt).toISOString(), depth: 1, children: [], ...(r.kind === "whiteboard" || r.kind === "table" || r.kind === "course" ? { kind: r.kind as "whiteboard" | "table" | "course" } : {}) });
   const roots: TreeNode[] = [];
   for (const n of nodes.values()) {
     const p = n.parentId ? nodes.get(n.parentId) : undefined;
