@@ -244,6 +244,18 @@ describe("TD10 API", () => {
     expect((await t.owner.del(`/api/crm-td10/analyses/${saved.body.id}`)).status).toBe(200);
   });
 
+  it("a new contact suggestion for someone who got a contact since is hidden, and accepting it fills only empty fields", async () => {
+    const t4 = await setup();
+    await t4.mail({ from: "ivy@vine.com", text: "Thanks,\nIvy Moss\nPartner\n0400 111 222" });
+    await t4.owner.post("/api/crm-td10/suggestions/scan");
+    const s = ((await t4.owner.get("/api/crm-td10/suggestions")).body.items as { id: string; kind: string }[]).find((x) => x.kind === "new_contact")!;
+    await t4.owner.post("/api/contacts", { email: "ivy@vine.com", name: "Ivy M", title: "Boss" });
+    expect(((await t4.owner.get("/api/crm-td10/suggestions")).body.items as { id: string }[]).some((x) => x.id === s.id)).toBe(false);
+    expect((await t4.owner.post(`/api/crm-td10/suggestions/${s.id}/accept`)).status).toBe(200);
+    const ivy = await t4.ctx.db.select().from(contacts).where(and(eq(contacts.orgId, t4.orgId), eq(contacts.email, "ivy@vine.com"))).get();
+    expect(ivy).toMatchObject({ name: "Ivy M", title: "Boss", phone: "0400 111 222" });
+  });
+
   it("the shortcut switch is per person", async () => {
     expect((await t.owner.get("/api/crm-td10/prefs")).body).toEqual({ shortcutsOff: false });
     expect((await t.owner.put("/api/crm-td10/prefs", { shortcutsOff: true })).body).toEqual({ shortcutsOff: true });

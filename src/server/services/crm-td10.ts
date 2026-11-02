@@ -166,15 +166,19 @@ export async function listSuggestions(deps: Deps, a: Actor): Promise<{ items: Su
   const rows = await deps.db.select().from(crmSuggestionsTd10)
     .where(and(eq(crmSuggestionsTd10.orgId, a.orgId), eq(crmSuggestionsTd10.status, "open"), inIds(crmSuggestionsTd10.mailboxId, boxes)))
     .orderBy(desc(crmSuggestionsTd10.messageAt)).limit(100);
-  const contactIds = new Set<string>(); const dealIds = new Set<string>();
+  const contactIds = new Set<string>(); const dealIds = new Set<string>(); const newEmails = new Set<string>();
   for (const r of rows) {
+    if (r.targetType === "email") { const e = parseJson<Record<string, string>>(r.fieldsJson, {}).email; if (e) newEmails.add(e); }
     if (r.targetType === "contact" && r.targetId) contactIds.add(r.targetId);
     if (r.targetType === "deal" && r.targetId) { dealIds.add(r.targetId); const f = parseJson<Record<string, string>>(r.fieldsJson, {}); if (f.contactId) contactIds.add(f.contactId); }
   }
-  const [cs, ds] = await Promise.all([
+  const [cs, ds, known] = await Promise.all([
     contactIds.size ? deps.db.select({ id: contacts.id, name: contacts.name, email: contacts.email, title: contacts.title, phone: contacts.phone, companyId: contacts.companyId }).from(contacts).where(and(eq(contacts.orgId, a.orgId), inIds(contacts.id, [...contactIds]), isNull(contacts.deletedAt))) : [],
     dealIds.size ? deps.db.select({ id: deals.id, title: deals.title, stage: deals.stage }).from(deals).where(and(eq(deals.orgId, a.orgId), inIds(deals.id, [...dealIds]), isNull(deals.deletedAt))) : [],
+    // A new contact suggestion whose person got a contact since (mail or by hand) is no longer news.
+    newEmails.size ? deps.db.select({ email: contacts.email }).from(contacts).where(and(eq(contacts.orgId, a.orgId), inIds(contacts.email, [...newEmails]), isNull(contacts.deletedAt))) : [],
   ]);
+  const knownEmails = new Set(known.map((k) => k.email));
   const cMap = new Map(cs.map((c) => [c.id, c])); const dMap = new Map(ds.map((d) => [d.id, d]));
   const seenDeal = new Set<string>();
   const items: SuggestionView[] = [];
@@ -193,7 +197,10 @@ export async function listSuggestions(deps: Deps, a: Actor): Promise<{ items: Su
       label = d.title;
       const c = fields.contactId ? cMap.get(fields.contactId) : undefined;
       fields.contactName = c ? c.name || c.email : "";
-    } else label = fields.name || fields.email || "";
+    } else {
+      if (fields.email && knownEmails.has(fields.email)) continue;
+      label = fields.name || fields.email || "";
+    }
     items.push({ id: r.id, kind: r.kind, target: { type: r.targetType, id: r.targetId, label }, fields, messageAt: new Date(r.messageAt).toISOString(), current });
   }
   return { items };
@@ -260,6 +267,16 @@ export async function acceptSuggestion(deps: Deps, a: Actor, id: string, edits: 
     if (r.kind === "new_contact") {
       const email = f.email ?? "";
       if (!email.includes("@")) throw badRequest("That suggestion has no email address.");
+      const had = await deps.db.select({ id: contacts.id, name: contacts.name, title: contacts.title, phone: contacts.phone }).from(contacts).where(and(eq(contacts.orgId, a.orgId), eq(contacts.email, email), isNull(contacts.deletedAt))).get();
+      if (had) {
+        // The person got a contact since this was suggested: fill only what is still empty there.
+        const patch: { name?: string; title?: string; phone?: string } = {};
+        if (f.name && (!had.name.trim() || had.name.trim().toLowerCase() === localPart(email).toLowerCase())) patch.name = f.name;
+        if (f.title && !had.title) patch.title = f.title;
+        if (f.phone && !had.phone) patch.phone = f.phone;
+        if (Object.keys(patch).length) await contactsSvc.updateContact(deps, a, had.id, patch);
+        return { ok: true, kind: r.kind, contactId: had.id };
+      }
       const made = await contactsSvc.createContact(deps, a, { email, name: f.name || undefined, title: f.title || undefined, phone: f.phone || undefined });
       return { ok: true, kind: r.kind, contactId: (made as { id: string }).id };
     }

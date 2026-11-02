@@ -33,7 +33,7 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
           className="h-9 w-full bg-transparent text-[13.5px] text-fg outline-none placeholder:text-subtle" />
       </label>
       {/* R36: two columns of grouped cards on wide screens (the leading tracker's sheet layout), one column on a phone. */}
-      <div className="mt-4 max-h-[min(64vh,560px)] gap-4 overflow-y-auto pr-1 md:columns-2 [&>section]:mb-4 [&>section]:break-inside-avoid" data-testid="shortcuts-sheet">
+      <div className="mt-4 max-h-[min(64vh,560px)] gap-4 overflow-y-auto pr-1 md:columns-2 [&>section]:mb-4 [&>section]:break-inside-avoid" data-testid="shortcuts-sheet" tabIndex={0} role="group" aria-label="All shortcuts">
         {groups.length === 0 && <p className="py-6 text-center text-sm text-muted">No shortcut matches “{q}”.</p>}
         {groups.map(({ group, items }) => (
           <section key={group} aria-label={group}>
