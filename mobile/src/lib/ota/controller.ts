@@ -83,6 +83,9 @@ export function createOtaController(d: OtaDeps) {
     set({ status: "installing", notice });
     await new Promise<void>((r) => { timer(() => r(), notice ? d.noticeMs ?? 1800 : 0); });
     await d.telemetry.flush();
+    // A restart we ask for is not a crash: mark this launch stable first, or the next start reports
+    // "The app closed within 10 s of starting" for every update applied at launch (Sentry MYMAIL-WEB-H, WEB-K).
+    await markStable(d.store);
     try { await d.updates.reloadAsync(); } catch { set({ status: "ready", notice: null }); }
   };
 
