@@ -43,7 +43,7 @@ function teammateCond(orgId: string): SQL {
 
 const ROBOT_LOCALS = sql.raw(BULK_LOCAL_PARTS.map((p) => `'${p}'`).join(", "));
 /** Not bulk: no bulk headers on ingest and no robot sender address (older rows have no is_bulk). */
-function notBulkCond(): SQL {
+export function notBulkCond(): SQL {
   const local = sql`lower(substr(${messages.fromAddress}, 1, instr(${messages.fromAddress}, '@') - 1))`;
   return sql`(coalesce(${messages.isBulk}, 0) = 0 and ${local} not in (${ROBOT_LOCALS}) and ${local} not like 'noreply%' and ${local} not like 'no-reply%' and ${local} not like 'notification%')`;
 }

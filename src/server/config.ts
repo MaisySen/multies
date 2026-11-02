@@ -80,6 +80,8 @@ export interface AppConfig {
   coursesExclude?: string;
   /** R126: PEOPLE_R126 (staff directory, onboarding, assets in Contacts). Off unless set. */
   peopleR126?: boolean;
+  /** TD6: INBOX_TD6 (One inbox: mail, chat, mentions, tasks and assistant replies sorted Important and Noise). Off unless set. */
+  inboxTd6?: boolean;
   /** R126: more workspaces kept out of People; vv8k is always out. */
   peopleExclude?: string;
   /** TD5: MENTIONS_TD5 (record mentions, References panels, per viewer chat cards). Off unless set. */
@@ -474,6 +476,7 @@ const EnvSchema = z.object({
   PEOPLE_R126: z.string().optional(),
   MENTIONS_TD5: z.string().optional(),
   MENTIONS_EXCLUDE: z.string().optional(),
+  INBOX_TD6: z.string().optional(),
   PEOPLE_EXCLUDE: z.string().optional(),
   VAULT_EXCLUDE: z.string().optional(),
   TOOLS_FEATURES: z.string().optional(),
@@ -796,6 +799,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     tablesExclude: env.TABLES_EXCLUDE ?? "", // R125
     vaultR128: ["1", "true", "on"].includes(String(env.VAULT_R128 ?? "").toLowerCase()), // R128
     peopleR126: ["1", "true", "on"].includes(String(env.PEOPLE_R126 ?? "").toLowerCase()), // R126
+    inboxTd6: ["1", "true", "on"].includes(String(env.INBOX_TD6 ?? "").toLowerCase()), // TD6
     peopleExclude: env.PEOPLE_EXCLUDE ?? "", // R126
     mentionsTd5: ["1", "true", "on"].includes(String(env.MENTIONS_TD5 ?? "").toLowerCase()), // TD5
     mentionsExclude: env.MENTIONS_EXCLUDE ?? "", // TD5

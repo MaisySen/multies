@@ -1753,5 +1753,13 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX `record_refs_target_idx` ON `record_refs` (`org_id`,`target_type`,`target_id`,`created_at`);",
       "CREATE INDEX `record_refs_parent_idx` ON `record_refs` (`org_id`,`parent_type`,`parent_id`);"
     ]
+  },
+  {
+    "name": "0157_td6_one_inbox",
+    "statements": [
+      "-- TD6 One inbox: remembered Important or Noise choices per sender or source, and per person state (read, done, snoozed)\n-- for mail and assistant items (ids and state only; no subjects or bodies). Index for the assistant replies read. Additive only.\nCREATE TABLE `inbox_lane_rules_td6` (\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`key` text NOT NULL,\n\t`lane` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `user_id`, `key`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE TABLE `inbox_item_state_td6` (\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`ref_id` text NOT NULL,\n\t`read` integer,\n\t`done_at` integer,\n\t`snoozed_until` integer,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `user_id`, `kind`, `ref_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `agent_runs_creator_td6_idx` ON `agent_runs` (`org_id`, `created_by_user_id`, `finished_at`);"
+    ]
   }
 ];

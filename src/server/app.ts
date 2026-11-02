@@ -39,6 +39,7 @@ import { aiTrustRoutes } from "./routes/ai-trust-td1"; // TD1: AI trust controls
 import { vaultRoutes } from "./routes/vault-r128"; // R128: team password vault
 import { peopleRoutes } from "./routes/people-r126"; // R126: staff, onboarding, assets
 import { mentionsRoutes } from "./routes/mentions-td5"; // TD5: record mentions and References
+import { oneInboxRoutes } from "./routes/one-inbox-td6"; // TD6: One inbox
 import { mailMergeUnsubscribeRoutes, toolsAutomationRoutes } from "./routes/tools-automation"; // Tools P2: automation
 import { campaignPublicRoutes, campaignRoutes } from "./routes/campaigns-r109"; // R109: lists, newsletters, journeys
 import { sharePublicRoutes, toolsShareRoutes } from "./routes/tools-share";
@@ -472,6 +473,7 @@ export function createApp(deps: Deps) {
       vaultR128: !!deps.config.vaultR128, // R128: team password vault
       peopleR126: !!deps.config.peopleR126, // R126: staff directory, onboarding, assets
       mentionsTd5: !!deps.config.mentionsTd5, // TD5: record mentions and References
+      inboxTd6: !!deps.config.inboxTd6, // TD6: One inbox
       invoices: deps.config.invoicesEnabled, // R105
       coursesR129: !!deps.config.coursesR129, // R129: courses (vv8k gets 404 from the API and no entry points)
       bookingPlus: deps.config.bookingPlus, // R92: resources, time polls, events
@@ -546,6 +548,7 @@ export function createApp(deps: Deps) {
   app.route("/api/vault", vaultRoutes()); // R128: team password vault (VAULT_R128)
   app.route("/api/people", peopleRoutes()); // R126: staff directory, onboarding, assets (PEOPLE_R126)
   app.route("/api/mentions", mentionsRoutes()); // TD5: record mentions and References (MENTIONS_TD5)
+  app.route("/api/one-inbox", oneInboxRoutes()); // TD6: One inbox (INBOX_TD6)
   app.route("/api/ask", askRoutes()); // R110: Ask across the workspace (Tools feature ask_r110)
   app.route("/api/ai-trust", aiTrustRoutes()); // TD1: AI on or off per workspace, provider and region
   app.route("/api/tools/ai", toolsAiRoutes()); // Tools P2: AI documents (ask, translate, invoices, expenses, contracts)

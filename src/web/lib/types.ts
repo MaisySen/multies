@@ -41,6 +41,7 @@ export interface PublicConfig {
   askTd1?: boolean;
   /** TD5: record mentions and References panels (MENTIONS_TD5). */
   mentionsTd5?: boolean;
+  inboxTd6?: boolean; // TD6: One inbox
   /** R128: team password vault (VAULT_R128). */
   vaultR128?: boolean;
   /** R94: CRM timeline (notes are searchable with R98). */

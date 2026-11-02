@@ -2106,6 +2106,7 @@ export const agentRuns = sqliteTable("agent_runs", {
   index("agent_runs_task_idx").on(t.taskId),
   uniqueIndex("agent_runs_active_uq").on(t.taskId, t.agentUserId).where(sql`${t.status} IN ('queued', 'running')`),
   index("agent_runs_queued_idx").on(t.agentUserId).where(sql`${t.status} = 'queued'`),
+  index("agent_runs_creator_td6_idx").on(t.orgId, t.createdByUserId, t.finishedAt), // TD6 assistant replies
 ]);
 
 /**
@@ -4700,3 +4701,26 @@ export const recordRefs = sqliteTable("record_refs", {
   createdBy: text("created_by"),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.sourceType, t.sourceId, t.targetType, t.targetId] }), index("record_refs_target_idx").on(t.orgId, t.targetType, t.targetId, t.createdAt), index("record_refs_parent_idx").on(t.orgId, t.parentType, t.parentId)]);
+
+/** TD6 One inbox: a person's remembered Important or Noise choice for a sender (mail), a source record or an agent. */
+export const inboxLaneRulesTd6 = sqliteTable("inbox_lane_rules_td6", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  lane: text("lane", { enum: ["important", "noise"] }).notNull(),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [primaryKey({ columns: [t.orgId, t.userId, t.key] })]);
+
+/** TD6 One inbox: per person state of a mail or assistant item (ids and state only; notifications keep their own). */
+export const inboxItemStateTd6 = sqliteTable("inbox_item_state_td6", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: ["mail", "run"] }).notNull(),
+  refId: text("ref_id").notNull(),
+  /** null follows the source (mail: the message's own read flag), 1 read, 0 unread. */
+  read: integer("read", { mode: "boolean" }),
+  doneAt: ts("done_at"),
+  snoozedUntil: ts("snoozed_until"),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [primaryKey({ columns: [t.orgId, t.userId, t.kind, t.refId] })]);
