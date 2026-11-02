@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-03-client-portal-access",
+    date: "2026-11-03",
+    title: "Client portals you control",
+    body: "Choose what each client sees per area, from none to view or comment. Share live project pages with progress and milestones, plus invoices and forms, and leave a private comment that only one person can see.",
+  },
+  {
     id: "2026-11-03-crm-from-mail",
     date: "2026-11-03",
     title: "Contacts that update from your mail",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-02",
     title: "A tidier menu",
     body: "Contacts now has its own place in the menu with People and Deals. Mailboxes, Domains and Deliverability moved to Settings, Mail setup, and Files sits in Docs. Hide what you never use from View, Customise menu, and on phones More shows every section as a tile.",
-  },
-  {
-    id: "2026-11-02-social-more-networks",
-    date: "2026-11-02",
-    title: "More from Social",
-    body: "Pins now take their own title, link and alt text. YouTube comments arrive in the Social inbox and you can reply there. When you schedule, Multies suggests your best times from your own results, writing help can make a post shorter, friendlier or fit each network, and you can share a post with a link to Snapchat.",
   },
   {
     id: "2026-10-28-whats-new",

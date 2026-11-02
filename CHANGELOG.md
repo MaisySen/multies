@@ -6,6 +6,12 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## TD9 Client portal access (2026-11-03)
+
+- Client portal access per person per area (flag PORTAL_TD9, needs CLIENT_PORTAL; migration 0160 portal_td9): projects, tasks, files, docs, invoices and forms at None, View or Comment; defaults keep today (files, docs, tasks View; new areas None); every change audited as portal.access.set with a history in the Access dialog.
+- Share projects, issued invoices or quotes and enabled forms into a portal; live project page /p/<key>/project/<item> with progress, milestones, shared tasks and linked files, refreshed every 20 s by a same origin script (/p/_/live-td9.js), offline keeps the last update with Retry; task page /p/<key>/t/<item>.
+- Threads on shared tasks and projects (clients post with Comment) and a private comment to one member or client, seen only by its author, its target, owners and admins (separate table, filtered in SQL, no counts). Page CSP unchanged.
+
 ## TD7 Forms pro B (2026-11-03)
 
 - Forms pro (flag FORMS_TD7; migration 0159 forms_td7): brand kit from fixed choices (colour, background, font, workspace logo), close date, answer limit with an atomic last place, closed message, form password (hashed, 10 tries per 15 minutes per address then 429), save and finish later with a signed 7 day link, cookie free views and completion with drop off per question, import from pasted lines or CSV, AI draft through the workspace AI routing (own key or built in AI behind the TD1 switch, never billed). Works with the TD2 renderer; file and signature uploads answer 410 on a closed form and 401 on a locked form before any bytes are read. No payment field. Page Content-Security-Policy unchanged.
