@@ -17,6 +17,7 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
 import { Logo } from "@/web/components/logo";
 import { MeetingNotes } from "./meeting-notes";
+import { MeetingSuggestions } from "./meeting-suggest-td3"; // TD3
 import { RecordingLayer, RecordingSection } from "./meeting-recording";
 import { useJoinFromDock } from "./call-r23";
 import { CallRoomExtras } from "./call-dock-r23";
@@ -24,7 +25,7 @@ import { PreJoin, type JoinPrefs } from "./prejoin-r31";
 import { askToJoin, GuestLobby, GuestsWaitSetting, LobbyRequests } from "./lobby-r32";
 import { CallSidePanel, CallToolbar, useCallNotesDoc, useCallPanel } from "./call-panel-r31";
 import { loadPrefs, roomMedia } from "@/web/lib/prejoin-prefs";
-import { useMe } from "@/web/lib/queries";
+import { useConfig, useMe } from "@/web/lib/queries";
 import { CallMinutesBanner, CallMinutesUsage } from "./call-minutes-r34"; // R34 (MB-171)
 import { NoMeetingsArt } from "@/web/components/illustrations"; // R36
 import { startMeetingNow } from "./meeting-start"; // R40 (MB-207)
@@ -243,6 +244,7 @@ export function MeetingPage() {
   const [join, setJoin] = useState<Join | null>(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
+  const meetTd3 = !!useConfig().data?.meetTd3; // TD3: meetings to tasks
   // Round 31: Join now opens the pre-join screen; its choices carry into the call.
   // R40 (MB-207): Start now opens the meeting with ?join=1, straight to the camera and name check.
   const [prejoin, setPrejoin] = useState(() => new URLSearchParams(window.location.search).get("join") === "1");
@@ -302,6 +304,7 @@ export function MeetingPage() {
         {m.status === "scheduled" && <><Button size="sm" variant="ghost" onClick={() => void setStatus("ended")}>Mark as ended</Button><Button size="sm" variant="ghost" onClick={() => void setStatus("cancelled")}>{m.recurrence ? "Cancel series" : "Cancel meeting"}</Button></>}
       </div>
       <MeetingNotes meetingId={m.id} />
+      {meetTd3 && <MeetingSuggestions meetingId={m.id} />}
       {editing && <EditMeetingDialog m={m} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); void qc.invalidateQueries({ queryKey: ["meeting", id] }); void qc.invalidateQueries({ queryKey: ["meetings"] }); }} />}
     </div>
   );

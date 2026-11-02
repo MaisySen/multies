@@ -99,6 +99,7 @@ import { installMobileWebLink } from "./auth/mobile-web-link"; // MH1
 import { mailPrefRoutes, mailReadStatusRoutes, mailSplitRoutes, openPixelRoutes } from "./routes/mail-splits-r31";
 import { mailLabelRoutes, mailRuleRoutes } from "./routes/mail-rules-r85";
 import { meetingNotesRoutes } from "./routes/meeting-notes";
+import { meetingTd3Routes } from "./routes/meeting-td3"; // TD3
 import { meetingLiveRoutes, publicMeetingLiveRoutes } from "./routes/meeting-live-r31";
 import { meetingLobbyRoutes, publicMeetingLobbyRoutes } from "./routes/meeting-lobby-r32";
 import { publicWebinarRoutes, webinarRoutes } from "./routes/webinar-r114"; // R114: webinar mode
@@ -480,6 +481,7 @@ export function createApp(deps: Deps) {
       homeWidgetsR131: !!deps.config.homeWidgetsR131, // R131: Home widgets
       toursR130: !!deps.config.toursR130, // R130: guided onboarding (vv8k gets enabled false from /api/tours/me)
       aiConnectAi2: !!deps.config.aiConnectAi2, // AI2: connect AI properly
+      meetTd3: !!deps.config.meetTd3, // TD3: meetings to tasks
       reporting: !!deps.config.reporting, // R112: anonymous reporting channel and data requests
       socialP3R132: !!deps.config.socialP3R132, // R132: Social P3
       socialYoutubeUploadR132: !!deps.config.socialP3R132 && !!deps.config.socialYoutubeUploadR132, // R132 held
@@ -694,6 +696,7 @@ export function createApp(deps: Deps) {
   app.route("/api/reports", reportRoutes());
   app.route("/api/meetings", meetingRoutes());
   app.route("/api/meeting-notes", meetingNotesRoutes()); // Round 23: agenda and notes doc, action items
+  app.route("/api/meeting-td3", meetingTd3Routes()); // TD3: meetings to tasks (MEET_TD3; 404 when off)
   app.route("/api/meetings", meetingRecordingRoutes()); // Round 23: recording and transcript
   app.route("/api/meeting-live", meetingLiveRoutes()); // R31: call notes and the So far digest
   app.route("/api/public/meeting-live", publicMeetingLiveRoutes()); // R31: guest read only notes

@@ -46,6 +46,8 @@ export interface AppConfig {
   toursR130?: boolean;
   /** R130: more workspaces kept out of tours (vv8k is always out). */
   toursExclude?: string;
+  /** TD3: meetings to tasks (suggested action items with accept or discard, a follow up email draft) (MEET_TD3=on). Off unless set. */
+  meetTd3?: boolean;
   /** R132: SOCIAL_P3_R132 (Pinterest pin details, YouTube comments and health, Snapchat share, best times, writing help). Off unless set. */
   socialP3R132?: boolean;
   /** R132 held sub flags (stay off): YouTube upload needs video storage; Google Business Profile needs API access and our own sign in app. */
@@ -436,6 +438,7 @@ const EnvSchema = z.object({
   SITES_R123: z.string().optional(),
   SITES_EXCLUDE: z.string().optional(),
   BLOG_R124: z.string().optional(), // R124
+  MEET_TD3: z.string().optional(), // TD3
   NAV_P2_R121: z.string().optional(), // R121
   MOBILE_WEB_LINK: z.string().optional(), // MH1
   DAV_SYNC_R99: z.string().optional(),
@@ -765,6 +768,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     aiGlobalDailyUnits: /^\d{1,6}$/.test(String(env.AI_GLOBAL_DAILY_UNITS ?? "")) ? Number(env.AI_GLOBAL_DAILY_UNITS) : undefined, // AI2: only lowers (ai-meter globalCap)
     // AI2: only an https sign in page is taken (the local stand in is https://openrouter.mock/auth).
     openRouterAuthUrl: /^https:\/\/[^\s]+$/.test(String(env.OPENROUTER_AUTH_URL ?? "")) ? String(env.OPENROUTER_AUTH_URL) : undefined,
+    meetTd3: ["1", "true", "on"].includes(String(env.MEET_TD3 ?? "").toLowerCase()), // TD3
     socialP3R132: ["1", "true", "on"].includes(String(env.SOCIAL_P3_R132 ?? "").toLowerCase()),
     socialYoutubeUploadR132: ["1", "true", "on"].includes(String(env.SOCIAL_YOUTUBE_UPLOAD_R132 ?? "").toLowerCase()),
     socialGbpR132: ["1", "true", "on"].includes(String(env.SOCIAL_GBP_R132 ?? "").toLowerCase()),

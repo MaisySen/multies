@@ -185,3 +185,6 @@ export function invoiceChase(input: InvoiceChaseInput, today = new Date()) {
   const subject = { friendly: `Reminder: invoice ${input.invoiceNumber}`, firm: `Overdue: invoice ${input.invoiceNumber} (${amount})`, final: `Final reminder: invoice ${input.invoiceNumber} (${amount})` }[stage];
   return { subject, text: body + sign, stage, daysOverdue: days };
 }
+
+/** TD3: one completion through the workspace's AI routing (its own key; built in AI where that is on), errors as plain HttpErrors. */
+export const askWorkspaceAi = (deps: Deps, orgId: string, req: AiCompletion) => ask(deps, orgId, req);

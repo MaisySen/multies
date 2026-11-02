@@ -1904,6 +1904,31 @@ export const meetingActionItems = sqliteTable("meeting_action_items", {
 }, (t) => [primaryKey({ columns: [t.orgId, t.meetingId, t.itemKey] })]);
 
 /**
+ * TD3: suggested action items from a meeting's transcript, notes or pasted text. Each one is accepted (one real
+ * task, task_id set by a conditional update so a double click makes one task) or discarded by a person; nothing
+ * is created without a click. Keyed by (org_id, meeting_id, id) WITHOUT ROWID: a meeting's list reads the key prefix.
+ */
+export const meetingSuggestions = sqliteTable("meeting_suggestions", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  meetingId: text("meeting_id").notNull(),
+  id: text("id").notNull(),
+  source: text("source", { enum: ["recording", "notes", "pasted", "manual"] }).notNull(),
+  sourceId: text("source_id"),
+  title: text("title").notNull(),
+  quote: text("quote"),
+  assigneeType: text("assignee_type", { enum: ["member", "agent"] }),
+  assigneeId: text("assignee_id"),
+  due: text("due"),
+  status: text("status", { enum: ["open", "accepted", "discarded"] }).notNull().default("open"),
+  taskId: text("task_id"),
+  createdBy: text("created_by").notNull(),
+  decidedBy: text("decided_by"),
+  decidedAt: ts("decided_at"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.meetingId, t.id] })]);
+
+/**
  * Round 23 (R23.2): a call recorded in the browser and transcribed with the workspace's own AI key.
  * Only the text is kept (no audio). Keyed by (org_id, meeting_id, id) WITHOUT ROWID, so the meeting's
  * list reads the primary key and there is no secondary index: a chunk's text appended is 1 row write.

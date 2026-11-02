@@ -1726,5 +1726,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX IF NOT EXISTS `form_uploads_submission_idx` ON `form_uploads` (`submission_id`);",
       "CREATE INDEX IF NOT EXISTS `form_uploads_org_idx` ON `form_uploads` (`org_id`,`created_at`);"
     ]
+  },
+  {
+    "name": "0154_td3_meeting_suggestions",
+    "statements": [
+      "-- TD3 (Nov 2): meetings to tasks. Suggested action items from a meeting's transcript or notes, each accepted\n-- (one real task) or discarded by a person. Keyed by (org_id, meeting_id, id) WITHOUT ROWID so a meeting's list\n-- reads the key prefix with no secondary index. Additive only.\nCREATE TABLE IF NOT EXISTS `meeting_suggestions` (\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`meeting_id` text NOT NULL,\n\t`id` text NOT NULL,\n\t`source` text NOT NULL,\n\t`source_id` text,\n\t`title` text NOT NULL,\n\t`quote` text,\n\t`assignee_type` text,\n\t`assignee_id` text,\n\t`due` text,\n\t`status` text DEFAULT 'open' NOT NULL,\n\t`task_id` text,\n\t`created_by` text NOT NULL,\n\t`decided_by` text,\n\t`decided_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `meeting_id`, `id`)\n) WITHOUT ROWID;"
+    ]
   }
 ];
