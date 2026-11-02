@@ -4712,11 +4712,11 @@ export const inboxLaneRulesTd6 = sqliteTable("inbox_lane_rules_td6", {
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
 }, (t) => [primaryKey({ columns: [t.orgId, t.userId, t.key] })]);
 
-/** TD6 One inbox: per person state of a mail or assistant item (ids and state only; notifications keep their own). */
+/** TD6 One inbox: per person state of a mail, assistant or mention item (ids and state only; notifications keep their own). */
 export const inboxItemStateTd6 = sqliteTable("inbox_item_state_td6", {
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  kind: text("kind", { enum: ["mail", "run"] }).notNull(),
+  kind: text("kind", { enum: ["mail", "run", "ref"] }).notNull(),
   refId: text("ref_id").notNull(),
   /** null follows the source (mail: the message's own read flag), 1 read, 0 unread. */
   read: integer("read", { mode: "boolean" }),

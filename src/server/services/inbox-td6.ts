@@ -1,13 +1,14 @@
 /**
  * TD6 One inbox (flag INBOX_TD6): notifications, recent Inbox mail from mailboxes the person can read and assistant
- * replies (agent runs the person started) in one list, sorted Important or Noise by rules (src/shared/inbox-td6.ts).
+ * replies (agent runs the person started) and record mentions of tasks assigned to the person (TD5 record_refs, read through
+ * TD5's own References check) in one list, sorted Important or Noise by rules (src/shared/inbox-td6.ts).
  * Reads only through the existing checks: notifications by owner, mail by workspace and mailbox scope, runs by workspace,
  * creator and a live task. Stores only ids and state (inbox_item_state_td6) and the person's remembered choices
  * (inbox_lane_rules_td6). Never logs titles, subjects, addresses or bodies. No AI and no provider call.
  */
-import { and, asc, desc, eq, gt, inArray, isNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, sql, type SQL } from "drizzle-orm";
 import type { Deps, AuthContext } from "../context";
-import { agentRuns, inboxItemStateTd6, inboxLaneRulesTd6, messages, notifications, tasks, users } from "../db/schema";
+import { agentRuns, inboxItemStateTd6, inboxLaneRulesTd6, messages, notifications, recordRefs, tasks, users } from "../db/schema";
 import { HttpError } from "../lib/errors";
 import { inIds } from "../lib/sql-chunks";
 import { mailboxScope } from "./team";
@@ -28,13 +29,22 @@ export const MAIL_MAX = 100;
 export const NOTE_MAX = 150;
 export const RUN_DAYS = 30;
 export const RUN_MAX = 30;
+export const REF_DAYS = 14;
+export const REF_MAX = 30;
+/** Tasks whose References panel is read per list (each read is TD5's own permission check). */
+export const REF_TASKS = 5;
+type StateKind = "mail" | "run" | "ref";
+const REF_CACHE_MS = 120_000;
+const refPanelCache = new Map<string, { at: number; seen: { k: string; title: string; url: string }[] }>();
+/** Tests only: forget cached References reads. */
+export function clearRefCacheForTests() { refPanelCache.clear(); }
 
 const notFound = () => new HttpError(404, "not_found", "Not found.");
 const bad = (m: string) => new HttpError(422, "validation_failed", m);
 
-/** AI gate for any later ranking hint: points at the workspace AI switch once it is on main. TD6 calls no provider. */
-export function inboxAiAllowed(_deps: Deps, _orgId: string): boolean {
-  return false;
+/** AI gate for any later ranking hint: the workspace AI switch (TD1). TD6 itself calls no provider and uses no AI. */
+export async function inboxAiAllowed(deps: Deps, orgId: string): Promise<boolean> {
+  return (await import("./ai-trust-td1")).aiAllowed(deps, orgId);
 }
 
 export async function assertInboxOpen(deps: Deps, a: Partial<A>): Promise<void> {
@@ -100,7 +110,58 @@ async function loadRuns(deps: Deps, a: A, now: Date) {
     .orderBy(desc(agentRuns.finishedAt)).limit(RUN_MAX);
 }
 
-async function statesFor(deps: Deps, a: A, kind: "mail" | "run", ids: string[]) {
+/** A mention item id: where it was written and the task it names (ids only). */
+export const refItemId = (sourceType: string, sourceId: string, taskId: string) => `${sourceType}~${sourceId}~${taskId}`;
+function parseRefItemId(id: string): { sourceType: string; sourceId: string; taskId: string } | null {
+  const p = id.split("~");
+  return p.length === 3 && p.every((x) => x.length > 0 && x.length <= 64) ? { sourceType: p[0], sourceId: p[1], taskId: p[2] } : null;
+}
+
+/**
+ * Mentions adapter (TD5): someone else mentioned a task assigned to the person in a comment, note, doc or chat. Only while
+ * TD5 mentions are on for the workspace. Each candidate is kept only if TD5's References panel for that task shows its
+ * container to this person (listReferences: the same check the panel uses), so nothing the person cannot open appears.
+ */
+async function loadRefs(deps: Deps, a: A, now: Date) {
+  const td5 = await import("./mentions-td5");
+  if (!(await td5.mentionsOn(deps, a.orgId))) return [];
+  const since = new Date(now.getTime() - REF_DAYS * 86_400_000);
+  const rows = await deps.db.select({
+    sourceType: recordRefs.sourceType, sourceId: recordRefs.sourceId, taskId: recordRefs.targetId, createdAt: recordRefs.createdAt,
+    title: tasks.title, actorName: users.name,
+  }).from(recordRefs)
+    .innerJoin(tasks, and(eq(tasks.id, recordRefs.targetId), eq(tasks.orgId, a.orgId), isNull(tasks.deletedAt), eq(tasks.assigneeType, "member"), eq(tasks.assigneeId, a.userId)))
+    .leftJoin(users, eq(users.id, recordRefs.createdBy))
+    .where(and(eq(recordRefs.orgId, a.orgId), eq(recordRefs.targetType, "task"), gt(recordRefs.createdAt, since), isNotNull(recordRefs.createdBy), ne(recordRefs.createdBy, a.userId)))
+    .orderBy(desc(recordRefs.createdAt)).limit(REF_MAX);
+  const newest = new Map<string, number>();
+  for (const r of rows) if (!newest.has(r.taskId)) newest.set(r.taskId, new Date(r.createdAt).getTime());
+  const taskIds = [...newest.keys()].slice(0, REF_TASKS);
+  const shown = new Map<string, { title: string; url: string }>();
+  const nowMs = Date.now();
+  await Promise.all(taskIds.map(async (t) => {
+    // The minute badge reuses a recent read of the same panel; a newer mention of the task changes the key.
+    const ck = `${a.orgId}|${a.userId}|${t}|${newest.get(t)}`;
+    const hit = refPanelCache.get(ck);
+    let seen = hit && nowMs - hit.at < REF_CACHE_MS ? hit.seen : null;
+    if (!seen) {
+      seen = [];
+      try {
+        const { items } = await td5.listReferences(deps, { email: "", name: "", ...a }, { type: "task", id: t }, "in");
+        for (const it of items) if (it.record.state === "ok") seen.push({ k: `${it.via}|${it.at}`, title: it.record.title, url: it.record.url });
+      } catch { /* the person cannot open the task: nothing from it */ }
+      if (refPanelCache.size > 2000) refPanelCache.clear();
+      refPanelCache.set(ck, { at: nowMs, seen });
+    }
+    for (const x of seen) shown.set(`${t}|${x.k}`, { title: x.title, url: x.url });
+  }));
+  return rows.flatMap((r) => {
+    const where = shown.get(`${r.taskId}|${r.sourceType}|${new Date(r.createdAt).toISOString()}`);
+    return where ? [{ ...r, id: refItemId(r.sourceType, r.sourceId, r.taskId), where }] : [];
+  });
+}
+
+async function statesFor(deps: Deps, a: A, kind: StateKind, ids: string[]) {
   const m = new Map<string, StateRow>();
   if (!ids.length) return m;
   for (const s of await deps.db.select().from(inboxItemStateTd6)
@@ -111,14 +172,16 @@ async function statesFor(deps: Deps, a: A, kind: "mail" | "run", ids: string[]) 
 /** Every item the person can see right now (bounded), sorted and with its view. */
 export async function collect(deps: Deps, a: A, view: InboxView): Promise<InboxItem[]> {
   const now = deps.now();
-  const [rules, inboxNotes, otherNotes, mail, runs] = await Promise.all([
+  const [rules, inboxNotes, otherNotes, mail, runs, refs] = await Promise.all([
     rulesMap(deps, a),
     loadNotes(deps, a, "inbox", now),
     view === "inbox" ? Promise.resolve([]) : loadNotes(deps, a, view, now),
     loadMail(deps, a, now),
     loadRuns(deps, a, now),
+    loadRefs(deps, a, now),
   ]);
-  const [mailState, runState] = await Promise.all([statesFor(deps, a, "mail", mail.map((m) => m.id)), statesFor(deps, a, "run", runs.map((r) => r.id))]);
+  const [mailState, runState, refState] = await Promise.all([statesFor(deps, a, "mail", mail.map((m) => m.id)), statesFor(deps, a, "run", runs.map((r) => r.id)),
+    statesFor(deps, a, "ref", refs.map((r) => r.id))]);
   const out: InboxItem[] = [];
   for (const { r, channelId } of [...inboxNotes, ...otherNotes]) {
     const key = ruleKey({ kind: "note", type: r.type, entityType: r.entityType, entityId: r.entityId, channelId });
@@ -146,6 +209,15 @@ export async function collect(deps: Deps, a: A, view: InboxView): Promise<InboxI
     out.push({ kind: "run", id: r.id, source: "assistant", ...s, title: r.title, who: r.agentName ?? "Assistant", at: at.toISOString(),
       read: st?.read === true, view: v, snoozedUntil: v === "later" && st?.snoozedUntil ? st.snoozedUntil.toISOString() : null,
       link: `/app/tasks?task=${encodeURIComponent(r.taskId)}` });
+  }
+  for (const r of refs) {
+    const st = refState.get(r.id);
+    const key = ruleKey({ kind: "ref", entityType: "task", entityId: r.taskId });
+    const s = sortItem({ kind: "ref" }, key ? rules.get(key) : null);
+    const v = viewOf({ doneAt: st?.doneAt, snoozedUntil: st?.snoozedUntil }, now);
+    const at = v === "inbox" && st?.snoozedUntil ? st.snoozedUntil : r.createdAt;
+    out.push({ kind: "ref", id: r.id, source: "mention", ...s, title: `${r.title} in ${r.where.title}`, who: r.actorName ?? null, at: new Date(at).toISOString(),
+      read: st?.read === true, view: v, snoozedUntil: v === "later" && st?.snoozedUntil ? st.snoozedUntil.toISOString() : null, link: r.where.url });
   }
   return out;
 }
@@ -177,23 +249,32 @@ export async function inboxCount(deps: Deps, a: A) {
   return { unread: all.filter((i) => i.view === "inbox" && i.lane === "important" && !i.read).length };
 }
 
-/** Checks the person can reach a mail or assistant item; anything else is 404 (another workspace, another mailbox, missing). */
-async function reach(deps: Deps, a: A, kind: "mail" | "run", id: string) {
+/** Checks the person can reach a mail, assistant or mention item; anything else is 404 (another workspace, another mailbox, missing). */
+async function reach(deps: Deps, a: A, kind: StateKind, id: string) {
+  if (kind === "ref") {
+    const p = parseRefItemId(id);
+    if (!p) throw notFound();
+    const r = await deps.db.select({ taskId: recordRefs.targetId }).from(recordRefs)
+      .innerJoin(tasks, and(eq(tasks.id, recordRefs.targetId), eq(tasks.orgId, a.orgId), isNull(tasks.deletedAt), eq(tasks.assigneeType, "member"), eq(tasks.assigneeId, a.userId)))
+      .where(and(eq(recordRefs.orgId, a.orgId), eq(recordRefs.sourceType, p.sourceType), eq(recordRefs.sourceId, p.sourceId), eq(recordRefs.targetType, "task"), eq(recordRefs.targetId, p.taskId))).get();
+    if (!r) throw notFound();
+    return { sender: undefined as string | undefined, agentId: undefined as string | undefined, taskId: r.taskId as string | undefined };
+  }
   if (kind === "mail") {
     const scope = await mailboxScope(deps.db, a);
     const m = await deps.db.select({ id: messages.id, fromAddress: messages.fromAddress }).from(messages)
       .where(and(eq(messages.orgId, a.orgId), eq(messages.id, id), scopeCond(scope))).get();
     if (!m) throw notFound();
-    return { sender: m.fromAddress, agentId: undefined as string | undefined };
+    return { sender: m.fromAddress, agentId: undefined as string | undefined, taskId: undefined as string | undefined };
   }
   const r = await deps.db.select({ id: agentRuns.id, agentUserId: agentRuns.agentUserId }).from(agentRuns)
     .innerJoin(tasks, and(eq(tasks.id, agentRuns.taskId), eq(tasks.orgId, a.orgId), isNull(tasks.deletedAt)))
     .where(and(eq(agentRuns.orgId, a.orgId), eq(agentRuns.id, id), eq(agentRuns.createdByUserId, a.userId))).get();
   if (!r) throw notFound();
-  return { sender: undefined as string | undefined, agentId: r.agentUserId };
+  return { sender: undefined as string | undefined, agentId: r.agentUserId, taskId: undefined as string | undefined };
 }
 
-async function upsertState(deps: Deps, a: A, kind: "mail" | "run", id: string, set: Partial<Pick<StateRow, "read" | "doneAt" | "snoozedUntil">>) {
+async function upsertState(deps: Deps, a: A, kind: StateKind, id: string, set: Partial<Pick<StateRow, "read" | "doneAt" | "snoozedUntil">>) {
   const now = deps.now();
   await deps.db.insert(inboxItemStateTd6).values({ orgId: a.orgId, userId: a.userId, kind, refId: id, read: null, doneAt: null, snoozedUntil: null, ...set, updatedAt: now })
     .onConflictDoUpdate({ target: [inboxItemStateTd6.orgId, inboxItemStateTd6.userId, inboxItemStateTd6.kind, inboxItemStateTd6.refId], set: { ...set, updatedAt: now } });
@@ -224,7 +305,8 @@ export function parseRefs(raw: unknown): Ref[] {
   if (raw.length > BULK_MAX) throw bad(`Up to ${BULK_MAX} items at a time.`);
   return raw.map((x) => {
     const o = (x ?? {}) as Record<string, unknown>;
-    if ((o.kind !== "note" && o.kind !== "mail" && o.kind !== "run") || typeof o.id !== "string" || !o.id || o.id.length > 64) throw bad("Each item needs a kind and an id.");
+    const max = o.kind === "ref" ? 200 : 64;
+    if ((o.kind !== "note" && o.kind !== "mail" && o.kind !== "run" && o.kind !== "ref") || typeof o.id !== "string" || !o.id || o.id.length > max) throw bad("Each item needs a kind and an id.");
     return { kind: o.kind, id: o.id };
   });
 }
@@ -279,7 +361,7 @@ export async function moveItem(deps: Deps, a: A, body: Record<string, unknown>) 
     key = ruleKey({ kind: "note", type: n.type, entityType: n.entityType, entityId: n.entityId, channelId });
   } else {
     const r = await reach(deps, a, ref.kind, ref.id);
-    key = ruleKey({ kind: ref.kind, sender: r.sender, agentId: r.agentId });
+    key = ref.kind === "ref" ? ruleKey({ kind: "ref", entityType: "task", entityId: r.taskId }) : ruleKey({ kind: ref.kind, sender: r.sender, agentId: r.agentId });
   }
   if (!key) throw bad("This item cannot be moved.");
   const now = deps.now();

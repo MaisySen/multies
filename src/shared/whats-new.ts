@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-02-one-inbox",
+    date: "2026-11-02",
+    title: "One inbox",
+    body: "Mail, chat, mentions, tasks and assistant replies in one list. Important first, the rest waits in Noise; move anything and we remember the sender.",
+  },
+  {
     id: "2026-11-02-mentions",
     date: "2026-11-02",
     title: "Mention any record",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-02",
     title: "Webinars from any meeting",
     body: "Turn a meeting into a webinar: people register on their own page and watch while hosts and panelists speak. They ask and upvote questions, vote in polls and chat when you allow it, and you get a report of who came with a CSV download.",
-  },
-  {
-    id: "2026-11-02-home-widgets",
-    date: "2026-11-02",
-    title: "Arrange your Home",
-    body: "Home is now made of widgets for your tasks, meetings, inbox counts, quick links and more. Drag them into the order you like, change their size or hide them, and admins can set the layout everyone starts with.",
   },
   {
     id: "2026-10-28-whats-new",

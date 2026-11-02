@@ -3,7 +3,8 @@
  * Rules first, always: a remembered choice for the sender or source wins, then the kind of item. No AI is involved.
  */
 export type InboxLane = "important" | "noise";
-export type InboxKind = "note" | "mail" | "run";
+/** note: a notification; mail: an Inbox message; run: an assistant reply; ref: a record mention of a task assigned to the person (TD5 record_refs). */
+export type InboxKind = "note" | "mail" | "run" | "ref";
 export type InboxSource = "mail" | "chat" | "mention" | "task" | "assistant" | "other";
 export const INBOX_SOURCES: InboxSource[] = ["mail", "chat", "mention", "task", "assistant", "other"];
 export const INBOX_SOURCE_LABELS: Record<InboxSource | "all", string> = {
@@ -56,6 +57,7 @@ export function sortItem(i: RuleInput, remembered?: InboxLane | null): Sorted {
     if (i.mailImportant) return { lane: "important", reason: "From someone you know", remembered: false };
     return { lane: "noise", reason: "New sender", remembered: false };
   }
+  if (i.kind === "ref") return { lane: "important", reason: "Your task was mentioned", remembered: false };
   if (i.kind === "run") {
     if (i.type === "failed") return { lane: "important", reason: "Assistant needs a look", remembered: false };
     if (i.runAutomated) return { lane: "noise", reason: "Automated run", remembered: false };

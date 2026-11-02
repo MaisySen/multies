@@ -6,6 +6,10 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## TD6 One inbox (2026-11-02)
+
+- One inbox at /app/one-inbox (flag INBOX_TD6; migration 0157 adds inbox_lane_rules_td6, inbox_item_state_td6 and an agent runs index): notifications, recent Inbox mail from mailboxes the person can read, assistant replies and mentions of tasks assigned to the person (read through the References check) in one list, sorted Important and Noise by rules; moves are remembered per sender or source; done, snooze, read, bulk and keyboard keys. No AI and no provider call; ids and state only are stored.
+
 ## TD5 Universal mentions and references (2026-11-02)
 
 - Typing @ in chat, task description and comments, doc comments and contact notes offers people and records (tasks, projects, docs, contacts, deals, meetings, forms, invoices) the reader can see, keyboard first (flag MENTIONS_TD5; migration 0156 record_refs, no titles or text stored).

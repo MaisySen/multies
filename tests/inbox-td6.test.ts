@@ -2,7 +2,9 @@
  * mailbox scope 404), flag off, vv8k, bulk limits, AI off means no provider call, and nothing about an item in the logs. */
 import { describe, it, expect, vi } from "vitest";
 import { makeTestApp, Client } from "./helpers";
-import { messages, notifications } from "@/server/db/schema";
+import { eq, sql } from "drizzle-orm";
+import { messages, notifications, tasks } from "@/server/db/schema";
+import { clearRefCacheForTests } from "@/server/services/inbox-td6";
 import { inboxKeyAction, isMentionType, mailRead, ruleKey, ruleLabel, sortItem, sourceOfNote, viewOf } from "@/shared/inbox-td6";
 
 describe("TD6 pure rules", () => {
@@ -23,6 +25,8 @@ describe("TD6 pure rules", () => {
     expect(sortItem({ kind: "run", type: "failed", runAutomated: true }).lane).toBe("important");
     expect(sortItem({ kind: "mail", mailBulk: true }, "important")).toEqual({ lane: "important", reason: "You keep these in Important", remembered: true });
     expect(sortItem({ kind: "note", type: "chat.mention" }, "noise").lane).toBe("noise");
+    expect(sortItem({ kind: "ref" })).toEqual({ lane: "important", reason: "Your task was mentioned", remembered: false });
+    expect(ruleKey({ kind: "ref", entityType: "task", entityId: "t9" })).toBe("src:task:t9");
   });
   it("keys, labels, sources, views, read state and keys", () => {
     expect(ruleKey({ kind: "mail", sender: " Ann@X.io " })).toBe("sender:ann@x.io");
@@ -184,5 +188,64 @@ describe("TD6 One inbox API", () => {
     const v = new Client(ctx.app);
     await v.signup("v@vv8k.io", "V", "vv8k");
     expect((await v.get("/api/one-inbox")).status).toBe(404);
+  });
+});
+
+describe("TD6 mentions adapter (TD5 record_refs)", () => {
+  async function setupRefs(env: Record<string, string> = { INBOX_TD6: "on", MENTIONS_TD5: "on" }) {
+    const ctx = await makeTestApp(env);
+    const admin = new Client(ctx.app);
+    await admin.signup("ada@acme.io", "Ada Lovelace", "Acme");
+    const inv = await admin.post("/api/team/invites", { email: "bo@acme.io", role: "member" });
+    const member = new Client(ctx.app);
+    await member.signup("bo@acme.io", "Bo Member", "Bo Co");
+    expect((await member.post(`/api/invites/${inv.body.link.split("/invite/")[1]}/accept`)).status).toBe(200);
+    const meB = (await member.get("/api/account/me")).body;
+    const memberId: string = meB.user?.id ?? meB.id;
+    const proj = (await admin.post("/api/projects", { name: "Launch" })).body.project;
+    const task = (await admin.post("/api/tasks", { projectId: proj.id, title: "Ship the launch" })).body.task;
+    await ctx.db.update(tasks).set({ assigneeType: "member", assigneeId: memberId }).where(eq(tasks.id, task.id));
+    const general = (await admin.get("/api/chat/channels")).body.channels.find((x: { name: string }) => x.name === "general");
+    return { ctx, admin, member, memberId, task, general };
+  }
+  const refItems = (b: { items: { kind: string; id: string; title: string; link: string }[] }) => b.items.filter((i) => i.kind === "ref");
+
+  it("a teammate's mention of my task is Important, opens where it was written, and takes done and moves", async () => {
+    clearRefCacheForTests();
+    const t = await setupRefs();
+    await t.admin.post(`/api/chat/channels/${t.general.id}/messages`, { body: `please look at <#task:${t.task.id}> today` });
+    const list = (await t.member.get("/api/one-inbox?lane=important")).body;
+    const refs = refItems(list);
+    expect(refs).toHaveLength(1);
+    expect(refs[0]).toMatchObject({ source: "mention", lane: "important", reason: "Your task was mentioned", who: "Ada Lovelace", read: false });
+    expect(refs[0].title).toContain("Ship the launch");
+    expect(refs[0].link).toMatch(/^\/app\//);
+    expect((await t.member.get("/api/one-inbox/count")).body.unread).toBeGreaterThanOrEqual(1);
+    const ref = { kind: "ref", id: refs[0].id };
+    expect((await t.member.post("/api/one-inbox/act", { action: "done", items: [ref] })).status).toBe(200);
+    expect(refItems((await t.member.get("/api/one-inbox?lane=important")).body)).toHaveLength(0);
+    expect(refItems((await t.member.get("/api/one-inbox?lane=important&view=done")).body)).toHaveLength(1);
+    const mv = await t.member.post("/api/one-inbox/move", { ...ref, lane: "noise" });
+    expect(mv.status).toBe(200);
+    expect(mv.body.key).toBe(`src:task:${t.task.id}`);
+    // The author sees nothing for their own words, and nobody else can act on the item.
+    expect(refItems((await t.admin.get("/api/one-inbox?lane=important")).body)).toHaveLength(0);
+    expect((await t.admin.post("/api/one-inbox/act", { action: "read", items: [ref] })).status).toBe(404);
+    expect((await t.member.post("/api/one-inbox/act", { action: "read", items: [{ kind: "ref", id: "chat~nope~" + t.task.id }] })).status).toBe(404);
+    expect((await t.member.post("/api/one-inbox/act", { action: "read", items: [{ kind: "ref", id: "x".repeat(201) }] })).status).toBe(422);
+  });
+
+  it("a mention I cannot open (private channel) never shows; mentions off shows none", async () => {
+    clearRefCacheForTests();
+    const t = await setupRefs();
+    const priv = (await t.admin.post("/api/chat/channels", { name: "secret", private: true })).body.channel;
+    await t.admin.post(`/api/chat/channels/${priv.id}/messages`, { body: `secret plan for <#task:${t.task.id}>` });
+    const [{ n }] = await t.ctx.db.all<{ n: number }>(sql`select count(*) as n from record_refs where target_type = 'task' and target_id = ${t.task.id}`);
+    expect(Number(n)).toBe(1); // indexed by TD5, hidden by its References check
+    expect(refItems((await t.member.get("/api/one-inbox?lane=important")).body)).toHaveLength(0);
+    clearRefCacheForTests();
+    const off = await setupRefs({ INBOX_TD6: "on" });
+    await off.admin.post(`/api/chat/channels/${off.general.id}/messages`, { body: `look at <#task:${off.task.id}>` });
+    expect(refItems((await off.member.get("/api/one-inbox?lane=important")).body)).toHaveLength(0);
   });
 });
