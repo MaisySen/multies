@@ -5,6 +5,7 @@
 import { WHATS_NEW, type WhatsNewEntry } from "./whats-new";
 
 export const WHATS_NEW_EARLIER: readonly WhatsNewEntry[] = [
+  { id: "2026-11-02-blog", date: "2026-11-02", title: "A blog on your site", body: "In Sites, open the Blog tab to write posts in the Docs editor, add tags, a cover and an author, and publish now or at a set time. Visitors get tag and author pages, an RSS feed and a subscribe box, and admins can email a post to confirmed subscribers." },
   { id: "2026-11-02-anonymous-reports", date: "2026-11-02", title: "Anonymous reports and data requests", body: "Give your people a page to report a concern without an account, then reply in a private two way chat with a handler, status and deadlines. In Settings, Data requests lets someone get a copy of their data or have it deleted, after they confirm their email." },
   { id: "2026-11-02-webinars", date: "2026-11-02", title: "Webinars from any meeting", body: "Turn a meeting into a webinar: people register on their own page and watch while hosts and panelists speak. They ask and upvote questions, vote in polls and chat when you allow it, and you get a report of who came with a CSV download." },
   { id: "2026-11-02-home-widgets", date: "2026-11-02", title: "Arrange your Home", body: "Home is now made of widgets for your tasks, meetings, inbox counts, quick links and more. Drag them into the order you like, change their size or hide them, and admins can set the layout everyone starts with." }, // TD6: moved from the in app list

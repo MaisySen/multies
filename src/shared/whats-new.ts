@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-03-crm-from-mail",
+    date: "2026-11-03",
+    title: "Contacts that update from your mail",
+    body: "Contacts suggests new people from email signatures, last contacted dates and next steps from the mail you already sync. Nothing changes until you accept, and you can edit, discard or undo. Save analyses from templates such as pipeline by stage and share them with your workspace.",
+  },
+  {
     id: "2026-11-03-team-ai",
     date: "2026-11-03",
     title: "Team AI",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-02",
     title: "More from Social",
     body: "Pins now take their own title, link and alt text. YouTube comments arrive in the Social inbox and you can reply there. When you schedule, Multies suggests your best times from your own results, writing help can make a post shorter, friendlier or fit each network, and you can share a post with a link to Snapchat.",
-  },
-  {
-    id: "2026-11-02-blog",
-    date: "2026-11-02",
-    title: "A blog on your site",
-    body: "In Sites, open the Blog tab to write posts in the Docs editor, add tags, a cover and an author, and publish now or at a set time. Visitors get tag and author pages, an RSS feed and a subscribe box, and admins can email a post to confirmed subscribers.",
   },
   {
     id: "2026-10-28-whats-new",
