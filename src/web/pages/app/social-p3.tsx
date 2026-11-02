@@ -32,7 +32,7 @@ export function PinDetailsCard({ value, onChange }: { value: PinDetails; onChang
       <h3 id="pin-details-h" className="text-[13px] font-semibold sm:col-span-2">Pin details <span className="font-normal text-muted">(Pinterest)</span></h3>
       <div className="sm:col-span-2">
         <div className="mb-1.5 flex items-center justify-between"><label htmlFor="pin-title" className="text-[13px] font-medium">Pin title</label><Counter n={(value.title ?? "").length} max={PIN_TITLE_MAX} /></div>
-        <Input id="pin-title" value={value.title ?? ""} maxLength={PIN_TITLE_MAX + 20} onChange={(e) => onChange({ ...value, title: e.target.value })} placeholder="Uses the first line of your post when empty" className="h-9 text-sm" data-testid="pin-title" />
+        <Input id="pin-title" value={value.title ?? ""} maxLength={PIN_TITLE_MAX + 20} onChange={(e) => onChange({ ...value, title: e.target.value })} placeholder="First line of your post" className="h-9 text-sm" data-testid="pin-title" />
       </div>
       <div className="sm:col-span-2">
         <label htmlFor="pin-link" className="mb-1.5 block text-[13px] font-medium">Link when someone taps the pin</label>
@@ -41,7 +41,7 @@ export function PinDetailsCard({ value, onChange }: { value: PinDetails; onChang
       </div>
       <div className="sm:col-span-2">
         <div className="mb-1.5 flex items-center justify-between"><label htmlFor="pin-alt" className="text-[13px] font-medium">Alt text</label><Counter n={(value.alt ?? "").length} max={PIN_ALT_MAX} /></div>
-        <Input id="pin-alt" value={value.alt ?? ""} maxLength={PIN_ALT_MAX + 20} onChange={(e) => onChange({ ...value, alt: e.target.value })} placeholder="Describe the image for people who can't see it" className="h-9 text-sm" data-testid="pin-alt" />
+        <Input id="pin-alt" value={value.alt ?? ""} maxLength={PIN_ALT_MAX + 20} onChange={(e) => onChange({ ...value, alt: e.target.value })} placeholder="Describe the image" className="h-9 text-sm" data-testid="pin-alt" />
       </div>
     </section>
   );

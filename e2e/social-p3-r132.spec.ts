@@ -49,6 +49,9 @@ test("composer: pin details, best time chips, writing help with Undo, Snapchat s
   await expect(page.getByTestId("social-composer")).toBeVisible({ timeout: 20_000 });
   // No pin details until a Pinterest account is picked.
   await expect(page.getByTestId("pin-details")).toHaveCount(0);
+  // Pinterest takes a pin once there is an image.
+  await page.getByTestId("format-picker").locator('[data-format="image"]').click();
+  await page.getByTestId("social-image").setInputFiles({ name: "mug.png", mimeType: "image/png", buffer: PNG });
   await page.getByTestId("pick-pinterest").first().click();
   await expect(page.getByTestId("pin-details")).toBeVisible();
 
@@ -62,7 +65,6 @@ test("composer: pin details, best time chips, writing help with Undo, Snapchat s
   await expect(page.getByTestId("social-text")).toHaveValue("Our spring mugs are back in the shop. See them at https://acme.example/mugs");
 
   // A bad pin link is caught before Schedule.
-  await page.getByTestId("social-image").setInputFiles({ name: "mug.png", mimeType: "image/png", buffer: PNG });
   await page.getByTestId("pin-link").fill("acme.example/mugs");
   await expect(page.getByText("Use a full link that starts with https://")).toBeVisible();
   await expect(page.getByText("The pin link must be a full https link.").first()).toBeVisible();
@@ -129,7 +131,8 @@ test("inbox: YouTube comments come in and a reply goes back; health shows YouTub
   await shot(page, "r132-inbox-youtube-1280-light");
   await axe(page, "inbox 1280");
   await page.goto("/app/social/accounts");
-  await expect(page.getByText("YouTube").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("social-account-youtube")).toContainText("Ready for comments", { timeout: 15_000 });
+  await expect(page.getByTestId("connect-youtube")).toContainText("Connected. Add another account.");
 });
 
 test("phone and themes: composer and inbox at 390 and 1280 in light, dark and Forest", async ({ page, baseURL }) => {
@@ -144,7 +147,10 @@ test("phone and themes: composer and inbox at 390 and 1280 in light, dark and Fo
       await page.setViewportSize({ width: w, height: w === 390 ? 844 : 900 });
       await page.goto("/app/social/new");
       await expect(page.getByTestId("social-composer")).toBeVisible({ timeout: 20_000 });
+      await page.getByTestId("format-picker").locator('[data-format="image"]').click();
+  await page.getByTestId("social-image").setInputFiles({ name: "mug.png", mimeType: "image/png", buffer: PNG });
       await page.getByTestId("pick-pinterest").first().click();
+      await expect(page.getByTestId("pin-details")).toBeVisible();
       await page.getByTestId("social-text").fill("Spring mugs are back https://acme.example/mugs");
       await page.getByTestId("when-later").click();
       await expect(page.getByTestId("best-time-chip").first()).toBeVisible({ timeout: 15_000 });

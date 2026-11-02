@@ -19,6 +19,7 @@ import {
   IconBack, IconCalendarDays, IconChevronRight, IconCompose, IconFlask, IconLock, IconMegaphone, IconPlug, IconPlus, IconRefresh, IconTrash, IconWarning,
 } from "@/web/components/ui/icon";
 import { LINKEDIN_PAGE_NOTE, SOCIAL_NETWORKS, type ConnectedAccountView, type SocialPostView } from "@/shared/integrations";
+import { useSocialP3 } from "./social-p3"; // R132
 import { capList, capsOf } from "@/shared/social-p2b";
 import { AccountAvatar, AppLogo, appsKeys, useAppAccounts, useAppsStatus, useConnect, useConnectReturn } from "./apps-settings";
 import { Composer, POST_STATUS, PostList, ReconnectButton, useAccountHealth, useSocialPosts, type PostFilter } from "./apps-social";
@@ -74,6 +75,8 @@ export function SocialSwitcher() {
 /** The networks the one composer connects to here (TikTok and Threads have their own cards; X is not offered). */
 const NETWORK_NAMES: Record<string, string> = { facebook: "Facebook Pages", instagram: "Instagram", linkedin: "LinkedIn", pinterest: "Pinterest", reddit: "Reddit" };
 const NETWORKS = Object.keys(NETWORK_NAMES);
+/** R132: networks connected for their comments only (posting there is held), shown when SOCIAL_P3_R132 is on. */
+const P3_NAMES: Record<string, string> = { youtube: "YouTube" };
 const postable = (accounts: ConnectedAccountView[] | undefined) => (accounts ?? []).filter((a) => a.status === "active" && a.app in SOCIAL_NETWORKS);
 
 export function NewPostButton() {
@@ -422,7 +425,8 @@ export function SocialAccountsPage() {
   const p2b = useSocialP2b();
   const isBad = (a: ConnectedAccountView) => { const h = health.data?.get(a.id); return a.status !== "active" || (!!h && !h.ok && h.code !== "check_failed"); };
   // R118: a broken account goes to the top, so a lost sign in is the first thing seen here.
-  const social = (accounts.data ?? []).filter((a) => a.app in SOCIAL_NETWORKS && a.app !== "testnet").sort((x, y) => (p2b ? Number(isBad(y)) - Number(isBad(x)) : 0));
+  const p3on = useSocialP3();
+  const social = (accounts.data ?? []).filter((a) => (a.app in SOCIAL_NETWORKS || (p3on && a.app in P3_NAMES)) && a.app !== "testnet").sort((x, y) => (p2b ? Number(isBad(y)) - Number(isBad(x)) : 0));
   const broken = p2b ? social.filter((a) => isBad(a) && a.status !== "pending") : [];
   const test = useTestNetwork();
   const testBroken = p2b && !!test.st.data?.account?.broken;
@@ -438,7 +442,7 @@ export function SocialAccountsPage() {
     if (a.status !== "active") return <Badge tone="warn" dot>Needs attention</Badge>;
     if (health.isPending) return <span className="text-subtle">Checking</span>;
     const h = health.data?.get(a.id);
-    if (!h || h.ok) return <Badge tone="ok" dot>Ready to post</Badge>;
+    if (!h || h.ok) return <Badge tone="ok" dot>{a.app in P3_NAMES ? "Ready for comments" : "Ready to post"}</Badge>;
     if (h.code === "check_failed") return <Badge tone="neutral" dot>Not checked</Badge>;
     return <Badge tone="warn" dot>Needs attention</Badge>;
   };
@@ -516,16 +520,16 @@ export function SocialAccountsPage() {
         <section aria-labelledby="acc-add">
           <h2 id="acc-add" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">Connect a network</h2>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="accounts-add">
-            {NETWORKS.map((app) => (
+            {[...NETWORKS, ...(p3on ? Object.keys(P3_NAMES) : [])].map((app) => (
               <Card key={app} className="flex items-center gap-3 p-4" data-testid={`connect-${app}`}>
-                <AppLogo slug={app} name={NETWORK_NAMES[app] ?? app} />
+                <AppLogo slug={app} name={NETWORK_NAMES[app] ?? P3_NAMES[app] ?? app} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px] font-medium">{NETWORK_NAMES[app] ?? app}</p>
-                  <p className="text-[12.5px] text-muted">{connectedApps.has(app) ? "Connected. Add another account." : SOCIAL_NETWORKS[app]!.image === "required" ? "Posts need an image." : "Text and image posts."}</p>
+                  <p className="truncate text-[15px] font-medium">{NETWORK_NAMES[app] ?? P3_NAMES[app] ?? app}</p>
+                  <p className="text-[12.5px] text-muted">{connectedApps.has(app) ? "Connected. Add another account." : app in P3_NAMES ? "Comments and replies in your inbox." : SOCIAL_NETWORKS[app]?.image === "required" ? "Posts need an image." : "Text and image posts."}</p>
                   {app === "linkedin" && <p className="mt-1 text-[12px] leading-snug text-subtle" data-testid="connect-linkedin-note">{LINKEDIN_PAGE_NOTE}</p>}
                 </div>
                 {canManage && (
-                  <Button variant="outline" size="sm" loading={connect.isPending && connect.variables === app} onClick={() => connect.mutate(app)} aria-label={`Connect ${NETWORK_NAMES[app] ?? app}`}>
+                  <Button variant="outline" size="sm" loading={connect.isPending && connect.variables === app} onClick={() => connect.mutate(app)} aria-label={`Connect ${NETWORK_NAMES[app] ?? P3_NAMES[app] ?? app}`}>
                     <IconPlus className="h-4 w-4" aria-hidden />Connect
                   </Button>
                 )}
