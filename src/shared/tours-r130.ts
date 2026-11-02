@@ -56,14 +56,16 @@ export const checklistVisible = (v: ChecklistView | null | undefined) => !!v && 
 
 /* ------------------------------------------------------------------ tours */
 
-export const TARGET_RE = /^[A-Za-z0-9][A-Za-z0-9_:.\-]{0,79}$/;
+export const TARGET_RE = /^[A-Za-z0-9][A-Za-z0-9_:.-]{0,79}$/;
 export const Target = z.string().trim().regex(TARGET_RE, "Pick an element on the page.");
-const plain = (max: number) => z.string().trim().max(max).transform((s) => s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, ""));
+/** Plain text only: control characters (other than tab and new line) are dropped. */
+const stripControl = (s: string) => [...s].filter((ch) => { const c = ch.charCodeAt(0); return c === 9 || c === 10 || c === 13 || (c >= 32 && c !== 127); }).join("");
+const plain = (max: number) => z.string().trim().max(max).transform(stripControl);
 export const TourStep = z.object({ target: Target, title: plain(80).pipe(z.string().min(1, "Give each step a title.")), body: plain(400) });
 export type TourStep = z.infer<typeof TourStep>;
 export const AUDIENCES = ["all", "admins", "members"] as const;
 export type Audience = (typeof AUDIENCES)[number];
-export const PagePath = z.string().trim().max(120).regex(/^\/app(\/[A-Za-z0-9_\-]+)*$/, "Pick a page in the app.");
+export const PagePath = z.string().trim().max(120).regex(/^\/app(\/[A-Za-z0-9_-]+)*$/, "Pick a page in the app.");
 export const MAX_STEPS = 10;
 const tourFields = {
   name: plain(80).pipe(z.string().min(1, "Give the tour a name.")),
@@ -97,7 +99,7 @@ export function pageMatches(page: string, pathname: string): boolean {
 /** Tours only ever run inside the signed in app (never on sites, blog, booking, forms or reports). */
 export const inApp = (pathname: string) => pathname === "/app" || pathname.startsWith("/app/");
 
-export const PROGRESS_KEY_RE = /^(checklist|builtin:[a-z_\-]{1,40}|tour_[A-Za-z0-9_\-]{1,60})$/;
+export const PROGRESS_KEY_RE = /^(checklist|builtin:[a-z_-]{1,40}|tour_[A-Za-z0-9_-]{1,60})$/;
 export const ProgressInput = z.object({ key: z.string().regex(PROGRESS_KEY_RE), state: z.enum(["done", "skipped"]), step: z.number().int().min(0).max(50).default(0) });
 
 /** Built in tours: they follow the R121 navigation (Contacts, Settings Mail setup, Docs with Files, the phone More sheet). */

@@ -60,8 +60,8 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
     id: "2026-11-02-home-widgets",
     date: "2026-11-02",
-    title: "Arrange your Home",
-    body: "Home is now made of widgets for your tasks, meetings, inbox counts, quick links and more. Drag them into the order you like, change their size or hide them, and admins can set the layout everyone starts with.",
+    title: "Arrange your Home and get started",
+    body: "Home is now made of widgets for your tasks, meetings, inbox counts, quick links and more. Drag them into the order you like, change their size or hide them, and admins can set the layout everyone starts with. A Get started list ticks itself off as you go, quick tours show where things live, and admins can build their own in Settings, Tours.",
   },
   {
     id: "2026-11-02-courses",
