@@ -192,6 +192,7 @@ TABLES_R125 = "on" # R125: tables in Docs, verifier v19 PASS WITH BUGS 17:03 UTC
 SITES_R123 = "on" # R123: Sites in Docs, verifier v21 PASS 19:45 UTC Nov 1
 BLOG_R124 = "on" # R124: blog with newsletter in Sites, verifier v24 PASS 00:33 UTC Nov 2
 SOCIAL_P3_R132 = "on" # R132: social posting upgrades (best times, writing help, Pinterest pin details, YouTube comments, Snapchat link share), verifier v24 PASS 01:24 UTC Nov 2; YouTube upload and Business Profile sub flags stay off
+NAV_P2_R121 = "on" # R121: layout plan P2 navigation (Contacts section, Mail setup in Settings, Files in Docs), verifier v25 PASS WITH BUGS 02:18 UTC Nov 2
 COURSES_R129 = "on" # R129: courses in Docs, verifier v21 PASS 20:14 UTC Nov 1
 HOME_WIDGETS_R131 = "on" # R131: Home widgets, verifier v21 PASS 20:47 UTC Nov 1
 WEBINAR_R114 = "on" # R114: webinar mode for meetings, verifier v22 PASS 21:23 UTC Nov 1
