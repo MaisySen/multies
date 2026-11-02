@@ -166,6 +166,7 @@ test("admin builds, previews, publishes and schedules pages; visitors read and c
   await expect(page.getByText("Counts only. No addresses, cookies or visitor ids are kept.")).toBeVisible();
   await expect.poll(async () => { await page.reload(); return page.getByText("No visits yet").count(); }, { timeout: 30_000 }).toBe(0);
   await shot(page, "07-stats-1280-light");
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running")); // check colours once the page has settled
   problems.push(...(await axe(page, "stats", "main")));
   await v.ctx.close();
   expect(problems).toEqual([]);
