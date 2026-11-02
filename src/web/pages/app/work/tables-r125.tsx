@@ -736,13 +736,13 @@ function Kanban({ fields, rows, by, canEdit, loading, onMove, onOpen, onAdd, mor
 }) {
   const [over, setOver] = useState<string | null>(null);
   if (!by) return <EmptyState icon={<IconColumns />} title="Kanban needs a single select field" body="Add a single select field, like Status, and choose it above." />;
-  if (loading) return <div className="flex gap-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-64 w-64" />)}</div>;
+  if (loading) return <div className="flex min-w-0 max-w-full gap-3 overflow-hidden" aria-busy="true">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-64 w-64 shrink-0" />)}</div>; // POL1 (MB-315): the skeleton never widens the page
   const primary = fields[0];
   const cols = [...(by.config.options ?? []).map((o) => ({ id: o.id, label: o.label, color: o.color })), { id: "", label: "Not set", color: "#64748b" }];
   const extra = fields.slice(1).filter((f) => f.id !== by.id && !isComputed(f.type) && f.type !== "longtext").slice(0, 2);
   return (
     <div className="min-w-0 max-w-full">
-      <div className="flex min-w-0 max-w-full gap-3 overflow-x-auto overscroll-x-contain pb-2" data-testid="kanban">
+      <div className="flex w-0 min-w-full gap-3 overflow-x-auto overscroll-x-contain pb-2" data-testid="kanban">{/* POL1 (MB-315): w-0 min-w-full so the columns never count toward the page width */}
         {cols.map((c) => {
           const items = rows.filter((r) => (r.values[by.id] ?? "") === c.id);
           return (

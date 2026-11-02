@@ -119,6 +119,7 @@ test("tables: New view stays on screen, Row puts focus in the new row, title, tr
   await page.reload();
   await page.getByRole("tab", { name: /Board/ }).last().click();
   await expect(page.getByTestId("kanban")).toBeVisible();
+  console.log("WIDE", JSON.stringify(await page.evaluate(() => [...document.querySelectorAll("body *")].filter((e) => e.getBoundingClientRect().right > 400 && !e.closest("[data-testid=kanban]")).slice(0, 8).map((e) => `${e.tagName}.${String(e.className).slice(0, 70)}|${e.getAttribute("data-testid") ?? ""}|${Math.round(e.getBoundingClientRect().right)}`))));
   await noHScroll(page);
   const box = await page.getByTestId("add-view").boundingBox();
   expect(box && box.x + box.width).toBeLessThanOrEqual(390);
