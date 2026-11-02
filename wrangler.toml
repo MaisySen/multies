@@ -195,6 +195,7 @@ FORMS_PLUS_R93 = "true" # R93: Forms plus (verifier v20 PASS 19:00 UTC Nov 1)
 REPORTING_R112 = "on" # R112: anonymous reporting channel and data requests (verifier v23 PASS on staging 23:19 UTC Nov 1)
 DASHBOARDS_PLUS = "on" # R91: public links, emailed reports, question builder, alerts, data sources
 CLIENT_PORTAL = "on" # R120: client portals, verifier v7 PASS WITH BUGS 23:42 UTC Oct 31
+PORTAL_TD9 = "on" # TD9: portal access per area, live project view, private comments (production after verifier v37 PASS on staging 223da03b7e4b)
 INVOICES_ENABLED = "true" # R105: on in production after verifier v15 PASS WITH BUGS 11:47 UTC
 EXPENSES_R106 = "on" # R106: expenses and receipts (verifier v18 PASS 16:28 UTC Nov 1)
 TABLES_R125 = "on" # R125: tables in Docs, verifier v19 PASS WITH BUGS 17:03 UTC Nov 1
