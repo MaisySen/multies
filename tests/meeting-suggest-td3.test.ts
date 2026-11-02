@@ -130,6 +130,28 @@ describe("meetings to tasks", () => {
     expect(aiCalls).toBe(0);
   });
 
+  it("with the workspace AI switch off: 409 ai_off, no provider call, manual path still works", async () => {
+    await setup({ MEET_TD3: "on", ASK_TD1: "on" });
+    const mate = await teammate();
+    await c.put("/api/ai/key", { provider: "openai", apiKey: KEY });
+    const m = await meeting();
+    await withTranscript(m.id, mate.id);
+    expect((await c.put("/api/ai-trust", { enabled: false })).status).toBe(200);
+    const v = (await c.get(`/api/meeting-td3/${m.id}`)).body;
+    expect(v.ai.state).toBe("off");
+    const r = await c.post(`/api/meeting-td3/${m.id}/suggest`, { source: "recording", recordingId: "rec_1" });
+    expect(r.status).toBe(409);
+    expect(r.body.error?.code ?? r.body.code).toBe("ai_off");
+    expect(aiCalls).toBe(0);
+    const made = await c.post(`/api/meeting-td3/${m.id}/suggestions`, { title: "Book the venue", accept: true });
+    expect(made.status).toBe(200);
+    expect(aiCalls).toBe(0);
+    // Switched back on, one press is one provider call.
+    expect((await c.put("/api/ai-trust", { enabled: true })).status).toBe(200);
+    expect((await c.post(`/api/meeting-td3/${m.id}/suggest`, { source: "recording", recordingId: "rec_1" })).status).toBe(200);
+    expect(aiCalls).toBe(1);
+  });
+
   it("suggests with owner guesses from attendees only, dates from the meeting day, real quotes; nothing created", async () => {
     const mate = await teammate();
     await c.put("/api/ai/key", { provider: "openai", apiKey: KEY });

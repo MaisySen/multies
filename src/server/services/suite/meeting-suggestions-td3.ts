@@ -39,8 +39,7 @@ export const AI_NO_KEY_TEXT = "Add an AI key in Settings to get suggestions. You
 export function meetTd3Enabled(deps: Deps) { return !!deps.config.meetTd3; }
 
 /**
- * The one gate in front of every provider call. "off": the workspace switched AI off (TD1's switch, read here
- * once TD1 is on main); "no_key": no key and no built in AI; "ready": a call may go out.
+ * The one gate in front of every provider call. "off": the workspace switched AI off (TD1's switch); "no_key": no key and no built in AI; "ready": a call may go out.
  */
 export async function aiGate(deps: Deps, orgId: string): Promise<"ready" | "off" | "no_key"> {
   if (!(await workspaceAiOn(deps, orgId))) return "off";
@@ -48,8 +47,8 @@ export async function aiGate(deps: Deps, orgId: string): Promise<"ready" | "off"
   if (await providerFor(deps, orgId)) return "ready";
   return builtinReady(deps) ? "ready" : "no_key";
 }
-/** TD1's per workspace AI switch. No switch on this build means on. */
-async function workspaceAiOn(_deps: Deps, _orgId: string): Promise<boolean> { return true; }
+/** TD1's per workspace AI switch (the same gate ask() uses): off means no provider call. */
+async function workspaceAiOn(deps: Deps, orgId: string): Promise<boolean> { return (await import("../ai-trust-td1")).aiAllowed(deps, orgId); }
 /** Built in AI (AI2) on this build. Not present yet means no. */
 function builtinReady(_deps: Deps): boolean { return false; }
 
