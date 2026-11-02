@@ -102,7 +102,7 @@ describe("CHAT_CHANNELS in the web app", () => {
     // Every other page stays in the menu whatever the switch says (Tools has its own switch, Tools P1).
     // Tools P2 entries also need their own feature on (toolFeatures), so they are left out here.
     // R110: Ask rides its own switch (askR110), checked below.
-    const base = navCommands.filter((c) => !c.toolFeature && c.flag !== "askR110" && c.flag !== "vaultR128" && c.flag !== "peopleR126" && c.flag !== "inboxTd6" && c.flag !== "teamaiTd8");
+    const base = navCommands.filter((c) => !c.toolFeature && c.flag !== "askR110" && c.flag !== "vaultR128" && c.flag !== "peopleR126" && c.flag !== "inboxTd6" && c.flag !== "teamaiTd8" && c.flag !== "crmTd10");
     const oneInbox = navCommands.filter((c) => c.flag === "inboxTd6"); // TD6
     expect(oneInbox.map((c) => c.to)).toEqual(["/app/one-inbox"]);
     expect(oneInbox.every((c) => !flagOn(c, {}) && flagOn(c, { inboxTd6: true }))).toBe(true);
@@ -110,6 +110,10 @@ describe("CHAT_CHANNELS in the web app", () => {
     const teamAi = navCommands.find((c) => c.to === "/app/settings/team-ai")!;
     expect(flagOn(teamAi, {})).toBe(false);
     expect(flagOn(teamAi, { teamaiTd8: true })).toBe(true);
+    // TD10: Analyses rides CRM_TD10.
+    const analyses = navCommands.find((c) => c.to === "/app/analyses")!;
+    expect(flagOn(analyses, {})).toBe(false);
+    expect(flagOn(analyses, { crmTd10: true })).toBe(true);
     // R126: Staff, Org chart, Who is away, Assets, labels and Onboarding ride PEOPLE_R126.
     const people = navCommands.filter((c) => c.flag === "peopleR126");
     expect(people.map((c) => c.to)).toEqual(["/app/contacts/staff", "/app/contacts/staff?view=org", "/app/contacts/staff?view=away", "/app/contacts/staff?view=assets", "/app/contacts/assets/labels", "/app/settings/team/onboarding"]);
