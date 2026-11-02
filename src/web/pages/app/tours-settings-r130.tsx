@@ -16,6 +16,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { IconArrowDown, IconArrowUp, IconTrash } from "@/web/components/ui/icons";
 import { SECTIONS_P2 } from "@/shared/nav-menu";
+import { LoadError } from "@/web/components/load-error-t1g";
 import { AUDIENCES, BUILTIN_TOURS, MAX_STEPS, PagePath, type AdminTour, type Audience, type TourStep } from "@/shared/tours-r130";
 import { beginPick, beginPreview, startTour } from "@/web/components/tours-r130";
 
@@ -46,7 +47,7 @@ export function ToursSettings() {
     return <EmptyState title="Tours are not on for this workspace" body="Ask the person who runs Multies for your team." />;
   }
   if (q.error instanceof ApiError && q.error.status === 403) return <EmptyState title="Only admins build tours" body="Ask a workspace admin if you want a tour for your team." />;
-  if (q.error) return <Card className="p-5"><p className="text-sm">Tours did not load.</p><Button className="mt-3" variant="secondary" size="sm" onClick={() => q.refetch()}>Try again</Button></Card>;
+  if (q.error) return <LoadError onRetry={() => q.refetch()} className="rounded-xl border border-line bg-surface" />;
   if (q.isPending) return <div className="space-y-3" aria-busy="true"><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /></div>;
   const editing = editId ? q.data.tours.find((t) => t.id === editId) : null;
   if (editing) return <TourEditor key={editing.id + editing.updatedAt} tour={editing} onBack={() => setParams({})} />;

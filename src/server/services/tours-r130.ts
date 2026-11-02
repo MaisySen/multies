@@ -3,7 +3,7 @@
  * workspace tours an admin builds, and each person's progress. Every query is scoped to the caller's workspace; only
  * owners and admins build tours or reset someone's progress. No tracking beyond the person's own progress rows.
  */
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../context";
 import { docs, invitations, mailboxes, members, organizations, sites, tasks, tourProgress, tours } from "../db/schema";
 import { badRequest, forbidden, notFound } from "../lib/errors";
@@ -178,9 +178,8 @@ export async function resetProgress(deps: Deps, a: Actor, userId: string, tourId
   await assertOn(deps, a.orgId); assertManager(a);
   const m = await deps.db.select({ id: members.id }).from(members).where(and(eq(members.organizationId, a.orgId), eq(members.userId, userId))).get();
   if (!m) throw notFound("Person");
-  const keys = tourId ? [tourId] : null;
   if (tourId && !tourId.startsWith("builtin:")) await own(deps, a, tourId);
-  const where = and(eq(tourProgress.orgId, a.orgId), eq(tourProgress.userId, userId), keys ? inArray(tourProgress.key, keys) : ne(tourProgress.key, CHECKLIST));
+  const where = and(eq(tourProgress.orgId, a.orgId), eq(tourProgress.userId, userId), tourId ? eq(tourProgress.key, tourId) : ne(tourProgress.key, CHECKLIST));
   const before = await deps.db.select({ n: sql<number>`count(*)` }).from(tourProgress).where(where).get();
   await deps.db.delete(tourProgress).where(where);
   return { ok: true, cleared: before?.n ?? 0 };

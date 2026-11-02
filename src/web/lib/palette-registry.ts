@@ -9,7 +9,7 @@ export type PaletteIcon = React.ComponentType<{ className?: string }>;
  * R59: `flag` names a server switch from /api/config; the page is offered only while it is on.
  * Tools P2: `toolFeature` also needs one of these P2 features in /api/config toolFeatures.
  */
-export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog"; toolFeature?: string[] }
+export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog" | "toursR130"; toolFeature?: string[] }
 export type PaletteActionKind = "navigate" | "shortcuts" | "theme" | "external";
 export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog"; toolFeature?: string[] }
 
@@ -115,6 +115,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-calendar-settings", label: "Calendar settings", to: "/app/settings/calendar", icon: IconCalendarDays, keywords: ["caldav", "carddav", "ics", "google calendar", "sync with your phone", "app password", "iphone", "android", "outlook", "contacts sync"] },
   { id: "p-mail-settings", label: "Mail settings", to: "/app/settings/mail", icon: IconMail, keywords: ["signature", "saved replies", "vacation"] },
   { id: "p-anonymous-reports", label: "Anonymous reports", to: "/app/forms?tab=reports", icon: IconShieldCheck, keywords: ["whistleblower", "report", "speak up", "complaint", "case", "concern"], flag: "reporting" }, // R112
+  { id: "p-tours", label: "Tours", to: "/app/settings/tours", icon: IconShieldCheck, keywords: ["onboarding", "get started", "checklist", "walk through", "guide", "tour builder"], flag: "toursR130" }, // R130
   { id: "p-data-requests", label: "Data requests", to: "/app/settings/data-requests", icon: IconShieldCheck, keywords: ["privacy", "export my data", "delete my data", "erasure", "access request", "gdpr"], flag: "reporting" }, // R112
   { id: "p-mail-archive", label: "Archive and retention", to: "/app/settings/mail-archive", icon: IconArchive, keywords: ["retention", "legal hold", "ediscovery", "export case", "mbox", "compliance"] }, // R111
   { id: "p-connections", label: "Mail accounts", to: "/app/settings/apps/mail", icon: IconLink, keywords: ["gmail", "outlook", "imap", "connections", "connected accounts", "mailboxes"] },
