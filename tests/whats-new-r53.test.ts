@@ -137,7 +137,9 @@ describe("R53 whats-new list", () => {
     // R129: courses joined at the top; "2026-11-01-files-plus" (the oldest after What's new itself) moved to the public earlier list.
     // R114: webinars joined at the top; "2026-11-01-tasks-plus" (the oldest after What's new itself) moved to the public earlier list.
     expect(WHATS_NEW.some((e) => e.id === "2026-11-01-tasks-plus")).toBe(false);
-    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-02-anonymous-reports", "2026-11-02-webinars", "2026-11-02-home-widgets", "2026-11-02-courses", "2026-11-01-sites", "2026-11-01-forms-plus", "2026-11-01-tables", "2026-11-01-clear-errors", "2026-11-01-faster-search", "2026-11-01-office-files", "2026-11-01-booking-plus", "2026-11-01-invoices", "2026-11-01-ask-workspace", "2026-10-28-whats-new"]);
+    // R124: the blog joined at the top; "2026-11-01-ask-workspace" (the oldest after What's new itself) moved to the public earlier list.
+    expect(WHATS_NEW.some((e) => e.id === "2026-11-01-ask-workspace")).toBe(false);
+    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-02-blog", "2026-11-02-anonymous-reports", "2026-11-02-webinars", "2026-11-02-home-widgets", "2026-11-02-courses", "2026-11-01-sites", "2026-11-01-forms-plus", "2026-11-01-tables", "2026-11-01-clear-errors", "2026-11-01-faster-search", "2026-11-01-office-files", "2026-11-01-booking-plus", "2026-11-01-invoices", "2026-10-28-whats-new"]);
     expect(WHATS_NEW.some((e) => e.id === "2026-11-01-contracts")).toBe(false);
     expect(WHATS_NEW.some((e) => e.id === "2026-11-01-help-center")).toBe(false);
     for (const id of ["2026-10-28-more-safe-retries", "2026-10-28-lighter-mail-sync", "2026-10-28-safe-retries", "2026-10-28-quicker-task-lists", "2026-10-27-steadier-my-work"]) {

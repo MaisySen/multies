@@ -6,6 +6,15 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## R124 Blog with newsletter (2026-11-02)
+
+- Docs > Sites > Blog (flag BLOG_R124, needs SITES_R123; migration 0148: site_blogs, blog_posts, blog_authors, blog_images). Post bodies are ordinary docs under a "Blog posts" root doc, written in the Docs editor with co editing; publishing snapshots the rendered doc.
+- Posts have an address, excerpt, cover, up to 10 tags and an author, and are draft, scheduled or published. Publish now, schedule (browser local time sent as an exact moment), update the live copy, unpublish or delete (the doc stays in Docs).
+- Public pages at /site/<slug>/blog: index with pager, post, tag and author pages, each with title, description and Open Graph tags; RSS 2.0 at /blog/rss.xml; blog URLs in the site sitemap; a Blog item in the site menu once a post is live. Only https images and doc images on the blog allow list show publicly.
+- Subscribe box with double opt in into one Campaigns audience list per blog (rate limited, shield checked); confirmation records the blog as the consent source.
+- "Email this post to subscribers": opt in per post, admins only, sent once through Campaigns as a newsletter to confirmed subscribers with sender details and unsubscribe; scheduled posts schedule the email; unpublish cancels a scheduled email. Admins see subscribers (counts, search, remove, CSV export).
+- Author profiles (name, bio, photo) with public author pages; Create > Blog post and Ctrl K entries. Guests, portal users and other workspaces cannot edit; subscriber emails are never logged.
+
 ## R123 Sites (2026-11-01)
 
 - Docs > Sites (flag SITES_R123, migration 0143): one simple website per workspace at /site/<slug>, pages at /site/<slug>/<page>. Docs shows Sites once a site exists; before that it is reached from Create > Site page and Ctrl K.

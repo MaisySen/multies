@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-02-blog",
+    date: "2026-11-02",
+    title: "A blog on your site",
+    body: "In Sites, open the Blog tab to write posts in the Docs editor, add tags, a cover and an author, and publish now or at a set time. Visitors get tag and author pages, an RSS feed and a subscribe box, and admins can email a post to confirmed subscribers.",
+  },
+  {
     id: "2026-11-02-anonymous-reports",
     date: "2026-11-02",
     title: "Anonymous reports and data requests",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Invoices, quotes and expenses",
     body: "Send quotes customers can accept online, turn them into invoices in one click, and send tax invoices with your ABN and GST shown, a link to the PDF and your bank details. Record payments, credit notes, repeating invoices, bills and expenses (snap or forward a receipt and it is read, checked for GST and sent for approval), and see what you are owed and the GST for your BAS. Find it all in Contacts > Invoices.",
-  },
-  {
-    id: "2026-11-01-ask-workspace",
-    date: "2026-11-01",
-    title: "Ask your workspace",
-    body: "Open Tools, then Ask your workspace (or type a question in the command menu and pick Ask AI). Answers come only from items you can open, with the sources listed. Save an answer to a doc, find old questions in your history, and approve any change it suggests: nothing changes until you click Apply.",
   },
   {
     id: "2026-10-28-whats-new",

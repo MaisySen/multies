@@ -328,7 +328,7 @@ export function snapshotHtml(content: unknown, base: string, appUrl: string): { 
 async function snapshot(deps: Deps, a: AuthContext, s: SiteRow, p: PostRow) {
   const d = await deps.db.select().from(docs).where(and(eq(docs.id, p.docId), eq(docs.orgId, a.orgId), isNull(docs.deletedAt))).get();
   if (!d) throw badRequest("The text of this post was deleted in Docs. Restore it from the trash first.");
-  let content: unknown = null;
+  let content: unknown;
   try { content = JSON.parse(d.content); } catch { content = null; }
   const { html, images } = snapshotHtml(content, blogBase(deps, s.slug), deps.config.appUrl);
   const text = d.plainText ?? "";
