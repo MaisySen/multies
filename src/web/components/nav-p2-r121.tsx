@@ -76,8 +76,9 @@ export function MoreSheet({ sections, counts, active, canPost, onNavigate }: {
           const inner = (<>
             <Icon className="h-6 w-6" filled={s.id === active} aria-hidden />
             <span className="max-w-full truncate">{s.label}</span>
-            {b.n > 0 && <span className={cn("absolute right-1.5 top-1.5 min-w-[18px] rounded-full px-1 text-center text-[11px] font-semibold leading-[18px] tabular-nums",
-              b.alert ? "bg-brand text-brand-fg" : "bg-fill text-muted")} aria-hidden>{fmt(b.n)}</span>}
+            {/* The number is drawn by CSS (data-badge), so the tile's visible words stay its label and its name contains them. */}
+            {b.n > 0 && <span data-badge={fmt(b.n)} className={cn("absolute right-1.5 top-1.5 min-w-[18px] rounded-full px-1 text-center text-[11px] font-semibold leading-[18px] tabular-nums before:content-[attr(data-badge)]",
+              b.alert ? "bg-brand text-brand-fg" : "bg-fill text-muted")} aria-hidden />}
           </>);
           const ref = (el: HTMLElement | null) => { if (i === 0) firstRef.current = el; };
           return (

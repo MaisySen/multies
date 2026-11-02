@@ -84,7 +84,7 @@ export function DealsPage() {
   const open = q.data?.deals.filter((d) => d.stage !== "won" && d.stage !== "lost").reduce((n, d) => n + d.value, 0) ?? 0;
   return (
     <div>
-      <Link to="/app/contacts" className="mb-4 inline-flex items-center gap-1 text-[12.5px] text-subtle hover:text-fg"><IconArrowLeft className="h-3.5 w-3.5" />Contacts</Link>
+      <Link to="/app/contacts" className="mb-4 inline-flex items-center gap-1 text-[12.5px] text-muted hover:text-fg"><IconArrowLeft className="h-3.5 w-3.5" />Contacts</Link>
       <PageHeader title="Deals" description={q.data ? `${aud(open)} open in the pipeline, ex GST.` : "Your sales pipeline."} actions={<>{invoicesOn && <Link to="/app/contacts/invoices" className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconReceipt className="h-4 w-4" />Invoices</Link>}<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />New deal</Button></>} />
       {crm.on && !!q.data?.deals.length && <ForecastStrip />}
       {q.isPending ? <Skeleton className="h-64" /> : !q.data?.deals.length ? (
