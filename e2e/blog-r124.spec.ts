@@ -8,6 +8,9 @@ import AxeBuilder from "@axe-core/playwright";
  * it saves the UX gate screenshots (1280 and 390, light and dark); every screen is checked with axe.
  */
 const DIR = process.env.SHOTS_DIR;
+// The newsletter and subscribe box need Tools with merge_plus_r109 (BLOG_E2E_TOOLS=1 with the stand in engine); without
+// it the test checks the plain blog and that the settings say email is not on.
+const TOOLS = process.env.BLOG_E2E_TOOLS === "1";
 const rand = () => Math.random().toString(36).slice(2, 7);
 
 async function demo(page: Page) {
@@ -91,21 +94,26 @@ test("admin writes, publishes and schedules posts; visitors read, follow RSS and
 
   // Newsletter settings (admin): mailbox, sender, address, subscribe box on.
   await page.goto("/app/docs/sites?tab=blog&view=settings");
-  const mb = page.getByLabel("Sends from");
-  await expect(mb).toBeVisible();
-  const first = await mb.locator("option").nth(1).getAttribute("value");
-  expect(first, "the demo workspace has a mailbox").toBeTruthy();
-  await mb.selectOption(first!);
-  await page.getByLabel("Sender name").fill("Acme studio");
-  await page.getByLabel("Sender name").blur();
-  await page.getByLabel("Contact address").fill("1 George St, Sydney NSW 2000");
-  await page.getByLabel("Contact address").blur();
-  await expect(page.getByText(/^Ready\./)).toBeVisible();
-  const sw = page.getByRole("switch", { name: "Show a subscribe box on the blog" });
-  if ((await sw.getAttribute("aria-checked")) !== "true") await sw.click();
-  await expect(page.getByText(/Visitors can subscribe/)).toBeVisible();
-  await shot(page, "03-settings-1280-light");
-  problems.push(...(await axe(page, "settings")));
+  if (TOOLS) {
+    const mb = page.getByLabel("Sends from");
+    await expect(mb).toBeVisible();
+    const first = await mb.locator("option").nth(1).getAttribute("value");
+    expect(first, "the demo workspace has a mailbox").toBeTruthy();
+    await mb.selectOption(first!);
+    await page.getByLabel("Sender name").fill("Acme studio");
+    await page.getByLabel("Sender name").blur();
+    await page.getByLabel("Contact address").fill("1 George St, Sydney NSW 2000");
+    await page.getByLabel("Contact address").blur();
+    await expect(page.getByText(/^Ready\./)).toBeVisible();
+    const sw = page.getByRole("switch", { name: "Show a subscribe box on the blog" });
+    if ((await sw.getAttribute("aria-checked")) !== "true") await sw.click();
+    await expect(page.getByText(/Visitors can subscribe/)).toBeVisible();
+    await shot(page, "03-settings-1280-light");
+    problems.push(...(await axe(page, "settings")));
+  } else {
+    await expect(page.getByText("Email newsletters are not on for this workspace, so the blog has no subscribe box.")).toBeVisible();
+    problems.push(...(await axe(page, "settings")));
+  }
 
   // Posts list in both themes and on a phone.
   await page.goto("/app/docs/sites?tab=blog");
@@ -158,21 +166,27 @@ test("admin writes, publishes and schedules posts; visitors read, follow RSS and
 
   // Subscribe with double opt in.
   await v.page.goto(`/site/${slug}/blog`);
-  await v.page.getByLabel("Email address").fill(`reader-${rand()}@example.com`);
-  await v.page.waitForTimeout(1300);
-  await v.page.getByRole("button", { name: "Subscribe" }).click();
-  await expect(v.page.locator("#sub-status")).toContainText("Check your inbox", { timeout: 30_000 });
+  if (TOOLS) {
+    await v.page.getByLabel("Email address").fill(`reader-${rand()}@example.com`);
+    await v.page.waitForTimeout(1300);
+    await v.page.getByRole("button", { name: "Subscribe" }).click();
+    await expect(v.page.locator("#sub-status")).toContainText("Check your inbox", { timeout: 30_000 });
+  } else {
+    await expect(v.page.getByLabel("Email address")).toHaveCount(0);
+  }
   await v.page.setViewportSize({ width: 390, height: 844 });
   await shot(v.page, "12-public-index-390");
   problems.push(...(await axe(v.page, "public index 390")));
   await v.ctx.close();
 
-  // The admin sees the waiting subscriber; drafts are not public.
-  await page.goto("/app/docs/sites?tab=blog&view=subscribers");
-  await expect(page.getByText("Waiting to confirm").first()).toBeVisible();
-  await expect(page.getByText(/reader-.*@example\.com/)).toBeVisible();
-  await shot(page, "13-subscribers-1280-light");
-  problems.push(...(await axe(page, "subscribers")));
+  // The admin sees the waiting subscriber.
+  if (TOOLS) {
+    await page.goto("/app/docs/sites?tab=blog&view=subscribers");
+    await expect(page.getByText("Waiting to confirm").first()).toBeVisible();
+    await expect(page.getByText(/reader-.*@example\.com/)).toBeVisible();
+    await shot(page, "13-subscribers-1280-light");
+    problems.push(...(await axe(page, "subscribers")));
+  }
 
   expect(problems, problems.join("\n")).toEqual([]);
 });

@@ -16,7 +16,7 @@ import { readDocImage } from "../services/suite/doc-images-r32";
 import { resolveSite, siteUrl, type PublicSite } from "../services/sites";
 import * as B from "../services/blog-r124";
 import { escHtml, renderPageHtml, type RenderLinks } from "@/shared/sites";
-import type { ShieldAnswer } from "@/shared/spam-shield";
+import { SHIELD_MIN_FILL_MS, type ShieldAnswer } from "@/shared/spam-shield";
 import {
   BLOG_CSS, PER_PAGE, autoExcerpt, fmtPostDate, pageNumber, pagerHtml, postCardsHtml, postMetaHtml, publicImage, rssXml, subscribeBoxHtml, tagSlug, tagsHtml, type CardPost,
 } from "@/shared/blog-r124";
@@ -98,15 +98,15 @@ function shell(deps: Deps, site: PublicSite, blogTitle: string, current: "blog" 
 const HTML_HEADERS = { "cache-control": "public, max-age=60", "x-robots-tag": "index, follow", "referrer-policy": "strict-origin-when-cross-origin" } as const;
 const NOINDEX = { "cache-control": "private, no-store", "x-robots-tag": "noindex, nofollow", "referrer-policy": "strict-origin-when-cross-origin" } as const;
 
-export const BLOG_JS = `(function(){var f=document.getElementById("blog-subscribe");if(!f)return;var st=document.getElementById("sub-status");var ch=null;var loaded=Date.now();
+export const BLOG_JS = `(function(){var f=document.getElementById("blog-subscribe");if(!f)return;var st=document.getElementById("sub-status");var ch=null;var got=0;
 function zeros(u){var n=0;for(var i=0;i<u.length;i++){if(u[i]===0){n+=8;continue}return n+Math.clz32(u[i])-24}return n}
-function get(){return fetch(f.getAttribute("data-shield"),{credentials:"omit"}).then(function(r){return r.json()}).then(function(j){ch=j.challenge;return ch})}
+function get(){return fetch(f.getAttribute("data-shield"),{credentials:"omit"}).then(function(r){return r.json()}).then(function(j){ch=j.challenge;got=Date.now();return ch})}
 function solve(c){var e=new TextEncoder();var n=0;return new Promise(function(res,rej){function step(){var k=0;(function one(){if(n>Math.pow(2,Math.min(c.difficulty,22)+6))return rej(new Error("work"));crypto.subtle.digest("SHA-256",e.encode(c.salt+":"+n)).then(function(d){if(zeros(new Uint8Array(d))>=c.difficulty)return res(n);n++;k++;if(k<4000)one();else setTimeout(step,0)})})()}step()})}
-f.addEventListener("focusin",function(){if(!ch)get().catch(function(){})},{once:true});
+get().catch(function(){});
 f.addEventListener("submit",function(ev){ev.preventDefault();var b=f.querySelector("button");var em=f.elements.email.value.trim();
 if(!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(em)){st.textContent="Enter a valid email address.";f.elements.email.focus();return}
-b.disabled=true;st.textContent="Sending";var wait=Math.max(0,1200-(Date.now()-loaded));
-new Promise(function(r){setTimeout(r,wait)}).then(function(){return ch||get()}).then(function(c){return solve(c).then(function(nonce){return fetch(f.action,{method:"POST",credentials:"omit",headers:{"content-type":"application/json"},body:JSON.stringify({email:em,shield:{challenge:c,nonce:nonce,hp:f.elements.website.value}})})})})
+b.disabled=true;st.textContent="Sending";var wait=ch?Math.max(0,${SHIELD_MIN_FILL_MS + 300}-(Date.now()-got)):${SHIELD_MIN_FILL_MS + 300};
+new Promise(function(r){setTimeout(r,wait)}).then(function(){return ch||get().then(function(c){return new Promise(function(r){setTimeout(function(){r(c)},${SHIELD_MIN_FILL_MS + 300})})})}).then(function(c){return solve(c).then(function(nonce){return fetch(f.action,{method:"POST",credentials:"omit",headers:{"content-type":"application/json"},body:JSON.stringify({email:em,shield:{challenge:c,nonce:nonce,hp:f.elements.website.value}})})})})
 .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j}})}).then(function(x){ch=null;if(x.ok){f.reset();st.textContent="Check your inbox. Open the email we sent and confirm to finish."}else{st.textContent=(x.j&&x.j.error&&x.j.error.message)||"That did not go through. Try again."}})
 .catch(function(){st.textContent="That did not go through. Check your connection and try again."}).then(function(){b.disabled=false})})})();`;
 export const BLOG_JS_HEADERS = { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=600" } as const;
