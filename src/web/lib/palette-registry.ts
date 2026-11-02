@@ -68,6 +68,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-org-chart", label: "Org chart", to: "/app/contacts/staff?view=org", icon: IconContacts, keywords: ["org chart", "managers", "reports to", "hierarchy"], flag: "peopleR126" }, // R126
   { id: "p-staff-away", label: "Who is away", to: "/app/contacts/staff?view=away", icon: IconContacts, keywords: ["leave", "time off", "days off", "away", "holidays"], flag: "peopleR126" }, // R126
   { id: "p-assets", label: "Assets", to: "/app/contacts/staff?view=assets", icon: IconBriefcase, keywords: ["equipment", "laptops", "asset register", "warranty", "qr labels"], flag: "peopleR126" }, // R126
+  { id: "p-asset-labels", label: "Print asset labels", to: "/app/contacts/assets/labels", icon: IconBriefcase, keywords: ["qr labels", "asset tags", "print labels"], flag: "peopleR126" }, // R126
   { id: "p-onboarding", label: "Onboarding checklists", to: "/app/settings/team/onboarding", icon: IconBriefcase, keywords: ["onboarding", "offboarding", "new starter", "leaver", "checklist"], flag: "peopleR126" }, // R126
   // R115: the Visits tab in Contacts (MAPS_R115).
   { id: "p-visits", label: "Plan visits", to: "/app/contacts?tab=visits", icon: IconMapPin, keywords: ["map", "route", "directions", "visits", "address", "round", "trip"], flag: "maps" },
