@@ -80,7 +80,7 @@ export type TourInput = z.infer<typeof TourInput>;
 export const TourPatch = z.object({ ...tourFields, status: z.enum(["draft", "published"]) }).partial();
 export type TourPatch = z.infer<typeof TourPatch>;
 
-export interface TourDef { id: string; name: string; page: string; steps: TourStep[]; builtin?: boolean; phoneOnly?: boolean }
+export interface TourDef { id: string; name: string; page: string; steps: TourStep[]; builtin?: boolean; phoneOnly?: boolean; desktopOnly?: boolean }
 export interface AdminTour extends TourDef { audience: Audience; newDays: number | null; status: "draft" | "published"; updatedAt: number }
 
 /** Does a published tour's audience include this person? newDays counts from when they joined the workspace. */
@@ -113,7 +113,7 @@ export const BUILTIN_TOURS: TourDef[] = [
     { target: "sidebar-account", title: "You and your workspace", body: "Settings, keyboard shortcuts, tours and this checklist live here." },
     { target: "topbar-account", title: "You and your workspace", body: "Settings, tours and this checklist live here." },
   ] },
-  { id: "builtin:contacts", name: "Contacts", page: "/app/contacts", builtin: true, steps: [
+  { id: "builtin:contacts", name: "Contacts", page: "/app/contacts", builtin: true, desktopOnly: true, steps: [
     { target: "rail-contacts", title: "Contacts", body: "People and Deals now have their own section." },
     { target: "nav-app-contacts", title: "People", body: "Everyone you work with, with their mail, tasks and notes in one place." },
     { target: "nav-app-deals", title: "Deals", body: "Track each deal from first hello to signed." },
@@ -124,7 +124,7 @@ export const BUILTIN_TOURS: TourDef[] = [
     { target: "pane-app-settings-deliverability", title: "Deliverability", body: "See if your mail lands in the inbox." },
     { target: "pane-app-settings-mail", title: "Routing", body: "Forwarding, undo send and saved replies." },
   ] },
-  { id: "builtin:docs_files", name: "Docs and files", page: "/app/docs", builtin: true, steps: [
+  { id: "builtin:docs_files", name: "Docs and files", page: "/app/docs", builtin: true, desktopOnly: true, steps: [
     { target: "rail-docs", title: "Docs", body: "Docs, Files, Forms and Sites live together here." },
     { target: "nav-app-docs", title: "Docs", body: "Write together, with comments and history." },
     { target: "nav-app-files", title: "Files", body: "Every upload, with smart folders and previews." },
@@ -133,6 +133,8 @@ export const BUILTIN_TOURS: TourDef[] = [
     { target: "tab-more", title: "More", body: "Every section lives behind More on your phone." },
   ] },
 ];
+/** MB-326: the built in tours that can show at this width (rail and section links are not on the phone layout). */
+export const builtinToursFor = (phone: boolean) => BUILTIN_TOURS.filter((t) => (phone ? !t.desktopOnly : !t.phoneOnly));
 export const builtinTour = (id: string) => BUILTIN_TOURS.find((t) => t.id === id) ?? null;
 
 /** The data-tour id for an app link (nav-app-contacts for /app/contacts). */

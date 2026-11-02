@@ -67,7 +67,7 @@ export function ToursSettings() {
         <Card className="divide-y divide-line">
           {BUILTIN_TOURS.map((t) => (
             <div key={t.id} className="flex items-center gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1"><p className="text-[13.5px] font-medium">{t.name}</p><p className="text-[12.5px] text-muted">{t.phoneOnly ? "Phones only. " : ""}{`${t.steps.length} steps. Started from the account menu, Tours.`}</p></div>
+              <div className="min-w-0 flex-1"><p className="text-[13.5px] font-medium">{t.name}</p><p className="text-[12.5px] text-muted">{t.phoneOnly ? "Phones only. " : t.desktopOnly ? "Computers and tablets only. " : ""}{`${t.steps.length} steps. Started from the account menu, Tours.`}</p></div>
             </div>
           ))}
         </Card>

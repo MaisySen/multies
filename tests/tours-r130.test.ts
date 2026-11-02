@@ -169,3 +169,19 @@ describe("R130 tours: flag off", () => {
     expect((await c.get("/api/tours/admin")).status).toBe(404);
   });
 });
+
+import { builtinToursFor } from "@/shared/tours-r130";
+describe("R130 tours: built in tours by width (MB-326)", () => {
+  it("lists only tours whose steps can show on a phone", () => {
+    const phone = builtinToursFor(true).map((x) => x.id);
+    expect(phone).not.toContain("builtin:contacts");
+    expect(phone).not.toContain("builtin:docs_files");
+    expect(phone).toContain("builtin:getting_around");
+    expect(phone).toContain("builtin:more_sheet");
+  });
+  it("lists the rail tours and not the phone sheet on a computer", () => {
+    const wide = builtinToursFor(false).map((x) => x.id);
+    expect(wide).toEqual(expect.arrayContaining(["builtin:contacts", "builtin:docs_files", "builtin:mail_setup", "builtin:getting_around"]));
+    expect(wide).not.toContain("builtin:more_sheet");
+  });
+});

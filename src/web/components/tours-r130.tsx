@@ -18,7 +18,7 @@ import { Card } from "@/web/components/ui/misc";
 import { Dialog } from "@/web/components/ui/dialog";
 import { IconCheck, IconClose } from "@/web/components/ui/icons";
 import {
-  BUILTIN_TOURS, checklistVisible, inApp, pageMatches, TARGET_RE,
+  BUILTIN_TOURS, builtinToursFor, checklistVisible, inApp, pageMatches, TARGET_RE,
   type AdminTour, type ChecklistStepDef, type ChecklistView, type TourDef, type ToursMe,
 } from "@/shared/tours-r130";
 
@@ -110,7 +110,10 @@ function TourRunner({ run, onEnd }: { run: NonNullable<Running>; onEnd: (state: 
   const close = useCallback((state: "done" | "skipped") => {
     onEnd(state, i);
     const back = opener.current;
-    requestAnimationFrame(() => { if (back && document.contains(back)) back.focus(); else document.getElementById("main")?.focus(); });
+    requestAnimationFrame(() => { // MB-328: back to the opener, else to the account menu where tours start
+      const el = back && back !== document.body && document.contains(back) ? back : (findTarget("sidebar-account") ?? findTarget("topbar-account") ?? document.getElementById("main"));
+      el?.focus();
+    });
   }, [i, onEnd]);
   const go = useCallback((d: 1 | -1) => {
     if (!steps) return;
@@ -433,7 +436,7 @@ export function ToursHost() {
   }, [progress]);
 
   if (!t.on || !inApp(loc.pathname)) return null;
-  const tours = BUILTIN_TOURS.filter((x) => !x.phoneOnly || phone);
+  const tours = builtinToursFor(phone);
   return (
     <>
       {s.running && <TourRunner key={s.running.tour.id + String(s.running.preview)} run={s.running} onEnd={end} />}
