@@ -102,11 +102,11 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="social-inbox/[id]" options={{ headerLargeTitle: false, title: "Conversation" }} />
         <Stack.Screen name="social-post/[id]" options={{ headerLargeTitle: false, title: "Post" }} />
         <Stack.Screen name="social-posted/[id]" options={{ headerLargeTitle: false, title: "", headerBackVisible: false, gestureEnabled: false }} />
-        <Stack.Screen name="contacts" options={{ headerLargeTitle: false, title: "Contacts" }} />
-        <Stack.Screen name="contact/[id]" options={{ headerLargeTitle: false, title: "Contact" }} />
-        <Stack.Screen name="visits" options={{ headerLargeTitle: false, title: "Visits" }} />
         <Stack.Screen name="people" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "People" }} />
         <Stack.Screen name="tools" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Tools" }} />
+        <Stack.Screen name="files" options={{ headerLargeTitle: false, title: "Files" }} />
+        <Stack.Screen name="files-item/[id]" options={{ title: "File" }} />
+        <Stack.Screen name="files-preview/[id]" options={{ presentation: "fullScreenModal", headerShown: false }} />
         <Stack.Screen name="tool/[op]" options={{ presentation: "modal", title: "Tool" }} />
         <Stack.Screen name="runs" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Agent runs" }} />
         <Stack.Screen name="run/[id]" options={{ title: "Run" }} />

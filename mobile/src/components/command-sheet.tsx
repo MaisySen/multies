@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_BASE } from "@/config";
 import { closeCommandSheet, useCommandSheetOpen } from "@/lib/command-sheet-store";
 import { commandsFor, createHandlers, searchCommands, type Command } from "@/lib/commands";
+import { useFilesAccess } from "@/lib/drive-queries";
 import { useReduceMotion } from "@/lib/motion";
 import { tick } from "@/lib/haptics";
 import { Icon } from "./ui";
@@ -21,7 +22,9 @@ export function CommandSheet() {
   const [q, setQ] = useState("");
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
-  const all = useMemo(() => commandsFor(["go", "app"]), []);
+  const files = useFilesAccess();
+  // M1: Files only where the web has it on and the session is a workspace member.
+  const all = useMemo(() => commandsFor(["go", "app"]).filter((c) => c.id !== "files" || files.on), [files.on]);
   const list = useMemo(() => searchCommands(q, all), [q, all]);
   const handlers = useMemo(() => createHandlers({
     navigate: (href) => router.push(href as never),
