@@ -64,6 +64,10 @@ export interface AppConfig {
   coursesR129?: boolean;
   /** R129: more workspaces kept out of courses (vv8k is always out). */
   coursesExclude?: string;
+  /** R126: PEOPLE_R126 (staff directory, onboarding, assets in Contacts). Off unless set. */
+  peopleR126?: boolean;
+  /** R126: more workspaces kept out of People; vv8k is always out. */
+  peopleExclude?: string;
   /** R128: VAULT_R128 (team password vault in Tools). Off unless set. */
   vaultR128?: boolean;
   /** R128: more workspaces kept out of the vault; vv8k is always out. */
@@ -436,6 +440,8 @@ const EnvSchema = z.object({
   POLISH_POL1: z.string().optional(), // POL1
   TABLES_EXCLUDE: z.string().optional(), // R125
   VAULT_R128: z.string().optional(),
+  PEOPLE_R126: z.string().optional(),
+  PEOPLE_EXCLUDE: z.string().optional(),
   VAULT_EXCLUDE: z.string().optional(),
   TOOLS_FEATURES: z.string().optional(),
   LINK_CLICK_FLUSH_MS: z.string().optional(), // R87
@@ -748,6 +754,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     polishPol1: ["1", "true", "on"].includes(String(env.POLISH_POL1 ?? "").toLowerCase()), // POL1
     tablesExclude: env.TABLES_EXCLUDE ?? "", // R125
     vaultR128: ["1", "true", "on"].includes(String(env.VAULT_R128 ?? "").toLowerCase()), // R128
+    peopleR126: ["1", "true", "on"].includes(String(env.PEOPLE_R126 ?? "").toLowerCase()), // R126
+    peopleExclude: env.PEOPLE_EXCLUDE ?? "", // R126
     vaultExclude: env.VAULT_EXCLUDE ?? "", // R128
     invoicesEnabled: env.INVOICES_ENABLED === "true" || env.INVOICES_ENABLED === "1", // R105
     coursesR129: ["1", "true", "on"].includes(String(env.COURSES_R129 ?? "").toLowerCase()), // R129

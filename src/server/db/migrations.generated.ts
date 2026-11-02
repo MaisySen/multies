@@ -1674,5 +1674,23 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE IF NOT EXISTS `blog_images` (\n\t`site_id` text NOT NULL REFERENCES `sites`(`id`) ON DELETE cascade,\n\t`owner` text NOT NULL,\n\t`image_id` text NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\tPRIMARY KEY(`site_id`, `owner`, `image_id`)\n);",
       "CREATE INDEX IF NOT EXISTS `blog_images_image_idx` ON `blog_images` (`site_id`,`image_id`);"
     ]
+  },
+  {
+    "name": "0149_r126_people",
+    "statements": [
+      "-- R126 People: staff profiles (no salary or ID numbers), away date ranges, onboarding and offboarding templates, runs that\n-- link each checklist item to exactly one task (idempotent reassign), and the assets register with its event history. Additive only.\nCREATE TABLE `staff_profiles` (\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`team` text DEFAULT '' NOT NULL,\n\t`manager_user_id` text,\n\t`skills` text DEFAULT '[]' NOT NULL,\n\t`start_date` text,\n\t`location` text DEFAULT '' NOT NULL,\n\t`phone` text DEFAULT '' NOT NULL,\n\t`days_off` text DEFAULT '[0,6]' NOT NULL,\n\t`updated_by` text,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `user_id`)\n);",
+      "CREATE TABLE `staff_away` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`start_date` text NOT NULL,\n\t`end_date` text NOT NULL,\n\t`note` text DEFAULT '' NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX `staff_away_org_end_idx` ON `staff_away` (`org_id`, `end_date`);",
+      "CREATE TABLE `onboarding_templates` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`kind` text DEFAULT 'onboarding' NOT NULL,\n\t`name` text NOT NULL,\n\t`items` text DEFAULT '[]' NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX `onboarding_templates_org_idx` ON `onboarding_templates` (`org_id`);",
+      "CREATE TABLE `onboarding_runs` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`template_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`name` text NOT NULL,\n\t`start_date` text NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX `onboarding_runs_person_tpl_uq` ON `onboarding_runs` (`org_id`, `user_id`, `template_id`);",
+      "CREATE TABLE `onboarding_run_tasks` (\n\t`run_id` text NOT NULL,\n\t`item_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`task_id` text NOT NULL,\n\tPRIMARY KEY(`run_id`, `item_id`)\n);",
+      "CREATE TABLE `assets` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`tag` text NOT NULL,\n\t`name` text NOT NULL,\n\t`kind` text DEFAULT 'other' NOT NULL,\n\t`serial` text DEFAULT '' NOT NULL,\n\t`purchase_date` text,\n\t`warranty_end` text,\n\t`value_cents` integer,\n\t`status` text DEFAULT 'in_stock' NOT NULL,\n\t`assigned_user_id` text,\n\t`notes` text DEFAULT '' NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX `assets_org_tag_uq` ON `assets` (`org_id`, `tag`);",
+      "CREATE INDEX `assets_org_user_idx` ON `assets` (`org_id`, `assigned_user_id`);",
+      "CREATE TABLE `asset_events` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`asset_id` text NOT NULL,\n\t`action` text NOT NULL,\n\t`user_id` text,\n\t`by_user_id` text,\n\t`by_name` text DEFAULT '' NOT NULL,\n\t`detail` text DEFAULT '' NOT NULL,\n\t`at` integer NOT NULL\n);",
+      "CREATE INDEX `asset_events_asset_idx` ON `asset_events` (`asset_id`, `at`);"
+    ]
   }
 ];
