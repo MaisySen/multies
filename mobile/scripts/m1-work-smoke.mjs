@@ -41,7 +41,7 @@ async function call(role, method, path, body) {
 const msg = (r) => r.json?.error?.message ?? r.json?.message ?? "";
 const C = "/tools/campaigns";
 /** The phone's contact search cut: whole characters, within 46 bytes once wrapped in %...% (lib/contacts.ts). */
-function cut(q) { let out = ""; for (const ch of q.trim().replace(/\s+/g, " ")) { if (Buffer.byteLength(`%${out}${ch}%`) > 48) break; out += ch; } return out; }
+function cut(q) { let out = ""; for (const ch of q.trim().replace(/\s+/g, " ")) { if (new TextEncoder().encode(`%${out}${ch}%`).length > 48) break; out += ch; } return out; }
 
 for (const role of ["admin", "member"]) {
   if (!roles[role]?.cookie_name) { ok(role, "session file", false, "missing"); continue; }
