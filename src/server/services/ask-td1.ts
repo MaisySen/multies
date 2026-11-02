@@ -99,18 +99,20 @@ export async function rankByMeaning(deps: Deps, apiKey: string, question: string
 }
 
 /** The pool of items the viewer can open that match the question, widened by meaning, and ranked. */
-export async function meaningPool(deps: Deps, v: SearchViewer, orgId: string, question: string): Promise<{ pool: RetrievedR98[]; meaning: AskCoverage["meaning"] }> {
+export async function meaningPool(deps: Deps, v: SearchViewer, orgId: string, question: string, opts: { widenOnly?: boolean } = {}): Promise<{ pool: RetrievedR98[]; meaning: AskCoverage["meaning"] }> {
   const words = keywordsOf(question);
   if (!words.length) return { pool: [], meaning: "words" };
+  // Ctrl K already runs the word search itself: there only the widened words are searched (bounded reads), never twice.
+  if (opts.widenOnly && !widenWords(question).length) return { pool: [], meaning: "words" };
   const seen = new Map<string, RetrievedR98>();
   const add = (xs: RetrievedR98[], weight = 1) => { for (const x of xs) { const s = { ...x, score: x.score * weight }; const had = seen.get(key(x)); if (!had || had.score < s.score) seen.set(key(x), s); } };
-  add(await retrieveR98(deps, v, words.join(" "), { limit: 12 }));
-  if (words.length > 1) {
+  if (!opts.widenOnly) add(await retrieveR98(deps, v, words.join(" "), { limit: 12 }));
+  if (!opts.widenOnly && words.length > 1) {
     const strong = [...words].sort((a, b) => b.length - a.length).slice(0, 2);
     for (const xs of await Promise.all(strong.map((w) => retrieveR98(deps, v, w, { limit: 6 })))) add(xs, 0.9);
   }
   let meaning: AskCoverage["meaning"] = "words";
-  const extra = widenWords(question);
+  const extra = widenWords(question).slice(0, opts.widenOnly ? 3 : 4);
   if (extra.length) {
     const before = seen.size;
     for (const xs of await Promise.all(extra.map((w) => retrieveR98(deps, v, w, { limit: 6 })))) add(xs, 0.8);
@@ -186,6 +188,6 @@ export async function meaningSearch(deps: Deps, actor: SuiteActor, q: unknown) {
   const query = String(q ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
   if (query.length < 3) return { query, mode: "words" as const, items: [] };
   const v: SearchViewer = { kind: "actor", actor };
-  const { pool, meaning } = await meaningPool(deps, v, actor.orgId, query);
+  const { pool, meaning } = await meaningPool(deps, v, actor.orgId, query, { widenOnly: true });
   return { query, mode: meaning, items: pool.slice(0, 10).map(({ type, id, title, subtitle, url }) => ({ type, id, title, subtitle: subtitle ?? "", url })) };
 }

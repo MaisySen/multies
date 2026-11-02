@@ -182,6 +182,7 @@ describe("TD1 on", () => {
   it("meaning search finds close words for free, and ranks by meaning only on the workspace's own key", async () => {
     await c.post("/api/tasks", { title: "Invoice for Heron printing" });
     await c.post("/api/tasks", { title: "Bill the Egret project" });
+    await c.post("/api/tasks", { title: "Invoice draft for Ibis" });
     const free = (await c.get("/api/ask/search?q=unpaid%20bill")).body;
     expect(free.items.map((i: { title: string }) => i.title)).toContain("Invoice for Heron printing");
     expect(fetched).toHaveLength(0);
