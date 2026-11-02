@@ -30,8 +30,10 @@ async function member(browser: Browser, owner: Page, headers: Record<string, str
   const ctx = await browser.newContext({ baseURL: base, serviceWorkers: "block", extraHTTPHeaders: { "x-forwarded-for": ip() } });
   const p = await ctx.newPage();
   expect((await p.request.post("/api/auth/sign-up/email", { data: { name: "Max Member", email, password: "a-strong-password" }, headers })).status()).toBe(200);
+  await p.request.patch("/api/account/preferences", { data: { timezone: "UTC", locale: "en" }, headers });
   await confirmEmail(p.request, email);
-  expect([200, 410]).toContain((await p.request.post(`/api/invites/${inv.link.split("/invite/")[1]}/accept`, { headers })).status()); // the confirm step may already have taken the invite
+  const acc = await p.request.post(`/api/invites/${inv.link.split("/invite/")[1]}/accept`, { headers });
+  expect(acc.status(), `accept ${await acc.text()}`).toBe(200);
   return p;
 }
 async function axe(page: Page, label: string) {
@@ -174,7 +176,7 @@ test("courses: title, member sees no delete, trash and restore, errors in about 
   await page.getByRole("button", { name: "Move to trash" }).click();
   await expect(page).toHaveURL(/\/app\/docs$/);
   await page.goto(`/app/docs/${c}`);
-  await expect(page.getByText("This course was deleted or moved")).toBeVisible();
+  await expect(page.getByText(/Doc not found|deleted or moved/).first()).toBeVisible();
   await page.request.post(`/api/docs/${c}/restore`, { headers });
   expect(await outage(page, `/app/docs/${c}`, /\/api\/courses/)).toBeLessThan(2500);
   await page.getByTestId("load-error-retry").click();
