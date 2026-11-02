@@ -241,11 +241,10 @@ export function createApp(deps: Deps) {
   const docsHeaders = securityHeaders({ csp: docsCsp(), hsts });
   const snapHeaders = securityHeaders({ csp: snapShareCsp(), hsts }); // R132: Snapchat share page
   // Pages served by this app (the Node server serves the SPA too) get the page policy.
-  // R67 (QA5 #11): the zone adds Cloudflare's cookieless analytics beacon to pages this worker makes (the public sign and
-  // share pages), so its script and reporting host are always allowed; a blocked beacon was a console error on each load.
-  const cspBase = { analytics: true, appUrl: deps.config.appUrl, livekitUrl: deps.config.meetings?.url };
+  // F13: no outside script host on any page (the analytics beacon host from R67 is gone; the zone injects no beacon).
+  const cspBase = { appUrl: deps.config.appUrl, livekitUrl: deps.config.meetings?.url };
   const pageHeaders = securityHeaders({ csp: appCsp(cspBase), hsts });
-  const formPageHeaders = securityHeaders({ csp: appCsp({ ...cspBase, turnstile: true }), hsts });
+  const formPageHeaders = securityHeaders({ csp: appCsp(cspBase), hsts });
   const privatePageHeaders = { ...securityHeaders({ csp: appCsp({ ...cspBase, anonymous: true }), hsts }), "referrer-policy": "no-referrer" }; // R112
   app.use("*", async (c, next) => {
     await next();

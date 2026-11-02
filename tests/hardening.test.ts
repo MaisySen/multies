@@ -19,13 +19,13 @@ describe("security headers", () => {
   it("gives the API reference page its own policy and keeps scripts off the app", async () => {
     const { app } = await makeTestApp();
     const res = await app.request("/api/v1/reference", { headers: { host: "localhost" } });
-    expect(res.headers.get("content-security-policy")).toContain("https://cdn.jsdelivr.net");
+    expect(res.headers.get("content-security-policy")).not.toContain("https://cdn.jsdelivr.net"); // F13: our own copy
     const csp = appCsp();
     expect(csp).toContain("script-src 'self' 'sha256-tTjXVFtiGiMpAU0jVWic+HURQaoh9Btt7O5R4TAwLWs=' 'wasm-unsafe-eval';"); // R31: + the inline theme script hash
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
-    // Only the public form page may load Turnstile.
-    expect(appCsp({ turnstile: true })).toContain("script-src 'self' 'sha256-tTjXVFtiGiMpAU0jVWic+HURQaoh9Btt7O5R4TAwLWs=' 'wasm-unsafe-eval' https://challenges.cloudflare.com;");
+    // F13: no page, the public form page included, loads an outside script.
+    expect(csp).not.toContain("https://challenges.cloudflare.com");
   });
 
   it("pins every directive of the app policy, so a loosened CSP fails here", () => {

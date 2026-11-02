@@ -212,3 +212,6 @@ Copyright (c) 2023, MapLibre contributors; Copyright (c) 2014, Mapbox. Used for 
 ## Map tiles and address data (R115)
 
 Map tiles from OpenFreeMap (free, no key). Map data and address lookups from OpenStreetMap contributors, available under the Open Database License; lookups through the public Nominatim and Photon services under their usage policies (identifying agent, at most one request a second each, results cached). The attribution "Map data from OpenStreetMap contributors" shows on every map and address search.
+
+## @scalar/api-reference 1.76.0 (MIT)
+The API reference renderer, served from our own origin as public/vendor/scalar-api-reference-1.76.0.js (dist/browser/standalone.js), with its outside font faces removed. Copyright (c) Scalar. MIT License.

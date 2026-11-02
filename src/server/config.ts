@@ -938,7 +938,9 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       if (mode === "production") throw new ConfigError("CALLS_TEST_HOOK fakes video rooms for local tests and can't be on in production.");
       return true;
     })(),
-    turnstile: env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY ? { siteKey: env.TURNSTILE_SITE_KEY, secretKey: env.TURNSTILE_SECRET_KEY } : undefined,
+    // F13: the human check needs an outside script host in the page policy, so a configured key is ignored (spam is
+    // stopped by the trap field, timing, limits and the Forms plus shield).
+    turnstile: undefined,
     xero: env.XERO_CLIENT_ID && env.XERO_CLIENT_SECRET ? { clientId: env.XERO_CLIENT_ID, clientSecret: env.XERO_CLIENT_SECRET } : undefined,
     maxMessageBytes: env.MAX_MESSAGE_BYTES ? Number(env.MAX_MESSAGE_BYTES) : 10 * 1024 * 1024,
     mailServer: (() => {

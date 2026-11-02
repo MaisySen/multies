@@ -5,6 +5,7 @@
  * deployment has the folders feature (GET /api/tools features).
  */
 import { useEffect, useRef, useState } from "react";
+import { isNavP2 } from "@/web/layouts/shell-nav"; // F13 (R121 bug 3): Files sits in Docs
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -77,7 +78,7 @@ function MailAttachments({ embedded = false, docsOn = false }: { embedded?: bool
 
   return (
     <div className="w-full" data-testid={embedded ? "files-mail" : "files-page"}>
-      {!embedded && <PageHeader eyebrow="Tools" title="Files" description="Attachments from your mail, sorted into folders. Search finds words inside them, scans included." />}
+      {!embedded && <PageHeader eyebrow={isNavP2() ? "Docs" : "Tools"} title="Files" description="Attachments from your mail, sorted into folders. Search finds words inside them, scans included." />}
       <div className="relative mb-4">
         <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
         <Input value={raw} onChange={(e) => setRaw(e.target.value)} placeholder={features.includes("index") ? "Search inside attachments" : "Search is not on here yet"} disabled={!features.includes("index")}

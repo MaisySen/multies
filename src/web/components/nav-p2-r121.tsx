@@ -103,7 +103,7 @@ export function MoreSheet({ sections, counts, active, canPost, onNavigate }: {
               <IconSettings className="h-5 w-5 shrink-0 text-muted" aria-hidden /><span className="flex-1">Settings</span><IconChevronRight className="h-4 w-4 text-subtle" aria-hidden />
             </Link>
           )}
-          <button type="button" onClick={() => { onNavigate(); openCustomiseMenu(); }} data-testid="more-customise"
+          <button type="button" onClick={() => { onNavigate(); openCustomiseMenu('[data-testid="tab-more"]'); }} data-testid="more-customise"
             className="flex min-h-12 w-full items-center gap-3 border-t border-line px-3 text-left text-[16px] text-fg active:bg-hover">
             <IconSliders className="h-5 w-5 shrink-0 text-muted" aria-hidden /><span className="flex-1">Customise menu</span><IconChevronRight className="h-4 w-4 text-subtle" aria-hidden />
           </button>
@@ -116,9 +116,10 @@ export function MoreSheet({ sections, counts, active, canPost, onNavigate }: {
 /** The Customise menu dialog: one switch per section, the fourth phone tab, and Reset. Mounted once by the app shell. */
 export function CustomiseMenuHost({ sections }: { sections: Section[] }) {
   const [open, setOpen] = useState(false);
+  const returnTo = useRef<string | undefined>(undefined);
   const layout = useLayout();
   useEffect(() => {
-    const on = () => setOpen(true);
+    const on = (e: Event) => { returnTo.current = (e as CustomEvent<{ returnTo?: string } | undefined>).detail?.returnTo; setOpen(true); };
     window.addEventListener(OPEN_CUSTOMISE_MENU_EVENT, on);
     return () => window.removeEventListener(OPEN_CUSTOMISE_MENU_EVENT, on);
   }, []);
@@ -127,6 +128,7 @@ export function CustomiseMenuHost({ sections }: { sections: Section[] }) {
   const changed = layout.railHidden.length > 0 || layout.fourthTab !== "tasks";
   return (
     <Dialog open={open} onClose={() => setOpen(false)} title="Customise menu"
+      returnFocus={() => (returnTo.current ? document.querySelector<HTMLElement>(returnTo.current) : null)}
       description="Hide sections you never use. Hidden sections still open from search and from links."
       footer={<>
         <Button variant="secondary" onClick={resetMenu} disabled={!changed} data-testid="customise-reset">Reset to default</Button>

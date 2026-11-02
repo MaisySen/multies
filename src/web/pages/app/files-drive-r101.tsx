@@ -6,6 +6,7 @@
  * Brand library: tags, notes, download at a set width (resized in the browser), copy link. Admins edit it.
  */
 import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
+import { isNavP2 } from "@/web/layouts/shell-nav"; // F13 (R121 bug 3): Files sits in Docs
 import { isServerLoadError, queryRetry } from "@/web/lib/load-errors-t1g";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -241,7 +242,7 @@ export function DrivePage({ attachments, mailOn, docsOn = false }: { attachments
 
   const title = view === "mail" ? "Mail attachments" : view === "docs" ? "Documents" : first?.folder?.name ?? VIEW_LABEL[view];
   const header = (
-    <PageHeader eyebrow="Tools" title="Files" description={DESCRIPTION[view]}
+    <PageHeader eyebrow={isNavP2() ? "Docs" : "Tools"} title="Files" description={DESCRIPTION[view]}
       actions={canAdd && isDrive ? (
         <div className="flex gap-2">
           {view !== "brand" && <Button variant="secondary" size="sm" onClick={() => setNewFolder(true)} data-testid="drive-new-folder"><IconFolderPlus className="h-4 w-4" />New folder</Button>}

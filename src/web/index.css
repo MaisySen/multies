@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* The vendored API reference file is rebuilt by scripts/restore-vendor.mjs and ignored by git; keep it a class source so the built CSS stays byte identical. */
+@source "../../public/vendor/scalar-api-reference-1.76.0.js";
 @import "./fonts.css"; /* R30: font-display optional (see fonts.css) */
 
 /*

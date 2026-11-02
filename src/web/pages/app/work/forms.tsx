@@ -247,22 +247,14 @@ function ClassicPublicForm() {
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [trap, setTrap] = useState("");
-  const [token, setToken] = useState<string | undefined>();
+  const [token] = useState<string | undefined>(); // F13: no outside check, so no token is ever set
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const opened = useRef(Date.now());
   const widget = useRef<HTMLDivElement>(null);
   const site = q.data?.turnstileSiteKey;
-  useEffect(() => {
-    if (!site || !widget.current) return;
-    const el = widget.current;
-    const mount = () => window.turnstile?.render(el, { sitekey: site, callback: setToken, theme: "dark" });
-    if (window.turnstile) { mount(); return; }
-    const s = document.createElement("script");
-    s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-    s.async = true; s.onload = mount;
-    document.head.appendChild(s);
-  }, [site]);
+  // F13: no outside human check script runs on the form page (page policy is our own scripts only); the hidden trap
+  // field, the timing check, the limits and the Forms plus shield stop spam.
   const f = q.data;
   // R31: the same rules as the server (src/shared/form-logic.ts): hidden questions are skipped and never required.
   const logicFields = (f?.fields ?? []).map((x) => ({ ...x, required: !!x.required }));

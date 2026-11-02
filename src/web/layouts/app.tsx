@@ -129,6 +129,14 @@ export function AppLayout() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [drawer, setDrawer] = useState(false);
+  // F13 (R121 bug 2): Escape or a tap on the backdrop closes the phone menu and puts focus back on the More tab.
+  const closeDrawerBack = () => { setDrawer(false); requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-testid="tab-more"]')?.focus()); };
+  useEffect(() => {
+    if (!drawer) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.querySelector("dialog[open]")) { e.preventDefault(); closeDrawerBack(); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawer]);
   const whatsNew = useWhatsNew(); // R53 (MB-133): unread dot, localStorage only
   // R79: the person's own layout (read before first paint once they are known) and the desktop shell's hooks.
   if (me.data?.user?.id) setLayoutUser(me.data.user.id, { silent: true });
@@ -386,7 +394,7 @@ export function AppLayout() {
       </>)}
       {drawer && (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
-          <div className="absolute inset-0 animate-fade-in bg-black/40" onClick={() => setDrawer(false)} />
+          <div className="absolute inset-0 animate-fade-in bg-black/40" data-testid="drawer-backdrop" onClick={closeDrawerBack} />
           <aside aria-label="Sidebar" className="absolute inset-y-0 left-0 w-72 max-w-[85vw] animate-drawer-in border-r border-line bg-surface pt-[env(safe-area-inset-top)] elev-3 max-md:w-[min(20rem,88vw)] max-md:bg-bg">{sidebar}</aside>
         </div>
       )}

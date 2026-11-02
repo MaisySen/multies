@@ -477,11 +477,11 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
     // The execution context lets a route finish work after its response (c.executionCtx.waitUntil).
     return app.fetch(request, undefined, ctx as unknown as Parameters<typeof app.fetch>[2]);
   }
-  const analytics = /^[a-f0-9]{32}$/i.test(envVar(env, "CF_BEACON_TOKEN") ?? "");
-  const cspBase = { analytics, appUrl: envVar(env, "APP_URL") ?? url.origin, livekitUrl: envVar(env, "LIVEKIT_URL") };
+  // F13: no analytics beacon host (the page policy names only our own scripts).
+  const cspBase = { appUrl: envVar(env, "APP_URL") ?? url.origin, livekitUrl: envVar(env, "LIVEKIT_URL") };
   pageHeaders ??= { csp: appCsp(cspBase), hsts: isHttps(url.origin) };
-  // Public form pages load Cloudflare Turnstile; the rest of the app runs only its own scripts.
-  formPageHeaders ??= { csp: appCsp({ ...cspBase, turnstile: true }), hsts: isHttps(url.origin) };
+  // F13: public form pages run only our own scripts too (same policy as every page).
+  formPageHeaders ??= { csp: appCsp(cspBase), hsts: isHttps(url.origin) };
   // R112: the anonymous report and data request pages: no error reporting or analytics host, no referrer (set below).
   privatePageHeaders ??= { csp: appCsp({ ...cspBase, anonymous: true }), hsts: isHttps(url.origin) };
   const privatePage = PRIVATE_PAGE_PATH.test(url.pathname);

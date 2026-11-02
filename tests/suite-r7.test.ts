@@ -182,15 +182,15 @@ describe("forms", () => {
     expect((await pub.get(`/api/public/forms/${form.slug}`)).status).toBe(404);
   });
 
-  it("makes contacts, and needs Turnstile when it is set up", async () => {
+  it("makes contacts, and ignores Turnstile keys (F13: no outside script on the form page)", async () => {
     await setup({ TURNSTILE_SITE_KEY: "site", TURNSTILE_SECRET_KEY: "secret" });
     ctx.deps.fetch = (async (_u: string, init?: RequestInit) => new Response(JSON.stringify({ success: String(init?.body).includes("response=good") }))) as typeof fetch;
     const form = (await c.post("/api/forms", { name: "Newsletter", target: "contact", fields: [{ label: "Name", type: "text", required: true }, { label: "Email", type: "email", required: true }] })).body.form;
     const pub = new Client(ctx.app);
-    expect((await pub.get(`/api/public/forms/${form.slug}`)).body.form.turnstileSiteKey).toBe("site");
+    expect((await pub.get(`/api/public/forms/${form.slug}`)).body.form.turnstileSiteKey).toBeNull();
     const answers = { field_1: "Priya Patel", field_2: "priya@seedround.vc" };
-    expect((await pub.post(`/api/public/forms/${form.slug}`, { answers, elapsedMs: 5000, turnstileToken: "bad" })).body.error.code).toBe("captcha_failed");
-    const ok = await pub.post(`/api/public/forms/${form.slug}`, { answers, elapsedMs: 5000, turnstileToken: "good" });
+    // F13: the keys no longer turn on the outside check, so a send without a token is accepted (trap field, timing and limits still apply).
+    const ok = await pub.post(`/api/public/forms/${form.slug}`, { answers, elapsedMs: 5000 });
     expect(ok.body.created.type).toBe("contact");
     expect((await c.get(`/api/contacts/${ok.body.created.id}`)).body.contact).toMatchObject({ email: "priya@seedround.vc", name: "Priya Patel" });
     expect((await c.post("/api/forms", { name: "Bad", target: "contact", fields: [{ label: "Name", type: "text" }] })).status).toBe(422);

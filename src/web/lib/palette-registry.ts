@@ -27,14 +27,14 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-my-learning", label: "My learning", to: "/app/docs/learning", icon: IconBook, keywords: ["courses", "training", "lessons", "certificate", "quiz"], flag: "coursesR129" }, // R129
   { id: "p-link-library", label: "Link library", to: "/app/docs/links", icon: IconDocs, keywords: ["links", "bookmarks", "saved links", "tags", "read later"], flag: "docsPlus" }, // R103
   { id: "p-save-page", label: "Save a web page", to: "/app/docs/links?save=page", icon: IconDocs, keywords: ["clip", "clipper", "web clip", "save page", "archive", "snapshot", "pdf"], flag: "docsPlus" }, // R103
-  { id: "p-meetings", label: "Meetings", to: "/app/meetings", icon: IconVideo, keywords: ["calls", "video", "calendar"] },
+  { id: "p-meetings", label: "Meetings", to: "/app/meetings", icon: IconVideo, keywords: ["calls", "video", "calendar", "webinar", "webinars", "live event"] },
   { id: "p-scheduling", label: "Booking page", to: "/app/scheduling", icon: IconCalendarClock, keywords: ["scheduling", "book", "calendar link"] },
   { id: "p-booking-resources", label: "Book a room or desk", to: "/app/scheduling?tab=resources", icon: IconCalendarClock, keywords: ["resources", "room", "desk", "vehicle", "equipment"] }, // R92
   { id: "p-booking-polls", label: "Time polls", to: "/app/scheduling?tab=polls", icon: IconCalendarClock, keywords: ["poll", "find a time", "vote"] }, // R92
   { id: "p-booking-events", label: "Events and tickets", to: "/app/scheduling?tab=events", icon: IconCalendarClock, keywords: ["event", "rsvp", "ticket", "check in"] }, // R92
   // Tools P1: shown only when the server has Tools on (flag "tools").
   { id: "p-tools", label: "Tools", to: "/app/tools", icon: IconWrench, keywords: ["pdf", "compress", "merge", "convert", "documents", "word to pdf"], flag: "tools" },
-  { id: "p-tools-convert", label: "Convert files", to: "/app/tools/convert", icon: IconWrench, keywords: ["convert", "heic", "webp", "avif", "png", "jpg", "image to pdf", "csv to excel", "excel to csv", "split pdf", "rotate pdf", "page numbers"], flag: "tools" }, // R78
+  { id: "p-tools-convert", label: "Convert files", to: "/app/tools/convert", icon: IconWrench, keywords: ["convert", "office", "word", "excel", "heic", "webp", "avif", "png", "jpg", "image to pdf", "csv to excel", "excel to csv", "split pdf", "rotate pdf", "page numbers"], flag: "tools" }, // R78
   { id: "p-tools-edit-pdf", label: "Edit a PDF", to: "/app/tools/edit-pdf", icon: IconWrench, keywords: ["edit pdf", "add text", "sign pdf", "black out", "redact", "watermark", "page numbers", "reorder pages", "delete pages"], flag: "tools", toolFeature: ["editor"] }, // R86
   { id: "p-tools-ai", label: "AI document helpers", to: "/app/tools/ai", icon: IconWrench, keywords: ["ask a document", "summary", "translate", "invoice", "receipt", "expense report", "contract dates"], flag: "tools", toolFeature: ["ask", "translate", "extract", "expenses", "contracts"] }, // Tools P2
   // Tools P2: share links and e-sign, each shown only while its feature is on.
@@ -56,7 +56,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-tools-templates", label: "Invoice and letter templates", to: "/app/tools/templates", icon: IconWrench, keywords: ["invoice", "quote", "letter", "gst", "pdf template"], flag: "tools", toolFeature: ["templates"] },
   { id: "p-tools-merge", label: "Mail merge", to: "/app/tools/merge", icon: IconWrench, keywords: ["merge", "bulk", "personal pdf", "csv", "mailing"], flag: "tools", toolFeature: ["merge_mail"] },
   // Tools P2 (16, 17): smart folders of mail attachments and search inside them.
-  { id: "p-files", label: "Files", to: "/app/files", icon: IconAttachment, keywords: ["attachments", "smart folders", "invoices", "receipts", "contracts", "search inside attachments"], flag: "tools", toolFeature: ["folders", "index"] },
+  { id: "p-files", label: "Files", to: "/app/files", icon: IconAttachment, keywords: ["office", "office editor", "docx", "xlsx", "attachments", "smart folders", "invoices", "receipts", "contracts", "search inside attachments"], flag: "tools", toolFeature: ["folders", "index"] },
   { id: "p-files-team", label: "Team files", to: "/app/files?view=team", icon: IconAttachment, keywords: ["drive", "folders", "upload", "shared files", "documents"], flag: "filesPlus" }, // R101
   { id: "p-files-brand", label: "Brand library", to: "/app/files?view=brand", icon: IconAttachment, keywords: ["logos", "brand assets", "templates", "brand kit", "colours"], flag: "filesPlus" }, // R101
   { id: "p-files-trash", label: "Files trash", to: "/app/files?view=trash", icon: IconAttachment, keywords: ["deleted files", "restore", "recycle bin"], flag: "filesPlus" }, // R101
@@ -73,8 +73,13 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-new-invoice", label: "New invoice", to: "/app/contacts/invoices?new=invoice", icon: IconReceipt, keywords: ["create invoice", "bill a customer"], flag: "invoices" },
   { id: "p-new-quote", label: "New quote", to: "/app/contacts/invoices?new=quote", icon: IconReceipt, keywords: ["create quote", "estimate"], flag: "invoices" },
   { id: "p-deals", label: "Deals", to: "/app/deals", icon: IconHandshake, keywords: ["crm", "pipeline", "sales"] },
+  // F13 (R121 bug 4): the Contacts section's own page names find it too.
+  { id: "p-people", label: "People", to: "/app/contacts", icon: IconContacts, keywords: ["contacts", "person", "customers", "clients", "crm"] },
+  { id: "p-mail-setup", label: "Mail setup", to: "/app/settings/mailboxes", icon: IconSettings, keywords: ["mailboxes", "domains", "deliverability", "routing", "dns"] },
+  // F13 (MB-317): Home widgets live on Home; its Customize button arranges them.
+  { id: "p-home-widgets", label: "Home widgets", to: "/app", icon: IconDashboard, keywords: ["widget", "widgets", "customise home", "customize home", "home"] },
   { id: "p-time", label: "Timesheet", to: "/app/time", icon: IconTimer, keywords: ["time tracking", "hours", "timer"] },
-  { id: "p-forms", label: "Forms", to: "/app/forms", icon: IconClipboardList, keywords: ["survey", "intake"] },
+  { id: "p-forms", label: "Forms", to: "/app/forms", icon: IconClipboardList, keywords: ["form", "survey", "intake"] },
   { id: "p-dashboards", label: "Dashboards", to: "/app/dashboards", icon: IconDashboard, keywords: ["charts", "widgets"] },
   { id: "p-reports", label: "Reports", to: "/app/reports", icon: IconChart, keywords: ["analytics", "charts"] },
   { id: "p-portfolio", label: "Portfolio", to: "/app/portfolio", icon: IconBriefcase, keywords: ["projects", "status"] },
@@ -198,7 +203,12 @@ export function paletteScore(value: string, search: string, keywords: string[] =
   // Values are "<label>|<id>" (unique for cmdk); only the label is matched.
   const label = norm(value.split("|")[0]);
   const kw = keywords.map(norm).join(" ");
-  if (label.startsWith(q)) return 1;
+  // F13 (MB-300): Ask AI always sits last, under every match, so Enter opens the best page, not the question.
+  if (value.endsWith("|ask-ai")) return 0.01;
+  // F13: the page whose name is the word (or its plural) beats a longer name that starts with it ("invoice": Invoices first).
+  const bare = label.replace(/^go to /, ""); // the "Go to Settings" shortcut commands
+  if (bare === q || bare === `${q}s` || bare === `${q}es`) return 1;
+  if (label.startsWith(q)) return 0.99;
   const labelWords = words(label);
   if (labelWords.some((w) => w.startsWith(q))) return 0.95;
   if (label.includes(q)) return 0.9;

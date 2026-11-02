@@ -5,12 +5,17 @@ import { cn } from "@/web/lib/cn";
 import { WorkspaceSwitchedBanner } from "@/web/components/workspace-switched-banner-r58";
 
 /** Modal built on the native <dialog>: focus trapping, Esc and inert background come for free. */
-export function Dialog({ open, onClose, title, description, children, footer, className }: {
+export function Dialog({ open, onClose, title, description, children, footer, className, returnFocus }: {
   open: boolean; onClose: () => void; title: string; description?: ReactNode; children?: ReactNode; footer?: ReactNode; className?: string;
+  /** F13: where focus goes on close when the opener is gone (a menu item that closed with its menu). */
+  returnFocus?: () => HTMLElement | null;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   // R115 (R99 low): the control that opened the dialog gets focus back on close, however it closed (Esc, Close, Done).
   const opener = useRef<HTMLElement | null>(null);
+  const wasOpen = useRef(false);
+  const fallback = useRef(returnFocus);
+  fallback.current = returnFocus;
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
@@ -23,12 +28,14 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
       d.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     }
     if (!open && d.open) d.close();
-    if (!open && opener.current) {
-      const back = opener.current;
+    if (!open && wasOpen.current) {
+      const saved = opener.current;
       opener.current = null;
+      const back = saved?.isConnected ? saved : fallback.current?.() ?? null;
       const lost = !document.activeElement || document.activeElement === document.body || d.contains(document.activeElement);
-      if (back.isConnected && lost) back.focus();
+      if (back && lost) back.focus();
     }
+    wasOpen.current = open;
   }, [open]);
   return (
     <dialog

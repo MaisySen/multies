@@ -22,10 +22,6 @@ export interface CspOptions {
   connectSrc?: string[];
   /** Report endpoint for CSP violations (Sentry's security endpoint works). */
   reportUri?: string;
-  /** The public form page: allow the Cloudflare Turnstile widget. */
-  turnstile?: boolean;
-  /** A Cloudflare Web Analytics beacon token is set: allow its script and its reporting host. */
-  analytics?: boolean;
   /** R112: the anonymous report pages: no error reporting host and no analytics host may be reached. */
   anonymous?: boolean;
   /** The app's own origin (APP_URL): its ws/wss form is listed for the collab and chat sockets. */
@@ -57,9 +53,11 @@ export function socketOrigins(url: string | undefined, withHttp: boolean): strin
   }
 }
 
-const TURNSTILE = "https://challenges.cloudflare.com";
-const CF_INSIGHTS_SCRIPT = "https://static.cloudflareinsights.com";
-const CF_INSIGHTS = "https://cloudflareinsights.com";
+/**
+ * F13 (root rule, 01:10 UTC Nov 2): no page policy names a script host other than our own origin. The optional
+ * analytics beacon host (93b1424) and the form human check host are gone; first party product analytics stay.
+ * tests/csp-third-party-f13.test.ts reads every policy this worker can send and fails on any other script source.
+ */
 /** R115: free map tiles, styles and fonts for contact and visit maps (keyless). */
 const MAP_TILES = "https://tiles.openfreemap.org";
 const SENTRY_INGEST = ["https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io", "https://*.ingest.de.sentry.io"];
@@ -76,18 +74,17 @@ export const THEME_SCRIPT_HASH = "'sha256-tTjXVFtiGiMpAU0jVWic+HURQaoh9Btt7O5R4T
 export function appCsp(opts: CspOptions = {}): string {
   const directives: Record<string, string[]> = {
     "default-src": ["'self'"],
-    // Public form pages (/f/...) load Cloudflare Turnstile; every other page runs only our own scripts.
-    // Cloudflare Web Analytics (cookieless) is allowed only when a beacon token is configured.
+    // F13: every page, the public form and site pages included, runs only our own scripts.
     // R78: 'wasm-unsafe-eval' lets the Tools Convert hub compile its own WebAssembly encoders (AVIF, WEBP) from our own
     // origin. It allows WebAssembly compilation only; eval and inline script stay blocked.
-    "script-src": ["'self'", THEME_SCRIPT_HASH, "'wasm-unsafe-eval'", ...(opts.analytics && !opts.anonymous ? [CF_INSIGHTS_SCRIPT] : []), ...(opts.turnstile ? [TURNSTILE] : [])],
+    "script-src": ["'self'", THEME_SCRIPT_HASH, "'wasm-unsafe-eval'"],
     "style-src": ["'self'", "'unsafe-inline'"],
     "img-src": ["'self'", "data:", "blob:", "https:"],
     "font-src": ["'self'", "data:"],
     // Video meetings: LiveKit Cloud or a self-hosted LiveKit server, over secure WebSockets.
-    "connect-src": unique(["'self'", ...socketOrigins(opts.appUrl, false), ...(opts.anonymous ? [] : SENTRY_INGEST), ...(opts.analytics && !opts.anonymous ? [CF_INSIGHTS] : []), ...LIVEKIT_CLOUD, ...socketOrigins(opts.livekitUrl, true), MAP_TILES, ...(opts.connectSrc ?? [])]),
+    "connect-src": unique(["'self'", ...socketOrigins(opts.appUrl, false), ...(opts.anonymous ? [] : SENTRY_INGEST), ...LIVEKIT_CLOUD, ...socketOrigins(opts.livekitUrl, true), MAP_TILES, ...(opts.connectSrc ?? [])]),
     "media-src": ["'self'", "blob:"],
-    "frame-src": ["'self'", "blob:", ...(opts.turnstile ? [TURNSTILE] : [])],
+    "frame-src": ["'self'", "blob:"],
     "worker-src": ["'self'", "blob:"],
     "object-src": ["'none'"],
     "base-uri": ["'self'"],
@@ -105,12 +102,12 @@ function unique(list: string[]): string[] {
   return [...new Set(list)];
 }
 
-/** The API reference renderer, pinned (R30: it used to load whatever jsDelivr called latest). */
+/** The API reference renderer, pinned (R30). F13: served from our own origin (MIT, public/vendor), no CDN. */
 export const SCALAR_VERSION = "1.76.0";
-export const SCALAR_CDN = `https://cdn.jsdelivr.net/npm/@scalar/api-reference@${SCALAR_VERSION}/`;
+export const SCALAR_ASSET = `/vendor/scalar-api-reference-${SCALAR_VERSION}.js`;
 
 /**
- * The API reference page (Scalar) loads its pinned renderer from jsDelivr through our own boot
+ * The API reference page (Scalar) loads its pinned renderer (our own copy, F13) through our own boot
  * script (R30: no inline script and no 'unsafe-inline' in script-src any more). That page holds
  * no user data, so it gets its own policy.
  */
@@ -135,10 +132,10 @@ export function snapShareCsp(): string {
 export function docsCsp(): string {
   return serialize({
     "default-src": ["'self'"],
-    "script-src": ["'self'", SCALAR_CDN],
-    "style-src": ["'self'", "'unsafe-inline'", SCALAR_CDN],
+    "script-src": ["'self'"],
+    "style-src": ["'self'", "'unsafe-inline'"],
     "img-src": ["'self'", "data:", "https:"],
-    "font-src": ["'self'", "data:", SCALAR_CDN, "https://fonts.scalar.com"],
+    "font-src": ["'self'", "data:"],
     "connect-src": ["'self'"],
     "object-src": ["'none'"],
     "base-uri": ["'self'"],

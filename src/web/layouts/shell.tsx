@@ -291,7 +291,7 @@ export function ViewMenu() {
       <MenuItem checked={density !== "compact"} onSelect={() => setLayout({ density: "comfortable" })}>Comfortable</MenuItem>
       <MenuItem checked={density === "compact"} onSelect={() => setLayout({ density: "compact" })}>Compact</MenuItem>
       <div className="my-1 border-t border-line" />
-      {isNavP2() && <MenuItem onSelect={openCustomiseMenu}>Customise menu</MenuItem>}{/* R121 */}
+      {isNavP2() && <MenuItem onSelect={() => openCustomiseMenu('[data-testid="view-menu"]')}>Customise menu</MenuItem>}{/* R121 */}
       <MenuItem onSelect={resetLayout}>Reset layout</MenuItem>
     </Menu>
   );

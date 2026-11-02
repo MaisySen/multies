@@ -13,7 +13,6 @@ import { captureWarning, scheduleSentry } from "./lib/sentry";
 import { ErrorBoundary } from "./components/error-boundary";
 import { ThemedToaster } from "./components/theme";
 import { applyMeta } from "./components/seo";
-import { AnalyticsBeacon } from "./components/analytics-beacon";
 import { ProductAnalytics } from "./components/product-analytics";
 import "./index.css";
 import { prefetchOnIntent, prefetchRoute } from "./lib/prefetch";
@@ -104,7 +103,6 @@ const render = () => { if (prerenderedAuth) delete rootEl.dataset.prerendered; c
         <RouterProvider router={router} />
       </ErrorBoundary>
       <ThemedToaster />
-      {!privatePage && <AnalyticsBeacon subscribe={beaconRoutes} />}
       {!privatePage && <ProductAnalytics subscribe={beaconRoutes} />}
     </QueryClientProvider>
   </StrictMode>,
@@ -130,7 +128,6 @@ const hydrate = () => {
     <StrictMode>
       <QueryClientProvider client={queryClient}>
         <ThemedToaster />
-        {!privatePage && <AnalyticsBeacon subscribe={beaconRoutes} />}
         {!privatePage && <ProductAnalytics subscribe={beaconRoutes} />}
       </QueryClientProvider>
     </StrictMode>,

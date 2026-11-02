@@ -48,7 +48,7 @@ describe("MB-279 one home for outside apps", () => {
 
 describe("MB-275 Ctrl K", () => {
   it("split finds Split PDF by name", () => {
-    expect(paletteScore("Split PDF|tools-split", "split")).toBe(1);
+    expect(paletteScore("Split PDF|tools-split", "split")).toBeGreaterThanOrEqual(0.99); // F13: exact names rank 1, prefixes 0.99
   });
   it("a Nepali query filters instead of matching everything", () => {
     for (const label of ["Tasks", "Mail", "Settings", "Convert files", "Split PDF", "Write an email"]) {

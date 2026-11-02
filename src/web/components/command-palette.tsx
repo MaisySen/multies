@@ -300,12 +300,18 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
               </Command.Group>
             )}
             {!r98 && !typed && !content.loading && !content.data?.groups.length && <Command.Empty className="px-4 py-8 text-center text-sm text-muted"><SmallNoResultsArt /><p className="mt-2 font-medium text-fg">No results for “{search}”</p><p className="mt-0.5 text-xs text-subtle">Try another word, or press ? to see every shortcut.</p></Command.Empty>}
+            {/* F13 (MB-300, MB-301): with words typed, pages lead, so a page that matches as well as a record wins the tie. */}
+            {!!search.trim() && group(<Heading icon={IconArrowRight}>Go to</Heading>, pages)}
             {group(<Heading icon={IconSparkle}>{task && focus.kind === "task" ? `Task ${task.ref}` : "This message"}</Heading>, contextual.map(toItem), "palette-context")}
             {group(<Heading icon={IconHistory}>Recently opened</Heading>, recentItems, "palette-recent-items")}
             {group(<Heading icon={IconClock}>Recent commands</Heading>, recentCommands, "palette-recent-commands")}
             {r98 && <TopHits hits={hits} search={search} onOpen={openResult} />}
             <ContentGroups state={shown as typeof legacy} search={search} onOpen={openResult} />
-            {/* R110: ask the typed words as a question (Tools feature ask_r110). */}
+            {group(<Heading icon={IconCommand}>Actions</Heading>, actions)}
+            {!search.trim() && group(<Heading icon={IconArrowRight}>Go to</Heading>, pages)}
+            {group(<Heading icon={IconLink}>Go links</Heading>, goItems, "palette-go-links")}
+            {group(<Heading icon={IconGlobe}>Domains and mailboxes</Heading>, records)}
+            {/* R110: ask the typed words as a question; F13: always the last option (Tools feature ask_r110). */}
             {askOn && search.trim().length >= 3 && (
               <Command.Group forceMount heading={<Heading icon={IconSparkle}>Ask AI</Heading>} className={groupClass} data-testid="palette-ask">
                 <Command.Item forceMount value={`${search}|ask-ai`} onSelect={() => ctx.navigate(`/app/tools/ask?q=${encodeURIComponent(search.trim())}`)}
@@ -315,10 +321,6 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
                 </Command.Item>
               </Command.Group>
             )}
-            {group(<Heading icon={IconCommand}>Actions</Heading>, actions)}
-            {group(<Heading icon={IconArrowRight}>Go to</Heading>, pages)}
-            {group(<Heading icon={IconLink}>Go links</Heading>, goItems, "palette-go-links")}
-            {group(<Heading icon={IconGlobe}>Domains and mailboxes</Heading>, records)}
             {group(<Heading icon={IconUser}>Account</Heading>, [{ id: "signout", label: "Sign out", icon: IconLogOut, run: () => { close(); dropIndex(); onSignOut(); } }])}
           </>
         )}

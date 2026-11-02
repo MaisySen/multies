@@ -42,7 +42,7 @@ describe("R30 command menu coverage", () => {
 describe("R30 fuzzy matching", () => {
   it("empty search keeps everything", () => expect(score("Tasks", "")).toBe(1));
   it("ranks prefix over word start over substring", () => {
-    expect(score("Shared inbox", "shared")).toBe(1);
+    expect(score("Shared inbox", "shared")).toBe(0.99); // F13: a prefix ranks just under an exact name
     expect(score("Shared inbox", "inb")).toBe(0.95);
     expect(score("Deliverability", "verab")).toBe(0.9);
   });

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { makeTestApp, Client } from "./helpers";
-import { API_CSP, appCsp, docsCsp, securityHeaders, socketOrigins, SCALAR_CDN, REPORTING_ENDPOINTS } from "@/server/lib/security-headers";
+import { API_CSP, appCsp, docsCsp, securityHeaders, socketOrigins, SCALAR_ASSET, REPORTING_ENDPOINTS } from "@/server/lib/security-headers";
 import { parseCspReports, trimUrl, resetCspReportWindow, LOG_PER_MINUTE } from "@/server/routes/csp-report-r30";
 import { apiReferenceBootJs, apiReferenceHtml } from "@/server/lib/api-reference-page";
 
@@ -11,7 +11,7 @@ function directives(csp: string): Record<string, string[]> {
 }
 
 describe("page CSP", () => {
-  const d = directives(appCsp({ analytics: true, appUrl: "https://multies.si", livekitUrl: "wss://lk.example.org" }));
+  const d = directives(appCsp({ appUrl: "https://multies.si", livekitUrl: "wss://lk.example.org" }));
 
   it("runs no inline or eval script and locks down objects, base, forms and framing", () => {
     expect(d["script-src"]).not.toContain("'unsafe-inline'");
@@ -24,9 +24,9 @@ describe("page CSP", () => {
   });
 
   it("allows each external service exactly where it is needed", () => {
-    // Cloudflare Web Analytics: the beacon script and its reporting host, only with a token.
-    expect(d["script-src"]).toEqual(["'self'", "'sha256-tTjXVFtiGiMpAU0jVWic+HURQaoh9Btt7O5R4TAwLWs='", "'wasm-unsafe-eval'", "https://static.cloudflareinsights.com"]);
-    expect(d["connect-src"]).toContain("https://cloudflareinsights.com");
+    // F13: no analytics beacon host (script or reporting).
+    expect(d["script-src"]).toEqual(["'self'", "'sha256-tTjXVFtiGiMpAU0jVWic+HURQaoh9Btt7O5R4TAwLWs='", "'wasm-unsafe-eval'"]);
+    expect(d["connect-src"]).not.toContain("https://cloudflareinsights.com");
     expect(directives(appCsp())["script-src"]).toEqual(["'self'", "'sha256-tTjXVFtiGiMpAU0jVWic+HURQaoh9Btt7O5R4TAwLWs='", "'wasm-unsafe-eval'"]);
     expect(directives(appCsp())["connect-src"]).not.toContain("https://cloudflareinsights.com");
     // Sentry browser SDK posts to its ingest hosts.
@@ -37,11 +37,9 @@ describe("page CSP", () => {
     expect(d["worker-src"]).toEqual(["'self'", "blob:"]);
     // Our own sockets (docs collab, chat) by name as well as 'self'.
     expect(d["connect-src"]).toContain("wss://multies.si");
-    // Turnstile only on public form pages.
+    // F13: no outside human check frame or script anywhere.
     expect(d["frame-src"]).toEqual(["'self'", "blob:"]);
-    const form = directives(appCsp({ turnstile: true }));
-    expect(form["script-src"]).toContain("https://challenges.cloudflare.com");
-    expect(form["frame-src"]).toContain("https://challenges.cloudflare.com");
+    expect(d["script-src"]).not.toContain("https://challenges.cloudflare.com");
   });
 
   it("no longer allows any wss: host", () => {
@@ -67,16 +65,16 @@ describe("page CSP", () => {
 describe("API reference page", () => {
   it("has no inline script and loads the pinned renderer", () => {
     const d = directives(docsCsp());
-    expect(d["script-src"]).toEqual(["'self'", SCALAR_CDN]);
-    expect(SCALAR_CDN).toMatch(/^https:\/\/cdn\.jsdelivr\.net\/npm\/@scalar\/api-reference@\d+\.\d+\.\d+\/$/);
+    expect(d["script-src"]).toEqual(["'self'"]); // F13: our own pinned copy, no CDN
+    expect(SCALAR_ASSET).toMatch(/^\/vendor\/scalar-api-reference-\d+\.\d+\.\d+\.js$/);
     expect(d["frame-ancestors"]).toEqual(["'none'"]);
     const html = apiReferenceHtml();
     expect(html).toContain('<script type="module" src="/api/v1/reference.js"></script>');
     expect(html.match(/<script(?![^>]*\ssrc=)[^>]*>/g)).toBeNull();
     const js = apiReferenceBootJs();
-    expect(js).toContain(`${SCALAR_CDN}esm.js`);
+    expect(js).toContain(JSON.stringify(SCALAR_ASSET));
     // Zod's JIT probe is switched off before the renderer loads, so nothing needs 'unsafe-eval'.
-    expect(js.indexOf("jitless")).toBeLessThan(js.indexOf("import("));
+    expect(js.indexOf("jitless")).toBeLessThan(js.indexOf("createElement("));
   });
 });
 
@@ -111,7 +109,7 @@ describe("every response class carries the graded headers", () => {
       ["/.well-known/oauth-authorization-server", undefined, (csp) => expect(csp).toBe(API_CSP)],
       ["/api/webhooks/stripe", { method: "POST", body: "{}", headers: { "content-type": "application/json" } }, (csp) => expect(csp).toBe(API_CSP)],
       ["/s/not-a-share", undefined, (csp) => { expect(csp).toContain("frame-ancestors 'none'"); expect(csp).toContain("script-src 'self'"); }],
-      ["/f/not-a-form", undefined, (csp) => expect(csp).toContain("https://challenges.cloudflare.com")],
+      ["/f/not-a-form", undefined, (csp) => { expect(csp).not.toContain("https://challenges.cloudflare.com"); expect(csp).toContain("script-src 'self'"); }],
       ["/api/v1/reference", undefined, (csp) => expect(csp).toBe(docsCsp())],
       ["/api/v1/reference.js", undefined, (csp) => expect(csp).toBe(API_CSP)],
     ];

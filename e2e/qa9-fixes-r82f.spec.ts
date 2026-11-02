@@ -154,7 +154,9 @@ test("MB-275 a Nepali query in Ctrl K filters the list instead of showing everyt
   const input = page.getByRole("combobox").first();
   await input.fill("कार्य सूची");
   await page.waitForTimeout(700);
-  await expect(page.getByRole("option")).toHaveCount(0);
+  // F13: nothing in the menu matches, so the only option is to ask the words as a question (Ask AI, always last).
+  await expect(page.getByRole("option")).toHaveCount(1);
+  await expect(page.getByRole("option").first()).toHaveText(/^Ask AI: कार्य सूची$/);
   await input.fill("settings");
   await expect(page.getByRole("option", { name: /Go to Settings/ }).first()).toBeVisible();
 });
