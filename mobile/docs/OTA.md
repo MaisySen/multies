@@ -5,6 +5,15 @@ each time it starts, downloads it in the background, and uses it from the next c
 app fully and open it again). It never waits for the network at launch: with
 `fallbackToCacheTimeout: 0` it starts at once on the bundle it already has.
 
+## Standing OTA path (owner OK 2 Nov 2026: "proper ota channel to ota other new stuffs coming through as well")
+
+1. The production channel is the one the store installs read (iOS 1.10.0 build 20 on TestFlight, Android 1.10.0 versionCode 16 on Play; eas.json production profile, channel production). Every phone feature that needs no native change reaches those phones by OTA, with no new store build.
+2. Every update goes to the preview channel first (npm run ota:preview), is checked on a preview build or the emulator, full jest 0 failures and tsc 0, then the SAME commit goes to production (the guard refuses a commit that was not on preview).
+3. Production starts staged: npm run ota:production -- --rollout 10, watch npm run ota:health and Sentry alert mail for 30 minutes, then npm run ota:promote -- 100.
+4. Same runtime only: the runtime is the fingerprint of the native code. ota-publish.js refuses unless this code's fingerprint equals the runtime of the live store builds. A native change (new native module, permission, SDK bump) changes the fingerprint and needs a store build; batch those (docs/OTA.md, Queued for the next store build).
+5. Roll back: npm run ota:rollback (newest production update undone on every platform; phones go back to the previous group), or npm run ota:rollback -- --embedded to fall back to the bundle inside the store build.
+6. Credentials: node ../app/scripts/creds.mjs run EXPO_TOKEN,SENTRY_OPS_TOKEN,SENTRY_ORG,SENTRY_DSN_WEB,APP_CONFIG_TOKEN -- npm run ota:<command>. Never print them.
+
 ## Setup
 
 - Library: `expo-updates` (SDK 58), served by EAS Update for the Expo project @multies/mymail
