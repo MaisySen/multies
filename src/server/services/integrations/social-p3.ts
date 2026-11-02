@@ -125,7 +125,7 @@ export async function bestTimesFor(deps: Deps, auth: AuthContext, appsRaw: strin
   const rows = await deps.db.select({ sentAt: socialPostTargets.sentAt, reach: socialPostStats.reach, engagement: socialPostStats.engagement })
     .from(socialPostStats)
     .innerJoin(socialPostTargets, and(eq(socialPostTargets.postId, socialPostStats.postId), eq(socialPostTargets.accountId, socialPostStats.accountId)))
-    .where(and(eq(socialPostStats.orgId, auth.orgId), isNotNull(socialPostTargets.sentAt), gte(socialPostTargets.sentAt, since), ...(apps.length ? [inArray(socialPostStats.app, apps)] : [])))
+    .where(and(eq(socialPostStats.orgId, auth.orgId), isNotNull(socialPostTargets.sentAt), gte(socialPostTargets.sentAt, since), ...(apps.length ? [inArray(socialPostStats.app, apps.slice(0, 12))] : []))) // D1: at most 12 network names
     .limit(2000).all();
   const tz = (await workspaceTz(deps, auth.orgId)) ?? tzHint ?? null;
   return bestSlots(rows.map((r) => ({ sentAt: (r.sentAt as Date).toISOString(), reach: r.reach, engagement: r.engagement })), tz, deps.now().getTime());
