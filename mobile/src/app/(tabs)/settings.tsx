@@ -10,7 +10,7 @@ import { useUndoSeconds, parseUndoSeconds, UNDO_SEND_CHOICES } from "@/lib/undo-
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSession } from "@/lib/session";
-import { useWebConfig } from "@/lib/web-config";
+import { flagOn, toolFeatureOn, useWebConfig } from "@/lib/web-config";
 import { useBlocks, useNotificationCount, useOverview, useTools } from "@/lib/queries";
 import { useFilesAccess } from "@/lib/drive-queries";
 import { permissionGranted, registerPush, type PushState } from "@/lib/push";
@@ -106,6 +106,9 @@ export default function Settings() {
       <Row tile="green" icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="meetings" />
       <Row tile="orange" icon="layers" label="Portfolio" onPress={() => router.push("/portfolio")} testID="portfolio-link" />
       {me?.organization ? <Row tile="blue" icon="user" label="Contacts" value={webCfg.data?.maps === true ? "People and visits" : undefined} onPress={() => router.push("/contacts")} testID="contacts-link" /> : null}
+      {me?.organization && webCfg.data && toolFeatureOn(webCfg.data, "merge_plus_r109") ? <Row tile="blue" icon="mail" label="Mail merge" value="Newsletters and journeys" onPress={() => router.push("/mail-merge")} testID="mail-merge-link" /> : null}
+      {me?.organization && flagOn(webCfg.data, "mailArchive") ? <Row tile="indigo" icon="archive" label="Mail archive" value="Retention and holds" onPress={() => router.push("/mail-archive")} testID="mail-archive-link" /> : null}
+      {me?.organization && flagOn(webCfg.data, "davSync") ? <Row tile="green" icon="calendar" label="Calendar and contacts sync" onPress={() => router.push("/sync")} testID="sync-link" /> : null}
       <Row tile="teal" icon="users" label="People" onPress={() => router.push("/people")} testID="people-link" />
       <Row tile="purple" icon="bot" label="Agent runs" onPress={() => router.push("/runs")} testID="runs-link" />
       <Row tile="gray" icon="external-link" label="Domains and team, on the web" onPress={() => open(WEB_PAGES.team)} />
