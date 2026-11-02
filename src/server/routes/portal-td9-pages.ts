@@ -10,7 +10,7 @@ import type { ProjectView } from "../services/portal/portal-td9";
 
 export const TD9_CSS = `<style>
 progress.pv{width:100%;height:10px;accent-color:var(--brand)}.priv{font-size:12px;font-weight:600;margin-top:4px}.bubble.me .priv{color:#fff}
-.pv-status{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:18px}.pill.open{color:var(--muted)}
+.pv-status [hidden]{display:none}.pv-status{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:18px}.pill.open{color:var(--muted)}
 .list li a.t{color:var(--fg);text-decoration:none}.list li a.t:hover{text-decoration:underline}
 </style>`;
 
