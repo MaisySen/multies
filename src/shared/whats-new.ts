@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-03-team-ai",
+    date: "2026-11-03",
+    title: "Team AI",
+    body: "A visible memory for the assistant, saved instructions, routines that write drafts or chat messages, and @assistant in channels. Free built in AI with a daily limit, or your own AI key for unlimited use.",
+  },
+  {
     id: "2026-11-03-forms-pro",
     date: "2026-11-03",
     title: "Branded forms that open and close on time",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-02",
     title: "A blog on your site",
     body: "In Sites, open the Blog tab to write posts in the Docs editor, add tags, a cover and an author, and publish now or at a set time. Visitors get tag and author pages, an RSS feed and a subscribe box, and admins can email a post to confirmed subscribers.",
-  },
-  {
-    id: "2026-11-02-anonymous-reports",
-    date: "2026-11-02",
-    title: "Anonymous reports and data requests",
-    body: "Give your people a page to report a concern without an account, then reply in a private two way chat with a handler, status and deadlines. In Settings, Data requests lets someone get a copy of their data or have it deleted, after they confirm their email.",
   },
   {
     id: "2026-10-28-whats-new",
