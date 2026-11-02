@@ -211,7 +211,7 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
             <div className="min-w-0 lg:col-start-1 lg:row-start-2">
           {t.type === "epic" && <EpicSection epic={t} onChanged={() => void q.refetch()} />}
           <DescriptionEditor value={notes} people={people.data ?? []} onSave={(v) => { setNotes(v); void saveText({ notes: v }); }} />
-          <ReferencesPanel type="task" id={t.id} />
+          <ReferencesPanel type="task" id={t.id} stamp={t.updatedAt} />
 
           {t.source && (
             <section className="mt-6" aria-label="Email thread">
@@ -359,7 +359,7 @@ export function TaskPanel({ id, onClose, docked = false, page = false }: { id: s
 
           {t.type === "epic" && <EpicSection epic={t} onChanged={() => void q.refetch()} />}
           <DescriptionEditor value={notes} people={people.data ?? []} onSave={(v) => { setNotes(v); void saveText({ notes: v }); }} />
-          <ReferencesPanel type="task" id={t.id} />
+          <ReferencesPanel type="task" id={t.id} stamp={t.updatedAt} />
 
           {t.source && (
             <section className="mt-6" aria-label="Email thread">

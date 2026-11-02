@@ -103,10 +103,11 @@ export function labelsToTokens(text: string, map: Record<string, string>): strin
   return out;
 }
 
-/** The @word being typed before the caret (records and people share the trigger). */
+/** The @words being typed before the caret (records and people share the trigger): up to 3 words, 40 characters. */
 export function atQuery(text: string, caret: number): { start: number; query: string } | null {
-  const m = /(^|[\s(])@([^\s@[\]<>]{0,40})$/.exec(text.slice(0, caret));
-  return m ? { start: caret - m[2]!.length - 1, query: m[2]! } : null;
+  const m = /(^|[\s(])@((?:[^\s@[\]<>]+ ?){0,3})$/.exec(text.slice(0, caret));
+  if (!m || m[2]!.length > 40 || /^\s/.test(m[2]!)) return null;
+  return { start: caret - m[2]!.length - 1, query: m[2]! };
 }
 
 /** Plain words for a token where no title is known yet (notifications, previews): never a title. */

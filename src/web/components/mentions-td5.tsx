@@ -59,8 +59,8 @@ export function useMentionPicker(ref: RefObject<HTMLInputElement | HTMLTextAreaE
   const [active, setActive] = useState(0);
   const map = useRef<Record<string, string>>({});
   useEffect(() => { if (opts.initialMap) map.current = { ...opts.initialMap }; }, [opts.initialMap]);
-  const search = useRecordSearch(at ? at.query : null, opts.enabled);
-  const q = (at?.query ?? "").toLowerCase();
+  const search = useRecordSearch(at ? at.query.trim() : null, opts.enabled);
+  const q = (at?.query ?? "").trim().toLowerCase();
   const peopleHits = at ? people.filter((p) => !q || p.name.toLowerCase().split(/\s+/).some((w) => w.startsWith(q)) || p.name.toLowerCase().includes(q)).slice(0, 5) : [];
   const records = at && opts.enabled ? (search.data?.records ?? []) : [];
   const items: ({ kind: "person"; p: PickPerson } | { kind: "record"; r: PickItem })[] = [...peopleHits.map((p) => ({ kind: "person" as const, p })), ...records.map((r) => ({ kind: "record" as const, r }))];
@@ -104,7 +104,7 @@ export function useMentionPicker(ref: RefObject<HTMLInputElement | HTMLTextAreaE
             className={cn("flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-150 max-sm:min-h-11", i === active && "bg-hover")}>
             {it.kind === "person"
               ? <><Avatar label={initials(it.p.name)} className="h-5 w-5 text-[9px]" /><span className="truncate">{it.p.name}</span>{it.p.hint && <span className="ml-auto shrink-0 text-[11.5px] text-subtle">{it.p.hint}</span>}</>
-              : <><span className="shrink-0 rounded bg-fill px-1.5 py-0.5 text-[11px] font-medium text-muted">{REF_LABELS[it.r.type as RefType] ?? "Item"}</span><span className="truncate">{it.r.title}</span><span className="ml-auto max-w-[40%] shrink-0 truncate text-[11.5px] text-subtle">{it.r.subtitle}</span></>}
+              : <><span className="shrink-0 rounded bg-fill px-1.5 py-0.5 text-[11px] font-medium text-muted">{REF_LABELS[it.r.type as RefType] ?? "Item"}</span><span className="truncate">{it.r.title}</span><span className="ml-auto max-w-[40%] shrink-0 truncate text-[11.5px] text-subtle">{it.r.subtitle.replace(/^(Task|Project|Doc|Contact|Deal|Meeting|Form|Invoice)( · )?/, "")}</span></>}
           </li>
         ))}
         {loading && <li className="px-2 py-1.5" aria-busy="true"><Skeleton className="h-4 w-40" /></li>}
@@ -180,7 +180,17 @@ export function CommentText({ text }: { text: string }) {
 
 type Page = { items: RefItem[]; next: string | null; total: number };
 
-function RefList({ type, id, dir, label }: { type: RefType; id: string; dir: "in" | "out"; label: string }) {
+function useOnline() {
+  const [on, setOn] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine !== false));
+  useEffect(() => {
+    const up = () => setOn(true), down = () => setOn(false);
+    window.addEventListener("online", up); window.addEventListener("offline", down);
+    return () => { window.removeEventListener("online", up); window.removeEventListener("offline", down); };
+  }, []);
+  return on;
+}
+
+function RefList({ type, id, dir, label, stamp }: { type: RefType; id: string; dir: "in" | "out"; label: string; stamp?: string | number }) {
   const q = useInfiniteQuery({
     queryKey: ["mentions-td5", "refs", type, id, dir],
     queryFn: ({ pageParam }) => api.get<Page>(`/mentions/refs/${type}/${encodeURIComponent(id)}?dir=${dir}${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ""}`),
@@ -189,12 +199,17 @@ function RefList({ type, id, dir, label }: { type: RefType; id: string; dir: "in
     refetchInterval: () => (typeof document !== "undefined" && document.visibilityState === "visible" ? 30_000 : false),
     refetchOnWindowFocus: true, retry: 1,
   });
+  // The record changed (its text was saved): read the panel again, keeping what is shown until the answer is in.
+  const seenStamp = useRef(stamp);
+  const { refetch } = q;
+  useEffect(() => { if (stamp !== undefined && stamp !== seenStamp.current) { seenStamp.current = stamp; void refetch(); } }, [stamp, refetch]);
   const items = q.data?.pages.flatMap((p) => p.items) ?? [];
   const total = q.data?.pages[0]?.total ?? 0;
-  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  const offline = !useOnline();
   return (
     <section aria-label={label} className="min-w-0">
       <h4 className="mb-1 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide text-subtle">{label}{total > 0 && <span className="rounded-full bg-fill px-1.5 text-[11px] font-medium normal-case tracking-normal text-muted">{total}</span>}</h4>
+      {offline && <p role="status" className="mb-1.5 flex items-center gap-1.5 rounded-md bg-fill px-3 py-2 text-[12.5px] text-muted" data-testid={`refs-${dir}-offline`}>You are offline. References refresh when you are back online.</p>}
       {q.isPending ? (
         <div className="space-y-1.5" aria-busy="true" data-testid={`refs-${dir}-loading`}><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-3/4" /></div>
       ) : q.isError && !items.length ? (
@@ -232,15 +247,15 @@ function RefList({ type, id, dir, label }: { type: RefType; id: string; dir: "in
 }
 
 /** "Mentioned in" and "Mentions" for one record. Hidden when the flag is off. */
-export function ReferencesPanel({ type, id, className }: { type: RefType; id: string; className?: string }) {
+export function ReferencesPanel({ type, id, className, stamp }: { type: RefType; id: string; className?: string; stamp?: string | number }) {
   const on = useMentionsOn();
   if (!on || !id) return null;
   return (
     <div className={cn("mt-6 border-t border-line pt-4", className)} data-testid="references-panel">
       <h3 className="mb-3 text-[13px] font-semibold">References</h3>
       <div className="grid gap-4 md:grid-cols-2">
-        <RefList type={type} id={id} dir="in" label="Mentioned in" />
-        <RefList type={type} id={id} dir="out" label="Mentions" />
+        <RefList type={type} id={id} dir="in" label="Mentioned in" stamp={stamp} />
+        <RefList type={type} id={id} dir="out" label="Mentions" stamp={stamp} />
       </div>
     </div>
   );

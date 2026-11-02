@@ -28,6 +28,8 @@ describe("TD5 pure rules", () => {
       .toEqual({ add: [{ type: "deal", id: "c" }], remove: [{ type: "doc", id: "a" }] });
     expect(atQuery("hi @pla", 7)).toEqual({ start: 3, query: "pla" });
     expect(atQuery("mail a@b", 8)).toBeNull();
+    expect(atQuery("see @orbit la", 13)).toEqual({ start: 4, query: "orbit la" });
+    expect(atQuery("see @a b c d", 12)).toBeNull();
     expect(displayTitle({ state: "restricted", type: "doc", id: "x" })).toBe("Restricted item");
     expect(displayTitle({ state: "deleted", type: "doc", id: "x" })).toBe("Deleted item");
     expect(isMentionsExcluded({ id: "org_1", slug: "vv8k-co" })).toBe(true);

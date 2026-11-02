@@ -243,7 +243,7 @@ function Composer({ people, placeholder, onSend, testId, onType }: { people: Per
       <div className="flex items-end gap-2">
         <label className="sr-only" htmlFor={`${testId ?? "composer"}-input`}>Message</label>
         <textarea ref={inputRef} id={`${testId ?? "composer"}-input`} data-testid={testId} value={text} onChange={(e) => { setText(e.target.value); if (e.target.value) onType?.(); if (on) requestAnimationFrame(picker.sync); }} rows={1} placeholder={placeholder}
-          onClick={on ? picker.sync : undefined} aria-activedescendant={on ? picker.activeId : undefined} aria-expanded={on ? picker.open : undefined} aria-autocomplete={on ? "list" : undefined} role={on ? "combobox" : undefined}
+          onClick={on ? picker.sync : undefined} aria-activedescendant={on ? picker.activeId : undefined} aria-autocomplete={on ? "list" : undefined}
           onKeyDown={(e) => { if (on && picker.onKeyDown(e)) return; if (e.key === "Enter" && !e.shiftKey && !matches.length) { e.preventDefault(); void submit(); } if (e.key === "Tab" && matches.length) { e.preventDefault(); pick(matches[0]); } }}
           className="max-h-40 min-h-10 flex-1 resize-y rounded-lg border border-line bg-surface px-3 py-2 text-sm max-sm:min-h-11 max-sm:resize-none max-sm:rounded-[22px] max-sm:px-4 max-sm:py-2.5 max-sm:text-[16px] focus:border-brand/70 focus:outline-none focus:ring-4 focus:ring-brand/15" />
         <input ref={fileRef} type="file" multiple className="hidden" onChange={(e) => setFiles((l) => [...l, ...Array.from(e.target.files ?? [])].slice(0, 5))} />
