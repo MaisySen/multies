@@ -2,7 +2,7 @@ import { useInboxBadge, useSocialStatus } from "@/lib/social-queries";
 import { badgeText } from "@/lib/social-inbox";
 import { useEffect, useState } from "react";
 import { Alert, Platform, ScrollView, Text, View } from "react-native";
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import * as Localization from "expo-localization";
 import { Avatar, Badge, Card, LargeTitle, Row, SectionTitle, Segmented } from "@/components/ui";
@@ -79,6 +79,7 @@ export default function Settings() {
 
   return (
     <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ paddingBottom: space.xxl }}>
+      <Stack.Screen options={{ title: "Settings" }} />
       <LargeTitle title="Settings" top={insets.top} />
       <Card style={{ margin: space.lg, flexDirection: "row", gap: space.md, alignItems: "center" }}>
         <Avatar name={me?.user.name || me?.user.email || "?"} size={48} />

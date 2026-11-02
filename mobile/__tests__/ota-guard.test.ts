@@ -51,7 +51,7 @@ describe("native file check", () => {
   const app = { expo: { version: "1.9.3", ios: { buildNumber: "17" }, android: { versionCode: 15, package: "au.fintex.multies" }, plugins: ["expo-router"] } };
 
   it("ignores screens, tests and docs", () => {
-    expect(nativeChanges(["src/app/(tabs)/settings.tsx", "__tests__/x.test.ts", "docs/OTA.md"], null, null)).toEqual([]);
+    expect(nativeChanges(["src/app/settings.tsx", "__tests__/x.test.ts", "docs/OTA.md"], null, null)).toEqual([]);
   });
 
   it("flags plugins, native folders and the fingerprint config", () => {

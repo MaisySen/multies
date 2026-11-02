@@ -75,11 +75,10 @@ export default function TabsLayout() {
         tabBarAccessibilityLabel: activity ? `Activity, ${activity} unread` : "Activity" }} />
       <Tabs.Screen name="tasks" options={{ title: "Tasks", href: FEATURES.tasks ? undefined : null, tabBarIcon: ({ color, focused }) => <Icon name="tasks" size={25} filled={focused} color={color as string} />,
         tabBarBadge: due || undefined, tabBarAccessibilityLabel: due ? `Tasks, ${due} due today or overdue` : "Tasks" }} />
-      {/* M2 (1.10.10): More (the web's menu sections as a grid) takes the last tab, as on the web for phones. Settings stays a
-          screen of its own, opened from More > Settings or any link to /settings, without a tab of its own. */}
+      {/* M2 (1.10.10): More (the web's menu sections as a grid) takes the last tab, as on the web for phones. Settings is a
+          stack screen of its own (src/app/settings.tsx), opened from More > Settings or any link to /settings. */}
       <Tabs.Screen name="more" options={{ title: "More", tabBarIcon: ({ color, focused }) => <Icon name="more" size={25} filled={focused} color={color as string} />,
         tabBarAccessibilityLabel: "More" }} />
-      <Tabs.Screen name="settings" options={{ title: "Settings", href: null, tabBarIcon: ({ color, focused }) => <Icon name="settings" size={25} filled={focused} color={color as string} /> }} />
     </Tabs>
     <SyncPill />
     <CommandSheet />

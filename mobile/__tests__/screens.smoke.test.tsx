@@ -292,7 +292,7 @@ it("portfolio lists projects with health, progress, overdue, time and next due",
 });
 
 it("settings render", async () => {
-  const Settings = require("@/app/(tabs)/settings").default;
+  const Settings = require("@/app/settings").default;
   await wrap(<Settings />);
   expect(await screen.findByText("Delete my account")).toBeTruthy();
   await fireEvent.press(screen.getByTestId("delete-account"));

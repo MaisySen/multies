@@ -320,7 +320,7 @@ describe("Compose with nothing to send from", () => {
 
 describe("Settings", () => {
   it("opens Email addresses", async () => {
-    const Settings = require("@/app/(tabs)/settings").default;
+    const Settings = require("@/app/settings").default;
     await wrap(<Settings />);
     await fireEvent.press(await screen.findByTestId("email-setup-link"));
     expect(mockPush).toHaveBeenCalledWith("/email-setup");

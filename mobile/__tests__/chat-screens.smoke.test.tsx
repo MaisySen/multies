@@ -168,7 +168,7 @@ it("notification settings show in app and push switches and save a change", asyn
 });
 
 it("settings link to the notifications inbox with its unread count, and to notification settings", async () => {
-  const Settings = require("@/app/(tabs)/settings").default;
+  const Settings = require("@/app/settings").default;
   await wrap(<Settings />);
   expect(await screen.findByLabelText("Notifications inbox, 4 unread")).toBeTruthy();
   await fireEvent.press(screen.getByTestId("notifications-link"));
