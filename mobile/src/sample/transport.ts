@@ -1,3 +1,4 @@
+import { SAMPLE_NAV_MENU } from "./nav-menu";
 import type { Method, RequestOptions, Transport } from "@/api/transport";
 import { sampleJob, sampleToolsInfo } from "./tools";
 import { ApiError } from "@/api/errors";
@@ -70,6 +71,8 @@ export class SampleTransport implements Transport {
     const id = parts.find((p, i) => i > 0 && isId(p)) ?? "";
     const json = <R>(v: R) => structuredCloneSafe(v) as unknown as T;
 
+    // M2: the web menu (R121) for the More grid.
+    if (method === "GET" && path === "/nav/menu") return json(SAMPLE_NAV_MENU);
     // M1: the drive (Files).
     if (path.startsWith("/drive/")) return json(driveRoute(this.drive, method, rawPath, body));
     // M1: global search, Docs, comments and share links.
