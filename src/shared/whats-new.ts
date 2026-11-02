@@ -76,12 +76,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     body: "Forms can ask one question at a time and sit in a chat bubble on your website. Run feedback boards with votes and a roadmap, and collect entries for blind review with scores and a shortlist.",
   },
   {
-    id: "2026-11-01-tables",
-    date: "2026-11-01",
-    title: "Tables in Docs",
-    body: "Keep clients, stock or jobs in a table with typed fields, linked records, lookups and formulas. Switch between grid, kanban, calendar and form views, paste from a spreadsheet, import and export CSV, and comment on rows. Start one from Docs > New table.",
-  },
-  {
     id: "2026-11-01-clear-errors",
     date: "2026-11-01",
     title: "Clear errors with Retry",
@@ -98,6 +92,12 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Office files in the browser",
     body: "Edit Word files and Excel sheets with working formulas right in Files, save each change as a version, and view slides.",
+  },
+  {
+    id: "2026-10-28-whats-new",
+    date: "2026-10-28",
+    title: "What's new, in the app",
+    body: "The account menu has a What's new item, with a small dot when something new has shipped since you last looked. The same list is on the public changelog page.",
   },
 ];
 

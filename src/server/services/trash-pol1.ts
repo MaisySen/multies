@@ -8,6 +8,7 @@
  * Flag off: nothing here is reachable and the generic docs delete behaves as before.
  */
 import { and, desc, eq, gte, inArray, isNotNull } from "drizzle-orm";
+import { inIds } from "@/server/lib/sql-chunks";
 import type { Deps } from "../context";
 import { docCourses, docTables, docs } from "../db/schema";
 import { forbidden, HttpError, notFound } from "../lib/errors";
@@ -94,7 +95,7 @@ export async function listTrash(deps: Deps, actor: SuiteActor) {
   const tableIds = rows.filter((r) => r.kind === "table").map((r) => r.id);
   const owners = new Map<string, string | null>();
   if (tableIds.length && !isAdmin(actor)) {
-    const m = await deps.db.select({ docId: docTables.docId, createdBy: docTables.createdBy }).from(docTables).where(and(eq(docTables.orgId, actor.orgId), inArray(docTables.docId, tableIds)));
+    const m = await deps.db.select({ docId: docTables.docId, createdBy: docTables.createdBy }).from(docTables).where(and(eq(docTables.orgId, actor.orgId), inIds(docTables.docId, tableIds)));
     for (const x of m) owners.set(x.docId, x.createdBy);
   }
   const on = { table: !!deps.config.tablesR125, course: !!deps.config.coursesR129 };
