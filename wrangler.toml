@@ -190,6 +190,7 @@ INVOICES_ENABLED = "true" # R105: on in production after verifier v15 PASS WITH 
 EXPENSES_R106 = "on" # R106: expenses and receipts (verifier v18 PASS 16:28 UTC Nov 1)
 TABLES_R125 = "on" # R125: tables in Docs, verifier v19 PASS WITH BUGS 17:03 UTC Nov 1
 SITES_R123 = "on" # R123: Sites in Docs, verifier v21 PASS 19:45 UTC Nov 1
+BLOG_R124 = "on" # R124: blog with newsletter in Sites, verifier v24 PASS 00:33 UTC Nov 2
 COURSES_R129 = "on" # R129: courses in Docs, verifier v21 PASS 20:14 UTC Nov 1
 HOME_WIDGETS_R131 = "on" # R131: Home widgets, verifier v21 PASS 20:47 UTC Nov 1
 WEBINAR_R114 = "on" # R114: webinar mode for meetings, verifier v22 PASS 21:23 UTC Nov 1
