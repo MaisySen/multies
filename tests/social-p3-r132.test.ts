@@ -269,3 +269,13 @@ describe("R132 flag off", () => {
     expect(cfg.body.socialGbpR132).toBeFalsy();
   });
 });
+
+// R132 (staging find 00:06 UTC Nov 2): on Cloudflare the Worker hands only listed paths to the app; the rest get the
+// app shell. The share page must be on that list or it answers the shell's 404 in production.
+describe("R132 Snapchat share page reaches the app on the Worker", () => {
+  it("lists /share/snapchat among the paths the Worker sends to the app", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL("../src/entry/worker.ts", import.meta.url), "utf8");
+    expect(src).toContain('url.pathname === "/share/snapchat"');
+  });
+});
