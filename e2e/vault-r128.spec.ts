@@ -246,6 +246,7 @@ test("shots and axe at 1280 and 390, light, dark and Forest", async () => {
       await axe(page, `folder ${w} ${theme}`);
       await page.getByTestId("vault-item").first().click();
       await shot(page, `r128-item-${w}-${theme}`);
+      await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running")); // the item panel slides in; check colours once it has settled
       await axe(page, `item ${w} ${theme}`);
       await page.keyboard.press("Escape");
       await page.locator('[data-testid="vault-lock"]:visible').first().click();
