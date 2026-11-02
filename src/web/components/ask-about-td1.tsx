@@ -7,6 +7,8 @@ import { IconSparkle } from "@/web/components/ui/icon";
 import { useConfig } from "@/web/lib/queries";
 import type { AboutKind } from "@/shared/ask-td1";
 
+const focus = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
+
 /** Whether "Ask about this" shows (Ask and ASK_TD1 both on). */
 export function useAskAboutOn(): boolean {
   const config = useConfig();
@@ -25,9 +27,11 @@ export function AskAboutButton({ kind, id, title, compact = false, wrap }: { kin
   if (!config.data?.askR110 || !config.data?.askTd1 || !id) return null;
   const link = (
     <Link to={askAboutHref(kind, id, title)} data-testid="ask-about-this"
-      className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line-strong px-2.5 text-[13px] font-medium text-fg transition-colors duration-150 hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand max-sm:min-h-11"
+      className={compact
+        ? `inline-flex h-11 w-11 items-center justify-center rounded-full text-muted transition-colors duration-150 hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:rounded-md sm:p-1.5 ${focus}`
+        : `inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-line-strong px-2.5 text-[13px] font-medium text-fg transition-colors duration-150 hover:bg-hover max-sm:min-h-11 ${focus}`}
       aria-label={compact ? "Ask about this" : undefined} title="Ask a question about this item">
-      <IconSparkle className="h-4 w-4 text-brand" aria-hidden />
+      <IconSparkle className={compact ? "h-4 w-4" : "h-4 w-4 text-muted"} aria-hidden />
       {!compact && <span>Ask about this</span>}
     </Link>
   );

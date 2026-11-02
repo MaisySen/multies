@@ -52,10 +52,9 @@ export async function aiTrustState(deps: Deps, orgId: string, role: string): Pro
   const on = !deps.config.askTd1 ? true : trust ? !!trust.enabled : !!key;
   const builtin = whereOf("builtin");
   const own = key ? whereOf(key.provider) : null;
-  const providers = [
-    ...(deps.config.askR110 ? [{ use: "Ask", ...builtin }] : []),
-    ...(own ? [{ use: "Mail, meetings and Tools AI", ...own }] : [{ use: "Tools AI", ...builtin }]),
-  ];
+  const providers = own
+    ? [...(deps.config.askR110 ? [{ use: "Ask", ...builtin }] : []), { use: "Mail, meetings and Tools AI", ...own }]
+    : [{ use: deps.config.askR110 ? "Ask and Tools AI" : "Tools AI", ...builtin }];
   return {
     controls: !!deps.config.askTd1, on, source: trust ? "admin" : key ? "own_key" : "default",
     canChange: !!deps.config.askTd1 && (role === "owner" || role === "admin"),
