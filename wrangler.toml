@@ -418,6 +418,7 @@ TOURS_R130 = "on" # R130: guided onboarding, checklist, tours, tour builder (sta
 MENTIONS_TD5 = "on" # TD5: record mentions and References (staging all)
 INBOX_TD6 = "on" # TD6: One inbox (staging all)
 TEAMAI_TD8 = "on" # TD8: Team AI (staging only until verifier PASS; own key, else free built in AI under a daily limit)
+CRM_TD10 = "on" # TD10: CRM suggestions from mail, saved analyses, shortcut switch (staging only until verifier PASS)
 TEAMAI_FREE_DAILY_CALLS = "3" # TD8: small on staging so the daily free limit can be checked without spending the shared meter (prod default 50)
 TOOLS_FEATURES = "all"
 CLIENT_PORTAL = "on" # R120: client portals (prod after the verifier passes)
