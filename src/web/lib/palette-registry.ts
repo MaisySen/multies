@@ -9,9 +9,9 @@ export type PaletteIcon = React.ComponentType<{ className?: string }>;
  * R59: `flag` names a server switch from /api/config; the page is offered only while it is on.
  * Tools P2: `toolFeature` also needs one of these P2 features in /api/config toolFeatures.
  */
-export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "inboxTd6" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog" | "toursR130" | "billTd4" | "teamaiTd8"; toolFeature?: string[] }
+export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "inboxTd6" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog" | "toursR130" | "billTd4" | "teamaiTd8" | "crmTd10"; toolFeature?: string[] }
 export type PaletteActionKind = "navigate" | "shortcuts" | "theme" | "external";
-export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "inboxTd6" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog" | "billTd4" | "teamaiTd8"; toolFeature?: string[] }
+export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "inboxTd6" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog" | "billTd4" | "teamaiTd8" | "crmTd10"; toolFeature?: string[] }
 
 export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-my-work", label: "My Work", to: "/app/my-work", icon: IconToday, keywords: ["today", "due", "home", "mentions"] },
@@ -81,6 +81,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-new-invoice", label: "New invoice", to: "/app/contacts/invoices?new=invoice", icon: IconReceipt, keywords: ["create invoice", "bill a customer"], flag: "invoices" },
   { id: "p-new-quote", label: "New quote", to: "/app/contacts/invoices?new=quote", icon: IconReceipt, keywords: ["create quote", "estimate"], flag: "invoices" },
   { id: "p-deals", label: "Deals", to: "/app/deals", icon: IconHandshake, keywords: ["crm", "pipeline", "sales"] },
+  { id: "p-analyses", label: "Analyses", to: "/app/analyses", icon: IconChart, keywords: ["reports", "pipeline by stage", "revenue by month", "time by project", "response rates", "saved analysis"], flag: "crmTd10" }, // TD10
   // F13 (R121 bug 4): the Contacts section's own page names find it too.
   { id: "p-people", label: "People", to: "/app/contacts", icon: IconContacts, keywords: ["contacts", "person", "customers", "clients", "crm"] },
   { id: "p-mail-setup", label: "Mail setup", to: "/app/settings/mailboxes", icon: IconSettings, keywords: ["mailboxes", "domains", "deliverability", "routing", "dns"] },

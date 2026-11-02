@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useCommandHandlers } from "@/web/lib/commands"; // TD10
+import { useCrmTd10On } from "./crm-suggestions-td10"; // TD10
 import { Link, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, KeyboardSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -58,6 +60,7 @@ export function DealsPage() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["deals"], queryFn: () => api.get<{ stages: Stage[]; deals: Deal[] }>("/deals") });
   const [adding, setAdding] = useState(false);
+  useCommandHandlers({ "crm-new": () => { setAdding(true); } }, useCrmTd10On()); // TD10: N adds a deal
   const invoicesOn = useInvoicesOn(); // R105
   const crm = useCrmTimelineOn(); // R94
   const [asking, setAsking] = useState<{ deal: Deal; stage: "won" | "lost" } | null>(null);

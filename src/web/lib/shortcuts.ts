@@ -4,6 +4,7 @@
  */
 import { COMMANDS, COMMAND_GROUPS, GO_KEYS, inSheet, displayKeys as registryDisplayKeys, type Command, type CommandGroup, type CommandScope } from "@/web/lib/commands";
 import { PALETTE_PAGES } from "@/web/lib/palette-registry";
+import { crmScopeOn } from "@/web/lib/shortcut-pref-td10"; // TD10
 
 export type ShortcutGroup = CommandGroup;
 export const SHORTCUT_GROUPS: ShortcutGroup[] = COMMAND_GROUPS;
@@ -26,7 +27,7 @@ export interface Shortcut {
 const toShortcut = (c: Command): Shortcut => ({ id: c.id, keys: c.keys ?? [], sequence: c.sequence, label: c.title, group: c.group, scope: c.scope, to: c.to, keywords: c.keywords });
 
 /** Every command with keys, as the sheet lists it (read from the registry each time, so modules added later show). */
-export function sheetShortcuts(): Shortcut[] { return COMMANDS.filter(inSheet).map(toShortcut); }
+export function sheetShortcuts(): Shortcut[] { return COMMANDS.filter(inSheet).filter((c) => c.flag !== "crmTd10" || crmScopeOn()).map(toShortcut); } // TD10: CRM keys only while CRM_TD10 is on
 export const SHORTCUTS: Shortcut[] = sheetShortcuts();
 
 /** Second key after G, and where it goes. */
@@ -59,6 +60,7 @@ export function groupForPath(pathname: string): ShortcutGroup | undefined {
   if (pathname.startsWith("/app/mail")) return "Mail";
   if (pathname.startsWith("/app/tasks") || pathname.startsWith("/app/my-work")) return "Tasks";
   if (pathname.startsWith("/app/chat") || pathname.startsWith("/app/docs")) return "Writing";
+  if (crmScopeOn() && /^\/app\/(contacts|deals|analyses)(\/|$)/.test(pathname)) return "CRM"; // TD10
   return undefined;
 }
 

@@ -10,6 +10,12 @@ import { Kbd } from "@/web/components/ui/misc";
 import { OPEN_SHORTCUTS_EVENT, displayKeys, filterShortcuts, groupForPath, groupShortcuts, isTypingTarget, openPalette, sheetShortcuts } from "@/web/lib/shortcuts";
 import { SEQUENCE_MS, activeScopes, commandById, getFocus, idleKeys, readKeys, runCommand, type CommandContext, type KeyState } from "@/web/lib/commands";
 import { useAppearance } from "@/web/components/theme";
+import { useQuery, useQueryClient } from "@tanstack/react-query"; // TD10
+import { useConfig } from "@/web/lib/queries"; // TD10
+import { api } from "@/web/lib/api"; // TD10
+import { showError } from "@/web/lib/show-error"; // TD10
+import { Switch } from "@/web/components/ui/misc"; // TD10
+import { inKeyWidget, isSingleKey, setCrmScopeOn, setSingleKeysOff, singleKeysOff } from "@/web/lib/shortcut-pref-td10"; // TD10
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -50,7 +56,32 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
           </section>
         ))}
       </div>
+      <SingleKeysSwitch />
     </Dialog>
+  );
+}
+
+/** TD10: the per person switch for single key shortcuts (stored on the server, so it follows the person). */
+function SingleKeysSwitch() {
+  const on = !!useConfig().data?.crmTd10;
+  const qc = useQueryClient();
+  const prefs = useQuery({ queryKey: ["crm-td10-prefs"], enabled: on, staleTime: 300_000, queryFn: () => api.get<{ shortcutsOff: boolean }>("/crm-td10/prefs") });
+  if (!on || !prefs.data) return null;
+  const set = async (enabled: boolean) => {
+    try {
+      const r = await api.put<{ shortcutsOff: boolean }>("/crm-td10/prefs", { shortcutsOff: !enabled });
+      setSingleKeysOff(r.shortcutsOff);
+      qc.setQueryData(["crm-td10-prefs"], r);
+    } catch (e) { showError(e as Error); }
+  };
+  return (
+    <div className="mt-2 flex items-center justify-between gap-3 border-t border-line pt-3" data-testid="single-keys-switch">
+      <div className="min-w-0">
+        <div className="text-[13.5px] font-medium text-fg">Single key shortcuts</div>
+        <p className="text-[12.5px] text-muted">Turn off if you use a screen reader or speech input. Ctrl K and the menus still work.</p>
+      </div>
+      <Switch checked={!prefs.data.shortcutsOff} onChange={set} label="Single key shortcuts" />
+    </div>
   );
 }
 
@@ -66,6 +97,11 @@ export function ShortcutsHost() {
   path.current = location.pathname;
   const theme = useRef(appearance);
   theme.current = appearance;
+  // TD10: CRM keys and the single key switch, only while CRM_TD10 is on.
+  const crmOn = !!useConfig().data?.crmTd10;
+  const prefs = useQuery({ queryKey: ["crm-td10-prefs"], enabled: crmOn, staleTime: 300_000, retry: false, queryFn: () => api.get<{ shortcutsOff: boolean }>("/crm-td10/prefs") });
+  setCrmScopeOn(crmOn);
+  useEffect(() => { setSingleKeysOff(crmOn && !!prefs.data?.shortcutsOff); }, [crmOn, prefs.data?.shortcutsOff]);
   useEffect(() => {
     let hintTimer: ReturnType<typeof setTimeout> | undefined;
     const ctx: CommandContext = {
@@ -76,6 +112,8 @@ export function ShortcutsHost() {
     const onOpen = () => setOpen(true);
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || isTypingTarget(e.target) || document.querySelector("dialog[open], [role=dialog]:not([data-keys-pass])")) { reset(); return; }
+      // TD10: single keys switched off for this person: nothing (here or on a page) reads them; chords still work.
+      if (singleKeysOff() && isSingleKey(e)) { if (!inKeyWidget(e.target)) e.stopPropagation(); reset(); return; }
       if (e.key === "Escape") {
         const close = commandById("mail-close");
         if (close && getFocus().kind === "mail" && runCommand(close, ctx)) e.preventDefault();

@@ -54,7 +54,7 @@ describe("R30 shortcuts registry", () => {
     const g = groupShortcuts(filterShortcuts(SHORTCUTS, "mail"));
     expect(g.map((x) => x.group)[0]).toBe("Go to");
     expect(groupShortcuts([]).length).toBe(0);
-    expect(groupShortcuts(SHORTCUTS).map((x) => x.group)).toEqual(SHORTCUT_GROUPS);
+    expect(groupShortcuts(SHORTCUTS).map((x) => x.group)).toEqual(SHORTCUT_GROUPS.filter((g) => g !== "CRM")); // TD10: CRM keys show only while CRM_TD10 is on
   });
 
   it("G then a letter goes there within the window, and not after it (R31: read from the registry)", () => {

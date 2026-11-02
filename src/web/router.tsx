@@ -114,6 +114,7 @@ const ContactsPage = lazyPage(() => contactPages(), "ContactsPage");
 const ContactPage = lazyPage(() => contactPages(), "ContactPage");
 const PortalPage = lazyPage(() => import("./pages/app/work/portals"), "PortalPage"); // R120
 const DealsPage = lazyPage(() => import("./pages/app/work/deals"), "DealsPage");
+const AnalysesPage = lazyPage(() => import("./pages/app/analyses-td10"), "AnalysesPage"); // TD10
 const InvoicesPage = lazyPage(() => import("./pages/app/work/invoices-r105"), "InvoicesPage"); // R105
 const InvoiceDocPage = lazyPage(() => import("./pages/app/work/invoices-r105"), "InvoiceDocPage"); // R105
 const InvoiceViewPage = lazyPage(() => import("./pages/invoice-view"), "InvoiceViewPage"); // R105
@@ -331,6 +332,7 @@ export const router = createBrowserRouter([
       { path: "docs/learning", element: page(<MyLearningPage />) }, // R129: My learning
       { path: "docs/:id", element: page(<DocPage />) },
       { path: "contacts", element: page(<ContactsPage />) },
+      { path: "analyses", element: page(<AnalysesPage />) }, // TD10 (CRM_TD10; the API answers not found while off)
       { path: "contacts/staff", element: page(<StaffPage />) }, // R126 (PEOPLE_R126; not found while off)
       { path: "contacts/staff/:userId", element: page(<StaffProfilePage />) }, // R126
       { path: "contacts/assets/labels", element: page(<AssetLabelsPage />) }, // R126

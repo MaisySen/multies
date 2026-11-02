@@ -10,8 +10,10 @@ import { mailCommands } from "./modules/mail";
 import { taskCommands } from "./modules/tasks";
 import { writingCommands } from "./modules/writing";
 import { pageCommands } from "./modules/page";
+import { crmCommands } from "./modules/crm"; // TD10
+import { crmScopeOn } from "../shortcut-pref-td10"; // TD10
 
-export const COMMANDS: Command[] = [...generalCommands, ...navCommands, ...actionCommands, ...mailCommands, ...taskCommands, ...pageCommands, ...writingCommands];
+export const COMMANDS: Command[] = [...generalCommands, ...navCommands, ...actionCommands, ...mailCommands, ...taskCommands, ...pageCommands, ...writingCommands, ...crmCommands];
 
 /** Add an area's commands (ids must be new; the registry test checks keys stay unique per scope). */
 export function registerCommandModule(mod: Command[]) {
@@ -22,7 +24,7 @@ export const commandById = (id: string) => COMMANDS.find((c) => c.id === id);
 export const inSheet = (c: Command) => c.sheet ?? !!c.keys?.length;
 export const inPalette = (c: Command) => c.palette ?? false;
 /** R59: a command tied to a server switch is offered only while /api/config says the switch is on. */
-export const flagOn = (c: { flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "inboxTd6" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog" | "toursR130" | "billTd4" | "teamaiTd8"; toolFeature?: string[] }, config: { blog?: boolean; toursR130?: boolean; askR110?: boolean; vaultR128?: boolean; peopleR126?: boolean; inboxTd6?: boolean; reporting?: boolean; chatChannels?: boolean; tools?: boolean; docsVisual?: boolean; helpCenter?: boolean; sites?: boolean; docsPlus?: boolean; maps?: boolean; filesPlus?: boolean; invoices?: boolean; expenses?: boolean; billTd4?: boolean; teamaiTd8?: boolean; docInbox?: boolean; coursesR129?: boolean; tablesR125?: boolean; toolFeatures?: string[] } | undefined) =>
+export const flagOn = (c: { flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "inboxTd6" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog" | "toursR130" | "billTd4" | "teamaiTd8" | "crmTd10"; toolFeature?: string[] }, config: { blog?: boolean; toursR130?: boolean; askR110?: boolean; vaultR128?: boolean; peopleR126?: boolean; inboxTd6?: boolean; reporting?: boolean; chatChannels?: boolean; tools?: boolean; docsVisual?: boolean; helpCenter?: boolean; sites?: boolean; docsPlus?: boolean; maps?: boolean; filesPlus?: boolean; invoices?: boolean; expenses?: boolean; billTd4?: boolean; teamaiTd8?: boolean; docInbox?: boolean; coursesR129?: boolean; tablesR125?: boolean; toolFeatures?: string[] } | undefined) =>
   (!c.flag || !!config?.[c.flag]) && (!c.toolFeature || c.toolFeature.some((f) => !!config?.toolFeatures?.includes(f))); // Tools P2: per feature
 
 /** How long after the first key of a sequence the next one still counts, in ms. */
@@ -45,6 +47,7 @@ export function activeScopes(pathname: string, focus: Focus): CommandScope[] {
   if (pathname.startsWith("/app/tasks") || pathname.startsWith("/app/my-work")) s.push("tasks-list");
   if (pathname.startsWith("/app/notifications")) s.push("notifications");
   if (pathname.startsWith("/app/meetings")) s.push("meeting");
+  if (crmScopeOn() && /^\/app\/(contacts|deals|analyses)(\/|$)/.test(pathname)) s.push("crm"); // TD10 (CRM_TD10 only)
   s.push("global");
   return s;
 }

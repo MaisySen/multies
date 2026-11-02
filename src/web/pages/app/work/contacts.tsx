@@ -20,6 +20,9 @@ import { AddressCard, VisitsPlanner, useMapsOn } from "./maps-r115"; // R115
 import { CompanyPicker, ImportContactsDialog, NewCompanyDialog, SegmentBar, filtersQuery, hasFilters, type SegFilters, type Segment } from "./crm-contacts-r94"; // R94
 import { ContactPortalButton, PortalsTab, usePortalsOn } from "./portals"; // R120
 import { useInvoicesOn } from "./invoices-r105"; // R105
+import { SuggestionsTab, useCrmTd10On, useSuggestions } from "./crm-suggestions-td10"; // TD10
+import { useCommandHandlers } from "@/web/lib/commands"; // TD10
+import { walkRows } from "@/web/lib/crm-keys-td10"; // TD10
 import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
 import { isServerLoadError } from "@/web/lib/load-errors-t1g";
 import { ReferencesPanel } from "@/web/components/mentions-td5"; // TD5
@@ -32,12 +35,13 @@ interface ContactDetail { contact: Contact; threads: ThreadRow[]; tasks: Task[];
 
 export const aud = (n: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(n);
 
-const TAB_LABEL = { people: "People", companies: "Companies", portals: "Client portals", visits: "Visits" } as const; // R120, R115
+const TAB_LABEL = { people: "People", companies: "Companies", portals: "Client portals", visits: "Visits", suggestions: "From mail" } as const; // R120, R115, TD10
 
 export function ContactsPage() {
   const [params, setParams] = useSearchParams();
   const maps = useMapsOn(); // R115
-  const tab = params.get("tab") === "companies" ? "companies" : params.get("tab") === "portals" ? "portals" : params.get("tab") === "visits" && maps ? "visits" : "people"; // R120: portals; R115: visits
+  const crmTd10 = useCrmTd10On(); // TD10: suggestions from mail
+  const tab = params.get("tab") === "suggestions" && crmTd10 ? "suggestions" : params.get("tab") === "companies" ? "companies" : params.get("tab") === "portals" ? "portals" : params.get("tab") === "visits" && maps ? "visits" : "people"; // R120: portals; R115: visits
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
   const portalsOn = usePortalsOn().on; // R120
@@ -57,6 +61,15 @@ export function ContactsPage() {
       : api.get<{ contacts: Contact[]; total: number }>(`/contacts${q ? `?q=${encodeURIComponent(q)}` : ""}`),
     enabled: tab === "people",
   });
+  const suggestions = useSuggestions(crmTd10); // TD10: the tab count
+  // TD10: CRM keys on Contacts (only bound while CRM_TD10 is on; the registry offers them only then).
+  useCommandHandlers({
+    "crm-next": () => walkRows(1),
+    "crm-prev": () => walkRows(-1),
+    "crm-new": () => { setAdding(true); },
+    "crm-search": () => { const el = document.querySelector<HTMLInputElement>('input[aria-label="Search contacts"]'); if (!el) return false; el.focus(); },
+    "crm-suggestions": () => { setParams({ tab: "suggestions" }); },
+  }, crmTd10);
   const companies = useQuery({ queryKey: ["companies", q], queryFn: async () => (await api.get<{ companies: Company[] }>(`/companies${q ? `?q=${encodeURIComponent(q)}` : ""}`)).companies, enabled: tab === "companies" });
   return (
     <div>
@@ -64,22 +77,22 @@ export function ContactsPage() {
         actions={<><Link to="/app/deals" className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconHandshake className="h-4 w-4" />Deals</Link>{invoicesOn && <Link to="/app/contacts/invoices" className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconReceipt className="h-4 w-4" />Invoices</Link>}{crm.on && (tab === "companies" ? <Button variant="secondary" onClick={() => setNewCompany(true)} data-testid="new-company"><IconBuilding className="h-4 w-4" />New company</Button> : <Button variant="secondary" onClick={() => setImporting(true)} data-testid="import-contacts"><IconUpload className="h-4 w-4" />Import</Button>)}<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />Add contact</Button></>} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div role="tablist" className="flex rounded-lg bg-fill p-0.5">
-          {(["people", "companies", ...(portalsOn ? (["portals"] as const) : []), ...(maps ? (["visits"] as const) : [])] as const).map((t) => (
-            <button key={t} role="tab" aria-selected={tab === t} onClick={() => setParams(t === "people" ? {} : { tab: t })} className={cn("rounded-md px-3 py-1.5 text-[13px]", tab === t ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")} data-testid={`contacts-tab-${t}`}>{TAB_LABEL[t]}</button>
+          {(["people", "companies", ...(portalsOn ? (["portals"] as const) : []), ...(maps ? (["visits"] as const) : []), ...(crmTd10 ? (["suggestions"] as const) : [])] as const).map((t) => (
+            <button key={t} role="tab" aria-selected={tab === t} onClick={() => setParams(t === "people" ? {} : { tab: t })} className={cn("rounded-md px-3 py-1.5 text-[13px]", tab === t ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")} data-testid={`contacts-tab-${t}`}>{TAB_LABEL[t]}{t === "suggestions" && !!suggestions.data?.length && <span className="ml-1.5 rounded-full bg-brand/15 px-1.5 text-[11px] font-semibold text-fg" aria-label={`${suggestions.data.length} waiting`}>{suggestions.data.length}</span>}</button>
           ))}
           {peopleOn && <Link to="/app/contacts/staff" role="tab" aria-selected={false} className="rounded-md px-3 py-1.5 text-[13px] text-muted hover:text-fg" data-testid="contacts-tab-staff">Staff</Link>}{/* R126 */}
         </div>
-        {tab !== "visits" && <Input aria-label="Search contacts" placeholder={tab === "people" ? "Search by name or email" : tab === "portals" ? "Search portals" : "Search companies"} value={q} onChange={(e) => setQ(e.target.value)} className="h-9 max-w-xs" />}
+        {tab !== "visits" && tab !== "suggestions" && <Input aria-label="Search contacts" placeholder={tab === "people" ? "Search by name or email" : tab === "portals" ? "Search portals" : "Search companies"} value={q} onChange={(e) => setQ(e.target.value)} className="h-9 max-w-xs" />}
         {tab === "people" && people.data && <span className="text-[12.5px] text-subtle">{people.data.total} {people.data.total === 1 ? "person" : "people"}</span>}
       </div>
       {crm.on && tab === "people" && <SegmentBar segment={segment} setSegment={setSegment} filters={filters} setFilters={setFilters} />}
-      {tab === "portals" ? <PortalsTab query={q} /> : tab === "visits" ? <VisitsPlanner /> : tab === "people" ? (
+      {tab === "suggestions" ? <SuggestionsTab /> : tab === "portals" ? <PortalsTab query={q} /> : tab === "visits" ? <VisitsPlanner /> : tab === "people" ? (
         people.isError && !people.data ? <LoadError onRetry={() => people.refetch()} /> : people.isPending ? <Skeleton className="h-48" /> : !people.data?.contacts.length ? (
           <EmptyState icon={<IconTeam />} art={q ? <NoSearchResultsArt /> : <NoContactsArt />} title={q || filtered ? "Nobody matches" : "No contacts yet"} body={filtered ? "Nobody fits these filters right now. Change them or pick Everyone." : "When mail arrives or you send to someone outside your team, they show up here with their company."} />
         ) : (
           <Card className="divide-y divide-line overflow-hidden" data-testid="contact-list">
             {people.data.contacts.map((c) => (
-              <Link key={c.id} to={`/app/contacts/${c.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-hover">
+              <Link key={c.id} to={`/app/contacts/${c.id}`} data-crm-row className="flex items-center gap-3 px-4 py-3 hover:bg-hover">
                 <Avatar label={initials(c.name || c.email)} />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[14px] font-medium">{c.name || c.email}</div>

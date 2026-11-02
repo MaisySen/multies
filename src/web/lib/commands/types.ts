@@ -5,11 +5,11 @@
 import type { ComponentType } from "react";
 
 /** Where a command applies. "global" works everywhere; the rest follow the page or the focused item. */
-export type CommandScope = "global" | "mail" | "mail-message" | "tasks-list" | "task" | "writing" | "notifications" | "meeting";
+export type CommandScope = "global" | "mail" | "mail-message" | "tasks-list" | "task" | "writing" | "notifications" | "meeting" | "crm";
 
 /** How the "?" sheet groups commands. */
-export type CommandGroup = "General" | "Go to" | "Mail" | "Tasks" | "Notifications" | "Meetings" | "Writing";
-export const COMMAND_GROUPS: CommandGroup[] = ["General", "Go to", "Mail", "Tasks", "Notifications", "Meetings", "Writing"];
+export type CommandGroup = "General" | "Go to" | "Mail" | "Tasks" | "CRM" | "Notifications" | "Meetings" | "Writing";
+export const COMMAND_GROUPS: CommandGroup[] = ["General", "Go to", "Mail", "Tasks", "CRM", "Notifications", "Meetings", "Writing"];
 
 /** What a command's run gets: the app's own doors, never page state (pages bind that with useCommandHandlers). */
 export interface CommandContext {
@@ -45,7 +45,7 @@ export interface Command {
   handler: "run" | "page" | "local";
   /** Only offered when this says so (e.g. a task is focused). */
   /** R59: offered only while this server switch (from /api/config) is on. */
-  flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "inboxTd6" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog" | "toursR130" | "billTd4" | "teamaiTd8";
+  flag?: "chatChannels" | "tools" | "docsVisual" | "helpCenter" | "sites" | "docsPlus" | "maps" | "filesPlus" | "askR110" | "vaultR128" | "peopleR126" | "inboxTd6" | "reporting" | "invoices" | "expenses" | "tablesR125" | "docInbox" | "coursesR129" | "blog" | "toursR130" | "billTd4" | "teamaiTd8" | "crmTd10";
   /** Tools P2: shown only while one of these P2 features is on (/api/config toolFeatures). */
   toolFeature?: string[];
   when?: (ctx: { focus: import("./focus").Focus }) => boolean;
