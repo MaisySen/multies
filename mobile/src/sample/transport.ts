@@ -1,4 +1,5 @@
 import { m3Route, sampleM3 } from "./m3";
+import { m4Route, sampleM4 } from "./m4";
 import { SAMPLE_NAV_MENU } from "./nav-menu";
 import { dealsRoute, sampleDeals } from "./deals";
 import { expensesRoute, sampleExpenses } from "./expenses";
@@ -40,6 +41,7 @@ export class SampleTransport implements Transport {
   private drive = sampleDrive(Date.now());
   private dealStore = { deals: sampleDeals() };
   private m3 = sampleM3(Date.now());
+  private m4 = sampleM4(Date.now());
   private expenseStore = { items: sampleExpenses(), seq: 1 };
   /** R35: report and block in the sample workspace, kept in memory only. */
   private blocks: { userId: string; name: string; avatarUrl: string | null; createdAt: string }[] = [];
@@ -63,6 +65,7 @@ export class SampleTransport implements Transport {
     this.drive = sampleDrive(Date.now());
     this.dealStore = { deals: sampleDeals() };
     this.m3 = sampleM3(Date.now());
+    this.m4 = sampleM4(Date.now());
     this.expenseStore = { items: sampleExpenses(), seq: 1 };
     this.blocks = [];
     this.reports = 0;
@@ -85,6 +88,9 @@ export class SampleTransport implements Transport {
     // M3: goals, forms, time and automations.
     const m3 = m3Route(this.m3, method, path, body, params);
     if (m3 !== undefined) return json(m3);
+    // M4: invoices, scheduling and links.
+    const m4 = m4Route(this.m4, method, path, params);
+    if (m4 !== undefined) return json(m4);
     // M2: deals.
     const deal = dealsRoute(this.dealStore, method, path, body);
     if (deal !== undefined) return json(deal);

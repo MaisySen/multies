@@ -14,6 +14,7 @@ import { socialSummary } from "@/lib/social";
 import { dayFrom } from "@/lib/tasks";
 import { focusTasks, greeting, nextMeeting, whenLabel } from "@/lib/today";
 import { tick } from "@/lib/haptics";
+import { GlassPill, Hero, TintIcon } from "@/components/m4-ui";
 import { FEATURES } from "@/config";
 import { colors, font, radius, space } from "@/theme";
 
@@ -47,7 +48,12 @@ export default function Today() {
       <LargeTitle title="Today" subtitle={date} top={insets.top} collapsed={collapse.collapsed} right={<NotificationBell />} />
       <ScrollView {...collapse.scrollProps} contentContainerStyle={{ padding: space.lg, paddingTop: space.sm, gap: space.md, paddingBottom: space.xxl * 2 }} testID="today"
         refreshControl={<RefreshControl refreshing={false} onRefresh={() => { qc.invalidateQueries(); }} tintColor={colors.brand} />}>
-        <Text style={[font.heading, { marginBottom: space.xs }]}>{first ? `${greeting(now)}, ${first}` : greeting(now)}</Text>
+        {/* M4: a gradient hero with the day in one line and the three things people start from here. */}
+        <Hero testID="today-hero" title={first ? `${greeting(now)}, ${first}` : greeting(now)} subtitle={daySummary(b.inbox, FEATURES.tasks ? b.tasks : 0, next ? `${next.title} ${whenLabel(next.startsAt, now)}` : null)}>
+          <GlassPill icon="compose" label="Write" onPress={() => go("/compose")} testID="today-compose" />
+          {FEATURES.tasks ? <GlassPill icon="tasks" label="My tasks" onPress={() => go("/tasks")} testID="today-mytasks" /> : null}
+          <GlassPill icon="search" label="Search" onPress={() => go("/search")} testID="today-search" />
+        </Hero>
 
         <View style={{ flexDirection: "row", gap: space.md }}>
           <Stat testID="today-mail" icon="inbox" tile="blue" value={b.inbox} label="Unread mail" onPress={() => go("/inbox")} />
@@ -104,7 +110,16 @@ export default function Today() {
 }
 
 function Tile({ icon, tile }: { icon: IconName; tile: TileColor }) {
-  return <View style={{ width: 36, height: 36, borderRadius: 9, backgroundColor: TILE[tile], alignItems: "center", justifyContent: "center" }}><Icon name={icon} size={20} color="#FFFFFF" filled /></View>;
+  return <TintIcon icon={icon} color={TILE[tile]} size={40} />;
+}
+
+/** "3 unread and 2 due today. Next: Standup at 10:00" in plain words. Exported for tests. */
+export function daySummary(unread: number, due: number, next: string | null): string {
+  const parts: string[] = [];
+  if (unread) parts.push(`${unread} unread`);
+  if (due) parts.push(`${due} due`);
+  const head = parts.length ? `${parts.join(" and ")} today.` : "You're all caught up.";
+  return next ? `${head} Next: ${next}` : head;
 }
 
 function Stat({ icon, tile, value, label, onPress, testID }: { icon: IconName; tile: TileColor; value: number; label: string; onPress: () => void; testID: string }) {

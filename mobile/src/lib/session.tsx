@@ -13,6 +13,7 @@ import { LEGACY_KEY } from "./tasks";
 import { signInAtIdp } from "./idp";
 import { verdictFor } from "./auth-keep";
 import { AppState } from "react-native";
+import { clearLock } from "./app-lock";
 
 export type Status = "loading" | "signedOut" | "twoFactor" | "signedIn";
 export type Mode = "live" | "sample";
@@ -154,6 +155,7 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
         await endpoints(live).signOut().catch(() => {});
       }
       await clearLocal();
+      await clearLock().catch(() => {}); // M4: a PIN belongs to the person who set it
       setMode("live");
       setStatus("signedOut");
     },

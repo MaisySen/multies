@@ -1,6 +1,6 @@
 import { Children, isValidElement, useEffect, useState, type ReactNode } from "react";
 import { Animated, Pressable, Switch, Text, View, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
-import { colors, font, space } from "@/theme";
+import { colors, font, space, hairline } from "@/theme";
 import { tick, warning } from "@/lib/haptics";
 import { useReduceMotion } from "@/lib/motion";
 import { Icon, TILE, type IconName, type TileColor } from "./ui";
@@ -10,7 +10,7 @@ import { Icon, TILE, type IconName, type TileColor } from "./ui";
  * 16 pt side inset, 12 pt radius, rows at least 44 pt (48 for property rows), 29 pt tiles with a
  * 7 pt radius, separators that start after the tile, a 13 pt header above and a 13 pt muted footer.
  */
-export const GROUP = { inset: 16, radius: 12, row: 48, tile: 29, tileRadius: 7, gap: 28, text: 13 } as const;
+export const GROUP = { inset: 16, radius: 14, row: 48, tile: 29, tileRadius: 7, gap: 28, text: 13 } as const;
 
 export function InsetGroup({ header, footer, children, style, testID }: { header?: string; footer?: string; children: ReactNode; style?: StyleProp<ViewStyle>; testID?: string }) {
   const items = Children.toArray(children).filter((c) => isValidElement(c));
@@ -85,7 +85,7 @@ export function SpringIn({ children, delay = 0, style }: { children: ReactNode; 
 export const g = StyleSheet.create({
   header: { color: colors.subtle, fontSize: GROUP.text, textTransform: "uppercase", letterSpacing: 0.3, marginHorizontal: GROUP.inset * 2, marginBottom: 7 },
   footer: { color: colors.subtle, fontSize: GROUP.text, lineHeight: 18, marginHorizontal: GROUP.inset * 2, marginTop: 7 },
-  group: { marginHorizontal: GROUP.inset, borderRadius: GROUP.radius, backgroundColor: colors.surface, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line },
+  group: { marginHorizontal: GROUP.inset, borderRadius: GROUP.radius, backgroundColor: colors.surface, overflow: "hidden", borderWidth: hairline ? StyleSheet.hairlineWidth : 0, borderColor: colors.line },
   sep: { height: StyleSheet.hairlineWidth, backgroundColor: colors.lineStrong, marginLeft: GROUP.inset + GROUP.tile + space.md },
   row: { minHeight: GROUP.row, flexDirection: "row", alignItems: "center", gap: space.md, paddingHorizontal: GROUP.inset },
   tile: { width: GROUP.tile, height: GROUP.tile, borderRadius: GROUP.tileRadius, alignItems: "center", justifyContent: "center" },

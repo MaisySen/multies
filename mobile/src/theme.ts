@@ -7,7 +7,7 @@ import { Appearance, Platform } from "react-native";
  * Values mirror the shared brand tokens (brand/tokens.json in the web app repo).
  */
 const light = {
-  bg: "#F5F5F7",
+  bg: "#F2F2F7",
   surface: "#FFFFFF",
   elevated: "#E8E8ED",
   hover: "#EBEBEF",
@@ -33,9 +33,9 @@ const light = {
 };
 
 const dark: typeof light = {
-  bg: "#0C0C0D",
-  surface: "#161618",
-  elevated: "#2C2C2F",
+  bg: "#000000",
+  surface: "#1C1C1E",
+  elevated: "#2C2C2E",
   hover: "#2A2A2D",
   line: "rgba(255,255,255,0.09)",
   lineStrong: "rgba(255,255,255,0.16)",
@@ -64,7 +64,8 @@ export const palettes = { light, dark };
 
 /** An 8 point grid, with 4 for tight spots. */
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
-export const radius = { sm: 6, md: 10, lg: 14, pill: 999 } as const;
+/** M4: softer, rounder corners (cards 18, sheets 24). */
+export const radius = { sm: 8, md: 12, lg: 18, xl: 24, pill: 999 } as const;
 
 /** Apple's text styles, in the system font (San Francisco on iPhone, Roboto on Android). */
 export const font = {
@@ -79,9 +80,19 @@ export const font = {
 
 /** A soft card shadow. Android uses elevation. */
 export const shadow = Platform.select({
-  android: { elevation: 1 },
-  default: { shadowColor: "#000", shadowOpacity: scheme === "light" ? 0.04 : 0, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } },
+  android: { elevation: scheme === "light" ? 2 : 0 },
+  default: { shadowColor: "#000", shadowOpacity: scheme === "light" ? 0.06 : 0, shadowRadius: 14, shadowOffset: { width: 0, height: 4 } },
 });
+
+/** M4: a raised shadow for heroes, sheets and the pressed state's lift. */
+export const raised = Platform.select({
+  android: { elevation: scheme === "light" ? 6 : 0 },
+  default: { shadowColor: "#000", shadowOpacity: scheme === "light" ? 0.12 : 0.5, shadowRadius: 24, shadowOffset: { width: 0, height: 10 } },
+});
+
+/** M4: gradient stops for hero cards (brand blue to indigo), and a hairline only where depth cannot show (dark mode). */
+export const gradient = { brand: scheme === "light" ? ["#0A84FF", "#5E5CE6"] : ["#0A60D0", "#4B3FC4"], warm: ["#FF9F0A", "#FF375F"] } as const;
+export const hairline = scheme === "dark" ? 1 : 0;
 
 /** Motion: short ease out, springs for sheets. Reduce Motion turns these off (lib/motion.ts). */
 export const motion = { fast: 150, base: 200, slow: 250, sheet: 280, spring: { damping: 22, stiffness: 260, mass: 1 } } as const;

@@ -206,9 +206,9 @@ describe("More sections", () => {
     fireEvent.press(screen.getByTestId("more-page-/app/deals"));
     expect(mockPush).toHaveBeenCalledWith("/deals");
     await screen.findByTestId("more-page-/app/expenses");
+    // M4: Invoices has its own screen now.
     fireEvent.press(screen.getByTestId("more-page-/app/contacts/invoices"));
-    await waitFor(() => expect(mockOpenWeb).toHaveBeenCalled());
-    expect(mockOpenWeb.mock.calls[0][0]).toMatch(/\/app\/contacts\/invoices$/);
+    expect(mockPush).toHaveBeenCalledWith("/invoices");
   });
   test("Settings lists the Mail setup pages", async () => {
     mockParams = { section: "workspace" };

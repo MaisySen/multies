@@ -109,11 +109,15 @@ const NATIVE: Record<string, string> = {
   "/app/triage": "/notifications", "/app/inbox": "/inbox", "/app/tools/convert": "/tools",
   "/app/social/inbox": "/social?tab=inbox", "/app/social/posts": "/social?tab=posts", "/app/social/new": "/social?tab=new", "/app/social/accounts": "/social?tab=accounts",
   "/app/settings/mail": "/mail-settings", "/app/settings/mailboxes": "/email-setup",
+  // M4: invoices (read, share, pay state), the booking page with upcoming bookings, short links.
+  "/app/contacts/invoices": "/invoices", "/app/scheduling": "/scheduling", "/app/tools/links": "/links",
 };
 /** The app screen for a web page, or null when it opens on the web. Tasks needs the app's tasks switch. */
 export function nativeRoute(to: string, opts: { tasks: boolean } = { tasks: true }): string | null {
   const path = to.split(/[?#]/)[0].replace(/\/+$/, "") || "/app";
   if (path === "/app/tasks" && !opts.tasks) return null;
+  const inv = /^\/app\/contacts\/invoices\/([^/]+)$/.exec(path);
+  if (inv) return `/invoice/${inv[1]}`;
   return NATIVE[path] ?? null;
 }
 

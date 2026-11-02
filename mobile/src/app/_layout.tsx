@@ -15,9 +15,10 @@ import { colors, scheme } from "@/theme";
 import { useReduceMotion } from "@/lib/motion";
 import { HeldSendBar } from "@/components/held-send-bar";
 import { OtaProvider } from "@/lib/ota/provider";
-import { useBiometricLock } from "@/lib/native-features";
 import { nativeGestureHandler } from "@/lib/native-modules";
-import { LockScreen } from "@/components/lock-screen";
+import { LockScreen, PrivacyCover } from "@/components/lock-screen";
+import { LockOffer } from "@/components/lock-offer";
+import { useAppLock } from "@/lib/app-lock";
 import { QuickActionsHost, QuickToastHost } from "@/components/quick-actions";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -49,8 +50,8 @@ export default function RootLayout() {
 function Navigator({ client }: { client: QueryClient }) {
   const { status, mode } = useSession();
   const reduceMotion = useReduceMotion();
-  // R37: Face ID or fingerprint unlock, when the person turned it on in Settings.
-  const lock = useBiometricLock(status === "signedIn");
+  // M4: Lock Multies (Face ID, fingerprint or PIN), set in Settings > Security.
+  const lock = useAppLock(status === "signedIn");
 
   useEffect(() => { if (status !== "loading") SplashScreen.hideAsync().catch(() => {}); }, [status]);
   // Never show one account's mail to another session.
@@ -110,6 +111,11 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="settings" options={{ title: "Settings" }} />
         <Stack.Screen name="review" options={{ title: "Approvals" }} />
         <Stack.Screen name="goals" options={{ title: "Goals" }} />
+        <Stack.Screen name="security" options={{ title: "Lock Multies" }} />
+        <Stack.Screen name="invoices" options={{ title: "Invoices" }} />
+        <Stack.Screen name="invoice/[id]" options={{ title: "Invoice" }} />
+        <Stack.Screen name="scheduling" options={{ title: "Scheduling" }} />
+        <Stack.Screen name="links" options={{ title: "Links" }} />
         <Stack.Screen name="forms" options={{ title: "Forms" }} />
         <Stack.Screen name="form/[id]" options={{ title: "Responses" }} />
         <Stack.Screen name="time" options={{ title: "Time" }} />
@@ -152,7 +158,9 @@ function Navigator({ client }: { client: QueryClient }) {
     {signedIn && <HeldSendBar />}
     {signedIn ? <QuickActionsHost /> : null}
     <QuickToastHost />
-    {signedIn && lock.locked ? <LockScreen onUnlock={lock.unlock} /> : null}
+    {signedIn && !lock.locked ? <LockOffer onDone={lock.refresh} /> : null}
+    {signedIn && lock.locked ? <LockScreen onUnlock={lock.unlock} settings={lock.settings} /> : null}
+    {signedIn && lock.covered ? <PrivacyCover /> : null}
     </>
   );
 }

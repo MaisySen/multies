@@ -53,7 +53,7 @@ export default function TabsLayout() {
     <>
     <Tabs
       // R31: a long-press on any tab opens the command sheet.
-      screenListeners={{ tabLongPress: () => { tick(); openCommandSheet(); } }}
+      screenListeners={{ tabPress: () => { tick(); }, tabLongPress: () => { tick(); openCommandSheet(); } }}
       screenOptions={{
       headerShown: false,
       headerStyle: { backgroundColor: colors.bg }, headerTintColor: colors.fg, headerShadowVisible: false,

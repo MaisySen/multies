@@ -3,6 +3,15 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.10.12 (OTA, runs on Android versionCode 16 and iOS build 20), 3 Nov 2026
+
+- A new look: softer cards with depth instead of boxes, rounder corners, true black dark mode, tinted icons and a colour hero on Today with Write, My tasks and Search one tap away.
+- Lock Multies: Face ID, Touch ID or your fingerprint, with a 4 or 6 digit PIN when that can't be used. Lock every time or after 1, 5 or 15 minutes, and hide your mail in the app switcher. Settings, Security.
+- Invoices are in the app: what is owed and overdue, every invoice with its state, and the customer's link to share.
+- Scheduling is in the app: share your booking link in one tap and see the bookings coming up, by day.
+- Links are in the app: every short link with its clicks, tap to share.
+- A light tap when you switch tabs.
+
 ## 1.10.11 (OTA, runs on Android versionCode 16 and iOS build 20), 2 Nov 2026
 
 - A proper phone app: Goals, Forms with every response, Time for the week and Automations are screens in the app now, not web pages. Approvals has its own screen with a back button.

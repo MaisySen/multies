@@ -3,7 +3,7 @@ import {
   ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, TextInput, View,
   type PressableProps, type StyleProp, type TextInputProps, type TextStyle, type ViewStyle,
 } from "react-native";
-import { colors, font, motion, radius, shadow, space, TOUCH } from "@/theme";
+import { colors, font, hairline, motion, radius, shadow, space, TOUCH } from "@/theme";
 import { initials } from "@/lib/format";
 import { useReduceMotion } from "@/lib/motion";
 import { Icon as PlatformIcon } from "./Icon";
@@ -271,7 +271,7 @@ export { motion };
 
 export function PressableCard(props: PressableProps & { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   const { style, children, ...rest } = props;
-  return <Pressable {...rest} style={({ pressed }) => [styles.card, pressed && { backgroundColor: colors.elevated }, style]}>{children}</Pressable>;
+  return <Pressable {...rest} style={({ pressed }) => [styles.card, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }, style]}>{children}</Pressable>;
 }
 
 export const styles = StyleSheet.create({
@@ -282,7 +282,7 @@ export const styles = StyleSheet.create({
   label: { color: colors.muted, fontSize: 14, fontWeight: "500" },
   input: { minHeight: TOUCH + 4, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, color: colors.fg, paddingHorizontal: space.md, fontSize: 16 },
   error: { color: colors.bad, fontSize: 13 },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line, padding: space.lg, ...shadow },
+  card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: hairline ? StyleSheet.hairlineWidth : 0, borderColor: colors.line, padding: space.lg, ...shadow },
   badge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, alignSelf: "flex-start" },
   badgeText: { fontSize: 12, fontWeight: "600" },
   avatar: { alignItems: "center", justifyContent: "center" },

@@ -22,3 +22,8 @@ Things the over the air updates leave out because they need native code. None of
 Everything else in 1.10.7 (inbox tabs, Snoozed, labels, rules, Copy, Copy link, Share, Copied toast with haptic, text
 selection, paste) uses modules already in iOS build 20 and Android versionCode 16: expo-clipboard, expo-haptics and
 React Native's own Share and Linking.
+
+
+## From M4 (1.10.12)
+
+Native passkey sign in: ios.associatedDomains webcredentials:multies.si and applinks:multies.si, apple-app-site-association and assetlinks.json on multies.si, and a native passkey module on the server's WebAuthn routes. Android FLAG_SECURE for the app switcher (expo-screen-capture).

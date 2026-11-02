@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Alert, Platform, ScrollView, Text, View } from "react-native";
+import * as ExpoRouter from "expo-router";
 import { router } from "expo-router";
 import { ScreenHeader } from "@/components/m3-ui";
 import * as Localization from "expo-localization";
@@ -17,10 +18,13 @@ import { colors, font, space } from "@/theme";
 import { currentVersionFacts, updateDetail, versionLabel } from "@/lib/app-version";
 import { UpdateRows } from "@/components/update-rows";
 import { GestureSettings } from "@/components/gesture-settings";
-import { biometricAvailable, biometricLabel, getBiometricLock, setBiometricLock } from "@/lib/native-features";
+import { getLockSettings } from "@/lib/app-lock";
 import { openWeb } from "@/lib/web-open";
 
 const PLAN_LABEL: Record<string, string> = { free: "Free", starter: "Starter", pro: "Pro", business: "Business" };
+
+/** Re-reads on focus (back from Lock Multies); a plain effect where the router has no focus hook (tests). */
+const useFocus: (cb: () => void) => void = typeof ExpoRouter.useFocusEffect === "function" ? ExpoRouter.useFocusEffect : (cb) => { useEffect(cb, [cb]); };
 
 export default function Settings() {
   const { me, mode, api, signOut } = useSession();
@@ -35,19 +39,8 @@ export default function Settings() {
   const [allowed, setAllowed] = useState(false);
   useEffect(() => { permissionGranted().then(setAllowed).catch(() => {}); }, []);
   // R37: "Unlock with Face ID" (or fingerprint), off by default; shows only where the phone supports it.
-  const [lockAvailable, setLockAvailable] = useState(false);
-  const [lockLabel, setLockLabel] = useState("Face ID");
   const [lockOn, setLockOn] = useState(false);
-  useEffect(() => {
-    biometricAvailable().then(setLockAvailable).catch(() => {});
-    biometricLabel().then(setLockLabel).catch(() => {});
-    getBiometricLock().then(setLockOn).catch(() => {});
-  }, []);
-  const toggleLock = async () => {
-    const next = await setBiometricLock(!lockOn).catch(() => lockOn);
-    if (!lockOn && !next) Alert.alert(`Couldn't turn on ${lockLabel}`, "Check that it is set up in your phone's Settings app, then try again.");
-    setLockOn(next);
-  };
+  useFocus(useCallback(() => { getLockSettings().then((l) => setLockOn(l.on)).catch(() => {}); }, []));
 
   const turnOnPush = async () => {
     const r = await registerPush(mode === "live" ? api : null, { prompt: true });
@@ -97,12 +90,9 @@ export default function Settings() {
       <Row tile="gray" icon="external-link" label="Team and domains" onPress={() => open(WEB_PAGES.team)} />
       {/* M3 (1.10.11): features (Files, Tools, Social, Docs, Meetings, Portfolio, Contacts, People, Agent runs) live in More only, so Settings is settings. */}
 
-      {lockAvailable ? (
-        <>
-          <SectionTitle>Security</SectionTitle>
-          <Row tile="green" icon="lock" label={`Unlock with ${lockLabel}`} value={lockOn ? "On" : "Off"} onPress={toggleLock} testID="biometric-lock" />
-        </>
-      ) : null}
+      {/* M4: Lock Multies (Face ID, fingerprint or PIN) has its own screen. */}
+      <SectionTitle>Security</SectionTitle>
+      <Row tile="green" icon="lock" label="Lock Multies" value={lockOn ? "On" : "Off"} onPress={() => router.push("/security")} testID="biometric-lock" />
 
       <SectionTitle>Notifications</SectionTitle>
       <Row tile="red" icon="inbox" label="Notifications inbox" value={inbox.data ? `${inbox.data} unread` : undefined} onPress={() => router.push("/notifications")} testID="notifications-link" />
