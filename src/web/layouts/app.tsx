@@ -57,7 +57,8 @@ import { panelStorage, setLayoutUser, sidebarHiddenOn, useLayout, useLayoutGener
 import { setInspectorEl, useInspectorOpen } from "@/web/lib/inspector"; // R79
 import { useMediaQuery } from "@/web/lib/use-compact";
 import { Breadcrumbs, ContextSidebar, CreateMenu, IconRail, SearchEntry, ViewMenu, useSidebarShortcut, type NavCounts } from "./shell"; // R79
-import { pageTitle, sectionFor, visibleSections } from "./shell-nav"; // R79; R82F (MB-283) titles
+import { pageTitle, sectionFor, setNavModel, visibleSections } from "./shell-nav"; // R79; R82F (MB-283) titles; R121 model
+import { CustomiseMenuHost, MoreSheet } from "@/web/components/nav-p2-r121"; // R121
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -117,6 +118,7 @@ export function AppLayout() {
   // R33: stored list copies are keyed by this person and workspace; set during render so lists started now see it.
   if (me.data) setOfflineScope(scopeOf(me.data));
   const config = useConfig();
+  setNavModel(!!config.data?.navP2); // R121: P2 navigation (NAV_P2_R121); set during render so the rail and titles agree
   // R123: Sites shows in Docs only once the workspace has a site (one small read per session, kept 10 minutes).
   const sitesUse = useQuery({ queryKey: ["sites", "in-use"], enabled: !!config.data?.sites, staleTime: 600_000, retry: false, queryFn: () => api.get<{ inUse: boolean; canStart: boolean; canEdit?: boolean }>("/sites/in-use") });
   useDemoSeedCatchUp(!!me.data?.organization?.isDemo);
@@ -220,6 +222,20 @@ export function AppLayout() {
     </Menu>
   );
 
+  // R79: the desktop shell: icon rail, a resizable sidebar for the open section (Cmd or Ctrl + backslash folds it),
+  // and a top bar with breadcrumbs, search, Create and View. Tablets and phones keep their own bars (R46).
+  const navFlags = { sites: !!config.data?.sites && !!sitesUse.data?.inUse, sitesCreate: !!config.data?.sites && (!!sitesUse.data?.canStart || !!sitesUse.data?.inUse), blogCreate: !!config.data?.sites && !!config.data?.blog && !!sitesUse.data?.canEdit, // R124
+    helpCenter: !!config.data?.helpCenter, docsPlus: !!config.data?.docsPlus, flows: (config.data as { flows?: boolean } | undefined)?.flows !== false, tools: !!config.data?.tools, files: !!config.data?.tools && (!!config.data?.toolFeatures?.includes("folders") || !!config.data?.filesPlus), scheduling: !!config.data?.scheduling, links: !!config.data?.tools && !!config.data?.toolFeatures?.includes("links"), operator: !!me.data?.user.platformAdmin, social: me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin" || (!!config.data?.socialP2 && !!me.data?.organization), socialP2: !!config.data?.socialP2, socialP2b: !!config.data?.socialP2 && config.data?.socialP2b !== false, invoices: !!config.data?.invoices };
+  const sections = visibleSections(navFlags);
+  const section = sectionFor(loc.pathname, sections);
+  const navCounts: NavCounts = {
+    "/app/notifications": { n: unreadNotes.data ?? 0, label: `${unreadNotes.data ?? 0} unread`, alert: true },
+    "/app/triage": { n: triageCount.data ?? 0, label: `${triageCount.data ?? 0} waiting in Triage`, alert: true },
+    "/app/approvals": { n: pendingCount, label: `${pendingCount} waiting`, alert: true },
+    "/app/mail": { n: mailUnread, label: `${mailUnread} unread in Inbox` },
+    "/app/chat": { n: chatUnread.data?.total ?? 0, label: `${chatUnread.data?.total ?? 0} unread messages` },
+    "/app/admin": { n: openReports.data ?? 0, label: `${openReports.data ?? 0} reports to review`, alert: true },
+  };
   const sidebar = (
     <div className="flex h-full flex-col">
       <div className="flex h-14 shrink-0 items-center justify-between px-4">
@@ -234,6 +250,8 @@ export function AppLayout() {
           <IconSearch className="h-4 w-4" aria-hidden /><span className="flex-1 text-left">Search</span><span className="[@media(hover:none)]:hidden"><Kbd>{isMac ? "⌘" : "Ctrl"} K</Kbd></span>
         </button>
       </div>
+      {/* R121 (P2 menu): every section as a tile with its count, then New social post and Settings (plan section 9). */}
+      {config.data?.navP2 ? <MoreSheet sections={sections} counts={navCounts} active={section.id} canPost={navFlags.social} onNavigate={() => setDrawer(false)} /> : (
       <nav className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 max-lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]" aria-label="App">
         {navGroups(([...((config.data?.tools ? (x: NavItem[]) => withTools(x, !!config.data?.toolFeatures?.includes("folders") || !!config.data?.filesPlus) : (x: NavItem[]) => x)(config.data?.scheduling ? withScheduling : nav)), ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: IconShield, end: false, group: "admin" as const }] : [])] as NavItem[])).map(({ group, items }, gi) => (
           <div key={group} className={cn(gi > 0 && "pt-4 max-lg:pt-5")}>
@@ -261,6 +279,7 @@ export function AppLayout() {
           </div>
         ))}
       </nav>
+      )}
       {organization?.isDemo && (
         <div className="mx-3 mb-3 shrink-0 rounded-lg bg-fill p-3 text-[12.5px]">
           <div className="flex items-center gap-1.5 font-medium text-fg"><IconFlask className="h-3.5 w-3.5 text-muted" aria-hidden />Demo workspace</div>
@@ -281,20 +300,6 @@ export function AppLayout() {
     </div>
   );
 
-  // R79: the desktop shell: icon rail, a resizable sidebar for the open section (Cmd or Ctrl + backslash folds it),
-  // and a top bar with breadcrumbs, search, Create and View. Tablets and phones keep their own bars (R46).
-  const navFlags = { sites: !!config.data?.sites && !!sitesUse.data?.inUse, sitesCreate: !!config.data?.sites && (!!sitesUse.data?.canStart || !!sitesUse.data?.inUse), blogCreate: !!config.data?.sites && !!config.data?.blog && !!sitesUse.data?.canEdit, // R124
-    helpCenter: !!config.data?.helpCenter, docsPlus: !!config.data?.docsPlus, flows: (config.data as { flows?: boolean } | undefined)?.flows !== false, tools: !!config.data?.tools, files: !!config.data?.tools && (!!config.data?.toolFeatures?.includes("folders") || !!config.data?.filesPlus), scheduling: !!config.data?.scheduling, links: !!config.data?.tools && !!config.data?.toolFeatures?.includes("links"), operator: !!me.data?.user.platformAdmin, social: me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin" || (!!config.data?.socialP2 && !!me.data?.organization), socialP2: !!config.data?.socialP2, socialP2b: !!config.data?.socialP2 && config.data?.socialP2b !== false, invoices: !!config.data?.invoices };
-  const sections = visibleSections(navFlags);
-  const section = sectionFor(loc.pathname, sections);
-  const navCounts: NavCounts = {
-    "/app/notifications": { n: unreadNotes.data ?? 0, label: `${unreadNotes.data ?? 0} unread`, alert: true },
-    "/app/triage": { n: triageCount.data ?? 0, label: `${triageCount.data ?? 0} waiting in Triage`, alert: true },
-    "/app/approvals": { n: pendingCount, label: `${pendingCount} waiting`, alert: true },
-    "/app/mail": { n: mailUnread, label: `${mailUnread} unread in Inbox` },
-    "/app/chat": { n: chatUnread.data?.total ?? 0, label: `${chatUnread.data?.total ?? 0} unread messages` },
-    "/app/admin": { n: openReports.data ?? 0, label: `${openReports.data ?? 0} reports to review`, alert: true },
-  };
   // R82F (MB-281): the button's name is its words ("Account, Dana Lee"); the initials beside them are decoration, so
   // the name never disagrees with what is shown (axe label in name).
   const accountButton = accountMenu(<button className="relative grid h-10 w-10 place-items-center rounded-full hover:bg-hover" data-testid="sidebar-account">
@@ -335,10 +340,11 @@ export function AppLayout() {
         <main id="main" tabIndex={-1} ref={setMainEl} className={cn("min-h-0 flex-1 overflow-x-hidden outline-none", isMail ? "overflow-hidden" : "overflow-y-auto overscroll-y-contain")}>
           {isMail ? <Outlet /> : <div key={loc.pathname.split("/").slice(0, 3).join("/")} className={pageFrameClass(loc.pathname)} data-page-width={pageWidth(loc.pathname)}><Outlet /></div>}
         </main>
-        <PhoneTabBar mailUnread={mailUnread} moreOpen={drawer} onMore={() => setDrawer((d) => !d)} />
+        <PhoneTabBar mailUnread={mailUnread} moreOpen={drawer} onMore={() => setDrawer((d) => !d)} p2={!!config.data?.navP2} chatUnread={chatUnread.data?.total ?? 0} fourth={layout.fourthTab} />
         <PaletteHost onSignOut={signOut} />
         <UpdatePill />{/* R32: new version prompt */}
         <ShortcutsHost />
+        {config.data?.navP2 && <CustomiseMenuHost sections={sections} />}{/* R121 */}
         <div className="pointer-events-none fixed bottom-[calc(1rem+var(--tabbar-h,0px))] right-4 z-30 [&>*]:pointer-events-auto"><TimerChip /></div>
         <Suspense fallback={null}><CallDockHost /></Suspense>
     </div>

@@ -91,6 +91,7 @@ import { agentTriggerHookRoutes, agentTriggerRoutes } from "./routes/agent-trigg
 import { taskTeardownRoutes } from "./routes/task-teardown-r27"; // R27 teardown: watchers, duplicate
 import { mailSnippetRoutes } from "./routes/mail-snippets";
 import { countsRoutes } from "./routes/counts-r34"; // R34
+import { navMenuRoutes } from "./routes/nav-menu-r121"; // R121
 import { mailPrefRoutes, mailReadStatusRoutes, mailSplitRoutes, openPixelRoutes } from "./routes/mail-splits-r31";
 import { mailLabelRoutes, mailRuleRoutes } from "./routes/mail-rules-r85";
 import { meetingNotesRoutes } from "./routes/meeting-notes";
@@ -483,6 +484,7 @@ export function createApp(deps: Deps) {
       helpCenter: !!deps.config.helpCenter,
       sites: !!deps.config.sites, // R123
       blog: !!deps.config.blogR124, // R124: the blog in Sites
+      navP2: !!deps.config.navP2R121, // R121: layout plan P2 navigation
       davSync: !!deps.config.davSync,
       // R103: Docs plus (DOCS_PLUS_R103=on).
       docsPlus: !!deps.config.docsPlus,
@@ -605,6 +607,7 @@ export function createApp(deps: Deps) {
   app.route("/api/mail/rules", mailRuleRoutes()); // R85: mail rules with several actions
   app.route("/api/mail/labels", mailLabelRoutes()); // R85: thread labels
   app.route("/api/counts", countsRoutes()); // R34: unread counts for badges
+  app.route("/api/nav", navMenuRoutes()); // R121: the one menu model (rail, More sheet, mobile app)
   app.route("/api/reports", reportsRoutes()); // R35: report a message or person
   app.route("/api/blocks", blocksRoutes()); // R35: blocks
   app.route("/api/mail/prefs", mailPrefRoutes()); // R31: mail settings (read status)

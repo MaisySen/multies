@@ -6,11 +6,26 @@ import { AuthLayout } from "./layouts/auth";
 import { Landing } from "./pages/landing";
 import { NotFound } from "./pages/not-found";
 import { ToolFeatureGate } from "./components/tools/feature-gate"; // R66 (MB-259)
+import { movedPath } from "@/shared/nav-menu"; // R121
+import { useConfig } from "./lib/queries"; // R121
+import { SettingsEmbed } from "./components/ui/misc"; // R121
 
 /** R82F (MB-279): an old address that moved; the query and hash ride along (a mailbox sign in comes back with ?connected=). */
 function Moved({ to }: { to: string }) {
   const loc = useLocation();
   return <Navigate to={`${to}${loc.search}${loc.hash}`} replace />;
+}
+
+/**
+ * R121 (NAV_P2_R121): an old Mail setup address (Mailboxes, Domains, Deliverability) opens its new home in Settings,
+ * Mail setup, with the id, query and hash kept. With the switch off the old page shows, unchanged.
+ */
+function MovedWhenP2({ children }: { children: ReactNode }) {
+  const loc = useLocation();
+  const config = useConfig();
+  if (!config.data) return null; // a moment while the switches load (cached after the first page)
+  const to = config.data.navP2 ? movedPath(loc.pathname) : null;
+  return to ? <Navigate to={`${to}${loc.search}${loc.hash}`} replace /> : <>{children}</>;
 }
 
 /** P1 layout: the old Social posts tab of Connections. A sign in coming back lands on Accounts, the rest on New post. */
@@ -275,9 +290,9 @@ export const router = createBrowserRouter([
       { index: true, element: page(<DashboardPage />) },
       { path: "my-work", element: page(<MyWorkPage />) },
       { path: "triage", element: page(<TriagePage />) },
-      { path: "domains", element: page(<DomainsPage />) },
-      { path: "domains/:id", element: page(<DomainDetailPage />) },
-      { path: "mailboxes", element: page(<MailboxesPage />) },
+      { path: "domains", element: <MovedWhenP2>{page(<DomainsPage />)}</MovedWhenP2> }, // R121: Settings, Mail setup when P2 is on
+      { path: "domains/:id", element: <MovedWhenP2>{page(<DomainDetailPage />)}</MovedWhenP2> },
+      { path: "mailboxes", element: <MovedWhenP2>{page(<MailboxesPage />)}</MovedWhenP2> },
       { path: "mail", element: page(<WebmailPage />) },
       { path: "mail/rules", element: page(<MailRulesPage />) }, // R85
       { path: "inbox", element: page(<TeamInboxPage />) },
@@ -358,7 +373,7 @@ export const router = createBrowserRouter([
       { path: "tools/merge/lists/:id", element: page(<ToolFeatureGate features={["merge_plus_r109"]}><MergeListPage /></ToolFeatureGate>) }, // R109
       { path: "tools/merge/newsletters/:id", element: page(<ToolFeatureGate features={["merge_plus_r109"]}><MergeNewsletterPage /></ToolFeatureGate>) }, // R109
       { path: "tools/merge/journeys/:id", element: page(<ToolFeatureGate features={["merge_plus_r109"]}><MergeJourneyPage /></ToolFeatureGate>) }, // R109
-      { path: "deliverability", element: page(<DeliverabilityPage />) },
+      { path: "deliverability", element: <MovedWhenP2>{page(<DeliverabilityPage />)}</MovedWhenP2> },
       { path: "admin", element: page(<AdminPage />) },
       { path: "admin/reports", element: page(<ModerationPage />) }, // R35: moderation queue
       {
@@ -380,6 +395,11 @@ export const router = createBrowserRouter([
           { path: "notifications", element: page(<NotificationSettings />) },
           { path: "calendar", element: page(<CalendarSettings />) },
           { path: "mail", element: page(<MailSettings />) },
+          // R121: Settings, Mail setup (layout plan P2): the same pages, inside the one Settings sidebar.
+          { path: "mailboxes", element: page(<SettingsEmbed><MailboxesPage /></SettingsEmbed>) },
+          { path: "domains", element: page(<SettingsEmbed><DomainsPage /></SettingsEmbed>) },
+          { path: "domains/:id", element: page(<SettingsEmbed><DomainDetailPage /></SettingsEmbed>) },
+          { path: "deliverability", element: page(<SettingsEmbed><DeliverabilityPage /></SettingsEmbed>) },
           { path: "connections", element: <Moved to="/app/settings/apps/mail" /> }, // R82F (MB-279)
           { path: "mail-apps", element: page(<MailAppsSettings />) },
           { path: "mail-archive", element: page(<MailArchiveSettings />) }, // R111: archive and retention (MAIL_ARCHIVE_R111)

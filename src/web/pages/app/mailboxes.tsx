@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { appHref } from "@/web/layouts/shell-nav"; // R121: Mail setup lives in Settings when P2 is on
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { IconArrowRight, IconClose, IconEdit, IconInbox, IconMention, IconMore, IconPause, IconPlay, IconPlus, IconTeam, IconTrash } from "@/web/components/ui/icon";
@@ -48,10 +49,10 @@ export function MailboxesPage() {
         <div className="space-y-4">
           <FreeAddressCard />
           {free.data.addresses.length > 0 && <MailboxList domains={[]} freeDomain={free.data.domain} onCreate={() => setCreating(true)} />}
-          <p className="text-sm text-muted">Have your own domain? <Link to="/app/domains" className="font-medium text-brand hover:underline">Add it</Link> for mailboxes and aliases on it.</p>
+          <p className="text-sm text-muted">Have your own domain? <Link to={appHref("/app/domains")} className="font-medium text-brand hover:underline">Add it</Link> for mailboxes and aliases on it.</p>
         </div>
       ) : noDomains ? (
-        <Card><EmptyState icon={<IconMention />} title="Add a domain first" body="Mailboxes and aliases live on your own domain. Add one and we'll walk you through DNS." action={<ButtonLink to="/app/domains">Go to domains <IconArrowRight className="h-4 w-4" /></ButtonLink>} /></Card>
+        <Card><EmptyState icon={<IconMention />} title="Add a domain first" body="Mailboxes and aliases live on your own domain. Add one and we'll walk you through DNS." action={<ButtonLink to={appHref("/app/domains")}>Go to domains <IconArrowRight className="h-4 w-4" /></ButtonLink>} /></Card>
       ) : tab === "mailboxes" ? (
         <MailboxList domains={domains.data ?? []} freeDomain={free.data?.enabled ? free.data.domain : undefined} onCreate={() => setCreating(true)} />
       ) : (

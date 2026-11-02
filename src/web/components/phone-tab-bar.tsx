@@ -4,11 +4,12 @@
  * Patterns compared with open source mobile web apps first (files/teardowns/oss/multies/mobile-web.md).
  */
 import { Link, useLocation } from "react-router";
-import { IconCalendar, IconHome, IconInbox, IconMore, IconTasks, type IconComponent } from "@/web/components/ui/icon";
+import { IconCalendar, IconDocs, IconHome, IconInbox, IconMegaphone, IconMessageCircle, IconMore, IconTasks, type IconComponent } from "@/web/components/ui/icon";
+import type { FourthTab } from "@/shared/nav-menu"; // R121
 import { readStoredTaskView } from "@/web/lib/phone";
 import { cn } from "@/web/lib/cn";
 
-export type PhoneTabId = "home" | "mail" | "tasks" | "calendar" | "more";
+export type PhoneTabId = "home" | "mail" | "tasks" | "calendar" | "more" | "chat" | "social" | "docs"; // R121: chat, social, docs
 
 /** Which tab a route belongs to. Pages without a tab of their own (Docs, Chat, Settings...) light up More. */
 export function activePhoneTab(pathname: string, search: string): PhoneTabId {
@@ -17,6 +18,20 @@ export function activePhoneTab(pathname: string, search: string): PhoneTabId {
   if (/^\/app\/mail(\/|$)/.test(pathname)) return "mail";
   if (/^\/app\/tasks(\/|$)/.test(pathname)) return view === "calendar" ? "calendar" : "tasks";
   return "more";
+}
+
+/**
+ * R121 (layout plan P2, section 9): Home, Mail, Chat, the person's fourth tab (Tasks, Social, Calendar or Docs), More.
+ * A page whose tab is not on the bar lights up More.
+ */
+export function activePhoneTabP2(pathname: string, search: string, fourth: FourthTab): PhoneTabId {
+  const view = new URLSearchParams(search).get("view");
+  if (pathname === "/app" || pathname === "/app/" || pathname.startsWith("/app/my-work")) return "home";
+  if (/^\/app\/mail(\/|$)/.test(pathname)) return "mail";
+  if (/^\/app\/chat(\/|$)/.test(pathname)) return "chat";
+  const own: PhoneTabId | null = /^\/app\/tasks(\/|$)/.test(pathname) ? (view === "calendar" ? "calendar" : "tasks")
+    : /^\/app\/social(\/|$)/.test(pathname) ? "social" : /^\/app\/docs(\/|$)/.test(pathname) ? "docs" : null;
+  return own && own === fourth ? own : "more";
 }
 
 /** The Tasks tab opens the person's last task view, never the calendar (the Calendar tab owns that one). */
@@ -35,10 +50,23 @@ export function badgeText(n: number | undefined): string | null {
 
 type Tab = { id: PhoneTabId; label: string; icon: IconComponent; to?: string; badge?: string | null };
 
-export function PhoneTabBar({ mailUnread, moreOpen, onMore }: { mailUnread: number; moreOpen: boolean; onMore: () => void }) {
+export function PhoneTabBar({ mailUnread, moreOpen, onMore, p2, chatUnread = 0, fourth = "tasks" }: { mailUnread: number; moreOpen: boolean; onMore: () => void;
+  /** R121: the P2 bar (NAV_P2_R121). */ p2?: boolean; chatUnread?: number; fourth?: FourthTab }) {
   const loc = useLocation();
-  const active = moreOpen ? "more" : activePhoneTab(loc.pathname, loc.search);
-  const tabs: Tab[] = [
+  const active = moreOpen ? "more" : p2 ? activePhoneTabP2(loc.pathname, loc.search, fourth) : activePhoneTab(loc.pathname, loc.search);
+  const FOURTH: Record<FourthTab, Tab> = {
+    tasks: { id: "tasks", label: "Tasks", icon: IconTasks, to: tasksTabHref(readStoredTaskView()) },
+    social: { id: "social", label: "Social", icon: IconMegaphone, to: "/app/social" },
+    calendar: { id: "calendar", label: "Calendar", icon: IconCalendar, to: "/app/tasks?view=calendar" },
+    docs: { id: "docs", label: "Docs", icon: IconDocs, to: "/app/docs" },
+  };
+  const tabs: Tab[] = p2 ? [
+    { id: "home", label: "Home", icon: IconHome, to: "/app/my-work" },
+    { id: "mail", label: "Mail", icon: IconInbox, to: "/app/mail", badge: badgeText(mailUnread) },
+    { id: "chat", label: "Chat", icon: IconMessageCircle, to: "/app/chat", badge: badgeText(chatUnread) },
+    FOURTH[fourth],
+    { id: "more", label: "More", icon: IconMore },
+  ] : [
     { id: "home", label: "Home", icon: IconHome, to: "/app/my-work" },
     { id: "mail", label: "Mail", icon: IconInbox, to: "/app/mail", badge: badgeText(mailUnread) },
     { id: "tasks", label: "Tasks", icon: IconTasks, to: tasksTabHref(readStoredTaskView()) },

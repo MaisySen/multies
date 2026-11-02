@@ -5,6 +5,7 @@
  * R54: typed words act ("assign MB-12 to Asha due Fri"): one preview row leads, Enter applies, Undo in the toast.
  * R55: more verbs ("MB-12 done", "MB-12 +urgent -later", "move MB-12 to Website"); the labels in use come from the loaded lists.
  */
+import { appHref } from "@/web/layouts/shell-nav"; // R121
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Command } from "cmdk";
@@ -70,7 +71,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   const [strict, setStrict] = useState(false);
   const close = () => { onOpenChange(false); setSearch(""); setFilters(NO_FILTERS); setStrict(false); };
   const ctx: CommandContext = {
-    navigate: (to) => { close(); navigate(to); },
+    navigate: (to) => { close(); navigate(appHref(to)); }, // R121: moved pages open at their new home
     openSheet: () => { close(); openShortcutsSheet(); },
     openPalette: (p) => { setSearch(""); onPage(p ?? null); },
     toggleTheme: () => { close(); appearance.set(appearance.resolved === "dark" ? "light" : "dark"); },
@@ -102,7 +103,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
     ? { ...r98s, data: { ...r98s.data, groups: r98s.data.groups.map((g) => ({ ...g, items: g.items.filter((it) => !hitKeys.has(`${it.type}:${it.id}`)) })).filter((g) => g.items.length > 0) } }
     : content;
   const typeChoices = TYPE_CHOICES.filter((t) => t.id !== "notes" || !!config.data?.crmTimeline);
-  const openResult = (url: string, title?: string) => { if (title) recordRecent({ kind: "item", id: url, label: title, url, hint: hintForUrl(url) }); close(); navigate(url); };
+  const openResult = (url: string, title?: string) => { if (title) recordRecent({ kind: "item", id: url, label: title, url, hint: hintForUrl(url) }); close(); navigate(appHref(url)); };
 
   const toItem = (c: Cmd): Item => ({
     id: c.id, label: c.title, icon: c.id === "action-theme" && appearance.resolved === "dark" ? IconToday : c.icon ?? IconSearch, keywords: c.keywords,

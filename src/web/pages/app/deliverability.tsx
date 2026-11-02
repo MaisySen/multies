@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { appHref } from "@/web/layouts/shell-nav"; // R121: Mail setup lives in Settings when P2 is on
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconBlock, IconFileUp, IconPlus, IconShieldCheck, IconTrash } from "@/web/components/ui/icon";
@@ -47,7 +48,7 @@ function HealthSection() {
   const q = useQuery({ queryKey: ["deliverability", "health"], queryFn: async () => (await api.get<{ domains: Health[] }>("/deliverability/health")).domains });
   if (q.isPending) return <Skeleton className="h-56" />;
   if (!q.data?.length) {
-    return <Card><EmptyState icon={<IconShieldCheck className="h-5 w-5" />} title="No domains yet" body="Add a domain and its health score shows up here." action={<ButtonLink to="/app/domains" size="sm">Add a domain</ButtonLink>} /></Card>;
+    return <Card><EmptyState icon={<IconShieldCheck className="h-5 w-5" />} title="No domains yet" body="Add a domain and its health score shows up here." action={<ButtonLink to={appHref("/app/domains")} size="sm">Add a domain</ButtonLink>} /></Card>;
   }
   return (
     <section aria-labelledby="health-h">
@@ -57,7 +58,7 @@ function HealthSection() {
           <Card key={h.domainId} className="p-5">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <Link to={`/app/domains/${h.domainId}`} className="block truncate font-medium hover:underline">{h.domain}</Link>
+                <Link to={appHref(`/app/domains/${h.domainId}`)} className="block truncate font-medium hover:underline">{h.domain}</Link>
                 <Badge tone={gradeTone[h.grade]} dot className="mt-1.5">{gradeLabel[h.grade]}</Badge>
               </div>
               <div className="text-right">
@@ -84,7 +85,7 @@ function HealthSection() {
             {(() => {
               const next = h.factors.find((f) => f.status !== "good");
               return next ? (
-                <Link to={`/app/domains/${h.domainId}`} className="mt-3 flex min-h-11 items-center gap-2 rounded-[12px] bg-brand-soft px-3 text-[13px] text-fg transition-colors hover:bg-brand-soft/70" data-testid="health-next">
+                <Link to={appHref(`/app/domains/${h.domainId}`)} className="mt-3 flex min-h-11 items-center gap-2 rounded-[12px] bg-brand-soft px-3 text-[13px] text-fg transition-colors hover:bg-brand-soft/70" data-testid="health-next">
                   <span className="min-w-0 flex-1"><span className="font-semibold text-brand-hover">Next step: </span>{next.label}. Open the domain to fix it.</span>
                   <span aria-hidden className="text-brand-hover">›</span>
                 </Link>

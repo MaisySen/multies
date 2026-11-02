@@ -6,8 +6,9 @@ import { ReadStatusSection } from "./mail/splits"; // R31
 import { AttachmentIndexSection } from "./attachment-index-settings"; // Tools P2 (17)
 import { ShareLinksSetting } from "./work/share-sheet"; // R26 (MB-87)
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import { isNavP2 } from "@/web/layouts/shell-nav"; // R121
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconArchive, IconActivity, IconShield, IconBack, IconBell, IconCalendar, IconCheck, IconChevronRight, IconCode, IconCreditCard, IconDownload, IconKey, IconMail, IconMailCheck, IconPlugZap, IconPlus, IconSearch, IconSend, IconShieldCheck, IconChats, IconSliders, IconSmartphone, IconSparkle, IconMoon, IconTeam, IconTrash, IconWarning } from "@/web/components/ui/icon";
+import { IconArchive, IconActivity, IconShield, IconBack, IconBell, IconCalendar, IconCheck, IconChevronRight, IconCode, IconCreditCard, IconDownload, IconKey, IconMail, IconMailCheck, IconPlugZap, IconPlus, IconSearch, IconSend, IconShieldCheck, IconChats, IconSliders, IconSmartphone, IconSparkle, IconMoon, IconTeam, IconGlobe, IconTrash, IconWarning } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
@@ -64,9 +65,31 @@ export const SETTINGS_GROUPS: { label: string; items: Pane[] }[] = [
   ] },
 ];
 const ALL_PANES = SETTINGS_GROUPS.flatMap((g) => g.items);
+
+/**
+ * R121 (layout plan P2, NAV_P2_R121): Mail setup. Mailboxes, Domains and Deliverability leave the Mail sidebar for the one
+ * Settings sidebar, next to Routing (was Mail routing), Mail apps, Archive and Sign-up emails. Import and export, which
+ * covers more than mail, joins Workspace. Every other group is unchanged.
+ */
+const MAIL_SETUP_PANES: Pane[] = [
+  { to: "/app/settings/mailboxes", label: "Mailboxes", icon: IconTeam, tint: "#0071E3", keywords: "mailbox inbox address alias forward role sales support catch all" },
+  { to: "/app/settings/domains", label: "Domains", icon: IconGlobe, tint: "#30B0C7", keywords: "domain dns records mx spf dkim dmarc verify own name" },
+  { to: "/app/settings/deliverability", label: "Deliverability", icon: IconShieldCheck, tint: "#34C759", keywords: "spam inbox placement health score bounces suppression dmarc reports" },
+];
+export const SETTINGS_GROUPS_P2: { label: string; items: Pane[] }[] = SETTINGS_GROUPS.map((g) => {
+  const importPane = SETTINGS_GROUPS.flatMap((x) => x.items).find((p) => p.to === "/app/settings/import");
+  if (g.label === "Workspace") return { ...g, items: importPane ? [...g.items, importPane] : g.items };
+  if (g.label === "Mail") return { label: "Mail setup", items: [...MAIL_SETUP_PANES, ...g.items.filter((p) => p.to !== "/app/settings/import").map((p) => (p.to === "/app/settings/mail" ? { ...p, label: "Routing" } : p))] };
+  return g;
+});
+const ALL_PANES_P2 = SETTINGS_GROUPS_P2.flatMap((g) => g.items);
+const groupsNow = () => (isNavP2() ? SETTINGS_GROUPS_P2 : SETTINGS_GROUPS);
+const panesNow = () => (isNavP2() ? ALL_PANES_P2 : ALL_PANES);
+
 export function paneFor(path: string): Pane {
   const clean = path.replace(/\/+$/, "") || "/app/settings";
-  return ALL_PANES.find((p) => p.to !== "/app/settings" && (clean === p.to || clean.startsWith(p.to + "/"))) ?? ALL_PANES[0];
+  const all = panesNow();
+  return all.find((p) => p.to !== "/app/settings" && (clean === p.to || clean.startsWith(p.to + "/"))) ?? all[0];
 }
 /** R59: panes tied to a server switch (chat channels, CHAT_CHANNELS) are listed only while it is on. */
 export function panesFor(config: { chatChannels?: boolean; mailArchive?: boolean; reporting?: boolean } | undefined): (p: Pane) => boolean {
@@ -74,8 +97,9 @@ export function panesFor(config: { chatChannels?: boolean; mailArchive?: boolean
 }
 export function matchPanes(q: string): Pane[] {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-  if (!words.length) return ALL_PANES;
-  return ALL_PANES.filter((p) => { const hay = `${p.label} ${p.keywords}`.toLowerCase(); return words.every((w) => hay.includes(w)); });
+  const all = panesNow();
+  if (!words.length) return all;
+  return all.filter((p) => { const hay = `${p.label} ${p.keywords}`.toLowerCase(); return words.every((w) => hay.includes(w)); });
 }
 
 function Tile({ pane, size = "md" }: { pane: Pane; size?: "sm" | "md" }) {
@@ -112,7 +136,7 @@ export function SettingsLayout() {
   const config = useConfig();
   const me = useMe();
   const shown = matchPanes(q).filter(panesFor(config.data)).filter((p) => p.to !== "/app/admin" || !!me.data?.user.platformAdmin);
-  const groups = SETTINGS_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => shown.includes(i)) })).filter((g) => g.items.length);
+  const groups = groupsNow().map((g) => ({ ...g, items: g.items.filter((i) => shown.includes(i)) })).filter((g) => g.items.length);
   const go = () => { if (shown[0]) { navigate(shown[0].to); setQ(""); } };
   return (
     <div className="md:grid md:grid-cols-[236px_minmax(0,1fr)] md:gap-8 lg:gap-10">

@@ -249,6 +249,8 @@ export interface AppConfig {
   sitesExclude?: string;
   /** R124: the blog inside Sites with the subscribe box and email to subscribers through R109 (BLOG_R124=on, needs Sites). Off unless set. */
   blogR124?: boolean;
+  /** R121: layout plan P2 navigation (Contacts section, Settings > Mail setup, Files in Docs, one menu model) (NAV_P2_R121=on). Off unless set. */
+  navP2R121?: boolean;
   /** R99: calendar and contacts sync, CalDAV and CardDAV at /dav with app passwords (DAV_SYNC_R99=on). Off unless set. */
   davSync?: boolean;
   /** R103: Docs plus (link library, web clipper, doc comments, spell check), DOCS_PLUS_R103=on. */
@@ -406,6 +408,7 @@ const EnvSchema = z.object({
   SITES_R123: z.string().optional(),
   SITES_EXCLUDE: z.string().optional(),
   BLOG_R124: z.string().optional(), // R124
+  NAV_P2_R121: z.string().optional(), // R121
   DAV_SYNC_R99: z.string().optional(),
   DOCS_PLUS_R103: z.string().optional(),
   DOCS_PLUS_FAKE_WEB: z.string().optional(),
@@ -839,6 +842,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     sites: ["on", "true", "1"].includes(String(env.SITES_R123 ?? "").toLowerCase()),
     sitesExclude: env.SITES_EXCLUDE ?? "",
     blogR124: ["on", "true", "1"].includes(String(env.BLOG_R124 ?? "").toLowerCase()) && ["on", "true", "1"].includes(String(env.SITES_R123 ?? "").toLowerCase()), // R124
+    navP2R121: ["on", "true", "1"].includes(String(env.NAV_P2_R121 ?? "").toLowerCase()), // R121
     davSync: ["on", "true", "1"].includes(String(env.DAV_SYNC_R99 ?? "").toLowerCase()),
     docsPlus: ["on", "true", "1"].includes(String(env.DOCS_PLUS_R103 ?? "").toLowerCase()),
     docsPlusFakeWeb: env.DOCS_PLUS_FAKE_WEB === "1" && !/multies\.si/.test(String(env.APP_URL ?? "")),

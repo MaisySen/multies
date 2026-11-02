@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import { IconCheck, IconCopy } from "./icon";
 import { cn } from "@/web/lib/cn";
 import { useMarkSkeleton } from "@/web/lib/load-errors-t1g"; // T1G (T1-8)
@@ -97,7 +97,26 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
   );
 }
 
+/**
+ * R121: a page shown inside Settings (Mail setup: Mailboxes, Domains, Deliverability). Settings already shows the
+ * page's name as its large title, so the page's own header keeps its description and actions but not a second title.
+ */
+const InSettings = createContext(false);
+export function SettingsEmbed({ children }: { children: ReactNode }) {
+  return <InSettings.Provider value>{children}</InSettings.Provider>;
+}
+
 export function PageHeader({ title, description, actions, eyebrow }: { title: string; description?: ReactNode; actions?: ReactNode; eyebrow?: string }) {
+  const embedded = useContext(InSettings);
+  if (embedded) {
+    if (!description && !actions) return null;
+    return (
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4" data-testid="embedded-header">
+        {description ? <p className="min-w-0 text-sm text-muted">{description}</p> : <span />}
+        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      </div>
+    );
+  }
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
       <div className="min-w-0">

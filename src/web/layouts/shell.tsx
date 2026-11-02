@@ -10,7 +10,7 @@ import { IconBookmark, IconArrowRightLeft, IconLink, IconMegaphone, IconReceipt,
   IconActivity, IconAgent, IconApprovals, IconAttachment, IconBell, IconBriefcase, IconCalendarClock, IconCalendarPlus, IconChart, IconChats,
   IconChevronDown, IconChevronRight, IconClipboardList, IconCompose, IconContacts, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHome,
   IconHelp, IconInbox, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconSidebar, IconSliders,
-  IconSquarePlus, IconStar, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconVideo, IconWrench, IconZap,
+  IconSquarePlus, IconStar, IconHandshake, IconUserRound, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconVideo, IconWrench, IconZap,
   type IconComponent,
 } from "@/web/components/ui/icon";
 import { buttonClass } from "@/web/components/ui/button";
@@ -20,7 +20,9 @@ import { api } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
 import { openPalette } from "@/web/lib/shortcuts";
 import { isFavourite, ownsSidebar, resetLayout, setLayout, sidebarHiddenOn, toggleFavourite, toggleSidebar, useLayout, type Favourite } from "@/web/lib/layout-prefs";
-import { breadcrumbs, createItems, pageFor, SOCIAL_NEW, type IconKey, type NavFlags, type Section, type SectionId } from "./shell-nav";
+import { breadcrumbs, createItems, isNavP2, pageFor, SOCIAL_NEW, type IconKey, type NavFlags, type Section, type SectionId } from "./shell-nav";
+import { sectionBadge, withoutHidden } from "@/shared/nav-menu"; // R121
+import { openCustomiseMenu } from "@/web/lib/customise-menu"; // R121
 import { LoadErrorInline } from "@/web/components/load-error-t1g";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -35,6 +37,7 @@ export const NAV_ICONS: Record<IconKey, IconComponent> = {
   social: IconMegaphone, planner: IconCalendarDays, posts: IconSend, accounts: IconUserRoundCheck, library: IconBookmark, socialInbox: IconInbox, analytics: IconChart, // P1 layout, R118
   help: IconHelp, // R122
   sites: IconGlobe, // R123
+  people: IconUserRound, deals: IconHandshake, // R121: the Contacts section
 };
 
 /** Counts the shell shows, keyed by page path. "alert" counts use the brand colour; the rest stay neutral. */
@@ -56,9 +59,12 @@ export function IconRail({ sections, active, counts, footer }: { sections: Secti
   const loc = useLocation();
   const hidden = sidebarHiddenOn(layout, loc.pathname);
   // P1 layout: Agents and Settings sit together at the bottom, under a hairline.
-  const main = sections.filter((s) => s.id !== "workspace" && s.id !== "agents");
-  const ag = sections.find((s) => s.id === "agents");
-  const ws = sections.find((s) => s.id === "workspace");
+  // R121 (P2 menu): the person's hidden sections leave the rail (the one you are in stays, so you never lose your place).
+  const p2 = isNavP2();
+  const listed = p2 ? withoutHidden(sections, layout.railHidden, active) : sections;
+  const main = listed.filter((s) => s.id !== "workspace" && s.id !== "agents");
+  const ag = listed.find((s) => s.id === "agents");
+  const ws = listed.find((s) => s.id === "workspace");
   const sectionCount = (s: Section) => {
     const alert = s.pages.reduce((a, p) => a + (counts[p.to]?.alert ? counts[p.to].n : 0), 0);
     return alert;
@@ -66,7 +72,9 @@ export function IconRail({ sections, active, counts, footer }: { sections: Secti
   const item = (s: Section) => {
     const Icon = NAV_ICONS[s.icon];
     const on = s.id === active;
-    const n = sectionCount(s);
+    // R121: the P2 rail shows the same number the More tile shows (what needs you, else the calm unread total).
+    const badge = p2 ? sectionBadge(s, counts) : { n: sectionCount(s), alert: true };
+    const n = badge.n;
     return (
       <Link key={s.id} to={s.to} aria-current={on ? "page" : undefined} data-testid={`rail-${s.id}`}
         className={cn("group relative flex w-16 flex-col items-center gap-0.5 rounded-lg py-1.5 text-[10px] font-medium tracking-[-0.01em] transition-colors duration-150 motion-reduce:transition-none",
@@ -76,7 +84,7 @@ export function IconRail({ sections, active, counts, footer }: { sections: Secti
           <Icon filled={on} className="h-[19px] w-[19px]" aria-hidden />
         </span>
         <span className="max-w-full truncate px-0.5">{s.label}</span>
-        {n > 0 && <span className="absolute right-1.5 top-0.5 min-w-[16px] rounded-full bg-brand px-1 text-center text-[10px] font-semibold leading-4 text-brand-fg" aria-label={`${n} need you`}>{n > 99 ? "99+" : n}</span>}
+        {n > 0 && <span className={cn("absolute right-1.5 top-0.5 min-w-[16px] rounded-full px-1 text-center text-[10px] font-semibold leading-4", badge.alert ? "bg-brand text-brand-fg" : "bg-fill text-muted")} aria-label={badge.alert ? `${n} need you` : `${n} unread`}>{n > 99 ? "99+" : n}</span>}
       </Link>
     );
   };
@@ -283,6 +291,7 @@ export function ViewMenu() {
       <MenuItem checked={density !== "compact"} onSelect={() => setLayout({ density: "comfortable" })}>Comfortable</MenuItem>
       <MenuItem checked={density === "compact"} onSelect={() => setLayout({ density: "compact" })}>Compact</MenuItem>
       <div className="my-1 border-t border-line" />
+      {isNavP2() && <MenuItem onSelect={openCustomiseMenu}>Customise menu</MenuItem>}{/* R121 */}
       <MenuItem onSelect={resetLayout}>Reset layout</MenuItem>
     </Menu>
   );

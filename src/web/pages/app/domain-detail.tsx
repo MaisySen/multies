@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { appHref } from "@/web/layouts/shell-nav"; // R121: Mail setup lives in Settings when P2 is on
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconArrowLeft, IconCheck, IconChevronDown, IconClose, IconInfo, IconRefresh, IconSpinner, IconWarning } from "@/web/components/ui/icon";
@@ -51,7 +52,7 @@ export function DomainDetailPage() {
 
   return (
     <>
-      <Link to="/app/domains" className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg"><IconArrowLeft className="h-4 w-4" />Domains</Link>
+      <Link to={appHref("/app/domains")} className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg"><IconArrowLeft className="h-4 w-4" />Domains</Link>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3"><h1 className="truncate text-2xl font-semibold tracking-tight">{d.name}</h1><DomainStatusBadge status={d.status} /></div>
@@ -114,7 +115,7 @@ function SetupProgress({ domain: d, passing, required, mailboxes }: { domain: Do
       <Stepper steps={steps} current={current} label={`Setup of ${d.name}`} />
       <div className="mt-4 flex flex-col gap-3 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm"><span className="font-semibold">{current === -1 ? "All set. " : "Next step. "}</span><span className="text-muted">{line}</span></p>
-        {next === "mailbox" && <Link to="/app/mailboxes" className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand px-3.5 text-[13px] font-medium text-white transition-colors duration-150 hover:bg-brand-hover max-sm:min-h-11">Create a mailbox</Link>}
+        {next === "mailbox" && <Link to={appHref("/app/mailboxes")} className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand px-3.5 text-[13px] font-medium text-white transition-colors duration-150 hover:bg-brand-hover max-sm:min-h-11">Create a mailbox</Link>}
         {next === "records" && <a href="#dns-records" className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-fill px-3.5 text-[13px] font-medium transition-colors duration-150 hover:bg-hover max-sm:min-h-11">Show the records</a>}
       </div>
     </Card>
@@ -250,7 +251,7 @@ function DangerZone({ domain }: { domain: Domain }) {
   const navigate = useNavigate();
   const m = useMutation({
     mutationFn: () => api.del(`/domains/${domain.id}`),
-    onSuccess: () => { qc.invalidateQueries(); toast.success(`${domain.name} removed`); navigate("/app/domains"); },
+    onSuccess: () => { qc.invalidateQueries(); toast.success(`${domain.name} removed`); navigate(appHref("/app/domains")); },
     onError: (e) => showError(e),
   });
   return (

@@ -6,6 +6,7 @@
 import { fakeAskAi, fakeAskAllowed } from "../server/services/ask-fake"; // R110
 import { MemoryToolFileStore } from "../server/services/tools/p2-bindings";
 import { isKnownPage } from "../shared/known-routes";
+import { movedPath } from "../shared/nav-menu"; // R121
 import * as Sentry from "@sentry/node";
 import { sentryPrivacy } from "../shared/sentry-scrub";
 import { S3BodyStore } from "../server/services/storage/body-store";
@@ -136,6 +137,8 @@ if (existsSync(webRoot)) {
     try { return existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as LoginPrerender) : null; } catch { return null; }
   };
   const pageHtml = (p: string, search: string) => loginHtmlFor(p, search, AUTH_CARD_PATH.test(p) ? loginPrerender() : null, variant) ?? readFileSync(path.join(webRoot, shellPath(p)), "utf8");
+  // R121 (NAV_P2_R121): an old mail setup address lands in Settings, Mail setup (302: the switch can be turned off).
+  app.get("*", (c, next) => { const moved = config.navP2R121 ? movedPath(c.req.path) : null; return moved ? c.redirect(`${moved}${new URL(c.req.url).search}`, 302) : next(); });
   app.get("*", (c) => (c.req.path.startsWith("/api/") ? c.notFound() : c.html(withOriginHints(pageHtml(c.req.path, new URL(c.req.url).search), hints), isKnownPage(c.req.path) ? 200 : 404)));
 }
 

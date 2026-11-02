@@ -6,6 +6,7 @@
  */
 import { useSyncExternalStore } from "react";
 
+import { cleanFourthTab, cleanHidden, type FourthTab, type SectionId } from "@/shared/nav-menu"; // R121
 export type MailPane = "right" | "bottom" | "off";
 export type TaskDetails = "side" | "overlay";
 export type Density = "comfortable" | "compact";
@@ -23,10 +24,14 @@ export interface LayoutPrefs {
   favourites: Favourite[];
   /** Sidebar sections the person folded (Favourites, Projects). */
   folded: string[];
+  /** R121: rail sections the person hid (P2 menu); Home and Settings cannot be hidden. */
+  railHidden: SectionId[];
+  /** R121: the phone's fourth tab (P2 menu): Tasks, Social, Calendar or Docs. */
+  fourthTab: FourthTab;
 }
 
 export const DEFAULT_LAYOUT: LayoutPrefs = {
-  sidebarCollapsed: false, sidebarOnMail: false, mailPane: "right", taskDetails: "side", timelinePeople: false, density: null, favourites: [], folded: [],
+  sidebarCollapsed: false, sidebarOnMail: false, mailPane: "right", taskDetails: "side", timelinePeople: false, density: null, favourites: [], folded: [], railHidden: [], fourthTab: "tasks",
 };
 
 const PREFIX = "multies.layout.";
@@ -55,6 +60,8 @@ export function sanitize(raw: unknown): LayoutPrefs {
       && typeof (f as Favourite).to === "string" && (f as Favourite).to.startsWith("/app")).slice(0, 30)
       .map((f) => ({ kind: f.kind, id: f.id.slice(0, 80), label: f.label.slice(0, 80), to: f.to.slice(0, 300) })),
     folded: Array.isArray(o.folded) ? o.folded.filter((x): x is string => typeof x === "string").slice(0, 20) : [],
+    railHidden: cleanHidden(o.railHidden), // R121
+    fourthTab: cleanFourthTab(o.fourthTab), // R121
   };
 }
 
@@ -117,6 +124,14 @@ export function resetLayout() {
   applyDensity(cache);
   emit();
 }
+
+/** R121: hide or show one rail section (Home and Settings always stay). */
+export function setRailHidden(id: SectionId, hide: boolean) {
+  const now = readLayout().railHidden;
+  setLayout({ railHidden: cleanHidden(hide ? [...now, id] : now.filter((x) => x !== id)) });
+}
+/** R121: back to the default menu (every section shown, Tasks as the fourth phone tab). The rest of the layout stays. */
+export function resetMenu() { setLayout({ railHidden: [], fourthTab: "tasks" }); }
 
 export function toggleFavourite(f: Favourite) {
   const cur = readLayout().favourites;

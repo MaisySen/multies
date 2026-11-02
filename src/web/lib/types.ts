@@ -27,6 +27,8 @@ export interface PublicConfig {
   sites?: boolean;
   /** R124: the blog in Sites (BLOG_R124). */
   blog?: boolean;
+  /** R121: layout plan P2 navigation (NAV_P2_R121). */
+  navP2?: boolean;
   /** R98: typo tolerant search with filters and instant results (SEARCH_R98). */
   searchR98?: boolean;
   /** R110: Ask across the workspace (ASK_R110). */

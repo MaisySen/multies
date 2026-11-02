@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { appHref } from "@/web/layouts/shell-nav"; // R121: Mail setup lives in Settings when P2 is on
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { IconCheckCircle, IconChevronRight, IconGlobe, IconMails, IconPlus } from "@/web/components/ui/icon";
@@ -54,7 +55,7 @@ function DomainRow({ d }: { d: Domain }) {
   const verified = d.status === "verified";
   const r = 13, c = 2 * Math.PI * r;
   return (
-    <Link to={`/app/domains/${d.id}`} className="group flex items-center gap-4 p-4 transition-colors duration-150 hover:bg-hover motion-reduce:transition-none sm:p-5">
+    <Link to={appHref(`/app/domains/${d.id}`)} className="group flex items-center gap-4 p-4 transition-colors duration-150 hover:bg-hover motion-reduce:transition-none sm:p-5">
       <div className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-[11px] [&_svg]:h-5 [&_svg]:w-5", verified ? "bg-ok-soft text-ok" : d.status === "failed" ? "bg-bad-soft text-bad" : "bg-brand-soft text-brand-hover")} aria-hidden><IconGlobe /></div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2"><span className="truncate text-[15px] font-semibold">{d.name}</span><DomainStatusBadge status={d.status} /></div>
@@ -88,7 +89,7 @@ export function AddDomainDialog({ open, onClose }: { open: boolean; onClose: () 
       toast.success(`${domain.name} added`, { description: "Next: publish its DNS records." });
       onClose();
       setName("");
-      navigate(`/app/domains/${domain.id}`);
+      navigate(appHref(`/app/domains/${domain.id}`));
     },
     onError: (e) => setErr(e instanceof ApiError ? e.message : "Couldn't add the domain."),
   });

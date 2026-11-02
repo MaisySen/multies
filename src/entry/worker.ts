@@ -4,6 +4,7 @@
  * (at most every 10 minutes) and on a cron trigger when one is configured.
  */
 import { kvToolFileStore, type AiRunner } from "../server/services/tools/p2-bindings";
+import { movedPath } from "../shared/nav-menu"; // R121
 import { WEB_META_PATHS } from "../server/routes/web-meta-r32"; // R32: /version.json, /llms.txt
 import { isKnownPage } from "../shared/known-routes";
 import { metaFor, SITE_URL } from "../web/components/seo-meta";
@@ -500,6 +501,12 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
     // R34: static HTML files (the offline page) get no-transform too, so nothing is injected into them.
     if (res.headers.get("content-type")?.startsWith("text/html")) res.headers.set("cache-control", htmlCacheControl(res.headers.get("cache-control") ?? "no-cache"));
     return res;
+  }
+  // R121 (NAV_P2_R121): an old mail setup address (a bookmark, a shared link) lands in Settings, Mail setup.
+  // 302, not 301: browsers keep a 301, and the switch can still be turned off.
+  if (request.method === "GET" && ["on", "true", "1"].includes((envVar(env, "NAV_P2_R121") ?? "").toLowerCase())) {
+    const moved = movedPath(url.pathname);
+    if (moved) return new Response(null, { status: 302, headers: { location: `${moved}${url.search}`, "cache-control": "no-store" } });
   }
   // Every app route renders the app shell, which routes client-side.
   const shell = typeof __MYMAIL_SHELL_HTML__ === "string"
