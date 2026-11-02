@@ -1,5 +1,5 @@
 /**
- * TD1 AI trust controls (Settings > AI, flag ASK_TD1): AI is off until an admin turns it on. Everyone sees whether AI is
+ * TD1 AI trust controls (Settings > AI, flag ASK_TD1): AI is on by default; an admin can turn it off. Everyone sees whether AI is
  * on, which provider runs each feature and where it runs. Only admins see the switch. Its own file so the AI key screen
  * (rebuilt separately) is untouched.
  */
@@ -13,7 +13,7 @@ import { LoadFailure } from "@/web/components/load-error-t1g";
 import { Section } from "./settings";
 
 export interface AiTrust {
-  controls: boolean; on: boolean; source: "admin" | "own_key" | "default"; canChange: boolean; updatedAt: string | null;
+  controls: boolean; on: boolean; source: "admin" | "default"; canChange: boolean; updatedAt: string | null;
   providers: { use: string; name: string; region: string }[];
 }
 
@@ -49,7 +49,7 @@ export function AiTrustSection() {
                   </p>
                   <p className="mt-1 text-muted">{q.data.on ? TRUST_ON_LINE : TRUST_OFF_LINE}</p>
                   {!q.data.canChange && <p className="mt-1 text-xs text-subtle" data-testid="ai-trust-member">Only an admin can change this.</p>}
-                  {q.data.source === "own_key" && <p className="mt-1 text-xs text-subtle">On because an admin added the workspace's own AI key.</p>}
+                  {q.data.on && q.data.source === "default" && <p className="mt-1 text-xs text-subtle" data-testid="ai-trust-default">On by default. An admin can turn it off at any time.</p>}
                 </div>
                 {q.data.canChange && (
                   <div className="flex min-h-11 items-center" data-testid="ai-trust-switch">

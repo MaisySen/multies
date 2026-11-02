@@ -488,7 +488,7 @@ export async function askState(deps: Deps, actor: SuiteActor) {
   assertPerson(actor);
   if (await excluded(deps, actor.orgId)) return { available: false, reason: EXCLUDED_MESSAGE };
   if (deps.config.askTd1 && !(await aiAllowed(deps, actor.orgId))) {
-    // TD1: AI is off until an admin turns it on. Admins get the switch; members get who to ask.
+    // TD1: an admin turned AI off. Admins get the switch; members get who to ask.
     const admin = actor.role === "owner" || actor.role === "admin";
     return { available: false, reason: admin ? AI_OFF_MESSAGE : AI_OFF_MEMBER, aiOff: true, canEnable: admin };
   }

@@ -4,8 +4,8 @@ import { mkdirSync } from "node:fs";
 import { confirmEmail } from "./support/confirm-email";
 
 /**
- * TD1 Ask v2 (run with E2E_TD1=on: ASK_TD1 on, ASK_AI_FAKE=1 so the AI is a local stand in). AI off until an admin
- * turns it on (admin switch, member read only, Ask says so); Ask about this from a task, a doc and a meeting; coverage
+ * TD1 Ask v2 (run with E2E_TD1=on: ASK_TD1 on, ASK_AI_FAKE=1 so the AI is a local stand in). AI on by default; an
+ * admin turns it off (admin switch, member read only, Ask says so, no provider call) and back on; Ask about this from a task, a doc and a meeting; coverage
  * line; a cited source shown as gone once deleted; Ctrl K matches by meaning; error with Retry and offline.
  * SHOTS_DIR writes shots at 1280 and 390, light, dark and Forest, with axe on each.
  */
@@ -58,9 +58,20 @@ test.beforeAll(async ({ browser }) => {
 });
 test.afterAll(async () => { await owner?.ctx.close(); await member?.ctx.close(); });
 
-test("AI is off until an admin turns it on: Ask says so, admin gets the way there", async () => {
+test("AI is on by default; an admin turns it off, the member sees it read only, and Ask says so", async () => {
   const page = owner.page;
   await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto("/app/settings#ai-trust");
+  await expect(page.getByTestId("ai-trust-status")).toContainText("AI is on", { timeout: 20_000 });
+  await expect(page.getByTestId("ai-trust-default")).toBeVisible();
+  await member.page.goto("/app/settings#ai-trust");
+  await expect(member.page.getByTestId("ai-trust-status")).toContainText("AI is on", { timeout: 20_000 });
+  await expect(member.page.getByTestId("ai-trust-member")).toBeVisible();
+  await expect(member.page.getByTestId("ai-trust-switch")).toHaveCount(0);
+  expect((await member.page.request.put("/api/ai-trust", { data: { enabled: false }, headers: member.headers })).status()).toBe(403);
+  await page.getByRole("switch", { name: "Allow AI in this workspace" }).focus();
+  await page.keyboard.press("Space");
+  await expect(page.getByTestId("ai-trust-status")).toContainText("AI is off");
   await page.goto("/app/tools/ask");
   await expect(page.getByTestId("ask-ai-off")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId("ask-ai-off-settings")).toBeVisible();
@@ -72,10 +83,9 @@ test("AI is off until an admin turns it on: Ask says so, admin gets the way ther
   expect((await member.page.request.post("/api/ask", { data: { question: "kestrel launch" }, headers: member.headers })).status()).toBe(409);
 });
 
-test("Settings: only an admin switches AI on; everyone sees the provider and where it runs", async () => {
+test("Settings: only an admin switches AI back on; everyone sees the provider and where it runs", async () => {
   await member.page.goto("/app/settings#ai-trust");
-  await expect(member.page.getByTestId("ai-trust")).toBeVisible({ timeout: 20_000 });
-  await expect(member.page.getByTestId("ai-trust-member")).toBeVisible();
+  await expect(member.page.getByTestId("ai-trust-status")).toContainText("AI is off", { timeout: 20_000 });
   await expect(member.page.getByTestId("ai-trust-switch")).toHaveCount(0);
   const page = owner.page;
   await page.goto("/app/settings#ai-trust");

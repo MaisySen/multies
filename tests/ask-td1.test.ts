@@ -4,6 +4,7 @@ import { makeTestApp, Client } from "./helpers";
 import { crmEntries } from "@/server/db/schema";
 import { cosine, parseAbout, stemOf, widenWords } from "@/server/services/ask-td1";
 import { askAi } from "@/server/services/tools/ai-meter";
+import { deliverInbound } from "@/server/services/mail/delivery";
 import { coverageLine, whereOf } from "@/shared/ask-td1";
 
 /** TD1 Ask v2: AI trust gate (off means no provider call), coverage, gone sources, ask about this, meaning search, log scrub. */
@@ -106,10 +107,14 @@ describe("flag off: today exactly", () => {
 describe("TD1 on", () => {
   beforeEach(() => setup({ ASK_TD1: "on" }));
 
-  it("AI is off until an admin turns it on, and off means no provider call at all", async () => {
+  it("AI is on by default; once an admin turns it off there is no provider call at all", async () => {
     await c.post("/api/tasks", { title: "Heron launch" });
     const state = (await c.get("/api/ai-trust")).body;
-    expect(state).toMatchObject({ controls: true, on: false, source: "default", canChange: true });
+    expect(state).toMatchObject({ controls: true, on: true, source: "default", canChange: true });
+    expect((await ask(c, "heron launch")).body.message.status).toBe("answered");
+    expect(prompts).toHaveLength(1);
+    prompts.length = 0;
+    expect((await c.put("/api/ai-trust", { enabled: false })).body).toMatchObject({ on: false, source: "admin" });
     const r = await ask(c, "heron launch");
     expect(r.status).toBe(409);
     expect((await c.get("/api/ask/state")).body).toMatchObject({ available: false, aiOff: true, canEnable: true });
@@ -124,7 +129,8 @@ describe("TD1 on", () => {
 
   it("only admins change it; members see that AI is on and which provider", async () => {
     const member = await teammate();
-    expect((await member.put("/api/ai-trust", { enabled: true })).status).toBe(403);
+    expect((await member.put("/api/ai-trust", { enabled: false })).status).toBe(403);
+    expect((await member.get("/api/ai-trust")).body).toMatchObject({ on: true, source: "default", canChange: false });
     await turnOn();
     const seen = (await member.get("/api/ai-trust")).body;
     expect(seen).toMatchObject({ on: true, source: "admin", canChange: false });
@@ -134,11 +140,28 @@ describe("TD1 on", () => {
     expect((await ask(member, "anything at all")).status).toBe(409);
   });
 
-  it("a workspace that saved its own key counts as on and names that provider", async () => {
+  it("a workspace with its own key names that provider, and an admin's off still wins over the key", async () => {
     expect((await c.put("/api/ai/key", { provider: "openai", apiKey: "fake-local-key-for-tests" })).status).toBe(200);
     const s = (await c.get("/api/ai-trust")).body;
-    expect(s).toMatchObject({ on: true, source: "own_key" });
+    expect(s).toMatchObject({ on: true, source: "default" });
     expect(s.providers.map((p: { name: string }) => p.name)).toContain("OpenAI");
+    expect((await c.put("/api/ai-trust", { enabled: false })).body.on).toBe(false);
+    expect((await ask(c, "anything at all")).status).toBe(409);
+    // Mail AI on the workspace's own key refuses too, with no provider call.
+    const domainId = (await c.post("/api/domains", { name: "acme.io" })).body.domain.id;
+    const box = (await c.post("/api/mailboxes", { domainId, localPart: "hello", displayName: "Hello" })).body.mailbox;
+    await deliverInbound(ctx.deps, {
+      envelopeFrom: "maria@blueharbor.example", rcptTo: "hello@acme.io", sizeBytes: 500, via: "test",
+      email: { messageId: "<td1@blueharbor.example>", from: { address: "maria@blueharbor.example", name: "Maria" }, to: [{ address: "hello@acme.io" }], cc: [], subject: "Moving",
+        text: "Can we move this week?", date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+    } as never);
+    const messageId = (await c.get(`/api/mail/messages?mailboxId=${box.id}&folder=inbox`)).body.messages[0].id;
+    for (const path of ["/api/ai/summary", "/api/ai/draft"]) {
+      const r = await c.post(path, { messageId });
+      expect(r.status).toBe(409);
+      expect(r.body.error?.code ?? r.body.code).toBe("ai_off");
+    }
+    expect(fetched).toHaveLength(0);
   });
 
   it("answers about one item first, and says what it read", async () => {
