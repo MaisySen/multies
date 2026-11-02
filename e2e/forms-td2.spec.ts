@@ -56,7 +56,8 @@ const PRO = (oneAtATime = false) => ({ name: "Supplier sign up", target: "task",
   { id: "sig", label: "Signature", type: "signature", required: true },
 ] });
 const OFF = process.env.FORMS_TD2 === "off";
-test.beforeEach((_fixtures, info) => { test.skip(OFF !== info.title.startsWith("flag off"), OFF ? "TD2 flows need FORMS_TD2 on" : "flag off check runs with FORMS_TD2=off"); });
+// eslint-disable-next-line no-empty-pattern
+test.beforeEach(({}, info) => { test.skip(OFF !== info.title.startsWith("flag off"), OFF ? "TD2 flows need FORMS_TD2 on" : "flag off check runs with FORMS_TD2=off"); });
 
 test("flag off: the builder, the API and the public page are as before", async ({ page }) => {
   await demo(page);
