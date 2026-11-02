@@ -147,7 +147,7 @@ async function postOnce<T>(path: string, body: unknown = {}, opts: RequestOption
 export const api = {
   /** POST for creates: sends an Idempotency-Key and reuses it when the same action is retried. */
   create: <T>(p: string, b: unknown = {}, o?: RequestOptions) => postOnce<T>(p, b, o),
-  get: <T>(p: string) => request<T>("GET", p),
+  get: <T>(p: string, opts?: RequestOptions) => request<T>("GET", p, undefined, opts),
   post: <T>(p: string, b: unknown = {}, o?: RequestOptions) => request<T>("POST", p, b, o),
   patch: <T>(p: string, b: unknown, o?: RequestOptions) => request<T>("PATCH", p, b, o),
   put: <T>(p: string, b: unknown) => request<T>("PUT", p, b),

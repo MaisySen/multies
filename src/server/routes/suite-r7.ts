@@ -137,7 +137,13 @@ export function meetingRoutes() {
 /** No sign-in: the public form page and the meeting guest page. */
 export function publicRoutes() {
   return new Hono<AppEnv>()
-    .get("/forms/:slug", async (c) => c.json({ form: await publicForm(c.var.deps, c.req.param("slug")) }))
+    .get("/forms/:slug", async (c) => {
+      // TD7: a visitor who opened a password form sends its signed access token, so a refresh keeps the questions.
+      const access = c.req.header("x-form-access");
+      const form = await publicForm(c.var.deps, c.req.param("slug"), access ? { access } : {});
+      if (access) c.header("cache-control", "private, no-store");
+      return c.json({ form });
+    })
     .post("/forms/:slug", async (c) => {
       const raw = (await c.req.json().catch(() => ({}))) as { answers?: Record<string, unknown>; turnstileToken?: string; website?: string; elapsedMs?: number; hidden?: unknown; shield?: unknown; td7Access?: unknown; td7Resume?: unknown };
       // R93: hidden field values and the spam shield answer (checked only when Forms plus is on for the workspace).

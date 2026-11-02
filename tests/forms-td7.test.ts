@@ -153,6 +153,16 @@ describe("TD7 server enforcement", () => {
     const ok = await pub(t, "POST", `/api/public/forms/${f.slug}/password`, { password: "Secret word 77" });
     expect(ok.status).toBe(200);
     expect(ok.body.form.fields).toHaveLength(3);
+    // a refresh with the signed access header keeps the questions (private, never cached); a changed token stays locked
+    const ref = async (access: string) => t.app.request(`/api/public/forms/${f.slug}`, { headers: { host: "localhost", "x-form-access": access, "cf-connecting-ip": "10.2.2.2" } });
+    const kept = await ref(ok.body.access);
+    const keptBody = await kept.json() as { form: { fields: unknown[]; td7: { locked: boolean } } };
+    expect(keptBody.form.td7.locked).toBe(false);
+    expect(keptBody.form.fields).toHaveLength(3);
+    expect(kept.headers.get("cache-control")).toBe("private, no-store");
+    const bad = await (await ref(ok.body.access + "x")).json() as { form: { fields: unknown[]; td7: { locked: boolean } } };
+    expect(bad.form.td7.locked).toBe(true);
+    expect(bad.form.fields).toEqual([]);
     expect((await send(t, f.slug, A(1), { td7Access: ok.body.access })).status).toBe(200);
     expect((await send(t, f.slug, A(2), { td7Access: ok.body.access + "x" })).status).toBe(401);
     for (let i = 0; i < 10; i++) await pub(t, "POST", `/api/public/forms/${f.slug}/password`, { password: `nope${i}` }, "10.9.9.9");

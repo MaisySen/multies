@@ -28,7 +28,7 @@ import { FormResults, LogicEditor, RoutingEditor, type BuilderField } from "./fo
 import { ApiError } from "@/web/lib/api";
 import { ScrollRow } from "@/web/components/ui/scroll-row"; // F13b
 import { ReferencesPanel } from "@/web/components/mentions-td5"; // TD5
-import { Td7Shell, Td7SaveResume, td7Body } from "./forms-td7/public-td7"; // TD7
+import { Td7Shell, Td7SaveResume, td7Access, td7Body } from "./forms-td7/public-td7"; // TD7
 import { Td7FormDialog, Td7Starter } from "./forms-td7/owner-td7"; // TD7
 
 type FieldType = FormFieldType;
@@ -261,7 +261,7 @@ declare global { interface Window { turnstile?: { render: (el: HTMLElement, opts
 
 /** The public form at /f/<slug>. No sign-in. */
 type PublicFormRow = { name: string; description: string; workspace: string; fields: (FormField & { id: string })[]; turnstileSiteKey: string | null; plus?: PublicFormData["plus"]; /** TD2 */ td2?: Td2Settings };
-const usePublicForm = (slug: string | undefined) => useQuery({ queryKey: ["public-form", slug], retry: false, queryFn: async () => (await api.get<{ form: PublicFormRow }>(`/public/forms/${slug}`)).form });
+const usePublicForm = (slug: string | undefined) => useQuery({ queryKey: ["public-form", slug], retry: false, queryFn: async () => { const access = td7Access(slug); return (await api.get<{ form: PublicFormRow }>(`/public/forms/${slug}`, access ? { headers: { "x-form-access": access } } : undefined)).form; } }); // TD7: an opened password form stays open on refresh
 
 /** The public form at /f/<slug> (and /f/<slug>/embed inside the website bubble). R93: chat style when the form asks for it. */
 export function PublicFormPage() {
