@@ -6,6 +6,11 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## TD4 Time to invoice (2026-11-02)
+
+- Invoices and quotes has a Bill time tab (owners and admins, flag BILL_TD4): unbilled billable time by person and task at the most specific rate, rounding per entry stated on each line, Create draft invoice makes a draft in the existing invoices with integer cents; billed entries are locked to the invoice by a conditional update so two runs can never bill the same time, and deleting the draft or voiding the invoice releases them (migration 0155).
+- Home has a Time to bill card for managers (unbilled hours and value per client); billed entries refuse edit and delete; past runs list with a CSV export that neutralises formula cells; members 403, other workspaces 404, flag off 404.
+
 ## MH1 App to web sign in handoff (2026-11-02)
 
 - POST /api/auth/mobile/web-link (the app's signed in session) answers a one time code {code, expires_in: 60}: 256 random bits, only its SHA-256 stored (verifications table), bound to the person and workspace (flag MOBILE_WEB_LINK; off answers 404; no migration)

@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-02-bill-time",
+    date: "2026-11-02",
+    title: "Bill time",
+    body: "Turn tracked hours into a draft invoice in a few clicks: pick a project and dates, set rates and rounding, and the billed time is locked so it is never billed twice. Home shows the hours still to bill.",
+  },
+  {
     id: "2026-11-02-meeting-tasks",
     date: "2026-11-02",
     title: "Meetings to tasks",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-02",
     title: "Courses for staff training",
     body: "In Docs, build a course from your pages, file and video links and a quiz with a pass mark. Assign it to people with a due date and they get reminders, follow their progress in My learning and download a certificate when they finish. Admins and managers see everyone's progress and can export it as CSV.",
-  },
-  {
-    id: "2026-11-01-sites",
-    date: "2026-11-01",
-    title: "Build a simple website for your team",
-    body: "Start a site from the Create menu. Build pages from ready blocks with a live preview, save drafts, go back to any version and publish now or at a set time. Add your forms and booking pages, let visitors comment once you approve, and see visits with no personal data kept.",
   },
   {
     id: "2026-10-28-whats-new",
