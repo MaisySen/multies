@@ -8,13 +8,14 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { IconCheck, IconCheckCircle, IconClose, IconListPlus, IconMailPlus, IconQuote, IconRefresh, IconSparkle, IconUndo } from "@/web/components/ui/icon";
+import { IconCheck, IconCheckCircle, IconClose, IconListPlus, IconMailPlus, IconQuote, IconSparkle, IconUndo } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { Input, Select, Textarea } from "@/web/components/ui/input";
 import { Card, Skeleton } from "@/web/components/ui/misc";
 import { attachToNewEmail } from "@/web/lib/compose-files";
+import { LoadErrorInline, LoadFailure } from "@/web/components/load-error-t1g";
 
 interface Who { type: "member" | "agent"; id: string; name: string }
 export interface Suggestion {
@@ -71,9 +72,9 @@ export function MeetingSuggestions({ meetingId }: { meetingId: string }) {
   if (q.isPending) return <Card className="mt-4 p-5" data-testid="meeting-suggest-loading"><Skeleton className="h-5 w-48" /><Skeleton className="mt-3 h-20" /></Card>;
   if (q.isError || !v) {
     return (
-      <Card className="mt-4 flex items-center gap-3 p-5" data-testid="meeting-suggest-error" role="alert">
-        <p className="min-w-0 flex-1 text-[13px] text-muted">Suggested action items didn't load. Check your connection and try again.</p>
-        <Button size="sm" variant="secondary" onClick={() => void q.refetch()} data-testid="meeting-suggest-retry"><IconRefresh className="h-4 w-4" />Retry</Button>
+      <Card className="mt-4 p-5" data-testid="meeting-suggest-error">
+        <h2 className="mb-2 text-[13px] font-semibold">Suggested action items</h2>
+        <LoadFailure error={q.error} onRetry={() => q.refetch()} />
       </Card>
     );
   }
@@ -158,7 +159,7 @@ export function MeetingSuggestions({ meetingId }: { meetingId: string }) {
       )}
       {showText && source !== "pasted" && (
         textQ.isPending ? <Skeleton className="mt-3 h-32" />
-          : textQ.isError ? <div className="mt-3 flex items-center gap-2 text-[13px] text-muted" role="alert">The text didn't load.<Button size="sm" variant="ghost" onClick={() => void textQ.refetch()}>Retry</Button></div>
+          : textQ.isError ? <LoadErrorInline className="mt-3" onRetry={() => textQ.refetch()} />
           : <pre ref={pane} tabIndex={0} aria-label="Meeting text. Select words, then make a task from them." onMouseUp={readSelection} onKeyUp={readSelection}
               className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-md bg-fill p-3 font-sans text-[13px] leading-relaxed focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" data-testid="meeting-suggest-text">{textQ.data?.text || "Nothing here yet."}</pre>
       )}

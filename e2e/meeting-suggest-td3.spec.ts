@@ -14,6 +14,7 @@ const ip = () => `10.195.${test.info().workerIndex % 200}.${++visitor}`;
 const TRANSCRIPT = "Maria: Let's ship the pricing page on Friday. Sam: I will write the launch email by Thursday.";
 const FAKE_KEY = ["sk", "e2e", "td3", "fake", "key", "0123456789"].join("-");
 const OFF = process.env.MEET_TD3 === "off";
+// eslint-disable-next-line no-empty-pattern
 test.beforeEach(({}, info) => { test.skip(OFF !== info.title.startsWith("flag off"), OFF ? "TD3 flows need MEET_TD3 on" : "flag off check runs with MEET_TD3=off"); });
 
 async function demo(page: Page) {
@@ -127,7 +128,7 @@ test("load error with Retry, slow load skeleton, offline", async ({ page }) => {
   await axe(page, "error");
   await shot(page, "td3-error-1280-light");
   fail = false;
-  await page.getByTestId("meeting-suggest-retry").click();
+  await page.getByTestId("meeting-suggest-error").getByTestId("load-error-retry").click();
   await expect(page.getByTestId("meeting-suggest")).toBeVisible();
   await page.unroute(`**/api/meeting-td3/${id}`);
   await page.route(`**/api/meeting-td3/${id}`, async (route) => { await new Promise((r) => setTimeout(r, 1500)); await route.continue(); });

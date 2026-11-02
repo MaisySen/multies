@@ -9,10 +9,11 @@
  * call, and the manual path (select text, make task) works with AI on or off.
  * Privacy: transcript, notes, titles and quotes never reach logs or Sentry; logs carry ids, counts and status only.
  */
-import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { docs, meetingRecordings, meetingSuggestions, members, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
+import { inIds } from "../../lib/sql-chunks";
 import { assertWritable, sortableId, type SuiteActor } from "./common";
 import { isPerson } from "./calendar-sync";
 import { getMeeting, type Meeting } from "./meetings";
@@ -313,7 +314,7 @@ export async function undoSuggestions(deps: Deps, a: SuiteActor, meetingId: stri
   assertWritable(a);
   await getMeeting(deps, a, meetingId);
   if (!ids.length) return { undone: [], suggestions: await view(deps, a, meetingId) };
-  const list = await deps.db.select().from(meetingSuggestions).where(and(eq(meetingSuggestions.orgId, a.orgId), eq(meetingSuggestions.meetingId, meetingId), inArray(meetingSuggestions.id, ids.slice(0, MAX_OPEN))));
+  const list = await deps.db.select().from(meetingSuggestions).where(and(eq(meetingSuggestions.orgId, a.orgId), eq(meetingSuggestions.meetingId, meetingId), inIds(meetingSuggestions.id, ids.slice(0, MAX_OPEN))));
   const now = deps.now();
   const undone: string[] = [];
   const reopen = { status: "open" as const, taskId: null, decidedBy: null, decidedAt: null, updatedAt: now };
