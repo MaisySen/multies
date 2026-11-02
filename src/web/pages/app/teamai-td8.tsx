@@ -94,7 +94,7 @@ function AiStatus({ s }: { s: TeamAiState }) {
       <Card className="mb-4 p-4" data-testid="teamai-no-key" role="status">
         <p className="text-[14px] font-semibold text-fg">Connect your own AI key</p>
         <p className="mt-1 text-[13px] text-muted">Team AI runs only on your workspace's own key (OpenAI, Anthropic, OpenRouter or Groq). Until one is connected, nothing runs and nothing is charged.</p>
-        {s.isAdmin && <Link to="/app/settings" className="mt-2 inline-flex min-h-9 items-center text-[13px] font-medium text-accent hover:underline">Add a key in Settings</Link>}
+        {s.isAdmin && <Link to="/app/settings" className="mt-2 inline-flex min-h-9 items-center text-[13px] font-medium text-brand-hover hover:underline">Add a key in Settings</Link>}
       </Card>
     );
   }
@@ -423,7 +423,7 @@ function RunsTab({ s }: { s: TeamAiState }) {
                 {r.reason && <p className="mt-1 text-[13px] text-muted">{r.reasonText ?? REASON_TEXT[r.reason] ?? "It did not run."}</p>}
                 {r.output === "draft" && r.result && (
                   <details className="mt-2">
-                    <summary className="min-h-9 cursor-pointer text-[13px] font-medium text-accent">Show draft</summary>
+                    <summary className="min-h-9 cursor-pointer text-[13px] font-medium text-brand-hover">Show draft</summary>
                     <p className="mt-2 whitespace-pre-wrap break-words rounded-lg bg-fill p-3 text-[13.5px] text-fg">{r.result}</p>
                     <div className="mt-2 flex flex-wrap gap-1">
                       <CopyButton value={r.result} label="Copy" />

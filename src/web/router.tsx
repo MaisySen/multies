@@ -401,7 +401,7 @@ export const router = createBrowserRouter([
           { path: "appearance", element: page(<AppearanceSettings />) }, // R77
           { path: "team", element: page(<TeamSettings />) },
           { path: "team/onboarding", element: page(<OnboardingSettingsPage />) }, // R126
-          { path: "team-ai", element: page(<TeamAiPage />) }, // TD8: Team AI (TEAMAI_TD8)
+          { path: "team-ai", element: page(<SettingsEmbed><TeamAiPage /></SettingsEmbed>) }, // TD8: Team AI (TEAMAI_TD8)
           { path: "channels", element: page(<ChannelsSettings />) }, // C1
           { path: "apps", element: page(<AppsSettings />) }, // R80C: Connections hub
           { path: "apps/social", element: <MovedSocial /> }, // P1 layout: Social posts moved to Social
