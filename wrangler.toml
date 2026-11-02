@@ -376,6 +376,7 @@ HOME_WIDGETS_R131 = "on" # R131: Home widgets (staging; prod after verifier PASS
 WEBINAR_R114 = "on" # R114: webinar mode for meetings (staging; prod after verifier PASS)
 BLOG_R124 = "on" # R124: blog with newsletter in Sites (staging; prod after verifier PASS)
 SOCIAL_P3_R132 = "on" # R132: Social P3 (staging; prod after verifier PASS). Held: SOCIAL_YOUTUBE_UPLOAD_R132, SOCIAL_GBP_R132 stay unset
+NAV_P2_R121 = "on" # R121: layout plan P2 navigation (staging; prod after verifier PASS)
 # R118: the test network for compose, schedule, approve, inbox and analytics checks (refused on multies.si by code).
 SOCIAL_TEST_NETWORK = "on"
 DOCS_PLUS_R103 = "on" # R103: Docs plus (link library, web clipper, doc comments, spell check)

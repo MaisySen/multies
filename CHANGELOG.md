@@ -6,6 +6,13 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## R121 Layout P2 navigation (2026-11-02)
+
+- One menu model (src/shared/nav-menu.ts) drives the desktop rail, the phone More sheet and GET /api/nav/menu for the mobile app (flag NAV_P2_R121; off keeps the P1 navigation unchanged; no migration).
+- Contacts is its own rail section (People, Deals); Mailboxes, Domains and Deliverability move to Settings > Mail setup next to Routing (old addresses redirect, client side and with a 302 from the server, ids, query and hash kept); Files joins Docs; Chat moves up next to Mail.
+- Phone: tabs Home, Mail, Chat, a fourth tab each person picks (Tasks, Social, Calendar or Docs), More; More shows every section as a tile with the rail's count, then New social post and Settings.
+- View > Customise menu hides rail sections per person (Home and Settings stay) and resets to default. What's new: "A tidier menu" (cap 14: the booking plus entry now lives only here).
+
 ## R124 Blog with newsletter (2026-11-02)
 
 - Docs > Sites > Blog (flag BLOG_R124, needs SITES_R123; migration 0148: site_blogs, blog_posts, blog_authors, blog_images). Post bodies are ordinary docs under a "Blog posts" root doc, written in the Docs editor with co editing; publishing snapshots the rendered doc.

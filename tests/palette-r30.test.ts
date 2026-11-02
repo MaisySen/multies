@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { movedPath } from "@/shared/nav-menu"; // R121
 import { describe, expect, it } from "vitest";
 import { PALETTE_ACTIONS, PALETTE_PAGES, paletteScore, withinOneEdit } from "@/web/lib/palette-registry";
 
@@ -13,7 +14,8 @@ describe("R30 command menu coverage", () => {
     const paths = [...app.matchAll(/path: "([^"]+)"(.*)/g)].filter((m) => !m[2].includes("<Moved") && !m[2].includes("<MovedSocial")).map((m) => ({ p: m[1], at: m.index! }))
       .filter(({ p }) => p !== "/app" && !p.includes(":") && p !== "admin" && !p.startsWith("admin/")) // operator pages stay out of the menu
       .map(({ p, at }) => (p === "settings" ? "/app/settings" : at > settingsAt ? `/app/settings/${p}` : `/app/${p}`));
-    const covered = new Set(PALETTE_PAGES.map((x) => x.to));
+    // R121: with P2 on, the command menu opens a moved page at its new home (Settings, Mail setup), so both count.
+    const covered = new Set(PALETTE_PAGES.flatMap((x) => [x.to, movedPath(x.to) ?? x.to]));
     const missing = paths.filter((p) => !covered.has(p));
     expect(missing).toEqual([]);
     expect(paths.length).toBeGreaterThan(30);

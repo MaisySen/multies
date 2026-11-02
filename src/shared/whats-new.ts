@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-02-menu",
+    date: "2026-11-02",
+    title: "A tidier menu",
+    body: "Contacts now has its own place in the menu with People and Deals. Mailboxes, Domains and Deliverability moved to Settings, Mail setup, and Files sits in Docs. Hide what you never use from View, Customise menu, and on phones More shows every section as a tile.",
+  },
+  {
     id: "2026-11-02-social-more-networks",
     date: "2026-11-02",
     title: "More from Social",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Office files in the browser",
     body: "Edit Word files and Excel sheets with working formulas right in Files, save each change as a version, and view slides.",
-  },
-  {
-    id: "2026-11-01-booking-plus",
-    date: "2026-11-01",
-    title: "Book rooms, find a time together, run free events",
-    body: "In Booking, new tabs let you book rooms, desks, vehicles and equipment on a day grid, with rules your admins set and QR check in. Time polls find a time that suits a group, and people answer without an account. Free events get a page, QR tickets by email, a waitlist and check in at the door from your phone.",
   },
   {
     id: "2026-10-28-whats-new",
