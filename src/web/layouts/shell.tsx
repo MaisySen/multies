@@ -4,6 +4,7 @@
  * breadcrumbs, search, one Create menu and a View menu for the person's own layout.
  */
 import { useEffect, useMemo, type ReactNode } from "react";
+import { navTourId } from "@/shared/tours-r130"; // R130: stable tour targets on section pages
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconBookmark, IconArrowRightLeft, IconLink, IconMegaphone, IconReceipt, IconPlugZap, IconCalendarDays, IconSend, IconUserRoundCheck,
@@ -151,7 +152,7 @@ export function ContextSidebar({ section, counts, logo, header, footer }: { sect
             const Icon = NAV_ICONS[p.icon];
             const on = here?.page.to === p.to && !(p.to === "/app/tasks" && openProject);
             return (
-              <NavLink key={p.to} to={p.to} end={p.end} aria-current={on ? "page" : undefined}
+              <NavLink key={p.to} to={p.to} end={p.end} data-tour={navTourId(p.to)} aria-current={on ? "page" : undefined}
                 className={cn(row, on ? "bg-brand-soft font-medium text-fg" : "text-fg/85 hover:bg-hover hover:text-fg")}>
                 <Icon filled={on} className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="min-w-0 flex-1 truncate">{p.label}</span>

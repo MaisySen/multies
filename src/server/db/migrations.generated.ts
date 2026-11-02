@@ -1701,6 +1701,14 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0152_tours_r130",
+    "statements": [
+      "-- R130 (Nov 2): guided onboarding. Workspace tours an admin builds, and each person's progress (checklist, built in and workspace tours). Additive only.\nCREATE TABLE IF NOT EXISTS `tours` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`page` text NOT NULL,\n\t`audience` text DEFAULT 'all' NOT NULL,\n\t`new_days` integer,\n\t`status` text DEFAULT 'draft' NOT NULL,\n\t`steps` text DEFAULT '[]' NOT NULL,\n\t`created_by_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX IF NOT EXISTS `tours_org_idx` ON `tours` (`org_id`,`status`);",
+      "CREATE TABLE IF NOT EXISTS `tour_progress` (\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`key` text NOT NULL,\n\t`state` text NOT NULL,\n\t`step` integer DEFAULT 0 NOT NULL,\n\t`data` text,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `user_id`, `key`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);"
+    ]
+  },
+  {
     "name": "0153_forms_td2",
     "statements": [
       "-- TD2 (Nov 2): Forms pro. Form settings (progress bar, one question at a time) and files or signatures sent with a\n-- public form. Bytes stay in the existing file storage; this table only holds who, where and how big. Additive only.\nALTER TABLE `forms` ADD `td2` text;",

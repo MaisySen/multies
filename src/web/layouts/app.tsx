@@ -5,13 +5,14 @@ import { createPortal } from "react-dom";
 import { HostSlot, useStableHost } from "./stable-host"; // R100: the page survives the 1024 px layout switch
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconActivity, IconAgent, IconAttachment, IconMegaphone, IconBell, IconBriefcase, IconCalendarClock, IconChart, IconChats, IconCheck, IconChevronsUpDown, IconClipboardCheck, IconClipboardList, IconClose, IconContacts, IconDashboard, IconDocs, IconFlask, IconGlobe, IconInbox, IconKeyboard, IconLogOut, IconMenu, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUserCog, IconVideo, IconWrench, IconZap, type IconComponent } from "@/web/components/ui/icon";
+import { IconFlag, IconMapPin, IconActivity, IconAgent, IconAttachment, IconMegaphone, IconBell, IconBriefcase, IconCalendarClock, IconChart, IconChats, IconCheck, IconChevronsUpDown, IconClipboardCheck, IconClipboardList, IconClose, IconContacts, IconDashboard, IconDocs, IconFlask, IconGlobe, IconInbox, IconKeyboard, IconLogOut, IconMenu, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUserCog, IconVideo, IconWrench, IconZap, type IconComponent } from "@/web/components/ui/icon";
 import { Logo } from "@/web/components/logo";
 import { BrandTokens, WorkspaceMark, WorkspaceWideLogo } from "@/web/lib/brand"; // R77: workspace brand
 import { AppearanceControl } from "@/web/components/theme";
 import { Avatar, Kbd } from "@/web/components/ui/misc";
 import { UpdatePill } from "@/web/components/update-pill"; // R32
 import { PaletteHost } from "@/web/components/palette-host"; // R31: the menu itself loads on demand
+import { ChecklistRing, ToursHost, openGetStarted, openToursList, toursKey, useToursMe } from "@/web/components/tours-r130"; // R130
 import { ShortcutsHost } from "@/web/components/shortcuts-sheet"; // R30
 import { openPalette, openShortcutsSheet } from "@/web/lib/shortcuts";
 import { TimerChip } from "@/web/pages/app/work/time";
@@ -138,6 +139,12 @@ export function AppLayout() {
     return () => window.removeEventListener("keydown", onKey);
   }, [drawer]);
   const whatsNew = useWhatsNew(); // R53 (MB-133): unread dot, localStorage only
+  const tours = useToursMe(); // R130: Get started checklist and tours (TOURS_R130)
+  const qcTours = useQueryClient();
+  const resumeChecklist = () => {
+    if (tours.data?.checklist?.dismissed || tours.data?.checklist?.celebrated) void api.post("/tours/checklist", { action: "resume" }).then((d) => { qcTours.setQueryData(toursKey, d); openGetStarted(); }, () => undefined);
+    else openGetStarted();
+  };
   // R79: the person's own layout (read before first paint once they are known) and the desktop shell's hooks.
   if (me.data?.user?.id) setLayoutUser(me.data.user.id, { silent: true });
   const layout = useLayout();
@@ -222,6 +229,8 @@ export function AppLayout() {
           <MenuItem icon={<IconUserCog />} onSelect={() => navigate("/app/settings/account")}>Account & security</MenuItem>
           <MenuItem icon={<IconSettings />} onSelect={() => navigate("/app/settings")}>Workspace settings</MenuItem>
           <MenuItem icon={<IconKeyboard />} onSelect={openShortcutsSheet}>Keyboard shortcuts</MenuItem>
+          {tours.on && <MenuItem icon={<IconFlag />} onSelect={resumeChecklist}>Get started</MenuItem>}{/* R130 */}
+          {tours.on && <MenuItem icon={<IconMapPin />} onSelect={openToursList}>Tours</MenuItem>}
           <MenuItem icon={<IconZap />} onSelect={() => { whatsNew.markSeen(); navigate("/changelog"); }}>
             What's new
             {whatsNew.unread && <span className="ml-auto flex items-center" data-testid="whats-new-dot"><span className="h-2 w-2 rounded-full bg-brand" aria-hidden /><span className="sr-only">(new)</span></span>}
@@ -326,7 +335,7 @@ export function AppLayout() {
           <header className="@container hairline-b flex h-12 shrink-0 items-center gap-3 px-4" data-desktop-topbar>
             <Breadcrumbs projectName={projectName} />
             <div className="flex shrink-0 justify-center @[52rem]:flex-1"><SearchEntry /></div>
-            <div className="flex shrink-0 items-center justify-end gap-1.5 @[52rem]:flex-1"><ViewMenu /><CreateMenu flags={navFlags} /></div>
+            <div className="flex shrink-0 items-center justify-end gap-1.5 @[52rem]:flex-1"><ChecklistRing /><ViewMenu /><CreateMenu flags={navFlags} /></div>
           </header>
         )}
         <header className="sticky top-0 z-20 flex h-[calc(3rem+env(safe-area-inset-top))] shrink-0 items-center gap-1 glass hairline-b pl-[max(0.375rem,env(safe-area-inset-left))] pr-[max(0.375rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)] lg:hidden" data-topbar>
@@ -335,6 +344,7 @@ export function AppLayout() {
           <div className="min-w-0"><WorkspaceSwitcher current={organization} variant="chip" compact={!!barTitle} /></div>
           {barTitle && <span className="pointer-events-none absolute left-1/2 top-[env(safe-area-inset-top)] flex h-12 max-w-[46%] -translate-x-1/2 animate-fade-in items-center text-[16px] font-semibold tracking-[-0.01em] text-fg" aria-hidden data-testid="bar-title"><span className="truncate">{barTitle}</span></span>}
           <div className="ml-auto flex shrink-0 items-center">
+            <ChecklistRing />
             <button onClick={() => openPalette()} className="grid h-11 w-11 place-items-center rounded-full text-fg/80 transition-colors hover:bg-hover hover:text-fg" aria-label="Search" data-testid="topbar-search"><IconSearch className="h-[22px] w-[22px]" /></button>
             {accountMenu(<button className="grid h-11 w-11 place-items-center rounded-full transition-colors hover:bg-hover" aria-label="Account" data-testid="topbar-account"><span className="relative"><Avatar label={initials(user.name)} className="h-8 w-8" drawn />{whatsNew.unread && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-surface" aria-hidden data-testid="whats-new-unread" />}</span></button>, "end")}
           </div>
@@ -350,6 +360,7 @@ export function AppLayout() {
         </main>
         <PhoneTabBar mailUnread={mailUnread} moreOpen={drawer} onMore={() => setDrawer((d) => !d)} p2={!!config.data?.navP2} chatUnread={chatUnread.data?.total ?? 0} fourth={layout.fourthTab} />
         <PaletteHost onSignOut={signOut} />
+        <ToursHost />
         <UpdatePill />{/* R32: new version prompt */}
         <ShortcutsHost />
         {config.data?.navP2 && <CustomiseMenuHost sections={sections} />}{/* R121 */}

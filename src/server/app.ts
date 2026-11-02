@@ -64,6 +64,7 @@ import { inboundKeyRoutes, inboundWebhookRoutes } from "./routes/inbound";
 import { deliveryRoutes } from "./routes/deliveries";
 import { dashboardRoutes } from "./routes/dashboard";
 import { homeWidgetsRoutes } from "./routes/home-widgets-r131"; // R131
+import { toursRoutes } from "./routes/tours-r130"; // R130
 import { PLANS } from "@/shared/plans";
 import { migrationDriver, pendingMigrations } from "./db";
 import { inviteRoutes, teamRoutes } from "./routes/team";
@@ -476,6 +477,7 @@ export function createApp(deps: Deps) {
       formsPlus: !!deps.config.formsPlus, // R93: chat forms, webhook, embed, feedback boards, calls for submissions
       formsTd2: !!deps.config.formsTd2, // TD2: Forms pro
       homeWidgetsR131: !!deps.config.homeWidgetsR131, // R131: Home widgets
+      toursR130: !!deps.config.toursR130, // R130: guided onboarding (vv8k gets enabled false from /api/tours/me)
       reporting: !!deps.config.reporting, // R112: anonymous reporting channel and data requests
       socialP3R132: !!deps.config.socialP3R132, // R132: Social P3
       socialYoutubeUploadR132: !!deps.config.socialP3R132 && !!deps.config.socialYoutubeUploadR132, // R132 held
@@ -627,6 +629,7 @@ export function createApp(deps: Deps) {
   app.route("/api/deliveries", deliveryRoutes());
   app.route("/api/dashboard", dashboardRoutes());
   if (deps.config.homeWidgetsR131) app.route("/api/home-widgets", homeWidgetsRoutes()); // R131: Home widgets layout
+  if (deps.config.toursR130) app.route("/api/tours", toursRoutes()); // R130: checklist, tours, tour builder
   app.route("/api/team", teamRoutes());
   app.route("/api/invites", inviteRoutes());
   app.route("/api/billing", billingRoutes());

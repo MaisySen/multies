@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import { displayFirstName } from "@/shared/display-name";
+import { GetStartedCard, useToursMe } from "@/web/components/tours-r130"; // R130
 import { IconAgent, IconArrowRight, IconCheck, IconGlobe, IconInbox, IconMention, IconSend, IconTeam, IconUserRound } from "@/web/components/ui/icon";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { qk, useConfig, useDashboard, useMe } from "@/web/lib/queries";
@@ -22,7 +23,7 @@ const HomeWidgetsPage = lazyPage(() => import("./home-widgets-r131"), "HomeWidge
 
 export function DashboardPage() {
   const config = useConfig();
-  if (config.data?.homeWidgetsR131) return <Suspense fallback={<OverviewClassic />}><HomeWidgetsPage overview={<OverviewClassic embedded />} /></Suspense>;
+  if (config.data?.homeWidgetsR131) return <><GetStartedCard /><Suspense fallback={<OverviewClassic />}><HomeWidgetsPage overview={<OverviewClassic embedded />} /></Suspense></>;
   return <OverviewClassic />;
 }
 
@@ -30,14 +31,16 @@ function OverviewClassic({ embedded }: { embedded?: boolean }) {
   const me = useMe();
   const { data, isPending, error, refetch } = useDashboard();
   const first = displayFirstName(me.data?.user.name, me.data?.user.email); // R41 (MB-224)
+  const tours = useToursMe(); // R130: the new checklist replaces Get set up while TOURS_R130 is on
   return (
     <>
       {!embedded && <PageHeader title="Overview" description={`Good ${dayPart()}${first ? `, ${first}` : ""}. Here's how mail is flowing across your workspace.`} actions={<ButtonLink to="/app/mail" variant="secondary" size="sm"><IconInbox className="h-4 w-4" />Open mail</ButtonLink>} />}
+      {!embedded && <GetStartedCard />}
       {error && !data && <LoadError onRetry={() => refetch()} className="rounded-xl border border-line bg-surface" />}{/* T1G (T1-8) */}
       {isPending ? <DashboardSkeleton /> : data && (
         <div className="space-y-6">
           {data.usage.domains === 0 && <FreeAddressCard />}
-          {!data.onboarding.dismissed && !Object.values(data.onboarding.steps).every(Boolean) ? <GettingStarted data={data} /> : null}
+          {!tours.on && !data.onboarding.dismissed && !Object.values(data.onboarding.steps).every(Boolean) ? <GettingStarted data={data} /> : null}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-5">
             <Stat icon={<IconGlobe />} label="Domains" value={`${data.domains.filter((d) => d.status === "verified").length}/${data.usage.domains}`} sub={`verified, plan allows ${data.plan.limits.domains}`} used={data.usage.domains} max={data.plan.limits.domains} />
             <Stat icon={<IconTeam />} label="Mailboxes" value={String(data.usage.mailboxes)} sub={`of ${data.plan.limits.mailboxes}`} used={data.usage.mailboxes} max={data.plan.limits.mailboxes} />

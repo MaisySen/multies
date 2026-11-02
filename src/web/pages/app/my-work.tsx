@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { MyWorkNewTask } from "./work/my-work-new-task-load"; // F13b (MB-306)
+import { GetStartedCard } from "@/web/components/tours-r130"; // R130
 import { displayFirstName } from "@/shared/display-name";
 import { Link, useNavigate } from "react-router";
 import { MyDay } from "./work/my-day-r95"; // R95
@@ -145,6 +146,7 @@ export function MyWorkPage() {
         <Link to="/app/tasks" className="pressable inline-flex h-8 items-center gap-1 self-start rounded-lg px-3 text-[13px] text-muted hover:bg-elevated hover:text-fg max-sm:hidden sm:self-auto">All tasks<IconChevronRight size={14} /></Link>
       </div>
 
+      <GetStartedCard />{/* R130: Get started checklist (TOURS_R130), nothing when hidden or done */}
       {/* R46 mobile: one row that scrolls sideways with snap, fading at the right edge so the cut off chip reads as "more". */}
       <div className="no-scrollbar -mx-4 mb-5 flex snap-x snap-mandatory scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 [mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] max-sm:mb-4 sm:mx-0 sm:flex-wrap sm:px-0 sm:[mask-image:none]" role="group" aria-label="Quick add" data-testid="today-quick">
         <button type="button" onClick={() => setNewTask(true)} data-testid="mywork-new-task" className="pressable elev-1 inline-flex min-h-9 shrink-0 snap-start items-center gap-1.5 rounded-full bg-surface px-3.5 text-[13px] font-medium text-fg hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand max-sm:min-h-11 max-sm:px-4 max-sm:text-[14px]">

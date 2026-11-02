@@ -4565,3 +4565,28 @@ export const aiTrust = sqliteTable("ai_trust", {
   updatedBy: text("updated_by"),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
+/** R130: a workspace tour an admin built (steps JSON: target id, title, text). Draft until published. */
+export const tours = sqliteTable("tours", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  page: text("page").notNull(),
+  audience: text("audience", { enum: ["all", "admins", "members"] }).notNull().default("all"),
+  newDays: integer("new_days"),
+  status: text("status", { enum: ["draft", "published"] }).notNull().default("draft"),
+  steps: text("steps").notNull().default("[]"),
+  createdById: text("created_by_id"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [index("tours_org_idx").on(t.orgId, t.status)]);
+
+/** R130: one person's progress: key "checklist" (data JSON), "builtin:<id>" or a workspace tour id. */
+export const tourProgress = sqliteTable("tour_progress", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  key: text("key").notNull(),
+  state: text("state").notNull(),
+  step: integer("step").notNull().default(0),
+  data: text("data"),
+  updatedAt: integer("updated_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.userId, t.key] })]);

@@ -223,6 +223,7 @@ const SocialLibraryPage = lazyPage(() => social(), "SocialLibraryPage"); // R117
 const SocialInboxPage = lazyPage(() => import("./pages/app/social-inbox"), "SocialInboxPage"); // R118
 const SocialAnalyticsPage = lazyPage(() => import("./pages/app/social-analytics"), "SocialAnalyticsPage"); // R118
 const MailAppsSettings = lazyPage(() => import("./pages/app/mail-apps"), "MailAppsSettings");
+const ToursSettings = lazyPage(() => import("./pages/app/tours-settings-r130"), "ToursSettings"); // R130
 const ImportSettings = lazyPage(() => import("./pages/app/data-move"), "ImportExportSettings"); // R38 move your data
 const DeveloperSettings = lazyPage(() => import("./pages/app/developers"), "DeveloperSettings");
 const DeliverabilityPage = lazyPage(() => import("./pages/app/deliverability"), "DeliverabilityPage");
@@ -419,6 +420,7 @@ export const router = createBrowserRouter([
           { path: "developers", element: page(<DeveloperSettings />) },
           { path: "sign-up-emails", element: page(<AuthEmailSettings />) }, // R27
           { path: "import", element: page(<ImportSettings />) },
+          { path: "tours", element: page(<ToursSettings />) }, // R130: tour builder (TOURS_R130, admins)
         ],
       },
     ],

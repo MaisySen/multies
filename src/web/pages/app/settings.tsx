@@ -9,6 +9,8 @@ import { ShareLinksSetting } from "./work/share-sheet"; // R26 (MB-87)
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { isNavP2 } from "@/web/layouts/shell-nav"; // R121
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { IconFlag } from "@/web/components/ui/icons"; // R130
+import { navTourId } from "@/shared/tours-r130"; // R130
 import { IconArchive, IconActivity, IconShield, IconBack, IconBell, IconCalendar, IconCheck, IconChevronRight, IconCode, IconCreditCard, IconDownload, IconKey, IconMail, IconMailCheck, IconPlugZap, IconPlus, IconSearch, IconSend, IconShieldCheck, IconChats, IconSliders, IconSmartphone, IconSparkle, IconMoon, IconTeam, IconGlobe, IconTrash, IconWarning } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
@@ -41,6 +43,7 @@ export const SETTINGS_GROUPS: { label: string; items: Pane[] }[] = [
     { to: "/app/settings/channels", label: "Chat channels", icon: IconChats, tint: "#25D366", keywords: "whatsapp messenger instagram facebook meta chat channels connect number customers" }, // C1
     { to: "/app/settings/apps", label: "Connections", icon: IconPlugZap, tint: "#5E5CE6", keywords: "apps integrations social media post schedule facebook instagram linkedin pinterest reddit youtube slack notion hubspot connect connected accounts mailbox imap smtp gmail outlook webhooks zapier" }, // R80C; R82F (MB-279): mail accounts and webhooks live here too
     { to: "/app/settings/billing", label: "Billing", icon: IconCreditCard, tint: "#34C759", keywords: "plan invoices card upgrade receipts tax" },
+    { to: "/app/settings/tours", label: "Tours", icon: IconFlag, tint: "#FF9500", keywords: "tours onboarding get started checklist guide walk through new people help" }, // R130
   ] },
   { label: "You", items: [
     { to: "/app/settings/account", label: "Account & security", icon: IconShieldCheck, tint: "#FF9500", keywords: "password two factor passkey sessions devices sign out delete account blocked people" },
@@ -93,8 +96,8 @@ export function paneFor(path: string): Pane {
   return all.find((p) => p.to !== "/app/settings" && (clean === p.to || clean.startsWith(p.to + "/"))) ?? all[0];
 }
 /** R59: panes tied to a server switch (chat channels, CHAT_CHANNELS) are listed only while it is on. */
-export function panesFor(config: { chatChannels?: boolean; mailArchive?: boolean; reporting?: boolean } | undefined): (p: Pane) => boolean {
-  return (p) => (p.to !== "/app/settings/channels" || !!config?.chatChannels) && (p.to !== "/app/settings/mail-archive" || !!config?.mailArchive) && (p.to !== "/app/settings/data-requests" || !!config?.reporting);
+export function panesFor(config: { chatChannels?: boolean; mailArchive?: boolean; reporting?: boolean; toursR130?: boolean } | undefined, role?: string | null): (p: Pane) => boolean {
+  return (p) => (p.to !== "/app/settings/tours" || (!!config?.toursR130 && (role === "owner" || role === "admin"))) && (p.to !== "/app/settings/channels" || !!config?.chatChannels) && (p.to !== "/app/settings/mail-archive" || !!config?.mailArchive) && (p.to !== "/app/settings/data-requests" || !!config?.reporting);
 }
 export function matchPanes(q: string): Pane[] {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -136,7 +139,7 @@ export function SettingsLayout() {
   // R82F (MB-283): the tab title comes from the app shell (pageTitle), the same for every page.
   const config = useConfig();
   const me = useMe();
-  const shown = matchPanes(q).filter(panesFor(config.data)).filter((p) => p.to !== "/app/admin" || !!me.data?.user.platformAdmin);
+  const shown = matchPanes(q).filter(panesFor(config.data, me.data?.organization?.role)).filter((p) => p.to !== "/app/admin" || !!me.data?.user.platformAdmin);
   const groups = groupsNow().map((g) => ({ ...g, items: g.items.filter((i) => shown.includes(i)) })).filter((g) => g.items.length);
   const go = () => { if (shown[0]) { navigate(shown[0].to); setQ(""); } };
   return (
@@ -152,7 +155,7 @@ export function SettingsLayout() {
                 <ul className="space-y-px">
                   {g.items.map((t) => (
                     <li key={t.to}>
-                      <NavLink to={t.to} end={t.end} onClick={() => setQ("")} aria-current={pane.to === t.to ? "page" : undefined} className={() => cn(
+                      <NavLink to={t.to} end={t.end} data-tour={navTourId(t.to, "pane")} onClick={() => setQ("")} aria-current={pane.to === t.to ? "page" : undefined} className={() => cn(
                         "group flex h-8 items-center gap-2.5 rounded-lg px-2 text-[13.5px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60",
                         pane.to === t.to ? "bg-brand-soft font-medium text-fg shadow-[inset_0_0_0_0.5px_rgb(0_113_227/0.25)]" : "text-muted hover:bg-hover hover:text-fg",
                       )}>
@@ -182,7 +185,7 @@ export function SettingsLayout() {
                   <ul className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-card">
                     {g.items.map((t, i) => (
                       <li key={t.to}>
-                        <NavLink to={t.to === "/app/settings" ? "/app/settings/general" : t.to} className="flex min-h-[48px] items-center gap-3 pl-4 pr-3 transition-colors duration-150 active:bg-hover">
+                        <NavLink to={t.to === "/app/settings" ? "/app/settings/general" : t.to} data-tour={navTourId(t.to, "pane")} className="flex min-h-[48px] items-center gap-3 pl-4 pr-3 transition-colors duration-150 active:bg-hover">
                           <Tile pane={t} />
                           <span className={cn("flex min-h-[48px] flex-1 items-center justify-between gap-2 text-[16px]", i > 0 && "border-t border-line")}>
                             <span className="truncate">{t.label}</span>
