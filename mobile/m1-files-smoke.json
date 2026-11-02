@@ -1,0 +1,384 @@
+{
+ "at": "2026-11-01T09:16:24.666Z",
+ "base": "https://preview.multies.si",
+ "results": [
+  {
+   "role": "admin",
+   "what": "GET /config",
+   "pass": true,
+   "note": "filesPlus=true"
+  },
+  {
+   "role": "admin",
+   "what": "GET /drive/list team",
+   "pass": true,
+   "note": "200, 1 items, canAdd true"
+  },
+  {
+   "role": "admin",
+   "what": "GET /drive/list mine",
+   "pass": true,
+   "note": "200, 0 items, canAdd true"
+  },
+  {
+   "role": "admin",
+   "what": "GET /drive/list shared",
+   "pass": true,
+   "note": "200, 0 items, canAdd false"
+  },
+  {
+   "role": "admin",
+   "what": "GET /drive/list starred",
+   "pass": true,
+   "note": "200, 0 items, canAdd false"
+  },
+  {
+   "role": "admin",
+   "what": "GET /drive/list recent",
+   "pass": true,
+   "note": "200, 2 items, canAdd false"
+  },
+  {
+   "role": "admin",
+   "what": "GET /drive/list trash",
+   "pass": true,
+   "note": "200, 1 items, canAdd false"
+  },
+  {
+   "role": "admin",
+   "what": "GET /drive/list brand",
+   "pass": true,
+   "note": "200, 1 items, canAdd true"
+  },
+  {
+   "role": "admin",
+   "what": "GET /drive/list long search, phone cut (150 chars)",
+   "pass": true,
+   "note": "200, 46 chars"
+  },
+  {
+   "role": "admin",
+   "what": "GET /drive/list long search, phone cut (unicode)",
+   "pass": true,
+   "note": "200, 23 chars"
+  },
+  {
+   "role": "admin",
+   "what": "GET /drive/list long search, phone cut (wildcards)",
+   "pass": true,
+   "note": "200, 23 chars"
+  },
+  {
+   "role": "admin",
+   "what": "GET /drive/usage",
+   "pass": true,
+   "note": "200, 565 of 209715200"
+  },
+  {
+   "role": "admin",
+   "what": "GET /drive/tags",
+   "pass": true,
+   "note": "200"
+  },
+  {
+   "role": "admin",
+   "what": "POST /drive/folders",
+   "pass": true,
+   "note": "200"
+  },
+  {
+   "role": "admin",
+   "what": "PUT /drive/upload (raw bytes)",
+   "pass": true,
+   "note": "200, 24 bytes"
+  },
+  {
+   "role": "admin",
+   "what": "upload without x-multies-upload refused",
+   "pass": true,
+   "note": "403 \"Requests must be JSON.\""
+  },
+  {
+   "role": "admin",
+   "what": "GET /drive/items/:id",
+   "pass": true,
+   "note": "200, 1 versions"
+  },
+  {
+   "role": "admin",
+   "what": "PUT /drive/items/:id/content (new version)",
+   "pass": true,
+   "note": "200, 2 versions"
+  },
+  {
+   "role": "admin",
+   "what": "POST restore version",
+   "pass": true,
+   "note": "200, note \"Restored from version 1\""
+  },
+  {
+   "role": "admin",
+   "what": "GET content (download)",
+   "pass": true,
+   "note": "200, 24 bytes, attachment"
+  },
+  {
+   "role": "admin",
+   "what": "GET content inline",
+   "pass": true,
+   "note": "200, text/plain"
+  },
+  {
+   "role": "admin",
+   "what": "PATCH rename and note",
+   "pass": true,
+   "note": "200"
+  },
+  {
+   "role": "admin",
+   "what": "PATCH empty name refused with words",
+   "pass": true,
+   "note": "\"Give it a name.\""
+  },
+  {
+   "role": "admin",
+   "what": "POST /drive/star + Starred view",
+   "pass": true,
+   "note": "200"
+  },
+  {
+   "role": "admin",
+   "what": "POST /drive/move out and back",
+   "pass": true,
+   "note": "200/200"
+  },
+  {
+   "role": "admin",
+   "what": "folder list with path",
+   "pass": true,
+   "note": "path My files > M1 phone smoke 2026-11-01 09 15"
+  },
+  {
+   "role": "admin",
+   "what": "POST /drive/trash + Trash view",
+   "pass": true,
+   "note": "200"
+  },
+  {
+   "role": "admin",
+   "what": "POST /drive/restore",
+   "pass": true,
+   "note": "200"
+  },
+  {
+   "role": "admin",
+   "what": "cleanup (deleted for good)",
+   "pass": true,
+   "note": "200"
+  },
+  {
+   "role": "admin",
+   "what": "admin can add to the brand library",
+   "pass": true,
+   "note": "200"
+  },
+  {
+   "role": "member",
+   "what": "GET /config",
+   "pass": true,
+   "note": "filesPlus=true"
+  },
+  {
+   "role": "member",
+   "what": "GET /drive/list team",
+   "pass": true,
+   "note": "200, 1 items, canAdd true"
+  },
+  {
+   "role": "member",
+   "what": "GET /drive/list mine",
+   "pass": true,
+   "note": "200, 0 items, canAdd true"
+  },
+  {
+   "role": "member",
+   "what": "GET /drive/list shared",
+   "pass": true,
+   "note": "200, 0 items, canAdd false"
+  },
+  {
+   "role": "member",
+   "what": "GET /drive/list starred",
+   "pass": true,
+   "note": "200, 0 items, canAdd false"
+  },
+  {
+   "role": "member",
+   "what": "GET /drive/list recent",
+   "pass": true,
+   "note": "200, 2 items, canAdd false"
+  },
+  {
+   "role": "member",
+   "what": "GET /drive/list trash",
+   "pass": true,
+   "note": "200, 1 items, canAdd false"
+  },
+  {
+   "role": "member",
+   "what": "GET /drive/list brand",
+   "pass": true,
+   "note": "200, 1 items, canAdd false"
+  },
+  {
+   "role": "member",
+   "what": "GET /drive/list long search, phone cut (150 chars)",
+   "pass": true,
+   "note": "200, 46 chars"
+  },
+  {
+   "role": "member",
+   "what": "GET /drive/list long search, phone cut (unicode)",
+   "pass": true,
+   "note": "200, 23 chars"
+  },
+  {
+   "role": "member",
+   "what": "GET /drive/list long search, phone cut (wildcards)",
+   "pass": true,
+   "note": "200, 23 chars"
+  },
+  {
+   "role": "member",
+   "what": "GET /drive/usage",
+   "pass": true,
+   "note": "200, 565 of 209715200"
+  },
+  {
+   "role": "member",
+   "what": "GET /drive/tags",
+   "pass": true,
+   "note": "200"
+  },
+  {
+   "role": "member",
+   "what": "POST /drive/folders",
+   "pass": true,
+   "note": "200"
+  },
+  {
+   "role": "member",
+   "what": "PUT /drive/upload (raw bytes)",
+   "pass": true,
+   "note": "200, 24 bytes"
+  },
+  {
+   "role": "member",
+   "what": "upload without x-multies-upload refused",
+   "pass": true,
+   "note": "403 \"Requests must be JSON.\""
+  },
+  {
+   "role": "member",
+   "what": "GET /drive/items/:id",
+   "pass": true,
+   "note": "200, 1 versions"
+  },
+  {
+   "role": "member",
+   "what": "PUT /drive/items/:id/content (new version)",
+   "pass": true,
+   "note": "200, 2 versions"
+  },
+  {
+   "role": "member",
+   "what": "POST restore version",
+   "pass": true,
+   "note": "200, note \"Restored from version 1\""
+  },
+  {
+   "role": "member",
+   "what": "GET content (download)",
+   "pass": true,
+   "note": "200, 24 bytes, attachment"
+  },
+  {
+   "role": "member",
+   "what": "GET content inline",
+   "pass": true,
+   "note": "200, text/plain"
+  },
+  {
+   "role": "member",
+   "what": "PATCH rename and note",
+   "pass": true,
+   "note": "200"
+  },
+  {
+   "role": "member",
+   "what": "PATCH empty name refused with words",
+   "pass": true,
+   "note": "\"Give it a name.\""
+  },
+  {
+   "role": "member",
+   "what": "POST /drive/star + Starred view",
+   "pass": true,
+   "note": "200"
+  },
+  {
+   "role": "member",
+   "what": "POST /drive/move out and back",
+   "pass": true,
+   "note": "200/200"
+  },
+  {
+   "role": "member",
+   "what": "folder list with path",
+   "pass": true,
+   "note": "path My files > M1 phone smoke 2026-11-01 09 15"
+  },
+  {
+   "role": "member",
+   "what": "POST /drive/trash + Trash view",
+   "pass": true,
+   "note": "200"
+  },
+  {
+   "role": "member",
+   "what": "POST /drive/restore",
+   "pass": true,
+   "note": "200"
+  },
+  {
+   "role": "member",
+   "what": "cleanup (deleted for good)",
+   "pass": true,
+   "note": "200"
+  },
+  {
+   "role": "member",
+   "what": "member cannot change the brand library",
+   "pass": true,
+   "note": "403 \"Only admins can change the brand library.\""
+  },
+  {
+   "role": "none",
+   "what": "GET /drive/list?view=team refused without a workspace session",
+   "pass": true,
+   "note": "401"
+  },
+  {
+   "role": "none",
+   "what": "GET /drive/usage refused without a workspace session",
+   "pass": true,
+   "note": "401"
+  },
+  {
+   "role": "none",
+   "what": "GET /drive/tags refused without a workspace session",
+   "pass": true,
+   "note": "401"
+  }
+ ]
+}
