@@ -12,6 +12,7 @@ import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Badge, CopyButton, Meter, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
+import { LoadFailure } from "@/web/components/load-error-t1g";
 import { ConfirmButton } from "@/web/components/ui/confirm";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { IconCheck, IconExternalLink, IconEye, IconEyeOff, IconRefresh, IconSparkle } from "@/web/components/ui/icon";
@@ -226,14 +227,11 @@ function ModelAndTest({ status }: { status: AiStatus }) {
       {list.isLoading ? (
         <div className="space-y-2" aria-busy="true" aria-label="Loading models"><Skeleton className="h-4 w-24" /><Skeleton className="h-9 w-full" /></div>
       ) : list.isError ? (
-        <div className="flex flex-wrap items-center gap-3 text-sm" role="alert">
-          <span className="text-bad">{list.error instanceof Error ? list.error.message : "Could not load models."}</span>
-          <Button size="sm" variant="outline" onClick={() => void list.refetch()}>Try again</Button>
-        </div>
+        <LoadFailure error={list.error} onRetry={() => list.refetch()} />
       ) : (
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           <Field label="Find a model">{(p) => <Input {...p} type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search" autoComplete="off" data-testid="ai2-model-search" />}</Field>
-          <Field label="Model" hint={list.data?.note ?? `${list.data?.models.length ?? 0} models from ${status.providerName}.`}>
+          <Field label="Model" hint={list.data?.live === false ? undefined : `${list.data?.models.length ?? 0} models from ${status.providerName}.`}>
             {(p) => (
               <div className="flex min-w-0 items-start gap-2">
                 <div className="min-w-0 flex-1 overflow-hidden">
@@ -256,7 +254,7 @@ function ModelAndTest({ status }: { status: AiStatus }) {
         </div>
       )}
       {list.data && !list.data.live && (
-        <p className="text-xs text-muted" role="status" data-testid="ai2-fallback">Could not load the live list, showing common models.</p>
+        <p className="text-xs text-muted" role="status" data-testid="ai2-fallback">{list.data.note}</p>
       )}
       <div className="flex flex-wrap items-center gap-3">
         <Button size="sm" variant="secondary" onClick={() => { setResult(null); test.mutate(); }} loading={test.isPending} data-testid="ai2-test">Test connection</Button>
