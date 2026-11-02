@@ -253,7 +253,7 @@ export function createApp(deps: Deps) {
     if (p === "/widget.js" || p === "/forms-embed.js") return; // R119 chat script, R93 form bubble: load on other sites (own headers)
     const set = p === "/share/snapchat" && deps.config.socialP3R132 ? snapHeaders : p === "/api/v1/reference" ? docsHeaders : p.startsWith("/api/campaign-public/") ? campaignPublicHeaders : p.startsWith("/api/") || p.startsWith("/.well-known/") ? apiHeaders : p.startsWith("/f/") ? formPageHeaders : PRIVATE_PAGE_PATH.test(p) ? privatePageHeaders : pageHeaders;
     for (const [k, v] of Object.entries(set)) c.res.headers.set(k, v);
-    if (p === "/auth/mobile/web") { c.res.headers.set("referrer-policy", "no-referrer"); c.res.headers.set("cache-control", "no-store"); } // MH1: the handoff code never leaks onward or into a cache
+    if (p === "/auth/mobile/web") { c.res.headers.set("referrer-policy", "no-referrer"); c.res.headers.set("cache-control", "no-store"); c.res.headers.set("content-security-policy", apiHeaders["content-security-policy"]); } // MH1: a bodiless redirect: the code never leaks onward or into a cache, and the strictest policy (nothing may load)
     // R93: only the form inside the website bubble may be framed by other sites.
     if (EMBED_FORM_PATH.test(p) && deps.config.formsPlus) { c.res.headers.delete("x-frame-options"); c.res.headers.set("content-security-policy", frameableCsp(formPageHeaders["content-security-policy"])); }
   });

@@ -6,6 +6,7 @@ import { scrubEvent } from "@/shared/sentry-scrub";
 import { members, organizations, sessions, users, verifications } from "@/server/db/schema";
 import { RATE_LIMITS } from "@/server/lib/rate-limit";
 import { newId } from "@/server/lib/crypto";
+import { API_CSP } from "@/server/lib/security-headers";
 
 const ON = { MOBILE_WEB_LINK: "on" };
 
@@ -89,6 +90,7 @@ describe("MH1 app to web sign in handoff", () => {
     expect(res.headers.get("location")).toBe("/app/docs");
     expect(res.headers.get("referrer-policy")).toBe("no-referrer");
     expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("content-security-policy")).toBe(API_CSP);
     const sc = res.headers.getSetCookie().find((c) => /session_token=/.test(c))!;
     expect(sc).toMatch(/HttpOnly/i);
     expect(sc).toMatch(/SameSite=Lax/i);

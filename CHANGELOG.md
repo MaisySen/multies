@@ -6,6 +6,11 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## MH1 App to web sign in handoff (2026-11-02)
+
+- POST /api/auth/mobile/web-link (the app's signed in session) answers a one time code {code, expires_in: 60}: 256 random bits, only its SHA-256 stored (verifications table), bound to the person and workspace (flag MOBILE_WEB_LINK; off answers 404; no migration)
+- GET /auth/mobile/web?code=..&next=/app/.. burns the code on the first attempt, sets the normal web session for the same workspace (keeping the source session's age and sign in method) and redirects to a checked /app path; anything else lands on /login or /app. No referrer, no store, the strictest page policy, rate limited, and the code is scrubbed from error reports
+
 ## R121 Layout P2 navigation (2026-11-02)
 
 - One menu model (src/shared/nav-menu.ts) drives the desktop rail, the phone More sheet and GET /api/nav/menu for the mobile app (flag NAV_P2_R121; off keeps the P1 navigation unchanged; no migration).

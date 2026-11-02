@@ -23,6 +23,15 @@ const IDENT_PREFIX = "mwl:";
 const CODE_RE = /^[A-Za-z0-9_-]{43}$/;
 const MAX_NEXT = 2048;
 
+/** Spaces, control characters (C0, DEL, C1) or a backslash anywhere. */
+function hasUnsafeChar(s: string): boolean {
+  for (let i = 0; i < s.length; i++) {
+    const ch = s.charCodeAt(i);
+    if (ch <= 0x20 || (ch >= 0x7f && ch <= 0x9f) || ch === 0x5c) return true;
+  }
+  return false;
+}
+
 /** 32 random bytes as base64url without padding (43 characters). */
 export function newWebLinkCode(): string {
   const b = randomBytes(32);
@@ -49,7 +58,7 @@ export function safeNext(raw: unknown): string {
   if (typeof raw !== "string" || !raw || raw.length > MAX_NEXT) return fallback;
   if (raw !== "/app" && !raw.startsWith("/app/") && !raw.startsWith("/app?") && !raw.startsWith("/app#")) return fallback;
   // No control characters or spaces, no backslash, no protocol relative "//" anywhere, no scheme.
-  if (/[\u0000-\u0020\u007f-\u009f\\]/.test(raw)) return fallback;
+  if (hasUnsafeChar(raw)) return fallback;
   if (raw.includes("//")) return fallback;
   if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) return fallback;
   // Encoded slash, backslash, dot dot or control characters (any depth of percent encoding).
@@ -61,7 +70,7 @@ export function safeNext(raw: unknown): string {
     decoded = next;
   }
   if (decoded !== raw) {
-    if (/%2f|%5c/i.test(raw) || /[\u0000-\u0020\u007f-\u009f\\]/.test(decoded) || decoded.includes("//")) return fallback;
+    if (/%2f|%5c/i.test(raw) || hasUnsafeChar(decoded) || decoded.includes("//")) return fallback;
   }
   // Path traversal out of /app ("/app/../x") after the browser normalises it.
   try {
