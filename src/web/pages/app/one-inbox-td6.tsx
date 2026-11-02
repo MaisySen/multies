@@ -230,7 +230,7 @@ function OneInbox() {
         </div>
       )}
       {q.isPending ? <Card className="p-0"><SkeletonRows rows={6} label="Loading your inbox" /></Card>
-        : q.isError && !q.data ? <Card className="p-4" data-testid="one-inbox-error"><p className="mb-2 text-[14px]">We could not load your inbox.</p><LoadErrorInline onRetry={() => q.refetch()} /></Card>
+        : q.isError && !q.data ? <Card className="p-4" data-testid="one-inbox-error"><LoadErrorInline onRetry={() => q.refetch()} /></Card>
         : !items.length ? (
           <EmptyState icon={view === "later" ? <IconClock /> : <IconCheckCircle />} art={<CaughtUpArt />}
             title={view === "inbox" ? (lane === "important" ? "You are all caught up" : "No noise right now") : view === "later" ? "Nothing snoozed" : "Nothing done yet"}
