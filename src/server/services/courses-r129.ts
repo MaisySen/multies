@@ -140,7 +140,7 @@ export async function courseDetail(deps: Deps, viewer: Viewer, docId: string) {
     course: {
       id: docId, title, status: meta.status, passMark: meta.passMark, certificate: meta.certificate,
       ...(builder ? { editors: ids(meta.editors), managers: ids(meta.managers), createdBy: meta.createdBy } : {}),
-      canBuild: builder, canDelete: !!deps.config.polishPol1 && member && canTrash(a, "course", meta.createdBy), canSeeProgress: member && canSeeProgress(a, meta), // POL1: canDelete canLearn: member && !!a.userId && a.scope !== "read", guest: !member,
+      canBuild: builder, canDelete: !!deps.config.polishPol1 && member && canTrash(a, "course", meta.createdBy), canSeeProgress: member && canSeeProgress(a, meta), canLearn: member && !!a.userId && a.scope !== "read", guest: !member, // POL1: canDelete
     },
     lessons: lessons.map((l) => lessonFor(l, builder)),
     me,
