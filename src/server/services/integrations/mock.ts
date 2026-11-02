@@ -19,6 +19,8 @@ const TOOLKITS: Record<string, { auth_schemes: string[]; composio_managed_auth_s
   slack: { auth_schemes: ["OAUTH2"], composio_managed_auth_schemes: ["OAUTH2"] },
   telegram: { auth_schemes: ["API_KEY"], composio_managed_auth_schemes: [] },
   twitter: { auth_schemes: ["OAUTH2"], composio_managed_auth_schemes: [] },
+  youtube: { auth_schemes: ["OAUTH2"], composio_managed_auth_schemes: ["OAUTH2"] }, // R132: managed sign in, as on the platform
+  google_business_profile: { auth_schemes: ["OAUTH2"], composio_managed_auth_schemes: [] }, // R132: no managed sign in (held)
 };
 
 export interface MockComposioState {

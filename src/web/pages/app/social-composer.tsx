@@ -32,6 +32,8 @@ import { AppLogo } from "./apps-settings";
 import { PostedSheet, postsKey, useAccountHealth, whenText } from "./apps-social";
 import { TikTokPostDialog, directKeys } from "./apps-direct";
 import { LoadErrorInline, LoadFailure } from "@/web/components/load-error-t1g";
+import { BestTimeChips, PinDetailsCard, SnapShare, WritingHelp, useSocialP3 } from "./social-p3"; // R132
+import type { PinDetails } from "@/shared/social-p3";
 
 /* ---------------------------------------------------------------- helpers */
 
@@ -329,6 +331,10 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
   const [poll, setPoll] = useState<PollInput | null>(draft?.extras?.poll ?? null);
   const [campaign, setCampaign] = useState(draft?.campaign ?? "");
   const [evergreen, setEvergreen] = useState(!!draft?.evergreen);
+  // R132: pin details (Pinterest) and the text before the last writing help, for Undo.
+  const p3on = useSocialP3();
+  const [pin, setPin] = useState<PinDetails>(() => (draft?.extras as { pin?: PinDetails | null } | null | undefined)?.pin ?? {});
+  const beforeHelp = useRef<{ text: string; texts: Record<string, string> } | null>(null);
   const initialLater = !!presetAt || (!!draft && Date.parse(draft.runAt) > Date.now() + 60_000);
   const [later, setLater] = useState(initialLater);
   const [at, setAt] = useState(() => localInput(presetAt ? new Date(presetAt) : draft && Date.parse(draft.runAt) > Date.now() ? new Date(draft.runAt) : new Date(Date.now() + 3600_000)));
@@ -362,11 +368,11 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
   const textOf = (app: string) => textFor(text, texts, app);
   const checks = useMemo(() => composerChecks({
     format, main: text, texts, images: usesImages ? images.map((i) => ({ w: i.w, h: i.h })) : [],
-    extras: { firstComment, poll: apps.includes("linkedin") ? poll : null, linkCard },
+    extras: { firstComment, poll: apps.includes("linkedin") ? poll : null, linkCard, ...(p3on && apps.includes("pinterest") ? { pin } : {}) },
     accounts: chosen.map((a) => ({ id: a.id, app: a.app, target: picked[a.id], needsTarget: a.needsTarget, broken: brokenText(a.id) ?? serverProblems[a.id] ?? null })),
     scheduled: later,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [format, text, texts, images, firstComment, poll, linkCard, picked, health.data, serverProblems, later, accounts]);
+  }), [format, text, texts, images, firstComment, poll, linkCard, picked, health.data, serverProblems, later, accounts, pin, p3on]);
   const sendable = checks.filter((c) => c.state !== "out" && c.app !== "tiktok");
   const tiktokPicked = chosen.some((a) => a.app === "tiktok") && (format === "video" || format === "story");
   const leftOut = checks.filter((c) => c.state === "out").length;
@@ -388,7 +394,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
     images: usesImages ? images.map((i) => (i.mediaId ? { mediaId: i.mediaId } : i.upload!)) : [],
     targets: targets.map((a) => ({ accountId: a.id, target: picked[a.id] || null, targetName: names[a.id] || null })),
     runAt: later ? new Date(at).toISOString() : null,
-    extras: { firstComment: firstComment.trim() || null, poll: apps.includes("linkedin") && poll ? poll : null, linkCard },
+    extras: { firstComment: firstComment.trim() || null, poll: apps.includes("linkedin") && poll ? poll : null, linkCard, ...(p3on && apps.includes("pinterest") && (pin.title || pin.link || pin.alt) ? { pin } : {}) },
     campaign: campaign.trim() || null,
     evergreen,
     mode,
@@ -417,7 +423,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
     },
   });
 
-  const resetAfterPost = () => { setText(""); setTexts({}); setImages([]); setPicked({}); setFirstComment(""); setPoll(null); setLater(false); setTab("all"); };
+  const resetAfterPost = () => { setText(""); setTexts({}); setImages([]); setPicked({}); setFirstComment(""); setPoll(null); setLater(false); setTab("all"); setPin({}); };
 
   const addFiles = async (files: FileList | null) => {
     setImageError(null);
@@ -561,7 +567,15 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
             </div>
           )}
 
+          {p3on && apps.includes("pinterest") && <PinDetailsCard value={pin} onChange={setPin} />}
+
           <div className="flex flex-wrap gap-2">
+            {p3on && (
+              <WritingHelp text={curText} apps={apps.filter((a) => NETWORK_RULES[a])}
+                onText={(t) => { beforeHelp.current = { text, texts }; if (tabApp) setTexts((m) => ({ ...m, [tabApp]: t })); else setText(t); }}
+                onTexts={(m) => { beforeHelp.current = { text, texts }; setTexts((cur) => ({ ...cur, ...m })); }}
+                restore={() => { const b = beforeHelp.current; if (b) { setText(b.text); setTexts(b.texts); beforeHelp.current = null; } }} />
+            )}
             <Button type="button" variant="outline" size="sm" onClick={() => setLibOpen(true)} data-testid="open-library"><IconBookmark className="h-4 w-4" aria-hidden />Library</Button>
             <Button type="button" variant="outline" size="sm" className="xl:hidden" onClick={() => setPreviewOpen(true)} data-testid="open-preview"><IconEye className="h-4 w-4" aria-hidden />Preview</Button>
             <Button type="button" variant="ghost" size="sm" aria-expanded={moreOpen} onClick={() => setMoreOpen((o) => !o)} data-testid="more-options">{moreOpen ? "Fewer options" : "More options"}</Button>
@@ -633,6 +647,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
                 </Button>
               ) : slots.data && !slots.data.hasSlots ? <Link to="/app/social?slots=1" className="text-[12.5px] font-medium text-muted underline underline-offset-2 hover:text-fg">Set weekly time slots</Link> : null)}
             </div>
+            {later && p3on && <BestTimeChips apps={apps.filter((a) => a !== "tiktok")} onPick={(iso) => setAt(localInput(new Date(iso)))} />}
             {tooSoon && <p className="text-[12.5px] text-warn">Pick a time at least a minute from now.</p>}
             {tooFar && <p className="text-[12.5px] text-warn">Posts can be set up to {SOCIAL_MAX_AHEAD_DAYS} days ahead.</p>}
             {leftOut > 0 && sendable.length > 0 && <p className="text-[12.5px] text-muted" data-testid="left-out-note">{leftOut === 1 ? "1 account is left out" : `${leftOut} accounts are left out`}; the rest get the post.</p>}
@@ -644,6 +659,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
               </Button>
             </div>
             {tiktokPicked && sendable.length > 0 && <p className="text-right text-[12.5px] text-muted">TikTok goes through its own form after this.</p>}
+            {p3on && <div className="border-t border-line pt-3" data-testid="snap-share-row"><SnapShare text={textFor(text, texts, "snapchat")} /></div>}
           </div>
         </form>
       </Card>

@@ -232,7 +232,8 @@ export function bestSlots(rows: { sentAt: string; reach: number | null; engageme
   return {
     defaults: false, posts, need: 0, tz,
     slots: top.map((c) => {
-      const pct = (c.rate * 100).toFixed(c.rate < 0.1 ? 1 : 0);
+      const pn = c.rate * 100;
+      const pct = pn < 10 ? pn.toFixed(1).replace(/\.0$/, "") : String(Math.round(pn));
       const x = avg > 0 ? c.rate / avg : 1;
       const why = `${pct}% engagement from ${c.n} ${c.n === 1 ? "post" : "posts"}${x >= 1.1 ? `, ${x.toFixed(1)} times your average` : ""}.`;
       return { day: c.day, hour: c.hour, label: slotLabel(c.day, c.hour), why, at: nextAt(c.day, c.hour, tz, nowMs) };
@@ -284,5 +285,5 @@ export function fitText(s: string, max: number | null): string {
   if (!max || [...s].length <= max) return s;
   const chars = [...s].slice(0, Math.max(1, max - 1)).join("");
   const cut = chars.lastIndexOf(" ");
-  return `${(cut > max * 0.6 ? chars.slice(0, cut) : chars).trimEnd()}\u2026`;
+  return `${(cut > max * 0.5 ? chars.slice(0, cut) : chars).trimEnd()}\u2026`;
 }
