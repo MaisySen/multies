@@ -490,7 +490,9 @@ function BlogSettings({ d, blog }: { d: BlogOut; blog: BlogInfo }) {
   const [desc, setDesc] = useState(blog.description);
   const [sender, setSender] = useState(n?.senderName ?? "");
   const [address, setAddress] = useState(n?.senderAddress ?? "");
-  const m = useMutation({ mutationFn: (patch: Record<string, unknown>) => api.patch<BlogOut>("/sites/blog", patch), onSuccess: (r) => { qc.setQueryData(KEY, r); toast.success("Saved"); }, onError: (e) => toast.error(errorMessage(e)) });
+  // Fields save on blur; saves run one after another so two quick edits cannot overwrite each other on the server.
+  const chain = useRef<Promise<unknown>>(Promise.resolve());
+  const m = useMutation({ mutationFn: (patch: Record<string, unknown>) => { const next = chain.current.catch(() => undefined).then(() => api.patch<BlogOut>("/sites/blog", patch)); chain.current = next; return next; }, onSuccess: (r) => { qc.setQueryData(KEY, r); toast.success("Saved"); }, onError: (e) => toast.error(errorMessage(e)) });
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card className="space-y-4 p-4">

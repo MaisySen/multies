@@ -175,7 +175,16 @@ export function blogPublicRoutes() {
     if (!site || !blog) return c.json({ error: { code: "not_found", message: "This blog doesn't exist." } }, 404);
     if (!blog.subscribe.ok) return c.json({ error: { code: "not_found", message: "Subscriptions are closed on this blog." } }, 404);
     let body: { email?: unknown; shield?: ShieldAnswer };
-    try { body = (await c.req.json()) as typeof body; } catch { return c.json({ error: { code: "bad_request", message: "Turn on JavaScript to subscribe." } }, 400); }
+    try { body = (await c.req.json()) as typeof body; } catch {
+      // A browser without the subscribe script posts the form itself: answer with a real page, not raw JSON.
+      if (!(c.req.header("content-type") ?? "").includes("application/json")) {
+        const base = B.blogBase(c.var.deps, site.slug);
+        const res = page(c, site, blog, { title: "Turn on JavaScript to subscribe", description: `Subscribe to ${blog.title}`, canonical: base, subscribe: false,
+          body: `<section class="blog-note"><h1>Turn on JavaScript to subscribe</h1><p>The subscribe box needs JavaScript so we can keep spam out. Turn it on, then try again.</p><p><a href="${escHtml(base)}">Back to the blog</a></p></section>`, head: '<meta name="robots" content="noindex">' });
+        return new Response(res.body, { status: 400, headers: res.headers });
+      }
+      return c.json({ error: { code: "bad_request", message: "Turn on JavaScript to subscribe." } }, 400);
+    }
     try {
       await requireShield(c.var.deps, "blog_subscribe", body.shield);
       await B.subscribe(c.var.deps, site, String(body.email ?? "").slice(0, 254));

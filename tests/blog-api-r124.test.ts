@@ -272,6 +272,16 @@ describe("R124 subscribers and email through campaigns", () => {
     expect((await subscribe("reader@x.io")).status).toBe(404);
   });
 
+  it("answers a form posted without the subscribe script with a real page, not raw JSON", async () => {
+    await ready();
+    const res = await ctx.app.request("/site/acme/blog/subscribe", { method: "POST", headers: { host: "localhost", "content-type": "application/x-www-form-urlencoded" }, body: "email=reader%40x.io" });
+    expect(res.status).toBe(400);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    const html = await res.text();
+    expect(html).toContain("<title>Turn on JavaScript to subscribe");
+    expect(html).toMatch(/<html lang="[a-z]/);
+    expect(news().some((m) => m.to[0] === "reader@x.io")).toBe(false);
+  });
   it("double opt in: confirms by a one time link, never mails the unconfirmed, sends only through campaigns, honours unsubscribe", async () => {
     await ready();
     expect((await text("/site/acme/blog")).text).toContain("blog-subscribe");
