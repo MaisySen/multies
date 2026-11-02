@@ -72,7 +72,7 @@ export function sniffType(bytes: Uint8Array, name: string): Sniffed | null {
 /** A file name that is safe to store and show: no folders, no control or markup characters, a sane length. */
 export function cleanFileName(raw: string, ext?: string): string {
   let n = String(raw ?? "").split(/[\\/]/).pop() ?? "";
-  n = n.normalize("NFC").replace(/[\u0000-\u001f\u007f<>:"|?*`$&;{}[\]\\^%]/g, "").replace(/\s+/g, " ").replace(/^[.\s]+/, "").trim();
+  n = n.normalize("NFC").replace(/[<>:"|?*`$&;{}[\]\\^%]/g, "").replace(/./gu, (ch) => (ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127 ? "" : ch)).replace(/\s+/g, " ").replace(/^[.\s]+/, "").trim();
   const base = n.replace(/\.[a-z0-9]{1,5}$/i, "").slice(0, 100).trim() || "file";
   const end = ext || extOf(n) || "bin";
   return `${base}.${end}`;
