@@ -96,6 +96,7 @@ export default function Settings() {
       <Row tile="gray" icon="hard-drive" label="Storage used" value={overview.data ? bytes(used) : undefined} />
       {tools.data ? <Row tile="brand" icon="wrench" label="Tools" value="PDF and Office" onPress={() => router.push("/tools")} testID="tools-link" /> : null}
       <Row tile="pink" icon="send" label="Social" value={socialInbox ? `${socialInbox} open in inbox` : "Posts, inbox and accounts"} onPress={() => router.push("/social")} testID="social-link" />
+      {me?.organization ? <Row tile="blue" icon="file-text" label="Docs" value="Read, comment and share" onPress={() => router.push("/docs")} testID="docs-link" /> : null}
       <Row tile="green" icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="meetings" />
       <Row tile="orange" icon="layers" label="Portfolio" onPress={() => router.push("/portfolio")} testID="portfolio-link" />
       <Row tile="teal" icon="users" label="People" onPress={() => router.push("/people")} testID="people-link" />

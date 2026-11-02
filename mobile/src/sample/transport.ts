@@ -13,6 +13,7 @@ import { runsRoute, sampleRuns } from "./runs";
 import { sampleSocial, socialRoute } from "./social";
 import { mailExtrasRoute, sampleListExtras, sampleMailExtras, sampleSnooze } from "./mail-r85";
 import { snoozeUntil, type SnoozePreset } from "@/lib/snooze";
+import { docsRoute, sampleDocs } from "./docs"; // M1
 
 /**
  * The sample workspace runs entirely on the device with no server. It answers the same paths the
@@ -27,6 +28,7 @@ export class SampleTransport implements Transport {
   private email = sampleEmail(Date.now());
   private runs = sampleRuns(Date.now(), this.data.work);
   private social = sampleSocial(Date.now());
+  private docs = sampleDocs(Date.now()); // M1
   private mail = sampleMailExtras(Date.now(), this.data.messages);
   /** R35: report and block in the sample workspace, kept in memory only. */
   private blocks: { userId: string; name: string; avatarUrl: string | null; createdAt: string }[] = [];
@@ -42,6 +44,7 @@ export class SampleTransport implements Transport {
     this.email = sampleEmail(Date.now());
     this.runs = sampleRuns(Date.now(), this.data.work);
     this.social = sampleSocial(Date.now());
+    this.docs = sampleDocs(Date.now()); // M1
     this.mail = sampleMailExtras(Date.now(), this.data.messages);
     this.blocks = [];
     this.reports = 0;
@@ -58,6 +61,10 @@ export class SampleTransport implements Transport {
     const route = `${method} /${parts.map((p, i) => (i > 0 && isId(p) ? ":id" : p)).join("/")}`;
     const id = parts.find((p, i) => i > 0 && isId(p)) ?? "";
     const json = <R>(v: R) => structuredCloneSafe(v) as unknown as T;
+
+    // M1: global search, Docs, comments and share links.
+    const docs = docsRoute(this.docs, this.data.messages, method, path, params, body, Date.now());
+    if (docs !== undefined) return json(docs);
 
     // 1.10.5: social posts and accounts.
     const social = socialRoute(this.social, method, path.startsWith("/social/inbox") ? rawPath : path, body, Date.now());
