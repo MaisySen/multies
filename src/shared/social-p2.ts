@@ -15,6 +15,7 @@ export const FORMAT_LABELS: Record<SocialFormat, string> = { text: "Text", image
 export const COMPOSER_NETWORKS = ["facebook", "instagram", "linkedin", "pinterest", "reddit", "threads", "tiktok"] as const;
 export const NETWORK_LABEL: Record<string, string> = {
   facebook: "Facebook", instagram: "Instagram", linkedin: "LinkedIn", pinterest: "Pinterest", reddit: "Reddit", threads: "Threads", tiktok: "TikTok", twitter: "X", testnet: "Test network",
+  youtube: "YouTube", google_business_profile: "Google Business Profile", snapchat: "Snapchat", // R132
 };
 export const networkLabel = (app: string) => NETWORK_LABEL[app] ?? app.charAt(0).toUpperCase() + app.slice(1);
 

@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-02-social-more-networks",
+    date: "2026-11-02",
+    title: "More from Social",
+    body: "Pins now take their own title, link and alt text. YouTube comments arrive in the Social inbox and you can reply there. When you schedule, Multies suggests your best times from your own results, writing help can make a post shorter, friendlier or fit each network, and you can share a post with a link to Snapchat.",
+  },
+  {
     id: "2026-11-02-blog",
     date: "2026-11-02",
     title: "A blog on your site",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-01",
     title: "Book rooms, find a time together, run free events",
     body: "In Booking, new tabs let you book rooms, desks, vehicles and equipment on a day grid, with rules your admins set and QR check in. Time polls find a time that suits a group, and people answer without an account. Free events get a page, QR tickets by email, a waitlist and check in at the door from your phone.",
-  },
-  {
-    id: "2026-11-01-invoices",
-    date: "2026-11-01",
-    title: "Invoices, quotes and expenses",
-    body: "Send quotes customers can accept online, turn them into invoices in one click, and send tax invoices with your ABN and GST shown, a link to the PDF and your bank details. Record payments, credit notes, repeating invoices, bills and expenses (snap or forward a receipt and it is read, checked for GST and sent for approval), and see what you are owed and the GST for your BAS. Find it all in Contacts > Invoices.",
   },
   {
     id: "2026-10-28-whats-new",
