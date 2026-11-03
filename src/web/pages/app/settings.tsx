@@ -17,6 +17,7 @@ import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
 import { authClient, unwrap } from "@/web/lib/auth-client";
 import { useConfig, useMe, useOrg, qk } from "@/web/lib/queries";
+import { TranslateSettingsLazy } from "@/web/components/lang-tools-r116-lazy"; // R116
 import { Card, CopyButton, Kbd, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
 import { useUndoSeconds } from "@/web/lib/undo-send";
 import { UNDO_SEND_CHOICES } from "@/shared/undo-send";
@@ -222,9 +223,11 @@ export function SettingsLayout() {
 }
 
 export function GeneralSettings() {
+  const translateOn = !!useConfig().data?.translateR116; // R116
   return (
     <div className="space-y-6">
       <PreferencesSection />
+      {translateOn && <Section id="translate" title="Translate and read aloud" description="Just for you, on this device. Translate mail, docs and chat, and have them read aloud."><TranslateSettingsLazy /></Section>}
       <WorkspaceSection />
       <Section id="share-links" title="Share links" description="Read only links to a doc or a board for people outside the workspace."><ShareLinksSetting /></Section>
       <AiTrustSection />
