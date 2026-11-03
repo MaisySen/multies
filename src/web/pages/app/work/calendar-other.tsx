@@ -5,6 +5,7 @@ import { IconCalendarPlus, IconEye, IconEyeOff } from "@/web/components/ui/icon"
 import { api } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
 import { tr } from "@/web/i18n"; // POL4 (HQ MB-356)
+import "@/web/i18n/w2/en-calendar"; // R104B
 
 /**
  * Round 23 (R23.4): the "Other calendars" layer on the work calendar. Events from the person's own
@@ -61,7 +62,7 @@ export function OtherCalendarsBar({ layer }: { layer: ReturnType<typeof useOther
       {layer.sources.map((s) => {
         const off = layer.hidden.has(s.id);
         return (
-          <button key={s.id} type="button" onClick={() => layer.toggle(s.id)} aria-pressed={!off} aria-label={`${off ? "Show" : "Hide"} ${s.name}`}
+          <button key={s.id} type="button" onClick={() => layer.toggle(s.id)} aria-pressed={!off} aria-label={off ? tr("calendar.show_name", { name: s.name }) : tr("calendar.hide_name", { name: s.name })}
             className={cn("inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 transition-colors max-sm:h-11 max-sm:px-3.5", off ? "border-line text-subtle" : "border-line bg-fill text-fg")}>
             <span className="size-2 rounded-full" style={{ background: off ? "transparent" : s.color, boxShadow: `inset 0 0 0 1.5px ${s.color}` }} aria-hidden />
             {s.name}

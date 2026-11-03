@@ -19,6 +19,7 @@ import { agendaDays } from "./calendar-agenda";
 import { emptyTasksCopy } from "@/web/lib/empty-states"; // R30
 import { OtherCalendarsBar, useOtherCalendars } from "./calendar-other";
 import { tr, uiLocale, tl } from "@/web/i18n"; // R104
+import { devaDigits, formatDateIn, hasLocale } from "@/web/i18n/intl"; // POL4
 
 /** Month calendar of due dates (FullCalendar Standard, MIT). Drag a task to another day to move its due date. */
 export function TaskCalendar({ tasks, onOpen, onDue }: { tasks: Task[]; onOpen: (id: string) => void; onDue: (id: string, due: string) => void }) {
@@ -57,7 +58,7 @@ export function TaskCalendar({ tasks, onOpen, onDue }: { tasks: Task[]; onOpen: 
       <FullCalendar
         plugins={[classicThemePlugin, dayGridPlugin, interactionPlugin]} initialView="dayGridMonth" locale={uiLocale()?.toLowerCase() ?? "en-au"} firstDay={1} height="auto"
         events={[...events, ...other.events]} datesSet={(r) => other.setRange({ from: r.start.toISOString(), to: r.end.toISOString() })} editable eventStartEditable eventDurationEditable={false} dayMaxEvents={4}
-        headerToolbar={{ start: "title", center: "", end: "today prev,next" }} buttons={{ today: { text: tr("myday.today"), hint: tr("myday.today") } }}
+        {...nepaliMonthHooks(uiLocale())} headerToolbar={{ start: "title", center: "", end: "today prev,next" }} buttons={{ today: { text: tr("myday.today"), hint: tr("myday.today") } }}
         toolbarTitleClass="mm-fc-title" dayHeaderInnerClass="mm-fc-muted" dayCellTopInnerClass="mm-fc-muted" eventClass="mm-fc-event"
         eventDidMount={(a) => { const src = a.event.extendedProps.sourceColor as string | undefined; if (src) a.el.style.setProperty("--mm-src", src); }}
         eventClick={(e) => { e.jsEvent.preventDefault(); const href = e.event.extendedProps.href as string | null | undefined; if (href) navigate(href); else if (!e.event.extendedProps.readOnly) onOpen(e.event.id); }} eventDrop={onDrop}
@@ -71,6 +72,23 @@ export function TaskCalendar({ tasks, onOpen, onDue }: { tasks: Task[]; onOpen: 
       )}
     </div>
   );
+}
+
+/**
+ * POL4: where the browser has no Nepali date data (Chrome among them) the month grid would print English month and
+ * weekday names; this gives it Nepali ones and Devanagari day numbers. Elsewhere the grid's own locale is used.
+ */
+const EN_SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function nepaliMonthHooks(locale: string | null | undefined) {
+  if (!locale?.startsWith("ne") || hasLocale(locale)) return {};
+  return {
+    titleFormat: (i: { date: { year: number; month: number } }) => formatDateIn(new Date(Date.UTC(i.date.year, i.date.month, 15)), locale, { month: "long", year: "numeric", timeZone: "UTC" }),
+    dayHeaderContent: (h: { text: string }) => {
+      const d = EN_SHORT_DAYS.findIndex((n) => h.text.startsWith(n));
+      return d < 0 ? devaDigits(h.text) : formatDateIn(new Date(Date.UTC(2026, 10, 1 + d)), locale, { weekday: "short", timeZone: "UTC" });
+    },
+    dayCellTopContent: (c: { dayNumberText: string }) => devaDigits(c.dayNumberText),
+  };
 }
 
 /** R48 mobile web: tasks by day, Overdue first, 56 px rows that open the task. */

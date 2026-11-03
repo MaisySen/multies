@@ -14,6 +14,8 @@ import { ConfirmDialog } from "@/web/components/ui/confirm";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows";
 import { useConfig } from "@/web/lib/queries";
 import { LoadErrorInline } from "@/web/components/load-error-t1g";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-calendar"; // R104B
 
 /**
  * Round 23 (R23.4): Settings > Calendar. A personal calendar feed (a secret .ics address that can be
@@ -43,12 +45,12 @@ function FeedSection() {
   const [fresh, setFresh] = useState<FeedState | null>(null);
   const make = useMutation({
     mutationFn: () => api.post<{ feed: FeedState }>("/calendar/feed", {}),
-    onSuccess: (r) => { setFresh(r.feed); qc.setQueryData(calendarKeys.feed, r.feed); if (feed.data?.enabled) toast.success("New address made. The old one has stopped working."); },
+    onSuccess: (r) => { setFresh(r.feed); qc.setQueryData(calendarKeys.feed, r.feed); if (feed.data?.enabled) toast.success(tr("calendar.new_address_made_the_old_one_has_stopped_working")); },
     onError: showError,
   });
   const off = useMutation({
     mutationFn: () => api.del("/calendar/feed"),
-    onSuccess: () => { setFresh(null); qc.invalidateQueries({ queryKey: calendarKeys.feed }); toast.success("Calendar feed turned off."); },
+    onSuccess: () => { setFresh(null); qc.invalidateQueries({ queryKey: calendarKeys.feed }); toast.success(tr("calendar.calendar_feed_turned_off")); },
     onError: showError,
   });
   const tasks = useMutation({
@@ -59,17 +61,17 @@ function FeedSection() {
   const f = feed.data;
   const url = fresh?.url;
   return (
-    <Section id="calendar-feed" title="Subscribe in Google Calendar, Apple Calendar or Outlook" description="Your meetings and the due dates of your tasks, in the calendar app you already use. It refreshes about once an hour. Anyone with the address can read it, so keep it to yourself.">
+    <Section id="calendar-feed" title={tr("calendar.subscribe_in_google_calendar_apple_calendar_or_o")} description={tr("calendar.your_meetings_and_the_due_dates_of_your_tasks_in")}>
       {!f ? null : !f.enabled ? (
         <div className="flex flex-col items-start gap-3">
-          <p className="text-sm text-muted">Turn on a private calendar address just for you.</p>
-          <Button onClick={() => make.mutate()} loading={make.isPending}><IconCalendarDays className="size-4" />Turn on calendar feed</Button>
+          <p className="text-sm text-muted">{tr("calendar.turn_on_a_private_calendar_address_just_for_you")}</p>
+          <Button onClick={() => make.mutate()} loading={make.isPending}><IconCalendarDays className="size-4" />{tr("calendar.turn_on_calendar_feed")}</Button>
         </div>
       ) : (
         <div className="space-y-4" data-testid="calendar-feed">
           {url ? (
             <>
-              <Field label="Your calendar address">
+              <Field label={tr("calendar.your_calendar_address")}>
                 {(p) => (
                   <div className="flex items-center gap-2">
                     <Input {...p} readOnly value={url} data-testid="calendar-feed-url" onFocus={(e) => e.currentTarget.select()} className="font-mono text-[12.5px]" />
@@ -78,23 +80,23 @@ function FeedSection() {
                 )}
               </Field>
               <div className="flex flex-wrap gap-2">
-                <a className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[13px] font-medium text-white hover:opacity-90" href={fresh?.webcalUrl}><IconCalendarDays className="size-4" />Open in Apple Calendar</a>
-                <a className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-fill px-3 text-[13px] text-fg hover:bg-hover" href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(fresh?.webcalUrl ?? url)}`} target="_blank" rel="noreferrer">Add to Google Calendar</a>
+                <a className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[13px] font-medium text-white hover:opacity-90" href={fresh?.webcalUrl}><IconCalendarDays className="size-4" />{tr("calendar.open_in_apple_calendar")}</a>
+                <a className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-fill px-3 text-[13px] text-fg hover:bg-hover" href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(fresh?.webcalUrl ?? url)}`} target="_blank" rel="noreferrer">{tr("calendar.add_to_google_calendar")}</a>
               </div>
-              <p className="text-[12.5px] text-muted">Copy it now: for your safety Multies shows it only once. Lost it? Reset below for a new one.</p>
+              <p className="text-[12.5px] text-muted">{tr("calendar.copy_it_now_for_your_safety_multies_shows_it_onl")}</p>
             </>
           ) : (
-            <p className="text-sm text-muted">Your calendar feed is on. Its address ends in <span className="font-mono text-fg">{f.hint}</span>.ics. For your safety it is shown only when it is made: reset to get a new one (the old one stops working).</p>
+            <p className="text-sm text-muted">{tr("calendar.your_calendar_feed_is_on_its_address_ends_in")} <span className="font-mono text-fg">{f.hint}</span>{tr("calendar.ics_for_your_safety_it_is_shown_only_when_it_is")}</p>
           )}
           <ul className="space-y-1.5 text-[13px] text-muted">
-            <li><span className="font-medium text-fg">Google Calendar:</span> Other calendars, plus, From URL, paste the address, Add calendar.</li>
-            <li><span className="font-medium text-fg">Apple Calendar:</span> File, New Calendar Subscription, paste the address (or use the button above on a Mac or iPhone).</li>
-            <li><span className="font-medium text-fg">Outlook:</span> Add calendar, Subscribe from web, paste the address, Import.</li>
+            <li><span className="font-medium text-fg">{tr("calendar.google_calendar")}</span> {tr("calendar.other_calendars_plus_from_url_paste_the_address")}</li>
+            <li><span className="font-medium text-fg">{tr("calendar.apple_calendar")}</span> {tr("calendar.file_new_calendar_subscription_paste_the_address")}</li>
+            <li><span className="font-medium text-fg">{tr("calendar.outlook")}</span> {tr("calendar.add_calendar_subscribe_from_web_paste_the_addres")}</li>
           </ul>
-          <Switch checked={f.includeTasks} onChange={(v) => tasks.mutate(v)} label="Include the due dates of my tasks" />
+          <Switch checked={f.includeTasks} onChange={(v) => tasks.mutate(v)} label={tr("calendar.include_the_due_dates_of_my_tasks")} />
           <div className="flex flex-wrap gap-2 border-t border-line pt-4">
-            <Button variant="secondary" size="sm" onClick={() => make.mutate()} loading={make.isPending}><IconRefresh className="size-4" />Reset link</Button>
-            <Button variant="ghost" size="sm" onClick={() => off.mutate()} loading={off.isPending}>Turn off</Button>
+            <Button variant="secondary" size="sm" onClick={() => make.mutate()} loading={make.isPending}><IconRefresh className="size-4" />{tr("calendar.reset_link")}</Button>
+            <Button variant="ghost" size="sm" onClick={() => off.mutate()} loading={off.isPending}>{tr("calendar.turn_off")}</Button>
           </div>
         </div>
       )}
@@ -110,7 +112,7 @@ export function OtherCalendarsSection() {
   const refresh = () => { qc.invalidateQueries({ queryKey: calendarKeys.sources }); qc.invalidateQueries({ queryKey: ["calendar", "events"] }); };
   const add = useMutation({
     mutationFn: (b: Record<string, unknown>) => api.post<{ source: CalendarSourceView }>("/calendar/sources", b),
-    onSuccess: (r) => { setUrl(""); refresh(); toast.success(`${r.source.name} added. Its events show on the calendar.`); },
+    onSuccess: (r) => { setUrl(""); refresh(); toast.success(tr("calendar.name_added_its_events_show_on_the_calendar", { name: r.source.name })); },
     onError: showError,
   });
   const patch = useMutation({ mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) => api.patch(`/calendar/sources/${id}`, { enabled }), onSuccess: refresh, onError: showError });
@@ -118,7 +120,7 @@ export function OtherCalendarsSection() {
   const added = new Set((sources.data ?? []).map((s) => s.address));
   const [davUrl, setDavUrl] = useState<Record<string, string>>({});
   return (
-    <Section id="other-calendars" title="Other calendars" description="See your own calendars beside your work, read only. Only you see them; nothing is copied into Multies.">
+    <Section id="other-calendars" title={tr("calendar.other_calendars")} description={tr("calendar.see_your_own_calendars_beside_your_work_read_onl")}>
       <div className="space-y-5">
         {(sources.data ?? []).length > 0 && (
           <ul className="divide-y divide-line rounded-xl border border-line" data-testid="calendar-sources">
@@ -129,21 +131,21 @@ export function OtherCalendarsSection() {
                   <div className="truncate text-sm font-medium">{s.name}</div>
                   <div className="truncate text-[12px] text-muted">{s.kind === "caldav" ? `${s.address} (${s.calendars.map((c) => c.name).join(", ")})` : `Calendar link from ${s.host}`}</div>
                 </div>
-                <Switch checked={s.enabled} onChange={(v) => patch.mutate({ id: s.id, enabled: v })} label={`Show ${s.name}`} />
-                <button type="button" aria-label={`Remove ${s.name}`} className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg" onClick={() => remove.mutate(s.id)}><IconTrash className="size-4" /></button>
+                <Switch checked={s.enabled} onChange={(v) => patch.mutate({ id: s.id, enabled: v })} label={tr("calendar.show_name", { name: s.name })} />
+                <button type="button" aria-label={tr("calendar.remove_name", { name: s.name })} className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg" onClick={() => remove.mutate(s.id)}><IconTrash className="size-4" /></button>
               </li>
             ))}
           </ul>
         )}
         <div className="space-y-2">
-          <div className="text-[13px] font-medium">Connect a calendar</div>
-          {(options.data ?? []).length === 0 && <p className="text-[13px] text-muted">Connect a mailbox from Fastmail, iCloud, Zoho, Yahoo or GMX in Connections, Mail accounts and its calendar can show here too.</p>}
+          <div className="text-[13px] font-medium">{tr("calendar.connect_a_calendar")}</div>
+          {(options.data ?? []).length === 0 && <p className="text-[13px] text-muted">{tr("calendar.connect_a_mailbox_from_fastmail_icloud_zoho_yaho")}</p>}
           {(options.data ?? []).map((o) => (
             <div key={o.connectionId} className="flex flex-wrap items-center gap-2 text-sm">
               <IconMail className="size-4 text-muted" />
               <span className="min-w-0 flex-1 truncate">{o.address}</span>
               {o.caldav ? (
-                <Button size="sm" variant="secondary" disabled={added.has(o.address)} loading={add.isPending && add.variables?.connectionId === o.connectionId} onClick={() => add.mutate({ kind: "caldav", connectionId: o.connectionId, ...(davUrl[o.connectionId]?.trim() ? { url: davUrl[o.connectionId].trim() } : {}) })}>{added.has(o.address) ? "Shown" : "Show its calendar"}</Button>
+                <Button size="sm" variant="secondary" disabled={added.has(o.address)} loading={add.isPending && add.variables?.connectionId === o.connectionId} onClick={() => add.mutate({ kind: "caldav", connectionId: o.connectionId, ...(davUrl[o.connectionId]?.trim() ? { url: davUrl[o.connectionId].trim() } : {}) })}>{added.has(o.address) ? tr("calendar.shown") : tr("calendar.show_its_calendar")}</Button>
               ) : <span className="text-[12.5px] text-muted">{o.message}</span>}
               {o.caldav && o.message && !added.has(o.address) && (
                 // A custom mail server: its calendar may live at another address (round 23 follow up).
@@ -156,11 +158,11 @@ export function OtherCalendarsSection() {
           ))}
         </div>
         <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); if (url.trim()) add.mutate({ kind: "ics", url: url.trim() }); }}>
-          <Field label="Add a calendar link (ICS)" hint="Google: Settings, your calendar, Secret address in iCal format. Outlook: Settings, Shared calendars, Publish a calendar, ICS link.">
+          <Field label={tr("calendar.add_a_calendar_link_ics")} hint={tr("calendar.google_settings_your_calendar_secret_address_in")}>
             {(p) => (
               <div className="flex gap-2">
                 <Input {...p} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://calendar.google.com/calendar/ical/.../basic.ics" data-testid="ics-url" />
-                <Button type="submit" loading={add.isPending && add.variables?.kind === "ics"}><IconLink className="size-4" />Add</Button>
+                <Button type="submit" loading={add.isPending && add.variables?.kind === "ics"}><IconLink className="size-4" />{tr("common.add")}</Button>
               </div>
             )}
           </Field>
@@ -194,7 +196,7 @@ function when(iso: string | null) {
 function ServerFields({ server, username }: { server: string; username: string }) {
   return (
     <div className="grid gap-3">
-      <Field label="Server address">
+      <Field label={tr("calendar.server_address")}>
         {(p) => (
           <div className="flex items-center gap-2">
             <Input {...p} readOnly value={server} data-testid="dav-server" onFocus={(e) => e.currentTarget.select()} className="font-mono text-[12.5px]" />
@@ -202,7 +204,7 @@ function ServerFields({ server, username }: { server: string; username: string }
           </div>
         )}
       </Field>
-      <Field label="User name">
+      <Field label={tr("calendar.user_name")}>
         {(p) => (
           <div className="flex items-center gap-2">
             <Input {...p} readOnly value={username} onFocus={(e) => e.currentTarget.select()} className="text-[13px]" />
@@ -227,29 +229,29 @@ function SyncGuides({ server }: { server: string }) {
   };
   const steps: Record<Guide, React.ReactNode[]> = {
     iphone: [
-      <>Easiest: on your iPhone or iPad, tap <span className="font-medium text-fg">Download profile</span> below, then open Settings, Profile Downloaded, Install. Paste your app password when it asks.</>,
-      <>By hand: Settings, Apps, Calendar, Calendar Accounts, Add Account, Other, Add CalDAV Account. Server <span className="font-mono text-fg">{host}</span>, your email as user name, the app password as password.</>,
-      <>For contacts do the same under Settings, Apps, Contacts, Add CardDAV Account.</>,
+      <>{tr("calendar.easiest_on_your_iphone_or_ipad_tap")} <span className="font-medium text-fg">{tr("calendar.download_profile")}</span> {tr("calendar.below_then_open_settings_profile_downloaded_inst")}</>,
+      <>{tr("calendar.by_hand_settings_apps_calendar_calendar_accounts")} <span className="font-mono text-fg">{host}</span>{tr("calendar.your_email_as_user_name_the_app_password_as_pass")}</>,
+      <>{tr("calendar.for_contacts_do_the_same_under_settings_apps_con")}</>,
     ],
     mac: [
-      <>Easiest: download the profile below and open it, then System Settings, Privacy and Security, Profiles, Install.</>,
-      <>By hand: Calendar, Settings, Accounts, add an Other CalDAV Account, choose Manual, and enter your email, the app password and <span className="font-mono text-fg">{host}</span>.</>,
-      <>Contacts: Settings, Accounts, add an Other Contacts Account, choose CardDAV, same details.</>,
+      <>{tr("calendar.easiest_download_the_profile_below_and_open_it_t")}</>,
+      <>{tr("calendar.by_hand_calendar_settings_accounts_add_an_other")} <span className="font-mono text-fg">{host}</span>.</>,
+      <>{tr("calendar.contacts_settings_accounts_add_an_other_contacts")}</>,
     ],
     android: [
-      <>Android has no built in CalDAV, so install a free CalDAV and CardDAV sync app from your app store.</>,
-      <>Add an account with a web address and user name. Paste the server address below, your email and the app password.</>,
-      <>Pick the Multies calendars and the contacts book. They show up in your phone&apos;s Calendar and Contacts apps.</>,
+      <>{tr("calendar.android_has_no_built_in_caldav_so_install_a_free")}</>,
+      <>{tr("calendar.add_an_account_with_a_web_address_and_user_name")}</>,
+      <>{tr("calendar.pick_the_multies_calendars_and_the_contacts_book")}</>,
     ],
     outlook: [
-      <>Outlook on the web and on Windows can only subscribe to calendars, read only: use the calendar feed above.</>,
-      <>For two way sync on Windows, a free CalDAV add in for Outlook works with the server address below.</>,
-      <>Outlook on iPhone, Android and Mac uses the accounts on the device: follow those steps instead.</>,
+      <>{tr("calendar.outlook_on_the_web_and_on_windows_can_only_subsc")}</>,
+      <>{tr("calendar.for_two_way_sync_on_windows_a_free_caldav_add_in")}</>,
+      <>{tr("calendar.outlook_on_iphone_android_and_mac_uses_the_accou")}</>,
     ],
   };
   return (
     <div className="rounded-xl border border-line">
-      <div role="tablist" aria-label="Setup guides" className="flex gap-1 overflow-x-auto border-b border-line p-1" onKeyDown={onKey}>
+      <div role="tablist" aria-label={tr("calendar.setup_guides")} className="flex gap-1 overflow-x-auto border-b border-line p-1" onKeyDown={onKey}>
         {GUIDES.map((g) => (
           <button
             key={g} id={`dav-guide-tab-${g}`} role="tab" type="button" aria-selected={tab === g} aria-controls={`dav-guide-${g}`} tabIndex={tab === g ? 0 : -1}
@@ -264,7 +266,7 @@ function SyncGuides({ server }: { server: string }) {
         </ol>
         {(tab === "iphone" || tab === "mac") && (
           <a href="/api/dav/profile.mobileconfig" download className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-fill px-3 text-[13px] text-fg transition-colors duration-150 hover:bg-hover max-md:min-h-11" data-testid="dav-profile">
-            <IconCalendarDays className="size-4" />Download profile
+            <IconCalendarDays className="size-4" />{tr("calendar.download_profile")}
           </a>
         )}
       </div>
@@ -286,16 +288,16 @@ export function PhoneSyncSection() {
   });
   const revoke = useMutation({
     mutationFn: (id: string) => api.del(`/dav/passwords/${id}`),
-    onSuccess: () => { setRevoking(null); qc.invalidateQueries({ queryKey: davKeys.passwords }); toast.success("App password revoked. That device stops syncing now."); },
+    onSuccess: () => { setRevoking(null); qc.invalidateQueries({ queryKey: davKeys.passwords }); toast.success(tr("calendar.app_password_revoked_that_device_stops_syncing_n")); },
     onError: showError,
   });
   const close = () => { setCreating(false); setMade(null); setName(""); };
   const data = list.data;
   const full = !!data && data.passwords.length >= data.max;
   return (
-    <Section id="calendar-sync" title="Sync with your phone" description="See and edit your meetings, task due dates and contacts in the calendar and contacts apps on your phone or computer. Each device gets its own app password, so you can stop one without touching the others.">
+    <Section id="calendar-sync" title={tr("calendar.sync_with_your_phone")} description={tr("calendar.see_and_edit_your_meetings_task_due_dates_and_co")}>
       {list.isPending ? (
-        <SkeletonRows rows={2} rowHeight={52} label="Loading app passwords" />
+        <SkeletonRows rows={2} rowHeight={52} label={tr("calendar.loading_app_passwords")} />
       ) : list.isError || !data ? (
         <LoadErrorInline onRetry={() => list.refetch()} />
       ) : (
@@ -303,25 +305,25 @@ export function PhoneSyncSection() {
           <ServerFields server={data.server} username={data.username} />
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-[13px] font-medium text-fg">App passwords</h3>
-              <Button size="sm" onClick={() => setCreating(true)} disabled={full} className="max-md:min-h-11" data-testid="dav-create">Create app password</Button>
+              <h3 className="text-[13px] font-medium text-fg">{tr("calendar.app_passwords")}</h3>
+              <Button size="sm" onClick={() => setCreating(true)} disabled={full} className="max-md:min-h-11" data-testid="dav-create">{tr("calendar.create_app_password")}</Button>
             </div>
             {data.passwords.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-line px-4 py-5 text-[13px] text-muted" data-testid="dav-empty">No app passwords yet. Make one for each phone or computer you want to sync. Your Multies password never works here.</p>
+              <p className="rounded-xl border border-dashed border-line px-4 py-5 text-[13px] text-muted" data-testid="dav-empty">{tr("calendar.no_app_passwords_yet_make_one_for_each_phone_or")}</p>
             ) : (
               <ul className="divide-y divide-line rounded-xl border border-line" data-testid="dav-list">
                 {data.passwords.map((p) => (
                   <li key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3 max-sm:flex-col max-sm:items-start">
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[13.5px] font-medium text-fg" title={p.name}>{p.name}</div>
-                      <div className="text-[12.5px] text-muted">Ends in <span className="font-mono">{p.hint}</span> · Created {new Date(p.createdAt).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })} · {when(p.lastUsedAt)}</div>
+                      <div className="text-[12.5px] text-muted">{tr("calendar.ends_in")} <span className="font-mono">{p.hint}</span> {tr("calendar.created")} {new Date(p.createdAt).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })} · {when(p.lastUsedAt)}</div>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => setRevoking(p)} aria-label={`Revoke ${p.name}`} className="max-md:min-h-11"><IconTrash className="size-4" />Revoke</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setRevoking(p)} aria-label={tr("calendar.revoke_name", { name: p.name })} className="max-md:min-h-11"><IconTrash className="size-4" />{tr("calendar.revoke")}</Button>
                   </li>
                 ))}
               </ul>
             )}
-            {full && <p className="text-[12.5px] text-muted">You have the most app passwords allowed ({data.max}). Revoke one you no longer use to make another.</p>}
+            {full && <p className="text-[12.5px] text-muted">{tr("calendar.you_have_the_most_app_passwords_allowed_max_revo", { max: data.max })}</p>}
           </div>
           <SyncGuides server={data.server} />
         </div>
@@ -329,18 +331,18 @@ export function PhoneSyncSection() {
       <Dialog
         open={creating}
         onClose={close}
-        title={made ? "Your app password" : "Create app password"}
-        description={made ? "Copy it into your device now. For your safety Multies shows it only once." : "Name it after the device you will use it on, so you know which one to revoke later."}
-        footer={made ? <Button onClick={close} data-testid="dav-done">Done</Button> : (
+        title={made ? tr("calendar.your_app_password") : tr("calendar.create_app_password")}
+        description={made ? tr("calendar.copy_it_into_your_device_now_for_your_safety_mul") : tr("calendar.name_it_after_the_device_you_will_use_it_on_so_y")}
+        footer={made ? <Button onClick={close} data-testid="dav-done">{tr("common.done")}</Button> : (
           <>
-            <Button variant="ghost" onClick={close}>Cancel</Button>
-            <Button onClick={() => create.mutate(name)} loading={create.isPending} disabled={!name.trim()} data-testid="dav-create-submit">Create</Button>
+            <Button variant="ghost" onClick={close}>{tr("common.cancel")}</Button>
+            <Button onClick={() => create.mutate(name)} loading={create.isPending} disabled={!name.trim()} data-testid="dav-create-submit">{tr("common.create")}</Button>
           </>
         )}
       >
         {made ? (
           <div className="space-y-4">
-            <Field label="App password">
+            <Field label={tr("calendar.app_password")}>
               {(p) => (
                 <div className="flex items-center gap-2">
                   <Input {...p} readOnly autoFocus value={made.password} data-testid="dav-password" onFocus={(e) => e.currentTarget.select()} className="font-mono text-[15px] tracking-wide" />
@@ -352,8 +354,8 @@ export function PhoneSyncSection() {
           </div>
         ) : (
           <form onSubmit={(e) => { e.preventDefault(); if (name.trim()) create.mutate(name); }}>
-            <Field label="Device name">
-              {(p) => <Input {...p} autoFocus value={name} maxLength={60} placeholder="For example, my iPhone" onChange={(e) => setName(e.target.value)} data-testid="dav-name" />}
+            <Field label={tr("calendar.device_name")}>
+              {(p) => <Input {...p} autoFocus value={name} maxLength={60} placeholder={tr("calendar.for_example_my_iphone")} onChange={(e) => setName(e.target.value)} data-testid="dav-name" />}
             </Field>
           </form>
         )}
@@ -363,8 +365,8 @@ export function PhoneSyncSection() {
         onClose={() => setRevoking(null)}
         onConfirm={() => revoking && revoke.mutate(revoking.id)}
         title={`Revoke ${revoking?.name ?? "app password"}?`}
-        description="That device stops syncing at once. Your calendar and contacts stay in Multies. You can make a new password any time."
-        confirmLabel="Revoke"
+        description={tr("calendar.that_device_stops_syncing_at_once_your_calendar")}
+        confirmLabel={tr("calendar.revoke")}
         busy={revoke.isPending}
       />
     </Section>
