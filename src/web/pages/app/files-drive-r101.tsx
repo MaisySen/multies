@@ -6,6 +6,7 @@
  * Brand library: tags, notes, download at a set width (resized in the browser), copy link. Admins edit it.
  */
 import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
+import { formatCount } from "@/web/lib/format-count";
 import { isNavP2 } from "@/web/layouts/shell-nav"; // F13 (R121 bug 3): Files sits in Docs
 import { isServerLoadError, queryRetry } from "@/web/lib/load-errors-t1g";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
@@ -183,7 +184,7 @@ export function DrivePage({ attachments, mailOn, docsOn = false }: { attachments
     onError: (e) => showError(e),
   });
   const star = (ids: string[], on: boolean) => act.mutate({ path: "/drive/star", body: { ids, on }, ok: on ? "Starred" : "Removed from starred" });
-  const restore = (ids: string[]) => act.mutate({ path: "/drive/restore", body: { ids }, ok: ids.length === 1 ? "Restored" : `${ids.length} items restored` });
+  const restore = (ids: string[]) => act.mutate({ path: "/drive/restore", body: { ids }, ok: ids.length === 1 ? "Restored" : `${formatCount(ids.length)} items restored` });
 
   const zip = async (ids: string[], name: string) => {
     const t = toast.loading("Getting your files ready");
@@ -234,7 +235,7 @@ export function DrivePage({ attachments, mailOn, docsOn = false }: { attachments
     if (!ids) return;
     e.preventDefault(); e.stopPropagation();
     const list = ids.split(",").filter((x) => x && x !== target);
-    if (list.length) act.mutate({ path: "/drive/move", body: { ids: list, parentId: target, space }, ok: list.length === 1 ? "Moved" : `${list.length} items moved` });
+    if (list.length) act.mutate({ path: "/drive/move", body: { ids: list, parentId: target, space }, ok: list.length === 1 ? "Moved" : `${formatCount(list.length)} items moved` });
   };
 
   const selItems = items.filter((i) => selected.has(i.id));
@@ -356,11 +357,11 @@ export function DrivePage({ attachments, mailOn, docsOn = false }: { attachments
         onSubmit={(name) => { const it = renaming; setRenaming(null); if (it) void api.patch(`/drive/items/${it.id}`, { name }).then(() => { toast.success("Renamed"); refresh(); }, showError); }} />
       <ConfirmDialog open={!!trashing} onClose={() => setTrashing(null)} title={trashing?.length === 1 ? `Move ${trashing[0].name} to the trash?` : `Move ${trashing?.length ?? 0} items to the trash?`}
         description="You can restore them from Trash for 30 days." confirmLabel="Move to trash"
-        onConfirm={() => { const t = trashing ?? []; setTrashing(null); act.mutate({ path: "/drive/trash", body: { ids: t.map((x) => x.id) }, ok: t.length === 1 ? "Moved to trash" : `${t.length} items moved to trash` }); }} />
+        onConfirm={() => { const t = trashing ?? []; setTrashing(null); act.mutate({ path: "/drive/trash", body: { ids: t.map((x) => x.id) }, ok: t.length === 1 ? "Moved to trash" : `${formatCount(t.length)} items moved to trash` }); }} />
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} title={deleting?.length === 1 ? `Delete ${deleting[0].name} forever?` : `Delete ${deleting?.length ?? 0} items forever?`}
         description="This can't be undone. Every version goes too." confirmLabel="Delete forever"
         onConfirm={() => { const t = deleting ?? []; setDeleting(null); act.mutate({ path: "/drive/delete", body: { ids: t.map((x) => x.id) }, ok: "Deleted forever" }); }} />
-      {moving && <MoveDialog ids={moving} startSpace={space} isAdmin={isAdmin} onClose={() => setMoving(null)} onMove={(parentId, sp) => { const ids = moving; setMoving(null); act.mutate({ path: "/drive/move", body: { ids, parentId, space: sp }, ok: ids.length === 1 ? "Moved" : `${ids.length} items moved` }); }} />}
+      {moving && <MoveDialog ids={moving} startSpace={space} isAdmin={isAdmin} onClose={() => setMoving(null)} onMove={(parentId, sp) => { const ids = moving; setMoving(null); act.mutate({ path: "/drive/move", body: { ids, parentId, space: sp }, ok: ids.length === 1 ? "Moved" : `${formatCount(ids.length)} items moved` }); }} />}
       {sharing && <ShareDialog id={sharing} onClose={() => setSharing(null)} onSaved={refresh} />}
     </div>
   );
@@ -781,7 +782,7 @@ function MoveDialog({ ids, startSpace, isAdmin, onClose, onMove }: { ids: string
   const canHere = !!q.data?.canAdd || (!!q.data?.folder?.canEdit);
   const spaces: DriveSpace[] = isAdmin ? ["team", "private", "brand"] : ["team", "private"];
   return (
-    <Dialog open onClose={onClose} title={ids.length === 1 ? "Move to" : `Move ${ids.length} items to`}
+    <Dialog open onClose={onClose} title={ids.length === 1 ? "Move to" : `Move ${formatCount(ids.length)} items to`}
       footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={() => onMove(at, space)} disabled={!canHere} data-testid="drive-move-here">Move here</Button></>}>
       <div className="mb-3 flex gap-1.5">
         {spaces.map((s) => <TagChip key={s} active={space === s} onClick={() => { setSpace(s); setAt(null); }}>{s === "team" ? "Team files" : s === "private" ? "My files" : "Brand library"}</TagChip>)}

@@ -3,6 +3,7 @@
  * the announcements feed and the call panel's Live tab. Everything hides when the server has the flag off.
  */
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { badgeCount, formatCount } from "@/web/lib/format-count";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -381,7 +382,7 @@ export function AnnouncementsNav({ active, onOpen }: { active: boolean; onOpen: 
     <button type="button" onClick={onOpen} aria-current={active ? "page" : undefined} data-testid="announcements-nav"
       className={cn("mb-3 flex min-h-9 max-sm:min-h-11 w-full items-center gap-2 rounded-lg px-2 text-[13.5px]", active ? "bg-selected font-medium" : "text-muted hover:bg-hover hover:text-fg")}>
       <IconPin className="h-3.5 w-3.5" aria-hidden /><span className="flex-1 text-left">Announcements</span>
-      {n > 0 && <span className="rounded-full bg-brand px-1.5 text-[11px] font-semibold text-white" aria-label={`${n} new`}>{n}</span>}
+      {n > 0 && <span className="rounded-full bg-brand px-1.5 text-[11px] font-semibold text-white" aria-label={`${formatCount(n)} new`}>{badgeCount(n)}</span>}
     </button>
   );
 }

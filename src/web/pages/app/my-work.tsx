@@ -131,7 +131,7 @@ export function MyWorkPage() {
         <div className="min-w-0">
           <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-brand-hover" data-testid="today-date"><span>My Work</span><span aria-hidden> · </span>{day ? <span className="text-muted">{day}</span> : <span className="skeleton inline-block h-3 w-28 align-middle" aria-hidden data-testid="today-date-loading" />}</p>
           <h1 data-large-title className="text-[32px] font-bold leading-[38px] tracking-[-0.025em] text-fg sm:text-[34px] sm:leading-[41px]">Good {dayPart()}{first ? `, ${first}` : ""}</h1>
-          <p className={cn("mt-1 text-[14px] text-muted", allQuiet && "sr-only")}>{!w ? "What is waiting on you today." : nothing ? "Nothing is waiting on you. Enjoy the quiet." : overdue > 0 ? `${overdue} overdue and ${due} due today. Start with the top of Focus.` : `${due ? `${due} due today` : "Nothing due today"}${next ? `, next up: ${next.item.title}` : ""}.`}</p>
+          <p className={cn("mt-1 text-[14px] text-muted", allQuiet && "sr-only")}>{!w ? "What is waiting on you today." : nothing ? "Nothing is waiting on you. Enjoy the quiet." : overdue > 0 ? `${formatCount(overdue)} overdue and ${formatCount(due)} due today. Start with the top of Focus.` : `${due ? `${formatCount(due)} due today` : "Nothing due today"}${next ? `, next up: ${next.item.title}` : ""}.`}</p>
           {q.cachedAt !== null && q.isError && (
             /* F12 (MB-297): the read failed; the stored list stays on screen, said plainly, with Retry. */
             <p className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-full bg-elevated py-1 pl-2.5 pr-1 text-[12px] font-medium text-muted" role="alert" data-testid="mywork-stale">

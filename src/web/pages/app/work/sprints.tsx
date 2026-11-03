@@ -4,6 +4,7 @@
  * choice), plan and edit sprints, and "Move to sprint" on every row. The chart is a plain inline SVG.
  */
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { formatCount } from "@/web/lib/format-count";
 import { flushSync } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconArrowRightLeft, IconCalendarRange, IconCheckCircle, IconChevronsUpDown, IconCircle, IconClose, IconEdit, IconFlag, IconMore, IconPlay, IconPlus, IconTarget } from "@/web/components/ui/icon";
@@ -344,7 +345,7 @@ function BacklogPanel({ tasks, sprints, unit, onOpen, onMove, className, target 
     <Card className={cn("relative h-fit overflow-hidden", pickedIds.length > 0 && "max-sm:mb-24", className)} aria-label="Backlog">
       <div className="flex min-h-[45px] items-center justify-between gap-2 border-b border-line px-4 py-2.5" data-testid="backlog-header">
         <h2 className="text-[13px] font-semibold max-sm:text-[15px]">Backlog</h2>
-        <span className="truncate text-[12px] tabular-nums text-subtle max-sm:text-[13px]">{tasks.length} tasks{pts ? `, ${fmtNum(pts)} ${u}` : ""}</span>
+        <span className="truncate text-[12px] tabular-nums text-subtle max-sm:text-[13px]">{formatCount(tasks.length)} {tasks.length === 1 ? "task" : "tasks"}{pts ? `, ${fmtNum(pts)} ${u}` : ""}</span>
       </div>
       {pickedIds.length > 0 && (
         // R46: in the card on desktop; on a phone a bottom toolbar above the safe area (clear, count, sprint picker, Move).
@@ -416,7 +417,7 @@ function KeyMoveMenu({ count, sprints, onPick, onClose, docked }: { count: numbe
       <div ref={ref} role="menu" aria-label={`Move ${count} to sprint`} data-testid="backlog-move-menu"
         className="animate-pop-in overflow-hidden rounded-[var(--radius-r14)] border border-line bg-elevated p-1 shadow-pop motion-reduce:animate-none"
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onClose(); }}>
-        <p className="px-2.5 pb-1 pt-1.5 text-[11.5px] font-medium text-subtle">Move {count === 1 ? "1 task" : `${count} tasks`} to</p>
+        <p className="px-2.5 pb-1 pt-1.5 text-[11.5px] font-medium text-subtle">Move {count === 1 ? "1 task" : `${formatCount(count)} tasks`} to</p>
         {sprints.map((x) => (
           <button key={x.id} type="button" role="menuitem" onClick={() => onPick(x.id)}
             className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13.5px] text-fg outline-none transition-colors duration-100 hover:bg-hover focus-visible:bg-brand focus-visible:text-white motion-reduce:transition-none">

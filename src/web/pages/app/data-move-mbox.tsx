@@ -4,6 +4,7 @@
  * Messages already in the mailbox (same Message-ID) are skipped, so the same file can run twice safely.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { formatCount } from "@/web/lib/format-count";
 import { useQueryClient } from "@tanstack/react-query";
 import { IconCheckCircle, IconMail, IconUpload, IconWarning } from "@/web/components/ui/icon";
 import { api, newIdempotencyKey } from "@/web/lib/api";
@@ -172,7 +173,7 @@ export function MboxImport({ onClose, ring }: { onClose: () => void; ring: (valu
           {ring(value, "Mail import progress")}
           <div className="min-w-0 flex-1 text-center sm:text-left" aria-live="polite">
             <p className="text-[15px] font-semibold tabular-nums" data-testid="mbox-progress">
-              {phase === "done" ? `Done: ${counts.stored} ${counts.stored === 1 ? "message" : "messages"} brought in` : phase === "stopped" ? `Stopped at ${done} of ${total}` : `${done} of ${total} messages`}
+              {phase === "done" ? `Done: ${formatCount(counts.stored)} ${counts.stored === 1 ? "message" : "messages"} brought in` : phase === "stopped" ? `Stopped at ${formatCount(done)} of ${formatCount(total)}` : `${formatCount(done)} of ${formatCount(total)} messages`}
             </p>
             <p className="truncate text-[13px] text-muted">{fileName} into {box?.address ?? "your mailbox"}</p>
             {(phase === "running" || (phase === "paused" && started)) && <p className="text-[13px] text-muted" data-testid="mbox-keep-open">{backgroundCopy && kept ? "You can close this page. It carries on by itself and we email you when it's done." : "Keep this page open until it finishes. If it closes, choose the same file again: messages already here are skipped."}</p>}

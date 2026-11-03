@@ -7,6 +7,7 @@
  *   device only (no server write). Buckets are memoized lane x column so a 200 card board drags smoothly.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { formatCount } from "@/web/lib/format-count";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent, type DragStartEvent,
@@ -304,7 +305,7 @@ export function LaneBoard({ project, tasks: allTasks, mode, projects, people = [
                   <IconChevronRight className={cn("h-4 w-4 text-subtle transition-transform duration-200 motion-reduce:transition-none", !isCollapsed && "rotate-90")} aria-hidden />
                   <LaneIcon mode={mode} lane={l} />
                   <span className="text-[13.5px] font-semibold text-fg">{l.name}</span>
-                  <span className="rounded-full bg-fill px-1.5 text-[11.5px] tabular-nums text-muted" aria-label={`${count} tasks`}>{count}</span>
+                  <span className="rounded-full bg-fill px-1.5 text-[11.5px] tabular-nums text-muted" aria-label={`${formatCount(count)} ${count === 1 ? "task" : "tasks"}`}>{formatCount(count)}</span>
                 </button>
                 <div className={cn("grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none", isCollapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100")}>
                   <div className="overflow-hidden">
