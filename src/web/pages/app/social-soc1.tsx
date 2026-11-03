@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
+import { LOAD_ERROR_BODY, LOAD_ERROR_TITLE } from "@/web/lib/load-errors-t1g";
 import { useConfig } from "@/web/lib/queries";
 import { Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
@@ -90,7 +91,7 @@ export function PagePicker({ account, open, onClose }: { account: ConnectedAccou
           <div className="space-y-2" aria-busy="true" aria-label={`Loading ${what}`}>{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-lg" />)}</div>
         ) : avail.error ? (
           <div className="rounded-lg border border-line p-4 text-[13.5px]" role="alert" data-testid="pages-error">
-            <p className="flex items-start gap-2"><IconWarning className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden /><span className="min-w-0">{errorMessage(avail.error, `Couldn't load your ${what}.`)}</span></p>
+            <p className="flex items-start gap-2"><IconWarning className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden /><span className="min-w-0">{errorMessage(avail.error, `${LOAD_ERROR_TITLE}. ${LOAD_ERROR_BODY}`)}</span></p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button size="sm" variant="outline" onClick={() => void avail.refetch()}><IconRefresh className="h-4 w-4" aria-hidden />Retry</Button>
               <ReconnectButton accountId={account.id} appName={account.appName} />

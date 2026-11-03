@@ -5,7 +5,8 @@
  * stored: the Page's own token is asked through the login at send, check and delete time, as before.
  * Loaded only from handlers (dynamic import); nothing heavy at module top level.
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { inIds } from "../../lib/sql-chunks";
 import type { AuthContext, Deps } from "../../context";
 import { socialPages } from "../../db/schema";
 import { audit } from "../audit";
@@ -176,7 +177,7 @@ export async function savePages(deps: Deps, auth: AuthContext, accountId: string
       .onConflictDoUpdate({ target: [socialPages.orgId, socialPages.app, socialPages.pageId], set: { viaAccountId: via, name: p.name, pictureUrl: p.pictureUrl, state: "ok", checkedAt: now } });
   }
   const drop = existing.filter((r) => r.viaAccountId === a.id && !wanted.has(r.pageId)).map((r) => r.pageId);
-  if (drop.length) await deps.db.delete(socialPages).where(and(eq(socialPages.orgId, auth.orgId), eq(socialPages.app, got.app), inArray(socialPages.pageId, drop)));
+  if (drop.length) await deps.db.delete(socialPages).where(and(eq(socialPages.orgId, auth.orgId), eq(socialPages.app, got.app), inIds(socialPages.pageId, drop)));
   if (added.length || drop.length) {
     await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "social.pages_chosen", targetType: "integration", targetId: a.id, metadata: { app: got.app, added: added.length, removed: drop.length }, ip: ip ?? null });
   }
@@ -200,7 +201,7 @@ export async function removePage(deps: Deps, auth: AuthContext, key: string, ip?
 export async function resolveKeys(deps: Deps, orgId: string, ids: string[]): Promise<Map<string, typeof socialPages.$inferSelect>> {
   const keys = [...new Set(ids.filter((id) => SOC1_PAGE_KEY.test(id)))].slice(0, 200);
   if (!keys.length) return new Map();
-  const rows = await deps.db.select().from(socialPages).where(and(eq(socialPages.orgId, orgId), inArray(socialPages.key, keys))).all();
+  const rows = await deps.db.select().from(socialPages).where(and(eq(socialPages.orgId, orgId), inIds(socialPages.key, keys))).all();
   return new Map(rows.map((r) => [r.key, r]));
 }
 
