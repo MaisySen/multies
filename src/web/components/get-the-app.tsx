@@ -11,7 +11,7 @@ export function GetTheApp({ headingId = "get-app-title", compact = false }: { he
   const v = getTheAppView();
   return (
     <div data-testid="get-the-app">
-      {!compact && <p className="text-sm font-medium text-brand-hover">Get the app</p>}
+      {compact ? <IconSmartphone className="h-5 w-5 text-accent" aria-hidden /> : <p className="text-sm font-medium text-brand-hover">Get the app</p>}
       <h2 id={headingId} className={compact ? "mt-3 font-semibold" : "mt-2 text-3xl font-semibold tracking-tight sm:text-4xl"}>
         {compact ? "Get the app" : "Multies on your phone."}
       </h2>

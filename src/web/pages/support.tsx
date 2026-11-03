@@ -12,7 +12,7 @@ const card = "rounded-xl border border-line bg-fill/60 p-5";
 /** WEB1: one public support address everywhere (the company address in legal-entity.ts). */
 function SupportEmail() {
   const email = LEGAL_ENTITY.supportEmail;
-  return <a href={`mailto:${email}`} className="font-medium text-accent hover:underline">{email}</a>;
+  return <a href={`mailto:${email}`} className="font-medium text-brand-hover underline underline-offset-2">{email}</a>;
 }
 
 /** Public support page: the support URL given to the App Store and Google Play. */
@@ -27,25 +27,25 @@ export function SupportPage() {
         <section className={card} aria-labelledby="s-mail">
           <IconMail className="h-5 w-5 text-accent" aria-hidden />
           <h2 id="s-mail" className="mt-3 font-semibold">Email us</h2>
-          <p className="mt-1.5 text-[14px] text-muted">Use the <Link to="/contact" className="text-accent hover:underline">contact form</Link> or write to <SupportEmail />. Tell us the email address you sign in with and what you were doing. We aim to reply within two business days (Sydney time).</p>
+          <p className="mt-1.5 text-[14px] text-muted">Use the <Link to="/contact" className="text-brand-hover underline underline-offset-2">contact form</Link> or write to <SupportEmail />. Tell us the email address you sign in with and what you were doing. We aim to reply within one business day (Sydney time).</p>
         </section>
         <section className={card} aria-labelledby="s-status">
           <IconHelp className="h-5 w-5 text-accent" aria-hidden />
           <h2 id="s-status" className="mt-3 font-semibold">Is something down?</h2>
-          <p className="mt-1.5 text-[14px] text-muted">The <Link to="/status" className="text-accent hover:underline">status page</Link> shows live checks of sign in, the API and mail delivery.</p>
+          <p className="mt-1.5 text-[14px] text-muted">The <Link to="/status" className="text-brand-hover underline underline-offset-2">status page</Link> shows live checks of sign in, the API and mail delivery.</p>
         </section>
         <section className={card} aria-labelledby="s-app">
           <IconSmartphone className="h-5 w-5 text-accent" aria-hidden />
           <h2 id="s-app" className="mt-3 font-semibold">The phone app</h2>
           <p className="mt-1.5 text-[14px] text-muted">Sign in with your Multies email and password, or tap Explore with sample data to look around first. The app is free and has no purchases.</p>
         </section>
-        <section className={`${card} sm:col-span-2`} aria-labelledby="s-get-app">
+        <section className={card} aria-labelledby="s-get-app">
           <GetTheApp headingId="s-get-app" compact />
         </section>
         <section className={card} aria-labelledby="s-delete">
           <IconTrash className="h-5 w-5 text-accent" aria-hidden />
           <h2 id="s-delete" className="mt-3 font-semibold">Delete your account</h2>
-          <p className="mt-1.5 text-[14px] text-muted">In the app: Settings, then Delete my account. On the web: <Link to="/delete-account" className="text-accent hover:underline">delete your account here</Link>.</p>
+          <p className="mt-1.5 text-[14px] text-muted">In the app: Settings, then Delete my account. On the web: <Link to="/delete-account" className="text-brand-hover underline underline-offset-2">delete your account here</Link>.</p>
         </section>
       </div>
       <p className="mt-10 text-sm text-subtle">
@@ -117,7 +117,7 @@ export function DeleteAccountPage() {
           </div>
         ) : !signedIn ? (
           <p className="mt-2 text-[14.5px] text-muted">
-            <Link to="/login?next=/delete-account" className="text-accent hover:underline">Sign in</Link> first, then come back to this page.
+            <Link to="/login?next=/delete-account" className="text-brand-hover underline underline-offset-2">Sign in</Link> first, then come back to this page.
           </p>
         ) : (
           <form onSubmit={submit} className="mt-3 space-y-4" noValidate>

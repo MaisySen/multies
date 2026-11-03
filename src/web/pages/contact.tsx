@@ -70,7 +70,7 @@ export function ContactUsPage() {
         </Button>
         <p className="text-xs text-subtle">We use your details only to reply. See our <Link to="/privacy" className="underline underline-offset-2 hover:text-fg">privacy policy</Link>.</p>
       </form>
-      <p className="mt-6 flex items-center gap-2 text-sm text-muted"><IconMail className="h-4 w-4 text-accent" aria-hidden />Prefer email? Write to <a href={`mailto:${email}`} className="font-medium text-accent hover:underline">{email}</a>.</p>
+      <p className="mt-6 flex items-center gap-2 text-sm text-muted"><IconMail className="h-4 w-4 text-accent" aria-hidden />Prefer email? Write to <a href={`mailto:${email}`} className="font-medium text-brand-hover underline underline-offset-2">{email}</a>.</p>
     </article>
   );
 }
