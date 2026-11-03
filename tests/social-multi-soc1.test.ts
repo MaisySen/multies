@@ -247,6 +247,12 @@ describe("SOC1 LinkedIn several accounts and company Pages", () => {
     await wait(100);
     const sent = mock.proxied.filter((p) => p.method === "POST" && p.endpoint.endsWith("/rest/posts"));
     expect(sent.at(-1)!.body.author).toBe("urn:li:organization:777");
+    // A login target naming an organization (not chosen by an admin) still posts as the member.
+    const sly = await owner.post("/api/social/posts", { text: "Sneaky", targets: [{ accountId: li, target: "urn:li:organization:888" }] });
+    expect(sly.status).toBe(201);
+    await wait(100);
+    const last = mock.proxied.filter((p) => p.method === "POST" && p.endpoint.endsWith("/rest/posts")).at(-1)!;
+    expect(last.body.author).toBe("urn:li:person:p9");
   });
 });
 

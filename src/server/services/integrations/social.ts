@@ -515,6 +515,8 @@ export interface PublishCtx {
   imageUrls?: string[]; extras?: PostExtras | null;
   /** SOC1: the Page's own token when it was read with the login's whole Page list (saves one call per Page). */
   pageToken?: string | null;
+  /** SOC1: this target is a Page an admin chose (only then may LinkedIn post as an organization). */
+  chosenPage?: boolean;
 }
 interface PublishResult { status: "sent" | "failed" | "skipped"; url?: string | null; error?: string | null; remoteId?: string | null; note?: string | null }
 
@@ -721,7 +723,7 @@ export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResu
     // Hotfix Oct 31: the platform's ready made LinkedIn tool asks for an API version LinkedIn has retired, so we call
     // LinkedIn's Posts API directly with a current version (and step back a month at a time if one is not live).
     // SOC1: a chosen company Page posts as the organization (its key resolved to the member's login).
-    const org = /^urn:li:organization:\d{1,20}$/.test(ctx.target ?? "") ? ctx.target! : null;
+    const org = ctx.chosenPage && /^urn:li:organization:\d{1,20}$/.test(ctx.target ?? "") ? ctx.target! : null;
     let author = org;
     if (!author) {
       const me = await linkedinCall(ctx, "GET", "https://api.linkedin.com/v2/userinfo");
@@ -816,7 +818,7 @@ export async function publishPost(deps: Deps, postId: string): Promise<PostStatu
         } else {
           const pr = pageRows.get(t.accountId);
           res = await PUBLISHERS[t.app]!({
-            cp, userId, accountId: pr ? pr.viaAccountId : t.accountId, text, pageToken: pr && t.target ? pageTokens.get(pr.viaAccountId)?.get(t.target) ?? null : null, imageUrl: takesImages ? imageUrl : null, image: takesImages ? image : null, target: t.target, now: deps.now(),
+            cp, userId, accountId: pr ? pr.viaAccountId : t.accountId, text, chosenPage: !!pr, pageToken: pr && t.target ? pageTokens.get(pr.viaAccountId)?.get(t.target) ?? null : null, imageUrl: takesImages ? imageUrl : null, image: takesImages ? image : null, target: t.target, now: deps.now(),
             imageUrls: takesImages ? imageUrls.slice(0, Math.max(1, maxImages)) : [], extras,
           });
         }
