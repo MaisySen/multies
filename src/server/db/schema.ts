@@ -3818,6 +3818,22 @@ export const socialAccountProfiles = sqliteTable("social_account_profiles", {
   avatarUrl: text("avatar_url"),
   checkedAt: ts("checked_at").notNull(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.accountId] }), uniqueIndex("social_account_profiles_ext_uq").on(t.orgId, t.app, t.externalId)]);
+// SOC1: the Pages (Facebook Pages, LinkedIn company Pages) an admin chose, one row per Page per workspace (migration 0163).
+// key is the account id a post target carries; via_account_id is the connection the Page's own token is asked through
+// at send time (no Page token is stored).
+export const socialPages = sqliteTable("social_pages", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  app: text("app").notNull(),
+  pageId: text("page_id").notNull(),
+  key: text("key").notNull(),
+  viaAccountId: text("via_account_id").notNull(),
+  name: text("name"),
+  pictureUrl: text("picture_url"),
+  state: text("state", { enum: ["ok", "lost"] }).notNull().default("ok"),
+  addedBy: text("added_by"),
+  addedAt: ts("added_at").notNull(),
+  checkedAt: ts("checked_at"),
+}, (t) => [primaryKey({ columns: [t.orgId, t.app, t.pageId] }), uniqueIndex("social_pages_key_uq").on(t.orgId, t.key), index("social_pages_via_idx").on(t.orgId, t.viaAccountId)]);
 // R110: Ask across the workspace (migration 0131). Private to each person; cards apply only on their click.
 export const askThreads = sqliteTable("ask_threads", {
   id: text("id").primaryKey(),

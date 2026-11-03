@@ -23,6 +23,7 @@ import {
   type PostExtras, type SocialFormat,
 } from "@/shared/social-p2";
 import { cleanP3, pinArgs, p3SourceApps } from "@/shared/social-p3";
+import { isPageKey } from "@/shared/social-soc1"; // SOC1
 
 /** Due posts one cron pass takes; the rest wait for the next pass. */
 export const SOCIAL_PASS_LIMIT = 10;
@@ -167,20 +168,25 @@ async function preparePost(deps: Deps, auth: AuthContext, input: CreatePostInput
   // R118: the staging only test network (never present unless the config allows it).
   const testLink = viaDirect.some((t) => directOf(t.accountId) === "testnet") ? await (await import("./social-p2b")).testAccount(deps, auth.orgId) : null;
   const byId = new Map(accounts.map((a) => [a.id, a]));
+  // SOC1: a chosen Page posts as its own key; only this workspace's Pages resolve (anything else is account_gone).
+  const pages = viaPlatform.some((t) => isPageKey(t.accountId)) ? await (await import("./social-pages-soc1")).resolveKeys(deps, auth.orgId, viaPlatform.map((t) => t.accountId)) : null;
   const problems: (TargetProblem & { text?: string })[] = [];
   const rows = input.targets.map((t) => {
     const direct = directOf(t.accountId);
     const link = direct === "testnet" ? (testLink ? { provider: "testnet", username: null, status: testLink.broken ? "expired" : "active" } : undefined) : direct ? links.find((l) => l.provider === direct) : undefined;
-    const a = direct ? undefined : byId.get(t.accountId);
-    const app = direct ?? a?.toolkit?.slug ?? "";
-    const label = direct === "testnet" ? (testLink?.name ?? "Test network") : direct ? (link?.username ? `@${link.username}` : appLabel(direct)) : a?.alias?.trim() || appLabel(app);
-    const row = { accountId: t.accountId, app, label, target: (t.target ?? "").trim() || null, targetName: (t.targetName ?? "").trim().slice(0, 200) || null };
+    const pg = pages?.get(t.accountId);
+    const a = direct ? undefined : byId.get(pg ? pg.viaAccountId : t.accountId);
+    const app = direct ?? pg?.app ?? (isPageKey(t.accountId) ? "" : a?.toolkit?.slug ?? "");
+    const label = pg ? (pg.name ?? pg.pageId) : direct === "testnet" ? (testLink?.name ?? "Test network") : direct ? (link?.username ? `@${link.username}` : appLabel(direct)) : a?.alias?.trim() || appLabel(app);
+    const row = pg
+      ? { accountId: t.accountId, app, label, target: pg.app === "linkedin" ? `urn:li:organization:${pg.pageId}` : pg.pageId, targetName: (pg.name ?? pg.pageId).slice(0, 200) }
+      : { accountId: t.accountId, app, label, target: (t.target ?? "").trim() || null, targetName: (t.targetName ?? "").trim().slice(0, 200) || null };
     if (!strict) return row;
-    const live = direct ? !!link && link.status !== "expired" : !!a && statusOf(a.status) === "active";
+    const live = direct ? !!link && link.status !== "expired" : !!a && statusOf(a.status) === "active" && (!isPageKey(t.accountId) || (!!pg && pg.state === "ok"));
     if (!live || direct === "tiktok") { problems.push({ accountId: t.accountId, code: direct === "tiktok" ? "not_supported" : "account_gone" }); return row; }
-    const legacy = checkTarget(app, textFor(text, texts, app), mediaIds.length > 0, t.target);
+    const legacy = checkTarget(app, textFor(text, texts, app), mediaIds.length > 0, row.target);
     if (legacy) { problems.push({ accountId: t.accountId, code: legacy }); return row; }
-    const chk = composerChecks({ format, main: text, texts, images: mediaIds.map(() => ({ w: 1, h: 1 })), extras, accounts: [{ id: t.accountId, app, target: row.target, needsTarget: !!SOCIAL_NETWORKS[app]?.target }], scheduled: runAt > now })[0]!;
+    const chk = composerChecks({ format, main: text, texts, images: mediaIds.map(() => ({ w: 1, h: 1 })), extras, accounts: [{ id: t.accountId, app, target: row.target, needsTarget: !!SOCIAL_NETWORKS[app]?.target && !pg }], scheduled: runAt > now })[0]!;
     if (chk.state === "out") problems.push({ accountId: t.accountId, code: "check", text: chk.notes[0] });
     return row;
   });
@@ -404,11 +410,12 @@ export async function syncPosts(deps: Deps, auth: AuthContext, ids: string[]): P
     const cp = platform(deps);
     const userId = platformUserId(cp, auth.orgId);
     const tokens = new Map<string, Promise<string | null>>();
+    const via = due.some((t) => isPageKey(t.accountId)) ? await (await import("./social-pages-soc1")).resolveKeys(deps, auth.orgId, due.map((t) => t.accountId)) : new Map();
     await Promise.all(due.map(async (t) => {
       const remoteId = remoteIdOf(t);
       let state: "live" | "removed" | null = null;
-      if (remoteId && t.target) {
-        const ctx: PublishCtx = { cp, userId, accountId: t.accountId, text: "", imageUrl: null, image: null, target: t.target, now };
+      if (remoteId && t.target && (!isPageKey(t.accountId) || via.has(t.accountId))) {
+        const ctx: PublishCtx = { cp, userId, accountId: via.get(t.accountId)?.viaAccountId ?? t.accountId, text: "", imageUrl: null, image: null, target: t.target, now };
         const pt = await pageToken(ctx, t.target, tokens);
         if (pt) {
           try { await graph(ctx, "GET", `${encodeURIComponent(remoteId)}?fields=id&access_token=${encodeURIComponent(pt)}`); state = "live"; } catch (err) {
@@ -468,17 +475,20 @@ export async function deletePost(deps: Deps, auth: AuthContext, id: string, ip?:
   // An account disconnected since posting can't delete there any more: the post stays on that network and leaves Multies.
   let connected: Set<string> | null = null;
   if (cp) { try { connected = new Set((await cp.accounts(userId)).map((a) => a.id)); } catch { connected = null; } }
+  // SOC1: a Page deletes through the login it posted through (a Page removed since then can't delete there any more).
+  const pageVia = targets.some((t) => isPageKey(t.accountId)) ? await (await import("./social-pages-soc1")).resolveKeys(deps, auth.orgId, targets.map((t) => t.accountId)) : new Map();
+  const loginOf = (id: string) => (isPageKey(id) ? pageVia.get(id)?.viaAccountId ?? null : id);
   const results = await Promise.all(targets.map(async (t) => {
     let outcome: DeleteOutcome;
     if (t.status !== "sent") outcome = "not_sent";
     else if (t.networkState === "removed") outcome = "already_gone";
     else if (!(SOCIAL_CAN_DELETE as readonly string[]).includes(t.app)) outcome = "not_supported";
-    else if (connected && !connected.has(t.accountId)) outcome = "not_supported";
+    else if (!loginOf(t.accountId) || (connected && !connected.has(loginOf(t.accountId)!))) outcome = "not_supported";
     else {
       const remoteId = remoteIdOf(t);
       if (!remoteId || !cp) outcome = "failed";
       else {
-        try { outcome = await deleteOnNetwork({ cp, userId, accountId: t.accountId, text: "", imageUrl: null, image: null, target: t.target, now }, t.app, remoteId, tokens); } catch (err) {
+        try { outcome = await deleteOnNetwork({ cp, userId, accountId: loginOf(t.accountId)!, text: "", imageUrl: null, image: null, target: t.target, now }, t.app, remoteId, tokens); } catch (err) {
           deps.log?.warn("social.delete_failed", { app: t.app, error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
           outcome = "failed";
         }
@@ -503,6 +513,8 @@ export interface PublishCtx {
   cp: Composio; userId: string; accountId: string; text: string; imageUrl: string | null; image: { b64: string; type: string } | null; target: string | null; now?: Date;
   /** R117: every image of a carousel (the first is imageUrl), and the post's extras. */
   imageUrls?: string[]; extras?: PostExtras | null;
+  /** SOC1: the Page's own token when it was read with the login's whole Page list (saves one call per Page). */
+  pageToken?: string | null;
 }
 interface PublishResult { status: "sent" | "failed" | "skipped"; url?: string | null; error?: string | null; remoteId?: string | null; note?: string | null }
 
@@ -663,8 +675,7 @@ export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResu
     // the person's token, which Facebook refuses, so we ask for the Page token and call the Graph API directly.
     if (!ctx.target) throw new PublishError("needs_target", "no page");
     const page = encodeURIComponent(ctx.target);
-    const tok = await graph(ctx, "GET", `${page}?fields=access_token`);
-    const pageToken = str((tok as { access_token?: unknown }).access_token);
+    const pageToken = ctx.pageToken ?? str(((await graph(ctx, "GET", `${page}?fields=access_token`)) as { access_token?: unknown }).access_token);
     if (!pageToken) throw new PublishError("not_page_admin", "no page token");
     const link = firstUrl(ctx.text);
     const urls = (ctx.imageUrls?.length ? ctx.imageUrls : ctx.imageUrl ? [ctx.imageUrl] : []).slice(0, NETWORK_RULES.facebook!.maxImages);
@@ -709,10 +720,15 @@ export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResu
   async linkedin(ctx) {
     // Hotfix Oct 31: the platform's ready made LinkedIn tool asks for an API version LinkedIn has retired, so we call
     // LinkedIn's Posts API directly with a current version (and step back a month at a time if one is not live).
-    const me = await linkedinCall(ctx, "GET", "https://api.linkedin.com/v2/userinfo");
-    const raw = dig(me.data, ["sub"]);
-    if (!raw) throw new PublishError("reconnect", "no author");
-    const author = raw.startsWith("urn:") ? raw : `urn:li:person:${raw}`;
+    // SOC1: a chosen company Page posts as the organization (its key resolved to the member's login).
+    const org = /^urn:li:organization:\d{1,20}$/.test(ctx.target ?? "") ? ctx.target! : null;
+    let author = org;
+    if (!author) {
+      const me = await linkedinCall(ctx, "GET", "https://api.linkedin.com/v2/userinfo");
+      const raw = dig(me.data, ["sub"]);
+      if (!raw) throw new PublishError("reconnect", "no author");
+      author = raw.startsWith("urn:") ? raw : `urn:li:person:${raw}`;
+    }
     const r = await linkedinCall(ctx, "POST", "https://api.linkedin.com/rest/posts", {
       author, commentary: linkedinText(ctx.text), visibility: "PUBLIC",
       distribution: { feedDistribution: "MAIN_FEED", targetEntities: [], thirdPartyDistributionChannels: [] },
@@ -768,6 +784,11 @@ export async function publishPost(deps: Deps, postId: string): Promise<PostStatu
   const texts = parseJson<Record<string, string>>(post.texts);
   const extras = parseJson<PostExtras>(post.extras);
   const format = (post.format as SocialFormat | null) ?? (allIds.length > 1 ? "carousel" : allIds.length ? "image" : "text");
+  // SOC1: chosen Pages resolve to the login their token is asked through; one Page list read per login gives every
+  // Page's token, so many Pages of one login cost one call, not one each.
+  const soc1 = pending.some((t) => isPageKey(t.accountId)) ? await import("./social-pages-soc1") : null;
+  const pageRows = soc1 ? await soc1.resolveKeys(deps, post.orgId, pending.map((t) => t.accountId)) : new Map();
+  const pageTokens = soc1 ? await soc1.pageTokensFor({ cp, userId, now: deps.now() }, pending.filter((t) => t.app === "facebook" && pageRows.has(t.accountId)).map((t) => pageRows.get(t.accountId)!.viaAccountId)) : new Map<string, Map<string, string>>();
   // Accounts post one after another per post (networks rate limit by account), different accounts in parallel.
   await Promise.all(pending.map(async (t) => {
     let res: PublishResult;
@@ -790,9 +811,12 @@ export async function publishPost(deps: Deps, postId: string): Promise<PostStatu
           res = deps.config.socialTestNetwork === true ? await (await import("./social-p2b")).publishTest(deps, post.orgId, post.id, text) : { status: "failed", error: "account_gone" };
         } else if (direct) {
           res = { status: "skipped", error: "not_supported" };
+        } else if (isPageKey(t.accountId) && !pageRows.has(t.accountId)) {
+          res = { status: "failed", error: "account_gone" };
         } else {
+          const pr = pageRows.get(t.accountId);
           res = await PUBLISHERS[t.app]!({
-            cp, userId, accountId: t.accountId, text, imageUrl: takesImages ? imageUrl : null, image: takesImages ? image : null, target: t.target, now: deps.now(),
+            cp, userId, accountId: pr ? pr.viaAccountId : t.accountId, text, pageToken: pr && t.target ? pageTokens.get(pr.viaAccountId)?.get(t.target) ?? null : null, imageUrl: takesImages ? imageUrl : null, image: takesImages ? image : null, target: t.target, now: deps.now(),
             imageUrls: takesImages ? imageUrls.slice(0, Math.max(1, maxImages)) : [], extras,
           });
         }
@@ -924,6 +948,10 @@ export async function accountHealth(deps: Deps, auth: AuthContext, opts: { fresh
   try { accounts = await cp.accounts(userId); } catch (err) { return toHttp(err); }
   // R132: YouTube (and Business Profile when its held flag is on) get health rows too.
   const p3 = deps.config.socialP3R132 === true ? await import("./social-p3") : null;
+  // SOC1: the Facebook check reads the whole paged Page list, and each chosen Page gets its own row.
+  const soc1 = deps.config.socialMultiSoc1 === true ? await import("./social-pages-soc1") : null;
+  const reachable = new Map<string, Set<string> | null>();
+  const loginCodes = new Map<string, string | null>();
   const extraApps = p3 ? p3SourceApps(p3.p3Flags(deps)) : [];
   const social = accounts.filter((a) => (a.user_id === undefined || a.user_id === userId) && ((a.toolkit?.slug ?? "") in SOCIAL_NETWORKS || extraApps.includes(a.toolkit?.slug ?? "")));
   const rows = await Promise.all(social.map(async (a): Promise<AccountHealthView> => {
@@ -934,7 +962,8 @@ export async function accountHealth(deps: Deps, auth: AuthContext, opts: { fresh
     else {
       const ctx: PublishCtx = { cp, userId, accountId: a.id, text: "", imageUrl: null, image: null, target: null, now: deps.now() };
       try {
-        if (app === "facebook") code = await facebookHealth(ctx);
+        if (app === "facebook" && soc1) { const r = await soc1.facebookHealthAll(ctx); code = r.code; reachable.set(a.id, r.reachable); }
+        else if (app === "facebook") code = await facebookHealth(ctx);
         else if (app === "linkedin") {
           const raw = a as unknown as { state?: { val?: { scope?: unknown; scopes?: unknown } } };
           const sc = raw.state?.val?.scope ?? raw.state?.val?.scopes;
@@ -951,9 +980,15 @@ export async function accountHealth(deps: Deps, auth: AuthContext, opts: { fresh
     }
     // A network that did not answer is not the person's problem to fix: show it as fine, posting will say if not.
     if (code === "unavailable" || code === "rate_limited") code = null;
+    loginCodes.set(a.id, code);
+    if (app === "facebook" && !reachable.has(a.id)) reachable.set(a.id, null);
     return { accountId: a.id, app, ok: !code, code, text: code ? (SOCIAL_HEALTH_COPY[code] ?? SOCIAL_ERROR_COPY[code] ?? null) : null };
   }));
   rows.push(...testRows);
+  if (soc1) {
+    const pageRows = await soc1.pageHealthRows(deps, auth.orgId, reachable, loginCodes).catch((err) => { deps.log?.warn("social.page_health_failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) }); return []; });
+    rows.push(...pageRows.map((r) => ({ ...r, text: r.code ? (SOCIAL_HEALTH_COPY[r.code] ?? SOCIAL_ERROR_COPY[r.code] ?? null) : null })));
+  }
   // R118: a newly broken account rings the bell once for owners and admins.
   await p2b?.noteHealth(deps, auth.orgId, rows).catch((err) => deps.log?.warn("social.health_bell_failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) }));
   healthCache.set(auth.orgId, { at: now, rows });

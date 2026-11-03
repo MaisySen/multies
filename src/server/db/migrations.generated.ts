@@ -1821,5 +1821,13 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE UNIQUE INDEX `passkeys_des1_credential_uq` ON `passkeys_des1` (`credential_id`);",
       "CREATE INDEX `passkeys_des1_user_idx` ON `passkeys_des1` (`user_id`);"
     ]
+  },
+  {
+    "name": "0163_social_pages_soc1",
+    "statements": [
+      "CREATE TABLE `social_pages` (\n\t`org_id` text NOT NULL,\n\t`app` text NOT NULL,\n\t`page_id` text NOT NULL,\n\t`key` text NOT NULL,\n\t`via_account_id` text NOT NULL,\n\t`name` text,\n\t`picture_url` text,\n\t`state` text DEFAULT 'ok' NOT NULL,\n\t`added_by` text,\n\t`added_at` integer NOT NULL,\n\t`checked_at` integer,\n\tPRIMARY KEY(`org_id`, `app`, `page_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `social_pages_key_uq` ON `social_pages` (`org_id`,`key`);",
+      "CREATE INDEX `social_pages_via_idx` ON `social_pages` (`org_id`,`via_account_id`);"
+    ]
   }
 ];

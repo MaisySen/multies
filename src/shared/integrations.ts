@@ -217,7 +217,7 @@ export const SOCIAL_ERROR_COPY: Record<string, string> = {
 };
 
 /** Error codes where reconnecting the account is the next step. */
-export const SOCIAL_RECONNECT_ERRORS = new Set(["reconnect", "no_permission", "not_page_admin", "account_gone", "not_finished"]);
+export const SOCIAL_RECONNECT_ERRORS = new Set(["reconnect", "no_permission", "not_page_admin", "account_gone", "not_finished", "page_lost"]);
 
 /** What the account check says before anyone writes a post (words for the account list in the composer). */
 export const SOCIAL_HEALTH_COPY: Record<string, string> = {
@@ -227,6 +227,7 @@ export const SOCIAL_HEALTH_COPY: Record<string, string> = {
   not_finished: "Sign in was not finished. Reconnect to post here.",
   check_failed: "We couldn't check this account just now. You can still post.",
   no_channel: "This Google account has no YouTube channel. Create one on YouTube, then reconnect.",
+  page_lost: "Lost permission for this Page. Reconnect Facebook to post here again.", // SOC1
 };
 
 /** One account's check, from GET /api/social/health. */

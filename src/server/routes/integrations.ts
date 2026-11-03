@@ -50,6 +50,8 @@ const LibraryBody = z.object({ kind: z.enum(["image", "caption", "hashtags"]), n
 const LibraryPatch = z.object({ name: z.string().max(120).optional(), body: z.string().max(6000).nullable().optional(), campaign: z.string().max(60).nullable().optional() });
 const p2 = () => import("../services/integrations/social-p2");
 const p2b = () => import("../services/integrations/social-p2b"); // R118
+const soc1 = () => import("../services/integrations/social-pages-soc1"); // SOC1
+const PagesBody = z.object({ pageIds: z.array(z.string().regex(/^[\w.-]{1,64}$/)).max(500) });
 const TextBody = z.object({ text: z.string().max(4000) });
 const InboxPatch = z.object({ status: z.enum(["open", "done"]).optional(), assigneeId: z.string().max(64).nullable().optional(), contactId: z.string().max(64).nullable().optional() });
 const SavedBody = z.object({ title: z.string().max(200), body: z.string().max(4000) });
@@ -91,7 +93,12 @@ export function appConnectionRoutes() {
     .post("/accounts/:id/confirm", async (c) => c.json({ account: await (await svc()).confirmConnect(c.var.deps, c.var.auth, c.req.param("id"), clientIp(c)) }))
     .post("/accounts/:id/reconnect", async (c) => c.json(await (await svc()).reconnect(c.var.deps, c.var.auth, c.req.param("id"), clientIp(c))))
     .delete("/accounts/:id", async (c) => c.json(await (await svc()).disconnect(c.var.deps, c.var.auth, c.req.param("id"), clientIp(c))))
-    .get("/accounts/:id/targets", async (c) => c.json({ targets: await (await svc()).listTargets(c.var.deps, c.var.auth, c.req.param("id")) }));
+    .get("/accounts/:id/targets", async (c) => c.json({ targets: await (await svc()).listTargets(c.var.deps, c.var.auth, c.req.param("id")) }))
+    // SOC1 (flag SOCIAL_MULTI_SOC1; 404 when off): Pages per login, chosen by an admin, each its own post target.
+    .get("/accounts/:id/pages", async (c) => c.json(await (await soc1()).listAvailable(c.var.deps, c.var.auth, c.req.param("id"))))
+    .put("/accounts/:id/pages", async (c) => c.json({ pages: await (await soc1()).savePages(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, PagesBody)).pageIds, clientIp(c)) }))
+    .get("/pages", async (c) => c.json({ pages: await (await soc1()).listPages(c.var.deps, c.var.auth) }))
+    .delete("/pages/:key", async (c) => c.json(await (await soc1()).removePage(c.var.deps, c.var.auth, c.req.param("key"), clientIp(c))));
 }
 
 export function socialRoutes() {

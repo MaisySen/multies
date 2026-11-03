@@ -205,6 +205,8 @@ export async function disconnect(deps: Deps, auth: AuthContext, accountId: strin
   limitWrite(auth.orgId);
   const a = await ownAccount(cp, auth.orgId, accountId);
   try { await cp.remove(a.id); } catch (err) { return toHttp(err); }
+  // SOC1: the Pages chosen through this login go with it.
+  if (deps.config.socialMultiSoc1 === true) await (await import("./social-pages-soc1")).dropForAccount(deps, auth.orgId, a.id).catch(() => 0);
   await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "integration.disconnected", targetType: "integration", targetId: a.id, metadata: { app: a.toolkit?.slug ?? null }, ip: ip ?? null });
   return { ok: true };
 }
@@ -236,6 +238,11 @@ export async function listTargets(deps: Deps, auth: AuthContext, accountId: stri
     .filter((r) => r.id).slice(0, 100);
   try {
     if (app === "facebook") {
+      // SOC1: once an admin chose Pages for this login, only those are offered (the phone app uses this list too).
+      if (deps.config.socialMultiSoc1 === true) {
+        const chosen = await (await import("./social-pages-soc1")).chosenFor(deps, auth.orgId, a.id);
+        if (chosen.length) return chosen;
+      }
       const r = await cp.execute("FACEBOOK_GET_USER_PAGES", a.id, uid, { fields: "id,name" });
       return pick(findList(r.data));
     }

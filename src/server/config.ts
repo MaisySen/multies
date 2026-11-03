@@ -50,6 +50,8 @@ export interface AppConfig {
   meetTd3?: boolean;
   /** R132: SOCIAL_P3_R132 (Pinterest pin details, YouTube comments and health, Snapchat share, best times, writing help). Off unless set. */
   socialP3R132?: boolean;
+  /** SOC1: several Facebook Pages and LinkedIn accounts per workspace, chosen per post. */
+  socialMultiSoc1?: boolean;
   /** R132 held sub flags (stay off): YouTube upload needs video storage; Google Business Profile needs API access and our own sign in app. */
   socialYoutubeUploadR132?: boolean;
   socialGbpR132?: boolean;
@@ -418,6 +420,7 @@ const EnvSchema = z.object({
   OPENROUTER_AUTH_URL: z.string().optional(), // AI2
   AI_GLOBAL_DAILY_UNITS: z.string().optional(), // AI2
   SOCIAL_P3_R132: z.string().optional(),
+  SOCIAL_MULTI_SOC1: z.string().optional(), // SOC1
   SOCIAL_YOUTUBE_UPLOAD_R132: z.string().optional(),
   SOCIAL_GBP_R132: z.string().optional(),
   CLIENT_PORTAL: z.string().optional(),
@@ -806,6 +809,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     openRouterAuthUrl: /^https:\/\/[^\s]+$/.test(String(env.OPENROUTER_AUTH_URL ?? "")) ? String(env.OPENROUTER_AUTH_URL) : undefined,
     meetTd3: ["1", "true", "on"].includes(String(env.MEET_TD3 ?? "").toLowerCase()), // TD3
     socialP3R132: ["1", "true", "on"].includes(String(env.SOCIAL_P3_R132 ?? "").toLowerCase()),
+    socialMultiSoc1: ["1", "true", "on"].includes(String(env.SOCIAL_MULTI_SOC1 ?? "").toLowerCase()), // SOC1
     socialYoutubeUploadR132: ["1", "true", "on"].includes(String(env.SOCIAL_YOUTUBE_UPLOAD_R132 ?? "").toLowerCase()),
     socialGbpR132: ["1", "true", "on"].includes(String(env.SOCIAL_GBP_R132 ?? "").toLowerCase()),
     // R91: DASHBOARDS_PLUS=test (e2e only) also opens POST /api/dashboards-plus/test/run, which runs the due reports, alerts and refreshes now.

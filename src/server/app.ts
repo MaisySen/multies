@@ -512,6 +512,7 @@ export function createApp(deps: Deps) {
       meetTd3: !!deps.config.meetTd3, // TD3: meetings to tasks
       reporting: !!deps.config.reporting, // R112: anonymous reporting channel and data requests
       socialP3R132: !!deps.config.socialP3R132, // R132: Social P3
+      socialMultiSoc1: !!deps.config.socialMultiSoc1, // SOC1: several Pages and accounts
       socialYoutubeUploadR132: !!deps.config.socialP3R132 && !!deps.config.socialYoutubeUploadR132, // R132 held
       socialGbpR132: !!deps.config.socialP3R132 && !!deps.config.socialGbpR132, // R132 held
       // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.

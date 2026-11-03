@@ -43,6 +43,8 @@ export interface MockComposioState {
   deleteRefused?: boolean;
   /** Facebook answers the post check with this error (a permission problem, not a deleted post). */
   fbGetError?: string;
+  /** SOC1: how many Pages each Facebook login manages (acct.data.fbPages wins); 2 when unset. */
+  fbPages?: number;
 }
 
 export function newMockState(): MockComposioState {
@@ -51,6 +53,19 @@ export function newMockState(): MockComposioState {
 
 /** One state per process for the local server; tests make their own. */
 const shared = newMockState();
+// SOC1: a local run can ask for a login with many Pages (e2e checks the picker's search and paging).
+try { const n = Number((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.MOCK_FB_PAGES ?? ""); if (n > 0 && n <= 5000) shared.fbPages = n; } catch { /* not a node run */ }
+
+/** SOC1: the mock's Facebook Pages: pg_100 and pg_200 first (older tests use them), then numbered ones. Page 4 can't post. */
+export function mockFbPages(n: number) {
+  const names = ["Acme Bakery", "Acme Bakery Melbourne", "Acme Bakery and Cafe Southbank Promenade Weekend Markets and Catering"];
+  return Array.from({ length: n }, (_, i) => ({
+    id: i < 2 ? `pg_${(i + 1) * 100}` : `pg_${1000 + i}`,
+    name: names[i] ?? `Acme store ${String(i + 1).padStart(3, "0")}`,
+    picture: { data: { url: `https://images.example.com/page-${i + 1}.png` } },
+    tasks: i === 3 ? ["ANALYZE"] : i === 0 ? ["CREATE_CONTENT", "MANAGE"] : ["CREATE_CONTENT"],
+  }));
+}
 
 export function mockComposioAllowed(env: { COMPOSIO_BASE_URL?: string; APP_URL?: string }) {
   try {
@@ -103,7 +118,16 @@ function proxy(state: MockComposioState, body: { connected_account_id?: string; 
     // SA1: who the signed in profile is (data.who picks another person, for two different accounts).
     if (method === "GET" && /\/me$/.test(u.pathname)) return net(200, { id: String(acct.data.fbId ?? "fbu_1"), name: String(acct.data.name ?? "Ada Lovelace"), picture: { data: { url: "https://images.example.com/ada.png" } } });
     if (method === "GET" && u.pathname.endsWith("/me/permissions")) return net(200, { data: acct.data.noPostPerm ? [{ permission: "pages_show_list", status: "granted" }] : [{ permission: "pages_show_list", status: "granted" }, { permission: "pages_manage_posts", status: "granted" }] });
-    if (method === "GET" && u.pathname.endsWith("/me/accounts")) return net(200, { data: [{ id: "pg_100", tasks: ["CREATE_CONTENT", "MANAGE"] }, { id: "pg_200", tasks: ["CREATE_CONTENT"] }] });
+    if (method === "GET" && u.pathname.endsWith("/me/accounts")) {
+      // SOC1: paged as Graph does (limit, after cursor, paging.next only when there is more).
+      const all = mockFbPages(Number(acct.data.fbPages ?? state.fbPages ?? 2));
+      const limit = Math.min(100, Number(u.searchParams.get("limit") ?? 25) || 25);
+      const start = Number(u.searchParams.get("after") ?? 0) || 0;
+      const fields = (u.searchParams.get("fields") ?? "id").split(",");
+      const slice = all.slice(start, start + limit).map((p) => ({ id: p.id, ...(fields.includes("name") ? { name: p.name } : {}), ...(fields.some((f) => f.startsWith("picture")) ? { picture: p.picture } : {}), ...(fields.includes("tasks") ? { tasks: p.tasks } : {}), ...(fields.includes("access_token") ? { access_token: "mock-page-token" } : {}) }));
+      const more = start + limit < all.length;
+      return net(200, { data: slice, paging: { cursors: { before: String(start), after: String(start + slice.length) }, ...(more ? { next: `https://graph.facebook.com/v21.0/me/accounts?after=${start + slice.length}` } : {}) } });
+    }
     if (method === "GET" && u.searchParams.get("fields") === "access_token") return net(200, u.pathname.endsWith("/pg_noadmin") ? { id: "pg_noadmin" } : { id: "pg", access_token: "mock-page-token" });
     const gone = state.goneRemote ?? (state.goneRemote = new Set());
     const objId = decodeURIComponent(u.pathname.split("/").pop() ?? "");
@@ -147,6 +171,12 @@ function proxy(state: MockComposioState, body: { connected_account_id?: string; 
   if (u.hostname === "api.pinterest.com") return acct.data.expired ? net(401, { code: 2, message: "Authentication failed." }) : net(200, { username: "acme", account_type: "BUSINESS" });
   if (u.hostname === "api.linkedin.com") {
     if (u.pathname === "/v2/userinfo") return acct.data.expired ? net(401, { status: 401, code: "REVOKED_ACCESS_TOKEN", message: "The token used in the request has been revoked by the user" }) : net(200, { sub: String(acct.data.sub ?? "mock1"), name: String(acct.data.name ?? "Ada"), picture: acct.data.picture ?? undefined });
+    // SOC1: company Pages the member administers (acct.data.orgs lists organization ids).
+    if (u.pathname === "/rest/organizationAcls" && method === "GET") {
+      const orgs = Array.isArray(acct.data.orgs) ? (acct.data.orgs as unknown[]).map(String) : [];
+      return net(200, { elements: orgs.map((id) => ({ organization: `urn:li:organization:${id}`, role: "ADMINISTRATOR", state: "APPROVED" })) });
+    }
+    if (u.pathname.startsWith("/rest/organizations/") && method === "GET") return net(200, { id: Number(u.pathname.split("/").pop()), localizedName: `Acme company ${u.pathname.split("/").pop()}` });
     if (u.pathname.startsWith("/rest/posts/") && method === "DELETE") {
       const urn = decodeURIComponent(u.pathname.slice("/rest/posts/".length));
       const gone = state.goneRemote ?? (state.goneRemote = new Set());
