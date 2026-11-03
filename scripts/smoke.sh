@@ -70,7 +70,8 @@ fi
 # emails through its own SMTP setting, which a revoked key once broke for a day while everything above passed.
 # Production only (staging shares the tenant): no failed email logged in the last 30 minutes, and one real
 # confirmation email accepted by the email provider (a throwaway user at our test inbox, deleted after).
-# SMOKE_AUTH_MAIL=0 skips it. Needs ~/.multies-secrets/auth0-multies.json and RESEND_API_KEY via creds.mjs;
+# SMOKE_AUTH_MAIL=0 skips it. Needs ~/.multies-secrets/auth0-multies.json (domain, client id) and RESEND_API_KEY plus
+# AUTH0_TAB_MGMT_CLIENT_SECRET via creds.mjs (the store every rotation updates);
 # without them it is a warning, never a pass. docs/runbooks/auth-mail.md.
 case "$BASE" in
   https://multies.si|https://app.multies.si|https://mymail.mymail-app.workers.dev) PROD_BASE=1 ;;
@@ -79,7 +80,7 @@ esac
 if [ "${SMOKE_AUTH_MAIL:-1}" != "0" ] && [ "$PROD_BASE" = "1" ]; then
   HERE=$(cd "$(dirname "$0")" && pwd)
   set +e
-  node "$HERE/creds.mjs" run RESEND_API_KEY -- node "$HERE/auth-mail-check.mjs" --probe --minutes 30 2>&1 | grep -v -i 'warning\|trace-warn'
+  node "$HERE/creds.mjs" run RESEND_API_KEY,AUTH0_TAB_MGMT_CLIENT_SECRET -- node "$HERE/auth-mail-check.mjs" --probe --minutes 30 2>&1 | grep -v -i 'warning\|trace-warn'
   rc=${PIPESTATUS[0]}
   set -e
   if [ "$rc" = "1" ]; then fail "sign in mail is broken (confirmation or reset emails are not going out)"; fi

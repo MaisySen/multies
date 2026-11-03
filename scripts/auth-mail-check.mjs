@@ -76,9 +76,11 @@ async function main() {
   const domain = s.domain;
   const tr = await fetch(`https://${domain}/oauth/token`, {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ grant_type: "client_credentials", client_id: s.tab_mgmt_client_id, client_secret: s.tab_mgmt_client_secret, audience: `https://${domain}/api/v2/` }),
+    body: JSON.stringify({ grant_type: "client_credentials", client_id: s.tab_mgmt_client_id, client_secret: process.env.AUTH0_TAB_MGMT_CLIENT_SECRET || s.tab_mgmt_client_secret, audience: `https://${domain}/api/v2/` }),
   });
-  if (!tr.ok) throw new Error(`identity provider token ${tr.status}`);
+  // POL3: the creds store is the record every rotation updates; the JSON file above went stale after the Nov 2
+  // rotation and smoke read 401. smoke.sh passes AUTH0_TAB_MGMT_CLIENT_SECRET from the store; the file is the fallback.
+  if (!tr.ok) throw new Error(`identity provider token ${tr.status}${tr.status === 401 ? " (management client secret is stale: run through creds.mjs with AUTH0_TAB_MGMT_CLIENT_SECRET, or refresh the secrets file after a rotation)" : ""}`);
   const tok = (await tr.json()).access_token;
   const api = async (method, p, body) => {
     const r = await fetch(`https://${domain}/api/v2${p}`, { method, headers: { authorization: `Bearer ${tok}`, "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
