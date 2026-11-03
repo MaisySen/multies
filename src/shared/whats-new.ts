@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-03-polish-phone-themes",
+    date: "2026-11-03",
+    title: "Easier to tap, clearer in every theme",
+    body: "Buttons, tabs and filters are easier to tap on phones, colours follow your theme in light, dark and Forest, and big numbers read with commas, like 1,500 due today. Rows you add to a table take your typing straight away.",
+  },
+  {
     id: "2026-11-03-video-recording-plus",
     date: "2026-11-03",
     title: "Pause, speaker view and safer call videos",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-02",
     title: "Bill time",
     body: "Turn tracked hours into a draft invoice in a few clicks: pick a project and dates, set rates and rounding, and the billed time is locked so it is never billed twice. Home shows the hours still to bill.",
-  },
-  {
-    id: "2026-11-02-meeting-tasks",
-    date: "2026-11-02",
-    title: "Meetings to tasks",
-    body: "On a meeting page, Suggest reads the transcript, the notes or pasted text and lists the action items with who and when. Accept makes a task, Discard drops it, and Follow up email opens a ready draft for you to send."
   },
   {
     id: "2026-10-28-whats-new",
