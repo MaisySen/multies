@@ -147,7 +147,7 @@ export const AREAS: readonly MarketingArea[] = [
       { t: "One timeline per client", b: "Every thread, task, meeting and note in one stream, with private notes and filters." },
       { t: "A deal pipeline", b: "Track deals on a board in Australian dollars, from first email to won." },
       { t: "Maps and visits", b: "Addresses with suggestions, a map and directions, and a route for a day of visits." },
-      { t: "Client portals", b: "Share a private page with each client for their tasks, files and messages." },
+      { t: "Client portals you control", b: "Share a private page with each client for their tasks, files and messages. Choose what each person sees per area, share live project pages with milestones, invoices and forms, and leave a comment only one person can see." },
       { t: "Next steps from your mail", b: "Contacts suggests next steps it finds in your mail, like a call on Thursday. Nothing changes until you save it, and you can edit, discard or undo." },
     ],
     where: "Contacts in the left menu.",
