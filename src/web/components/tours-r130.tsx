@@ -246,7 +246,7 @@ export function ChecklistPanel({ view, embedded, onNavigate }: { view: Checklist
           <p className="text-xs text-muted" data-testid="checklist-count">{view.doneCount} of {view.total} done</p>
         </div>
         <button type="button" onClick={hide} aria-label="Hide the checklist" data-testid="checklist-hide"
-          className="grid h-10 w-10 place-items-center rounded-full text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 sm:h-8 sm:w-8">
+          className="grid h-11 w-11 place-items-center rounded-full text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 sm:h-8 sm:w-8">
           <IconClose className="h-4 w-4" aria-hidden />
         </button>
       </div>

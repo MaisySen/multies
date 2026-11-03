@@ -296,7 +296,7 @@ export function TasksPage() {
         {project && view === "board" && <span className="max-sm:order-3"><ShareButton kind="project_board" targetId={project.id} /></span>}
         <div className="ml-auto flex items-center gap-2 max-sm:order-2">
           {/* R41 (MB-226): on phones the six views fold into one View picker (a bottom sheet). */}
-          <Select aria-label="View" data-testid="phone-view-select" value={view} onChange={(e) => { const v = e.target.value as ViewKind; storeTaskView(v); set({ view: v }); }} className="h-10! w-auto! min-w-[112px] text-[14px] sm:hidden">
+          <Select aria-label="View" data-testid="phone-view-select" value={view} onChange={(e) => { const v = e.target.value as ViewKind; storeTaskView(v); set({ view: v }); }} className="h-11! w-auto! min-w-[112px] text-[14px] sm:hidden">
             {VIEWS.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
           </Select>
           <div role="tablist" aria-label="View" className="flex rounded-lg bg-fill p-0.5 max-sm:hidden">
@@ -488,7 +488,7 @@ export function NewTaskDialog({ projects, projectId, statusId, onClose, onCreate
   };
   return (
     <Dialog open onClose={onClose} title="New task" footer={<>
-      <label className="mr-auto inline-flex min-h-10 cursor-pointer items-center gap-2 text-[13px] text-muted"><input type="checkbox" className="h-4 w-4 accent-[#0071E3]" checked={keepGoing} onChange={(e) => setKeepGoing(e.target.checked)} />Add another</label>
+      <label className="mr-auto inline-flex min-h-10 cursor-pointer items-center gap-2 text-[13px] text-muted"><input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={keepGoing} onChange={(e) => setKeepGoing(e.target.checked)} />Add another</label>
       <Button variant="secondary" onClick={onClose}>{keepGoing ? "Done" : "Cancel"}</Button><Button loading={busy} disabled={!title.trim()} onClick={() => void submit()}>{keepGoing ? "Add task" : "Create task"}</Button></>}>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         <Field label="Title">{(f) => <Input {...f} ref={titleRef} autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What needs doing?" />}</Field>

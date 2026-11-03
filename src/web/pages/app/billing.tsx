@@ -217,9 +217,9 @@ export function BillingSettings() {
                   <Button size="sm" variant={qty ? "secondary" : "primary"} aria-pressed={!!qty} onClick={() => setQty(id, qty ? 0 : 1)}>{qty ? "Remove" : "Add"}</Button>
                 ) : (
                   <div className="flex items-center gap-1" role="group" aria-label={`${a.name} quantity`}>
-                    <Button size="sm" variant="secondary" aria-label={`One less ${a.name.toLowerCase()}`} disabled={!qty} onClick={() => setQty(id, qty - 1)}><IconMinus className="h-3.5 w-3.5" /></Button>
+                    <Button size="sm" variant="secondary" className="max-sm:min-w-11" aria-label={`One less ${a.name.toLowerCase()}`} disabled={!qty} onClick={() => setQty(id, qty - 1)}><IconMinus className="h-3.5 w-3.5" /></Button>
                     <output className="w-8 text-center tabular-nums" aria-live="polite">{qty}</output>
-                    <Button size="sm" variant="secondary" aria-label={`One more ${a.name.toLowerCase()}`} disabled={qty >= a.maxQuantity} onClick={() => setQty(id, qty + 1)}><IconPlus className="h-3.5 w-3.5" /></Button>
+                    <Button size="sm" variant="secondary" className="max-sm:min-w-11" aria-label={`One more ${a.name.toLowerCase()}`} disabled={qty >= a.maxQuantity} onClick={() => setQty(id, qty + 1)}><IconPlus className="h-3.5 w-3.5" /></Button>
                   </div>
                 )) : <span className="text-sm tabular-nums text-muted">{qty ? `x ${qty}` : "Not added"}</span>}
               </li>

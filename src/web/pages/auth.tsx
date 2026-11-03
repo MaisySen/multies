@@ -145,7 +145,7 @@ function PasswordInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div className="relative">
       <Input {...props} type={show ? "text" : "password"} className="pr-10" />
-      <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-subtle hover:text-fg" aria-label={show ? "Hide password" : "Show password"}>
+      <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-subtle hover:text-fg max-sm:after:absolute max-sm:after:-inset-2.5 max-sm:after:content-['']" aria-label={show ? "Hide password" : "Show password"}>
         {show ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}
       </button>
     </div>
@@ -238,7 +238,7 @@ export function LoginPage() {
       {params.get("error") === "read_only" && <div className="mt-4"><FormError message={READ_ONLY_MESSAGE} /></div>}
       {params.getAll("error").includes("account_not_linked") && <div className="mt-4" data-testid="social-not-linked"><FormError message="This email already has a Multies account, and that provider did not confirm the address. Continue with Multies and sign in with your email instead." /></div>}
       {idp && <IdentityButtons mode="signin" showDivider={password} />}
-      {idp && !password && <p className="mt-4 text-center text-xs text-muted" data-testid="moved-sign-in">Forgot your password? <Link to="/forgot-password" className="font-medium text-[#0071E3] hover:underline">Set a new one</Link></p>}
+      {idp && !password && <p className="mt-4 text-center text-xs text-muted" data-testid="moved-sign-in">Forgot your password? <Link to="/forgot-password" className="font-medium text-brand-hover hover:underline">Set a new one</Link></p>}
       {!idp && <SocialButtons />}
       <PasskeySignIn />
       {password && (
@@ -247,7 +247,7 @@ export function LoginPage() {
           <Field label="Email" error={fields.email}>{(p) => <Input {...p} name="email" type="email" autoComplete="email" placeholder="you@company.com" required autoFocus={!idp && !params.get("email")} defaultValue={params.get("email") ?? ""} />}</Field>
           <div className="space-y-1.5">
             <Field label="Password" error={fields.password}>{(p) => <PasswordInput {...p} name="password" autoComplete="current-password" required autoFocus={!idp && !!params.get("email")} />}</Field>
-            <div className="text-right"><Link to="/forgot-password" className="text-xs text-muted hover:text-fg hover:underline">Forgot password?</Link></div>
+            <div className="text-right"><Link to="/forgot-password" className="text-xs text-muted hover:text-fg hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">Forgot password?</Link></div>
           </div>
           <Button type="submit" className="w-full" size="lg" variant={idp ? "secondary" : undefined} loading={loading}>Sign in</Button>
         </form>
@@ -354,10 +354,10 @@ function MovedSignInReset() {
   if (send.isSuccess) {
     return (
       <div className={card} data-testid="reset-sent">
-        <IconMailCheck className="h-6 w-6 text-[#0071E3]" />
+        <IconMailCheck className="h-6 w-6 text-brand-hover" />
         <h1 className="mt-3 text-[24px] font-semibold leading-tight tracking-[-0.02em]">Check your email</h1>
         <p className="mt-1 text-sm text-muted">If an account with a password exists for <b className="font-medium text-fg">{email}</b>, a link to set a new password is on its way. Then sign in with Continue with Multies.</p>
-        <Link to="/login" className="mt-6 block text-center text-sm font-medium text-fg hover:underline">Back to sign in</Link>
+        <Link to="/login" className="mt-6 flex min-h-11 items-center justify-center text-sm font-medium text-fg hover:underline">Back to sign in</Link>
       </div>
     );
   }
@@ -370,7 +370,7 @@ function MovedSignInReset() {
         <Field label="Email">{(p) => <Input {...p} type="email" autoComplete="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus required />}</Field>
         <Button type="submit" className="w-full" size="lg" loading={send.isPending} disabled={!email}>Email me a reset link</Button>
       </form>
-      <Link to="/login" className="mt-6 block text-center text-sm text-muted hover:text-fg">Back to sign in</Link>
+      <Link to="/login" className="mt-6 flex min-h-11 items-center justify-center text-sm text-muted hover:text-fg">Back to sign in</Link>
     </div>
   );
 }
@@ -382,7 +382,7 @@ function ManagedAtSignIn({ title, body }: { title: string; body: string }) {
       <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.02em]">{title}</h1>
       <p className="mt-1 text-sm text-muted">{body}</p>
       <IdentityButtons mode="signin" showDivider={false} />
-      <Link to="/login" className="mt-6 block text-center text-sm text-muted hover:text-fg">Back to sign in</Link>
+      <Link to="/login" className="mt-6 flex min-h-11 items-center justify-center text-sm text-muted hover:text-fg">Back to sign in</Link>
     </div>
   );
 }
@@ -401,7 +401,7 @@ function LocalForgotPassword() {
         {!deliveryConnected && (
           <p className="mt-4 rounded-lg border border-warn/25 bg-warn-soft px-3 py-2 text-sm text-warn">Email delivery isn't connected on this deployment yet, so only addresses hosted on Multies receive it. Your workspace owner or the platform operator can issue you a reset link.</p>
         )}
-        <Link to="/login" className="mt-6 block text-center text-sm font-medium text-fg hover:underline">Back to sign in</Link>
+        <Link to="/login" className="mt-6 flex min-h-11 items-center justify-center text-sm font-medium text-fg hover:underline">Back to sign in</Link>
       </div>
     );
   }
@@ -415,7 +415,7 @@ function LocalForgotPassword() {
         <Button type="submit" className="w-full" size="lg" loading={send.isPending} disabled={!email}>Send reset link</Button>
       </form>
       {config.data?.outboundDriver === "log" && <p className="mt-4 text-xs text-subtle">Heads up: email delivery isn't connected on this deployment yet.</p>}
-      <Link to="/login" className="mt-6 block text-center text-sm text-muted hover:text-fg">Back to sign in</Link>
+      <Link to="/login" className="mt-6 flex min-h-11 items-center justify-center text-sm text-muted hover:text-fg">Back to sign in</Link>
     </div>
   );
 }

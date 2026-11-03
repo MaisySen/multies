@@ -96,9 +96,9 @@ function Calculator() {
                 <li key={id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                   <span>{a.name} <span className="text-subtle">{formatPlanPrice(a.priceMonthly)}{a.maxQuantity === 1 ? "" : ` per ${a.unit}`}</span></span>
                   <span className="flex items-center gap-1" role="group" aria-label={`${a.name} quantity`}>
-                    <Button size="sm" variant="secondary" aria-label={`One less ${a.name.toLowerCase()}`} disabled={!qty} onClick={() => set(id, qty - 1)}><IconMinus className="h-3.5 w-3.5" /></Button>
+                    <Button size="sm" variant="secondary" className="max-sm:min-w-11" aria-label={`One less ${a.name.toLowerCase()}`} disabled={!qty} onClick={() => set(id, qty - 1)}><IconMinus className="h-3.5 w-3.5" /></Button>
                     <output className="w-8 text-center tabular-nums">{qty}</output>
-                    <Button size="sm" variant="secondary" aria-label={`One more ${a.name.toLowerCase()}`} disabled={qty >= a.maxQuantity} onClick={() => set(id, qty + 1)}><IconPlus className="h-3.5 w-3.5" /></Button>
+                    <Button size="sm" variant="secondary" className="max-sm:min-w-11" aria-label={`One more ${a.name.toLowerCase()}`} disabled={qty >= a.maxQuantity} onClick={() => set(id, qty + 1)}><IconPlus className="h-3.5 w-3.5" /></Button>
                   </span>
                 </li>
               );
@@ -117,7 +117,7 @@ function Calculator() {
               <div className="mt-3 inline-flex rounded-lg bg-fill p-0.5 text-[13px]" role="group" aria-label="Billing interval" data-testid="pricing-interval">
                 {(["month", "year"] as const).map((i) => (
                   <button key={i} type="button" aria-pressed={charge.interval === i} onClick={() => setInterval(i)}
-                    className={`rounded-md px-3 py-1 transition-colors motion-reduce:transition-none ${charge.interval === i ? "bg-surface font-medium text-fg shadow-sm" : "text-muted hover:text-fg"}`}>
+                    className={`rounded-md px-3 py-1 transition-colors motion-reduce:transition-none max-sm:min-h-11 ${charge.interval === i ? "bg-surface font-medium text-fg shadow-sm" : "text-muted hover:text-fg"}`}>
                     {i === "month" ? "Monthly" : "Yearly, 2 months free"}
                   </button>
                 ))}

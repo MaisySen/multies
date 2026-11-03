@@ -54,15 +54,15 @@ export function SegmentBar({ segment, setSegment, filters, setFilters }: { segme
     <div className="mb-3" data-testid="segment-bar">
       <div className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1">
         <button type="button" aria-pressed={!segment && !hasFilters(filters)} onClick={() => { setSegment(null); setFilters({}); }}
-          className={cn("h-8 shrink-0 rounded-full border px-3 text-[12.5px] transition-colors duration-150", !segment && !hasFilters(filters) ? "border-brand/40 bg-brand/10 font-medium" : "border-line text-muted hover:bg-hover hover:text-fg")}>Everyone</button>
+          className={cn("h-8 shrink-0 rounded-full border px-3 text-[12.5px] max-sm:h-11 max-sm:px-3.5 transition-colors duration-150", !segment && !hasFilters(filters) ? "border-brand/40 bg-brand/10 font-medium" : "border-line text-muted hover:bg-hover hover:text-fg")}>Everyone</button>
         {segs.data?.map((s) => (
           <button key={s.id} type="button" aria-pressed={segment?.id === s.id} onClick={() => { setSegment(s); setFilters({}); setShowFilters(false); }}
-            className={cn("h-8 shrink-0 rounded-full border px-3 text-[12.5px] transition-colors duration-150", segment?.id === s.id ? "border-brand/40 bg-brand/10 font-medium" : "border-line text-muted hover:bg-hover hover:text-fg")}>
+            className={cn("h-8 shrink-0 rounded-full border px-3 text-[12.5px] max-sm:h-11 max-sm:px-3.5 transition-colors duration-150", segment?.id === s.id ? "border-brand/40 bg-brand/10 font-medium" : "border-line text-muted hover:bg-hover hover:text-fg")}>
             {s.name}{s.shared && <span className="sr-only"> (team)</span>}
           </button>
         ))}
         <button type="button" aria-expanded={showFilters} onClick={() => { setShowFilters((v) => !v); if (segment) { setFilters(segment.filters); setSegment(null); } }}
-          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-dashed border-line-strong px-3 text-[12.5px] text-muted transition-colors duration-150 hover:bg-hover hover:text-fg" data-testid="filters-toggle">
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-dashed max-sm:h-11 border-line-strong px-3 text-[12.5px] text-muted transition-colors duration-150 hover:bg-hover hover:text-fg" data-testid="filters-toggle">
           <IconFilter className="h-3.5 w-3.5" aria-hidden />Filter
         </button>
         {segment?.canEdit && <Button size="sm" variant="ghost" onClick={() => void remove(segment)} aria-label={`Remove segment ${segment.name}`}><IconTrash className="h-4 w-4" /></Button>}

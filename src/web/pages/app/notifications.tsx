@@ -157,7 +157,7 @@ export function NotificationsPage() {
         {TRIAGE_VIEWS.map((v) => (
           <button key={v} role="tab" aria-selected={view === v} data-testid={`triage-tab-${v}`} onClick={() => { setView(v); setFocus(null); }}
             className={cn("rounded-md px-3.5 py-1.5 text-[13px] transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
-              view === v ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg", "max-sm:min-h-10")}>
+              view === v ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg", "max-sm:min-h-11")}>
             {VIEW_LABELS[v]}<span className="ml-1.5 tabular-nums text-subtle" data-testid={`triage-count-${v}`}>{vc ? vc[v] : ""}</span>
           </button>
         ))}
@@ -165,11 +165,11 @@ export function NotificationsPage() {
       <div className="-mx-4 mb-4 flex items-center gap-1.5 overflow-x-auto overscroll-x-contain px-4 pb-1 [scrollbar-width:none] max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent)] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" role="group" aria-label="Filter notifications">
         {FILTERS.map((f) => (
           <button key={f} onClick={() => setFilter(f)} aria-pressed={filter === f}
-            className={cn("rounded-full border px-3 py-1 text-[12.5px] tabular-nums transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-9 max-sm:px-3.5", filter === f ? "border-fg bg-fg text-bg" : "border-line text-muted hover:border-line-strong hover:text-fg")}>
+            className={cn("rounded-full border px-3 py-1 text-[12.5px] tabular-nums transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-11 max-sm:px-3.5", filter === f ? "border-fg bg-fg text-bg" : "border-line text-muted hover:border-line-strong hover:text-fg")}>
             {f === "all" ? "All" : CATEGORY_LABELS[f]}{f === "all" ? (q.data?.unread ? ` ${q.data.unread}` : "") : counts?.[f] ? ` ${counts[f]}` : ""}
           </button>
         ))}
-        <label className="ml-auto flex items-center gap-2 text-[13px] text-muted max-sm:min-h-9 max-sm:pl-2"><input type="checkbox" className="h-4 w-4 accent-[#0071E3]" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />Unread only</label>
+        <label className="ml-auto flex items-center gap-2 text-[13px] text-muted max-sm:min-h-11 max-sm:pl-2"><input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />Unread only</label>
       </div>
       {q.isPending ? <Card className="p-0"><SkeletonRows rows={6} label="Loading notifications" /></Card> : q.isError && !q.data ? (
         // POL2 (HQ MB-323): a failed read is not "all caught up"; it says so and offers Retry.

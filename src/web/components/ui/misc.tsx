@@ -113,7 +113,7 @@ export function PageHeader({ title, description, actions, eyebrow }: { title: st
     return (
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4" data-testid="embedded-header">
         {description ? <p className="min-w-0 text-sm text-muted">{description}</p> : <span />}
-        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+        {actions && <div className="flex shrink-0 items-center gap-2 max-sm:flex-wrap">{actions}</div>}
       </div>
     );
   }
@@ -124,7 +124,7 @@ export function PageHeader({ title, description, actions, eyebrow }: { title: st
         <h1 className="large-title">{title}</h1>
         {description && <p className="mt-1 text-sm text-muted">{description}</p>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 items-center gap-2 max-sm:flex-wrap">{actions}</div>}
     </div>
   );
 }

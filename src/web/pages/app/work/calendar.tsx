@@ -56,7 +56,7 @@ export function TaskCalendar({ tasks, onOpen, onDue }: { tasks: Task[]; onOpen: 
       <FullCalendar
         plugins={[classicThemePlugin, dayGridPlugin, interactionPlugin]} initialView="dayGridMonth" locale="en-au" firstDay={1} height="auto"
         events={[...events, ...other.events]} datesSet={(r) => other.setRange({ from: r.start.toISOString(), to: r.end.toISOString() })} editable eventStartEditable eventDurationEditable={false} dayMaxEvents={4}
-        headerToolbar={{ start: "title", center: "", end: "today prev,next" }} buttons={{ today: { text: "Today" } }}
+        headerToolbar={{ start: "title", center: "", end: "today prev,next" }} buttons={{ today: { text: "Today", hint: "Today" } }}
         toolbarTitleClass="mm-fc-title" dayHeaderInnerClass="mm-fc-muted" dayCellTopInnerClass="mm-fc-muted" eventClass="mm-fc-event"
         eventDidMount={(a) => { const src = a.event.extendedProps.sourceColor as string | undefined; if (src) a.el.style.setProperty("--mm-src", src); }}
         eventClick={(e) => { e.jsEvent.preventDefault(); const href = e.event.extendedProps.href as string | null | undefined; if (href) navigate(href); else if (!e.event.extendedProps.readOnly) onOpen(e.event.id); }} eventDrop={onDrop}
@@ -79,7 +79,7 @@ function PhoneAgenda({ tasks, onOpen }: { tasks: Task[]; onOpen: (id: string) =>
     <div className="space-y-5" data-testid="calendar-agenda">
       {days.map((d) => (
         <section key={d.key} aria-label={d.label}>
-          <h2 className={cn("mb-1.5 px-1 text-[13px] font-semibold uppercase tracking-[0.04em]", d.overdue ? "text-[#D70015] dark:text-[#FF6961]" : d.label === "Today" ? "text-[#0071E3] dark:text-[#4DA3FF]" : "text-subtle")}>
+          <h2 className={cn("mb-1.5 px-1 text-[13px] font-semibold uppercase tracking-[0.04em]", d.overdue ? "text-bad" : d.label === "Today" ? "text-brand-hover" : "text-subtle")}>
             {d.label}{d.items.length > 0 && <span className="ml-1.5 font-normal normal-case tracking-normal text-subtle">{d.items.length}</span>}
           </h2>
           {d.items.length === 0

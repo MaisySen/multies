@@ -118,7 +118,7 @@ export function MyDay({ focusTaskId, userEmail }: { focusTaskId?: string | null;
         <div className="flex rounded-lg bg-fill p-0.5" role="tablist" aria-label="Day">
           {[{ d: today, label: "Today" }, { d: tomorrow, label: "Tomorrow" }].map((x) => (
             <button key={x.label} role="tab" aria-selected={day === x.d} onClick={() => setDay(x.d)}
-              className={cn("min-h-8 rounded-md px-2.5 text-[12.5px] transition-colors duration-150 max-sm:min-h-10", day === x.d ? "bg-surface font-medium text-fg shadow-sm" : "text-muted hover:text-fg")}>{x.label}</button>
+              className={cn("min-h-8 rounded-md px-2.5 text-[12.5px] transition-colors duration-150 max-sm:min-h-11", day === x.d ? "bg-surface font-medium text-fg shadow-sm" : "text-muted hover:text-fg")}>{x.label}</button>
           ))}
         </div>
         <span className="text-[12.5px] text-muted">{q.data ? (items.length ? `${left} left of ${items.length}` : "") : ""}</span>

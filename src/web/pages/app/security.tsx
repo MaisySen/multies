@@ -23,10 +23,10 @@ function YourDataSection() {
   return (
     <Section title="Your data" description="Download a copy of what Multies holds about you: profile, sign-in methods, devices, workspaces and your activity, as JSON. To delete your account, use Delete account above.">
       <div className="flex flex-wrap items-center gap-3">
-        <a href="/api/account/export" download className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium hover:bg-hover">
+        <a href="/api/account/export" download className="inline-flex h-8 max-sm:h-11 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium hover:bg-hover">
           <IconDownload className="h-4 w-4" aria-hidden />Download my data
         </a>
-        <a href="/privacy" className="text-sm text-muted hover:text-fg hover:underline">Privacy policy</a>
+        <a href="/privacy" className="inline-flex items-center text-sm text-muted hover:text-fg hover:underline max-sm:min-h-11">Privacy policy</a>
       </div>
     </Section>
   );

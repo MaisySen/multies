@@ -24,7 +24,7 @@ export function AuthLayout() {
       <Suspense fallback={hold}>
         <WhenProvidersKnown>
           <main className="relative w-full max-w-[400px]">
-            <Link to="/" className="mb-8 flex justify-center" aria-label="Multies home"><Logo /></Link>
+            <Link to="/" className="mx-auto mb-8 flex w-fit items-center justify-center max-sm:min-h-11" aria-label="Multies home"><Logo /></Link>
             <Outlet />
           </main>
         </WhenProvidersKnown>

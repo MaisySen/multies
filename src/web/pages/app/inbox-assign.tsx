@@ -57,7 +57,7 @@ export function InboxViewBar({ view, assignee, set, stats, setStats }: ReturnTyp
   const people = (team.data?.members ?? []).filter((m) => m.kind === "human");
   const seg = (v: InboxView, label: string) => (
     <button type="button" onClick={() => set(v)} aria-pressed={view === v}
-      className={cn("h-7 rounded-md px-3 text-[13px] font-medium transition-colors max-sm:h-11", view === v ? "bg-elevated text-fg shadow-sm" : "text-muted hover:text-fg")}>{label}</button>
+      className={cn("h-7 rounded-md px-3 text-[13px] font-medium transition-colors max-sm:h-11 max-sm:min-w-11", view === v ? "bg-elevated text-fg shadow-sm" : "text-muted hover:text-fg")}>{label}</button>
   );
   return (
     <div className="mb-4 space-y-3">

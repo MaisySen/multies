@@ -25,7 +25,7 @@ export function ThanksPage() {
   return (
     <main className="grid min-h-dvh place-items-center bg-bg px-6 py-16">
       <div className="w-full max-w-sm text-center animate-pop-in">
-        <Link to="/" aria-label="Multies home" className="inline-flex"><Logo /></Link>
+        <Link to="/" aria-label="Multies home" className="inline-flex items-center max-sm:min-h-11"><Logo /></Link>
         <div className="mx-auto mt-10 grid h-14 w-14 place-items-center rounded-full bg-ok-soft text-ok" aria-hidden><IconCheckCircle className="h-7 w-7" /></div>
         <h1 className="mt-5 text-[28px] font-bold leading-tight tracking-[-0.02em]">{copy.title}</h1>
         <p className="mt-3 text-[15px] leading-relaxed text-muted" role="status">{copy.body}</p>
