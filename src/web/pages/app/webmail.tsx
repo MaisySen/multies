@@ -590,7 +590,7 @@ export function WebmailPage() {
         <div className="border-t border-line p-3 text-[11px] text-subtle">
           <div className="mb-1 flex justify-between"><span>{tr("mail.storage")}</span><span>{formatBytes(mb.usedBytes)} of {formatBytes(mb.quotaMb * 1024 * 1024)}</span></div>
           <div className="h-1 overflow-hidden rounded-full bg-fill"><div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(2, Math.min(100, (mb.usedBytes / (mb.quotaMb * 1048576)) * 100))}%` }} /></div>
-          <div className="mt-3 hidden gap-x-3 gap-y-1 xl:flex xl:flex-wrap"><span><Kbd>c</Kbd> compose</span><span><Kbd>j</Kbd>/<Kbd>k</Kbd> move</span><span><Kbd>e</Kbd> archive</span><span><Kbd>t</Kbd> task</span><span><Kbd>/</Kbd> search</span></div>
+          <div className="mt-3 hidden gap-x-3 gap-y-1 xl:flex xl:flex-wrap"><span><Kbd>c</Kbd> {tr("mail.key_compose")}</span><span><Kbd>j</Kbd>/<Kbd>k</Kbd> {tr("mail.key_move")}</span><span><Kbd>e</Kbd> {tr("mail.key_archive")}</span><span><Kbd>t</Kbd> {tr("mail.key_task")}</span><span><Kbd>/</Kbd> {tr("mail.key_search")}</span></div>
         </div>
       </aside>
 

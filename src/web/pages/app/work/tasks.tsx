@@ -232,7 +232,7 @@ export function TasksPage() {
     return out;
   };
   const groupOptions = [{ value: "", label: tr("tasks.none") }, ...(["status", "assignee", "priority", "due", "tag"] as const).map((g) => ({ value: g, label: tl("taskgroup", GROUP_LABEL[g]!) })),
-    ...(project ? [] : [{ value: "project", label: "Project" }]),
+    ...(project ? [] : [{ value: "project", label: tl("taskgroup", "Project") }]),
     ...listFields.filter((f) => ["select", "multiselect", "checkbox", "person", "text", "number", "date", "url", "currency"].includes(f.type)).map((f) => ({ value: `field:${f.id}`, label: f.name }))];
   const groupName = (g: string) => (g.startsWith("field:") ? listFields.find((f) => `field:${f.id}` === g)?.name ?? "field" : GROUP_LABEL[g] ?? g).toLowerCase();
   const saveView = async (v: { name: string; shared: boolean; pinned: boolean }) => {

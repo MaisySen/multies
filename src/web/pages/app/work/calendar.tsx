@@ -18,7 +18,7 @@ import { cn } from "@/web/lib/cn";
 import { agendaDays } from "./calendar-agenda";
 import { emptyTasksCopy } from "@/web/lib/empty-states"; // R30
 import { OtherCalendarsBar, useOtherCalendars } from "./calendar-other";
-import { tr, uiLocale } from "@/web/i18n"; // R104
+import { tr, uiLocale, tl } from "@/web/i18n"; // R104
 
 /** Month calendar of due dates (FullCalendar Standard, MIT). Drag a task to another day to move its due date. */
 export function TaskCalendar({ tasks, onOpen, onDue }: { tasks: Task[]; onOpen: (id: string) => void; onDue: (id: string, due: string) => void }) {
@@ -95,7 +95,7 @@ function PhoneAgenda({ tasks, onOpen }: { tasks: Task[]; onOpen: (id: string) =>
                       <span className={cn("flex min-h-14 min-w-0 flex-1 items-center gap-2", i > 0 && "border-t border-line")}>
                         <span className="min-w-0 flex-1">
                           <span className={cn("block truncate text-[16px]", t.status === "done" && "text-muted line-through")}>{t.title}</span>
-                          <span className="block truncate text-[13px] text-subtle">{t.ref} · {t.statusName}{d.overdue && t.due ? ` · due ${t.due.slice(8, 10)}/${t.due.slice(5, 7)}` : ""}</span>
+                          <span className="block truncate text-[13px] text-subtle">{t.ref} · {tl("taskstatus", t.statusName)}{d.overdue && t.due ? ` · ${tr("calendar.due_short")} ${t.due.slice(8, 10)}/${t.due.slice(5, 7)}` : ""}</span>
                         </span>
                         <IconChevronRight className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
                       </span>
