@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect, beforeEach } from "vitest";
 import { sql } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
@@ -207,5 +208,23 @@ describe("POST /api/translate", () => {
       expect(r.body.error.message).toMatch(/free AI limit/);
       expect(calls).toHaveLength(0);
     });
+  });
+});
+
+describe("R116 FEATURES list (production text binding limit)", () => {
+  it("a switch is on by its own var or by its name in FEATURES", async () => {
+    const { flagOn } = await import("../src/server/config");
+    expect(flagOn(undefined, "TRANSLATE_R116", undefined)).toBe(false);
+    expect(flagOn("on", "TRANSLATE_R116", undefined)).toBe(true);
+    expect(flagOn(undefined, "TRANSLATE_R116", "VIDEO_REC_VID2, TRANSLATE_R116")).toBe(true);
+    expect(flagOn(undefined, "TRANSLATE_R116", "VIDEO_REC_VID2")).toBe(false);
+    expect(flagOn("off", "VIDEO_REC_VID2", "")).toBe(false);
+  });
+  it("production keeps VID2 and R116 on through FEATURES and stays within 85 vars", () => {
+    const toml = readFileSync("wrangler.toml", "utf8");
+    const prod = toml.slice(toml.indexOf("\n[vars]"), toml.indexOf("\n[", toml.indexOf("\n[vars]") + 3));
+    expect(prod).toMatch(/^FEATURES = "VIDEO_REC_VID2,TRANSLATE_R116"/m);
+    expect(prod).not.toMatch(/^(VIDEO_REC_VID2|TRANSLATE_R116) =/m);
+    expect(prod.split("\n").filter((l) => /^[A-Z0-9_]+\s*=/.test(l)).length).toBeLessThanOrEqual(85);
   });
 });

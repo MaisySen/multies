@@ -404,6 +404,9 @@ export interface AppConfig {
 }
 
 const csv = (v: string | undefined) => (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+/** A switch is on when its own var is 1, true or on, or when its name is in the FEATURES comma list. */
+export const flagOn = (own: string | undefined, name: string, features: string | undefined): boolean =>
+  ["1", "true", "on"].includes(String(own ?? "").toLowerCase()) || csv(features).some((s) => s.toUpperCase() === name);
 
 const EnvSchema = z.object({
   NODE_ENV: z.string().optional(),
@@ -500,6 +503,8 @@ const EnvSchema = z.object({
   VIDEO_REC_VID1: z.string().optional(), // VID1
   VIDEO_REC_VID2: z.string().optional(), // VID2
   TRANSLATE_R116: z.string().optional(), // R116
+  /** R116: switches named in one comma list (for example "VIDEO_REC_VID2,TRANSLATE_R116"), read like their own var set to "on". Production holds its switches here because the Worker allows at most 128 text bindings (vars plus secrets). */
+  FEATURES: z.string().optional(),
   TABLES_R125: z.string().optional(), // R125
   POLISH_POL1: z.string().optional(), // POL1
   TABLES_EXCLUDE: z.string().optional(), // R125
@@ -835,8 +840,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     crmTd10: ["1", "true", "on"].includes(String(env.CRM_TD10 ?? "").toLowerCase()), // TD10
     portalTd9: ["1", "true", "on"].includes(String(env.PORTAL_TD9 ?? "").toLowerCase()), // TD9
     videoRecVid1: ["1", "true", "on"].includes(String(env.VIDEO_REC_VID1 ?? "").toLowerCase()), // VID1
-    videoRecVid2: ["1", "true", "on"].includes(String(env.VIDEO_REC_VID2 ?? "").toLowerCase()), // VID2
-    translateR116: ["1", "true", "on"].includes(String(env.TRANSLATE_R116 ?? "").toLowerCase()), // R116
+    videoRecVid2: flagOn(env.VIDEO_REC_VID2, "VIDEO_REC_VID2", env.FEATURES), // VID2 (its own var or FEATURES)
+    translateR116: flagOn(env.TRANSLATE_R116, "TRANSLATE_R116", env.FEATURES), // R116 (its own var or FEATURES)
     tablesR125: ["1", "true", "on"].includes(String(env.TABLES_R125 ?? "").toLowerCase()), // R125
     polishPol1: ["1", "true", "on"].includes(String(env.POLISH_POL1 ?? "").toLowerCase()), // POL1
     tablesExclude: env.TABLES_EXCLUDE ?? "", // R125
