@@ -25,6 +25,7 @@ import {
 } from "@/shared/branding";
 import { LoadFailure } from "@/web/components/load-error-t1g";
 import { tr, tl } from "@/web/i18n"; // R104
+import "@/web/i18n/w2/en-home"; // R104B
 
 type Draft = Omit<Brand, "logos">;
 const draftOf = (b: Brand): Draft => { const { logos: _l, ...d } = b; return d; };
@@ -115,13 +116,13 @@ function ColourField({ label, value, onChange, placeholder, allowNone, disabled,
   return (
     <div className="flex min-w-0 items-center gap-3" data-testid={testId}>
       <label className={cn("relative grid h-9 w-9 max-sm:h-11 max-sm:w-11 shrink-0 place-items-center rounded-full ring-1 ring-line-strong transition-transform duration-150 focus-within:ring-2 focus-within:ring-brand", !disabled && "cursor-pointer hover:scale-105 motion-reduce:transform-none")} style={{ background: value ?? placeholder }}>
-        <span className="sr-only">{label} picker</span>
+        <span className="sr-only">{tr("home.label_picker", { label })}</span>
         <input type="color" value={value ?? placeholder} disabled={disabled} onChange={(e) => onChange(e.target.value.toLowerCase())} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
       </label>
       <div className="min-w-0 flex-1">
         <div className="text-[13px] font-medium">{label}</div>
         <div className="mt-0.5 flex items-center gap-1">
-          <input aria-label={`${label} hex`} value={text} disabled={disabled} placeholder={allowNone ? "None" : placeholder} maxLength={7}
+          <input aria-label={tr("home.label_hex", { label })} value={text} disabled={disabled} placeholder={allowNone ? tr("tasks.none") : placeholder} maxLength={7}
             aria-invalid={bad || undefined} aria-describedby={bad ? errId : undefined}
             onChange={(e) => { setText(e.target.value); const v = /^#?[0-9a-fA-F]{6}$/.test(e.target.value.trim()) ? parseHex(e.target.value) : null; if (v) commit(v); else if (bad && parseHex(e.target.value)) setBad(false); }}
             onBlur={(e) => commit(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit((e.target as HTMLInputElement).value); } }}
@@ -129,17 +130,17 @@ function ColourField({ label, value, onChange, placeholder, allowNone, disabled,
               bad ? "border-bad focus:border-bad focus-visible:ring-bad/30" : "border-line focus:border-brand focus-visible:ring-brand/40")} />
           {allowNone && value && !disabled && <Button variant="ghost" size="sm" onClick={() => onChange(null)} aria-label={`Clear ${label.toLowerCase()}`}>{tr("common.clear")}</Button>}
         </div>
-        {bad && <p id={errId} role="alert" data-testid={testId ? `${testId}-error` : undefined} className="mt-1 text-[12.5px] text-bad">Use a hex colour like {placeholder.startsWith("#") ? placeholder : "#0066cc"}.</p>}
+        {bad && <p id={errId} role="alert" data-testid={testId ? `${testId}-error` : undefined} className="mt-1 text-[12.5px] text-bad">{tr("home.use_a_hex_colour_like")} {placeholder.startsWith("#") ? placeholder : tr("home.0066cc")}.</p>}
       </div>
     </div>
   );
 }
 
 const LOGO_SLOTS: { kind: LogoKind; label: string; mode: string; help: string; wide: boolean; dark: boolean }[] = [
-  { kind: "mark_light", label: "Square logo", mode: "Light mode", help: "Sidebar, workspace menu and small screens.", wide: false, dark: false },
-  { kind: "mark_dark", label: "Square logo", mode: "Dark mode", help: "Optional. The light one is used when empty.", wide: false, dark: true },
-  { kind: "wide_light", label: "Wide logo", mode: "Light mode", help: "Top of the sidebar and Tools results. About 4 to 1.", wide: true, dark: false },
-  { kind: "wide_dark", label: "Wide logo", mode: "Dark mode", help: "Optional. The light one is used when empty.", wide: true, dark: true },
+  { kind: "mark_light", get label() { return tr("home.square_logo"); }, mode: "Light mode", help: "Sidebar, workspace menu and small screens.", wide: false, dark: false },
+  { kind: "mark_dark", get label() { return tr("home.square_logo"); }, mode: "Dark mode", help: "Optional. The light one is used when empty.", wide: false, dark: true },
+  { kind: "wide_light", get label() { return tr("home.wide_logo"); }, mode: "Light mode", help: "Top of the sidebar and Tools results. About 4 to 1.", wide: true, dark: false },
+  { kind: "wide_dark", get label() { return tr("home.wide_logo"); }, mode: "Dark mode", help: "Optional. The light one is used when empty.", wide: true, dark: true },
 ];
 
 type SlotState = { phase: "idle" } | { phase: "uploading" } | { phase: "saved" } | { phase: "error"; message: string; file?: File };
@@ -152,22 +153,22 @@ function LogoSlot({ data, kind, label, mode, help, wide, dark, canEdit, onChange
   const busy = state.phase === "uploading";
   useEffect(() => { if (state.phase !== "saved") return; const t = setTimeout(() => setState({ phase: "idle" }), 2500); return () => clearTimeout(t); }, [state.phase]);
   const upload = async (f: File) => {
-    if (!["image/png", "image/jpeg", "image/webp"].includes(f.type)) { setState({ phase: "error", message: "Use a PNG, JPEG or WebP image." }); return; }
-    if (f.size > LOGO_MAX_BYTES) { setState({ phase: "error", message: "Logos can be up to 512 KB. Try a smaller PNG or WebP." }); return; }
+    if (!["image/png", "image/jpeg", "image/webp"].includes(f.type)) { setState({ phase: "error", message: tr("home.use_a_png_jpeg_or_webp_image") }); return; }
+    if (f.size > LOGO_MAX_BYTES) { setState({ phase: "error", message: tr("home.logos_can_be_up_to_512_kb_try_a_smaller_png_or_w") }); return; }
     setState({ phase: "uploading" });
     try {
       const res = await fetch(`/api/branding/logo/${kind}`, { method: "PUT", credentials: "same-origin", headers: { "content-type": f.type, "x-multies-upload": "1" }, body: f });
       const j = await res.json().catch(() => null) as { brand?: Brand; error?: { message?: string } } | null;
       if (!res.ok || !j?.brand) throw new Error(j?.error?.message ?? "Couldn't upload the logo.");
-      onChanged(j.brand); setState({ phase: "saved" }); toast.success(`${label} saved. It shows across Multies now.`);
-    } catch (e) { setState({ phase: "error", message: (e as Error).message || "Couldn't upload the logo.", file: f }); }
+      onChanged(j.brand); setState({ phase: "saved" }); toast.success(tr("home.label_saved_it_shows_across_multies_now", { label }));
+    } catch (e) { setState({ phase: "error", message: (e as Error).message || tr("home.couldn_t_upload_the_logo"), file: f }); }
     finally { if (input.current) input.current.value = ""; }
   };
   const remove = async () => {
     if (!(await confirmRemove())) return;
     setState({ phase: "uploading" });
-    try { const r = await api.del<{ brand: Brand }>(`/branding/logo/${kind}`); onChanged(r.brand); setState({ phase: "idle" }); toast.success(`${label} removed`); }
-    catch (e) { setState({ phase: "error", message: (e as Error).message || "Couldn't remove the logo." }); }
+    try { const r = await api.del<{ brand: Brand }>(`/branding/logo/${kind}`); onChanged(r.brand); setState({ phase: "idle" }); toast.success(tr("home.label_removed", { label })); }
+    catch (e) { setState({ phase: "error", message: (e as Error).message || tr("home.couldn_t_remove_the_logo") }); }
   };
   const name = `${label.toLowerCase()} for ${mode.toLowerCase()}`;
   return (
@@ -186,18 +187,18 @@ function LogoSlot({ data, kind, label, mode, help, wide, dark, canEdit, onChange
         </div>
         <p className="mt-0.5 text-[12px] leading-snug text-subtle">{help}</p>
         <div aria-live="polite" className="min-h-0">
-          {state.phase === "uploading" && <p className="mt-1 text-[12px] text-muted">Uploading…</p>}
+          {state.phase === "uploading" && <p className="mt-1 text-[12px] text-muted">{tr("home.uploading")}</p>}
           {state.phase === "saved" && <p className="mt-1 flex items-center gap-1 text-[12px] text-ok"><IconCheck className="h-3.5 w-3.5" aria-hidden />{tr("common.saved")}</p>}
           {state.phase === "error" && <p className="mt-1 flex items-start gap-1 text-[12px] text-bad" role="alert"><IconWarning className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden /><span>{state.message}</span></p>}
         </div>
         {canEdit && (
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} aria-label={`Upload ${name}`} />
+            <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} aria-label={tr("home.upload_name", { name })} />
             {state.phase === "error" && state.file
               ? <Button variant="secondary" size="sm" onClick={() => void upload(state.file!)}><IconRefresh className="h-4 w-4" />{tr("common.try_again")}</Button>
-              : <Button variant="secondary" size="sm" loading={busy} onClick={() => input.current?.click()} aria-label={`${v ? "Replace" : "Upload"} ${name}`}><IconUpload className="h-4 w-4" />{v ? "Replace" : "Upload"}</Button>}
+              : <Button variant="secondary" size="sm" loading={busy} onClick={() => input.current?.click()} aria-label={`${v ? "Replace" : "Upload"} ${name}`}><IconUpload className="h-4 w-4" />{v ? tr("home.replace") : tr("home.upload")}</Button>}
             {state.phase === "error" && state.file && <Button variant="ghost" size="sm" onClick={() => input.current?.click()}>{tr("branding.choose_another")}</Button>}
-            {v && state.phase !== "error" && <Button variant="ghost" size="sm" disabled={busy} onClick={() => void remove()} aria-label={`Remove ${name}`}><IconTrash className="h-4 w-4" />{tr("common.remove")}</Button>}
+            {v && state.phase !== "error" && <Button variant="ghost" size="sm" disabled={busy} onClick={() => void remove()} aria-label={tr("home.remove_name", { name })}><IconTrash className="h-4 w-4" />{tr("common.remove")}</Button>}
           </div>
         )}
       </div>
@@ -227,7 +228,7 @@ export function BrandPreview({ brand, data, personal, scheme, compact, name }: {
   const root = { ...t.root, fontFamily: "var(--font-sans)", colorScheme: scheme } as CSSProperties;
   const side = { ...t.sidebar, background: brand.sidebar ?? "var(--color-glass-sidebar)" } as CSSProperties;
   const nav: { label: string; Icon: typeof IconInbox; active?: boolean; n?: number }[] = [
-    { label: "Inbox", Icon: IconInbox, active: true, n: 3 }, { label: "Tasks", Icon: IconTasks }, { label: "Docs", Icon: IconDocs }, { label: "Mail", Icon: IconMail },
+    { label: tr("common.inbox"), Icon: IconInbox, active: true, n: 3 }, { label: tr("common.tasks"), Icon: IconTasks }, { label: tr("nav.docs"), Icon: IconDocs }, { label: tr("common.mail"), Icon: IconMail },
   ];
   return (
     <div style={root} className="overflow-hidden rounded-2xl border border-line bg-bg text-fg shadow-[var(--shadow-e2)] transition-[background-color,color] duration-200" data-testid="brand-preview" data-scheme={scheme}>
@@ -238,7 +239,7 @@ export function BrandPreview({ brand, data, personal, scheme, compact, name }: {
               : <>
                 {mark && data ? <img src={logoUrl(data.orgId, mark, brand.logos[mark]!)} alt="" className="h-6 w-6 rounded-md object-contain" />
                   : <span className="grid h-6 w-6 place-items-center rounded-md bg-brand text-[11px] font-bold text-brand-fg">M</span>}
-                <span className="truncate text-[12.5px] font-semibold">{name || "Your company"}</span>
+                <span className="truncate text-[12.5px] font-semibold">{name || tr("home.your_company")}</span>
               </>}
           </div>
           {nav.map(({ label, Icon, active, n }) => (
@@ -255,11 +256,11 @@ export function BrandPreview({ brand, data, personal, scheme, compact, name }: {
           </div>
           <div className="min-h-0 flex-1 space-y-3 overflow-hidden p-3">
             <div className="rounded-xl border border-line bg-surface p-3 shadow-card">
-              <div className="text-[13px] font-semibold">Welcome back</div>
-              <p className="mt-0.5 text-[11.5px] text-muted">3 new messages and 2 tasks due today. <span className="font-medium text-brand-hover">{tr("branding.see_all")}</span></p>
+              <div className="text-[13px] font-semibold">{tr("auth.welcome_back")}</div>
+              <p className="mt-0.5 text-[11.5px] text-muted">{tr("home.3_new_messages_and_2_tasks_due_today")} <span className="font-medium text-brand-hover">{tr("branding.see_all")}</span></p>
               <div className="mt-2.5 flex flex-wrap gap-2">
-                <span className="inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-lg bg-brand px-2.5 text-[11.5px] font-medium text-brand-fg">New message</span>
-                <span className="inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-lg border border-line bg-surface px-2.5 text-[11.5px] text-fg">Invite</span>
+                <span className="inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-lg bg-brand px-2.5 text-[11.5px] font-medium text-brand-fg">{tr("compose.new_message")}</span>
+                <span className="inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-lg border border-line bg-surface px-2.5 text-[11.5px] text-fg">{tr("home.invite")}</span>
               </div>
             </div>
             <div className="overflow-hidden rounded-xl border border-line bg-surface">
@@ -272,7 +273,7 @@ export function BrandPreview({ brand, data, personal, scheme, compact, name }: {
               ))}
             </div>
             <div className="rounded-xl border border-line bg-surface p-3">
-              <div className="flex items-center justify-between text-[11.5px]"><span className="font-medium">Website launch</span><span className="text-subtle">64%</span></div>
+              <div className="flex items-center justify-between text-[11.5px]"><span className="font-medium">{tr("home.website_launch")}</span><span className="text-subtle">64%</span></div>
               <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-fill"><div className="h-full w-[64%] rounded-full bg-accent" /></div>
             </div>
           </div>
@@ -402,8 +403,8 @@ export function BrandingSettings() {
   const orgName = me.data?.organization?.name;
   const status = ro
     ? <span className="flex items-center gap-2 text-muted"><IconLock className="h-4 w-4 shrink-0" aria-hidden />{tr("branding.only_workspace_owners_and_admins_can_change_the")}</span>
-    : save.isPending ? <span className="text-muted">Saving…</span>
-      : dirty ? <span className="flex items-center gap-2 font-medium"><span className="h-2 w-2 shrink-0 rounded-full bg-warn" aria-hidden /><span className="max-sm:hidden">{tr("branding.unsaved_changes")}</span><span className="sm:hidden">{tr("branding.unsaved")}</span><span className="font-normal text-subtle max-md:hidden">· you see them now, your team sees them after you save</span></span>
+    : save.isPending ? <span className="text-muted">{tr("home.saving")}</span>
+      : dirty ? <span className="flex items-center gap-2 font-medium"><span className="h-2 w-2 shrink-0 rounded-full bg-warn" aria-hidden /><span className="max-sm:hidden">{tr("branding.unsaved_changes")}</span><span className="sm:hidden">{tr("branding.unsaved")}</span><span className="font-normal text-subtle max-md:hidden">{tr("home.you_see_them_now_your_team_sees_them_after_you_s")}</span></span>
         : justSaved ? <span className="flex items-center gap-1.5 font-medium text-ok"><IconCheckCircle className="h-4 w-4 shrink-0" aria-hidden /><span className="max-sm:hidden">{tr("branding.saved_for_everyone")}</span><span className="sm:hidden">{tr("common.saved")}</span></span>
           : <span className="flex items-center gap-1.5 text-muted"><IconCheck className="h-4 w-4 shrink-0" aria-hidden /><span className="max-sm:hidden">{tr("branding.all_changes_saved")}</span><span className="sm:hidden">{tr("common.saved")}</span></span>;
   return (
@@ -437,15 +438,15 @@ export function BrandingSettings() {
             <Panel title={tr("branding.logo")} description={tr("branding.png_jpeg_or_webp_up_to_512_kb_drop_a_file_on_a_r")} testId="brand-logos">
               <ul className="grid gap-2 @min-[560px]/panel:grid-cols-2">
                 {LOGO_SLOTS.map((s) => <LogoSlot key={s.kind} data={q.data} {...s} canEdit={canEdit} onChanged={logoChanged}
-                  confirmRemove={async () => await confirm({ title: `Remove the ${s.label.toLowerCase()} for ${s.mode.toLowerCase()}?`, description: "It is taken off for everyone in this workspace. You can upload it again any time.", confirmLabel: "Remove", tone: "danger" })} />)}
+                  confirmRemove={async () => await confirm({ title: `Remove the ${s.label.toLowerCase()} for ${s.mode.toLowerCase()}?`, description: tr("home.it_is_taken_off_for_everyone_in_this_workspace_y"), confirmLabel: tr("common.remove"), tone: "danger" })} />)}
               </ul>
             </Panel>
           </div>
 
           <Panel title={tr("branding.colours")} description={tr("branding.text_on_your_colours_is_picked_for_you_so_it_sta")} testId="brand-colours">
             <div className="grid gap-4 @min-[480px]/panel:grid-cols-2 @min-[720px]/panel:grid-cols-3">
-              <ColourField label={tr("branding.brand_colour")} value={draft.primary} placeholder="#0066cc" disabled={ro} onChange={(v) => set({ primary: v, preset: null })} testId="brand-primary" />
-              <ColourField label={tr("branding.accent_colour")} value={draft.accent} placeholder={draft.primary ?? "#0066cc"} allowNone disabled={ro} onChange={(v) => set({ accent: v, preset: null })} testId="brand-accent" />
+              <ColourField label={tr("branding.brand_colour")} value={draft.primary} placeholder={tr("home.0066cc")} disabled={ro} onChange={(v) => set({ primary: v, preset: null })} testId="brand-primary" />
+              <ColourField label={tr("branding.accent_colour")} value={draft.accent} placeholder={draft.primary ?? tr("home.0066cc")} allowNone disabled={ro} onChange={(v) => set({ accent: v, preset: null })} testId="brand-accent" />
               <ColourField label={tr("branding.sidebar_colour")} value={draft.sidebar} placeholder="#f5f5f7" allowNone disabled={ro} onChange={(v) => set({ sidebar: v, preset: null })} testId="brand-sidebar" />
             </div>
             <div className="mt-4 space-y-1.5" data-testid="brand-contrast">
@@ -453,14 +454,14 @@ export function BrandingSettings() {
                 ? <p className="flex items-center gap-1.5 text-[12.5px] text-ok"><IconCheck className="h-4 w-4" aria-hidden />{tr("branding.all_text_on_these_colours_meets_wcag_aa")}</p>
                 : fails.map((c) => (
                   <p key={c.id} className="flex items-start gap-1.5 text-[12.5px] text-warn"><IconWarning className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                    <span>{c.label}: contrast {c.ratio.toFixed(1)} to 1, under the 4.5 AA needs. Multies adjusts the shade so it stays readable.</span></p>
+                    <span>{c.label}{tr("home.contrast")} {c.ratio.toFixed(1)} {tr("home.to_1_under_the_4_5_aa_needs_multies_adjusts_the")}</span></p>
                 ))}
             </div>
           </Panel>
 
           <Panel title={tr("branding.shape_and_type")} testId="brand-shape">
             <div className="space-y-4">
-              <Row label={tr("branding.corners")}><Segmented<Radius> label={tr("branding.corners")} value={draft.radius} disabled={ro} onChange={(radius) => set({ radius })} options={[{ id: "sharp", label: "Sharp" }, { id: "default", label: "Default" }, { id: "round", label: "Round" }]} /></Row>
+              <Row label={tr("branding.corners")}><Segmented<Radius> label={tr("branding.corners")} value={draft.radius} disabled={ro} onChange={(radius) => set({ radius })} options={[{ id: "sharp", label: tr("home.sharp") }, { id: "default", label: tr("home.default") }, { id: "round", label: tr("home.round") }]} /></Row>
               {/* R82F (MB-285): density is each person's own choice, in the View menu only (it was here too). */}
               <div>
                 <span className="text-[13px] font-medium">{tr("branding.font")}</span>
@@ -468,7 +469,7 @@ export function BrandingSettings() {
                   {FONTS.map((f) => (
                     <button key={f.id} type="button" role="radio" aria-checked={draft.font === f.id} disabled={ro} onClick={() => set({ font: f.id as FontId })}
                       className={cn("min-w-0 rounded-xl border px-3 py-2 text-left outline-none transition-[border-color,background-color,transform] duration-150 focus-visible:ring-2 focus-visible:ring-brand enabled:active:scale-[0.97] disabled:opacity-60 motion-reduce:transform-none", draft.font === f.id ? "border-brand bg-brand-soft" : "border-line enabled:hover:border-line-strong enabled:hover:bg-hover")}>
-                      <span className="block text-[18px] leading-6" style={{ fontFamily: f.stack }}>Aa</span>
+                      <span className="block text-[18px] leading-6" style={{ fontFamily: f.stack }}>{tr("home.aa")}</span>
                       <span className="block truncate text-[12px] text-muted">{f.label}</span>
                     </button>
                   ))}
@@ -477,11 +478,11 @@ export function BrandingSettings() {
             </div>
           </Panel>
 
-          <Panel title="For your team" testId="brand-team">
+          <Panel title={tr("home.for_your_team")} testId="brand-team">
             <div className="space-y-3">
               <Row label={tr("branding.default_appearance")} hint={tr("branding.people_who_picked_light_or_dark_for_themselves_k")}>
                 <Segmented<Appearance> label={tr("branding.default_appearance")} value={draft.appearance} disabled={ro} onChange={(appearance) => set({ appearance })}
-                  options={[{ id: "system", label: "System", icon: <IconMonitor className="h-3.5 w-3.5" /> }, { id: "light", label: "Light", icon: <IconToday className="h-3.5 w-3.5" /> }, { id: "dark", label: "Dark", icon: <IconMoon className="h-3.5 w-3.5" /> }]} />
+                  options={[{ id: "system", label: tr("theme.system"), icon: <IconMonitor className="h-3.5 w-3.5" /> }, { id: "light", label: tr("theme.light"), icon: <IconToday className="h-3.5 w-3.5" /> }, { id: "dark", label: tr("theme.dark"), icon: <IconMoon className="h-3.5 w-3.5" /> }]} />
               </Row>
               <SwitchRow label={tr("branding.lock_the_brand")} hint={tr("branding.members_can_t_pick_their_own_accent_colour")} checked={draft.locked} disabled={ro} onChange={(locked) => set({ locked })} testId="brand-lock" />
             </div>
@@ -491,14 +492,14 @@ export function BrandingSettings() {
             <Panel title={tr("branding.start_over")} testId="brand-reset">
               <Row label={tr("branding.reset_to_multies_default")} hint={tr("branding.removes_your_colours_corners_font_and_logos_for")}>
                 <Button variant="danger" loading={reset.isPending} onClick={async () => {
-                  if (await confirm({ title: "Reset to the Multies look?", description: "Your colours, corners, font and logos are removed for everyone in this workspace.", confirmLabel: "Reset", tone: "danger" })) reset.mutate();
+                  if (await confirm({ title: tr("home.reset_to_the_multies_look"), description: tr("home.your_colours_corners_font_and_logos_are_removed"), confirmLabel: tr("home.reset"), tone: "danger" })) reset.mutate();
                 }}><IconRefresh className="h-4 w-4" />{tr("branding.reset_to_multies_default")}</Button>
               </Row>
             </Panel>
           )}
         </div>
         <div className="order-1 min-w-0 @min-[640px]:sticky @min-[640px]:top-[76px] @min-[640px]:order-2">
-          <PreviewPane brand={brand} data={q.data} name={orgName} caption={canEdit ? "You see changes across Multies right away. Your team sees them once you save." : "This is how Multies looks in this workspace."} />
+          <PreviewPane brand={brand} data={q.data} name={orgName} caption={canEdit ? tr("home.you_see_changes_across_multies_right_away_your_t") : tr("home.this_is_how_multies_looks_in_this_workspace")} />
         </div>
       </div>
     </div>
@@ -553,7 +554,7 @@ export function AppearanceSettings() {
                 ))}
               </div>
             )}
-            {!follow && <div className="mt-3"><ColourField label={tr("branding.custom_accent")} value={p.accent} placeholder="#0066cc" onChange={(v) => v && save.mutate({ followBrand: false, accent: v })} /></div>}
+            {!follow && <div className="mt-3"><ColourField label={tr("branding.custom_accent")} value={p.accent} placeholder={tr("home.0066cc")} onChange={(v) => v && save.mutate({ followBrand: false, accent: v })} /></div>}
           </Panel>
           {langOn && <WordingPanel />}
         </div>

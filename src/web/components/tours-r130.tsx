@@ -22,6 +22,10 @@ import {
   type AdminTour, type ChecklistStepDef, type ChecklistView, type TourDef, type ToursMe,
 } from "@/shared/tours-r130";
 import { tr, tl } from "@/web/i18n"; // R104
+import { enHome } from "@/web/i18n/w2/en-home"; // R104B
+/** R104B: built in checklist and tour words in the language on screen; words an admin wrote stay as written. */
+const BUILTIN = new Map(Object.entries(enHome).filter(([k]) => k.startsWith("home.builtin_")).map(([k, v]) => [v as string, k]));
+const builtIn = (text: string) => { const k = BUILTIN.get(text); return k ? tr(k) : text; };
 
 export const toursKey = ["tours-r130", "me"] as const;
 const PICK_KEY = "multies-tour-pick";
@@ -173,24 +177,24 @@ function TourRunner({ run, onEnd }: { run: NonNullable<Running>; onEnd: (state: 
         style={{ left, top, bottom, width: W }}>
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-[11.5px] font-medium text-subtle" data-testid="tour-count">{`Step ${i + 1} of ${steps.length}`}{run.preview ? " · Preview" : ""}</p>
-            <h2 id={titleId} className="mt-0.5 text-[15px] font-semibold">{step.title}</h2>
+            <p className="text-[11.5px] font-medium text-subtle" data-testid="tour-count">{tr("home.step_count_of_length", { count: i + 1, length: steps.length })}{run.preview ? " · Preview" : ""}</p>
+            <h2 id={titleId} className="mt-0.5 text-[15px] font-semibold">{builtIn(step.title)}</h2>
           </div>
           <button type="button" onClick={() => close("skipped")} aria-label={tr("tours.close_tour")} data-testid="tour-close"
             className="-mr-1 -mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">
             <IconClose className="h-4 w-4" aria-hidden />
           </button>
         </div>
-        {step.body && <p id={bodyId} className="mt-1.5 whitespace-pre-line text-[13.5px] leading-relaxed text-muted">{step.body}</p>}
-        {!step.body && <span id={bodyId} className="sr-only">{step.title}</span>}
+        {step.body && <p id={bodyId} className="mt-1.5 whitespace-pre-line text-[13.5px] leading-relaxed text-muted">{builtIn(step.body)}</p>}
+        {!step.body && <span id={bodyId} className="sr-only">{builtIn(step.title)}</span>}
         <div className="mt-4 flex items-center justify-between gap-2">
           <div className="flex gap-1" aria-hidden>{steps.map((_, n) => <span key={n} className={cn("h-1.5 w-1.5 rounded-full", n === i ? "bg-brand" : "bg-line")} />)}</div>
           <div className="flex gap-2">
             <Button variant="secondary" size="sm" onClick={() => go(-1)} disabled={i === 0} data-testid="tour-back">{tr("common.back")}</Button>
-            <Button size="sm" onClick={() => go(1)} data-tour-primary data-testid="tour-next">{last ? "Done" : "Next"}</Button>
+            <Button size="sm" onClick={() => go(1)} data-tour-primary data-testid="tour-next">{last ? tr("common.done") : tr("home.next")}</Button>
           </div>
         </div>
-        <p className="sr-only" aria-live="polite">{`Step ${i + 1} of ${steps.length}: ${step.title}`}</p>
+        <p className="sr-only" aria-live="polite">{tr("home.step_count_of_length_title", { count: i + 1, length: steps.length, title: builtIn(step.title) })}</p>
       </div>
     </div>
   );
@@ -258,11 +262,11 @@ export function ChecklistPanel({ view, embedded, onNavigate }: { view: Checklist
               <IconCheck className="h-3.5 w-3.5" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className={cn("text-[13.5px] font-medium", s.done && "text-muted line-through decoration-line")}>{s.title}<span className="sr-only">{s.done ? ", done" : ", not done yet"}</span></p>
-              {!s.done && <p className="text-[12.5px] text-muted">{s.body}</p>}
+              <p className={cn("text-[13.5px] font-medium", s.done && "text-muted line-through decoration-line")}>{builtIn(s.title)}<span className="sr-only">{s.done ? tr("home.done") : tr("home.not_done_yet")}</span></p>
+              {!s.done && <p className="text-[12.5px] text-muted">{builtIn(s.body)}</p>}
             </div>
             {!s.done && <Button size="sm" variant={n === next ? "primary" : "secondary"} onClick={() => doStep(s)} data-testid={`checklist-go-${s.id}`}>
-              {tl("tours", s.action === "palette" ? "Try it" : s.action === "tour" ? "Start" : "Open")}<span className="sr-only">{`: ${s.title}`}</span>
+              {tl("tours", s.action === "palette" ? "Try it" : s.action === "tour" ? "Start" : "Open")}<span className="sr-only">{`: ${builtIn(s.title)}`}</span>
             </Button>}
           </li>
         ))}
@@ -320,7 +324,7 @@ function PickerBar({ pick, onDone }: { pick: Pick; onDone: () => void }) {
     mutationFn: async (target: string) => {
       const t = await api.get<AdminTour>(`/tours/admin/${encodeURIComponent(pick.tourId)}`);
       const steps = [...t.steps];
-      while (steps.length <= pick.index) steps.push({ target, title: "New step", body: "" });
+      while (steps.length <= pick.index) steps.push({ target, title: tr("home.new_step"), body: "" });
       steps[pick.index] = { ...steps[pick.index]!, target };
       return api.patch<AdminTour>(`/tours/admin/${encodeURIComponent(pick.tourId)}`, { steps });
     },
@@ -357,7 +361,7 @@ function PickerBar({ pick, onDone }: { pick: Pick; onDone: () => void }) {
       <div data-tour-ui role="region" aria-label={tr("tours.pick_an_element")} data-testid="tour-picker"
         className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[91] mx-auto max-w-xl rounded-xl border border-line bg-surface p-3 shadow-card lg:bottom-4">
         <div className="flex items-center gap-2">
-          <p className="min-w-0 flex-1 text-[13.5px] font-medium">{`Choose an element for step ${pick.index + 1}`}</p>
+          <p className="min-w-0 flex-1 text-[13.5px] font-medium">{tr("home.choose_an_element_for_step_count", { count: pick.index + 1 })}</p>
           <Button size="sm" variant="secondary" onClick={finish} data-testid="tour-picker-cancel">{tr("common.cancel")}</Button>
         </div>
         <p className="mt-0.5 text-[12.5px] text-muted">{tr("tours.click_it_on_the_page_or_pick_it_from_this_list")}</p>
@@ -370,7 +374,7 @@ function PickerBar({ pick, onDone }: { pick: Pick; onDone: () => void }) {
               </button>
             </li>
           ))}
-          {!items.length && <li className="px-2 py-1 text-[12.5px] text-muted">Looking for elements on this page…</li>}
+          {!items.length && <li className="px-2 py-1 text-[12.5px] text-muted">{tr("home.looking_for_elements_on_this_page")}</li>}
         </ul>
       </div>
     </>
@@ -451,7 +455,7 @@ export function ToursHost() {
             <li key={x.id} className="flex items-center gap-3 py-2.5">
               <div className="min-w-0 flex-1">
                 <p className="text-[13.5px] font-medium">{x.name}</p>
-                <p className="text-[12.5px] text-muted">{t.data?.seen.includes(x.id) ? "Seen" : `${x.steps.length} short ${x.steps.length === 1 ? "step" : "steps"}`}</p>
+                <p className="text-[12.5px] text-muted">{t.data?.seen.includes(x.id) ? tr("home.seen") : `${x.steps.length} short ${x.steps.length === 1 ? "step" : "steps"}`}</p>
               </div>
               <Button size="sm" variant="secondary" data-testid={`tours-start-${x.id.replace("builtin:", "")}`}
                 onClick={() => { set({ list: false }); if (pageMatches(x.page, loc.pathname) || x.page === "/app") { if (x.page !== "/app" || loc.pathname === "/app") startTour(x); else { set({ pending: x }); navigate(x.page); } } else { set({ pending: x }); navigate(x.page); } }}>

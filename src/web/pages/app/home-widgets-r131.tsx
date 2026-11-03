@@ -30,6 +30,8 @@ import { IconArrowDown, IconArrowUp, IconBell, IconCalendar, IconChat, IconCheck
 import { money } from "@/shared/invoices";
 import { hoursText } from "@/shared/bill-time-td4";
 import { ApiError } from "@/web/lib/api";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-home"; // R104B
 
 export const homeWidgetsKey = ["home-widgets"] as const;
 const CACHE = "home-widgets-r131";
@@ -116,7 +118,7 @@ function TasksWidget({ on }: { on: boolean }) {
   const { data, error, refetch, isPending } = useMyWork() as unknown as { data?: import("@/web/lib/search").MyWork; error: unknown; refetch: () => unknown; isPending: boolean };
   if (!on || (isPending && !data)) return <Loading />;
   if (error && !data) return <LoadError compact onRetry={refetch} />;
-  const items = [...(data?.overdue ?? []).map((i) => ({ ...i, subtitle: i.subtitle ? `Overdue · ${i.subtitle}` : "Overdue" })), ...(data?.dueToday ?? [])].slice(0, 6);
+  const items = [...(data?.overdue ?? []).map((i) => ({ ...i, subtitle: i.subtitle ? tr("home.overdue_subtitle", { subtitle: i.subtitle }) : tr("mywork.overdue") })), ...(data?.dueToday ?? [])].slice(0, 6);
   return <Rows items={items} empty="Nothing due today. Nice work." />;
 }
 
@@ -131,7 +133,7 @@ function CalendarWidget({ on }: { on: boolean }) {
     <div>
       {next && (
         <div className="hairline-b px-4 py-3">
-          <p className="text-xs text-subtle">Next</p>
+          <p className="text-xs text-subtle">{tr("home.next")}</p>
           <Link to={next.item.url} className="mt-0.5 block truncate text-[14px] font-medium text-fg hover:underline">{next.item.title}</Link>
           {next.item.subtitle && <p className="truncate text-xs text-subtle">{next.item.subtitle}</p>}
         </div>
@@ -147,10 +149,10 @@ function InboxWidget({ on }: { on: boolean }) {
   if (q.error && !q.data) return <LoadError compact onRetry={q.refetch} />;
   const c = q.data!;
   const tiles: { label: string; n: number; to: string; icon: ReactNode }[] = [
-    { label: "Unread mail", n: c.mail.inbox, to: "/app/mail", icon: <IconMail /> },
-    { label: "Chat", n: c.chat.unread, to: "/app/chat", icon: <IconChat /> },
-    { label: "Notifications", n: c.notifications.unread, to: "/app/notifications", icon: <IconBell /> },
-    { label: "Triage", n: c.triage, to: "/app/triage", icon: <IconClipboardList /> },
+    { label: tr("mywork.unread_mail"), n: c.mail.inbox, to: "/app/mail", icon: <IconMail /> },
+    { label: tr("nav.chat"), n: c.chat.unread, to: "/app/chat", icon: <IconChat /> },
+    { label: tr("common.notifications"), n: c.notifications.unread, to: "/app/notifications", icon: <IconBell /> },
+    { label: tr("nav.triage"), n: c.triage, to: "/app/triage", icon: <IconClipboardList /> },
   ];
   return (
     <div className="grid grid-cols-2 gap-2 p-3">
@@ -171,7 +173,7 @@ function SocialWidget({ on }: { on: boolean }) {
   if (q.error) return <LoadError compact onRetry={q.refetch} />;
   const items = (q.data?.items ?? []).slice(0, 5);
   if (!items.length) return <Empty text="No open comments or messages for you." />;
-  return <Rows items={items.map((i) => ({ id: i.id, title: i.text || "Message", subtitle: [i.authorName, i.app].filter(Boolean).join(" · "), url: "/app/social/inbox", at: null }))} empty="" />;
+  return <Rows items={items.map((i) => ({ id: i.id, title: i.text || tr("compose.message"), subtitle: [i.authorName, i.app].filter(Boolean).join(" · "), url: "/app/social/inbox", at: null }))} empty="" />;
 }
 
 interface Run { id: string; flowName: string | null; status: string; startedAt: string }
@@ -182,7 +184,7 @@ function FeedsWidget({ on }: { on: boolean }) {
   if (q.error) return <LoadError compact onRetry={q.refetch} />;
   const runs = q.data?.runs ?? [];
   if (!runs.length) return <Empty text="No runs yet. Watch a page or a feed in Automations to see new items here." />;
-  return <Rows items={runs.map((r) => ({ id: r.id, title: r.flowName || "Automation", subtitle: `${RUN_STATUS[r.status] ?? r.status} · ${new Date(r.startedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`, url: `/app/automations/runs/${encodeURIComponent(r.id)}`, at: r.startedAt }))} empty="" />;
+  return <Rows items={runs.map((r) => ({ id: r.id, title: r.flowName || tr("home.automation"), subtitle: `${RUN_STATUS[r.status] ?? r.status} · ${new Date(r.startedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`, url: `/app/automations/runs/${encodeURIComponent(r.id)}`, at: r.startedAt }))} empty="" />;
 }
 
 /* TD4: hours still to bill per client, owners and admins only (the server offers this widget to them alone). */
@@ -203,17 +205,17 @@ function BillingWidget({ on }: { on: boolean }) {
             <Link to={`/app/contacts/invoices?tab=time&project=${encodeURIComponent(g.projectId)}`} className="flex min-h-11 items-center gap-3 px-4 py-2.5 hover:bg-hover focus-visible:bg-hover focus-visible:outline-none">
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[13.5px] text-fg">{g.name}</span>
-                <span className="block truncate text-xs text-subtle">{g.clientId ? (g.projects === 1 ? "1 project" : `${g.projects} projects`) : "No client set yet"}</span>
+                <span className="block truncate text-xs text-subtle">{g.clientId ? (g.projects === 1 ? tr("home.1_project") : `${g.projects} projects`) : tr("home.no_client_set_yet")}</span>
               </span>
               <span className="shrink-0 text-right tabular-nums">
-                <span className="block text-[13.5px] font-medium text-fg">{g.missingRate && !g.amountCents ? "Set a rate" : money(g.amountCents, g.currency)}</span>
+                <span className="block text-[13.5px] font-medium text-fg">{g.missingRate && !g.amountCents ? tr("home.set_a_rate") : money(g.amountCents, g.currency)}</span>
                 <span className="block text-xs text-subtle">{hoursText(Math.round(g.seconds / 3.6))}</span>
               </span>
             </Link>
           </li>
         ))}
       </ul>
-      <p className="border-t border-line px-4 py-2 text-xs text-subtle">{hoursText(Math.round((q.data?.totalSeconds ?? 0) / 3.6))} in the last 12 months{q.data?.more ? `, ${q.data.more} more clients` : ""}. Value before tax, before rounding.</p>
+      <p className="border-t border-line px-4 py-2 text-xs text-subtle">{hoursText(Math.round((q.data?.totalSeconds ?? 0) / 3.6))} {tr("home.in_the_last_12_months")}{q.data?.more ? `, ${q.data.more} more clients` : ""}{tr("home.value_before_tax_before_rounding")}</p>
     </div>
   );
 }
@@ -230,7 +232,7 @@ function DashboardsWidget({ on }: { on: boolean }) {
       {list.map((d) => (
         <Link key={d.id} to={`/app/dashboards/${d.id}`} className="min-w-0 rounded-lg bg-fill px-3 py-2.5 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
           <span className="block truncate text-[13.5px] font-medium text-fg">{d.name}</span>
-          <span className="block text-xs text-subtle">{d.widgetCount === 1 ? "1 chart" : `${d.widgetCount} charts`}{d.shared ? " · Shared" : ""}</span>
+          <span className="block text-xs text-subtle">{d.widgetCount === 1 ? tr("home.1_chart") : tr("home.widgetcount_charts", { widgetCount: d.widgetCount })}{d.shared ? " · Shared" : ""}</span>
         </Link>
       ))}
     </div>
@@ -247,12 +249,12 @@ function LinksWidget({ links, onAdd, onRemove }: { links: QuickLink[]; onAdd: ()
               <a href={l.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-2 text-[13.5px] text-fg hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
                 <IconExternalLink className="h-3.5 w-3.5 shrink-0 text-subtle" /><span className="truncate">{l.title}</span>
               </a>
-              <button type="button" onClick={() => onRemove(l.id)} aria-label={`Remove ${l.title}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent max-sm:h-11 max-sm:w-11"><IconTrash className="h-3.5 w-3.5" /></button>
+              <button type="button" onClick={() => onRemove(l.id)} aria-label={tr("home.remove_title", { title: l.title })} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent max-sm:h-11 max-sm:w-11"><IconTrash className="h-3.5 w-3.5" /></button>
             </li>
           ))}
         </ul>
-      ) : <p className="px-2 py-3 text-center text-[13px] text-muted" data-testid="widget-empty">Add the links you open every day.</p>}
-      {links.length < MAX_LINKS && <Button className="mt-2 w-full" size="sm" variant="secondary" onClick={onAdd} data-testid="links-add"><IconPlus className="h-4 w-4" />Add link</Button>}
+      ) : <p className="px-2 py-3 text-center text-[13px] text-muted" data-testid="widget-empty">{tr("home.add_the_links_you_open_every_day")}</p>}
+      {links.length < MAX_LINKS && <Button className="mt-2 w-full" size="sm" variant="secondary" onClick={onAdd} data-testid="links-add"><IconPlus className="h-4 w-4" />{tr("home.add_link")}</Button>}
     </div>
   );
 }
@@ -291,24 +293,24 @@ function WidgetCard({ item, editing, index, count, overview, links, onMove, onSi
     >
       <header className="hairline-b flex min-h-12 items-center gap-2 px-4 py-2.5">
         {editing && (
-          <button type="button" {...s.attributes} {...s.listeners} aria-label={`Drag ${info.title}`} aria-roledescription="sortable widget" className="-ml-1 grid h-8 w-8 cursor-grab touch-none place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing" data-testid={`drag-${item.id}`}>
+          <button type="button" {...s.attributes} {...s.listeners} aria-label={tr("home.drag_title", { title: info.title })} aria-roledescription="sortable widget" className="-ml-1 grid h-8 w-8 cursor-grab touch-none place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing" data-testid={`drag-${item.id}`}>
             <IconGrip className="h-4 w-4" />
           </button>
         )}
         <span className="text-subtle [&_svg]:h-4 [&_svg]:w-4" aria-hidden="true">{ICON[item.id]}</span>
         <h2 id={`hw-${item.id}`} className="min-w-0 flex-1 truncate text-[14px] font-semibold text-fg">{info.title}</h2>
-        {!editing && open ? <Link to={open} className="rounded-md px-1.5 py-1 text-[12.5px] max-sm:-my-2 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center max-sm:px-3 font-medium text-muted hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">Open</Link> : null}
+        {!editing && open ? <Link to={open} className="rounded-md px-1.5 py-1 text-[12.5px] max-sm:-my-2 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center max-sm:px-3 font-medium text-muted hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">{tr("tours.open")}</Link> : null}
       </header>
       {editing ? (
         <div className="flex min-h-24 flex-col items-center justify-center gap-3 px-4 py-4 text-center" data-testid={`placeholder-${item.id}`}>
           <p className="text-[13px] text-muted">{info.blurb}</p>
           <div className="flex flex-wrap items-center justify-center gap-1">
-            <button type="button" onClick={() => { onMove(-1); if (index - 1 === 0) requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-testid="down-${item.id}"]`)?.focus()); }} disabled={index === 0} aria-label={`Move ${info.title} up`} className="grid h-9 w-9 place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`up-${item.id}`}><IconArrowUp className="h-4 w-4" /></button>
-            <button type="button" onClick={() => { onMove(1); if (index + 1 === count - 1) requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-testid="up-${item.id}"]`)?.focus()); }} disabled={index === count - 1} aria-label={`Move ${info.title} down`} className="grid h-9 w-9 place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`down-${item.id}`}><IconArrowDown className="h-4 w-4" /></button>
-            <Select aria-label={`Size of ${info.title}`} value={item.size} onChange={(e) => onSize(e.target.value as WidgetSize)} className="h-8 w-auto py-0 text-[13px]" data-testid={`size-${item.id}`}>
+            <button type="button" onClick={() => { onMove(-1); if (index - 1 === 0) requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-testid="down-${item.id}"]`)?.focus()); }} disabled={index === 0} aria-label={tr("home.move_title_up", { title: info.title })} className="grid h-9 w-9 place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`up-${item.id}`}><IconArrowUp className="h-4 w-4" /></button>
+            <button type="button" onClick={() => { onMove(1); if (index + 1 === count - 1) requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-testid="up-${item.id}"]`)?.focus()); }} disabled={index === count - 1} aria-label={tr("home.move_title_down", { title: info.title })} className="grid h-9 w-9 place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`down-${item.id}`}><IconArrowDown className="h-4 w-4" /></button>
+            <Select aria-label={tr("home.size_of_title", { title: info.title })} value={item.size} onChange={(e) => onSize(e.target.value as WidgetSize)} className="h-8 w-auto py-0 text-[13px]" data-testid={`size-${item.id}`}>
               {WIDGET_SIZES.map((sz) => <option key={sz} value={sz}>{SIZE_LABEL[sz]}</option>)}
             </Select>
-            <button type="button" onClick={onHide} aria-label={`Hide ${info.title}`} className="grid h-8 w-8 place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`hide-${item.id}`}><IconEyeOff className="h-4 w-4" /></button>
+            <button type="button" onClick={onHide} aria-label={tr("home.hide_title", { title: info.title })} className="grid h-8 w-8 place-items-center rounded-lg text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`hide-${item.id}`}><IconEyeOff className="h-4 w-4" /></button>
           </div>
         </div>
       ) : body}
@@ -332,10 +334,10 @@ function LinkDialog({ open, onClose, onSave }: { open: boolean; onClose: () => v
     onSave({ id: `l${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, title: t.slice(0, 60), url: u });
   };
   return (
-    <Dialog open={open} onClose={onClose} title="Add a quick link" footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save} data-testid="link-save">Add link</Button></>}>
+    <Dialog open={open} onClose={onClose} title={tr("home.add_a_quick_link")} footer={<><Button variant="secondary" onClick={onClose}>{tr("common.cancel")}</Button><Button onClick={save} data-testid="link-save">{tr("home.add_link")}</Button></>}>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); save(); }}>
-        <Field label="Name">{(p) => <Input {...p} value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} placeholder="Team handbook" data-testid="link-title" />}</Field>
-        <Field label="Web address" error={err ?? undefined}>{(p) => <Input {...p} value={url} maxLength={500} inputMode="url" onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" data-testid="link-url" />}</Field>
+        <Field label={tr("common.name")}>{(p) => <Input {...p} value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} placeholder={tr("home.team_handbook")} data-testid="link-title" />}</Field>
+        <Field label={tr("home.web_address")} error={err ?? undefined}>{(p) => <Input {...p} value={url} maxLength={500} inputMode="url" onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" data-testid="link-url" />}</Field>
       </form>
     </Dialog>
   );
@@ -352,18 +354,18 @@ function ReorderSheet({ open, items, onClose, onDone }: { open: boolean; items: 
     setSay(`${WIDGET_INFO[id].title} moved to place ${next.findIndex((x) => x.id === id) + 1} of ${next.length}`);
   };
   return (
-    <Dialog open={open} onClose={onClose} title="Arrange Home" description="Move widgets up or down and choose which ones show." footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={() => onDone(list)} data-testid="sheet-done">Done</Button></>}>
+    <Dialog open={open} onClose={onClose} title={tr("home.arrange_home")} description={tr("home.move_widgets_up_or_down_and_choose_which_ones_sh")} footer={<><Button variant="secondary" onClick={onClose}>{tr("common.cancel")}</Button><Button onClick={() => onDone(list)} data-testid="sheet-done">{tr("common.done")}</Button></>}>
       <p className="sr-only" aria-live="polite">{say}</p>
       <ul className="divide-y divide-line" data-testid="reorder-sheet">
         {list.map((it, i) => (
           <li key={it.id} className="flex items-center gap-2 py-1.5" data-testid={`sheet-${it.id}`}>
             <span className="text-subtle [&_svg]:h-4 [&_svg]:w-4" aria-hidden="true">{ICON[it.id]}</span>
             <span className={cn("min-w-0 flex-1 truncate text-[14px]", it.hidden ? "text-muted" : "text-fg")}>{WIDGET_INFO[it.id].title}</span>
-            <button type="button" aria-label={`Move ${WIDGET_INFO[it.id].title} up`} disabled={i === 0} onClick={() => move(it.id, -1)} className="grid h-11 w-11 place-items-center rounded-lg text-subtle hover:bg-hover disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`sheet-up-${it.id}`}><IconArrowUp className="h-4 w-4" /></button>
-            <button type="button" aria-label={`Move ${WIDGET_INFO[it.id].title} down`} disabled={i === list.length - 1} onClick={() => move(it.id, 1)} className="grid h-11 w-11 place-items-center rounded-lg text-subtle hover:bg-hover disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`sheet-down-${it.id}`}><IconArrowDown className="h-4 w-4" /></button>
+            <button type="button" aria-label={tr("home.move_title_up", { title: WIDGET_INFO[it.id].title })} disabled={i === 0} onClick={() => move(it.id, -1)} className="grid h-11 w-11 place-items-center rounded-lg text-subtle hover:bg-hover disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`sheet-up-${it.id}`}><IconArrowUp className="h-4 w-4" /></button>
+            <button type="button" aria-label={tr("home.move_title_down", { title: WIDGET_INFO[it.id].title })} disabled={i === list.length - 1} onClick={() => move(it.id, 1)} className="grid h-11 w-11 place-items-center rounded-lg text-subtle hover:bg-hover disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid={`sheet-down-${it.id}`}><IconArrowDown className="h-4 w-4" /></button>
             <label className="flex h-11 items-center gap-2 pl-1 text-[13px] text-muted">
-              <input type="checkbox" role="switch" className="h-5 w-5 accent-[var(--color-accent,currentColor)]" checked={!it.hidden} onChange={(e) => setList((l) => l.map((x) => (x.id === it.id ? { ...x, hidden: !e.target.checked } : x)))} aria-label={`Show ${WIDGET_INFO[it.id].title}`} data-testid={`sheet-show-${it.id}`} />
-              <span aria-hidden="true">Show</span>
+              <input type="checkbox" role="switch" className="h-5 w-5 accent-[var(--color-accent,currentColor)]" checked={!it.hidden} onChange={(e) => setList((l) => l.map((x) => (x.id === it.id ? { ...x, hidden: !e.target.checked } : x)))} aria-label={tr("home.show_title", { title: WIDGET_INFO[it.id].title })} data-testid={`sheet-show-${it.id}`} />
+              <span aria-hidden="true">{tr("home.show")}</span>
             </label>
           </li>
         ))}
@@ -448,30 +450,30 @@ export function HomeWidgetsPage({ overview }: { overview: ReactNode }) {
   const actions = editing ? (
     <div className="flex flex-wrap items-center gap-2">
       {hidden.length > 0 && (
-        <Menu label="Add widget" trigger={<button type="button" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line-strong bg-surface px-3 text-[13px] font-medium text-fg hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid="add-widget"><IconPlus className="h-4 w-4" />Add widget</button>}>
+        <Menu label={tr("home.add_widget")} trigger={<button type="button" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line-strong bg-surface px-3 text-[13px] font-medium text-fg hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" data-testid="add-widget"><IconPlus className="h-4 w-4" />{tr("home.add_widget")}</button>}>
           {hidden.map((h) => <MenuItem key={h.id} icon={ICON[h.id]} hint={WIDGET_INFO[h.id].blurb} onSelect={() => update(h.id, { hidden: false })}>{WIDGET_INFO[h.id].title}</MenuItem>)}
         </Menu>
       )}
-      <Button variant="ghost" size="sm" onClick={() => reset.mutate()} loading={reset.isPending} data-testid="reset-home">Reset to default</Button>
-      {q.data?.canSetDefault && <Button variant="secondary" size="sm" onClick={() => setDefault.mutate(layout)} loading={setDefault.isPending} data-testid="set-default">Save as workspace default</Button>}
-      <Button variant="secondary" size="sm" onClick={() => setDraft(null)} data-testid="cancel-home">Cancel</Button>
-      <Button size="sm" onClick={() => save.mutate(layout)} loading={save.isPending} data-testid="done-home"><IconCheck className="h-4 w-4" />Done</Button>
+      <Button variant="ghost" size="sm" onClick={() => reset.mutate()} loading={reset.isPending} data-testid="reset-home">{tr("home.reset_to_default")}</Button>
+      {q.data?.canSetDefault && <Button variant="secondary" size="sm" onClick={() => setDefault.mutate(layout)} loading={setDefault.isPending} data-testid="set-default">{tr("home.save_as_workspace_default")}</Button>}
+      <Button variant="secondary" size="sm" onClick={() => setDraft(null)} data-testid="cancel-home">{tr("common.cancel")}</Button>
+      <Button size="sm" onClick={() => save.mutate(layout)} loading={save.isPending} data-testid="done-home"><IconCheck className="h-4 w-4" />{tr("common.done")}</Button>
     </div>
   ) : (
-    <Button variant="secondary" size="sm" disabled={layoutFailed} onClick={() => (phone ? setSheetOpen(true) : setDraft(saved))} data-testid="customize-home"><IconSliders className="h-4 w-4" />Customize</Button>
+    <Button variant="secondary" size="sm" disabled={layoutFailed} onClick={() => (phone ? setSheetOpen(true) : setDraft(saved))} data-testid="customize-home"><IconSliders className="h-4 w-4" />{tr("home.customize")}</Button>
   );
 
   return (
     <>
-      <PageHeader title="Overview" description={editing ? "Drag widgets to arrange them, or use the arrows. Space picks up a widget and the arrow keys move it." : `Good ${dayPart()}${first ? `, ${first}` : ""}. Here's your day at a glance.`} actions={actions} />
+      <PageHeader title={tr("nav.overview")} description={editing ? tr("home.drag_widgets_to_arrange_them_or_use_the_arrows_s") : `Good ${dayPart()}${first ? `, ${first}` : ""}. Here's your day at a glance.`} actions={actions} />
       <p className="sr-only" aria-live="polite">{say}</p>
       {layoutFailed && <LoadErrorInline onRetry={() => q.refetch()} className="mb-4 rounded-lg bg-fill px-3 py-2" />}
       {note && <div role="status" className="mb-4 rounded-lg bg-fill px-3 py-2 text-[13px] text-fg" data-testid="home-note">{note}</div>}
       {visible.length === 0 ? (
         <div className="rounded-[var(--radius-r14)] border border-dashed border-line-strong px-6 py-12 text-center" data-testid="home-empty">
-          <p className="text-[15px] font-semibold text-fg">Your Home is empty</p>
-          <p className="mt-1 text-[13px] text-muted">Add widgets to see your tasks, meetings and inbox here.</p>
-          <Button className="mt-4" size="sm" onClick={() => (phone ? setSheetOpen(true) : setDraft(saved))}><IconPlus className="h-4 w-4" />Add widgets</Button>
+          <p className="text-[15px] font-semibold text-fg">{tr("home.your_home_is_empty")}</p>
+          <p className="mt-1 text-[13px] text-muted">{tr("home.add_widgets_to_see_your_tasks_meetings_and_inbox")}</p>
+          <Button className="mt-4" size="sm" onClick={() => (phone ? setSheetOpen(true) : setDraft(saved))}><IconPlus className="h-4 w-4" />{tr("home.add_widgets")}</Button>
         </div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd} accessibility={{ announcements, screenReaderInstructions: { draggable: "To pick up a widget, press space or enter. Use the arrow keys to move it. Press space or enter again to drop it, or escape to cancel." } }}>

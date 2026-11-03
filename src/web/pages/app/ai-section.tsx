@@ -13,6 +13,8 @@ import { AiUsageLine, useAiUsage } from "./tools-ai"; // Tools P2: today's AI us
 import { useConfig } from "@/web/lib/queries";
 import type { Ai2ProviderCard } from "@/shared/ai-connect-ai2";
 import { AiConnectPanel, type BuiltinStatus } from "./ai-connect-ai2"; // AI2
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-home"; // R104B
 
 export type AiProviderId = "openai" | "anthropic" | "openrouter" | "groq" | "gemini" | "mistral" | "deepseek" | "custom";
 export interface AiStatus {
@@ -45,22 +47,22 @@ export function AiSection() {
   const refresh = (s: unknown) => qc.setQueryData(["ai-status"], { ...status.data, ...(s as object) });
   const save = useMutation({
     mutationFn: () => api.put("/ai/key", { provider, apiKey, model: model.trim() || undefined }),
-    onSuccess: (s) => { refresh(s); setApiKey(""); setModel(""); toast.success("AI key saved"); },
+    onSuccess: (s) => { refresh(s); setApiKey(""); setModel(""); toast.success(tr("home.ai_key_saved")); },
     onError: (e) => showError(e),
   });
-  const remove = useMutation({ mutationFn: () => api.del("/ai/key"), onSuccess: (s) => { refresh(s); toast.success("AI key removed"); }, onError: (e) => showError(e) });
+  const remove = useMutation({ mutationFn: () => api.del("/ai/key"), onSuccess: (s) => { refresh(s); toast.success(tr("home.ai_key_removed")); }, onError: (e) => showError(e) });
   const isAdmin = me.data?.organization?.role !== "member";
   const d = status.data;
   const info = d?.providers.find((p) => p.id === provider);
   // AI2: the new screen while AI_CONNECT_AI2 is on; off keeps the form below exactly as it was.
   if (config.data?.aiConnectAi2 && d?.ai2) {
     return (
-      <Section id="ai" title="AI" description={<>Multies never charges for AI. Built-in AI works with no key, or connect your own provider.</>}>
+      <Section id="ai" title="AI" description={<>{tr("home.multies_never_charges_for_ai_built_in_ai_works_w")}</>}>
         <div className="space-y-4 text-sm">
           <AiConnectPanel status={d} isAdmin={isAdmin} />
           {toolsAi.data && (
             <div className="space-y-1 border-t border-line pt-4">
-              <p className="font-medium">AI document helpers today</p>
+              <p className="font-medium">{tr("home.ai_document_helpers_today")}</p>
               <AiUsageLine usage={toolsAi.data} />
             </div>
           )}
@@ -69,38 +71,38 @@ export function AiSection() {
     );
   }
   if (config.data?.aiConnectAi2 && status.isLoading) {
-    return <Section id="ai" title="AI" description="Loading"><div className="space-y-2" aria-busy="true"><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /></div></Section>;
+    return <Section id="ai" title="AI" description={tr("home.loading")}><div className="space-y-2" aria-busy="true"><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /></div></Section>;
   }
   return (
-    <Section id="ai" title="AI" description={<>{BYO_AI_LINE} Multies never charges for AI. <Link className="underline underline-offset-2 hover:text-fg" to="/agents#mcp">MCP setup</Link></>}>
+    <Section id="ai" title="AI" description={<>{BYO_AI_LINE} {tr("home.multies_never_charges_for_ai")} <Link className="underline underline-offset-2 hover:text-fg" to="/agents#mcp">{tr("home.mcp_setup")}</Link></>}>
       <div className="space-y-4 text-sm">
-        <p className="text-muted">The assistant in the inbox (summaries, drafted replies, sorting) runs on your own key. Your provider bills you directly.</p>
+        <p className="text-muted">{tr("home.the_assistant_in_the_inbox_summaries_drafted_rep")}</p>
         {d?.connected ? (
           <div className="flex flex-wrap items-center gap-3">
-            <Badge tone="ok" dot>Connected</Badge>
-            <span>{d.providerName}, {d.model}, key ending {d.keyHint}</span>
-            {isAdmin && <Button size="sm" variant="ghost" loading={remove.isPending} onClick={() => remove.mutate()}>Remove key</Button>}
+            <Badge tone="ok" dot>{tr("home.connected")}</Badge>
+            <span>{d.providerName}, {d.model}{tr("home.key_ending")} {d.keyHint}</span>
+            {isAdmin && <Button size="sm" variant="ghost" loading={remove.isPending} onClick={() => remove.mutate()}>{tr("home.remove_key")}</Button>}
           </div>
-        ) : <p className="text-muted">No key added, so the assistant is off.</p>}
+        ) : <p className="text-muted">{tr("home.no_key_added_so_the_assistant_is_off")}</p>}
         {isAdmin ? (
           <form className="grid gap-3 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
-            <Field label="Provider">{(p) => (
+            <Field label={tr("home.provider")}>{(p) => (
               <Select {...p} value={provider} onChange={(e) => setProvider(e.target.value as AiProviderId)}>
                 {(d?.providers ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
               </Select>
             )}</Field>
-            <Field label="Model" hint={info ? `Leave empty for ${info.defaultModel}` : undefined}>{(p) => <Input {...p} value={model} onChange={(e) => setModel(e.target.value)} placeholder={info?.defaultModel} autoComplete="off" />}</Field>
-            <Field label="API key" className="sm:col-span-2" hint={info ? <>Create one at <a className="underline underline-offset-2" href={info.keysUrl} target="_blank" rel="noreferrer">{info.name}</a>. Stored encrypted.</> : undefined}>
+            <Field label={tr("home.model")} hint={info ? `Leave empty for ${info.defaultModel}` : undefined}>{(p) => <Input {...p} value={model} onChange={(e) => setModel(e.target.value)} placeholder={info?.defaultModel} autoComplete="off" />}</Field>
+            <Field label={tr("home.api_key")} className="sm:col-span-2" hint={info ? <>{tr("home.create_one_at")} <a className="underline underline-offset-2" href={info.keysUrl} target="_blank" rel="noreferrer">{info.name}</a>{tr("home.stored_encrypted")}</> : undefined}>
               {(p) => <Input {...p} type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} autoComplete="off" spellCheck={false} />}
             </Field>
-            <div className="sm:col-span-2"><Button type="submit" size="sm" loading={save.isPending} disabled={apiKey.trim().length < 16}>{d?.connected ? "Replace key" : "Save key"}</Button></div>
+            <div className="sm:col-span-2"><Button type="submit" size="sm" loading={save.isPending} disabled={apiKey.trim().length < 16}>{d?.connected ? tr("home.replace_key") : tr("home.save_key")}</Button></div>
           </form>
-        ) : <p className="text-muted">An admin can add an AI key.</p>}
+        ) : <p className="text-muted">{tr("home.an_admin_can_add_an_ai_key")}</p>}
         {toolsAi.data && (
           <div className="space-y-1 border-t border-line pt-4">
-            <p className="font-medium">AI document helpers today</p>
+            <p className="font-medium">{tr("home.ai_document_helpers_today")}</p>
             <AiUsageLine usage={toolsAi.data} />
-            {!toolsAi.data.ownKey && <p className="text-xs text-muted">Each workspace gets a free daily allowance for summaries, translations and reading invoices. Add a key above to use your own provider instead.</p>}
+            {!toolsAi.data.ownKey && <p className="text-xs text-muted">{tr("home.each_workspace_gets_a_free_daily_allowance_for_s")}</p>}
           </div>
         )}
       </div>
