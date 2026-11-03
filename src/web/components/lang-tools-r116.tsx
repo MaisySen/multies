@@ -98,7 +98,8 @@ function useTranslate(key: string) {
       setError(errorMessage(e, "The translation failed. Try again in a moment."));
     } finally { setBusy(null); }
   };
-  return { prefs, setPrefs, busy, error, info, result, showing, setShowing, run, setError };
+  const reset = () => { setResult(null); setShowing(false); setError(null); setInfo(null); };
+  return { prefs, setPrefs, busy, error, info, result, showing, setShowing, run, setError, reset };
 }
 
 function StatusLine({ error, info, busy, onRetry }: { error: string | null; info: string | null; busy: string | null; onRetry: () => void }) {
@@ -211,7 +212,7 @@ export function DocLangR116({ editor, title }: { editor: Editor | null; title: s
   const openTranslate = (scope: "doc" | "selection") => {
     const text = scope === "doc" ? docText() : selText();
     if (!text) { toast.message(scope === "doc" ? "This doc has no text to translate yet." : "Select some text in the doc first."); return; }
-    t.setError(null);
+    t.reset();
     setOpen({ scope, text });
   };
   const go = (target?: R116Language) => { const text = open?.text ?? ""; return t.run(() => { const pieces = textPieces(text); return { pieces, join: (m) => joinPieces(pieces, m) }; }, target); };
