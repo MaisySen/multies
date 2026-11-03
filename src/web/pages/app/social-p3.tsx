@@ -58,7 +58,7 @@ export function BestTimeChips({ apps, onPick }: { apps: string[]; onPick: (iso: 
     queryFn: () => api.get<BestTimesResponse>(`/social/best-times?apps=${encodeURIComponent(key)}&tz=${encodeURIComponent(browserTz())}`),
     staleTime: 5 * 60_000,
   });
-  if (q.isLoading) return <div className="flex gap-2" aria-busy="true" aria-label="Loading best times"><Skeleton className="h-9 w-24 rounded-full" /><Skeleton className="h-9 w-24 rounded-full" /><Skeleton className="h-9 w-24 rounded-full" /></div>;
+  if (q.isLoading) return <div role="status" className="flex gap-2" aria-busy="true" aria-label="Loading best times"><Skeleton className="h-9 w-24 rounded-full" /><Skeleton className="h-9 w-24 rounded-full" /><Skeleton className="h-9 w-24 rounded-full" /></div>;
   if (q.isError || !q.data) return <LoadErrorInline onRetry={() => q.refetch()} className="text-[12.5px]" />;
   const d = q.data;
   return (

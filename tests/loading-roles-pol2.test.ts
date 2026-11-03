@@ -6,8 +6,8 @@ import { join } from "node:path";
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((n) => { const p = join(dir, n); return statSync(p).isDirectory() ? files(p) : p.endsWith(".tsx") ? [p] : []; });
 }
-// SOC1 owns the social pages this round; its one wrapper is fixed when it lands (listed so this test stays honest).
-const PENDING = new Set(["src/web/pages/app/social-p3.tsx"]);
+// Nothing is pending: the social wrapper was fixed once SOC1 had merged.
+const PENDING = new Set<string>();
 
 describe("loading wrappers carry a role (HQ MB-349)", () => {
   it("no busy or Loading named div or span without a role", () => {
