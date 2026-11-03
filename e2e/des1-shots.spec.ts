@@ -63,6 +63,23 @@ async function layout(page: Page, label: string, out: string[]) {
   for (const f of found) out.push(`${label}: ${f}`);
 }
 
+/** Root 23:52: a filled primary button on hover keeps 4.5:1 or better for its text (light, dark and Forest). */
+async function hoverContrast(page: Page, label: string, out: string[]) {
+  const btn = page.locator("#main .ds-btn-primary:visible").first();
+  if (!(await btn.count())) { out.push(`${label}: no primary button`); return; }
+  await btn.hover(); await page.waitForTimeout(250);
+  const r = await btn.evaluate((el) => {
+    const cv = document.createElement("canvas"); cv.width = cv.height = 1; const x = cv.getContext("2d")!;
+    const rgb = (v: string) => { x.clearRect(0, 0, 1, 1); x.fillStyle = "#000"; x.fillStyle = v; x.fillRect(0, 0, 1, 1); return [...x.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+    const lum = (c: number[]) => { const [r, g, b] = c.map((n) => { const s = n / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const cs = getComputedStyle(el); const a = lum(rgb(cs.color)), b = lum(rgb(cs.backgroundColor));
+    return { ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05), bg: cs.backgroundColor };
+  });
+  await page.mouse.move(1, 1);
+  if (r.ratio < 4.5) out.push(`${label}: primary hover contrast ${r.ratio.toFixed(2)} on ${r.bg}`);
+  else out.push(`${label}: primary hover ok ${r.ratio.toFixed(2)}`);
+}
+
 test.use({ actionTimeout: 15_000 });
 
 test("des1 shots", async ({ page, context }) => {
@@ -73,6 +90,7 @@ test("des1 shots", async ({ page, context }) => {
   const bad: string[] = [];
   const scroll: string[] = [];
   const lay: string[] = [];
+  const hov: string[] = [];
   const doAxe = process.env.SHOTS_AXE !== "0";
   const visit = async (path: string, name: string, w: number, scheme: string) => {
     const res = await page.goto(path);
@@ -82,6 +100,7 @@ test("des1 shots", async ({ page, context }) => {
     if (!(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))) scroll.push(`${name} ${w} ${scheme}`);
     if (doAxe) await axe(page, `${name} ${w} ${scheme}`, bad);
     await layout(page, `${name} ${w} ${scheme}`, lay);
+    if (name.startsWith("docs") && w === 1280) await hoverContrast(page, `${name} ${w} ${scheme}`, hov);
     if (name === "inbox" && w < 1000) {
       const sel = page.getByTestId("mail-select").first();
       if (await sel.count()) { await sel.click(); await page.waitForTimeout(250); await page.screenshot({ path: `${DIR}/inbox-selecting-${w}-${scheme}.png` }); await layout(page, `inbox selecting ${w} ${scheme}`, lay); await sel.click(); await page.waitForTimeout(250); }
@@ -125,6 +144,8 @@ test("des1 shots", async ({ page, context }) => {
   writeFileSync(`${DIR}/axe.json`, JSON.stringify(bad, null, 1));
   writeFileSync(`${DIR}/scroll.json`, JSON.stringify(scroll, null, 1));
   writeFileSync(`${DIR}/layout.json`, JSON.stringify(lay, null, 1));
+  writeFileSync(`${DIR}/hover.json`, JSON.stringify(hov, null, 1));
+  expect(hov.filter((l) => l.includes("contrast")), "primary hover contrast").toEqual([]);
 });
 
 

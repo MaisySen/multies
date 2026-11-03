@@ -134,7 +134,9 @@
 /* Buttons: a raised primary with a soft brand glow, a surface secondary with a hairline ring, one control radius. */
 :root[data-design="des1"] .ds-btn { border-radius: var(--ds-radius-control); }
 :root[data-design="des1"] .ds-btn-primary { box-shadow: var(--ds-shadow-primary); background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0)); }
-:root[data-design="des1"] .ds-btn-primary:hover { background-color: var(--color-brand-hover); }
+/* Filled hover: one press token (POL2 names it --color-brand-press); until it exists, the brand fill a little deeper, so white text
+   only gains contrast in light, dark and every brand theme (--color-brand-hover is a text colour, light blue in dark mode). */
+:root[data-design="des1"] .ds-btn-primary:hover { background-color: var(--color-brand-press, color-mix(in srgb, var(--color-brand) 86%, black)); background-image: none; }
 :root[data-design="des1"] .ds-btn-secondary { background: var(--color-surface); box-shadow: var(--ds-shadow-control); }
 :root[data-design="des1"] .ds-btn-secondary:hover { background: var(--color-hover); }
 :root[data-design="des1"] .ds-btn-outline { border-color: transparent; box-shadow: var(--ds-shadow-control); }
