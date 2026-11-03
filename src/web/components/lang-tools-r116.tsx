@@ -59,10 +59,9 @@ export function ReadAloudBar({ owner, className }: { owner: string; className?: 
           <Button variant="outline" size="sm" onClick={() => stopReading(owner)} aria-label="Stop reading"><IconCircleStop className="h-4 w-4" aria-hidden />Stop</Button>
           <span className="inline-flex items-center gap-1.5">
             <label htmlFor={speedId} className="text-muted">Speed</label>
-            <select id={speedId} value={s.rate} onChange={(e) => setReadingRate(Number(e.target.value))}
-              className={cn("h-9 rounded-lg border border-line-strong bg-surface px-2 text-[13px] text-fg max-sm:h-11", focus)}>
+            <Select id={speedId} value={s.rate} onChange={(e) => setReadingRate(Number(e.target.value))} className="h-9 w-auto min-w-20 text-[13px]">
               {RATES.map((r) => <option key={r} value={r}>{r}x</option>)}
-            </select>
+            </Select>
           </span>
         </>
       )}
