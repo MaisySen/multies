@@ -92,6 +92,15 @@ export class AudioMixer {
   constructor() {
     this.ctx = new AudioContext();
     this.dest = this.ctx.createMediaStreamDestination();
+    // PAR1: a silent source keeps the mix producing sound frames even before anyone's microphone is in it (the
+    // recorder joined with the microphone off, or alone). Without it the browser's recorder waits for sound that
+    // never comes: the transcript chunk is empty and a video recorded with it is saved with nothing in it.
+    try {
+      const hum = this.ctx.createConstantSource();
+      hum.offset.value = 0;
+      hum.connect(this.dest);
+      hum.start();
+    } catch { /* an older browser: the mix still works once a microphone is in it */ }
   }
 
   /** Adds (or keeps) a track in the mix. Safe to call twice with the same track. */
