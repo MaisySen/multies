@@ -325,7 +325,7 @@ export function PlannerV2({ canManage, accounts }: { canManage: boolean; account
             </Card>
           )}
           {!rules.length && canManage && view !== "list" && (
-            <p className="mb-3 rounded-lg bg-fill px-3 py-2.5 text-[13px] text-muted" data-testid="no-slots">Add weekly time slots and free ones show here as dashed boxes. <button type="button" className="font-medium text-fg underline underline-offset-2" onClick={() => setSlotsOpen(true)}>Set time slots</button></p>
+            <p className="mb-3 rounded-lg bg-fill px-3 py-2.5 text-[13px] text-muted" data-testid="no-slots">Add weekly time slots and free ones show here as dashed boxes. <button type="button" className="relative font-medium text-fg underline underline-offset-2 max-sm:after:absolute max-sm:after:-inset-x-1 max-sm:after:-inset-y-3 max-sm:after:content-['']" onClick={() => setSlotsOpen(true)} data-testid="no-slots-set">Set time slots</button></p>
           )}
           {view === "week" && (<>
             <div className="hidden gap-2 lg:grid lg:grid-cols-7" data-testid="planner-grid">
