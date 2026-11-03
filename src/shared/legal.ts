@@ -72,7 +72,7 @@ export const PRIVACY: LegalDoc = {
     ] },
     { id: "collect", title: "What we collect", body: [
       { list: [
-        "Account: name, email address, sign in method, two factor settings and profile details you choose to add.",
+        "Account: name, email address, sign in method, two factor settings, passkeys you add (the public key and the device name only; your face or fingerprint never leaves your device) and profile details you choose to add.",
         "Workspace: domains, mailboxes, aliases, members and roles, settings, API keys (stored hashed), webhook endpoints.",
         "Content: mail you send and receive with its attachments, folders and flags, delivery records (sender, recipient, time, result), and the tasks, comments, chat messages, docs, calendar events and files you create.",
         "Connected mailboxes: the address, the provider's server names, and the app password or sign in you give us, stored encrypted. We also keep a copy of the synced mail (see Connected mailboxes below).",
@@ -171,7 +171,7 @@ export const PRIVACY: LegalDoc = {
       "Our live demo and the accounts we give app store reviewers use test workspaces filled with made up sample data. They never hold real customer data, and demo workspaces are cleared regularly.",
     ] },
     { id: "security", title: "Security", body: [
-      "Data is encrypted in transit (TLS) and at rest. Signing keys, secrets and connected mailbox passwords are encrypted again before they are stored; sign in has lockout and optional two factor authentication, and important changes are written to an audit log. To report a security problem, see /.well-known/security.txt or our Trust page.",
+      "Data is encrypted in transit (TLS) and at rest. Signing keys, secrets and connected mailbox passwords are encrypted again before they are stored; sign in has lockout, passkeys and optional two factor authentication, and important changes are written to an audit log. To report a security problem, see /.well-known/security.txt or our Trust page.",
       "If a data breach is likely to cause serious harm, we will notify you and the Office of the Australian Information Commissioner (OAIC) under the Notifiable Data Breaches scheme, and, where the GDPR applies, the relevant authority within 72 hours.",
     ] },
     { id: "rights", title: "Your rights", body: [
@@ -362,7 +362,7 @@ export const DPA: LegalDoc = {
     { id: "security", title: "Security measures", body: [
       { list: [
         "Encryption in transit (TLS 1.2 or later) and at rest; secrets, signing keys and connected mailbox passwords encrypted again under a key held outside the database.",
-        "Sign in through a dedicated identity provider with lockout, optional two factor authentication and single sign on enforcement per workspace.",
+        "Sign in through a dedicated identity provider with lockout, passkeys, optional two factor authentication and single sign on enforcement per workspace.",
         "Least privilege access for staff, with every administrative action written to an audit log.",
         "Strict security headers and content security policy, rate limits, and input validation on every endpoint.",
         "Point in time database recovery and encrypted exports before schema changes, with a tested restore runbook.",

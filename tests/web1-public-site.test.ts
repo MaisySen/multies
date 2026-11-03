@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { GET_THE_APP, getTheAppView, safeStoreUrl } from "../src/shared/get-the-app";
 import { aiCostAnswer, aiPrivacyBlocks, BUILT_IN_AI_LIVE, TEAM_AI_LIVE } from "../src/shared/ai-public-copy";
 import { LEGAL_DOCS, LEGAL_ENTITY } from "../src/shared/legal";
+import { SIGN_IN } from "../src/shared/trust";
 import { WHATS_NEW } from "../src/shared/whats-new";
 import { publicWhatsNew } from "../src/shared/whats-new-public";
 import { canonicalUrl, SITE_URL } from "../src/web/components/seo-meta";
@@ -105,5 +106,13 @@ describe("WEB1 What's new and the sitemap", () => {
     for (const p of sitemapPaths) expect(isKnownPage(p), p).toBe(true);
     expect(sitemapPaths).not.toContain("/changelog");
     for (const p of ["/", "/privacy", "/support", "/whats-new", "/delete-account", "/contact", "/pricing"]) expect(sitemapPaths).toContain(p);
+  });
+});
+
+describe("WEB1: passkey sign in is live (DES1), public pages say so", () => {
+  it("trust sign in and the privacy account line name passkeys, with no biometric data stored", () => {
+    expect(SIGN_IN[0].value).toMatch(/passkeys you add in Settings, Account and security/);
+    const privacy = JSON.stringify(LEGAL_DOCS.privacy);
+    expect(privacy).toMatch(/passkeys you add \(the public key and the device name only; your face or fingerprint never leaves your device\)/);
   });
 });

@@ -6,7 +6,7 @@
  * security contact). Claims that could not be verified are left out, not guessed.
  */
 
-export const TRUST_UPDATED = "30 October 2026";
+export const TRUST_UPDATED = "3 November 2026";
 // One public contact for everything (owner approved review, 30 October 2026). security@multies.si also
 // routes to the team inbox and stays in security.txt as a second contact.
 export const SECURITY_EMAIL = "contact@fintex.au";
@@ -56,7 +56,7 @@ export const BACKUPS: TrustFact[] = [
 
 // Source: docs/auth.md (tenant section), src/server/auth/session.ts, src/server/services/developer/api-keys.ts.
 export const SIGN_IN: TrustFact[] = [
-  { label: "People", value: "Our sign in provider supports passkeys, password (at least 12 characters, with dictionary and personal data checks), one time email codes, Google, Apple and GitHub." },
+  { label: "People", value: "Sign in with passkeys you add in Settings, Account and security, using your face, fingerprint or device PIN. Our sign in provider also supports password (at least 12 characters, with dictionary and personal data checks), one time email codes, Google, Apple and GitHub." },
   { label: "Two factor", value: "Authenticator app, security keys, email codes and recovery codes. Once you enrol a factor, every sign in asks for it." },
   { label: "Protection", value: "Brute force lockout and suspicious IP throttling at the identity provider, plus rate limits and a sign in lockout in Multies." },
   { label: "Sessions", value: "An HttpOnly, Secure, SameSite=Lax cookie. Sign out on one device or all of them from Account and security." },
