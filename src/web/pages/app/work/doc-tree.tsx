@@ -15,6 +15,7 @@ import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { cn } from "@/web/lib/cn";
 import { useTrashAction, usePolishOn } from "@/web/components/trash-pol1"; // F13b
 import { IconTrash } from "@/web/components/ui/icon";
+import { useMentionsOn } from "@/web/components/mentions-td5"; // POL2
 
 export const MAX_DEPTH = 6;
 export interface TreeNode { id: string; title: string; parentId: string | null; position: number; depth: number; children: TreeNode[]; kind?: "whiteboard" | "table" | "course" }
@@ -248,6 +249,10 @@ function BacklinkList({ items }: { items: Backlink[] }) {
 export function LinkedFrom({ docId }: { docId: string }) {
   const q = useQuery({ queryKey: ["backlinks", "doc", docId], queryFn: () => api.get<{ backlinks: Backlink[] }>(`/docs/${docId}/backlinks`), staleTime: 0, refetchOnMount: "always" });
   const items = q.data?.backlinks ?? [];
+  // POL2 (HANDOVER item 5): with the References panel on the page, the old box no longer stands empty beside it;
+  // it shows only when other pages link here with [[ ]] (links the panel does not list).
+  const refsOn = useMentionsOn();
+  if (refsOn && !items.length) return null;
   return (
     <section aria-label="Linked from" className="mt-10 border-t border-line pt-5" data-testid="linked-from">
       <h2 className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-muted"><IconLink className="h-3.5 w-3.5" />Linked from{items.length ? ` (${items.length})` : ""}</h2>

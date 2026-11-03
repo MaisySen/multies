@@ -49,6 +49,7 @@ import { LaneBoard, SWIMLANE_LABEL, assigneeKey, useBoardSettings, type LaneTarg
 import { NO_LANE, SWIMLANES, boardViewKeys, lanesFrom, type Swimlanes } from "@/shared/board-lanes";
 import { ClashScope } from "./schedule-r38"; // R38: clash badges on list rows and board cards
 import { lazyPage } from "@/web/components/lazy-page";
+import { ReferencesPanel } from "@/web/components/mentions-td5"; // POL2
 
 const TaskCalendar = lazyPage(() => import("./calendar"), "TaskCalendar");
 const PlannedTimeline = lazyPage(() => import("./timeline-plan-r37"), "default"); // R37: timeline with dependency planning
@@ -609,6 +610,9 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
         </div>
         </>}
       </div>
+      {/* POL2 (HANDOVER item 6): what mentions this project and what it mentions, read with the same TD5 rules (a
+          record the viewer cannot open shows no title). Existing projects only. */}
+      {project && <ReferencesPanel type="project" id={project.id} className="mt-5" />}
     </Dialog>
   );
 }
