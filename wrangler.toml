@@ -201,6 +201,7 @@ PASSKEY_DES1 = "on" # DES1: passkey sign in, rpId is the APP_URL host (productio
 SOCIAL_MULTI_SOC1 = "on" # SOC1: several Facebook Pages and LinkedIn accounts per workspace (production after verifier v39 PASS on staging 22e49127a4ef)
 VIDEO_REC_VID1 = "on" # VID1: owners and admins save a video of the whole call on their own device, nothing uploaded (production after verifier v41 PASS WITH BUGS on staging f797c6471ca3)
 VIDEO_REC_VID2 = "on" # VID2: pause and resume, speaker or gallery view, crash safe pieces on the device, chat and transcript files (production after verifier v42 PASS WITH BUGS on staging 3b206cc09d84)
+TRANSLATE_R116 = "on" # R116: translate and read aloud in mail, docs and chat (production after verifier v43 PASS WITH BUGS on staging 258a08a63150)
 INVOICES_ENABLED = "true" # R105: on in production after verifier v15 PASS WITH BUGS 11:47 UTC
 EXPENSES_R106 = "on" # R106: expenses and receipts (verifier v18 PASS 16:28 UTC Nov 1)
 TABLES_R125 = "on" # R125: tables in Docs, verifier v19 PASS WITH BUGS 17:03 UTC Nov 1
