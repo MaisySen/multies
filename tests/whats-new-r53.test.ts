@@ -159,7 +159,9 @@ describe("R53 whats-new list", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-11-02-menu")).toBe(false);
     // SOC1: several Facebook Pages and LinkedIn accounts joined at the top; "2026-11-02-polish" (the oldest after What's new itself) moved to the public earlier list.
     expect(WHATS_NEW.some((e) => e.id === "2026-11-02-polish")).toBe(false);
-    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-03-several-pages", "2026-11-03-new-look-passkeys", "2026-11-03-client-portal-access", "2026-11-03-crm-from-mail", "2026-11-03-team-ai", "2026-11-03-forms-pro", "2026-11-02-one-inbox", "2026-11-02-mentions", "2026-11-02-bill-time", "2026-11-02-meeting-tasks", "2026-11-02-ai-connect", "2026-11-02-get-started", "2026-11-02-staff", "2026-10-28-whats-new"]);
+    // POL2: devices, clearer errors and quicker search joined at the top; "2026-11-02-staff" (the oldest after What's new itself) moved to the public earlier list.
+    expect(WHATS_NEW.some((e) => e.id === "2026-11-02-staff")).toBe(false);
+    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-03-polish-devices", "2026-11-03-several-pages", "2026-11-03-new-look-passkeys", "2026-11-03-client-portal-access", "2026-11-03-crm-from-mail", "2026-11-03-team-ai", "2026-11-03-forms-pro", "2026-11-02-one-inbox", "2026-11-02-mentions", "2026-11-02-bill-time", "2026-11-02-meeting-tasks", "2026-11-02-ai-connect", "2026-11-02-get-started", "2026-10-28-whats-new"]);
     // TD4: bill time joined at the top; "2026-11-01-sites" (the oldest after What's new itself) moved to the public earlier list.
     expect(WHATS_NEW.some((e) => e.id === "2026-11-01-sites")).toBe(false);
     // WEB1: Forms upgrade (TD2) and Ask v2 (TD1) news went to the public earlier list, not the in app list.

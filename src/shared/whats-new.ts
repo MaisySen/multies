@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-03-polish-devices",
+    date: "2026-11-03",
+    title: "Devices, clearer errors and quicker search",
+    body: "Account and security lists every device you are signed in on, even hours after you sign in. Notifications, Billing and Meetings say when they could not load and offer Retry, and Ctrl K finds your contacts by name or email.",
+  },
+  {
     id: "2026-11-03-several-pages",
     date: "2026-11-03",
     title: "Several Facebook Pages and LinkedIn accounts",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-02",
     title: "Get started list and quick tours",
     body: "A Get started list on Home and My Work ticks itself off as you go. Quick tours show where things live, and admins can build their own tours in Settings, Tours.",
-  },
-  {
-    id: "2026-11-02-staff",
-    date: "2026-11-02",
-    title: "Staff, onboarding and equipment",
-    body: "Contacts has a Staff directory with an org chart and who is away. Admins build onboarding checklists that become tasks from a start date, and keep an equipment register with QR labels.",
   },
   {
     id: "2026-10-28-whats-new",
