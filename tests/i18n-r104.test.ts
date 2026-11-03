@@ -126,10 +126,11 @@ describe("runtime switch", () => {
   });
   it("What's new has the languages entry, in all three languages, and keeps 14", () => {
     expect(WHATS_NEW.length).toBe(14);
-    expect(WHATS_NEW[0].id).toBe("2026-11-03-nepali-hindi");
-    for (const b of [ne, hi]) {
-      expect(b[`whatsnew.${WHATS_NEW[0].id}.title`]).toBeTruthy();
-      expect(b[`whatsnew.${WHATS_NEW[0].id}.body`]).toBeTruthy();
+    // POL4 put its own entry on top; both stay translated.
+    expect(WHATS_NEW.map((e) => e.id)).toEqual(expect.arrayContaining(["2026-11-03-nepali-hindi"]));
+    for (const id of [WHATS_NEW[0].id, "2026-11-03-nepali-hindi"]) for (const b of [ne, hi]) {
+      expect(b[`whatsnew.${id}.title`]).toBeTruthy();
+      expect(b[`whatsnew.${id}.body`]).toBeTruthy();
     }
   });
 });

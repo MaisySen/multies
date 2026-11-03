@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-03-languages-polish",
+    date: "2026-11-03",
+    title: "More of Multies in Nepali and Hindi",
+    body: "Mail folders and tabs, task views, filters and due dates, the calendar and notifications now follow your language. The cookie notice speaks your language and never covers the language switch, and Read aloud says plainly when a device has no voice.",
+  },
+  {
     id: "2026-11-03-nepali-hindi",
     date: "2026-11-03",
     title: "Multies in Nepali and Hindi",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-03",
     title: "Team AI",
     body: "A visible memory for the assistant, saved instructions, routines that write drafts or chat messages, and @assistant in channels. Free built in AI with a daily limit, or your own AI key for unlimited use.",
-  },
-  {
-    id: "2026-11-03-forms-pro",
-    date: "2026-11-03",
-    title: "Branded forms that open and close on time",
-    body: "Give a form your colours, font and logo, close it on a date or after a number of answers, or add a password. People can save and finish later from a link, and you see views, completions and where people stop.",
   },
   {
     id: "2026-10-28-whats-new",
