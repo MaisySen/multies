@@ -66,14 +66,20 @@ for (const width of [390, 1280]) {
   }
 }
 
-test("WEB1 Get the app shows no dead store link and keeps the public beta hidden", async ({ page }) => {
+test("WEB1 Get the app shows no dead store link; PAR1 the iPhone Join the beta button opens TestFlight in a new tab", async ({ page }) => {
   for (const path of ["/", "/support"]) {
     await page.goto(path);
     const box = page.getByTestId("get-the-app");
     await expect(box).toBeVisible();
     await expect(box).toContainText("not in the stores yet");
-    await expect(page.getByTestId("public-beta-link")).toHaveCount(0);
-    await expect(page.locator('a[href*="apps.apple.com"], a[href*="play.google.com"], a[href*="testflight.apple.com"]')).toHaveCount(0);
+    const beta = page.getByTestId("public-beta-link");
+    await expect(beta).toHaveCount(1);
+    await expect(beta).toHaveText("Join the beta");
+    await expect(beta).toHaveAttribute("href", "https://testflight.apple.com/join/RncpPJ1t");
+    await expect(beta).toHaveAttribute("target", "_blank");
+    await expect(beta).toHaveAttribute("rel", /noopener/);
+    expect((await beta.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await expect(page.locator('a[href*="apps.apple.com"], a[href*="play.google.com"]')).toHaveCount(0);
   }
 });
 

@@ -25,10 +25,21 @@ export function GetTheApp({ headingId = "get-app-title", compact = false }: { he
         <div className="mt-4 flex flex-col gap-3 sm:flex-row" data-testid="get-the-app-links">
           {v.appStore && <a href={v.appStore} className={buttonClass("outline", "lg")} rel="noopener"><IconSmartphone className="h-4 w-4" aria-hidden />Download on the App Store</a>}
           {v.googlePlay && <a href={v.googlePlay} className={buttonClass("outline", "lg")} rel="noopener"><IconSmartphone className="h-4 w-4" aria-hidden />Get it on Google Play</a>}
-          {v.beta && <a href={v.beta} className={buttonClass("primary", "lg")} rel="noopener" data-testid="public-beta-link"><IconSmartphone className="h-4 w-4" aria-hidden />Join the {v.betaPlatform} public beta</a>}
+          {v.beta && (
+            <a
+              href={v.beta}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={buttonClass("primary", "lg")}
+              data-testid="public-beta-link"
+              aria-label={`Join the beta on ${v.betaPlatform}, opens in a new tab`}
+            >
+              <IconSmartphone className="h-4 w-4" aria-hidden />Join the beta
+            </a>
+          )}
         </div>
       )}
-      {v.beta && <p className="mt-2 text-[13px] text-subtle">The public beta runs through Apple TestFlight. Testers get new features first and can send feedback from the app.</p>}
+      {v.beta && <p className="mt-2 text-[13px] text-subtle">The {v.betaPlatform} public beta runs through Apple TestFlight. Testers get new features first and can send feedback from the app.</p>}
     </div>
   );
 }

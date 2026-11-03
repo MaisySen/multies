@@ -5,7 +5,8 @@
  * stores yet), so both are null and no dead link is shown. When a listing goes live, paste the real store URL here.
  *
  * The public beta block shows only when publicBeta.visible is true. The TestFlight link is wired but stays hidden
- * until Apple approves the beta review; then flip visible to true (nothing else changes).
+ * until Apple approves the beta review; then flip visible to true (nothing else changes). PAR1: Apple approved the
+ * public iPhone beta on 3 Nov 2026, so it is visible. Android has no public beta and its copy is unchanged.
  */
 export interface GetTheAppConfig {
   appStoreUrl: string | null;
@@ -16,7 +17,7 @@ export interface GetTheAppConfig {
 export const GET_THE_APP: GetTheAppConfig = {
   appStoreUrl: null,
   googlePlayUrl: null,
-  publicBeta: { url: "https://testflight.apple.com/join/RncpPJ1t", visible: false, platform: "iPhone" },
+  publicBeta: { url: "https://testflight.apple.com/join/RncpPJ1t", visible: true, platform: "iPhone" },
 };
 
 /** Only https links to the two app stores and TestFlight are allowed, so a typo cannot point people elsewhere. */

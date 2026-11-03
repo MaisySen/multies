@@ -18,13 +18,14 @@ const sitemap = readFileSync("public/sitemap.xml", "utf8");
 const sitemapPaths = [...sitemap.matchAll(/<loc>https:\/\/multies\.si([^<]*)<\/loc>/g)].map((m) => m[1] || "/");
 
 describe("WEB1 Get the app and the public beta slot", () => {
-  it("shows no store link while the listings are not live, and keeps the beta hidden", () => {
+  it("shows no store link while the listings are not live, and shows the approved iPhone beta (PAR1)", () => {
     expect(GET_THE_APP.appStoreUrl).toBeNull();
     expect(GET_THE_APP.googlePlayUrl).toBeNull();
-    expect(GET_THE_APP.publicBeta.visible).toBe(false);
-    expect(GET_THE_APP.publicBeta.url).toMatch(/^https:\/\/testflight\.apple\.com\/join\/[A-Za-z0-9]+$/);
+    expect(GET_THE_APP.publicBeta.visible).toBe(true);
+    expect(GET_THE_APP.publicBeta.url).toBe("https://testflight.apple.com/join/RncpPJ1t");
     const v = getTheAppView();
-    expect(v).toMatchObject({ appStore: null, googlePlay: null, beta: null, onStores: false });
+    expect(v).toMatchObject({ appStore: null, googlePlay: null, beta: "https://testflight.apple.com/join/RncpPJ1t", betaPlatform: "iPhone", onStores: false });
+    expect(getTheAppView({ ...GET_THE_APP, publicBeta: { ...GET_THE_APP.publicBeta, visible: false } }).beta).toBeNull();
   });
 
   it("shows the beta link once switched on, and store links once set", () => {
@@ -32,7 +33,7 @@ describe("WEB1 Get the app and the public beta slot", () => {
     expect(on.beta).toBe(GET_THE_APP.publicBeta.url);
     const stores = getTheAppView({ ...GET_THE_APP, appStoreUrl: "https://apps.apple.com/app/id1", googlePlayUrl: "https://play.google.com/store/apps/details?id=x" });
     expect(stores.onStores).toBe(true);
-    expect(stores.beta).toBeNull();
+    expect(stores.beta).toBe(GET_THE_APP.publicBeta.url);
   });
 
   it("refuses any link that is not https to the two stores or TestFlight", () => {
