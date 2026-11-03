@@ -389,3 +389,6 @@
 :root[data-design="des1"] #main .elev-1.bg-surface { box-shadow: var(--ds-elev1); }
 /* Section headers in the sidebar: strong muted ink, not faint grey. A brand sidebar sets its own value (shared/branding.ts). */
 :root[data-design="des1"] [data-testid="context-sidebar"] nav button[aria-expanded] { color: var(--ds-section-ink); font-weight: 650; }
+/* The selected sidebar item is a brand pill; its icon follows the pill's text colour (it was the brand hover colour,
+   1.25:1 on the pill). */
+:root[data-design="des1"] [data-testid="context-sidebar"] nav a[aria-current="page"] > svg:first-child { color: var(--color-brand-fg); }
