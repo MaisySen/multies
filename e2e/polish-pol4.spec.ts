@@ -127,11 +127,13 @@ test("MB-355: Read aloud on a device with no voice says so plainly, in the langu
   });
   const { p, origin } = await demo(ctx);
   const doc = await (await p.request.post("/api/docs", { data: { title: "Read me", text: "Hello team, the report is ready." }, headers: { origin } })).json();
+  // R104B: the menu itself now follows the language too.
+  const readAloud = { en: "Read doc aloud", ne: "डक ठूलो स्वरमा पढ्नुहोस्", hi: "डॉक ज़ोर से पढ़ें" }; // R104B
   for (const [l, words] of [["en", "no voice for reading aloud"], ["ne", "आवाज छैन"], ["hi", "कोई आवाज़ नहीं"]] as const) {
     await setLang(p, origin, l);
     await p.goto(`/app/docs/${doc.doc.id}`);
     await p.getByTestId("doc-lang-button").click();
-    await p.getByRole("menuitem", { name: /Read doc aloud/ }).click();
+    await p.getByRole("menuitem", { name: readAloud[l] }).click();
     await expect(p.getByText(words, { exact: false }).first()).toBeVisible({ timeout: 10_000 });
     await expect(p.getByText("Reading stopped")).toHaveCount(0);
     await shot(p, `mb355-novoice-390-light-${l}`);
