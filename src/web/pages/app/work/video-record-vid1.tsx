@@ -102,7 +102,9 @@ export function useVideoRecording(room: Room) {
     const savedOk = !!out && ((out.kind === "memory" && !!out.blob?.size) || (out.kind === "file" && out.bytes > 0));
     if (m.vid2 && savedOk) {
       for (const f of m.vid2.sideFiles(m.fileName)) saveText(f.name, f.text);
-      await keep.current?.finish().catch(() => undefined);
+      // The pieces go in the background: ending the banner for everyone never waits on the device's storage.
+      const k = keep.current;
+      if (k) void k.finish().catch(() => undefined);
     }
     keep.current = null;
     return out;

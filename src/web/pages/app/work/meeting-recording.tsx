@@ -43,6 +43,8 @@ export const SETUP_TEXT = "Add your OpenAI or Groq key in Settings > AI to recor
 export const SETUP_ADMIN_TEXT = "Recording and transcripts need an AI key that can turn speech into text. Add one in Settings > AI. Multies doesn't charge for this.";
 export const SETUP_MEMBER_TEXT = "Recording isn't set up for this workspace yet. An admin can turn it on in Settings > AI.";
 export const CONSENT_TEXT = "Everyone in the call sees that this is being recorded.";
+/** VID2: when a recording signal is sent again (a reliable message can sit unsent until the next one goes). */
+const RESEND_MS = [600, 1500, 3000, 6000];
 const isSetupCode = (code: string | null | undefined) => !!code && code.startsWith("recording_needs_");
 
 export const duration = (sec: number) => {
@@ -123,7 +125,9 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
     mySignal.current = s;
     setSignal(s);
     if (s) { noticed.current = true; noticedVideo.current = noticedVideo.current || !!s.video; void broadcast(s); }
-  }, [broadcast]);
+    // VID2: each change (on, paused, resumed) is said again shortly after, so everyone's banner always matches.
+    if (s && vid2) for (const ms of RESEND_MS) setTimeout(() => { if (mySignal.current === s) void broadcast(s); }, ms);
+  }, [broadcast, vid2]);
 
   // The banner: data messages from whoever records.
   useEffect(() => {
@@ -284,7 +288,10 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
       // The video first (it records the mix the transcript recorder owns), then the transcript.
       if (video.active) await video.stop();
       const was = mySignal.current;
-      void broadcast({ on: false, by: myName, recordingId: was?.recordingId ?? mine?.id ?? null, startedAt: null });
+      const off: RecordingSignal = { on: false, by: myName, recordingId: was?.recordingId ?? mine?.id ?? null, startedAt: null };
+      void broadcast(off);
+      // VID2: "stopped" is said again a moment later, so a message lost on the way never leaves a banner up.
+      if (vid2) for (const ms of RESEND_MS) setTimeout(() => { if (!mySignal.current) void broadcast(off); }, ms);
       mySignal.current = null;
       setSignal(null);
       if (mine) await stopAudio(mine);
