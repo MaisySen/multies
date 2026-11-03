@@ -11,7 +11,7 @@ import AxeBuilder from "@axe-core/playwright";
 const sitemap = readFileSync("public/sitemap.xml", "utf8");
 const PAGES = [...sitemap.matchAll(/<loc>https:\/\/multies\.si([^<]*)<\/loc>/g)].map((m) => m[1] || "/").filter((p) => p !== "/signup" && p !== "/login");
 const KEY = ["/", "/support", "/privacy", "/contact", "/delete-account", "/whats-new", "/pricing", "/switch/trello"];
-const EXTERNAL_OK = /^(mailto:contact@fintex\.au|https:\/\/fintex\.au\/?|https:\/\/[a-z0-9]+\.ingest\.us\.sentry\.io\/?)$/;
+const EXTERNAL_OK = /^(mailto:contact@fintex\.au|https:\/\/fintex\.au\/?|https:\/\/[a-z0-9]+\.ingest\.us\.sentry\.io\/?|https:\/\/testflight\.apple\.com\/join\/RncpPJ1t)$/; // PAR1: the iPhone beta
 const SHOTS = process.env.WEB1_SHOTS;
 
 test("WEB1 every sitemap page: one h1, meta, social tags, same policy, links answer", async ({ page, request }) => {
@@ -104,4 +104,25 @@ test("WEB1 /changelog points search engines at /whats-new", async ({ page }) => 
   await page.goto("/whats-new");
   await expect(page.getByText("Forms with uploads, signatures and pages")).toBeVisible();
   await expect(page.getByText("Ask shows its sources, and AI has an off switch")).toBeVisible();
+});
+
+test("PAR1 Join the beta at 375 and 1280 in light and dark: visible, 44 px, inside the page, readable", async ({ page }) => {
+  const shots = process.env.PAR1_SHOTS;
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    for (const w of [375, 1280]) {
+      await page.setViewportSize({ width: w, height: w === 375 ? 812 : 900 });
+      await page.goto("/support");
+      const beta = page.getByTestId("public-beta-link");
+      await beta.scrollIntoViewIfNeeded();
+      await expect(beta).toBeVisible();
+      const b = (await beta.boundingBox())!;
+      expect(b.height, `${w} ${scheme}`).toBeGreaterThanOrEqual(44);
+      expect(b.x + b.width, `${w} ${scheme}`).toBeLessThanOrEqual(w);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${w} ${scheme} no sideways scroll`).toBe(true);
+      const { violations } = await new AxeBuilder({ page }).include('[data-testid="get-the-app"]').analyze();
+      expect(violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id), `${w} ${scheme}`).toEqual([]);
+      if (shots) { mkdirSync(shots, { recursive: true }); await page.getByTestId("get-the-app").screenshot({ path: `${shots}/par1-beta-${w}-${scheme}.png` }); }
+    }
+  }
 });
