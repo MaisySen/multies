@@ -19,7 +19,7 @@ describe("settings panes", () => {
     expect(matchPanes("").length).toBe(21); // TD8: Team AI
     expect(matchPanes("logo").map((p) => p.label)).toContain("Branding"); // R77
     expect(matchPanes("dark").map((p) => p.label)).toContain("Appearance");
-    expect(matchPanes("passkey").map((p) => p.label)).toEqual(["Account & security"]);
+    expect(matchPanes("passkey").map((p) => p.label)).toEqual(["Account and security"]);
     expect(matchPanes("api keys").map((p) => p.label)).toContain("Developers");
     expect(matchPanes("INVITE").map((p) => p.label)).toEqual(["Team"]);
     expect(matchPanes("zzzz")).toEqual([]);

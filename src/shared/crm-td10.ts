@@ -79,10 +79,24 @@ const VERB: [RegExp, NextReason][] = [
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const addDays = (d: Date, n: number) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + n));
 
-/** A time phrase near a next step verb, as a due date counted from the message date (UTC days). */
-export function parseWhen(s: string, at: Date): { due: string; when: string } | null {
+/** POL2 (HQ MB-344): the calendar day a moment falls on in a time zone, as a UTC midnight (UTC when the zone is unknown). */
+export function localDay(at: Date, zone?: string | null): Date {
+  if (zone) {
+    try {
+      const p = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(at);
+      const get = (k: string) => Number(p.find((x) => x.type === k)?.value);
+      const y = get("year"), m = get("month"), d = get("day");
+      if (y && m && d) return new Date(Date.UTC(y, m - 1, d));
+    } catch { /* an unknown zone counts in UTC */ }
+  }
+  return new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
+}
+
+/** A time phrase near a next step verb, as a due date counted from the day the message was sent where the workspace is
+ * (POL2, HQ MB-344: a Tuesday morning mail in Sydney is still Monday in UTC, so "next Tuesday" read as today). */
+export function parseWhen(s: string, at: Date, zone?: string | null): { due: string; when: string } | null {
   const t = s.toLowerCase();
-  const base = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
+  const base = localDay(at, zone);
   if (/\btomorrow\b/.test(t)) return { due: ymd(addDays(base, 1)), when: "tomorrow" };
   if (/\b(?:later )?today\b|\bthis afternoon\b/.test(t)) return { due: ymd(base), when: "today" };
   if (/\bnext week\b/.test(t)) { const dow = base.getUTCDay(); return { due: ymd(addDays(base, ((8 - dow) % 7) || 7)), when: "next week" }; }
@@ -116,13 +130,13 @@ export function parseWhen(s: string, at: Date): { due: string; when: string } | 
 }
 
 /** The first sentence in the new part that pairs a next step verb with a time. */
-export function findNextStep(text: string, at: Date): NextStepHit | null {
+export function findNextStep(text: string, at: Date, zone?: string | null): NextStepHit | null {
   const body = newPart(text).join(" ").slice(0, 6000);
   for (const sentence of body.split(/(?<=[.!?])\s+/).slice(0, 80)) {
     if (sentence.length > 400) continue;
     const verb = VERB.find(([re]) => re.test(sentence));
     if (!verb) continue;
-    const w = parseWhen(sentence, at);
+    const w = parseWhen(sentence, at, zone);
     if (w) return { reason: verb[1], ...w };
   }
   return null;
@@ -155,3 +169,11 @@ export const TEMPLATE_INFO: Record<AnalysisTemplate, { title: string; blurb: str
 };
 
 export function periodLabel(days: number) { return days ? (days === 365 ? "Last 12 months" : `Last ${days} days`) : "All time"; }
+
+/** POL2 (HQ MB-330): a YYYY-MM-DD day for people ("Thu 5 Nov"), the raw text when it is not a day. */
+export function dayLabel(ymdText: string | undefined | null): string {
+  if (!ymdText || !/^\d{4}-\d{2}-\d{2}$/.test(ymdText)) return ymdText ?? "";
+  const d = new Date(`${ymdText}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return ymdText;
+  return d.toLocaleDateString("en-AU", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
+}

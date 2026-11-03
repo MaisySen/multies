@@ -113,7 +113,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-settings-general", label: "General settings", to: "/app/settings/general", icon: IconSettings, keywords: ["workspace name", "logo", "time zone", "preferences"] },
   { id: "p-team", label: "Team", to: "/app/settings/team", icon: IconTeam, keywords: ["members", "people", "invite"] },
   { id: "p-billing", label: "Billing", to: "/app/settings/billing", icon: IconCreditCard, keywords: ["plan", "upgrade", "invoice"] },
-  { id: "p-account", label: "Account and security", to: "/app/settings/account", icon: IconUserCog, keywords: ["profile", "password", "two factor", "sessions"] },
+  { id: "p-account", label: "Account and security", to: "/app/settings/account", icon: IconUserCog, keywords: ["profile", "password", "two factor", "passkey", "passkeys", "sessions", "devices", "security"] },
   { id: "p-notification-settings", label: "Notification settings", to: "/app/settings/notifications", icon: IconBell, keywords: ["email alerts", "push", "quiet hours", "digest", "pause", "do not disturb"] },
   { id: "p-calendar-settings", label: "Calendar settings", to: "/app/settings/calendar", icon: IconCalendarDays, keywords: ["caldav", "carddav", "ics", "google calendar", "sync with your phone", "app password", "iphone", "android", "outlook", "contacts sync"] },
   { id: "p-mail-settings", label: "Mail settings", to: "/app/settings/mail", icon: IconMail, keywords: ["signature", "saved replies", "vacation"] },

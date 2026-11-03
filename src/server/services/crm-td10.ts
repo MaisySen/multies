@@ -42,6 +42,8 @@ export function suggestFromMail(input: {
   contacts: ScanContact[];
   deals: { id: string; contactId: string; createdAt: Date; lastActivity: Date | null }[];
   isOutside: (email: string) => boolean;
+  /** POL2 (HQ MB-344): the person's time zone, so "next Tuesday" counts from the day the mail was sent where they are. */
+  zone?: string | null;
 }): Candidate[] {
   const out: Candidate[] = [];
   const byEmail = new Map(input.contacts.map((c) => [c.email.toLowerCase(), c]));
@@ -78,10 +80,11 @@ export function suggestFromMail(input: {
       }
     }
     if (live) {
-      const hit = findNextStep(m.text, m.date);
+      const hit = findNextStep(m.text, m.date, input.zone);
       if (hit) {
-        const who = live.name.trim() || email;
-        out.push({ kind: "next_step", targetType: "contact", targetId: live.id, dedupeKey: `next:${m.id}`, fields: { reason: hit.reason, due: hit.due, when: hit.when, title: nextStepTitle(hit.reason, who.split(" ")[0] ?? who) }, mailboxId: m.mailboxId, messageId: m.id, at: m.date });
+        // POL2 (HQ MB-330): no raw address in a title; a contact with no name reads "Follow up with them".
+        const who = live.name.trim() && !live.name.includes("@") ? live.name.trim() : "";
+        out.push({ kind: "next_step", targetType: "contact", targetId: live.id, dedupeKey: `next:${m.id}`, fields: { reason: hit.reason, due: hit.due, when: hit.when, title: nextStepTitle(hit.reason, who.split(" ")[0] ?? "") }, mailboxId: m.mailboxId, messageId: m.id, at: m.date });
       }
     }
   }
@@ -93,6 +96,12 @@ export function suggestFromMail(input: {
     out.push({ kind: "last_contacted", targetType: "deal", targetId: d.id, dedupeKey: `last:${d.id}:${ymd(last.at)}`, fields: { date: ymd(last.at), contactId: d.contactId }, mailboxId: last.mailboxId, messageId: last.messageId, at: last.at });
   }
   return out;
+}
+
+/** POL2 (HQ MB-344): the person's own time zone, else the workspace's (one small read per scan, not on a hot path). */
+async function zoneFor(deps: Deps, a: Actor): Promise<string | null> {
+  const [row] = await deps.db.all<{ u: string | null; o: string | null }>(sql`select (select timezone from users where id = ${a.userId ?? ""}) as u, (select timezone from organizations where id = ${a.orgId}) as o`);
+  return row?.u || row?.o || null;
 }
 
 async function outsideCheck(deps: Deps, orgId: string) {
@@ -140,7 +149,9 @@ export async function scanMail(deps: Deps, a: Actor): Promise<{ added: number; s
   const lastRows = openDeals.length ? await deps.db.select({ id: crmEntries.entityId, at: max(crmEntries.occurredAt) }).from(crmEntries)
     .where(and(eq(crmEntries.orgId, a.orgId), eq(crmEntries.entityType, "deal"), inIds(crmEntries.entityId, openDeals.map((d) => d.id)), isNull(crmEntries.deletedAt))).groupBy(crmEntries.entityId) : [];
   const lastBy = new Map(lastRows.map((r) => [r.id, r.at ? new Date(r.at) : null]));
+  const zone = await zoneFor(deps, a);
   const found = suggestFromMail({
+    zone,
     messages: rows.map((r) => ({ ...r, date: new Date(r.date), text: r.text ?? "" })),
     contacts: people,
     deals: openDeals.filter((d) => d.contactId).map((d) => ({ id: d.id, contactId: d.contactId!, createdAt: new Date(d.createdAt), lastActivity: lastBy.get(d.id) ?? null })),

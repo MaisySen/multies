@@ -86,15 +86,15 @@ async function usedToday(deps: Deps, orgId: string): Promise<number> {
 }
 
 export async function teamAiState(deps: Deps, a: A): Promise<TeamAiState> {
-  const [ai, used, channels, forms, projects] = await Promise.all([
-    aiState(deps, a.orgId), usedToday(deps, a.orgId),
+  const [ai, used, zone, channels, forms, projects] = await Promise.all([
+    aiState(deps, a.orgId), usedToday(deps, a.orgId), zoneOf(deps, a.orgId),
     deps.db.all<{ id: string; name: string; is_private: number }>(sql`select c.id, c.name, c.is_private from chat_channels c where c.org_id = ${a.orgId} and c.kind = 'channel' and c.archived = 0
       and (c.is_private = 0 or exists (select 1 from chat_members cm where cm.channel_id = c.id and cm.user_id = ${a.userId})) order by c.name limit 200`),
     deps.db.all<{ id: string; name: string }>(sql`select id, name from forms where org_id = ${a.orgId} order by name limit 200`),
     deps.db.all<{ id: string; name: string }>(sql`select id, name from projects where org_id = ${a.orgId} and archived_at is null order by name limit 200`),
   ]);
   return {
-    isAdmin: isAdmin(a), ai, usedToday: used,
+    isAdmin: isAdmin(a), ai, usedToday: used, zone, // POL2 (HQ MB-329): routines run on the workspace clock
     caps: { runsPerDay: CAP.runsPerDay, routinesMax: CAP.routinesMax, memoryMax: CAP.memoryMax },
     channels: channels.map((c) => ({ id: c.id, name: c.name, private: !!c.is_private })), forms, projects,
   };

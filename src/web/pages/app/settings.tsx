@@ -47,7 +47,7 @@ export const SETTINGS_GROUPS: { label: string; items: Pane[] }[] = [
     { to: "/app/settings/tours", label: "Tours", icon: IconFlag, tint: "#FF9500", keywords: "tours onboarding get started checklist guide walk through new people help" }, // R130
   ] },
   { label: "You", items: [
-    { to: "/app/settings/account", label: "Account & security", icon: IconShieldCheck, tint: "#FF9500", keywords: "password two factor passkey sessions devices sign out delete account blocked people" },
+    { to: "/app/settings/account", label: "Account and security", icon: IconShieldCheck, tint: "#FF9500", keywords: "password two factor passkey sessions devices sign out delete account blocked people" },
     { to: "/app/settings/appearance", label: "Appearance", icon: IconMoon, tint: "#5E5CE6", keywords: "theme dark light system accent colour color personal" }, // R77
     { to: "/app/settings/notifications", label: "Notifications", icon: IconBell, tint: "#FF3B30", keywords: "push email digest quiet hours sounds badges" },
     { to: "/app/settings/calendar", label: "Calendar", icon: IconCalendar, tint: "#FF2D55", keywords: "sync working hours booking events time zone" },

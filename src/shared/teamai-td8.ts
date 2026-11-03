@@ -79,6 +79,8 @@ export interface TeamAiState {
   /** source: own_key = the workspace's key (no daily free limit); built_in = free built in AI under the daily limit; none = nothing can run. */
   ai: { on: boolean; key: boolean; provider: string | null; source: "own_key" | "built_in" | "none"; freeUsed: number; freeLimit: number; freePeriod: "day" | "week" };
   usedToday: number;
+  /** POL2 (HQ MB-329): the workspace time zone routines run in (an IANA name, UTC when unset). */
+  zone?: string;
   caps: { runsPerDay: number; routinesMax: number; memoryMax: number };
   channels: { id: string; name: string; private: boolean }[];
   forms: { id: string; name: string }[];
@@ -175,4 +177,18 @@ export function freeWindowStart(now: number, period: "day" | "week"): number {
   if (period === "day") return d;
   const back = (new Date(d).getUTCDay() + 6) % 7;
   return d - back * 86_400_000;
+}
+
+/** POL2 (HQ MB-329): a time in the workspace's zone, so "Every day at 09:00" and "Next ..." read on one clock.
+ * The zone name is added only when the viewer's own clock differs. */
+export function whenInZone(iso: string | null, zone: string | undefined, viewerZone?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  let tz = zone || "UTC";
+  try { new Intl.DateTimeFormat("en", { timeZone: tz }); } catch { tz = "UTC"; }
+  const mine = viewerZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const opts: Intl.DateTimeFormatOptions = { timeZone: tz, day: "numeric", month: "short", hour: "numeric", minute: "2-digit" };
+  if (mine !== tz) opts.timeZoneName = "short";
+  return d.toLocaleString(undefined, opts);
 }

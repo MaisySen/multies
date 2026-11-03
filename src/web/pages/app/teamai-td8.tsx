@@ -18,7 +18,7 @@ import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton, Switch } fro
 import { LoadError } from "@/web/components/load-error-t1g";
 import { useDialogs } from "@/web/components/ui/confirm";
 import {
-  REASON_TEXT, ROUTINE_TRIGGERS, TEAMAI_CAPS, TRIGGER_LABEL, WEEKDAYS, describeSchedule,
+  REASON_TEXT, ROUTINE_TRIGGERS, TEAMAI_CAPS, TRIGGER_LABEL, WEEKDAYS, describeSchedule, whenInZone,
   type InstructionSet, type MemoryEntry, type Routine, type RoutineOutput, type RoutineTrigger, type RunEntry, type TeamAiState,
 } from "@/shared/teamai-td8";
 
@@ -31,10 +31,13 @@ const qk = {
 };
 const TABS = [["memory", "Memory"], ["instructions", "Instructions"], ["routines", "Routines"], ["runs", "Run log"]] as const;
 type Tab = (typeof TABS)[number][0];
+/** POL2 (HQ MB-328): the header names the AI source actually in use, never "own key" on built in AI. */
+export const aiSourceLine = (source: "own_key" | "built_in" | "none" | undefined) =>
+  source === "own_key" ? " It uses your workspace's own AI key." : source === "built_in" ? " It runs on free built in AI until you add your own key." : "";
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "");
 
 function Loading({ label }: { label: string }) {
-  return <div className="space-y-2" aria-busy="true" aria-label={label}><Skeleton className="h-16 rounded-xl" /><Skeleton className="h-16 rounded-xl" /><Skeleton className="h-16 rounded-xl" /></div>;
+  return <div className="space-y-2" role="status" aria-busy="true" aria-label={label}><Skeleton className="h-16 rounded-xl" /><Skeleton className="h-16 rounded-xl" /><Skeleton className="h-16 rounded-xl" /></div>;
 }
 
 export function TeamAiPage() {
@@ -57,7 +60,7 @@ export function TeamAiPage() {
   };
   return (
     <div className="mx-auto w-full max-w-4xl" data-testid="teamai-page">
-      <PageHeader title="Team AI" description="What the assistant remembers, instructions your team reuses, and routines that write drafts or chat messages. It uses your workspace's own AI key." />
+      <PageHeader title="Team AI" description={`What the assistant remembers, instructions your team reuses, and routines that write drafts or chat messages.${aiSourceLine(s?.ai.source)}`} />
       {state.isError && !s ? <LoadError onRetry={() => state.refetch()} /> : !s ? <Loading label="Loading Team AI" /> : (
         <>
           <AiStatus s={s} />
@@ -371,7 +374,7 @@ function RoutinesTab({ s }: { s: TeamAiState }) {
                   <p className="mt-0.5 text-[12.5px] text-muted">
                     {describeSchedule(r)}, {r.output === "chat" ? `posts in ${r.channelName ?? "a channel"}` : "writes a draft"}. Uses {r.instructionName ?? "a deleted instruction set"}.
                     {r.lastRunAt ? ` Last run ${when(r.lastRunAt)}${r.lastStatus && r.lastStatus !== "done" ? ` (${r.lastStatus})` : ""}.` : ""}
-                    {r.enabled && r.nextRunAt ? ` Next ${when(r.nextRunAt)}.` : ""}
+                    {r.enabled && r.nextRunAt ? ` Next ${whenInZone(r.nextRunAt, s.zone)}.` : ""}
                   </p>
                 </div>
                 {s.isAdmin && (

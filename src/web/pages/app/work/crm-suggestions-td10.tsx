@@ -17,6 +17,7 @@ import { useCommandHandlers } from "@/web/lib/commands";
 import { focusedRow, useOnline, walkRows } from "@/web/lib/crm-keys-td10";
 import { shortDate } from "@/web/lib/format";
 import { useConfig } from "@/web/lib/queries";
+import { dayLabel } from "@/shared/crm-td10";
 
 export type SuggestionKind = "contact_details" | "new_contact" | "last_contacted" | "next_step";
 export interface Suggestion { id: string; kind: SuggestionKind; target: { type: string; id: string | null; label: string }; fields: Record<string, string>; messageAt: string; current?: Record<string, string | null> }
@@ -36,12 +37,12 @@ function headline(s: Suggestion) {
   if (s.kind === "contact_details") return `Update ${who}`;
   if (s.kind === "new_contact") return `Add ${s.fields.name || s.fields.email} as a contact`;
   if (s.kind === "last_contacted") return `Log your last email on ${who}`;
-  return `${s.fields.title || "Follow up"}, ${s.fields.when || s.fields.due}`;
+  return `${s.fields.title || "Follow up"}, ${s.fields.when || dayLabel(s.fields.due)}`;
 }
 
 function detail(s: Suggestion): string[] {
-  if (s.kind === "last_contacted") return [`Emailed ${s.fields.contactName || "the contact"} on ${s.fields.date}`];
-  if (s.kind === "next_step") return [`Due ${s.fields.due}`, `For ${s.target.label}`];
+  if (s.kind === "last_contacted") return [`Emailed ${s.fields.contactName || "the contact"} on ${dayLabel(s.fields.date)}`];
+  if (s.kind === "next_step") return [`Due ${dayLabel(s.fields.due)}`, `For ${s.target.label}`];
   return ["name", "title", "phone", "company"].filter((k) => s.fields[k]).map((k) => {
     const was = s.current?.[k];
     return `${FIELD_LABEL[k]}: ${s.fields[k]}${was ? ` (now ${was})` : ""}`;

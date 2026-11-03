@@ -304,6 +304,13 @@ async function chatGroup(c: Ctx): Promise<Candidate[]> {
   });
 }
 
+/** POL2 (HQ MB-324): the order groups are asked in (answers still list in the usual order). Unknown types go last. */
+const QUICK_FIRST: string[] = ["contacts", "deals", "tasks", "docs", "notes", "files", "chat", "mail", "attachments"];
+export function askOrder<T extends string>(types: readonly T[]): T[] {
+  const at = (t: string) => { const i = QUICK_FIRST.indexOf(t); return i < 0 ? QUICK_FIRST.length : i; };
+  return [...types].sort((p, q) => at(p) - at(q));
+}
+
 async function contactGroup(c: Ctx): Promise<Candidate[]> {
   if (c.v.kind !== "actor") return [];
   const rows = await c.deps.db.select({ id: contacts.id, name: contacts.name, email: contacts.email, title: contacts.title, lastContactAt: contacts.lastContactAt, updatedAt: contacts.updatedAt }).from(contacts)
@@ -486,7 +493,10 @@ export async function searchR98(deps: Deps, v: SearchViewer, rawQuery: string, o
     return loose.items;
   };
   let overloaded = false;
-  const all = Promise.all(types.map((t) => runOne(t).then((items) => { done.set(t, items); }, (err) => {
+  // POL2 (HQ MB-324): the database answers one statement at a time, so the small, indexed groups (people, deals,
+  // tasks, docs) are asked first; a slow mail scan in a big mailbox can then only cost mail its place, never a contact.
+  const asked = askOrder(types);
+  const all = Promise.all(asked.map((t) => runOne(t).then((items) => { done.set(t, items); }, (err) => {
     // T1F: a database too busy to answer (heavy load) leaves that group out and marks the answer partial, like the time
     // budget does; it is reported at most once a minute per server instead of once per group per search.
     if (isOverload(err)) { overloaded = true; if (overloadReportDue(Date.now())) deps.reportError?.(err, { where: "search_r98_overloaded", type: t }); } else deps.reportError?.(err, { where: "search_r98", type: t });

@@ -55,6 +55,7 @@ const SUB_LABEL: Record<string, string> = {
   account: "Account and security", team: "People", billing: "Plan and billing", branding: "Branding", appearance: "Appearance",
   developers: "Developers", "mail-apps": "Mail apps", import: "Import", calendar: "Calendar", security: "Security",
   mailboxes: "Mailboxes", domains: "Domains", deliverability: "Deliverability", // R121: Settings, Mail setup
+  "team-ai": "Team AI", // POL2 (HQ MB-328): not "Team ai"
 };
 const titleCase = (slug: string) => { const s = decodeURIComponent(slug).replace(/[-_]+/g, " ").trim(); return s ? s[0].toUpperCase() + s.slice(1) : s; };
 

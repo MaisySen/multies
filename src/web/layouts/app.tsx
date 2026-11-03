@@ -231,7 +231,7 @@ export function AppLayout() {
     <Menu align={align} trigger={trigger}>
           <MenuLabel>{user.email}</MenuLabel>
           <div className="px-1.5 pb-1.5 pt-0.5"><AppearanceControl className="w-full [&>button]:flex-1 [&>button]:justify-center" /></div>
-          <MenuItem icon={<IconUserCog />} onSelect={() => navigate("/app/settings/account")}>Account & security</MenuItem>
+          <MenuItem icon={<IconUserCog />} onSelect={() => navigate("/app/settings/account")}>Account and security</MenuItem>
           <MenuItem icon={<IconSettings />} onSelect={() => navigate("/app/settings")}>Workspace settings</MenuItem>
           <MenuItem icon={<IconKeyboard />} onSelect={openShortcutsSheet}>Keyboard shortcuts</MenuItem>
           {tours.on && <MenuItem icon={<IconFlag />} onSelect={resumeChecklist}>Get started</MenuItem>}{/* R130 */}

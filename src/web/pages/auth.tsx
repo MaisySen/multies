@@ -467,7 +467,7 @@ export function EmailVerifiedPage() {
       {failed ? (
         <>
           <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.02em]">We couldn't confirm that link</h1>
-          <p className="mt-1 text-sm text-muted">It may have expired. Send a new one from Account & security.</p>
+          <p className="mt-1 text-sm text-muted">It may have expired. Send a new one from Account and security.</p>
         </>
       ) : (
         <>
