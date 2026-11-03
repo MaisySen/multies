@@ -254,7 +254,7 @@ describe("VID1 recording state machine", () => {
   it("file sink: writes each chunk in order and keeps nothing in memory; no warning however big", async () => {
     const written: number[] = [];
     let closed = false;
-    const sink = new FileSink({ write: async (b) => { await tick(); written.push(b.size); }, close: async () => { closed = true; } });
+    const sink = new FileSink({ write: async (b) => { await tick(); written.push((b as Blob).size); }, close: async () => { closed = true; } });
     const r = make(sink, { warnBytes: 10, hardBytes: 20 });
     r.start();
     FakeRecorder.last!.emit(30);

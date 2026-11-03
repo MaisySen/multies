@@ -99,7 +99,7 @@ test.setTimeout(30 * 60_000);
 
 test.beforeAll(async ({ browser }) => {
   const base = test.info().project.use.baseURL!;
-  const fwd = process.env.E2E_BASE_URL ? {} : { "x-forwarded-for": ip() };
+  const fwd: Record<string, string> = process.env.E2E_BASE_URL ? {} : { "x-forwarded-for": ip() };
   ctx = await browser.newContext({ baseURL: base, extraHTTPHeaders: fwd, viewport: { width: 1280, height: 860 } });
   const p = await ctx.newPage();
   const headers = { origin: new URL(base).origin };

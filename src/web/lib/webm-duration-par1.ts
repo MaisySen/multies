@@ -84,5 +84,5 @@ export async function withWebmDuration(blob: Blob, ms: number): Promise<Blob> {
   const head = new Uint8Array(await blob.slice(0, 4096).arrayBuffer());
   const p = webmDurationPatch(head, ms);
   if (!p) return blob;
-  return new Blob([blob.slice(0, p.offset), p.bytes, blob.slice(p.offset + p.bytes.length)], { type: blob.type });
+  return new Blob([blob.slice(0, p.offset), new Uint8Array(p.bytes), blob.slice(p.offset + p.bytes.length)], { type: blob.type });
 }
