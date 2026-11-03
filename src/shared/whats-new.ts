@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-03-several-pages",
+    date: "2026-11-03",
+    title: "Several Facebook Pages and LinkedIn accounts",
+    body: "Choose which of your Facebook Pages to post to in Social, Accounts, and connect more than one LinkedIn account. Pick each Page or account when you write, and your last choice is remembered.",
+  },
+  {
     id: "2026-11-03-new-look-passkeys",
     date: "2026-11-03",
     title: "A fresh look, and passkeys",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-02",
     title: "Staff, onboarding and equipment",
     body: "Contacts has a Staff directory with an org chart and who is away. Admins build onboarding checklists that become tasks from a start date, and keep an equipment register with QR labels.",
-  },
-  {
-    id: "2026-11-02-polish",
-    date: "2026-11-02",
-    title: "Smoother Courses, Tables, Vault and more",
-    body: "Move a table or course to Trash in Docs and restore it within 30 days. Start a webinar straight from Meetings or Schedule, and pages like Sites, Vault and Home recover from errors with one Retry.",
   },
   {
     id: "2026-10-28-whats-new",

@@ -6,6 +6,13 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## SOC1 Several Facebook Pages and LinkedIn accounts (2026-11-03)
+
+- Several Facebook Pages per workspace (flag SOCIAL_MULTI_SOC1; migration 0163 social_pages_soc1): after a Facebook connect an admin picks which Pages to add from every Page the login manages (paged past 100, search, Select all), each Page is its own post target with its picture, dedupe by Page id across logins, add or remove Pages later without reconnecting, lost Pages named with Reconnect.
+- Several LinkedIn members as separate rows (dedupe by member id); company Pages only when LinkedIn organization access is granted on the connection, else an honest needs LinkedIn approval note.
+- Composer: targets grouped per network with Select all, last choice remembered per user; scheduled posts keep their targets; result sheet, status check, Removed on network check and Delete per Page. Server code lazy (social-pages-soc1.ts). Flag off is unchanged.
+- What's new: Several Facebook Pages and LinkedIn accounts ("2026-11-02-polish" moved to the public earlier list; list stays 14).
+
 ## TD9 Client portal access (2026-11-03)
 
 - Client portal access per person per area (flag PORTAL_TD9, needs CLIENT_PORTAL; migration 0160 portal_td9): projects, tasks, files, docs, invoices and forms at None, View or Comment; defaults keep today (files, docs, tasks View; new areas None); every change audited as portal.access.set with a history in the Access dialog.
