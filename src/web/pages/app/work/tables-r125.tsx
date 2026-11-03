@@ -345,7 +345,7 @@ export function TableDoc({ docId }: { docId: string }) {
             {canEdit && <Button variant="ghost" size="sm" onClick={() => setImporting(true)} aria-label="Import a CSV file"><IconUpload className="h-4 w-4" /></Button>}
             <a className="inline-flex min-h-[36px] items-center rounded-lg px-2 text-muted hover:bg-hover" href={`/api/tables/${docId}/export.csv?view=${view.id}`} aria-label="Export as CSV" data-testid="export-csv" download><IconDownload className="h-4 w-4" /></a>
             {canEdit && d.views.length > 1 && <Button variant="ghost" size="sm" aria-label={`Delete the view ${view.name}`} onClick={() => void ask({ title: `Delete the view "${view.name}"?`, description: "The rows stay.", confirmLabel: "Delete view", tone: "danger" }).then((ok) => { if (ok) delView.mutate(view.id); })}><IconTrash className="h-4 w-4" /></Button>}
-            {canEdit && view.type === "grid" && <Button size="sm" onClick={() => addRows.mutate([{}], { onSuccess: (r) => { if (r.rows[0]) setFocusRow({ id: r.rows[0].id, n: Date.now() }); } })} disabled={addRows.isPending} data-testid="add-row"><IconPlus className="h-4 w-4" />Row</Button>}
+            {canEdit && view.type === "grid" && <Button size="sm" onClick={() => { /* POL2 (HQ MB-314): the grid holds focus while the row is made, so focus never drops to the page */ document.querySelector<HTMLElement>("[data-testid='table-grid']")?.focus({ preventScroll: true }); addRows.mutate([{}], { onSuccess: (r) => { if (r.rows[0]) setFocusRow({ id: r.rows[0].id, n: Date.now() }); } }); }} disabled={addRows.isPending} data-testid="add-row"><IconPlus className="h-4 w-4" />Row</Button>}
           </div>
         </div>
       )}
