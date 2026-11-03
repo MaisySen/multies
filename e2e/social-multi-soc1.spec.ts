@@ -23,6 +23,32 @@ async function axe(page: Page, where: string, include = "main") {
 }
 const shot = async (page: Page, name: string) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/soc1-${name}.png` }); };
 
+/** Layout sweep (same probe as DES1): interactive controls that overlap each other, and text cut off without an ellipsis. */
+async function layout(page: Page, label: string, out: string[]) {
+  const found = await page.evaluate(() => {
+    const vis = (el: Element) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 2 && r.height > 2 && cs.visibility !== "hidden" && Number(cs.opacity) > 0.05 && r.bottom > 0 && r.top < innerHeight ? r : null; };
+    const res: string[] = [];
+    const name = (el: Element) => (el.getAttribute("aria-label") || el.getAttribute("data-testid") || (el.textContent || "").trim().slice(0, 24) || el.tagName).replace(/\s+/g, " ");
+    const ctl = [...document.querySelectorAll("body button, body a[href], body input, body select, body [role=checkbox], body .ds-avatar")].filter((e) => vis(e) && !e.closest("[aria-hidden=true]:not(.ds-avatar)"));
+    for (let i = 0; i < ctl.length; i++) for (let j = i + 1; j < ctl.length; j++) {
+      const a = ctl[i], b = ctl[j]; if (a.contains(b) || b.contains(a)) continue;
+      const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+      const w = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left), h = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
+      if (w > 3 && h > 3) {
+        const pt = document.elementsFromPoint(Math.max(ra.left, rb.left) + w / 2, Math.max(ra.top, rb.top) + h / 2);
+        if (pt.some((e) => e === a || a.contains(e)) && pt.some((e) => e === b || b.contains(e))) res.push(`overlap: ${name(a)} x ${name(b)} (${Math.round(w)}x${Math.round(h)})`);
+      }
+    }
+    for (const el of document.querySelectorAll("body *")) {
+      if (!vis(el) || el.children.length > 0 || !(el.textContent || "").trim()) continue;
+      const cs = getComputedStyle(el);
+      if (el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 0 && cs.overflowX !== "visible" && cs.textOverflow !== "ellipsis" && cs.overflowX !== "auto" && cs.overflowX !== "scroll") res.push(`clip: ${name(el)}`);
+    }
+    return [...new Set(res)].slice(0, 25);
+  });
+  for (const f of found) out.push(`${label}: ${f}`);
+}
+
 test("SOC1 several Facebook Pages: picker, accounts, composer per Page, schedule, remembered choice, axe", async ({ page, context }) => {
   test.skip(process.env.E2E_SOC1 !== "on", "needs E2E_SOC1=on");
   test.setTimeout(240_000);
@@ -64,6 +90,7 @@ test("SOC1 several Facebook Pages: picker, accounts, composer per Page, schedule
   const views = async (where: string) => {
     await page.waitForTimeout(600);
     problems.push(...await axe(page, `accounts-${where}`));
+    await layout(page, `accounts-${where}`, problems);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
     await shot(page, `accounts-${where}`);
   };
@@ -83,6 +110,7 @@ test("SOC1 several Facebook Pages: picker, accounts, composer per Page, schedule
   await expect(page.getByTestId("pages-select-all")).toBeFocused();
   await page.waitForTimeout(400);
   problems.push(...await axe(page, "picker-390-dark", "dialog"));
+  await layout(page, "picker-390-dark", problems);
   await shot(page, "picker-390-dark");
   await page.keyboard.press("Escape");
   await expect(picker).toBeHidden();
@@ -104,11 +132,19 @@ test("SOC1 several Facebook Pages: picker, accounts, composer per Page, schedule
   await page.waitForTimeout(400);
   problems.push(...await axe(page, "composer-1280-light"));
   await shot(page, "composer-1280-light");
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    for (const w of [375, 390, 430]) {
+      await page.setViewportSize({ width: w, height: 844 });
+      await page.waitForTimeout(300);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+      problems.push(...await axe(page, `composer-${w}-${scheme}`));
+      await layout(page, `composer-${w}-${scheme}`, problems);
+      await shot(page, `composer-${w}-${scheme}`);
+    }
+  }
+  await page.emulateMedia({ colorScheme: "light" });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.waitForTimeout(300);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
-  problems.push(...await axe(page, "composer-390-light"));
-  await shot(page, "composer-390-light");
   await page.getByRole("button", { name: "Post to 2 accounts" }).click();
   const sheet = page.getByTestId("posted-sheet");
   await expect(sheet).toHaveAttribute("data-status", "done", { timeout: 20_000 });
@@ -116,6 +152,7 @@ test("SOC1 several Facebook Pages: picker, accounts, composer per Page, schedule
   await expect(sheet).toContainText("Acme Bakery Melbourne");
   await shot(page, "sheet-390-light");
   problems.push(...await axe(page, "sheet-390-light", "body"));
+  await layout(page, "sheet-390-light", problems);
   await page.keyboard.press("Escape");
 
   // The last choice comes back; schedule it for later.

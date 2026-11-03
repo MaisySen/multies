@@ -499,7 +499,7 @@ export function SocialAccountsPage() {
                   const h = health.data?.get(a.id);
                   const bad = h && !h.ok && h.code !== "check_failed";
                   return (
-                    <div key={a.id} className="flex flex-wrap items-center gap-3 p-4 md:px-5" data-testid={`social-account-${a.app}`} data-health={bad ? "bad" : h?.ok ? "ok" : "unknown"}>
+                    <div key={a.id} className={cn("flex flex-wrap gap-3 p-4 md:px-5", soc1 && (a.app === "facebook" || a.app === "linkedin") ? "items-start" : "items-center")} data-testid={`social-account-${a.app}`} data-health={bad ? "bad" : h?.ok ? "ok" : "unknown"}>
                       <AccountAvatar account={a} />
                       <div className="min-w-0 flex-1">
                         {/* SA1: the account's own name first, so two accounts on one network are told apart. */}
