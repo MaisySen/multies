@@ -156,8 +156,9 @@ export interface Sink {
   readonly kind: "file" | "memory";
   readonly bytes: number;
   write(b: Blob): Promise<void>;
-  /** Finishes: the file sink closes the file and answers null; the memory sink answers the whole video. */
-  close(): Promise<Blob | null>;
+  /** Finishes: the file sink closes the file and answers null; the memory sink answers the whole video. PAR1: with the
+   * recorded length (ms, pauses left out) a webm gets its duration written into the header (MB-352). */
+  close(durationMs?: number): Promise<Blob | null>;
 }
 
 /** Keeps the video in this tab until Stop (Safari, Firefox, or when the person did not pick a file). */
@@ -167,28 +168,45 @@ export class MemorySink implements Sink {
   bytes = 0;
   constructor(private type: string) {}
   async write(b: Blob) { this.parts.push(b); this.bytes += b.size; }
-  async close() {
-    const out = this.parts.length ? new Blob(this.parts, { type: this.type }) : null;
+  async close(durationMs?: number) {
+    let out = this.parts.length ? new Blob(this.parts, { type: this.type }) : null;
     this.parts = [];
+    if (out && durationMs && /webm/i.test(this.type)) {
+      try { out = await (await import("./webm-duration-par1")).withWebmDuration(out, durationMs); } catch { /* keep the file as recorded */ }
+    }
     return out;
   }
 }
 
-/** The part of FileSystemWritableFileStream the file sink uses. */
-export interface Writable { write(b: Blob): Promise<void>; close(): Promise<void> }
+/** The part of FileSystemWritableFileStream the file sink uses (seek and the positional write only to fix the header). */
+export interface Writable {
+  write(b: Blob | { type: "write"; position: number; data: Uint8Array }): Promise<void>;
+  close(): Promise<void>;
+  seek?(position: number): Promise<void>;
+}
 
 /** Writes each chunk, in order, to the file the person chose; long calls keep almost nothing in memory. */
 export class FileSink implements Sink {
   readonly kind = "file" as const;
   bytes = 0;
   private chain: Promise<void> = Promise.resolve();
+  private head: Blob | null = null;
   constructor(private w: Writable) {}
   write(b: Blob) {
+    if (!this.head) this.head = b.slice(0, 4096);
     this.chain = this.chain.then(() => this.w.write(b)).then(() => { this.bytes += b.size; });
     return this.chain;
   }
-  async close() {
+  async close(durationMs?: number) {
     await this.chain.catch(() => undefined);
+    // PAR1 (MB-352): the length goes into the header with one same size write at its place; nothing else moves.
+    if (durationMs && this.head && typeof this.w.seek === "function" && /webm/i.test(this.head.type || "webm")) {
+      try {
+        const { webmDurationPatch } = await import("./webm-duration-par1");
+        const p = webmDurationPatch(new Uint8Array(await this.head.arrayBuffer()), durationMs);
+        if (p) await this.w.write({ type: "write", position: p.offset, data: p.bytes });
+      } catch { /* the video stays as recorded, only without a length */ }
+    }
     await this.w.close().catch(() => undefined);
     return null;
   }
@@ -342,7 +360,8 @@ export class VideoRecording {
         });
       }
       await this.pending.catch(() => undefined);
-      const blob = await this.o.sink.close();
+      const recordedMs = this.startedAt ? Math.max(0, (this.o.now ?? Date.now)() - this.startedAt - this.pausedMs) : 0;
+      const blob = await this.o.sink.close(recordedMs || undefined);
       this.set("saved");
       return { blob, bytes: this.o.sink.bytes, kind: this.o.sink.kind, reason: this.reason, error: this.error };
     })();
