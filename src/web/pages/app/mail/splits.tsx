@@ -63,7 +63,7 @@ export function SplitTabs({ tabs, active, onChange, onEdit, onDropMessage }: { t
             onDragOver={onDropMessage ? (e) => { if (e.dataTransfer.types.includes(MAIL_DRAG_TYPE) && t.id !== active) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setOver(t.id); } } : undefined}
             onDragLeave={() => setOver((o) => (o === t.id ? null : o))}
             onDrop={onDropMessage ? (e) => { const id = e.dataTransfer.getData(MAIL_DRAG_TYPE); setOver(null); if (id && t.id !== active) { e.preventDefault(); onDropMessage(id, t); } } : undefined}
-            className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[13px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 max-sm:h-10",
+            className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[13px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 max-sm:h-11",
               t.id === active ? "bg-brand-soft font-medium text-brand-hover" : "text-muted hover:bg-hover hover:text-fg",
               over === t.id && "bg-brand-soft text-brand-hover ring-2 ring-brand/40")}>
             {t.name}
@@ -71,7 +71,7 @@ export function SplitTabs({ tabs, active, onChange, onEdit, onDropMessage }: { t
           </button>
         ))}
       </div>
-      <button type="button" onClick={onEdit} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-subtle hover:bg-hover hover:text-fg max-sm:h-10 max-sm:w-10" aria-label="Edit tabs" title="Edit tabs">
+      <button type="button" onClick={onEdit} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-subtle hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11" aria-label="Edit tabs" title="Edit tabs">
         <IconSliders className="h-4 w-4" />
       </button>
     </div>

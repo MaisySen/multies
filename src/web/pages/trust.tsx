@@ -110,7 +110,7 @@ export function TrustPage() {
 
       <nav aria-label="On this page" className="mt-8 flex flex-wrap gap-2">
         {NAV.map(([id, label]) => (
-          <a key={id} href={`#${id}`} className="rounded-full border border-line px-3 py-1.5 text-[13px] text-muted transition-colors hover:border-line-strong hover:text-fg">{label}</a>
+          <a key={id} href={`#${id}`} className="inline-flex items-center rounded-full border border-line px-3 py-1.5 text-[13px] text-muted transition-colors hover:border-line-strong hover:text-fg max-sm:min-h-11">{label}</a>
         ))}
       </nav>
 
@@ -186,7 +186,7 @@ export function TrustPage() {
         </Section>
 
         <Section id="contact" icon={IconShieldCheck} title="Report a problem" intro="Found a vulnerability or a privacy issue? Tell us and we will reply.">
-          <a href={`mailto:${SECURITY_EMAIL}`} className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-brand-fg transition-colors hover:bg-brand-press">
+          <a href={`mailto:${SECURITY_EMAIL}`} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-brand-fg transition-colors hover:bg-brand-press">
             <IconMail className="h-4 w-4" aria-hidden />{SECURITY_EMAIL}
           </a>
           <p className="mt-4 text-[13px] text-subtle">

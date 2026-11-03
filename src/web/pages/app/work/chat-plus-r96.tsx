@@ -50,7 +50,7 @@ export function TopicBar({ channelId, topicId, onPick, canAdmin }: { channelId: 
     try { await api.patch(`/chat-plus/topics/${t.id}`, { resolved: !t.resolved }); await refresh(); await qc.invalidateQueries({ queryKey: ["chat", "messages"] }); } catch (e) { showError(e as Error); }
   };
   const list = topics.data ?? [];
-  const chip = (active: boolean) => cn("inline-flex min-h-8 max-sm:min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[12.5px] transition-colors duration-150",
+  const chip = (active: boolean) => cn("inline-flex min-h-8 max-sm:min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[12.5px] transition-colors duration-150",
     active ? "border-brand bg-brand/10 text-fg" : "border-line text-muted hover:bg-hover hover:text-fg");
   return (
     <div className="flex items-center gap-1.5 overflow-x-auto border-b border-line px-4 py-1.5 max-sm:px-2" role="toolbar" aria-label="Topics" data-testid="topic-bar">
@@ -65,7 +65,7 @@ export function TopicBar({ channelId, topicId, onPick, canAdmin }: { channelId: 
       <button type="button" className={chip(false)} onClick={() => setNaming({ mode: "new" })} data-testid="topic-new"><IconPlus className="h-3.5 w-3.5" aria-hidden />New topic</button>
       {current && (
         <div className="ml-auto shrink-0">
-          <Menu label={`Topic ${current.name}`} trigger={<button type="button" aria-label={`Options for topic ${current.name}`} className="inline-flex h-8 w-8 max-sm:h-10 max-sm:w-10 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-fg" data-testid="topic-more"><IconMore className="h-4 w-4" aria-hidden /></button>}>
+          <Menu label={`Topic ${current.name}`} trigger={<button type="button" aria-label={`Options for topic ${current.name}`} className="inline-flex h-8 w-8 max-sm:h-11 max-sm:w-11 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-fg" data-testid="topic-more"><IconMore className="h-4 w-4" aria-hidden /></button>}>
             <MenuItem onSelect={() => void resolve(current)}>{current.resolved ? "Reopen topic" : "Mark as resolved"}</MenuItem>
             <MenuItem onSelect={() => setNaming({ mode: "rename", topic: current })}>Rename or merge</MenuItem>
           </Menu>
@@ -130,7 +130,7 @@ export function ChatPlusAdd({ channelId, topicId, meetingId, isAdmin, onDone, co
   const [kind, setKind] = useState<PollKind | "announce" | null>(null);
   return (
     <>
-      <Menu align="start" label="Add to chat" trigger={<button type="button" aria-label="Add a poll, decision, questions or word cloud" data-testid="chat-plus-add" className={cn("inline-flex items-center gap-1.5 rounded-lg px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg", compact ? "h-8" : "h-8 max-sm:h-10")}><IconPlus className="h-4 w-4" aria-hidden /><span>Add</span></button>}>
+      <Menu align="start" label="Add to chat" trigger={<button type="button" aria-label="Add a poll, decision, questions or word cloud" data-testid="chat-plus-add" className={cn("inline-flex items-center gap-1.5 rounded-lg px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg", compact ? "h-8" : "h-8 max-sm:h-11")}><IconPlus className="h-4 w-4" aria-hidden /><span>Add</span></button>}>
         <MenuItem onSelect={() => setKind("poll")} hint="Ask and count">Poll</MenuItem>
         <MenuItem onSelect={() => setKind("decision")} hint="Agree, abstain, disagree or block">Decision</MenuItem>
         <MenuItem onSelect={() => setKind("qa")} hint="Live questions with upvotes">Questions</MenuItem>

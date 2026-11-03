@@ -72,7 +72,7 @@ export function BioEditor() {
         <div role="radiogroup" aria-label="Which page" className="inline-flex rounded-lg bg-fill p-0.5">
           {([["me", "My page"], ["workspace", "Workspace page"]] as const).map(([k, label]) => (
             <button key={k} type="button" role="radio" aria-checked={scope === k} onClick={() => setScope(k)} data-testid={`bio-scope-${k}`}
-              className={cn("h-8 rounded-md px-3 text-[13px] font-medium transition-colors max-sm:h-10", ring, scope === k ? "bg-surface text-fg shadow-[var(--shadow-e1)]" : "text-muted hover:text-fg")}>{label}</button>
+              className={cn("h-8 rounded-md px-3 text-[13px] font-medium transition-colors max-sm:h-11", ring, scope === k ? "bg-surface text-fg shadow-[var(--shadow-e1)]" : "text-muted hover:text-fg")}>{label}</button>
           ))}
         </div>
         {q.data?.page.id && q.data.page.published && (

@@ -174,7 +174,7 @@ export function TimesheetPage() {
         {plus && <Input aria-label="Tag" placeholder="Tag" value={tag} onChange={(e) => setTag(e.target.value)} className="h-9 w-32 text-[13px]" data-testid="tag-filter" />}
         {plus && (
           <div className="flex rounded-lg bg-fill p-0.5" role="tablist" aria-label="Show">
-            {(["week", "day"] as const).map((m) => <button key={m} role="tab" aria-selected={mode === m} onClick={() => setMode(m)} className={cn("min-h-8 rounded-md px-2.5 text-[12.5px] max-sm:min-h-10", mode === m ? "bg-surface font-medium shadow-sm" : "text-muted hover:text-fg")}>{m === "week" ? "Week" : "Day"}</button>)}
+            {(["week", "day"] as const).map((m) => <button key={m} role="tab" aria-selected={mode === m} onClick={() => setMode(m)} className={cn("min-h-8 rounded-md px-2.5 text-[12.5px] max-sm:min-h-11", mode === m ? "bg-surface font-medium shadow-sm" : "text-muted hover:text-fg")}>{m === "week" ? "Week" : "Day"}</button>)}
           </div>
         )}
         {plus && mode === "day" && q.data && (

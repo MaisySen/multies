@@ -165,7 +165,7 @@ export function EntryExtras({ entry, onChange }: { entry: TimeEntry & { tags?: s
         <button type="button" className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-fg" aria-label="Edit tags" title="Tags" onClick={() => setEditing(true)} disabled={entry.running}><IconTag className="h-4 w-4" /></button>
       )}
       <button type="button" aria-pressed={entry.billable} onClick={() => void save({ billable: !entry.billable })} disabled={entry.running}
-        className={cn("min-h-7 rounded-full px-2 text-[11.5px] font-medium transition-colors duration-150 max-sm:min-h-10", entry.billable ? "bg-ok-soft text-ok" : "bg-fill text-subtle")} data-testid="entry-billable">
+        className={cn("min-h-7 rounded-full px-2 text-[11.5px] font-medium transition-colors duration-150 max-sm:min-h-11", entry.billable ? "bg-ok-soft text-ok" : "bg-fill text-subtle")} data-testid="entry-billable">
         {entry.billable ? "Billable" : "Not billable"}
       </button>
     </span>

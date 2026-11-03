@@ -142,7 +142,7 @@ export function DeliverySettings({ delivery, anyMail }: { delivery: Delivery; an
             <div role="group" aria-label="Quiet days" className="flex flex-wrap gap-1">
               {DAYS.map((n, i) => (
                 <button key={n} type="button" aria-pressed={d.quiet.days.includes(i)} onClick={() => setDays(i)}
-                  className={cn("h-8 min-w-10 rounded-lg border px-2 text-[12.5px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-10",
+                  className={cn("h-8 min-w-10 rounded-lg border px-2 text-[12.5px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-11",
                     d.quiet.days.includes(i) ? "border-brand bg-brand text-white" : "border-line-strong text-muted hover:text-fg")}><span aria-hidden="true">{n}</span><span className="sr-only">{DAY_NAMES[i]}</span></button>
               ))}
             </div>

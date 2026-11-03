@@ -216,7 +216,7 @@ export function DocHistoryPanel({ docId, open, onClose, currentText, beforeChang
               {sel ? (
                 <div className="flex min-h-full flex-col">
                   <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-line bg-elevated/95 px-5 py-3 backdrop-blur">
-                    <button type="button" className="hidden rounded-full p-1.5 text-muted hover:bg-hover max-sm:grid max-sm:h-10 max-sm:w-10 max-sm:place-items-center" aria-label="Back to versions" onClick={() => setPhoneDetail(false)}><IconBack className="h-4 w-4" /></button>
+                    <button type="button" className="hidden rounded-full p-1.5 text-muted hover:bg-hover max-sm:grid max-sm:h-11 max-sm:w-11 max-sm:place-items-center" aria-label="Back to versions" onClick={() => setPhoneDetail(false)}><IconBack className="h-4 w-4" /></button>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[15px] font-semibold">{sel.name ?? whenLabel(sel.savedAt)}</div>
                       <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-subtle" data-testid="doc-version-counts">

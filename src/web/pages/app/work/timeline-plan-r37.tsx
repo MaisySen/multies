@@ -123,7 +123,7 @@ export function PlannedTimeline({ tasks, projectId, onOpen, onDates, onAdd }: { 
         <div role="radiogroup" aria-label="Zoom" className="inline-flex rounded-lg bg-fill p-0.5" data-testid="timeline-zoom">
           {(["day", "week", "month"] as Zoom[]).map((z) => (
             <button key={z} type="button" role="radio" aria-checked={zoom === z} onClick={() => { setZoom(z); storeZoom(z); }} data-testid={`timeline-zoom-${z}`}
-              className={cn("h-8 rounded-md px-3 text-[13px] transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand motion-reduce:transition-none max-sm:h-10", zoom === z ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>{ZOOM_LABEL[z]}</button>
+              className={cn("h-8 rounded-md px-3 text-[13px] transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand motion-reduce:transition-none max-sm:h-11", zoom === z ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>{ZOOM_LABEL[z]}</button>
           ))}
         </div>
         <Button variant="secondary" size="sm" onClick={() => setTodaySignal((n) => n + 1)} data-testid="timeline-today-btn"><IconCalendarDays className="h-3.5 w-3.5" />Today</Button>

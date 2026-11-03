@@ -18,7 +18,7 @@ export function DaysSwitch({ days, onDays }: { days: number; onDays: (d: number)
     <div role="radiogroup" aria-label="Period" className="inline-flex rounded-lg bg-fill p-0.5">
       {STATS_DAYS.map((d) => (
         <button key={d} type="button" role="radio" aria-checked={days === d} onClick={() => onDays(d)}
-          className={cn("h-7 rounded-md px-2.5 text-[12.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-10 max-sm:px-3.5", days === d ? "bg-surface text-fg shadow-[var(--shadow-e1)]" : "text-muted hover:text-fg")}>{d} days</button>
+          className={cn("h-7 rounded-md px-2.5 text-[12.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-11 max-sm:px-3.5", days === d ? "bg-surface text-fg shadow-[var(--shadow-e1)]" : "text-muted hover:text-fg")}>{d} days</button>
       ))}
     </div>
   );

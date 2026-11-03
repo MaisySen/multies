@@ -100,7 +100,7 @@ export function RepeatPlus({ value: saved, due, people, onChange: save }: { valu
           {DAYS.map((d, i) => {
             const on = value?.weekdays?.includes(i) ?? false;
             return <button key={d} type="button" aria-pressed={on} onClick={() => emit({ ...base(), ...value, weekdays: on ? (value?.weekdays ?? []).filter((x) => x !== i) : [...(value?.weekdays ?? []), i].sort() } as Omit<Rule, "text">)}
-              className={cn("min-h-7 rounded-md px-1.5 text-[11.5px] transition-colors duration-150 max-sm:min-h-10 max-sm:px-2.5", on ? "bg-brand text-brand-fg" : "border border-line text-muted hover:text-fg")}>{d}</button>;
+              className={cn("min-h-7 rounded-md px-1.5 text-[11.5px] transition-colors duration-150 max-sm:min-h-11 max-sm:px-2.5", on ? "bg-brand text-brand-fg" : "border border-line text-muted hover:text-fg")}>{d}</button>;
           })}
         </div>
       )}
@@ -140,7 +140,7 @@ export function RepeatPlus({ value: saved, due, people, onChange: save }: { valu
               const key = `member:${p.id}`;
               const pos = rotate.indexOf(key);
               return <button key={key} type="button" aria-pressed={pos >= 0} onClick={() => toggleRotate(key)}
-                className={cn("inline-flex min-h-7 items-center gap-1 rounded-full px-2 text-[12px] transition-colors duration-150 max-sm:min-h-10", pos >= 0 ? "bg-brand/15 text-fg ring-1 ring-brand/40" : "border border-line text-muted hover:text-fg")}>
+                className={cn("inline-flex min-h-7 items-center gap-1 rounded-full px-2 text-[12px] transition-colors duration-150 max-sm:min-h-11", pos >= 0 ? "bg-brand/15 text-fg ring-1 ring-brand/40" : "border border-line text-muted hover:text-fg")}>
                 {pos >= 0 && <span className="grid h-4 w-4 place-items-center rounded-full bg-brand text-[10px] font-semibold text-brand-fg">{pos + 1}</span>}{p.name}
               </button>;
             })}

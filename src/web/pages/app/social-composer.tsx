@@ -693,7 +693,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
                 <Button type="button" variant="outline" size="sm" onClick={() => setAt(localInput(new Date(slots.data!.slots[0]!)))} data-testid="next-slot">
                   <IconCalendarClock className="h-4 w-4" aria-hidden />Next free slot, {whenText(slots.data.slots[0]!)}
                 </Button>
-              ) : slots.data && !slots.data.hasSlots ? <Link to="/app/social?slots=1" className="text-[12.5px] font-medium text-muted underline underline-offset-2 hover:text-fg">Set weekly time slots</Link> : null)}
+              ) : slots.data && !slots.data.hasSlots ? <Link to="/app/social?slots=1" className="text-[12.5px] font-medium text-muted max-sm:inline-flex max-sm:min-h-11 max-sm:items-center underline underline-offset-2 hover:text-fg">Set weekly time slots</Link> : null)}
             </div>
             {later && p3on && <BestTimeChips apps={apps.filter((a) => a !== "tiktok")} onPick={(iso) => setAt(localInput(new Date(iso)))} />}
             {tooSoon && <p className="text-[12.5px] text-warn">Pick a time at least a minute from now.</p>}

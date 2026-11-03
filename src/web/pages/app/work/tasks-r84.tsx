@@ -465,7 +465,7 @@ export function DescriptionEditor({ value, onSave, people }: { value: string; on
         <div role="toolbar" aria-label="Formatting" className="flex flex-wrap items-center gap-0.5 border-b border-line px-1 py-1">
           {TOOLS.map((t) => (
             <button key={t.fmt} type="button" aria-label={t.label} title={t.keys ? `${t.label} (${t.keys})` : t.label} onMouseDown={(e) => e.preventDefault()} onClick={() => run(t.fmt)}
-              className="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-hover hover:text-fg max-sm:h-10 max-sm:w-10">{t.icon}</button>
+              className="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11">{t.icon}</button>
           ))}
           <span className="ml-auto pr-1 text-[11px] text-subtle max-sm:hidden">Esc to finish</span>
         </div>

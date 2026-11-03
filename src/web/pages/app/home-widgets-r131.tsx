@@ -297,7 +297,7 @@ function WidgetCard({ item, editing, index, count, overview, links, onMove, onSi
         )}
         <span className="text-subtle [&_svg]:h-4 [&_svg]:w-4" aria-hidden="true">{ICON[item.id]}</span>
         <h2 id={`hw-${item.id}`} className="min-w-0 flex-1 truncate text-[14px] font-semibold text-fg">{info.title}</h2>
-        {!editing && open ? <Link to={open} className="rounded-md px-1.5 py-1 text-[12.5px] font-medium text-muted hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">Open</Link> : null}
+        {!editing && open ? <Link to={open} className="rounded-md px-1.5 py-1 text-[12.5px] max-sm:-my-2 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center max-sm:px-3 font-medium text-muted hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">Open</Link> : null}
       </header>
       {editing ? (
         <div className="flex min-h-24 flex-col items-center justify-center gap-3 px-4 py-4 text-center" data-testid={`placeholder-${item.id}`}>

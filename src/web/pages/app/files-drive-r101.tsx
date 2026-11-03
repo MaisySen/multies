@@ -285,8 +285,8 @@ export function DrivePage({ attachments, mailOn, docsOn = false }: { attachments
                   <Input value={raw} onChange={(e) => setRaw(e.target.value)} placeholder={`Search ${title.toLowerCase() === title ? title : title.charAt(0).toLowerCase() + title.slice(1)}`} aria-label="Search files" className="h-8 pl-8 text-[13px]" data-testid="drive-search" />
                 </div>
                 <div className="flex rounded-lg border border-line p-0.5" role="group" aria-label="Layout">
-                  <button type="button" aria-pressed={layout === "list"} aria-label="List" onClick={() => setLayout("list")} className={cn("grid h-7 w-7 place-items-center rounded-md max-sm:h-10 max-sm:w-10", layout === "list" ? "bg-fill text-fg" : "text-muted hover:text-fg")}><IconList className="h-4 w-4" /></button>
-                  <button type="button" aria-pressed={layout === "grid"} aria-label="Grid" onClick={() => setLayout("grid")} className={cn("grid h-7 w-7 place-items-center rounded-md max-sm:h-10 max-sm:w-10", layout === "grid" ? "bg-fill text-fg" : "text-muted hover:text-fg")}><IconGrid className="h-4 w-4" /></button>
+                  <button type="button" aria-pressed={layout === "list"} aria-label="List" onClick={() => setLayout("list")} className={cn("grid h-7 w-7 place-items-center rounded-md max-sm:h-11 max-sm:w-11", layout === "list" ? "bg-fill text-fg" : "text-muted hover:text-fg")}><IconList className="h-4 w-4" /></button>
+                  <button type="button" aria-pressed={layout === "grid"} aria-label="Grid" onClick={() => setLayout("grid")} className={cn("grid h-7 w-7 place-items-center rounded-md max-sm:h-11 max-sm:w-11", layout === "grid" ? "bg-fill text-fg" : "text-muted hover:text-fg")}><IconGrid className="h-4 w-4" /></button>
                 </div>
               </div>
             </div>

@@ -51,7 +51,7 @@ export function OtherCalendarsBar({ layer }: { layer: ReturnType<typeof useOther
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2 px-1 text-[12.5px]" data-testid="other-calendars">
       <button type="button" onClick={layer.toggleMeetings} aria-pressed={layer.showMeetings} aria-label={`${layer.showMeetings ? "Hide" : "Show"} meetings`} data-testid="calendar-meetings-toggle"
-        className={cn("inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 transition-colors", layer.showMeetings ? "border-line bg-fill text-fg" : "border-line text-subtle")}>
+        className={cn("inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 transition-colors max-sm:h-11 max-sm:px-3.5", layer.showMeetings ? "border-line bg-fill text-fg" : "border-line text-subtle")}>
         <span className="size-2 rounded-full" style={{ background: layer.showMeetings ? "#0071E3" : "transparent", boxShadow: "inset 0 0 0 1.5px #0071E3" }} aria-hidden />
         Meetings
         {layer.showMeetings ? <IconEye className="size-3.5 text-muted" /> : <IconEyeOff className="size-3.5" />}
@@ -61,14 +61,14 @@ export function OtherCalendarsBar({ layer }: { layer: ReturnType<typeof useOther
         const off = layer.hidden.has(s.id);
         return (
           <button key={s.id} type="button" onClick={() => layer.toggle(s.id)} aria-pressed={!off} aria-label={`${off ? "Show" : "Hide"} ${s.name}`}
-            className={cn("inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 transition-colors", off ? "border-line text-subtle" : "border-line bg-fill text-fg")}>
+            className={cn("inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 transition-colors max-sm:h-11 max-sm:px-3.5", off ? "border-line text-subtle" : "border-line bg-fill text-fg")}>
             <span className="size-2 rounded-full" style={{ background: off ? "transparent" : s.color, boxShadow: `inset 0 0 0 1.5px ${s.color}` }} aria-hidden />
             {s.name}
             {off ? <IconEyeOff className="size-3.5" /> : <IconEye className="size-3.5 text-muted" />}
           </button>
         );
       })}
-      <Link to="/app/settings/calendar#other-calendars" className="inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-brand-hover hover:bg-hover">
+      <Link to="/app/settings/calendar#other-calendars" className="inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-brand-hover hover:bg-hover max-sm:h-11 max-sm:px-3.5">
         <IconCalendarPlus className="size-3.5" />Connect a calendar
       </Link>
       {layer.errors.map((e) => <span key={e.name} className="text-[12px] text-[#C93400]">{e.name}: {e.message}</span>)}

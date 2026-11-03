@@ -208,7 +208,7 @@ function LinkPanel({ l, onClose, base }: { l: ShortLinkInfo; onClose: () => void
       <div role="tablist" aria-label="Link" className="mt-4 inline-flex rounded-lg bg-fill p-0.5">
         {([["details", "Details"], ["qr", "QR code"], ["stats", "Stats"]] as const).map(([k, label]) => (
           <button key={k} role="tab" type="button" aria-selected={view === k} onClick={() => setView(k)} data-testid={`panel-${k}`}
-            className={cn("h-8 rounded-md px-3 text-[13px] font-medium transition-colors max-sm:h-10", ring, view === k ? "bg-surface text-fg shadow-[var(--shadow-e1)]" : "text-muted hover:text-fg")}>{label}</button>
+            className={cn("h-8 rounded-md px-3 text-[13px] font-medium transition-colors max-sm:h-11", ring, view === k ? "bg-surface text-fg shadow-[var(--shadow-e1)]" : "text-muted hover:text-fg")}>{label}</button>
         ))}
       </div>
       <div className="mt-4">

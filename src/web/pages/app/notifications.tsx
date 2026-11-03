@@ -226,7 +226,7 @@ export function NotificationsPage() {
 function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <button type="button" aria-label={label} title={label} onClick={onClick}
-      className="grid h-7 w-7 place-items-center rounded-md text-muted transition-colors duration-150 hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-10 max-sm:w-10 [&_svg]:h-4 [&_svg]:w-4">
+      className="grid h-7 w-7 place-items-center rounded-md text-muted transition-colors duration-150 hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-11 max-sm:w-11 [&_svg]:h-4 [&_svg]:w-4">
       {children}
     </button>
   );

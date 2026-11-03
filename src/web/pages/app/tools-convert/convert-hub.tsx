@@ -568,7 +568,7 @@ export function ConvertHubPage() {
                             <li key={k} className="flex items-center gap-2 text-[12.5px]">
                               <span className="min-w-0 flex-1 truncate" title={f.name}>{f.name}</span>
                               <span className="shrink-0 text-subtle">{sizeLabel(f.size)}</span>
-                              <button type="button" onClick={() => { setSaved(true); saveFile(f, f.name); }} aria-label={`Download ${f.name}`} className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-fg max-sm:h-10 max-sm:w-10 ${ring}`}><IconDownload className="h-3.5 w-3.5" aria-hidden /></button>
+                              <button type="button" onClick={() => { setSaved(true); saveFile(f, f.name); }} aria-label={`Download ${f.name}`} className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 ${ring}`}><IconDownload className="h-3.5 w-3.5" aria-hidden /></button>
                             </li>
                           ))}
                         </ul>
