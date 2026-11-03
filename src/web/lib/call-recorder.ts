@@ -12,7 +12,7 @@ export const AUDIO_BITS = 32_000;
 export const RECORDING_TOPIC = "multies.recording";
 
 /** VID1: video is true when the person recording also saves a video of the call on their own device (absent otherwise). */
-export interface RecordingSignal { on: boolean; by: string; recordingId: string | null; startedAt: string | null; video?: boolean }
+export interface RecordingSignal { on: boolean; by: string; recordingId: string | null; startedAt: string | null; video?: boolean; /** VID2: on, but paused (nothing is recorded until it resumes). */ paused?: boolean }
 
 export function encodeSignal(s: RecordingSignal): Uint8Array<ArrayBuffer> {
   return new Uint8Array(new TextEncoder().encode(JSON.stringify({ v: 1, ...s })));
@@ -21,7 +21,7 @@ export function decodeSignal(bytes: Uint8Array): RecordingSignal | null {
   try {
     const o = JSON.parse(new TextDecoder().decode(bytes)) as Partial<RecordingSignal> & { v?: number };
     if (o.v !== 1 || typeof o.on !== "boolean") return null;
-    return { on: o.on, by: typeof o.by === "string" ? o.by.slice(0, 80) : "Someone", recordingId: typeof o.recordingId === "string" ? o.recordingId : null, startedAt: typeof o.startedAt === "string" ? o.startedAt : null, ...(o.video === true ? { video: true } : {}) };
+    return { on: o.on, by: typeof o.by === "string" ? o.by.slice(0, 80) : "Someone", recordingId: typeof o.recordingId === "string" ? o.recordingId : null, startedAt: typeof o.startedAt === "string" ? o.startedAt : null, ...(o.video === true ? { video: true } : {}), ...(o.paused === true ? { paused: true } : {}) };
   } catch {
     return null;
   }
@@ -98,8 +98,16 @@ export class AudioMixer {
   addTrack(track: MediaStreamTrack) {
     if (track.kind !== "audio" || this.sources.has(track.id)) return;
     const node = this.ctx.createMediaStreamSource(new MediaStream([track]));
-    node.connect(this.dest);
+    if (!this.muted) node.connect(this.dest);
     this.sources.set(track.id, node);
+  }
+
+  /** VID2: while a recording is paused the mix is silent (nothing said then reaches the transcript either). */
+  protected muted = false;
+  setMuted(on: boolean) {
+    if (on === this.muted) return;
+    this.muted = on;
+    for (const n of this.sources.values()) { if (on) n.disconnect(); else n.connect(this.dest); }
   }
 
   removeTrack(track: MediaStreamTrack) {

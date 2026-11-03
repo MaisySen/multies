@@ -5,6 +5,10 @@
  * origin worker, because a hidden tab stops animation frames and slows timers but still delivers worker messages.
  */
 import { CANVAS_H, CANVAS_W, FPS, initials, layoutTiles, type Placement, type TileInput } from "./video-rec-vid1";
+import { FrameMeter, layoutFor, noSpeaker, pickSpeaker, type LayoutMode, type SpeakerPick } from "./video-rec-vid2";
+
+/** VID2: the frame size, frame rate, layout (speaker or gallery, read every frame) and the automatic step down. */
+export interface CompositorOptions { width?: number; height?: number; fps?: number; layout?: () => LayoutMode; onFps?: (fps: number) => void }
 
 export interface SourceTile extends TileInput { track: MediaStreamTrack | null }
 
@@ -52,10 +56,16 @@ export class CallCompositor {
   onFail: ((message: string) => void) | null = null;
   private failed = false;
 
-  constructor(private source: () => SourceTile[]) {
+  private meter: FrameMeter | null = null;
+  private speaker: SpeakerPick = noSpeaker();
+  private fps = FPS;
+
+  constructor(private source: () => SourceTile[], private opts: CompositorOptions = {}) {
     this.canvas = document.createElement("canvas");
-    this.canvas.width = CANVAS_W;
-    this.canvas.height = CANVAS_H;
+    this.canvas.width = opts.width ?? CANVAS_W;
+    this.canvas.height = opts.height ?? CANVAS_H;
+    this.fps = opts.fps ?? FPS;
+    if (opts.layout) this.meter = new FrameMeter(this.fps);
     const g = this.canvas.getContext("2d", { alpha: false });
     if (!g) throw new Error("This browser can't draw the video.");
     this.g = g;
@@ -75,13 +85,13 @@ export class CallCompositor {
     const capture = (this.canvas as HTMLCanvasElement & { captureStream?: (fps?: number) => MediaStream }).captureStream;
     if (typeof capture !== "function") throw new Error("This browser can't record the call as video.");
     this.draw();
-    const track = capture.call(this.canvas, FPS).getVideoTracks()[0];
+    const track = capture.call(this.canvas, this.fps).getVideoTracks()[0];
     if (!track) throw new Error("This browser can't record the call as video.");
     try {
       this.worker = new Worker(new URL("./video-tick-vid1.worker.ts", import.meta.url), { type: "module" });
       this.worker.onmessage = () => this.draw();
       this.worker.onerror = () => this.useTimer();
-      this.worker.postMessage({ fps: FPS });
+      this.worker.postMessage({ fps: this.fps });
     } catch {
       this.useTimer();
     }
@@ -91,7 +101,19 @@ export class CallCompositor {
   private useTimer() {
     this.worker?.terminate();
     this.worker = null;
-    if (!this.timer) this.timer = setInterval(() => this.draw(), Math.round(1000 / FPS));
+    if (!this.timer) this.timer = setInterval(() => this.draw(), Math.round(1000 / this.fps));
+  }
+
+  /** VID2: the frame rate now (after any step down). */
+  get frameRate() { return this.fps; }
+  get dropped() { return this.meter?.dropped ?? 0; }
+
+  /** VID2: a lower frame rate when the device can't keep up; the clock (worker or timer) follows. */
+  private stepDown(fps: number) {
+    this.fps = fps;
+    if (this.worker) this.worker.postMessage({ fps });
+    else if (this.timer) { clearInterval(this.timer); this.timer = setInterval(() => this.draw(), Math.round(1000 / fps)); }
+    this.opts.onFps?.(fps);
   }
 
   /** Keeps one hidden video element per track: new tracks get one, gone tracks lose theirs. */
@@ -116,13 +138,29 @@ export class CallCompositor {
 
   private draw() {
     if (this.failed) return;
+    const t0 = performance.now();
+    try {
+      this.paint();
+    } finally {
+      if (this.meter && !this.failed) { const next = this.meter.tick(t0, performance.now() - t0); if (next) this.stepDown(next); }
+    }
+  }
+
+  private paint() {
     try {
       const tiles = this.source();
       this.sync(tiles);
       const g = this.g;
+      // VID2: the layout is worked out at 1280 x 720 and scaled to the frame (1080p draws the same layout sharper).
+      const scale = this.canvas.width / CANVAS_W;
+      g.setTransform(scale, 0, 0, scale, 0, 0);
       g.fillStyle = BG;
       g.fillRect(0, 0, CANVAS_W, CANVAS_H);
-      const placed = layoutTiles(tiles);
+      let placed: Placement[];
+      if (this.opts.layout) {
+        this.speaker = pickSpeaker(tiles, this.speaker, Date.now());
+        placed = layoutFor(this.opts.layout(), tiles, this.speaker.id);
+      } else placed = layoutTiles(tiles);
       if (!placed.length) {
         g.fillStyle = "rgba(255,255,255,0.7)";
         g.font = `500 22px ${this.font}`;

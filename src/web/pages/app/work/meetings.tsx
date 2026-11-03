@@ -19,6 +19,7 @@ import { Logo } from "@/web/components/logo";
 import { MeetingNotes } from "./meeting-notes";
 import { MeetingSuggestions } from "./meeting-suggest-td3"; // TD3
 import { RecordingLayer, RecordingSection } from "./meeting-recording";
+import { RecoverRecording } from "./video-vid2-ui"; // VID2
 import { useJoinFromDock } from "./call-r23";
 import { CallRoomExtras } from "./call-dock-r23";
 import { PreJoin, type JoinPrefs } from "./prejoin-r31";
@@ -116,7 +117,7 @@ function Room({ join, onLeave, prefs, member, guestToken, title }: { join: Join;
     <div className={cn("space-y-2", member && "max-md:fixed max-md:inset-x-0 max-md:bottom-[var(--tabbar-h,0px)] max-md:top-[calc(3rem+env(safe-area-inset-top))] max-md:z-20 max-md:flex max-md:flex-col max-md:space-y-0 max-md:bg-bg")} data-testid="call-screen">
       <div className={cn("flex items-center justify-end", member && "max-md:min-h-[52px] max-md:justify-between max-md:gap-2 max-md:pl-4 max-md:pr-2")}>
         {member && title && <h2 className="min-w-0 truncate text-[16px] font-semibold tracking-[-0.01em] md:hidden">{title}</h2>}
-        <CallToolbar tab={panel.tab} setTab={panel.setTab} member={member} />
+        <div className="flex min-w-0 items-center gap-2"><span data-rec-slot="" className="contents" /><CallToolbar tab={panel.tab} setTab={panel.setTab} member={member} /></div>
       </div>
       <div className={cn("flex flex-col gap-3 md:flex-row", member && "max-md:relative max-md:min-h-0 max-md:flex-1 max-md:gap-0")}>
         <div data-lk-theme="default" className={cn("relative h-[calc(100dvh-220px)] min-h-[420px] min-w-0 flex-1 overflow-hidden rounded-xl border border-line", member && "max-md:h-auto max-md:min-h-0 max-md:rounded-none max-md:border-x-0 max-md:border-b-0")} data-testid="meeting-room">
@@ -245,7 +246,8 @@ export function MeetingPage() {
   const [join, setJoin] = useState<Join | null>(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
-  const meetTd3 = !!useConfig().data?.meetTd3; // TD3: meetings to tasks
+  const cfg = useConfig().data;
+  const meetTd3 = !!cfg?.meetTd3; // TD3: meetings to tasks
   // Round 31: Join now opens the pre-join screen; its choices carry into the call.
   // R40 (MB-207): Start now opens the meeting with ?join=1, straight to the camera and name check.
   const [prejoin, setPrejoin] = useState(() => new URLSearchParams(window.location.search).get("join") === "1");
@@ -298,7 +300,8 @@ export function MeetingPage() {
           </div>
         </Card>
       )}
-      <RecordingSection meetingId={m.id} />
+      {cfg?.videoRecVid2 && (me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin") && <RecoverRecording meetingId={m.id} className="mb-4" />}
+      <RecordingSection meetingId={m.id} title={m.title} />
       <div className="mt-4 flex flex-wrap gap-2">
         <Button size="sm" variant="secondary" onClick={() => setEditing(true)}><IconEdit className="h-4 w-4" />{m.recurrence ? "Edit series" : "Edit"}</Button>
         <a href={`/api/meetings/${m.id}/ics`} download className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium text-muted hover:bg-hover hover:text-fg"><IconDownload className="h-4 w-4" />Calendar file</a>

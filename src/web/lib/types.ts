@@ -53,6 +53,8 @@ export interface PublicConfig {
   portalTd9?: boolean;
   /** VID1: owners and admins can save a video of the whole call on their own device. */
   videoRecVid1?: boolean;
+  /** VID2: pause and resume, speaker or gallery view, crash safe pieces, chat and transcript saved next to the video. */
+  videoRecVid2?: boolean;
   /** R128: team password vault (VAULT_R128). */
   vaultR128?: boolean;
   /** R94: CRM timeline (notes are searchable with R98). */

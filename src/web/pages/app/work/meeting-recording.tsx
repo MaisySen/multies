@@ -8,9 +8,10 @@
 import { LoadErrorInline } from "@/web/components/load-error-t1g"; // POL1
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRoomContext } from "@livekit/components-react";
+import { useChat, useRoomContext } from "@livekit/components-react";
+import { createPortal } from "react-dom";
 import { RoomEvent, Track, type RemoteTrack } from "livekit-client";
-import { IconChecklist, IconCircle, IconDocs, IconDownload, IconKey, IconMic, IconSquare, IconTrash, IconVideo } from "@/web/components/ui/icon";
+import { IconChecklist, IconCircle, IconDocs, IconDownload, IconKey, IconMic, IconPause, IconPlay, IconSquare, IconTrash, IconVideo } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { useConfig, useMe } from "@/web/lib/queries";
@@ -23,8 +24,10 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Badge, Card } from "@/web/components/ui/misc";
 import { blobToBase64, CallRecorder, decodeSignal, encodeSignal, RECORDING_TOPIC, UploadQueue, type Chunk, type RecordingSignal } from "@/web/lib/call-recorder";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
-import { useVideoRecording, VideoRecordDialog, VIDEO_CONSENT_OTHERS, VIDEO_CONSENT_SELF } from "./video-record-vid1"; // VID1
-import type { Writable } from "@/web/lib/video-rec-vid1"; // VID1
+import { saveText, useVideoRecording, VideoRecordDialog, VIDEO_CONSENT_OTHERS, VIDEO_CONSENT_SELF } from "./video-record-vid1"; // VID1
+import { canOffer1080, chatLog, QUALITIES, sideName, transcriptText, type LayoutMode, type QualityId } from "@/web/lib/video-rec-vid2"; // VID2
+import { ChoiceGroup, PAUSED_NOTE, RecoverRecording } from "./video-vid2-ui"; // VID2
+import { videoFileName, type Writable } from "@/web/lib/video-rec-vid1"; // VID1
 
 export interface ActionItem { text: string; assignee: string | null; due: string | null }
 export interface Recording {
@@ -82,6 +85,18 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
   const role = me.data?.organization?.role;
   const vid1 = !!config.data?.videoRecVid1; // VID1 on: the Stop control is solid red so it reads over any video
   const videoAllowed = vid1 && !!me.data?.user && (role === "owner" || role === "admin");
+  // VID2 (VIDEO_REC_VID2): pause and resume, speaker or gallery view, quality, crash safe pieces, chat and transcript files.
+  const vid2 = vid1 && !!config.data?.videoRecVid2;
+  const [layout, setLayoutState] = useState<LayoutMode>("speaker");
+  const layoutRef = useRef<LayoutMode>("speaker");
+  const setLayout = useCallback((l: LayoutMode) => { layoutRef.current = l; setLayoutState(l); }, []);
+  const [quality, setQuality] = useState<QualityId>("hd720");
+  const hd = typeof navigator !== "undefined" && canOffer1080(navigator.hardwareConcurrency, (navigator as Navigator & { deviceMemory?: number }).deviceMemory);
+  const { chatMessages } = useChat();
+  const chatRef = useRef(chatMessages);
+  chatRef.current = chatMessages;
+  const recStart = useRef(0);
+  const transcriptWanted = useRef<string | null>(null);
   const video = useVideoRecording(room);
   const { active: videoActive, mixer: videoMixer } = video;
   const [videoOpen, setVideoOpen] = useState(false);
@@ -195,8 +210,20 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
   /** VID1: the dialog's Start. The transcript runs too when the AI key is set; the video starts either way. */
   const startWithVideo = async (writable: Writable | null, fileName: string, mime: string) => {
     const audio = setup?.ready ? await startAudio({ quiet: true }) : null;
+    recStart.current = Date.now();
+    transcriptWanted.current = vid2 && audio ? fileName : null;
+    const startedWhen = new Date().toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+    const vid2Args = vid2 ? {
+      quality: QUALITIES[quality === "hd1080" && hd ? "hd1080" : "hd720"], layout: () => layoutRef.current, meetingId, title: title ?? "",
+      // The call's chat while it recorded, saved next to the video with the same name.
+      sideFiles: (name: string) => {
+        const since = recStart.current;
+        const lines = chatRef.current.filter((c) => c.timestamp >= since - 1000).map((c) => ({ at: c.timestamp, from: c.from?.name || c.from?.identity || "Someone", text: c.message }));
+        return [{ name: sideName(name, "chat"), text: chatLog(title ?? "", since, lines, startedWhen) }];
+      },
+    } : undefined;
     try {
-      await video.start({ writable, fileName, mime, audio: audio ? recorder.current?.stream ?? null : null, transcript: !!audio });
+      await video.start({ writable, fileName, mime, audio: audio ? recorder.current?.stream ?? null : null, transcript: !!audio, vid2: vid2Args });
     } catch (e) {
       // The video could not start: the transcript (if it started) keeps going and says so on the banner.
       if (audio) announce({ on: true, by: myName, recordingId: audio.id, startedAt: audio.startedAt });
@@ -204,6 +231,33 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
     }
     setVideoOpen(false);
     announce({ on: true, by: myName, recordingId: audio?.id ?? null, startedAt: audio?.startedAt ?? new Date().toISOString(), video: true });
+  };
+
+  /** VID2: the transcript saved next to the video once the server has it (it may take a minute after Stop). */
+  const saveTranscript = async (id: string, first: Recording, fileName: string) => {
+    const when = new Date(first.startedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+    let r: Recording | undefined = first;
+    for (let i = 0; i < 24 && r && !r.transcript && (r.status === "processing" || r.status === "recording"); i++) {
+      await new Promise((res) => setTimeout(res, 5000));
+      try { r = (await api.get<RecordingList>(`/meetings/${meetingId}/recordings`)).recordings.find((x) => x.id === id); } catch { /* try again */ }
+    }
+    if (r?.transcript) saveText(sideName(fileName, "transcript"), transcriptText(title ?? "", when, r.transcript));
+    else toast("The transcript isn't ready yet", { description: "It shows under Recording and transcript on the meeting page when it is, with Save transcript." });
+  };
+
+  /** VID2: pause and resume; everyone's banner and tile dots follow. The transcript hears nothing while paused. */
+  const pauseOrResume = () => {
+    const cur = mySignal.current;
+    if (!cur) return;
+    if (video.paused) {
+      if (!video.resume()) return;
+      recorder.current?.setMuted(false);
+      announce({ ...cur, paused: false });
+    } else {
+      if (!video.pause()) { toast.error("This browser can't pause a recording. Stop and start a new one instead."); return; }
+      recorder.current?.setMuted(true);
+      announce({ ...cur, paused: true });
+    }
   };
 
   const stopAudio = async (cur: { id: string; startedAt: string }) => {
@@ -215,6 +269,8 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
       await queue.current?.flush();
       if (whole) setDownload(URL.createObjectURL(whole));
       const r = await api.post<{ recording: Recording; posted: { type: string } | null }>(`/meetings/${meetingId}/recordings/${cur.id}/stop`, { durationSec });
+      if (transcriptWanted.current) void saveTranscript(cur.id, r.recording, transcriptWanted.current);
+      transcriptWanted.current = null;
       toast.success(r.recording.status === "done" && r.posted ? (r.posted.type === "chat" ? "Summary posted to the chat" : "Summary sent to the attendees") : "Recording stopped");
       if (queue.current?.failed) toast.error(`Part of the audio didn't transcribe: ${queue.current.failed.message}`);
     } catch (e) { showError(e as Error); } finally { setMine(null); }
@@ -243,18 +299,40 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
   }, [videoActive, mine, myName, announce, broadcast]);
 
   const shown = video.active ? video.elapsed : elapsed;
+  // VID2: a dot on every tile and a pill in the call's header for everyone while it records (grey while paused).
+  const layerRef = useRef<HTMLDivElement>(null);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  const recState = signal ? (signal.paused ? "paused" : "on") : null;
+  useEffect(() => {
+    if (!vid2) return;
+    const screen = layerRef.current?.closest<HTMLElement>("[data-testid=call-screen]") ?? null;
+    setSlot(screen?.querySelector<HTMLElement>("[data-rec-slot]") ?? null);
+    if (!screen) return;
+    if (recState) screen.dataset.rec = recState; else delete screen.dataset.rec;
+    return () => { delete screen.dataset.rec; };
+  }, [vid2, recState]);
   return (
-    <div style={{ position: "relative", height: 0, zIndex: 20 }}>
+    <div ref={layerRef} style={{ position: "relative", height: 0, zIndex: 20 }}>
+      {vid2 && slot && recState && createPortal(
+        <span className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold leading-none text-white", recState === "paused" ? "bg-[#3a3a3c]" : "bg-[#d70015]")} data-testid="rec-header-pill">
+          {recState === "paused" ? <IconPause className="h-3 w-3" aria-hidden /> : <IconCircle filled className="h-2 w-2" aria-hidden />}
+          {recState === "paused" ? "Paused" : "Rec"}<span className="sr-only">{recState === "paused" ? ", recording paused" : ", this call is being recorded"}</span>
+        </span>, slot)}
       <div className="pointer-events-none absolute inset-x-0 top-2 flex flex-col items-center gap-2 px-3" data-testid="recording-layer">
         {signal && (
-          <div role="status" className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-[#d70015] px-3 py-1.5 text-[12.5px] font-medium text-white shadow-lg" data-testid="recording-banner" data-video={signal.video ? "1" : undefined}>
-            <IconCircle filled className="h-2.5 w-2.5 shrink-0 animate-pulse" />
-            <span className="shrink-0">{signal.video ? "Recording video" : "Recording"}</span>
+          <div role="status" className={cn("pointer-events-auto flex max-w-full items-center gap-2 rounded-full px-3 py-1.5 text-[12.5px] font-medium text-white shadow-lg", signal.paused ? "bg-[#3a3a3c]" : "bg-[#d70015]")} data-testid="recording-banner" data-video={signal.video ? "1" : undefined} data-paused={signal.paused ? "1" : undefined}>
+            {signal.paused ? <IconPause className="h-3 w-3 shrink-0" aria-hidden /> : <IconCircle filled className="h-2.5 w-2.5 shrink-0 animate-pulse" />}
+            <span className="shrink-0">{signal.paused ? "Recording paused" : signal.video ? "Recording video" : "Recording"}</span>
             <span className={cn("min-w-0 truncate font-normal", vid1 ? "text-white" : "text-white/85")}>started by {recordingMine ? "you" : signal.by}{recordingMine ? ` · ${Math.floor(shown / 60)}:${String(shown % 60).padStart(2, "0")}` : ""}</span>
           </div>
         )}
         {meetingId && (
           <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2">
+            {vid2 && video.active && (
+              <Button size="sm" variant="secondary" onClick={pauseOrResume} className="shadow-lg" data-testid={video.paused ? "record-resume" : "record-pause"}>
+                {video.paused ? <IconPlay className="h-3.5 w-3.5" aria-hidden /> : <IconPause className="h-3.5 w-3.5" aria-hidden />}{video.paused ? "Resume" : "Pause"}
+              </Button>
+            )}
             {recordingMine
               ? <Button size="sm" variant="danger" loading={busy} onClick={() => void stop()} className={vid1 ? "bg-[#d70015]! text-white! shadow-lg hover:bg-[#b80012]!" : undefined} data-testid="record-stop"><IconSquare filled className="h-3.5 w-3.5" />Stop recording</Button>
               : !signal && <Button size="sm" variant="secondary" loading={busy} onClick={() => (videoAllowed ? setVideoOpen(true) : void start())} data-testid="record-start">{videoAllowed ? <IconVideo className="h-3.5 w-3.5" /> : <IconMic className="h-3.5 w-3.5" />}Record</Button>}
@@ -262,14 +340,22 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
             {video.saved && !recordingMine && <a href={video.saved.url} download={video.saved.name} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/90 px-3 text-[13px] font-medium text-fg shadow" data-testid="video-save-again"><IconDownload className="h-4 w-4" />Save video</a>}
           </div>
         )}
-        {recordingMine && <p className="max-w-full rounded-md bg-black/60 px-2 py-1 text-center text-[12px] text-white" data-testid="record-consent">{video.active ? VIDEO_CONSENT_SELF : CONSENT_TEXT}</p>}
+        {vid2 && video.active && (
+          <div className="pointer-events-auto max-w-full">
+            <ChoiceGroup label="Recording layout" compact onDark value={layout} onChange={setLayout} testid="rec-layout"
+              options={[{ value: "speaker", label: "Speaker" }, { value: "gallery", label: "Gallery" }]} />
+          </div>
+        )}
+        {recordingMine && <p className="max-w-full rounded-md bg-black/60 px-2 py-1 text-center text-[12px] text-white" data-testid="record-consent">{video.paused ? PAUSED_NOTE : video.active ? VIDEO_CONSENT_SELF : CONSENT_TEXT}</p>}
+        {vid2 && videoAllowed && !recordingMine && <div className="pointer-events-auto w-full max-w-xl"><RecoverRecording meetingId={meetingId} onDark /></div>}
       </div>
       <Dialog open={setupOpen} onClose={() => setSetupOpen(false)} title="Record and transcribe">
         <RecordSetupPrompt setup={setup} compact />
       </Dialog>
       {videoAllowed && meetingId && (
         <VideoRecordDialog open={videoOpen} onClose={() => setVideoOpen(false)} meetingId={meetingId} title={title} transcriptReady={!!setup?.ready}
-          canAudioOnly={!!setup?.ready} onAudioOnly={() => { setVideoOpen(false); void start(); }} onStart={startWithVideo} />
+          canAudioOnly={!!setup?.ready} onAudioOnly={() => { setVideoOpen(false); void start(); }} onStart={startWithVideo}
+          vid2={vid2 ? { layout, setLayout, quality, setQuality, hd } : undefined} />
       )}
     </div>
   );
@@ -278,7 +364,8 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
 // ---------------------------------------------------------------- on the meeting page
 
 /** "Recording and transcript": every recording of the meeting with its summary and transcript. */
-export function RecordingSection({ meetingId }: { meetingId: string }) {
+export function RecordingSection({ meetingId, title }: { meetingId: string; title?: string }) {
+  const vid2Save = !!useConfig().data?.videoRecVid2; // VID2: Save transcript next to the video
   const { confirm, dialogs } = useDialogs();
   const qc = useQueryClient();
   const key = ["meeting-recordings", meetingId];
@@ -335,6 +422,9 @@ export function RecordingSection({ meetingId }: { meetingId: string }) {
                   <details className="mt-3 text-[13px]" data-testid="recording-transcript">
                     <summary className="cursor-pointer select-none font-medium text-brand-hover">Transcript</summary>
                     <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-fill p-3 font-sans text-[13px] leading-relaxed">{r.transcript}</pre>
+                    {vid2Save && <Button size="sm" variant="secondary" className="mt-2" data-testid="recording-transcript-save"
+                      onClick={() => saveText(sideName(videoFileName(title ?? "", new Date(r.startedAt), "webm"), "transcript"), transcriptText(title ?? "", new Date(r.startedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }), r.transcript))}>
+                      <IconDownload className="h-4 w-4" aria-hidden />Save transcript</Button>}
                   </details>
                 )}
               </li>

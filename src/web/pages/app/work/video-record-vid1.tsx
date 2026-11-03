@@ -13,6 +13,8 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { IconFolder, IconVideo, IconWarning } from "@/web/components/ui/icon";
 import { pickVideoType, sizeText, videoFileName, type Saved, type VideoEvent, type Writable } from "@/web/lib/video-rec-vid1";
 import type { VideoSession } from "@/web/lib/video-session-vid1";
+import type { LayoutMode, PieceStore, Quality, QualityId } from "@/web/lib/video-rec-vid2";
+import { RecordSettings } from "./video-vid2-ui";
 
 export const VIDEO_INTRO = "A video of the whole call is saved to this device when you stop. Nothing is uploaded.";
 export const VIDEO_TRANSCRIPT_ON = "A transcript and summary are made too, as with every recording.";
@@ -35,7 +37,7 @@ export function videoSupport() {
   return { type, file: !!picker() && typeof window !== "undefined" && window.isSecureContext };
 }
 
-function download(url: string, name: string) {
+export function download(url: string, name: string) {
   const a = document.createElement("a");
   a.href = url;
   a.download = name;
@@ -46,13 +48,25 @@ function download(url: string, name: string) {
   a.remove();
 }
 
-export interface VideoStartArgs { writable: Writable | null; fileName: string; mime: string; audio: MediaStream | null; transcript: boolean }
+export interface VideoStartArgs { writable: Writable | null; fileName: string; mime: string; audio: MediaStream | null; transcript: boolean;
+  /** VID2: quality, the layout (read every frame), the meeting for recovery, and the side files written at the end. */
+  vid2?: { quality: Quality; layout: () => LayoutMode; meetingId: string | null; title: string; sideFiles: (fileName: string) => { name: string; text: string }[] } }
+
+/** VID2: a text file saved next to the video (chat log, transcript). */
+export function saveText(name: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+  download(url, name);
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
 
 /** One video recording in this room: start, stop and save, the size warning, errors, leaving the page. */
 export function useVideoRecording(room: Room) {
   const session = useRef<VideoSession | null>(null);
-  const meta = useRef<{ fileName: string; file: boolean; transcript: boolean } | null>(null);
+  const meta = useRef<{ fileName: string; file: boolean; transcript: boolean; vid2?: VideoStartArgs["vid2"] } | null>(null);
+  const keep = useRef<PieceStore | null>(null);
   const [active, setActive] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [fps, setFps] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [saved, setSaved] = useState<{ url: string; name: string } | null>(null);
   const stopRef = useRef<() => Promise<Saved | null>>(async () => null);
@@ -63,23 +77,34 @@ export function useVideoRecording(room: Room) {
     if (!s || !m) return null;
     session.current = null;
     let out: Saved | null = null;
+    // VID2: saving is never silent: the size so far while the last pieces are written.
+    if (m.vid2) toast.loading(`Saving the video, ${sizeText(s.recording.bytes || 1)}`, { id: "video-saving", description: m.fileName });
     try {
       out = await s.stop();
     } catch (e) {
       showError(e as Error);
     }
     setActive(false);
+    setPaused(false);
     toast.dismiss("video-size");
+    if (m.vid2) toast.dismiss("video-saving");
     if (out?.kind === "memory" && out.blob && out.blob.size) {
       const url = URL.createObjectURL(out.blob);
       setSaved((old) => { if (old) URL.revokeObjectURL(old.url); return { url, name: m.fileName }; });
       download(url, m.fileName);
-      if (out.reason !== "error") toast.success("Video saved", { description: m.fileName });
+      if (out.reason !== "error") toast.success(m.vid2 ? `Video saved, ${sizeText(out.blob.size)}` : "Video saved", { description: m.fileName });
     } else if (out?.kind === "file" && out.bytes > 0) {
-      if (out.reason !== "error") toast.success("Video saved", { description: `Saved to ${m.fileName}` });
+      if (out.reason !== "error") toast.success(m.vid2 ? `Video saved, ${sizeText(out.bytes)}` : "Video saved", { description: `Saved to ${m.fileName}` });
     } else if (out && out.reason !== "error") {
       toast.error("The video was empty, so nothing was saved.");
     }
+    // VID2: the chat (and anything else asked for) saved next to the video, then the pieces on the device go.
+    const savedOk = !!out && ((out.kind === "memory" && !!out.blob?.size) || (out.kind === "file" && out.bytes > 0));
+    if (m.vid2 && savedOk) {
+      for (const f of m.vid2.sideFiles(m.fileName)) saveText(f.name, f.text);
+      await keep.current?.finish().catch(() => undefined);
+    }
+    keep.current = null;
     return out;
   }, []);
   stopRef.current = finish;
@@ -104,9 +129,27 @@ export function useVideoRecording(room: Room) {
 
   const start = useCallback(async (a: VideoStartArgs) => {
     const { startVideoSession } = await import("@/web/lib/video-session-vid1");
-    meta.current = { fileName: a.fileName, file: !!a.writable, transcript: a.transcript };
-    session.current = await startVideoSession({ room, audio: a.audio, mime: a.mime, writable: a.writable, onEvent });
+    meta.current = { fileName: a.fileName, file: !!a.writable, transcript: a.transcript, vid2: a.vid2 };
+    let draw: Parameters<typeof startVideoSession>[0]["draw"];
+    if (a.vid2) {
+      // VID2: every piece is kept on this device as it comes, so a crash or a closed tab loses nothing.
+      const [{ PieceStore }, { idbBackend, keepStorage }] = await Promise.all([import("@/web/lib/video-rec-vid2"), import("@/web/lib/video-store-vid2")]);
+      void keepStorage();
+      keep.current = new PieceStore(idbBackend, { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, meetingId: a.vid2.meetingId, title: a.vid2.title, fileName: a.fileName, mime: a.mime, startedAt: Date.now() });
+      await keep.current.begin();
+      const q = a.vid2.quality;
+      draw = { width: q.w, height: q.h, fps: q.fps, layout: a.vid2.layout, onFps: (f) => setFps(f) };
+      setFps(q.fps);
+    }
+    try {
+      session.current = await startVideoSession({ room, audio: a.audio, mime: a.mime, writable: a.writable, onEvent, draw, videoBits: a.vid2?.quality.videoBits, keep: keep.current ?? undefined });
+    } catch (e) {
+      await keep.current?.finish().catch(() => undefined);
+      keep.current = null;
+      throw e;
+    }
     setElapsed(0);
+    setPaused(false);
     setActive(true);
   }, [room, onEvent]);
 
@@ -136,13 +179,27 @@ export function useVideoRecording(room: Room) {
   }, []);
   const mixer = useCallback(() => session.current?.mixer ?? null, []);
 
-  return { active, elapsed, saved, start, stop: finish, mixer };
+  /** VID2: pause and resume. Answers whether it took (false when this browser can't pause a recording). */
+  const pause = useCallback(() => {
+    const ok = !!session.current?.recording.pause();
+    if (ok) { setPaused(true); setElapsed(session.current?.recording.elapsedSec ?? 0); }
+    return ok;
+  }, []);
+  const resume = useCallback(() => {
+    const ok = !!session.current?.recording.resume();
+    if (ok) setPaused(false);
+    return ok;
+  }, []);
+
+  return { active, elapsed, saved, start, stop: finish, mixer, paused, pause, resume, fps };
 }
 
 /** The "Record this call" dialog: what is saved where, whether a transcript comes too, then start. */
-export function VideoRecordDialog({ open, onClose, meetingId, title, transcriptReady, canAudioOnly, onAudioOnly, onStart }: {
+export function VideoRecordDialog({ open, onClose, meetingId, title, transcriptReady, canAudioOnly, onAudioOnly, onStart, vid2 }: {
   open: boolean; onClose: () => void; meetingId: string; title?: string; transcriptReady: boolean; canAudioOnly: boolean;
   onAudioOnly: () => void; onStart: (writable: Writable | null, fileName: string, mime: string) => Promise<void>;
+  /** VID2: layout and quality picked before starting (the layout can change again while recording). */
+  vid2?: { layout: LayoutMode; setLayout: (l: LayoutMode) => void; quality: QualityId; setQuality: (q: QualityId) => void; hd: boolean };
 }) {
   const [permit, setPermit] = useState<{ ok: boolean; title: string | null; error: string | null } | null>(null);
   const [busy, setBusy] = useState<"file" | "memory" | null>(null);
@@ -217,6 +274,7 @@ export function VideoRecordDialog({ open, onClose, meetingId, title, transcriptR
             <p className="text-fg">{VIDEO_INTRO}</p>
             <p className={transcriptReady ? "text-muted" : "text-fg"} data-testid="video-rec-transcript">{transcriptReady ? VIDEO_TRANSCRIPT_ON : VIDEO_TRANSCRIPT_OFF}</p>
             <p className="text-muted">{VIDEO_BANNER_NOTE}</p>
+            {vid2 && <RecordSettings {...vid2} />}
             <p className="rounded-lg border border-line px-3 py-2 text-muted" data-testid="video-rec-where">{support.current.file ? VIDEO_FILE_HINT : VIDEO_MEMORY_HINT}</p>
           </>
         )}

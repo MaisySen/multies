@@ -210,6 +210,9 @@ export interface RecorderLike {
   onerror: ((e: unknown) => void) | null;
   start(timeslice?: number): void;
   stop(): void;
+  /** VID2: pause and resume (paused time is left out of the file). */
+  pause?(): void;
+  resume?(): void;
   addEventListener(type: "stop", fn: () => void, opts?: { once?: boolean }): void;
 }
 export type RecorderCtor = new (stream: MediaStream, opts: { mimeType?: string; videoBitsPerSecond?: number; audioBitsPerSecond?: number }) => RecorderLike;
@@ -237,19 +240,49 @@ export class VideoRecording {
   private error: string | null = null;
   private stopped: Promise<Saved> | null = null;
   startedAt = 0;
+  /** VID2: when the current pause began (0 = not paused) and the paused time so far. */
+  private pausedAt = 0;
+  private pausedMs = 0;
 
-  constructor(private o: { stream: MediaStream; mime: string; sink: Sink; Recorder: RecorderCtor; onEvent?: (e: VideoEvent) => void; now?: () => number; warnBytes?: number; hardBytes?: number }) {}
+  constructor(private o: { stream: MediaStream; mime: string; sink: Sink; Recorder: RecorderCtor; onEvent?: (e: VideoEvent) => void; now?: () => number; warnBytes?: number; hardBytes?: number;
+    /** VID2: bits per second for the video (VIDEO_BITS when absent). */
+    videoBits?: number;
+    /** VID2: every piece is also kept on this device as it comes, so a crash loses nothing. */
+    keep?: { put(b: Blob): Promise<void> } }) {}
 
   get sink() { return this.o.sink; }
   get bytes() { return this.o.sink.bytes; }
-  get elapsedSec() { return this.startedAt ? Math.max(0, Math.round(((this.o.now ?? Date.now)() - this.startedAt) / 1000)) : 0; }
+  get paused() { return this.pausedAt > 0; }
+  get elapsedSec() {
+    if (!this.startedAt) return 0;
+    const now = this.pausedAt || (this.o.now ?? Date.now)();
+    return Math.max(0, Math.round((now - this.startedAt - this.pausedMs) / 1000));
+  }
+
+  /** VID2: pauses the recorder; nothing is recorded until resume. Answers false when this browser can't pause. */
+  pause(): boolean {
+    const r = this.recorder;
+    if (this.state !== "recording" || this.pausedAt || !r?.pause || r.state !== "recording") return false;
+    try { r.pause(); } catch { return false; }
+    this.pausedAt = (this.o.now ?? Date.now)();
+    return true;
+  }
+
+  resume(): boolean {
+    const r = this.recorder;
+    if (this.state !== "recording" || !this.pausedAt || !r?.resume) return false;
+    try { r.resume(); } catch { return false; }
+    this.pausedMs += (this.o.now ?? Date.now)() - this.pausedAt;
+    this.pausedAt = 0;
+    return true;
+  }
 
   private set(state: VideoState) { this.state = state; this.o.onEvent?.({ type: "state", state }); }
 
   start() {
     if (this.state !== "idle") throw new Error("This recording already started.");
     try {
-      const r = new this.o.Recorder(this.o.stream, { mimeType: this.o.mime || undefined, videoBitsPerSecond: VIDEO_BITS, audioBitsPerSecond: VIDEO_AUDIO_BITS });
+      const r = new this.o.Recorder(this.o.stream, { mimeType: this.o.mime || undefined, videoBitsPerSecond: this.o.videoBits ?? VIDEO_BITS, audioBitsPerSecond: VIDEO_AUDIO_BITS });
       r.ondataavailable = (e) => { if (e.data && e.data.size) this.pending = this.pending.then(() => this.take(e.data)); };
       r.onerror = (e) => { void this.fail(errText(e)); };
       r.start(TIMESLICE_MS);
@@ -266,6 +299,7 @@ export class VideoRecording {
 
   private async take(b: Blob) {
     if (this.writeFailed) return;
+    void this.o.keep?.put(b);
     try {
       await this.o.sink.write(b);
     } catch (e) {
@@ -299,6 +333,7 @@ export class VideoRecording {
     this.stopped = (async () => {
       if (this.state === "idle" || this.state === "failed") return { blob: null, bytes: 0, kind: this.o.sink.kind, reason: this.reason, error: this.error };
       this.set("stopping");
+      if (this.pausedAt) { this.pausedMs += (this.o.now ?? Date.now)() - this.pausedAt; this.pausedAt = 0; }
       const r = this.recorder;
       if (r && r.state !== "inactive") {
         await new Promise<void>((res) => {

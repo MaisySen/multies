@@ -531,3 +531,7 @@ a.ref-chip:focus-visible { outline: 2px solid var(--color-brand); outline-offset
 .td7-brand[data-brand-font="mono"] { font-family: var(--font-mono); }
 .td7-brand[data-brand-font="sans"] { font-family: var(--font-sans); }
 .td7-bar[data-w="0"] { width: 0%; } .td7-bar[data-w="5"] { width: 5%; } .td7-bar[data-w="10"] { width: 10%; } .td7-bar[data-w="15"] { width: 15%; } .td7-bar[data-w="20"] { width: 20%; } .td7-bar[data-w="25"] { width: 25%; } .td7-bar[data-w="30"] { width: 30%; } .td7-bar[data-w="35"] { width: 35%; } .td7-bar[data-w="40"] { width: 40%; } .td7-bar[data-w="45"] { width: 45%; } .td7-bar[data-w="50"] { width: 50%; } .td7-bar[data-w="55"] { width: 55%; } .td7-bar[data-w="60"] { width: 60%; } .td7-bar[data-w="65"] { width: 65%; } .td7-bar[data-w="70"] { width: 70%; } .td7-bar[data-w="75"] { width: 75%; } .td7-bar[data-w="80"] { width: 80%; } .td7-bar[data-w="85"] { width: 85%; } .td7-bar[data-w="90"] { width: 90%; } .td7-bar[data-w="95"] { width: 95%; } .td7-bar[data-w="100"] { width: 100%; }
+
+/* VID2: while a call records, a red dot on every tile for everyone (grey while paused). */
+[data-testid=call-screen][data-rec] .lk-participant-tile::after { content: ""; position: absolute; top: 0.5rem; right: 0.5rem; z-index: 6; width: 0.625rem; height: 0.625rem; border-radius: 9999px; background: #ff3b30; box-shadow: 0 0 0 2px rgb(0 0 0 / 0.55); pointer-events: none; }
+[data-testid=call-screen][data-rec=paused] .lk-participant-tile::after { background: #c7c7cc; }

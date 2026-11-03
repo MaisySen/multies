@@ -5,7 +5,7 @@
  */
 import { Track, type Participant, type Room } from "livekit-client";
 import { AudioMixer } from "./call-recorder";
-import { CallCompositor, type SourceTile } from "./video-compositor-vid1";
+import { CallCompositor, type CompositorOptions, type SourceTile } from "./video-compositor-vid1";
 import { FileSink, MemorySink, VideoRecording, type RecorderCtor, type Saved, type Sink, type VideoEvent, type Writable } from "./video-rec-vid1";
 
 /** Every camera and screen share in the room, local person first, in join order. */
@@ -38,6 +38,8 @@ export interface VideoSession {
   /** The stand alone mix when no transcript recorder runs (tracks are added to it as people join). */
   mixer: AudioMixer | null;
   stop(): Promise<Saved>;
+  /** VID2: the frame rate the drawing runs at now (it steps down on a slow device). */
+  frameRate(): number;
 }
 
 export async function startVideoSession(o: {
@@ -48,6 +50,10 @@ export async function startVideoSession(o: {
   /** The file the person chose (written as the call goes); memory when absent. */
   writable: Writable | null;
   onEvent: (e: VideoEvent) => void;
+  /** VID2: frame size, frame rate, layout and step down; video bits per second; pieces kept on the device. */
+  draw?: CompositorOptions;
+  videoBits?: number;
+  keep?: { put(b: Blob): Promise<void> };
 }): Promise<VideoSession> {
   const Recorder = (globalThis as { MediaRecorder?: RecorderCtor }).MediaRecorder;
   if (!Recorder) throw new Error("This browser can't record video.");
@@ -59,12 +65,12 @@ export async function startVideoSession(o: {
       for (const t of roomAudio(o.room)) mixer.addTrack(t);
       await mixer.resume();
     }
-    compositor = new CallCompositor(() => roomTiles(o.room));
+    compositor = new CallCompositor(() => roomTiles(o.room), o.draw);
     const video = compositor.start();
     const sound = (o.audio ?? mixer!.stream).getAudioTracks();
     const stream = new MediaStream([video, ...sound]);
     const sink: Sink = o.writable ? new FileSink(o.writable) : new MemorySink(o.mime.split(";")[0] || "video/webm");
-    const recording = new VideoRecording({ stream, mime: o.mime, sink, Recorder, onEvent: o.onEvent });
+    const recording = new VideoRecording({ stream, mime: o.mime, sink, Recorder, onEvent: o.onEvent, videoBits: o.videoBits, keep: o.keep });
     const comp = compositor;
     comp.onFail = (message) => o.onEvent({ type: "error", message: `drawing the video failed (${message})` });
     recording.start();
@@ -72,6 +78,7 @@ export async function startVideoSession(o: {
     return {
       recording,
       mixer,
+      frameRate: () => comp.frameRate,
       stop() {
         if (done) return done;
         done = recording.stop().finally(async () => {
