@@ -52,6 +52,7 @@ import { archiveOlderOffered, emptyInboxTitle } from "./mail/archive-older-offer
 import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33 offline
 import { SNOOZE_WORDS, emptySelection, prune, selectAll, selectRange, setSelectionCount, toggleOne, undoPlan, UNDO_MS, type BulkCall, type Selection } from "@/web/lib/mail-selection"; // R32
 import { LoadError } from "@/web/components/load-error-t1g";
+import { tr } from "@/web/i18n"; // R104
 
 type View = Folder | "starred" | "snoozed" | "scheduled" | `f:${string}`;
 const FOLDER_UI: { id: View; label: string; icon: IconComponent }[] = [
@@ -454,43 +455,43 @@ export function WebmailPage() {
 
   // R79: the list and the reader, placed by the person's reading pane choice below.
   const listSection = (
-      <section data-mail-pane={paned ? mailPane : undefined} className={cn("flex min-w-0 flex-col", paned ? "h-full" : mailPane === "off" && wideMail ? (selected ? "hidden" : "flex flex-1") : cn("border-r border-line md:w-[340px] lg:w-[380px] xl:w-[420px]", selected ? "hidden md:flex" : "flex flex-1 md:flex-none"))} aria-label="Messages">
+      <section data-mail-pane={paned ? mailPane : undefined} className={cn("flex min-w-0 flex-col", paned ? "h-full" : mailPane === "off" && wideMail ? (selected ? "hidden" : "flex flex-1") : cn("border-r border-line md:w-[340px] lg:w-[380px] xl:w-[420px]", selected ? "hidden md:flex" : "flex flex-1 md:flex-none"))} aria-label={tr("mail.messages")}>
         <div className="flex items-center gap-2 border-b border-line p-3">
-          <Select aria-label="Folder" value={q ? "search" : label ? `label:${label}` : folder} onChange={(e) => {
+          <Select aria-label={tr("mail.folder")} value={q ? "search" : label ? `label:${label}` : folder} onChange={(e) => {
             const v = e.target.value;
             if (v === "rules") { navigate(`/app/mail/rules?mailbox=${mailboxId}`); return; }
             if (v.startsWith("label:")) { setParam({ label: v.slice(6), folder: null, m: null, q: null, split: null }); return; }
             setParam({ folder: v === "inbox" ? null : v, m: null, q: null, label: null });
           }} className="h-9 w-auto! max-w-[9.5rem] shrink-0 text-[13px] font-medium md:hidden">
-            {q && <option value="search">Search</option>}
+            {q && <option value="search">{tr("common.search")}</option>}
             {FOLDER_UI.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
             {SCHEDULE_VIEWS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
             {(labels.data ?? []).map((l) => <option key={l.label} value={`label:${l.label}`}>{l.label}</option>)}
-            <option value="rules">Rules</option>
+            <option value="rules">{tr("mail.rules")}</option>
           </Select>
           <form className="relative flex-1" role="search" onSubmit={(e) => { e.preventDefault(); setParam({ q: search.trim() || null, m: null }); }}>
             <IconSearch className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
-            <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search mail" aria-label="Search mail"
+            <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr("mail.search_mail")} aria-label={tr("mail.search_mail")}
               className="h-9 w-full rounded-lg border border-line bg-surface pl-8 pr-8 text-[13px] outline-none transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-subtle focus:border-brand/60 focus:ring-4 focus:ring-brand/10 max-sm:h-11 max-sm:text-base" />
-            {q && <button type="button" onClick={() => setParam({ q: null })} className="absolute right-1 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-subtle hover:bg-hover hover:text-fg max-sm:h-9 max-sm:w-9" aria-label="Clear search"><IconClose className="h-3.5 w-3.5" /></button>}
+            {q && <button type="button" onClick={() => setParam({ q: null })} className="absolute right-1 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-subtle hover:bg-hover hover:text-fg max-sm:h-9 max-sm:w-9" aria-label={tr("mail.clear_search")}><IconClose className="h-3.5 w-3.5" /></button>}
           </form>
-          <button className="inline-flex shrink-0 items-center justify-center rounded-lg bg-brand p-2 text-brand-fg transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] hover:bg-brand-press md:hidden max-sm:h-11 max-sm:w-11" onClick={() => startCompose()} aria-label="Compose"><IconCompose className="h-4 w-4" /></button>
+          <button className="inline-flex shrink-0 items-center justify-center rounded-lg bg-brand p-2 text-brand-fg transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] hover:bg-brand-press md:hidden max-sm:h-11 max-sm:w-11" onClick={() => startCompose()} aria-label={tr("mail.compose")}><IconCompose className="h-4 w-4" /></button>
         </div>
         <MailSyncBanner />
         {splitsOn && splitTabs.length > 0 && <SplitTabs tabs={splitTabs} active={split} onChange={setSplit} onEdit={() => setEditSplits(true)} onDropMessage={(id, tab) => teach.mutate({ messageId: id, tab })} />}
         {splitsOn && splits.data && splitTabs.length === 0 && (
           <div className="flex items-center justify-end border-b border-line px-2 py-1">
-            <button type="button" onClick={() => setEditSplits(true)} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[12px] text-subtle hover:bg-hover hover:text-fg max-sm:h-11">Turn on tabs</button>
+            <button type="button" onClick={() => setEditSplits(true)} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[12px] text-subtle hover:bg-hover hover:text-fg max-sm:h-11">{tr("mail.turn_on_tabs")}</button>
           </div>
         )}
         <div className="flex items-center justify-between px-4 py-2 text-xs text-subtle">
           {label ? <span className="inline-flex min-w-0 items-center gap-1.5" data-testid="label-view"><IconTag className="h-3.5 w-3.5 shrink-0" aria-hidden /><span className="truncate">{label}</span>
-            <button type="button" onClick={() => setParam({ label: null, m: null })} className="grid h-6 w-6 place-items-center rounded hover:bg-hover hover:text-fg max-sm:h-9 max-sm:w-9" aria-label="Clear label"><IconClose className="h-3 w-3" /></button></span>
+            <button type="button" onClick={() => setParam({ label: null, m: null })} className="grid h-6 w-6 place-items-center rounded hover:bg-hover hover:text-fg max-sm:h-9 max-sm:w-9" aria-label={tr("mail.clear_label")}><IconClose className="h-3 w-3" /></button></span>
           : <span>{q ? `Results for “${q}”` : FOLDER_UI.find((f) => f.id === folder)?.label ?? SCHEDULE_VIEWS.find((f) => f.id === folder)?.label ?? folder.slice(2)}</span>}
-          {folder === "trash" && !q && items.length > 0 && <button className="text-muted hover:text-bad" onClick={() => act.mutate({ ids: items.map((i) => i.id), action: "delete" })}>Empty trash</button>}
+          {folder === "trash" && !q && items.length > 0 && <button className="text-muted hover:text-bad" onClick={() => act.mutate({ ids: items.map((i) => i.id), action: "delete" })}>{tr("mail.empty_trash")}</button>}
           {archiveOlderOffered({ folder, q, loaded: items.length, inboxTotal: mb.folders.inbox?.total ?? 0 }) && <button type="button" data-testid="archive-older" onClick={() => setOlderOpen(true)} aria-haspopup="dialog"
             className="-my-1.5 -mr-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 font-medium text-muted transition-colors duration-150 hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-11">
-            <IconArchive className="h-3.5 w-3.5" />Archive older</button>}
+            <IconArchive className="h-3.5 w-3.5" />{tr("mail.archive_older")}</button>}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto" data-mail-list>
           {hasSel && !(isScheduleView(folder) && !q) && <BulkBar count={everything ? rowIds.length - everything.length : sel.ids.length} total={items.length} folder={q ? "" : folder} connectionId={mb.connectionId}
@@ -502,7 +503,7 @@ export function WebmailPage() {
             : items.length === 0 ? (
               <EmptyState icon={q ? <IconSearch /> : label ? <IconTag /> : <IconInbox />} art={q ? <NoSearchResultsArt /> : folder === "inbox" && !label ? <InboxZeroArt /> : <MailFolderArt />} title={q ? "No matches" : folder === "inbox" || label ? label ? "Nothing with this label" : emptyInboxTitle({ split, defaultSplit: defaultTab, tabs: splitsOn ? splitTabs.length : 0, inboxTotal: mb.folders.inbox?.total ?? 0 }) : folderEmpty(folder).title}
                 body={q ? "Try a different word, a sender's address, or check the spelling." : label ? "Add this label to a thread from its toolbar, or let a mail rule add it." : folder === "inbox" ? `New mail to ${mb.address} lands here.` : folderEmpty(folder).body}
-                action={!q && folder !== "inbox" ? <ButtonLink to="/app/mail" variant="secondary">Back to Inbox</ButtonLink> : undefined} />
+                action={!q && folder !== "inbox" ? <ButtonLink to="/app/mail" variant="secondary">{tr("mail.back_to_inbox")}</ButtonLink> : undefined} />
             ) : (
               <ul ref={mailListRef}>
                 {mailWin.padTop > 0 && <li aria-hidden="true" style={{ height: mailWin.padTop }} />}
@@ -514,13 +515,13 @@ export function WebmailPage() {
                 {mailWin.padBottom > 0 && <li aria-hidden="true" style={{ height: mailWin.padBottom }} />}
               </ul>
             )}
-          {list.hasNextPage && <div className="p-3"><Button variant="ghost" className="w-full" loading={list.isFetchingNextPage} onClick={() => list.fetchNextPage()}>Load more</Button></div>}
+          {list.hasNextPage && <div className="p-3"><Button variant="ghost" className="w-full" loading={list.isFetchingNextPage} onClick={() => list.fetchNextPage()}>{tr("mail.load_more")}</Button></div>}
           </>}
         </div>
       </section>
   );
   const readerSection = (
-      <section className={cn("min-w-0", paned ? "flex h-full" : mailPane === "off" && wideMail ? (selected ? "flex flex-1" : "hidden") : cn("flex-1", selected ? "flex" : "hidden md:flex"))} aria-label="Message">
+      <section className={cn("min-w-0", paned ? "flex h-full" : mailPane === "off" && wideMail ? (selected ? "flex flex-1" : "hidden") : cn("flex-1", selected ? "flex" : "hidden md:flex"))} aria-label={tr("mail.message")}>
         {current || selected ? (
           <Reader id={selected!} mailboxes={mailboxes} onBack={() => open(null)} onMove={move}
             onMoveTo={(m, to) => { act.mutate({ ids: [m.id], action: "move", to }); open(null); }}
@@ -528,7 +529,7 @@ export function WebmailPage() {
         ) : (
           <div className="grid flex-1 place-items-center p-6 text-center">
             <div><div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl border border-line bg-elevated text-subtle"><IconInbox className="h-5 w-5" /></div>
-              <p className="text-sm text-muted">Select a message to read</p>
+              <p className="text-sm text-muted">{tr("mail.select_a_message_to_read")}</p>
               <p className="mt-2 text-xs text-subtle">Press <Kbd>j</Kbd> to open the first one</p></div>
           </div>
         )}
@@ -538,20 +539,20 @@ export function WebmailPage() {
   return (
     <div className="flex h-full">
       {/* Folders */}
-      <h1 className="sr-only">Mail</h1>
-      <aside aria-label="Mailboxes and folders" className="hidden w-56 shrink-0 flex-col border-r border-line bg-surface/50 md:flex xl:w-60">
+      <h1 className="sr-only">{tr("common.mail")}</h1>
+      <aside aria-label={tr("mail.mailboxes_and_folders")} className="hidden w-56 shrink-0 flex-col border-r border-line bg-surface/50 md:flex xl:w-60">
         <div className="p-3">
-          <Button className="w-full" onClick={() => startCompose()}><IconCompose className="h-4 w-4" />Compose</Button>
-          <button onClick={() => setInvoiceOpen(true)} className="mt-2 w-full rounded-lg px-2 py-1.5 text-left text-[13px] text-muted hover:bg-hover hover:text-fg">Chase an unpaid invoice</button>
+          <Button className="w-full" onClick={() => startCompose()}><IconCompose className="h-4 w-4" />{tr("mail.compose")}</Button>
+          <button onClick={() => setInvoiceOpen(true)} className="mt-2 w-full rounded-lg px-2 py-1.5 text-left text-[13px] text-muted hover:bg-hover hover:text-fg">{tr("mail.chase_an_unpaid_invoice")}</button>
         </div>
         <div className="px-3">
-          <label htmlFor="mailbox-switch" className="sr-only">Mailbox</label>
+          <label htmlFor="mailbox-switch" className="sr-only">{tr("mail.mailbox")}</label>
           <Select bare id="mailbox-switch" value={mb.id} onChange={(e) => setParam({ mailbox: e.target.value, m: null, q: null })} className="h-9 w-full truncate rounded-lg border border-line bg-surface px-2 text-[13px] outline-none focus:border-brand/60"
             phoneClassName={`${PHONE_PICK} h-11 w-full px-3`}>
             {mailboxes.map((m) => <option key={m.id} value={m.id}>{m.address}{m.kind === "agent" ? " (agent)" : ""}{m.folders.inbox?.unread ? ` (${m.folders.inbox.unread})` : ""}</option>)}
           </Select>
         </div>
-        <nav className="mt-3 flex-1 space-y-0.5 overflow-y-auto px-3" aria-label="Folders">
+        <nav className="mt-3 flex-1 space-y-0.5 overflow-y-auto px-3" aria-label={tr("mail.folders")}>
           {FOLDER_UI.map(({ id, label, icon: Icon }) => {
             const unread = id === "inbox" || id === "spam" ? mb.folders[id as Folder]?.unread : undefined;
             const count = id === "drafts" ? mb.folders.drafts?.total : unread;
@@ -573,7 +574,7 @@ export function WebmailPage() {
           {/* R85: labels and mail rules. */}
           {(labels.data?.length ?? 0) > 0 && (
             <div className="pt-3" data-testid="label-nav">
-              <div className="px-2.5 pb-1 text-[11px] font-medium uppercase tracking-wide text-subtle">Labels</div>
+              <div className="px-2.5 pb-1 text-[11px] font-medium uppercase tracking-wide text-subtle">{tr("mail.labels")}</div>
               {labels.data!.map((l) => (
                 <button key={l.label} onClick={() => setParam({ label: l.label, folder: null, m: null, q: null, split: null })} aria-current={label === l.label ? "page" : undefined}
                   className={cn("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] transition-colors", label === l.label ? "bg-fill font-medium text-fg" : "text-muted hover:bg-hover hover:text-fg")}>
@@ -583,11 +584,11 @@ export function WebmailPage() {
             </div>
           )}
           <div className="pt-3">
-            <Link to={`/app/mail/rules?mailbox=${mailboxId}`} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] text-muted transition-colors hover:bg-hover hover:text-fg" data-testid="mail-rules-link"><IconWorkflow className="h-4 w-4" />Rules</Link>
+            <Link to={`/app/mail/rules?mailbox=${mailboxId}`} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] text-muted transition-colors hover:bg-hover hover:text-fg" data-testid="mail-rules-link"><IconWorkflow className="h-4 w-4" />{tr("mail.rules")}</Link>
           </div>
         </nav>
         <div className="border-t border-line p-3 text-[11px] text-subtle">
-          <div className="mb-1 flex justify-between"><span>Storage</span><span>{formatBytes(mb.usedBytes)} of {formatBytes(mb.quotaMb * 1024 * 1024)}</span></div>
+          <div className="mb-1 flex justify-between"><span>{tr("mail.storage")}</span><span>{formatBytes(mb.usedBytes)} of {formatBytes(mb.quotaMb * 1024 * 1024)}</span></div>
           <div className="h-1 overflow-hidden rounded-full bg-fill"><div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(2, Math.min(100, (mb.usedBytes / (mb.quotaMb * 1048576)) * 100))}%` }} /></div>
           <div className="mt-3 hidden gap-x-3 gap-y-1 xl:flex xl:flex-wrap"><span><Kbd>c</Kbd> compose</span><span><Kbd>j</Kbd>/<Kbd>k</Kbd> move</span><span><Kbd>e</Kbd> archive</span><span><Kbd>t</Kbd> task</span><span><Kbd>/</Kbd> search</span></div>
         </div>
@@ -598,7 +599,7 @@ export function WebmailPage() {
         <Group key={`mail-${mailPane}-${layoutGen}`} id={`mail-${mailPane}`} orientation={mailPane === "bottom" ? "vertical" : "horizontal"} className="min-w-0 flex-1"
           defaultLayout={mailLayout.defaultLayout} onLayoutChanged={mailLayout.onLayoutChanged}>
           <Panel id="mail-list" defaultSize={mailPane === "bottom" ? "45%" : "400px"} minSize={mailPane === "bottom" ? "20%" : "300px"} maxSize={mailPane === "bottom" ? "80%" : "65%"}>{listSection}</Panel>
-          <Separator className="pane-separator" aria-label="Resize reading pane" />
+          <Separator className="pane-separator" aria-label={tr("mail.resize_reading_pane")} />
           <Panel id="mail-reader" minSize={mailPane === "bottom" ? "20%" : "360px"}>{readerSection}</Panel>
         </Group>
       ) : <>{listSection}{readerSection}</>}
@@ -607,13 +608,13 @@ export function WebmailPage() {
 
       <InvoiceReminderDialog open={invoiceOpen} onClose={() => setInvoiceOpen(false)} onCompose={startCompose} />
       <Dialog open={!!confirmJob} onClose={() => setConfirmJob(null)} title={confirmJob?.title ?? ""} description={confirmJob?.description}
-        footer={<><Button variant="secondary" onClick={() => setConfirmJob(null)}>Cancel</Button><Button autoFocus data-testid="bulk-job-confirm" onClick={() => confirmRef.current()}>{confirmJob?.button ?? "Go"}</Button></>}>
-        <span className="sr-only">Enter confirms, Escape cancels.</span>
+        footer={<><Button variant="secondary" onClick={() => setConfirmJob(null)}>{tr("common.cancel")}</Button><Button autoFocus data-testid="bulk-job-confirm" onClick={() => confirmRef.current()}>{confirmJob?.button ?? "Go"}</Button></>}>
+        <span className="sr-only">{tr("mail.enter_confirms_escape_cancels")}</span>
       </Dialog>
       <Dialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title={confirmDelete ? `Delete ${confirmDelete.ids.length === 1 ? "1 conversation" : `${confirmDelete.ids.length} conversations`} forever?` : ""}
-        description="They leave Trash for good. This can't be undone."
-        footer={<><Button variant="secondary" onClick={() => setConfirmDelete(null)}>Cancel</Button><Button variant="danger" data-testid="bulk-delete-confirm" onClick={() => { const c = confirmDelete; setConfirmDelete(null); if (c) runBulk({ action: "delete" }, undefined, true); }}>Delete forever</Button></>}>
-        <span className="sr-only">Confirm</span>
+        description={tr("mail.they_leave_trash_for_good_this_can_t_be_undone")}
+        footer={<><Button variant="secondary" onClick={() => setConfirmDelete(null)}>{tr("common.cancel")}</Button><Button variant="danger" data-testid="bulk-delete-confirm" onClick={() => { const c = confirmDelete; setConfirmDelete(null); if (c) runBulk({ action: "delete" }, undefined, true); }}>{tr("mail.delete_forever")}</Button></>}>
+        <span className="sr-only">{tr("mail.confirm")}</span>
       </Dialog>
       {splitsOn && <EditSplitsDialog open={editSplits} onClose={() => setEditSplits(false)} mailboxId={mailboxId} splits={splits.data?.splits ?? []} tabs={splitTabs} style={splits.data?.style} />}
       {compose && <Compose key={JSON.stringify(compose).length + compose.subject} initial={compose} mailboxes={mailboxes} onClose={closeCompose} />}
@@ -642,12 +643,12 @@ function ListRow({ m, row, total, active, folder, onOpen, onStar, checked, selec
         {/* DES1: a sender initials circle, shown only by the design pass (hidden while DESIGN_DES1 is off). */}
         <span className="ds-avatar" aria-hidden style={{ ["--ds-av-h" as string]: String(avatarHue(m.from.address || who)) }}>{initials(m.from.name || m.from.address || "?")}</span>
         <div className="flex items-baseline gap-2">
-          {!m.isRead && <span className="h-2 w-2 shrink-0 translate-y-[-1px] rounded-full bg-brand" aria-label="Unread" />}
+          {!m.isRead && <span className="h-2 w-2 shrink-0 translate-y-[-1px] rounded-full bg-brand" aria-label={tr("mail.unread")} />}
           <span className={cn("min-w-0 flex-1 truncate text-[13.5px]", m.isRead ? "text-fg/75" : "font-semibold text-fg")}>{who}</span>
           <time className="shrink-0 text-[11.5px] text-subtle" dateTime={m.date}>{mailDate(m.date)}</time>
         </div>
         <div className={cn("mt-0.5 flex items-center gap-1.5 truncate text-[13px]", m.isRead ? "text-muted" : "text-fg/90")}>
-          {m.sentByAgentId && <span className="inline-flex shrink-0 items-center gap-0.5 rounded border border-brand/40 px-1 text-[11px] text-brand-hover"><IconAgent className="h-3 w-3" aria-hidden />Agent</span>}
+          {m.sentByAgentId && <span className="inline-flex shrink-0 items-center gap-0.5 rounded border border-brand/40 px-1 text-[11px] text-brand-hover"><IconAgent className="h-3 w-3" aria-hidden />{tr("mail.agent")}</span>}
           {m.hasAttachments && <IconAttachment className="h-3 w-3 shrink-0 text-subtle" />}<span className="truncate">{m.subject || "(no subject)"}</span>
           <LabelChips labels={m.labels?.slice(0, 2)} className="shrink-0 flex-nowrap" />
         </div>
@@ -704,7 +705,7 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
       onCompose({ mailboxId: dm.mailboxId, to: dm.to.map((a) => a.address).join(", "), cc: dm.cc.map((a) => a.address).join(", ") || undefined, subject: dm.subject, text: dm.text, draftId: dm.id, threadId, inReplyToId: target.id, resumed: true });
     }, () => forgetOpenReply(threadId));
   }, [data, onCompose]);
-  if (error) return <div className="grid flex-1 place-items-center text-sm text-muted">This message is no longer available.</div>;
+  if (error) return <div className="grid flex-1 place-items-center text-sm text-muted">{tr("mail.this_message_is_no_longer_available")}</div>;
   if (isPending || !data) return <div className="flex-1 space-y-4 p-6"><Skeleton className="h-7 w-2/3" /><Skeleton className="h-4 w-1/3" /><Skeleton className="h-48 w-full" /></div>;
   const { message: m, thread } = data;
   const last = thread[thread.length - 1] ?? m;
@@ -730,7 +731,7 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       <div data-testid="thread-toolbar" className="flex h-[57px] shrink-0 items-center gap-1 border-b border-line px-3 max-sm:h-14 max-sm:justify-between max-sm:gap-0 max-sm:px-1">
-        <button onClick={onBack} className="-ml-1 grid place-items-center rounded-md p-2 text-brand-hover transition-colors duration-150 hover:bg-hover md:hidden max-sm:ml-0 max-sm:mr-auto max-sm:h-11 max-sm:w-11 max-sm:rounded-full" aria-label="Back to list"><IconArrowLeft className="h-[18px] w-[18px]" /></button>
+        <button onClick={onBack} className="-ml-1 grid place-items-center rounded-md p-2 text-brand-hover transition-colors duration-150 hover:bg-hover md:hidden max-sm:ml-0 max-sm:mr-auto max-sm:h-11 max-sm:w-11 max-sm:rounded-full" aria-label={tr("mail.back_to_list")}><IconArrowLeft className="h-[18px] w-[18px]" /></button>
         {m.folder !== "sent" && m.folder !== "drafts" && <>
           <SnoozeMenu messageId={m.id} onDone={onBack} />
           <IconBtn label={m.folder === "archive" ? "Move to inbox" : "Archive (e)"} onClick={() => onMove(m.folder === "archive" ? "inbox" : "archive")}><IconArchive /></IconBtn>
@@ -742,8 +743,8 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
         {m.folder === "inbox" && (tabsFor.data?.tabs.length ?? 0) > 1 && <MoveToTabMenu messageId={m.id} tabs={tabsFor.data!.tabs} current={readerParams.get("split") ?? tabsFor.data!.defaultTab} />}
         {/* R48 mobile: on a phone Reply and Forward live in the thumb bar at the foot (below), so this row never crowds. */}
         <div className="ml-auto flex gap-1 max-sm:hidden">
-          <IconBtn label="Reply" onClick={() => reply(false)}><IconReply /></IconBtn>
-          <IconBtn label="Forward" onClick={forward}><IconForward /></IconBtn>
+          <IconBtn label={tr("common.reply")} onClick={() => reply(false)}><IconReply /></IconBtn>
+          <IconBtn label={tr("common.forward")} onClick={forward}><IconForward /></IconBtn>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -763,17 +764,17 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
             <BatchTools attachments={thread.flatMap((t) => t.attachments)} /> {/* Tools P2: batch */}
           </div>
           <div className="mt-6 flex gap-2 max-sm:hidden">
-            <Button variant="secondary" onClick={() => reply(false)}><IconReply className="h-4 w-4" />Reply</Button>
-            {(last.to.length + last.cc.length > 1) && <Button variant="secondary" onClick={() => reply(true)}>Reply all</Button>}
-            <Button variant="ghost" onClick={forward}><IconForward className="h-4 w-4" />Forward</Button>
+            <Button variant="secondary" onClick={() => reply(false)}><IconReply className="h-4 w-4" />{tr("common.reply")}</Button>
+            {(last.to.length + last.cc.length > 1) && <Button variant="secondary" onClick={() => reply(true)}>{tr("mail.reply_all")}</Button>}
+            <Button variant="ghost" onClick={forward}><IconForward className="h-4 w-4" />{tr("common.forward")}</Button>
           </div>
         </div>
       </div>
       {/* R48 mobile: the reply bar sits under the thumb on a phone, like a native mail app; 44 px targets, one row at 360. */}
       <div data-testid="thread-reply-bar" className="hidden shrink-0 items-stretch gap-2 border-t border-line bg-elevated/95 px-3 py-2 backdrop-blur max-sm:flex">
-        <button type="button" onClick={() => reply(false)} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-brand text-[15px] font-medium text-white transition-colors duration-150 active:bg-[#0062c4]"><IconReply className="h-[18px] w-[18px]" aria-hidden />Reply</button>
-        {(last.to.length + last.cc.length > 1) && <button type="button" onClick={() => reply(true)} className="flex h-11 items-center justify-center rounded-full border border-line-strong px-4 text-[15px] font-medium text-fg transition-colors duration-150 active:bg-hover">Reply all</button>}
-        <button type="button" onClick={forward} aria-label="Forward" className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line-strong text-fg transition-colors duration-150 active:bg-hover"><IconForward className="h-[18px] w-[18px]" aria-hidden /></button>
+        <button type="button" onClick={() => reply(false)} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-brand text-[15px] font-medium text-white transition-colors duration-150 active:bg-[#0062c4]"><IconReply className="h-[18px] w-[18px]" aria-hidden />{tr("common.reply")}</button>
+        {(last.to.length + last.cc.length > 1) && <button type="button" onClick={() => reply(true)} className="flex h-11 items-center justify-center rounded-full border border-line-strong px-4 text-[15px] font-medium text-fg transition-colors duration-150 active:bg-hover">{tr("mail.reply_all")}</button>}
+        <button type="button" onClick={forward} aria-label={tr("common.forward")} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line-strong text-fg transition-colors duration-150 active:bg-hover"><IconForward className="h-[18px] w-[18px]" aria-hidden /></button>
         {/* R50 (MB-238): make a task, or open the thread's task, without scrolling back up. */}
         <MakeTaskBarButton messageId={last.id} threadId={last.threadId} />
       </div>
@@ -796,11 +797,11 @@ function Assistant({ messageId, onDraft }: { messageId: string; onDraft: (text: 
   // AI2 (MB-330): the workspace switch is off, so say so plainly instead of offering buttons that would be refused.
   if (status.data.builtin?.off) {
     return (
-      <section aria-label="Assistant" role="status" data-testid="mail-ai-off" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-elevated/60 p-3 text-sm text-muted">
+      <section aria-label={tr("mail.assistant")} role="status" data-testid="mail-ai-off" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-elevated/60 p-3 text-sm text-muted">
         <IconSparkle className="h-4 w-4 text-subtle" aria-hidden />
         <span>{AI_OFF_MESSAGE}</span>
         <span className="ml-auto flex gap-2">
-          <ButtonLink size="sm" variant="ghost" to="/app/settings#ai-trust">Open AI settings</ButtonLink>
+          <ButtonLink size="sm" variant="ghost" to="/app/settings#ai-trust">{tr("mail.open_ai_settings")}</ButtonLink>
         </span>
       </section>
     );
@@ -808,23 +809,23 @@ function Assistant({ messageId, onDraft }: { messageId: string; onDraft: (text: 
   // AI2: built-in AI (free, capped daily) runs the assistant when the workspace has no key of its own.
   if (!status.data.connected && !status.data.builtin?.active) {
     return (
-      <section aria-label="Assistant" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-elevated/60 p-3 text-sm text-muted max-sm:hidden">
+      <section aria-label={tr("mail.assistant")} className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-elevated/60 p-3 text-sm text-muted max-sm:hidden">
         <IconSparkle className="h-4 w-4 text-brand-hover" aria-hidden />
         <span>{BYO_AI_LINE}</span>
         <span className="ml-auto flex gap-2">
           <ButtonLink size="sm" variant="secondary" to="/agents#mcp">MCP setup</ButtonLink>
-          <ButtonLink size="sm" variant="ghost" to="/app/settings#ai">Use your own key</ButtonLink>
+          <ButtonLink size="sm" variant="ghost" to="/app/settings#ai">{tr("mail.use_your_own_key")}</ButtonLink>
         </span>
       </section>
     );
   }
   return (
-    <section aria-label="Assistant" className="mt-4 rounded-xl border border-line bg-elevated/60 p-3">
+    <section aria-label={tr("mail.assistant")} className="mt-4 rounded-xl border border-line bg-elevated/60 p-3">
       <div className="flex flex-wrap items-center gap-2">
         <IconSparkle className="h-4 w-4 text-brand-hover" aria-hidden />
-        <Button size="sm" variant="secondary" loading={summary.isPending} onClick={() => summary.mutate()}>Summarise</Button>
-        <Button size="sm" variant="secondary" loading={draft.isPending} onClick={() => draft.mutate()}>Draft a reply</Button>
-        <Button size="sm" variant="ghost" loading={triage.isPending} onClick={() => triage.mutate()}>Sort it</Button>
+        <Button size="sm" variant="secondary" loading={summary.isPending} onClick={() => summary.mutate()}>{tr("mail.summarise")}</Button>
+        <Button size="sm" variant="secondary" loading={draft.isPending} onClick={() => draft.mutate()}>{tr("mail.draft_a_reply")}</Button>
+        <Button size="sm" variant="ghost" loading={triage.isPending} onClick={() => triage.mutate()}>{tr("mail.sort_it")}</Button>
         <span className="ml-auto text-xs text-subtle">On your {status.data.providerName} key</span>
       </div>
       {triage.data && (
@@ -861,8 +862,8 @@ function ThreadMessage({ m, defaultOpen }: { m: Message; defaultOpen: boolean })
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {authOk && <span title="SPF, DKIM and DMARC passed"><IconShieldCheck className="h-4 w-4 text-ok" aria-label="Sender verified" /></span>}
-          {authBad && <span title="Sender authentication failed"><IconShieldAlert className="h-4 w-4 text-bad" aria-label="Sender not verified" /></span>}
+          {authOk && <span title={tr("mail.spf_dkim_and_dmarc_passed")}><IconShieldCheck className="h-4 w-4 text-ok" aria-label={tr("mail.sender_verified")} /></span>}
+          {authBad && <span title={tr("mail.sender_authentication_failed")}><IconShieldAlert className="h-4 w-4 text-bad" aria-label={tr("mail.sender_not_verified")} /></span>}
           <time className="text-xs text-subtle" dateTime={m.date}>{fullDate(m.date)}</time>
         </div>
       </button>
@@ -897,12 +898,12 @@ function MoveTo({ message: m, mailboxes, onMove, onMoveTo }: { message: Message;
   const targets = moveTargets(data, m.remoteBox);
   if (!connectionId || !targets.length) return null;
   return (
-    <label className="relative flex items-center rounded-md p-2 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:justify-center max-sm:rounded-full" title="Move to folder">
+    <label className="relative flex items-center rounded-md p-2 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:justify-center max-sm:rounded-full" title={tr("mail.move_to_folder")}>
       <IconMove className="h-4 w-4" aria-hidden />
-      <Select bare aria-label="Move to folder" value="" data-testid="move-to" phoneClassName="absolute inset-0 cursor-pointer opacity-0"
+      <Select bare aria-label={tr("mail.move_to_folder")} value="" data-testid="move-to" phoneClassName="absolute inset-0 cursor-pointer opacity-0"
         onChange={(e) => { const to = e.target.value; if (!to) return; if (to.startsWith("f:")) onMoveTo(m, to); else onMove(to); }}
         className="absolute inset-0 cursor-pointer opacity-0">
-        <option value="">Move to</option>
+        <option value="">{tr("mail.move_to")}</option>
         {targets.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
       </Select>
     </label>
@@ -936,9 +937,9 @@ function NoMailboxes() {
   return (
     <div className="w-full max-w-lg space-y-4" data-testid="mail-no-mailboxes">
       {offer && <FreeAddressCard />}
-      <EmptyState icon={<IconInbox />} title="No mailboxes yet"
+      <EmptyState icon={<IconInbox />} title={tr("mail.no_mailboxes_yet")}
         body={offer ? "Take the free address above, or create a mailbox on a domain you own. Its mail will show up here." : "Create a mailbox on one of your domains and its mail will show up here."}
-        action={<ButtonLink to="/app/mailboxes" variant={offer ? "secondary" : "primary"}>Create a mailbox</ButtonLink>} />
+        action={<ButtonLink to="/app/mailboxes" variant={offer ? "secondary" : "primary"}>{tr("mail.create_a_mailbox")}</ButtonLink>} />
     </div>
   );
 }

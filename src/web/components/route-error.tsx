@@ -3,6 +3,7 @@ import { useRouteError } from "react-router";
 import { captureError, captureWarning } from "@/web/lib/sentry";
 import { isPageLoadFailure } from "@/web/lib/page-load";
 import { PageLoadFailed } from "./lazy-page";
+import { tr } from "@/web/i18n"; // R104
 
 /**
  * Route error screen. R73: a page file that could not load (offline, a flaky network) gets the same calm Retry note
@@ -32,9 +33,9 @@ export function RouteError() {
   }
   return (
     <div role="alert" className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-4 p-8 text-center">
-      <h1 className="text-xl font-semibold">Something went wrong on this page</h1>
-      <p className="text-sm opacity-70">Reload to try again. If it keeps happening, tell us at support.</p>
-      <button type="button" className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white" onClick={() => window.location.reload()}>Reload</button>
+      <h1 className="text-xl font-semibold">{tr("errors.something_went_wrong_on_this_page")}</h1>
+      <p className="text-sm opacity-70">{tr("errors.reload_to_try_again_if_it_keeps_happening_tell_u")}</p>
+      <button type="button" className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white" onClick={() => window.location.reload()}>{tr("errors.reload")}</button>
     </div>
   );
 }

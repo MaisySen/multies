@@ -28,6 +28,7 @@ import { sectionBadge, withoutHidden } from "@/shared/nav-menu"; // R121
 import { openCustomiseMenu } from "@/web/lib/customise-menu"; // R121
 import { LoadErrorInline } from "@/web/components/load-error-t1g";
 import { retryFailedLoads } from "@/web/lib/load-errors-t1g"; // F13b (MB-320)
+import { tr, tl } from "@/web/i18n"; // R104
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 export const MOD = isMac ? "⌘" : "Ctrl";
@@ -53,7 +54,7 @@ const fmt = (n: number) => badgeCount(n);
 function CountPill({ c, className }: { c?: NavCounts[string]; className?: string }) {
   if (!c || c.n <= 0) return null;
   return (
-    <span data-badge aria-label={c.label} className={cn("ml-auto min-w-[20px] rounded-full px-1.5 text-center text-[11px] font-semibold tabular-nums leading-[18px]",
+    <span data-badge aria-label={tl("nav", c.label)} className={cn("ml-auto min-w-[20px] rounded-full px-1.5 text-center text-[11px] font-semibold tabular-nums leading-[18px]",
       c.alert ? "bg-brand text-brand-fg" : "bg-fill text-muted", className)}>{fmt(c.n)}</span>
   );
 }
@@ -88,13 +89,13 @@ export function IconRail({ sections, active, counts, footer }: { sections: Secti
           on ? "bg-brand-soft text-fg" : "group-hover:bg-hover")}>
           <Icon filled={on} className="h-[19px] w-[19px]" aria-hidden />
         </span>
-        <span className="max-w-full truncate px-0.5">{s.label}</span>
+        <span className="max-w-full truncate px-0.5">{tl("nav", s.label)}</span>
         {n > 0 && <span className={cn("absolute right-1.5 top-0.5 min-w-[16px] rounded-full px-1 text-center text-[10px] font-semibold leading-4", badge.alert ? "bg-brand text-brand-fg" : "bg-fill text-muted")} aria-label={badge.alert ? `${n} need you` : `${n} unread`}>{badgeCount(n)}</span>}
       </Link>
     );
   };
   return (
-    <nav aria-label="Sections" className="glass-sidebar hairline-r flex h-full w-[72px] shrink-0 flex-col items-center gap-1 py-2" data-testid="icon-rail">
+    <nav aria-label={tr("shell.sections")} className="glass-sidebar hairline-r flex h-full w-[72px] shrink-0 flex-col items-center gap-1 py-2" data-testid="icon-rail">
       <button type="button" onClick={() => toggleSidebar(loc.pathname)} aria-pressed={!hidden} data-testid="sidebar-toggle"
         title={`${hidden ? "Show" : "Hide"} sidebar (${MOD} \\)`} aria-label={hidden ? "Show sidebar" : "Hide sidebar"} hidden={ownsSidebar(loc.pathname)}
         className="mb-1 grid h-9 w-9 place-items-center rounded-lg text-muted transition-colors hover:bg-hover hover:text-fg">
@@ -141,15 +142,15 @@ export function ContextSidebar({ section, counts, logo, header, footer }: { sect
       {/* R77B kept: the workspace logo (wide, or the square mark with the name) sits at the top of the sidebar. */}
       {logo && <div className="flex h-12 shrink-0 items-center px-4" data-testid="sidebar-logo">{logo}</div>}
       <div className="shrink-0 px-2.5 pt-1">{header}</div>
-      <div className="px-4 pb-1 pt-3 text-[15px] font-semibold tracking-[-0.01em]">{section.label}</div>
+      <div className="px-4 pb-1 pt-3 text-[15px] font-semibold tracking-[-0.01em]">{tl("nav", section.label)}</div>
       {/* P1 layout: one tap to write a post from anywhere in Social. */}
       {section.id === "social" && (
         <div className="px-2.5 pb-1.5 pt-1">
           <Link to={SOCIAL_NEW} data-testid="sidebar-new-post" aria-current={loc.pathname === SOCIAL_NEW ? "page" : undefined}
-            className={buttonClass("primary", "sm", "w-full justify-start")}><IconCompose className="h-4 w-4" aria-hidden />New post</Link>
+            className={buttonClass("primary", "sm", "w-full justify-start")}><IconCompose className="h-4 w-4" aria-hidden />{tr("shell.new_post")}</Link>
         </div>
       )}
-      <nav aria-label={section.label} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-3">
+      <nav aria-label={tl("nav", section.label)} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-3">
         <div className="space-y-px">
           {section.pages.map((p) => {
             const Icon = NAV_ICONS[p.icon];
@@ -158,7 +159,7 @@ export function ContextSidebar({ section, counts, logo, header, footer }: { sect
               <NavLink key={p.to} to={p.to} end={p.end} data-tour={navTourId(p.to)} aria-current={on ? "page" : undefined}
                 className={cn(row, on ? "bg-brand-soft font-medium text-fg" : "text-fg/85 hover:bg-hover hover:text-fg")}>
                 <Icon filled={on} className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="min-w-0 flex-1 truncate">{p.label}</span>
+                <span className="min-w-0 flex-1 truncate">{tl("nav", p.label)}</span>
                 <CountPill c={counts[p.to]} />
               </NavLink>
             );
@@ -185,7 +186,7 @@ export function ContextSidebar({ section, counts, logo, header, footer }: { sect
 
         {section.id === "tasks" && <>
           {heading("projects", "Projects", (
-            <button type="button" onClick={() => navigate("/app/tasks?newProject=1")} aria-label="New project" title="New project"
+            <button type="button" onClick={() => navigate("/app/tasks?newProject=1")} aria-label={tr("shell.new_project")} title={tr("shell.new_project")}
               className="grid h-6 w-6 place-items-center rounded text-subtle opacity-70 hover:bg-hover hover:text-fg group-hover:opacity-100"><IconPlus className="h-3.5 w-3.5" /></button>
           ))}
           {!folded("projects") && <div className="space-y-px" data-testid="sidebar-projects" role="list">
@@ -210,7 +211,7 @@ export function ContextSidebar({ section, counts, logo, header, footer }: { sect
               );
             })}
             {projects.isError && <LoadErrorInline className="px-2 py-1" onRetry={() => Promise.all([projects.refetch(), retryFailedLoads(qc)])} />}
-            {projects.isSuccess && !live.length && <div className="px-2 py-1 text-[12.5px] text-subtle">No projects yet. <button type="button" onClick={() => navigate("/app/tasks?newProject=1")} className="font-medium text-fg underline-offset-2 hover:underline">Start one</button></div>}
+            {projects.isSuccess && !live.length && <div className="px-2 py-1 text-[12.5px] text-subtle">{tr("shell.no_projects_yet")} <button type="button" onClick={() => navigate("/app/tasks?newProject=1")} className="font-medium text-fg underline-offset-2 hover:underline">{tr("shell.start_one")}</button></div>}
           </div>}
         </>}
       </nav>
@@ -227,17 +228,17 @@ export function Breadcrumbs({ projectName }: { projectName?: string | null }) {
   const project = new URLSearchParams(loc.search).get("project");
   const fav: Favourite | null = loc.pathname === "/app/tasks" && project && projectName
     ? { kind: "project", id: project, label: projectName, to: `/app/tasks?project=${encodeURIComponent(project)}` }
-    : crumbs.length ? { kind: "page", id: loc.pathname, label: crumbs[crumbs.length - 1].label, to: loc.pathname } : null;
+    : crumbs.length ? { kind: "page", id: loc.pathname, label: tl("nav", crumbs[crumbs.length - 1].label), to: loc.pathname } : null;
   const starred = fav ? isFavourite(layout, fav.kind, fav.id) : false;
   if (!crumbs.length) return <div className="min-w-0 flex-1" />;
   return (
-    <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1 text-[13px]" data-testid="breadcrumbs">
+    <nav aria-label={tr("shell.breadcrumb")} className="flex min-w-0 flex-1 items-center gap-1 text-[13px]" data-testid="breadcrumbs">
       <ol className="flex min-w-0 items-center gap-1">
         {crumbs.map((c, i) => (
           <li key={i} className="flex min-w-0 items-center gap-1">
             {i > 0 && <IconChevronRight className="h-3 w-3 shrink-0 text-subtle" aria-hidden />}
-            {c.to ? <Link to={c.to} className="truncate rounded px-1 text-muted hover:bg-hover hover:text-fg">{c.label}</Link>
-              : <span aria-current="page" className="truncate px-1 font-medium text-fg">{c.label}</span>}
+            {c.to ? <Link to={c.to} className="truncate rounded px-1 text-muted hover:bg-hover hover:text-fg">{tl("nav", c.label)}</Link>
+              : <span aria-current="page" className="truncate px-1 font-medium text-fg">{tl("nav", c.label)}</span>}
           </li>
         ))}
       </ol>
@@ -260,12 +261,12 @@ export function CreateMenu({ flags }: { flags: NavFlags }) {
   const navigate = useNavigate();
   const items = useMemo(() => createItems(flags), [flags]);
   return (
-    <Menu label="Create" align="end" trigger={
+    <Menu label={tr("common.create")} align="end" trigger={
       <button type="button" id="create" data-testid="create-menu" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-2.5 text-[13px] font-medium text-brand-fg shadow-[var(--shadow-e1)] transition-colors hover:bg-brand-press">
-        <IconPlus className="h-4 w-4" aria-hidden />Create<IconChevronDown className="h-3.5 w-3.5 opacity-80" aria-hidden />
+        <IconPlus className="h-4 w-4" aria-hidden />{tr("common.create")}<IconChevronDown className="h-3.5 w-3.5 opacity-80" aria-hidden />
       </button>}>
-      <MenuLabel>Create</MenuLabel>
-      {items.map((c) => { const Icon = CREATE_ICON[c.kind] ?? IconPlus; return <MenuItem key={c.kind} icon={<Icon />} onSelect={() => navigate(c.to)}>{c.label}</MenuItem>; })}
+      <MenuLabel>{tr("common.create")}</MenuLabel>
+      {items.map((c) => { const Icon = CREATE_ICON[c.kind] ?? IconPlus; return <MenuItem key={c.kind} icon={<Icon />} onSelect={() => navigate(c.to)}>{tl("nav", c.label)}</MenuItem>; })}
     </Menu>
   );
 }
@@ -279,28 +280,28 @@ export function ViewMenu() {
   const density = layout.density ?? workspaceDensity();
   return (
     // F13b (MB-316): "Layout", so it is not a second "View" next to a page's own views.
-    <Menu label="Layout" align="end" trigger={
+    <Menu label={tr("shell.layout")} align="end" trigger={
       <button type="button" data-testid="view-menu" className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-muted transition-colors hover:bg-hover hover:text-fg">
-        <IconSliders className="h-4 w-4" aria-hidden /><span className="@max-[40rem]:sr-only">Layout</span>
+        <IconSliders className="h-4 w-4" aria-hidden /><span className="@max-[40rem]:sr-only">{tr("shell.layout")}</span>
       </button>}>
-      <MenuItem checked={!sidebarHiddenOn(layout, loc.pathname)} hint={`${MOD} \\`} onSelect={() => toggleSidebar(loc.pathname)}>Sidebar</MenuItem>
+      <MenuItem checked={!sidebarHiddenOn(layout, loc.pathname)} hint={`${MOD} \\`} onSelect={() => toggleSidebar(loc.pathname)}>{tr("common.sidebar")}</MenuItem>
       <div className="my-1 border-t border-line" />
-      <MenuLabel>Reading pane in Mail</MenuLabel>
-      <MenuItem checked={layout.mailPane === "right"} onSelect={() => setLayout({ mailPane: "right" })}>Right</MenuItem>
-      <MenuItem checked={layout.mailPane === "bottom"} onSelect={() => setLayout({ mailPane: "bottom" })}>Bottom</MenuItem>
-      <MenuItem checked={layout.mailPane === "off"} onSelect={() => setLayout({ mailPane: "off" })}>Off</MenuItem>
+      <MenuLabel>{tr("shell.reading_pane_in_mail")}</MenuLabel>
+      <MenuItem checked={layout.mailPane === "right"} onSelect={() => setLayout({ mailPane: "right" })}>{tr("shell.right")}</MenuItem>
+      <MenuItem checked={layout.mailPane === "bottom"} onSelect={() => setLayout({ mailPane: "bottom" })}>{tr("shell.bottom")}</MenuItem>
+      <MenuItem checked={layout.mailPane === "off"} onSelect={() => setLayout({ mailPane: "off" })}>{tr("common.off")}</MenuItem>
       <div className="my-1 border-t border-line" />
-      <MenuLabel>Task details</MenuLabel>
-      <MenuItem checked={layout.taskDetails === "side"} onSelect={() => setLayout({ taskDetails: "side" })}>Side panel</MenuItem>
-      <MenuItem checked={layout.taskDetails === "overlay"} onSelect={() => setLayout({ taskDetails: "overlay" })}>Over the page</MenuItem>
-      {onTasks && <MenuItem checked={layout.timelinePeople} onSelect={() => setLayout({ timelinePeople: !layout.timelinePeople })}>Assignee column on Timeline</MenuItem>}
+      <MenuLabel>{tr("shell.task_details")}</MenuLabel>
+      <MenuItem checked={layout.taskDetails === "side"} onSelect={() => setLayout({ taskDetails: "side" })}>{tr("shell.side_panel")}</MenuItem>
+      <MenuItem checked={layout.taskDetails === "overlay"} onSelect={() => setLayout({ taskDetails: "overlay" })}>{tr("shell.over_the_page")}</MenuItem>
+      {onTasks && <MenuItem checked={layout.timelinePeople} onSelect={() => setLayout({ timelinePeople: !layout.timelinePeople })}>{tr("shell.assignee_column_on_timeline")}</MenuItem>}
       <div className="my-1 border-t border-line" />
-      <MenuLabel>Density</MenuLabel>
-      <MenuItem checked={density !== "compact"} onSelect={() => setLayout({ density: "comfortable" })}>Comfortable</MenuItem>
-      <MenuItem checked={density === "compact"} onSelect={() => setLayout({ density: "compact" })}>Compact</MenuItem>
+      <MenuLabel>{tr("shell.density")}</MenuLabel>
+      <MenuItem checked={density !== "compact"} onSelect={() => setLayout({ density: "comfortable" })}>{tr("shell.comfortable")}</MenuItem>
+      <MenuItem checked={density === "compact"} onSelect={() => setLayout({ density: "compact" })}>{tr("shell.compact")}</MenuItem>
       <div className="my-1 border-t border-line" />
-      {isNavP2() && <MenuItem onSelect={() => openCustomiseMenu('[data-testid="view-menu"]')}>Customise menu</MenuItem>}{/* R121 */}
-      <MenuItem onSelect={resetLayout}>Reset layout</MenuItem>
+      {isNavP2() && <MenuItem onSelect={() => openCustomiseMenu('[data-testid="view-menu"]')}>{tr("shell.customise_menu")}</MenuItem>}{/* R121 */}
+      <MenuItem onSelect={resetLayout}>{tr("shell.reset_layout")}</MenuItem>
     </Menu>
   );
 }
@@ -319,7 +320,7 @@ export function SearchEntry() {
       // R82F (MB-281): the name comes from the visible words ("Search Ctrl K"); title names it when they fold away.
       title={`Search (${MOD} K)`} aria-keyshortcuts={isMac ? "Meta+K" : "Control+K"}
       className="flex h-8 items-center gap-2 rounded-lg bg-fill px-2.5 text-[13px] text-subtle transition-colors hover:bg-hover hover:text-muted @[52rem]:w-[22rem]">
-      <IconSearch className="h-4 w-4" aria-hidden /><span className="hidden flex-1 text-left @[52rem]:inline">Search</span><span className="hidden @[52rem]:inline-flex"><Kbd>{MOD} K</Kbd></span>
+      <IconSearch className="h-4 w-4" aria-hidden /><span className="hidden flex-1 text-left @[52rem]:inline">{tr("common.search")}</span><span className="hidden @[52rem]:inline-flex"><Kbd>{MOD} K</Kbd></span>
     </button>
   );
 }

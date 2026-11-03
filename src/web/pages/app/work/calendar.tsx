@@ -18,6 +18,7 @@ import { cn } from "@/web/lib/cn";
 import { agendaDays } from "./calendar-agenda";
 import { emptyTasksCopy } from "@/web/lib/empty-states"; // R30
 import { OtherCalendarsBar, useOtherCalendars } from "./calendar-other";
+import { tr } from "@/web/i18n"; // R104
 
 /** Month calendar of due dates (FullCalendar Standard, MIT). Drag a task to another day to move its due date. */
 export function TaskCalendar({ tasks, onOpen, onDue }: { tasks: Task[]; onOpen: (id: string) => void; onDue: (id: string, due: string) => void }) {
@@ -42,7 +43,7 @@ export function TaskCalendar({ tasks, onOpen, onDue }: { tasks: Task[]; onOpen: 
   return (
     <div className={cn("mm-calendar rounded-xl border border-line bg-surface p-3", phone && "max-sm:border-0 max-sm:bg-transparent max-sm:p-0")} data-testid="task-calendar">
       {phone && (
-        <div role="tablist" aria-label="Calendar layout" className="mb-3 grid grid-cols-2 rounded-[10px] bg-fill p-0.5" data-testid="calendar-mode">
+        <div role="tablist" aria-label={tr("calendar.calendar_layout")} className="mb-3 grid grid-cols-2 rounded-[10px] bg-fill p-0.5" data-testid="calendar-mode">
           {(["agenda", "month"] as const).map((m) => (
             <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => setMode(m)}
               className={cn("h-11 rounded-[8px] text-[15px] font-medium transition-colors duration-150 motion-reduce:transition-none", mode === m ? "bg-surface text-fg shadow-card" : "text-muted")}>
@@ -83,7 +84,7 @@ function PhoneAgenda({ tasks, onOpen }: { tasks: Task[]; onOpen: (id: string) =>
             {d.label}{d.items.length > 0 && <span className="ml-1.5 font-normal normal-case tracking-normal text-subtle">{d.items.length}</span>}
           </h2>
           {d.items.length === 0
-            ? <p className="rounded-[14px] border border-line bg-surface px-4 py-3.5 text-[15px] text-muted">Nothing due today.</p>
+            ? <p className="rounded-[14px] border border-line bg-surface px-4 py-3.5 text-[15px] text-muted">{tr("calendar.nothing_due_today")}</p>
             : (
               <ul className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-card">
                 {d.items.map((t, i) => (

@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { IconArrowRight, IconChats, IconCheckCircle, IconGlobe, IconMail, IconMention } from "@/web/components/ui/icon";
 import { api, ApiError } from "@/web/lib/api";
-import { qk } from "@/web/lib/queries";
+import { qk, useConfig } from "@/web/lib/queries";
 import type { Me } from "@/web/lib/types";
 import { Button } from "@/web/components/ui/button";
 import { Card } from "@/web/components/ui/misc";
@@ -16,6 +16,7 @@ import { ConnectMailboxForm, useConnections } from "@/web/components/connect-mai
 import type { ConnectionView } from "@/shared/mail-connect";
 import { browserTimeZone } from "@/web/lib/format";
 import { COUNTRIES, LANGUAGES, cleanLocale, guessCountry, isCountry } from "@/shared/locale";
+import { tr } from "@/web/i18n"; // R104
 
 /** Every IANA zone the browser knows, the person's own first. */
 function zones(own: string | null) {
@@ -41,6 +42,7 @@ function zoneLabel(z: string) {
  */
 export function Onboarding({ me }: { me: Me }) {
   const qc = useQueryClient();
+  const langOn = !!useConfig().data?.langR104; // R104
   const [step, setStep] = useState<"about" | "email">("about");
   const own = browserTimeZone();
   const browserLocale = cleanLocale(typeof navigator !== "undefined" ? navigator.language : null) ?? "en";
@@ -87,33 +89,33 @@ export function Onboarding({ me }: { me: Me }) {
         <Logo className="mx-auto h-7" />
         {step === "about" ? (
           <Card className="mt-8 p-6 sm:p-8">
-            <h1 className="text-2xl font-semibold tracking-tight">Welcome to Multies</h1>
-            <p className="mt-1.5 text-sm text-muted">A few details so times, dates and your workspace look right wherever you are. We filled in what your browser told us.</p>
+            <h1 className="text-2xl font-semibold tracking-tight">{tr("onboarding.welcome_to_multies")}</h1>
+            <p className="mt-1.5 text-sm text-muted">{tr("onboarding.a_few_details_so_times_dates_and_your_workspace")}</p>
             <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
-              <Field label="Your name" error={errors.name}>{(fp) => <Input {...fp} value={f.name} onChange={(e) => set("name")(e.target.value)} autoComplete="name" placeholder="Your name" />}</Field>
+              <Field label={tr("onboarding.your_name")} error={errors.name}>{(fp) => <Input {...fp} value={f.name} onChange={(e) => set("name")(e.target.value)} autoComplete="name" placeholder={tr("onboarding.your_name")} />}</Field>
               {workspace && (
-                <Field label="Company or team" hint="Optional. You can change it later in Settings.">{(fp) => <Input {...fp} value={f.company} onChange={(e) => set("company")(e.target.value)} autoComplete="organization" placeholder="Acme" />}</Field>
+                <Field label={tr("onboarding.company_or_team")} hint={tr("onboarding.optional_you_can_change_it_later_in_settings")}>{(fp) => <Input {...fp} value={f.company} onChange={(e) => set("company")(e.target.value)} autoComplete="organization" placeholder="Acme" />}</Field>
               )}
               {workspace && (
-                <Field label="Country" error={errors.country}>{(fp) => (
+                <Field label={tr("onboarding.country")} error={errors.country}>{(fp) => (
                   <Select {...fp} value={f.country} onChange={(e) => set("country")(e.target.value)} autoComplete="country">
-                    <option value="">Choose a country</option>
+                    <option value="">{tr("onboarding.choose_a_country")}</option>
                     {countries.map(({ c, name }) => <option key={c} value={c}>{name}</option>)}
                   </Select>
                 )}</Field>
               )}
-              <Field label="Time zone" hint="Chat, mail, meetings and reminders show in this zone.">{(fp) => (
+              <Field label={tr("onboarding.time_zone")} hint={tr("onboarding.chat_mail_meetings_and_reminders_show_in_this_zo")}>{(fp) => (
                 <Select {...fp} value={f.timezone} onChange={(e) => set("timezone")(e.target.value)}>
                   {zones(own).map((z) => <option key={z} value={z}>{zoneLabel(z)}</option>)}
                 </Select>
               )}</Field>
-              <Field label="Language" hint="Multies is in English for now. We use this for dates and numbers, and for your language when it's ready.">{(fp) => (
+              <Field label={tr("onboarding.language")} hint={langOn ? tr("onboarding.language_hint") : "Multies is in English for now. We use this for dates and numbers, and for your language when it's ready."}>{(fp) => (
                 <Select {...fp} value={f.locale} onChange={(e) => set("locale")(e.target.value)}>
                   {languages.map(({ l, name }) => <option key={l} value={l}>{name}</option>)}
                 </Select>
               )}</Field>
               {errors.form && <p role="alert" className="text-sm text-bad">{errors.form}</p>}
-              <Button type="submit" size="lg" className="w-full" loading={save.isPending}>Continue</Button>
+              <Button type="submit" size="lg" className="w-full" loading={save.isPending}>{tr("common.continue")}</Button>
             </form>
           </Card>
         ) : (
@@ -136,10 +138,10 @@ function EmailPaths({ onDone }: { onDone: () => void }) {
   return (
     <div className="mt-8 space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">How do you want to use email?</h1>
-        <p className="mt-1.5 text-sm text-muted">Pick one now or later. Tasks, chat and meetings work straight away either way.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">{tr("onboarding.how_do_you_want_to_use_email")}</h1>
+        <p className="mt-1.5 text-sm text-muted">{tr("onboarding.pick_one_now_or_later_tasks_chat_and_meetings_wo")}</p>
         {/* R60 (trust): say plainly that a test does not need a client mailbox, and what connecting one does. */}
-        <p className="mt-2 text-[13px] text-subtle" data-testid="onboarding-safe-trial">Just testing? Take a free address and leave client mailboxes where they are. Connecting a mailbox copies its mail into Multies, stored in the Oceania region; removing it deletes our copy. <Link to="/trust#where" target="_blank" rel="noreferrer" className="font-medium text-brand-hover hover:underline">Where your data lives</Link></p>
+        <p className="mt-2 text-[13px] text-subtle" data-testid="onboarding-safe-trial">Just testing? Take a free address and leave client mailboxes where they are. Connecting a mailbox copies its mail into Multies, stored in the Oceania region; removing it deletes our copy. <Link to="/trust#where" target="_blank" rel="noreferrer" className="font-medium text-brand-hover hover:underline">{tr("onboarding.where_your_data_lives")}</Link></p>
       </div>
       {domain && (
         <div data-testid="path-free">
@@ -153,13 +155,13 @@ function EmailPaths({ onDone }: { onDone: () => void }) {
           {connected ? (
             <div className="mt-1.5 flex flex-wrap items-center gap-3" data-testid="connect-done">
               <span className="inline-flex items-center gap-1.5 text-sm text-ok"><IconCheckCircle className="h-4 w-4" aria-hidden />{connected.email} is connected. Recent mail is coming in now.</span>
-              <Link to={`/app/mail?mailbox=${connected.mailboxId}`} onClick={onDone} className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">Open inbox <IconArrowRight className="h-3.5 w-3.5" /></Link>
+              <Link to={`/app/mail?mailbox=${connected.mailboxId}`} onClick={onDone} className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">{tr("onboarding.open_inbox")} <IconArrowRight className="h-3.5 w-3.5" /></Link>
             </div>
           ) : (
             <>
-              <p className="mt-0.5 text-sm text-muted">Gmail, Outlook, Yahoo, iCloud, Zoho, Fastmail, GMX or any IMAP mailbox, with your real address. Mail syncs both ways and replies go out through your own provider.</p>
+              <p className="mt-0.5 text-sm text-muted">{tr("onboarding.gmail_outlook_yahoo_icloud_zoho_fastmail_gmx_or")}</p>
               {canConnect && !connecting && (
-                <button type="button" onClick={() => setConnecting(true)} className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline" data-testid="path-connect-open">Connect my email <IconArrowRight className="h-3.5 w-3.5" /></button>
+                <button type="button" onClick={() => setConnecting(true)} className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline" data-testid="path-connect-open">{tr("onboarding.connect_my_email")} <IconArrowRight className="h-3.5 w-3.5" /></button>
               )}
               {canConnect && connecting && <ConnectMailboxForm className="mt-4" oauth={connections.data?.oauth} onConnected={setConnected} />}
             </>
@@ -169,14 +171,14 @@ function EmailPaths({ onDone }: { onDone: () => void }) {
       <Card className="flex items-start gap-3 p-4 sm:p-5" data-testid="path-domain">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fill text-muted"><IconGlobe className="h-4 w-4" aria-hidden /></span>
         <div className="min-w-0 flex-1">
-          <h2 className="font-semibold">Use your own domain</h2>
+          <h2 className="font-semibold">{tr("onboarding.use_your_own_domain")}</h2>
           <p className="mt-0.5 text-sm text-muted">Addresses like you@yourcompany.com. We show the exact DNS records and check them for you.</p>
-          <Link to="/app/domains" onClick={onDone} className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">Add my domain <IconArrowRight className="h-3.5 w-3.5" /></Link>
+          <Link to="/app/domains" onClick={onDone} className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">{tr("onboarding.add_my_domain")} <IconArrowRight className="h-3.5 w-3.5" /></Link>
         </div>
       </Card>
       <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
         <span className="inline-flex items-center gap-1.5 text-sm text-subtle">{domain ? <IconMention className="h-4 w-4" aria-hidden /> : <IconChats className="h-4 w-4" aria-hidden />}You can change this any time.</span>
-        <Button onClick={onDone} variant="secondary">Go to Multies <IconArrowRight className="h-4 w-4" /></Button>
+        <Button onClick={onDone} variant="secondary">{tr("onboarding.go_to_multies")} <IconArrowRight className="h-4 w-4" /></Button>
       </div>
     </div>
   );

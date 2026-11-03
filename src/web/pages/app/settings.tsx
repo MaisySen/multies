@@ -28,6 +28,7 @@ import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { SendRulesSettings } from "./tools-automation/rules-section"; // Tools P2
 import { COUNTRIES, DEFAULT_COUNTRY, DEFAULT_TIMEZONE, LANGUAGES, LOCALE, cleanLocale } from "@/shared/locale";
+import { tr, tl } from "@/web/i18n"; // R104
 
 /**
  * R38 premium pass 3: settings as a grouped rail (desktop) and a grouped list hub (phone), the way native settings
@@ -105,7 +106,7 @@ export function matchPanes(q: string): Pane[] {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const all = panesNow();
   if (!words.length) return all;
-  return all.filter((p) => { const hay = `${p.label} ${p.keywords}`.toLowerCase(); return words.every((w) => hay.includes(w)); });
+  return all.filter((p) => { const hay = `${tl("nav", p.label)} ${p.label} ${p.keywords}`.toLowerCase(); return words.every((w) => hay.includes(w)); });
 }
 
 function Tile({ pane, size = "md" }: { pane: Pane; size?: "sm" | "md" }) {
@@ -120,11 +121,11 @@ function Tile({ pane, size = "md" }: { pane: Pane; size?: "sm" | "md" }) {
 function SettingsSearch({ value, onChange, onEnter }: { value: string; onChange: (v: string) => void; onEnter: () => void }) {
   return (
     <label className="relative block">
-      <span className="sr-only">Search settings</span>
+      <span className="sr-only">{tr("settings.search_settings")}</span>
       <IconSearch className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle" />
       <input
         type="search" value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onEnter(); } if (e.key === "Escape") onChange(""); }}
-        placeholder="Search settings" data-testid="settings-search"
+        placeholder={tr("settings.search_settings")} data-testid="settings-search"
         className="h-8 w-full rounded-lg border border-line bg-fill/60 pl-8 pr-2 text-[13px] outline-none transition-[box-shadow,border-color] duration-150 placeholder:text-subtle focus:border-brand focus:bg-surface focus:shadow-[0_0_0_3px_rgb(0_113_227/0.18)] max-md:h-11 max-md:rounded-xl max-md:text-[16px]"
       />
     </label>
@@ -150,10 +151,10 @@ export function SettingsLayout() {
       <aside className="max-md:hidden">
         <div className="sticky top-4 space-y-4">
           <SettingsSearch value={q} onChange={setQ} onEnter={go} />
-          <nav aria-label="Settings" className="space-y-4" data-testid="settings-rail">
+          <nav aria-label={tr("common.settings")} className="space-y-4" data-testid="settings-rail">
             {groups.map((g) => (
-              <div key={g.label}>
-                <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-subtle">{g.label}</p>
+              <div key={tl("nav", g.label)}>
+                <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-subtle">{tl("nav", g.label)}</p>
                 <ul className="space-y-px">
                   {g.items.map((t) => (
                     <li key={t.to}>
@@ -162,7 +163,7 @@ export function SettingsLayout() {
                         pane.to === t.to ? "bg-brand-soft font-medium text-fg shadow-[inset_0_0_0_0.5px_rgb(0_113_227/0.25)]" : "text-muted hover:bg-hover hover:text-fg",
                       )}>
                         <Tile pane={t} size="sm" />
-                        <span className="truncate">{t.label}</span>
+                        <span className="truncate">{tl("nav", t.label)}</span>
                       </NavLink>
                     </li>
                   ))}
@@ -178,19 +179,19 @@ export function SettingsLayout() {
         {/* Phone: the hub is a grouped list; every pane gets a back row. */}
         {atHub ? (
           <div className="md:hidden">
-            <PageHeader title="Settings" />
+            <PageHeader title={tr("common.settings")} />
             <div className="mb-5"><SettingsSearch value={q} onChange={setQ} onEnter={go} /></div>
-            <nav aria-label="Settings" className="space-y-6" data-testid="settings-hub">
+            <nav aria-label={tr("common.settings")} className="space-y-6" data-testid="settings-hub">
               {groups.map((g) => (
-                <section key={g.label}>
-                  <h2 className="mb-1.5 px-4 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">{g.label}</h2>
+                <section key={tl("nav", g.label)}>
+                  <h2 className="mb-1.5 px-4 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">{tl("nav", g.label)}</h2>
                   <ul className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-card">
                     {g.items.map((t, i) => (
                       <li key={t.to}>
                         <NavLink to={t.to === "/app/settings" ? "/app/settings/general" : t.to} data-tour={navTourId(t.to, "pane")} className="flex min-h-[48px] items-center gap-3 pl-4 pr-3 transition-colors duration-150 active:bg-hover">
                           <Tile pane={t} />
                           <span className={cn("flex min-h-[48px] flex-1 items-center justify-between gap-2 text-[16px]", i > 0 && "border-t border-line")}>
-                            <span className="truncate">{t.label}</span>
+                            <span className="truncate">{tl("nav", t.label)}</span>
                             <IconChevronRight className="h-4 w-4 shrink-0 text-subtle" />
                           </span>
                         </NavLink>
@@ -204,15 +205,15 @@ export function SettingsLayout() {
           </div>
         ) : (
           <NavLink to="/app/settings" end className="mb-2 inline-flex min-h-11 items-center gap-1 text-[16px] text-brand-hover md:hidden" data-testid="settings-back">
-            <IconBack className="h-5 w-5" />Settings
+            <IconBack className="h-5 w-5" />{tr("common.settings")}
           </NavLink>
         )}
         <div className={cn(atHub && "max-md:hidden")}>
           <div className="mb-6 flex items-center gap-3 max-md:mb-4">
             <span className="max-md:hidden"><Tile pane={pane} /></span>
             <div className="min-w-0">
-              <p className="text-[13px] font-semibold text-brand-hover max-md:hidden">Settings</p>
-              <h1 className="large-title" data-testid="settings-title">{pane.label}</h1>
+              <p className="text-[13px] font-semibold text-brand-hover max-md:hidden">{tr("common.settings")}</p>
+              <h1 className="large-title" data-testid="settings-title">{tl("nav", pane.label)}</h1>
             </div>
           </div>
           <div className="settings-pane"><Outlet /></div>
@@ -227,9 +228,9 @@ export function GeneralSettings() {
   return (
     <div className="space-y-6">
       <PreferencesSection />
-      {translateOn && <Section id="translate" title="Translate and read aloud" description="Just for you, on this device. Translate mail, docs and chat, and have them read aloud."><TranslateSettingsLazy /></Section>}
+      {translateOn && <Section id="translate" title={tr("settings.translate_and_read_aloud")} description={tr("settings.just_for_you_on_this_device_translate_mail_docs")}><TranslateSettingsLazy /></Section>}
       <WorkspaceSection />
-      <Section id="share-links" title="Share links" description="Read only links to a doc or a board for people outside the workspace."><ShareLinksSetting /></Section>
+      <Section id="share-links" title={tr("settings.share_links")} description={tr("settings.read_only_links_to_a_doc_or_a_board_for_people_o")}><ShareLinksSetting /></Section>
       <AiTrustSection />
       <AiSection />
       <ToolsSection />
@@ -257,11 +258,11 @@ function ToolsSection() {
   if (!on) return null;
   const isAdmin = me.data?.organization?.role !== "member";
   return (
-    <Section id="tools" title="Tools" description="Compress, merge, convert and the other document tools. Files run through them are processed on our document engine in Singapore and deleted within 1 hour.">
+    <Section id="tools" title={tr("settings.tools")} description={tr("settings.compress_merge_convert_and_the_other_document_to")}>
       {q.isPending ? <Skeleton className="h-6 w-64" /> : (
         <div className="space-y-2 text-sm">
-          <Switch checked={!!q.data?.on} disabled={!isAdmin || m.isPending} onChange={(v) => m.mutate(v)} label="Let people in this workspace use Tools" />
-          {!isAdmin && <p className="text-muted">Only workspace admins can change this.</p>}
+          <Switch checked={!!q.data?.on} disabled={!isAdmin || m.isPending} onChange={(v) => m.mutate(v)} label={tr("settings.let_people_in_this_workspace_use_tools")} />
+          {!isAdmin && <p className="text-muted">{tr("settings.only_workspace_admins_can_change_this")}</p>}
         </div>
       )}
     </Section>
@@ -285,8 +286,8 @@ export function MailSettings() {
 function UndoSendSection() {
   const [seconds, setSeconds] = useUndoSeconds();
   return (
-    <Section id="undo-send" title="Undo send" description={<>After you press Send, Multies holds the message for a few seconds so you can take it back. Press <Kbd>Z</Kbd> or Undo while it counts down. This choice is saved on this device.</>}>
-      <div role="radiogroup" aria-label="Undo send window" className="inline-flex rounded-lg bg-fill p-0.5">
+    <Section id="undo-send" title={tr("settings.undo_send")} description={<>After you press Send, Multies holds the message for a few seconds so you can take it back. Press <Kbd>Z</Kbd> or Undo while it counts down. This choice is saved on this device.</>}>
+      <div role="radiogroup" aria-label={tr("settings.undo_send_window")} className="inline-flex rounded-lg bg-fill p-0.5">
         {UNDO_SEND_CHOICES.map((n) => (
           <button key={n} type="button" role="radio" aria-checked={seconds === n} onClick={() => setSeconds(n)}
             className={cn("h-8 min-w-14 rounded-md px-3 text-[13px] transition-colors max-sm:min-h-11", seconds === n ? "bg-elevated font-medium text-fg shadow-sm" : "text-muted hover:text-fg")}>
@@ -304,9 +305,9 @@ function WorkspaceExport() {
   const role = me.data?.organization?.role;
   if (role !== "owner" && role !== "admin") return null;
   return (
-    <Section title="Export workspace data" description="A ZIP with your settings, members, domains, mailboxes, audit log and every message with its attachments, in JSON and CSV. Large workspaces take a minute.">
+    <Section title={tr("settings.export_workspace_data")} description={tr("settings.a_zip_with_your_settings_members_domains_mailbox")}>
       <a href="/api/account/workspace/export" download className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium hover:bg-hover">
-        <IconDownload className="h-4 w-4" aria-hidden />Download ZIP
+        <IconDownload className="h-4 w-4" aria-hidden />{tr("settings.download_zip")}
       </a>
     </Section>
   );
@@ -320,15 +321,15 @@ function DangerZone() {
   const [password, setPassword] = useState("");
   const del = useMutation({
     mutationFn: () => api.del<{ remaining: boolean }>("/account/workspace", { password }),
-    onSuccess: () => { qc.clear(); toast.success("Workspace deleted"); navigate("/app"); },
+    onSuccess: () => { qc.clear(); toast.success(tr("settings.workspace_deleted")); navigate("/app"); },
   });
   if (me.data?.organization?.role !== "owner") return null;
   return (
-    <Section title="Danger zone" description="Deleting a workspace removes its domains, mailboxes, mail and members' access. It can't be undone.">
-      <Button variant="danger" onClick={() => setOpen(true)}><IconTrash className="h-4 w-4" />Delete workspace</Button>
-      <Dialog open={open} onClose={() => setOpen(false)} title={`Delete ${me.data.organization.name}?`} description="Everything in this workspace is permanently deleted for every member."
-        footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button variant="danger" loading={del.isPending} disabled={!password} onClick={() => del.mutate()}>Delete workspace</Button></>}>
-        <Field label="Confirm with your password" error={del.error instanceof ApiError ? del.error.message : undefined}>
+    <Section title={tr("settings.danger_zone")} description={tr("settings.deleting_a_workspace_removes_its_domains_mailbox")}>
+      <Button variant="danger" onClick={() => setOpen(true)}><IconTrash className="h-4 w-4" />{tr("settings.delete_workspace")}</Button>
+      <Dialog open={open} onClose={() => setOpen(false)} title={`Delete ${me.data.organization.name}?`} description={tr("settings.everything_in_this_workspace_is_permanently_dele")}
+        footer={<><Button variant="secondary" onClick={() => setOpen(false)}>{tr("common.cancel")}</Button><Button variant="danger" loading={del.isPending} disabled={!password} onClick={() => del.mutate()}>{tr("settings.delete_workspace")}</Button></>}>
+        <Field label={tr("settings.confirm_with_your_password")} error={del.error instanceof ApiError ? del.error.message : undefined}>
           {(p) => <Input {...p} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />}
         </Field>
       </Dialog>
@@ -350,6 +351,7 @@ export function Section({ id, title, description, children }: { id?: string; tit
 /** The person's own time zone and language. Every date in the app shows in their zone. */
 function PreferencesSection() {
   const me = useMe();
+  const langOn = !!useConfig().data?.langR104; // R104: the app itself follows this language
   const qc = useQueryClient();
   const own = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [timezone, setTimezone] = useState<string>("");
@@ -367,26 +369,26 @@ function PreferencesSection() {
   const langs = useMemo(() => (LANGUAGES as readonly string[]).includes(locale) || !locale ? [...LANGUAGES] : [locale, ...LANGUAGES], [locale]);
   const m = useMutation({
     mutationFn: () => api.patch("/account/preferences", { timezone, locale }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.me }); toast.success("Saved."); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.me }); toast.success(tr("settings.saved")); },
     onError: (e) => showError(e),
   });
   const dirty = !!me.data && (timezone !== (me.data.user.timezone ?? "") || locale !== (me.data.user.locale ?? ""));
   return (
-    <Section id="preferences" title="Your time zone and language" description="Just for you. Chat, mail, meetings and reminders show in your zone, wherever your team is.">
+    <Section id="preferences" title={tr("settings.your_time_zone_and_language")} description={tr("settings.just_for_you_chat_mail_meetings_and_reminders_sh")}>
       {me.isPending ? <Skeleton className="h-10 max-w-md" /> : (
         <form className="grid max-w-xl gap-4 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); m.mutate(); }}>
-          <Field label="Your time zone">{(p) => (
+          <Field label={tr("settings.your_time_zone")}>{(p) => (
             <Select {...p} value={timezone} onChange={(e) => setTimezone(e.target.value)}>
               {zones.map((z) => <option key={z} value={z}>{z.replace(/_/g, " ")}</option>)}
             </Select>
           )}</Field>
-          <Field label="Your language" hint="Multies is in English for now. This sets dates and numbers.">{(p) => (
+          <Field label={tr("settings.your_language")} hint={langOn ? tr("settings.language_hint") : "Multies is in English for now. This sets dates and numbers."}>{(p) => (
             <Select {...p} value={locale} onChange={(e) => setLocale(e.target.value)}>
               {langs.map((l) => <option key={l} value={l}>{names?.of(l) ?? l}</option>)}
             </Select>
           )}</Field>
           <div className="sm:col-span-2">
-            <Button type="submit" variant="secondary" loading={m.isPending} disabled={!dirty}>Save</Button>
+            <Button type="submit" variant="secondary" loading={m.isPending} disabled={!dirty}>{tr("common.save")}</Button>
           </div>
         </form>
       )}
@@ -417,26 +419,26 @@ function WorkspaceSection() {
   const dirty = !!o && (name !== o.name || timezone !== o.timezone || country !== o.country);
   const m = useMutation({
     mutationFn: () => api.patch("/org", { name, timezone, country }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.org }); qc.invalidateQueries({ queryKey: qk.me }); toast.success("Workspace saved"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.org }); qc.invalidateQueries({ queryKey: qk.me }); toast.success(tr("settings.workspace_saved")); },
     onError: (e) => showError(e),
   });
   return (
-    <Section title="Workspace" description="The name your team sees, and where dates and billing default to.">
+    <Section title={tr("settings.workspace")} description={tr("settings.the_name_your_team_sees_and_where_dates_and_bill")}>
       {org.isPending ? <Skeleton className="h-10 max-w-md" /> : (
         <form className="grid max-w-xl gap-4 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); m.mutate(); }}>
-          <Field label="Workspace name" className="sm:col-span-2">{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />}</Field>
-          <Field label="Time zone">{(p) => (
+          <Field label={tr("settings.workspace_name")} className="sm:col-span-2">{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />}</Field>
+          <Field label={tr("settings.time_zone")}>{(p) => (
             <Select {...p} value={timezone} onChange={(e) => setTimezone(e.target.value)}>
               {zones.map((z) => <option key={z} value={z}>{z.replace(/_/g, " ")}</option>)}
             </Select>
           )}</Field>
-          <Field label="Country">{(p) => (
+          <Field label={tr("settings.country")}>{(p) => (
             <Select {...p} value={country} onChange={(e) => setCountry(e.target.value)}>
               {[...COUNTRIES].map((c) => ({ c, n: regionName.of(c) ?? c })).sort((a, b) => a.n.localeCompare(b.n)).map(({ c, n }) => <option key={c} value={c}>{n}</option>)}
             </Select>
           )}</Field>
           <div className="sm:col-span-2">
-            <Button type="submit" variant="secondary" loading={m.isPending} disabled={!name.trim() || !dirty}>Save</Button>
+            <Button type="submit" variant="secondary" loading={m.isPending} disabled={!name.trim() || !dirty}>{tr("common.save")}</Button>
           </div>
         </form>
       )}
@@ -457,15 +459,15 @@ function InboundSection() {
   });
   const revoke = useMutation({
     mutationFn: (id: string) => api.del(`/inbound-keys/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["inbound-keys"] }); toast.success("Key revoked"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["inbound-keys"] }); toast.success(tr("settings.key_revoked")); },
     onError: (e) => showError(e),
   });
   const webhook = `${window.location.origin}/api/inbound/cloudflare`;
   return (
-    <Section id="inbound" title="Inbound mail" description={<>Cloudflare Email Routing receives your mail and a small Email Worker delivers it here, signed with one of these keys.</>}>
+    <Section id="inbound" title={tr("settings.inbound_mail")} description={<>{tr("settings.cloudflare_email_routing_receives_your_mail_and")}</>}>
       <ol className="space-y-4 text-sm">
-        <Step n={1} title="Point your domain at Cloudflare Email Routing">Add the domain to Cloudflare and enable <b className="font-medium">Email → Email Routing</b>. Your domain page will show the MX and SPF checks turn green.</Step>
-        <Step n={2} title="Create a signing key">
+        <Step n={1} title={tr("settings.point_your_domain_at_cloudflare_email_routing")}>Add the domain to Cloudflare and enable <b className="font-medium">Email → Email Routing</b>. Your domain page will show the MX and SPF checks turn green.</Step>
+        <Step n={2} title={tr("settings.create_a_signing_key")}>
           <div className="mt-2 space-y-2">
             {keys.isPending ? <Skeleton className="h-12" /> : keys.data?.map((k) => (
               <div key={k.id} className="flex items-center justify-between gap-3 border-b border-line py-2.5 last:border-b-0">
@@ -476,19 +478,19 @@ function InboundSection() {
                 </div>
               </div>
             ))}
-            <Button size="sm" variant="secondary" onClick={() => create.mutate()} loading={create.isPending}><IconPlus className="h-4 w-4" />Create key</Button>
+            <Button size="sm" variant="secondary" onClick={() => create.mutate()} loading={create.isPending}><IconPlus className="h-4 w-4" />{tr("settings.create_key")}</Button>
           </div>
         </Step>
-        <Step n={3} title="Deploy the Email Worker">
+        <Step n={3} title={tr("settings.deploy_the_email_worker")}>
           From the repository's <code className="font-mono text-[12.5px]">email-worker/</code> folder, set the webhook URL and key, then route your catch-all to the worker.
-          <pre tabIndex={0} aria-label="Email Worker settings" className="mt-2 overflow-x-auto rounded-lg border border-line bg-bg/60 p-3 font-mono text-[12px] leading-relaxed text-fg/85">{`MULTIES_WEBHOOK_URL = "${webhook}"
+          <pre tabIndex={0} aria-label={tr("settings.email_worker_settings")} className="mt-2 overflow-x-auto rounded-lg border border-line bg-bg/60 p-3 font-mono text-[12px] leading-relaxed text-fg/85">{`MULTIES_WEBHOOK_URL = "${webhook}"
 MULTIES_KEY_ID      = "${keys.data?.[0]?.id ?? "ink_…"}"
 npx wrangler deploy
 npx wrangler secret put MULTIES_KEY_SECRET`}</pre>
         </Step>
       </ol>
-      <Dialog open={!!created} onClose={() => setCreated(null)} title="Your new signing key" description="Copy the secret now. It won't be shown again."
-        footer={<Button onClick={() => setCreated(null)}><IconCheck className="h-4 w-4" />I've saved it</Button>}>
+      <Dialog open={!!created} onClose={() => setCreated(null)} title={tr("settings.your_new_signing_key")} description={tr("settings.copy_the_secret_now_it_won_t_be_shown_again")}
+        footer={<Button onClick={() => setCreated(null)}><IconCheck className="h-4 w-4" />{tr("settings.i_ve_saved_it")}</Button>}>
         {created && (
           <div className="space-y-3 text-sm">
             <Secret label="MULTIES_KEY_ID" value={created.id} />
@@ -523,7 +525,7 @@ function OutboundSection() {
   const config = useConfig();
   const live = config.data?.outboundDriver && config.data.outboundDriver !== "log";
   return (
-    <Section title="Outbound mail" description="How mail to addresses outside Multies leaves the platform.">
+    <Section title={tr("settings.outbound_mail")} description={tr("settings.how_mail_to_addresses_outside_multies_leaves_the")}>
       <div className={cn("flex gap-3 border-l-2 py-1 pl-4 text-sm", live ? "border-ok" : "border-warn")}>
         {live ? <IconSend className="mt-0.5 h-4 w-4 shrink-0 text-ok" /> : <IconWarning className="mt-0.5 h-4 w-4 shrink-0 text-warn" />}
         <div>
@@ -547,7 +549,7 @@ export function AccountSection() {
   const [confirmPw, setConfirmPw] = useState("");
   const change = useMutation({
     mutationFn: () => unwrap(authClient.changePassword({ currentPassword: current, newPassword: next, revokeOtherSessions: true })),
-    onSuccess: () => { setCurrent(""); setNext(""); setFields({}); toast.success("Password changed", { description: "Other devices were signed out." }); },
+    onSuccess: () => { setCurrent(""); setNext(""); setFields({}); toast.success(tr("settings.password_changed"), { description: "Other devices were signed out." }); },
     onError: (e) => { if (e instanceof ApiError && e.fields) setFields(e.fields); else showError(e); },
   });
   const me = useMe();
@@ -556,35 +558,35 @@ export function AccountSection() {
   // Goes through /api/account, which handles password and Auth0 sign ins alike and removes the Auth0 login too.
   const del = useMutation({
     mutationFn: () => api.del("/account", { confirm: "DELETE", password: hasPassword ? confirmPw : undefined }),
-    onSuccess: () => { qc.clear(); navigate("/"); toast.success("Your account was deleted"); },
+    onSuccess: () => { qc.clear(); navigate("/"); toast.success(tr("settings.your_account_was_deleted")); },
   });
   const delError = del.error instanceof Error ? del.error : null;
   const needsReauth = del.error instanceof ApiError && del.error.code === "reauth_required";
   return (
-    <Section title="Password" description="Changing it signs you out on every other device.">
+    <Section title={tr("common.password")} description={tr("settings.changing_it_signs_you_out_on_every_other_device")}>
       <form className="max-w-md space-y-3" onSubmit={(e) => { e.preventDefault(); setFields({}); change.mutate(); }}>
-        <Field label="Current password" error={fields.currentPassword}>{(p) => <Input {...p} type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />}</Field>
-        <Field label="New password" hint="At least 10 characters." error={fields.newPassword}>{(p) => <Input {...p} type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />}</Field>
+        <Field label={tr("settings.current_password")} error={fields.currentPassword}>{(p) => <Input {...p} type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />}</Field>
+        <Field label={tr("settings.new_password")} hint={tr("settings.at_least_10_characters")} error={fields.newPassword}>{(p) => <Input {...p} type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />}</Field>
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" variant="secondary" loading={change.isPending} disabled={!current || next.length < 10}>Update password</Button>
+          <Button type="submit" variant="secondary" loading={change.isPending} disabled={!current || next.length < 10}>{tr("settings.update_password")}</Button>
         </div>
       </form>
       <div className="mt-6 flex max-w-md flex-col gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <div><h3 className="text-sm font-medium">Delete account</h3><p className="text-xs text-subtle">Removes you and any workspace where you're the only member, with all its mail.</p></div>
-        <Button variant="danger" size="sm" onClick={() => setDeleting(true)}>Delete account</Button>
+        <div><h3 className="text-sm font-medium">{tr("settings.delete_account")}</h3><p className="text-xs text-subtle">{tr("settings.removes_you_and_any_workspace_where_you_re_the_o")}</p></div>
+        <Button variant="danger" size="sm" onClick={() => setDeleting(true)}>{tr("settings.delete_account")}</Button>
       </div>
-      <Dialog open={deleting} onClose={() => { setDeleting(false); del.reset(); }} title="Delete your account?" description="This permanently deletes your account, and any workspace where you're the only member, with its domains, mailboxes and mail. Download your data first if you want a copy."
-        footer={<><Button variant="ghost" onClick={() => { setDeleting(false); del.reset(); }}>Cancel</Button><Button variant="danger" disabled={hasPassword ? !confirmPw : confirmWord !== "DELETE"} loading={del.isPending} onClick={() => del.mutate()} data-testid="delete-account-confirm">Delete forever</Button></>}>
+      <Dialog open={deleting} onClose={() => { setDeleting(false); del.reset(); }} title={tr("settings.delete_your_account")} description={tr("settings.this_permanently_deletes_your_account_and_any_wo")}
+        footer={<><Button variant="ghost" onClick={() => { setDeleting(false); del.reset(); }}>{tr("common.cancel")}</Button><Button variant="danger" disabled={hasPassword ? !confirmPw : confirmWord !== "DELETE"} loading={del.isPending} onClick={() => del.mutate()} data-testid="delete-account-confirm">{tr("settings.delete_forever")}</Button></>}>
         <div className="space-y-3">
           {delError && (
             <div role="alert" data-testid="delete-account-error" className="rounded-lg border border-bad/25 bg-bad-soft px-3 py-2.5 text-sm text-bad">
               {delError.message}
-              {needsReauth && <> <a href="/login?next=/app/settings/account" className="font-medium underline underline-offset-2">Sign in again</a></>}
+              {needsReauth && <> <a href="/login?next=/app/settings/account" className="font-medium underline underline-offset-2">{tr("settings.sign_in_again")}</a></>}
             </div>
           )}
           {hasPassword
-            ? <Field label="Confirm with your password">{(p) => <Input {...p} type="password" autoComplete="current-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} />}</Field>
-            : <Field label="Type DELETE to confirm" hint="You signed in with Multies sign in, so there's no password to enter.">{(p) => <Input {...p} autoComplete="off" autoCapitalize="characters" value={confirmWord} onChange={(e) => setConfirmWord(e.target.value)} />}</Field>}
+            ? <Field label={tr("settings.confirm_with_your_password")}>{(p) => <Input {...p} type="password" autoComplete="current-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} />}</Field>
+            : <Field label={tr("settings.type_delete_to_confirm")} hint={tr("settings.you_signed_in_with_multies_sign_in_so_there_s_no")}>{(p) => <Input {...p} autoComplete="off" autoCapitalize="characters" value={confirmWord} onChange={(e) => setConfirmWord(e.target.value)} />}</Field>}
         </div>
       </Dialog>
     </Section>

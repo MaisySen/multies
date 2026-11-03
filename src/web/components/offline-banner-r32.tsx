@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { IconWifiOff } from "@/web/components/ui/icon";
 import { copyTimeLabel, useShownCopyAt } from "@/web/lib/offline-lists";
+import { tr } from "@/web/i18n"; // R104
 
 export function OfflineBanner() {
   const [offline, setOffline] = useState(() => typeof navigator !== "undefined" && navigator.onLine === false);
@@ -23,7 +24,7 @@ export function OfflineBanner() {
       <IconWifiOff className="h-3.5 w-3.5" aria-hidden="true" />
       {copyAt !== null
         ? <span data-testid="offline-copy-at">Offline. Showing your last copy from {copyTimeLabel(copyAt)}.</span>
-        : <span>You are offline. Multies shows what it has and catches up when you reconnect.</span>}
+        : <span>{tr("errors.you_are_offline_multies_shows_what_it_has_and_ca")}</span>}
     </div>
   );
 }

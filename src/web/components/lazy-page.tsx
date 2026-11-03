@@ -10,6 +10,7 @@ import { Button } from "@/web/components/ui/button";
 import { IconWifiOff } from "@/web/components/ui/icon";
 import { isPageLoadError, loadPageModule } from "@/web/lib/page-load";
 import { captureWarning } from "@/web/lib/sentry";
+import { tr } from "@/web/i18n"; // R104
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyComponent = ComponentType<any>;
@@ -95,7 +96,7 @@ export function PageLoadFailed({ offline, onRetry }: { offline: boolean; onRetry
       <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted">
         {offline ? "This page opens by itself when you are back online. What you already opened still works." : "Check your connection."}
       </p>
-      <div className="mt-5"><Button variant="secondary" onClick={onRetry} data-testid="page-load-retry">Retry</Button></div>
+      <div className="mt-5"><Button variant="secondary" onClick={onRetry} data-testid="page-load-retry">{tr("common.retry")}</Button></div>
     </div>
   );
 }

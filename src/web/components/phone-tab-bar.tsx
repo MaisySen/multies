@@ -8,6 +8,7 @@ import { IconCalendar, IconDocs, IconHome, IconInbox, IconMegaphone, IconMessage
 import type { FourthTab } from "@/shared/nav-menu"; // R121
 import { readStoredTaskView } from "@/web/lib/phone";
 import { cn } from "@/web/lib/cn";
+import { tl, tr } from "@/web/i18n"; // R104
 
 export type PhoneTabId = "home" | "mail" | "tasks" | "calendar" | "more" | "chat" | "social" | "docs"; // R121: chat, social, docs
 
@@ -78,7 +79,7 @@ export function PhoneTabBar({ mailUnread, moreOpen, onMore, p2, chatUnread = 0, 
     on ? "text-brand-hover" : "text-subtle hover:text-muted", // R79: the workspace brand, AA in light and dark
   );
   return (
-    <nav data-testid="phone-tabbar" aria-label="Tabs" className="glass hairline-t relative z-30 shrink-0 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] md:hidden">
+    <nav data-testid="phone-tabbar" aria-label={tr("shell.tabs")} className="glass hairline-t relative z-30 shrink-0 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] md:hidden">
       <ul className="mx-auto grid max-w-xl grid-cols-5">
         {tabs.map(({ id, label, icon: Glyph, to, badge }) => {
           const on = active === id;
@@ -88,14 +89,14 @@ export function PhoneTabBar({ mailUnread, moreOpen, onMore, p2, chatUnread = 0, 
                 <Glyph size={25} filled={on} />
                 {badge && <span className="absolute -right-2.5 -top-1 min-w-[18px] rounded-full bg-[#D70015] px-1 text-center text-[11px] font-semibold leading-[18px] text-white tabular-nums ring-2 ring-[var(--color-surface)] before:content-[attr(data-badge)]" data-badge={badge} />}
               </span>
-              <span>{label}</span>
+              <span>{tl("nav", label)}</span>
             </>
           );
           return (
             <li key={id}>
               {to
-                ? <Link to={to} className={cls(on)} aria-current={on ? "page" : undefined} aria-label={badge ? `${label}, ${badge} unread` : label} data-testid={`tab-${id}`}>{inner}</Link>
-                : <button type="button" className={cls(on)} onClick={onMore} aria-expanded={moreOpen} aria-label="More" data-testid={`tab-${id}`}>{inner}</button>}
+                ? <Link to={to} className={cls(on)} aria-current={on ? "page" : undefined} aria-label={badge ? `${tl("nav", label)}, ${badge} ${tr("common.unread")}` : tl("nav", label)} data-testid={`tab-${id}`}>{inner}</Link>
+                : <button type="button" className={cls(on)} onClick={onMore} aria-expanded={moreOpen} aria-label={tr("common.more")} data-testid={`tab-${id}`}>{inner}</button>}
             </li>
           );
         })}

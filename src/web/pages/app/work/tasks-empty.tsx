@@ -4,6 +4,7 @@ import { IconCalendarDays, IconFilterX, IconListPlus } from "@/web/components/ui
 import { Button } from "@/web/components/ui/button";
 import { EmptyState, Skeleton } from "@/web/components/ui/misc";
 import type { EmptyCopy } from "@/web/lib/empty-states";
+import { tr } from "@/web/i18n"; // R104
 
 export function TasksEmpty({ copy, onClear, onNew, icon, board }: { copy: EmptyCopy; onClear: () => void; onNew: () => void; icon?: "calendar"; /** R36: the board drawing. */ board?: boolean }) {
   const Icon = icon === "calendar" ? IconCalendarDays : copy.action === "clear" ? IconFilterX : IconListPlus;
@@ -18,7 +19,7 @@ export function TasksEmpty({ copy, onClear, onNew, icon, board }: { copy: EmptyC
 /** Columns of card shaped placeholders, the size of real cards, while the board loads. */
 export function BoardSkeleton({ columns = 4 }: { columns?: number }) {
   return (
-    <div role="status" aria-label="Loading tasks" aria-busy="true" className="flex gap-3 overflow-hidden" data-testid="board-skeleton">
+    <div role="status" aria-label={tr("tasks.loading_tasks")} aria-busy="true" className="flex gap-3 overflow-hidden" data-testid="board-skeleton">
       {Array.from({ length: columns }, (_, c) => (
         <div key={c} className="w-72 shrink-0 rounded-xl bg-fill/60 p-2">
           <Skeleton className="mx-1 mb-3 mt-1 h-3.5 w-24" />

@@ -3,6 +3,7 @@
  * Pure data and functions (no React), so routing, breadcrumbs and the rail stay testable and agree with each other.
  */
 import { navHref, SECTIONS_P1, SECTIONS_P2, visibleIn, type NavPage, type Section } from "@/shared/nav-menu";
+import { tl } from "@/web/i18n"; // R104
 // R121: the menu model lives in src/shared/nav-menu.ts (one source for the rail, the phone More sheet and /api/nav/menu).
 export type { SectionId, IconKey, NavPage, Section } from "@/shared/nav-menu";
 
@@ -119,7 +120,7 @@ export function pageTitle(pathname: string, search = "", sections: Section[] = a
     const seg = pathname.replace(/^\/app\/?/, "").split("/")[0];
     if (seg) parts.push(OTHER_TITLES[seg] ?? titleCase(seg));
   }
-  return [...parts, "Multies"].join(" · ");
+  return [...parts.map((p) => tl("nav", p)), "Multies"].join(" · ");
 }
 
 /** Every kind the Create menu can show; the top bar keeps one icon per kind (F13b MB-309: a kind with no icon crashed it). */

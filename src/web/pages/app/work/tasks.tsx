@@ -51,6 +51,7 @@ import { NO_LANE, SWIMLANES, boardViewKeys, lanesFrom, type Swimlanes } from "@/
 import { ClashScope } from "./schedule-r38"; // R38: clash badges on list rows and board cards
 import { lazyPage } from "@/web/components/lazy-page";
 import { ReferencesPanel } from "@/web/components/mentions-td5"; // POL2
+import { tr } from "@/web/i18n"; // R104
 
 const TaskCalendar = lazyPage(() => import("./calendar"), "TaskCalendar");
 const PlannedTimeline = lazyPage(() => import("./timeline-plan-r37"), "default"); // R37: timeline with dependency planning
@@ -275,32 +276,32 @@ export function TasksPage() {
       {dialogs}
       {/* R46: on a phone, title with View and New task on one row, then the project picker with one More menu (no wrapping icon row). */}
       <div className="mb-4 flex flex-wrap items-center gap-2" data-testid="tasks-header">
-        <h1 className="mr-2 large-title max-sm:order-1 max-sm:mr-0 max-sm:min-w-0 max-sm:flex-1 max-sm:truncate">Tasks</h1>
-        <Select aria-label="Project" value={projectId} onChange={(e) => set({ project: e.target.value || null })} className="h-9 w-auto! min-w-[160px] text-[13px] max-sm:order-3 max-sm:h-11 max-sm:min-w-0 max-sm:flex-1 max-sm:text-[15px]">
-          {view !== "board" && view !== "sprints" && <option value="">All projects</option>}
+        <h1 className="mr-2 large-title max-sm:order-1 max-sm:mr-0 max-sm:min-w-0 max-sm:flex-1 max-sm:truncate">{tr("common.tasks")}</h1>
+        <Select aria-label={tr("tasks.project")} value={projectId} onChange={(e) => set({ project: e.target.value || null })} className="h-9 w-auto! min-w-[160px] text-[13px] max-sm:order-3 max-sm:h-11 max-sm:min-w-0 max-sm:flex-1 max-sm:text-[15px]">
+          {view !== "board" && view !== "sprints" && <option value="">{tr("tasks.all_projects")}</option>}
           {list.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
         {/* R75: project actions live in one menu on every width (the header was three rows of buttons). */}
         <div className="max-sm:order-3">
-          <Menu label="Project actions" align="start" trigger={<Button variant="ghost" size="icon" aria-label="Project actions" title="Project actions" data-testid="project-actions"><IconMore className="h-5 w-5" /></Button>}>
-            {project && <MenuItem icon={<IconSettings2 />} onSelect={() => setEditing(project)}>Project settings</MenuItem>}
-            {project && <MenuItem icon={<IconSliders />} onSelect={() => setFieldsOpen(true)}>Fields</MenuItem>}
-            {project && <MenuItem icon={<IconAssign />} onSelect={() => setGuestsOpen(true)}>Guests</MenuItem>}
-            {project && <MenuItem icon={<IconMountain />} onSelect={() => setEpicsOpen(true)}>Epics</MenuItem>}
+          <Menu label={tr("tasks.project_actions")} align="start" trigger={<Button variant="ghost" size="icon" aria-label={tr("tasks.project_actions")} title={tr("tasks.project_actions")} data-testid="project-actions"><IconMore className="h-5 w-5" /></Button>}>
+            {project && <MenuItem icon={<IconSettings2 />} onSelect={() => setEditing(project)}>{tr("tasks.project_settings")}</MenuItem>}
+            {project && <MenuItem icon={<IconSliders />} onSelect={() => setFieldsOpen(true)}>{tr("tasks.fields")}</MenuItem>}
+            {project && <MenuItem icon={<IconAssign />} onSelect={() => setGuestsOpen(true)}>{tr("tasks.guests")}</MenuItem>}
+            {project && <MenuItem icon={<IconMountain />} onSelect={() => setEpicsOpen(true)}>{tr("tasks.epics")}</MenuItem>}
             {project && <div className="my-1 border-t border-line" />}
-            <MenuItem icon={<IconTag />} onSelect={() => set({ manage: "tags" })}>Tags</MenuItem>
-            <MenuItem icon={<IconRows />} onSelect={() => set({ manage: "fields" })}>Workspace fields</MenuItem>
+            <MenuItem icon={<IconTag />} onSelect={() => set({ manage: "tags" })}>{tr("tasks.tags")}</MenuItem>
+            <MenuItem icon={<IconRows />} onSelect={() => set({ manage: "fields" })}>{tr("tasks.workspace_fields")}</MenuItem>
             <div className="my-1 border-t border-line" />
-            <MenuItem icon={<IconPlus />} onSelect={() => setEditing("new")}>New project</MenuItem>
+            <MenuItem icon={<IconPlus />} onSelect={() => setEditing("new")}>{tr("tasks.new_project")}</MenuItem>
           </Menu>
         </div>
         {project && view === "board" && <span className="max-sm:order-3"><ShareButton kind="project_board" targetId={project.id} /></span>}
         <div className="ml-auto flex items-center gap-2 max-sm:order-2">
           {/* R41 (MB-226): on phones the six views fold into one View picker (a bottom sheet). */}
-          <Select aria-label="View" data-testid="phone-view-select" value={view} onChange={(e) => { const v = e.target.value as ViewKind; storeTaskView(v); set({ view: v }); }} className="h-11! w-auto! min-w-[112px] text-[14px] sm:hidden">
+          <Select aria-label={tr("tasks.view")} data-testid="phone-view-select" value={view} onChange={(e) => { const v = e.target.value as ViewKind; storeTaskView(v); set({ view: v }); }} className="h-11! w-auto! min-w-[112px] text-[14px] sm:hidden">
             {VIEWS.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
           </Select>
-          <div role="tablist" aria-label="View" className="flex rounded-lg bg-fill p-0.5 max-sm:hidden">
+          <div role="tablist" aria-label={tr("tasks.view")} className="flex rounded-lg bg-fill p-0.5 max-sm:hidden">
             {VIEWS.map((v) => (
               <button key={v.id} role="tab" aria-selected={view === v.id} aria-label={v.label} onClick={() => { storeTaskView(v.id); set({ view: v.id }); }}
                 className={cn("inline-flex min-h-10 min-w-10 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px] sm:min-h-0 sm:min-w-0", view === v.id ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>
@@ -308,7 +309,7 @@ export function TasksPage() {
               </button>
             ))}
           </div>
-          <Button onClick={() => setNewTask({})} aria-label="New task" className="min-h-10 min-w-10 sm:min-h-0 sm:min-w-0"><IconPlus className="h-4 w-4" /><span className="hidden min-[400px]:inline">New task</span></Button>
+          <Button onClick={() => setNewTask({})} aria-label={tr("tasks.new_task")} className="min-h-10 min-w-10 sm:min-h-0 sm:min-w-0"><IconPlus className="h-4 w-4" /><span className="hidden min-[400px]:inline">{tr("tasks.new_task")}</span></Button>
         </div>
         <div aria-hidden className="hidden basis-full max-sm:order-2 max-sm:block" />
       </div>
@@ -317,7 +318,7 @@ export function TasksPage() {
         onAll={() => set({ v: null, ...Object.fromEntries([...FILTER_KEYS.map((k) => [k, null]), ...fieldFilters.map(([k]) => [k, null]), ["group", null], ["sort", null], ["dir", null], ["lanes", null]]) })}
         onEdit={(v, patch) => void editView(v, patch)} onDelete={(v) => void deleteView(v)} onRename={(v) => void renameView(v)} />
       {project && <ProjectRollups projectId={project.id} fields={allFields} />}
-      <div className="-mx-4 mb-4 flex items-center gap-2 overflow-x-auto overscroll-x-contain px-4 pb-1 [scrollbar-width:none] max-sm:pr-10 max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" aria-label="Filters">
+      <div className="-mx-4 mb-4 flex items-center gap-2 overflow-x-auto overscroll-x-contain px-4 pb-1 [scrollbar-width:none] max-sm:pr-10 max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" aria-label={tr("tasks.filters")}>
         <TaskQueryBox value={filters.q ?? ""} onApply={(q) => set({ q })} values={queryValues} />
         <PhoneFilters groups={[
           { key: "assignee", label: "Assignee", value: filters.assignee ?? "", onChange: (v) => set({ assignee: v || null }), options: [{ value: "", label: "Anyone" }, { value: "me", label: "Me" }, { value: "none", label: "Nobody" }, ...(people.data ?? []).map((p) => ({ value: p.id, label: p.name }))] },
@@ -330,41 +331,41 @@ export function TasksPage() {
           ...(view === "list" ? [{ key: "sort", label: "Sort", value: sortValue(listSort), onChange: (v: string) => set(parseSortValue(v)), options: [...PHONE_SORTS] }] : []),
         ]} />
         {/* R79: light toolbar controls that say their setting; colour only when a filter is on. */}
-        <ChipSelect label="Assignee" aria-label="Assignee filter" active={!!filters.assignee} value={filters.assignee ?? ""} onChange={(e) => set({ assignee: e.target.value || null })} className="max-sm:hidden">
-          <option value="">Anyone</option><option value="me">Me</option><option value="none">Nobody</option>
+        <ChipSelect label={tr("common.assignee")} aria-label={tr("tasks.assignee_filter")} active={!!filters.assignee} value={filters.assignee ?? ""} onChange={(e) => set({ assignee: e.target.value || null })} className="max-sm:hidden">
+          <option value="">{tr("tasks.anyone")}</option><option value="me">{tr("tasks.me")}</option><option value="none">{tr("tasks.nobody")}</option>
           {people.data?.map((p) => <option key={p.id} value={p.id}>{p.name}{isAgentLike(p) ? " (agent)" : ""}</option>)}
         </ChipSelect>
-        <ChipSelect label="Status" aria-label="Status filter" active={!!filters.status} value={filters.status ?? ""} onChange={(e) => set({ status: e.target.value || null })} className="max-sm:hidden">
-          <option value="">Any</option><option value="todo">To do</option><option value="doing">Doing</option><option value="done">Done</option>
+        <ChipSelect label={tr("common.status")} aria-label={tr("tasks.status_filter")} active={!!filters.status} value={filters.status ?? ""} onChange={(e) => set({ status: e.target.value || null })} className="max-sm:hidden">
+          <option value="">{tr("tasks.any")}</option><option value="todo">{tr("tasks.to_do")}</option><option value="doing">{tr("tasks.doing")}</option><option value="done">{tr("common.done")}</option>
         </ChipSelect>
         {(tagList.data?.length ?? 0) > 0 && (
-          <ChipSelect label="Tag" aria-label="Tag filter" active={!!filters.label} value={filters.label ?? ""} onChange={(e) => set({ label: e.target.value || null })} className="max-sm:hidden">
-            <option value="">Any</option>
+          <ChipSelect label={tr("tasks.tag")} aria-label={tr("tasks.tag_filter")} active={!!filters.label} value={filters.label ?? ""} onChange={(e) => set({ label: e.target.value || null })} className="max-sm:hidden">
+            <option value="">{tr("tasks.any")}</option>
             {tagList.data!.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
           </ChipSelect>
         )}
         {view === "list" && (
-          <ChipSelect label="Group" aria-label="Group list by" data-testid="list-group-select" active={!!listGroup} value={listGroup ?? ""} onChange={(e) => set({ group: e.target.value || null })} className="max-sm:hidden">
+          <ChipSelect label={tr("tasks.group")} aria-label={tr("tasks.group_list_by")} data-testid="list-group-select" active={!!listGroup} value={listGroup ?? ""} onChange={(e) => set({ group: e.target.value || null })} className="max-sm:hidden">
             {groupOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </ChipSelect>
         )}
         {/* R75: the filters people reach for less often sit in one Filters panel, so the toolbar stays one row. */}
         <div className="max-sm:hidden">
-          <Popover label="More filters" testId="tasks-more-filters" className="w-[22rem]" button={({ open }) => (
+          <Popover label={tr("tasks.more_filters")} testId="tasks-more-filters" className="w-[22rem]" button={({ open }) => (
             <span className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] transition-colors", open || moreFilterCount ? "bg-brand-soft text-brand-hover" : "text-muted hover:bg-hover hover:text-fg")}>
               <IconSliders className="h-3.5 w-3.5" />Filters{moreFilterCount ? <span className="ml-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-brand px-1 text-[11px] font-semibold text-white">{moreFilterCount}</span> : null}
             </span>
           )}>
             <div className="grid gap-3">
-              <Field label="Priority">{(p) => (
+              <Field label={tr("common.priority")}>{(p) => (
                 <Select {...p} value={filters.priority ?? ""} onChange={(e) => set({ priority: e.target.value || null })} className="h-9 text-[13px]">
-                  <option value="">Any priority</option>
+                  <option value="">{tr("tasks.any_priority")}</option>
                   {(["urgent", "high", "medium", "low"] as Priority[]).map((x) => <option key={x} value={x}>{PRIORITY_LABEL[x]}</option>)}
                 </Select>
               )}</Field>
-              <Field label="Type">{(p) => (
+              <Field label={tr("tasks.type")}>{(p) => (
                 <Select {...p} value={filters.type ?? ""} onChange={(e) => set({ type: e.target.value || null })} className="h-9 text-[13px]">
-                  <option value="">Any type</option>
+                  <option value="">{tr("tasks.any_type")}</option>
                   {TASK_TYPES.map((k) => <option key={k} value={k}>{TYPE_META[k].label}</option>)}
                 </Select>
               )}</Field>
@@ -375,28 +376,28 @@ export function TasksPage() {
         {fieldFilters.map(([k, v]) => (
           <span key={k} className="inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-elevated px-2 text-[12.5px]">
             {describeFilter(listFields.find((f) => f.id === k.slice(6)), v, people.data ?? [])}
-            <button aria-label="Remove this filter" onClick={() => set({ [k]: null })} className="text-subtle hover:text-fg"><IconClose className="h-3 w-3" /></button>
+            <button aria-label={tr("tasks.remove_this_filter")} onClick={() => set({ [k]: null })} className="text-subtle hover:text-fg"><IconClose className="h-3 w-3" /></button>
           </span>
         ))}
         {view === "board" && project && (
-          <ChipSelect label="Group" aria-label="Group board by" active={!!(groupEpic || groupField)} value={groupEpic ? "epic" : groupField?.id ?? ""} onChange={(e) => set({ group: e.target.value || null })}>
-            <option value="">Status</option>
-            <option value="epic">Epic</option>
+          <ChipSelect label={tr("tasks.group")} aria-label={tr("tasks.group_board_by")} active={!!(groupEpic || groupField)} value={groupEpic ? "epic" : groupField?.id ?? ""} onChange={(e) => set({ group: e.target.value || null })}>
+            <option value="">{tr("common.status")}</option>
+            <option value="epic">{tr("tasks.epic")}</option>
             {fields.filter((f) => f.type === "select").map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
           </ChipSelect>
         )}
         {view === "board" && project && !groupField && !groupEpic && (
-          <ChipSelect label="Lanes" aria-label="Swimlanes" data-testid="swimlanes-select" active={lanes !== "none"} value={lanes} onChange={(e) => setLanes(e.target.value as Swimlanes)}>
+          <ChipSelect label={tr("tasks.lanes")} aria-label={tr("tasks.swimlanes")} data-testid="swimlanes-select" active={lanes !== "none"} value={lanes} onChange={(e) => setLanes(e.target.value as Swimlanes)}>
             {SWIMLANES.map((s) => <option key={s} value={s}>{s === "none" ? "None" : SWIMLANE_LABEL[s]}</option>)}
           </ChipSelect>
         )}
-        {(activeFilters.length > 0 || fieldFilters.length > 0) && <Button variant="ghost" size="sm" onClick={() => set(Object.fromEntries([...FILTER_KEYS.map((k) => [k, null]), ...fieldFilters.map(([k]) => [k, null])]))}><IconClose className="h-3.5 w-3.5" />Clear</Button>}
-        <div className="sm:ml-auto"><Menu align="end" trigger={<Button variant="ghost" size="sm" aria-label="Saved views" title="Saved views"><IconBookmark className="h-3.5 w-3.5" /><span className="max-xl:sr-only">Saved views</span><IconChevronDown className="h-3.5 w-3.5" /></Button>}>
-          <MenuLabel>Saved views</MenuLabel>
+        {(activeFilters.length > 0 || fieldFilters.length > 0) && <Button variant="ghost" size="sm" onClick={() => set(Object.fromEntries([...FILTER_KEYS.map((k) => [k, null]), ...fieldFilters.map(([k]) => [k, null])]))}><IconClose className="h-3.5 w-3.5" />{tr("common.clear")}</Button>}
+        <div className="sm:ml-auto"><Menu align="end" trigger={<Button variant="ghost" size="sm" aria-label={tr("tasks.saved_views")} title={tr("tasks.saved_views")}><IconBookmark className="h-3.5 w-3.5" /><span className="max-xl:sr-only">{tr("tasks.saved_views")}</span><IconChevronDown className="h-3.5 w-3.5" /></Button>}>
+          <MenuLabel>{tr("tasks.saved_views")}</MenuLabel>
           {(views.data ?? []).map((v) => (
             <MenuItem key={v.id} checked={v.id === activeViewId} onSelect={() => applyView(v)} hint={v.pinned ? "Pinned" : v.shared ? undefined : "Only you"}>{v.name}</MenuItem>
           ))}
-          {!views.data?.length && <p className="px-2.5 py-1.5 text-[12.5px] text-subtle">None yet. Set filters, sort or grouping, then save them here.</p>}
+          {!views.data?.length && <p className="px-2.5 py-1.5 text-[12.5px] text-subtle">{tr("tasks.none_yet_set_filters_sort_or_grouping_then_save")}</p>}
           <div className="my-1 border-t border-line" />
           {activeView && activeView.canEdit !== false && <MenuItem icon={<IconBookmark />} onSelect={() => void updateActiveView()}>Update {activeView.name}</MenuItem>}
           <MenuItem icon={<IconPlus />} onSelect={() => setSaveOpen(true)}>{saving ? "Saving" : "Save as new view"}</MenuItem>
@@ -412,11 +413,11 @@ export function TasksPage() {
       <div className="min-h-0 flex-1">
         <ClashScope projectId={projectId || undefined} enabled={view === "list" || view === "board"}>{/* R38: one date clash check for the list or board */}
         {!list.length ? (
-          <EmptyState icon={<IconBoard />} title="No projects yet" body="Make a task from any email, or start a project. Your first project is set up for you." action={<Button onClick={() => setNewTask({})}>New task</Button>} />
+          <EmptyState icon={<IconBoard />} title={tr("tasks.no_projects_yet")} body={tr("tasks.make_a_task_from_any_email_or_start_a_project_yo")} action={<Button onClick={() => setNewTask({})}>{tr("tasks.new_task")}</Button>} />
         ) : tasks.isError && !tasks.data ? (
           <LoadError onRetry={() => Promise.all([tasks.refetch(), retryFailedLoads(qc)])} className="rounded-xl border border-line bg-surface" />
         ) : tasks.isPending ? (
-          view === "board" && project ? <BoardSkeleton columns={Math.min(project.statuses.length || 4, 5)} /> : <SkeletonRows rows={8} rowHeight={41} label="Loading tasks" className="rounded-xl border border-line bg-surface" />
+          view === "board" && project ? <BoardSkeleton columns={Math.min(project.statuses.length || 4, 5)} /> : <SkeletonRows rows={8} rowHeight={41} label={tr("tasks.loading_tasks")} className="rounded-xl border border-line bg-surface" />
         ) : !(tasks.data ?? []).length && view !== "workload" && view !== "sprints" && (filtered || view === "list" || (view === "board" && !project)) ? (
           <TasksEmpty copy={emptyTasksCopy("list", filtered)} onClear={clearFilters} onNew={() => setNewTask({})} board={view === "board"} />
         ) : lanesOn && project ? (
@@ -432,12 +433,12 @@ export function TasksPage() {
               ? update.mutate({ id, patch: { position, fields: { [groupField.id]: col === NO_VALUE ? null : col } } })
               : update.mutate({ id, patch: { statusId: col, position, status: project.statuses.find((s) => s.id === col)?.category, statusName: project.statuses.find((s) => s.id === col)?.name } })} />
         ) : view === "workload" ? (
-          <Suspense fallback={<PanelListSkeleton label="Loading workload" />}><WorkloadView projectId={projectId || undefined} onOpen={open} /></Suspense>
+          <Suspense fallback={<PanelListSkeleton label={tr("tasks.loading_workload")} />}><WorkloadView projectId={projectId || undefined} onOpen={open} /></Suspense>
         ) : view === "mindmap" ? (
-          project ? <Suspense fallback={<PanelListSkeleton label="Loading the mind map" />}><MindMapView project={project} onOpen={open} /></Suspense>
-            : <EmptyState icon={<IconListTree />} title="Pick a project" body="The mind map shows one project's tasks and subtasks. Choose a project above." />
+          project ? <Suspense fallback={<PanelListSkeleton label={tr("tasks.loading_the_mind_map")} />}><MindMapView project={project} onOpen={open} /></Suspense>
+            : <EmptyState icon={<IconListTree />} title={tr("tasks.pick_a_project")} body={tr("tasks.the_mind_map_shows_one_project_s_tasks_and_subta")} />
         ) : view === "sprints" && project ? (
-          <Suspense fallback={<PanelListSkeleton label="Loading sprints" />}><SprintsView project={project} onOpen={open} /></Suspense>
+          <Suspense fallback={<PanelListSkeleton label={tr("tasks.loading_sprints")} />}><SprintsView project={project} onOpen={open} /></Suspense>
         ) : view === "list" || ((view === "board" || view === "sprints") && !project) ? (
           <>
             {phone ? <PhoneTaskList tasks={tasks.data ?? []} projects={list} onOpen={open} groupBy={listGroup} fields={listFields} people={people.data ?? []} sort={listSort} /> /* R41 (MB-226) */
@@ -448,7 +449,7 @@ export function TasksPage() {
               onQuickAdd={async (title) => { await create.mutateAsync({ title, projectId: (project ?? list[0])!.id }); await qc.invalidateQueries({ queryKey: ["tasks"] }); }} />}
           </>
         ) : (
-          <Suspense fallback={view === "calendar" ? <CalendarSkeleton label="Loading the task calendar" /> : <TimelineSkeleton />}>
+          <Suspense fallback={view === "calendar" ? <CalendarSkeleton label={tr("tasks.loading_the_task_calendar")} /> : <TimelineSkeleton />}>
             {view === "calendar"
               ? <TaskCalendar tasks={tasks.data ?? []} onOpen={open} onDue={(id, due) => update.mutate({ id, patch: { due } })} />
               : <PlannedTimeline tasks={tasks.data ?? []} projectId={projectId || undefined} onOpen={open} onAdd={() => setNewTask({})} onDates={(id, start, due) => update.mutate({ id, patch: { start, due } })} />}
@@ -490,18 +491,18 @@ export function NewTaskDialog({ projects, projectId, statusId, onClose, onCreate
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   return (
-    <Dialog open onClose={onClose} title="New task" footer={<>
-      <label className="mr-auto inline-flex min-h-10 cursor-pointer items-center gap-2 text-[13px] text-muted"><input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={keepGoing} onChange={(e) => setKeepGoing(e.target.checked)} />Add another</label>
+    <Dialog open onClose={onClose} title={tr("tasks.new_task")} footer={<>
+      <label className="mr-auto inline-flex min-h-10 cursor-pointer items-center gap-2 text-[13px] text-muted"><input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={keepGoing} onChange={(e) => setKeepGoing(e.target.checked)} />{tr("tasks.add_another")}</label>
       <Button variant="secondary" onClick={onClose}>{keepGoing ? "Done" : "Cancel"}</Button><Button loading={busy} disabled={!title.trim()} onClick={() => void submit()}>{keepGoing ? "Add task" : "Create task"}</Button></>}>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-        <Field label="Title">{(f) => <Input {...f} ref={titleRef} autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What needs doing?" />}</Field>
+        <Field label={tr("common.title")}>{(f) => <Input {...f} ref={titleRef} autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tr("tasks.what_needs_doing")} />}</Field>
         <TypePicker value={type} onChange={setType} />
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Project">{(f) => <Select {...f} value={pid} onChange={(e) => { setPid(e.target.value); setSid(""); }}>{projects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>}</Field>
-          <Field label="Status">{(f) => <Select {...f} value={sid} onChange={(e) => setSid(e.target.value)}><option value="">{p?.statuses[0]?.name ?? "First status"}</option>{p?.statuses.slice(1).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select>}</Field>
-          <Field label="Assignee">{(f) => <Select {...f} value={assignee} onChange={(e) => setAssignee(e.target.value)}><option value="">Nobody</option>{people.data?.map((x) => <option key={x.id} value={x.id}>{x.name}{x.type === "agent" ? " (agent)" : ""}</option>)}</Select>}</Field>
-          <Field label="Due">{(f) => <Input {...f} type="date" value={due} onChange={(e) => setDue(e.target.value)} />}</Field>
-          <Field label="Priority">{(f) => <Select {...f} value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>{(Object.keys(PRIORITY_LABEL) as Priority[]).map((x) => <option key={x} value={x}>{PRIORITY_LABEL[x]}</option>)}</Select>}</Field>
+          <Field label={tr("tasks.project")}>{(f) => <Select {...f} value={pid} onChange={(e) => { setPid(e.target.value); setSid(""); }}>{projects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>}</Field>
+          <Field label={tr("common.status")}>{(f) => <Select {...f} value={sid} onChange={(e) => setSid(e.target.value)}><option value="">{p?.statuses[0]?.name ?? "First status"}</option>{p?.statuses.slice(1).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select>}</Field>
+          <Field label={tr("common.assignee")}>{(f) => <Select {...f} value={assignee} onChange={(e) => setAssignee(e.target.value)}><option value="">{tr("tasks.nobody")}</option>{people.data?.map((x) => <option key={x.id} value={x.id}>{x.name}{x.type === "agent" ? " (agent)" : ""}</option>)}</Select>}</Field>
+          <Field label={tr("tasks.due")}>{(f) => <Input {...f} type="date" value={due} onChange={(e) => setDue(e.target.value)} />}</Field>
+          <Field label={tr("common.priority")}>{(f) => <Select {...f} value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>{(Object.keys(PRIORITY_LABEL) as Priority[]).map((x) => <option key={x} value={x}>{PRIORITY_LABEL[x]}</option>)}</Select>}</Field>
         </div>
       </form>
     </Dialog>
@@ -562,12 +563,12 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
   };
   return (
     <Dialog open onClose={onClose} title={project ? "Project settings" : "New project"} description={project || customize ? "Statuses are the board's columns. Each belongs to a group: to do, doing or done." : "Pick how work moves. You can change it any time."}
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={busy} disabled={!valid} onClick={save}>{project ? "Save" : "Create project"}</Button></>}>
+      footer={<><Button variant="secondary" onClick={onClose}>{tr("common.cancel")}</Button><Button loading={busy} disabled={!valid} onClick={save}>{project ? "Save" : "Create project"}</Button></>}>
       <div className="space-y-4">
-        <Field label="Name" error={error ?? undefined}>{(f) => <Input {...f} value={name} onChange={(e) => setName(e.target.value)} placeholder="Client onboarding" autoFocus />}</Field>
+        <Field label={tr("common.name")} error={error ?? undefined}>{(f) => <Input {...f} value={name} onChange={(e) => setName(e.target.value)} placeholder="Client onboarding" autoFocus />}</Field>
         <ErrorRetry error={failure} onRetry={save} retrying={busy} />
         {!project && (
-          <div role="radiogroup" aria-label="Template" className="grid grid-cols-3 gap-2">
+          <div role="radiogroup" aria-label={tr("tasks.template")} className="grid grid-cols-3 gap-2">
             {PROJECT_TEMPLATES.map((t) => (
               <button key={t.id} type="button" role="radio" aria-checked={template === t.id} onClick={() => pickTemplate(t.id)} data-testid={`template-${t.id}`}
                 className={cn("flex min-h-[88px] flex-col items-start gap-1.5 rounded-xl border p-3 text-left transition-[border-color,box-shadow,background-color] duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
@@ -587,29 +588,29 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
         {customize && <>
         <Field label="Key" hint={keyError ? undefined : "Shown before task numbers, like OPS-12. Letters and digits, up to 6."} error={keyError ?? undefined}>{(f) => <Input {...f} value={key} maxLength={6} onChange={(e) => { setKey(e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase()); setKeyError(null); }} placeholder={project ? "" : "Made from the name"} className="w-32 font-mono uppercase" data-testid="project-key" />}</Field>
         <div>
-          <p className="mb-2 text-[13px] font-medium">Statuses</p>
+          <p className="mb-2 text-[13px] font-medium">{tr("tasks.statuses")}</p>
           <ul className="space-y-2">
             {statuses.map((s, i) => (
               <li key={i} className="flex items-center gap-2">
                 <Menu align="start" trigger={<button className="h-5 w-5 shrink-0 rounded-full border border-line-strong" style={{ background: tone(s.color) }} aria-label={`Colour for ${s.name}`} />}>
                   <div className="flex gap-1 p-2">{SWATCHES.map((c) => <button key={c} className="h-5 w-5 rounded-full" style={{ background: c }} aria-label={c} onClick={() => setStatuses((x) => x.map((y, j) => (j === i ? { ...y, color: c } : y)))} />)}</div>
                 </Menu>
-                <Input aria-label="Status name" value={s.name} onChange={(e) => setStatuses((x) => x.map((y, j) => (j === i ? { ...y, name: e.target.value } : y)))} className="h-8 text-[13px]" />
-                <Select aria-label="Status group" value={s.category} onChange={(e) => setStatuses((x) => x.map((y, j) => (j === i ? { ...y, category: e.target.value as Category } : y)))} className="h-8 w-28! text-[13px]">
-                  <option value="todo">To do</option><option value="doing">Doing</option><option value="done">Done</option>
+                <Input aria-label={tr("tasks.status_name")} value={s.name} onChange={(e) => setStatuses((x) => x.map((y, j) => (j === i ? { ...y, name: e.target.value } : y)))} className="h-8 text-[13px]" />
+                <Select aria-label={tr("tasks.status_group")} value={s.category} onChange={(e) => setStatuses((x) => x.map((y, j) => (j === i ? { ...y, category: e.target.value as Category } : y)))} className="h-8 w-28! text-[13px]">
+                  <option value="todo">{tr("tasks.to_do")}</option><option value="doing">{tr("tasks.doing")}</option><option value="done">{tr("common.done")}</option>
                 </Select>
-                <button disabled={i === 0} onClick={() => move(i, -1)} className="rounded p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label="Move up"><IconChevronUp className="h-4 w-4" /></button>
-                <button disabled={i === statuses.length - 1} onClick={() => move(i, 1)} className="rounded p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label="Move down"><IconChevronDown className="h-4 w-4" /></button>
+                <button disabled={i === 0} onClick={() => move(i, -1)} className="rounded p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label={tr("tasks.move_up")}><IconChevronUp className="h-4 w-4" /></button>
+                <button disabled={i === statuses.length - 1} onClick={() => move(i, 1)} className="rounded p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label={tr("tasks.move_down")}><IconChevronDown className="h-4 w-4" /></button>
                 <button disabled={statuses.length <= 1} onClick={() => setStatuses((x) => x.filter((_, j) => j !== i))} className="rounded p-1 text-subtle hover:text-bad disabled:opacity-30" aria-label={`Remove ${s.name}`}><IconTrash className="h-4 w-4" /></button>
               </li>
             ))}
           </ul>
-          <Button variant="ghost" size="sm" className="mt-2" onClick={() => setStatuses((x) => [...x.slice(0, -1), { id: "", name: "", category: "doing", color: "#a855f7", position: x.length }, ...x.slice(-1)])}><IconPlus className="h-3.5 w-3.5" />Add status</Button>
-          {project && <p className="mt-2 text-[12px] text-subtle">Removing a status moves its tasks to the first status in the same group.</p>}
+          <Button variant="ghost" size="sm" className="mt-2" onClick={() => setStatuses((x) => [...x.slice(0, -1), { id: "", name: "", category: "doing", color: "#a855f7", position: x.length }, ...x.slice(-1)])}><IconPlus className="h-3.5 w-3.5" />{tr("tasks.add_status")}</Button>
+          {project && <p className="mt-2 text-[12px] text-subtle">{tr("tasks.removing_a_status_moves_its_tasks_to_the_first_s")}</p>}
         </div>
         <div className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2.5">
-          <div><div className="text-[13px] font-medium">Send to triage</div><div className="text-[12px] text-muted">Tasks made from mail rules and forms wait in Triage until someone accepts them.</div></div>
-          <Switch checked={triage} onChange={setTriage} label="Send to triage" />
+          <div><div className="text-[13px] font-medium">{tr("tasks.send_to_triage")}</div><div className="text-[12px] text-muted">{tr("tasks.tasks_made_from_mail_rules_and_forms_wait_in_tri")}</div></div>
+          <Switch checked={triage} onChange={setTriage} label={tr("tasks.send_to_triage")} />
         </div>
         </>}
       </div>

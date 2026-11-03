@@ -62,6 +62,7 @@ import { useMediaQuery } from "@/web/lib/use-compact";
 import { Breadcrumbs, ContextSidebar, CreateMenu, IconRail, SearchEntry, ViewMenu, useSidebarShortcut, type NavCounts } from "./shell"; // R79
 import { pageTitle, sectionFor, setNavModel, visibleSections } from "./shell-nav"; // R79; R82F (MB-283) titles; R121 model
 import { CustomiseMenuHost, MoreSheet } from "@/web/components/nav-p2-r121"; // R121
+import { tr, tl } from "@/web/i18n"; // R104
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -204,10 +205,10 @@ export function AppLayout() {
       <div className="grid min-h-dvh place-items-center p-6 text-center">
         <div className="max-w-sm">
           <h1 className="text-lg font-semibold">{organization?.name} requires single sign on</h1>
-          <p className="mt-2 text-sm text-muted">You signed in with a password. Sign out, then choose your company's SSO on the sign in page.</p>
+          <p className="mt-2 text-sm text-muted">{tr("shell.you_signed_in_with_a_password_sign_out_then_choo")}</p>
           <button className="mt-5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-brand-fg hover:bg-brand-press"
             onClick={async () => { await clearOfflineData(); try { await (await authClientModule()).authClient.signOut(); } catch { /* already signed out */ } await clearOfflineData(); qc.clear(); navigate("/login?sso=required"); }}>
-            Sign out and use SSO
+            {tr("shell.sign_out_and_use_sso")}
           </button>
         </div>
       </div>
@@ -231,16 +232,16 @@ export function AppLayout() {
     <Menu align={align} trigger={trigger}>
           <MenuLabel>{user.email}</MenuLabel>
           <div className="px-1.5 pb-1.5 pt-0.5"><AppearanceControl className="w-full [&>button]:flex-1 [&>button]:justify-center" /></div>
-          <MenuItem icon={<IconUserCog />} onSelect={() => navigate("/app/settings/account")}>Account and security</MenuItem>
-          <MenuItem icon={<IconSettings />} onSelect={() => navigate("/app/settings")}>Workspace settings</MenuItem>
-          <MenuItem icon={<IconKeyboard />} onSelect={openShortcutsSheet}>Keyboard shortcuts</MenuItem>
-          {tours.on && <MenuItem icon={<IconFlag />} onSelect={resumeChecklist}>Get started</MenuItem>}{/* R130 */}
-          {tours.on && <MenuItem icon={<IconMapPin />} onSelect={openToursList}>Tours</MenuItem>}
+          <MenuItem icon={<IconUserCog />} onSelect={() => navigate("/app/settings/account")}>{tr("shell.account_and_security")}</MenuItem>
+          <MenuItem icon={<IconSettings />} onSelect={() => navigate("/app/settings")}>{tr("shell.workspace_settings")}</MenuItem>
+          <MenuItem icon={<IconKeyboard />} onSelect={openShortcutsSheet}>{tr("common.keyboard_shortcuts")}</MenuItem>
+          {tours.on && <MenuItem icon={<IconFlag />} onSelect={resumeChecklist}>{tr("common.get_started")}</MenuItem>}{/* R130 */}
+          {tours.on && <MenuItem icon={<IconMapPin />} onSelect={openToursList}>{tr("shell.tours")}</MenuItem>}
           <MenuItem icon={<IconZap />} onSelect={() => { whatsNew.markSeen(); navigate("/changelog"); }}>
             What's new
             {whatsNew.unread && <span className="ml-auto flex items-center" data-testid="whats-new-dot"><span className="h-2 w-2 rounded-full bg-brand" aria-hidden /><span className="sr-only">(new)</span></span>}
           </MenuItem>
-          <MenuItem icon={<IconLogOut />} onSelect={signOut} danger>Sign out</MenuItem>
+          <MenuItem icon={<IconLogOut />} onSelect={signOut} danger>{tr("common.sign_out")}</MenuItem>
     </Menu>
   );
 
@@ -262,23 +263,23 @@ export function AppLayout() {
   const sidebar = (
     <div className="flex h-full flex-col">
       <div className="flex h-14 shrink-0 items-center justify-between px-4">
-        <Link to="/app" aria-label="Multies overview"><WorkspaceWideLogo onSidebar markName={me.data?.organization?.name ?? ""} fallback={<Logo className="h-6" />} /></Link>
-        <button className="grid h-11 w-11 place-items-center rounded-full text-muted transition-colors hover:bg-hover hover:text-fg lg:hidden" onClick={() => setDrawer(false)} aria-label="Close navigation"><IconClose className="h-5 w-5" /></button>
+        <Link to="/app" aria-label={tr("shell.multies_overview")}><WorkspaceWideLogo onSidebar markName={me.data?.organization?.name ?? ""} fallback={<Logo className="h-6" />} /></Link>
+        <button className="grid h-11 w-11 place-items-center rounded-full text-muted transition-colors hover:bg-hover hover:text-fg lg:hidden" onClick={() => setDrawer(false)} aria-label={tr("shell.close_navigation")}><IconClose className="h-5 w-5" /></button>
       </div>
       <div className="shrink-0 px-3">
         <WorkspaceSwitcher current={organization} />
       </div>
       <div className="mt-3 shrink-0 px-3">
         <button onClick={() => { setDrawer(false); openPalette(); }} className="flex w-full items-center gap-2.5 rounded-lg bg-fill px-2.5 py-[6px] text-[13px] text-subtle transition-colors hover:bg-hover hover:text-muted max-sm:min-h-11">
-          <IconSearch className="h-4 w-4" aria-hidden /><span className="flex-1 text-left">Search</span><span className="[@media(hover:none)]:hidden"><Kbd>{isMac ? "⌘" : "Ctrl"} K</Kbd></span>
+          <IconSearch className="h-4 w-4" aria-hidden /><span className="flex-1 text-left">{tr("common.search")}</span><span className="[@media(hover:none)]:hidden"><Kbd>{isMac ? "⌘" : "Ctrl"} K</Kbd></span>
         </button>
       </div>
       {/* R121 (P2 menu): every section as a tile with its count, then New social post and Settings (plan section 9). */}
       {config.data?.navP2 ? <MoreSheet sections={sections} counts={navCounts} active={section.id} canPost={navFlags.social} onNavigate={() => setDrawer(false)} /> : (
-      <nav className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 max-lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]" aria-label="App">
+      <nav className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 max-lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]" aria-label={tr("shell.app")}>
         {navGroups(withOneInbox(!!config.data?.inboxTd6, ([...((config.data?.tools ? (x: NavItem[]) => withTools(x, !!config.data?.toolFeatures?.includes("folders") || !!config.data?.filesPlus) : (x: NavItem[]) => x)(config.data?.scheduling ? withScheduling : nav)), ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: IconShield, end: false, group: "admin" as const }] : [])] as NavItem[]))).map(({ group, items }, gi) => (
           <div key={group} className={cn(gi > 0 && "pt-4 max-lg:pt-5")}>
-          <div data-testid="nav-group" className="px-2.5 pb-1 text-[11.5px] font-semibold text-subtle max-lg:pb-1.5 max-lg:text-[12px] max-lg:uppercase max-lg:tracking-[0.05em]">{GROUP_LABEL[group]}</div>
+          <div data-testid="nav-group" className="px-2.5 pb-1 text-[11.5px] font-semibold text-subtle max-lg:pb-1.5 max-lg:text-[12px] max-lg:uppercase max-lg:tracking-[0.05em]">{tl("nav", GROUP_LABEL[group])}</div>
           {/* R46 mobile: on a phone each group is one rounded card, like the system settings lists. */}
           <div className="space-y-0.5 max-lg:overflow-hidden max-lg:rounded-[14px] max-lg:bg-surface max-lg:p-1 max-lg:shadow-[var(--shadow-e1)]">
           {items.map(({ to, label, icon: Icon, end }) => (
@@ -288,7 +289,7 @@ export function AppLayout() {
             )}>
               {({ isActive }) => (<>
               {/* R79: calm monochrome glyphs; colour is kept for the active item and for counts that need you. */}
-              <Icon filled={isActive} className="h-[18px] w-[18px] shrink-0 opacity-90" aria-hidden />{label}
+              <Icon filled={isActive} className="h-[18px] w-[18px] shrink-0 opacity-90" aria-hidden />{tl("nav", label)}
               {to === "/app/notifications" && (unreadNotes.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" data-badge aria-label={`${unreadNotes.data} unread`}>{badgeCount(unreadNotes.data ?? 0)}</span>}
               {to === "/app/mail" && mailUnread > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" data-badge aria-label={`${mailUnread} unread in Inbox`}>{badgeCount(mailUnread)}</span>}
               {to === "/app/chat" && (chatUnread.data?.total ?? 0) > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" data-badge aria-label={`${chatUnread.data?.total} unread messages`}>{badgeCount(chatUnread.data?.total ?? 0)}</span>}
@@ -305,9 +306,9 @@ export function AppLayout() {
       )}
       {organization?.isDemo && (
         <div className="mx-3 mb-3 shrink-0 rounded-lg bg-fill p-3 text-[12.5px]">
-          <div className="flex items-center gap-1.5 font-medium text-fg"><IconFlask className="h-3.5 w-3.5 text-muted" aria-hidden />Demo workspace</div>
-          <p className="mt-1 text-muted">Sample data, private to you, deleted after 24 hours.</p>
-          <Link to="/signup" onClick={signOut} className="mt-2 inline-block font-medium text-fg hover:underline">Create a real account</Link>
+          <div className="flex items-center gap-1.5 font-medium text-fg"><IconFlask className="h-3.5 w-3.5 text-muted" aria-hidden />{tr("shell.demo_workspace")}</div>
+          <p className="mt-1 text-muted">{tr("shell.sample_data_private_to_you_deleted_after_24_hour")}</p>
+          <Link to="/signup" onClick={signOut} className="mt-2 inline-block font-medium text-fg hover:underline">{tr("shell.create_a_real_account")}</Link>
         </div>
       )}
       <div className="shrink-0 border-t border-line p-3">
@@ -330,9 +331,9 @@ export function AppLayout() {
     </button>, "start");
   const demoNote = organization?.isDemo && (
     <div className="mx-2.5 mb-2.5 shrink-0 rounded-lg bg-fill p-3 text-[12.5px]">
-      <div className="flex items-center gap-1.5 font-medium text-fg"><IconFlask className="h-3.5 w-3.5 text-muted" aria-hidden />Demo workspace</div>
-      <p className="mt-1 text-muted">Sample data, private to you, deleted after 24 hours.</p>
-      <Link to="/signup" onClick={signOut} className="mt-2 inline-block font-medium text-fg hover:underline">Create a real account</Link>
+      <div className="flex items-center gap-1.5 font-medium text-fg"><IconFlask className="h-3.5 w-3.5 text-muted" aria-hidden />{tr("shell.demo_workspace")}</div>
+      <p className="mt-1 text-muted">{tr("shell.sample_data_private_to_you_deleted_after_24_hour")}</p>
+      <Link to="/signup" onClick={signOut} className="mt-2 inline-block font-medium text-fg hover:underline">{tr("shell.create_a_real_account")}</Link>
     </div>
   );
   const content = (
@@ -346,13 +347,13 @@ export function AppLayout() {
         )}
         <header className="sticky top-0 z-20 flex h-[calc(3rem+env(safe-area-inset-top))] shrink-0 items-center gap-1 glass hairline-b pl-[max(0.375rem,env(safe-area-inset-left))] pr-[max(0.375rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)] lg:hidden" data-topbar>
           {/* R46 mobile: phones get the tab bar (More opens the menu); a tablet keeps the menu button here. */}
-          <button className="hidden h-11 w-11 shrink-0 place-items-center rounded-full text-brand-hover transition-colors hover:bg-hover md:grid" onClick={() => setDrawer(true)} aria-label="Open navigation"><IconMenu className="h-[22px] w-[22px]" /></button>
+          <button className="hidden h-11 w-11 shrink-0 place-items-center rounded-full text-brand-hover transition-colors hover:bg-hover md:grid" onClick={() => setDrawer(true)} aria-label={tr("shell.open_navigation")}><IconMenu className="h-[22px] w-[22px]" /></button>
           <div className="min-w-0"><WorkspaceSwitcher current={organization} variant="chip" compact={!!barTitle} /></div>
           {barTitle && <span className="pointer-events-none absolute left-1/2 top-[env(safe-area-inset-top)] flex h-12 max-w-[46%] -translate-x-1/2 animate-fade-in items-center text-[16px] font-semibold tracking-[-0.01em] text-fg" aria-hidden data-testid="bar-title"><span className="truncate">{barTitle}</span></span>}
           <div className="ml-auto flex shrink-0 items-center">
             <ChecklistRing />
-            <button onClick={() => openPalette()} className="grid h-11 w-11 place-items-center rounded-full text-fg/80 transition-colors hover:bg-hover hover:text-fg" aria-label="Search" data-testid="topbar-search"><IconSearch className="h-[22px] w-[22px]" /></button>
-            {accountMenu(<button className="grid h-11 w-11 place-items-center rounded-full transition-colors hover:bg-hover" aria-label="Account" data-testid="topbar-account"><span className="relative"><Avatar label={initials(user.name)} className="h-8 w-8" drawn />{whatsNew.unread && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-surface" aria-hidden data-testid="whats-new-unread" />}</span></button>, "end")}
+            <button onClick={() => openPalette()} className="grid h-11 w-11 place-items-center rounded-full text-fg/80 transition-colors hover:bg-hover hover:text-fg" aria-label={tr("common.search")} data-testid="topbar-search"><IconSearch className="h-[22px] w-[22px]" /></button>
+            {accountMenu(<button className="grid h-11 w-11 place-items-center rounded-full transition-colors hover:bg-hover" aria-label={tr("common.account")} data-testid="topbar-account"><span className="relative"><Avatar label={initials(user.name)} className="h-8 w-8" drawn />{whatsNew.unread && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-surface" aria-hidden data-testid="whats-new-unread" />}</span></button>, "end")}
           </div>
         </header>
         <WorkspaceSwitchedBanner />
@@ -381,38 +382,38 @@ export function AppLayout() {
       {createPortal(content, mainHost)}
       {/* R79 (MB-278): the first Tab stop jumps past the navigation to the page. */}
       <a href="#main" data-testid="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}
-        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-md focus:bg-fg focus:px-3 focus:py-2 focus:text-[13px] focus:font-medium focus:text-bg">Skip to content</a>
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-md focus:bg-fg focus:px-3 focus:py-2 focus:text-[13px] focus:font-medium focus:text-bg">{tr("shell.skip_to_content")}</a>
       {/* R82F (MB-282): the second Tab stop opens Create (it sat 24 stops in, behind the rail and the sidebar). */}
       {desktop && <a href="#create" data-testid="skip-create" onClick={(e) => { e.preventDefault(); const b = document.querySelector<HTMLElement>("[data-testid=create-menu]"); b?.focus(); b?.click(); }}
-        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-md focus:bg-fg focus:px-3 focus:py-2 focus:text-[13px] focus:font-medium focus:text-bg">Create something</a>}
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-md focus:bg-fg focus:px-3 focus:py-2 focus:text-[13px] focus:font-medium focus:text-bg">{tr("shell.create_something")}</a>}
       {desktop ? (<>
         <IconRail sections={sections} active={section.id} counts={navCounts} footer={accountButton} />
         <Group key={layoutGen} id="shell" orientation="horizontal" className="min-w-0 flex-1" defaultLayout={shellLayout.defaultLayout} onLayoutChanged={shellLayout.onLayoutChanged}>
           {!sidebarHidden && <>
             <Panel id="shell-sidebar" defaultSize="248px" minSize="200px" maxSize="420px" className="glass-sidebar">
-              <aside aria-label="Sidebar" className="h-full">
+              <aside aria-label={tr("common.sidebar")} className="h-full">
                 <ContextSidebar section={section} counts={navCounts} logo={<Link to="/app" aria-label={`${me.data?.organization?.name || "Multies"} overview`}><WorkspaceWideLogo onSidebar markName={me.data?.organization?.name ?? ""} fallback={<Logo className="h-6" />} /></Link>} header={<WorkspaceSwitcher current={organization} />} footer={demoNote} />
               </aside>
             </Panel>
             {/* R82F: named by title (still read out), so axe does not count the handle as page content outside a landmark. */}
-            <Separator className="shell-separator" title="Resize sidebar" />
+            <Separator className="shell-separator" title={tr("shell.resize_sidebar")} />
           </>}
           <Panel id="shell-main" minSize="480px"><HostSlot host={mainHost} className="flex h-full min-w-0 flex-col" /></Panel>
           {inspectorOpen && <>
-            <Separator className="shell-separator" title="Resize details panel" />
+            <Separator className="shell-separator" title={tr("shell.resize_details_panel")} />
             <Panel id="shell-inspector" defaultSize="420px" minSize="340px" maxSize="760px">
               <div ref={setInspectorEl} className="h-full min-w-0 overflow-hidden" />
             </Panel>
           </>}
         </Group>
       </>) : (<>
-        <aside aria-label="Sidebar" className="glass-sidebar hairline-r hidden w-60 shrink-0 lg:block">{sidebar}</aside>
+        <aside aria-label={tr("common.sidebar")} className="glass-sidebar hairline-r hidden w-60 shrink-0 lg:block">{sidebar}</aside>
         <HostSlot host={mainHost} className="flex h-full min-w-0 flex-1 flex-col" />
       </>)}
       {drawer && (
-        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label={tr("common.navigation")}>
           <div className="absolute inset-0 animate-fade-in bg-black/40" data-testid="drawer-backdrop" onClick={closeDrawerBack} />
-          <aside aria-label="Sidebar" className="absolute inset-y-0 left-0 w-72 max-w-[85vw] animate-drawer-in border-r border-line bg-surface pt-[env(safe-area-inset-top)] elev-3 max-md:w-[min(20rem,88vw)] max-md:bg-bg">{sidebar}</aside>
+          <aside aria-label={tr("common.sidebar")} className="absolute inset-y-0 left-0 w-72 max-w-[85vw] animate-drawer-in border-r border-line bg-surface pt-[env(safe-area-inset-top)] elev-3 max-md:w-[min(20rem,88vw)] max-md:bg-bg">{sidebar}</aside>
         </div>
       )}
     </div>
@@ -466,20 +467,20 @@ function WorkspaceSwitcher({ current, variant = "sidebar", compact = false }: { 
           </span>
           <IconChevronsUpDown className="h-4 w-4 shrink-0 text-subtle" />
         </button>)      }>
-        <MenuLabel>Workspaces</MenuLabel>
+        <MenuLabel>{tr("shell.workspaces")}</MenuLabel>
         {(ws.data?.workspaces ?? []).map((w) => (
           <MenuItem key={w.id} icon={w.id === current?.id ? <IconCheck /> : <span className="grid h-4 w-4 place-items-center rounded bg-fill text-[9px] font-bold">{w.name[0]?.toUpperCase()}</span>} onSelect={() => go(w.id)}>
             <span className="truncate" data-testid="workspace-option">{w.name}{switching === w.id ? "…" : ""}</span>
           </MenuItem>
         ))}
         <div className="my-1 border-t border-line" />
-        <MenuItem icon={<IconPlus />} onSelect={() => setCreating(true)}>New workspace</MenuItem>
+        <MenuItem icon={<IconPlus />} onSelect={() => setCreating(true)}>{tr("shell.new_workspace")}</MenuItem>
       </Menu>
       {switchError && <p role="alert" className={variant === "chip" ? "fixed inset-x-3 top-[calc(3.5rem+env(safe-area-inset-top))] z-40 rounded-xl bg-elevated p-3 text-[13px] text-bad elev-3" : "mt-1.5 px-1 text-[12px] text-bad"} data-testid="workspace-switch-error">{switchError}</p>}
-      <Dialog open={creating} onClose={() => setCreating(false)} title="Create a workspace" description="A separate space with its own domains, mailboxes, team and plan."
-        footer={<><Button variant="secondary" onClick={() => setCreating(false)}>Cancel</Button><Button loading={busy} disabled={!name.trim()} onClick={create}>Create workspace</Button></>}>
+      <Dialog open={creating} onClose={() => setCreating(false)} title={tr("shell.create_a_workspace")} description={tr("shell.a_separate_space_with_its_own_domains_mailboxes")}
+        footer={<><Button variant="secondary" onClick={() => setCreating(false)}>{tr("common.cancel")}</Button><Button loading={busy} disabled={!name.trim()} onClick={create}>{tr("shell.create_workspace")}</Button></>}>
         <form onSubmit={(e) => { e.preventDefault(); void create(); }}>
-          <Field label="Name" error={error ?? undefined}>{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Inc." autoFocus />}</Field>
+          <Field label={tr("common.name")} error={error ?? undefined}>{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Inc." autoFocus />}</Field>
         </form>
       </Dialog>
     </>

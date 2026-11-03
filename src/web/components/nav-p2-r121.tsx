@@ -16,6 +16,7 @@ import { OPEN_CUSTOMISE_MENU_EVENT, openCustomiseMenu } from "@/web/lib/customis
 import { canHide, FOURTH_TABS, sectionBadge, withoutHidden, type FourthTab, type NavCount, type Section, type SectionId } from "@/shared/nav-menu";
 import { NAV_ICONS } from "@/web/layouts/shell";
 import { SOCIAL_NEW } from "@/web/layouts/shell-nav";
+import { tl } from "@/web/i18n"; // R104
 
 const fmt = (n: number) => badgeCount(n);
 
@@ -39,12 +40,12 @@ export function MoreSheet({ sections, counts, active, canPost, onNavigate }: {
   useEffect(() => { firstRef.current?.focus(); }, [open]);
   if (openSection) {
     return (
-      <nav aria-label={openSection.label} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3" data-testid="more-section">
+      <nav aria-label={tl("nav", openSection.label)} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3" data-testid="more-section">
         <button type="button" ref={(el) => { firstRef.current = el; }} onClick={() => setOpen(null)} data-testid="more-back"
           className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-1 text-[16px] text-brand-hover focus-visible:outline-2 focus-visible:outline-brand">
           <IconBack className="h-5 w-5" aria-hidden />All sections
         </button>
-        <h2 className="mb-2 px-1 text-[20px] font-semibold tracking-[-0.01em]">{openSection.label}</h2>
+        <h2 className="mb-2 px-1 text-[20px] font-semibold tracking-[-0.01em]">{tl("nav", openSection.label)}</h2>
         <ul className="overflow-hidden rounded-[14px] bg-surface shadow-[var(--shadow-e1)]">
           {openSection.pages.map((p, i) => {
             const Icon = NAV_ICONS[p.icon];
@@ -54,7 +55,7 @@ export function MoreSheet({ sections, counts, active, canPost, onNavigate }: {
                 <NavLink to={p.to} end={p.end} onClick={onNavigate} className={({ isActive }) => cn("flex min-h-12 items-center gap-3 px-3 text-[16px] transition-colors duration-150 active:bg-hover",
                   i > 0 && "border-t border-line", isActive ? "font-medium text-fg" : "text-fg/90")}>
                   <Icon className="h-5 w-5 shrink-0 text-muted" aria-hidden />
-                  <span className="min-w-0 flex-1 truncate">{p.label}</span>
+                  <span className="min-w-0 flex-1 truncate">{tl("nav", p.label)}</span>
                   {c && <Badge n={c.n} alert={!!c.alert} label={c.label} />}
                   <IconChevronRight className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
                 </NavLink>
@@ -71,12 +72,12 @@ export function MoreSheet({ sections, counts, active, canPost, onNavigate }: {
         {shown.map((s, i) => {
           const Icon = NAV_ICONS[s.icon];
           const b = sectionBadge(s, counts);
-          const label = b.n > 0 ? `${s.label}, ${b.n} ${b.alert ? "need you" : "unread"}` : s.label;
+          const label = b.n > 0 ? `${tl("nav", s.label)}, ${b.n} ${b.alert ? "need you" : "unread"}` : tl("nav", s.label);
           const cls = cn("relative flex min-h-[76px] w-full flex-col items-center justify-center gap-1.5 rounded-[14px] bg-surface px-1 text-[12.5px] font-medium shadow-[var(--shadow-e1)] transition-colors duration-150 active:bg-hover focus-visible:outline-2 focus-visible:outline-brand",
             s.id === active ? "text-brand-hover ring-1 ring-brand/40" : "text-fg");
           const inner = (<>
             <Icon className="h-6 w-6" filled={s.id === active} aria-hidden />
-            <span className="max-w-full truncate">{s.label}</span>
+            <span className="max-w-full truncate">{tl("nav", s.label)}</span>
             {/* The number is drawn by CSS (data-badge), so the tile's visible words stay its label and its name contains them. */}
             {b.n > 0 && <span data-badge={fmt(b.n)} className={cn("absolute right-1.5 top-1.5 min-w-[18px] rounded-full px-1 text-center text-[11px] font-semibold leading-[18px] tabular-nums before:content-[attr(data-badge)]",
               b.alert ? "bg-brand text-brand-fg" : "bg-fill text-muted")} aria-hidden />}
@@ -144,8 +145,8 @@ export function CustomiseMenuHost({ sections }: { sections: Section[] }) {
             return (
               <li key={s.id} className="flex min-h-11 items-center gap-3 px-3">
                 <Icon className="h-[18px] w-[18px] shrink-0 text-muted" aria-hidden />
-                <span className="flex-1 text-[14px]">{s.label}</span>
-                <Switch checked={shown} onChange={(v) => setRailHidden(s.id, !v)} label={`Show ${s.label}`} />
+                <span className="flex-1 text-[14px]">{tl("nav", s.label)}</span>
+                <Switch checked={shown} onChange={(v) => setRailHidden(s.id, !v)} label={`Show ${tl("nav", s.label)}`} />
               </li>
             );
           })}
@@ -156,7 +157,7 @@ export function CustomiseMenuHost({ sections }: { sections: Section[] }) {
           {tabs.map((t) => (
             <button key={t.id} type="button" role="radio" aria-checked={layout.fourthTab === t.id} onClick={() => setLayout({ fourthTab: t.id as FourthTab })}
               className={cn("min-h-9 rounded-md px-3 text-[13px] transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-brand",
-                layout.fourthTab === t.id ? "bg-surface font-medium text-fg shadow-[var(--shadow-e1)]" : "text-muted hover:text-fg")}>{t.label}</button>
+                layout.fourthTab === t.id ? "bg-surface font-medium text-fg shadow-[var(--shadow-e1)]" : "text-muted hover:text-fg")}>{tl("nav", t.label)}</button>
           ))}
         </div>
       </div>

@@ -9,6 +9,7 @@ import { cn } from "@/web/lib/cn";
 import { Select } from "@/web/components/ui/input";
 import type { BulkCall } from "@/web/lib/mail-selection";
 import { moveTargets, useProviderFolders } from "./provider-folders";
+import { tr } from "@/web/i18n"; // R104
 
 type Act = (call: Omit<BulkCall, "ids">, label?: string) => void;
 
@@ -54,7 +55,7 @@ export function SnoozePresets({ onPick, onClose }: { onPick: (p: (typeof SNOOZE)
     return () => { document.removeEventListener("mousedown", away); window.removeEventListener("keydown", esc, true); };
   }, [onClose]);
   return (
-    <div ref={ref} role="menu" aria-label="Snooze until" data-testid="bulk-snooze-menu"
+    <div ref={ref} role="menu" aria-label={tr("mail.snooze_until")} data-testid="bulk-snooze-menu"
       className="absolute left-0 top-10 z-20 w-44 rounded-xl border border-line bg-surface p-1 shadow-lg">
       {SNOOZE.map((s) => (
         <button key={s.preset} type="button" role="menuitem" onClick={() => onPick(s.preset)}
@@ -78,20 +79,20 @@ export function BulkBar({ count, total, folder, connectionId, snoozeOpen, setSno
   return (
     <div role="toolbar" aria-label={`${count} selected`} data-testid="bulk-bar"
       className="sticky top-0 z-10 flex items-center gap-1 border-b border-line bg-surface/95 px-2 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-surface/80 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150">
-      <BarBtn label="Clear selection" hint="Esc" onClick={onClear}><IconClose /></BarBtn>
+      <BarBtn label={tr("mail.clear_selection")} hint="Esc" onClick={onClear}><IconClose /></BarBtn>
       <span className="min-w-0 truncate px-1 text-[13px] font-medium text-fg" aria-live="polite" data-testid="bulk-count">{more?.all ? more.chosen : `${count} selected`}</span>
       {!more?.all && count < total && <button type="button" onClick={onSelectAll} className="rounded-md px-1.5 py-0.5 text-[12.5px] text-brand hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">Select all {total}</button>}
       {more && !more.all && count >= total && <button type="button" onClick={more.onAll} data-testid="bulk-select-everything" className="rounded-md px-1.5 py-0.5 text-[12.5px] text-brand hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">{more.offer}</button>}
       <div className="ml-auto flex items-center gap-0.5">
-        {folder === "archive" ? <BarBtn label="Move to Inbox" hint="E" onClick={() => onAct({ action: "inbox" })}><IconInbox /></BarBtn>
-          : <BarBtn label="Archive" hint="E" onClick={() => onAct({ action: "archive" })}><IconArchive /></BarBtn>}
+        {folder === "archive" ? <BarBtn label={tr("mail.move_to_inbox")} hint="E" onClick={() => onAct({ action: "inbox" })}><IconInbox /></BarBtn>
+          : <BarBtn label={tr("common.archive")} hint="E" onClick={() => onAct({ action: "archive" })}><IconArchive /></BarBtn>}
         <div className="relative">
-          <BarBtn label="Snooze" hint="H" onClick={() => setSnoozeOpen(!snoozeOpen)}><IconSnooze /></BarBtn>
+          <BarBtn label={tr("mail.snooze")} hint="H" onClick={() => setSnoozeOpen(!snoozeOpen)}><IconSnooze /></BarBtn>
           {snoozeOpen && <SnoozePresets onClose={() => setSnoozeOpen(false)} onPick={(preset) => { setSnoozeOpen(false); onAct({ action: "snooze", preset }); }} />}
         </div>
-        <label className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-fg focus-within:ring-2 focus-within:ring-brand/60" title="Move to">
+        <label className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-fg focus-within:ring-2 focus-within:ring-brand/60" title={tr("mail.move_to")}>
           <IconMove className="h-4 w-4" aria-hidden />
-          <Select bare aria-label="Move to" value="" data-testid="bulk-move" phoneClassName="absolute inset-0 cursor-pointer opacity-0"
+          <Select bare aria-label={tr("mail.move_to")} value="" data-testid="bulk-move" phoneClassName="absolute inset-0 cursor-pointer opacity-0"
             onChange={(e) => {
               const to = e.target.value;
               if (!to) return;
@@ -100,14 +101,14 @@ export function BulkBar({ count, total, folder, connectionId, snoozeOpen, setSno
               else onAct({ action: to as "inbox" | "archive" | "spam" });
             }}
             className="absolute inset-0 cursor-pointer opacity-0">
-            <option value="">Move to</option>
+            <option value="">{tr("mail.move_to")}</option>
             {standard.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
             {remote.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
           </Select>
         </label>
-        {folder !== "spam" && <BarBtn label="Report spam" onClick={() => onAct({ action: "spam" })}><IconBlock /></BarBtn>}
-        <BarBtn label="Mark read" hint="U" onClick={() => onAct({ action: "read" })}><IconRead /></BarBtn>
-        <BarBtn label="Mark unread" onClick={() => onAct({ action: "unread" })}><IconMail /></BarBtn>
+        {folder !== "spam" && <BarBtn label={tr("mail.report_spam")} onClick={() => onAct({ action: "spam" })}><IconBlock /></BarBtn>}
+        <BarBtn label={tr("mail.mark_read")} hint="U" onClick={() => onAct({ action: "read" })}><IconRead /></BarBtn>
+        <BarBtn label={tr("mail.mark_unread")} onClick={() => onAct({ action: "unread" })}><IconMail /></BarBtn>
         <BarBtn label={inTrash ? "Delete forever" : "Delete"} hint="#" danger onClick={() => onAct({ action: inTrash ? "delete" : "trash" })}><IconTrash /></BarBtn>
       </div>
     </div>

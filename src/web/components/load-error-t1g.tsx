@@ -10,6 +10,7 @@ import { Button } from "@/web/components/ui/button";
 import { cn } from "@/web/lib/cn";
 import { ApiError } from "@/web/lib/api";
 import { LOAD_ERROR_BODY, LOAD_ERROR_TITLE, isServerLoadError, retryFailedLoads, showLoadStrip, useHasFailedLoads, useMarkInlineLoadError, useOnScreenCounts } from "@/web/lib/load-errors-t1g";
+import { tr } from "@/web/i18n"; // R104
 
 function useRetrying(run: () => unknown) {
   const [busy, setBusy] = useState(false);
@@ -26,9 +27,9 @@ export function LoadError({ onRetry, className, compact }: { onRetry: () => unkn
       {!compact && (
         <span className="grid h-11 w-11 place-items-center rounded-2xl bg-fill text-muted" aria-hidden="true"><IconAlertCircle className="h-5 w-5" /></span>
       )}
-      <h2 className={cn("font-semibold tracking-[-0.01em] text-fg", compact ? "text-[14px]" : "mt-3 text-[16px]")}>{LOAD_ERROR_TITLE}</h2>
-      <p className="mt-1 max-w-sm text-[13px] text-muted">{LOAD_ERROR_BODY}</p>
-      <Button className="mt-4" size="sm" variant="secondary" loading={busy} onClick={() => void retry()} data-testid="load-error-retry">Retry</Button>
+      <h2 className={cn("font-semibold tracking-[-0.01em] text-fg", compact ? "text-[14px]" : "mt-3 text-[16px]")}>{tr("errors.couldnt_load_this", undefined, LOAD_ERROR_TITLE)}</h2>
+      <p className="mt-1 max-w-sm text-[13px] text-muted">{tr("errors.load_error_body", undefined, LOAD_ERROR_BODY)}</p>
+      <Button className="mt-4" size="sm" variant="secondary" loading={busy} onClick={() => void retry()} data-testid="load-error-retry">{tr("common.retry")}</Button>
     </div>
   );
 }
@@ -40,8 +41,8 @@ export function LoadErrorInline({ onRetry, className }: { onRetry: () => unknown
   return (
     <div role="alert" data-testid="load-error-inline" className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px]", className)}>
       <IconAlertCircle className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
-      <span className="min-w-0 flex-1"><span className="font-medium text-fg">{LOAD_ERROR_TITLE}.</span> <span className="text-muted">{LOAD_ERROR_BODY}</span></span>
-      <Button size="sm" variant="secondary" loading={busy} onClick={() => void retry()} data-testid="load-error-retry">Retry</Button>
+      <span className="min-w-0 flex-1"><span className="font-medium text-fg">{tr("errors.couldnt_load_this", undefined, LOAD_ERROR_TITLE)}.</span> <span className="text-muted">{tr("errors.load_error_body", undefined, LOAD_ERROR_BODY)}</span></span>
+      <Button size="sm" variant="secondary" loading={busy} onClick={() => void retry()} data-testid="load-error-retry">{tr("common.retry")}</Button>
     </div>
   );
 }
@@ -57,7 +58,7 @@ export function LoadFailure({ error, onRetry, className, block }: { error: unkno
   return (
     <div role="alert" data-testid="load-refused" className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px]", className)}>
       <span className="min-w-0 flex-1 text-fg">{error.message}</span>
-      <Button size="sm" variant="secondary" onClick={() => void onRetry()}>Retry</Button>
+      <Button size="sm" variant="secondary" onClick={() => void onRetry()}>{tr("common.retry")}</Button>
     </div>
   );
 }
@@ -85,8 +86,8 @@ export function LoadErrorStrip() {
   return (
     <div role="alert" data-testid="load-error-strip" className="flex items-center justify-center gap-3 border-b border-line bg-surface px-4 py-2 text-[13px] text-fg">
       <IconAlertCircle className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
-      <span className="min-w-0"><span className="font-medium">{LOAD_ERROR_TITLE}.</span> <span className="text-muted">{LOAD_ERROR_BODY}</span></span>
-      <Button size="sm" variant="secondary" loading={busy} onClick={() => void retry()} data-testid="load-error-strip-retry">Retry</Button>
+      <span className="min-w-0"><span className="font-medium">{tr("errors.couldnt_load_this", undefined, LOAD_ERROR_TITLE)}.</span> <span className="text-muted">{tr("errors.load_error_body", undefined, LOAD_ERROR_BODY)}</span></span>
+      <Button size="sm" variant="secondary" loading={busy} onClick={() => void retry()} data-testid="load-error-strip-retry">{tr("common.retry")}</Button>
     </div>
   );
 }

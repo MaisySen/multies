@@ -2,6 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { Toaster } from "sonner";
 import { IconMonitor, IconMoon, IconToday, type IconComponent } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
+import { tl } from "@/web/i18n"; // R104
 
 export type Appearance = "system" | "light" | "dark";
 export const THEME_KEY = "multies-theme";
@@ -103,13 +104,13 @@ const OPTIONS: { id: Appearance; label: string; Icon: IconComponent }[] = [
 export function AppearanceControl({ className }: { className?: string }) {
   const { choice, set } = useAppearance();
   return (
-    <div role="radiogroup" aria-label="Appearance" className={cn("inline-flex rounded-lg bg-fill p-0.5", className)}>
+    <div role="radiogroup" aria-label={tl("nav", "Appearance")} className={cn("inline-flex rounded-lg bg-fill p-0.5", className)}>
       {OPTIONS.map(({ id, label, Icon }) => (
         <button key={id} type="button" role="radio" aria-checked={choice === id} onClick={() => set(id)}
           className={cn("inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12.5px] transition-[background,color,box-shadow] duration-150",
             choice === id ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>
           <Icon className="h-3.5 w-3.5" aria-hidden />
-          {label}
+          {tl("theme", label)}
         </button>
       ))}
     </div>

@@ -15,6 +15,7 @@ import { Button } from "@/web/components/ui/button";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { IconBell, IconClock } from "@/web/components/ui/icon";
 import { inQuietHours, isPaused, type Delivery, type DeliveryPatch, type PausePreset } from "@/shared/notification-centre";
+import { tr } from "@/web/i18n"; // R104
 
 export type ChannelPrefs = { inApp: boolean; push: boolean; mail?: boolean };
 export interface SettingsAnswer { settings: Record<string, ChannelPrefs>; delivery?: Delivery }
@@ -102,19 +103,19 @@ export function DeliverySettings({ delivery, anyMail }: { delivery: Delivery; an
   return (
     <div className="space-y-4" data-testid="notification-delivery">
       <Card className="p-0" data-testid="mail-delivery">
-        <CardHead title="Mail" text="Pick the categories above with the Mail switch. Choose whether each one arrives on its own or in one digest." />
-        <Row label="How mail arrives" id="nc-freq-label" hint={anyMail ? undefined : "Turn on Mail for at least one category to get mail."}>
+        <CardHead title={tr("common.mail")} text={tr("notifications.pick_the_categories_above_with_the_mail_switch_c")} />
+        <Row label={tr("notifications.how_mail_arrives")} id="nc-freq-label" hint={anyMail ? undefined : "Turn on Mail for at least one category to get mail."}>
           <Select aria-labelledby="nc-freq-label" data-testid="digest-frequency" className="w-full sm:w-56" value={d.digest.frequency}
             onChange={(e) => void save({ delivery: { digest: { frequency: e.target.value as Delivery["digest"]["frequency"] } } }, "Mail delivery saved")}>
-            <option value="off">Each one as it happens</option>
-            <option value="daily">Daily digest</option>
-            <option value="weekly">Weekly digest</option>
+            <option value="off">{tr("notifications.each_one_as_it_happens")}</option>
+            <option value="daily">{tr("notifications.daily_digest")}</option>
+            <option value="weekly">{tr("notifications.weekly_digest")}</option>
           </Select>
         </Row>
         {d.digest.frequency !== "off" && (
-          <Row label="Digest time" id="nc-time-label" hint={`In your time zone, ${zoneLabel(d.timezone)}. Only unread items are listed; nothing new means no mail.`}>
+          <Row label={tr("notifications.digest_time")} id="nc-time-label" hint={`In your time zone, ${zoneLabel(d.timezone)}. Only unread items are listed; nothing new means no mail.`}>
             {d.digest.frequency === "weekly" && (
-              <Select aria-label="Digest day" data-testid="digest-weekday" className="w-full sm:w-36" value={String(d.digest.weekday)}
+              <Select aria-label={tr("notifications.digest_day")} data-testid="digest-weekday" className="w-full sm:w-36" value={String(d.digest.weekday)}
                 onChange={(e) => void save({ delivery: { digest: { weekday: Number(e.target.value) } } }, "Digest day saved")}>
                 {DAY_NAMES.map((n, i) => <option key={n} value={i}>{n}</option>)}
               </Select>
@@ -126,20 +127,20 @@ export function DeliverySettings({ delivery, anyMail }: { delivery: Delivery; an
       </Card>
 
       <Card className="p-0" data-testid="quiet-hours">
-        <CardHead title="Quiet hours" text="Phone and browser alerts and single mails stay silent during these hours. Everything still lands in Notifications." />
-        <Row inline label="Use quiet hours" hint={quietNow ? "Quiet hours are on right now." : undefined}>
-          <Switch label="Use quiet hours" checked={d.quiet.enabled} onChange={(v) => void save({ delivery: { quiet: { enabled: v } } }, v ? "Quiet hours on" : "Quiet hours off")} />
+        <CardHead title={tr("notifications.quiet_hours")} text={tr("notifications.phone_and_browser_alerts_and_single_mails_stay_s")} />
+        <Row inline label={tr("notifications.use_quiet_hours")} hint={quietNow ? "Quiet hours are on right now." : undefined}>
+          <Switch label={tr("notifications.use_quiet_hours")} checked={d.quiet.enabled} onChange={(v) => void save({ delivery: { quiet: { enabled: v } } }, v ? "Quiet hours on" : "Quiet hours off")} />
         </Row>
         {d.quiet.enabled && (<>
-          <Row label="From and until" id="nc-quiet-label">
-            <TimeInput aria-label="Quiet hours start" data-testid="quiet-start" className="w-full sm:w-32" step={900} value={d.quiet.start}
+          <Row label={tr("notifications.from_and_until")} id="nc-quiet-label">
+            <TimeInput aria-label={tr("notifications.quiet_hours_start")} data-testid="quiet-start" className="w-full sm:w-32" step={900} value={d.quiet.start}
               onChange={(e) => { if (e.target.value) void save({ delivery: { quiet: { start: e.target.value.slice(0, 5) } } }); }} />
             <span className="text-[13px] text-muted">to</span>
-            <TimeInput aria-label="Quiet hours end" data-testid="quiet-end" className="w-full sm:w-32" step={900} value={d.quiet.end}
+            <TimeInput aria-label={tr("notifications.quiet_hours_end")} data-testid="quiet-end" className="w-full sm:w-32" step={900} value={d.quiet.end}
               onChange={(e) => { if (e.target.value) void save({ delivery: { quiet: { end: e.target.value.slice(0, 5) } } }); }} />
           </Row>
-          <Row label="Days" hint="The day a quiet period starts.">
-            <div role="group" aria-label="Quiet days" className="flex flex-wrap gap-1">
+          <Row label={tr("notifications.days")} hint={tr("notifications.the_day_a_quiet_period_starts")}>
+            <div role="group" aria-label={tr("notifications.quiet_days")} className="flex flex-wrap gap-1">
               {DAYS.map((n, i) => (
                 <button key={n} type="button" aria-pressed={d.quiet.days.includes(i)} onClick={() => setDays(i)}
                   className={cn("h-8 min-w-10 rounded-lg border px-2 text-[12.5px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-11",
@@ -147,11 +148,11 @@ export function DeliverySettings({ delivery, anyMail }: { delivery: Delivery; an
               ))}
             </div>
           </Row>
-          <Row inline label="Let mentions and approvals through" hint="They still alert you during quiet hours.">
-            <Switch label="Let mentions and approvals through" checked={d.quiet.allowUrgent} onChange={(v) => void save({ delivery: { quiet: { allowUrgent: v } } })} />
+          <Row inline label={tr("notifications.let_mentions_and_approvals_through")} hint={tr("notifications.they_still_alert_you_during_quiet_hours")}>
+            <Switch label={tr("notifications.let_mentions_and_approvals_through")} checked={d.quiet.allowUrgent} onChange={(v) => void save({ delivery: { quiet: { allowUrgent: v } } })} />
           </Row>
         </>)}
-        <Row label="Time zone" id="nc-zone-label" hint="Quiet hours and digests follow this zone.">
+        <Row label={tr("notifications.time_zone")} id="nc-zone-label" hint={tr("notifications.quiet_hours_and_digests_follow_this_zone")}>
           <Select aria-labelledby="nc-zone-label" data-testid="delivery-zone" className="w-full sm:w-64" value={d.timezone}
             onChange={(e) => void save({ delivery: { timezone: e.target.value } }, "Time zone saved")}>
             {zones.map((z) => <option key={z} value={z}>{zoneLabel(z)}</option>)}
@@ -160,14 +161,14 @@ export function DeliverySettings({ delivery, anyMail }: { delivery: Delivery; an
       </Card>
 
       <Card className="p-0" data-testid="pause-card">
-        <CardHead title="Pause and new mail" text="Pause every alert for a while, or stop alerts for each new mail." />
+        <CardHead title={tr("notifications.pause_and_new_mail")} text={tr("notifications.pause_every_alert_for_a_while_or_stop_alerts_for")} />
         <Row inline label={paused ? `Paused until ${formatClock(d.pausedUntil!, d.timezone)}` : "Pause alerts"} hint={paused ? "Alerts start again by themselves." : "Items still land in Notifications."}>
           {paused
-            ? <Button size="sm" variant="secondary" onClick={() => void save({ delivery: { pause: "resume" } }, "Alerts are back on")}>Resume now</Button>
+            ? <Button size="sm" variant="secondary" onClick={() => void save({ delivery: { pause: "resume" } }, "Alerts are back on")}>{tr("notifications.resume_now")}</Button>
             : <PauseMenu />}
         </Row>
-        <Row inline label="Alert me for each new mail" hint="Phone and browser alerts for new mail in mailboxes you can open.">
-          <Switch label="Alert me for each new mail" checked={d.newMail} onChange={(v) => void save({ delivery: { newMail: v } })} />
+        <Row inline label={tr("notifications.alert_me_for_each_new_mail")} hint={tr("notifications.phone_and_browser_alerts_for_new_mail_in_mailbox")}>
+          <Switch label={tr("notifications.alert_me_for_each_new_mail")} checked={d.newMail} onChange={(v) => void save({ delivery: { newMail: v } })} />
         </Row>
       </Card>
     </div>
@@ -177,7 +178,7 @@ export function DeliverySettings({ delivery, anyMail }: { delivery: Delivery; an
 export function PauseMenu({ size = "sm" }: { size?: "sm" | "md" }) {
   const save = useSaveSettings();
   return (
-    <Menu label="Pause alerts" trigger={<Button size={size} variant="secondary" data-testid="pause-alerts" aria-label="Pause alerts"><IconClock className="h-4 w-4" /><span className="max-sm:hidden">Pause</span></Button>}>
+    <Menu label={tr("notifications.pause_alerts")} trigger={<Button size={size} variant="secondary" data-testid="pause-alerts" aria-label={tr("notifications.pause_alerts")}><IconClock className="h-4 w-4" /><span className="max-sm:hidden">{tr("notifications.pause")}</span></Button>}>
       {(Object.keys(PAUSE_LABELS) as PausePreset[]).map((p) => (
         <MenuItem key={p} onSelect={() => void save({ delivery: { pause: p } }, "Alerts paused")}>{PAUSE_LABELS[p]}</MenuItem>
       ))}
@@ -199,7 +200,7 @@ export function AlertStatusLine() {
     <div role="status" data-testid="alert-status" className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-fill px-3 py-2 text-[13px]">
       <IconBell className="h-4 w-4 shrink-0 text-muted" />
       <span className="min-w-0 flex-1">{paused ? `Alerts paused until ${formatClock(d.pausedUntil!, d.timezone)}. New items still arrive here.` : `Quiet hours until ${d.quiet.end}. New items still arrive here.`}</span>
-      {paused && <Button size="sm" variant="secondary" onClick={() => void save({ delivery: { pause: "resume" } }, "Alerts are back on")}>Resume</Button>}
+      {paused && <Button size="sm" variant="secondary" onClick={() => void save({ delivery: { pause: "resume" } }, "Alerts are back on")}>{tr("notifications.resume")}</Button>}
     </div>
   );
 }

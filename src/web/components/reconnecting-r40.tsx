@@ -7,6 +7,7 @@ import { IconRefresh, IconWifiOff } from "@/web/components/ui/icon";
 import { Button } from "@/web/components/ui/button";
 import { AppSkeleton } from "@/web/layouts/app-skeleton";
 import { errorMessage, isTransientError } from "@/web/lib/api";
+import { tr } from "@/web/i18n"; // R104
 
 export function ReconnectingPill({ onRetry }: { onRetry?: () => void }) {
   return (
@@ -14,11 +15,11 @@ export function ReconnectingPill({ onRetry }: { onRetry?: () => void }) {
       className="pointer-events-none fixed inset-x-0 top-[max(env(safe-area-inset-top),0.75rem)] z-50 flex justify-center px-4 motion-safe:animate-[fade-in_180ms_ease-out]">
       <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-line bg-elevated/95 py-1.5 pl-3 pr-1.5 text-[13px] text-muted shadow-pop backdrop-blur">
         <IconRefresh className="h-3.5 w-3.5 motion-safe:animate-spin [animation-duration:1.6s]" aria-hidden="true" />
-        <span>Reconnecting</span>
+        <span>{tr("errors.reconnecting")}</span>
         {onRetry && (
           <button type="button" onClick={onRetry}
             className="rounded-full px-2.5 py-1 font-medium text-fg transition-colors duration-150 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-            Retry
+            {tr("common.retry")}
           </button>
         )}
       </div>
@@ -36,9 +37,9 @@ export function ReconnectScreen({ onRetry, retrying }: { onRetry: () => void; re
           <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-soft text-brand" aria-hidden="true">
             <IconWifiOff className="h-5 w-5" />
           </span>
-          <h1 className="mt-4 text-[17px] font-semibold tracking-[-0.01em]">Couldn't reach Multies</h1>
-          <p className="mt-1 text-sm text-muted">Your work is safe. We keep trying in the background.</p>
-          <Button className="mt-5 w-full" loading={retrying} onClick={onRetry}>Retry</Button>
+          <h1 className="mt-4 text-[17px] font-semibold tracking-[-0.01em]">{tr("errors.couldn_t_reach_multies")}</h1>
+          <p className="mt-1 text-sm text-muted">{tr("errors.your_work_is_safe_we_keep_trying_in_the_backgrou")}</p>
+          <Button className="mt-5 w-full" loading={retrying} onClick={onRetry}>{tr("common.retry")}</Button>
         </div>
       </div>
     </div>
@@ -58,7 +59,7 @@ export function ErrorRetry({ error, onRetry, retrying, fallback, className }: { 
       {transient && <IconWifiOff className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />}
       <span className="min-w-0 flex-1">{errorMessage(error, fallback)}</span>
       {onRetry && transient && (
-        <Button size="sm" variant="secondary" loading={retrying} onClick={onRetry}>Retry</Button>
+        <Button size="sm" variant="secondary" loading={retrying} onClick={onRetry}>{tr("common.retry")}</Button>
       )}
     </div>
   );

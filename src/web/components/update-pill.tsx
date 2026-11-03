@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { IconClose, IconRotate } from "@/web/components/ui/icon";
 import { DISMISS_KEY, fetchVersion, watchRelease, type VersionInfo } from "@/web/lib/update-check";
 import { applyServiceWorkerUpdate, serviceWorkerUpdateWaiting, SW_UPDATE_EVENT } from "@/web/lib/sw-client";
+import { tr } from "@/web/i18n"; // R104
 
 /** R32: with the service worker, a waiting worker takes over first so the reload opens the new release. */
 const reloadApp = () => { if (serviceWorkerUpdateWaiting()) applyServiceWorkerUpdate(); else window.location.reload(); };
@@ -29,7 +30,7 @@ export function UpdatePill() {
     onFocus: (fn) => { window.addEventListener("focus", fn); return () => window.removeEventListener("focus", fn); },
     onChange: (s, v) => {
       setState(s); setLatest(v);
-      if (s === "critical") toast("Multies has an important update. It will load when you next change page.", { id: "update-critical", duration: 8000 });
+      if (s === "critical") toast(tr("shell.multies_has_an_important_update_it_will_load_whe"), { id: "update-critical", duration: 8000 });
     },
   }), []);
 
@@ -53,12 +54,12 @@ export function UpdatePill() {
   return (
     <div role="status" aria-live="polite" data-testid="update-pill"
       className="fixed inset-x-0 bottom-[calc(1.25rem+var(--tabbar-h,0px))] z-50 mx-auto flex w-max max-w-[calc(100vw-2rem)] items-center gap-1 rounded-full border border-line bg-surface/95 py-1 pl-4 pr-1 text-[13px] text-fg shadow-lg backdrop-blur motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200">
-      <span>A new version of Multies is ready</span>
+      <span>{tr("shell.a_new_version_of_multies_is_ready")}</span>
       <button type="button" onClick={reloadApp}
         className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-brand px-3 py-1 font-medium text-white transition-colors duration-150 hover:bg-[#0077ED] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">
-        <IconRotate className="h-3.5 w-3.5" aria-hidden />Reload
+        <IconRotate className="h-3.5 w-3.5" aria-hidden />{tr("shell.reload")}
       </button>
-      <button type="button" onClick={dismiss} aria-label="Dismiss until the next version"
+      <button type="button" onClick={dismiss} aria-label={tr("shell.dismiss_until_the_next_version")}
         className="grid h-7 w-7 place-items-center rounded-full text-muted transition-colors duration-150 hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
         <IconClose className="h-3.5 w-3.5" aria-hidden />
       </button>

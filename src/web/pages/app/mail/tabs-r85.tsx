@@ -13,6 +13,7 @@ import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
 import { LABEL_MAX, TAB_STYLE_LABEL, TAB_STYLES, type TabStyle } from "@/shared/mail-rules-r85";
 import type { SplitTab } from "@/shared/mail-splits";
+import { tr } from "@/web/i18n"; // R104
 
 /** The drag payload a mail row carries (its message id). */
 export const MAIL_DRAG_TYPE = "application/x-multies-mail";
@@ -50,7 +51,7 @@ export function TabStyleSection({ tabs }: { tabs: SplitTab[] }) {
   });
   const forget = useMutation({
     mutationFn: (address: string) => api.post<TabSettings>("/mail/splits/pins/restore", { sender: address, senderTab: null }),
-    onSuccess: () => { toast.success("Sender forgotten"); void refresh(); },
+    onSuccess: () => { toast.success(tr("mail.sender_forgotten")); void refresh(); },
     onError: (e) => showError(e),
   });
   const name = (id: string) => tabs.find((t) => t.id === id)?.name ?? id;
@@ -58,8 +59,8 @@ export function TabStyleSection({ tabs }: { tabs: SplitTab[] }) {
   return (
     <div className="space-y-4" data-testid="tab-style">
       <fieldset>
-        <legend className="mb-2 text-[13px] font-medium">Tab style</legend>
-        <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Tab style">
+        <legend className="mb-2 text-[13px] font-medium">{tr("mail.tab_style")}</legend>
+        <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label={tr("mail.tab_style")}>
           {TAB_STYLES.map((v) => (
             <button key={v} type="button" role="radio" aria-checked={current === v} disabled={!s.data || style.isPending} onClick={() => style.mutate(v)} data-testid={`tab-style-${v}`}
               className={cn("min-h-11 rounded-xl border p-3 text-left text-[13px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-60",
@@ -72,11 +73,11 @@ export function TabStyleSection({ tabs }: { tabs: SplitTab[] }) {
       </fieldset>
       {current !== "off" && (
         <div>
-          <h3 className="mb-1 text-[13px] font-medium">Sorted by you</h3>
+          <h3 className="mb-1 text-[13px] font-medium">{tr("mail.sorted_by_you")}</h3>
           {!s.data ? <div className="h-10 animate-pulse rounded-lg bg-fill" /> : s.data.senders.length === 0
-            ? <p className="text-[13px] text-subtle">Move a message to a tab, from its toolbar or by dragging it onto the tab, and mail from that sender goes there next time.</p>
+            ? <p className="text-[13px] text-subtle">{tr("mail.move_a_message_to_a_tab_from_its_toolbar_or_by_d")}</p>
             : (
-              <ul className="max-h-48 divide-y divide-line overflow-y-auto rounded-xl border border-line" aria-label="Senders you sorted">
+              <ul className="max-h-48 divide-y divide-line overflow-y-auto rounded-xl border border-line" aria-label={tr("mail.senders_you_sorted")}>
                 {s.data.senders.map((x) => (
                   <li key={x.address} className="flex items-center gap-2 px-3 py-1.5 text-[13px]">
                     <span className="min-w-0 flex-1 truncate">{x.address}</span>
@@ -105,7 +106,7 @@ export function useTeachTab() {
           label: "Undo",
           onClick: () => {
             void api.post("/mail/splits/pins/restore", { threadId: r.threadId, thread: r.previous.thread, ...(r.sender ? { sender: r.sender, senderTab: r.previous.sender ?? null } : {}) })
-              .then(() => { toast.success("Put back"); void qc.invalidateQueries({ queryKey: ["mail"] }); }, (e) => showError(e));
+              .then(() => { toast.success(tr("mail.put_back")); void qc.invalidateQueries({ queryKey: ["mail"] }); }, (e) => showError(e));
           },
         },
       });
@@ -119,11 +120,11 @@ export function MoveToTabMenu({ messageId, tabs, current }: { messageId: string;
   const teach = useTeachTab();
   if (!tabs.length) return null;
   return (
-    <Menu label="Move to tab" sheet trigger={
-      <button type="button" className="grid place-items-center rounded-md p-2 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:rounded-full" title="Move to tab" data-testid="move-to-tab">
+    <Menu label={tr("mail.move_to_tab")} sheet trigger={
+      <button type="button" className="grid place-items-center rounded-md p-2 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:rounded-full" title={tr("mail.move_to_tab")} data-testid="move-to-tab">
         <IconMove className="h-4 w-4 max-sm:h-5 max-sm:w-5" />
       </button>}>
-      <MenuLabel>Move to tab</MenuLabel>
+      <MenuLabel>{tr("mail.move_to_tab")}</MenuLabel>
       {tabs.map((t) => (
         <MenuItem key={t.id} checked={t.id === current} onSelect={() => { if (t.id !== current) teach.mutate({ messageId, tab: t }); }}>{t.name}</MenuItem>
       ))}
@@ -154,8 +155,8 @@ export function useLabels(enabled = true) {
 export function useLabelEdit() {
   const qc = useQueryClient();
   const done = () => qc.invalidateQueries({ queryKey: ["mail"] });
-  const add = useMutation({ mutationFn: (v: { threadId: string; label: string }) => api.post("/mail/labels", v), onSuccess: () => { toast.success("Label added"); void done(); }, onError: (e) => showError(e) });
-  const remove = useMutation({ mutationFn: (v: { threadId: string; label: string }) => api.del(`/mail/labels?${new URLSearchParams(v)}`), onSuccess: () => { toast.success("Label removed"); void done(); }, onError: (e) => showError(e) });
+  const add = useMutation({ mutationFn: (v: { threadId: string; label: string }) => api.post("/mail/labels", v), onSuccess: () => { toast.success(tr("mail.label_added")); void done(); }, onError: (e) => showError(e) });
+  const remove = useMutation({ mutationFn: (v: { threadId: string; label: string }) => api.del(`/mail/labels?${new URLSearchParams(v)}`), onSuccess: () => { toast.success(tr("mail.label_removed")); void done(); }, onError: (e) => showError(e) });
   return { add, remove };
 }
 
@@ -167,10 +168,10 @@ export function LabelMenu({ threadId, labels }: { threadId: string; labels: stri
   const names = [...new Set([...(all.data ?? []).map((l) => l.label), ...labels])].sort();
   const submit = (e: FormEvent) => { e.preventDefault(); const l = name.trim(); if (l) { add.mutate({ threadId, label: l }); setName(""); } };
   return (
-    <Popover label="Labels" align="end" testId="label-menu" className="w-64 p-3"
-      button={() => <span className="grid place-items-center rounded-md p-2 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:rounded-full" title="Labels"><IconTag className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></span>}>
+    <Popover label={tr("mail.labels")} align="end" testId="label-menu" className="w-64 p-3"
+      button={() => <span className="grid place-items-center rounded-md p-2 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:rounded-full" title={tr("mail.labels")}><IconTag className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></span>}>
       {names.length > 0 && (
-        <ul className="mb-2 max-h-48 space-y-0.5 overflow-y-auto" aria-label="Labels">
+        <ul className="mb-2 max-h-48 space-y-0.5 overflow-y-auto" aria-label={tr("mail.labels")}>
           {names.map((l) => {
             const on = labels.includes(l);
             return (
@@ -185,9 +186,9 @@ export function LabelMenu({ threadId, labels }: { threadId: string; labels: stri
         </ul>
       )}
       <form onSubmit={submit} className="flex gap-1.5">
-        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={LABEL_MAX} placeholder="New label" aria-label="New label"
+        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={LABEL_MAX} placeholder={tr("mail.new_label")} aria-label={tr("mail.new_label")}
           className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 text-[13px] outline-none focus:border-brand/60 focus:ring-4 focus:ring-brand/10 max-sm:h-11" />
-        <button type="submit" disabled={!name.trim()} className="h-9 rounded-lg bg-brand px-3 text-[13px] font-medium text-white disabled:opacity-50 max-sm:h-11">Add</button>
+        <button type="submit" disabled={!name.trim()} className="h-9 rounded-lg bg-brand px-3 text-[13px] font-medium text-white disabled:opacity-50 max-sm:h-11">{tr("common.add")}</button>
       </form>
     </Popover>
   );

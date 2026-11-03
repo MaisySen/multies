@@ -24,6 +24,7 @@ import { KindTile } from "@/web/components/premium4-r39"; // R39 premium pass 4
 import { NOTIFICATION_FILTER_KEY, readStoredFilter } from "@/web/lib/premium4-r39";
 import { AlertStatusLine, DeliverySettings, PauseMenu, useNotificationSettings, useSaveSettings, type ChannelPrefs } from "@/web/components/notification-centre-r97"; // R97
 import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
+import { tr } from "@/web/i18n"; // R104
 
 export type NotificationCategory = "mention" | "assignment" | "comment" | "approval" | "due_soon" | "chat" | "email" | "status";
 export interface InboxItem { id: string; type: string; category: NotificationCategory; entityType: string; entityId: string; title: string; actor: { name: string } | null; read: boolean; createdAt: string; link: string; doneAt: string | null; snoozedUntil: string | null }
@@ -81,7 +82,7 @@ export function NotificationsPage() {
     const ok = await optimistic((p) => moveOut(p, view, n.id, "done"), () => api.post(`/notifications/${n.id}/done`, {}));
     if (ok) {
       lastDone.current = [n.id, ...lastDone.current].slice(0, 20);
-      toast.success("Marked done", { id: "notif-undo", action: { label: "Undo", onClick: () => void undone(n.id) } });
+      toast.success(tr("notifications.marked_done"), { id: "notif-undo", action: { label: "Undo", onClick: () => void undone(n.id) } });
     }
   }, [view, ids, optimistic, undone]);
 
@@ -89,7 +90,7 @@ export function NotificationsPage() {
     setSnoozeFor(null);
     setFocus(nextFocus(ids, n.id));
     const ok = await optimistic((p) => (view === "later" ? p : moveOut(p, view, n.id, "later")), () => api.post(`/notifications/${n.id}/snooze`, body));
-    if (ok) toast.success("Snoozed", { id: "notif-undo", action: { label: "Undo", onClick: () => void undone(n.id) } });
+    if (ok) toast.success(tr("notifications.snoozed"), { id: "notif-undo", action: { label: "Undo", onClick: () => void undone(n.id) } });
   }, [ids, optimistic, view, undone]);
 
   const toggleRead = useCallback(async (n: InboxItem) => {
@@ -116,7 +117,7 @@ export function NotificationsPage() {
       const cur = i >= 0 ? items[i] : undefined;
       if (action === "next") setFocus(ids[Math.min(ids.length - 1, i + 1)] ?? null);
       else if (action === "prev") setFocus(ids[Math.max(0, i - 1)] ?? null);
-      else if (action === "undo") { const id = lastDone.current[0]; if (id) void undone(id).then(() => toast("Back in the inbox")); }
+      else if (action === "undo") { const id = lastDone.current[0]; if (id) void undone(id).then(() => toast(tr("notifications.back_in_the_inbox"))); }
       else if (!cur) return;
       else if (action === "open") void open(cur);
       else if (action === "done") void done(cur);
@@ -148,12 +149,12 @@ export function NotificationsPage() {
   const centre = !!centreQ.data?.delivery && !(centreQ.data.delivery.pausedUntil && Date.parse(centreQ.data.delivery.pausedUntil) > Date.now());
   return (
     <div>
-      <PageHeader title="Notifications" description="Mentions, work assigned to you, comments, approvals and anything due soon. Mark each one done or snooze it until later."
-        actions={<div className="flex flex-wrap gap-2">{centre && <PauseMenu />}<Link to="/app/settings/notifications" className="inline-flex h-8 items-center rounded-lg px-3 text-[13px] text-muted transition-colors duration-150 hover:bg-elevated hover:text-fg max-sm:min-h-11">Settings</Link>
-          <Button size="sm" variant="secondary" onClick={markAll} disabled={!q.data?.unread}><IconCheckDouble className="h-4 w-4" />Mark all read</Button>
-          {view === "inbox" && <Button size="sm" variant="secondary" onClick={() => void doneAll()} disabled={!items.length}><IconCheck className="h-4 w-4" />Mark all done</Button>}</div>} />
+      <PageHeader title={tr("common.notifications")} description={tr("notifications.mentions_work_assigned_to_you_comments_approvals")}
+        actions={<div className="flex flex-wrap gap-2">{centre && <PauseMenu />}<Link to="/app/settings/notifications" className="inline-flex h-8 items-center rounded-lg px-3 text-[13px] text-muted transition-colors duration-150 hover:bg-elevated hover:text-fg max-sm:min-h-11">{tr("common.settings")}</Link>
+          <Button size="sm" variant="secondary" onClick={markAll} disabled={!q.data?.unread}><IconCheckDouble className="h-4 w-4" />{tr("notifications.mark_all_read")}</Button>
+          {view === "inbox" && <Button size="sm" variant="secondary" onClick={() => void doneAll()} disabled={!items.length}><IconCheck className="h-4 w-4" />{tr("notifications.mark_all_done")}</Button>}</div>} />
       <AlertStatusLine />
-      <div className="mb-3 inline-flex rounded-lg bg-fill p-0.5" role="tablist" aria-label="Notification views">
+      <div className="mb-3 inline-flex rounded-lg bg-fill p-0.5" role="tablist" aria-label={tr("notifications.notification_views")}>
         {TRIAGE_VIEWS.map((v) => (
           <button key={v} role="tab" aria-selected={view === v} data-testid={`triage-tab-${v}`} onClick={() => { setView(v); setFocus(null); }}
             className={cn("rounded-md px-3.5 py-1.5 text-[13px] transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
@@ -162,26 +163,26 @@ export function NotificationsPage() {
           </button>
         ))}
       </div>
-      <div className="-mx-4 mb-4 flex items-center gap-1.5 overflow-x-auto overscroll-x-contain px-4 pb-1 [scrollbar-width:none] max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent)] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" role="group" aria-label="Filter notifications">
+      <div className="-mx-4 mb-4 flex items-center gap-1.5 overflow-x-auto overscroll-x-contain px-4 pb-1 [scrollbar-width:none] max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent)] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" role="group" aria-label={tr("notifications.filter_notifications")}>
         {FILTERS.map((f) => (
           <button key={f} onClick={() => setFilter(f)} aria-pressed={filter === f}
             className={cn("rounded-full border px-3 py-1 text-[12.5px] tabular-nums transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-11 max-sm:px-3.5", filter === f ? "border-fg bg-fg text-bg" : "border-line text-muted hover:border-line-strong hover:text-fg")}>
             {f === "all" ? "All" : CATEGORY_LABELS[f]}{f === "all" ? (q.data?.unread ? ` ${q.data.unread}` : "") : counts?.[f] ? ` ${counts[f]}` : ""}
           </button>
         ))}
-        <label className="ml-auto flex items-center gap-2 text-[13px] text-muted max-sm:min-h-11 max-sm:pl-2"><input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />Unread only</label>
+        <label className="ml-auto flex items-center gap-2 text-[13px] text-muted max-sm:min-h-11 max-sm:pl-2"><input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />{tr("notifications.unread_only")}</label>
       </div>
-      {q.isPending ? <Card className="p-0"><SkeletonRows rows={6} label="Loading notifications" /></Card> : q.isError && !q.data ? (
+      {q.isPending ? <Card className="p-0"><SkeletonRows rows={6} label={tr("notifications.loading_notifications")} /></Card> : q.isError && !q.data ? (
         // POL2 (HQ MB-323): a failed read is not "all caught up"; it says so and offers Retry.
         <Card className="p-0" data-testid="notifications-error"><LoadError onRetry={() => q.refetch()} /></Card>
       ) : !items.length ? (
         view === "inbox" ? (
-          <EmptyState icon={<IconCheckCircle />} art={<CaughtUpArt />} title="You're all caught up" body="When someone mentions you, assigns you work or needs an approval, it shows here."
-            action={<Button size="sm" variant="secondary" onClick={() => setView("done")}>View done</Button>} />
+          <EmptyState icon={<IconCheckCircle />} art={<CaughtUpArt />} title={tr("notifications.you_re_all_caught_up")} body={tr("notifications.when_someone_mentions_you_assigns_you_work_or_ne")}
+            action={<Button size="sm" variant="secondary" onClick={() => setView("done")}>{tr("notifications.view_done")}</Button>} />
         ) : view === "later" ? (
-          <EmptyState icon={<IconClock />} art={<CaughtUpArt />} title="Nothing snoozed" body="Press H on a notification to snooze it. It comes back to your inbox at the time you pick." action={<Button size="sm" variant="secondary" onClick={() => setView("inbox")}>Back to inbox</Button>} />
+          <EmptyState icon={<IconClock />} art={<CaughtUpArt />} title={tr("notifications.nothing_snoozed")} body={tr("notifications.press_h_on_a_notification_to_snooze_it_it_comes")} action={<Button size="sm" variant="secondary" onClick={() => setView("inbox")}>{tr("notifications.back_to_inbox")}</Button>} />
         ) : (
-          <EmptyState icon={<IconBell />} art={<CaughtUpArt />} title="Nothing done yet" body="Press E on a notification to mark it done. Done items stay here." action={<Button size="sm" variant="secondary" onClick={() => setView("inbox")}>Back to inbox</Button>} />
+          <EmptyState icon={<IconBell />} art={<CaughtUpArt />} title={tr("notifications.nothing_done_yet")} body={tr("notifications.press_e_on_a_notification_to_mark_it_done_done_i")} action={<Button size="sm" variant="secondary" onClick={() => setView("inbox")}>{tr("notifications.back_to_inbox")}</Button>} />
         )
       ) : (
         <Card className="p-0">
@@ -206,7 +207,7 @@ export function NotificationsPage() {
                       <div className={cn("flex shrink-0 items-center gap-0.5 opacity-0 max-sm:-mt-2 max-sm:basis-full max-sm:justify-end transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100", focus === n.id && "opacity-100")}>
                         {view !== "done" && <IconButton label="Mark done (E)" onClick={() => void done(n)}><IconCheck /></IconButton>}
                         {view !== "done" && <IconButton label="Snooze (H)" onClick={() => setSnoozeFor(snoozeFor === n.id ? null : n.id)}><IconClock /></IconButton>}
-                        {view !== "inbox" && <IconButton label="Move to inbox" onClick={() => void restore(n)}><IconInbox /></IconButton>}
+                        {view !== "inbox" && <IconButton label={tr("notifications.move_to_inbox")} onClick={() => void restore(n)}><IconInbox /></IconButton>}
                         <IconButton label={n.read ? "Mark unread (U)" : "Mark read (U)"} onClick={() => void toggleRead(n)}>{n.read ? <IconMail /> : <IconRead />}</IconButton>
                       </div>
                       {snoozeFor === n.id && <SnoozeMenu onPick={(b) => void snooze(n, b)} onClose={() => setSnoozeFor(null)} />}
@@ -218,7 +219,7 @@ export function NotificationsPage() {
           </div>
         </Card>
       )}
-      <p className="mt-3 text-[12px] text-subtle max-sm:hidden">J and K to move, Enter to open, E done, H snooze, U read, Shift E undo.</p>
+      <p className="mt-3 text-[12px] text-subtle max-sm:hidden">{tr("notifications.j_and_k_to_move_enter_to_open_e_done_h_snooze_u")}</p>
     </div>
   );
 }
@@ -246,7 +247,7 @@ function SnoozeMenu({ onPick, onClose }: { onPick: (b: { preset: SnoozePreset } 
   }, [onClose]);
   const min = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
   return (
-    <div ref={ref} role="menu" aria-label="Snooze until" data-testid="snooze-menu"
+    <div ref={ref} role="menu" aria-label={tr("notifications.snooze_until")} data-testid="snooze-menu"
       className="absolute right-4 top-11 z-10 w-56 rounded-xl border border-line bg-bg p-1 shadow-lg motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150">
       {(Object.keys(SNOOZE_LABELS) as SnoozePreset[]).map((p) => (
         <button key={p} role="menuitem" onClick={() => onPick({ preset: p })}
@@ -255,9 +256,9 @@ function SnoozeMenu({ onPick, onClose }: { onPick: (b: { preset: SnoozePreset } 
         </button>
       ))}
       <form className="mt-1 flex items-center gap-1 border-t border-line px-1.5 pt-1.5" onSubmit={(e) => { e.preventDefault(); const iso = pickedDateIso(date); if (iso) onPick({ until: iso }); }}>
-        <label className="sr-only" htmlFor="snooze-date">Pick a date</label>
+        <label className="sr-only" htmlFor="snooze-date">{tr("notifications.pick_a_date")}</label>
         <DateInput id="snooze-date" min={min} value={date} onChange={(e) => setDate(e.target.value)} className="h-7 min-w-0 flex-1 rounded-md border border-line bg-bg px-1.5 text-[12.5px]" />
-        <Button size="sm" variant="secondary" type="submit" disabled={!date}>Set</Button>
+        <Button size="sm" variant="secondary" type="submit" disabled={!date}>{tr("notifications.set")}</Button>
       </form>
     </div>
   );
@@ -275,19 +276,19 @@ export function NotificationSettings() {
   const anyMail = !!s && Object.values(s).some((v) => v.mail);
   return (
     <div className="space-y-4">
-      <div><h2 className="text-[15px] font-semibold">Notifications</h2><p className="text-[13.5px] text-muted">{delivery ? "Choose what shows in your inbox, what buzzes your phone and what reaches you by mail. Phone alerts carry no message text, only what to open." : "Choose what shows in your inbox and what buzzes your phone. Phone alerts carry no message text, only what to open."}</p></div>
+      <div><h2 className="text-[15px] font-semibold">{tr("common.notifications")}</h2><p className="text-[13.5px] text-muted">{delivery ? "Choose what shows in your inbox, what buzzes your phone and what reaches you by mail. Phone alerts carry no message text, only what to open." : "Choose what shows in your inbox and what buzzes your phone. Phone alerts carry no message text, only what to open."}</p></div>
       <BrowserNotifications />
-      {q.isPending ? <Card className="p-0"><SkeletonRows rows={8} label="Loading notification settings" /></Card> : q.isError ? (
+      {q.isPending ? <Card className="p-0"><SkeletonRows rows={8} label={tr("notifications.loading_notification_settings")} /></Card> : q.isError ? (
         <Card className="p-4"><LoadErrorInline onRetry={() => q.refetch()} /></Card>
       ) : (<>
         <Card className="p-0">
           {/* R39 premium pass 4: a grouped list with a kind tile per row instead of a bare table. */}
-          <div data-testid="notification-settings" role="table" aria-label="Notification settings" className="text-[13.5px]">
+          <div data-testid="notification-settings" role="table" aria-label={tr("notifications.notification_settings")} className="text-[13.5px]">
             <div role="row" className={cn("grid items-center border-b border-line px-4 py-2 text-[12px] font-medium text-subtle", cols)}>
-              <span role="columnheader">Category</span>
-              <span role="columnheader" className="text-center"><span className="sm:hidden">Inbox</span><span className="max-sm:hidden">In the inbox</span></span>
-              <span role="columnheader" className="text-center">Phone</span>
-              {delivery && <span role="columnheader" className="text-center">Mail</span>}
+              <span role="columnheader">{tr("notifications.category")}</span>
+              <span role="columnheader" className="text-center"><span className="sm:hidden">{tr("common.inbox")}</span><span className="max-sm:hidden">{tr("notifications.in_the_inbox")}</span></span>
+              <span role="columnheader" className="text-center">{tr("notifications.phone")}</span>
+              {delivery && <span role="columnheader" className="text-center">{tr("common.mail")}</span>}
             </div>
             {(Object.keys(CATEGORY_LABELS) as NotificationCategory[]).map((c) => (
               <div role="row" key={c} className={cn("grid items-center border-b border-line px-4 py-2.5 last:border-0", cols)}>

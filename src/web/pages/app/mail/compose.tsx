@@ -25,6 +25,7 @@ import { useSpellPref } from "@/web/lib/spell-r103"; // R103
 import { SpellButton, fixPlainText } from "@/web/components/spell-check-r103";
 import { useConfig } from "@/web/lib/queries"; // R103
 import { SendSecurelyButton } from "./send-securely"; // R88
+import { tr } from "@/web/i18n"; // R104
 
 export interface ComposeDraft {
   mailboxId: string;
@@ -65,7 +66,7 @@ function reportSent(r: SendResult) {
         : `${n} queued: outside delivery starts once an email provider is connected.`}`,
     });
   }
-  else toast.success("Message sent", { id: "mail-sent" });
+  else toast.success(tr("compose.message_sent"), { id: "mail-sent" });
 }
 
 const splitAddrs = (s?: string) => (s ?? "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
@@ -133,7 +134,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
     if (unverified) { toast.error(`Verify ${unverified.name} before sending from it.`, { description: "Pick another From address, or verify the domain first." }); return; }
     // A gentle nudge, once: Send again (or "Send anyway") sends it without a subject.
     if (!anyway && shouldAskForSubject(d.subject, askedSubject)) { setAskedSubject(true); return; }
-    if (later && att.count) { toast.error("Scheduled sends can't carry attachments yet.", { description: "Send it now, or remove the files to schedule it." }); return; }
+    if (later && att.count) { toast.error(tr("compose.scheduled_sends_can_t_carry_attachments_yet"), { description: "Send it now, or remove the files to schedule it." }); return; }
     sentOnce.current = true;
     const files = att.forSend();
     const snapshot = { ...d, files, toolFiles: att.tools, draftId: takeAutoDraft() ?? d.draftId };
@@ -195,7 +196,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
   };
   const saveDraft = useMutation({
     mutationFn: () => api.post("/mail/drafts", { id: takeAutoDraft() ?? d.draftId, mailboxId: d.mailboxId, to: splitAddrs(d.to), cc: splitAddrs(d.cc), bcc: splitAddrs(d.bcc), subject: d.subject, text: d.text, inReplyToId: d.inReplyToId }),
-    onSuccess: () => { refresh(); toast.success("Draft saved"); onClose(); },
+    onSuccess: () => { refresh(); toast.success(tr("compose.draft_saved")); onClose(); },
     onError: (e) => showError(e),
   });
   // Round 22: while a reply is open, teammates in the thread see "replying".
@@ -209,7 +210,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
   const snippetKeys = useSnippetShortcut(d, bodyRef, applySnippet);
 
   return (
-    <div role="dialog" aria-label="New message" className={cn(
+    <div role="dialog" aria-label={tr("compose.new_message")} className={cn(
       "fixed z-50 flex flex-col border border-line-strong bg-elevated shadow-pop animate-pop-in",
       "inset-0 sm:inset-auto sm:bottom-0 sm:right-6 sm:w-[560px] sm:rounded-t-xl",
       minimized ? "sm:h-12" : "sm:h-[min(620px,85dvh)]",
@@ -222,9 +223,9 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
         <span className="truncate text-sm font-medium">{d.subject || (d.inReplyToId ? "Reply" : "New message")}</span>
         <div className="flex items-center">
           <button className="hidden rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg sm:block" onClick={() => setMinimized((m) => !m)} aria-label={minimized ? "Expand" : "Minimize"}><IconMinus className="h-4 w-4" /></button>
-          <button className="inline-flex items-center justify-center rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:rounded-full" onClick={close} aria-label="Close and save draft"><IconClose className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>
+          <button className="inline-flex items-center justify-center rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:rounded-full" onClick={close} aria-label={tr("compose.close_and_save_draft")}><IconClose className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>
           {/* R48 mobile: Send sits top right on a phone, the way native mail apps put it, so the foot row stays one line. */}
-          {!minimized && <button type="button" data-testid="compose-send-phone" disabled={!d.to.trim() || !!unverified} onClick={() => send()} aria-label="Send"
+          {!minimized && <button type="button" data-testid="compose-send-phone" disabled={!d.to.trim() || !!unverified} onClick={() => send()} aria-label={tr("common.send")}
             className="ml-1 hidden h-11 w-11 place-items-center rounded-full transition-opacity duration-150 disabled:opacity-40 max-sm:grid">
             <span className="grid h-9 w-9 place-items-center rounded-full bg-brand text-white"><IconSend className="h-[18px] w-[18px]" aria-hidden /></span>
           </button>}
@@ -232,8 +233,8 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
       </div>
       {!minimized && (
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={(e) => { e.preventDefault(); send(); }}>
-          <Row label="From">
-            <Select bare value={d.mailboxId} onChange={set("mailboxId")} className="h-9 w-full bg-transparent text-sm outline-none" aria-label="From"
+          <Row label={tr("compose.from")}>
+            <Select bare value={d.mailboxId} onChange={set("mailboxId")} className="h-9 w-full bg-transparent text-sm outline-none" aria-label={tr("compose.from")}
               phoneClassName="flex h-11 w-full min-w-0 items-center bg-transparent text-left text-base text-fg">
               {mailboxes.map((m) => <option key={m.id} value={m.id}>{m.displayName} &lt;{m.address}&gt;</option>)}
             </Select>
@@ -242,25 +243,25 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
             <div role="alert" data-testid="compose-unverified" className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-line bg-warn-soft px-4 py-2 text-[13px]">
               <IconWarning className="h-4 w-4 shrink-0 text-warn" aria-hidden />
               <span className="min-w-0 flex-1">{unverified.name} isn't verified yet, so mail from {from?.address} can't go out. Verify the domain or pick another From address.</span>
-              <Link to={`/app/domains/${unverified.id}`} onClick={() => close()} className="shrink-0 rounded-md px-2 py-1 font-medium text-brand-hover hover:bg-hover max-sm:min-h-11 max-sm:inline-flex max-sm:items-center">Verify domain</Link>
+              <Link to={`/app/domains/${unverified.id}`} onClick={() => close()} className="shrink-0 rounded-md px-2 py-1 font-medium text-brand-hover hover:bg-hover max-sm:min-h-11 max-sm:inline-flex max-sm:items-center">{tr("compose.verify_domain")}</Link>
             </div>
           )}
-          <Row label="To">
-            <input ref={toRef} value={d.to} onChange={set("to")} className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-subtle" placeholder="name@example.com" aria-label="To" autoComplete="off" spellCheck={false} />
+          <Row label={tr("compose.to")}>
+            <input ref={toRef} value={d.to} onChange={set("to")} className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-subtle" placeholder="name@example.com" aria-label={tr("compose.to")} autoComplete="off" spellCheck={false} />
             {!showCc && <button type="button" className="shrink-0 text-xs text-muted hover:text-fg" onClick={() => setShowCc(true)}>Cc Bcc</button>}
           </Row>
           {showCc && <>
             <Row label="Cc"><input value={d.cc ?? ""} onChange={set("cc")} className="h-9 w-full bg-transparent text-sm outline-none" aria-label="Cc" spellCheck={false} /></Row>
             <Row label="Bcc"><input value={d.bcc ?? ""} onChange={set("bcc")} className="h-9 w-full bg-transparent text-sm outline-none" aria-label="Bcc" spellCheck={false} /></Row>
           </>}
-          <Row label="Subject"><input ref={subjectRef} value={d.subject} onChange={set("subject")} className="h-9 w-full bg-transparent text-sm font-medium outline-none" aria-label="Subject" /></Row>
-          <textarea ref={bodyRef} value={d.text} onChange={set("text")} onKeyDown={snippetKeys} aria-label="Message" spellCheck={spell.on} lang={spell.lang} className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 text-[14.5px] leading-relaxed outline-none placeholder:text-subtle" placeholder="Write your message…" />
+          <Row label={tr("common.subject")}><input ref={subjectRef} value={d.subject} onChange={set("subject")} className="h-9 w-full bg-transparent text-sm font-medium outline-none" aria-label={tr("common.subject")} /></Row>
+          <textarea ref={bodyRef} value={d.text} onChange={set("text")} onKeyDown={snippetKeys} aria-label={tr("compose.message")} spellCheck={spell.on} lang={spell.lang} className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 text-[14.5px] leading-relaxed outline-none placeholder:text-subtle" placeholder="Write your message…" />
           {askedSubject && !d.subject.trim() && (
             <div role="status" data-testid="subject-prompt" className="flex shrink-0 flex-wrap items-center gap-2 border-t border-line bg-brand/[0.06] px-4 py-2 text-[13px]">
               <IconInfo className="h-4 w-4 shrink-0 text-brand-hover" aria-hidden />
               <span className="min-w-0 flex-1">{SUBJECT_PROMPT}</span>
-              <button type="button" className="rounded-md px-2 py-1 font-medium text-brand-hover hover:bg-hover" onClick={() => subjectRef.current?.focus()}>Add subject</button>
-              <button type="button" className="rounded-md px-2 py-1 text-muted hover:bg-hover hover:text-fg" onClick={() => send(true)}>Send anyway</button>
+              <button type="button" className="rounded-md px-2 py-1 font-medium text-brand-hover hover:bg-hover" onClick={() => subjectRef.current?.focus()}>{tr("compose.add_subject")}</button>
+              <button type="button" className="rounded-md px-2 py-1 text-muted hover:bg-hover hover:text-fg" onClick={() => send(true)}>{tr("compose.send_anyway")}</button>
             </div>
           )}
           <AttachmentChips c={att} />{/* Tools P2: Tools results and local files in one row */}
@@ -268,7 +269,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
           <div data-testid="compose-foot" className="flex items-center justify-between gap-2 border-t border-line px-4 py-3 max-sm:px-1.5 max-sm:py-1 max-sm:pb-[max(0.25rem,env(safe-area-inset-bottom))]">
             {/* R48 mobile: on a phone Send is in the header, so this row is one line of 44 px controls even at 360 px. */}
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 max-sm:flex-nowrap max-sm:gap-x-0.5">
-              <Button type="submit" disabled={!d.to.trim() || !!unverified} className="max-sm:hidden"><IconSend className="h-4 w-4" />Send</Button>
+              <Button type="submit" disabled={!d.to.trim() || !!unverified} className="max-sm:hidden"><IconSend className="h-4 w-4" />{tr("common.send")}</Button>
               {saveState && <span className="text-[12px] text-subtle" role="status" data-testid="draft-autosave">{saveState === "saving" ? "Saving" : saveState === "saved" ? "Saved" : "Not saved yet"}</span>}
               {/* Tools P2: attachments go now, not later (Tools results are kept for an hour; scheduled sends carry no files yet). */}
               <SendLaterMenu disabled={!d.to.trim() || att.count > 0 || !!unverified} onPick={(when) => send(true, when)} />
@@ -277,9 +278,9 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
               <SendSecurelyButton bodyRef={bodyRef} text={d.text} files={att.items} onRemoveFile={att.remove}
                 onText={(text, cursor) => { setD((x) => ({ ...x, text })); requestAnimationFrame(() => { bodyRef.current?.focus(); bodyRef.current?.setSelectionRange(cursor, cursor); }); }} />
               <span className="hidden items-center gap-1 text-[11px] text-subtle sm:flex"><Kbd>⌘</Kbd><Kbd>↵</Kbd></span>
-              <label className="ml-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted hover:bg-hover max-sm:ml-0 max-sm:min-h-11 max-sm:px-2" title="How long you have to undo after pressing Send">
+              <label className="ml-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted hover:bg-hover max-sm:ml-0 max-sm:min-h-11 max-sm:px-2" title={tr("compose.how_long_you_have_to_undo_after_pressing_send")}>
                 <IconUndo className="h-3.5 w-3.5" aria-hidden />
-                <Select bare value={undoSeconds} onChange={(e) => setUndoSeconds(parseUndoSeconds(e.target.value))} className="cursor-pointer bg-transparent outline-none" aria-label="Undo send window"
+                <Select bare value={undoSeconds} onChange={(e) => setUndoSeconds(parseUndoSeconds(e.target.value))} className="cursor-pointer bg-transparent outline-none" aria-label={tr("compose.undo_send_window")}
                   phoneClassName="inline-flex min-h-11 min-w-11 items-center justify-center whitespace-nowrap bg-transparent text-left text-[13px]">
                   {UNDO_SEND_CHOICES.map((n) => <option key={n} value={n}>{n} s</option>)}
                 </Select>
@@ -287,7 +288,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
               <RemindSelect value={remindDays} onChange={setRemindDays} />
               <SavedRepliesButton draft={d} bodyRef={bodyRef} onApply={applySnippet} />
             </div>
-            <button type="button" onClick={() => { const saved = takeAutoDraft(); if (saved && (saved !== initial.draftId || initial.resumed)) void api.del(`/mail/messages/${saved}`).then(refresh, () => {}); onClose(); }} className="inline-flex shrink-0 items-center justify-center rounded-md p-2 text-muted hover:bg-hover hover:text-bad max-sm:h-11 max-sm:w-11 max-sm:rounded-full" aria-label="Discard"><IconTrash className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>
+            <button type="button" onClick={() => { const saved = takeAutoDraft(); if (saved && (saved !== initial.draftId || initial.resumed)) void api.del(`/mail/messages/${saved}`).then(refresh, () => {}); onClose(); }} className="inline-flex shrink-0 items-center justify-center rounded-md p-2 text-muted hover:bg-hover hover:text-bad max-sm:h-11 max-sm:w-11 max-sm:rounded-full" aria-label={tr("compose.discard")}><IconTrash className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>
           </div>
         </form>
       )}

@@ -1,6 +1,7 @@
 /**
  * R30: what an empty task view says and offers. Pure, so the copy and the choice of action are unit tested.
  */
+import { tl } from "@/web/i18n"; // R104
 export type TaskViewKind = "list" | "board" | "calendar" | "timeline" | "workload" | "sprints";
 export interface EmptyCopy { title: string; body: string; action: "clear" | "new" | null; actionLabel: string | null }
 
@@ -10,7 +11,13 @@ export function hasTaskFilters(params: Iterable<[string, string]>, keys: readonl
   return false;
 }
 
+/** R104: the copy in the language on screen (English while LANG_R104 is off). */
 export function emptyTasksCopy(view: TaskViewKind, filtered: boolean): EmptyCopy {
+  const c = emptyTasksCopyEn(view, filtered);
+  return { ...c, title: tl("empty", c.title), body: tl("empty", c.body), actionLabel: c.actionLabel && tl("empty", c.actionLabel) };
+}
+
+function emptyTasksCopyEn(view: TaskViewKind, filtered: boolean): EmptyCopy {
   if (filtered) return { title: "No tasks match these filters", body: "Try fewer filters, or clear them to see every task.", action: "clear", actionLabel: "Clear filters" };
   if (view === "calendar") return { title: "Nothing on the calendar", body: "Tasks with a due date show here. Drag one to another day to move it.", action: null, actionLabel: null };
   return { title: "No tasks yet", body: "Add the first one, or make a task from any email or chat message.", action: "new", actionLabel: "New task" };

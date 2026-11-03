@@ -1,10 +1,11 @@
 import type { AuditEntry, Domain } from "@/web/lib/types";
 import { Badge } from "./ui/misc";
+import { tr } from "@/web/i18n"; // R104
 
 export function DomainStatusBadge({ status }: { status: Domain["status"] }) {
-  if (status === "verified") return <Badge tone="ok" dot>Verified</Badge>;
-  if (status === "failed") return <Badge tone="bad" dot>Needs attention</Badge>;
-  return <Badge tone="warn" dot>Pending DNS</Badge>;
+  if (status === "verified") return <Badge tone="ok" dot>{tr("common.verified")}</Badge>;
+  if (status === "failed") return <Badge tone="bad" dot>{tr("common.needs_attention")}</Badge>;
+  return <Badge tone="warn" dot>{tr("common.pending_dns")}</Badge>;
 }
 
 const ACTIONS: Record<string, string> = {

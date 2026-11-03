@@ -1,5 +1,6 @@
 import { markReadOnly, markWorkspaceBudget } from "./read-only";
 import { workspaceTabs } from "./workspace-tabs-r58"; // R58 (MB-245)
+import { tl } from "@/web/i18n"; // R104
 
 /** Thin typed client for the Multies API. Cookies carry the session. */
 export class ApiError extends Error {
@@ -28,7 +29,7 @@ export function isTransientError(err: unknown): boolean {
 /** Message for any error: transient failures get the one plain line, never a status code. */
 export function errorMessage(err: unknown, fallback = "Something went wrong. Try again."): string {
   if (isTransientError(err)) return UNREACHABLE_MESSAGE;
-  return err instanceof ApiError && err.message ? err.message : fallback;
+  return err instanceof ApiError && err.message ? tl("errors", err.message) : tl("errors", fallback);
 }
 
 interface RequestOptions {

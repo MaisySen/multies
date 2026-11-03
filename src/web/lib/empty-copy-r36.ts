@@ -1,4 +1,5 @@
 /** R36: short empty copy per mail folder (title under 4 words, one sentence of body; rea: files/teardowns/rea/clickup/empty-states-r36.md). */
+import { tl } from "@/web/i18n"; // R104
 const FOLDERS: Record<string, { title: string; body: string }> = {
   sent: { title: "Nothing sent yet", body: "Mail you send shows up here." },
   drafts: { title: "No drafts", body: "Mail you start and do not send waits here." },
@@ -10,5 +11,6 @@ const FOLDERS: Record<string, { title: string; body: string }> = {
 };
 
 export function folderEmpty(folder: string): { title: string; body: string } {
-  return FOLDERS[folder] ?? { title: "Nothing here", body: "Messages you move here will show up in this folder." };
+  const c = FOLDERS[folder] ?? { title: "Nothing here", body: "Messages you move here will show up in this folder." };
+  return { title: tl("empty", c.title), body: tl("empty", c.body) }; // R104
 }
