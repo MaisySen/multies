@@ -1,4 +1,5 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PHONE_SORTS, parseSortValue, sortValue } from "@/web/lib/task-sort-par1"; // PAR1
 import { toast } from "sonner";
 import { PhoneFilters } from "@/web/components/phone-filters-r40"; // R40 (MB-209)
 import { useNavigate, useParams, useSearchParams } from "react-router";
@@ -325,6 +326,8 @@ export function TasksPage() {
           { key: "type", label: "Type", value: filters.type ?? "", onChange: (v) => set({ type: v || null }), options: [{ value: "", label: "Any" }, ...TASK_TYPES.map((k) => ({ value: k, label: TYPE_META[k].label }))] },
           { key: "label", label: "Tag", value: filters.label ?? "", onChange: (v) => set({ label: v || null }), options: [{ value: "", label: "Any" }, ...(tagList.data ?? []).map((t) => ({ value: t.name, label: t.name }))] },
           ...(view === "list" ? [{ key: "group", label: "Group", value: listGroup ?? "", onChange: (v: string) => set({ group: v || null }), options: groupOptions }] : []),
+          // PAR1: on a computer the list sorts from its column headers; a phone has no headers, so Sort sits with the filters.
+          ...(view === "list" ? [{ key: "sort", label: "Sort", value: sortValue(listSort), onChange: (v: string) => set(parseSortValue(v)), options: [...PHONE_SORTS] }] : []),
         ]} />
         {/* R79: light toolbar controls that say their setting; colour only when a filter is on. */}
         <ChipSelect label="Assignee" aria-label="Assignee filter" active={!!filters.assignee} value={filters.assignee ?? ""} onChange={(e) => set({ assignee: e.target.value || null })} className="max-sm:hidden">
@@ -437,7 +440,7 @@ export function TasksPage() {
           <Suspense fallback={<PanelListSkeleton label="Loading sprints" />}><SprintsView project={project} onOpen={open} /></Suspense>
         ) : view === "list" || ((view === "board" || view === "sprints") && !project) ? (
           <>
-            {phone ? <PhoneTaskList tasks={tasks.data ?? []} projects={list} onOpen={open} groupBy={listGroup} fields={listFields} people={people.data ?? []} /> /* R41 (MB-226) */
+            {phone ? <PhoneTaskList tasks={tasks.data ?? []} projects={list} onOpen={open} groupBy={listGroup} fields={listFields} people={people.data ?? []} sort={listSort} /> /* R41 (MB-226) */
               : <TaskTable tasks={tasks.data ?? []} projects={list} onOpen={open} fields={listFields} people={people.data ?? []} projectId={projectId || undefined} onAdd={() => setNewTask({})}
                 groupBy={listGroup} sort={listSort} onSort={(next) => set({ sort: next?.id ?? null, dir: next ? (next.desc ? "desc" : "asc") : null })} />}
             {/* R42: the board's rapid add at the foot of the list; into the picked project, else the first one. */}

@@ -535,3 +535,10 @@ a.ref-chip:focus-visible { outline: 2px solid var(--color-brand); outline-offset
 /* VID2: while a call records, a red dot on every tile for everyone (grey while paused). */
 [data-testid=call-screen][data-rec] .lk-participant-tile::before { content: ""; position: absolute; top: 0.5rem; right: 0.5rem; left: auto; bottom: auto; z-index: 6; width: 0.625rem; height: 0.625rem; border-radius: 9999px; background: #ff3b30; box-shadow: 0 0 0 2px rgb(0 0 0 / 0.55); pointer-events: none; }
 [data-testid=call-screen][data-rec=paused] .lk-participant-tile::before { background: #c7c7cc; }
+
+/* PAR1: a phone has no hover. Actions that appear on hover on a desktop (row actions, remove, edit) show on touch
+   screens, so no action is hidden there. Tooltips (pointer-events-none or invisible) stay hidden, and controls a phone
+   hides on purpose (max-sm:opacity-0, max-sm:pointer-events-none) keep their own rule. Opacity only: no layout shift. */
+@media (hover: none) {
+  :is(.group-hover\:opacity-100, .md\:group-hover\:opacity-100):not(.pointer-events-none, .invisible, .max-sm\:pointer-events-none, .max-sm\:opacity-0) { opacity: 1; }
+}

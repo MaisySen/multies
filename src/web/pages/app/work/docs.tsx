@@ -23,6 +23,8 @@ import { docExtensions, liveDomEvents, liveKeyDown, useCollabDoc, useCollabSessi
 import { tone } from "@/web/components/app-bits";
 import { MeetingNotesBacklink } from "./meeting-notes";
 import { ShareButton } from "./share-sheet"; // R26 (MB-87)
+import { IconMore } from "@/web/components/ui/icons"; // PAR1
+import { Menu, MenuItem } from "@/web/components/ui/menu"; // PAR1
 import { SlashMenu } from "./slash-menu"; // R31: "/" menu for every block
 import { uploadDocImage } from "@/web/lib/docs-blocks"; // R32: table, image and callout blocks
 import { ImageInsertDialog, ImageToolbar, TableMenu } from "./doc-block-menus";
@@ -248,6 +250,15 @@ function DocEditor({ doc, session, onReplaced, embed = false }: { doc: Doc; sess
   const mode: DocMode = visual && !isBoard && sp.get("mode") === "mindmap" ? "mindmap" : "doc";
   const presenting = visual && !isBoard && sp.get("present") === "1";
   const setParam = (k: string, v: string | null) => setSp((p) => { const n = new URLSearchParams(p); if (v === null) n.delete(k); else n.set(k, v); return n; }, { replace: true });
+  const saveAsTemplate = async () => {
+    // Save pending edits first: the template copies the stored doc.
+    if (state === "unsaved") { clearTimeout(timer.current); await save(); }
+    try { await api.post("/templates", { kind: "doc", fromDocId: id, name: title.trim() || undefined }); toast.success("Saved as a doc template"); } catch (err) { showError(err as Error); }
+  };
+  const deleteDoc = async () => {
+    if (!(await confirm({ ...deleteDocConfirm(tree.data?.tree, id, title), confirmLabel: "Delete doc" }))) return;
+    await api.del(`/docs/${id}`); void qc.invalidateQueries({ queryKey: ["doc-tree"] }); navigate("/app/docs");
+  };
   const status = state === "saving" ? "Saving" : state === "unsaved" ? "Unsaved changes" : state === "conflict" ? "Changed elsewhere. Reload to see the latest." : "Saved";
   return (
     <div className={cn("mx-auto", isBoard ? "max-w-none" : mode === "mindmap" ? "max-w-6xl" : "max-w-3xl")} data-doc-kind={isBoard ? "whiteboard" : "doc"} data-mode={mode}>
@@ -290,15 +301,17 @@ function DocEditor({ doc, session, onReplaced, embed = false }: { doc: Doc; sess
         {!embed && <AskAboutButton kind="docs" id={id} title={title} compact />}
         {translateOn && !isBoard && <DocLangLazy editor={editor} title={title} />}
         <DocHistoryButton onOpen={openHistory} />
-        <button aria-label="Save as template" title="Save as template" className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg"
-          onClick={async () => {
-            // Save pending edits first: the template copies the stored doc.
-            if (state === "unsaved") { clearTimeout(timer.current); await save(); }
-            try { await api.post("/templates", { kind: "doc", fromDocId: id, name: title.trim() || undefined }); toast.success("Saved as a doc template"); } catch (err) { showError(err as Error); }
-          }}>
-          <IconTemplate className="h-4 w-4 max-sm:h-5 max-sm:w-5" /><span className="max-2xl:hidden">Save as template</span>
+        <button aria-label="Save as template" title="Save as template" className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:hidden" onClick={() => void saveAsTemplate()}>
+          <IconTemplate className="h-4 w-4" /><span className="max-2xl:hidden">Save as template</span>
         </button>
-        {!embed && <button aria-label="Delete doc" className="inline-flex shrink-0 items-center justify-center rounded p-1 hover:text-bad max-sm:h-11 max-sm:w-11 max-sm:rounded-lg" onClick={async () => { if (!(await confirm({ ...deleteDocConfirm(tree.data?.tree, id, title), confirmLabel: "Delete doc" }))) return; await api.del(`/docs/${id}`); void qc.invalidateQueries({ queryKey: ["doc-tree"] }); navigate("/app/docs"); }}><IconTrash className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>}
+        {!embed && <button aria-label="Delete doc" className="inline-flex shrink-0 items-center justify-center rounded p-1 hover:text-bad max-sm:hidden" onClick={() => void deleteDoc()}><IconTrash className="h-4 w-4" /></button>}
+        {/* PAR1: on a phone the bar has no room for every action, so the less used ones sit in More (nothing is off screen). */}
+        <div className="shrink-0 sm:hidden" data-testid="doc-more">
+          <Menu label="More doc actions" sheet trigger={<button type="button" aria-label="More doc actions" className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-fg"><IconMore className="h-5 w-5" aria-hidden /></button>}>
+            <MenuItem icon={<IconTemplate />} onSelect={() => void saveAsTemplate()}>Save as template</MenuItem>
+            {!embed && <MenuItem icon={<IconTrash />} danger onSelect={() => void deleteDoc()}>Delete doc</MenuItem>}
+          </Menu>
+        </div>
       </div>
       {!embed && <DocBreadcrumbs docId={id} title={title} />}
       <h1 className="sr-only">{title || "Untitled doc"}</h1>

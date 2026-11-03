@@ -9,18 +9,22 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { collapsedKey, groupTasks, type GroupBy } from "@/web/lib/task-groups-r84"; // R84
 import { AvatarStack, TagChips } from "./tasks-r84"; // R84
 import { useWindowedList } from "@/web/lib/use-windowed-list"; // R43 (MB-210)
+import { sortTasks } from "@/web/lib/task-sort-par1"; // PAR1
 
 /**
  * R41 (MB-226): the Tasks list on a phone. Below the sm breakpoint each task is one card row, the way native task apps
  * set a list: the title on up to two lines, then the ref, a status pill, the due chip and the priority flag, with the
  * assignee on the right. The whole row is one 64 px+ tap target that opens the task. Larger screens keep the table.
  */
-export function PhoneTaskList({ tasks, projects, onOpen, groupBy, fields = [], people = [] }: {
+export function PhoneTaskList({ tasks: given, projects, onOpen, groupBy, fields = [], people = [], sort = null }: {
   tasks: Task[]; projects: Project[]; onOpen: (id: string) => void;
+  /** PAR1: the same sort as the list's column headers on a computer. */
+  sort?: { id: string; desc: boolean } | null;
   /** R84: the same grouping as the list on a computer, as sections with a header you can fold. */
   groupBy?: GroupBy | null; fields?: CustomField[]; people?: AssigneeOption[];
 }) {
   const tagList = useTags();
+  const tasks = useMemo(() => sortTasks(given, sort, projects), [given, sort, projects]);
   const groups = useMemo(() => (groupBy ? groupTasks(tasks, groupBy, { projects, tags: tagList.data ?? [], fields, people: people.map((p) => ({ id: p.id, name: p.name })) }) : null), [groupBy, tasks, projects, tagList.data, fields, people]);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   useEffect(() => {
