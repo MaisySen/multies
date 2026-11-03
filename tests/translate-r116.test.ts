@@ -223,8 +223,10 @@ describe("R116 FEATURES list (production text binding limit)", () => {
   it("production keeps VID2 and R116 on through FEATURES and stays within 85 vars", () => {
     const toml = readFileSync("wrangler.toml", "utf8");
     const prod = toml.slice(toml.indexOf("\n[vars]"), toml.indexOf("\n[", toml.indexOf("\n[vars]") + 3));
-    expect(prod).toMatch(/^FEATURES = "VIDEO_REC_VID2,TRANSLATE_R116"/m);
-    expect(prod).not.toMatch(/^(VIDEO_REC_VID2|TRANSLATE_R116) =/m);
+    // POL4: later rounds add their own names to the same list (R104 added LANG_R104), so check membership, not the whole value.
+    const features = (prod.match(/^FEATURES = "([^"]*)"/m)?.[1] ?? "").split(",").map((s) => s.trim());
+    expect(features).toEqual(expect.arrayContaining(["VIDEO_REC_VID2", "TRANSLATE_R116"]));
+    expect(prod).not.toMatch(/^(VIDEO_REC_VID2|TRANSLATE_R116|LANG_R104) =/m);
     expect(prod.split("\n").filter((l) => /^[A-Z0-9_]+\s*=/.test(l)).length).toBeLessThanOrEqual(85);
   });
 });
