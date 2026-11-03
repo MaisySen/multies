@@ -32,7 +32,7 @@
   --color-brand-soft: rgb(0 102 204 / 0.1);
   --color-brand-fg: #ffffff;
   /* POL2: a filled button on hover, a little deeper so its text only gains contrast (was the fill at 90% over the page). */
-  --color-brand-press: #0058b0;
+  --color-brand-press: color-mix(in srgb, var(--color-brand) 86%, black); /* POL2: brand relative, 12 to 14% deeper under white text */
   /* R77: a workspace's second brand colour (selected rows, progress, highlights); the brand colour by default. */
   --color-accent: #0066cc;
   --color-accent-fg: #ffffff;
@@ -109,7 +109,7 @@
     --color-brand-hover: #5ea4ff;
     --color-brand-soft: rgb(10 132 255 / 0.16);
     --color-brand-fg: #ffffff;
-    --color-brand-press: #0063c7;
+    --color-brand-press: color-mix(in srgb, var(--color-brand) 86%, black);
     --color-accent: #0071e3;
     --color-ok: #30d158;
     --color-ok-soft: rgb(48 209 88 / 0.14);
@@ -144,7 +144,7 @@
       --color-brand-hover: #5ea4ff;
       --color-brand-soft: rgb(10 132 255 / 0.16);
       --color-brand-fg: #ffffff;
-      --color-brand-press: #0063c7;
+      --color-brand-press: color-mix(in srgb, var(--color-brand) 86%, black);
       --color-accent: #0071e3;
       --color-ok: #30d158;
       --color-ok-soft: rgb(48 209 88 / 0.14);
@@ -501,6 +501,11 @@ a.ref-chip:focus-visible { outline: 2px solid var(--color-brand); outline-offset
 .ref-chip-muted { background: var(--color-fill); color: var(--color-muted); font-style: italic; font-weight: 400; }
 @media (prefers-reduced-motion: reduce) { .ref-chip { transition: none; } }
 /* TD7 Forms pro B: a form brand kit from fixed choices only (no free colours or CSS), set by data attributes. */
+/* POL2: a brand scope recomputes the press fill from its own brand (a custom property resolves where it is defined, so the
+   root value would stay the default blue). Deeper under white text in light; lighter under the dark text dark accents use. */
+.td7-brand { --color-brand-press: color-mix(in srgb, var(--color-brand) 86%, black); }
+:root[data-theme="dark"] .td7-brand { --color-brand-press: color-mix(in srgb, var(--color-brand) 86%, white); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .td7-brand { --color-brand-press: color-mix(in srgb, var(--color-brand) 86%, white); } }
 .td7-brand[data-brand-accent="ocean"] { --color-brand: #0b5cad; --color-brand-hover: color-mix(in srgb, #0b5cad 88%, black); --color-brand-soft: color-mix(in srgb, #0b5cad 12%, transparent); --color-accent: #0b5cad; }
 .td7-brand[data-brand-accent="forest"] { --color-brand: #1f6f43; --color-brand-hover: color-mix(in srgb, #1f6f43 88%, black); --color-brand-soft: color-mix(in srgb, #1f6f43 12%, transparent); --color-accent: #1f6f43; }
 .td7-brand[data-brand-accent="plum"] { --color-brand: #7a3e9d; --color-brand-hover: color-mix(in srgb, #7a3e9d 88%, black); --color-brand-soft: color-mix(in srgb, #7a3e9d 12%, transparent); --color-accent: #7a3e9d; }
