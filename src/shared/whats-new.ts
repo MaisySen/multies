@@ -94,10 +94,10 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     body: "Contacts suggests new people from email signatures, last contacted dates and next steps from the mail you already sync. Nothing changes until you accept, and you can edit, discard or undo. Save analyses from templates such as pipeline by stage and share them with your workspace.",
   },
   {
-    id: "2026-11-03-team-ai",
-    date: "2026-11-03",
-    title: "Team AI",
-    body: "A visible memory for the assistant, saved instructions, routines that write drafts or chat messages, and @assistant in channels. Free built in AI with a daily limit, or your own AI key for unlimited use.",
+    id: "2026-10-28-whats-new",
+    date: "2026-10-28",
+    title: "What's new, in the app",
+    body: "The account menu has a What's new item, with a small dot when something new has shipped since you last looked. The same list is on the public changelog page.",
   },
 ];
 

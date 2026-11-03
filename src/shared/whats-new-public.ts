@@ -5,6 +5,7 @@
 import { WHATS_NEW, type WhatsNewEntry } from "./whats-new";
 
 export const WHATS_NEW_EARLIER: readonly WhatsNewEntry[] = [
+  { id: "2026-11-03-team-ai", date: "2026-11-03", title: "Team AI", body: "A visible memory for the assistant, saved instructions, routines that write drafts or chat messages, and @assistant in channels. Free built in AI with a daily limit, or your own AI key for unlimited use." }, // R104B: moved from the in app list (keeps 14)
   { id: "2026-11-03-forms-pro", date: "2026-11-03", title: "Branded forms that open and close on time", body: "Give a form your colours, font and logo, close it on a date or after a number of answers, or add a password. People can save and finish later from a link, and you see views, completions and where people stop." },
   { id: "2026-11-02-one-inbox", date: "2026-11-02", title: "One inbox", body: "Mail, chat, mentions, tasks and assistant replies in one list. Important first, the rest waits in Noise; move anything and we remember the sender." }, // R104: moved from the in app list (keeps 14)
   { id: "2026-11-02-mentions", date: "2026-11-02", title: "Mention any record", body: "Type @ in chat, a task, a comment or a contact note to link a task, project, doc, contact, deal, meeting, form or invoice. Every record shows what mentions it and what it mentions, and people without access see a restricted card." }, // PAR1: moved from the in app list (keeps 14)

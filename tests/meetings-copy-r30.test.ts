@@ -5,7 +5,8 @@ import { readFileSync } from "node:fs";
 describe("Meetings copy reflects recording (R30)", () => {
   const read = (p: string) => readFileSync(new URL(`../src/web/pages/${p}`, import.meta.url), "utf8");
   it("the Meetings header names recording and transcripts", () => {
-    const src = read("app/work/meetings.tsx");
+    // R104B: the English words live in the Meetings language file now.
+    const src = read("app/work/meetings.tsx") + readFileSync(new URL("../src/web/i18n/w2/en-meetings.ts", import.meta.url), "utf8");
     expect(src).not.toContain("No recordings or transcripts");
     expect(src).not.toContain("Nothing is recorded");
     expect(src).toContain("Record a call to get a transcript and summary");
