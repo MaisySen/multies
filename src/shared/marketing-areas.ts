@@ -195,6 +195,7 @@ export const AREAS: readonly MarketingArea[] = [
     points: [
       { t: "Planner and drafts", b: "Plan posts on a calendar, keep drafts, and ask a teammate to approve before anything goes out." },
       { t: "Media library", b: "Keep the images and videos you post in one place." },
+      { t: "Several Pages and accounts", b: "Connect more than one Facebook Page and LinkedIn account, then choose where each post goes when you write." },
       { t: "Social inbox", b: "Answer comments and messages from your connected accounts in one inbox." },
       { t: "How posts did", b: "See reach and engagement per post and per account, and spot an account that needs reconnecting." },
     ],

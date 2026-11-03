@@ -116,3 +116,11 @@ describe("WEB1: passkey sign in is live (DES1), public pages say so", () => {
     expect(privacy).toMatch(/passkeys you add \(the public key and the device name only; your face or fingerprint never leaves your device\)/);
   });
 });
+
+describe("WEB1: several Pages and accounts is live (SOC1), /features/social says so", () => {
+  it("the social area names several Facebook Pages and LinkedIn accounts", async () => {
+    const { AREAS } = await import("../src/shared/marketing-areas");
+    const social = AREAS.find((a) => a.slug === "social");
+    expect(social?.points.some((p) => p.t === "Several Pages and accounts" && /Facebook Page and LinkedIn account/.test(p.b))).toBe(true);
+  });
+});
