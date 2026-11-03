@@ -9,6 +9,8 @@ import { calloutVariant } from "@/web/lib/docs-callout";
 import { isSafeImageSrc } from "@/web/lib/docs-blocks-schema";
 import type { PMNode } from "@/web/lib/mindmap-tree";
 import { readTokens, useThemeKey } from "./theme";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-docs"; // R104B
 
 const BoardPicture = lazyPage(() => import("./board-picture"), "default", { quiet: true });
 
@@ -97,5 +99,5 @@ export function DiagramPicture({ source }: { source: string }) {
   }, [source, themeKey]);
   if (err && !svg) return <p className="text-[0.7em] text-muted">{err}</p>;
   if (!svg) return <div className="h-48 animate-pulse rounded-xl bg-fill" />;
-  return <div role="img" aria-label="Diagram" className="mm-diagram-svg [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-h-[62vh] [&_svg]:max-w-full" dangerouslySetInnerHTML={{ __html: svg }} />;
+  return <div role="img" aria-label={tr("docs.diagram")} className="mm-diagram-svg [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-h-[62vh] [&_svg]:max-w-full" dangerouslySetInnerHTML={{ __html: svg }} />;
 }

@@ -16,6 +16,8 @@ import { cn } from "@/web/lib/cn";
 import { useTrashAction, usePolishOn } from "@/web/components/trash-pol1"; // F13b
 import { IconTrash } from "@/web/components/ui/icon";
 import { useMentionsOn } from "@/web/components/mentions-td5"; // POL2
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-docs"; // R104B
 
 export const MAX_DEPTH = 6;
 export interface TreeNode { id: string; title: string; parentId: string | null; position: number; depth: number; children: TreeNode[]; kind?: "whiteboard" | "table" | "course" }
@@ -59,7 +61,7 @@ export function deleteDocConfirm(tree: TreeNode[] | undefined, id: string, title
   const name = (title ?? e?.node.title ?? "").trim() || "Untitled";
   const n = e?.node.children.length ?? 0;
   return {
-    title: `Delete the doc ${name}?`,
+    title: tr("docs.delete_the_doc_name", { name }),
     description: n ? `Its ${n === 1 ? "sub page moves" : `${n} sub pages move`} up to ${e?.parent ? `"${e.parent.title}"` : "the top level"}.` : undefined,
   };
 }
@@ -120,7 +122,7 @@ export function DocTreeSidebar({ currentId }: { currentId?: string }) {
     if (kind === "end") { void move(id, { parentId: null }); return; }
     const t = flat.find((x) => x.node.id === target);
     if (!t) return;
-    if (contains(node, target)) { toast.error("A page can't go inside one of its own sub pages."); return; }
+    if (contains(node, target)) { toast.error(tr("docs.a_page_can_t_go_inside_one_of_its_own_sub_pages")); return; }
     if (kind === "into") {
       if (t.node.depth + heightOf(node) > MAX_DEPTH) { toast.error(`Pages nest at most ${MAX_DEPTH} levels deep.`); return; }
       setCollapsed((s) => { const n = new Set(s); n.delete(target); return n; });
@@ -131,22 +133,22 @@ export function DocTreeSidebar({ currentId }: { currentId?: string }) {
   };
 
   return (
-    <nav aria-label="Pages" className="w-60 shrink-0 max-lg:hidden" data-testid="doc-tree">
+    <nav aria-label={tr("docs.pages")} className="w-60 shrink-0 max-lg:hidden" data-testid="doc-tree">
       <div className="mb-2 flex items-center justify-between px-2">
-        <span className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Pages</span>
-        <button type="button" aria-label="New page" title="New page" onClick={() => void addPage(null)} className="rounded-md p-1 text-muted hover:bg-hover hover:text-fg"><IconPlus className="h-4 w-4" /></button>
+        <span className="text-[12px] font-semibold uppercase tracking-wide text-subtle">{tr("docs.pages")}</span>
+        <button type="button" aria-label={tr("docs.new_page")} title={tr("docs.new_page")} onClick={() => void addPage(null)} className="rounded-md p-1 text-muted hover:bg-hover hover:text-fg"><IconPlus className="h-4 w-4" /></button>
       </div>
       {q.isPending ? <div className="space-y-2 px-2">{[0, 1, 2].map((i) => <div key={i} className="h-5 animate-pulse rounded bg-elevated" />)}</div> : !tree.length ? (
-        <p className="px-2 text-[13px] text-muted">No pages yet.</p>
+        <p className="px-2 text-[13px] text-muted">{tr("docs.no_pages_yet")}</p>
       ) : (
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-          <ul role="tree" aria-label="Pages" className="text-[13.5px]">
+          <ul role="tree" aria-label={tr("docs.pages")} className="text-[13.5px]">
             {tree.map((n, i) => <TreeItem key={n.id} node={n} siblings={tree} index={i} parent={null} currentId={currentId} collapsed={collapsed} toggle={toggle} addPage={addPage} move={move} />)}
           </ul>
           <EndZone />
         </DndContext>
       )}
-      {q.data?.truncated && <p className="mt-2 px-2 text-[12px] text-subtle">Showing the 2,000 most recent pages.</p>}
+      {q.data?.truncated && <p className="mt-2 px-2 text-[12px] text-subtle">{tr("docs.showing_the_2_000_most_recent_pages")}</p>}
     </nav>
   );
 }
@@ -184,21 +186,21 @@ function TreeItem({ node, siblings, index, parent, currentId, collapsed, toggle,
         data-testid={`tree-row-${node.title}`}
         className={cn("group flex items-center gap-0.5 rounded-md py-0.5 pr-1", active ? "bg-brand/10 text-fg" : "text-muted hover:bg-hover hover:text-fg",
           drop.isOver && !drag.isDragging && "ring-2 ring-brand/50", drag.isDragging && "opacity-70 shadow-pop bg-elevated")}>
-        <button type="button" onClick={() => toggle(node.id)} aria-label={open ? `Collapse ${node.title}` : `Expand ${node.title}`} tabIndex={hasKids ? 0 : -1}
+        <button type="button" onClick={() => toggle(node.id)} aria-label={open ? tr("docs.collapse_title", { title: node.title }) : tr("docs.expand_title", { title: node.title })} tabIndex={hasKids ? 0 : -1}
           className={cn("rounded p-0.5 text-subtle hover:text-fg", !hasKids && "invisible")}>
           <IconChevronRight className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-90")} />
         </button>
         <Link to={`/app/docs/${node.id}`} draggable={false} className={cn("flex min-w-0 flex-1 items-center gap-1.5 py-0.5", active && "font-medium")}>
-          {node.kind === "whiteboard" ? <IconShapes className="h-3.5 w-3.5 shrink-0" aria-label="Whiteboard" /> : <IconDocs className="h-3.5 w-3.5 shrink-0" />}<span className="truncate">{node.title || "Untitled"}</span>
+          {node.kind === "whiteboard" ? <IconShapes className="h-3.5 w-3.5 shrink-0" aria-label={tr("docs.whiteboard")} /> : <IconDocs className="h-3.5 w-3.5 shrink-0" />}<span className="truncate">{node.title || tr("docs.untitled")}</span>
         </Link>
         <div className="opacity-0 focus-within:opacity-100 group-hover:opacity-100" onPointerDown={(e) => e.stopPropagation()}>
-          <Menu align="end" trigger={<button type="button" aria-label={`Page actions for ${node.title}`} className="rounded p-0.5 text-subtle hover:text-fg"><IconMore className="h-4 w-4" /></button>}>
-            <MenuItem icon={<IconPlus />} onSelect={() => { if (node.depth >= MAX_DEPTH) toast.error(`Pages nest at most ${MAX_DEPTH} levels deep.`); else void addPage(node.id); }}>Add sub page</MenuItem>
-            <MenuItem icon={<IconArrowUp />} onSelect={() => { if (prev) void move(node.id, { beforeId: prev.id }); }}>Move up</MenuItem>
-            <MenuItem icon={<IconArrowDown />} onSelect={() => { if (next) void move(node.id, { afterId: next.id }); }}>Move down</MenuItem>
-            <MenuItem icon={<IconIndent />} onSelect={() => { if (prev) void move(node.id, { parentId: prev.id }); }}>Indent</MenuItem>
-            <MenuItem icon={<IconOutdent />} onSelect={() => { if (parent) void move(node.id, { parentId: parent.parentId, afterId: parent.id }); }}>Outdent</MenuItem>
-            {polish && trashKind && <MenuItem danger icon={<IconTrash />} onSelect={() => void trash.run()}>Move to trash</MenuItem>}
+          <Menu align="end" trigger={<button type="button" aria-label={tr("docs.page_actions_for_title", { title: node.title })} className="rounded p-0.5 text-subtle hover:text-fg"><IconMore className="h-4 w-4" /></button>}>
+            <MenuItem icon={<IconPlus />} onSelect={() => { if (node.depth >= MAX_DEPTH) toast.error(`Pages nest at most ${MAX_DEPTH} levels deep.`); else void addPage(node.id); }}>{tr("docs.add_sub_page")}</MenuItem>
+            <MenuItem icon={<IconArrowUp />} onSelect={() => { if (prev) void move(node.id, { beforeId: prev.id }); }}>{tr("tasks.move_up")}</MenuItem>
+            <MenuItem icon={<IconArrowDown />} onSelect={() => { if (next) void move(node.id, { afterId: next.id }); }}>{tr("tasks.move_down")}</MenuItem>
+            <MenuItem icon={<IconIndent />} onSelect={() => { if (prev) void move(node.id, { parentId: prev.id }); }}>{tr("docs.indent")}</MenuItem>
+            <MenuItem icon={<IconOutdent />} onSelect={() => { if (parent) void move(node.id, { parentId: parent.parentId, afterId: parent.id }); }}>{tr("docs.outdent")}</MenuItem>
+            {polish && trashKind && <MenuItem danger icon={<IconTrash />} onSelect={() => void trash.run()}>{tr("docs.move_to_trash")}</MenuItem>}
           </Menu>
           {polish && trashKind && trash.dialogs}
         </div>
@@ -218,14 +220,14 @@ export function DocBreadcrumbs({ docId, title }: { docId: string; title: string 
   const up = q.data ? ancestorsOf(q.data.tree, docId) : [];
   if (!up.length) return null;
   return (
-    <nav aria-label="Breadcrumbs" className="mb-1 flex min-w-0 flex-wrap items-center gap-1 text-[12.5px] text-subtle" data-testid="doc-breadcrumbs">
+    <nav aria-label={tr("docs.breadcrumbs")} className="mb-1 flex min-w-0 flex-wrap items-center gap-1 text-[12.5px] text-subtle" data-testid="doc-breadcrumbs">
       {up.map((a) => (
         <span key={a.id} className="inline-flex min-w-0 items-center gap-1">
-          <Link to={`/app/docs/${a.id}`} className="max-w-[12rem] truncate hover:text-fg">{a.title || "Untitled"}</Link>
+          <Link to={`/app/docs/${a.id}`} className="max-w-[12rem] truncate hover:text-fg">{a.title || tr("docs.untitled")}</Link>
           <IconChevronRight className="h-3 w-3 shrink-0" />
         </span>
       ))}
-      <span className="max-w-[12rem] truncate text-muted" aria-current="page">{title || "Untitled"}</span>
+      <span className="max-w-[12rem] truncate text-muted" aria-current="page">{title || tr("docs.untitled")}</span>
     </nav>
   );
 }
@@ -236,7 +238,7 @@ function BacklinkList({ items }: { items: Backlink[] }) {
       {items.map((b) => (
         <li key={b.id}>
           <Link to={`/app/docs/${b.id}`} className="block rounded-lg border border-line bg-surface px-3 py-2 transition-colors hover:border-line-strong">
-            <span className="flex items-center gap-1.5 text-[13.5px] font-medium text-fg"><IconDocs className="h-3.5 w-3.5 text-muted" />{b.title || "Untitled"}</span>
+            <span className="flex items-center gap-1.5 text-[13.5px] font-medium text-fg"><IconDocs className="h-3.5 w-3.5 text-muted" />{b.title || tr("docs.untitled")}</span>
             {b.snippet && <span className="mt-0.5 line-clamp-2 block text-[12.5px] leading-relaxed text-muted">{b.snippet}</span>}
           </Link>
         </li>
@@ -254,10 +256,10 @@ export function LinkedFrom({ docId }: { docId: string }) {
   const refsOn = useMentionsOn();
   if (refsOn && !items.length) return null;
   return (
-    <section aria-label="Linked from" className="mt-10 border-t border-line pt-5" data-testid="linked-from">
-      <h2 className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-muted"><IconLink className="h-3.5 w-3.5" />Linked from{items.length ? ` (${items.length})` : ""}</h2>
+    <section aria-label={tr("docs.linked_from")} className="mt-10 border-t border-line pt-5" data-testid="linked-from">
+      <h2 className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-muted"><IconLink className="h-3.5 w-3.5" />{tr("docs.linked_from")}{items.length ? ` (${items.length})` : ""}</h2>
       {q.isPending ? <div className="h-10 animate-pulse rounded-lg bg-elevated" /> : items.length ? <BacklinkList items={items} /> : (
-        <p className="text-[13px] text-subtle">No other pages link here yet. Type [[ in a page to link to this one.</p>
+        <p className="text-[13px] text-subtle">{tr("docs.no_other_pages_link_here_yet_type_in_a_page_to_l")}</p>
       )}
     </section>
   );
@@ -269,8 +271,8 @@ export function TaskDocBacklinks({ taskId }: { taskId: string }) {
   const items = q.data?.backlinks ?? [];
   if (!items.length) return null;
   return (
-    <section className="mt-6" aria-label="Linked from docs" data-testid="task-linked-from">
-      <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-subtle">Linked from docs</h3>
+    <section className="mt-6" aria-label={tr("docs.linked_from_docs")} data-testid="task-linked-from">
+      <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-subtle">{tr("docs.linked_from_docs")}</h3>
       <BacklinkList items={items} />
     </section>
   );
@@ -292,8 +294,8 @@ export function PageLinkPicker({ editor, open, onClose, selfId }: { editor: Edit
   useEffect(() => { if (open) { setQ(""); setSel(0); setTimeout(() => input.current?.focus(), 0); } }, [open]);
   const items: PickItem[] = useMemo(() => {
     const pages = flatten(tree.data?.tree ?? []).map((e) => e.node).filter((n) => n.id !== selfId && n.title.toLowerCase().includes(term.toLowerCase())).slice(0, 8)
-      .map((n) => ({ type: "doc" as const, id: n.id, title: n.title || "Untitled", hint: "Page" }));
-    const ts = (tasks.data?.groups.find((g) => g.type === "tasks")?.items ?? []).map((t) => ({ type: "task" as const, id: t.id, title: t.title, hint: t.subtitle || "Task" }));
+      .map((n) => ({ type: "doc" as const, id: n.id, title: n.title || tr("docs.untitled"), hint: tr("docs.page") }));
+    const ts = (tasks.data?.groups.find((g) => g.type === "tasks")?.items ?? []).map((t) => ({ type: "task" as const, id: t.id, title: t.title, hint: t.subtitle || tr("nav.task") }));
     return [...pages, ...(term.length >= 2 ? ts : [])];
   }, [tree.data, tasks.data, term, selfId]);
   if (!open) return null;
@@ -305,8 +307,8 @@ export function PageLinkPicker({ editor, open, onClose, selfId }: { editor: Edit
     onClose();
   };
   return (
-    <div role="dialog" aria-label="Link a page or task" className="absolute left-0 top-full z-30 mt-1 w-80 rounded-xl border border-line bg-elevated p-2 shadow-pop" data-testid="page-link-picker">
-      <input ref={input} value={q} onChange={(e) => { setQ(e.target.value); setSel(0); }} placeholder="Find a page or task" aria-label="Find a page or task"
+    <div role="dialog" aria-label={tr("docs.link_a_page_or_task")} className="absolute left-0 top-full z-30 mt-1 w-80 rounded-xl border border-line bg-elevated p-2 shadow-pop" data-testid="page-link-picker">
+      <input ref={input} value={q} onChange={(e) => { setQ(e.target.value); setSel(0); }} placeholder={tr("docs.find_a_page_or_task")} aria-label={tr("docs.find_a_page_or_task")}
         onKeyDown={(e) => {
           if (e.key === "Escape") { e.preventDefault(); onClose(); editor?.commands.focus(); }
           else if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(s + 1, items.length - 1)); }
@@ -314,7 +316,7 @@ export function PageLinkPicker({ editor, open, onClose, selfId }: { editor: Edit
           else if (e.key === "Enter") { e.preventDefault(); pick(items[sel]); }
         }}
         className="w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13.5px] outline-none focus:border-brand" />
-      <ul role="listbox" aria-label="Matches" className="mt-1 max-h-64 overflow-auto">
+      <ul role="listbox" aria-label={tr("docs.matches")} className="mt-1 max-h-64 overflow-auto">
         {items.map((it, i) => (
           <li key={`${it.type}:${it.id}`} role="option" aria-selected={i === sel}>
             <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(it)} onMouseEnter={() => setSel(i)}
@@ -325,7 +327,7 @@ export function PageLinkPicker({ editor, open, onClose, selfId }: { editor: Edit
             </button>
           </li>
         ))}
-        {!items.length && <li className="px-2 py-1.5 text-[13px] text-subtle">{term.length >= 2 && tasks.isFetching ? "Searching" : "No matches"}</li>}
+        {!items.length && <li className="px-2 py-1.5 text-[13px] text-subtle">{term.length >= 2 && tasks.isFetching ? tr("docs.searching") : tr("docs.no_matches")}</li>}
       </ul>
     </div>
   );

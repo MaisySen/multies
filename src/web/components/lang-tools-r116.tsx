@@ -23,6 +23,7 @@ import {
   detectLanguage, htmlPieces, joinHtml, joinPieces, languageLabel, R116_LANGUAGES, textPieces, type R116Language,
 } from "@/shared/translate-r116";
 import { tr } from "@/web/i18n"; // POL4 (HQ MB-356)
+import "@/web/i18n/w2/en-docs"; // R104B
 
 const focus = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
 const LANGS = Object.entries(R116_LANGUAGES) as [R116Language, string][];
@@ -33,8 +34,8 @@ function LangSelect({ value, onChange, className }: { value: R116Language; onCha
   const id = useId();
   return (
     <span className={cn("inline-flex min-w-0 items-center gap-2", className)}>
-      <label htmlFor={id} className="shrink-0 text-[13px] text-muted">Into</label>
-      <Select id={id} value={value} onChange={(e) => onChange(e.target.value as R116Language)} className="h-9 w-auto min-w-32 text-[13px]" aria-label="Translate into">
+      <label htmlFor={id} className="shrink-0 text-[13px] text-muted">{tr("docs.into")}</label>
+      <Select id={id} value={value} onChange={(e) => onChange(e.target.value as R116Language)} className="h-9 w-auto min-w-32 text-[13px]" aria-label={tr("translate.translate_into")}>
         {LANGS.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
       </Select>
     </span>
@@ -50,16 +51,16 @@ export function ReadAloudBar({ owner, className }: { owner: string; className?: 
   if (s.owner !== owner) return null;
   const live = s.status !== "idle";
   return (
-    <div role="region" aria-label="Read aloud" data-testid="read-aloud-bar" className={cn("flex flex-wrap items-center gap-2 rounded-lg border border-line bg-fill/60 px-2.5 py-2 text-[13px]", className)}>
+    <div role="region" aria-label={tr("docs.read_aloud")} data-testid="read-aloud-bar" className={cn("flex flex-wrap items-center gap-2 rounded-lg border border-line bg-fill/60 px-2.5 py-2 text-[13px]", className)}>
       {live && (
         <>
-          <span className="inline-flex items-center gap-1.5 font-medium text-fg" aria-live="polite"><IconVolume className="h-4 w-4 text-muted" aria-hidden />{s.status === "paused" ? "Paused" : "Reading aloud"}</span>
+          <span className="inline-flex items-center gap-1.5 font-medium text-fg" aria-live="polite"><IconVolume className="h-4 w-4 text-muted" aria-hidden />{s.status === "paused" ? tr("docs.paused") : tr("docs.reading_aloud")}</span>
           {s.status === "paused"
-            ? <Button variant="outline" size="sm" onClick={resumeReading} aria-label="Resume reading"><IconPlay className="h-4 w-4" aria-hidden />Resume</Button>
-            : <Button variant="outline" size="sm" onClick={pauseReading} aria-label="Pause reading"><IconPause className="h-4 w-4" aria-hidden />Pause</Button>}
-          <Button variant="outline" size="sm" onClick={() => stopReading(owner)} aria-label="Stop reading"><IconCircleStop className="h-4 w-4" aria-hidden />Stop</Button>
+            ? <Button variant="outline" size="sm" onClick={resumeReading} aria-label={tr("docs.resume_reading")}><IconPlay className="h-4 w-4" aria-hidden />{tr("notifications.resume")}</Button>
+            : <Button variant="outline" size="sm" onClick={pauseReading} aria-label={tr("docs.pause_reading")}><IconPause className="h-4 w-4" aria-hidden />{tr("notifications.pause")}</Button>}
+          <Button variant="outline" size="sm" onClick={() => stopReading(owner)} aria-label={tr("docs.stop_reading")}><IconCircleStop className="h-4 w-4" aria-hidden />{tr("docs.stop")}</Button>
           <span className="inline-flex items-center gap-1.5">
-            <label htmlFor={speedId} className="text-muted">Speed</label>
+            <label htmlFor={speedId} className="text-muted">{tr("docs.speed")}</label>
             <Select id={speedId} value={s.rate} onChange={(e) => setReadingRate(Number(e.target.value))} className="h-9 w-auto min-w-20 text-[13px]">
               {RATES.map((r) => <option key={r} value={r}>{r}x</option>)}
             </Select>
@@ -69,7 +70,7 @@ export function ReadAloudBar({ owner, className }: { owner: string; className?: 
       {s.note && (
         <p className="flex w-full items-center justify-between gap-2 text-muted" role="status" data-testid="read-aloud-note">
           <span>{s.note}</span>
-          {!live && <Button variant="ghost" size="sm" onClick={() => stopReading(owner)}>Dismiss</Button>}
+          {!live && <Button variant="ghost" size="sm" onClick={() => stopReading(owner)}>{tr("docs.dismiss")}</Button>}
         </p>
       )}
     </div>
@@ -105,7 +106,7 @@ function useTranslate(key: string) {
 function StatusLine({ error, info, busy, onRetry }: { error: string | null; info: string | null; busy: string | null; onRetry: () => void }) {
   if (error) return (
     <div role="alert" data-testid="translate-error" className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-bad-soft px-3 py-2 text-[13px] text-bad">
-      <span>{error}</span><Button variant="outline" size="sm" onClick={onRetry}>Retry</Button>
+      <span>{error}</span><Button variant="outline" size="sm" onClick={onRetry}>{tr("common.retry")}</Button>
     </div>
   );
   return <p className="text-[13px] text-muted empty:hidden" aria-live="polite" data-testid="translate-status">{busy ? `${busy}…` : info ?? ""}</p>;
@@ -115,9 +116,9 @@ function TranslatedNote({ r, showing, onToggle, testid }: { r: Translated; showi
   return (
     <p className="flex flex-wrap items-center gap-x-2 text-[12.5px] text-muted" data-testid={testid}>
       <IconGlobe className="h-3.5 w-3.5" aria-hidden />
-      <span>{showing ? `Translated from ${languageLabel(r.source)} into ${languageLabel(r.target)}` : "Showing the original"}</span>
+      <span>{showing ? `Translated from ${languageLabel(r.source)} into ${languageLabel(r.target)}` : tr("docs.showing_the_original")}</span>
       <button type="button" onClick={onToggle} className={cn("inline-flex items-center font-medium text-brand-hover underline-offset-2 hover:underline max-sm:min-h-11", focus)}>
-        {showing ? "Show original" : "Show translation"}
+        {showing ? tr("docs.show_original") : tr("docs.show_translation")}
       </button>
     </p>
   );
@@ -141,14 +142,14 @@ export function MailBodyR116({ id, html, text }: { id: string; html?: string | n
   return (
     <div className="space-y-2" data-testid="mail-lang-r116">
       <div className="flex flex-wrap items-center gap-2">
-        {offer && <span className="text-[13px] text-muted" data-testid="translate-offer">This looks like {languageLabel(detected)}.</span>}
+        {offer && <span className="text-[13px] text-muted" data-testid="translate-offer">{tr("docs.this_looks_like")} {languageLabel(detected)}.</span>}
         <Button variant="outline" size="sm" loading={!!t.busy} onClick={() => void go()} data-testid="translate-mail">
-          {!t.busy && <IconGlobe className="h-4 w-4" aria-hidden />}{t.result ? "Translate again" : `Translate to ${languageLabel(t.prefs.target)}`}
+          {!t.busy && <IconGlobe className="h-4 w-4" aria-hidden />}{t.result ? tr("docs.translate_again") : `Translate to ${languageLabel(t.prefs.target)}`}
         </Button>
         <LangSelect value={t.prefs.target} onChange={(v) => { t.setPrefs({ target: v }); if (t.result) void go(v); }} />
         {speechSupported() && (
           <Button variant="outline" size="sm" onClick={() => void startReading(owner, readText)} data-testid="read-mail">
-            <IconVolume className="h-4 w-4" aria-hidden />Read aloud
+            <IconVolume className="h-4 w-4" aria-hidden />{tr("docs.read_aloud")}
           </Button>
         )}
       </div>
@@ -183,7 +184,7 @@ export function ChatLangR116({ id, text, request, onHandled }: { id: string; tex
       {offer && (
         <button type="button" onClick={() => void go()} data-testid="chat-translate-offer"
           className={cn("mt-0.5 inline-flex items-center gap-1 text-[12.5px] font-medium text-brand-hover underline-offset-2 hover:underline max-sm:min-h-11", focus)}>
-          <IconGlobe className="h-3.5 w-3.5" aria-hidden />Translate to {languageLabel(t.prefs.target)}
+          <IconGlobe className="h-3.5 w-3.5" aria-hidden />{tr("docs.translate_to")} {languageLabel(t.prefs.target)}
         </button>
       )}
       {(t.busy || t.error || t.info) && <div className="mt-1"><StatusLine error={t.error} info={t.info} busy={t.busy} onRetry={() => void go()} /></div>}
@@ -211,7 +212,7 @@ export function DocLangR116({ editor, title }: { editor: Editor | null; title: s
   const selText = () => { if (!editor) return ""; const { from, to } = editor.state.selection; return from === to ? "" : editor.state.doc.textBetween(from, to, "\n\n").trim(); };
   const openTranslate = (scope: "doc" | "selection") => {
     const text = scope === "doc" ? docText() : selText();
-    if (!text) { toast.message(scope === "doc" ? "This doc has no text to translate yet." : "Select some text in the doc first."); return; }
+    if (!text) { toast.message(scope === "doc" ? tr("docs.this_doc_has_no_text_to_translate_yet") : tr("docs.select_some_text_in_the_doc_first")); return; }
     t.reset();
     setOpen({ scope, text });
   };
@@ -219,7 +220,7 @@ export function DocLangR116({ editor, title }: { editor: Editor | null; title: s
   useEffect(() => { if (open && !t.result && !t.busy) void go(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const read = (scope: "doc" | "selection") => {
     const text = scope === "doc" ? docText() : selText();
-    if (!text) { toast.message(scope === "doc" ? "This doc has no text to read yet." : "Select some text in the doc first."); return; }
+    if (!text) { toast.message(scope === "doc" ? tr("docs.this_doc_has_no_text_to_read_yet") : tr("docs.select_some_text_in_the_doc_first")); return; }
     void startReading(owner, text);
   };
   const saveCopy = async () => {
@@ -227,53 +228,53 @@ export function DocLangR116({ editor, title }: { editor: Editor | null; title: s
     setSaving(true);
     try {
       const r = await api.post<{ doc: { id: string } }>("/docs", { title: `${title.trim() || "Untitled"} (${languageLabel(t.result.target)})`.slice(0, 200), text: t.result.body });
-      toast.success("Saved the translation as a new doc");
+      toast.success(tr("docs.saved_the_translation_as_a_new_doc"));
       setOpen(null);
       navigate(`/app/docs/${r.doc.id}`);
     } catch (e) { toast.error(errorMessage(e)); } finally { setSaving(false); }
   };
   const copy = async () => {
     if (!t.result) return;
-    try { await navigator.clipboard.writeText(t.result.body); toast.success("Copied"); } catch { toast.error("Couldn't copy on this device."); }
+    try { await navigator.clipboard.writeText(t.result.body); toast.success(tr("docs.copied")); } catch { toast.error(tr("docs.couldn_t_copy_on_this_device")); }
   };
   return (
     <>
-      <Menu sheet label="Translate or read aloud" trigger={
-        <button type="button" data-testid="doc-lang-button" title="Translate or read aloud"
+      <Menu sheet label={tr("docs.translate_or_read_aloud")} trigger={
+        <button type="button" data-testid="doc-lang-button" title={tr("docs.translate_or_read_aloud")}
           className={cn("inline-flex shrink-0 items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg", focus)}>
-          <IconGlobe className="h-4 w-4 max-sm:h-5 max-sm:w-5" aria-hidden /><span className="max-2xl:hidden">Translate</span>
+          <IconGlobe className="h-4 w-4 max-sm:h-5 max-sm:w-5" aria-hidden /><span className="max-2xl:hidden">{tr("docs.translate")}</span>
         </button>
       }>
-        <MenuItem onSelect={() => openTranslate("doc")} icon={<IconGlobe className="h-4 w-4" />}>Translate doc</MenuItem>
-        <MenuItem onSelect={() => openTranslate("selection")} icon={<IconGlobe className="h-4 w-4" />}>Translate selection</MenuItem>
-        {speechSupported() && <MenuItem onSelect={() => read("doc")} icon={<IconVolume className="h-4 w-4" />}>Read doc aloud</MenuItem>}
-        {speechSupported() && <MenuItem onSelect={() => read("selection")} icon={<IconVolume className="h-4 w-4" />}>Read selection aloud</MenuItem>}
+        <MenuItem onSelect={() => openTranslate("doc")} icon={<IconGlobe className="h-4 w-4" />}>{tr("docs.translate_doc")}</MenuItem>
+        <MenuItem onSelect={() => openTranslate("selection")} icon={<IconGlobe className="h-4 w-4" />}>{tr("docs.translate_selection")}</MenuItem>
+        {speechSupported() && <MenuItem onSelect={() => read("doc")} icon={<IconVolume className="h-4 w-4" />}>{tr("docs.read_doc_aloud")}</MenuItem>}
+        {speechSupported() && <MenuItem onSelect={() => read("selection")} icon={<IconVolume className="h-4 w-4" />}>{tr("docs.read_selection_aloud")}</MenuItem>}
       </Menu>
       <div className="fixed inset-x-2 bottom-[max(12px,env(safe-area-inset-bottom))] z-40 mx-auto max-w-xl empty:hidden sm:bottom-4"><ReadAloudBar owner={owner} className="bg-elevated shadow-pop" /></div>
-      <Dialog open={!!open} onClose={() => { setOpen(null); stopReading("doc-translation"); }} title={open?.scope === "selection" ? "Translate selection" : "Translate doc"}
-        description="Your doc stays as it is. Save the translation as a new doc if you want to keep it." className="sm:max-w-4xl"
+      <Dialog open={!!open} onClose={() => { setOpen(null); stopReading("doc-translation"); }} title={open?.scope === "selection" ? tr("docs.translate_selection") : tr("docs.translate_doc")}
+        description={tr("docs.your_doc_stays_as_it_is_save_the_translation_as")} className="sm:max-w-4xl"
         footer={(
           <div className="flex w-full flex-wrap justify-end gap-2">
-            {t.result && speechSupported() && <Button variant="ghost" onClick={() => void startReading("doc-translation", t.result!.body)}><IconVolume className="h-4 w-4" aria-hidden />Read aloud</Button>}
-            {t.result && <Button variant="secondary" onClick={() => void copy()}>Copy</Button>}
-            {t.result && <Button onClick={() => void saveCopy()} loading={saving} data-testid="doc-save-copy">Save as copy</Button>}
+            {t.result && speechSupported() && <Button variant="ghost" onClick={() => void startReading("doc-translation", t.result!.body)}><IconVolume className="h-4 w-4" aria-hidden />{tr("docs.read_aloud")}</Button>}
+            {t.result && <Button variant="secondary" onClick={() => void copy()}>{tr("docs.copy")}</Button>}
+            {t.result && <Button onClick={() => void saveCopy()} loading={saving} data-testid="doc-save-copy">{tr("docs.save_as_copy")}</Button>}
           </div>
         )}>
         <div className="space-y-3" data-testid="doc-translate-dialog">
           <div className="flex flex-wrap items-center gap-2">
             <LangSelect value={t.prefs.target} onChange={(v) => { t.setPrefs({ target: v }); void go(v); }} />
-            {t.result && <Button variant="outline" size="sm" onClick={() => void go()} loading={!!t.busy}>Translate again</Button>}
+            {t.result && <Button variant="outline" size="sm" onClick={() => void go()} loading={!!t.busy}>{tr("docs.translate_again")}</Button>}
           </div>
           <StatusLine error={t.error} info={t.info} busy={t.busy} onRetry={() => void go()} />
           <ReadAloudBar owner="doc-translation" />
           <div className="grid gap-3 sm:grid-cols-2">
-            <section aria-label="Original" className="min-w-0 rounded-lg border border-line p-3">
-              <h3 className="mb-1.5 text-[12.5px] font-semibold text-muted">Original{t.result?.source ? `, ${languageLabel(t.result.source)}` : ""}</h3>
+            <section aria-label={tr("docs.original")} className="min-w-0 rounded-lg border border-line p-3">
+              <h3 className="mb-1.5 text-[12.5px] font-semibold text-muted">{tr("docs.original")}{t.result?.source ? `, ${languageLabel(t.result.source)}` : ""}</h3>
               <div className="max-h-[40dvh] overflow-y-auto whitespace-pre-wrap break-words text-[14px] leading-relaxed text-fg sm:max-h-[55dvh]">{open?.text}</div>
             </section>
-            <section aria-label="Translation" className="min-w-0 rounded-lg border border-line p-3" data-testid="doc-translation">
+            <section aria-label={tr("docs.translation")} className="min-w-0 rounded-lg border border-line p-3" data-testid="doc-translation">
               <h3 className="mb-1.5 text-[12.5px] font-semibold text-muted">{languageLabel(t.result?.target ?? t.prefs.target)}</h3>
-              <div className="max-h-[40dvh] overflow-y-auto whitespace-pre-wrap break-words text-[14px] leading-relaxed text-fg sm:max-h-[55dvh]">{t.result?.body ?? (t.busy ? "" : "No translation yet.")}</div>
+              <div className="max-h-[40dvh] overflow-y-auto whitespace-pre-wrap break-words text-[14px] leading-relaxed text-fg sm:max-h-[55dvh]">{t.result?.body ?? (t.busy ? "" : tr("docs.no_translation_yet"))}</div>
             </section>
           </div>
         </div>

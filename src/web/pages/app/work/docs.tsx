@@ -44,6 +44,8 @@ import { isServerLoadError } from "@/web/lib/load-errors-t1g";
 import { AskAboutButton } from "@/web/components/ask-about-td1"; // TD1
 import { DocLangLazy } from "@/web/components/lang-tools-r116-lazy"; // R116
 import { ReferencesPanel } from "@/web/components/mentions-td5"; // TD5
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-docs"; // R104B
 
 const MindMapView = lazyPage(() => import("./docs-visual/mindmap-view"), "MindMapView");
 const PresentOverlay = lazyPage(() => import("./docs-visual/present"), "PresentOverlay");
@@ -89,17 +91,17 @@ export function DocsPage() {
       <div className="min-w-0 flex-1">
       {newCourse && <NewCourseDialog open onClose={() => setNewCourse(false)} />}
       {trashOpen && <TrashDialog open onClose={() => setTrashOpen(false)} />}
-      <PageHeader title="Docs" description="Briefs, meeting notes and plans, linked to tasks, projects, threads and contacts. Agents can read and add to them too." actions={<div className="flex flex-wrap gap-2 sm:max-w-[30rem] sm:justify-end">{polishOn && (tablesOn || coursesOn) && <Button variant="ghost" onClick={() => setTrashOpen(true)} data-testid="docs-trash"><IconTrash className="h-4 w-4" />Trash</Button>}{coursesOn && <Link to="/app/docs/learning" className="inline-flex min-h-9 items-center rounded-lg px-3 text-[14px] font-medium text-muted hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" data-testid="my-learning-link">My learning</Link>}{coursesOn && <Button variant="secondary" onClick={() => setNewCourse(true)} data-testid="new-course"><IconBook className="h-4 w-4" />New course</Button>}{tablesOn && <Button variant="secondary" onClick={() => setNewTable(true)} data-testid="new-table"><IconTable className="h-4 w-4" />New table</Button>}{visual && <Button variant="secondary" onClick={() => void create("whiteboard")} data-testid="new-whiteboard"><IconShapes className="h-4 w-4" />New whiteboard</Button>}<Button onClick={() => void create()}><IconPlus className="h-4 w-4" />New doc</Button></div>} />
-      <Input aria-label="Search docs" placeholder="Search docs" value={q} onChange={(e) => setQ(e.target.value)} className="mb-4 max-w-sm" />
+      <PageHeader title={tr("nav.docs")} description={tr("docs.briefs_meeting_notes_and_plans_linked_to_tasks_p")} actions={<div className="flex flex-wrap gap-2 sm:max-w-[30rem] sm:justify-end">{polishOn && (tablesOn || coursesOn) && <Button variant="ghost" onClick={() => setTrashOpen(true)} data-testid="docs-trash"><IconTrash className="h-4 w-4" />{tr("mailfolder.trash")}</Button>}{coursesOn && <Link to="/app/docs/learning" className="inline-flex min-h-9 items-center rounded-lg px-3 text-[14px] font-medium text-muted hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" data-testid="my-learning-link">{tr("docs.my_learning")}</Link>}{coursesOn && <Button variant="secondary" onClick={() => setNewCourse(true)} data-testid="new-course"><IconBook className="h-4 w-4" />{tr("docs.new_course")}</Button>}{tablesOn && <Button variant="secondary" onClick={() => setNewTable(true)} data-testid="new-table"><IconTable className="h-4 w-4" />{tr("docs.new_table")}</Button>}{visual && <Button variant="secondary" onClick={() => void create("whiteboard")} data-testid="new-whiteboard"><IconShapes className="h-4 w-4" />{tr("docs.new_whiteboard")}</Button>}<Button onClick={() => void create()}><IconPlus className="h-4 w-4" />{tr("mywork.new_doc")}</Button></div>} />
+      <Input aria-label={tr("docs.search_docs")} placeholder={tr("docs.search_docs")} value={q} onChange={(e) => setQ(e.target.value)} className="mb-4 max-w-sm" />
       {docs.isError && !docs.data ? <LoadError onRetry={() => docs.refetch()} /> : docs.isPending ? <Skeleton className="h-40" /> : !docs.data?.length ? (
-        <EmptyState icon={<IconDocs />} art={q ? <NoSearchResultsArt /> : <NoDocsArt />} title={q ? "No docs match" : "No docs yet"} body="Write a brief or notes and link it to the work it belongs to." action={!q && <Button onClick={() => void create()}>New doc</Button>} />
+        <EmptyState icon={<IconDocs />} art={q ? <NoSearchResultsArt /> : <NoDocsArt />} title={q ? tr("docs.no_docs_match") : tr("docs.no_docs_yet")} body="Write a brief or notes and link it to the work it belongs to." action={!q && <Button onClick={() => void create()}>{tr("mywork.new_doc")}</Button>} />
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="doc-list">
           {docs.data.map((d) => (
             <li key={d.id}><Link to={`/app/docs/${d.id}`} className="block h-full rounded-xl border border-line bg-surface p-4 transition-colors hover:border-line-strong">
-              <div className="flex items-center gap-2 text-[14px] font-medium">{d.kind === "course" ? <IconBook className="h-4 w-4 text-muted" aria-label="Course" /> : d.kind === "table" ? <IconTable className="h-4 w-4 text-muted" aria-label="Table" /> : d.kind === "whiteboard" ? <IconShapes className="h-4 w-4 text-muted" aria-label="Whiteboard" /> : <IconDocs className="h-4 w-4 text-muted" />}{d.title}</div>
-              <p className="mt-2 line-clamp-3 whitespace-pre-line text-[13px] leading-relaxed text-muted">{d.excerpt || "Empty"}</p>
-              <p className="mt-3 text-[12px] text-subtle">Edited {timeAgo(d.updatedAt)}</p>
+              <div className="flex items-center gap-2 text-[14px] font-medium">{d.kind === "course" ? <IconBook className="h-4 w-4 text-muted" aria-label={tr("docs.course")} /> : d.kind === "table" ? <IconTable className="h-4 w-4 text-muted" aria-label={tr("docs.table")} /> : d.kind === "whiteboard" ? <IconShapes className="h-4 w-4 text-muted" aria-label={tr("docs.whiteboard")} /> : <IconDocs className="h-4 w-4 text-muted" />}{d.title}</div>
+              <p className="mt-2 line-clamp-3 whitespace-pre-line text-[13px] leading-relaxed text-muted">{d.excerpt || tr("docs.empty")}</p>
+              <p className="mt-3 text-[12px] text-subtle">{tr("docs.edited_updatedat", { updatedAt: timeAgo(d.updatedAt) })}</p>
             </Link></li>
           ))}
         </ul>
@@ -142,7 +144,7 @@ function DocPageMain() {
 
   // R129: a course doc is its own page (learn, build, assign, progress). R125: a table doc is its own page (grid, kanban, calendar, form) instead of the text editor.
   const body = (q.data as { kind?: string } | undefined)?.kind === "course" ? <CourseDoc docId={id} /> : q.data?.kind === "table" ? <><AskAboutButton kind="tables" id={id} title={q.data?.title} wrap="mb-2 flex justify-end" /><TableDoc docId={id} /></> : q.isPending || !collab ? <div className="mx-auto max-w-3xl space-y-3"><Skeleton className="h-9 w-1/2" /><Skeleton className="h-64" /></div>
-    : q.error && !isServerLoadError(q.error) ? <EmptyState icon={<IconDocs />} title="Doc not found" body="It may have been deleted." action={<Button onClick={() => navigate("/app/docs")}>All docs</Button>} />
+    : q.error && !isServerLoadError(q.error) ? <EmptyState icon={<IconDocs />} title={tr("docs.doc_not_found")} body="It may have been deleted." action={<Button onClick={() => navigate("/app/docs")}>{tr("docs.all_docs")}</Button>} />
     : q.data === undefined ? <LoadError onRetry={() => q.refetch()} /> // T1G (T1-8): a server failure is not "not found"
     : <DocEditor key={`${id}:${collab.session ? "live" : "solo"}:${replaced}`} doc={q.data} session={collab.session} onReplaced={onReplaced} />;
   // R24.5: the page tree beside the doc.
@@ -176,7 +178,7 @@ function DocEditor({ doc, session, onReplaced, embed = false }: { doc: Doc; sess
   const translateOn = !!useConfig().data?.translateR116; // R116
   const [commentsOpen, setCommentsOpen] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("comments") === "1");
   // R36: an opened doc joins "Recently opened" in the command menu (device only, no server write).
-  useEffect(() => { recordRecent({ kind: "item", id: `/app/docs/${doc.id}`, label: doc.title || "Untitled", url: `/app/docs/${doc.id}`, hint: "Doc" }); }, [doc.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { recordRecent({ kind: "item", id: `/app/docs/${doc.id}`, label: doc.title || tr("docs.untitled"), url: `/app/docs/${doc.id}`, hint: tr("nav.doc") }); }, [doc.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const { confirm, dialogs } = useDialogs();
   const id = doc.id;
   const navigate = useNavigate();
@@ -253,10 +255,10 @@ function DocEditor({ doc, session, onReplaced, embed = false }: { doc: Doc; sess
   const saveAsTemplate = async () => {
     // Save pending edits first: the template copies the stored doc.
     if (state === "unsaved") { clearTimeout(timer.current); await save(); }
-    try { await api.post("/templates", { kind: "doc", fromDocId: id, name: title.trim() || undefined }); toast.success("Saved as a doc template"); } catch (err) { showError(err as Error); }
+    try { await api.post("/templates", { kind: "doc", fromDocId: id, name: title.trim() || undefined }); toast.success(tr("docs.saved_as_a_doc_template")); } catch (err) { showError(err as Error); }
   };
   const deleteDoc = async () => {
-    if (!(await confirm({ ...deleteDocConfirm(tree.data?.tree, id, title), confirmLabel: "Delete doc" }))) return;
+    if (!(await confirm({ ...deleteDocConfirm(tree.data?.tree, id, title), confirmLabel: tr("docs.delete_doc") }))) return;
     await api.del(`/docs/${id}`); void qc.invalidateQueries({ queryKey: ["doc-tree"] }); navigate("/app/docs");
   };
   const status = state === "saving" ? "Saving" : state === "unsaved" ? "Unsaved changes" : state === "conflict" ? "Changed elsewhere. Reload to see the latest." : "Saved";
@@ -264,10 +266,10 @@ function DocEditor({ doc, session, onReplaced, embed = false }: { doc: Doc; sess
     <div className={cn("mx-auto", isBoard ? "max-w-none" : mode === "mindmap" ? "max-w-6xl" : "max-w-3xl")} data-doc-kind={isBoard ? "whiteboard" : "doc"} data-mode={mode}>
       {dialogs}
       <div className="mb-3 flex items-center gap-2 text-[12.5px] text-subtle max-sm:-mx-2 max-sm:-mt-3 max-sm:mb-1 max-sm:gap-0" data-testid="doc-bar">
-        {!embed && <Link to="/app/docs" className="inline-flex items-center gap-1 hover:text-fg max-sm:h-11 max-sm:shrink-0 max-sm:gap-0.5 max-sm:rounded-lg max-sm:pl-1 max-sm:pr-2 max-sm:text-[16px] max-sm:text-brand-hover max-sm:active:bg-hover"><IconArrowLeft className="h-3.5 w-3.5 max-sm:h-5 max-sm:w-5" />Docs</Link>}
+        {!embed && <Link to="/app/docs" className="inline-flex items-center gap-1 hover:text-fg max-sm:h-11 max-sm:shrink-0 max-sm:gap-0.5 max-sm:rounded-lg max-sm:pl-1 max-sm:pr-2 max-sm:text-[16px] max-sm:text-brand-hover max-sm:active:bg-hover"><IconArrowLeft className="h-3.5 w-3.5 max-sm:h-5 max-sm:w-5" />{tr("nav.docs")}</Link>}
         {session && (
-          <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 max-sm:mr-1" data-testid="collab-presence" aria-label={peers.length ? `Also here: ${peers.map((p) => p.name).join(", ")}` : "Only you are here"}>
-            <span className="inline-flex items-center gap-1 text-[12px]"><span className="h-1.5 w-1.5 rounded-full bg-good max-sm:h-2 max-sm:w-2" aria-hidden /><span className="max-sm:sr-only">Live</span></span>
+          <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 max-sm:mr-1" data-testid="collab-presence" aria-label={peers.length ? `Also here: ${peers.map((p) => p.name).join(", ")}` : tr("docs.only_you_are_here")}>
+            <span className="inline-flex items-center gap-1 text-[12px]"><span className="h-1.5 w-1.5 rounded-full bg-good max-sm:h-2 max-sm:w-2" aria-hidden /><span className="max-sm:sr-only">{tr("docs.live")}</span></span>
             {peers.map((p) => (
               <span key={p.clientId} data-testid="collab-peer" title={p.name} className="inline-flex max-w-[10rem] items-center gap-1 whitespace-nowrap rounded-full border border-line px-2 py-0.5 text-[12px] text-fg">
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: tone(p.color) }} aria-hidden /><span className="truncate">{p.name.split(" ")[0]}</span>
@@ -277,23 +279,23 @@ function DocEditor({ doc, session, onReplaced, embed = false }: { doc: Doc; sess
         )}
         <span className={cn(!session && "ml-auto", "shrink-0 whitespace-nowrap max-sm:mr-1", state === "saved" && "max-sm:sr-only", state === "conflict" && "max-sm:order-last max-sm:basis-full max-sm:whitespace-normal max-sm:px-2 max-sm:pt-1 max-sm:text-bad")} role="status">{status}</span>
         {visual && !isBoard && (
-          <div role="group" aria-label="View" className="inline-flex shrink-0 rounded-lg border border-line p-0.5 max-sm:hidden" data-testid="doc-mode">
+          <div role="group" aria-label={tr("tasks.view")} className="inline-flex shrink-0 rounded-lg border border-line p-0.5 max-sm:hidden" data-testid="doc-mode">
             {(["doc", "mindmap"] as DocMode[]).map((m) => (
               <button key={m} type="button" aria-pressed={mode === m} onClick={() => setParam("mode", m === "doc" ? null : "mindmap")}
-                className={cn("rounded-md px-2 py-0.5 text-[12.5px] transition-colors duration-150", mode === m ? "bg-brand-soft font-medium text-brand-hover" : "text-muted hover:text-fg")}>{m === "doc" ? "Doc" : "Mind map"}</button>
+                className={cn("rounded-md px-2 py-0.5 text-[12.5px] transition-colors duration-150", mode === m ? "bg-brand-soft font-medium text-brand-hover" : "text-muted hover:text-fg")}>{m === "doc" ? tr("nav.doc") : tr("taskview.mind_map")}</button>
             ))}
           </div>
         )}
         {visual && !isBoard && (
-          <button type="button" aria-label="Present" title="Present" data-testid="present-button" onClick={() => setParam("present", "1")}
+          <button type="button" aria-label={tr("docs.present")} title={tr("docs.present")} data-testid="present-button" onClick={() => setParam("present", "1")}
             className="inline-flex shrink-0 items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg">
-            <IconPlay className="h-4 w-4 max-sm:h-5 max-sm:w-5" /><span className="max-lg:hidden">Present</span>
+            <IconPlay className="h-4 w-4 max-sm:h-5 max-sm:w-5" /><span className="max-lg:hidden">{tr("docs.present")}</span>
           </button>
         )}
         {isBoard && (
           <>
-            <button type="button" aria-label="Download as PNG" onClick={() => void pageBoardExport.current?.("png")} className="inline-flex shrink-0 items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg"><IconDownload className="h-4 w-4" /><span className="max-sm:hidden">PNG</span></button>
-            <button type="button" aria-label="Download as SVG" onClick={() => void pageBoardExport.current?.("svg")} className="inline-flex shrink-0 items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:hidden"><IconDownload className="h-4 w-4" />SVG</button>
+            <button type="button" aria-label={tr("docs.download_as_png")} onClick={() => void pageBoardExport.current?.("png")} className="inline-flex shrink-0 items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg"><IconDownload className="h-4 w-4" /><span className="max-sm:hidden">PNG</span></button>
+            <button type="button" aria-label={tr("docs.download_as_svg")} onClick={() => void pageBoardExport.current?.("svg")} className="inline-flex shrink-0 items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:hidden"><IconDownload className="h-4 w-4" />SVG</button>
           </>
         )}
         <ShareButton kind="doc" targetId={id} />
@@ -301,24 +303,24 @@ function DocEditor({ doc, session, onReplaced, embed = false }: { doc: Doc; sess
         {!embed && <AskAboutButton kind="docs" id={id} title={title} compact />}
         {translateOn && !isBoard && <DocLangLazy editor={editor} title={title} />}
         <DocHistoryButton onOpen={openHistory} />
-        <button aria-label="Save as template" title="Save as template" className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:hidden" onClick={() => void saveAsTemplate()}>
-          <IconTemplate className="h-4 w-4" /><span className="max-2xl:hidden">Save as template</span>
+        <button aria-label={tr("docs.save_as_template")} title={tr("docs.save_as_template")} className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:hidden" onClick={() => void saveAsTemplate()}>
+          <IconTemplate className="h-4 w-4" /><span className="max-2xl:hidden">{tr("docs.save_as_template")}</span>
         </button>
-        {!embed && <button aria-label="Delete doc" className="inline-flex shrink-0 items-center justify-center rounded p-1 hover:text-bad max-sm:hidden" onClick={() => void deleteDoc()}><IconTrash className="h-4 w-4" /></button>}
+        {!embed && <button aria-label={tr("docs.delete_doc")} className="inline-flex shrink-0 items-center justify-center rounded p-1 hover:text-bad max-sm:hidden" onClick={() => void deleteDoc()}><IconTrash className="h-4 w-4" /></button>}
         {/* PAR1: on a phone the bar has no room for every action, so the less used ones sit in More (nothing is off screen). */}
         <div className="shrink-0 sm:hidden" data-testid="doc-more">
-          <Menu label="More doc actions" sheet trigger={<button type="button" aria-label="More doc actions" className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-fg"><IconMore className="h-5 w-5" aria-hidden /></button>}>
-            <MenuItem icon={<IconTemplate />} onSelect={() => void saveAsTemplate()}>Save as template</MenuItem>
-            {!embed && <MenuItem icon={<IconTrash />} danger onSelect={() => void deleteDoc()}>Delete doc</MenuItem>}
+          <Menu label={tr("docs.more_doc_actions")} sheet trigger={<button type="button" aria-label={tr("docs.more_doc_actions")} className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-fg"><IconMore className="h-5 w-5" aria-hidden /></button>}>
+            <MenuItem icon={<IconTemplate />} onSelect={() => void saveAsTemplate()}>{tr("docs.save_as_template")}</MenuItem>
+            {!embed && <MenuItem icon={<IconTrash />} danger onSelect={() => void deleteDoc()}>{tr("docs.delete_doc")}</MenuItem>}
           </Menu>
         </div>
       </div>
       {!embed && <DocBreadcrumbs docId={id} title={title} />}
-      <h1 className="sr-only">{title || "Untitled doc"}</h1>
-      <input aria-label="Doc title" value={title}
+      <h1 className="sr-only">{title || tr("docs.untitled_doc")}</h1>
+      <input aria-label={tr("docs.doc_title")} value={title}
         onChange={(ev) => { setTitle(ev.target.value); if (session) meta(session.ydoc).set("title", ev.target.value); }}
         onBlur={() => void saveTitle()}
-        className={cn("w-full bg-transparent font-semibold tracking-tight outline-none", isBoard ? "text-[20px]" : "text-[26px]")} placeholder="Untitled" />
+        className={cn("w-full bg-transparent font-semibold tracking-tight outline-none", isBoard ? "text-[20px]" : "text-[26px]")} placeholder={tr("docs.untitled")} />
       {!isBoard && <MeetingNotesBacklink docId={doc.id} />}
       {!isBoard && mode === "doc" && <CatchupCard key={`catchup-${doc.id}`} type="doc" id={doc.id} className="mx-0" />}
       {!isBoard && doc.links.length > 0 && (
@@ -326,29 +328,29 @@ function DocEditor({ doc, session, onReplaced, embed = false }: { doc: Doc; sess
           {doc.links.map((l) => (
             <Link key={`${l.type}:${l.id}`} to={l.type === "task" ? `/app/tasks?view=list&task=${l.id}` : l.type === "contact" ? `/app/contacts/${l.id}` : l.type === "project" ? `/app/tasks?project=${l.id}` : "#"}
               className="inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-[12px] text-muted hover:text-fg">
-              {l.type === "task" ? <IconTasks className="h-3 w-3" /> : l.type === "contact" ? <IconUser className="h-3 w-3" /> : <IconDocs className="h-3 w-3" />}Linked {l.type}
+              {l.type === "task" ? <IconTasks className="h-3 w-3" /> : l.type === "contact" ? <IconUser className="h-3 w-3" /> : <IconDocs className="h-3 w-3" />}{tr("docs.linked")} {l.type}
             </Link>
           ))}
         </div>
       )}
       {visual && !isBoard && (
-        <div role="group" aria-label="View" className="mt-3 inline-flex rounded-lg border border-line p-0.5 sm:hidden">
+        <div role="group" aria-label={tr("tasks.view")} className="mt-3 inline-flex rounded-lg border border-line p-0.5 sm:hidden">
           {(["doc", "mindmap"] as DocMode[]).map((m) => (
             <button key={m} type="button" aria-pressed={mode === m} onClick={() => setParam("mode", m === "doc" ? null : "mindmap")}
-              className={cn("min-h-10 rounded-md px-3 text-[14px]", mode === m ? "bg-brand-soft font-medium text-brand-hover" : "text-muted")}>{m === "doc" ? "Doc" : "Mind map"}</button>
+              className={cn("min-h-10 rounded-md px-3 text-[14px]", mode === m ? "bg-brand-soft font-medium text-brand-hover" : "text-muted")}>{m === "doc" ? tr("nav.doc") : tr("taskview.mind_map")}</button>
           ))}
         </div>
       )}
       {e && !isBoard && mode === "doc" && (
-        <div className="sticky top-0 z-10 mt-4 flex flex-wrap gap-0.5 rounded-lg border border-line bg-surface/95 p-1 shadow-card backdrop-blur max-sm:-mx-1 max-sm:mt-3 max-sm:flex-nowrap max-sm:justify-between max-sm:gap-0 max-sm:rounded-xl max-sm:p-0.5" role="toolbar" aria-label="Formatting" data-testid="doc-toolbar">
-          <ToolButton label="Bold" active={e.isActive("bold")} on={() => e.chain().focus().toggleBold().run()}><IconBold /></ToolButton>
-          <ToolButton label="Italic" active={e.isActive("italic")} on={() => e.chain().focus().toggleItalic().run()}><IconItalic /></ToolButton>
-          <ToolButton label="Heading" active={e.isActive("heading", { level: 2 })} on={() => e.chain().focus().toggleHeading({ level: 2 }).run()}><IconHeading2 /></ToolButton>
-          <ToolButton label="Bulleted list" active={e.isActive("bulletList")} on={() => e.chain().focus().toggleBulletList().run()}><IconList /></ToolButton>
-          <ToolButton label="Numbered list" active={e.isActive("orderedList")} on={() => e.chain().focus().toggleOrderedList().run()}><IconListOrdered /></ToolButton>
-          <ToolButton label="Quote" active={e.isActive("blockquote")} on={() => e.chain().focus().toggleBlockquote().run()}><IconQuote /></ToolButton>
+        <div className="sticky top-0 z-10 mt-4 flex flex-wrap gap-0.5 rounded-lg border border-line bg-surface/95 p-1 shadow-card backdrop-blur max-sm:-mx-1 max-sm:mt-3 max-sm:flex-nowrap max-sm:justify-between max-sm:gap-0 max-sm:rounded-xl max-sm:p-0.5" role="toolbar" aria-label={tr("docs.formatting")} data-testid="doc-toolbar">
+          <ToolButton label={tr("docs.bold")} active={e.isActive("bold")} on={() => e.chain().focus().toggleBold().run()}><IconBold /></ToolButton>
+          <ToolButton label={tr("docs.italic")} active={e.isActive("italic")} on={() => e.chain().focus().toggleItalic().run()}><IconItalic /></ToolButton>
+          <ToolButton label={tr("docs.heading")} active={e.isActive("heading", { level: 2 })} on={() => e.chain().focus().toggleHeading({ level: 2 }).run()}><IconHeading2 /></ToolButton>
+          <ToolButton label={tr("docs.bulleted_list")} active={e.isActive("bulletList")} on={() => e.chain().focus().toggleBulletList().run()}><IconList /></ToolButton>
+          <ToolButton label={tr("docs.numbered_list")} active={e.isActive("orderedList")} on={() => e.chain().focus().toggleOrderedList().run()}><IconListOrdered /></ToolButton>
+          <ToolButton label={tr("nav.quote")} active={e.isActive("blockquote")} on={() => e.chain().focus().toggleBlockquote().run()}><IconQuote /></ToolButton>
           {docsPlus && <SpellButton compact getText={() => e.getText({ blockSeparator: "\n" })} onFix={(f) => fixInEditor(e, f)} />}
-          <ToolButton label="Link a page or task" active={picker} on={() => setPicker((p) => !p)}><IconLink /></ToolButton>
+          <ToolButton label={tr("docs.link_a_page_or_task")} active={picker} on={() => setPicker((p) => !p)}><IconLink /></ToolButton>
           <PageLinkPicker editor={e} open={picker} onClose={() => setPicker(false)} selfId={id} />
         </div>
       )}

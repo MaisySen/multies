@@ -18,6 +18,8 @@ import { isLeader } from "../doc-collab";
 import { showError } from "@/web/lib/show-error";
 import { changedSince, mergeElements, orderElements, readScene, snapshotElements, MAX_BOARD_BYTES, type BoardElement } from "@/web/lib/whiteboard-merge";
 import { downloadBlob, safeName } from "./export-file";
+import { tr as trB } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-docs"; // R104B
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- the drawing library's element and API types are wide unions */
 type Api = any;
@@ -68,7 +70,7 @@ export default function WhiteboardCanvas(p: CanvasProps) {
       const json = JSON.stringify(snapshotElements(all()));
       if (json === lastSnap.current) return;
       if (json.length > MAX_BOARD_BYTES) {
-        if (!warned.current) { warned.current = true; toast.error("This board is too big to save. Remove some drawings or split it into two boards."); }
+        if (!warned.current) { warned.current = true; toast.error(trB("docs.this_board_is_too_big_to_save_remove_some_drawin")); }
         return;
       }
       lastSnap.current = json;
@@ -196,7 +198,7 @@ export default function WhiteboardCanvas(p: CanvasProps) {
       const a = apiRef.current;
       if (!a) return;
       const elements = a.getSceneElements();
-      if (!elements.length) { toast("Draw something first"); return; }
+      if (!elements.length) { toast(trB("docs.draw_something_first")); return; }
       const appState = { ...a.getAppState(), exportBackground: true, viewBackgroundColor: "#ffffff", exportWithDarkMode: props.current.dark, exportScale: 2 };
       try {
         if (kind === "png") downloadBlob(await exportToBlob({ elements, appState, files: a.getFiles(), mimeType: "image/png", exportPadding: 24 }), safeName(props.current.title, "png"));
@@ -204,7 +206,7 @@ export default function WhiteboardCanvas(p: CanvasProps) {
           const svg = await exportToSvg({ elements, appState, files: a.getFiles(), exportPadding: 24 });
           downloadBlob(new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" }), safeName(props.current.title, "svg"));
         }
-        toast.success(kind === "png" ? "Saved as PNG" : "Saved as SVG");
+        toast.success(kind === "png" ? trB("docs.saved_as_png") : trB("docs.saved_as_svg"));
       } catch (e) { showError(e as Error); }
     };
     return () => { if (p.exportRef) p.exportRef.current = null; };
@@ -231,7 +233,7 @@ export default function WhiteboardCanvas(p: CanvasProps) {
   }, [all]);
 
   return (
-    <div ref={host} className="h-full w-full" role="region" aria-label="Whiteboard" data-testid="board-host" data-element-count="0">
+    <div ref={host} className="h-full w-full" role="region" aria-label={trB("docs.whiteboard")} data-testid="board-host" data-element-count="0">
     <Excalidraw
       excalidrawAPI={(a: Api) => { apiRef.current = a; setApi(a); }}
       initialData={initialData}
@@ -251,15 +253,15 @@ export default function WhiteboardCanvas(p: CanvasProps) {
       }}
     >
       <MainMenu>
-        <MainMenu.Item onSelect={() => void p.exportRef?.current?.("png")}>Download PNG</MainMenu.Item>
-        <MainMenu.Item onSelect={() => void p.exportRef?.current?.("svg")}>Download SVG</MainMenu.Item>
+        <MainMenu.Item onSelect={() => void p.exportRef?.current?.("png")}>{trB("docs.download_png")}</MainMenu.Item>
+        <MainMenu.Item onSelect={() => void p.exportRef?.current?.("svg")}>{trB("docs.download_svg")}</MainMenu.Item>
         {!p.readOnly && <MainMenu.DefaultItems.ClearCanvas />}
         {!p.readOnly && <MainMenu.DefaultItems.ChangeCanvasBackground />}
       </MainMenu>
       <WelcomeScreen>
-        <WelcomeScreen.Hints.ToolbarHint>Pick a tool and start drawing</WelcomeScreen.Hints.ToolbarHint>
+        <WelcomeScreen.Hints.ToolbarHint>{trB("docs.pick_a_tool_and_start_drawing")}</WelcomeScreen.Hints.ToolbarHint>
         <WelcomeScreen.Center>
-          <WelcomeScreen.Center.Heading>{p.readOnly ? "Nothing on this board yet" : "Draw, write and arrange ideas together"}</WelcomeScreen.Center.Heading>
+          <WelcomeScreen.Center.Heading>{p.readOnly ? trB("docs.nothing_on_this_board_yet") : trB("docs.draw_write_and_arrange_ideas_together")}</WelcomeScreen.Center.Heading>
         </WelcomeScreen.Center>
       </WelcomeScreen>
     </Excalidraw>

@@ -12,6 +12,8 @@ import { useMe } from "@/web/lib/queries";
 import { clock, emptyNotesHint, slideKey, splitSlides, type Slide } from "@/web/lib/slides";
 import type { PMNode } from "@/web/lib/mindmap-tree";
 import { Blocks } from "./pm-render";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-docs"; // R104B
 
 const STAGE_W = 1600, STAGE_H = 900;
 const channelName = (docId: string) => `mm-present:${docId}`;
@@ -32,7 +34,7 @@ export function SlideView({ slide, index, count, layout, workspace }: { slide: S
   const body = slide.kind === "title" ? (
     <div className="flex h-full flex-col justify-center gap-[0.6em]">
       <div className="flex items-center gap-[0.5em] text-[0.55em] font-medium text-muted"><WorkspaceMark name={workspace} className="h-[1.6em] w-[1.6em]" />{workspace}</div>
-      <h1 className="text-[2.2em] font-bold leading-[1.05] tracking-[-0.02em] text-fg">{slide.title || "Untitled"}</h1>
+      <h1 className="text-[2.2em] font-bold leading-[1.05] tracking-[-0.02em] text-fg">{slide.title || tr("docs.untitled")}</h1>
       {slide.subtitle && <p className="max-w-[80%] text-[0.9em] text-muted">{slide.subtitle}</p>}
       <span aria-hidden className="mt-[0.4em] block h-[0.18em] w-[3em] rounded-full bg-brand" />
     </div>
@@ -88,23 +90,23 @@ function PresenterPanel({ slides, index, go, workspace, compact }: { slides: Sli
       <div className="flex flex-col gap-3">
         <Scaled w={mainW} h={compact ? vp.h * 0.32 : vp.h * 0.62}><SlideView slide={cur} index={index} count={slides.length} layout="thumb" workspace={workspace} /></Scaled>
         <div className="flex items-center gap-2 text-white">
-          <button type="button" className="mm-present-btn" onClick={() => go(index - 1)} disabled={index === 0} aria-label="Previous slide"><IconArrowLeft className="h-5 w-5" /></button>
+          <button type="button" className="mm-present-btn" onClick={() => go(index - 1)} disabled={index === 0} aria-label={tr("docs.previous_slide")}><IconArrowLeft className="h-5 w-5" /></button>
           <span className="min-w-16 text-center text-[15px] tabular-nums" aria-live="polite">{index + 1} / {slides.length}</span>
-          <button type="button" className="mm-present-btn" onClick={() => go(index + 1)} disabled={index >= slides.length - 1} aria-label="Next slide"><IconArrowRight className="h-5 w-5" /></button>
+          <button type="button" className="mm-present-btn" onClick={() => go(index + 1)} disabled={index >= slides.length - 1} aria-label={tr("docs.next_slide")}><IconArrowRight className="h-5 w-5" /></button>
           <span className="ml-auto font-mono text-[22px] tabular-nums" data-testid="presenter-timer" aria-label={`Time ${clock(timer.elapsed)}`}>{clock(timer.elapsed)}</span>
-          <button type="button" className="mm-present-btn" onClick={timer.toggle} aria-label={timer.running ? "Pause the timer" : "Start the timer"}>{timer.running ? <IconPause className="h-4 w-4" /> : <IconPlay className="h-4 w-4" />}</button>
-          <button type="button" className="mm-present-btn" onClick={timer.reset} aria-label="Restart the timer"><IconRefresh className="h-4 w-4" /></button>
+          <button type="button" className="mm-present-btn" onClick={timer.toggle} aria-label={timer.running ? tr("docs.pause_the_timer") : tr("docs.start_the_timer")}>{timer.running ? <IconPause className="h-4 w-4" /> : <IconPlay className="h-4 w-4" />}</button>
+          <button type="button" className="mm-present-btn" onClick={timer.reset} aria-label={tr("docs.restart_the_timer")}><IconRefresh className="h-4 w-4" /></button>
         </div>
       </div>
       <div className="flex min-h-0 flex-col gap-3">
         {!compact && (
           <div>
-            <p className="mb-1.5 text-[12px] font-medium uppercase tracking-wide text-white/60">Next</p>
-            {next ? <Scaled w={Math.min(vp.w * 0.3, 520)} h={vp.h * 0.26}><SlideView slide={next} index={index + 1} count={slides.length} layout="thumb" workspace={workspace} /></Scaled> : <p className="text-[14px] text-white/60">This is the last slide.</p>}
+            <p className="mb-1.5 text-[12px] font-medium uppercase tracking-wide text-white/60">{tr("docs.next")}</p>
+            {next ? <Scaled w={Math.min(vp.w * 0.3, 520)} h={vp.h * 0.26}><SlideView slide={next} index={index + 1} count={slides.length} layout="thumb" workspace={workspace} /></Scaled> : <p className="text-[14px] text-white/60">{tr("docs.this_is_the_last_slide")}</p>}
           </div>
         )}
         <div className="min-h-0 flex-1 overflow-auto rounded-xl bg-white/5 p-4">
-          <p className="mb-1.5 text-[12px] font-medium uppercase tracking-wide text-white/60">Speaker notes</p>
+          <p className="mb-1.5 text-[12px] font-medium uppercase tracking-wide text-white/60">{tr("docs.speaker_notes")}</p>
           <p className="whitespace-pre-wrap text-[18px] leading-relaxed text-white" data-testid="speaker-notes">{cur.notes || emptyNotesHint(cur)}</p>
         </div>
       </div>
@@ -208,7 +210,7 @@ export function PresentOverlay({ docId, doc, title, start = 0, onClose }: Presen
     <div ref={root} role="dialog" aria-modal="true" aria-label={`Presenting ${title || "Untitled"}`} tabIndex={-1}
       className="mm-present fixed inset-0 z-[80] flex flex-col bg-[#111] outline-none" data-testid="present" data-index={index}
       onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
-      <div className="sr-only" aria-live="polite">Slide {index + 1} of {slides.length}: {slide.title}</div>
+      <div className="sr-only" aria-live="polite">{tr("docs.slide_count_of_length_title", { count: index + 1, length: slides.length, title: slide.title })}</div>
       {presenter ? (
         <PresenterPanel slides={slides} index={index} go={go} workspace={workspace} compact={vp.w < 900} />
       ) : flow ? (
@@ -220,14 +222,14 @@ export function PresentOverlay({ docId, doc, title, start = 0, onClose }: Presen
       )}
       <div className={cn("absolute inset-x-0 bottom-0 flex items-center gap-1 p-3 transition-opacity duration-200 [padding-bottom:max(12px,env(safe-area-inset-bottom))]", chrome || flow || presenter ? "opacity-100" : "pointer-events-none opacity-0", flow && "bg-surface/95 border-t border-line")}>
         <div className={cn("mx-auto flex items-center gap-1 rounded-full px-2 py-1", flow ? "" : "bg-black/70 backdrop-blur")}>
-          <button type="button" className={cn("mm-present-btn", flow && "mm-present-btn-light")} onClick={() => go(index - 1)} disabled={index === 0} aria-label="Previous slide"><IconArrowLeft className="h-5 w-5" /></button>
+          <button type="button" className={cn("mm-present-btn", flow && "mm-present-btn-light")} onClick={() => go(index - 1)} disabled={index === 0} aria-label={tr("docs.previous_slide")}><IconArrowLeft className="h-5 w-5" /></button>
           <span className={cn("min-w-14 text-center text-[13px] tabular-nums", flow ? "text-fg" : "text-white")}>{index + 1} / {slides.length}</span>
-          <button type="button" className={cn("mm-present-btn", flow && "mm-present-btn-light")} onClick={() => go(index + 1)} disabled={index >= slides.length - 1} aria-label="Next slide"><IconArrowRight className="h-5 w-5" /></button>
+          <button type="button" className={cn("mm-present-btn", flow && "mm-present-btn-light")} onClick={() => go(index + 1)} disabled={index >= slides.length - 1} aria-label={tr("docs.next_slide")}><IconArrowRight className="h-5 w-5" /></button>
           <span className="mx-1 h-5 w-px bg-white/20" aria-hidden />
-          <button type="button" className={cn("mm-present-btn", flow && "mm-present-btn-light")} aria-pressed={presenter} onClick={() => setPresenter((p) => !p)} aria-label={presenter ? "Hide presenter view" : "Presenter view"} title="Presenter view" data-testid="presenter-toggle"><IconNotes className="h-5 w-5" /></button>
-          {!flow && <button type="button" className="mm-present-btn" onClick={openPresenterWindow} aria-label="Open presenter view in a new window" title="Presenter view in a new window"><IconMonitor className="h-5 w-5" /></button>}
-          {!flow && <button type="button" className="mm-present-btn" onClick={toggleFull} aria-label={full ? "Leave full screen" : "Full screen"}>{full ? <IconMinimize className="h-5 w-5" /> : <IconMaximize className="h-5 w-5" />}</button>}
-          <button type="button" className={cn("mm-present-btn", flow && "mm-present-btn-light")} onClick={onClose} aria-label="Stop presenting" data-testid="present-close"><IconClose className="h-5 w-5" /></button>
+          <button type="button" className={cn("mm-present-btn", flow && "mm-present-btn-light")} aria-pressed={presenter} onClick={() => setPresenter((p) => !p)} aria-label={presenter ? tr("docs.hide_presenter_view") : tr("docs.presenter_view")} title={tr("docs.presenter_view")} data-testid="presenter-toggle"><IconNotes className="h-5 w-5" /></button>
+          {!flow && <button type="button" className="mm-present-btn" onClick={openPresenterWindow} aria-label={tr("docs.open_presenter_view_in_a_new_window")} title={tr("docs.presenter_view_in_a_new_window")}><IconMonitor className="h-5 w-5" /></button>}
+          {!flow && <button type="button" className="mm-present-btn" onClick={toggleFull} aria-label={full ? tr("docs.leave_full_screen") : tr("docs.full_screen")}>{full ? <IconMinimize className="h-5 w-5" /> : <IconMaximize className="h-5 w-5" />}</button>}
+          <button type="button" className={cn("mm-present-btn", flow && "mm-present-btn-light")} onClick={onClose} aria-label={tr("docs.stop_presenting")} data-testid="present-close"><IconClose className="h-5 w-5" /></button>
         </div>
       </div>
     </div>
@@ -266,7 +268,7 @@ export function PresenterWindow({ docId, doc, title, start = 0 }: { docId: strin
     return () => window.removeEventListener("keydown", onKey);
   }, [go, slides.length, title]);
   return (
-    <div className="mm-present fixed inset-0 z-[80] bg-[#111]" role="main" aria-label="Presenter view">
+    <div className="mm-present fixed inset-0 z-[80] bg-[#111]" role="main" aria-label={tr("docs.presenter_view")}>
       <PresenterPanel slides={slides} index={index} go={go} workspace={me.data?.organization?.name ?? ""} />
     </div>
   );

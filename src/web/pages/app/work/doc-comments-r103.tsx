@@ -19,6 +19,8 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { IconChat, IconClose, IconEye, IconEyeOff, IconTrash, IconEdit } from "@/web/components/ui/icon";
 import { COMMENT_MAX } from "@/shared/docs-plus";
 import { LoadErrorInline } from "@/web/components/load-error-t1g";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-docs"; // R104B
 
 export interface DocComment {
   id: string; thread: "team" | "public"; body: string; status: "visible" | "pending" | "hidden";
@@ -34,9 +36,9 @@ export function DocCommentsButton({ docId, open, onToggle }: { docId: string; op
   const n = (q.data?.team.length ?? 0) + (q.data?.public.filter((c) => c.status === "visible").length ?? 0);
   const waiting = q.data?.canModerate ? q.data.pending : 0;
   return (
-    <button type="button" onClick={onToggle} aria-label={`Comments${n ? `, ${n}` : ""}${waiting ? `, ${waiting} waiting for review` : ""}`} aria-expanded={open} title="Comments" data-testid="doc-comments-button"
+    <button type="button" onClick={onToggle} aria-label={`Comments${n ? `, ${n}` : ""}${waiting ? `, ${waiting} waiting for review` : ""}`} aria-expanded={open} title={tr("docs.comments")} data-testid="doc-comments-button"
       className={cn("relative inline-flex shrink-0 items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg", open && "bg-fill/60 text-fg")}>
-      <IconChat className="h-4 w-4 max-sm:h-5 max-sm:w-5" /><span className="max-xl:hidden">Comments</span>
+      <IconChat className="h-4 w-4 max-sm:h-5 max-sm:w-5" /><span className="max-xl:hidden">{tr("docs.comments")}</span>
       {n > 0 && <span className="text-[12px] tabular-nums text-subtle">{n}</span>}
       {waiting > 0 && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[color:var(--warning,#b76e00)]" aria-hidden />}
     </button>
@@ -57,16 +59,16 @@ function Composer({ placeholder, onSend, people, busy, testId }: { placeholder: 
     <div className="relative border-t border-line p-3">
       {on && picker.list}
       {matches.length > 0 && (
-        <ul className="mb-2 flex flex-wrap gap-1" aria-label="Mention someone">
+        <ul className="mb-2 flex flex-wrap gap-1" aria-label={tr("docs.mention_someone")}>
           {matches.map((p) => <li key={p.id}><button type="button" onClick={() => pick(p.name)} className="min-h-9 rounded-md border border-line px-2 text-[13px] hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">@{p.name}</button></li>)}
         </ul>
       )}
-      <Textarea ref={ref} value={body} onChange={(e) => { setBody(e.target.value); if (on) requestAnimationFrame(picker.sync); }} placeholder={placeholder} rows={3} maxLength={COMMENT_MAX} aria-label="Comment" data-testid={testId}
+      <Textarea ref={ref} value={body} onChange={(e) => { setBody(e.target.value); if (on) requestAnimationFrame(picker.sync); }} placeholder={placeholder} rows={3} maxLength={COMMENT_MAX} aria-label={tr("docs.comment")} data-testid={testId}
         onClick={on ? picker.sync : undefined} aria-activedescendant={on ? picker.activeId : undefined} aria-autocomplete={on ? "list" : undefined}
         onKeyDown={(e) => { if (on && picker.onKeyDown(e)) return; if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send(); } }} />
       <div className="mt-2 flex items-center justify-between gap-2">
-        <span className="text-[12px] text-subtle max-sm:hidden">Ctrl Enter to send</span>
-        <Button size="sm" disabled={!body.trim() || busy} onClick={() => void send()}>Comment</Button>
+        <span className="text-[12px] text-subtle max-sm:hidden">{tr("docs.ctrl_enter_to_send")}</span>
+        <Button size="sm" disabled={!body.trim() || busy} onClick={() => void send()}>{tr("docs.comment")}</Button>
       </div>
     </div>
   );
@@ -77,19 +79,19 @@ function Item({ c, onEdit, onStatus, onRemove, moderator }: { c: DocComment; onE
     <li className="group px-4 py-3" data-testid="doc-comment">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
         <strong className="font-semibold">{c.author.name}</strong>
-        {c.author.type === "guest" && <Badge>Guest</Badge>}
-        {c.author.type === "visitor" && <Badge>Visitor</Badge>}
-        {c.status === "pending" && <Badge tone="warn">Waiting for review</Badge>}
-        {c.status === "hidden" && <Badge>Hidden</Badge>}
-        <span className="text-subtle">{timeAgo(c.createdAt)}{c.editedAt ? ", edited" : ""}</span>
+        {c.author.type === "guest" && <Badge>{tr("docs.guest")}</Badge>}
+        {c.author.type === "visitor" && <Badge>{tr("docs.visitor")}</Badge>}
+        {c.status === "pending" && <Badge tone="warn">{tr("docs.waiting_for_review")}</Badge>}
+        {c.status === "hidden" && <Badge>{tr("docs.hidden")}</Badge>}
+        <span className="text-subtle">{timeAgo(c.createdAt)}{c.editedAt ? tr("docs.edited") : ""}</span>
       </div>
       {moderator && c.author.email && <p className="text-[12px] text-subtle">{c.author.email}</p>}
       <p className="mt-1 whitespace-pre-wrap break-words text-[14px] leading-relaxed"><CommentText text={c.body} /></p>
       <div className="mt-2 flex flex-wrap gap-1">
-        {moderator && c.status !== "visible" && <Button size="sm" variant="secondary" onClick={() => onStatus(c, "visible")}><IconEye className="h-3.5 w-3.5" />{c.status === "pending" ? "Approve" : "Show"}</Button>}
-        {moderator && c.status === "visible" && <Button size="sm" variant="ghost" onClick={() => onStatus(c, "hidden")}><IconEyeOff className="h-3.5 w-3.5" />Hide</Button>}
-        {c.canEdit && <Button size="sm" variant="ghost" onClick={() => onEdit(c)}><IconEdit className="h-3.5 w-3.5" />Edit</Button>}
-        {c.canRemove && <Button size="sm" variant="ghost" onClick={() => onRemove(c)}><IconTrash className="h-3.5 w-3.5" />Remove</Button>}
+        {moderator && c.status !== "visible" && <Button size="sm" variant="secondary" onClick={() => onStatus(c, "visible")}><IconEye className="h-3.5 w-3.5" />{c.status === "pending" ? tr("docs.approve") : tr("docs.show")}</Button>}
+        {moderator && c.status === "visible" && <Button size="sm" variant="ghost" onClick={() => onStatus(c, "hidden")}><IconEyeOff className="h-3.5 w-3.5" />{tr("docs.hide")}</Button>}
+        {c.canEdit && <Button size="sm" variant="ghost" onClick={() => onEdit(c)}><IconEdit className="h-3.5 w-3.5" />{tr("docs.edit")}</Button>}
+        {c.canRemove && <Button size="sm" variant="ghost" onClick={() => onRemove(c)}><IconTrash className="h-3.5 w-3.5" />{tr("common.remove")}</Button>}
       </div>
     </li>
   );
@@ -124,7 +126,7 @@ export function DocCommentsPanel({ docId, open, onClose }: { docId: string; open
   });
   const send = (thread: "team" | "public") => async (body: string) => { try { await add.mutateAsync({ body, thread }); return true; } catch { return false; } };
   const setStatus = async (c: DocComment, status: "visible" | "hidden") => {
-    try { await api.patch(`/docs-plus/comments/${c.id}`, { status }); toast.success(status === "visible" ? (c.status === "pending" ? "Approved. It shows on the shared link now." : "Comment shown") : "Comment hidden"); void refresh(); } catch (e) { showError(e as Error); }
+    try { await api.patch(`/docs-plus/comments/${c.id}`, { status }); toast.success(status === "visible" ? (c.status === "pending" ? tr("docs.approved_it_shows_on_the_shared_link_now") : tr("docs.comment_shown")) : tr("docs.comment_hidden")); void refresh(); } catch (e) { showError(e as Error); }
   };
   const saveEdit = async () => {
     if (!editing) return;
@@ -132,45 +134,45 @@ export function DocCommentsPanel({ docId, open, onClose }: { docId: string; open
   };
   const remove = async () => {
     if (!removing) return;
-    try { await api.del(`/docs-plus/comments/${removing.id}`); setRemoving(null); toast.success("Comment removed"); void refresh(); } catch (e) { showError(e as Error); }
+    try { await api.del(`/docs-plus/comments/${removing.id}`); setRemoving(null); toast.success(tr("docs.comment_removed")); void refresh(); } catch (e) { showError(e as Error); }
   };
   if (!open) return null;
   const d = q.data;
   const showPublic = !!d && (d.publicOn || d.public.length > 0) ;
   const list = !d ? [] : tab === "public" && showPublic ? d.public : d.team;
   return (
-    <aside role="complementary" aria-label="Comments" data-testid="doc-comments-panel"
+    <aside role="complementary" aria-label={tr("docs.comments")} data-testid="doc-comments-panel"
       className="fixed inset-y-0 right-0 z-40 flex w-[380px] max-w-full flex-col border-l border-line bg-surface shadow-card motion-safe:animate-[fadeIn_150ms_ease-out] max-sm:inset-0 max-sm:w-full max-sm:border-l-0">
       <header className="flex items-center gap-2 border-b border-line px-4 py-3 max-sm:pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <h2 className="flex-1 text-[15px] font-semibold">Comments</h2>
-        <button ref={closeRef} type="button" onClick={onClose} aria-label="Close comments" className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-11 max-sm:w-11"><IconClose className="h-4 w-4" /></button>
+        <h2 className="flex-1 text-[15px] font-semibold">{tr("docs.comments")}</h2>
+        <button ref={closeRef} type="button" onClick={onClose} aria-label={tr("docs.close_comments")} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-11 max-sm:w-11"><IconClose className="h-4 w-4" /></button>
       </header>
       {showPublic && (
-        <div role="tablist" aria-label="Comment threads" className="flex gap-1 border-b border-line px-3">
+        <div role="tablist" aria-label={tr("docs.comment_threads")} className="flex gap-1 border-b border-line px-3">
           {(["team", "public"] as const).map((t) => (
             <button key={t} role="tab" type="button" aria-selected={tab === t} onClick={() => setTab(t)} data-testid={`comments-tab-${t}`}
               className={cn("-mb-px inline-flex min-h-11 items-center gap-1.5 border-b-2 px-2 text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand", tab === t ? "border-brand font-medium text-fg" : "border-transparent text-muted hover:text-fg")}>
-              {t === "team" ? "Team" : "Shared link"}{t === "public" && d!.canModerate && d!.pending > 0 && <Badge tone="warn">{d!.pending}</Badge>}
+              {t === "team" ? tr("nav.team") : tr("docs.shared_link")}{t === "public" && d!.canModerate && d!.pending > 0 && <Badge tone="warn">{d!.pending}</Badge>}
             </button>
           ))}
         </div>
       )}
       <div className="min-h-0 flex-1 overflow-y-auto" role={showPublic ? "tabpanel" : undefined}>
-        {q.isPending ? <div role="status" className="space-y-3 p-4" aria-busy="true" aria-label="Loading comments"><Skeleton className="h-14" /><Skeleton className="h-14" /></div>
+        {q.isPending ? <div role="status" className="space-y-3 p-4" aria-busy="true" aria-label={tr("docs.loading_comments")}><Skeleton className="h-14" /><Skeleton className="h-14" /></div>
           : q.error ? <LoadErrorInline className="p-4" onRetry={() => q.refetch()} />
-            : !list.length ? <EmptyState className="py-10" icon={<IconChat className="h-5 w-5" />} title={tab === "public" && showPublic ? "No comments on the shared link" : "No comments yet"}
+            : !list.length ? <EmptyState className="py-10" icon={<IconChat className="h-5 w-5" />} title={tab === "public" && showPublic ? tr("docs.no_comments_on_the_shared_link") : tr("docs.no_comments_yet")}
               body={tab === "public" && showPublic ? "Comments people leave on the shared link show here for review first." : "Ask a question or leave a note for the team. Type @ and a name to mention someone."} />
-              : <ul className="divide-y divide-line" aria-label={tab === "public" ? "Shared link comments" : "Team comments"}>{list.map((c) => <Item key={c.id} c={c} moderator={!!d?.canModerate} onEdit={(x) => { setEditing(x); setEditBody(x.body); }} onStatus={setStatus} onRemove={setRemoving} />)}</ul>}
+              : <ul className="divide-y divide-line" aria-label={tab === "public" ? tr("docs.shared_link_comments") : tr("docs.team_comments")}>{list.map((c) => <Item key={c.id} c={c} moderator={!!d?.canModerate} onEdit={(x) => { setEditing(x); setEditBody(x.body); }} onStatus={setStatus} onRemove={setRemoving} />)}</ul>}
       </div>
-      {d && (tab === "team" || !showPublic) && <Composer placeholder="Add a comment" onSend={send("team")} people={people} busy={add.isPending} testId="doc-comment-input" />}
+      {d && (tab === "team" || !showPublic) && <Composer placeholder={tr("docs.add_a_comment")} onSend={send("team")} people={people} busy={add.isPending} testId="doc-comment-input" />}
       {d && tab === "public" && showPublic && (d.canModerate
-        ? <Composer placeholder="Answer on the shared link (everyone with the link sees it)" onSend={send("public")} people={[]} busy={add.isPending} testId="doc-public-comment-input" />
-        : <p className="border-t border-line p-3 text-[13px] text-muted">Owners, admins and the person who made this doc answer here.</p>)}
-      <Dialog open={!!editing} onClose={() => setEditing(null)} title="Edit comment" footer={<><Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button><Button onClick={() => void saveEdit()} disabled={!editBody.trim()}>Save</Button></>}>
-        <Textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} rows={4} maxLength={COMMENT_MAX} aria-label="Comment" />
+        ? <Composer placeholder={tr("docs.answer_on_the_shared_link_everyone_with_the_link")} onSend={send("public")} people={[]} busy={add.isPending} testId="doc-public-comment-input" />
+        : <p className="border-t border-line p-3 text-[13px] text-muted">{tr("docs.owners_admins_and_the_person_who_made_this_doc_a")}</p>)}
+      <Dialog open={!!editing} onClose={() => setEditing(null)} title={tr("docs.edit_comment")} footer={<><Button variant="ghost" onClick={() => setEditing(null)}>{tr("common.cancel")}</Button><Button onClick={() => void saveEdit()} disabled={!editBody.trim()}>{tr("common.save")}</Button></>}>
+        <Textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} rows={4} maxLength={COMMENT_MAX} aria-label={tr("docs.comment")} />
       </Dialog>
-      <Dialog open={!!removing} onClose={() => setRemoving(null)} title="Remove this comment?" description="It disappears for everyone. This cannot be undone."
-        footer={<><Button variant="ghost" onClick={() => setRemoving(null)}>Cancel</Button><Button onClick={() => void remove()} data-testid="confirm-remove-comment">Remove</Button></>} />
+      <Dialog open={!!removing} onClose={() => setRemoving(null)} title={tr("docs.remove_this_comment")} description={tr("docs.it_disappears_for_everyone_this_cannot_be_undone")}
+        footer={<><Button variant="ghost" onClick={() => setRemoving(null)}>{tr("common.cancel")}</Button><Button onClick={() => void remove()} data-testid="confirm-remove-comment">{tr("common.remove")}</Button></>} />
     </aside>
   );
 }
@@ -187,14 +189,14 @@ export function GuestDocComments({ docId }: { docId: string }) {
     try { await api.post(`/guest/r103/docs/${docId}/comments`, { body }); void qc.invalidateQueries({ queryKey: key }); return true; } catch (e) { showError(e as Error); return false; } finally { setBusy(false); }
   };
   return (
-    <section className="mt-6 rounded-xl border border-line" aria-label="Comments" data-testid="guest-doc-comments">
-      <h3 className="flex items-center gap-1.5 border-b border-line px-4 py-3 text-[13px] font-semibold"><IconChat className="h-4 w-4" />Comments</h3>
+    <section className="mt-6 rounded-xl border border-line" aria-label={tr("docs.comments")} data-testid="guest-doc-comments">
+      <h3 className="flex items-center gap-1.5 border-b border-line px-4 py-3 text-[13px] font-semibold"><IconChat className="h-4 w-4" />{tr("docs.comments")}</h3>
       {q.isPending ? <div className="p-4"><Skeleton className="h-12" /></div>
-        : !q.data?.team.length ? <p className="px-4 py-3 text-[13px] text-muted">No comments yet. Ask the team a question here.</p>
+        : !q.data?.team.length ? <p className="px-4 py-3 text-[13px] text-muted">{tr("docs.no_comments_yet_ask_the_team_a_question_here")}</p>
           : <ul className="divide-y divide-line">{q.data.team.map((c) => (
             <li key={c.id} className="px-4 py-3"><p className="text-[13px]"><strong>{c.author.name}</strong> <span className="text-subtle">{timeAgo(c.createdAt)}</span></p><p className="mt-1 whitespace-pre-wrap break-words text-[14px]">{c.body}</p></li>
           ))}</ul>}
-      <Composer placeholder="Add a comment" onSend={send} people={[]} busy={busy} testId="guest-comment-input" />
+      <Composer placeholder={tr("docs.add_a_comment")} onSend={send} people={[]} busy={busy} testId="guest-comment-input" />
     </section>
   );
 }

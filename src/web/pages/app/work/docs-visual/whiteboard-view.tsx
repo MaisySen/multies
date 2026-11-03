@@ -11,6 +11,8 @@ import { cn } from "@/web/lib/cn";
 import type { CollabSession } from "../doc-collab";
 import { isDark, useThemeKey } from "./theme";
 import { BOARD_ASSET_PATH } from "@/web/lib/board-asset-path";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-docs"; // R104B
 
 const loadCanvas = () => {
   // The board's fonts are served from our own origin (copied at build time); main.tsx sets this first, this is a guard.
@@ -35,8 +37,8 @@ class BoardBoundary extends Component<{ children: ReactNode; onRetry: () => void
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-[13px] text-muted" role="alert">
         <IconShapes className="h-6 w-6 text-subtle" aria-hidden />
-        <p>Could not load the whiteboard.</p>
-        <button type="button" className="rounded-md border border-line px-3 py-1.5 font-medium text-fg hover:bg-hover" onClick={() => { this.setState({ failed: false }); this.props.onRetry(); }}>Try again</button>
+        <p>{tr("docs.could_not_load_the_whiteboard")}</p>
+        <button type="button" className="rounded-md border border-line px-3 py-1.5 font-medium text-fg hover:bg-hover" onClick={() => { this.setState({ failed: false }); this.props.onRetry(); }}>{tr("common.try_again")}</button>
       </div>
     );
   }
@@ -89,12 +91,12 @@ export function WhiteboardView({ node, editor, updateAttributes, extension, sele
       className={cn("mm-board not-prose relative", page ? "mm-board-page" : "my-3 rounded-xl border border-line bg-surface", full && "mm-board-full", selected && !page && "ring-2 ring-brand")}>
       {!page && (
         <div className="flex items-center gap-1 border-b border-line px-2 py-1.5 text-[12.5px] text-muted">
-          <span className="inline-flex items-center gap-1.5 px-1 font-medium text-fg"><IconShapes className="h-4 w-4 text-muted" aria-hidden />Whiteboard</span>
-          {readOnly && <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-fill px-2 py-0.5 text-[11.5px]" data-testid="board-view-only"><IconEye className="h-3 w-3" aria-hidden />View only</span>}
+          <span className="inline-flex items-center gap-1.5 px-1 font-medium text-fg"><IconShapes className="h-4 w-4 text-muted" aria-hidden />{tr("docs.whiteboard")}</span>
+          {readOnly && <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-fill px-2 py-0.5 text-[11.5px]" data-testid="board-view-only"><IconEye className="h-3 w-3" aria-hidden />{tr("docs.view_only")}</span>}
           <span className="ml-auto" />
-          <BoardButton label="Download as PNG" onClick={() => void exportRef.current?.("png")}><IconDownload className="h-3.5 w-3.5" aria-hidden />PNG</BoardButton>
-          <BoardButton label="Download as SVG" onClick={() => void exportRef.current?.("svg")}><IconDownload className="h-3.5 w-3.5" aria-hidden />SVG</BoardButton>
-          <BoardButton label={full ? "Exit full screen" : "Full screen"} onClick={() => setFull((f) => !f)}>{full ? <IconMinimize className="h-3.5 w-3.5" aria-hidden /> : <IconMaximize className="h-3.5 w-3.5" aria-hidden />}<span className="max-sm:sr-only">{full ? "Exit" : "Full screen"}</span></BoardButton>
+          <BoardButton label={tr("docs.download_as_png")} onClick={() => void exportRef.current?.("png")}><IconDownload className="h-3.5 w-3.5" aria-hidden />PNG</BoardButton>
+          <BoardButton label={tr("docs.download_as_svg")} onClick={() => void exportRef.current?.("svg")}><IconDownload className="h-3.5 w-3.5" aria-hidden />SVG</BoardButton>
+          <BoardButton label={full ? tr("docs.exit_full_screen") : tr("docs.full_screen")} onClick={() => setFull((f) => !f)}>{full ? <IconMinimize className="h-3.5 w-3.5" aria-hidden /> : <IconMaximize className="h-3.5 w-3.5" aria-hidden />}<span className="max-sm:sr-only">{full ? tr("docs.exit") : tr("docs.full_screen")}</span></BoardButton>
         </div>
       )}
       <div ref={box} className={cn("mm-board-canvas", page || full ? "h-full" : "h-[420px] max-sm:h-[360px]")} data-testid="whiteboard-canvas">

@@ -10,6 +10,8 @@ import { IconCalendar, IconCheckCircle, IconCode, IconHeading1, IconHeading2, Ic
 import { cn } from "@/web/lib/cn";
 import { filterSlash, groupSlash, moveSel, slashQuery, todayText, type SlashItem } from "@/web/lib/slash-commands";
 import { templateCode } from "@/web/lib/diagram"; // R89
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-docs"; // R104B
 
 const ICONS: Record<string, IconComponent> = { text: IconText, h1: IconHeading1, h2: IconHeading2, h3: IconHeading3, quote: IconQuote, code: IconCode, divider: IconMinus, bullets: IconList, numbers: IconListOrdered, todo: IconTasks, link: IconLink, date: IconCalendar,
   table: IconTable, image: IconImage, callout: IconInfo, "callout-success": IconCheckCircle, "callout-warning": IconWarning, "callout-danger": IconOctagonAlert,
@@ -110,11 +112,11 @@ export function SlashMenu({ editor, onLinkPicker, onImage }: { editor: Editor | 
   const left = Math.max(8, Math.min(menu.left, window.innerWidth - 296));
   const top = menu.top + 320 > window.innerHeight ? Math.max(8, menu.top - 330) : menu.top;
   return (
-    <div role="listbox" aria-label="Insert a block" id="slash-menu" data-testid="slash-menu"
+    <div role="listbox" aria-label={tr("docs.insert_a_block")} id="slash-menu" data-testid="slash-menu"
       className="fixed z-40 w-72 animate-pop-in overflow-hidden rounded-xl border border-line bg-elevated shadow-pop motion-reduce:animate-none"
       style={{ left, top }} onMouseDown={(e) => e.preventDefault()}>
       <div className="max-h-80 overflow-y-auto p-1.5">
-        {!groups.length && <p className="px-2 py-2 text-[13px] text-subtle">No blocks match "{menu.query}"</p>}
+        {!groups.length && <p className="px-2 py-2 text-[13px] text-subtle">{tr("docs.no_blocks_match_query", { query: menu.query })}</p>}
         {groups.map((g) => (
           <div key={g.group} role="group" aria-label={g.group}>
             <div className="px-2 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-subtle">{g.group}</div>

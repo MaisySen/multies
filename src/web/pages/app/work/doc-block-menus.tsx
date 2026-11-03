@@ -11,6 +11,8 @@ import { IconCaptions, IconClose, IconColumns, IconInsertColumnLeft, IconInsertC
 import { cn } from "@/web/lib/cn";
 import { IMAGE_SIZE_LABELS, imageSize, isSafeImageSrc, type ImageSize } from "@/web/lib/docs-blocks-schema";
 import { measureImage, type ImageUploader } from "@/web/lib/docs-blocks";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-docs"; // R104B
 
 /** Re-renders on every editor transaction (selection moves included). */
 function useEditorTick(editor: Editor | null) {
@@ -61,16 +63,16 @@ export function TableMenu({ editor }: { editor: Editor | null }) {
   if (!el) return null;
   const c = () => editor.chain().focus();
   return (
-    <div role="toolbar" aria-label="Table" data-testid="table-menu" className={BAR} style={place(el.getBoundingClientRect(), 300)}>
-      <MenuButton label="Add row above" on={() => c().addRowBefore().run()}><IconInsertRowAbove /></MenuButton>
-      <MenuButton label="Add row below" on={() => c().addRowAfter().run()}><IconInsertRowBelow /></MenuButton>
-      <MenuButton label="Add column left" on={() => c().addColumnBefore().run()}><IconInsertColumnLeft /></MenuButton>
-      <MenuButton label="Add column right" on={() => c().addColumnAfter().run()}><IconInsertColumnRight /></MenuButton>
+    <div role="toolbar" aria-label={tr("docs.table")} data-testid="table-menu" className={BAR} style={place(el.getBoundingClientRect(), 300)}>
+      <MenuButton label={tr("docs.add_row_above")} on={() => c().addRowBefore().run()}><IconInsertRowAbove /></MenuButton>
+      <MenuButton label={tr("docs.add_row_below")} on={() => c().addRowAfter().run()}><IconInsertRowBelow /></MenuButton>
+      <MenuButton label={tr("docs.add_column_left")} on={() => c().addColumnBefore().run()}><IconInsertColumnLeft /></MenuButton>
+      <MenuButton label={tr("docs.add_column_right")} on={() => c().addColumnAfter().run()}><IconInsertColumnRight /></MenuButton>
       <span className="mx-0.5 h-4 w-px bg-line" aria-hidden />
-      <MenuButton label="Delete row" on={() => c().deleteRow().run()}><IconRowsSplit /></MenuButton>
-      <MenuButton label="Delete column" on={() => c().deleteColumn().run()}><IconColumns /></MenuButton>
-      <MenuButton label="Header row" on={() => c().toggleHeaderRow().run()}><IconPanelTop /></MenuButton>
-      <MenuButton label="Delete table" danger on={() => c().deleteTable().run()}><IconTrash /></MenuButton>
+      <MenuButton label={tr("docs.delete_row")} on={() => c().deleteRow().run()}><IconRowsSplit /></MenuButton>
+      <MenuButton label={tr("docs.delete_column")} on={() => c().deleteColumn().run()}><IconColumns /></MenuButton>
+      <MenuButton label={tr("docs.header_row")} on={() => c().toggleHeaderRow().run()}><IconPanelTop /></MenuButton>
+      <MenuButton label={tr("docs.delete_table")} danger on={() => c().deleteTable().run()}><IconTrash /></MenuButton>
     </div>
   );
 }
@@ -91,7 +93,7 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
   const size = imageSize(node.attrs.size);
   const set = (attrs: Record<string, unknown>) => editor.chain().setNodeSelection(pos).updateAttributes("image", attrs).run();
   return (
-    <div role="toolbar" aria-label="Image" data-testid="image-toolbar" className={BAR} style={place(dom.getBoundingClientRect(), 340)}>
+    <div role="toolbar" aria-label={tr("docs.image")} data-testid="image-toolbar" className={BAR} style={place(dom.getBoundingClientRect(), 340)}>
       {(Object.keys(IMAGE_SIZE_LABELS) as ImageSize[]).map((s) => {
         const Icon = SIZE_ICONS[s];
         return <MenuButton key={s} label={IMAGE_SIZE_LABELS[s]} active={size === s} on={() => set({ size: s })}><Icon /></MenuButton>;
@@ -100,11 +102,11 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
       {altOpen ? (
         <AltInput initial={typeof node.attrs.alt === "string" ? node.attrs.alt : ""} onDone={(alt) => { set({ alt: alt.trim() || null }); setAltOpen(false); }} />
       ) : (
-        <MenuButton label={node.attrs.alt ? `Alt text: ${node.attrs.alt}` : "Add alt text"} on={() => setAltOpen(true)}>
-          <IconCaptions /><span className="ml-1 text-[12px]">{node.attrs.alt ? "Alt" : "Add alt"}</span>
+        <MenuButton label={node.attrs.alt ? `Alt text: ${node.attrs.alt}` : tr("docs.add_alt_text")} on={() => setAltOpen(true)}>
+          <IconCaptions /><span className="ml-1 text-[12px]">{node.attrs.alt ? tr("docs.alt") : tr("docs.add_alt")}</span>
         </MenuButton>
       )}
-      <MenuButton label="Delete image" danger on={() => editor.chain().focus().deleteSelection().run()}><IconTrash /></MenuButton>
+      <MenuButton label={tr("docs.delete_image")} danger on={() => editor.chain().focus().deleteSelection().run()}><IconTrash /></MenuButton>
     </div>
   );
 }
@@ -112,7 +114,7 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
 function AltInput({ initial, onDone }: { initial: string; onDone: (v: string) => void }) {
   const [v, setV] = useState(initial);
   return (
-    <input autoFocus aria-label="Alt text" data-testid="image-alt-input" value={v} maxLength={300} placeholder="Describe the image"
+    <input autoFocus aria-label={tr("docs.alt_text")} data-testid="image-alt-input" value={v} maxLength={300} placeholder={tr("docs.describe_the_image")}
       onChange={(e) => setV(e.target.value)} onBlur={() => onDone(v)}
       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onDone(v); } if (e.key === "Escape") onDone(initial); }}
       className="h-7 w-48 rounded-md border border-line bg-surface px-2 text-[12.5px] outline-none focus:ring-2 focus:ring-brand/60" />
@@ -152,31 +154,31 @@ export function ImageInsertDialog({ editor, open, onClose, upload }: { editor: E
         className="w-[min(28rem,calc(100vw-2rem))] animate-pop-in rounded-2xl border border-line bg-elevated p-4 shadow-pop motion-reduce:animate-none"
         onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); onClose(); } }}>
         <div className="mb-3 flex items-center">
-          <h2 id="img-dlg-title" className="text-[15px] font-semibold">Add an image</h2>
-          <button type="button" aria-label="Close" onClick={onClose} className="ml-auto rounded p-1 text-muted hover:bg-hover hover:text-fg"><IconClose className="h-4 w-4" /></button>
+          <h2 id="img-dlg-title" className="text-[15px] font-semibold">{tr("docs.add_an_image")}</h2>
+          <button type="button" aria-label={tr("docs.close")} onClick={onClose} className="ml-auto rounded p-1 text-muted hover:bg-hover hover:text-fg"><IconClose className="h-4 w-4" /></button>
         </div>
         <form onSubmit={(e) => { e.preventDefault(); fromUrl(); }} className="space-y-2.5">
-          <label className="block text-[12.5px] text-muted">Image link
+          <label className="block text-[12.5px] text-muted">{tr("docs.image_link")}
             <input ref={urlRef} data-testid="image-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://"
               className="mt-1 block h-9 w-full rounded-lg border border-line bg-surface px-2.5 text-[13.5px] text-fg outline-none focus:ring-2 focus:ring-brand/60" />
           </label>
-          <label className="block text-[12.5px] text-muted">Alt text (read aloud by screen readers)
-            <input data-testid="image-alt" value={alt} maxLength={300} onChange={(e) => setAlt(e.target.value)} placeholder="Describe the image"
+          <label className="block text-[12.5px] text-muted">{tr("docs.alt_text_read_aloud_by_screen_readers")}
+            <input data-testid="image-alt" value={alt} maxLength={300} onChange={(e) => setAlt(e.target.value)} placeholder={tr("docs.describe_the_image")}
               className="mt-1 block h-9 w-full rounded-lg border border-line bg-surface px-2.5 text-[13.5px] text-fg outline-none focus:ring-2 focus:ring-brand/60" />
           </label>
           {err && <p role="alert" className="text-[12.5px] text-bad">{err}</p>}
           <div className="flex items-center gap-2 pt-1">
             {upload && (
               <>
-                <input ref={file} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden aria-label="Upload an image" onChange={(e) => void fromFile(e.target.files?.[0])} />
+                <input ref={file} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden aria-label={tr("docs.upload_an_image")} onChange={(e) => void fromFile(e.target.files?.[0])} />
                 <button type="button" disabled={busy} onClick={() => file.current?.click()}
                   className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] text-fg hover:bg-hover disabled:opacity-60">
-                  <IconUpload className="h-3.5 w-3.5" aria-hidden />{busy ? "Uploading" : "Upload"}
+                  <IconUpload className="h-3.5 w-3.5" aria-hidden />{busy ? tr("docs.uploading") : tr("docs.upload")}
                 </button>
               </>
             )}
             <button type="submit" data-testid="image-insert" disabled={busy || !url.trim()}
-              className="ml-auto inline-flex h-9 items-center rounded-lg bg-brand px-3.5 text-[13px] font-medium text-white hover:bg-brand-press disabled:opacity-50">Insert</button>
+              className="ml-auto inline-flex h-9 items-center rounded-lg bg-brand px-3.5 text-[13px] font-medium text-white hover:bg-brand-press disabled:opacity-50">{tr("docs.insert")}</button>
           </div>
         </form>
       </div>

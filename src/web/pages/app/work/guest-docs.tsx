@@ -8,6 +8,8 @@ import { IconChevronDown, IconChevronRight, IconDocs, IconLink } from "@/web/com
 import { api } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-docs"; // R104B
 
 interface Node { id: string; title: string; children: Node[] }
 interface Backlink { id: string; title: string; snippet: string }
@@ -16,13 +18,13 @@ function Row({ n, depth, openId, onOpen }: { n: Node; depth: number; openId: str
   const [open, setOpen] = useState(true);
   const has = n.children.length > 0;
   return (
-    <li role="treeitem" aria-expanded={has ? open : undefined} aria-selected={openId === n.id} aria-label={n.title || "Untitled"}>
+    <li role="treeitem" aria-expanded={has ? open : undefined} aria-selected={openId === n.id} aria-label={n.title || tr("docs.untitled")}>
       <div className={cn("flex items-center gap-1 rounded-md pr-2 hover:bg-hover", openId === n.id && "bg-fill/60")} style={{ paddingLeft: depth * 14 }}>
         {has
-          ? <button type="button" onClick={() => setOpen((o) => !o)} aria-label={open ? `Collapse ${n.title}` : `Expand ${n.title}`} className="rounded p-0.5 text-subtle hover:text-fg">{open ? <IconChevronDown className="h-3.5 w-3.5" /> : <IconChevronRight className="h-3.5 w-3.5" />}</button>
+          ? <button type="button" onClick={() => setOpen((o) => !o)} aria-label={open ? tr("docs.collapse_title", { title: n.title }) : tr("docs.expand_title", { title: n.title })} className="rounded p-0.5 text-subtle hover:text-fg">{open ? <IconChevronDown className="h-3.5 w-3.5" /> : <IconChevronRight className="h-3.5 w-3.5" />}</button>
           : <span className="w-[18px]" aria-hidden />}
         <button type="button" onClick={() => onOpen(n.id)} className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left text-[13px]">
-          <IconDocs className="h-3.5 w-3.5 shrink-0 text-muted" /><span className="truncate">{n.title || "Untitled"}</span>
+          <IconDocs className="h-3.5 w-3.5 shrink-0 text-muted" /><span className="truncate">{n.title || tr("docs.untitled")}</span>
         </button>
       </div>
       {has && open && <ul role="group">{n.children.map((c) => <Row key={c.id} n={c} depth={depth + 1} openId={openId} onOpen={onOpen} />)}</ul>}
@@ -36,9 +38,9 @@ export function GuestDocTree({ docs, openId, onOpen }: { docs: { id: string; tit
   const tree: Node[] = q.data?.tree ?? docs.map((d) => ({ id: d.id, title: d.title, children: [] }));
   if (!tree.length) return null;
   return (
-    <div className="mt-4" aria-label="Docs">
-      <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-subtle">Docs</h2>
-      <ul role="tree" aria-label="Pages" data-testid="guest-doc-tree">{tree.map((n) => <Row key={n.id} n={n} depth={0} openId={openId} onOpen={onOpen} />)}</ul>
+    <div className="mt-4" aria-label={tr("nav.docs")}>
+      <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-subtle">{tr("nav.docs")}</h2>
+      <ul role="tree" aria-label={tr("docs.pages")} data-testid="guest-doc-tree">{tree.map((n) => <Row key={n.id} n={n} depth={0} openId={openId} onOpen={onOpen} />)}</ul>
     </div>
   );
 }
@@ -48,16 +50,16 @@ export function GuestBacklinks({ id, onOpen }: { id: string; onOpen: (id: string
   const q = useQuery({ queryKey: ["guest-doc-backlinks", id], retry: false, queryFn: () => api.get<{ backlinks: Backlink[] }>(`/guest/r24/docs/${id}/backlinks`) });
   const list = q.data?.backlinks ?? [];
   return (
-    <section className="mt-6 border-t border-line pt-4" aria-label="Linked from" data-testid="guest-backlinks">
-      <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-subtle"><IconLink className="h-3.5 w-3.5" />Linked from</h3>
-      {q.isPending ? <SkeletonRows rows={3} rowHeight={44} label="Loading docs" />
-        : !list.length ? <p className="text-[13px] text-muted">No other page in this project links here yet.</p>
+    <section className="mt-6 border-t border-line pt-4" aria-label={tr("docs.linked_from")} data-testid="guest-backlinks">
+      <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-subtle"><IconLink className="h-3.5 w-3.5" />{tr("docs.linked_from")}</h3>
+      {q.isPending ? <SkeletonRows rows={3} rowHeight={44} label={tr("docs.loading_docs")} />
+        : !list.length ? <p className="text-[13px] text-muted">{tr("docs.no_other_page_in_this_project_links_here_yet")}</p>
           : (
             <ul className="space-y-2">
               {list.map((b) => (
                 <li key={b.id}>
                   <button type="button" onClick={() => onOpen(b.id)} className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-hover">
-                    <span className="flex items-center gap-2 text-[13px] font-medium"><IconDocs className="h-3.5 w-3.5 text-muted" />{b.title || "Untitled"}</span>
+                    <span className="flex items-center gap-2 text-[13px] font-medium"><IconDocs className="h-3.5 w-3.5 text-muted" />{b.title || tr("docs.untitled")}</span>
                     {b.snippet && <span className="mt-0.5 block truncate pl-5 text-[12.5px] text-muted">{b.snippet}</span>}
                   </button>
                 </li>

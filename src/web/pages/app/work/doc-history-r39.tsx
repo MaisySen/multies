@@ -19,6 +19,8 @@ import { cn } from "@/web/lib/cn";
 import { tone } from "@/web/components/app-bits";
 import { colourFor } from "./doc-collab";
 import { diffCounts, diffLines, type DiffOp } from "@/shared/line-diff-r39";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-docs"; // R104B
 
 interface Author { type: string; id: string | null; name: string }
 export interface DocVersion { id: string; docVersion: number; title: string; name: string | null; reason: "edit" | "restore"; words: number; author: Author; savedAt: string }
@@ -55,17 +57,17 @@ export function DocHistoryButton({ onOpen }: { onOpen: () => void }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onOpen]);
   return (
-    <button type="button" aria-label="Page history" title="Page history (Ctrl or Cmd, Alt, Shift, H)" onClick={onOpen} data-testid="doc-history-button"
+    <button type="button" aria-label={tr("docs.page_history")} title={tr("docs.page_history_ctrl_or_cmd_alt_shift_h")} onClick={onOpen} data-testid="doc-history-button"
       className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 transition-colors duration-150 hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg">
-      <IconHistory className="h-4 w-4 max-sm:h-5 max-sm:w-5" /><span className="max-sm:hidden">History</span>
+      <IconHistory className="h-4 w-4 max-sm:h-5 max-sm:w-5" /><span className="max-sm:hidden">{tr("docs.history")}</span>
     </button>
   );
 }
 
 function DiffView({ ops }: { ops: DiffOp[] }) {
-  if (!ops.length) return <p className="py-8 text-center text-[13px] text-subtle">This version is empty.</p>;
+  if (!ops.length) return <p className="py-8 text-center text-[13px] text-subtle">{tr("docs.this_version_is_empty")}</p>;
   return (
-    <ol className="space-y-0.5 font-[inherit] text-[14px] leading-6" data-testid="doc-version-diff" aria-label="Changes from this version to the page now">
+    <ol className="space-y-0.5 font-[inherit] text-[14px] leading-6" data-testid="doc-version-diff" aria-label={tr("docs.changes_from_this_version_to_the_page_now")}>
       {ops.map((o, i) => (
         <li key={i} data-op={o.type}
           className={cn("flex gap-2 rounded-md px-2 py-0.5",
@@ -116,23 +118,23 @@ export function DocHistoryPanel({ docId, open, onClose, currentText, beforeChang
   }, [versions, selected]);
 
   const saveVersion = async () => {
-    const name = await prompt({ title: "Save this version", label: "Name", description: "Give this moment a name. Named versions are kept for good.", placeholder: "Before the big rewrite", confirmLabel: "Save version", validate: () => null });
+    const name = await prompt({ title: tr("docs.save_this_version"), label: tr("common.name"), description: tr("docs.give_this_moment_a_name_named_versions_are_kept"), placeholder: tr("docs.before_the_big_rewrite"), confirmLabel: tr("docs.save_version"), validate: () => null });
     if (name === null) return;
     try {
       await beforeChange();
       const r = await api.post<{ version: DocVersion }>(`/docs/${docId}/versions`, { name: name.trim() || undefined });
       await qc.invalidateQueries({ queryKey: ["doc-versions", docId] });
       setSelected(r.version.id);
-      toast.success(`Saved as “${r.version.name}”`);
+      toast.success(tr("docs.saved_as_name", { name: r.version.name }));
     } catch (e) { showError(e as Error); }
   };
   const rename = async (v: DocVersion) => {
-    const name = await prompt({ title: v.name ? "Rename version" : "Name this version", label: "Name", description: "Named versions are kept for good. Leave it empty to remove the name.", initial: v.name ?? "", confirmLabel: "Save", validate: () => null });
+    const name = await prompt({ title: v.name ? tr("docs.rename_version") : tr("docs.name_this_version"), label: tr("common.name"), description: tr("docs.named_versions_are_kept_for_good_leave_it_empty"), initial: v.name ?? "", confirmLabel: tr("common.save"), validate: () => null });
     if (name === null) return;
     try { await api.patch(`/docs/${docId}/versions/${v.id}`, { name: name.trim() || null }); await qc.invalidateQueries({ queryKey: ["doc-versions", docId] }); } catch (e) { showError(e as Error); }
   };
   const restore = async (v: DocVersion) => {
-    const ok = await confirm({ title: "Restore this version?", description: `The page goes back to ${v.name ? `“${v.name}”` : whenLabel(v.savedAt)}. The page as it is now is saved first, so you can undo this from the history.`, confirmLabel: "Restore" });
+    const ok = await confirm({ title: tr("docs.restore_this_version"), description: `The page goes back to ${v.name ? `“${v.name}”` : whenLabel(v.savedAt)}. The page as it is now is saved first, so you can undo this from the history.`, confirmLabel: tr("docs.restore") });
     if (!ok) return;
     setBusy(true);
     try {
@@ -141,7 +143,7 @@ export function DocHistoryPanel({ docId, open, onClose, currentText, beforeChang
       await qc.invalidateQueries({ queryKey: ["doc-versions", docId] });
       onRestored(r.doc);
       onClose();
-      toast.success("Version restored", { action: { label: "Undo", onClick: () => void api.post<{ doc: unknown }>(`/docs/${docId}/versions/${r.savedCurrentAs}/restore`, {}).then((u) => { onRestored(u.doc); void qc.invalidateQueries({ queryKey: ["doc-versions", docId] }); }).catch((e: Error) => showError(e)) } });
+      toast.success(tr("docs.version_restored"), { action: { label: tr("docs.undo"), onClick: () => void api.post<{ doc: unknown }>(`/docs/${docId}/versions/${r.savedCurrentAs}/restore`, {}).then((u) => { onRestored(u.doc); void qc.invalidateQueries({ queryKey: ["doc-versions", docId] }); }).catch((e: Error) => showError(e)) } });
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
 
@@ -164,32 +166,32 @@ export function DocHistoryPanel({ docId, open, onClose, currentText, beforeChang
           <header className="flex items-start gap-3 border-b border-line px-5 pb-4 pt-5">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-[color-mix(in_srgb,var(--color-brand)_14%,transparent)] text-brand" aria-hidden><IconHistory className="h-5 w-5" /></span>
             <div className="min-w-0 flex-1">
-              <h2 id="doc-history-title" className="text-[22px] font-semibold tracking-tight">Page history</h2>
-              <p className="text-[13px] text-muted max-sm:hidden">A version is kept for each editing session and before every restore. The last 50 stay, named ones for good.</p>
+              <h2 id="doc-history-title" className="text-[22px] font-semibold tracking-tight">{tr("docs.page_history")}</h2>
+              <p className="text-[13px] text-muted max-sm:hidden">{tr("docs.a_version_is_kept_for_each_editing_session_and_b")}</p>
             </div>
-            <Button variant="secondary" size="sm" onClick={() => void saveVersion()} data-testid="doc-version-save"><IconBookmark className="h-4 w-4" /><span className="max-sm:hidden">Save version</span></Button>
-            <button type="button" onClick={onClose} aria-label="Close page history" className="grid place-items-center rounded-full p-1.5 text-subtle transition-colors hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11"><IconClose className="h-4 w-4" /></button>
+            <Button variant="secondary" size="sm" onClick={() => void saveVersion()} data-testid="doc-version-save"><IconBookmark className="h-4 w-4" /><span className="max-sm:hidden">{tr("docs.save_version")}</span></Button>
+            <button type="button" onClick={onClose} aria-label={tr("docs.close_page_history")} className="grid place-items-center rounded-full p-1.5 text-subtle transition-colors hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11"><IconClose className="h-4 w-4" /></button>
           </header>
           <div className="flex min-h-0 flex-1">
             {/* The list */}
-            <nav aria-label="Saved versions" className={cn("w-[300px] shrink-0 overflow-y-auto border-r border-line p-2 max-sm:w-full max-sm:border-r-0", phoneDetail && "max-sm:hidden")}>
+            <nav aria-label={tr("docs.saved_versions")} className={cn("w-[300px] shrink-0 overflow-y-auto border-r border-line p-2 max-sm:w-full max-sm:border-r-0", phoneDetail && "max-sm:hidden")}>
               {list.data && (
                 <div className="mb-1 flex items-center gap-2.5 rounded-xl px-2.5 py-2" data-testid="doc-version-current">
                   <Avatar who={list.data.doc.editedBy} />
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 text-[13.5px] font-medium">Current page<span className="rounded-full bg-[color-mix(in_srgb,var(--color-ok)_16%,transparent)] px-1.5 text-[11px] font-semibold text-ok">Now</span></div>
-                    <div className="truncate text-[12px] text-subtle">{nameOf(list.data.doc.editedBy)} · {timeAgo(list.data.doc.updatedAt)} · {list.data.doc.words} words</div>
+                    <div className="flex items-center gap-1.5 text-[13.5px] font-medium">{tr("docs.current_page")}<span className="rounded-full bg-[color-mix(in_srgb,var(--color-ok)_16%,transparent)] px-1.5 text-[11px] font-semibold text-ok">{tr("docs.now")}</span></div>
+                    <div className="truncate text-[12px] text-subtle">{nameOf(list.data.doc.editedBy)} · {timeAgo(list.data.doc.updatedAt)} · {list.data.doc.words} {tr("docs.words")}</div>
                   </div>
                 </div>
               )}
               {list.isPending ? (
-                <div role="status" className="space-y-2 p-2" aria-label="Loading versions">{[0, 1, 2, 3].map((i) => <div key={i} className="flex items-center gap-2.5"><Skeleton className="h-7 w-7 rounded-full" /><div className="flex-1 space-y-1.5"><Skeleton className="h-3.5 w-2/3" /><Skeleton className="h-3 w-1/2" /></div></div>)}</div>
+                <div role="status" className="space-y-2 p-2" aria-label={tr("docs.loading_versions")}>{[0, 1, 2, 3].map((i) => <div key={i} className="flex items-center gap-2.5"><Skeleton className="h-7 w-7 rounded-full" /><div className="flex-1 space-y-1.5"><Skeleton className="h-3.5 w-2/3" /><Skeleton className="h-3 w-1/2" /></div></div>)}</div>
               ) : !versions.length ? (
-                <EmptyState icon={<IconHistory />} art={<HistoryArt />} title="No earlier versions yet" className="py-10"
+                <EmptyState icon={<IconHistory />} art={<HistoryArt />} title={tr("docs.no_earlier_versions_yet")} className="py-10"
                   body="A version is kept when a new editing session starts and before every restore. Save one now to mark this moment."
-                  action={<Button size="sm" onClick={() => void saveVersion()}>Save version</Button>} />
+                  action={<Button size="sm" onClick={() => void saveVersion()}>{tr("docs.save_version")}</Button>} />
               ) : (
-                <ul role="listbox" aria-label="Versions, newest first" className="space-y-0.5">
+                <ul role="listbox" aria-label={tr("docs.versions_newest_first")} className="space-y-0.5">
                   {versions.map((v) => (
                     <li key={v.id} role="presentation">
                       <button id={`dver-${v.id}`} role="option" aria-selected={v.id === selected} data-testid="doc-version-row"
@@ -200,10 +202,10 @@ export function DocHistoryPanel({ docId, open, onClose, currentText, beforeChang
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 text-[13.5px]">
                             <span className={cn("truncate", v.name ? "font-semibold" : "font-medium")}>{v.name ?? whenLabel(v.savedAt)}</span>
-                            {v.name && <IconBookmark className="h-3 w-3 shrink-0 text-brand" aria-label="Named" />}
-                            {v.reason === "restore" && <span className="shrink-0 rounded-full bg-fill px-1.5 text-[11px] text-muted">Before restore</span>}
+                            {v.name && <IconBookmark className="h-3 w-3 shrink-0 text-brand" aria-label={tr("docs.named")} />}
+                            {v.reason === "restore" && <span className="shrink-0 rounded-full bg-fill px-1.5 text-[11px] text-muted">{tr("docs.before_restore")}</span>}
                           </div>
-                          <div className="truncate text-[12px] text-subtle">{nameOf(v.author)}{v.name ? ` · ${whenLabel(v.savedAt)}` : ""} · {v.words} words</div>
+                          <div className="truncate text-[12px] text-subtle">{nameOf(v.author)}{v.name ? ` · ${whenLabel(v.savedAt)}` : ""} · {v.words} {tr("docs.words")}</div>
                         </div>
                       </button>
                     </li>
@@ -212,23 +214,23 @@ export function DocHistoryPanel({ docId, open, onClose, currentText, beforeChang
               )}
             </nav>
             {/* The compare view */}
-            <section aria-label="Compare with the page now" className={cn("min-w-0 flex-1 overflow-y-auto", !phoneDetail && "max-sm:hidden")}>
+            <section aria-label={tr("docs.compare_with_the_page_now")} className={cn("min-w-0 flex-1 overflow-y-auto", !phoneDetail && "max-sm:hidden")}>
               {sel ? (
                 <div className="flex min-h-full flex-col">
                   <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-line bg-elevated/95 px-5 py-3 backdrop-blur">
-                    <button type="button" className="hidden rounded-full p-1.5 text-muted hover:bg-hover max-sm:grid max-sm:h-11 max-sm:w-11 max-sm:place-items-center" aria-label="Back to versions" onClick={() => setPhoneDetail(false)}><IconBack className="h-4 w-4" /></button>
+                    <button type="button" className="hidden rounded-full p-1.5 text-muted hover:bg-hover max-sm:grid max-sm:h-11 max-sm:w-11 max-sm:place-items-center" aria-label={tr("docs.back_to_versions")} onClick={() => setPhoneDetail(false)}><IconBack className="h-4 w-4" /></button>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[15px] font-semibold">{sel.name ?? whenLabel(sel.savedAt)}</div>
                       <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-subtle" data-testid="doc-version-counts">
-                        <span className="max-sm:hidden">Compared with now:</span>
-                        <span className="rounded-full bg-[color-mix(in_srgb,var(--color-ok)_14%,transparent)] px-1.5 font-medium text-ok">{counts.added} added</span>
-                        <span className="rounded-full bg-[color-mix(in_srgb,var(--color-bad)_12%,transparent)] px-1.5 font-medium text-bad">{counts.removed} removed</span>
-                        {detail.data?.sinceThen.titleChanged && <span>Title was “{detail.data.version.title}”</span>}
+                        <span className="max-sm:hidden">{tr("docs.compared_with_now")}</span>
+                        <span className="rounded-full bg-[color-mix(in_srgb,var(--color-ok)_14%,transparent)] px-1.5 font-medium text-ok">{counts.added} {tr("docs.added")}</span>
+                        <span className="rounded-full bg-[color-mix(in_srgb,var(--color-bad)_12%,transparent)] px-1.5 font-medium text-bad">{counts.removed} {tr("docs.removed")}</span>
+                        {detail.data?.sinceThen.titleChanged && <span>{tr("docs.title_was_title", { title: detail.data.version.title })}</span>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 max-sm:w-full max-sm:justify-end">
-                    <Button variant="ghost" size="sm" onClick={() => void rename(sel)}>{sel.name ? "Rename" : "Name"}</Button>
-                    <Button size="sm" disabled={busy} onClick={() => void restore(sel)} data-testid="doc-version-restore"><IconUndo className="h-4 w-4" />Restore</Button>
+                    <Button variant="ghost" size="sm" onClick={() => void rename(sel)}>{sel.name ? tr("docs.rename") : tr("common.name")}</Button>
+                    <Button size="sm" disabled={busy} onClick={() => void restore(sel)} data-testid="doc-version-restore"><IconUndo className="h-4 w-4" />{tr("docs.restore")}</Button>
                     </div>
                   </div>
                   <div className="px-5 py-4">
@@ -236,7 +238,7 @@ export function DocHistoryPanel({ docId, open, onClose, currentText, beforeChang
                   </div>
                 </div>
               ) : !list.isPending && (
-                <p className="p-10 text-center text-[13px] text-subtle max-sm:hidden">Pick a version to see what changed since.</p>
+                <p className="p-10 text-center text-[13px] text-subtle max-sm:hidden">{tr("docs.pick_a_version_to_see_what_changed_since")}</p>
               )}
             </section>
           </div>

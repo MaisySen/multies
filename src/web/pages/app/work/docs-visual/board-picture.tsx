@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { exportToSvg, restoreElements } from "@excalidraw/excalidraw";
 import { readScene } from "@/web/lib/whiteboard-merge";
 import { isDark, useThemeKey } from "./theme";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-docs"; // R104B
 
 export default function BoardPicture({ scene }: { scene: string }) {
   const themeKey = useThemeKey();
@@ -18,7 +20,7 @@ export default function BoardPicture({ scene }: { scene: string }) {
       .catch(() => { if (live) setEmpty(true); });
     return () => { live = false; };
   }, [scene, themeKey]);
-  if (empty) return <p className="text-[0.7em] text-muted">An empty whiteboard</p>;
+  if (empty) return <p className="text-[0.7em] text-muted">{tr("docs.an_empty_whiteboard")}</p>;
   if (!svg) return <div className="h-48 animate-pulse rounded-xl bg-fill" />;
-  return <div role="img" aria-label="Whiteboard drawing" className="[&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-h-[62vh] [&_svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />;
+  return <div role="img" aria-label={tr("docs.whiteboard_drawing")} className="[&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-h-[62vh] [&_svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />;
 }

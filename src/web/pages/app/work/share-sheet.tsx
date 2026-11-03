@@ -16,6 +16,7 @@ import { useMe } from "@/web/lib/queries";
 import { useConfig } from "@/web/lib/queries"; // R103
 import { toast } from "sonner";
 import { tr } from "@/web/i18n"; // POL4 (HQ MB-356)
+import "@/web/i18n/w2/en-docs"; // R104B
 
 type Kind = "doc" | "project_board";
 interface ShareLink { id: string; kind: Kind; targetId: string; showWorkspaceName: boolean; createdAt: string; expiresAt: string | null; url?: string; comments?: "off" | "on" }
@@ -37,7 +38,7 @@ function ShareSheet({ kind, targetId, onClose }: { kind: Kind; targetId: string;
   const key = ["share-links", kind, targetId];
   const docsPlus = !!useConfig().data?.docsPlus; // R103: comments on the shared link
   const setComments = async (l: ShareLink, on: boolean) => {
-    try { await api.put(`/docs-plus/share/${l.id}`, { comments: on }); toast.success(on ? "Comments on. New ones wait for your review in the doc." : "Comments off for this link"); void qc.invalidateQueries({ queryKey: key }); void qc.invalidateQueries({ queryKey: ["doc-comments-r103", targetId] }); } catch (e) { showError(e as Error); }
+    try { await api.put(`/docs-plus/share/${l.id}`, { comments: on }); toast.success(on ? tr("docs.comments_on_new_ones_wait_for_your_review_in_the") : tr("docs.comments_off_for_this_link")); void qc.invalidateQueries({ queryKey: key }); void qc.invalidateQueries({ queryKey: ["doc-comments-r103", targetId] }); } catch (e) { showError(e as Error); }
   };
   const q = useQuery({ queryKey: key, queryFn: () => api.get<{ links: ShareLink[]; allowShareLinks: boolean }>(`/share-links?kind=${kind}&targetId=${encodeURIComponent(targetId)}`) });
   const [expiry, setExpiry] = useState<"never" | "7" | "30">("never");
@@ -62,44 +63,44 @@ function ShareSheet({ kind, targetId, onClose }: { kind: Kind; targetId: string;
   const what = kind === "doc" ? "this doc" : "this board";
   const links = q.data?.links ?? [];
   return (
-    <Dialog open onClose={onClose} title="Share a read only link" description={`Anyone with the link can read ${what} without signing in. ${kind === "doc" ? "Comments stay private." : "Notes, comments, files and custom fields stay private."}`}>
+    <Dialog open onClose={onClose} title={tr("docs.share_a_read_only_link")} description={`Anyone with the link can read ${what} without signing in. ${kind === "doc" ? "Comments stay private." : "Notes, comments, files and custom fields stay private."}`}>
       {q.data && !q.data.allowShareLinks ? (
-        <p className="text-[13px] text-muted" data-testid="share-off">An admin turned share links off for this workspace.</p>
+        <p className="text-[13px] text-muted" data-testid="share-off">{tr("docs.an_admin_turned_share_links_off_for_this_workspa")}</p>
       ) : (
         <div className="space-y-4" data-testid="share-sheet">
           <div className="flex flex-wrap items-center gap-2">
-            <label className="text-[13px] text-muted" htmlFor="share-expiry">Link works for</label>
-            <Select id="share-expiry" aria-label="Link expiry" value={expiry} onChange={(e) => setExpiry(e.target.value as "never" | "7" | "30")} className="h-9 w-auto! text-[13px]">
-              <option value="never">Always</option>
-              <option value="7">7 days</option>
-              <option value="30">30 days</option>
+            <label className="text-[13px] text-muted" htmlFor="share-expiry">{tr("docs.link_works_for")}</label>
+            <Select id="share-expiry" aria-label={tr("docs.link_expiry")} value={expiry} onChange={(e) => setExpiry(e.target.value as "never" | "7" | "30")} className="h-9 w-auto! text-[13px]">
+              <option value="never">{tr("docs.always")}</option>
+              <option value="7">{tr("docs.7_days")}</option>
+              <option value="30">{tr("docs.30_days")}</option>
             </Select>
-            <span className="ml-auto inline-flex items-center gap-2 text-[13px] text-muted">Show workspace name<Switch checked={showWs} onChange={setShowWs} label="Show workspace name" /></span>
+            <span className="ml-auto inline-flex items-center gap-2 text-[13px] text-muted">{tr("docs.show_workspace_name")}<Switch checked={showWs} onChange={setShowWs} label={tr("docs.show_workspace_name")} /></span>
           </div>
-          <Button onClick={create} loading={busy} data-testid="share-create"><IconLink className="h-4 w-4" />Create link</Button>
+          <Button onClick={create} loading={busy} data-testid="share-create"><IconLink className="h-4 w-4" />{tr("docs.create_link")}</Button>
           {fresh?.url && (
             <div className="rounded-lg border border-line bg-fill p-3" data-testid="share-fresh">
-              <p className="text-[12px] text-subtle">Copy it now: the full link is shown only once.</p>
+              <p className="text-[12px] text-subtle">{tr("docs.copy_it_now_the_full_link_is_shown_only_once")}</p>
               <div className="mt-1.5 flex items-center gap-2">
                 <code className="min-w-0 flex-1 truncate text-[12.5px]" data-testid="share-url">{fresh.url}</code>
                 <CopyButton value={fresh.url} />
               </div>
             </div>
           )}
-          <section aria-label="Active links">
-            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Active links</h3>
-            {links.length === 0 ? <p className="mt-2 text-[13px] text-muted">No active links.</p> : (
+          <section aria-label={tr("docs.active_links")}>
+            <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">{tr("docs.active_links")}</h3>
+            {links.length === 0 ? <p className="mt-2 text-[13px] text-muted">{tr("docs.no_active_links")}</p> : (
               <ul className="mt-2 divide-y divide-line rounded-lg border border-line">
                 {links.map((l) => (
                   <li key={l.id} className="flex items-center gap-2 px-3 py-2 text-[13px]" data-testid="share-link-row">
                     <IconLink className="h-3.5 w-3.5 text-muted" aria-hidden />
-                    <span className="min-w-0 flex-1 truncate">Made {day(l.createdAt)} · {l.expiresAt ? `ends ${day(l.expiresAt)}` : "no end date"}{l.showWorkspaceName ? "" : " · name hidden"}</span>
+                    <span className="min-w-0 flex-1 truncate">{tr("docs.made")} {day(l.createdAt)} · {l.expiresAt ? `ends ${day(l.expiresAt)}` : tr("docs.no_end_date")}{l.showWorkspaceName ? "" : " · name hidden"}</span>
                     {kind === "doc" && docsPlus && (
-                      <label className="inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[12px] text-muted hover:bg-hover hover:text-fg" title="People with this link can comment. You review each comment before it shows.">
-                        <input type="checkbox" className="h-4 w-4 accent-[color:var(--brand,#1f6f43)]" checked={l.comments === "on"} onChange={(ev) => void setComments(l, ev.target.checked)} data-testid="share-comments-toggle" />Comments
+                      <label className="inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[12px] text-muted hover:bg-hover hover:text-fg" title={tr("docs.people_with_this_link_can_comment_you_review_eac")}>
+                        <input type="checkbox" className="h-4 w-4 accent-[color:var(--brand,#1f6f43)]" checked={l.comments === "on"} onChange={(ev) => void setComments(l, ev.target.checked)} data-testid="share-comments-toggle" />{tr("docs.comments")}
                       </label>
                     )}
-                    <Button variant="ghost" size="sm" onClick={() => void revoke(l.id)} aria-label="Revoke link"><IconTrash className="h-3.5 w-3.5" />Revoke</Button>
+                    <Button variant="ghost" size="sm" onClick={() => void revoke(l.id)} aria-label={tr("docs.revoke_link")}><IconTrash className="h-3.5 w-3.5" />{tr("docs.revoke")}</Button>
                   </li>
                 ))}
               </ul>

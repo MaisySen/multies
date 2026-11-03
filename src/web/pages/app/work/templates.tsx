@@ -12,6 +12,8 @@ import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Link } from "react-router";
 import { useConfig } from "@/web/lib/queries";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-docs"; // R104B
 
 interface Template { id: string; kind: "project" | "task" | "doc"; name: string; description: string; category: string; builtin: boolean; taskCount: number }
 interface Project { id: string; name: string }
@@ -31,37 +33,37 @@ export function TemplatesPage() {
   const starters = (q.data ?? []).filter((t) => t.builtin);
   const mine = (q.data ?? []).filter((t) => !t.builtin);
   const remove = async (t: Template) => {
-    if (!(await confirm({ title: `Delete the template ${t.name}?`, description: "Projects made from it stay as they are.", confirmLabel: "Delete template" }))) return;
+    if (!(await confirm({ title: tr("docs.delete_the_template_name", { name: t.name }), description: tr("docs.projects_made_from_it_stay_as_they_are"), confirmLabel: tr("docs.delete_template") }))) return;
     try { await api.del(`/templates/${t.id}`); await qc.invalidateQueries({ queryKey: ["templates"] }); } catch (e) { showError(e as Error); }
   };
   const card = (t: Template) => (
     <Card key={t.id} className="flex h-full flex-col gap-3 p-5 transition-shadow duration-150 hover:shadow-md motion-reduce:transition-none" data-testid="template-card">
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0"><h3 className="text-[15px] font-semibold leading-6">{t.name}</h3><p className="mt-0.5 text-[12px] text-subtle">{t.category} · {t.kind === "project" ? `project, ${t.taskCount} tasks` : t.kind === "doc" ? "doc" : "task"}</p></div>
-        {!t.builtin && <Button variant="ghost" size="icon" aria-label={`Delete ${t.name}`} onClick={() => void remove(t)}><IconTrash className="h-4 w-4" /></Button>}
+        <div className="min-w-0"><h3 className="text-[15px] font-semibold leading-6">{t.name}</h3><p className="mt-0.5 text-[12px] text-subtle">{t.category} · {t.kind === "project" ? tr("docs.project_taskcount_tasks", { taskCount: t.taskCount }) : t.kind === "doc" ? "doc" : "task"}</p></div>
+        {!t.builtin && <Button variant="ghost" size="icon" aria-label={tr("docs.delete_name", { name: t.name })} onClick={() => void remove(t)}><IconTrash className="h-4 w-4" /></Button>}
       </div>
       {t.description && <p className="text-[13.5px] text-muted">{t.description}</p>}
-      <div className="mt-auto pt-2"><Button size="sm" variant="secondary" className="w-full sm:w-auto" onClick={() => setUsing(t)}>Use template</Button></div>
+      <div className="mt-auto pt-2"><Button size="sm" variant="secondary" className="w-full sm:w-auto" onClick={() => setUsing(t)}>{tr("docs.use_template")}</Button></div>
     </Card>
   );
   return (
     <div>
       {dialogs}
-      <PageHeader title="Project templates" description="Start a project with its statuses, fields and tasks already in place. Due dates count from the start date you pick."
-        actions={<div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => setSaving(true)}>Save a project as a template</Button><Button size="sm" onClick={() => setWriting(true)}><IconPlus className="h-4 w-4" />New template</Button></div>} />
+      <PageHeader title={tr("nav.project_templates")} description={tr("docs.start_a_project_with_its_statuses_fields_and_tas")}
+        actions={<div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => setSaving(true)}>{tr("docs.save_a_project_as_a_template")}</Button><Button size="sm" onClick={() => setWriting(true)}><IconPlus className="h-4 w-4" />{tr("docs.new_template")}</Button></div>} />
       {contracts && (
         <Card data-testid="contracts-entry" className="mb-5 flex flex-wrap items-center justify-between gap-3 p-4">
-          <div className="min-w-0"><p className="text-[14px] font-semibold">Contract templates</p><p className="text-[13px] text-muted">Service agreements, NDAs, contractor agreements, quote terms and a privacy notice, filled in by answering a few questions.</p></div>
-          <Link to="/app/tools/templates?view=contracts" className="shrink-0 text-[13px] font-medium text-brand hover:underline">Open contracts</Link>
+          <div className="min-w-0"><p className="text-[14px] font-semibold">{tr("docs.contract_templates")}</p><p className="text-[13px] text-muted">{tr("docs.service_agreements_ndas_contractor_agreements_qu")}</p></div>
+          <Link to="/app/tools/templates?view=contracts" className="shrink-0 text-[13px] font-medium text-brand hover:underline">{tr("docs.open_contracts")}</Link>
         </Card>
       )}
       {q.isPending ? <Skeleton className="h-64" /> : (
         <>
-          <h2 className="mb-3 text-[15px] font-semibold">Starter gallery</h2>
+          <h2 className="mb-3 text-[15px] font-semibold">{tr("docs.starter_gallery")}</h2>
           <div className="mm-card-grid">{starters.map(card)}</div>
-          <h2 className="mb-3 mt-8 text-[15px] font-semibold">Your templates</h2>
+          <h2 className="mb-3 mt-8 text-[15px] font-semibold">{tr("docs.your_templates")}</h2>
           {mine.length ? <div className="mm-card-grid">{mine.map(card)}</div>
-            : <EmptyState icon={<IconTemplate />} title="No saved templates yet" body="Write one from scratch with New template, save any project as a template, or save a task from its menu." />}
+            : <EmptyState icon={<IconTemplate />} title={tr("docs.no_saved_templates_yet")} body="Write one from scratch with New template, save any project as a template, or save a task from its menu." />}
         </>
       )}
       <UseDialog t={using} projects={projects.data ?? []} onClose={() => setUsing(null)} onDone={(r) => {
@@ -82,13 +84,13 @@ function UseDialog({ t, projects, onClose, onDone }: { t: Template | null; proje
     catch (err) { showError(err as Error); } finally { setBusy(false); }
   };
   return (
-    <Dialog open={!!t} onClose={onClose} title={t ? `Use "${t.name}"` : "Use template"}>
+    <Dialog open={!!t} onClose={onClose} title={t ? tr("docs.use_name", { name: t.name }) : tr("docs.use_template")}>
       <form onSubmit={submit} className="space-y-4 px-6 pb-6 pt-4">
-        <Field label={t?.kind === "task" ? "Task title (optional)" : t?.kind === "doc" ? "Doc title (optional)" : "Project name (optional)"}>{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} placeholder={t?.name} />}</Field>
-        {t?.kind === "task" && <Field label="Project">{(p) => <Select {...p} value={projectId} onChange={(e) => setProjectId(e.target.value)} required><option value="">Choose a project</option>{projects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>}</Field>}
-        {t?.kind === "doc" && <Field label="Project (optional)">{(p) => <Select {...p} value={projectId} onChange={(e) => setProjectId(e.target.value)}><option value="">No project</option>{projects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>}</Field>}
-        {t?.kind !== "doc" && <Field label="Start date">{(p) => <Input {...p} type="date" value={start} onChange={(e) => setStart(e.target.value)} />}</Field>}
-        <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" loading={busy}>Create</Button></div>
+        <Field label={t?.kind === "task" ? tr("docs.task_title_optional") : t?.kind === "doc" ? tr("docs.doc_title_optional") : tr("docs.project_name_optional")}>{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} placeholder={t?.name} />}</Field>
+        {t?.kind === "task" && <Field label={tr("taskgroup.project")}>{(p) => <Select {...p} value={projectId} onChange={(e) => setProjectId(e.target.value)} required><option value="">{tr("docs.choose_a_project")}</option>{projects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>}</Field>}
+        {t?.kind === "doc" && <Field label={tr("docs.project_optional")}>{(p) => <Select {...p} value={projectId} onChange={(e) => setProjectId(e.target.value)}><option value="">{tr("docs.no_project")}</option>{projects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>}</Field>}
+        {t?.kind !== "doc" && <Field label={tr("tasksort.start_date")}>{(p) => <Input {...p} type="date" value={start} onChange={(e) => setStart(e.target.value)} />}</Field>}
+        <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>{tr("common.cancel")}</Button><Button type="submit" loading={busy}>{tr("common.create")}</Button></div>
       </form>
     </Dialog>
   );
@@ -102,12 +104,12 @@ function SaveDialog({ open, projects, onClose, onDone }: { open: boolean; projec
     catch (err) { showError(err as Error); } finally { setBusy(false); }
   };
   return (
-    <Dialog open={open} onClose={onClose} title="Save a project as a template" description="Statuses, custom fields, top level tasks with their subtasks and repeat rules are saved. Due dates are kept as days from the first one.">
+    <Dialog open={open} onClose={onClose} title={tr("docs.save_a_project_as_a_template")} description={tr("docs.statuses_custom_fields_top_level_tasks_with_thei")}>
       <form onSubmit={submit} className="space-y-4 px-6 pb-6 pt-4">
-        <Field label="Project">{(p) => <Select {...p} value={projectId} onChange={(e) => setProjectId(e.target.value)} required><option value="">Choose a project</option>{projects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>}</Field>
-        <Field label="Template name (optional)">{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} />}</Field>
-        <Field label="Description (optional)">{(p) => <Input {...p} value={description} onChange={(e) => setDescription(e.target.value)} />}</Field>
-        <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" loading={busy}>Save template</Button></div>
+        <Field label={tr("taskgroup.project")}>{(p) => <Select {...p} value={projectId} onChange={(e) => setProjectId(e.target.value)} required><option value="">{tr("docs.choose_a_project")}</option>{projects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>}</Field>
+        <Field label={tr("docs.template_name_optional")}>{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} />}</Field>
+        <Field label={tr("docs.description_optional")}>{(p) => <Input {...p} value={description} onChange={(e) => setDescription(e.target.value)} />}</Field>
+        <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>{tr("common.cancel")}</Button><Button type="submit" loading={busy}>{tr("docs.save_template")}</Button></div>
       </form>
     </Dialog>
   );
@@ -131,17 +133,17 @@ function NewDialog({ open, onClose, onDone }: { open: boolean; onClose: () => vo
   };
   const titleLabel = kind === "doc" ? "Doc title" : kind === "task" ? "Task title" : "Project name";
   return (
-    <Dialog open={open} onClose={onClose} title="New template" description="Write a template once and reuse it for every bug report, release note or project kick-off.">
+    <Dialog open={open} onClose={onClose} title={tr("docs.new_template")} description={tr("docs.write_a_template_once_and_reuse_it_for_every_bug")}>
       <form onSubmit={submit} className="space-y-4 px-6 pb-6 pt-4">
-        <Field label="Kind">{(p) => <Select {...p} value={kind} onChange={(e) => setKind(e.target.value as Template["kind"])}><option value="task">Task</option><option value="doc">Doc</option><option value="project">Project</option></Select>}</Field>
-        <Field label="Template name (optional)">{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === "doc" ? "Release note" : kind === "task" ? "Bug report" : "Product launch"} />}</Field>
+        <Field label={tr("docs.kind")}>{(p) => <Select {...p} value={kind} onChange={(e) => setKind(e.target.value as Template["kind"])}><option value="task">{tr("nav.task")}</option><option value="doc">{tr("nav.doc")}</option><option value="project">{tr("taskgroup.project")}</option></Select>}</Field>
+        <Field label={tr("docs.template_name_optional")}>{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === "doc" ? tr("docs.release_note") : kind === "task" ? tr("docs.bug_report") : tr("docs.product_launch")} />}</Field>
         <Field label={titleLabel}>{(p) => <Input {...p} value={title} onChange={(e) => setTitle(e.target.value)} required />}</Field>
-        <Field label={kind === "doc" ? "Body" : kind === "task" ? "Notes (optional)" : "Description (optional)"} hint={kind === "doc" ? "One paragraph per line. Start a line with # for a heading or - for a bullet." : undefined}>
+        <Field label={kind === "doc" ? tr("docs.body") : kind === "task" ? tr("docs.notes_optional") : tr("docs.description_optional")} hint={kind === "doc" ? tr("docs.one_paragraph_per_line_start_a_line_with_for_a_h") : undefined}>
           {(p) => <Textarea {...p} rows={kind === "doc" ? 8 : 3} value={body} onChange={(e) => setBody(e.target.value)} />}
         </Field>
-        {kind !== "doc" && <Field label={kind === "task" ? "Subtasks, one per line" : "Tasks, one per line"}>{(p) => <Textarea {...p} rows={4} value={items} onChange={(e) => setItems(e.target.value)} />}</Field>}
-        <Field label="Description of the template (optional)">{(p) => <Input {...p} value={description} onChange={(e) => setDescription(e.target.value)} />}</Field>
-        <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" loading={busy}><IconDocs className="h-4 w-4" />Save template</Button></div>
+        {kind !== "doc" && <Field label={kind === "task" ? tr("docs.subtasks_one_per_line") : tr("docs.tasks_one_per_line")}>{(p) => <Textarea {...p} rows={4} value={items} onChange={(e) => setItems(e.target.value)} />}</Field>}
+        <Field label={tr("docs.description_of_the_template_optional")}>{(p) => <Input {...p} value={description} onChange={(e) => setDescription(e.target.value)} />}</Field>
+        <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>{tr("common.cancel")}</Button><Button type="submit" loading={busy}><IconDocs className="h-4 w-4" />{tr("docs.save_template")}</Button></div>
       </form>
     </Dialog>
   );

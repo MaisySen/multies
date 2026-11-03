@@ -19,6 +19,8 @@ import {
 } from "@/web/lib/mindmap-tree";
 import { downloadBlob, pngToPdf, safeName, svgBlob, svgToPng } from "./export-file";
 import { readTokens, useThemeKey } from "./theme";
+import { tr as trB } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-docs"; // R104B
 
 const GAP = 40, ROW = 44, NODE_H = 34, PAD = 24, MAX_W = 240;
 
@@ -175,7 +177,7 @@ export function MindMapView({ editor, title, readOnly, onRenameTitle }: { editor
       const f = find(tree, id);
       const many = f ? f.node.children.length : 0;
       if (many) {
-        void askConfirm({ title: `Delete "${f!.node.text || "this idea"}"?`, description: `The ${many} ${many === 1 ? "item" : "items"} under it go too. Undo in Doc view brings them back.`, confirmLabel: "Delete", tone: "danger" })
+        void askConfirm({ title: `Delete "${f!.node.text || "this idea"}"?`, description: `The ${many} ${many === 1 ? "item" : "items"} under it go too. Undo in Doc view brings them back.`, confirmLabel: trB("docs.delete"), tone: "danger" })
           .then((ok) => { if (ok) apply(remove(tree, id)); });
       } else apply(remove(tree, id));
     }
@@ -206,19 +208,19 @@ export function MindMapView({ editor, title, readOnly, onRenameTitle }: { editor
       {dialogs}
       <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-1 pb-2 text-[12.5px] text-muted">
         <IconListTree className="h-4 w-4" aria-hidden />
-        <span className="max-sm:hidden">{readOnly ? "Arrows move, Space folds." : "Tab adds a child, Enter a sibling, arrows move, type to rename."}</span>
+        <span className="max-sm:hidden">{readOnly ? trB("docs.arrows_move_space_folds") : trB("docs.tab_adds_a_child_enter_a_sibling_arrows_move_typ")}</span>
         <span className="ml-auto" />
         {!readOnly && (
           <>
-            <Button variant="ghost" size="sm" onClick={() => addAndEdit(addChild(tree, focusId))} data-testid="mindmap-add-child"><IconPlus className="h-3.5 w-3.5" />Child</Button>
-            <Button variant="ghost" size="sm" disabled={focusId === "r"} onClick={() => addAndEdit(addSibling(tree, focusId))}><IconPlus className="h-3.5 w-3.5" />Sibling</Button>
-            <Button variant="ghost" size="sm" className="sm:hidden" onClick={() => startEdit(focusId)}>Rename</Button>
+            <Button variant="ghost" size="sm" onClick={() => addAndEdit(addChild(tree, focusId))} data-testid="mindmap-add-child"><IconPlus className="h-3.5 w-3.5" />{trB("docs.child")}</Button>
+            <Button variant="ghost" size="sm" disabled={focusId === "r"} onClick={() => addAndEdit(addSibling(tree, focusId))}><IconPlus className="h-3.5 w-3.5" />{trB("docs.sibling")}</Button>
+            <Button variant="ghost" size="sm" className="sm:hidden" onClick={() => startEdit(focusId)}>{trB("docs.rename")}</Button>
             <span className="mx-1 h-5 w-px bg-line" aria-hidden />
           </>
         )}
-        <Button variant="ghost" size="sm" onClick={() => void exportAs("png")} aria-label="Download as PNG"><IconDownload className="h-3.5 w-3.5" />PNG</Button>
-        <Button variant="ghost" size="sm" onClick={() => void exportAs("pdf")} aria-label="Download as PDF"><IconDownload className="h-3.5 w-3.5" />PDF</Button>
-        <Button variant="ghost" size="sm" onClick={() => void exportAs("svg")} aria-label="Download as SVG"><IconDownload className="h-3.5 w-3.5" />SVG</Button>
+        <Button variant="ghost" size="sm" onClick={() => void exportAs("png")} aria-label={trB("docs.download_as_png")}><IconDownload className="h-3.5 w-3.5" />PNG</Button>
+        <Button variant="ghost" size="sm" onClick={() => void exportAs("pdf")} aria-label={trB("docs.download_as_pdf")}><IconDownload className="h-3.5 w-3.5" />PDF</Button>
+        <Button variant="ghost" size="sm" onClick={() => void exportAs("svg")} aria-label={trB("docs.download_as_svg")}><IconDownload className="h-3.5 w-3.5" />SVG</Button>
       </div>
       <div ref={wrap} className="relative min-h-[360px] flex-1 overflow-auto overscroll-contain rounded-xl bg-bg/50 [touch-action:pan-x_pan-y]">
         <div className="relative" style={{ width, height }} role="tree" aria-label={`Mind map of ${title || "Untitled"}`}>
@@ -232,7 +234,7 @@ export function MindMapView({ editor, title, readOnly, onRenameTitle }: { editor
             return (
               <div key={b.id} className="absolute" style={{ left: b.x, top: b.y, width: b.w + (kids ? 22 : 0) }}>
                 {isEditing ? (
-                  <input autoFocus value={editing.text} aria-label="Idea text" data-testid="mindmap-input"
+                  <input autoFocus value={editing.text} aria-label={trB("docs.idea_text")} data-testid="mindmap-input"
                     onChange={(e) => setEditing({ ...editing, text: e.target.value })}
                     onBlur={() => commitEdit(true)}
                     onKeyDown={(e) => {
@@ -258,12 +260,12 @@ export function MindMapView({ editor, title, readOnly, onRenameTitle }: { editor
                       root ? "border-brand bg-brand font-semibold text-brand-fg" : heading ? "border-brand/30 bg-brand-soft font-semibold text-fg" : "border-line bg-surface text-fg",
                       b.id === focusId && "ring-2 ring-brand ring-offset-2 ring-offset-bg", drag === b.id && "opacity-50")}
                     style={{ width: b.w }}>
-                    <span className="truncate">{b.node.text || (root ? title || "Untitled" : <span className="text-subtle">Untitled</span>)}</span>
+                    <span className="truncate">{b.node.text || (root ? title || trB("docs.untitled") : <span className="text-subtle">{trB("docs.untitled")}</span>)}</span>
                     {b.hidden > 0 && !root && <span className="ml-1.5 shrink-0 rounded bg-fill px-1 text-[10.5px] font-normal text-muted" title={`${b.hidden} more ${b.hidden === 1 ? "block" : "blocks"} in the doc`}>+{b.hidden}</span>}
                   </div>
                 )}
                 {kids > 0 && !isEditing && (
-                  <button type="button" tabIndex={-1} aria-hidden onClick={() => toggleFold(b.id)} aria-label={b.folded ? `Show ${kids} under ${b.node.text}` : `Fold ${b.node.text}`}
+                  <button type="button" tabIndex={-1} aria-hidden onClick={() => toggleFold(b.id)} aria-label={b.folded ? `Show ${kids} under ${b.node.text}` : trB("docs.fold_text", { text: b.node.text })}
                     className="absolute right-0 top-[7px] grid h-5 w-5 place-items-center rounded-full border border-line bg-surface text-[10px] text-muted hover:text-fg max-sm:top-[3px] max-sm:h-7 max-sm:w-7">
                     {b.folded ? kids : <IconChevronRight className="h-3 w-3 rotate-180" aria-hidden />}
                   </button>
@@ -275,7 +277,7 @@ export function MindMapView({ editor, title, readOnly, onRenameTitle }: { editor
         {isEmpty && !readOnly && (
           <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center">
             <p className="pointer-events-auto rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] text-muted shadow-sm">
-              Press Tab to add your first idea, or <button type="button" className="inline-flex items-center gap-1 font-medium text-brand-hover underline" onClick={() => addAndEdit(addChild(tree, "r"))}><IconPlus className="h-3 w-3" />add one</button>
+              {trB("docs.press_tab_to_add_your_first_idea_or")} <button type="button" className="inline-flex items-center gap-1 font-medium text-brand-hover underline" onClick={() => addAndEdit(addChild(tree, "r"))}><IconPlus className="h-3 w-3" />{trB("docs.add_one")}</button>
             </p>
           </div>
         )}
