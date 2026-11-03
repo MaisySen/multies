@@ -181,3 +181,26 @@ test("des1 states", async ({ browser, baseURL }) => {
   await page.unrouteAll({ behavior: "ignoreErrors" });
   await ctx.close();
 });
+
+
+/** HQ MB-348: axe while the Passkeys card is loading (the list request held open), 375 light and 390 dark. */
+test("des1 loading state axe (passkeys card)", async ({ page, context }) => {
+  test.setTimeout(180_000);
+  if (!process.env.E2E_BASE_URL) await context.setExtraHTTPHeaders({ "x-forwarded-for": ip() });
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Explore a demo workspace" }).click();
+  await expect(page).toHaveURL(/\/app/, { timeout: 30_000 });
+  const hold: (() => void)[] = [];
+  await page.route("**/api/passkeys", (route) => new Promise<void>((done) => hold.push(() => { void route.continue().then(done, done); })));
+  const bad: string[] = [];
+  for (const [w, h, scheme] of [[375, 812, "light"], [390, 844, "dark"]] as const) {
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto("/app/settings/account");
+    const loading = page.locator('[aria-label="Loading passkeys"]');
+    if (process.env.PASSKEY_DES1 === "on") await loading.waitFor({ timeout: 15_000 });
+    await axe(page, `security loading ${w} ${scheme}`, bad);
+  }
+  for (const f of hold) f();
+  expect(bad).toEqual([]);
+});

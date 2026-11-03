@@ -52,7 +52,7 @@ export function PasskeysSection() {
     <Section id="passkeys" title="Passkeys" description="Sign in with Face ID, your fingerprint, your device PIN or a security key. No password to type, and nothing anyone can phish.">
       <div data-testid="passkeys-des1">
         {list.isPending ? (
-          <div className="space-y-2" aria-label="Loading passkeys"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
+          <div className="space-y-2" role="status" aria-busy="true" aria-label="Loading passkeys"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
         ) : list.isError ? (
           <LoadErrorInline onRetry={() => void list.refetch()} />
         ) : list.data.length === 0 ? (
