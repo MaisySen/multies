@@ -6,7 +6,7 @@
  * card, poll and campaign where a network allows them; Post now, Schedule (or the next free slot), Save draft and
  * Submit for approval. Sending uses the same /api/social posts and the same publisher as before.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -21,11 +21,11 @@ import {
   IconWarning, IconXCircle, IconPlus, IconClock,
 } from "@/web/components/ui/icon";
 import {
-  SOCIAL_ERROR_COPY, SOCIAL_IMAGE_MAX_BYTES, SOCIAL_MAX_AHEAD_DAYS, SOCIAL_NETWORKS, type ConnectedAccountView, type SocialPostView,
+  SOCIAL_ERROR_COPY, SOCIAL_MAX_AHEAD_DAYS, SOCIAL_NETWORKS, type ConnectedAccountView, type SocialPostView,
 } from "@/shared/integrations";
 import type { DirectStatusResponse } from "@/shared/direct-social";
 import {
-  CROP_SHAPES, FORMAT_LABELS, NETWORK_RULES, POLL_DAYS, SOCIAL_FORMATS, charCount, composerChecks, cropRect, firstLink, formatFit, networkLabel, textFor,
+  CROP_SHAPES, FORMAT_LABELS, NETWORK_RULES, POLL_DAYS, SOCIAL_FORMATS, charCount, composerChecks, cropRect, defaultTarget, firstLink, formatFit, networkLabel, textFor,
   type AccountCheck, type CropAnchor, type CropShape, type LibraryView, type PollInput, type SocialFormat,
 } from "@/shared/social-p2";
 import { AccountAvatar, AppLogo } from "./apps-settings";
@@ -35,12 +35,14 @@ import { TikTokPostDialog, directKeys } from "./apps-direct";
 import { LoadErrorInline, LoadFailure } from "@/web/components/load-error-t1g";
 import { BestTimeChips, PinDetailsCard, SnapShare, WritingHelp, useSocialP3 } from "./social-p3"; // R132
 import type { PinDetails } from "@/shared/social-p3";
+import { shrinkPhoto } from "@/web/lib/shrink-image"; // SOCFIX
+import { PHOTO_QUALITIES, photoBudget, SOCIAL_PHOTO_ACCEPT } from "@/shared/social-image"; // SOCFIX
 
 /* ---------------------------------------------------------------- helpers */
 
 export interface ComposerAccount { id: string; app: string; name: string; label: string | null; needsTarget: boolean; account?: ConnectedAccountView; /** SOC1: a chosen Page (its own account id). */ page?: boolean }
 
-interface PickedImage { key: string; src: string; w: number; h: number; upload?: { contentType: string; dataB64: string }; mediaId?: string }
+interface PickedImage { key: string; src: string; w: number; h: number; upload?: { contentType: string; dataB64: string }; mediaId?: string; /** SOCFIX: "Optimised for posting" when it was shrunk. */ note?: string | null }
 
 let seq = 0;
 const nextKey = () => `img${++seq}`;
@@ -54,15 +56,13 @@ function measure(src: string): Promise<{ w: number; h: number }> {
   return new Promise((res) => { const i = new Image(); i.onload = () => res({ w: i.naturalWidth || 1, h: i.naturalHeight || 1 }); i.onerror = () => res({ w: 1, h: 1 }); i.src = src; });
 }
 
+/** SOCFIX: any normal photo works; it is shrunk in the browser to fit every network before upload. */
 async function readFile(file: File): Promise<PickedImage> {
-  if (!["image/jpeg", "image/png"].includes(file.type)) throw new Error("Use a JPEG or PNG image.");
-  if (file.size > SOCIAL_IMAGE_MAX_BYTES) throw new Error("Images can be up to 1 MB. Crop it or pick a smaller one.");
-  const src = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error("That image could not be read.")); r.readAsDataURL(file); });
-  const { w, h } = await measure(src);
-  return { key: nextKey(), src, w, h, upload: { contentType: file.type, dataB64: src.slice(src.indexOf(",") + 1) } };
+  const p = await shrinkPhoto(file);
+  return { key: nextKey(), src: p.src, w: p.w, h: p.h, upload: { contentType: p.contentType, dataB64: p.dataB64 }, note: p.note };
 }
 
-/** Crops in the browser and keeps the result under 1 MB (JPEG, lower quality until it fits). */
+/** Crops in the browser and keeps the result under the photo budget (JPEG, lower quality until it fits). */
 async function cropImage(img: PickedImage, shape: CropShape, anchor: CropAnchor): Promise<PickedImage> {
   const el = await new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => res(i); i.onerror = () => rej(new Error("That image could not be read.")); i.src = img.src; });
   const r = cropRect(el.naturalWidth, el.naturalHeight, shape, anchor);
@@ -70,11 +70,16 @@ async function cropImage(img: PickedImage, shape: CropShape, anchor: CropAnchor)
   const c = document.createElement("canvas");
   c.width = Math.round(r.w * scale); c.height = Math.round(r.h * scale);
   c.getContext("2d")!.drawImage(el, r.x, r.y, r.w, r.h, 0, 0, c.width, c.height);
-  let q = 0.9; let url = c.toDataURL("image/jpeg", q);
-  while (url.length * 0.75 > SOCIAL_IMAGE_MAX_BYTES && q > 0.4) { q -= 0.1; url = c.toDataURL("image/jpeg", q); }
-  if (url.length * 0.75 > SOCIAL_IMAGE_MAX_BYTES) throw new Error("The cropped image is still over 1 MB. Try a smaller one.");
+  const budget = photoBudget().bytes;
+  let url = c.toDataURL("image/jpeg", 0.9);
+  for (const q of PHOTO_QUALITIES) { url = c.toDataURL("image/jpeg", q); if (url.length * 0.75 <= budget) break; }
+  if (url.length * 0.75 > budget) throw new Error("That crop could not be made small enough. Try a smaller part.");
   return { key: nextKey(), src: url, w: c.width, h: c.height, upload: { contentType: "image/jpeg", dataB64: url.slice(url.indexOf(",") + 1) } };
 }
+
+/** SOCFIX: the app's brand focus ring on tabs, for keyboard focus only (a click or tap shows none). An outline, so it
+ * never fights the selected tab's shadow, in light, dark and Forest alike. */
+const TAB_RING = "outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
 
 const FORMAT_ICON: Record<SocialFormat, typeof IconText> = { text: IconText, image: IconImage, carousel: IconLayers, video: IconVideo, story: IconSmartphone };
 
@@ -169,7 +174,7 @@ function Preview(props: { accounts: ComposerAccount[]; text: (app: string) => st
         <div className="flex flex-wrap gap-1" role="tablist" aria-label="Preview for">
           {apps.map((a) => (
             <button key={a.app} type="button" role="tab" aria-selected={cur.app === a.app} onClick={() => setSel(a.app)}
-              className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
+              className={cn("inline-flex min-h-11 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors duration-150 motion-reduce:transition-none sm:min-h-9", TAB_RING,
                 cur.app === a.app ? "bg-surface text-fg elev-1" : "text-muted hover:bg-hover hover:text-fg")}>
               {networkLabel(a.app)}
             </button>
@@ -189,7 +194,7 @@ const CHECK_LOOK: Record<AccountCheck["state"], { label: string; icon: typeof Ic
   out: { label: "Left out", icon: IconXCircle, cls: "text-bad" },
 };
 
-function Checks({ checks, accounts }: { checks: AccountCheck[]; accounts: ComposerAccount[] }) {
+function Checks({ checks, accounts, fix }: { checks: AccountCheck[]; accounts: ComposerAccount[]; /** SOCFIX: the board or community picker, right in a row that needs one. */ fix?: (accountId: string) => ReactNode }) {
   if (!checks.length) return null;
   return (
     <section aria-labelledby="checks-title" data-testid="composer-checks">
@@ -205,6 +210,7 @@ function Checks({ checks, accounts }: { checks: AccountCheck[]; accounts: Compos
               <div className="min-w-0 flex-1">
                 <p><span className="font-medium">{a?.name ?? networkLabel(c.app)}{a?.label ? `, ${a.label}` : ""}</span><span className="text-muted">: {look.label}</span></p>
                 {c.notes.length > 0 && <ul className="mt-0.5 text-[12.5px] text-muted">{c.notes.map((n) => <li key={n}>{n}</li>)}</ul>}
+                {fix && c.state === "out" && <div className="mt-1.5 min-w-0">{fix(c.accountId)}</div>}
               </div>
             </li>
           );
@@ -268,7 +274,7 @@ function LibraryPicker({ open, onClose, onImage, onText }: { open: boolean; onCl
       <div className="mb-3 flex gap-1 rounded-lg bg-fill p-1" role="tablist" aria-label="Library">
         {(["image", "caption", "hashtags"] as const).map((t) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
-            className={cn("min-h-9 flex-1 rounded-md px-2.5 text-[13px] font-medium", tab === t ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg")}>
+            className={cn("min-h-11 flex-1 rounded-md px-2.5 text-[13px] font-medium sm:min-h-9", TAB_RING, tab === t ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg")}>
             {t === "image" ? "Images" : t === "caption" ? "Captions" : "Hashtags"}
           </button>
         ))}
@@ -357,6 +363,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
   const [later, setLater] = useState(initialLater);
   const [at, setAt] = useState(() => localInput(presetAt ? new Date(presetAt) : draft && Date.parse(draft.runAt) > Date.now() ? new Date(draft.runAt) : new Date(Date.now() + 3600_000)));
   const [imageError, setImageError] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
   const [serverProblems, setServerProblems] = useState<Record<string, string>>({});
   const [cropFor, setCropFor] = useState<PickedImage | null>(null);
   const [libOpen, setLibOpen] = useState(false);
@@ -379,6 +386,9 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
     return () => { live = false; };
   }, [draft]);
 
+  const targetField = (a: ComposerAccount, where: "pick" | "check") => (a.needsTarget && a.account
+    ? <TargetField account={a.account} where={where} value={picked[a.id] ?? ""} onChange={(v, name) => { setPicked((p) => ({ ...p, [a.id]: v })); setNames((n) => ({ ...n, [a.id]: name ?? v })); }} />
+    : null);
   const brokenText = (id: string) => { const h = health.data?.get(id); return h && !h.ok && h.code !== "check_failed" ? (h.text ?? SOCIAL_ERROR_COPY.reconnect!) : null; };
   const chosen = accounts.filter((a) => a.id in picked);
   const apps = [...new Set(chosen.map((a) => a.app))];
@@ -447,13 +457,18 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
   const addFiles = async (files: FileList | null) => {
     setImageError(null);
     if (!files?.length) return;
+    setPreparing(true);
     try {
-      const list = await Promise.all([...files].map(readFile));
+      // One after another: a few 12 MB photos decoded at once can run a phone out of memory.
+      const list: PickedImage[] = [];
+      for (const f of [...files].slice(0, 10)) list.push(await readFile(f));
       setImages((cur) => (format === "carousel" ? [...cur, ...list].slice(0, 10) : list.slice(0, 1)));
       if (list.length > 1 && format !== "carousel") setFormat("carousel");
       else if (format === "text") setFormat(list.length > 1 ? "carousel" : "image");
-    } catch (err) { setImageError(err instanceof Error ? err.message : "That image could not be read."); }
+    } catch (err) { setImageError(err instanceof Error ? err.message : "That photo could not be read."); } finally { setPreparing(false); }
   };
+  const shrunk = images.filter((i) => i.note);
+  const optimised = preparing ? "Preparing your photo for posting" : shrunk.length === 1 ? shrunk[0]!.note! : shrunk.length > 1 ? `${shrunk.length} photos optimised for posting` : null;
 
   const primaryMode: "send" | "submit" = canPublish ? "send" : "submit";
   const blocked = !hasContent || (!sendable.length && !tiktokPicked) || tooSoon || tooFar;
@@ -491,7 +506,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
                       {multi && a.account?.avatarUrl ? <AccountAvatar account={a.account} size="sm" /> : <AppLogo slug={a.app} name={a.name} size="sm" />}
                       <span className={cn("min-w-0 truncate font-medium", greyed && "text-muted")} title={multi ? (a.label ? `${a.name}, ${a.label}` : a.name) : undefined}>{a.name}{a.label ? <span className="font-normal text-muted">, {a.label}</span> : null}</span>
                     </label>
-                    {on && a.needsTarget && a.account && <TargetField account={a.account} value={picked[a.id] ?? ""} onChange={(v, name) => { setPicked((p) => ({ ...p, [a.id]: v })); setNames((n) => ({ ...n, [a.id]: name ?? v })); }} />}
+                    {on && targetField(a, "pick")}
                     {why && <p id={`why-${a.id}`} className="basis-full pl-[26px] text-[12.5px] text-muted" data-testid="pick-why">{why}</p>}
                   </li>
                 );
@@ -561,7 +576,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
             <div className="mb-2 flex flex-wrap items-center gap-1" role="tablist" aria-label="Text for" data-testid="network-tabs">
               {["all", ...apps.filter((a) => a !== "tiktok" || tiktokPicked)].map((t) => (
                 <button key={t} type="button" role="tab" id={`tab-${t}`} aria-selected={(tabApp ?? "all") === t} aria-controls="post-text-panel" onClick={() => setTab(t)}
-                  className={cn("relative inline-flex min-h-9 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50",
+                  className={cn("relative inline-flex min-h-11 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors duration-150 motion-reduce:transition-none sm:min-h-9", TAB_RING,
                     (tabApp ?? "all") === t ? "bg-fill text-fg" : "text-muted hover:bg-hover hover:text-fg")} data-testid={`tab-${t}`}>
                   {t === "all" ? "All networks" : networkLabel(t)}
                   {t !== "all" && edited(t) && <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-label="has its own text" />}
@@ -602,15 +617,16 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
                   ))}
                   {(format === "carousel" ? images.length < 10 : images.length === 0) && (
                     <li>
-                      <button type="button" onClick={() => file.current?.click()} className="grid h-24 w-24 place-items-center rounded-lg border border-dashed border-line text-[12.5px] text-muted hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50" data-testid="add-image">
+                      <button type="button" disabled={preparing} aria-busy={preparing} onClick={() => file.current?.click()} className="grid h-24 w-24 disabled:opacity-60 place-items-center rounded-lg border border-dashed border-line text-[12.5px] text-muted hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50" data-testid="add-image">
                         <span className="flex flex-col items-center gap-1"><IconPlus className="h-4 w-4" aria-hidden />Add</span>
                       </button>
                     </li>
                   )}
                 </ul>
-                <input ref={file} type="file" accept="image/jpeg,image/png" multiple={format === "carousel"} className="sr-only" tabIndex={-1} aria-hidden data-testid="social-image" onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }} />
-                {imageError && <p className="mt-1.5 text-[12.5px] text-bad" role="alert">{imageError}</p>}
-                <p className="mt-1.5 text-[12px] text-subtle">JPEG or PNG, up to 1 MB each.</p>
+                <input ref={file} type="file" accept={SOCIAL_PHOTO_ACCEPT} multiple={format === "carousel"} className="sr-only" tabIndex={-1} aria-hidden data-testid="social-image" onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }} />
+                {imageError && <p className="mt-1.5 text-[12.5px] text-bad" role="alert" data-testid="image-error">{imageError}</p>}
+                {optimised && !imageError && <p className="mt-1.5 flex items-center gap-1.5 text-[12.5px] text-muted" role="status" data-testid="image-optimised"><IconCheckCircle className="h-3.5 w-3.5 shrink-0 text-ok" aria-hidden />{optimised}</p>}
+                <p className="mt-1.5 text-[12px] text-subtle">Any photo works: JPEG, PNG, WebP or HEIC. Large photos are resized to fit each network.</p>
               </>)}
             </div>
           )}
@@ -678,7 +694,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
             </div>
           )}
 
-          <Checks checks={checks} accounts={accounts} />
+          <Checks checks={checks} accounts={accounts} fix={(id) => { const a = chosen.find((x) => x.id === id); return a && a.needsTarget && a.account && !(picked[id] ?? "").trim() ? targetField(a, "check") : null; }} />
 
           <div className="space-y-3 border-t border-line pt-4">
             <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="When">
@@ -735,26 +751,42 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
   );
 }
 
-/** Page, board or community for one account (the network needs one), loaded when the account is picked. */
-function TargetField({ account, value, onChange }: { account: ConnectedAccountView; value: string; onChange: (v: string, name?: string) => void }) {
+/** Page, board or community for one account (the network needs one), loaded when the account is picked. SOCFIX: a
+ * single board is picked by itself, and the one this workspace used last for the account is offered first. */
+function TargetField({ account, value, onChange, where = "pick" }: { account: ConnectedAccountView; value: string; onChange: (v: string, name?: string) => void; where?: "pick" | "check" }) {
   const net = SOCIAL_NETWORKS[account.app]!;
   const listed = net.target?.kind === "page" || net.target?.kind === "board";
   const q = useQuery({
     queryKey: ["apps", "targets", account.id],
-    queryFn: () => api.get<{ targets: { id: string; name: string }[] }>(`/apps/accounts/${encodeURIComponent(account.id)}/targets`).then((r) => r.targets),
-    enabled: listed, staleTime: 300_000,
+    queryFn: () => api.get<{ targets: { id: string; name: string }[]; last?: { id: string; name: string } | null }>(`/apps/accounts/${encodeURIComponent(account.id)}/targets`),
+    enabled: !!net.target, staleTime: 300_000,
   });
-  useEffect(() => { if (listed && !value && q.data?.length === 1) onChange(q.data[0]!.id, q.data[0]!.name); }, [listed, value, q.data, onChange]);
+  const list = q.data?.targets;
+  const def = q.data ? defaultTarget(listed, list ?? [], q.data.last ?? null) : null;
+  // Once per field: a person who clears it to type another community is not refilled.
+  const filled = useRef(false);
+  useEffect(() => { if (!filled.current && !value && def) { filled.current = true; onChange(def.id, def.name); } }, [value, def?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!net.target) return null;
   const label = `${net.target.label} for ${account.appName}`;
-  if (!listed) return <Input aria-label={label} placeholder="Community, for example r/smallbusiness" value={value} onChange={(e) => onChange(e.target.value)} className="h-9 max-w-xs text-sm" />;
+  const tid = where === "check" ? `check-target-${account.app}` : `target-${account.app}`;
+  const size = "h-11 w-full min-w-0 max-w-xs text-sm sm:h-9";
+  if (!listed) return (
+    <span className="flex min-w-0 flex-col gap-1">
+      <Input aria-label={label} placeholder="Community, for example r/smallbusiness" value={value} onChange={(e) => onChange(e.target.value)} className={size} data-testid={tid} />
+      {q.data?.last && value.replace(/^\/?r\//i, "") !== q.data.last.id.replace(/^\/?r\//i, "") && (
+        <button type="button" className="inline-flex min-h-11 w-fit items-center rounded-md px-1 text-[12.5px] font-medium text-brand hover:underline sm:min-h-0" onClick={() => onChange(q.data!.last!.id, q.data!.last!.name)} data-testid={`${tid}-last`}>
+          Use r/{q.data.last.id.replace(/^\/?r\//i, "")} again
+        </button>
+      )}
+    </span>
+  );
   if (q.isPending) return <Skeleton className="h-9 w-56 rounded-lg" />;
   if (q.error) return <LoadErrorInline onRetry={() => q.refetch()} />;
-  if (!q.data?.length) return <span className="text-muted">No {net.target.label.toLowerCase()}s found on this account.</span>;
+  if (!list?.length) return <span className="text-[12.5px] text-muted" data-testid={`${tid}-none`}>No {net.target.label.toLowerCase()}s on this account yet. Make one on {account.appName}, then come back.</span>;
   return (
-    <Select aria-label={label} value={value} onChange={(e) => onChange(e.target.value, q.data?.find((t) => t.id === e.target.value)?.name)} className="h-9 max-w-xs text-sm" data-testid={`target-${account.app}`}>
+    <Select aria-label={label} value={value} onChange={(e) => onChange(e.target.value, list.find((t) => t.id === e.target.value)?.name)} className={size} data-testid={tid}>
       <option value="">Pick a {net.target.label.toLowerCase()}</option>
-      {q.data.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+      {list.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
     </Select>
   );
 }

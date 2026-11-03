@@ -3,6 +3,7 @@
  * post (a TikTok video with TikTok's own posting rules, or a Threads post), see your recent videos and posts, and
  * disconnect. Server: /api/direct and /api/connections/oauth/{tiktok,threads}/.
  */
+import { shrinkPhoto } from "@/web/lib/shrink-image"; // SOCFIX
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router";
@@ -431,11 +432,10 @@ function ThreadsFeed() {
   );
 }
 
+/** SOCFIX: any normal photo; shrunk in the browser to fit (Threads takes up to 8 MB, the stored copy 1 MB). */
 async function readImage(file: File) {
-  if (!["image/jpeg", "image/png"].includes(file.type)) throw new Error("Use a JPEG or PNG image.");
-  if (file.size > 1_000_000) throw new Error("Images can be up to 1 MB.");
-  const data = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error("That image could not be read.")); r.readAsDataURL(file); });
-  return { contentType: file.type, dataB64: data.slice(data.indexOf(",") + 1), preview: data };
+  const p = await shrinkPhoto(file, ["threads"]);
+  return { contentType: p.contentType, dataB64: p.dataB64, preview: p.src };
 }
 
 function ThreadsPostDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -460,7 +460,7 @@ function ThreadsPostDialog({ open, onClose }: { open: boolean; onClose: () => vo
         <Field label="Post" hint={`${count} of ${THREADS_TEXT_MAX}`} error={count > THREADS_TEXT_MAX ? `Threads allows ${THREADS_TEXT_MAX} characters.` : undefined}>
           {(p) => <Textarea {...p} autoFocus rows={5} value={text} onChange={(e) => setText(e.target.value)} placeholder="What's new?" onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && canPost) { e.preventDefault(); post.mutate(); } }} />}
         </Field>
-        <input ref={input} type="file" accept="image/jpeg,image/png" className="sr-only" aria-label="Image" onChange={(e) => { const f = e.target.files?.[0]; setImgError(null); if (f) readImage(f).then(setImage, (err: Error) => setImgError(err.message)); e.target.value = ""; }} />
+        <input ref={input} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" className="sr-only" aria-label="Image" onChange={(e) => { const f = e.target.files?.[0]; setImgError(null); if (f) readImage(f).then(setImage, (err: Error) => setImgError(err.message)); e.target.value = ""; }} />
         {image ? (
           <div className="flex items-center gap-3">
             <img src={image.preview} alt="Picked image" className="h-16 w-16 rounded-lg border border-line object-cover" />

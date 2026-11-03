@@ -2,6 +2,8 @@
  * R117: Social, Library. Images, saved captions and hashtag sets the team reuses, tagged by campaign, with the free
  * plan limits shown (200 items, 25 MB of images, 1 MB per image). Use in a post opens New post with it picked.
  */
+import { shrinkPhoto } from "@/web/lib/shrink-image"; // SOCFIX
+import { SOCIAL_PHOTO_ACCEPT } from "@/shared/social-image"; // SOCFIX
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
@@ -40,11 +42,8 @@ function AddDialog({ kind, open, onClose, campaigns, item }: { kind: LibraryKind
   const pick = (f: File | undefined) => {
     setErr(null);
     if (!f) return;
-    if (!["image/jpeg", "image/png"].includes(f.type)) { setErr("Use a JPEG or PNG image."); return; }
-    if (f.size > LIBRARY_LIMITS.imageMax) { setErr("Images can be up to 1 MB."); return; }
-    const r = new FileReader();
-    r.onload = () => { const src = String(r.result); setImage({ contentType: f.type, dataB64: src.slice(src.indexOf(",") + 1), src }); if (!name) setName(f.name.replace(/\.[a-z]+$/i, "")); };
-    r.readAsDataURL(f);
+    // SOCFIX: any normal photo; shrunk in the browser to fit every network.
+    void shrinkPhoto(f).then((p) => { setImage({ contentType: p.contentType, dataB64: p.dataB64, src: p.src }); if (!name) setName(f.name.replace(/\.[a-z0-9]+$/i, "")); }, (e: unknown) => setErr(e instanceof Error ? e.message : "That photo could not be read."));
   };
   const k = item?.kind ?? kind;
   const title = item ? `Edit ${KIND_LABEL[k].toLowerCase()}` : k === "image" ? "Add an image" : k === "caption" ? "Save a caption" : "Save a hashtag set";
@@ -56,10 +55,10 @@ function AddDialog({ kind, open, onClose, campaigns, item }: { kind: LibraryKind
           <div>
             {image ? <img src={image.src} alt="" className="max-h-48 rounded-lg border border-line" /> : (
               <button type="button" onClick={() => file.current?.click()} className="grid h-32 w-full place-items-center rounded-lg border border-dashed border-line text-[13px] text-muted hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50">
-                <span className="flex flex-col items-center gap-1"><IconImage className="h-5 w-5" aria-hidden />Choose a JPEG or PNG, up to 1 MB</span>
+                <span className="flex flex-col items-center gap-1"><IconImage className="h-5 w-5" aria-hidden />Choose a photo. Large ones are resized to fit</span>
               </button>
             )}
-            <input ref={file} type="file" accept="image/jpeg,image/png" className="sr-only" tabIndex={-1} aria-hidden data-testid="library-file" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
+            <input ref={file} type="file" accept={SOCIAL_PHOTO_ACCEPT} className="sr-only" tabIndex={-1} aria-hidden data-testid="library-file" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
           </div>
         )}
         <div><label htmlFor="lib-name" className="mb-1.5 block text-[13px] font-medium">Name</label><Input id="lib-name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} className="h-9 text-sm" data-testid="library-name" /></div>

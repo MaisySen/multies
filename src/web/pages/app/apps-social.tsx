@@ -3,6 +3,8 @@
  * community where the network needs one), add an image, post now or set a time. Each account then shows its own
  * result. Ctrl or Cmd plus Enter posts. Server: /api/social.
  */
+import { shrinkPhoto } from "@/web/lib/shrink-image"; // SOCFIX
+import { SOCIAL_PHOTO_ACCEPT } from "@/shared/social-image"; // SOCFIX
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
@@ -16,7 +18,7 @@ import { IconCheckCircle, IconClock, IconClose, IconExternalLink, IconImage, Ico
 import { Dialog } from "@/web/components/ui/dialog";
 import { ConfirmDialog } from "@/web/components/ui/confirm";
 import {
-  SOCIAL_ERROR_COPY, SOCIAL_RECONNECT_ERRORS, socialErrorText, SOCIAL_IMAGE_MAX_BYTES, SOCIAL_MAX_AHEAD_DAYS, SOCIAL_NETWORKS, SOCIAL_TEXT_MAX,
+  SOCIAL_ERROR_COPY, SOCIAL_RECONNECT_ERRORS, socialErrorText, SOCIAL_MAX_AHEAD_DAYS, SOCIAL_NETWORKS, SOCIAL_TEXT_MAX,
   type ConnectedAccountView, type DeleteOutcome, type PostStatus, type PostTargetView, type SocialAccountHealth, type SocialPostView,
 } from "@/shared/integrations";
 import { AppLogo, useAppAccounts } from "./apps-settings";
@@ -49,11 +51,10 @@ function localInput(d: Date) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+/** SOCFIX: any normal photo; shrunk in the browser to fit every network. */
 async function readImage(file: File): Promise<{ contentType: string; dataB64: string; preview: string }> {
-  if (!["image/jpeg", "image/png"].includes(file.type)) throw new Error("Use a JPEG or PNG image.");
-  if (file.size > SOCIAL_IMAGE_MAX_BYTES) throw new Error("Images can be up to 1 MB.");
-  const preview = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error("That image could not be read.")); r.readAsDataURL(file); });
-  return { contentType: file.type, dataB64: preview.slice(preview.indexOf(",") + 1), preview };
+  const p = await shrinkPhoto(file);
+  return { contentType: p.contentType, dataB64: p.dataB64, preview: p.src };
 }
 
 /** Pages or boards for one account, loaded when it is picked. */
@@ -234,7 +235,7 @@ export function Composer({ accounts, onPosted, heading = true }: { accounts: Con
         </div>
 
         <div>
-          <p className="mb-2 text-[13px] font-medium">Image <span className="font-normal text-subtle">(JPEG or PNG, up to 1 MB)</span></p>
+          <p className="mb-2 text-[13px] font-medium">Image <span className="font-normal text-subtle">(any photo, resized to fit)</span></p>
           {image ? (
             <div className="relative inline-block">
               <img src={image.preview} alt="Image for the post" className="h-28 w-28 rounded-lg border border-line object-cover" />
@@ -243,7 +244,7 @@ export function Composer({ accounts, onPosted, heading = true }: { accounts: Con
           ) : (
             <Button type="button" variant="outline" size="sm" onClick={() => file.current?.click()}><IconImage className="h-4 w-4" aria-hidden />Add image</Button>
           )}
-          <input ref={file} type="file" accept="image/jpeg,image/png" className="sr-only" tabIndex={-1} aria-hidden data-testid="social-image"
+          <input ref={file} type="file" accept={SOCIAL_PHOTO_ACCEPT} className="sr-only" tabIndex={-1} aria-hidden data-testid="social-image"
             onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; setImageError(null); try { setImage(await readImage(f)); } catch (err) { setImageError((err as Error).message); } }} />
           {imageError && <p role="alert" className="mt-2 text-[13px] text-bad">{imageError}</p>}
         </div>
