@@ -493,6 +493,7 @@ export function createApp(deps: Deps) {
       videoRecVid1: !!(deps.config.videoRecVid1 && deps.config.meetings), // VID1: admins save a video of the call on their own device
       videoRecVid2: !!(deps.config.videoRecVid2 && deps.config.videoRecVid1 && deps.config.meetings), // VID2: pause, layouts, crash safe, chat and transcript files
       translateR116: !!deps.config.translateR116, // R116: translate and read aloud
+      langR104: !!deps.config.langR104, // R104: the app in Nepali and Hindi
       vaultR128: !!deps.config.vaultR128, // R128: team password vault
       peopleR126: !!deps.config.peopleR126, // R126: staff directory, onboarding, assets
       mentionsTd5: !!deps.config.mentionsTd5, // TD5: record mentions and References
@@ -586,6 +587,9 @@ export function createApp(deps: Deps) {
   // R116: translate a mail, doc or chat message (TRANSLATE_R116). Off: no such endpoint, as before. Loaded on first use.
   app.post("/api/translate", async (c, next) => (c.var.deps.config.translateR116 ? next() : notFoundHandler(c)), requireAuth,
     async (c) => (await import("./routes/translate-r116")).translateHandler(c));
+  // R104: workspace admins suggest a better wording for a translated string (LANG_R104). Off: no such endpoint. Loaded on first use.
+  app.on(["GET", "POST"], "/api/i18n/suggestions", async (c, next) => (c.var.deps.config.langR104 ? next() : notFoundHandler(c)), requireAuth,
+    async (c) => (await import("./routes/i18n-r104")).suggestionsHandler(c));
   app.route("/api/tools/share", toolsShareRoutes()); // Tools P2: share links
   app.route("/api/tools/requests", toolsRequestRoutes()); // R88: file requests
   app.route("/api/portals", portalRoutes()); // R120: client portals

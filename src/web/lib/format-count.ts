@@ -2,9 +2,12 @@
  * DESF1: counts read the way the person's locale writes numbers ("15,536" in English, "15.536" in German), and nav
  * badges stop at "99+" so a pill never grows wider than its slot.
  */
+import { uiLocale } from "@/web/i18n"; // R104
 const cache = new Map<string, Intl.NumberFormat>();
 
 function userLocale(): string | undefined {
+  const ui = uiLocale(); // R104: Nepali or Hindi while the app shows one (their own digits and grouping)
+  if (ui) return ui;
   try { return typeof navigator !== "undefined" ? (navigator.languages?.[0] ?? navigator.language) || undefined : undefined; } catch { return undefined; }
 }
 

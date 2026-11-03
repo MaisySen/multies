@@ -80,6 +80,8 @@ export interface AppConfig {
   videoRecVid2?: boolean;
   /** R116: TRANSLATE_R116 (translate and read aloud in mail, docs and chat). Off unless set; off = today exactly. */
   translateR116?: boolean;
+  /** R104: LANG_R104 (the app in Nepali and Hindi: language picker, translated pages, admin wording suggestions). Off unless set; off = today exactly. */
+  langR104?: boolean;
   /** R125: tables, a doc type (TABLES_R125). Off unless set. */
   tablesR125?: boolean;
   /** POL1: P1 polish, new behaviour only (tables and courses to the trash with restore). POLISH_POL1, off unless set. */
@@ -503,6 +505,7 @@ const EnvSchema = z.object({
   VIDEO_REC_VID1: z.string().optional(), // VID1
   VIDEO_REC_VID2: z.string().optional(), // VID2
   TRANSLATE_R116: z.string().optional(), // R116
+  LANG_R104: z.string().optional(), // R104 (production names it in FEATURES; no own var)
   /** R116: switches named in one comma list (for example "VIDEO_REC_VID2,TRANSLATE_R116"), read like their own var set to "on". Production holds its switches here because the Worker allows at most 128 text bindings (vars plus secrets). */
   FEATURES: z.string().optional(),
   TABLES_R125: z.string().optional(), // R125
@@ -842,6 +845,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     videoRecVid1: ["1", "true", "on"].includes(String(env.VIDEO_REC_VID1 ?? "").toLowerCase()), // VID1
     videoRecVid2: flagOn(env.VIDEO_REC_VID2, "VIDEO_REC_VID2", env.FEATURES), // VID2 (its own var or FEATURES)
     translateR116: flagOn(env.TRANSLATE_R116, "TRANSLATE_R116", env.FEATURES), // R116 (its own var or FEATURES)
+    langR104: flagOn(env.LANG_R104, "LANG_R104", env.FEATURES), // R104 (FEATURES)
     tablesR125: ["1", "true", "on"].includes(String(env.TABLES_R125 ?? "").toLowerCase()), // R125
     polishPol1: ["1", "true", "on"].includes(String(env.POLISH_POL1 ?? "").toLowerCase()), // POL1
     tablesExclude: env.TABLES_EXCLUDE ?? "", // R125

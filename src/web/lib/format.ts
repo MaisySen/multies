@@ -1,4 +1,8 @@
 import { DEFAULT_TIMEZONE, LOCALE } from "@/shared/locale";
+import { t, uiLocale } from "@/web/i18n"; // R104
+
+/** R104: the locale dates and numbers use: Nepali or Hindi while the app shows one (LANG_R104), else en-AU as before. */
+const loc = () => uiLocale() ?? LOCALE;
 
 /** The browser's own time zone, when it says. */
 export function browserTimeZone(): string | null {
@@ -18,11 +22,11 @@ export const tz = () => displayTimeZone;
 const dayKey = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: displayTimeZone });
 
 /** Locale-formatted number (en-AU). */
-export const num = (n: number) => n.toLocaleString(LOCALE);
+export const num = (n: number) => n.toLocaleString(loc());
 
 /** A date (no time) in the workspace's zone, e.g. "23 Oct 2026". */
 export function shortDate(iso: string | Date, opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }) {
-  return new Date(iso).toLocaleDateString(LOCALE, { ...opts, timeZone: opts.timeZone ?? displayTimeZone });
+  return new Date(iso).toLocaleDateString(loc(), { ...opts, timeZone: opts.timeZone ?? displayTimeZone });
 }
 
 export function formatBytes(n: number): string {
@@ -34,22 +38,34 @@ export function formatBytes(n: number): string {
   return `${v < 10 ? v.toFixed(1) : Math.round(v)} ${units[i]}`;
 }
 
+let relCache: [string, Intl.RelativeTimeFormat] | null = null;
+function relative(): Intl.RelativeTimeFormat | null {
+  const l = uiLocale();
+  if (!l) return null;
+  if (!relCache || relCache[0] !== l) { try { relCache = [l, new Intl.RelativeTimeFormat(l, { numeric: "auto", style: "short" })]; } catch { return null; } }
+  return relCache[1];
+}
+
 export function timeAgo(iso: string | Date | null | undefined): string {
-  if (!iso) return "never";
+  if (!iso) return uiLocale() ? t("time.never") : "never";
   const d = typeof iso === "string" ? new Date(iso) : iso;
   const raw = Math.round((Date.now() - d.getTime()) / 1000);
   if (raw < -45) {
     const f = -raw;
+    const ahead = relative(); // R104
+    if (ahead) return f < 3600 ? ahead.format(Math.round(f / 60), "minute") : f < 86400 ? ahead.format(Math.round(f / 3600), "hour") : ahead.format(Math.round(f / 86400), "day");
     if (f < 3600) return `in ${Math.round(f / 60)}m`;
     if (f < 86400) return `in ${Math.round(f / 3600)}h`;
     return `in ${Math.round(f / 86400)}d`;
   }
   const s = Math.max(0, raw);
-  if (s < 45) return "just now";
+  if (s < 45) return uiLocale() ? t("time.just_now") : "just now";
+  const rel = uiLocale() ? relative() : null; // R104: Nepali and Hindi say it their own way
+  if (rel && s < 86400 * 7) return s < 3600 ? rel.format(-Math.round(s / 60), "minute") : s < 86400 ? rel.format(-Math.round(s / 3600), "hour") : rel.format(-Math.round(s / 86400), "day");
   if (s < 3600) return `${Math.round(s / 60)}m ago`;
   if (s < 86400) return `${Math.round(s / 3600)}h ago`;
   if (s < 86400 * 7) return `${Math.round(s / 86400)}d ago`;
-  return d.toLocaleDateString(LOCALE, { month: "short", day: "numeric", timeZone: displayTimeZone });
+  return d.toLocaleDateString(loc(), { month: "short", day: "numeric", timeZone: displayTimeZone });
 }
 
 /** Inbox-style date: time today, weekday this week, date otherwise. */
@@ -57,19 +73,19 @@ export function mailDate(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
   const o = { timeZone: displayTimeZone };
-  if (dayKey(d) === dayKey(now)) return d.toLocaleTimeString(LOCALE, { ...o, hour: "numeric", minute: "2-digit" });
-  if (now.getTime() - d.getTime() < 6 * 86400_000) return d.toLocaleDateString(LOCALE, { ...o, weekday: "short" });
+  if (dayKey(d) === dayKey(now)) return d.toLocaleTimeString(loc(), { ...o, hour: "numeric", minute: "2-digit" });
+  if (now.getTime() - d.getTime() < 6 * 86400_000) return d.toLocaleDateString(loc(), { ...o, weekday: "short" });
   const sameYear = dayKey(d).slice(0, 4) === dayKey(now).slice(0, 4);
-  return d.toLocaleDateString(LOCALE, { ...o, month: "short", day: "numeric", year: sameYear ? undefined : "numeric" });
+  return d.toLocaleDateString(loc(), { ...o, month: "short", day: "numeric", year: sameYear ? undefined : "numeric" });
 }
 
 export function fullDate(iso: string): string {
-  return new Date(iso).toLocaleString(LOCALE, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: displayTimeZone });
+  return new Date(iso).toLocaleString(loc(), { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: displayTimeZone });
 }
 
 /** A meeting time in the workspace's zone, with the zone named ("Mon, 26 Oct, 10:00 am AEDT"). */
 export function zonedDateTime(iso: string): string {
-  return new Date(iso).toLocaleString(LOCALE, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: displayTimeZone, timeZoneName: "short" });
+  return new Date(iso).toLocaleString(loc(), { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: displayTimeZone, timeZoneName: "short" });
 }
 
 /** Minutes the zone is ahead of UTC at this instant. */
