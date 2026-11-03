@@ -37,6 +37,8 @@ import { BestTimeChips, PinDetailsCard, SnapShare, WritingHelp, useSocialP3 } fr
 import type { PinDetails } from "@/shared/social-p3";
 import { shrinkPhoto } from "@/web/lib/shrink-image"; // SOCFIX
 import { PHOTO_QUALITIES, photoBudget, SOCIAL_PHOTO_ACCEPT } from "@/shared/social-image"; // SOCFIX
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-social"; // R104B
 
 /* ---------------------------------------------------------------- helpers */
 
@@ -129,13 +131,13 @@ function PreviewCard({ app, name, label, text, images, linkCard, poll, firstComm
         <AppLogo slug={app} name={name} size="sm" />
         <div className="min-w-0">
           <p className="truncate text-[13.5px] font-semibold leading-tight">{label ?? name}</p>
-          <p className="text-[12px] text-subtle">Just now</p>
+          <p className="text-[12px] text-subtle">{tr("social.just_now")}</p>
         </div>
       </header>
       {fit.fit === "no" ? <p className="px-3.5 py-4 text-[13px] text-muted">{fit.why}</p> : (<>
         <p className="whitespace-pre-line break-words px-3.5 py-2.5 text-[13.5px] leading-relaxed">
-          {shown || <span className="text-subtle">Your text shows here.</span>}
-          {long && <button type="button" className="ml-1 font-medium text-muted underline underline-offset-2" onClick={() => setMore((m) => !m)}>{more ? "See less" : "See more"}</button>}
+          {shown || <span className="text-subtle">{tr("social.your_text_shows_here")}</span>}
+          {long && <button type="button" className="ml-1 font-medium text-muted underline underline-offset-2" onClick={() => setMore((m) => !m)}>{more ? tr("social.see_less") : tr("social.see_more")}</button>}
         </p>
         {showImages.length > 0 && (
           <div className={cn("grid gap-0.5 bg-fill", showImages.length > 1 && "grid-cols-2")}>
@@ -155,11 +157,11 @@ function PreviewCard({ app, name, label, text, images, linkCard, poll, firstComm
         )}
         {poll && app === "linkedin" && (
           <div className="mx-3.5 mb-3 space-y-1.5" data-testid="preview-poll">
-            <p className="text-[13px] font-medium">{poll.question || "Your poll question"}</p>
+            <p className="text-[13px] font-medium">{poll.question || tr("social.your_poll_question")}</p>
             {poll.options.filter((o) => o.trim()).map((o, i) => <p key={i} className="rounded-full border border-line px-3 py-1.5 text-center text-[13px] text-brand-hover">{o}</p>)}
           </div>
         )}
-        {firstComment.trim() && r?.firstComment && <p className="border-t border-line px-3.5 py-2 text-[12.5px] text-muted"><span className="font-medium text-fg">First comment:</span> {firstComment}</p>}
+        {firstComment.trim() && r?.firstComment && <p className="border-t border-line px-3.5 py-2 text-[12.5px] text-muted"><span className="font-medium text-fg">{tr("social.first_comment")}</span> {firstComment}</p>}
       </>)}
     </article>
   );
@@ -169,11 +171,11 @@ function Preview(props: { accounts: ComposerAccount[]; text: (app: string) => st
   const apps = [...new Map(props.accounts.map((a) => [a.app, a])).values()];
   const [sel, setSel] = useState<string | null>(null);
   const cur = apps.find((a) => a.app === sel) ?? apps[0];
-  if (!cur) return <p className="rounded-xl border border-dashed border-line px-4 py-10 text-center text-[13px] text-muted" data-testid="preview-empty">Pick an account to see how the post looks there.</p>;
+  if (!cur) return <p className="rounded-xl border border-dashed border-line px-4 py-10 text-center text-[13px] text-muted" data-testid="preview-empty">{tr("social.pick_an_account_to_see_how_the_post_looks_there")}</p>;
   return (
     <div className="space-y-3" data-testid="composer-preview">
       {apps.length > 1 && (
-        <div className="flex flex-wrap gap-1" role="tablist" aria-label="Preview for">
+        <div className="flex flex-wrap gap-1" role="tablist" aria-label={tr("social.preview_for")}>
           {apps.map((a) => (
             <button key={a.app} type="button" role="tab" aria-selected={cur.app === a.app} onMouseDown={keepFocus} onClick={() => setSel(a.app)}
               className={cn("inline-flex min-h-11 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors duration-150 motion-reduce:transition-none sm:min-h-9", TAB_RING,
@@ -191,16 +193,16 @@ function Preview(props: { accounts: ComposerAccount[]; text: (app: string) => st
 /* ---------------------------------------------------------------- checks */
 
 const CHECK_LOOK: Record<AccountCheck["state"], { label: string; icon: typeof IconCheckCircle; cls: string }> = {
-  ready: { label: "Ready", icon: IconCheckCircle, cls: "text-ok" },
-  changed: { label: "Will be changed", icon: IconWarning, cls: "text-warn" },
-  out: { label: "Left out", icon: IconXCircle, cls: "text-bad" },
+  ready: { get label() { return tr("social.ready"); }, icon: IconCheckCircle, cls: "text-ok" },
+  changed: { get label() { return tr("social.will_be_changed"); }, icon: IconWarning, cls: "text-warn" },
+  out: { get label() { return tr("social.left_out"); }, icon: IconXCircle, cls: "text-bad" },
 };
 
 function Checks({ checks, accounts, fix }: { checks: AccountCheck[]; accounts: ComposerAccount[]; /** SOCFIX: the board or community picker, right in a row that needs one. */ fix?: (accountId: string) => ReactNode }) {
   if (!checks.length) return null;
   return (
     <section aria-labelledby="checks-title" data-testid="composer-checks">
-      <h3 id="checks-title" className="mb-2 text-[13px] font-medium">Checks before sending</h3>
+      <h3 id="checks-title" className="mb-2 text-[13px] font-medium">{tr("social.checks_before_sending")}</h3>
       <ul className="divide-y divide-line rounded-lg border border-line">
         {checks.map((c) => {
           const a = accounts.find((x) => x.id === c.accountId)!;
@@ -231,11 +233,11 @@ function CropDialog({ img, open, onClose, onDone }: { img: PickedImage | null; o
   const ratio = CROP_SHAPES.find((s) => s.id === shape)?.ratio ?? null;
   const box = img && ratio ? cropRect(img.w, img.h, shape, anchor) : null;
   return (
-    <Dialog open={open} onClose={onClose} title="Crop image" description="Pick the shape each network shows best. Instagram takes 4:5 to 1.91:1; stories are 9:16."
-      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button loading={busy} disabled={!img} data-testid="crop-apply" onClick={async () => {
+    <Dialog open={open} onClose={onClose} title={tr("social.crop_image")} description={tr("social.pick_the_shape_each_network_shows_best_instagram")}
+      footer={<><Button variant="ghost" onClick={onClose}>{tr("common.cancel")}</Button><Button loading={busy} disabled={!img} data-testid="crop-apply" onClick={async () => {
         if (!img) return; setBusy(true);
         try { onDone(await cropImage(img, shape, anchor)); onClose(); } catch (e) { toast.error(errorMessage(e, "Couldn't crop that image.")); } finally { setBusy(false); }
-      }}>Crop</Button></>}>
+      }}>{tr("social.crop")}</Button></>}>
       {img && (
         <div className="space-y-4">
           <div className="relative mx-auto w-fit max-w-full overflow-hidden rounded-lg bg-fill">
@@ -245,15 +247,15 @@ function CropDialog({ img, open, onClose, onDone }: { img: PickedImage | null; o
                 style={{ left: `${(box.x / img.w) * 100}%`, top: `${(box.y / img.h) * 100}%`, width: `${(box.w / img.w) * 100}%`, height: `${(box.h / img.h) * 100}%` }} />
             )}
           </div>
-          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Shape">
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={tr("social.shape")}>
             {CROP_SHAPES.map((s) => (
               <button key={s.id} type="button" role="radio" aria-checked={shape === s.id} onClick={() => setShape(s.id)}
                 className={cn("min-h-9 rounded-md border px-2.5 text-[13px] transition-colors duration-150", shape === s.id ? "border-brand bg-brand-soft text-fg" : "border-line text-muted hover:bg-hover")}>{s.label}</button>
             ))}
           </div>
-          <label className="flex items-center gap-2 text-[13px]">Keep
-            <Select value={anchor} onChange={(e) => setAnchor(e.target.value as CropAnchor)} className="h-9 w-auto text-sm" aria-label="Part to keep">
-              <option value="start">Top or left</option><option value="center">Middle</option><option value="end">Bottom or right</option>
+          <label className="flex items-center gap-2 text-[13px]">{tr("social.keep")}
+            <Select value={anchor} onChange={(e) => setAnchor(e.target.value as CropAnchor)} className="h-9 w-auto text-sm" aria-label={tr("social.part_to_keep")}>
+              <option value="start">{tr("social.top_or_left")}</option><option value="center">{tr("social.middle")}</option><option value="end">{tr("social.bottom_or_right")}</option>
             </Select>
           </label>
         </div>
@@ -272,22 +274,22 @@ function LibraryPicker({ open, onClose, onImage, onText }: { open: boolean; onCl
   const [tab, setTab] = useState<"image" | "caption" | "hashtags">("image");
   const items = (lib.data?.items ?? []).filter((i) => i.kind === tab);
   return (
-    <Dialog open={open} onClose={onClose} title="Pick from the library" description="Images, saved captions and hashtag sets your team keeps in Social, Library.">
-      <div className="mb-3 flex gap-1 rounded-lg bg-fill p-1" role="tablist" aria-label="Library">
+    <Dialog open={open} onClose={onClose} title={tr("social.pick_from_the_library")} description={tr("social.images_saved_captions_and_hashtag_sets_your_team")}>
+      <div className="mb-3 flex gap-1 rounded-lg bg-fill p-1" role="tablist" aria-label={tr("nav.library")}>
         {(["image", "caption", "hashtags"] as const).map((t) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
             className={cn("min-h-11 flex-1 rounded-md px-2.5 text-[13px] font-medium sm:min-h-9", TAB_RING, tab === t ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg")}>
-            {t === "image" ? "Images" : t === "caption" ? "Captions" : "Hashtags"}
+            {t === "image" ? tr("social.images") : t === "caption" ? tr("social.captions") : tr("social.hashtags")}
           </button>
         ))}
       </div>
       {lib.isPending ? <Skeleton className="h-32 rounded-lg" /> : lib.error ? <LoadFailure error={lib.error} onRetry={() => lib.refetch()} />
-        : !items.length ? <p className="rounded-lg bg-fill px-3 py-6 text-center text-[13px] text-muted">Nothing here yet. Add some in <Link to="/app/social/library" className="font-medium text-fg underline underline-offset-2">Library</Link>.</p>
+        : !items.length ? <p className="rounded-lg bg-fill px-3 py-6 text-center text-[13px] text-muted">{tr("social.nothing_here_yet_add_some_in")} <Link to="/app/social/library" className="font-medium text-fg underline underline-offset-2">{tr("nav.library")}</Link>.</p>
         : tab === "image" ? (
           <ul className="grid grid-cols-3 gap-2" data-testid="library-pick-images">
             {items.map((i) => (
               <li key={i.id}>
-                <button type="button" className="group block w-full overflow-hidden rounded-lg border border-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50" aria-label={`Use ${i.name}`}
+                <button type="button" className="group block w-full overflow-hidden rounded-lg border border-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50" aria-label={tr("social.use_name", { name: i.name })}
                   onClick={async () => { const mediaId = i.mediaId; if (!i.imageUrl || !mediaId) return; const d = await measure(i.imageUrl); onImage({ key: nextKey(), src: i.imageUrl, w: d.w, h: d.h, mediaId }); onClose(); }}>
                   <img src={i.imageUrl ?? ""} alt="" className="aspect-square w-full object-cover transition-transform duration-150 group-hover:scale-[1.03] motion-reduce:transition-none" />
                   <span className="block truncate px-1.5 py-1 text-left text-[12px]">{i.name}</span>
@@ -438,8 +440,8 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
       void qc.invalidateQueries({ queryKey: postsKey });
       setServerProblems({});
       if (multi && rememberKey && mode !== "draft") { try { localStorage.setItem(rememberKey, JSON.stringify(r.post.targets.map((t) => t.accountId).slice(0, 50))); } catch { /* storage full or off */ } }
-      if (mode === "draft") { toast.success("Draft saved"); navigate("/app/social/posts?status=drafts"); return; }
-      if (mode === "submit") { toast.success("Sent for approval. Owners and admins see it in Approvals."); navigate("/app/social/posts?status=waiting"); return; }
+      if (mode === "draft") { toast.success(tr("compose.draft_saved")); navigate("/app/social/posts?status=drafts"); return; }
+      if (mode === "submit") { toast.success(tr("social.sent_for_approval_owners_and_admins_see_it_in_ap")); navigate("/app/social/posts?status=waiting"); return; }
       if (later) { toast.success(`Scheduled for ${whenText(r.post.runAt)}`); navigate("/app/social/posts"); return; }
       // The composer clears behind the sheet; TikTok (when picked) opens after it.
       setTiktokAfter(tiktokPicked ? textOf("tiktok") : null);
@@ -527,15 +529,15 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]" data-testid="composer-v2">
       <Card>
-        <form className="space-y-5 p-5 md:p-6" aria-label="New post" data-testid="social-composer" onSubmit={(e) => { e.preventDefault(); submit(); }}
+        <form className="space-y-5 p-5 md:p-6" aria-label={tr("nav.new_post")} data-testid="social-composer" onSubmit={(e) => { e.preventDefault(); submit(); }}
           onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); } }}>
           {draft && (draft.status === "changes" || draft.status === "rejected") && draft.reviewNote && (
-            <p className="rounded-lg bg-warn-soft px-3 py-2 text-[13px] text-warn" data-testid="composer-review-note"><IconWarning className="mr-1.5 inline h-4 w-4" aria-hidden />{draft.status === "changes" ? "Changes asked" : "Rejected"}: {draft.reviewNote}</p>
+            <p className="rounded-lg bg-warn-soft px-3 py-2 text-[13px] text-warn" data-testid="composer-review-note"><IconWarning className="mr-1.5 inline h-4 w-4" aria-hidden />{draft.status === "changes" ? tr("social.changes_asked") : tr("social.rejected")}: {draft.reviewNote}</p>
           )}
 
           <fieldset>
-            <legend className="mb-2 text-[13px] font-medium">Format</legend>
-            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Format" data-testid="format-picker">
+            <legend className="mb-2 text-[13px] font-medium">{tr("social.format")}</legend>
+            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={tr("social.format")} data-testid="format-picker">
               {SOCIAL_FORMATS.map((f) => {
                 const Icon = FORMAT_ICON[f];
                 return (
@@ -550,7 +552,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
           </fieldset>
 
           <fieldset>
-            <legend className="mb-2 text-[13px] font-medium">Post to</legend>
+            <legend className="mb-2 text-[13px] font-medium">{tr("social.post_to")}</legend>
             {multi ? (
               <div className="space-y-3" data-testid="account-groups">
                 {groups.map(([app, list]) => (
@@ -559,7 +561,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
                       <div className="mb-1 flex items-center justify-between gap-2 px-1">
                         <span className="text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">{list[0]!.account?.appName ?? list[0]!.name}</span>
                         <Button type="button" variant="ghost" size="sm" onClick={() => selectAll(list)} data-testid={`select-all-${app}`}>
-                          {list.filter(selectable).every((a) => a.id in picked) ? "Clear" : "Select all"}
+                          {list.filter(selectable).every((a) => a.id in picked) ? tr("common.clear") : tr("social.select_all")}
                         </Button>
                       </div>
                     )}
@@ -575,52 +577,53 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
           </fieldset>
 
           <div>
-            <div className="mb-2 flex flex-wrap items-center gap-1" role="tablist" aria-label="Text for" data-testid="network-tabs">
+            <div className="mb-2 flex flex-wrap items-center gap-1" role="tablist" aria-label={tr("social.text_for")} data-testid="network-tabs">
               {["all", ...apps.filter((a) => a !== "tiktok" || tiktokPicked)].map((t) => (
                 <button key={t} type="button" role="tab" id={`tab-${t}`} aria-selected={(tabApp ?? "all") === t} aria-controls="post-text-panel" onMouseDown={keepFocus} onClick={() => setTab(t)}
                   className={cn("relative inline-flex min-h-11 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors duration-150 motion-reduce:transition-none sm:min-h-9", TAB_RING,
                     (tabApp ?? "all") === t ? "bg-fill text-fg" : "text-muted hover:bg-hover hover:text-fg")} data-testid={`tab-${t}`}>
-                  {t === "all" ? "All networks" : networkLabel(t)}
-                  {t !== "all" && edited(t) && <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-label="has its own text" />}
+                  {t === "all" ? tr("social.all_networks") : networkLabel(t)}
+                  {t !== "all" && edited(t) && <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-label={tr("social.has_its_own_text")} />}
                 </button>
               ))}
             </div>
             <div id="post-text-panel" role="tabpanel" aria-labelledby={`tab-${tabApp ?? "all"}`}>
-              <label htmlFor="social-text" className="sr-only">{tabApp ? `Text for ${networkLabel(tabApp)}` : "Text"}</label>
-              <Textarea id="social-text" rows={6} value={curText} data-testid="social-text" placeholder={tabApp ? `Text for ${networkLabel(tabApp)}` : "What do you want to share?"}
+              <label htmlFor="social-text" className="sr-only">{tabApp ? `Text for ${networkLabel(tabApp)}` : tr("social.text")}</label>
+              <Textarea id="social-text" rows={6} value={curText} data-testid="social-text" placeholder={tabApp ? `Text for ${networkLabel(tabApp)}` : tr("social.what_do_you_want_to_share")}
                 onChange={(e) => { const v = e.target.value; if (tabApp) setTexts((m) => ({ ...m, [tabApp]: v })); else setText(v); }} />
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]" data-testid="counters">
                 {(tabApp ? [tabApp] : apps).filter((a) => NETWORK_RULES[a]).map((a) => {
                   const n = charCount(textOf(a)); const max = NETWORK_RULES[a]!.maxChars; const over = n > max;
                   return <span key={a} className={cn("tabular-nums", over ? "font-medium text-bad" : n > max * 0.9 ? "text-warn" : "text-subtle")} data-testid={`counter-${a}`}>{networkLabel(a)} {n.toLocaleString()} / {max.toLocaleString()}</span>;
                 })}
-                {!apps.length && <span className="text-subtle tabular-nums">{charCount(text).toLocaleString()} characters</span>}
-                {tabApp && edited(tabApp) && <button type="button" className="ml-auto font-medium text-muted underline underline-offset-2 hover:text-fg" onClick={() => setTexts((m) => { const n = { ...m }; delete n[tabApp]; return n; })} data-testid="use-main-text">Use the main text</button>}
-                {tabApp && !edited(tabApp) && <span className="ml-auto text-subtle">Same as the main text until you edit it</span>}
+                {!apps.length && <span className="text-subtle tabular-nums">{tr("social.value_characters", { value: charCount(text).toLocaleString() })}</span>}
+                {tabApp && edited(tabApp) && <button type="button" className="ml-auto font-medium text-muted underline underline-offset-2 hover:text-fg" onClick={() => setTexts((m) => { const n = { ...m }; delete n[tabApp]; return n; })} data-testid="use-main-text">{tr("social.use_the_main_text")}</button>}
+                {tabApp && !edited(tabApp) && <span className="ml-auto text-subtle">{tr("social.same_as_the_main_text_until_you_edit_it")}</span>}
               </div>
             </div>
           </div>
 
           {(usesImages || format === "video" || format === "story") && (
             <div>
-              <p className="mb-2 text-[13px] font-medium">{format === "carousel" ? "Images (up to 10)" : format === "image" ? "Image" : "Video"}</p>
+              <p className="mb-2 text-[13px] font-medium">{format === "carousel" ? tr("social.images_up_to_10") : format === "image" ? tr("social.image") : tr("social.video")}</p>
               {format === "video" || format === "story" ? (
-                <p className="rounded-lg bg-fill px-3 py-2.5 text-[13px] text-muted">Videos go to TikTok through its own form, with TikTok's required choices. Pick TikTok above, then continue.</p>
+                <p className="rounded-lg bg-fill px-3 py-2.5 text-[13px] text-muted">{tr("social.videos_go_to_tiktok_through_its_own_form_with_ti")}</p>
               ) : (<>
                 <ul className="flex flex-wrap gap-2" data-testid="composer-images">
                   {images.map((im, i) => (
                     <li key={im.key} className="relative">
-                      <img src={im.src} alt={`Image ${i + 1}`} className="h-24 w-24 rounded-lg border border-line object-cover" />
-                      <div className="absolute inset-x-1 bottom-1 flex justify-between gap-1">
-                        <button type="button" className="rounded bg-black/60 px-1.5 py-0.5 text-[11.5px] font-medium text-white" onClick={() => setCropFor(im)} aria-label={`Crop image ${i + 1}`}>Crop</button>
-                        <button type="button" className="rounded bg-black/60 p-0.5 text-white" onClick={() => setImages((c) => c.filter((x) => x.key !== im.key))} aria-label={`Remove image ${i + 1}`}><IconClose className="h-3.5 w-3.5" aria-hidden /></button>
+                      <img src={im.src} alt={tr("social.image_count", { count: i + 1 })} className="h-24 w-24 rounded-lg border border-line object-cover" />
+                      {/* R104B (HQ MB-359): each button fills a 44 px corner of the thumbnail so it is easy to tap; the small pill stays the look. */}
+                      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between">
+                        <button type="button" className="flex min-h-11 min-w-11 items-end justify-start rounded-lg p-1 text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand" onClick={() => setCropFor(im)} aria-label={tr("social.crop_image_count", { count: i + 1 })} data-testid="composer-image-crop"><span className="rounded bg-black/60 px-1.5 py-0.5 text-[11.5px] font-medium">{tr("social.crop")}</span></button>
+                        <button type="button" className="flex min-h-11 min-w-11 items-end justify-end rounded-lg p-1 text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand" onClick={() => setImages((c) => c.filter((x) => x.key !== im.key))} aria-label={tr("social.remove_image_count", { count: i + 1 })} data-testid="composer-image-remove"><span className="rounded bg-black/60 p-0.5"><IconClose className="h-3.5 w-3.5" aria-hidden /></span></button>
                       </div>
                     </li>
                   ))}
                   {(format === "carousel" ? images.length < 10 : images.length === 0) && (
                     <li>
                       <button type="button" disabled={preparing} aria-busy={preparing} onClick={() => file.current?.click()} className="grid h-24 w-24 disabled:opacity-60 place-items-center rounded-lg border border-dashed border-line text-[12.5px] text-muted hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50" data-testid="add-image">
-                        <span className="flex flex-col items-center gap-1"><IconPlus className="h-4 w-4" aria-hidden />Add</span>
+                        <span className="flex flex-col items-center gap-1"><IconPlus className="h-4 w-4" aria-hidden />{tr("common.add")}</span>
                       </button>
                     </li>
                   )}
@@ -628,7 +631,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
                 <input ref={file} type="file" accept={SOCIAL_PHOTO_ACCEPT} multiple={format === "carousel"} className="sr-only" tabIndex={-1} aria-hidden data-testid="social-image" onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }} />
                 {imageError && <p className="mt-1.5 text-[12.5px] text-bad" role="alert" data-testid="image-error">{imageError}</p>}
                 {optimised && !imageError && <p className="mt-1.5 flex items-center gap-1.5 text-[12.5px] text-muted" role="status" data-testid="image-optimised"><IconCheckCircle className="h-3.5 w-3.5 shrink-0 text-ok" aria-hidden />{optimised}</p>}
-                <p className="mt-1.5 text-[12px] text-subtle">Any photo works: JPEG, PNG, WebP or HEIC. Large photos are resized to fit each network.</p>
+                <p className="mt-1.5 text-[12px] text-subtle">{tr("social.any_photo_works_jpeg_png_webp_or_heic_large_phot")}</p>
               </>)}
             </div>
           )}
@@ -642,48 +645,48 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
                 onTexts={(m) => { beforeHelp.current = { text, texts }; setTexts((cur) => ({ ...cur, ...m })); }}
                 restore={() => { const b = beforeHelp.current; if (b) { setText(b.text); setTexts(b.texts); beforeHelp.current = null; } }} />
             )}
-            <Button type="button" variant="outline" size="sm" onClick={() => setLibOpen(true)} data-testid="open-library"><IconBookmark className="h-4 w-4" aria-hidden />Library</Button>
-            <Button type="button" variant="outline" size="sm" className="xl:hidden" onClick={() => setPreviewOpen(true)} data-testid="open-preview"><IconEye className="h-4 w-4" aria-hidden />Preview</Button>
-            <Button type="button" variant="ghost" size="sm" aria-expanded={moreOpen} onClick={() => setMoreOpen((o) => !o)} data-testid="more-options">{moreOpen ? "Fewer options" : "More options"}</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setLibOpen(true)} data-testid="open-library"><IconBookmark className="h-4 w-4" aria-hidden />{tr("nav.library")}</Button>
+            <Button type="button" variant="outline" size="sm" className="xl:hidden" onClick={() => setPreviewOpen(true)} data-testid="open-preview"><IconEye className="h-4 w-4" aria-hidden />{tr("social.preview")}</Button>
+            <Button type="button" variant="ghost" size="sm" aria-expanded={moreOpen} onClick={() => setMoreOpen((o) => !o)} data-testid="more-options">{moreOpen ? tr("social.fewer_options") : tr("social.more_options")}</Button>
           </div>
 
           {moreOpen && (
             <div className="grid gap-4 rounded-lg border border-line p-4 sm:grid-cols-2" data-testid="extras">
               <div className="sm:col-span-2">
-                <label htmlFor="campaign" className="mb-1.5 block text-[13px] font-medium">Campaign</label>
-                <Input id="campaign" list="campaign-list" value={campaign} maxLength={40} onChange={(e) => setCampaign(e.target.value)} placeholder="For example Spring launch" className="h-9 text-sm" data-testid="campaign" />
+                <label htmlFor="campaign" className="mb-1.5 block text-[13px] font-medium">{tr("social.campaign")}</label>
+                <Input id="campaign" list="campaign-list" value={campaign} maxLength={40} onChange={(e) => setCampaign(e.target.value)} placeholder={tr("social.for_example_spring_launch")} className="h-9 text-sm" data-testid="campaign" />
                 <datalist id="campaign-list">{campaigns.map((c) => <option key={c} value={c} />)}</datalist>
               </div>
               {showFirstComment && (
                 <div className="sm:col-span-2">
-                  <label htmlFor="first-comment" className="mb-1.5 block text-[13px] font-medium">First comment <span className="font-normal text-muted">(Facebook)</span></label>
-                  <Textarea id="first-comment" rows={2} maxLength={2000} value={firstComment} onChange={(e) => setFirstComment(e.target.value)} placeholder="Posted under the post right after it goes out" data-testid="first-comment" />
+                  <label htmlFor="first-comment" className="mb-1.5 block text-[13px] font-medium">{tr("social.first_comment_2")} <span className="font-normal text-muted">{tr("social.facebook")}</span></label>
+                  <Textarea id="first-comment" rows={2} maxLength={2000} value={firstComment} onChange={(e) => setFirstComment(e.target.value)} placeholder={tr("social.posted_under_the_post_right_after_it_goes_out")} data-testid="first-comment" />
                 </div>
               )}
               {showLinkCard && (
                 <label className="flex min-h-11 items-center gap-2 text-[13px] sm:col-span-2">
                   <input type="checkbox" checked={linkCard} onChange={(e) => setLinkCard(e.target.checked)} className="h-4 w-4 accent-[var(--color-brand)]" data-testid="link-card" />
-                  Show a link card for the first link (Facebook)
+                  {tr("social.show_a_link_card_for_the_first_link_facebook")}
                 </label>
               )}
               {showPoll && (
                 <div className="space-y-2 sm:col-span-2" data-testid="poll">
                   <label className="flex min-h-11 items-center gap-2 text-[13px] font-medium">
                     <input type="checkbox" checked={!!poll} onChange={(e) => setPoll(e.target.checked ? { question: "", options: ["", ""], days: 3 } : null)} className="h-4 w-4 accent-[var(--color-brand)]" data-testid="poll-toggle" />
-                    Add a poll (LinkedIn)
+                    {tr("social.add_a_poll_linkedin")}
                   </label>
                   {poll && (<>
-                    <Input aria-label="Poll question" value={poll.question} maxLength={140} onChange={(e) => setPoll({ ...poll, question: e.target.value })} placeholder="Question" className="h-9 text-sm" data-testid="poll-question" />
+                    <Input aria-label={tr("social.poll_question")} value={poll.question} maxLength={140} onChange={(e) => setPoll({ ...poll, question: e.target.value })} placeholder={tr("social.question")} className="h-9 text-sm" data-testid="poll-question" />
                     {poll.options.map((o, i) => (
                       <div key={i} className="flex gap-2">
-                        <Input aria-label={`Option ${i + 1}`} value={o} maxLength={30} onChange={(e) => setPoll({ ...poll, options: poll.options.map((x, j) => (j === i ? e.target.value : x)) })} placeholder={`Option ${i + 1}`} className="h-9 text-sm" data-testid={`poll-option-${i}`} />
-                        {poll.options.length > 2 && <Button type="button" variant="ghost" size="sm" aria-label={`Remove option ${i + 1}`} onClick={() => setPoll({ ...poll, options: poll.options.filter((_, j) => j !== i) })}><IconClose className="h-4 w-4" aria-hidden /></Button>}
+                        <Input aria-label={tr("social.option_count", { count: i + 1 })} value={o} maxLength={30} onChange={(e) => setPoll({ ...poll, options: poll.options.map((x, j) => (j === i ? e.target.value : x)) })} placeholder={tr("social.option_count", { count: i + 1 })} className="h-9 text-sm" data-testid={`poll-option-${i}`} />
+                        {poll.options.length > 2 && <Button type="button" variant="ghost" size="sm" aria-label={tr("social.remove_option_count", { count: i + 1 })} onClick={() => setPoll({ ...poll, options: poll.options.filter((_, j) => j !== i) })}><IconClose className="h-4 w-4" aria-hidden /></Button>}
                       </div>
                     ))}
                     <div className="flex flex-wrap items-center gap-2">
-                      {poll.options.length < 4 && <Button type="button" variant="ghost" size="sm" onClick={() => setPoll({ ...poll, options: [...poll.options, ""] })}><IconPlus className="h-4 w-4" aria-hidden />Add option</Button>}
-                      <Select aria-label="Poll runs for" value={String(poll.days)} onChange={(e) => setPoll({ ...poll, days: Number(e.target.value) })} className="h-9 w-auto text-sm">
-                        {POLL_DAYS.map((d) => <option key={d} value={d}>{d === 1 ? "1 day" : `${d} days`}</option>)}
+                      {poll.options.length < 4 && <Button type="button" variant="ghost" size="sm" onClick={() => setPoll({ ...poll, options: [...poll.options, ""] })}><IconPlus className="h-4 w-4" aria-hidden />{tr("social.add_option")}</Button>}
+                      <Select aria-label={tr("social.poll_runs_for")} value={String(poll.days)} onChange={(e) => setPoll({ ...poll, days: Number(e.target.value) })} className="h-9 w-auto text-sm">
+                        {POLL_DAYS.map((d) => <option key={d} value={d}>{d === 1 ? tr("social.1_day") : `${d} days`}</option>)}
                       </Select>
                     </div>
                   </>)}
@@ -691,7 +694,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
               )}
               <label className="flex min-h-11 items-start gap-2 text-[13px] sm:col-span-2">
                 <input type="checkbox" checked={evergreen} onChange={(e) => setEvergreen(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[var(--color-brand)]" data-testid="evergreen" />
-                <span><span className="font-medium">Evergreen</span><span className="block text-muted">After it goes out, it comes back into free time slots every few weeks (never twice in a row, 3 a week at most).</span></span>
+                <span><span className="font-medium">{tr("social.evergreen")}</span><span className="block text-muted">{tr("social.after_it_goes_out_it_comes_back_into_free_time_s")}</span></span>
               </label>
             </div>
           )}
@@ -699,45 +702,45 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
           <Checks checks={checks} accounts={accounts} fix={(id) => { const a = chosen.find((x) => x.id === id); return a && a.needsTarget && a.account && !(picked[id] ?? "").trim() ? targetField(a, "check") : null; }} />
 
           <div className="space-y-3 border-t border-line pt-4">
-            <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="When">
+            <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label={tr("social.when")}>
               {([["now", "Now"], ["later", "Later"]] as const).map(([k, l]) => (
                 <button key={k} type="button" role="radio" aria-checked={(k === "later") === later} onClick={() => setLater(k === "later")} data-testid={`when-${k}`}
                   className={cn("inline-flex min-h-11 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium sm:min-h-9", (k === "later") === later ? "bg-fill text-fg" : "text-muted hover:bg-hover")}>
                   {k === "now" ? <IconSend className="h-4 w-4" aria-hidden /> : <IconClock className="h-4 w-4" aria-hidden />}{l}
                 </button>
               ))}
-              {later && <Input type="datetime-local" aria-label="Post at" value={at} min={localInput(new Date())} onChange={(e) => setAt(e.target.value)} className="h-9 w-auto text-sm" data-testid="social-at" />}
+              {later && <Input type="datetime-local" aria-label={tr("social.post_at")} value={at} min={localInput(new Date())} onChange={(e) => setAt(e.target.value)} className="h-9 w-auto text-sm" data-testid="social-at" />}
               {later && (slots.data?.slots.length ? (
                 <Button type="button" variant="outline" size="sm" onClick={() => setAt(localInput(new Date(slots.data!.slots[0]!)))} data-testid="next-slot">
-                  <IconCalendarClock className="h-4 w-4" aria-hidden />Next free slot, {whenText(slots.data.slots[0]!)}
+                  <IconCalendarClock className="h-4 w-4" aria-hidden />{tr("social.next_free_slot")} {whenText(slots.data.slots[0]!)}
                 </Button>
-              ) : slots.data && !slots.data.hasSlots ? <Link to="/app/social?slots=1" className="text-[12.5px] font-medium text-muted max-sm:inline-flex max-sm:min-h-11 max-sm:items-center underline underline-offset-2 hover:text-fg">Set weekly time slots</Link> : null)}
+              ) : slots.data && !slots.data.hasSlots ? <Link to="/app/social?slots=1" className="text-[12.5px] font-medium text-muted max-sm:inline-flex max-sm:min-h-11 max-sm:items-center underline underline-offset-2 hover:text-fg">{tr("social.set_weekly_time_slots")}</Link> : null)}
             </div>
             {later && p3on && <BestTimeChips apps={apps.filter((a) => a !== "tiktok")} onPick={(iso) => setAt(localInput(new Date(iso)))} />}
-            {tooSoon && <p className="text-[12.5px] text-warn">Pick a time at least a minute from now.</p>}
-            {tooFar && <p className="text-[12.5px] text-warn">Posts can be set up to {SOCIAL_MAX_AHEAD_DAYS} days ahead.</p>}
-            {leftOut > 0 && sendable.length > 0 && <p className="text-[12.5px] text-muted" data-testid="left-out-note">{leftOut === 1 ? "1 account is left out" : `${leftOut} accounts are left out`}; the rest get the post.</p>}
+            {tooSoon && <p className="text-[12.5px] text-warn">{tr("social.pick_a_time_at_least_a_minute_from_now")}</p>}
+            {tooFar && <p className="text-[12.5px] text-warn">{tr("social.posts_can_be_set_up_to_social_max_ahead_days_day", { SOCIAL_MAX_AHEAD_DAYS })}</p>}
+            {leftOut > 0 && sendable.length > 0 && <p className="text-[12.5px] text-muted" data-testid="left-out-note">{leftOut === 1 ? tr("social.1_account_is_left_out") : `${leftOut} accounts are left out`}{tr("social.the_rest_get_the_post")}</p>}
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {!canPublish && <p className="mr-auto text-[12.5px] text-muted">An owner or admin approves it before it goes out.</p>}
-              <Button type="button" variant="ghost" disabled={!hasContent || save.isPending} onClick={() => save.mutate("draft")} data-testid="save-draft" className="max-sm:flex-1">Save draft</Button>
+              {!canPublish && <p className="mr-auto text-[12.5px] text-muted">{tr("social.an_owner_or_admin_approves_it_before_it_goes_out")}</p>}
+              <Button type="button" variant="ghost" disabled={!hasContent || save.isPending} onClick={() => save.mutate("draft")} data-testid="save-draft" className="max-sm:flex-1">{tr("social.save_draft")}</Button>
               <Button type="submit" disabled={blocked || save.isPending} loading={save.isPending && save.variables !== "draft"} data-testid="social-submit" className="max-sm:flex-1">
                 <IconSend className="h-4 w-4" aria-hidden />{primaryLabel}
               </Button>
             </div>
-            {tiktokPicked && sendable.length > 0 && <p className="text-right text-[12.5px] text-muted">TikTok goes through its own form after this.</p>}
+            {tiktokPicked && sendable.length > 0 && <p className="text-right text-[12.5px] text-muted">{tr("social.tiktok_goes_through_its_own_form_after_this")}</p>}
             {p3on && <div className="border-t border-line pt-3" data-testid="snap-share-row"><SnapShare text={textFor(text, texts, "snapchat")} /></div>}
           </div>
         </form>
       </Card>
 
-      <aside className="hidden xl:block" aria-label="Preview">
+      <aside className="hidden xl:block" aria-label={tr("social.preview")}>
         <div className="sticky top-4 space-y-2">
-          <h2 className="px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">Preview</h2>
+          <h2 className="px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">{tr("social.preview")}</h2>
           <Preview {...previewProps} />
         </div>
       </aside>
 
-      <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} title="Preview" description="How the post looks on each network.">
+      <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} title={tr("social.preview")} description={tr("social.how_the_post_looks_on_each_network")}>
         <Preview {...previewProps} />
       </Dialog>
       <CropDialog img={cropFor} open={!!cropFor} onClose={() => setCropFor(null)} onDone={(n) => setImages((c) => c.map((x) => (x.key === cropFor?.key ? n : x)))} />
@@ -776,21 +779,21 @@ function TargetField({ account, value, onChange, where = "pick" }: { account: Co
   const box = where === "pick" ? "flex basis-full flex-col gap-1 pl-6.5 sm:basis-auto sm:pl-0" : "flex flex-col gap-1";
   if (!listed) return (
     <span className={box}>
-      <Input aria-label={label} placeholder="Community, like r/smallbusiness" value={value} onChange={(e) => onChange(e.target.value)} className={size} data-testid={tid} />
+      <Input aria-label={label} placeholder={tr("social.community_like_r_smallbusiness")} value={value} onChange={(e) => onChange(e.target.value)} className={size} data-testid={tid} />
       {q.data?.last && value.replace(/^\/?r\//i, "") !== q.data.last.id.replace(/^\/?r\//i, "") && (
         <button type="button" className="inline-flex min-h-11 w-fit items-center rounded-md px-1 text-[12.5px] font-medium text-brand hover:underline sm:min-h-0" onClick={() => onChange(q.data!.last!.id, q.data!.last!.name)} data-testid={`${tid}-last`}>
-          Use r/{q.data.last.id.replace(/^\/?r\//i, "")} again
+          {tr("social.use_r")}{q.data.last.id.replace(/^\/?r\//i, "")} {tr("social.again")}
         </button>
       )}
     </span>
   );
   if (q.isPending) return <Skeleton className="h-9 w-56 rounded-lg" />;
   if (q.error) return <LoadErrorInline onRetry={() => q.refetch()} />;
-  if (!list?.length) return <span className={cn(box, "text-[12.5px] text-muted")} data-testid={`${tid}-none`}>No {net.target.label.toLowerCase()}s on this account yet. Make one on {account.appName}, then come back.</span>;
+  if (!list?.length) return <span className={cn(box, "text-[12.5px] text-muted")} data-testid={`${tid}-none`}>{tr("social.no")} {net.target.label.toLowerCase()}{tr("social.s_on_this_account_yet_make_one_on")} {account.appName}{tr("social.then_come_back")}</span>;
   return (
     <span className={box}>
       <Select aria-label={label} value={value} onChange={(e) => onChange(e.target.value, list.find((t) => t.id === e.target.value)?.name)} className={size} data-testid={tid}>
-        <option value="">Pick a {net.target.label.toLowerCase()}</option>
+        <option value="">{tr("social.pick_a")} {net.target.label.toLowerCase()}</option>
         {list.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
       </Select>
     </span>
