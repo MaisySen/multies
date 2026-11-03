@@ -88,7 +88,7 @@ export function PagePicker({ account, open, onClose }: { account: ConnectedAccou
       ) : undefined}>
       <div data-testid="page-picker" className="min-w-0">
         {avail.isPending ? (
-          <div className="space-y-2" aria-busy="true" aria-label={`Loading ${what}`}>{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-lg" />)}</div>
+          <div className="space-y-2" role="status" aria-busy="true" aria-label={`Loading ${what}`}>{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-lg" />)}</div>
         ) : avail.error ? (
           <div className="rounded-lg border border-line p-4 text-[13.5px]" role="alert" data-testid="pages-error">
             <p className="flex items-start gap-2"><IconWarning className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden /><span className="min-w-0">{errorMessage(avail.error, `${LOAD_ERROR_TITLE}. ${LOAD_ERROR_BODY}`)}</span></p>
