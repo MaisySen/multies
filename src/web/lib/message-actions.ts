@@ -5,7 +5,7 @@
  * (tests/phone2-r25.test.ts); the hooks that use them are in ./use-compact.ts.
  */
 
-export type MessageActionId = "react" | "thread" | "copy" | "triage" | "task" | "pin" | "unpin" | "edit" | "delete" | "report" | "block";
+export type MessageActionId = "react" | "thread" | "copy" | "translate" | "read" | "triage" | "task" | "pin" | "unpin" | "edit" | "delete" | "report" | "block";
 export interface MessageAction { id: MessageActionId; label: string; danger?: boolean }
 
 export interface MessageActionInput {
@@ -25,6 +25,8 @@ export interface MessageActionInput {
   /** R35: someone else's message from a person (not an agent or the system): Report message and Block. */
   canReport?: boolean;
   authorName?: string;
+  /** R116: Translate and Read aloud (TRANSLATE_R116). */
+  lang?: boolean;
 }
 
 /** The actions a person may take on one message, in the order the sheet lists them. */
@@ -33,6 +35,7 @@ export function messageActions(i: MessageActionInput): MessageAction[] {
   const out: MessageAction[] = [{ id: "react", label: "React" }];
   if (!i.inThread) out.push({ id: "thread", label: "Reply in thread" });
   if (i.hasText) out.push({ id: "copy", label: "Copy text" });
+  if (i.lang && i.hasText) out.push({ id: "translate", label: "Translate" }, { id: "read", label: "Read aloud" }); // R116
   if (i.canTriage) out.push({ id: "triage", label: "Send to triage" });
   out.push({ id: "task", label: "Make task" });
   if (i.canPin && !i.isReply) out.push(i.pinned ? { id: "unpin", label: "Unpin" } : { id: "pin", label: "Pin to channel" });

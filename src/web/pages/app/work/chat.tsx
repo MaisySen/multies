@@ -6,7 +6,8 @@ import { CatchupCard } from "@/web/components/catchup-card"; // R31
 import { chatPollMs, useLiveChat, useOutbox } from "@/web/lib/live-chat"; // R32
 import { ChatLiveLine } from "./chat-live-r32"; // R32
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconAgent, IconAttachment, IconBack, IconBlock, IconChat, IconClose, IconDocs, IconFlag, IconHash, IconInbox, IconLink, IconLock, IconMail, IconMore, IconPin, IconPinOff, IconPlus, IconSend, IconTasks, IconTeam } from "@/web/components/ui/icon";
+import { IconAgent, IconAttachment, IconBack, IconBlock, IconChat, IconClose, IconDocs, IconFlag, IconHash, IconInbox, IconLink, IconLock, IconMail, IconMore, IconPin, IconPinOff, IconPlus, IconSend, IconTasks, IconTeam, IconGlobe, IconVolume } from "@/web/components/ui/icon";
+import { ChatLangLazy } from "@/web/components/lang-tools-r116-lazy"; // R116
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { formatBytes, initials, mailDate } from "@/web/lib/format";
@@ -17,7 +18,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { Avatar, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
-import { useMe } from "@/web/lib/queries";
+import { useConfig, useMe } from "@/web/lib/queries";
 import { useStickToBottom } from "@/web/lib/stick-to-bottom";
 import { composerHint, isPhoneWidth, isTouchOnly } from "@/web/lib/phone";
 import { shouldOpenDefaultChannel } from "./chat-list-r49";
@@ -96,9 +97,12 @@ function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onRea
   const compact = useCompactActions();
   const [sheet, setSheet] = useState(false);
   const press = useLongPress(() => setSheet(true), compact && !m.deleted);
-  const actions = compact ? messageActions({ deleted: m.deleted, inThread: !!inThread, mine, role, canPin: !!onPin, isReply: !!m.parentId, pinned: !!m.pinnedAt, canTriage: !!onTriage, hasText: !!m.body.trim(), canReport: !!onReport, authorName: m.author.name }) : [];
+  // R116: Translate and Read aloud on a text message (TRANSLATE_R116).
+  const langOn = !!useConfig().data?.translateR116 && !call && !m.poll && !!m.body.trim();
+  const [langReq, setLangReq] = useState<{ kind: "translate" | "read"; n: number } | null>(null);
+  const actions = compact ? messageActions({ deleted: m.deleted, inThread: !!inThread, mine, role, canPin: !!onPin, isReply: !!m.parentId, pinned: !!m.pinnedAt, canTriage: !!onTriage, hasText: !!m.body.trim(), canReport: !!onReport, authorName: m.author.name, lang: langOn }) : [];
   const runAction = (id: string) => {
-    if (id === "thread") onThread?.(); else if (id === "copy") void copyText(preview(m)); else if (id === "triage") onTriage?.(); else if (id === "task") onTask();
+    if (id === "thread") onThread?.(); else if (id === "copy") void copyText(preview(m)); else if (id === "translate" || id === "read") setLangReq({ kind: id, n: Date.now() }); else if (id === "triage") onTriage?.(); else if (id === "task") onTask();
     else if (id === "pin" || id === "unpin") onPin?.(); else if (id === "edit") onEdit(); else if (id === "delete") onDelete();
     else if (id === "report") onReport?.(); else if (id === "block") onBlock?.();
   };
@@ -121,6 +125,7 @@ function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onRea
           )}
         </div>
         {m.deleted ? <p className="text-[13px] italic text-subtle">Message deleted</p> : call ? <CallCard path={call} by={m.author.name} at={m.createdAt} channelId={m.channelId} /> : m.poll ? <PollCard pollId={m.poll.id} version={m.updatedAt} /> : <Body m={m} />}
+        {langOn && !m.deleted && <ChatLangLazy id={m.id} text={preview(m)} request={langReq} onHandled={() => setLangReq(null)} />}
         {m.attachments.length > 0 && (
           <ul className="mt-1.5 flex flex-wrap gap-2">
             {m.attachments.map((f) => (
@@ -138,6 +143,8 @@ function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onRea
           <ReactionPicker onPick={onReact} />
           {!inThread && <Button variant="ghost" size="sm" onClick={onThread} aria-label="Reply in thread"><IconChat className="h-4 w-4" /></Button>}
           <Menu trigger={<button type="button" aria-label="More message actions" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-elevated hover:text-fg"><IconMore className="h-4 w-4" aria-hidden /></button>}>
+            {langOn && <MenuItem onSelect={() => setLangReq({ kind: "translate", n: Date.now() })} icon={<IconGlobe className="h-4 w-4" />}>Translate</MenuItem>}
+            {langOn && <MenuItem onSelect={() => setLangReq({ kind: "read", n: Date.now() })} icon={<IconVolume className="h-4 w-4" />}>Read aloud</MenuItem>}
             <MenuItem onSelect={onTask} icon={<IconTasks className="h-4 w-4" />}>Make task</MenuItem>
             {onTriage && <MenuItem onSelect={onTriage} icon={<IconInbox className="h-4 w-4" />}>Send to triage</MenuItem>}
             {onPin && !m.parentId && <MenuItem onSelect={onPin} icon={m.pinnedAt ? <IconPinOff className="h-4 w-4" /> : <IconPin className="h-4 w-4" />}>{m.pinnedAt ? "Unpin" : "Pin to channel"}</MenuItem>}

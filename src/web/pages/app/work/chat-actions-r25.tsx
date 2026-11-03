@@ -4,14 +4,14 @@
  * The Dialog is a bottom sheet under 640 px and a centred card on a touch tablet.
  */
 import { useState } from "react";
-import { IconBlock, IconChat, IconCopy, IconEdit, IconFlag, IconInbox, IconPin, IconPinOff, IconTasks, IconTrash, type IconComponent } from "@/web/components/ui/icon";
+import { IconBlock, IconChat, IconCopy, IconEdit, IconFlag, IconGlobe, IconInbox, IconPin, IconPinOff, IconTasks, IconTrash, IconVolume, type IconComponent } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { Dialog } from "@/web/components/ui/dialog";
 import { cn } from "@/web/lib/cn";
 import type { MessageAction, MessageActionId } from "@/web/lib/message-actions";
 import { EMOJI_GRID, QUICK_EMOJI } from "./chat-r20";
 
-const ICONS: Partial<Record<MessageActionId, IconComponent>> = { thread: IconChat, copy: IconCopy, triage: IconInbox, task: IconTasks, pin: IconPin, unpin: IconPinOff, edit: IconEdit, delete: IconTrash, report: IconFlag, block: IconBlock };
+const ICONS: Partial<Record<MessageActionId, IconComponent>> = { thread: IconChat, copy: IconCopy, translate: IconGlobe, read: IconVolume, triage: IconInbox, task: IconTasks, pin: IconPin, unpin: IconPinOff, edit: IconEdit, delete: IconTrash, report: IconFlag, block: IconBlock };
 
 export async function copyText(text: string) {
   try {
