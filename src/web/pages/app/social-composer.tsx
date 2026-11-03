@@ -79,6 +79,8 @@ async function cropImage(img: PickedImage, shape: CropShape, anchor: CropAnchor)
 
 /** SOCFIX: the app's brand focus ring on tabs, for keyboard focus only (a click or tap shows none). An outline, so it
  * never fights the selected tab's shadow, in light, dark and Forest alike. */
+/** SOCFIX: a click or tap on a tab leaves focus where it was (in the text, usually), so no browser draws its own ring. */
+const keepFocus = (e: { preventDefault: () => void }) => e.preventDefault();
 const TAB_RING = "outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
 
 const FORMAT_ICON: Record<SocialFormat, typeof IconText> = { text: IconText, image: IconImage, carousel: IconLayers, video: IconVideo, story: IconSmartphone };
@@ -173,7 +175,7 @@ function Preview(props: { accounts: ComposerAccount[]; text: (app: string) => st
       {apps.length > 1 && (
         <div className="flex flex-wrap gap-1" role="tablist" aria-label="Preview for">
           {apps.map((a) => (
-            <button key={a.app} type="button" role="tab" aria-selected={cur.app === a.app} onClick={() => setSel(a.app)}
+            <button key={a.app} type="button" role="tab" aria-selected={cur.app === a.app} onMouseDown={keepFocus} onClick={() => setSel(a.app)}
               className={cn("inline-flex min-h-11 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors duration-150 motion-reduce:transition-none sm:min-h-9", TAB_RING,
                 cur.app === a.app ? "bg-surface text-fg elev-1" : "text-muted hover:bg-hover hover:text-fg")}>
               {networkLabel(a.app)}
@@ -575,7 +577,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
           <div>
             <div className="mb-2 flex flex-wrap items-center gap-1" role="tablist" aria-label="Text for" data-testid="network-tabs">
               {["all", ...apps.filter((a) => a !== "tiktok" || tiktokPicked)].map((t) => (
-                <button key={t} type="button" role="tab" id={`tab-${t}`} aria-selected={(tabApp ?? "all") === t} aria-controls="post-text-panel" onClick={() => setTab(t)}
+                <button key={t} type="button" role="tab" id={`tab-${t}`} aria-selected={(tabApp ?? "all") === t} aria-controls="post-text-panel" onMouseDown={keepFocus} onClick={() => setTab(t)}
                   className={cn("relative inline-flex min-h-11 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors duration-150 motion-reduce:transition-none sm:min-h-9", TAB_RING,
                     (tabApp ?? "all") === t ? "bg-fill text-fg" : "text-muted hover:bg-hover hover:text-fg")} data-testid={`tab-${t}`}>
                   {t === "all" ? "All networks" : networkLabel(t)}
@@ -769,10 +771,12 @@ function TargetField({ account, value, onChange, where = "pick" }: { account: Co
   if (!net.target) return null;
   const label = `${net.target.label} for ${account.appName}`;
   const tid = where === "check" ? `check-target-${account.app}` : `target-${account.app}`;
-  const size = "h-11 w-full min-w-0 max-w-xs text-sm sm:h-9";
+  // Phones: a full width row of its own under the account (44 px tall); wider screens: beside it.
+  const size = cn("h-11 w-full text-sm sm:h-9", where === "pick" ? "sm:w-64" : "max-w-xs");
+  const box = where === "pick" ? "flex basis-full flex-col gap-1 pl-6.5 sm:basis-auto sm:pl-0" : "flex flex-col gap-1";
   if (!listed) return (
-    <span className="flex min-w-0 flex-col gap-1">
-      <Input aria-label={label} placeholder="Community, for example r/smallbusiness" value={value} onChange={(e) => onChange(e.target.value)} className={size} data-testid={tid} />
+    <span className={box}>
+      <Input aria-label={label} placeholder="Community, like r/smallbusiness" value={value} onChange={(e) => onChange(e.target.value)} className={size} data-testid={tid} />
       {q.data?.last && value.replace(/^\/?r\//i, "") !== q.data.last.id.replace(/^\/?r\//i, "") && (
         <button type="button" className="inline-flex min-h-11 w-fit items-center rounded-md px-1 text-[12.5px] font-medium text-brand hover:underline sm:min-h-0" onClick={() => onChange(q.data!.last!.id, q.data!.last!.name)} data-testid={`${tid}-last`}>
           Use r/{q.data.last.id.replace(/^\/?r\//i, "")} again
@@ -782,12 +786,14 @@ function TargetField({ account, value, onChange, where = "pick" }: { account: Co
   );
   if (q.isPending) return <Skeleton className="h-9 w-56 rounded-lg" />;
   if (q.error) return <LoadErrorInline onRetry={() => q.refetch()} />;
-  if (!list?.length) return <span className="text-[12.5px] text-muted" data-testid={`${tid}-none`}>No {net.target.label.toLowerCase()}s on this account yet. Make one on {account.appName}, then come back.</span>;
+  if (!list?.length) return <span className={cn(box, "text-[12.5px] text-muted")} data-testid={`${tid}-none`}>No {net.target.label.toLowerCase()}s on this account yet. Make one on {account.appName}, then come back.</span>;
   return (
-    <Select aria-label={label} value={value} onChange={(e) => onChange(e.target.value, list.find((t) => t.id === e.target.value)?.name)} className={size} data-testid={tid}>
-      <option value="">Pick a {net.target.label.toLowerCase()}</option>
-      {list.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-    </Select>
+    <span className={box}>
+      <Select aria-label={label} value={value} onChange={(e) => onChange(e.target.value, list.find((t) => t.id === e.target.value)?.name)} className={size} data-testid={tid}>
+        <option value="">Pick a {net.target.label.toLowerCase()}</option>
+        {list.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+      </Select>
+    </span>
   );
 }
 
