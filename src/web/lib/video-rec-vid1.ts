@@ -132,8 +132,7 @@ export function fileDate(d: Date) {
 
 /** Makes any text safe as part of a file name on Windows, macOS and Linux, with no dashes. */
 export function cleanFilePart(s: string) {
-  return s
-    .replace(/[\u0000-\u001f\u007f]/g, " ")
+  return [...s].map((ch) => { const n = ch.charCodeAt(0); return n < 32 || n === 127 ? " " : ch; }).join("")
     .replace(/[\\/:*?"<>|]/g, " ")
     .replace(/[\u2010-\u2015\u2212-]/g, " ")
     .replace(/\s+/g, " ")

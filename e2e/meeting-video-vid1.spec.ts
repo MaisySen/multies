@@ -153,7 +153,7 @@ test.describe("flag on", () => {
     const vid = await owner.evaluate(() => (window as unknown as { __vid: { name: string; bytes: number; head: number[]; closed: boolean } }).__vid);
     expect(vid.closed).toBe(true);
     expect(vid.name).toMatch(/^Meeting Weekly sync \d{1,2} [A-Z][a-z]{2} \d{4} \d{2}\.\d{2}\.webm$/);
-    expect(vid.name).not.toMatch(/[-–—:]/);
+    expect(vid.name).not.toMatch(/[-\u2013\u2014:]/);
     expect(vid.head).toEqual([0x1a, 0x45, 0xdf, 0xa3]); // a webm file
     await expect(mate.getByTestId("recording-banner")).toHaveCount(0, { timeout: 10_000 });
     expect(uploads).toEqual([]);

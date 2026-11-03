@@ -191,20 +191,20 @@ export function VideoRecordDialog({ open, onClose, meetingId, title, transcriptR
   };
 
   const footer = !type ? (
-    <>
-      <Button variant="ghost" onClick={onClose}>Close</Button>
-      {canAudioOnly && <Button onClick={onAudioOnly} data-testid="video-rec-audio-only">Record audio only</Button>}
-    </>
+    <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:justify-end">
+      <Button variant="ghost" className="max-sm:w-full" onClick={onClose}>Close</Button>
+      {canAudioOnly && <Button className="max-sm:w-full" onClick={onAudioOnly} data-testid="video-rec-audio-only">Record audio only</Button>}
+    </div>
   ) : support.current.file ? (
-    <>
-      <Button variant="ghost" onClick={() => void go("memory")} loading={busy === "memory"} disabled={!permit?.ok || !!busy} data-testid="video-rec-memory">Save at the end instead</Button>
-      <Button onClick={() => void go("file")} loading={busy === "file"} disabled={!permit?.ok || !!busy} data-testid="video-rec-file"><IconFolder className="h-4 w-4" />Choose where to save</Button>
-    </>
+    <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:justify-end">
+      <Button variant="ghost" className="max-sm:w-full" onClick={() => void go("memory")} loading={busy === "memory"} disabled={!permit?.ok || !!busy} data-testid="video-rec-memory">Save at the end instead</Button>
+      <Button className="max-sm:w-full" onClick={() => void go("file")} loading={busy === "file"} disabled={!permit?.ok || !!busy} data-testid="video-rec-file"><IconFolder className="h-4 w-4" />Choose where to save</Button>
+    </div>
   ) : (
-    <>
-      <Button variant="ghost" onClick={onClose}>Cancel</Button>
-      <Button onClick={() => void go("memory")} loading={busy === "memory"} disabled={!permit?.ok || !!busy} data-testid="video-rec-memory"><IconVideo className="h-4 w-4" />Start recording</Button>
-    </>
+    <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:justify-end">
+      <Button variant="ghost" className="max-sm:w-full" onClick={onClose}>Cancel</Button>
+      <Button className="max-sm:w-full" onClick={() => void go("memory")} loading={busy === "memory"} disabled={!permit?.ok || !!busy} data-testid="video-rec-memory"><IconVideo className="h-4 w-4" />Start recording</Button>
+    </div>
   );
 
   return (

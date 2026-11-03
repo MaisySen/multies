@@ -14,6 +14,7 @@ import { IconChecklist, IconCircle, IconDocs, IconDownload, IconKey, IconMic, Ic
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { useConfig, useMe } from "@/web/lib/queries";
+import { cn } from "@/web/lib/cn";
 import { zonedDateTime } from "@/web/lib/format";
 import { showError } from "@/web/lib/show-error";
 import { Button, ButtonLink } from "@/web/components/ui/button";
@@ -79,8 +80,10 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
   const myName = me.data?.user?.name || me.data?.user?.email || "Someone";
   // VID1: owners and admins can also save a video of the call on their own device (VIDEO_REC_VID1).
   const role = me.data?.organization?.role;
-  const videoAllowed = !!config.data?.videoRecVid1 && !!me.data?.user && (role === "owner" || role === "admin");
+  const vid1 = !!config.data?.videoRecVid1; // VID1 on: the Stop control is solid red so it reads over any video
+  const videoAllowed = vid1 && !!me.data?.user && (role === "owner" || role === "admin");
   const video = useVideoRecording(room);
+  const { active: videoActive, mixer: videoMixer } = video;
   const [videoOpen, setVideoOpen] = useState(false);
   const [signal, setSignal] = useState<RecordingSignal | null>(null);
   const [mine, setMine] = useState<{ id: string; startedAt: string } | null>(null);
@@ -143,7 +146,7 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
   // While recording: every remote audio track joins the mix(es), and newcomers hear that it is on.
   useEffect(() => {
     if (!recordingMine) return;
-    const mixers = () => [recorder.current, video.mixer()].filter((m): m is NonNullable<typeof m> => !!m);
+    const mixers = () => [recorder.current, videoMixer()].filter((m): m is NonNullable<typeof m> => !!m);
     const onTrack = (track: RemoteTrack) => { if (track.kind === Track.Kind.Audio) for (const m of mixers()) m.addTrack(track.mediaStreamTrack); };
     const onGone = (track: RemoteTrack) => { if (track.kind === Track.Kind.Audio) for (const m of mixers()) m.removeTrack(track.mediaStreamTrack); };
     const onJoin = () => { if (mySignal.current) void broadcast(mySignal.current); };
@@ -151,7 +154,7 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
     room.on(RoomEvent.TrackSubscribed, onTrack).on(RoomEvent.TrackUnsubscribed, onGone).on(RoomEvent.ParticipantConnected, onJoin).on(RoomEvent.LocalTrackPublished, onLocal);
     const tick = setInterval(() => setElapsed(recorder.current?.elapsedSec ?? 0), 1000);
     return () => { room.off(RoomEvent.TrackSubscribed, onTrack).off(RoomEvent.TrackUnsubscribed, onGone).off(RoomEvent.ParticipantConnected, onJoin).off(RoomEvent.LocalTrackPublished, onLocal); clearInterval(tick); };
-  }, [recordingMine, room, broadcast, video.mixer]);
+  }, [recordingMine, room, broadcast, videoMixer]);
 
   /** The audio recording for the transcript (R23.2). Answers the started recording, or null when it did not start. */
   const startAudio = async (o: { quiet?: boolean } = {}): Promise<{ id: string; startedAt: string } | null> => {
@@ -234,10 +237,10 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
 
   // VID1: a video that stopped on its own (size limit, recorder error, leaving) ends the banner if nothing else records.
   useEffect(() => {
-    if (video.active || stopping.current || !mySignal.current?.video) return;
+    if (videoActive || stopping.current || !mySignal.current?.video) return;
     if (mine) announce({ on: true, by: myName, recordingId: mine.id, startedAt: mine.startedAt });
     else { void broadcast({ on: false, by: myName, recordingId: mySignal.current.recordingId, startedAt: null }); mySignal.current = null; setSignal(null); }
-  }, [video.active, mine, myName, announce, broadcast]);
+  }, [videoActive, mine, myName, announce, broadcast]);
 
   const shown = video.active ? video.elapsed : elapsed;
   return (
@@ -247,13 +250,13 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
           <div role="status" className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-[#d70015] px-3 py-1.5 text-[12.5px] font-medium text-white shadow-lg" data-testid="recording-banner" data-video={signal.video ? "1" : undefined}>
             <IconCircle filled className="h-2.5 w-2.5 shrink-0 animate-pulse" />
             <span className="shrink-0">{signal.video ? "Recording video" : "Recording"}</span>
-            <span className="min-w-0 truncate font-normal text-white">started by {recordingMine ? "you" : signal.by}{recordingMine ? ` · ${Math.floor(shown / 60)}:${String(shown % 60).padStart(2, "0")}` : ""}</span>
+            <span className={cn("min-w-0 truncate font-normal", vid1 ? "text-white" : "text-white/85")}>started by {recordingMine ? "you" : signal.by}{recordingMine ? ` · ${Math.floor(shown / 60)}:${String(shown % 60).padStart(2, "0")}` : ""}</span>
           </div>
         )}
         {meetingId && (
           <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2">
             {recordingMine
-              ? <Button size="sm" variant="danger" loading={busy} onClick={() => void stop()} data-testid="record-stop"><IconSquare filled className="h-3.5 w-3.5" />Stop recording</Button>
+              ? <Button size="sm" variant="danger" loading={busy} onClick={() => void stop()} className={vid1 ? "bg-bad text-white shadow-lg hover:bg-bad/90" : undefined} data-testid="record-stop"><IconSquare filled className="h-3.5 w-3.5" />Stop recording</Button>
               : !signal && <Button size="sm" variant="secondary" loading={busy} onClick={() => (videoAllowed ? setVideoOpen(true) : void start())} data-testid="record-start">{videoAllowed ? <IconVideo className="h-3.5 w-3.5" /> : <IconMic className="h-3.5 w-3.5" />}Record</Button>}
             {download && !recordingMine && <a href={download} download="call-audio.webm" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/90 px-3 text-[13px] font-medium text-fg shadow"><IconDownload className="h-4 w-4" />Download audio</a>}
             {video.saved && !recordingMine && <a href={video.saved.url} download={video.saved.name} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/90 px-3 text-[13px] font-medium text-fg shadow" data-testid="video-save-again"><IconDownload className="h-4 w-4" />Save video</a>}

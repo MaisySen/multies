@@ -4,7 +4,7 @@ import { loadConfig } from "@/server/config";
 import { decodeSignal, encodeSignal } from "@/web/lib/call-recorder";
 import {
   CANVAS_H, CANVAS_W, FileSink, HARD_BYTES, MAX_GRID, MemorySink, VideoRecording, WARN_BYTES, cleanFilePart, initials, layoutTiles, pickVideoType, sizeText, videoFileName,
-  type Placement, type RecorderCtor, type RecorderLike, type TileInput, type VideoEvent,
+  type Placement, type RecorderCtor, type Sink, type RecorderLike, type TileInput, type VideoEvent,
 } from "@/web/lib/video-rec-vid1";
 
 /** VID1: a whole call recorded as video in the admin's browser and saved on their device; nothing uploaded. */
@@ -129,7 +129,7 @@ describe("VID1 file name", () => {
   it("Meeting <title> <date>, sentence case kept, no dashes", () => {
     expect(videoFileName("Weekly sync", d, "webm")).toBe("Meeting Weekly sync 3 Nov 2026 09.05.webm");
     expect(videoFileName("Q4 plan - draft", d, "mp4")).toBe("Meeting Q4 plan draft 3 Nov 2026 09.05.mp4");
-    expect(videoFileName("Launch — final", d, "webm")).toBe("Meeting Launch final 3 Nov 2026 09.05.webm");
+    expect(videoFileName("Launch \u2014 final", d, "webm")).toBe("Meeting Launch final 3 Nov 2026 09.05.webm");
   });
   it("removes characters file systems refuse, and path tricks", () => {
     const n = videoFileName('../../etc/pass:wd*?"<>|\u0000\nx', d, "webm");
@@ -184,7 +184,7 @@ const tick = () => new Promise((r) => setTimeout(r, 5));
 describe("VID1 recording state machine", () => {
   let events: VideoEvent[];
   beforeEach(() => { events = []; FakeRecorder.failStart = false; });
-  const make = (sink = new MemorySink("video/webm"), o: { warnBytes?: number; hardBytes?: number } = {}) =>
+  const make = (sink: Sink = new MemorySink("video/webm"), o: { warnBytes?: number; hardBytes?: number } = {}) =>
     new VideoRecording({ stream, mime: "video/webm;codecs=vp9,opus", sink, Recorder, onEvent: (e) => events.push(e), ...o });
 
   it("start, chunks every second, stop: one video in memory", async () => {
