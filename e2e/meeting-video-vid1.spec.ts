@@ -58,7 +58,8 @@ async function joinCall(page: Page) {
     console.log("JOINDEBUG", page.url(), (await page.locator("body").innerText()).slice(0, 600).replace(/\s+/g, " "));
     throw e;
   }
-  if (await page.getByTestId("prejoin-join").isVisible()) await page.getByTestId("prejoin-join").click();
+  // The check can join on its own a moment later, so a click that finds nothing is fine.
+  if (await page.getByTestId("prejoin-join").isVisible()) await page.getByTestId("prejoin-join").click({ timeout: 5_000 }).catch(() => undefined);
   await expect(page.getByTestId("call-screen")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("record-start")).toBeVisible({ timeout: 30_000 });
 }
@@ -157,6 +158,73 @@ test.describe("flag on", () => {
     expect(vid.head).toEqual([0x1a, 0x45, 0xdf, 0xa3]); // a webm file
     await expect(mate.getByTestId("recording-banner")).toHaveCount(0, { timeout: 10_000 });
     expect(uploads).toEqual([]);
+  });
+
+  test("phone and desktop widths, light and dark: dialog, banner, Stop and footer fit with no overlap and pass contrast", async () => {
+    test.setTimeout(330_000);
+    if (!(await owner.getByTestId("call-screen").count())) await joinCall(owner);
+    await expect(owner.getByTestId("record-start")).toBeVisible({ timeout: 30_000 });
+    const DES = ["1", "true", "on"].includes(String(process.env.DESIGN_DES1 ?? "").toLowerCase()) ? "des1" : "plain";
+    const fits = (sel: string) => owner.evaluate((s) => {
+      const root = document.querySelector(s);
+      if (!root) return [`missing ${s}`];
+      const bad: string[] = [];
+      const W = window.innerWidth;
+      const els = [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))] as HTMLElement[];
+      const shown = els.filter((e) => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width > 0 && r.height > 0 && cs.visibility !== "hidden" && cs.display !== "none"; });
+      for (const e of shown) {
+        const r = e.getBoundingClientRect();
+        if (r.left < -1 || r.right > W + 1) bad.push(`offscreen ${e.tagName}.${(e.getAttribute("data-testid") ?? "")} ${Math.round(r.left)}..${Math.round(r.right)}`);
+        const cs = getComputedStyle(e);
+        if (e.childElementCount === 0 && (e.textContent ?? "").trim() && e.scrollWidth > e.clientWidth + 1 && cs.textOverflow !== "ellipsis" && cs.overflowX !== "visible") bad.push(`clipped ${e.tagName} "${(e.textContent ?? "").trim().slice(0, 30)}"`);
+      }
+      const btns = shown.filter((e) => e.tagName === "BUTTON" || e.tagName === "A").map((e) => ({ t: (e.textContent ?? "").trim().slice(0, 20), r: e.getBoundingClientRect() }));
+      for (let i = 0; i < btns.length; i++) for (let j = i + 1; j < btns.length; j++) {
+        const a = btns[i].r, b = btns[j].r;
+        if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) bad.push(`overlap "${btns[i].t}" "${btns[j].t}"`);
+      }
+      return bad;
+    }, sel);
+    const widths: [number, number][] = [[375, 812], [390, 844], [430, 932], [1280, 860]];
+    for (const [w, h] of widths) for (const t of ["light", "dark"] as const) {
+      await owner.setViewportSize({ width: w, height: h });
+      await theme(owner, t);
+      await owner.getByTestId("record-start").click();
+      await expect(owner.getByTestId("video-rec-dialog")).toBeVisible();
+      expect(await axeSerious(owner, "dialog"), `dialog ${w} ${t}`).toEqual([]);
+      expect(await fits("dialog[open]"), `dialog fit ${w} ${t}`).toEqual([]);
+      await shot(owner, `vid1-${DES}-${w}-${t}-dialog`);
+      await owner.keyboard.press("Escape");
+      await expect(owner.getByTestId("video-rec-dialog")).toHaveCount(0);
+    }
+    await owner.setViewportSize({ width: 390, height: 844 });
+    await owner.getByTestId("record-start").click();
+    await owner.getByTestId("video-rec-memory").click();
+    await expect(owner.getByTestId("recording-banner")).toContainText("Recording video", { timeout: 15_000 });
+    for (const [w, h] of widths) for (const t of ["light", "dark"] as const) {
+      await owner.setViewportSize({ width: w, height: h });
+      await theme(owner, t);
+      await owner.waitForTimeout(300);
+      expect(await axeSerious(owner, "[data-testid=recording-layer]"), `recording ${w} ${t}`).toEqual([]);
+      expect(await fits("[data-testid=recording-layer]"), `recording fit ${w} ${t}`).toEqual([]);
+      const stopCss = await owner.getByTestId("record-stop").evaluate((e) => { const c = getComputedStyle(e); return `${c.backgroundColor} ${c.color}`; });
+      expect(stopCss, `solid Stop ${w} ${t}`).toBe("rgb(215, 0, 21) rgb(255, 255, 255)");
+      expect(await owner.getByTestId("call-tab-so-far").evaluate((e) => e.getBoundingClientRect().height), `So far one line ${w}`).toBeLessThanOrEqual(48);
+      await shot(owner, `vid1-${DES}-${w}-${t}-recording`);
+    }
+    const download = owner.waitForEvent("download", { timeout: 20_000 });
+    await owner.getByTestId("record-stop").click();
+    const d = await download;
+    const sp = await d.path();
+    expect(sp && statSync(sp).size, "the sweep recording has bytes").toBeGreaterThan(20_000);
+    await d.delete();
+    await expect(owner.getByTestId("video-save-again")).toBeVisible();
+    for (const [w, h] of widths) {
+      await owner.setViewportSize({ width: w, height: h });
+      expect(await fits("[data-testid=recording-layer]"), `saved fit ${w}`).toEqual([]);
+    }
+    await theme(owner, "light");
+    await owner.setViewportSize({ width: 1280, height: 860 });
   });
 
   test("owner records with save at the end: Stop downloads one playable webm with video and sound", async () => {

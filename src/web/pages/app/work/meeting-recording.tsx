@@ -256,7 +256,7 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
         {meetingId && (
           <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2">
             {recordingMine
-              ? <Button size="sm" variant="danger" loading={busy} onClick={() => void stop()} className={vid1 ? "bg-bad text-white shadow-lg hover:bg-bad/90" : undefined} data-testid="record-stop"><IconSquare filled className="h-3.5 w-3.5" />Stop recording</Button>
+              ? <Button size="sm" variant="danger" loading={busy} onClick={() => void stop()} className={vid1 ? "bg-[#d70015]! text-white! shadow-lg hover:bg-[#b80012]!" : undefined} data-testid="record-stop"><IconSquare filled className="h-3.5 w-3.5" />Stop recording</Button>
               : !signal && <Button size="sm" variant="secondary" loading={busy} onClick={() => (videoAllowed ? setVideoOpen(true) : void start())} data-testid="record-start">{videoAllowed ? <IconVideo className="h-3.5 w-3.5" /> : <IconMic className="h-3.5 w-3.5" />}Record</Button>}
             {download && !recordingMine && <a href={download} download="call-audio.webm" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/90 px-3 text-[13px] font-medium text-fg shadow"><IconDownload className="h-4 w-4" />Download audio</a>}
             {video.saved && !recordingMine && <a href={video.saved.url} download={video.saved.name} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/90 px-3 text-[13px] font-medium text-fg shadow" data-testid="video-save-again"><IconDownload className="h-4 w-4" />Save video</a>}
