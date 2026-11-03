@@ -134,7 +134,7 @@ test("sidebar, section header and icon rail text keep AA contrast: default, Fore
 });
 
 test("light mode is layered: tinted canvas, its own sidebar surface, tinted sheet and white cards with an edge", async ({ page }) => {
-  test.skip(process.env.DESIGN_DES1 === "off", "the layers are the design pass");
+  test.skip(process.env.DESIGN_DES1 !== "on", "the layers are the design pass (flag on only)");
   await signIn(page);
   await brand(page, null);
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
