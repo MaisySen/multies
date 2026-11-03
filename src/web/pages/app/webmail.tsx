@@ -16,7 +16,8 @@ import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError, errorMessage } from "@/web/lib/api";
 import { AI_OFF_MESSAGE } from "@/shared/ask-td1";
-import { qk } from "@/web/lib/queries";
+import { qk, useConfig } from "@/web/lib/queries";
+import { MailBodyLazy } from "@/web/components/lang-tools-r116-lazy"; // R116
 import type { Folder, Message, MailboxOverview, MessageListItem } from "@/web/lib/types";
 import { Avatar, EmptyState, Kbd, Skeleton } from "@/web/components/ui/misc";
 import { PHONE_PICK, Select } from "@/web/components/ui/input";
@@ -845,6 +846,7 @@ function ThreadMessage({ m, defaultOpen }: { m: Message; defaultOpen: boolean })
   const auth = m.authResults;
   const authOk = auth && auth.dmarc === "pass";
   const authBad = auth && (auth.dmarc === "fail" || auth.spf === "fail");
+  const translateOn = !!useConfig().data?.translateR116; // R116
   return (
     <article className="rounded-xl border border-line bg-surface">
       <button className="flex w-full items-start gap-3 p-4 text-left" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
@@ -867,7 +869,7 @@ function ThreadMessage({ m, defaultOpen }: { m: Message; defaultOpen: boolean })
       {open && (
         <div className="px-4 pb-5 sm:pl-[60px]">
           {m.folder === "sent" && <div className="mb-3"><ReadStatusLine status={(m as { readStatus?: ReadStatus | null }).readStatus} /></div>}
-          {m.html ? <HtmlBody html={m.html} /> : <TextBody text={m.text} />}
+          {translateOn ? <MailBodyLazy id={m.id} html={m.html} text={m.text} /> : m.html ? <HtmlBody html={m.html} /> : <TextBody text={m.text} />}
           {m.attachments.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
               {m.attachments.map((a) => (

@@ -65,7 +65,7 @@ export function detectLanguage(input: string): R116Language | null {
   if (total < 3) return null;
   const top = Math.max(deva, arab, hang, kana + han, latin);
   if (top === deva) {
-    const words = text.split(/[\s,.;:!?()"'।॥\-]+/).filter(Boolean);
+    const words = text.split(/[\s,.;:!?()"'।॥-]+/).filter(Boolean);
     const ne = words.filter((w) => NE_WORDS.includes(w)).length, hi = words.filter((w) => HI_WORDS.includes(w)).length;
     return hi > ne ? "hi" : "ne";
   }
@@ -207,4 +207,32 @@ export function readPrefs(raw: string | null, fallback: R116Language = "en"): R1
     const v = JSON.parse(raw ?? "{}") as Partial<R116Prefs>;
     return { target: isR116Language(v.target) ? v.target : fallback, autoOffer: v.autoOffer !== false };
   } catch { return { target: fallback, autoOffer: true }; }
+}
+
+/** Read aloud: text cut at sentences into parts short enough for every browser's speech engine. */
+export function speechChunks(text: string, max = 220): string[] {
+  return text.split(/\n\s*\n|\n/).map((l) => l.replace(/\s+/g, " ").trim()).filter(hasWords).flatMap((l) => splitLong(l, max).map((p) => p.trim())).filter(Boolean);
+}
+
+/** The few fields of a device voice the picker reads (SpeechSynthesisVoice has them). */
+export type VoiceLike = { lang: string; name: string; localService?: boolean; default?: boolean };
+/**
+ * The device voice for a language: an exact tag first, then the language alone, a voice on the device before a network
+ * one. Nepali falls back to a Hindi voice (same script); `fallback` names the language of the voice used then.
+ */
+export function pickVoice<V extends VoiceLike>(voices: V[], code: R116Language): { voice: V | null; fallback: R116Language | null } {
+  const find = (c: R116Language): V | null => {
+    const norm = (v: V) => v.lang.replace("_", "-").toLowerCase();
+    const local = [...voices].sort((a, b) => Number(!!b.localService) - Number(!!a.localService));
+    for (const tag of SPEECH_TAGS[c]) {
+      const t = tag.toLowerCase();
+      const hit = local.find((v) => norm(v) === t) ?? (t === c ? local.find((v) => norm(v).split("-")[0] === c) : undefined);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  const voice = find(code);
+  if (voice) return { voice, fallback: null };
+  if (code === "ne") { const hi = find("hi"); if (hi) return { voice: hi, fallback: "hi" }; }
+  return { voice: null, fallback: null };
 }

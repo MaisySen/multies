@@ -4,8 +4,9 @@ import { makeTestApp, Client } from "./helpers";
 import { TRANSLATE_LANGUAGES } from "@/server/services/tools/ai-meter";
 import { clearTranslateCache } from "@/server/services/translate-r116";
 import { fakeAskAi } from "@/server/services/ask-fake";
+import { messageActions } from "@/web/lib/message-actions";
 import {
-  R116_LANGUAGES, R116_LIMITS, batches, decodeEntities, detectLanguage, htmlPieces, joinHtml, joinPieces, readPrefs, splitLong, textPieces, uniqueTexts,
+  R116_LANGUAGES, R116_LIMITS, batches, pickVoice, speechChunks, decodeEntities, detectLanguage, htmlPieces, joinHtml, joinPieces, readPrefs, splitLong, textPieces, uniqueTexts,
 } from "@/shared/translate-r116";
 
 /** R116 translate and read aloud: language guess, chunking, HTML text nodes only, the AI switch, meter, limits, cache. */
@@ -78,6 +79,25 @@ describe("pure rules", () => {
     expect(readPrefs('{"target":"hi","autoOffer":false}')).toEqual({ target: "hi", autoOffer: false });
     expect(readPrefs('{"target":"xx"}')).toEqual({ target: "en", autoOffer: true });
     expect(readPrefs("not json")).toEqual({ target: "en", autoOffer: true });
+  });
+
+  it("reads aloud in parts and picks a voice of the text's language", () => {
+    const parts = speechChunks("First line here.\n\n" + "Word ".repeat(120));
+    expect(parts[0]).toBe("First line here.");
+    expect(parts.every((p) => p.length <= 220)).toBe(true);
+    const voices = [{ lang: "en-US", name: "US" }, { lang: "en_AU", name: "AU", localService: true }, { lang: "hi-IN", name: "Hindi" }, { lang: "fr-CA", name: "CA" }];
+    expect(pickVoice(voices, "en").voice?.name).toBe("AU");
+    expect(pickVoice(voices, "fr").voice?.name).toBe("CA");
+    expect(pickVoice(voices, "ne")).toEqual({ voice: voices[2], fallback: "hi" });
+    expect(pickVoice(voices, "ja")).toEqual({ voice: null, fallback: null });
+  });
+
+  it("puts Translate and Read aloud in the phone sheet only when on and the message has text", () => {
+    const base = { deleted: false, inThread: false, mine: false, canPin: false, isReply: false, pinned: false, canTriage: false, hasText: true };
+    expect(messageActions(base).map((a) => a.id)).not.toContain("translate");
+    const on = messageActions({ ...base, lang: true }).map((a) => a.id);
+    expect(on).toEqual(expect.arrayContaining(["translate", "read"]));
+    expect(messageActions({ ...base, lang: true, hasText: false }).map((a) => a.id)).not.toContain("read");
   });
 
   it("the end to end stand in answers translation deterministically", async () => {

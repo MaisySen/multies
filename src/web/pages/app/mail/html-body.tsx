@@ -7,6 +7,9 @@ import { IconImageOff } from "@/web/components/ui/icon";
  * that cannot run scripts, under a CSP that blocks remote images until the reader
  * opts in (remote images are how senders track opens).
  */
+/** The reading pane's sanitising rules (R116 translates the text of exactly this HTML). */
+export const MAIL_PURIFY = { WHOLE_DOCUMENT: false, FORBID_TAGS: ["style", "form", "input", "button"], ADD_ATTR: ["target"] };
+
 export function HtmlBody({ html }: { html: string }) {
   const [images, setImages] = useState(false);
   const [height, setHeight] = useState(200);
@@ -14,7 +17,7 @@ export function HtmlBody({ html }: { html: string }) {
   // impeccable-disable-next-line broken-image (a regex that detects remote images, not an <img> tag)
   const hasRemote = /<img[^>]+src=["']?https?:/i.test(html) || /url\(\s*['"]?https?:/i.test(html);
   const doc = useMemo(() => {
-    const clean = DOMPurify.sanitize(html, { WHOLE_DOCUMENT: false, FORBID_TAGS: ["style", "form", "input", "button"], ADD_ATTR: ["target"] });
+    const clean = DOMPurify.sanitize(html, MAIL_PURIFY);
     const csp = `default-src 'none'; style-src 'unsafe-inline'; img-src data: cid: ${images ? "https:" : ""}; font-src data:;`;
     return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><base target="_blank">
       <style>html,body{margin:0;padding:0;background:#fff;color:#111;font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;word-wrap:break-word}
