@@ -134,7 +134,10 @@ test.beforeAll(async ({ browser }) => {
 test.afterAll(async () => { await ownerCtx?.close(); await mateCtx?.close(); rmSync(TMP, { recursive: true, force: true }); });
 
 /** The recorder's first pieces (a loaded test box can take half a minute before the encoder gives any). */
-const piecesAtLeast = (page: Page, n: number) => expect.poll(() => page.evaluate(() => (window as unknown as { __pieces?: number }).__pieces ?? 0), { timeout: 90_000, intervals: [1000] }).toBeGreaterThanOrEqual(n);
+const piecesAtLeast = async (page: Page, n: number) => {
+  await page.evaluate(() => { (window as unknown as { __pieces: number }).__pieces = 0; });
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __pieces?: number }).__pieces ?? 0), { timeout: 90_000, intervals: [1000] }).toBeGreaterThanOrEqual(n);
+};
 
 test.describe("VID2 on", () => {
   test.skip(!ON, "VIDEO_REC_VID2 is off in this run");
@@ -250,6 +253,8 @@ test.describe("VID2 on", () => {
     if (!(await owner.getByTestId("call-screen").count())) await joinCall(owner);
     await owner.getByTestId("record-start").click();
     const hd = owner.getByTestId("video-rec-quality-hd1080");
+    await expect(hd).toBeVisible({ timeout: 15_000 });
+    console.log("VID2 1080 offered", await hd.isEnabled(), await owner.evaluate(() => [navigator.hardwareConcurrency, (navigator as unknown as { deviceMemory?: number }).deviceMemory]));
     test.skip(!(await hd.isEnabled()), "this test machine is not offered 1080p");
     await owner.getByTestId("video-rec-quality").getByText("1080p").click();
     await expect(hd).toBeChecked();
@@ -271,8 +276,8 @@ test.describe("VID2 on", () => {
     await owner.getByTestId("video-rec-memory").click();
     await expect(owner.getByTestId("recording-banner")).toContainText("Recording video", { timeout: 15_000 });
     const t0 = Date.now();
-    // Pieces come about once a second once the encoder is warm; crash after a few have been kept.
-    await expect.poll(() => owner.evaluate(() => (window as unknown as { __pieces: number }).__pieces), { timeout: 60_000, intervals: [1000] }).toBeGreaterThanOrEqual(4);
+    // Pieces come about once a second once the encoder is warm; crash after a few of this recording have been kept.
+    await piecesAtLeast(owner, 4);
     console.log("VID2 PIECES after", Date.now() - t0, "ms");
     await owner.waitForTimeout(1500);
     const crashed = owner;
