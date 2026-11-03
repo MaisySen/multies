@@ -55,7 +55,7 @@ export function OnboardingSettingsPage() {
       <Link to="/app/settings/team" className="mb-2 inline-flex min-h-9 items-center gap-1 text-[13px] text-muted hover:text-fg"><IconArrowLeft className="h-4 w-4" aria-hidden="true" />Team</Link>
       <PageHeader title="Onboarding and offboarding" description="Checklists you assign from a person's profile in Contacts > Staff. Each step becomes a task in Tasks, due from their start or last day."
         actions={isAdmin && <span className="flex gap-2"><Button size="sm" variant="secondary" onClick={() => setEdit({ kind: "offboarding" })} data-testid="tpl-new-off">New offboarding</Button><Button size="sm" onClick={() => setEdit({ kind: "onboarding" })} data-testid="tpl-new"><IconPlus className="h-4 w-4" aria-hidden="true" />New onboarding</Button></span>} />
-      {q.isError && !q.data ? <LoadError onRetry={() => q.refetch()} /> : !q.data ? <div className="space-y-2" aria-busy="true" aria-label="Loading checklists"><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-24 rounded-xl" /></div> : !q.data.templates.length ? (
+      {q.isError && !q.data ? <LoadError onRetry={() => q.refetch()} /> : !q.data ? <div role="status" className="space-y-2" aria-busy="true" aria-label="Loading checklists"><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-24 rounded-xl" /></div> : !q.data.templates.length ? (
         <EmptyState title="No checklists yet" body={isAdmin ? "Start with a new starter checklist. We fill in common steps you can change." : "Your admins have not built any checklists yet."}
           action={isAdmin ? <Button size="sm" onClick={() => setEdit({ kind: "onboarding" })}>New onboarding</Button> : undefined} />
       ) : (

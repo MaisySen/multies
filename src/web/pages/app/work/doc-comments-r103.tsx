@@ -156,7 +156,7 @@ export function DocCommentsPanel({ docId, open, onClose }: { docId: string; open
         </div>
       )}
       <div className="min-h-0 flex-1 overflow-y-auto" role={showPublic ? "tabpanel" : undefined}>
-        {q.isPending ? <div className="space-y-3 p-4" aria-busy="true" aria-label="Loading comments"><Skeleton className="h-14" /><Skeleton className="h-14" /></div>
+        {q.isPending ? <div role="status" className="space-y-3 p-4" aria-busy="true" aria-label="Loading comments"><Skeleton className="h-14" /><Skeleton className="h-14" /></div>
           : q.error ? <LoadErrorInline className="p-4" onRetry={() => q.refetch()} />
             : !list.length ? <EmptyState className="py-10" icon={<IconChat className="h-5 w-5" />} title={tab === "public" && showPublic ? "No comments on the shared link" : "No comments yet"}
               body={tab === "public" && showPublic ? "Comments people leave on the shared link show here for review first." : "Ask a question or leave a note for the team. Type @ and a name to mention someone."} />

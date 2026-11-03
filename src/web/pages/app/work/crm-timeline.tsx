@@ -75,7 +75,7 @@ export function CrmTimeline({ type, id }: { type: "contact" | "company"; id: str
         ))}
       </div>
       {q.isPending ? (
-        <div className="space-y-3" aria-label="Loading timeline">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}</div>
+        <div role="status" className="space-y-3" aria-label="Loading timeline">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}</div>
       ) : q.error ? (
         <Card className="p-4"><LoadErrorInline onRetry={() => q.refetch()} /></Card>
       ) : !items.length ? (

@@ -238,7 +238,7 @@ function ModelAndTest({ status }: { status: AiStatus }) {
   return (
     <div className="space-y-4" data-testid="ai2-model">
       {list.isLoading ? (
-        <div className="space-y-2" aria-busy="true" aria-label="Loading models"><Skeleton className="h-4 w-24" /><Skeleton className="h-9 w-full" /></div>
+        <div role="status" className="space-y-2" aria-busy="true" aria-label="Loading models"><Skeleton className="h-4 w-24" /><Skeleton className="h-9 w-full" /></div>
       ) : list.isError ? (
         <LoadFailure error={list.error} onRetry={() => list.refetch()} />
       ) : (

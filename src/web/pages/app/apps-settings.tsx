@@ -214,7 +214,7 @@ function SocialPointer() {
 
 function GridSkeleton() {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3" aria-busy="true" aria-label="Loading apps">
+    <div role="status" className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3" aria-busy="true" aria-label="Loading apps">
       {Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-[104px] rounded-xl" />)}
     </div>
   );

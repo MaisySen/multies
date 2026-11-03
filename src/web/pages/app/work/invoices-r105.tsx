@@ -230,7 +230,7 @@ function DocList({ kind }: { kind: DocKind }) {
     </div>
   );
 }
-function ListSkeleton() { return <div className="space-y-2" aria-busy="true" aria-label="Loading">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full rounded-xl" />)}</div>; }
+function ListSkeleton() { return <div role="status" className="space-y-2" aria-busy="true" aria-label="Loading">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full rounded-xl" />)}</div>; }
 
 function FirstTime({ kind }: { kind: DocKind }) {
   const body: Record<DocKind, string> = {

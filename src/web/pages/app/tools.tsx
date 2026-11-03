@@ -562,7 +562,7 @@ export function ToolsPage() {
           </div>
 
           {info.isLoading ? (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true" aria-label="Loading tools">{Array.from({ length: 9 }, (_, i) => <Skeleton key={i} className="h-[62px] rounded-xl" />)}</div>
+            <div role="status" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true" aria-label="Loading tools">{Array.from({ length: 9 }, (_, i) => <Skeleton key={i} className="h-[62px] rounded-xl" />)}</div>
           ) : (
             <>
               {!query && !handName && keptRuns.length > 0 && (
@@ -847,7 +847,7 @@ export function ToolsPage() {
 
 function ToolSkeleton() {
   return (
-    <div className="w-full lg:grid lg:grid-cols-[236px_minmax(0,1fr)] lg:gap-6" aria-busy="true" aria-label="Loading tool">
+    <div role="status" className="w-full lg:grid lg:grid-cols-[236px_minmax(0,1fr)] lg:gap-6" aria-busy="true" aria-label="Loading tool">
       <h1 className="sr-only">Tools</h1>
       <div className="hidden space-y-2 lg:block">{Array.from({ length: 10 }, (_, i) => <Skeleton key={i} className="h-7 w-full" />)}</div>
       <div className="space-y-4 rounded-2xl border border-line p-6"><Skeleton className="h-11 w-64" /><Skeleton className="h-40 w-full rounded-2xl" /><Skeleton className="h-11 w-40" /></div>

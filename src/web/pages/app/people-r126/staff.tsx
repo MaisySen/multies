@@ -49,7 +49,7 @@ export function StaffPage() {
         ))}
       </div>
       {view === "assets" ? <AssetsView isAdmin={!!staff.data?.isAdmin} /> : staff.isError && !staff.data ? <LoadError onRetry={() => staff.refetch()} /> : !staff.data ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading staff">{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
+        <div role="status" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading staff">{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
       ) : view === "org" ? <OrgChart people={staff.data.people} /> : view === "away" ? <AwayView people={staff.data.people} /> : <Directory people={staff.data.people} me={staff.data.me} />}
     </div>
   );
@@ -232,7 +232,7 @@ function AssetsView({ isAdmin }: { isAdmin: boolean }) {
   const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
   if (assets.isError && !assets.data) return <LoadError onRetry={() => assets.refetch()} />;
-  if (!assets.data) return <div aria-busy="true" aria-label="Loading assets" className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-lg" />)}</div>;
+  if (!assets.data) return <div role="status" aria-busy="true" aria-label="Loading assets" className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-lg" />)}</div>;
   const all = assets.data.assets;
   const soon = warrantySoon(all, todayYmd());
   const shown = (status === "soon" ? soon : all.filter((a) => !status || a.status === status)).filter((a) => {

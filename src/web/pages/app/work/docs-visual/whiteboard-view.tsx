@@ -44,7 +44,7 @@ class BoardBoundary extends Component<{ children: ReactNode; onRetry: () => void
 
 export function BoardSkeleton({ label = "Loading the whiteboard" }: { label?: string }) {
   return (
-    <div className="flex h-full w-full flex-col gap-3 p-4" aria-label={label} aria-busy="true">
+    <div role="status" className="flex h-full w-full flex-col gap-3 p-4" aria-label={label} aria-busy="true">
       <div className="mx-auto h-10 w-72 max-w-full animate-pulse rounded-lg bg-fill" />
       <div className="flex-1 animate-pulse rounded-lg bg-fill/60" />
     </div>

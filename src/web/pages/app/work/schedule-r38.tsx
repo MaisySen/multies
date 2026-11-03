@@ -102,7 +102,7 @@ export function MoveMode({ strict, onChange, size = "md" }: { strict: boolean; o
 export function ScheduleRules({ projectId }: { projectId?: string }) {
   const { rules, loading, save } = useScheduleRules(projectId);
   if (!projectId) return null;
-  if (loading || !rules) return <span className="h-7 w-56 animate-pulse rounded-lg bg-fill motion-reduce:animate-none" aria-label="Loading schedule rules" />;
+  if (loading || !rules) return <span role="status" className="h-7 w-56 animate-pulse rounded-lg bg-fill motion-reduce:animate-none" aria-label="Loading schedule rules" />;
   return (
     <span className="inline-flex flex-wrap items-center gap-3" data-testid="schedule-rules">
       <label className="inline-flex items-center gap-2 text-[12.5px] text-muted">

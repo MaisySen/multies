@@ -74,7 +74,7 @@ function useInvalidate() {
 
 function ListSkeleton() {
   // R39 premium pass 5: skeleton rows shaped like the cards they stand in for.
-  return <div className="space-y-2" aria-busy="true" aria-label="Loading">{Array.from({ length: 3 }).map((_, i) => <Card key={i} className="flex items-center gap-3 p-3.5 sm:gap-4"><Skeleton className="h-10 w-10 rounded-[12px]" /><div className="flex-1 space-y-1.5"><Skeleton className="h-4 w-48 max-w-full" /><Skeleton className="h-3 w-28" /></div><Skeleton className="h-8 w-8 rounded-full" /></Card>)}</div>;
+  return <div role="status" className="space-y-2" aria-busy="true" aria-label="Loading">{Array.from({ length: 3 }).map((_, i) => <Card key={i} className="flex items-center gap-3 p-3.5 sm:gap-4"><Skeleton className="h-10 w-10 rounded-[12px]" /><div className="flex-1 space-y-1.5"><Skeleton className="h-4 w-48 max-w-full" /><Skeleton className="h-3 w-28" /></div><Skeleton className="h-8 w-8 rounded-full" /></Card>)}</div>;
 }
 
 function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onCreate: () => void; freeDomain?: string }) {

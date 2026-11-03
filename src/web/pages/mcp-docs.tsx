@@ -226,7 +226,7 @@ export function McpDocsPage() {
         </div>
         {failed ? <p className="mt-8 text-sm text-bad">The tool list did not load. Try again, or read <a className="underline" href="/developers/mcp.md">the Markdown copy</a>.</p> : null}
         {!tools && !failed ? (
-          <div className="mt-8 space-y-4" aria-busy="true" aria-label="Loading tools">
+          <div role="status" className="mt-8 space-y-4" aria-busy="true" aria-label="Loading tools">
             {[0, 1, 2].map((i) => <div key={i} className="h-40 animate-pulse rounded-2xl bg-fill" />)}
           </div>
         ) : null}

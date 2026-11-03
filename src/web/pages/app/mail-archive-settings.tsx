@@ -70,7 +70,7 @@ export function MailArchiveSettings() {
 }
 
 function PaneSkeleton() {
-  return <div className="space-y-4" aria-busy="true" aria-label="Loading"><Skeleton className="h-9 w-80 max-w-full" /><Card className="space-y-3 p-5"><Skeleton className="h-5 w-48" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></Card></div>;
+  return <div role="status" className="space-y-4" aria-busy="true" aria-label="Loading"><Skeleton className="h-9 w-80 max-w-full" /><Card className="space-y-3 p-5"><Skeleton className="h-5 w-48" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-2/3" /></Card></div>;
 }
 /** F12 (MB-299): the shared failed load words, in a card. */
 function ErrorCard({ onRetry }: { onRetry: () => void }) {

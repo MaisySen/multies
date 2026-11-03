@@ -183,7 +183,7 @@ export function DocHistoryPanel({ docId, open, onClose, currentText, beforeChang
                 </div>
               )}
               {list.isPending ? (
-                <div className="space-y-2 p-2" aria-label="Loading versions">{[0, 1, 2, 3].map((i) => <div key={i} className="flex items-center gap-2.5"><Skeleton className="h-7 w-7 rounded-full" /><div className="flex-1 space-y-1.5"><Skeleton className="h-3.5 w-2/3" /><Skeleton className="h-3 w-1/2" /></div></div>)}</div>
+                <div role="status" className="space-y-2 p-2" aria-label="Loading versions">{[0, 1, 2, 3].map((i) => <div key={i} className="flex items-center gap-2.5"><Skeleton className="h-7 w-7 rounded-full" /><div className="flex-1 space-y-1.5"><Skeleton className="h-3.5 w-2/3" /><Skeleton className="h-3 w-1/2" /></div></div>)}</div>
               ) : !versions.length ? (
                 <EmptyState icon={<IconHistory />} art={<HistoryArt />} title="No earlier versions yet" className="py-10"
                   body="A version is kept when a new editing session starts and before every restore. Save one now to mark this moment."

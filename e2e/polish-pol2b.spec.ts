@@ -135,3 +135,21 @@ test("project settings show References", async () => {
   await expect(page.getByTestId("references-panel")).toBeVisible({ timeout: 15_000 });
   await axe("project settings 1280 light");
 });
+
+test("the app loading skeleton passes axe while the account loads (HQ MB-349)", async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  let release: () => void = () => {};
+  const held = new Promise<void>((r) => { release = r; });
+  await page.route("**/api/account/me", async (r) => { await held; await r.continue().catch(() => {}); });
+  // The account is cached for a fast start; clear it so this load shows the skeleton.
+  await page.goto("/pricing");
+  await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+  await page.goto("/app/my-work");
+  const skel = page.locator('[role="status"][aria-busy="true"][aria-label="Loading"]');
+  await expect(skel).toBeVisible({ timeout: 20_000 });
+  for (const scheme of ["light", "dark"] as const) { await page.emulateMedia({ colorScheme: scheme }); await axe(`app skeleton 390 ${scheme}`); }
+  await page.emulateMedia({ colorScheme: "light" });
+  release();
+  await page.unroute("**/api/account/me");
+  await expect(page.getByTestId("today-date")).toBeVisible({ timeout: 20_000 });
+});

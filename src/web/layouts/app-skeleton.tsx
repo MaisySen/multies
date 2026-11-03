@@ -1,6 +1,7 @@
+/** POL2 (HQ MB-349): role status, so its name is allowed (axe aria-prohibited-attr was serious on a plain div). */
 export function AppSkeleton() {
   return (
-    <div className="flex min-h-dvh" aria-busy="true" aria-label="Loading">
+    <div role="status" className="flex min-h-dvh" aria-busy="true" aria-label="Loading">
       <div className="hidden w-60 border-r border-line bg-surface p-4 lg:block">
         <div className="skeleton mb-8 h-7 w-28" />
         {Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton mb-3 h-6 w-full" />)}

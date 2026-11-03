@@ -118,7 +118,7 @@ function Analyses() {
           <section aria-labelledby="saved-h">
             <h2 id="saved-h" className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-subtle">Saved</h2>
             {saved.isError && !saved.data ? <LoadError compact onRetry={() => saved.refetch()} />
-              : saved.isPending ? <div className="space-y-2" aria-busy="true" aria-label="Loading saved analyses"><Skeleton className="h-11" /><Skeleton className="h-11" /></div>
+              : saved.isPending ? <div role="status" className="space-y-2" aria-busy="true" aria-label="Loading saved analyses"><Skeleton className="h-11" /><Skeleton className="h-11" /></div>
               : !saved.data.length ? <p className="rounded-xl border border-dashed border-line px-3 py-4 text-[13px] text-muted" data-testid="saved-empty">Nothing saved yet. Pick a template and press Save.</p>
               : (
                 <ul className="space-y-1.5" data-testid="saved-list">
@@ -211,7 +211,7 @@ function Filters({ template, value, onChange, refEl }: { template: AnalysisTempl
 
 function ResultView({ q }: { q: { data?: Result; isPending: boolean; isError: boolean; refetch: () => unknown } }) {
   if (q.isError && !q.data) return <LoadError compact onRetry={() => q.refetch()} />;
-  if (q.isPending || !q.data) return <div aria-busy="true" aria-label="Loading results" className="space-y-2"><Skeleton className="h-6" /><Skeleton className="h-6 w-4/5" /><Skeleton className="h-6 w-3/5" /></div>;
+  if (q.isPending || !q.data) return <div role="status" aria-busy="true" aria-label="Loading results" className="space-y-2"><Skeleton className="h-6" /><Skeleton className="h-6 w-4/5" /><Skeleton className="h-6 w-3/5" /></div>;
   const r = q.data;
   if (!r.rows.length) return <EmptyState className="py-10" icon={<IconChart />} title="No records in this period" body="Try a longer period or clear a filter. Only records you can see are counted." />;
   const top = Math.max(...r.rows.map((x) => Math.abs(x.value)), r.format === "percent" ? 100 : 0) || 1;

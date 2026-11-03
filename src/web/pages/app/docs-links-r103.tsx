@@ -169,7 +169,7 @@ export function DocsLinksPage() {
           </div>
         </div>
         {topTags.length > 0 && <div className="mb-4 flex items-center gap-2"><IconTag className="h-4 w-4 shrink-0 text-subtle" aria-hidden /><TagChips tags={topTags} active={tag} onPick={(t) => setTag((x) => (x === t ? undefined : t))} /></div>}
-        {list.isPending ? <div className="grid gap-3 sm:grid-cols-2" aria-busy="true" aria-label="Loading links">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-32" />)}</div>
+        {list.isPending ? <div role="status" className="grid gap-3 sm:grid-cols-2" aria-busy="true" aria-label="Loading links">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-32" />)}</div>
           : list.error ? <Card><LoadError onRetry={() => list.refetch()} /></Card>
             : !list.data?.links.length ? (
               <Card><EmptyState icon={<IconBookmark className="h-5 w-5" />} title={filtered ? "No links match" : "No links yet"}

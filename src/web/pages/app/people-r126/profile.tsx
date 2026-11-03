@@ -47,7 +47,7 @@ export function StaffProfilePage() {
   if (config.data && !on) return <PeopleOff />;
   if (q.isError && notFoundOr(q.error)) return <EmptyState title="Profile not found" body="This person isn't in your workspace, or you can't see this page." action={<Link to="/app/contacts/staff" className="text-sm font-medium text-brand hover:underline">Back to Staff</Link>} />;
   if (q.isError && !q.data) return <LoadError onRetry={() => q.refetch()} />;
-  if (!q.data) return <div className="mx-auto max-w-4xl space-y-3" aria-busy="true" aria-label="Loading profile"><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-40 rounded-xl" /><Skeleton className="h-40 rounded-xl" /></div>;
+  if (!q.data) return <div role="status" className="mx-auto max-w-4xl space-y-3" aria-busy="true" aria-label="Loading profile"><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-40 rounded-xl" /><Skeleton className="h-40 rounded-xl" /></div>;
   const { person: p, manager, reports, away, runs, assets, canEdit, canAdmin } = q.data;
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: pk.profile(userId) }), qc.invalidateQueries({ queryKey: pk.staff })]);
   const removeAway = async (id: string) => {
@@ -246,7 +246,7 @@ export function AssetPage() {
   if (config.data && !on) return <PeopleOff />;
   if (q.isError && notFoundOr(q.error)) return <EmptyState title="Asset not found" body="It isn't in your workspace, or it was removed." action={<Link to="/app/contacts/staff?view=assets" className="text-sm font-medium text-brand hover:underline">Back to Assets</Link>} />;
   if (q.isError && !q.data) return <LoadError onRetry={() => q.refetch()} />;
-  if (!q.data) return <div className="mx-auto max-w-4xl space-y-3" aria-busy="true" aria-label="Loading asset"><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-48 rounded-xl" /></div>;
+  if (!q.data) return <div role="status" className="mx-auto max-w-4xl space-y-3" aria-busy="true" aria-label="Loading asset"><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-48 rounded-xl" /></div>;
   const { asset: a, history, canEdit } = q.data;
   const assign = async (userId: string | null) => {
     setBusy(true);
