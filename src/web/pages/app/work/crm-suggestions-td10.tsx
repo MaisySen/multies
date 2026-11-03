@@ -18,6 +18,8 @@ import { focusedRow, useOnline, walkRows } from "@/web/lib/crm-keys-td10";
 import { shortDate } from "@/web/lib/format";
 import { useConfig } from "@/web/lib/queries";
 import { dayLabel } from "@/shared/crm-td10";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-contacts"; // R104B
 
 export type SuggestionKind = "contact_details" | "new_contact" | "last_contacted" | "next_step";
 export interface Suggestion { id: string; kind: SuggestionKind; target: { type: string; id: string | null; label: string }; fields: Record<string, string>; messageAt: string; current?: Record<string, string | null> }
@@ -30,7 +32,7 @@ export function useSuggestions(enabled = true) {
   return useQuery({ queryKey: KEY, enabled, staleTime: 60_000, queryFn: async () => (await api.get<{ items: Suggestion[] }>("/crm-td10/suggestions")).items });
 }
 
-const FIELD_LABEL: Record<string, string> = { name: "Name", title: "Job title", phone: "Phone", company: "Company" };
+const FIELD_LABEL: Record<string, string> = { name: "Name", get title() { return tr("contacts.job_title"); }, phone: "Phone", company: "Company" };
 
 function headline(s: Suggestion) {
   const who = s.target.label || s.fields.email || "this contact";
@@ -75,10 +77,10 @@ export function SuggestionsTab() {
   const scanned = useRef(false);
   const scan = useMutation({
     mutationFn: (_mode: "auto" | "manual") => api.post<{ added: number; scanned: number }>("/crm-td10/suggestions/scan", {}),
-    onSuccess: async (r, mode) => { await qc.invalidateQueries({ queryKey: KEY }); if (mode === "manual") toast(r.added ? `${r.added} new ${r.added === 1 ? "suggestion" : "suggestions"}` : "Nothing new in your mail"); },
+    onSuccess: async (r, mode) => { await qc.invalidateQueries({ queryKey: KEY }); if (mode === "manual") toast(r.added ? `${r.added} new ${r.added === 1 ? "suggestion" : "suggestions"}` : tr("contacts.nothing_new_in_your_mail")); },
     onError: (e, mode) => {
       if (mode !== "manual") return;
-      if (e instanceof ApiError && e.status === 429) toast("Mail was checked a moment ago. Try again in a minute."); else showError(e as Error);
+      if (e instanceof ApiError && e.status === 429) toast(tr("contacts.mail_was_checked_a_moment_ago_try_again_in_a_min")); else showError(e as Error);
     },
   });
   useEffect(() => { if (!scanned.current && online) { scanned.current = true; scan.mutate("auto"); } }, [online]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -87,7 +89,7 @@ export function SuggestionsTab() {
     setBusy(s.id);
     try {
       await api.post(`/crm-td10/suggestions/${s.id}/accept`, edits);
-      toast(s.kind === "new_contact" ? "Contact added" : s.kind === "next_step" ? "Next step added" : s.kind === "last_contacted" ? "Logged on the deal" : "Contact updated");
+      toast(s.kind === "new_contact" ? tr("contacts.contact_added") : s.kind === "next_step" ? tr("contacts.next_step_added") : s.kind === "last_contacted" ? tr("contacts.logged_on_the_deal") : tr("contacts.contact_updated"));
       setEditing(null);
       await Promise.all([qc.invalidateQueries({ queryKey: KEY }), qc.invalidateQueries({ queryKey: ["contacts"] })]);
     } catch (e) { showError(e as Error); await qc.invalidateQueries({ queryKey: KEY }); } finally { setBusy(null); }
@@ -99,7 +101,7 @@ export function SuggestionsTab() {
       const next = neighbourOf(s.id);
       qc.setQueryData<Suggestion[]>(KEY, (old) => old?.filter((x) => x.id !== s.id));
       focusAfterRemove(next);
-      toast("Suggestion discarded", { action: { label: "Undo", onClick: async () => { try { await api.post(`/crm-td10/suggestions/${s.id}/undo`, {}); await qc.invalidateQueries({ queryKey: KEY }); } catch (e) { showError(e as Error); } } } });
+      toast(tr("contacts.suggestion_discarded"), { action: { label: tr("contacts.undo"), onClick: async () => { try { await api.post(`/crm-td10/suggestions/${s.id}/undo`, {}); await qc.invalidateQueries({ queryKey: KEY }); } catch (e) { showError(e as Error); } } } });
     } catch (e) { showError(e as Error); await qc.invalidateQueries({ queryKey: KEY }); } finally { setBusy(null); }
   };
   const fromRow = () => { const id = focusedRow()?.dataset.suggestionId; return list.data?.find((x) => x.id === id) ?? null; };
@@ -113,17 +115,17 @@ export function SuggestionsTab() {
   return (
     <div data-testid="crm-suggestions">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[13px] text-muted">Changes read from your recent mail. Nothing is saved until you accept it.</p>
-        <Button variant="outline" size="sm" onClick={() => scan.mutate("manual")} loading={scan.isPending} disabled={!online} data-testid="crm-check-mail"><IconRefresh className="h-4 w-4" aria-hidden />Check mail</Button>
+        <p className="text-[13px] text-muted">{tr("contacts.changes_read_from_your_recent_mail_nothing_is_sa")}</p>
+        <Button variant="outline" size="sm" onClick={() => scan.mutate("manual")} loading={scan.isPending} disabled={!online} data-testid="crm-check-mail"><IconRefresh className="h-4 w-4" aria-hidden />{tr("contacts.check_mail")}</Button>
       </div>
-      {!online && <p role="status" className="mb-3 rounded-lg border border-line bg-fill px-3 py-2 text-[13px] text-muted" data-testid="crm-offline">You're offline. Suggestions will refresh when you're back.</p>}
+      {!online && <p role="status" className="mb-3 rounded-lg border border-line bg-fill px-3 py-2 text-[13px] text-muted" data-testid="crm-offline">{tr("contacts.you_re_offline_suggestions_will_refresh_when_you")}</p>}
       {list.isError && !list.data ? <LoadError onRetry={() => list.refetch()} />
-        : list.isPending ? <div role="status" aria-busy="true" aria-label="Loading suggestions" className="space-y-2"><Skeleton className="h-16" /><Skeleton className="h-16" /><Skeleton className="h-16" /></div>
+        : list.isPending ? <div role="status" aria-busy="true" aria-label={tr("appearance.wording_loading")} className="space-y-2"><Skeleton className="h-16" /><Skeleton className="h-16" /><Skeleton className="h-16" /></div>
         : !list.data.length ? (
-          <EmptyState icon={<IconMail />} title="Nothing to update" body="When mail brings a new contact, a phone number, a job title or a next step, it shows here for you to accept." />
+          <EmptyState icon={<IconMail />} title={tr("contacts.nothing_to_update")} body="When mail brings a new contact, a phone number, a job title or a next step, it shows here for you to accept." />
         ) : (
           <Card className="divide-y divide-line overflow-hidden" data-testid="suggestion-list">
-            <ul aria-label="Suggestions from mail">
+            <ul aria-label={tr("contacts.suggestions_from_mail")}>
               {list.data.map((s) => {
                 const Icon = ICON[s.kind];
                 return (
@@ -135,14 +137,14 @@ export function SuggestionsTab() {
                         <div className="text-[14px] font-medium text-fg">{headline(s)}</div>
                         <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[12.5px] text-muted">
                           {detail(s).map((d) => <span key={d}>{d}</span>)}
-                          <span className="text-subtle">From mail {shortDate(s.messageAt)}</span>
+                          <span className="text-subtle">{tr("contacts.from_mail")} {shortDate(s.messageAt)}</span>
                         </div>
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2 max-sm:[&>button]:h-11 max-sm:[&>button]:flex-1">
-                      <Button size="sm" onClick={() => accept(s)} loading={busy === s.id} disabled={!online} data-testid="suggestion-accept"><IconCheck className="h-4 w-4" aria-hidden />Accept</Button>
-                      {s.kind !== "last_contacted" && <Button size="sm" variant="outline" onClick={() => setEditing(s)} disabled={!online} data-testid="suggestion-edit"><IconEdit className="h-4 w-4" aria-hidden />Edit</Button>}
-                      <Button size="sm" variant="ghost" onClick={() => discard(s)} disabled={!online || busy === s.id} data-testid="suggestion-discard">Discard</Button>
+                      <Button size="sm" onClick={() => accept(s)} loading={busy === s.id} disabled={!online} data-testid="suggestion-accept"><IconCheck className="h-4 w-4" aria-hidden />{tr("contacts.accept")}</Button>
+                      {s.kind !== "last_contacted" && <Button size="sm" variant="outline" onClick={() => setEditing(s)} disabled={!online} data-testid="suggestion-edit"><IconEdit className="h-4 w-4" aria-hidden />{tr("contacts.edit")}</Button>}
+                      <Button size="sm" variant="ghost" onClick={() => discard(s)} disabled={!online || busy === s.id} data-testid="suggestion-discard">{tr("branding.discard")}</Button>
                     </div>
                   </li>
                 );
@@ -165,19 +167,19 @@ function EditDialog({ s, onClose, onSave, busy }: { s: Suggestion; onClose: () =
     onSave(edits);
   };
   return (
-    <Dialog open onClose={onClose} title={step ? "Edit the next step" : "Check the details"} description="Change anything before it is saved.">
+    <Dialog open onClose={onClose} title={step ? tr("contacts.edit_the_next_step") : tr("contacts.check_the_details")} description={tr("contacts.change_anything_before_it_is_saved")}>
       <form onSubmit={submit} className="space-y-3" data-testid="suggestion-edit-form">
         {step ? (
           <>
-            <Field label="Next step">{(p) => <Input {...p} value={v.stepTitle} maxLength={120} onChange={(e) => setV({ ...v, stepTitle: e.target.value })} required />}</Field>
-            <Field label="Due">{(p) => <Input {...p} type="date" value={v.due} onChange={(e) => setV({ ...v, due: e.target.value })} required />}</Field>
+            <Field label={tr("contacts.next_step")}>{(p) => <Input {...p} value={v.stepTitle} maxLength={120} onChange={(e) => setV({ ...v, stepTitle: e.target.value })} required />}</Field>
+            <Field label={tr("tasks.due")}>{(p) => <Input {...p} type="date" value={v.due} onChange={(e) => setV({ ...v, due: e.target.value })} required />}</Field>
           </>
         ) : keys.map((k) => (
           <Field key={k} label={FIELD_LABEL[k]}>{(p) => <Input {...p} value={v[k] ?? ""} maxLength={k === "phone" ? 24 : 60} inputMode={k === "phone" ? "tel" : undefined} onChange={(e) => setV({ ...v, [k]: e.target.value })} />}</Field>
         ))}
         <div className="flex justify-end gap-2 pt-1">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button type="submit" loading={busy} data-testid="suggestion-save">Save to CRM</Button>
+          <Button variant="ghost" onClick={onClose}>{tr("common.cancel")}</Button>
+          <Button type="submit" loading={busy} data-testid="suggestion-save">{tr("contacts.save_to_crm")}</Button>
         </div>
       </form>
     </Dialog>

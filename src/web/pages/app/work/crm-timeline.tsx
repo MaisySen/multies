@@ -18,6 +18,8 @@ import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { mailDate, shortDate } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { LoadErrorInline } from "@/web/components/load-error-t1g";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-contacts"; // R104B
 
 /** Whether CRM_TIMELINE is on here (public config, cached with the rest of the app's config). */
 export function useCrmTimelineOn() {
@@ -42,11 +44,11 @@ interface NextStep { id: string; ref: string; title: string; due: string | null 
 interface Page { items: TimelineItem[]; nextCursor: string | null; nextStep?: NextStep | null }
 
 const CHIPS: { id: TimelineKind | "all"; label: string }[] = [
-  { id: "all", label: "All" }, { id: "mail", label: "Emails" }, { id: "note", label: "Notes" }, { id: "call", label: "Calls" }, { id: "meeting", label: "Meetings" },
-  { id: "task", label: "Tasks" }, { id: "deal", label: "Deals" }, { id: "form", label: "Forms" }, { id: "booking", label: "Bookings" },
+  { id: "all", get label() { return tr("notifications.all"); } }, { id: "mail", get label() { return tr("contacts.emails"); } }, { id: "note", get label() { return tr("contacts.notes"); } }, { id: "call", get label() { return tr("contacts.calls"); } }, { id: "meeting", get label() { return tr("calendar.meetings"); } },
+  { id: "task", get label() { return tr("common.tasks"); } }, { id: "deal", get label() { return tr("nav.deals"); } }, { id: "form", get label() { return tr("nav.forms"); } }, { id: "booking", get label() { return tr("contacts.bookings"); } },
 ];
 export const OUTCOMES: { id: string; label: string }[] = [
-  { id: "connected", label: "Connected" }, { id: "no_answer", label: "No answer" }, { id: "voicemail", label: "Left a voicemail" }, { id: "busy", label: "Busy" }, { id: "wrong_number", label: "Wrong number" },
+  { id: "connected", get label() { return tr("contacts.connected"); } }, { id: "no_answer", get label() { return tr("contacts.no_answer"); } }, { id: "voicemail", get label() { return tr("contacts.left_a_voicemail"); } }, { id: "busy", get label() { return tr("contacts.busy"); } }, { id: "wrong_number", get label() { return tr("contacts.wrong_number"); } },
 ];
 const outcomeLabel = (o: string | null) => OUTCOMES.find((x) => x.id === o)?.label ?? null;
 const aud = (n: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(n);
@@ -65,22 +67,22 @@ export function CrmTimeline({ type, id }: { type: "contact" | "company"; id: str
   const items = q.data?.pages.flatMap((p) => p.items) ?? [];
   const nextStep = q.data?.pages[0]?.nextStep ?? null;
   return (
-    <section aria-label="Timeline" data-testid="crm-timeline">
+    <section aria-label={tr("taskview.timeline")} data-testid="crm-timeline">
       <NextStepCard type={type} id={id} step={nextStep} loading={q.isPending} />
       <Composer type={type} id={id} textareaRef={composerRef} />
-      <div className="-mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Show">
+      <div className="-mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1 pb-1" role="tablist" aria-label={tr("contacts.show")}>
         {CHIPS.map((c) => (
           <button key={c.id} type="button" role="tab" aria-selected={kind === c.id} onClick={() => setKind(c.id)}
             className={cn("h-8 shrink-0 rounded-full border px-3 text-[12.5px] transition-colors duration-150", kind === c.id ? "border-brand/40 bg-brand/10 font-medium text-fg" : "border-line text-muted hover:bg-hover hover:text-fg")}>{c.label}</button>
         ))}
       </div>
       {q.isPending ? (
-        <div role="status" className="space-y-3" aria-label="Loading timeline">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}</div>
+        <div role="status" className="space-y-3" aria-label={tr("contacts.loading_timeline")}>{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}</div>
       ) : q.error ? (
         <Card className="p-4"><LoadErrorInline onRetry={() => q.refetch()} /></Card>
       ) : !items.length ? (
-        <EmptyState icon={<IconTimeline />} title={kind === "all" ? "Nothing here yet" : "Nothing of this kind yet"} body={kind === "all" ? "Emails, meetings, tasks, deals, forms and bookings show up here on their own. Log a call or a note to start the story." : "Try All to see everything."}
-          action={<Button variant="secondary" onClick={() => composerRef.current?.focus()}>Log a note</Button>} className="py-10" />
+        <EmptyState icon={<IconTimeline />} title={kind === "all" ? tr("contacts.nothing_here_yet") : tr("contacts.nothing_of_this_kind_yet")} body={kind === "all" ? "Emails, meetings, tasks, deals, forms and bookings show up here on their own. Log a call or a note to start the story." : "Try All to see everything."}
+          action={<Button variant="secondary" onClick={() => composerRef.current?.focus()}>{tr("contacts.log_a_note")}</Button>} className="py-10" />
       ) : (
         <>
           <ol className="relative space-y-3 border-l border-line pl-5" data-testid="crm-timeline-list">
@@ -88,7 +90,7 @@ export function CrmTimeline({ type, id }: { type: "contact" | "company"; id: str
           </ol>
           {q.hasNextPage && (
             <div className="mt-4 flex justify-center">
-              <Button variant="secondary" loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()} data-testid="timeline-older">Show older</Button>
+              <Button variant="secondary" loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()} data-testid="timeline-older">{tr("contacts.show_older")}</Button>
             </div>
           )}
         </>
@@ -118,41 +120,41 @@ function Composer({ type, id, textareaRef }: { type: "contact" | "company"; id: 
     try {
       await api.post("/crm/entries", { entityType: type, entityId: id, kind, body: on ? picker.toTokens(body) : body, private: isPrivate, ...(kind === "call" ? { outcome } : {}), ...(kind !== "note" && minutes ? { durationMin: Number(minutes) } : {}) });
       setBody(""); setMinutes(""); setPrivate(false); picker.reset();
-      toast(kind === "call" ? "Call logged" : kind === "meeting" ? "Meeting logged" : "Note added");
+      toast(kind === "call" ? tr("contacts.call_logged") : kind === "meeting" ? tr("contacts.meeting_logged") : tr("contacts.note_added"));
       await refresh(qc, type, id);
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   const label = kind === "call" ? "Log call" : kind === "meeting" ? "Log meeting" : "Add note";
   return (
     <Card className="mb-4 p-3" data-testid="crm-composer">
-      <div className="mb-2 flex gap-1" role="tablist" aria-label="What to log">
+      <div className="mb-2 flex gap-1" role="tablist" aria-label={tr("contacts.what_to_log")}>
         {([["note", "Note", IconNotes], ["call", "Call", IconPhone], ["meeting", "Meeting", IconMeetings]] as const).map(([k, l, I]) => (
           <button key={k} type="button" role="tab" aria-selected={kind === k} onClick={() => setKind(k)}
             className={cn("inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] transition-colors duration-150", kind === k ? "bg-fill font-medium text-fg" : "text-muted hover:bg-hover hover:text-fg")}><I className="h-4 w-4" aria-hidden />{l}</button>
         ))}
       </div>
-      <label htmlFor={`crm-body-${type}`} className="sr-only">{kind === "call" ? "Call summary" : kind === "meeting" ? "Meeting summary" : "Note"}</label>
+      <label htmlFor={`crm-body-${type}`} className="sr-only">{kind === "call" ? tr("contacts.call_summary") : kind === "meeting" ? tr("contacts.meeting_summary") : tr("contacts.note")}</label>
       <div className="relative">
       {picker.list}
       <Textarea id={`crm-body-${type}`} ref={textareaRef} value={body} onChange={(e) => { setBody(e.target.value); if (on) requestAnimationFrame(picker.sync); }} rows={2} className="min-h-16 text-[13.5px]"
         onClick={on ? picker.sync : undefined} aria-activedescendant={on ? picker.activeId : undefined} aria-autocomplete={on ? "list" : undefined}
-        placeholder={kind === "call" ? "What did you talk about? (optional)" : kind === "meeting" ? "What was agreed?" : "Write a note. Only your team sees it."}
+        placeholder={kind === "call" ? tr("contacts.what_did_you_talk_about_optional") : kind === "meeting" ? tr("contacts.what_was_agreed") : tr("contacts.write_a_note_only_your_team_sees_it")}
         onKeyDown={(e) => { if (on && picker.onKeyDown(e)) return; if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); void save(); } }} />
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {kind === "call" && (
-          <label className="flex items-center gap-2 text-[12.5px] text-muted">Outcome
-            <Select value={outcome} onChange={(e) => setOutcome(e.target.value)} className="h-9 w-auto text-[13px]" aria-label="Call outcome">{OUTCOMES.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}</Select>
+          <label className="flex items-center gap-2 text-[12.5px] text-muted">{tr("contacts.outcome")}
+            <Select value={outcome} onChange={(e) => setOutcome(e.target.value)} className="h-9 w-auto text-[13px]" aria-label={tr("contacts.call_outcome")}>{OUTCOMES.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}</Select>
           </label>
         )}
         {kind !== "note" && (
-          <label className="flex items-center gap-2 text-[12.5px] text-muted">Minutes
-            <Input value={minutes} onChange={(e) => setMinutes(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))} inputMode="numeric" className="h-9 w-20 text-[13px]" aria-label="Minutes" />
+          <label className="flex items-center gap-2 text-[12.5px] text-muted">{tr("contacts.minutes")}
+            <Input value={minutes} onChange={(e) => setMinutes(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))} inputMode="numeric" className="h-9 w-20 text-[13px]" aria-label={tr("contacts.minutes")} />
           </label>
         )}
         <label className="flex min-h-11 items-center gap-2 text-[12.5px] text-muted sm:min-h-0">
           <input type="checkbox" checked={isPrivate} onChange={(e) => setPrivate(e.target.checked)} className="h-4 w-4 accent-[var(--color-brand)]" />
-          <IconLock className="h-3.5 w-3.5" aria-hidden />Only me
+          <IconLock className="h-3.5 w-3.5" aria-hidden />{tr("contacts.only_me")}
         </label>
         <Button size="sm" className="ml-auto" loading={busy} disabled={!canSave} onClick={() => void save()} data-testid="crm-save">{label}</Button>
       </div>
@@ -168,7 +170,7 @@ function NextStepCard({ type, id, step, loading }: { type: "contact" | "company"
   const done = async () => {
     if (!step) return;
     setBusy(true);
-    try { await api.patch(`/tasks/${step.id}`, { status: "done" }); toast("Next step done"); await refresh(qc, type, id); } catch (e) { showError(e as Error); } finally { setBusy(false); }
+    try { await api.patch(`/tasks/${step.id}`, { status: "done" }); toast(tr("contacts.next_step_done")); await refresh(qc, type, id); } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   const overdue = step?.due ? new Date(step.due).getTime() < Date.now() - 86_400_000 : false;
   return (
@@ -177,16 +179,16 @@ function NextStepCard({ type, id, step, loading }: { type: "contact" | "company"
         <Card className="mb-3 flex flex-wrap items-center gap-3 p-3" data-testid="next-step">
           <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg border", overdue ? "border-danger/40 text-danger" : "border-line text-muted")}><IconDue className="h-4 w-4" aria-hidden /></span>
           <div className="min-w-0 flex-1">
-            <div className="text-[12px] text-subtle">Next step{step.due ? <> · {overdue ? "overdue, " : ""}due {dayLabel(step.due)}</> : null}</div>
+            <div className="text-[12px] text-subtle">{tr("contacts.next_step")}{step.due ? <> · {overdue ? "overdue, " : ""}{tr("calendar.due_short")} {dayLabel(step.due)}</> : null}</div>
             <Link to={`/app/tasks?view=list&task=${step.id}`} className="block truncate text-[14px] font-medium hover:underline">{step.title}</Link>
           </div>
-          <Button size="sm" variant="secondary" loading={busy} onClick={() => void done()}><IconCheck className="h-4 w-4" />Done</Button>
-          <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>New step</Button>
+          <Button size="sm" variant="secondary" loading={busy} onClick={() => void done()}><IconCheck className="h-4 w-4" />{tr("common.done")}</Button>
+          <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>{tr("contacts.new_step")}</Button>
         </Card>
       ) : (
         <button type="button" onClick={() => setOpen(true)} data-testid="set-next-step"
           className="mb-3 flex min-h-11 w-full items-center gap-2 rounded-lg border border-dashed border-line-strong px-3 py-2.5 text-left text-[13px] text-muted transition-colors duration-150 hover:bg-hover hover:text-fg">
-          <IconCalendarClock className="h-4 w-4" aria-hidden />Set a next step so nothing slips
+          <IconCalendarClock className="h-4 w-4" aria-hidden />{tr("contacts.set_a_next_step_so_nothing_slips")}
         </button>
       )}
       {open && <NextStepDialog type={type} id={id} onClose={() => setOpen(false)} />}
@@ -203,15 +205,15 @@ function NextStepDialog({ type, id, onClose }: { type: "contact" | "company"; id
   const submit = async () => {
     if (!title.trim() || !due) return;
     setBusy(true);
-    try { await api.post("/crm/next-step", { entityType: type, entityId: id, title, due }); toast("Next step set. You get a reminder when it is due."); await refresh(qc, type, id); onClose(); }
+    try { await api.post("/crm/next-step", { entityType: type, entityId: id, title, due }); toast(tr("contacts.next_step_set_you_get_a_reminder_when_it_is_due")); await refresh(qc, type, id); onClose(); }
     catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   return (
-    <Dialog open onClose={onClose} title="Next step" description="It becomes a task for you, linked here, with a reminder on the day."
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={busy} disabled={!title.trim() || !due} onClick={() => void submit()}>Set next step</Button></>}>
+    <Dialog open onClose={onClose} title={tr("contacts.next_step")} description={tr("contacts.it_becomes_a_task_for_you_linked_here_with_a_rem")}
+      footer={<><Button variant="secondary" onClick={onClose}>{tr("common.cancel")}</Button><Button loading={busy} disabled={!title.trim() || !due} onClick={() => void submit()}>{tr("contacts.set_next_step")}</Button></>}>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-        <Field label="What happens next">{(f) => <Input {...f} autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Send the quote" maxLength={200} />}</Field>
-        <Field label="Due">{(f) => <Input {...f} type="date" value={due} onChange={(e) => setDue(e.target.value)} />}</Field>
+        <Field label={tr("contacts.what_happens_next")}>{(f) => <Input {...f} autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tr("contacts.send_the_quote")} maxLength={200} />}</Field>
+        <Field label={tr("tasks.due")}>{(f) => <Input {...f} type="date" value={due} onChange={(e) => setDue(e.target.value)} />}</Field>
       </form>
     </Dialog>
   );
@@ -234,8 +236,8 @@ function TimelineRow({ item: i, type, id }: { item: TimelineItem; type: "contact
   let body: React.ReactNode;
   if (i.mail) {
     body = (
-      <Shell icon={<IconMail className={ico} aria-hidden />} at={i.at} to={`/app/mail?m=${i.mail.messageId}`} head={<>{i.mail.count} {i.mail.count === 1 ? "email" : "emails"} · {i.mail.lastDirection === "inbound" ? "they wrote last" : "you wrote last"}</>}>
-        <div className="mt-1 line-clamp-2 text-[14px] font-medium">{i.mail.subject || "(no subject)"}</div>
+      <Shell icon={<IconMail className={ico} aria-hidden />} at={i.at} to={`/app/mail?m=${i.mail.messageId}`} head={<>{i.mail.count} {i.mail.count === 1 ? "email" : "emails"} · {i.mail.lastDirection === "inbound" ? tr("contacts.they_wrote_last") : tr("contacts.you_wrote_last")}</>}>
+        <div className="mt-1 line-clamp-2 text-[14px] font-medium">{i.mail.subject || tr("contacts.no_subject")}</div>
         <p className="mt-0.5 line-clamp-2 text-[13px] text-muted">{i.mail.snippet}</p>
       </Shell>
     );
@@ -243,13 +245,13 @@ function TimelineRow({ item: i, type, id }: { item: TimelineItem; type: "contact
     body = <EntryCard entry={i.entry} at={i.at} who={who} type={type} id={id} />;
   } else if (i.meeting) {
     body = (
-      <Shell icon={<IconMeetings className={ico} aria-hidden />} at={i.at} to={`/app/meetings`} head={<>Meeting · {i.meeting.status === "cancelled" ? "cancelled" : `${i.meeting.durationMin} min`}{who}</>}>
+      <Shell icon={<IconMeetings className={ico} aria-hidden />} at={i.at} to={`/app/meetings`} head={<>{tr("contacts.meeting")} {i.meeting.status === "cancelled" ? "cancelled" : tr("contacts.durationmin_min", { durationMin: i.meeting.durationMin })}{who}</>}>
         <div className="mt-1 text-[14px] font-medium">{i.meeting.title}</div>
       </Shell>
     );
   } else if (i.task) {
     body = (
-      <Shell icon={<IconTasks className={ico} aria-hidden />} at={i.at} to={`/app/tasks?view=list&task=${i.task.id}`} head={<>Task {i.task.ref}{i.task.due ? <> · due {shortDate(i.task.due)}</> : null}</>}>
+      <Shell icon={<IconTasks className={ico} aria-hidden />} at={i.at} to={`/app/tasks?view=list&task=${i.task.id}`} head={<>{tr("nav.task")} {i.task.ref}{i.task.due ? <> {tr("contacts.due")} {shortDate(i.task.due)}</> : null}</>}>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-[14px] font-medium"><span className={cn(i.task.done && "text-muted line-through")}>{i.task.title}</span><Badge>{i.task.statusName}</Badge></div>
       </Shell>
     );
@@ -257,13 +259,13 @@ function TimelineRow({ item: i, type, id }: { item: TimelineItem; type: "contact
     const ev = i.deal.event === "won" ? "Deal won" : i.deal.event === "lost" ? "Deal lost" : "Deal added";
     body = (
       <Shell icon={<IconHandshake className={ico} aria-hidden />} at={i.at} to="/app/deals" head={<>{ev} · {aud(i.deal.value)}</>}>
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-[14px] font-medium">{i.deal.title}{i.deal.event !== "created" && <Badge tone={i.deal.event === "won" ? "ok" : "neutral"}>{i.deal.event === "won" ? "Won" : "Lost"}</Badge>}</div>
-        {i.deal.reason && <p className="mt-0.5 text-[13px] text-muted">Why: {i.deal.reason}</p>}
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-[14px] font-medium">{i.deal.title}{i.deal.event !== "created" && <Badge tone={i.deal.event === "won" ? "ok" : "neutral"}>{i.deal.event === "won" ? tr("contacts.won") : tr("contacts.lost")}</Badge>}</div>
+        {i.deal.reason && <p className="mt-0.5 text-[13px] text-muted">{tr("contacts.why")} {i.deal.reason}</p>}
       </Shell>
     );
   } else if (i.form) {
     body = (
-      <Shell icon={<IconClipboardList className={ico} aria-hidden />} at={i.at} to="/app/forms" head={<>Form sent · {i.form.formName}{who}</>}>
+      <Shell icon={<IconClipboardList className={ico} aria-hidden />} at={i.at} to="/app/forms" head={<>{tr("contacts.form_sent")} {i.form.formName}{who}</>}>
         {i.form.fields.length > 0 && (
           <dl className="mt-1 grid grid-cols-[minmax(0,120px)_1fr] gap-x-3 gap-y-0.5 text-[13px]">
             {i.form.fields.map((f, n) => <div key={n} className="contents"><dt className="truncate text-subtle">{f.label}</dt><dd className="truncate">{f.value}</dd></div>)}
@@ -273,8 +275,8 @@ function TimelineRow({ item: i, type, id }: { item: TimelineItem; type: "contact
     );
   } else if (i.booking) {
     body = (
-      <Shell icon={<IconCalendarClock className={ico} aria-hidden />} at={i.at} to="/app/scheduling" head={<>Booking · {i.booking.status === "cancelled" ? "cancelled" : "confirmed"}</>}>
-        <div className="mt-1 text-[14px] font-medium">{new Date(i.booking.startsAt).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} · {i.booking.durationMin} min</div>
+      <Shell icon={<IconCalendarClock className={ico} aria-hidden />} at={i.at} to="/app/scheduling" head={<>{tr("contacts.booking")} {i.booking.status === "cancelled" ? "cancelled" : "confirmed"}</>}>
+        <div className="mt-1 text-[14px] font-medium">{new Date(i.booking.startsAt).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} · {i.booking.durationMin} {tr("contacts.min")}</div>
         {i.booking.note && <p className="mt-0.5 line-clamp-2 text-[13px] text-muted">{i.booking.note}</p>}
       </Shell>
     );
@@ -306,29 +308,29 @@ function EntryCard({ entry: e, at, who, type, id }: { entry: Entry; at: string; 
     try {
       await api.del(`/crm/entries/${e.id}`);
       await refresh(qc, type, id);
-      toast(`${title} deleted`, { action: { label: "Undo", onClick: () => { void api.post(`/crm/entries/${e.id}/restore`).then(() => refresh(qc, type, id)).catch((err: Error) => showError(err)); } } });
+      toast(tr("contacts.title_deleted", { title }), { action: { label: tr("contacts.undo"), onClick: () => { void api.post(`/crm/entries/${e.id}/restore`).then(() => refresh(qc, type, id)).catch((err: Error) => showError(err)); } } });
     } catch (err) { showError(err as Error); }
   };
   return (
     <div className="group rounded-lg border border-line bg-surface p-3" data-testid="crm-entry">
       <div className="flex items-center gap-2 text-[12px] text-subtle">
         <Ico className="h-3.5 w-3.5 shrink-0" aria-hidden /><span className="min-w-0 truncate">{bits}{who}</span>
-        {e.private && <Badge className="shrink-0"><IconLock className="h-3 w-3" aria-hidden />Only you</Badge>}
+        {e.private && <Badge className="shrink-0"><IconLock className="h-3 w-3" aria-hidden />{tr("contacts.only_you")}</Badge>}
         <time className="ml-auto shrink-0" dateTime={at}>{mailDate(at)}</time>
       </div>
       {editing ? (
         <div className="mt-2">
-          <label htmlFor={`edit-${e.id}`} className="sr-only">Edit</label>
+          <label htmlFor={`edit-${e.id}`} className="sr-only">{tr("contacts.edit")}</label>
           <Textarea id={`edit-${e.id}`} value={text} onChange={(x) => setText(x.target.value)} rows={3} className="text-[13.5px]" autoFocus />
-          <div className="mt-2 flex justify-end gap-2"><Button size="sm" variant="secondary" onClick={() => { setEditing(false); setText(editable.text); }}>Cancel</Button><Button size="sm" loading={busy} disabled={e.kind !== "call" && !text.trim()} onClick={() => void save()}>Save</Button></div>
+          <div className="mt-2 flex justify-end gap-2"><Button size="sm" variant="secondary" onClick={() => { setEditing(false); setText(editable.text); }}>{tr("common.cancel")}</Button><Button size="sm" loading={busy} disabled={e.kind !== "call" && !text.trim()} onClick={() => void save()}>{tr("common.save")}</Button></div>
         </div>
       ) : (
         e.body && <p className="mt-1 whitespace-pre-wrap break-words text-[13.5px]"><CommentText text={e.body} /></p>
       )}
       {e.canEdit && !editing && (
         <div className="mt-1 flex justify-end gap-1 opacity-100 transition-opacity duration-150 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
-          <Button size="sm" variant="ghost" onClick={() => setEditing(true)} aria-label={`Edit ${title.toLowerCase()}`}><IconEdit className="h-4 w-4" />Edit</Button>
-          <Button size="sm" variant="ghost" onClick={() => void remove()} aria-label={`Delete ${title.toLowerCase()}`}><IconTrash className="h-4 w-4" />Delete</Button>
+          <Button size="sm" variant="ghost" onClick={() => setEditing(true)} aria-label={`Edit ${title.toLowerCase()}`}><IconEdit className="h-4 w-4" />{tr("contacts.edit")}</Button>
+          <Button size="sm" variant="ghost" onClick={() => void remove()} aria-label={`Delete ${title.toLowerCase()}`}><IconTrash className="h-4 w-4" />{tr("contacts.delete")}</Button>
         </div>
       )}
     </div>
