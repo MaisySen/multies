@@ -10,6 +10,7 @@ import { collapsedKey, groupTasks, type GroupBy } from "@/web/lib/task-groups-r8
 import { AvatarStack, TagChips } from "./tasks-r84"; // R84
 import { useWindowedList } from "@/web/lib/use-windowed-list"; // R43 (MB-210)
 import { sortTasks } from "@/web/lib/task-sort-par1"; // PAR1
+import { TABLE_COLUMNS, type TableContext } from "./table"; // PAR1: the same sort keys as the table
 
 /**
  * R41 (MB-226): the Tasks list on a phone. Below the sm breakpoint each task is one card row, the way native task apps
@@ -24,7 +25,11 @@ export function PhoneTaskList({ tasks: given, projects, onOpen, groupBy, fields 
   groupBy?: GroupBy | null; fields?: CustomField[]; people?: AssigneeOption[];
 }) {
   const tagList = useTags();
-  const tasks = useMemo(() => sortTasks(given, sort, projects), [given, sort, projects]);
+  const tasks = useMemo(() => {
+    const pmap = new Map(projects.map((p) => [p.id, p]));
+    const ctx: TableContext = { projects: pmap, people, statusesFor: (t) => pmap.get(t.projectId)?.statuses ?? [] };
+    return sortTasks(given, sort, (id) => { const col = TABLE_COLUMNS.find((c) => c.id === id); return col?.sortKey ? (t: Task) => col.sortKey!(t, ctx) : null; });
+  }, [given, sort, projects, people]);
   const groups = useMemo(() => (groupBy ? groupTasks(tasks, groupBy, { projects, tags: tagList.data ?? [], fields, people: people.map((p) => ({ id: p.id, name: p.name })) }) : null), [groupBy, tasks, projects, tagList.data, fields, people]);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   useEffect(() => {
