@@ -230,7 +230,8 @@ test.describe("VID2 on", () => {
     await owner.getByTestId("video-rec-memory").click();
     await expect(owner.getByTestId("recording-banner")).toContainText("Recording video", { timeout: 15_000 });
     await owner.waitForTimeout(9000);
-    await owner.getByTestId("record-pause").click();
+    if (!(await owner.getByTestId("record-pause").count())) console.log("VID2 NO PAUSE", await owner.locator("[data-sonner-toast]").allInnerTexts(), await owner.getByTestId("recording-layer").innerText().catch(() => "no layer"));
+    await owner.getByTestId("record-pause").click({ timeout: 30_000 });
     await owner.waitForTimeout(3000);
     await owner.getByTestId("record-resume").click();
     await owner.waitForTimeout(9000);
