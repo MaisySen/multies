@@ -625,6 +625,9 @@ export function WebmailPage() {
   }
 }
 
+/** DES1: a stable hue per sender for the initials circle. */
+function avatarHue(key: string) { let h = 0; for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 360; return h; }
+
 function ListRow({ m, row, total, active, folder, onOpen, onStar, checked, selecting, onCheck, onSwipe, draggable }: { m: MessageListItem & { labels?: string[] }; row?: number; total?: number; active: boolean; folder: View; onOpen: () => void; onStar: () => void; checked: boolean; selecting: boolean; onCheck: (shift: boolean) => void; onSwipe?: (action: "archive" | "snooze") => void; draggable?: boolean }) {
   const who = folder === "sent" || folder === "drafts" ? `To: ${m.to.map((t) => t.name || t.address).join(", ") || "(no recipients)"}` : m.from.name || m.from.address;
   return (
@@ -635,6 +638,8 @@ function ListRow({ m, row, total, active, folder, onOpen, onStar, checked, selec
       <RowCheck checked={checked} visible={selecting} label={`Select ${m.subject || "(no subject)"}`} onToggle={onCheck} />
       <button onClick={(e) => { if (e.shiftKey || e.metaKey || e.ctrlKey) { e.preventDefault(); onCheck(e.shiftKey); return; } onOpen(); }} className="block w-full py-3 pl-9 pr-10 text-left" aria-current={active || undefined}
         draggable={draggable || undefined} onDragStart={draggable ? (e) => { e.dataTransfer.setData(MAIL_DRAG_TYPE, m.id); e.dataTransfer.effectAllowed = "move"; } : undefined}>
+        {/* DES1: a sender initials circle, shown only by the design pass (hidden while DESIGN_DES1 is off). */}
+        <span className="ds-avatar" aria-hidden style={{ ["--ds-av-h" as string]: String(avatarHue(m.from.address || who)) }}>{initials(m.from.name || m.from.address || "?")}</span>
         <div className="flex items-baseline gap-2">
           {!m.isRead && <span className="h-2 w-2 shrink-0 translate-y-[-1px] rounded-full bg-brand" aria-label="Unread" />}
           <span className={cn("min-w-0 flex-1 truncate text-[13.5px]", m.isRead ? "text-fg/75" : "font-semibold text-fg")}>{who}</span>

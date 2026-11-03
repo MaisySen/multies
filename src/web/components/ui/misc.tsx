@@ -5,7 +5,7 @@ import { useMarkSkeleton } from "@/web/lib/load-errors-t1g"; // T1G (T1-8)
 import { toast } from "sonner";
 
 export function Card({ className, children, ...rest }: { className?: string; children: ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("rounded-xl border border-line bg-surface shadow-card", className)} {...rest}>{children}</div>;
+  return <div className={cn("ds-card rounded-xl border border-line bg-surface shadow-card", className)} {...rest}>{children}</div>;
 }
 
 type Tone = "neutral" | "ok" | "warn" | "bad" | "brand";
@@ -32,9 +32,9 @@ export function Skeleton({ className, style }: { className?: string; style?: Rea
 
 export function EmptyState({ icon, art, title, body, action, className }: { icon?: ReactNode; art?: ReactNode; title: string; body: ReactNode; action?: ReactNode; className?: string }) {
   return (
-    <div className={cn("flex flex-col items-center justify-center px-6 py-14 text-center", className)}>
+    <div className={cn("ds-empty flex flex-col items-center justify-center px-6 py-14 text-center", className)}>
       {/* R35: an illustration (components/illustrations.tsx) when the list has one, else the round icon. */}
-      {art ? <div className="mb-4" aria-hidden>{art}</div> : <div className="mb-4 grid h-12 w-12 place-items-center rounded-full bg-fill text-muted [&_svg]:h-5 [&_svg]:w-5" aria-hidden>{icon}</div>}
+      {art ? <div className="mb-4" aria-hidden>{art}</div> : <div className="ds-empty-icon mb-4 grid h-12 w-12 place-items-center rounded-full bg-fill text-muted [&_svg]:h-5 [&_svg]:w-5" aria-hidden>{icon}</div>}
       <h2 className="text-[15px] font-semibold">{title}</h2>
       <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted">{body}</p>
       {action && <div className="mt-5">{action}</div>}
@@ -118,7 +118,7 @@ export function PageHeader({ title, description, actions, eyebrow }: { title: st
     );
   }
   return (
-    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+    <div className="ds-page-header mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
       <div className="min-w-0">
         {eyebrow && <p className="mb-0.5 text-[13px] font-semibold text-brand-hover">{eyebrow}</p>}
         <h1 className="large-title">{title}</h1>
@@ -149,12 +149,12 @@ export function StatTile({ label, value, hint, icon, tone = "neutral", className
 
 /** R33: the shared look for admin data tables: a quiet header band, roomy rows, a hover tint. */
 export const tableStyles = {
-  wrap: "overflow-x-auto rounded-xl border border-line",
+  wrap: "ds-table overflow-x-auto rounded-xl border border-line",
   table: "w-full text-sm",
   head: "bg-fill/60 text-left text-[12px] font-medium text-muted",
   th: "px-4 py-2.5 font-medium whitespace-nowrap",
   body: "divide-y divide-line",
-  row: "transition-colors hover:bg-hover/50",
+  row: "ds-row transition-colors hover:bg-hover/50",
   td: "px-4 py-3 align-middle",
 };
 

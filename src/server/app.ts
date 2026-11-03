@@ -42,6 +42,7 @@ import { peopleRoutes } from "./routes/people-r126"; // R126: staff, onboarding,
 import { mentionsRoutes } from "./routes/mentions-td5"; // TD5: record mentions and References
 import { oneInboxRoutes } from "./routes/one-inbox-td6"; // TD6: One inbox
 import { teamAiRoutes } from "./routes/teamai-td8"; // TD8: Team AI
+import { passkeyDes1Routes } from "./routes/passkeys-des1"; // DES1
 import { mailMergeUnsubscribeRoutes, toolsAutomationRoutes } from "./routes/tools-automation"; // Tools P2: automation
 import { campaignPublicRoutes, campaignRoutes } from "./routes/campaigns-r109"; // R109: lists, newsletters, journeys
 import { sharePublicRoutes, toolsShareRoutes } from "./routes/tools-share";
@@ -492,6 +493,8 @@ export function createApp(deps: Deps) {
       mentionsTd5: !!deps.config.mentionsTd5, // TD5: record mentions and References
       inboxTd6: !!deps.config.inboxTd6, // TD6: One inbox
       teamaiTd8: !!deps.config.teamaiTd8, // TD8: Team AI
+      designDes1: !!deps.config.designDes1, // DES1: web app design pass
+      passkeyDes1: !!deps.config.passkeyDes1, // DES1: passkey sign in
       invoices: deps.config.invoicesEnabled, // R105
       coursesR129: !!deps.config.coursesR129, // R129: courses (vv8k gets 404 from the API and no entry points)
       bookingPlus: deps.config.bookingPlus, // R92: resources, time polls, events
@@ -569,6 +572,7 @@ export function createApp(deps: Deps) {
   app.route("/api/mentions", mentionsRoutes()); // TD5: record mentions and References (MENTIONS_TD5)
   app.route("/api/one-inbox", oneInboxRoutes()); // TD6: One inbox (INBOX_TD6)
   app.route("/api/team-ai", teamAiRoutes()); // TD8: Team AI (TEAMAI_TD8)
+  app.route("/api/passkeys", passkeyDes1Routes()); // DES1: passkeys (PASSKEY_DES1; 404 while off)
   app.route("/api/ask", askRoutes()); // R110: Ask across the workspace (Tools feature ask_r110)
   app.route("/api/ai-trust", aiTrustRoutes()); // TD1: AI on or off per workspace, provider and region
   app.route("/api/crm-td10", crmTd10Routes()); // TD10: CRM suggestions from mail, saved analyses, shortcut switch

@@ -92,6 +92,10 @@ export interface AppConfig {
   teamaiFreeDailyCalls?: number;
   /** TD8: the window that limit counts over, "day" (default) or "week" (Monday 00:00 UTC), TEAMAI_FREE_PERIOD. */
   teamaiFreePeriod?: "day" | "week";
+  /** DES1: DESIGN_DES1 (the web app design pass: depth, refined sidebar, headers, rows and controls). Off unless set. */
+  designDes1?: boolean;
+  /** DES1: PASSKEY_DES1 (add, sign in with, rename and remove passkeys). Off unless set: no passkey UI and the routes answer 404. */
+  passkeyDes1?: boolean;
   /** R126: more workspaces kept out of People; vv8k is always out. */
   peopleExclude?: string;
   /** TD5: MENTIONS_TD5 (record mentions, References panels, per viewer chat cards). Off unless set. */
@@ -495,6 +499,8 @@ const EnvSchema = z.object({
   TEAMAI_TD8: z.string().optional(),
   TEAMAI_FREE_DAILY_CALLS: z.string().optional(),
   TEAMAI_FREE_PERIOD: z.string().optional(),
+  DESIGN_DES1: z.string().optional(),
+  PASSKEY_DES1: z.string().optional(),
   PEOPLE_EXCLUDE: z.string().optional(),
   VAULT_EXCLUDE: z.string().optional(),
   TOOLS_FEATURES: z.string().optional(),
@@ -823,6 +829,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     teamaiTd8: ["1", "true", "on"].includes(String(env.TEAMAI_TD8 ?? "").toLowerCase()), // TD8
     teamaiFreeDailyCalls: (() => { const n = Number.parseInt(String(env.TEAMAI_FREE_DAILY_CALLS ?? ""), 10); return Number.isFinite(n) && n >= 0 ? Math.min(n, 1_000) : 50; })(), // TD8
     teamaiFreePeriod: String(env.TEAMAI_FREE_PERIOD ?? "").toLowerCase() === "week" ? "week" : "day", // TD8
+    designDes1: ["1", "true", "on"].includes(String(env.DESIGN_DES1 ?? "").toLowerCase()), // DES1
+    passkeyDes1: ["1", "true", "on"].includes(String(env.PASSKEY_DES1 ?? "").toLowerCase()), // DES1
     peopleExclude: env.PEOPLE_EXCLUDE ?? "", // R126
     mentionsTd5: ["1", "true", "on"].includes(String(env.MENTIONS_TD5 ?? "").toLowerCase()), // TD5
     mentionsExclude: env.MENTIONS_EXCLUDE ?? "", // TD5

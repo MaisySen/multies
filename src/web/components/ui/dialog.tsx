@@ -47,7 +47,7 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
       aria-labelledby="dialog-title"
       className={cn(
         // Centred card on larger screens; a bottom sheet on phones, the way iOS presents a form.
-        "m-auto w-[calc(100%-2rem)] max-w-lg rounded-[var(--radius-r20)] border border-line bg-elevated p-0 text-fg elev-3 backdrop:bg-black/40 backdrop:backdrop-blur-[2px] open:animate-pop-in open:backdrop:animate-fade-in max-sm:mb-0 max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:pb-[env(safe-area-inset-bottom)] max-sm:open:animate-sheet-up",
+        "ds-dialog m-auto w-[calc(100%-2rem)] max-w-lg rounded-[var(--radius-r20)] border border-line bg-elevated p-0 text-fg elev-3 backdrop:bg-black/40 backdrop:backdrop-blur-[2px] open:animate-pop-in open:backdrop:animate-fade-in max-sm:mb-0 max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:pb-[env(safe-area-inset-bottom)] max-sm:open:animate-sheet-up",
         className,
       )}
     >

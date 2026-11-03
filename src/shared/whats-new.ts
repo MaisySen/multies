@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-03-new-look-passkeys",
+    date: "2026-11-03",
+    title: "A fresh look, and passkeys",
+    body: "The app has a calmer, layered look with clearer navigation in light and dark. Add a passkey in Account and security, then sign in with Face ID, your fingerprint or your device PIN.",
+  },
+  {
     id: "2026-11-03-client-portal-access",
     date: "2026-11-03",
     title: "Client portals you control",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-02",
     title: "Smoother Courses, Tables, Vault and more",
     body: "Move a table or course to Trash in Docs and restore it within 30 days. Start a webinar straight from Meetings or Schedule, and pages like Sites, Vault and Home recover from errors with one Retry.",
-  },
-  {
-    id: "2026-11-02-menu",
-    date: "2026-11-02",
-    title: "A tidier menu",
-    body: "Contacts now has its own place in the menu with People and Deals. Mailboxes, Domains and Deliverability moved to Settings, Mail setup, and Files sits in Docs. Hide what you never use from View, Customise menu, and on phones More shows every section as a tile.",
   },
   {
     id: "2026-10-28-whats-new",

@@ -15,7 +15,7 @@ type Act = (call: Omit<BulkCall, "ids">, label?: string) => void;
 /** R71 (MB-267): a 44 px touch area around the box (the box itself stays small), a little bigger on a phone. */
 export function RowCheck({ checked, visible, label, onToggle }: { checked: boolean; visible: boolean; label: string; onToggle: (shift: boolean) => void }) {
   return (
-    <button type="button" role="checkbox" aria-checked={checked} aria-label={label} data-testid="mail-select"
+    <button type="button" role="checkbox" aria-checked={checked} aria-label={label} data-testid="mail-select" data-selecting={visible || undefined}
       onClick={(e) => { e.stopPropagation(); onToggle(e.shiftKey); }}
       className={cn(
         "absolute left-1 top-3 z-[1] inline-flex h-6 w-6 items-center justify-center rounded-md before:absolute before:-inset-2.5 before:content-[''] transition-opacity duration-150 motion-reduce:transition-none focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60",

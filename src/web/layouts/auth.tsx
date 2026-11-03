@@ -20,7 +20,7 @@ function WhenProvidersKnown({ children }: { children: ReactNode }) {
 
 export function AuthLayout() {
   return (
-    <div className="relative grid min-h-dvh place-items-center overflow-hidden px-5 py-12">
+    <div className="ds-auth relative grid min-h-dvh place-items-center overflow-hidden px-5 py-12">
       <Suspense fallback={hold}>
         <WhenProvidersKnown>
           <main className="relative w-full max-w-[400px]">

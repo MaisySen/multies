@@ -19,6 +19,10 @@ import { prefetchOnIntent, prefetchRoute } from "./lib/prefetch";
 import { authProvidersQuery, isAuthLayoutPath } from "./lib/auth-providers";
 import { PUSH_ON_PAGE_EVENT, registerServiceWorker } from "./lib/sw-client";
 import { keepReferralCode } from "./lib/referral";
+import { applyCachedDesign, syncDesign } from "./lib/design-des1"; // DES1
+
+// DES1: the design pass look, from the last config answer first, then from this one.
+applyCachedDesign();
 
 // R62: a referral link (?ref=CODE) is kept until sign up.
 keepReferralCode();
@@ -62,6 +66,9 @@ const queryClient = new QueryClient({
 
 // R33: the worker skipped a notification because this page is open; refresh what is on screen instead.
 window.addEventListener(PUSH_ON_PAGE_EVENT, () => void queryClient.invalidateQueries({ type: "active" }));
+queryClient.getQueryCache().subscribe((ev) => {
+  if (ev.query.queryKey[0] === qk.config[0] && ev.query.queryKey.length === qk.config.length && ev.query.state.data) syncDesign(!!(ev.query.state.data as PublicConfig).designDes1); // DES1
+});
 
 // R30: sign in and sign up paint once the providers are known, so ask for them now, beside the page's code.
 // R34: and the public config beside it (the demo button reads it), so the card and its last row paint together.

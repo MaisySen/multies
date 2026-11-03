@@ -18,6 +18,7 @@ import { GitHubLogo, GoogleSignInButton, ProviderButton } from "@/web/components
 import { browserTimeZone } from "@/web/lib/format";
 import { cleanLocale, guessCountry } from "@/shared/locale";
 import { signInDestination } from "@/web/lib/pending-invite";
+import { passkeyMessage, passkeysSupported, signInWithPasskey, wasCancelled } from "@/web/lib/passkeys-des1";
 
 /** Where people land after signing in (round 21): My Work, what is waiting on them today. */
 export const HOME = "/app/my-work";
@@ -239,6 +240,7 @@ export function LoginPage() {
       {idp && <IdentityButtons mode="signin" showDivider={password} />}
       {idp && !password && <p className="mt-4 text-center text-xs text-muted" data-testid="moved-sign-in">Forgot your password? <Link to="/forgot-password" className="font-medium text-[#0071E3] hover:underline">Set a new one</Link></p>}
       {!idp && <SocialButtons />}
+      <PasskeySignIn />
       {password && (
         <form className="mt-6 space-y-4" onSubmit={onSubmit} noValidate>
           <FormError message={error} />
@@ -252,6 +254,33 @@ export function LoginPage() {
       )}
       <DemoLink />
       {!idp && <p className="mt-6 text-center text-sm text-muted">New to Multies? <Link to={`/signup${params.get("next") ? `?next=${encodeURIComponent(params.get("next")!)}` : ""}`} className="font-medium text-fg hover:underline">Create an account</Link></p>}
+    </div>
+  );
+}
+
+/** DES1 (PASSKEY_DES1): one tap sign in with Face ID, a fingerprint or the device PIN. A closed prompt stays quiet. */
+function PasskeySignIn() {
+  const config = useConfig();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [params] = useSearchParams();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!config.data?.passkeyDes1 || !passkeysSupported()) return null;
+  const go = async () => {
+    setBusy(true); setError(null);
+    try {
+      await signInWithPasskey();
+      qc.clear();
+      navigate(signInDestination(params.get("next"), HOME));
+    } catch (err) {
+      if (!wasCancelled(err)) setError(passkeyMessage(err, "That passkey did not work here. Sign in another way, then add it again in Account and security."));
+    } finally { setBusy(false); }
+  };
+  return (
+    <div className="mt-6 space-y-2" data-testid="passkey-sign-in">
+      <Button type="button" variant="secondary" size="lg" className="w-full" loading={busy} onClick={() => void go()}><IconKey className="h-4 w-4" aria-hidden />Sign in with a passkey</Button>
+      {error && <FormError message={error} />}
     </div>
   );
 }

@@ -1813,5 +1813,13 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX `saved_analyses_td10_org_idx` ON `saved_analyses_td10` (`org_id`,`updated_at`);",
       "CREATE TABLE `user_prefs_td10` (\n\t`user_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`shortcuts_off` integer DEFAULT false NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`user_id`, `org_id`)\n);"
     ]
+  },
+  {
+    "name": "0162_passkeys_des1",
+    "statements": [
+      "-- DES1 passkey sign in (flag PASSKEY_DES1): one row per passkey a person added. Public material only: the credential id,\n-- the COSE public key, the signature counter, transports and timestamps. No private key ever reaches the server. Additive only.\nCREATE TABLE `passkeys_des1` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`user_id` text NOT NULL,\n\t`credential_id` text NOT NULL,\n\t`public_key` text NOT NULL,\n\t`counter` integer DEFAULT 0 NOT NULL,\n\t`transports` text,\n\t`device_type` text,\n\t`backed_up` integer DEFAULT false NOT NULL,\n\t`name` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`last_used_at` integer,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `passkeys_des1_credential_uq` ON `passkeys_des1` (`credential_id`);",
+      "CREATE INDEX `passkeys_des1_user_idx` ON `passkeys_des1` (`user_id`);"
+    ]
   }
 ];

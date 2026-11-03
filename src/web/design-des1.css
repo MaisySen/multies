@@ -1,0 +1,359 @@
+/*
+ * DES1: the web app design pass (flag DESIGN_DES1). Every rule here sits under :root[data-design="des1"], which the app
+ * sets only while the flag is on (lib/design-des1.ts), so with the flag off nothing here applies and pages look as
+ * before. One type scale, one spacing rhythm, softer lines, cards with depth instead of bordered boxes, a clearer active
+ * state in the rail and sidebar, quieter but richer controls, and motion that stops when the system asks for less.
+ * Colours are the app's own tokens (light, dark and every brand theme such as Forest keep working); AA contrast holds.
+ */
+
+/* The initials circle in mail rows exists only for the design pass; hidden while the flag is off. */
+.ds-avatar { display: none; }
+
+/* Tokens: type scale, spacing, radius, elevation. */
+:root[data-design="des1"] {
+  --ds-text-xs: 12px;   --ds-lh-xs: 16px;
+  --ds-text-sm: 13px;   --ds-lh-sm: 18px;
+  --ds-text-base: 14px; --ds-lh-base: 20px;
+  --ds-text-md: 15px;   --ds-lh-md: 22px;
+  --ds-text-lg: 17px;   --ds-lh-lg: 24px;
+  --ds-text-xl: 20px;   --ds-lh-xl: 28px;
+  --ds-text-2xl: 26px;  --ds-lh-2xl: 32px;
+  --ds-space-1: 4px; --ds-space-2: 8px; --ds-space-3: 12px; --ds-space-4: 16px; --ds-space-5: 20px; --ds-space-6: 24px; --ds-space-8: 32px;
+  --ds-radius-card: 14px;
+  --ds-radius-control: 10px;
+  --ds-radius-dialog: 18px;
+  --color-bg: #f2f3f5;
+  --color-hover: #eceef1;
+  --color-line: rgb(15 23 42 / 0.075);
+  --color-line-strong: rgb(15 23 42 / 0.15);
+  --ds-card-ring: rgb(15 23 42 / 0.06);
+  --ds-shadow-card: 0 0 0 1px var(--ds-card-ring), 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 12px -6px rgb(15 23 42 / 0.08);
+  --ds-shadow-card-hover: 0 0 0 1px rgb(15 23 42 / 0.08), 0 2px 4px rgb(15 23 42 / 0.05), 0 12px 28px -12px rgb(15 23 42 / 0.18);
+  --ds-shadow-control: 0 0 0 1px rgb(15 23 42 / 0.10), 0 1px 2px rgb(15 23 42 / 0.06);
+  --ds-shadow-primary: inset 0 1px 0 rgb(255 255 255 / 0.18), 0 1px 2px rgb(15 23 42 / 0.16), 0 4px 10px -4px color-mix(in srgb, var(--color-brand) 55%, transparent);
+  --ds-shadow-dialog: 0 0 0 1px rgb(15 23 42 / 0.06), 0 24px 64px -16px rgb(15 23 42 / 0.32), 0 8px 20px -8px rgb(15 23 42 / 0.12);
+  --ds-canvas-glow: radial-gradient(1200px 520px at 50% -180px, color-mix(in srgb, var(--color-brand) 9%, transparent), transparent 70%);
+  --ds-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+:root[data-design="des1"][data-theme="dark"] {
+  --color-bg: #09090b;
+  --color-surface: #131316;
+  --color-elevated: #1b1b1f;
+  --color-hover: #222227;
+  --color-fill: #26262b;
+  --color-line: rgb(255 255 255 / 0.07);
+  --color-line-strong: rgb(255 255 255 / 0.14);
+  --ds-card-ring: rgb(255 255 255 / 0.07);
+  --ds-shadow-card: inset 0 1px 0 rgb(255 255 255 / 0.035), 0 0 0 1px var(--ds-card-ring), 0 6px 18px -10px rgb(0 0 0 / 0.7);
+  --ds-shadow-card-hover: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 0 0 1px rgb(255 255 255 / 0.11), 0 16px 32px -14px rgb(0 0 0 / 0.8);
+  --ds-shadow-control: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 0 0 1px rgb(255 255 255 / 0.10);
+  --ds-shadow-primary: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 1px 2px rgb(0 0 0 / 0.5), 0 6px 14px -6px color-mix(in srgb, var(--color-brand) 60%, transparent);
+  --ds-shadow-dialog: 0 0 0 1px rgb(255 255 255 / 0.08), 0 28px 72px -16px rgb(0 0 0 / 0.85);
+  --ds-canvas-glow: radial-gradient(1200px 520px at 50% -180px, color-mix(in srgb, var(--color-brand) 14%, transparent), transparent 70%);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-design="des1"]:not([data-theme="light"]) {
+    --color-bg: #09090b;
+    --color-surface: #131316;
+    --color-elevated: #1b1b1f;
+    --color-hover: #222227;
+    --color-fill: #26262b;
+    --color-line: rgb(255 255 255 / 0.07);
+    --color-line-strong: rgb(255 255 255 / 0.14);
+    --ds-card-ring: rgb(255 255 255 / 0.07);
+    --ds-shadow-card: inset 0 1px 0 rgb(255 255 255 / 0.035), 0 0 0 1px var(--ds-card-ring), 0 6px 18px -10px rgb(0 0 0 / 0.7);
+    --ds-shadow-card-hover: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 0 0 1px rgb(255 255 255 / 0.11), 0 16px 32px -14px rgb(0 0 0 / 0.8);
+    --ds-shadow-control: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 0 0 1px rgb(255 255 255 / 0.10);
+    --ds-shadow-primary: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 1px 2px rgb(0 0 0 / 0.5), 0 6px 14px -6px color-mix(in srgb, var(--color-brand) 60%, transparent);
+    --ds-shadow-dialog: 0 0 0 1px rgb(255 255 255 / 0.08), 0 28px 72px -16px rgb(0 0 0 / 0.85);
+    --ds-canvas-glow: radial-gradient(1200px 520px at 50% -180px, color-mix(in srgb, var(--color-brand) 14%, transparent), transparent 70%);
+  }
+}
+
+/* Page canvas: a calm tint with a soft light from the brand colour at the top, so white cards read as raised. */
+:root[data-design="des1"] #main { background-image: var(--ds-canvas-glow); background-repeat: no-repeat; }
+
+/* Page headers: one confident title size, a quieter subtitle, actions aligned to the title's baseline. */
+:root[data-design="des1"] .ds-page-header { margin-bottom: var(--ds-space-6); }
+:root[data-design="des1"] .large-title { letter-spacing: -0.022em; }
+@media (min-width: 640px) {
+  :root[data-design="des1"] .large-title { font-size: var(--ds-text-2xl); line-height: var(--ds-lh-2xl); font-weight: 650; }
+}
+:root[data-design="des1"] .ds-page-header p { font-size: var(--ds-text-base); line-height: var(--ds-lh-base); }
+
+/* Cards with depth instead of bordered boxes: the Card component, the common rounded surface boxes and table wraps. */
+:root[data-design="des1"] .ds-card,
+:root[data-design="des1"] .ds-table,
+:root[data-design="des1"] #main .rounded-xl.border.border-line.bg-surface,
+:root[data-design="des1"] #main .rounded-2xl.border.border-line.bg-surface,
+:root[data-design="des1"] #main .rounded-xl.border.border-line.bg-elevated {
+  border-color: transparent;
+  border-radius: var(--ds-radius-card);
+  box-shadow: var(--ds-shadow-card);
+}
+:root[data-design="des1"] .ds-table { background: var(--color-surface); }
+:root[data-design="des1"] #main a.rounded-xl.border.border-line.bg-surface,
+:root[data-design="des1"] #main button.rounded-xl.border.border-line.bg-surface,
+:root[data-design="des1"] a.ds-card {
+  transition: box-shadow 180ms var(--ds-ease), transform 180ms var(--ds-ease);
+}
+@media (hover: hover) {
+  :root[data-design="des1"] #main a.rounded-xl.border.border-line.bg-surface:hover,
+  :root[data-design="des1"] #main button.rounded-xl.border.border-line.bg-surface:hover,
+  :root[data-design="des1"] a.ds-card:hover { box-shadow: var(--ds-shadow-card-hover); transform: translateY(-1px); }
+}
+
+/* Tables and list rows: a quiet header, comfortable density, a clear hover and keyboard focus. */
+:root[data-design="des1"] .ds-table thead { background: transparent; }
+:root[data-design="des1"] .ds-table thead th { font-size: var(--ds-text-xs); letter-spacing: 0.02em; color: var(--color-subtle); border-bottom: 1px solid var(--color-line); }
+:root[data-design="des1"] .ds-row:hover { background: color-mix(in srgb, var(--color-hover) 70%, transparent); }
+:root[data-design="des1"] .ds-row:focus-within { background: color-mix(in srgb, var(--color-brand) 6%, transparent); }
+:root[data-design="des1"] [aria-selected="true"].ds-row { background: var(--color-brand-soft); }
+
+/* Rail: the open section sits in a filled brand tile with a small marker, so where you are reads at a glance. */
+:root[data-design="des1"] [data-testid="icon-rail"] a { transition: color 150ms var(--ds-ease); }
+:root[data-design="des1"] [data-testid="icon-rail"] a[aria-current="page"] > span:first-child {
+  background: var(--color-brand); color: var(--color-brand-fg);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 4px 10px -4px color-mix(in srgb, var(--color-brand) 70%, transparent);
+}
+:root[data-design="des1"] [data-testid="icon-rail"] a[aria-current="page"]::before {
+  content: ""; position: absolute; left: -4px; top: 12px; width: 3px; height: 16px; border-radius: 3px; background: var(--color-brand);
+}
+:root[data-design="des1"] [data-testid="icon-rail"] a:not([aria-current="page"]) > span:first-child { border-radius: 10px; }
+
+/* Sidebar: section rows with a tinted active pill and a brand marker, softer group headings. */
+:root[data-design="des1"] [data-testid="context-sidebar"] a[aria-current="page"] {
+  position: relative; background: var(--color-brand-soft); color: var(--color-fg); font-weight: 600;
+}
+:root[data-design="des1"] [data-testid="context-sidebar"] a[aria-current="page"] > svg:first-child { color: var(--color-brand-hover); }
+:root[data-design="des1"] [data-testid="context-sidebar"] a[aria-current="page"]::before {
+  content: ""; position: absolute; left: -6px; top: 7px; bottom: 7px; width: 3px; border-radius: 3px; background: var(--color-brand);
+}
+:root[data-design="des1"] [data-testid="context-sidebar"] a { border-radius: 8px; }
+
+/* Buttons: a raised primary with a soft brand glow, a surface secondary with a hairline ring, one control radius. */
+:root[data-design="des1"] .ds-btn { border-radius: var(--ds-radius-control); }
+:root[data-design="des1"] .ds-btn-primary { box-shadow: var(--ds-shadow-primary); background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0)); }
+:root[data-design="des1"] .ds-btn-primary:hover { background-color: var(--color-brand-hover); }
+:root[data-design="des1"] .ds-btn-secondary { background: var(--color-surface); box-shadow: var(--ds-shadow-control); }
+:root[data-design="des1"] .ds-btn-secondary:hover { background: var(--color-hover); }
+:root[data-design="des1"] .ds-btn-outline { border-color: transparent; box-shadow: var(--ds-shadow-control); }
+:root[data-design="des1"] .ds-btn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+
+/* Inputs: one radius with the buttons; the focus ring stays the brand ring the app already uses. */
+:root[data-design="des1"] #main input.rounded-lg.border-line-strong,
+:root[data-design="des1"] #main select.rounded-lg.border-line-strong,
+:root[data-design="des1"] #main textarea.rounded-lg.border-line-strong,
+:root[data-design="des1"] .ds-auth input.rounded-lg { border-radius: var(--ds-radius-control); }
+
+/* Dialogs and sheets: a larger radius and a deeper, softer shadow; the sheet slides up on phones as before. */
+:root[data-design="des1"] .ds-dialog { border-color: transparent; border-radius: var(--ds-radius-dialog); box-shadow: var(--ds-shadow-dialog); }
+@media (max-width: 639.98px) { :root[data-design="des1"] .ds-dialog { border-bottom-left-radius: 0; border-bottom-right-radius: 0; } }
+:root[data-design="des1"] .ds-dialog::backdrop { background: rgb(9 9 11 / 0.42); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+
+/* Empty states: a larger tinted icon with a soft ring, the title one size up, one clear action. */
+:root[data-design="des1"] .ds-empty-icon {
+  width: 56px; height: 56px; background: var(--color-brand-soft); color: var(--color-brand-hover);
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--color-brand) 5%, transparent);
+}
+:root[data-design="des1"] .ds-empty-icon svg { width: 24px; height: 24px; }
+:root[data-design="des1"] .ds-empty h2 { font-size: var(--ds-text-lg); line-height: var(--ds-lh-lg); letter-spacing: -0.01em; }
+
+/* Sign in: a raised card on a softly lit page. */
+:root[data-design="des1"] .ds-auth { background-image: var(--ds-canvas-glow); }
+:root[data-design="des1"] .ds-auth-card { background: var(--color-surface); border-radius: 20px; box-shadow: var(--ds-shadow-card); padding: 28px 24px; }
+@media (max-width: 639.98px) { :root[data-design="des1"] .ds-auth-card { padding: 22px 18px; } }
+
+/* Phone widths: toolbars scroll sideways instead of clipping, and every tap target stays 44 px. */
+@media (max-width: 639.98px) {
+  :root[data-design="des1"] .ds-page-header > div:last-child { flex-wrap: wrap; }
+  :root[data-design="des1"] #main .ds-card, :root[data-design="des1"] #main .ds-table { border-radius: 12px; }
+}
+
+/* Motion: page content rises in gently; nothing moves when the system asks for less. */
+/* ===== DES1 v2: the visible pass (sidebar pills, board, view tabs, chips, selection, phone layout). ===== */
+
+/* Sidebar: icon and label rows as soft pills; the current page is a filled brand pill; quiet section labels. */
+:root[data-design="des1"] [data-testid="context-sidebar"] nav a,
+:root[data-design="des1"] [data-testid="context-sidebar"] nav [role="listitem"] { border-radius: 10px; min-height: 34px; transition: background-color 150ms var(--ds-ease), color 150ms var(--ds-ease); }
+:root[data-design="des1"] [data-testid="context-sidebar"] nav a[aria-current="page"],
+:root[data-design="des1"] [data-testid="context-sidebar"] nav [role="listitem"]:has(> a[aria-current="page"]) {
+  background: var(--color-brand); color: var(--color-brand-fg); font-weight: 600; box-shadow: var(--ds-shadow-primary);
+}
+:root[data-design="des1"] [data-testid="context-sidebar"] nav a[aria-current="page"] *,
+:root[data-design="des1"] [data-testid="context-sidebar"] nav [role="listitem"]:has(> a[aria-current="page"]) * { color: var(--color-brand-fg); }
+:root[data-design="des1"] [data-testid="context-sidebar"] nav button[aria-expanded] { text-transform: uppercase; letter-spacing: 0.07em; font-size: 10.5px; }
+:root[data-design="des1"] [data-testid="context-sidebar"] > div.text-\[15px\] { font-size: var(--ds-text-xl); line-height: var(--ds-lh-xl); font-weight: 700; letter-spacing: -0.02em; }
+:root[data-design="des1"] div[class*="mb-2.5"][class*="rounded-lg"][class*="bg-fill"][class*="p-3"] {
+  border-radius: var(--ds-radius-card); background: linear-gradient(160deg, color-mix(in srgb, var(--color-brand) 14%, var(--color-surface)), var(--color-surface));
+  box-shadow: var(--ds-shadow-card); padding: 14px;
+}
+/* Rail: the current section sits in a filled pill too. */
+:root[data-design="des1"] [data-testid="icon-rail"] a[aria-current="page"] > span:first-child { background: var(--color-brand); color: var(--color-brand-fg); box-shadow: var(--ds-shadow-primary); border-radius: 12px; }
+
+/* Board: columns are tinted lanes with no ruled border; cards are raised tiles with more air. */
+:root[data-design="des1"] [data-testid="board"] > section {
+  border: 0; border-radius: 18px; background: color-mix(in srgb, var(--color-fill) 62%, transparent); box-shadow: none; padding: 4px;
+}
+:root[data-design="des1"] [data-testid="board"] [data-testid="board-column-cards"] { gap: 10px; }
+:root[data-design="des1"] [data-testid="board-card"] { border-radius: 14px; }
+:root[data-design="des1"] [data-testid="board-card"] > * {
+  border-color: transparent !important; border-radius: 14px; background: var(--color-surface); box-shadow: var(--ds-shadow-card);
+  padding-top: 12px; padding-bottom: 12px; transition: box-shadow 160ms var(--ds-ease), transform 160ms var(--ds-ease);
+}
+:root[data-design="des1"] [data-testid="board-card"]:hover > * { box-shadow: var(--ds-shadow-card-hover); transform: translateY(-1px); }
+:root[data-design="des1"] [data-testid="column-pill"] { border-radius: 999px; padding: 4px 12px; }
+
+/* Pinned views as a segmented control. */
+:root[data-design="des1"] [data-testid="view-tabs"] > div:first-child {
+  flex: 0 1 auto; background: color-mix(in srgb, var(--color-fill) 80%, transparent); border-radius: 12px; padding: 3px; gap: 2px;
+}
+:root[data-design="des1"] [data-testid="view-tabs"] > div:first-child > button { border-radius: 9px; }
+:root[data-design="des1"] [data-testid="view-tabs"] > div:first-child > button:is([aria-pressed="true"], [aria-current="true"], [aria-current="page"], [aria-selected="true"], [data-active="true"]) {
+  background: var(--color-surface); box-shadow: var(--ds-shadow-control); color: var(--color-fg);
+}
+
+/* Chips and tags: tinted pills with no outline. */
+:root[data-design="des1"] :is([data-testid="chip"], [data-testid="tag-chip"]) { border-color: transparent; border-radius: 999px; }
+
+/* Selected rows: a soft brand wash with an accent edge. */
+:root[data-design="des1"] #main :is([aria-selected="true"], [data-selected="true"]):not([role="tab"]):not([role="option"]) {
+  background: color-mix(in srgb, var(--color-brand) 9%, var(--color-surface)); box-shadow: inset 3px 0 0 var(--color-brand);
+}
+
+/* Toolbars: search fields sit on a fill instead of a ruled box. */
+:root[data-design="des1"] #main div:has(> input[role="combobox"]):not(:focus-within) { border-color: transparent; background: color-mix(in srgb, var(--color-fill) 85%, transparent); }
+
+/* Page titles: one confident size on desktop. */
+@media (min-width: 1024px) {
+  :root[data-design="des1"] .large-title { font-size: 30px; line-height: 36px; font-weight: 700; letter-spacing: -0.025em; }
+}
+
+/* The get started ring: a thicker progress donut on its tinted badge. */
+:root[data-design="des1"] [data-testid="tours-ring"] circle { stroke-width: 3.5px; }
+
+/* Phones: a floating tab bar with a pill on the current tab, cards for rows, 44 px targets, roomier pages. */
+@media (max-width: 767px) {
+  :root[data-design="des1"] [data-testid="phone-tabbar"] {
+    margin: 0 10px calc(8px + env(safe-area-inset-bottom)); padding-bottom: 0; border-radius: 24px; border-top: 0;
+    background: color-mix(in srgb, var(--color-surface) 88%, transparent); box-shadow: var(--ds-shadow-dialog);
+  }
+  :root[data-design="des1"] [data-testid="phone-tabbar"] [aria-current="page"] > span:first-child {
+    background: color-mix(in srgb, var(--color-brand) 14%, transparent); border-radius: 999px; padding: 3px 16px; color: var(--color-brand-hover);
+  }
+  :root[data-design="des1"] header.sticky.glass { border-bottom-color: transparent; box-shadow: 0 1px 0 var(--color-line), 0 6px 16px -12px rgb(15 23 42 / 0.25); }
+}
+@media (max-width: 639px) {
+  :root[data-design="des1"] #main :is(ul, ol, div).divide-y { border: 0 !important; background: transparent !important; box-shadow: none !important; overflow: visible; }
+  :root[data-design="des1"] #main :is(ul, ol, div).divide-y > * {
+    border-top-width: 0 !important; border-radius: var(--ds-radius-card); background: var(--color-surface); box-shadow: var(--ds-shadow-card); min-height: 52px;
+  }
+  :root[data-design="des1"] #main :is(ul, ol, div).divide-y > * + * { margin-top: 8px; }
+  :root[data-design="des1"] .ds-btn { min-height: 44px; }
+  :root[data-design="des1"] #main :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select) { min-height: 44px; }
+  :root[data-design="des1"] .large-title { font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -0.025em; }
+  :root[data-design="des1"] [data-testid="view-tabs"] > div:first-child > button { min-height: 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-design="des1"] *, :root[data-design="des1"] *::before { transition: none !important; }
+  :root[data-design="des1"] a.ds-card:hover, :root[data-design="des1"] #main a.rounded-xl.border.border-line.bg-surface:hover { transform: none; }
+}
+
+/* Desktop shell: the rail and sidebar sit on a deeper canvas and the working area is one raised sheet with rounded
+   corners, so the app reads as layers instead of a grid of ruled boxes. Phones keep the full bleed layout. */
+:root[data-design="des1"] { --ds-shell: #e6e8ec; }
+:root[data-design="des1"][data-theme="dark"] { --ds-shell: #040405; }
+@media (prefers-color-scheme: dark) { :root[data-design="des1"]:not([data-theme="light"]) { --ds-shell: #040405; } }
+@media (min-width: 1024px) {
+  :root[data-design="des1"] .app-shell { background: var(--ds-shell); }
+  :root[data-design="des1"] .app-shell [data-testid="icon-rail"],
+  :root[data-design="des1"] .app-shell .glass-sidebar { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border-right-color: transparent; }
+  :root[data-design="des1"] .app-shell [data-testid="rail-bottom"] { border-top-color: var(--color-line); }
+  :root[data-design="des1"] .app-shell div:has(> [data-desktop-topbar]) {
+    margin: 8px 8px 8px 0; height: calc(100% - 16px); border-radius: 16px; overflow: hidden;
+    background: var(--color-bg); box-shadow: var(--ds-shadow-card);
+  }
+  :root[data-design="des1"] [data-desktop-topbar] { border-bottom-color: var(--color-line); background: color-mix(in srgb, var(--color-surface) 70%, transparent); }
+  :root[data-design="des1"] .app-shell .shell-separator { background: transparent; }
+}
+/* The get started ring reads as progress, not a spinner: a soft brand tinted badge. */
+:root[data-design="des1"] [data-testid="tours-ring"] { background: color-mix(in srgb, var(--color-brand) 10%, transparent); }
+:root[data-design="des1"] [data-testid="tours-ring"]:hover { background: color-mix(in srgb, var(--color-brand) 16%, transparent); }
+/* Phones: the task search box leaves room for the filter button in the toolbar's first screen. */
+@media (max-width: 639px) {
+  :root[data-design="des1"] div:has(> input[aria-label="Search tasks"]) { width: 13.5rem; }
+}
+/* DES1 v2: the get started badge shows its count ("2/6") instead of a spinner like arc. */
+:root[data-design="des1"] [data-testid="tours-ring"] { width: auto; min-width: 44px; padding: 0 10px; border-radius: 999px; gap: 6px; display: inline-flex; align-items: center; justify-content: center; }
+@media (min-width: 1024px) { :root[data-design="des1"] [data-testid="tours-ring"] { height: 30px; min-width: 0; } }
+:root[data-design="des1"] [data-testid="tours-ring"] svg { width: 16px; height: 16px; }
+:root[data-design="des1"] [data-testid="tours-ring"]::after { content: attr(data-done) "/" attr(data-total); font-size: 12px; font-weight: 600; color: var(--color-brand-hover); font-variant-numeric: tabular-nums; }
+/* DES1 v2: tab strips become segmented controls; in page navigation gets a clear current pill. */
+:root[data-design="des1"] #main [role="tablist"] { background: color-mix(in srgb, var(--color-fill) 80%, transparent); border-radius: 12px; padding: 3px; gap: 2px; border-bottom-color: transparent; width: fit-content; max-width: 100%; }
+:root[data-design="des1"] #main [role="tablist"] > [role="tab"] { border-radius: 9px; border-bottom-color: transparent; box-shadow: none; }
+:root[data-design="des1"] #main [role="tablist"] > [role="tab"][aria-selected="true"] { background: var(--color-surface); box-shadow: var(--ds-shadow-control); color: var(--color-fg); }
+:root[data-design="des1"] #main [role="tablist"] > [role="tab"][aria-selected="true"]::after { display: none; }
+:root[data-design="des1"] #main nav a[aria-current="page"] { background: color-mix(in srgb, var(--color-brand) 13%, var(--color-surface)); color: var(--color-fg); font-weight: 600; border-radius: 10px; }
+
+/* ===== DES1 v3: mail and one inbox rows, board tiles, headers. ===== */
+:root[data-design="des1"] [data-testid="mail-row"] { border-bottom-color: color-mix(in srgb, var(--color-line) 60%, transparent); }
+:root[data-design="des1"] [data-testid="mail-row"] button:has(> .ds-avatar) { position: relative; padding-left: 64px; padding-top: 14px; padding-bottom: 14px; }
+:root[data-design="des1"] [data-testid="mail-row"] .ds-avatar {
+  display: grid; place-items: center; position: absolute; left: 16px; top: 15px; width: 36px; height: 36px; border-radius: 999px;
+  font-size: 13px; font-weight: 650; letter-spacing: 0.01em;
+  background: hsl(var(--ds-av-h, 220) 70% 92%); color: hsl(var(--ds-av-h, 220) 60% 26%);
+}
+:root[data-design="des1"][data-theme="dark"] [data-testid="mail-row"] .ds-avatar { background: hsl(var(--ds-av-h, 220) 35% 24%); color: hsl(var(--ds-av-h, 220) 80% 88%); }
+@media (prefers-color-scheme: dark) { :root[data-design="des1"]:not([data-theme="light"]) [data-testid="mail-row"] .ds-avatar { background: hsl(var(--ds-av-h, 220) 35% 24%); color: hsl(var(--ds-av-h, 220) 80% 88%); } }
+:root[data-design="des1"] [data-testid="mail-row"]:has([aria-label="Unread"]) button:has(> .ds-avatar) > div:nth-of-type(2) { font-weight: 600; color: var(--color-fg); }
+/* MB-322: the select box lives on the initials circle (no overlap at any width). The circle is the tap target for
+   selection; the box replaces the circle while selecting, when checked, on keyboard focus and on mouse hover. */
+:root[data-design="des1"] [data-testid="mail-row"] [data-testid="mail-select"] { left: 16px; top: 15px; width: 36px; height: 36px; border-radius: 999px !important; opacity: 1; z-index: 2; }
+:root[data-design="des1"] [data-testid="mail-row"] [data-testid="mail-select"]::before { inset: -4px; }
+:root[data-design="des1"] [data-testid="mail-row"] [data-testid="mail-select"] > span { opacity: 0; }
+:root[data-design="des1"] [data-testid="mail-row"] [data-testid="mail-select"]:is([aria-checked="true"], [data-selecting], :focus-visible) { background: var(--color-fill); }
+:root[data-design="des1"] [data-testid="mail-row"] [data-testid="mail-select"]:is([aria-checked="true"], [data-selecting], :focus-visible) > span { opacity: 1; }
+:root[data-design="des1"] [data-testid="mail-row"]:has([data-testid="mail-select"]:is([aria-checked="true"], [data-selecting], :focus-visible)) .ds-avatar { visibility: hidden; }
+@media (hover: hover) and (pointer: fine) {
+  :root[data-design="des1"] [data-testid="mail-row"]:hover [data-testid="mail-select"] { background: var(--color-fill); }
+  :root[data-design="des1"] [data-testid="mail-row"]:hover [data-testid="mail-select"] > span { opacity: 1; }
+  :root[data-design="des1"] [data-testid="mail-row"]:hover .ds-avatar { visibility: hidden; }
+}
+:root[data-design="des1"] [data-testid="mail-row"] button[aria-current="true"] { background: color-mix(in srgb, var(--color-brand) 9%, transparent); box-shadow: inset 3px 0 0 var(--color-brand); }
+
+:root[data-design="des1"] [data-testid="one-row"] { padding-top: 14px; padding-bottom: 14px; border-bottom-color: color-mix(in srgb, var(--color-line) 60%, transparent); border-radius: 12px; }
+:root[data-design="des1"] [data-testid="one-row"][aria-current="true"] { background: color-mix(in srgb, var(--color-brand) 8%, var(--color-surface)); }
+@media (max-width: 639px) {
+  :root[data-design="des1"] [data-testid="one-inbox-list"] ul { border: 0; background: transparent; box-shadow: none; }
+  :root[data-design="des1"] [data-testid="one-row"] { border: 0 !important; margin-bottom: 8px; background: var(--color-surface); box-shadow: var(--ds-shadow-card); border-radius: var(--ds-radius-card); padding-left: 12px; }
+}
+
+:root[data-design="des1"] [data-testid="board"] > section > header { padding: 12px 12px 8px; border: 0; }
+:root[data-design="des1"] [data-testid="board-card"] > * { padding-left: 14px; padding-right: 14px; }
+:root[data-design="des1"] [data-testid="board-card"] :is([data-testid="card-due"], [data-testid="card-priority"], [data-testid="card-status"], [data-testid="card-assignee"]) { border-color: transparent; }
+:root[data-design="des1"] [data-testid="column-count"] { color: var(--color-subtle); font-weight: 500; }
+
+/* Page headers: the subtitle reads as a quiet second line; actions sit together on the right. */
+:root[data-design="des1"] .ds-page-header p { color: var(--color-muted); margin-top: 4px; }
+:root[data-design="des1"] .ds-page-header > div:last-child:not(:first-child) { gap: 8px; }
+
+/* ===== DES1 v4 phone sweep (375, 390, 430; light and dark). ===== */
+/* Long placeholders and values end with an ellipsis instead of a hard cut. */
+:root[data-design="des1"] #root input:not([type="checkbox"]):not([type="radio"]) { text-overflow: ellipsis; }
+@media (max-width: 639.98px) {
+  /* Mail selection bar: count and Select all on the first line, the actions spread on a second line. */
+  :root[data-design="des1"] [data-testid="bulk-bar"] { flex-wrap: wrap; row-gap: 2px; }
+  :root[data-design="des1"] [data-testid="bulk-bar"] > [data-testid="bulk-count"] { flex-shrink: 0; white-space: nowrap; }
+  :root[data-design="des1"] [data-testid="bulk-bar"] > button { white-space: nowrap; }
+  :root[data-design="des1"] [data-testid="bulk-bar"] > div.ml-auto { flex-basis: 100%; justify-content: space-between; margin-left: 0; }
+  /* Page header with three or more actions: a tidy two column grid; an odd last action spans the row. */
+  :root[data-design="des1"] .ds-page-header > div:last-child:not(:first-child):has(> :nth-child(3)) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; }
+  :root[data-design="des1"] .ds-page-header > div:last-child:not(:first-child):has(> :nth-child(3)) > * { width: 100%; min-width: 0; justify-content: center; }
+  :root[data-design="des1"] .ds-page-header > div:last-child:not(:first-child):has(> :nth-child(3)) > * > button { width: 100%; justify-content: center; }
+  :root[data-design="des1"] .ds-page-header > div:last-child:not(:first-child):has(> :nth-child(3)) > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  /* Card action rows wrap instead of running past the card edge. */
+  :root[data-design="des1"] #main .ds-actions { flex-wrap: wrap; }
+  /* Notice cards (text plus one button): the text takes the row and the button drops below it. */
+  :root[data-design="des1"] #main [role="status"].flex-wrap > p.flex-1 { flex-basis: 15rem; }
+}

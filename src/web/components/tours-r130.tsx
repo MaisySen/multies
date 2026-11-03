@@ -283,7 +283,7 @@ export function ChecklistRing({ className }: { className?: string }) {
   const v = t.data?.checklist;
   if (!t.on || !v || !checklistVisible(v) || v.complete) return null;
   return (
-    <button type="button" onClick={openGetStarted} data-testid="tours-ring" data-tour="tours-ring"
+    <button type="button" onClick={openGetStarted} data-testid="tours-ring" data-tour="tours-ring" data-done={v.doneCount} data-total={v.total}
       aria-label={`Get started, ${v.doneCount} of ${v.total} done`}
       className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 lg:h-8 lg:w-8", className)}>
       <Ring done={v.doneCount} total={v.total} />

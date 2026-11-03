@@ -17,6 +17,10 @@ export interface Me {
 }
 
 export interface PublicConfig {
+  /** DES1: the web app design pass (DESIGN_DES1). */
+  designDes1?: boolean;
+  /** DES1: passkey sign in (PASSKEY_DES1). */
+  passkeyDes1?: boolean;
   /** R125: tables doc type. */
   tablesR125?: boolean;
   /** POL1: tables and courses to the trash with restore. */

@@ -23,7 +23,7 @@ const sizes: Record<Size, string> = {
 };
 
 export function buttonClass(variant: Variant = "primary", size: Size = "md", className?: string) {
-  return cn(base, variants[variant], sizes[size], className);
+  return cn(base, `ds-btn ds-btn-${variant}`, variants[variant], sizes[size], className); // DES1: class hooks, styled only under DESIGN_DES1
 }
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

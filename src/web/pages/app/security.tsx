@@ -16,6 +16,7 @@ import { timeAgo } from "@/web/lib/format";
 import { AccountSection, Section } from "./settings";
 import { BlockedPeople } from "./work/report-sheet-r35"; // R35
 import { LoadErrorInline } from "@/web/components/load-error-t1g";
+import { PasskeysSection } from "./passkeys-des1"; // DES1
 
 /** Privacy rights (APP 12, GDPR Articles 15 and 20): a copy of everything held about you. */
 function YourDataSection() {
@@ -38,11 +39,13 @@ const useSecurity = () => {
 };
 
 export function AccountSettings() {
+  const config = useConfig(); // DES1: passkeys only while PASSKEY_DES1 is on
   return (
     <div className="space-y-6">
       <ProfileSection />
       <AccountSection />
       <TwoFactorSection />
+      {config.data?.passkeyDes1 && <PasskeysSection />}
       <DevicesSection />
       <YourDataSection />
       {/* R35 (Apple 1.2): Privacy, the people you blocked in chat, with Unblock. */}

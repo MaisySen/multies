@@ -150,7 +150,7 @@ function FormsList({ plus = false, kind = "forms" }: { plus?: boolean; kind?: "f
                 <div className="text-[14px] font-medium">{f.name}</div>
                 <div className="mt-0.5 text-[12.5px] text-muted">Makes a {f.target} · {f.fields.length} fields · {f.submitCount} {f.submitCount === 1 ? "answer" : "answers"}{f.lastSubmitAt && `, last ${timeAgo(f.lastSubmitAt)}`}</div>
               </button>
-              <div className="flex items-center gap-2">
+              <div className="ds-actions flex items-center gap-2">
                 <a href={f.url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] hover:bg-elevated"><IconExternalLink className="h-3.5 w-3.5" />Open</a>
                 <CopyButton value={f.url} label="Copy link" />
                 {calls ? <Button size="sm" variant="ghost" onClick={() => setEntriesFor(f)} data-testid="entries">Entries</Button> : <Button size="sm" variant="ghost" onClick={() => setViewing(f.id)}>Responses</Button>}
