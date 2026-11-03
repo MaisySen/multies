@@ -32,6 +32,8 @@ import { SocialLibrary } from "./social-library";
 import { LoadFailure } from "@/web/components/load-error-t1g";
 import { LoginPages, pagesKey, useSocialPages, useSoc1On } from "./social-soc1"; // SOC1
 import { ScrollRow } from "@/web/components/ui/scroll-row"; // F13b
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-social"; // R104B
 
 /** R117: Social P2 (composer v2, planner v2, drafts and approvals, library) sits behind its own flag. */
 export const useSocialP2 = () => !!useConfig().data?.socialP2;
@@ -40,13 +42,13 @@ export const useSocialP2b = () => { const c = useConfig().data; return !!c?.soci
 
 /** Phones and small tablets have no shell sidebar, so Social's four pages switch here, under the title. */
 const SOCIAL_TABS = [
-  { to: "/app/social/inbox", label: "Inbox", end: false },
-  { to: "/app/social", label: "Planner", end: true },
-  { to: "/app/social/posts", label: "Posts", end: false },
-  { to: "/app/social/new", label: "New post", end: false },
-  { to: "/app/social/library", label: "Library", end: false },
-  { to: "/app/social/analytics", label: "Analytics", end: false },
-  { to: "/app/social/accounts", label: "Accounts", end: false },
+  { to: "/app/social/inbox", get label() { return tr("common.inbox"); }, end: false },
+  { to: "/app/social", get label() { return tr("nav.planner"); }, end: true },
+  { to: "/app/social/posts", get label() { return tr("nav.posts"); }, end: false },
+  { to: "/app/social/new", get label() { return tr("nav.new_post"); }, end: false },
+  { to: "/app/social/library", get label() { return tr("nav.library"); }, end: false },
+  { to: "/app/social/analytics", get label() { return tr("nav.analytics"); }, end: false },
+  { to: "/app/social/accounts", get label() { return tr("nav.accounts"); }, end: false },
 ] as const;
 
 export function SocialSwitcher() {
@@ -54,7 +56,7 @@ export function SocialSwitcher() {
   const p2 = useSocialP2();
   const p2b = useSocialP2b();
   return (
-    <ScrollRow as="nav" aria-label="Social" activeKey={pathname} outerClassName="mb-4 lg:hidden" className="px-0.5" data-testid="social-switcher">
+    <ScrollRow as="nav" aria-label={tr("nav.social")} activeKey={pathname} outerClassName="mb-4 lg:hidden" className="px-0.5" data-testid="social-switcher">
       <ul className="flex w-max gap-1 rounded-lg border border-line bg-fill/50 p-1">
         {/* R117: with Library the phone switcher keeps four tabs that fit; New post stays one tap away in each page header. */}
         {SOCIAL_TABS.filter((t) => (p2 ? t.to !== "/app/social/new" || pathname.startsWith("/app/social/new") : t.to !== "/app/social/library"))
@@ -83,7 +85,7 @@ const P3_NAMES: Record<string, string> = { youtube: "YouTube" };
 const postable = (accounts: ConnectedAccountView[] | undefined) => (accounts ?? []).filter((a) => a.status === "active" && a.app in SOCIAL_NETWORKS);
 
 export function NewPostButton() {
-  return <ButtonLink to="/app/social/new" size="sm" data-testid="new-post"><IconCompose className="h-4 w-4" aria-hidden />New post</ButtonLink>;
+  return <ButtonLink to="/app/social/new" size="sm" data-testid="new-post"><IconCompose className="h-4 w-4" aria-hidden />{tr("nav.new_post")}</ButtonLink>;
 }
 
 /** F12 (MB-299): `what` is kept for the callers; the words are the shared failed load words now. */
@@ -150,7 +152,7 @@ function SocialPlannerV2Page() {
   const scheduled = (posts.data ?? []).filter((p) => p.status === "scheduled").length;
   return (
     <div data-testid="social-planner">
-      <PageHeader title="Planner" description={scheduled ? `${scheduled} ${scheduled === 1 ? "post is" : "posts are"} waiting to go out. Drag one to move it.` : "Your week of posts, with free time slots to fill."} actions={<NewPostButton />} />
+      <PageHeader title={tr("nav.planner")} description={scheduled ? `${scheduled} ${scheduled === 1 ? "post is" : "posts are"} waiting to go out. Drag one to move it.` : tr("social.your_week_of_posts_with_free_time_slots_to_fill")} actions={<NewPostButton />} />
       <SocialSwitcher />
       <PlannerV2 canManage={!!status.data?.canManage} accounts={list} />
     </div>
@@ -172,20 +174,20 @@ function SocialPlannerV1() {
 
   return (
     <div data-testid="social-planner">
-      <PageHeader title="Planner" description={scheduled ? `${scheduled} ${scheduled === 1 ? "post is" : "posts are"} waiting to go out.` : "Scheduled and sent posts on a calendar."} actions={<NewPostButton />} />
+      <PageHeader title={tr("nav.planner")} description={scheduled ? `${scheduled} ${scheduled === 1 ? "post is" : "posts are"} waiting to go out.` : tr("social.scheduled_and_sent_posts_on_a_calendar")} actions={<NewPostButton />} />
       <SocialSwitcher />
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h2 className="mr-auto text-[17px] font-semibold tracking-[-0.01em]" aria-live="polite" data-testid="planner-month">{monthName}</h2>
-        <Button variant="outline" size="sm" onClick={() => { const d = new Date(); setCursor({ y: d.getFullYear(), m: d.getMonth() }); }}>Today</Button>
-        <Button variant="ghost" size="sm" onClick={() => move(-1)} aria-label="Previous month"><IconBack className="h-4 w-4" aria-hidden /></Button>
-        <Button variant="ghost" size="sm" onClick={() => move(1)} aria-label="Next month"><IconChevronRight className="h-4 w-4" aria-hidden /></Button>
+        <Button variant="outline" size="sm" onClick={() => { const d = new Date(); setCursor({ y: d.getFullYear(), m: d.getMonth() }); }}>{tr("myday.today")}</Button>
+        <Button variant="ghost" size="sm" onClick={() => move(-1)} aria-label={tr("social.previous_month")}><IconBack className="h-4 w-4" aria-hidden /></Button>
+        <Button variant="ghost" size="sm" onClick={() => move(1)} aria-label={tr("social.next_month")}><IconChevronRight className="h-4 w-4" aria-hidden /></Button>
       </div>
       {posts.isPending ? <Skeleton className="h-[560px] rounded-xl max-sm:h-72" />
         : posts.error ? <LoadError error={posts.error} retry={() => void posts.refetch()} what="the planner" />
         : (<>
           {!posts.data?.length && (
             <Card className="mb-4" data-testid="planner-empty">
-              <EmptyState icon={<IconCalendarDays />} title="Nothing planned yet" body="Write a post and pick a time. It shows here on its day, and in Posts with how each account did." action={<NewPostButton />} />
+              <EmptyState icon={<IconCalendarDays />} title={tr("social.nothing_planned_yet")} body="Write a post and pick a time. It shows here on its day, and in Posts with how each account did." action={<NewPostButton />} />
             </Card>
           )}
           {/* Desktop and tablet: the month grid. */}
@@ -202,11 +204,11 @@ function SocialPlannerV1() {
                   <li key={k} className={cn("min-h-[104px] min-w-0 space-y-1 p-1.5", i % 7 !== 6 && "border-r border-line", i < cells.length - 7 && "border-b border-line", out && "bg-fill/40")} data-day={k}>
                     <div className="flex items-center justify-between px-0.5">
                       <span className={cn("grid h-6 min-w-6 place-items-center rounded-full px-1 text-[12px] tabular-nums", k === today ? "bg-brand font-semibold text-brand-fg" : out ? "text-subtle" : "text-muted")}>
-                        <span aria-hidden>{d.getDate()}</span><span className="sr-only">{d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}{k === today ? ", today" : ""}{list.length ? `, ${list.length} ${list.length === 1 ? "post" : "posts"}` : ""}</span>
+                        <span aria-hidden>{d.getDate()}</span><span className="sr-only">{d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}{k === today ? tr("social.today") : ""}{list.length ? `, ${list.length} ${list.length === 1 ? "post" : "posts"}` : ""}</span>
                       </span>
                     </div>
                     {list.slice(0, 3).map((p) => <PostChip key={p.id} p={p} />)}
-                    {list.length > 3 && <Link to="/app/social/posts" className="block px-1.5 text-[12px] font-medium text-muted hover:text-fg">{list.length - 3} more</Link>}
+                    {list.length > 3 && <Link to="/app/social/posts" className="block px-1.5 text-[12px] font-medium text-muted hover:text-fg">{tr("social.count_more", { count: list.length - 3 })}</Link>}
                   </li>
                 );
               })}
@@ -223,7 +225,7 @@ function SocialPlannerV1() {
                   </li>
                 ))}
               </ul>
-            ) : <p className="rounded-lg bg-fill px-3 py-3 text-[14px] text-muted">No posts in {monthName}.</p>) : null}
+            ) : <p className="rounded-lg bg-fill px-3 py-3 text-[14px] text-muted">{tr("social.no_posts_in_monthname", { monthName })}</p>) : null}
           </div>
         </>)}
     </div>
@@ -233,8 +235,8 @@ function SocialPlannerV1() {
 /* ---------------------------------------------------------------- Posts */
 
 const FILTERS: { id: PostFilter; label: string; p2?: true }[] = [
-  { id: "all", label: "All" }, { id: "scheduled", label: "Scheduled" }, { id: "sent", label: "Sent" }, { id: "failed", label: "Failed" },
-  { id: "drafts", label: "Drafts", p2: true }, { id: "waiting", label: "Waiting for approval", p2: true },
+  { id: "all", get label() { return tr("notifications.all"); } }, { id: "scheduled", get label() { return tr("mailfolder.scheduled"); } }, { id: "sent", get label() { return tr("mailfolder.sent"); } }, { id: "failed", get label() { return tr("social.failed"); } },
+  { id: "drafts", get label() { return tr("mailfolder.drafts"); }, p2: true }, { id: "waiting", get label() { return tr("social.waiting_for_approval"); }, p2: true },
 ];
 
 export function SocialPostsPage() {
@@ -258,10 +260,10 @@ export function SocialPostsPage() {
   const tab = "inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 max-sm:min-h-11 max-sm:px-2.5 motion-reduce:transition-none";
   return (
     <div data-testid="social-posts-page">
-      <PageHeader title="Posts" description="Every post, with how each account did. Fix a failed one right here." actions={<NewPostButton />} />
+      <PageHeader title={tr("nav.posts")} description={tr("social.every_post_with_how_each_account_did_fix_a_faile")} actions={<NewPostButton />} />
       <SocialSwitcher />
       <div className="mb-4 -mx-1 max-w-full overflow-x-auto px-1 [scrollbar-width:none]">
-        <div className="inline-flex gap-1 rounded-lg bg-fill p-1" role="group" aria-label="Show posts" data-testid="posts-filter">
+        <div className="inline-flex gap-1 rounded-lg bg-fill p-1" role="group" aria-label={tr("social.show_posts")} data-testid="posts-filter">
           {filters.map((f) => (
             <button key={f.id} type="button" aria-pressed={filter === f.id} onClick={() => setParams((p) => { const n = new URLSearchParams(p); if (f.id === "all") n.delete("status"); else n.set("status", f.id); return n; }, { replace: true })}
               className={cn(tab, filter === f.id ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg")}>
@@ -306,14 +308,14 @@ function SocialNewPostV2() {
   const canPublish = !!status.data?.canManage;
   return (
     <div data-testid="social-new">
-      <PageHeader title={draft ? "Edit post" : "New post"} description={canPublish ? "Pick a format, write once and adjust the text per network. Accounts that can't take the format are greyed out with the reason." : "Write a post and send it for approval. An owner or admin approves it before it goes out."} />
+      <PageHeader title={draft ? tr("social.edit_post") : tr("nav.new_post")} description={canPublish ? tr("social.pick_a_format_write_once_and_adjust_the_text_per") : tr("social.write_a_post_and_send_it_for_approval_an_owner_o")} />
       <SocialSwitcher />
       {waitingOn ? <div className="space-y-4" aria-busy="true"><Skeleton className="h-72 rounded-xl" /></div>
         : status.error ? <LoadError error={status.error} retry={() => void status.refetch()} what="Social" />
         : accounts.error ? <LoadError error={accounts.error} retry={() => void accounts.refetch()} what="your accounts" />
-        : draftId && !draft ? <Card><EmptyState icon={<IconMegaphone />} title="That draft is gone" body="It may have been sent, discarded or approved already." action={<ButtonLink to="/app/social/posts?status=drafts" variant="outline" size="sm">See drafts</ButtonLink>} /></Card>
+        : draftId && !draft ? <Card><EmptyState icon={<IconMegaphone />} title={tr("social.that_draft_is_gone")} body="It may have been sent, discarded or approved already." action={<ButtonLink to="/app/social/posts?status=drafts" variant="outline" size="sm">{tr("social.see_drafts")}</ButtonLink>} /></Card>
         : !list.length ? (
-          <Card data-testid="social-empty"><EmptyState icon={<IconMegaphone />} title="Connect a social account first" body="Connect Facebook Pages, Instagram, LinkedIn, Pinterest, Reddit, Threads or TikTok, then write one post and send it to all of them." action={<ButtonLink to="/app/social/accounts" size="sm"><IconPlug className="h-4 w-4" aria-hidden />Connect an account</ButtonLink>} /></Card>
+          <Card data-testid="social-empty"><EmptyState icon={<IconMegaphone />} title={tr("social.connect_a_social_account_first")} body="Connect Facebook Pages, Instagram, LinkedIn, Pinterest, Reddit, Threads or TikTok, then write one post and send it to all of them." action={<ButtonLink to="/app/social/accounts" size="sm"><IconPlug className="h-4 w-4" aria-hidden />{tr("social.connect_an_account")}</ButtonLink>} /></Card>
         ) : (
           <ComposerV2 key={draft?.id ?? libItem?.id ?? "new"} accounts={list} canPublish={canPublish} draft={draft} presetAt={params.get("at")} presetAccount={params.get("account")} campaigns={campaigns} multi={soc1} rememberKey={rememberKey}
             presetLibraryText={libItem && libItem.kind !== "image" ? libItem.body : null}
@@ -329,9 +331,9 @@ export function SocialLibraryPage() {
   const p2 = useSocialP2();
   return (
     <div data-testid="social-library-page">
-      <PageHeader title="Library" description="Images, captions and hashtag sets your team reuses, tagged by campaign." actions={<NewPostButton />} />
+      <PageHeader title={tr("nav.library")} description={tr("social.images_captions_and_hashtag_sets_your_team_reuse")} actions={<NewPostButton />} />
       <SocialSwitcher />
-      {p2 ? <SocialLibrary /> : <Card><EmptyState icon={<IconMegaphone />} title="Library isn't on yet" body="It arrives with the next Social update." /></Card>}
+      {p2 ? <SocialLibrary /> : <Card><EmptyState icon={<IconMegaphone />} title={tr("social.library_isn_t_on_yet")} body="It arrives with the next Social update." /></Card>}
     </div>
   );
 }
@@ -343,19 +345,19 @@ function SocialNewPostV1() {
   const list = postable(accounts.data);
   return (
     <div data-testid="social-new">
-      <PageHeader title="New post" description="Write once and send it to every account you pick. Networks that can't take the post are greyed out with the reason." />
+      <PageHeader title={tr("nav.new_post")} description={tr("social.write_once_and_send_it_to_every_account_you_pick")} />
       <SocialSwitcher />
       {status.isPending || accounts.isPending ? <div className="space-y-4" aria-busy="true"><Skeleton className="h-72 rounded-xl" /></div>
         : status.error ? <LoadError error={status.error} retry={() => void status.refetch()} what="Social" />
         : accounts.error ? <LoadError error={accounts.error} retry={() => void accounts.refetch()} what="your accounts" />
         : !status.data?.canManage ? (
-          <Card data-testid="social-locked"><EmptyState icon={<IconLock />} title="Only owners and admins can post" body="You can see every post and how it did in Posts. Ask an owner or admin to post for the team." action={<ButtonLink to="/app/social/posts" variant="outline" size="sm">See posts</ButtonLink>} /></Card>
+          <Card data-testid="social-locked"><EmptyState icon={<IconLock />} title={tr("social.only_owners_and_admins_can_post")} body="You can see every post and how it did in Posts. Ask an owner or admin to post for the team." action={<ButtonLink to="/app/social/posts" variant="outline" size="sm">{tr("social.see_posts")}</ButtonLink>} /></Card>
         ) : !list.length ? (
-          <Card data-testid="social-empty"><EmptyState icon={<IconMegaphone />} title="Connect a social account first" body="Connect Facebook Pages, Instagram, LinkedIn, Pinterest or Reddit, then write one post and send it to all of them." action={<ButtonLink to="/app/social/accounts" size="sm"><IconPlug className="h-4 w-4" aria-hidden />Connect an account</ButtonLink>} /></Card>
+          <Card data-testid="social-empty"><EmptyState icon={<IconMegaphone />} title={tr("social.connect_a_social_account_first")} body="Connect Facebook Pages, Instagram, LinkedIn, Pinterest or Reddit, then write one post and send it to all of them." action={<ButtonLink to="/app/social/accounts" size="sm"><IconPlug className="h-4 w-4" aria-hidden />{tr("social.connect_an_account")}</ButtonLink>} /></Card>
         ) : (
           <div className="space-y-3">
             <Composer accounts={list} heading={false} onPosted={() => navigate("/app/social/posts")} />
-            <p className="px-1 text-[13px] text-muted">TikTok videos and Threads posts are written from their cards in <Link to="/app/social/accounts" className="font-medium text-fg underline underline-offset-2 hover:text-muted">Accounts</Link>.</p>
+            <p className="px-1 text-[13px] text-muted">{tr("social.tiktok_videos_and_threads_posts_are_written_from")} <Link to="/app/social/accounts" className="font-medium text-fg underline underline-offset-2 hover:text-muted">{tr("nav.accounts")}</Link>.</p>
           </div>
         )}
     </div>
@@ -371,7 +373,7 @@ function AccountCaps({ app }: { app: string }) {
   const only = list.length === 1;
   return (
     <p className="mt-1 text-[12.5px] text-muted" data-testid={`account-caps-${app}`}>
-      {only ? <span className="font-medium text-fg">Posting only.</span> : <span>Can do: {list.join(", ")}.</span>}
+      {only ? <span className="font-medium text-fg">{tr("social.posting_only")}</span> : <span>{tr("social.can_do")} {list.join(", ")}.</span>}
       {c.note && !only ? <span> {c.note}</span> : c.note ? <span> {c.note.replace(/^Posting only\.\s*/, "")}</span> : null}
     </p>
   );
@@ -384,7 +386,7 @@ function useTestNetwork() {
   const st = useQuery({ queryKey: ["social-test-network"], queryFn: () => api.get<{ available: boolean; account: { id: string; name: string; broken: boolean } | null }>("/social/test-network"), enabled: allowed });
   const act = useMutation({
     mutationFn: (what: "add" | "out" | "in" | "remove") => what === "add" ? api.post("/social/test-network", {}) : what === "remove" ? api.del("/social/test-network") : api.post("/social/test-network/signed-out", { broken: what === "out" }),
-    onSuccess: (_r, what) => { toast.success(what === "add" ? "Test network added" : what === "remove" ? "Test network removed" : what === "out" ? "Test network now acts signed out" : "Signed in again"); void qc.invalidateQueries(); },
+    onSuccess: (_r, what) => { toast.success(what === "add" ? tr("social.test_network_added") : what === "remove" ? tr("social.test_network_removed") : what === "out" ? tr("social.test_network_now_acts_signed_out") : tr("social.signed_in_again")); void qc.invalidateQueries(); },
     onError: (e) => toast.error(errorMessage(e, "Couldn't change the test network.")),
   });
   return { allowed, st, act };
@@ -397,21 +399,21 @@ function TestNetworkCard({ canManage }: { canManage: boolean }) {
   const a = st.data.account;
   return (
     <section aria-labelledby="acc-test">
-      <h2 id="acc-test" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">Test network</h2>
+      <h2 id="acc-test" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">{tr("social.test_network")}</h2>
       <Card className="flex flex-wrap items-center gap-3 p-4 md:px-5" data-testid="test-network-card" data-health={a ? (a.broken ? "bad" : "ok") : "none"}>
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-fill" aria-hidden><IconFlask className="h-4 w-4" /></span>
         <div className="min-w-0 flex-1">
-          <p className="flex flex-wrap items-center gap-2 text-[15px] font-medium">Test network <Badge tone="brand">Staging only</Badge></p>
-          <p className="text-[13px] text-muted">{!a ? "A pretend network for trying posts, approvals, the inbox and analytics. It never reaches a real network." : a.broken ? "Acting signed out, so you can see the warnings." : "Connected. Posts to it show as sent; replies and results are made up."}</p>
+          <p className="flex flex-wrap items-center gap-2 text-[15px] font-medium">{tr("social.test_network")} <Badge tone="brand">{tr("social.staging_only")}</Badge></p>
+          <p className="text-[13px] text-muted">{!a ? tr("social.a_pretend_network_for_trying_posts_approvals_the") : a.broken ? tr("social.acting_signed_out_so_you_can_see_the_warnings") : tr("social.connected_posts_to_it_show_as_sent_replies_and_r")}</p>
           {a && <AccountCaps app="testnet" />}
         </div>
         {canManage && (
           <div className="flex flex-wrap gap-2">
-            {!a ? <Button size="sm" variant="outline" onClick={() => act.mutate("add")} loading={act.isPending} data-testid="test-network-add"><IconPlus className="h-4 w-4" aria-hidden />Add</Button> : <>
+            {!a ? <Button size="sm" variant="outline" onClick={() => act.mutate("add")} loading={act.isPending} data-testid="test-network-add"><IconPlus className="h-4 w-4" aria-hidden />{tr("common.add")}</Button> : <>
               {a.broken
-                ? <Button size="sm" variant="outline" onClick={() => act.mutate("in")} loading={act.isPending} data-testid="test-network-signin">Sign in again</Button>
-                : <Button size="sm" variant="ghost" onClick={() => act.mutate("out")} loading={act.isPending} data-testid="test-network-signout">Act signed out</Button>}
-              <Button size="sm" variant="ghost" className="text-bad hover:text-bad" onClick={() => act.mutate("remove")} loading={act.isPending} aria-label="Remove the test network"><IconTrash className="h-4 w-4" aria-hidden />Remove</Button>
+                ? <Button size="sm" variant="outline" onClick={() => act.mutate("in")} loading={act.isPending} data-testid="test-network-signin">{tr("settings.sign_in_again")}</Button>
+                : <Button size="sm" variant="ghost" onClick={() => act.mutate("out")} loading={act.isPending} data-testid="test-network-signout">{tr("social.act_signed_out")}</Button>}
+              <Button size="sm" variant="ghost" className="text-bad hover:text-bad" onClick={() => act.mutate("remove")} loading={act.isPending} aria-label={tr("social.remove_the_test_network")}><IconTrash className="h-4 w-4" aria-hidden />{tr("common.remove")}</Button>
             </>}
           </div>
         )}
@@ -444,40 +446,40 @@ export function SocialAccountsPage() {
   const connectedApps = new Set(social.filter((a) => a.status === "active").map((a) => a.app));
   const disconnect = useMutation({
     mutationFn: (a: ConnectedAccountView) => api.del<{ ok: true }>(`/apps/accounts/${encodeURIComponent(a.id)}`),
-    onSuccess: (_r, a) => { toast.success(`${a.appName} disconnected`); setRemoving(null); void qc.invalidateQueries({ queryKey: appsKeys.accounts }); if (soc1) void qc.invalidateQueries({ queryKey: pagesKey }); },
+    onSuccess: (_r, a) => { toast.success(tr("social.appname_disconnected", { appName: a.appName })); setRemoving(null); void qc.invalidateQueries({ queryKey: appsKeys.accounts }); if (soc1) void qc.invalidateQueries({ queryKey: pagesKey }); },
     onError: (e) => toast.error(errorMessage(e, "Couldn't disconnect. Try again.")),
   });
 
   const healthLine = (a: ConnectedAccountView) => {
-    if (a.status === "pending") return <Badge tone="warn" dot>Sign in not finished</Badge>;
-    if (a.status !== "active") return <Badge tone="warn" dot>Needs attention</Badge>;
-    if (health.isPending) return <span className="text-subtle">Checking</span>;
+    if (a.status === "pending") return <Badge tone="warn" dot>{tr("social.sign_in_not_finished")}</Badge>;
+    if (a.status !== "active") return <Badge tone="warn" dot>{tr("common.needs_attention")}</Badge>;
+    if (health.isPending) return <span className="text-subtle">{tr("social.checking")}</span>;
     const h = health.data?.get(a.id);
-    if (!h || h.ok) return <Badge tone="ok" dot>{a.app in P3_NAMES ? "Ready for comments" : "Ready to post"}</Badge>;
-    if (h.code === "check_failed") return <Badge tone="neutral" dot>Not checked</Badge>;
-    return <Badge tone="warn" dot>Needs attention</Badge>;
+    if (!h || h.ok) return <Badge tone="ok" dot>{a.app in P3_NAMES ? tr("social.ready_for_comments") : tr("social.ready_to_post")}</Badge>;
+    if (h.code === "check_failed") return <Badge tone="neutral" dot>{tr("social.not_checked")}</Badge>;
+    return <Badge tone="warn" dot>{tr("common.needs_attention")}</Badge>;
   };
 
   return (
     <div data-testid="social-accounts">
-      <PageHeader title="Accounts" description="The profiles Multies posts to, checked before you write. Connect, reconnect or remove them here." actions={<NewPostButton />} />
+      <PageHeader title={tr("nav.accounts")} description={tr("social.the_profiles_multies_posts_to_checked_before_you")} actions={<NewPostButton />} />
       <SocialSwitcher />
-      {!status.isPending && !canManage && <p className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-subtle"><IconLock className="h-3.5 w-3.5" aria-hidden />Only owners and admins can connect accounts or post.</p>}
+      {!status.isPending && !canManage && <p className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-subtle"><IconLock className="h-3.5 w-3.5" aria-hidden />{tr("social.only_owners_and_admins_can_connect_accounts_or_p")}</p>}
       {(broken.length > 0 || testBroken) && (
-        <Card className="mb-5 border-warn/40 p-4 md:px-5" data-testid="accounts-broken" role="region" aria-label="Sign in again">
-          <h2 className="flex items-center gap-2 text-[15px] font-semibold"><IconWarning className="h-4 w-4 text-warn" aria-hidden />Sign in again</h2>
+        <Card className="mb-5 border-warn/40 p-4 md:px-5" data-testid="accounts-broken" role="region" aria-label={tr("settings.sign_in_again")}>
+          <h2 className="flex items-center gap-2 text-[15px] font-semibold"><IconWarning className="h-4 w-4 text-warn" aria-hidden />{tr("settings.sign_in_again")}</h2>
           <ul className="mt-2 space-y-2">
             {broken.map((a) => (
               <li key={a.id} className="flex flex-wrap items-center gap-3 text-[13.5px]">
-                <span className="min-w-0 flex-1">{a.appName}{(a.name ?? a.label) ? `, ${a.name ?? a.label}` : ""} lost its sign in. Planned posts to it won't go out until you reconnect.</span>
-                {canManage ? <ReconnectButton accountId={a.id} appName={a.appName} /> : <span className="text-[12.5px] text-muted">Ask an owner or admin to reconnect it.</span>}
+                <span className="min-w-0 flex-1">{a.appName}{(a.name ?? a.label) ? `, ${a.name ?? a.label}` : ""} {tr("social.lost_its_sign_in_planned_posts_to_it_won_t_go_ou")}</span>
+                {canManage ? <ReconnectButton accountId={a.id} appName={a.appName} /> : <span className="text-[12.5px] text-muted">{tr("social.ask_an_owner_or_admin_to_reconnect_it")}</span>}
               </li>
             ))}
             {testBroken && (
               <li className="flex flex-wrap items-center gap-3 text-[13.5px]">
-                <span className="min-w-0 flex-1">Test network lost its sign in. Planned posts to it won't go out until you reconnect.</span>
-                {canManage ? <Button size="sm" variant="outline" onClick={() => test.act.mutate("in")} loading={test.act.isPending} data-testid="broken-reconnect-testnet"><IconRefresh className="h-4 w-4" aria-hidden />Reconnect</Button>
-                  : <span className="text-[12.5px] text-muted">Ask an owner or admin to reconnect it.</span>}
+                <span className="min-w-0 flex-1">{tr("social.test_network_lost_its_sign_in_planned_posts_to_i")}</span>
+                {canManage ? <Button size="sm" variant="outline" onClick={() => test.act.mutate("in")} loading={test.act.isPending} data-testid="broken-reconnect-testnet"><IconRefresh className="h-4 w-4" aria-hidden />{tr("social.reconnect")}</Button>
+                  : <span className="text-[12.5px] text-muted">{tr("social.ask_an_owner_or_admin_to_reconnect_it")}</span>}
               </li>
             )}
           </ul>
@@ -485,13 +487,13 @@ export function SocialAccountsPage() {
       )}
       <div className="space-y-7">
         <section aria-labelledby="acc-connected">
-          <h2 id="acc-connected" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">Connected</h2>
+          <h2 id="acc-connected" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">{tr("social.connected")}</h2>
           {accounts.isPending ? <Card className="space-y-3 p-4" aria-busy="true"><Skeleton className="h-10 rounded-lg" /><Skeleton className="h-10 rounded-lg" /></Card>
             : accounts.error ? <LoadError error={accounts.error} retry={() => void accounts.refetch()} what="your accounts" />
             : !social.length ? (
               <Card className="flex items-center gap-3 p-4 text-sm text-muted" data-testid="accounts-none">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-fill" aria-hidden><IconPlug className="h-4 w-4" /></span>
-                <p>No social accounts yet. Connect one below to start posting.</p>
+                <p>{tr("social.no_social_accounts_yet_connect_one_below_to_star")}</p>
               </Card>
             ) : (
               <Card className="divide-y divide-line" data-testid="accounts-list">
@@ -504,7 +506,7 @@ export function SocialAccountsPage() {
                       <div className="min-w-0 flex-1">
                         {/* SA1: the account's own name first, so two accounts on one network are told apart. */}
                         <p className="truncate text-[15px] font-medium" data-testid="account-name">{a.name ?? a.label ?? a.appName}</p>
-                        <p className="flex flex-wrap items-center gap-2 text-[13px] text-muted">{(a.name ?? a.label) ? <span className="text-subtle">{a.appName}</span> : null}{healthLine(a)}<span>Connected {timeAgo(a.createdAt)}</span></p>
+                        <p className="flex flex-wrap items-center gap-2 text-[13px] text-muted">{(a.name ?? a.label) ? <span className="text-subtle">{a.appName}</span> : null}{healthLine(a)}<span>{tr("social.connected_createdat", { createdAt: timeAgo(a.createdAt) })}</span></p>
                         {bad && h?.text && <p className="mt-1 text-[12.5px] text-warn" data-testid="account-health-text">{h.text}</p>}
                         {a.app === "linkedin" && !(soc1 && a.companyPages) && <p className="mt-1 text-[12.5px] text-muted" data-testid="linkedin-page-note">{LINKEDIN_PAGE_NOTE}</p>}
                         {p2b && <AccountCaps app={a.app} />}
@@ -513,7 +515,7 @@ export function SocialAccountsPage() {
                       {canManage && (
                         <div className="flex gap-2 max-sm:w-full max-sm:pl-[52px]">
                           {(bad || a.status !== "active") && <ReconnectButton accountId={a.id} appName={a.appName} />}
-                          <Button variant="ghost" size="sm" className="text-bad hover:text-bad" onClick={() => setRemoving(a)} aria-label={`Disconnect ${a.appName}${a.name ? `, ${a.name}` : ""}`}><IconTrash className="h-4 w-4" aria-hidden />Disconnect</Button>
+                          <Button variant="ghost" size="sm" className="text-bad hover:text-bad" onClick={() => setRemoving(a)} aria-label={`Disconnect ${a.appName}${a.name ? `, ${a.name}` : ""}`}><IconTrash className="h-4 w-4" aria-hidden />{tr("social.disconnect")}</Button>
                         </div>
                       )}
                     </div>
@@ -527,33 +529,33 @@ export function SocialAccountsPage() {
         {test.allowed && <TestNetworkCard canManage={canManage} />}
 
         {/* TikTok and Threads carry their own heading (and hide while neither is offered). */}
-        <section aria-label="TikTok and Threads"><DirectAccounts /></section>
+        <section aria-label={tr("social.tiktok_and_threads")}><DirectAccounts /></section>
 
         <section aria-labelledby="acc-add">
-          <h2 id="acc-add" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">Connect a network</h2>
+          <h2 id="acc-add" className="mb-2 px-1 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">{tr("social.connect_a_network")}</h2>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="accounts-add">
             {[...NETWORKS, ...(p3on ? Object.keys(P3_NAMES) : [])].map((app) => (
               <Card key={app} className="flex items-center gap-3 p-4" data-testid={`connect-${app}`}>
                 <AppLogo slug={app} name={NETWORK_NAMES[app] ?? P3_NAMES[app] ?? app} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[15px] font-medium">{NETWORK_NAMES[app] ?? P3_NAMES[app] ?? app}</p>
-                  <p className="text-[12.5px] text-muted">{connectedApps.has(app) ? "Connected. Add another account." : app in P3_NAMES ? "Comments and replies in your inbox." : SOCIAL_NETWORKS[app]?.image === "required" ? "Posts need an image." : "Text and image posts."}</p>
+                  <p className="text-[12.5px] text-muted">{connectedApps.has(app) ? tr("social.connected_add_another_account") : app in P3_NAMES ? tr("social.comments_and_replies_in_your_inbox") : SOCIAL_NETWORKS[app]?.image === "required" ? tr("social.posts_need_an_image") : tr("social.text_and_image_posts")}</p>
                   {app === "linkedin" && <p className="mt-1 text-[12px] leading-snug text-subtle" data-testid="connect-linkedin-note">{LINKEDIN_PAGE_NOTE}</p>}
                 </div>
                 {canManage && (
                   <Button variant="outline" size="sm" loading={connect.isPending && connect.variables === app} onClick={() => connect.mutate(app)} aria-label={`Connect ${NETWORK_NAMES[app] ?? P3_NAMES[app] ?? app}`}>
-                    <IconPlus className="h-4 w-4" aria-hidden />Connect
+                    <IconPlus className="h-4 w-4" aria-hidden />{tr("social.connect")}
                   </Button>
                 )}
               </Card>
             ))}
           </div>
-          <p className="mt-3 px-1 text-[13px] text-muted">Other apps, mail accounts and webhooks are in <Link to="/app/settings/apps" className="font-medium text-fg underline underline-offset-2 hover:text-muted">Settings, Connections</Link>.</p>
+          <p className="mt-3 px-1 text-[13px] text-muted">{tr("social.other_apps_mail_accounts_and_webhooks_are_in")} <Link to="/app/settings/apps" className="font-medium text-fg underline underline-offset-2 hover:text-muted">{tr("social.settings_connections")}</Link>.</p>
         </section>
       </div>
       <ConfirmDialog open={!!removing} onClose={() => setRemoving(null)} onConfirm={() => removing && disconnect.mutate(removing)} busy={disconnect.isPending}
-        title={removing ? `Disconnect ${removing.appName}${removing.name ? `, ${removing.name}` : ""}?` : "Disconnect"} confirmLabel="Disconnect"
-        description={soc1 && removing?.app === "facebook" ? "Scheduled posts to this account and its Pages will not go out, and its Pages are removed here. You can connect it again any time." : "Scheduled posts to this account will not go out. You can connect it again any time."} />
+        title={removing ? `Disconnect ${removing.appName}${removing.name ? `, ${removing.name}` : ""}?` : tr("social.disconnect")} confirmLabel={tr("social.disconnect")}
+        description={soc1 && removing?.app === "facebook" ? tr("social.scheduled_posts_to_this_account_and_its_pages_wi") : tr("social.scheduled_posts_to_this_account_will_not_go_out")} />
     </div>
   );
 }

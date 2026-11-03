@@ -25,20 +25,22 @@ import { AppLogo, useAppAccounts } from "./apps-settings";
 import { useMe } from "@/web/lib/queries";
 import { PlannedHealthNote } from "./social-health"; // R118
 import { LoadErrorInline, LoadFailure } from "@/web/components/load-error-t1g";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-social"; // R104B
 
 export const postsKey = ["social", "posts"] as const;
 
 export const POST_STATUS: Record<PostStatus, { label: string; tone: "ok" | "warn" | "bad" | "neutral" | "brand" }> = {
-  scheduled: { label: "Scheduled", tone: "brand" },
-  sending: { label: "Posting", tone: "neutral" },
-  done: { label: "Posted", tone: "ok" },
-  partial: { label: "Partly posted", tone: "warn" },
-  failed: { label: "Not posted", tone: "bad" },
-  canceled: { label: "Canceled", tone: "neutral" },
-  draft: { label: "Draft", tone: "neutral" },
-  review: { label: "Waiting for approval", tone: "brand" },
-  changes: { label: "Changes asked", tone: "warn" },
-  rejected: { label: "Rejected", tone: "neutral" },
+  scheduled: { get label() { return tr("mailfolder.scheduled"); }, tone: "brand" },
+  sending: { get label() { return tr("social.posting"); }, tone: "neutral" },
+  done: { get label() { return tr("social.posted"); }, tone: "ok" },
+  partial: { get label() { return tr("social.partly_posted"); }, tone: "warn" },
+  failed: { get label() { return tr("social.not_posted"); }, tone: "bad" },
+  canceled: { get label() { return tr("social.canceled"); }, tone: "neutral" },
+  draft: { get label() { return tr("social.draft"); }, tone: "neutral" },
+  review: { get label() { return tr("social.waiting_for_approval"); }, tone: "brand" },
+  changes: { get label() { return tr("social.changes_asked"); }, tone: "warn" },
+  rejected: { get label() { return tr("social.rejected"); }, tone: "neutral" },
 };
 
 export function whenText(iso: string) {
@@ -70,14 +72,14 @@ function TargetPicker({ account, value, onChange }: { account: ConnectedAccountV
   if (!net.target) return null;
   const label = `${net.target.label} for ${account.appName}`;
   if (!listed) {
-    return <Input aria-label={label} placeholder="Community, for example r/smallbusiness" value={value} onChange={(e) => onChange(e.target.value)} className="h-9 max-w-xs text-sm" />;
+    return <Input aria-label={label} placeholder={tr("social.community_for_example_r_smallbusiness")} value={value} onChange={(e) => onChange(e.target.value)} className="h-9 max-w-xs text-sm" />;
   }
   if (q.isPending) return <Skeleton className="h-9 w-56 rounded-lg" />;
   if (q.error) return <LoadErrorInline onRetry={() => q.refetch()} />;
-  if (!q.data?.length) return <p className="text-[13px] text-muted">No {net.target.label.toLowerCase()}s found on this account.</p>;
+  if (!q.data?.length) return <p className="text-[13px] text-muted">{tr("social.no")} {net.target.label.toLowerCase()}{tr("social.s_found_on_this_account")}</p>;
   return (
     <Select aria-label={label} value={value} onChange={(e) => onChange(e.target.value, q.data?.find((t) => t.id === e.target.value)?.name)} className="h-9 max-w-xs text-sm">
-      <option value="">Pick a {net.target.label.toLowerCase()}</option>
+      <option value="">{tr("social.pick_a")} {net.target.label.toLowerCase()}</option>
       {q.data.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
     </Select>
   );
@@ -111,9 +113,9 @@ export function SocialPanel({ canManage }: { canManage: boolean }) {
     <div className="space-y-6" data-testid="social-panel">
       {postable.length === 0 ? (
         <Card data-testid="social-empty">
-          <EmptyState icon={<IconMegaphone />} title="Connect a social account first"
+          <EmptyState icon={<IconMegaphone />} title={tr("social.connect_a_social_account_first")}
             body="Connect Facebook Pages, Instagram, LinkedIn, Pinterest or Reddit, then write one post and send it to all of them."
-            action={<Button onClick={() => navigate("/app/social/accounts")}><IconPlug className="h-4 w-4" aria-hidden />Connect an account</Button>} />
+            action={<Button onClick={() => navigate("/app/social/accounts")}><IconPlug className="h-4 w-4" aria-hidden />{tr("social.connect_an_account")}</Button>} />
         </Card>
       ) : canManage ? <Composer accounts={postable} /> : null}
       <PostList canManage={canManage} />
@@ -191,12 +193,12 @@ export function Composer({ accounts, onPosted, heading = true }: { accounts: Con
     <Card>
       <form ref={form} onSubmit={submit} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); }} className="space-y-5 p-5 md:p-6" data-testid="social-composer" aria-labelledby="composer-title">
         <div className={cn(!heading && "sr-only")}>
-          <h2 id="composer-title" className="text-[15px] font-semibold">New post</h2>
-          <p className="mt-1 text-[13px] text-muted">One post, sent to every account you pick. Each account shows its own result below.</p>
+          <h2 id="composer-title" className="text-[15px] font-semibold">{tr("nav.new_post")}</h2>
+          <p className="mt-1 text-[13px] text-muted">{tr("social.one_post_sent_to_every_account_you_pick_each_acc")}</p>
         </div>
 
         <fieldset>
-          <legend className="mb-2 text-[13px] font-medium">Post to</legend>
+          <legend className="mb-2 text-[13px] font-medium">{tr("social.post_to")}</legend>
           <ul className="divide-y divide-line rounded-lg border border-line">
             {accounts.map((a) => {
               const on = a.id in picked;
@@ -216,10 +218,10 @@ export function Composer({ accounts, onPosted, heading = true }: { accounts: Con
                   </label>
                   {cannot && <p id={`why-${a.id}`} className="basis-full pl-7 text-[12.5px] text-muted" data-testid="pick-why">{cannot}</p>}
                   {on && <TargetPicker account={a} value={picked[a.id] ?? ""} onChange={(v, name) => { setPicked((p) => ({ ...p, [a.id]: v })); setNames((n) => ({ ...n, [a.id]: name ?? v })); }} />}
-                  {h && !on && <span className="text-[12.5px] text-warn max-sm:hidden" data-testid="pick-health">Needs attention</span>}
+                  {h && !on && <span className="text-[12.5px] text-warn max-sm:hidden" data-testid="pick-health">{tr("common.needs_attention")}</span>}
                   {h && <ReconnectButton accountId={a.id} appName={a.appName} />}
                   {(err ?? (h ? h.text : null)) && <p className="basis-full pl-7 text-[12.5px] text-warn" data-testid="pick-problem" data-code={h?.code ?? undefined}><IconWarning className="mr-1 inline h-3.5 w-3.5" aria-hidden />{err ?? h?.text}</p>}
-                  {textOnly && <p className="basis-full pl-7 text-[12.5px] text-muted" data-testid="pick-note">{a.appName} gets the text only; the image is left off.</p>}
+                  {textOnly && <p className="basis-full pl-7 text-[12.5px] text-muted" data-testid="pick-note">{tr("social.appname_gets_the_text_only_the_image_is_left_off", { appName: a.appName })}</p>}
                 </li>
               );
             })}
@@ -227,22 +229,22 @@ export function Composer({ accounts, onPosted, heading = true }: { accounts: Con
         </fieldset>
 
         <div>
-          <label htmlFor="social-text" className="mb-2 block text-[13px] font-medium">Text</label>
-          <Textarea id="social-text" value={text} onChange={(e) => setText(e.target.value)} rows={5} maxLength={SOCIAL_TEXT_MAX} placeholder="What do you want to share?" data-testid="social-text" />
+          <label htmlFor="social-text" className="mb-2 block text-[13px] font-medium">{tr("social.text")}</label>
+          <Textarea id="social-text" value={text} onChange={(e) => setText(e.target.value)} rows={5} maxLength={SOCIAL_TEXT_MAX} placeholder={tr("social.what_do_you_want_to_share")} data-testid="social-text" />
           <p className={cn("mt-1 text-right text-[12px] tabular-nums", text.length > limit ? "text-bad" : "text-subtle")} aria-live="polite">
-            {text.length} of {limit}{tight && limit < SOCIAL_TEXT_MAX ? ` (${tight.appName} limit)` : ""}
+            {text.length} {tr("social.of")} {limit}{tight && limit < SOCIAL_TEXT_MAX ? ` (${tight.appName} limit)` : ""}
           </p>
         </div>
 
         <div>
-          <p className="mb-2 text-[13px] font-medium">Image <span className="font-normal text-subtle">(any photo, resized to fit)</span></p>
+          <p className="mb-2 text-[13px] font-medium">{tr("social.image")} <span className="font-normal text-subtle">{tr("social.any_photo_resized_to_fit")}</span></p>
           {image ? (
             <div className="relative inline-block">
-              <img src={image.preview} alt="Image for the post" className="h-28 w-28 rounded-lg border border-line object-cover" />
-              <Button type="button" size="icon" variant="secondary" className="absolute -right-2 -top-2 rounded-full shadow-card" onClick={() => setImage(null)} aria-label="Remove image"><IconClose className="h-4 w-4" aria-hidden /></Button>
+              <img src={image.preview} alt={tr("social.image_for_the_post")} className="h-28 w-28 rounded-lg border border-line object-cover" />
+              <Button type="button" size="icon" variant="secondary" className="absolute -right-2 -top-2 rounded-full shadow-card" onClick={() => setImage(null)} aria-label={tr("social.remove_image")}><IconClose className="h-4 w-4" aria-hidden /></Button>
             </div>
           ) : (
-            <Button type="button" variant="outline" size="sm" onClick={() => file.current?.click()}><IconImage className="h-4 w-4" aria-hidden />Add image</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => file.current?.click()}><IconImage className="h-4 w-4" aria-hidden />{tr("social.add_image")}</Button>
           )}
           <input ref={file} type="file" accept={SOCIAL_PHOTO_ACCEPT} className="sr-only" tabIndex={-1} aria-hidden data-testid="social-image"
             onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; setImageError(null); try { setImage(await readImage(f)); } catch (err) { setImageError((err as Error).message); } }} />
@@ -250,25 +252,25 @@ export function Composer({ accounts, onPosted, heading = true }: { accounts: Con
         </div>
 
         <fieldset>
-          <legend className="mb-2 text-[13px] font-medium">When</legend>
+          <legend className="mb-2 text-[13px] font-medium">{tr("social.when")}</legend>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-lg bg-fill p-1" role="radiogroup" aria-label="When">
+            <div className="inline-flex rounded-lg bg-fill p-1" role="radiogroup" aria-label={tr("social.when")}>
               {[{ v: false, l: "Now" }, { v: true, l: "Later" }].map((o) => (
                 <button key={o.l} type="button" role="radio" aria-checked={later === o.v} onClick={() => setLater(o.v)}
                   className={cn("h-8 rounded-md px-3 text-sm font-medium transition-colors duration-150 max-sm:min-h-11", later === o.v ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg")}>{o.l}</button>
               ))}
             </div>
-            {later && <Input type="datetime-local" aria-label="Post at" value={at} min={localInput(new Date())} onChange={(e) => setAt(e.target.value)} className="h-9 w-auto text-sm" data-testid="social-at" />}
+            {later && <Input type="datetime-local" aria-label={tr("social.post_at")} value={at} min={localInput(new Date())} onChange={(e) => setAt(e.target.value)} className="h-9 w-auto text-sm" data-testid="social-at" />}
           </div>
-          {tooSoon && <p className="mt-2 text-[13px] text-warn">Pick a time at least a minute from now, or post now.</p>}
-          {tooFar && <p className="mt-2 text-[13px] text-warn">Posts can be set up to {SOCIAL_MAX_AHEAD_DAYS} days ahead.</p>}
+          {tooSoon && <p className="mt-2 text-[13px] text-warn">{tr("social.pick_a_time_at_least_a_minute_from_now_or_post_n")}</p>}
+          {tooFar && <p className="mt-2 text-[13px] text-warn">{tr("social.posts_can_be_set_up_to_social_max_ahead_days_day", { SOCIAL_MAX_AHEAD_DAYS })}</p>}
         </fieldset>
 
         <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line pt-4">
-          <span className="text-[12px] text-subtle max-sm:hidden">Ctrl Enter to {later ? "schedule" : "post"}</span>
+          <span className="text-[12px] text-subtle max-sm:hidden">{tr("social.ctrl_enter_to")} {later ? "schedule" : "post"}</span>
           <Button type="submit" disabled={!ready} loading={send.isPending} className="max-sm:w-full" data-testid="social-submit">
             {later ? <IconClock className="h-4 w-4" aria-hidden /> : <IconSend className="h-4 w-4" aria-hidden />}
-            {later ? "Schedule post" : chosen.length > 1 ? `Post to ${chosen.length} accounts` : "Post now"}
+            {later ? tr("social.schedule_post") : chosen.length > 1 ? tr("social.post_to_length_accounts", { length: chosen.length }) : tr("social.post_now")}
           </Button>
         </div>
       </form>
@@ -285,8 +287,8 @@ export function ReconnectButton({ accountId, appName }: { accountId: string; app
     onError: (e) => toast.error(errorMessage(e, "Couldn't reconnect. Try again.")),
   });
   return (
-    <Button type="button" variant="outline" size="sm" loading={reconnect.isPending} onClick={() => reconnect.mutate()} aria-label={`Reconnect ${appName}`}>
-      <IconPlug className="h-4 w-4" aria-hidden />Reconnect
+    <Button type="button" variant="outline" size="sm" loading={reconnect.isPending} onClick={() => reconnect.mutate()} aria-label={tr("social.reconnect_appname", { appName })}>
+      <IconPlug className="h-4 w-4" aria-hidden />{tr("social.reconnect")}
     </Button>
   );
 }
@@ -327,12 +329,12 @@ export function postMatches(p: SocialPostView, f: PostFilter): boolean {
   return !isDraftLike(p) && p.status !== "review";
 }
 const FILTER_EMPTY: Record<PostFilter, { title: string; body: string }> = {
-  all: { title: "No posts yet", body: "Posts you send or schedule show here, with how each account did." },
-  scheduled: { title: "Nothing scheduled", body: "Posts set for later wait here until they go out." },
-  sent: { title: "Nothing sent yet", body: "Posts that went out show here, with a link to each one." },
-  failed: { title: "Nothing failed", body: "When a network turns a post down, it shows here with the reason and a fix." },
-  drafts: { title: "No drafts", body: "Save a post as a draft from New post and finish it later." },
-  waiting: { title: "Nothing waiting for approval", body: "Posts sent for approval wait here until an owner or admin approves them." },
+  all: { get title() { return tr("social.no_posts_yet"); }, body: "Posts you send or schedule show here, with how each account did." },
+  scheduled: { get title() { return tr("social.nothing_scheduled"); }, body: "Posts set for later wait here until they go out." },
+  sent: { get title() { return tr("empty.nothing_sent_yet"); }, body: "Posts that went out show here, with a link to each one." },
+  failed: { get title() { return tr("social.nothing_failed"); }, body: "When a network turns a post down, it shows here with the reason and a fix." },
+  drafts: { get title() { return tr("empty.no_drafts"); }, body: "Save a post as a draft from New post and finish it later." },
+  waiting: { get title() { return tr("social.nothing_waiting_for_approval"); }, body: "Posts sent for approval wait here until an owner or admin approves them." },
 };
 
 /** The social posts list, shared by the Social Posts page; one query for every filter. */
@@ -382,26 +384,26 @@ function TargetRow({ t, p, canManage }: { t: PostTargetView; p: SocialPostView; 
       <AppLogo slug={t.app} name={name} size="sm" />
       <span className="min-w-0 flex-1 truncate">{name}{t.target ? <span className="text-muted">, {t.targetName ?? t.target}</span> : null}</span>
       {removed ? (
-        <Badge tone="neutral">Removed on {networkName(t.app)}</Badge>
+        <Badge tone="neutral">{tr("social.removed_on")} {networkName(t.app)}</Badge>
       ) : t.status === "sent" ? (
         <span className="inline-flex items-center gap-2">
-          <Badge tone="ok"><IconCheckCircle className="h-3.5 w-3.5" aria-hidden />Posted</Badge>
+          <Badge tone="ok"><IconCheckCircle className="h-3.5 w-3.5" aria-hidden />{tr("social.posted")}</Badge>
           {t.sentAt && <span className="text-[12px] text-subtle">{whenText(t.sentAt)}</span>}
-          {t.url && <a href={t.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-8 items-center gap-1 font-medium text-fg underline underline-offset-2 hover:text-muted max-sm:min-h-11" data-testid="open-post">Open post<IconExternalLink className="h-3.5 w-3.5" aria-hidden /></a>}
+          {t.url && <a href={t.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-8 items-center gap-1 font-medium text-fg underline underline-offset-2 hover:text-muted max-sm:min-h-11" data-testid="open-post">{tr("social.open_post")}<IconExternalLink className="h-3.5 w-3.5" aria-hidden /></a>}
         </span>
       ) : t.status === "failed" || t.status === "skipped" ? (
         <>
-          <Badge tone="bad">Not posted</Badge>
+          <Badge tone="bad">{tr("social.not_posted")}</Badge>
           <TargetError error={t.error} accountId={t.accountId} appName={name} canManage={canManage} />
         </>
       ) : (
         <span className="inline-flex items-center gap-1.5 text-muted">
-          {p.status === "sending" || (p.status === "scheduled" && Date.parse(p.runAt) <= Date.now()) ? <><IconSpinner className="h-3.5 w-3.5 animate-spin" aria-hidden />Posting</> : p.status === "canceled" ? "Not sent" : <><IconClock className="h-3.5 w-3.5" aria-hidden />Waiting</>}
+          {p.status === "sending" || (p.status === "scheduled" && Date.parse(p.runAt) <= Date.now()) ? <><IconSpinner className="h-3.5 w-3.5 animate-spin" aria-hidden />{tr("social.posting")}</> : p.status === "canceled" ? tr("social.not_sent") : <><IconClock className="h-3.5 w-3.5" aria-hidden />{tr("social.waiting")}</>}
         </span>
       )}
-      {removed && <p className="basis-full pl-9 text-[12px] text-subtle">This post was deleted on {networkName(t.app)}. There is nothing left to open.</p>}
+      {removed && <p className="basis-full pl-9 text-[12px] text-subtle">{tr("social.this_post_was_deleted_on")} {networkName(t.app)}{tr("social.there_is_nothing_left_to_open")}</p>}
       {t.status === "sent" && !removed && t.canCheck === false && t.canDelete && (
-        <p className="basis-full pl-9 text-[12px] text-subtle" data-testid="no-removal-check">{networkName(t.app)} doesn't tell Multies when a post is deleted there. Deleted it on {networkName(t.app)}? Delete it here too.</p>
+        <p className="basis-full pl-9 text-[12px] text-subtle" data-testid="no-removal-check">{networkName(t.app)} {tr("social.doesn_t_tell_multies_when_a_post_is_deleted_ther")} {networkName(t.app)}{tr("social.delete_it_here_too")}</p>
       )}
     </li>
   );
@@ -428,13 +430,13 @@ export function PostedSheet({ postId, onClose, onViewPosts, onWriteAnother }: { 
     <Dialog open onClose={onClose} title={title} description={description} className="sm:max-w-lg"
       footer={(
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="secondary" className="max-sm:w-full" onClick={onWriteAnother ?? onClose} data-testid="write-another">Write another</Button>
-          <Button className="max-sm:w-full" onClick={view} data-testid="view-in-posts">View in Posts</Button>
+          <Button variant="secondary" className="max-sm:w-full" onClick={onWriteAnother ?? onClose} data-testid="write-another">{tr("social.write_another")}</Button>
+          <Button className="max-sm:w-full" onClick={view} data-testid="view-in-posts">{tr("social.view_in_posts")}</Button>
         </div>
       )}>
       <div data-testid="posted-sheet" data-status={p?.status ?? "loading"} aria-live="polite">
         {!p ? (q.error ? <LoadFailure error={q.error} onRetry={() => q.refetch()} /> : <div className="space-y-2"><Skeleton className="h-10 rounded-lg" /><Skeleton className="h-10 rounded-lg" /></div>) : (
-          <ul className="divide-y divide-line rounded-lg border border-line text-left" aria-label="Where it went">
+          <ul className="divide-y divide-line rounded-lg border border-line text-left" aria-label={tr("social.where_it_went")}>
             {p.targets.map((t) => <TargetRow key={t.accountId} t={t} p={p} canManage />)}
           </ul>
         )}
@@ -489,7 +491,7 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
   const [toDiscard, setToDiscard] = useState<SocialPostView | null>(null);
   const discard = useMutation({
     mutationFn: (id: string) => api.post<{ discarded: boolean }>(`/social/posts/${id}/discard`),
-    onSuccess: () => { toast.success("Draft discarded"); setToDiscard(null); void qc.invalidateQueries({ queryKey: postsKey }); requestAnimationFrame(() => document.getElementById("posts-title")?.focus()); },
+    onSuccess: () => { toast.success(tr("social.draft_discarded")); setToDiscard(null); void qc.invalidateQueries({ queryKey: postsKey }); requestAnimationFrame(() => document.getElementById("posts-title")?.focus()); },
     onError: (e) => toast.error(errorMessage(e, "Couldn't discard it. Try again.")),
   });
   const shown = (posts.data ?? []).filter((p) => postMatches(p, filter));
@@ -497,12 +499,12 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
   const [toDelete, setToDelete] = useState<SocialPostView | null>(null);
   const cancel = useMutation({
     mutationFn: (id: string) => api.post<{ post: SocialPostView }>(`/social/posts/${id}/cancel`),
-    onSuccess: () => { toast.success("Post canceled"); void qc.invalidateQueries({ queryKey: postsKey }); },
+    onSuccess: () => { toast.success(tr("social.post_canceled")); void qc.invalidateQueries({ queryKey: postsKey }); },
     onError: (e) => toast.error(errorMessage(e, "Couldn't cancel the post. Try again.")),
   });
   const retry = useMutation({
     mutationFn: (id: string) => api.post<{ post: SocialPostView }>(`/social/posts/${id}/retry`),
-    onSuccess: () => { toast.success("Sending again"); void qc.invalidateQueries({ queryKey: postsKey }); },
+    onSuccess: () => { toast.success(tr("social.sending_again")); void qc.invalidateQueries({ queryKey: postsKey }); },
     onError: (e) => toast.error(errorMessage(e, "Couldn't send again. Try again in a minute.")),
   });
   const del = useMutation({
@@ -510,7 +512,7 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
     onSuccess: (r) => {
       const done = r.results.filter((x) => x.outcome === "deleted").map((x) => networkName(x.app));
       const failed = r.results.filter((x) => x.outcome === "failed").map((x) => networkName(x.app));
-      if (r.deleted) toast.success(done.length ? `Post deleted from ${andList(done)}` : "Post deleted");
+      if (r.deleted) toast.success(done.length ? `Post deleted from ${andList(done)}` : tr("social.post_deleted"));
       else toast.error(`${done.length ? `Deleted from ${andList(done)}. ` : ""}${andList(failed)} didn't delete it. Try again in a minute.`);
       setToDelete(null);
       void qc.invalidateQueries({ queryKey: postsKey });
@@ -529,10 +531,10 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
   return (
     <section aria-labelledby="posts-title">
       <div className="mb-2 flex items-center justify-between gap-2 px-1">
-        <h2 id="posts-title" tabIndex={-1} className={cn("outline-none text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle", !heading && "sr-only")}>Posts</h2>
+        <h2 id="posts-title" tabIndex={-1} className={cn("outline-none text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle", !heading && "sr-only")}>{tr("nav.posts")}</h2>
         {!!posts.data?.length && (
           <Button variant="ghost" size="sm" className="ml-auto" loading={net.syncing || posts.isRefetching} onClick={net.refresh} data-testid="posts-refresh">
-            <IconRefresh className="h-4 w-4" aria-hidden />Refresh
+            <IconRefresh className="h-4 w-4" aria-hidden />{tr("social.refresh")}
           </Button>
         )}
       </div>
@@ -547,7 +549,7 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
           <ul className="space-y-3" data-testid="social-posts">
             {shown.map((p) => {
               const gone = removedEverywhere(p);
-              const st = gone ? { label: "Removed", tone: "neutral" as const } : POST_STATUS[p.status];
+              const st = gone ? { label: tr("social.removed"), tone: "neutral" as const } : POST_STATUS[p.status];
               return (
                 <li key={p.id}>
                   <Card className="p-4 md:p-5" data-testid="social-post" data-status={p.status}>
@@ -566,27 +568,27 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
                         <PlannedHealthNote post={p} />
                       </div>
                     </div>
-                    <ul className="mt-3.5 divide-y divide-line rounded-lg border border-line" aria-label="Accounts">
+                    <ul className="mt-3.5 divide-y divide-line rounded-lg border border-line" aria-label={tr("nav.accounts")}>
                       {p.targets.map((t) => <TargetRow key={t.accountId} t={t} p={p} canManage={canManage} />)}
                     </ul>
                     {(p.campaign || p.evergreen || p.reviewNote) && (
                       <p className="mt-3 flex flex-wrap items-center gap-2 text-[12.5px] text-muted" data-testid="post-meta">
                         {p.campaign && <Badge tone="neutral">{p.campaign}</Badge>}
-                        {p.evergreen && <span>Evergreen</span>}
-                        {p.reviewNote && (p.status === "changes" || p.status === "rejected") && <span className="basis-full text-warn" data-testid="post-review-note">{p.status === "changes" ? "Changes asked" : "Rejected"}: {p.reviewNote}</span>}
+                        {p.evergreen && <span>{tr("social.evergreen")}</span>}
+                        {p.reviewNote && (p.status === "changes" || p.status === "rejected") && <span className="basis-full text-warn" data-testid="post-review-note">{p.status === "changes" ? tr("social.changes_asked") : tr("social.rejected")}: {p.reviewNote}</span>}
                       </p>
                     )}
                     {(isDraftLike(p) || p.status === "review") && (canManage || p.createdBy === myId) && (
                       <div className="mt-3 flex flex-wrap justify-end gap-2" data-testid="draft-actions">
-                        <Button variant="ghost" size="sm" className="text-bad hover:text-bad max-sm:flex-1" onClick={() => setToDiscard(p)} data-testid="post-discard"><IconTrash className="h-4 w-4" aria-hidden />Discard</Button>
-                        {(p.status !== "review" || canManage) && <Button variant="outline" size="sm" className="max-sm:flex-1" onClick={() => navigate(`/app/social/new?draft=${encodeURIComponent(p.id)}`)} data-testid="post-edit">Edit</Button>}
+                        <Button variant="ghost" size="sm" className="text-bad hover:text-bad max-sm:flex-1" onClick={() => setToDiscard(p)} data-testid="post-discard"><IconTrash className="h-4 w-4" aria-hidden />{tr("branding.discard")}</Button>
+                        {(p.status !== "review" || canManage) && <Button variant="outline" size="sm" className="max-sm:flex-1" onClick={() => navigate(`/app/social/new?draft=${encodeURIComponent(p.id)}`)} data-testid="post-edit">{tr("social.edit")}</Button>}
                       </div>
                     )}
                     {canManage && p.status !== "sending" && !isDraftLike(p) && p.status !== "review" && (
                       <div className="mt-3 flex flex-wrap justify-end gap-2">
-                        {p.status === "scheduled" && <Button variant="ghost" size="sm" className="max-sm:flex-1" loading={cancel.isPending && cancel.variables === p.id} onClick={() => cancel.mutate(p.id)}>Cancel post</Button>}
-                        {(p.status === "failed" || p.status === "partial") && <Button variant="outline" size="sm" className="max-sm:flex-1" loading={retry.isPending && retry.variables === p.id} onClick={() => retry.mutate(p.id)}><IconRefresh className="h-4 w-4" aria-hidden />Try again</Button>}
-                        <Button variant="ghost" size="sm" className="text-bad hover:text-bad max-sm:flex-1" onClick={() => setToDelete(p)} data-testid="post-delete"><IconTrash className="h-4 w-4" aria-hidden />Delete</Button>
+                        {p.status === "scheduled" && <Button variant="ghost" size="sm" className="max-sm:flex-1" loading={cancel.isPending && cancel.variables === p.id} onClick={() => cancel.mutate(p.id)}>{tr("social.cancel_post")}</Button>}
+                        {(p.status === "failed" || p.status === "partial") && <Button variant="outline" size="sm" className="max-sm:flex-1" loading={retry.isPending && retry.variables === p.id} onClick={() => retry.mutate(p.id)}><IconRefresh className="h-4 w-4" aria-hidden />{tr("common.try_again")}</Button>}
+                        <Button variant="ghost" size="sm" className="text-bad hover:text-bad max-sm:flex-1" onClick={() => setToDelete(p)} data-testid="post-delete"><IconTrash className="h-4 w-4" aria-hidden />{tr("social.delete")}</Button>
                       </div>
                     )}
                   </Card>
@@ -596,10 +598,10 @@ export function PostList({ canManage, filter = "all", heading = true }: { canMan
           </ul>
         )}
       <ConfirmDialog open={!!toDelete} onClose={() => setToDelete(null)} onConfirm={() => toDelete && del.mutate(toDelete.id)} busy={del.isPending}
-        title="Delete this post?" description={deleteText || "It leaves your list in Multies."}
-        confirmLabel={reach.on.length ? `Delete from ${andList(reach.on)}` : "Delete post"} />
+        title={tr("social.delete_this_post")} description={deleteText || tr("social.it_leaves_your_list_in_multies")}
+        confirmLabel={reach.on.length ? `Delete from ${andList(reach.on)}` : tr("social.delete_post")} />
       <ConfirmDialog open={!!toDiscard} onClose={() => setToDiscard(null)} onConfirm={() => toDiscard && discard.mutate(toDiscard.id)} busy={discard.isPending}
-        title="Discard this draft?" description="It leaves Multies. Nothing was posted, so no network is touched." confirmLabel="Discard draft" />
+        title={tr("social.discard_this_draft")} description={tr("social.it_leaves_multies_nothing_was_posted_so_no_netwo")} confirmLabel={tr("social.discard_draft")} />
     </section>
   );
 }
