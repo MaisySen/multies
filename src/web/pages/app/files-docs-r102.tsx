@@ -25,16 +25,18 @@ import {
 } from "@/shared/doc-inbox";
 import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
 import { ScrollRow } from "@/web/components/ui/scroll-row"; // F13b
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-files"; // R104B
 
 const dateLabel = (d: string | null) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }) : "");
 const centsInput = (c: number | null) => (c === null ? "" : (c / 100).toFixed(2));
 
 function statusOf(r: DocRow): { label: string; tone: "neutral" | "warn" | "bad" | "ok" | "brand" } | null {
-  if (r.status === "reading") return { label: "Reading", tone: "neutral" };
-  if (r.status === "queued") return r.capped ? { label: "Waiting for tomorrow", tone: "warn" } : { label: "Waiting", tone: "neutral" };
-  if (r.status === "failed") return { label: "Could not read", tone: "bad" };
-  if (r.status === "skipped") return { label: "Not readable", tone: "neutral" };
-  if (!r.checked) return { label: "To check", tone: "brand" };
+  if (r.status === "reading") return { label: tr("files.reading"), tone: "neutral" };
+  if (r.status === "queued") return r.capped ? { label: tr("files.waiting_for_tomorrow"), tone: "warn" } : { label: tr("files.waiting"), tone: "neutral" };
+  if (r.status === "failed") return { label: tr("files.could_not_read"), tone: "bad" };
+  if (r.status === "skipped") return { label: tr("files.not_readable"), tone: "neutral" };
+  if (!r.checked) return { label: tr("files.to_check"), tone: "brand" };
   return null;
 }
 
@@ -73,10 +75,10 @@ export function DocumentsView({ isAdmin }: { isAdmin: boolean }) {
 
   const upload = async (files: File[]) => {
     for (const f of files) {
-      const t = toast.loading(`Uploading ${f.name}`);
+      const t = toast.loading(tr("files.uploading_name", { name: f.name }));
       try {
         await sendFile(`/api/drive/upload?space=${space}&name=${encodeURIComponent(f.name)}`, f, () => undefined);
-        toast.success(`${f.name} added. Reading it now.`, { id: t });
+        toast.success(tr("files.name_added_reading_it_now", { name: f.name }), { id: t });
       } catch (e) { toast.error((e as Error).message, { id: t }); }
     }
     void qc.invalidateQueries({ queryKey: ["docs"] });
@@ -95,24 +97,24 @@ export function DocumentsView({ isAdmin }: { isAdmin: boolean }) {
     <div className="min-w-0" data-testid="docs-view">
       <Card className="min-w-0 overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-line px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-[15px] font-semibold">Documents</h2>
+          <h2 className="text-[15px] font-semibold">{tr("files.documents")}</h2>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-0 flex-1 sm:w-64 sm:flex-none">
               <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
-              <Input value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="Search inside documents" aria-label="Search inside documents" className="pl-9" data-testid="docs-search" />
+              <Input value={raw} onChange={(e) => setRaw(e.target.value)} placeholder={tr("files.search_inside_documents")} aria-label={tr("files.search_inside_documents")} className="pl-9" data-testid="docs-search" />
             </div>
-            <Select value={space} onChange={(e) => setSpace(e.target.value as "private" | "team")} aria-label="Save uploads to" className="w-auto" data-testid="docs-space">
-              <option value="private">Save to My files</option>
-              <option value="team">Save to Team files</option>
+            <Select value={space} onChange={(e) => setSpace(e.target.value as "private" | "team")} aria-label={tr("files.save_uploads_to")} className="w-auto" data-testid="docs-space">
+              <option value="private">{tr("files.save_to_my_files")}</option>
+              <option value="team">{tr("files.save_to_team_files")}</option>
             </Select>
-            <Button size="sm" onClick={() => fileInput.current?.click()} data-testid="docs-upload"><IconUpload className="h-4 w-4" />Upload</Button>
-            <Button size="sm" variant="secondary" onClick={() => set({ rules: "1" })} data-testid="docs-rules"><IconSliders className="h-4 w-4" />Rules</Button>
+            <Button size="sm" onClick={() => fileInput.current?.click()} data-testid="docs-upload"><IconUpload className="h-4 w-4" />{tr("files.upload")}</Button>
+            <Button size="sm" variant="secondary" onClick={() => set({ rules: "1" })} data-testid="docs-rules"><IconSliders className="h-4 w-4" />{tr("mail.rules")}</Button>
           </div>
         </div>
         <input ref={fileInput} type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.tif,.tiff,.txt,.csv,.md,.docx,.xlsx" data-testid="docs-file-input"
           onChange={(e) => { const f = [...(e.target.files ?? [])]; e.target.value = ""; if (f.length) void upload(f); }} />
         {!searching && (
-          <ScrollRow ref={tabsRef} role="tablist" aria-label="Document views" onKeyDown={onTabKey} activeKey={dv} className="flex gap-1 border-b border-line px-3 py-2">
+          <ScrollRow ref={tabsRef} role="tablist" aria-label={tr("files.document_views")} onKeyDown={onTabKey} activeKey={dv} className="flex gap-1 border-b border-line px-3 py-2">
             {DOC_VIEWS.map((v) => {
               const n = counts?.[v];
               const active = v === dv;
@@ -128,7 +130,7 @@ export function DocumentsView({ isAdmin }: { isAdmin: boolean }) {
           </ScrollRow>
         )}
         {counts?.capped && (
-          <p className="border-b border-line bg-fill px-4 py-2 text-xs text-muted" data-testid="docs-capped">Today's reading limit is reached. The rest are read tomorrow.</p>
+          <p className="border-b border-line bg-fill px-4 py-2 text-xs text-muted" data-testid="docs-capped">{tr("files.today_s_reading_limit_is_reached_the_rest_are_re")}</p>
         )}
         <div role={searching ? undefined : "tabpanel"} aria-label={searching ? undefined : DOC_VIEW_LABEL[dv]}>
           {list.isPending ? (
@@ -144,7 +146,7 @@ export function DocumentsView({ isAdmin }: { isAdmin: boolean }) {
           )}
           {list.hasNextPage && (
             <div className="border-t border-line p-3 text-center">
-              <button type="button" className="text-sm text-brand-hover hover:underline max-sm:min-h-11" onClick={() => void list.fetchNextPage()} disabled={list.isFetchingNextPage}>Show more</button>
+              <button type="button" className="text-sm text-brand-hover hover:underline max-sm:min-h-11" onClick={() => void list.fetchNextPage()} disabled={list.isFetchingNextPage}>{tr("files.show_more")}</button>
             </div>
           )}
         </div>
@@ -156,20 +158,20 @@ export function DocumentsView({ isAdmin }: { isAdmin: boolean }) {
 }
 
 function DocsEmpty({ view, searching, q, total, isAdmin, onUpload, onRules }: { view: DocView; searching: boolean; q: string; total: number; isAdmin: boolean; onUpload: () => void; onRules: () => void }) {
-  if (searching) return <EmptyState icon={<IconSearch />} title={`Nothing found for "${q}"`} body="Try another word. Documents that are still being read show up once they are done." />;
+  if (searching) return <EmptyState icon={<IconSearch />} title={tr("files.nothing_found_for_q", { q })} body="Try another word. Documents that are still being read show up once they are done." />;
   if (total === 0) {
     return (
       <div className="p-6" data-testid="docs-empty">
-        <EmptyState icon={<IconReceipt />} title="No documents yet" body={(
+        <EmptyState icon={<IconReceipt />} title={tr("files.no_documents_yet")} body={(
           <ul className="mx-auto mt-1 max-w-sm space-y-1 text-left">
-            <li>1. Upload a bill, receipt or tax paper, or add one from your mail.</li>
-            <li>2. We read the text and find the dates, amounts and GST.</li>
-            <li>3. Rules tag and file them for you. You check and fix anything off.</li>
+            <li>{tr("files.1_upload_a_bill_receipt_or_tax_paper_or_add_one")}</li>
+            <li>{tr("files.2_we_read_the_text_and_find_the_dates_amounts_an")}</li>
+            <li>{tr("files.3_rules_tag_and_file_them_for_you_you_check_and")}</li>
           </ul>
         )} action={(
           <div className="flex justify-center gap-2">
-            <Button size="sm" onClick={onUpload}><IconUpload className="h-4 w-4" />Upload</Button>
-            {isAdmin && <Button size="sm" variant="secondary" onClick={onRules}><IconPlus className="h-4 w-4" />Add a rule</Button>}
+            <Button size="sm" onClick={onUpload}><IconUpload className="h-4 w-4" />{tr("files.upload")}</Button>
+            {isAdmin && <Button size="sm" variant="secondary" onClick={onRules}><IconPlus className="h-4 w-4" />{tr("files.add_a_rule")}</Button>}
           </div>
         )} />
       </div>
@@ -183,7 +185,7 @@ function DocsEmpty({ view, searching, q, total, isAdmin, onUpload, onRules }: { 
     bills: "No bills yet.",
     receipts: "No receipts yet.",
   };
-  return <EmptyState icon={view === "check" ? <IconCheck /> : <IconReceipt />} title={view === "check" ? "All caught up" : `No ${DOC_VIEW_LABEL[view].toLowerCase()}`} body={body[view]} />;
+  return <EmptyState icon={view === "check" ? <IconCheck /> : <IconReceipt />} title={view === "check" ? tr("files.all_caught_up") : `No ${DOC_VIEW_LABEL[view].toLowerCase()}`} body={body[view]} />;
 }
 
 function DocLine({ r, active, onOpen }: { r: DocRow; active: boolean; onOpen: () => void }) {
@@ -198,13 +200,13 @@ function DocLine({ r, active, onOpen }: { r: DocRow; active: boolean; onOpen: ()
           <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-fill text-muted">{f.type === "bill" || f.type === "receipt" ? <IconReceipt className="h-4 w-4" /> : <IconFile className="h-4 w-4" />}</span>
           <span className="min-w-0">
             <span className="block truncate text-[13.5px] font-medium text-fg" title={r.name}>{r.name}</span>
-            <span className="block truncate text-xs text-subtle">{meta || (r.status === "done" ? "Nothing found yet. Open to fill in." : "Added " + new Date(r.addedAt).toLocaleDateString("en-AU", { day: "numeric", month: "short" }))}</span>
+            <span className="block truncate text-xs text-subtle">{meta || (r.status === "done" ? tr("files.nothing_found_yet_open_to_fill_in") : "Added " + new Date(r.addedAt).toLocaleDateString("en-AU", { day: "numeric", month: "short" }))}</span>
             {r.snippet && <span className="mt-0.5 line-clamp-2 block text-xs text-muted">{r.snippet}</span>}
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-1.5 pl-11 sm:pl-0">
           {f.type && <Badge>{DOC_TYPE_LABEL[f.type]}</Badge>}
-          {f.type === "bill" && <Badge tone={f.paid ? "ok" : "warn"}>{f.paid ? "Paid" : "Unpaid"}</Badge>}
+          {f.type === "bill" && <Badge tone={f.paid ? "ok" : "warn"}>{f.paid ? tr("files.paid") : tr("files.unpaid")}</Badge>}
           {st && <Badge tone={st.tone} dot>{st.label}</Badge>}
         </span>
       </button>
@@ -234,12 +236,12 @@ function DocPanel({ id, onClose }: { id: string; onClose: () => void }) {
   const done = (d: DocDetail) => { qc.setQueryData(["docs", "item", id], d); void qc.invalidateQueries({ queryKey: ["docs", "list"] }); };
   const save = useMutation({
     mutationFn: (body: Record<string, unknown>) => api.patch<DocDetail>(`/doc-inbox/items/${encodeURIComponent(id)}`, body),
-    onSuccess: (d, body) => { done(d); toast.success(body.checked === true && Object.keys(body).length === 1 ? "Marked as checked" : "Saved"); },
+    onSuccess: (d, body) => { done(d); toast.success(body.checked === true && Object.keys(body).length === 1 ? tr("files.marked_as_checked") : tr("common.saved")); },
     onError: (e) => showError(e),
   });
   const act = useMutation({
     mutationFn: (what: "read" | "apply-rules") => api.post<DocDetail>(`/doc-inbox/items/${encodeURIComponent(id)}/${what}`),
-    onSuccess: (d, what) => { done(d); toast.success(what === "read" ? "Reading it again" : "Rules applied"); },
+    onSuccess: (d, what) => { done(d); toast.success(what === "read" ? tr("files.reading_it_again") : tr("files.rules_applied")); },
     onError: (e) => showError(e),
   });
   const d = doc.data;
@@ -248,7 +250,7 @@ function DocPanel({ id, onClose }: { id: string; onClose: () => void }) {
   const submit = () => {
     if (!d || !f) return;
     const amount = parseCentsInput(f.amount); const gst = parseCentsInput(f.gst);
-    if (Number.isNaN(amount) || Number.isNaN(gst)) { toast.error("Use an amount like 120.50."); return; }
+    if (Number.isNaN(amount) || Number.isNaN(gst)) { toast.error(tr("files.use_an_amount_like_120_50")); return; }
     const o = draftOf(d);
     const body: Record<string, unknown> = {};
     if (f.type !== o.type) body.type = f.type || null;
@@ -260,56 +262,56 @@ function DocPanel({ id, onClose }: { id: string; onClose: () => void }) {
     if (f.paid !== o.paid) body.paid = f.paid;
     save.mutate(body);
   };
-  const edited = (k: DocField) => d?.edited.includes(k) ? <span className="ml-1.5 text-[11px] font-normal text-subtle">Edited by you</span> : null;
+  const edited = (k: DocField) => d?.edited.includes(k) ? <span className="ml-1.5 text-[11px] font-normal text-subtle">{tr("files.edited_by_you")}</span> : null;
   const ro = !d?.canEdit;
   const isImage = d?.contentType?.startsWith("image/");
   const contentUrl = `/api/drive/items/${encodeURIComponent(id)}/content?inline=1`;
 
   return (
-    <aside role="dialog" aria-modal="false" aria-label={d ? `Document ${d.name}` : "Document"} data-testid="docs-panel"
+    <aside role="dialog" aria-modal="false" aria-label={d ? tr("files.document_name", { name: d.name }) : tr("files.document")} data-testid="docs-panel"
       className="fixed inset-0 z-40 flex flex-col bg-surface md:inset-y-0 md:left-auto md:right-0 md:w-[440px] md:border-l md:border-line md:shadow-xl">
       <div className="flex items-center gap-2 border-b border-line px-4 py-3">
-        <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold" title={d?.name}>{d?.name ?? "Document"}</h2>
-        <button ref={closeRef} type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11"><IconClose className="h-4 w-4" /></button>
+        <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold" title={d?.name}>{d?.name ?? tr("files.document")}</h2>
+        <button ref={closeRef} type="button" onClick={onClose} aria-label={tr("files.close")} className="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11"><IconClose className="h-4 w-4" /></button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {doc.isPending ? (
           <div className="space-y-3"><Skeleton className="h-40 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>
         ) : doc.isError || !d || !f ? (
-          <EmptyState icon={<IconFile />} title="This document did not open" body="It may have been moved to Trash, or you no longer have access." action={<Button size="sm" variant="secondary" onClick={() => void doc.refetch()}>Try again</Button>} />
+          <EmptyState icon={<IconFile />} title={tr("files.this_document_did_not_open")} body="It may have been moved to Trash, or you no longer have access." action={<Button size="sm" variant="secondary" onClick={() => void doc.refetch()}>{tr("common.try_again")}</Button>} />
         ) : (
           <div className="space-y-5">
             {isImage ? (
-              <img src={contentUrl} alt={`Preview of ${d.name}`} className="max-h-56 w-full rounded-lg border border-line bg-fill object-contain" />
+              <img src={contentUrl} alt={tr("files.preview_of_name", { name: d.name })} className="max-h-56 w-full rounded-lg border border-line bg-fill object-contain" />
             ) : (
               <a href={contentUrl} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-lg border border-line p-3 text-sm hover:bg-hover" data-testid="docs-open-file">
-                <IconFile className="h-5 w-5 text-muted" /><span className="min-w-0 flex-1 truncate">{d.name}</span><span className="text-xs text-brand-hover">Open file</span>
+                <IconFile className="h-5 w-5 text-muted" /><span className="min-w-0 flex-1 truncate">{d.name}</span><span className="text-xs text-brand-hover">{tr("files.open_file")}</span>
               </a>
             )}
             {d.status !== "done" && (
               <div className="rounded-lg bg-fill px-3 py-2 text-xs text-muted" data-testid="docs-status">
-                {d.status === "reading" ? "Reading this document. It takes a few seconds." : d.status === "queued" ? (d.capped ? "Today's reading limit is reached. This one is read tomorrow." : "Waiting to be read.") : d.status === "failed" ? "This document could not be read. Try reading it again, or fill in the details yourself." : "This kind of file cannot be read. You can still fill in the details."}
+                {d.status === "reading" ? tr("files.reading_this_document_it_takes_a_few_seconds") : d.status === "queued" ? (d.capped ? tr("files.today_s_reading_limit_is_reached_this_one_is_rea") : tr("files.waiting_to_be_read")) : d.status === "failed" ? tr("files.this_document_could_not_be_read_try_reading_it_a") : tr("files.this_kind_of_file_cannot_be_read_you_can_still_f")}
               </div>
             )}
-            <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); submit(); }} aria-label="What was found">
-              <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">What was found</h3>{ro && <span className="text-xs text-subtle">View only</span>}</div>
-              <label className="block text-xs font-medium text-muted">Type{edited("type")}
+            <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); submit(); }} aria-label={tr("files.what_was_found")}>
+              <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">{tr("files.what_was_found")}</h3>{ro && <span className="text-xs text-subtle">{tr("files.view_only")}</span>}</div>
+              <label className="block text-xs font-medium text-muted">{tr("tasks.type")}{edited("type")}
                 <Select value={f.type} disabled={ro} onChange={(e) => setDraft({ ...f, type: e.target.value })} className="mt-1" data-testid="docs-field-type">
-                  <option value="">Not set</option>
+                  <option value="">{tr("files.not_set")}</option>
                   {DOC_TYPES.map((t) => <option key={t} value={t}>{DOC_TYPE_LABEL[t]}</option>)}
                 </Select>
               </label>
-              <label className="block text-xs font-medium text-muted">Who sent it{edited("sender")}
+              <label className="block text-xs font-medium text-muted">{tr("files.who_sent_it")}{edited("sender")}
                 <Input value={f.sender} disabled={ro} maxLength={120} onChange={(e) => setDraft({ ...f, sender: e.target.value })} className="mt-1" data-testid="docs-field-sender" />
               </label>
               <div className="grid grid-cols-2 gap-3">
-                <label className="block text-xs font-medium text-muted">Date{edited("docDate")}
+                <label className="block text-xs font-medium text-muted">{tr("files.date")}{edited("docDate")}
                   <Input type="date" value={f.docDate} disabled={ro} onChange={(e) => setDraft({ ...f, docDate: e.target.value })} className="mt-1" data-testid="docs-field-date" />
                 </label>
-                <label className="block text-xs font-medium text-muted">Due date{edited("dueDate")}
+                <label className="block text-xs font-medium text-muted">{tr("taskgroup.due_date")}{edited("dueDate")}
                   <Input type="date" value={f.dueDate} disabled={ro} onChange={(e) => setDraft({ ...f, dueDate: e.target.value })} className="mt-1" data-testid="docs-field-due" />
                 </label>
-                <label className="block text-xs font-medium text-muted">Amount{edited("amount")}
+                <label className="block text-xs font-medium text-muted">{tr("files.amount")}{edited("amount")}
                   <Input inputMode="decimal" value={f.amount} disabled={ro} placeholder="0.00" onChange={(e) => setDraft({ ...f, amount: e.target.value })} className="mt-1 tabular-nums" data-testid="docs-field-amount" />
                 </label>
                 <label className="block text-xs font-medium text-muted">GST{edited("gst")}
@@ -317,32 +319,32 @@ function DocPanel({ id, onClose }: { id: string; onClose: () => void }) {
                 </label>
               </div>
               <div className="flex items-center justify-between">
-                <Switch checked={f.paid} disabled={ro} onChange={(v) => setDraft({ ...f, paid: v })} label="Paid" />
+                <Switch checked={f.paid} disabled={ro} onChange={(v) => setDraft({ ...f, paid: v })} label={tr("files.paid")} />
                 {edited("paid")}
               </div>
               {!ro && (
                 <div className="flex flex-wrap gap-2 pt-1">
-                  <Button type="submit" size="sm" disabled={!changed || save.isPending} data-testid="docs-save">Save</Button>
+                  <Button type="submit" size="sm" disabled={!changed || save.isPending} data-testid="docs-save">{tr("common.save")}</Button>
                   {d.checked
-                    ? <Button type="button" size="sm" variant="secondary" onClick={() => save.mutate({ checked: false })} data-testid="docs-uncheck">Move back to To check</Button>
-                    : <Button type="button" size="sm" variant="secondary" disabled={changed} onClick={() => save.mutate({ checked: true })} data-testid="docs-check"><IconCheck className="h-4 w-4" />Mark as checked</Button>}
+                    ? <Button type="button" size="sm" variant="secondary" onClick={() => save.mutate({ checked: false })} data-testid="docs-uncheck">{tr("files.move_back_to_to_check")}</Button>
+                    : <Button type="button" size="sm" variant="secondary" disabled={changed} onClick={() => save.mutate({ checked: true })} data-testid="docs-check"><IconCheck className="h-4 w-4" />{tr("files.mark_as_checked")}</Button>}
                 </div>
               )}
             </form>
             <div className="space-y-1.5 text-xs text-muted">
-              <p>In <span className="text-fg">{d.folder.name}</span>{d.tags.length ? <> · Tags <span className="text-fg">{d.tags.join(", ")}</span></> : null}</p>
-              {d.rulesApplied.length > 0 && <p data-testid="docs-rules-applied">Rules used: <span className="text-fg">{d.rulesApplied.map((r) => r.name).join(", ")}</span></p>}
+              <p>{tr("files.in")} <span className="text-fg">{d.folder.name}</span>{d.tags.length ? <> {tr("files.tags")} <span className="text-fg">{d.tags.join(", ")}</span></> : null}</p>
+              {d.rulesApplied.length > 0 && <p data-testid="docs-rules-applied">{tr("files.rules_used")} <span className="text-fg">{d.rulesApplied.map((r) => r.name).join(", ")}</span></p>}
             </div>
             {!ro && (
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="secondary" disabled={act.isPending || d.status !== "done"} onClick={() => act.mutate("apply-rules")} data-testid="docs-apply-rules"><IconSliders className="h-4 w-4" />Apply rules</Button>
-                <Button size="sm" variant="secondary" disabled={act.isPending || d.status === "reading"} onClick={() => act.mutate("read")} data-testid="docs-read-again"><IconRefresh className="h-4 w-4" />Read again</Button>
+                <Button size="sm" variant="secondary" disabled={act.isPending || d.status !== "done"} onClick={() => act.mutate("apply-rules")} data-testid="docs-apply-rules"><IconSliders className="h-4 w-4" />{tr("files.apply_rules")}</Button>
+                <Button size="sm" variant="secondary" disabled={act.isPending || d.status === "reading"} onClick={() => act.mutate("read")} data-testid="docs-read-again"><IconRefresh className="h-4 w-4" />{tr("files.read_again")}</Button>
               </div>
             )}
             <details className="rounded-lg border border-line" data-testid="docs-text">
-              <summary className="cursor-pointer px-3 py-2 text-sm font-medium max-sm:min-h-11">Text found</summary>
+              <summary className="cursor-pointer px-3 py-2 text-sm font-medium max-sm:min-h-11">{tr("files.text_found")}</summary>
               {d.text ? <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words border-t border-line px-3 py-2 font-sans text-xs text-muted">{d.text}</pre>
-                : <p className="border-t border-line px-3 py-2 text-xs text-subtle">No text yet.</p>}
+                : <p className="border-t border-line px-3 py-2 text-xs text-subtle">{tr("files.no_text_yet")}</p>}
             </details>
           </div>
         )}
@@ -374,36 +376,36 @@ function RulesDialog({ isAdmin, onClose }: { isAdmin: boolean; onClose: () => vo
   const refresh = () => void qc.invalidateQueries({ queryKey: ["docs"] });
   const order = useMutation({ mutationFn: (ids: string[]) => api.post("/doc-inbox/rules/order", { ids }), onSuccess: refresh, onError: (e) => showError(e) });
   const toggle = useMutation({ mutationFn: (r: DocRule) => api.put(`/doc-inbox/rules/${r.id}`, ruleBody(r, { enabled: !r.enabled })), onSuccess: refresh, onError: (e) => showError(e) });
-  const remove = useMutation({ mutationFn: (r: DocRule) => api.del(`/doc-inbox/rules/${r.id}`), onSuccess: () => { setDeleting(null); refresh(); toast.success("Rule deleted"); }, onError: (e) => showError(e) });
+  const remove = useMutation({ mutationFn: (r: DocRule) => api.del(`/doc-inbox/rules/${r.id}`), onSuccess: () => { setDeleting(null); refresh(); toast.success(tr("files.rule_deleted")); }, onError: (e) => showError(e) });
   const list = rules.data?.rules ?? [];
   const move = (i: number, by: number) => { const ids = list.map((r) => r.id); const [x] = ids.splice(i, 1); ids.splice(i + by, 0, x); order.mutate(ids); };
 
   return (
-    <Dialog open onClose={onClose} title="Document rules" className="max-w-xl"
-      description="Rules run on each new document from top to bottom. Tags add up. For type, who sent it and folder, the first matching rule wins. Anything you corrected yourself stays as you set it."
+    <Dialog open onClose={onClose} title={tr("files.document_rules")} className="max-w-xl"
+      description={tr("files.rules_run_on_each_new_document_from_top_to_botto")}
       footer={<div className="flex w-full items-center justify-between gap-2">
-        {isAdmin ? <Button size="sm" onClick={() => setEditing("new")} data-testid="docs-rule-add"><IconPlus className="h-4 w-4" />Add a rule</Button> : <span className="text-xs text-subtle">Only owners and admins can change rules.</span>}
-        <Button size="sm" variant="secondary" onClick={onClose}>Close</Button>
+        {isAdmin ? <Button size="sm" onClick={() => setEditing("new")} data-testid="docs-rule-add"><IconPlus className="h-4 w-4" />{tr("files.add_a_rule")}</Button> : <span className="text-xs text-subtle">{tr("files.only_owners_and_admins_can_change_rules")}</span>}
+        <Button size="sm" variant="secondary" onClick={onClose}>{tr("files.close")}</Button>
       </div>}>
       {rules.isPending ? <Skeleton className="h-20 w-full" /> : rules.isError ? (
         <LoadErrorInline onRetry={() => rules.refetch()} />
       ) : list.length === 0 ? (
-        <p className="py-4 text-center text-sm text-muted" data-testid="docs-rules-empty">No rules yet. {isAdmin ? "Add one to tag and file documents for you, like every Telstra bill into a Phone folder." : "An admin can add them."}</p>
+        <p className="py-4 text-center text-sm text-muted" data-testid="docs-rules-empty">{tr("files.no_rules_yet")} {isAdmin ? tr("files.add_one_to_tag_and_file_documents_for_you_like_e") : tr("files.an_admin_can_add_them")}</p>
       ) : (
         <ol className="divide-y divide-line rounded-lg border border-line" data-testid="docs-rule-list">
           {list.map((r, i) => (
             <li key={r.id} className="flex items-start gap-3 px-3 py-2.5" data-testid="docs-rule">
               <div className="min-w-0 flex-1">
-                <p className={cn("text-sm font-medium", !r.enabled && "text-subtle")}>{i + 1}. {r.name}{!r.enabled && <span className="ml-2 text-xs font-normal">Off</span>}</p>
+                <p className={cn("text-sm font-medium", !r.enabled && "text-subtle")}>{i + 1}. {r.name}{!r.enabled && <span className="ml-2 text-xs font-normal">{tr("common.off")}</span>}</p>
                 <p className="mt-0.5 break-words text-xs text-muted">{ruleSummary(r)}</p>
               </div>
               {isAdmin && (
                 <div className="flex shrink-0 items-center gap-0.5">
-                  <IconBtn label={`Move ${r.name} up`} disabled={i === 0 || order.isPending} onClick={() => move(i, -1)}><IconArrowUp className="h-4 w-4" /></IconBtn>
-                  <IconBtn label={`Move ${r.name} down`} disabled={i === list.length - 1 || order.isPending} onClick={() => move(i, 1)}><IconArrowDown className="h-4 w-4" /></IconBtn>
+                  <IconBtn label={tr("files.move_name_up", { name: r.name })} disabled={i === 0 || order.isPending} onClick={() => move(i, -1)}><IconArrowUp className="h-4 w-4" /></IconBtn>
+                  <IconBtn label={tr("files.move_name_down", { name: r.name })} disabled={i === list.length - 1 || order.isPending} onClick={() => move(i, 1)}><IconArrowDown className="h-4 w-4" /></IconBtn>
                   <Switch checked={r.enabled} onChange={() => toggle.mutate(r)} label={`Turn ${r.name} ${r.enabled ? "off" : "on"}`} />
-                  <IconBtn label={`Edit ${r.name}`} onClick={() => setEditing(r)}><IconPencilLine className="h-4 w-4" /></IconBtn>
-                  <IconBtn label={`Delete ${r.name}`} onClick={() => setDeleting(r)}><IconTrash className="h-4 w-4" /></IconBtn>
+                  <IconBtn label={tr("files.edit_name", { name: r.name })} onClick={() => setEditing(r)}><IconPencilLine className="h-4 w-4" /></IconBtn>
+                  <IconBtn label={tr("files.delete_name", { name: r.name })} onClick={() => setDeleting(r)}><IconTrash className="h-4 w-4" /></IconBtn>
                 </div>
               )}
             </li>
@@ -412,7 +414,7 @@ function RulesDialog({ isAdmin, onClose }: { isAdmin: boolean; onClose: () => vo
       )}
       {editing && <RuleForm rule={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} />}
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} onConfirm={() => deleting && remove.mutate(deleting)} busy={remove.isPending}
-        title="Delete this rule?" description="Documents it already tagged or filed stay as they are." confirmLabel="Delete rule" />
+        title={tr("files.delete_this_rule")} description={tr("files.documents_it_already_tagged_or_filed_stay_as_the")} confirmLabel={tr("files.delete_rule")} />
     </Dialog>
   );
 }
@@ -442,43 +444,43 @@ function RuleForm({ rule, onClose, onSaved }: { rule: DocRule | null; onClose: (
       const body = { name, match, pattern, caseSensitive, setTags: tags.split(",").map((t) => t.trim()).filter(Boolean), setSender: sender.trim() || null, setType: (type || null) as DocType | null, setFolderId: folder || null, enabled };
       return rule ? api.put(`/doc-inbox/rules/${rule.id}`, body) : api.post("/doc-inbox/rules", body);
     },
-    onSuccess: () => { toast.success(rule ? "Rule saved" : "Rule added"); onSaved(); },
+    onSuccess: () => { toast.success(rule ? tr("files.rule_saved") : tr("files.rule_added")); onSaved(); },
     onError: (e) => showError(e),
   });
   return (
-    <Dialog open onClose={onClose} title={rule ? "Edit rule" : "Add a rule"} className="max-w-lg"
-      footer={<div className="flex justify-end gap-2"><Button size="sm" variant="secondary" onClick={onClose}>Cancel</Button><Button size="sm" disabled={save.isPending} onClick={() => save.mutate()} data-testid="docs-rule-save">{rule ? "Save rule" : "Add rule"}</Button></div>}>
+    <Dialog open onClose={onClose} title={rule ? tr("files.edit_rule") : tr("files.add_a_rule")} className="max-w-lg"
+      footer={<div className="flex justify-end gap-2"><Button size="sm" variant="secondary" onClick={onClose}>{tr("common.cancel")}</Button><Button size="sm" disabled={save.isPending} onClick={() => save.mutate()} data-testid="docs-rule-save">{rule ? tr("files.save_rule") : tr("files.add_rule")}</Button></div>}>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
-        <label className="block text-xs font-medium text-muted">Name<Input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder="Phone bills" className="mt-1" data-testid="docs-rule-name" /></label>
-        <label className="block text-xs font-medium text-muted">When the text has
+        <label className="block text-xs font-medium text-muted">{tr("common.name")}<Input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder={tr("files.phone_bills")} className="mt-1" data-testid="docs-rule-name" /></label>
+        <label className="block text-xs font-medium text-muted">{tr("files.when_the_text_has")}
           <Select value={match} onChange={(e) => setMatch(e.target.value as DocMatch)} className="mt-1" data-testid="docs-rule-match">
             {DOC_MATCH.map((m) => <option key={m} value={m}>{DOC_MATCH_LABEL[m]}</option>)}
           </Select>
         </label>
-        <label className="block text-xs font-medium text-muted">{match === "regex" ? "Pattern" : match === "exact" ? "Phrase" : "Words"}
-          <Input value={pattern} maxLength={200} onChange={(e) => setPattern(e.target.value)} placeholder={match === "regex" ? "INV-\\d{4}" : "telstra optus"} className="mt-1" data-testid="docs-rule-pattern" />
+        <label className="block text-xs font-medium text-muted">{match === "regex" ? tr("files.pattern") : match === "exact" ? tr("files.phrase") : tr("files.words")}
+          <Input value={pattern} maxLength={200} onChange={(e) => setPattern(e.target.value)} placeholder={match === "regex" ? "INV-\\d{4}" : tr("files.telstra_optus")} className="mt-1" data-testid="docs-rule-pattern" />
           <span className="mt-1 block font-normal text-subtle">{HINT[match]}</span>
         </label>
-        <label className="flex items-center gap-2 text-xs text-muted"><input type="checkbox" checked={caseSensitive} onChange={(e) => setCase(e.target.checked)} className="h-4 w-4" />Match upper and lower case exactly</label>
-        <p className="pt-1 text-sm font-semibold">Then</p>
+        <label className="flex items-center gap-2 text-xs text-muted"><input type="checkbox" checked={caseSensitive} onChange={(e) => setCase(e.target.checked)} className="h-4 w-4" />{tr("files.match_upper_and_lower_case_exactly")}</label>
+        <p className="pt-1 text-sm font-semibold">{tr("files.then")}</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block text-xs font-medium text-muted">Set the type
+          <label className="block text-xs font-medium text-muted">{tr("files.set_the_type")}
             <Select value={type} onChange={(e) => setType(e.target.value)} className="mt-1" data-testid="docs-rule-type">
-              <option value="">Leave as found</option>
+              <option value="">{tr("files.leave_as_found")}</option>
               {DOC_TYPES.map((t) => <option key={t} value={t}>{DOC_TYPE_LABEL[t]}</option>)}
             </Select>
           </label>
-          <label className="block text-xs font-medium text-muted">Set who sent it<Input value={sender} maxLength={120} onChange={(e) => setSender(e.target.value)} placeholder="Telstra" className="mt-1" /></label>
-          <label className="block text-xs font-medium text-muted">Add tags<Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="phone, monthly" className="mt-1" data-testid="docs-rule-tags" /></label>
-          <label className="block text-xs font-medium text-muted">File in a Team folder
+          <label className="block text-xs font-medium text-muted">{tr("files.set_who_sent_it")}<Input value={sender} maxLength={120} onChange={(e) => setSender(e.target.value)} placeholder={tr("files.telstra")} className="mt-1" /></label>
+          <label className="block text-xs font-medium text-muted">{tr("files.add_tags")}<Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder={tr("files.phone_monthly")} className="mt-1" data-testid="docs-rule-tags" /></label>
+          <label className="block text-xs font-medium text-muted">{tr("files.file_in_a_team_folder")}
             <Select value={folder} onChange={(e) => setFolder(e.target.value)} className="mt-1" data-testid="docs-rule-folder">
-              <option value="">Do not move</option>
+              <option value="">{tr("files.do_not_move")}</option>
               {(folders.data?.folders ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
             </Select>
           </label>
         </div>
-        <p className="text-xs text-subtle">Files in someone's My files are tagged but never moved into Team files.</p>
-        <Switch checked={enabled} onChange={setEnabled} label="Rule is on" />
+        <p className="text-xs text-subtle">{tr("files.files_in_someone_s_my_files_are_tagged_but_never")}</p>
+        <Switch checked={enabled} onChange={setEnabled} label={tr("files.rule_is_on")} />
       </form>
     </Dialog>
   );

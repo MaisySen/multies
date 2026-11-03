@@ -7,6 +7,8 @@ import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { timeAgo } from "@/web/lib/format";
 import type { TaskFile } from "./data";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-files"; // R104B
 
 const size = (n: number) => (n < 1024 ? `${n} B` : n < 1_048_576 ? `${Math.round(n / 1024)} KB` : `${(n / 1_048_576).toFixed(1)} MB`);
 
@@ -34,11 +36,11 @@ export function FileList({ files, uploadPath, downloadPath, onUploaded }: { file
     } catch (e) { showError(e as Error); } finally { setBusy(false); if (input.current) input.current.value = ""; }
   };
   return (
-    <section className="mt-6" aria-label="Files">
+    <section className="mt-6" aria-label={tr("nav.files")}>
       <div className="flex items-center justify-between">
-        <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Files</h3>
-        <Button variant="ghost" size="sm" disabled={busy} onClick={() => input.current?.click()}><IconUpload className="h-3.5 w-3.5" />{busy ? "Uploading" : "Upload"}</Button>
-        <input ref={input} type="file" multiple hidden aria-label="Upload a file" onChange={(e) => void upload(e.target.files)} />
+        <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">{tr("nav.files")}</h3>
+        <Button variant="ghost" size="sm" disabled={busy} onClick={() => input.current?.click()}><IconUpload className="h-3.5 w-3.5" />{busy ? tr("files.uploading") : tr("files.upload")}</Button>
+        <input ref={input} type="file" multiple hidden aria-label={tr("files.upload_a_file")} onChange={(e) => void upload(e.target.files)} />
       </div>
       {files.length > 0 ? (
         <ul className="mt-2 space-y-1">
@@ -50,7 +52,7 @@ export function FileList({ files, uploadPath, downloadPath, onUploaded }: { file
             </li>
           ))}
         </ul>
-      ) : <p className="mt-1.5 text-[12.5px] text-subtle">No files yet.</p>}
+      ) : <p className="mt-1.5 text-[12.5px] text-subtle">{tr("files.no_files_yet")}</p>}
     </section>
   );
 }

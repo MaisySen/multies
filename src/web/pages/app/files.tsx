@@ -24,6 +24,8 @@ import { ATTACHMENT_FOLDERS, ATTACHMENT_FOLDER_LABELS, isAttachmentFolder, type 
 import type { ToolsInfo } from "@/shared/tools";
 import { DrivePage } from "./files-drive-r101";
 import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-files"; // R104B
 
 const sizeOf = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / (1024 * 1024)).toFixed(1)} MB`);
 const dateOf = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: new Date(iso).getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
@@ -71,21 +73,21 @@ function MailAttachments({ embedded = false, docsOn = false }: { embedded?: bool
   // T1G (T1-8): a failed read is said plainly, never "not on here yet" or skeletons forever.
   if ((config.isError && !config.data) || (tools.isError && !tools.data)) return <div className="w-full"><LoadError onRetry={() => Promise.all([config.isError ? config.refetch() : null, tools.isError ? tools.refetch() : null])} /></div>;
   if (tools.isPending) return <div className="w-full"><Skeleton className="h-8 w-48" /></div>;
-  if (!features.includes("folders")) return <div className="w-full"><EmptyState icon={<IconFile />} title="Files is not on here yet" body="Your workspace will see Files once it is switched on." /></div>;
+  if (!features.includes("folders")) return <div className="w-full"><EmptyState icon={<IconFile />} title={tr("files.files_is_not_on_here_yet")} body="Your workspace will see Files once it is switched on." /></div>;
   const items = list.data?.pages.flatMap((p) => p.items) ?? [];
   const indexing = counts.data?.indexing;
   const pick = (f: AttachmentFolder) => { setRaw(""); setParams(embedded ? { view: "mail", folder: f } : { folder: f }); };
 
   return (
     <div className="w-full" data-testid={embedded ? "files-mail" : "files-page"}>
-      {!embedded && <PageHeader eyebrow={isNavP2() ? "Docs" : "Tools"} title="Files" description="Attachments from your mail, sorted into folders. Search finds words inside them, scans included." />}
+      {!embedded && <PageHeader eyebrow={isNavP2() ? "Docs" : "Tools"} title={tr("nav.files")} description={tr("files.attachments_from_your_mail_sorted_into_folders_s")} />}
       <div className="relative mb-4">
         <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
-        <Input value={raw} onChange={(e) => setRaw(e.target.value)} placeholder={features.includes("index") ? "Search inside attachments" : "Search is not on here yet"} disabled={!features.includes("index")}
-          aria-label="Search inside attachments" className="pl-9" data-testid="files-search" />
+        <Input value={raw} onChange={(e) => setRaw(e.target.value)} placeholder={features.includes("index") ? tr("files.search_inside_attachments") : tr("files.search_is_not_on_here_yet")} disabled={!features.includes("index")}
+          aria-label={tr("files.search_inside_attachments")} className="pl-9" data-testid="files-search" />
       </div>
       <div className={cn("grid gap-4", !embedded && "md:grid-cols-[220px_1fr]")}>
-        <nav ref={navRef} aria-label="Folders" className={cn("flex gap-1.5 overflow-x-auto pb-1", !embedded && "md:flex-col md:overflow-visible md:pb-0")}>
+        <nav ref={navRef} aria-label={tr("mail.folders")} className={cn("flex gap-1.5 overflow-x-auto pb-1", !embedded && "md:flex-col md:overflow-visible md:pb-0")}>
           {ATTACHMENT_FOLDERS.map((f) => {
             const n = counts.data?.folders.find((x) => x.id === f)?.count;
             const active = !searching && f === folder;
@@ -100,21 +102,21 @@ function MailAttachments({ embedded = false, docsOn = false }: { embedded?: bool
           })}
           {indexing && (
             <p className="hidden px-3 pt-3 text-xs text-subtle md:block">
-              {!indexing.on ? "Reading attachments is off for this workspace." : indexing.waiting > 0 ? `${indexing.waiting.toLocaleString()} ${indexing.waiting === 1 ? "attachment" : "attachments"} waiting to be read. Older mail is read a little at a time.` : `${indexing.indexed.toLocaleString()} ${indexing.indexed === 1 ? "attachment" : "attachments"} read.`}
+              {!indexing.on ? tr("files.reading_attachments_is_off_for_this_workspace") : indexing.waiting > 0 ? `${indexing.waiting.toLocaleString()} ${indexing.waiting === 1 ? "attachment" : "attachments"} waiting to be read. Older mail is read a little at a time.` : `${indexing.indexed.toLocaleString()} ${indexing.indexed === 1 ? "attachment" : "attachments"} read.`}
             </p>
           )}
         </nav>
         <Card className="min-w-0 overflow-hidden">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <h2 className="text-[15px] font-semibold">{searching ? `Attachments with "${q}"` : ATTACHMENT_FOLDER_LABELS[folder]}</h2>
-            {list.isFetching && <span className="text-xs text-subtle">Loading</span>}
+            <h2 className="text-[15px] font-semibold">{searching ? tr("files.attachments_with_q", { q }) : ATTACHMENT_FOLDER_LABELS[folder]}</h2>
+            {list.isFetching && <span className="text-xs text-subtle">{tr("files.loading")}</span>}
           </div>
           {list.isError && !list.data ? (
             <LoadError onRetry={() => list.refetch()} />
           ) : list.isPending ? (
             <div className="space-y-3 p-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
           ) : items.length === 0 ? (
-            <EmptyState icon={<IconAttachment />} title={searching ? "Nothing found inside attachments" : "No files here yet"}
+            <EmptyState icon={<IconAttachment />} title={searching ? tr("files.nothing_found_inside_attachments") : tr("files.no_files_here_yet")}
               body={searching ? "Try another word. Only attachments that have been read show up here." : indexing?.on === false ? "Reading attachments is off. An admin can turn it on in Settings, General." : "Attachments land here as your mail is read."} />
           ) : (
             <ul className="divide-y divide-line" data-testid="files-list">
@@ -123,7 +125,7 @@ function MailAttachments({ embedded = false, docsOn = false }: { embedded?: bool
           )}
           {list.hasNextPage && (
             <div className="border-t border-line p-3 text-center">
-              <button type="button" className="text-sm text-brand-hover hover:underline max-sm:min-h-11" onClick={() => void list.fetchNextPage()} disabled={list.isFetchingNextPage}>Show more</button>
+              <button type="button" className="text-sm text-brand-hover hover:underline max-sm:min-h-11" onClick={() => void list.fetchNextPage()} disabled={list.isFetchingNextPage}>{tr("files.show_more")}</button>
             </div>
           )}
         </Card>
@@ -146,7 +148,7 @@ function FileRow({ it, thumbs = false, canAddDoc = false }: { it: FileItem; thum
   const navigate = useNavigate();
   const addDoc = useMutation({
     mutationFn: () => api.post<{ id: string }>("/doc-inbox/from-mail", { attachmentId: it.attachmentId }),
-    onSuccess: (d) => { toast.success("Added to Documents in your My files", { action: { label: "Open", onClick: () => void navigate(`/app/files?view=docs&doc=${encodeURIComponent(d.id)}`) } }); void qc.invalidateQueries({ queryKey: ["docs"] }); },
+    onSuccess: (d) => { toast.success(tr("files.added_to_documents_in_your_my_files"), { action: { label: tr("tours.open"), onClick: () => void navigate(`/app/files?view=docs&doc=${encodeURIComponent(d.id)}`) } }); void qc.invalidateQueries({ queryKey: ["docs"] }); },
     onError: (e) => showError(e),
   });
   const move = useMutation({
@@ -161,7 +163,7 @@ function FileRow({ it, thumbs = false, canAddDoc = false }: { it: FileItem; thum
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="truncate text-[13.5px] font-medium text-fg">{it.filename}</span>
-            {it.manual && <Badge>Moved</Badge>}
+            {it.manual && <Badge>{tr("files.moved")}</Badge>}
           </div>
           <div className="truncate text-xs text-subtle">{it.from} · {dateOf(it.date)} · {sizeOf(it.sizeBytes)}</div>
           {it.snippet && <div className="mt-0.5 line-clamp-2 text-xs text-muted">{it.snippet}</div>}
@@ -171,10 +173,10 @@ function FileRow({ it, thumbs = false, canAddDoc = false }: { it: FileItem; thum
         <Link to={it.url} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-muted hover:bg-hover hover:text-fg max-sm:min-h-11" title={it.subject}>
           <span className="max-w-40 truncate">{it.subject}</span><IconChevronRight className="h-3.5 w-3.5" />
         </Link>
-        {canAddDoc && <button type="button" onClick={() => addDoc.mutate()} disabled={addDoc.isPending} className="rounded border border-line px-1.5 py-0.5 text-xs text-muted hover:text-fg max-sm:min-h-11" data-testid="files-add-doc">Add to documents</button>}
+        {canAddDoc && <button type="button" onClick={() => addDoc.mutate()} disabled={addDoc.isPending} className="rounded border border-line px-1.5 py-0.5 text-xs text-muted hover:text-fg max-sm:min-h-11" data-testid="files-add-doc">{tr("files.add_to_documents")}</button>}
         <AttachmentTools id={it.attachmentId} filename={it.filename} compact />
-        <Menu label={`Move ${it.filename}`} trigger={<button type="button" className="rounded border border-line px-1.5 py-0.5 text-xs text-muted hover:text-fg max-sm:min-h-11">Move to</button>}>
-          <MenuLabel>Move to folder</MenuLabel>
+        <Menu label={tr("files.move_filename", { filename: it.filename })} trigger={<button type="button" className="rounded border border-line px-1.5 py-0.5 text-xs text-muted hover:text-fg max-sm:min-h-11">{tr("mail.move_to")}</button>}>
+          <MenuLabel>{tr("mail.move_to_folder")}</MenuLabel>
           {ATTACHMENT_FOLDERS.filter((f) => f !== it.folder).map((f) => <MenuItem key={f} onSelect={() => move.mutate(f)}>{ATTACHMENT_FOLDER_LABELS[f]}</MenuItem>)}
         </Menu>
       </div>

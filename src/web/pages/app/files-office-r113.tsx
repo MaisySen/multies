@@ -31,6 +31,8 @@ import { officeKindOf, type OfficeKind } from "@/shared/office-r113/kind";
 import { useLeaveGuard } from "@/web/components/tools/leave-guard";
 import { LoadError } from "@/web/components/load-error-t1g";
 import { LOAD_ERROR_TITLE } from "@/web/lib/load-errors-t1g";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-files"; // R104B
 
 /** F12 (MB-296): what the leave question says while the editor has unsaved edits. */
 const NOT_AVAILABLE = "This file is not available to you.";
@@ -97,7 +99,7 @@ export function OfficeEditorPage() {
       toast.success(`Saved as version ${body.item.versions}`);
     } catch (e) {
       setState((s) => ({ ...s, saving: false }));
-      toast.error(e instanceof Error ? e.message : "That didn't save. Try again.");
+      toast.error(e instanceof Error ? e.message : tr("files.that_didn_t_save_try_again"));
     }
   }, [it, base, state.saving, qc]);
 
@@ -113,15 +115,15 @@ export function OfficeEditorPage() {
     setBase(v?.id ?? null); setState({ saving: false, conflict: false, dirty: false }); setReloadKey((k) => k + 1);
   };
 
-  if (config.data && !config.data.officeEditR113) return <Shell><EmptyState icon={<IconInfo className="h-6 w-6" />} title="Editing office files is not on yet" body="You can still preview and download this file in Files." action={<BackLink />} /></Shell>;
+  if (config.data && !config.data.officeEditR113) return <Shell><EmptyState icon={<IconInfo className="h-6 w-6" />} title={tr("files.editing_office_files_is_not_on_yet")} body="You can still preview and download this file in Files." action={<BackLink />} /></Shell>;
   if (detail.isError) {
     const status = detail.error instanceof ApiError ? detail.error.status : 0;
     if (status !== 404 && status !== 403) return <Shell><LoadError onRetry={() => detail.refetch()} /></Shell>; // F12 (MB-299)
-    return <Shell><EmptyState icon={<IconLock className="h-6 w-6" />} title="This file is not available to you" body="It may have been moved to trash, or it is not shared with you." action={<BackLink />} /></Shell>;
+    return <Shell><EmptyState icon={<IconLock className="h-6 w-6" />} title={tr("files.this_file_is_not_available_to_you")} body="It may have been moved to trash, or it is not shared with you." action={<BackLink />} /></Shell>;
   }
 
   if (!it || !kind || !current) {
-    if (it && !kind) return <Shell><EmptyState icon={<IconInfo className="h-6 w-6" />} title="No editor for this kind of file" body="Word (.docx), Excel (.xlsx), CSV and PowerPoint (.pptx) files open here. Download this one to open it on your computer." action={<BackLink />} /></Shell>;
+    if (it && !kind) return <Shell><EmptyState icon={<IconInfo className="h-6 w-6" />} title={tr("files.no_editor_for_this_kind_of_file")} body="Word (.docx), Excel (.xlsx), CSV and PowerPoint (.pptx) files open here. Download this one to open it on your computer." action={<BackLink />} /></Shell>;
     return <Shell><HeaderSkeleton /><Skeleton className="mx-auto mt-4 h-[60vh] w-full max-w-[816px] rounded-xl" /></Shell>;
   }
   const tooBig = it.sizeBytes > capOf(kind);
@@ -133,34 +135,34 @@ export function OfficeEditorPage() {
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[17px] font-semibold text-fg" title={it.name}>{it.name}</h1>
           <p className="text-xs text-subtle">
-            Version {it.versions}{state.dirty ? " · Unsaved changes" : ""}{!canEdit && kind !== "pptx" ? " · View only" : ""}
+            {tr("files.version")} {it.versions}{state.dirty ? " · Unsaved changes" : ""}{!canEdit && kind !== "pptx" ? " · View only" : ""}
           </p>
         </div>
         <a href={contentUrl(it.id, undefined, true)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] text-fg transition-colors duration-150 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-11" download>
-          <IconDownload className="h-4 w-4" /><span className="max-sm:sr-only">Download</span>
+          <IconDownload className="h-4 w-4" /><span className="max-sm:sr-only">{tr("files.download")}</span>
         </a>
-        {canEdit && !tooBig && !(narrow && (kind === "xlsx" || kind === "csv")) && <Button onClick={() => void save()} disabled={state.saving || !state.dirty} aria-keyshortcuts="Control+S" className="max-sm:h-11">{state.saving ? "Saving" : "Save"}</Button>}
-        {!canEdit && kind !== "pptx" && <span className="inline-flex items-center gap-1 rounded-full bg-fill px-2.5 py-1 text-xs text-muted"><IconLock className="h-3.5 w-3.5" />View only</span>}
+        {canEdit && !tooBig && !(narrow && (kind === "xlsx" || kind === "csv")) && <Button onClick={() => void save()} disabled={state.saving || !state.dirty} aria-keyshortcuts="Control+S" className="max-sm:h-11">{state.saving ? tr("files.saving") : tr("common.save")}</Button>}
+        {!canEdit && kind !== "pptx" && <span className="inline-flex items-center gap-1 rounded-full bg-fill px-2.5 py-1 text-xs text-muted"><IconLock className="h-3.5 w-3.5" />{tr("files.view_only")}</span>}
       </header>
       {state.conflict && (
         <div role="alert" className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface p-3 text-[13px]">
           <IconWarning className="h-4 w-4 text-warn" />
-          <span className="min-w-0 flex-1 text-fg">Someone saved a newer version while you were editing. Your changes are still here.</span>
-          <Button size="sm" onClick={() => void save(true)}>Save mine as a new version</Button>
-          <Button size="sm" variant="secondary" onClick={() => void openNewest()}>Open the newest</Button>
+          <span className="min-w-0 flex-1 text-fg">{tr("files.someone_saved_a_newer_version_while_you_were_edi")}</span>
+          <Button size="sm" onClick={() => void save(true)}>{tr("files.save_mine_as_a_new_version")}</Button>
+          <Button size="sm" variant="secondary" onClick={() => void openNewest()}>{tr("files.open_the_newest")}</Button>
         </div>
       )}
       {!noteHidden && !tooBig && kind !== "pptx" && (
         <div className="mb-3 flex items-start gap-2 rounded-xl bg-fill px-3 py-2 text-[13px] text-muted">
           <IconInfo className="mt-0.5 h-4 w-4 shrink-0" />
-          <span className="flex-1">Some formatting may look different. The original stays in Versions.</span>
-          <button type="button" className="rounded px-1 text-xs text-subtle hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-11" onClick={() => { sessionStorage.setItem("office-note-hidden", "1"); setNoteHidden(true); }}>Hide</button>
+          <span className="flex-1">{tr("files.some_formatting_may_look_different_the_original")}</span>
+          <button type="button" className="rounded px-1 text-xs text-subtle hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-11" onClick={() => { sessionStorage.setItem("office-note-hidden", "1"); setNoteHidden(true); }}>{tr("files.hide")}</button>
         </div>
       )}
       {tooBig ? (
-        <EmptyState icon={<IconInfo className="h-6 w-6" />} title="This file is too big to open here"
+        <EmptyState icon={<IconInfo className="h-6 w-6" />} title={tr("files.this_file_is_too_big_to_open_here")}
           body={`Files up to ${sizeLabel(capOf(kind))} open in the browser and this one is ${sizeLabel(it.sizeBytes)}. Download it to open it on your computer.`}
-          action={<a className="text-[13px] text-brand-hover hover:underline" href={contentUrl(it.id, undefined, true)} download>Download</a>} />
+          action={<a className="text-[13px] text-brand-hover hover:underline" href={contentUrl(it.id, undefined, true)} download>{tr("files.download")}</a>} />
       ) : (
         <Loader key={`${reloadKey}:${base ?? ""}`} item={it} kind={kind} version={base ?? current.id} canEdit={canEdit}
           onDirty={() => setState((s) => (s.dirty ? s : { ...s, dirty: true }))} builder={builder} />
@@ -171,7 +173,7 @@ export function OfficeEditorPage() {
 
 function Shell({ children }: { children: ReactNode }) { return <div className="mx-auto w-full max-w-[1400px] px-3 py-4 sm:px-6">{children}</div>; }
 function BackLink({ compact }: { compact?: boolean }) {
-  return <Link to="/app/files" className={cn("inline-flex items-center gap-1.5 rounded-lg text-[13px] text-muted hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand", compact ? "h-9 px-2 max-sm:h-11" : "")}><IconArrowLeft className="h-4 w-4" />{compact ? <span className="max-sm:sr-only">Files</span> : "Back to Files"}</Link>;
+  return <Link to="/app/files" className={cn("inline-flex items-center gap-1.5 rounded-lg text-[13px] text-muted hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand", compact ? "h-9 px-2 max-sm:h-11" : "")}><IconArrowLeft className="h-4 w-4" />{compact ? <span className="max-sm:sr-only">{tr("nav.files")}</span> : tr("files.back_to_files")}</Link>;
 }
 function HeaderSkeleton() { return <div className="flex items-center gap-3"><Skeleton className="h-8 w-16" /><Skeleton className="h-8 w-64" /><div className="flex-1" /><Skeleton className="h-9 w-24" /></div>; }
 
@@ -196,8 +198,8 @@ function Loader({ item, kind, version, canEdit, onDirty, builder }: { item: Driv
     const office = q.error instanceof OfficeError;
     const gone = q.error instanceof Error && q.error.message === NOT_AVAILABLE;
     if (!office && !gone) return <LoadError onRetry={() => q.refetch()} />; // F12 (MB-299)
-    return <EmptyState icon={<IconWarning className="h-6 w-6" />} title={office ? "This file could not be opened here" : NOT_AVAILABLE} body={office && q.error instanceof Error ? q.error.message : "It may have been moved to trash, or it is not shared with you."}
-      action={office ? <a className="text-[13px] text-brand-hover hover:underline" href={contentUrl(item.id, undefined, true)} download>Download</a> : <BackLink />} />;
+    return <EmptyState icon={<IconWarning className="h-6 w-6" />} title={office ? tr("files.this_file_could_not_be_opened_here") : NOT_AVAILABLE} body={office && q.error instanceof Error ? q.error.message : "It may have been moved to trash, or it is not shared with you."}
+      action={office ? <a className="text-[13px] text-brand-hover hover:underline" href={contentUrl(item.id, undefined, true)} download>{tr("files.download")}</a> : <BackLink />} />;
   }
   const d = q.data;
   if (d.kind === "docx") return <WordEditor doc={d.doc} notes={d.notes} canEdit={canEdit} onDirty={onDirty} builder={builder} />;
@@ -210,7 +212,7 @@ function Notes({ notes }: { notes: string[] }) {
   if (!notes.length) return null;
   return (
     <details className="mb-3 rounded-xl border border-line bg-surface px-3 py-2 text-[13px] text-muted">
-      <summary className="cursor-pointer select-none text-fg">What changes in this editor ({notes.length})</summary>
+      <summary className="cursor-pointer select-none text-fg">{tr("files.what_changes_in_this_editor_length", { length: notes.length })}</summary>
       <ul className="mt-1.5 list-disc space-y-0.5 pl-5">{notes.map((n) => <li key={n}>{n}</li>)}</ul>
     </details>
   );
@@ -233,7 +235,7 @@ function WordEditor({ doc, notes, canEdit, onDirty, builder }: { doc: PMNode; no
       <Notes notes={notes} />
       {canEdit && editor && <WordToolbar editor={editor} />}
       <div className="mx-auto w-full max-w-[816px] rounded-xl border border-line bg-surface shadow-sm">
-        {empty && canEdit && <p className="px-6 pt-6 text-[13px] text-subtle sm:px-12">This document is empty. Start typing.</p>}
+        {empty && canEdit && <p className="px-6 pt-6 text-[13px] text-subtle sm:px-12">{tr("files.this_document_is_empty_start_typing")}</p>}
         <EditorContent editor={editor} />
       </div>
     </div>
@@ -249,27 +251,27 @@ function WordToolbar({ editor }: { editor: Editor }) {
   const [link, setLink] = useState<string | null>(null);
   const c = () => editor.chain().focus();
   return (
-    <div role="toolbar" aria-label="Formatting" className="sticky top-0 z-10 mx-auto mb-2 flex w-full max-w-[816px] items-center gap-0.5 overflow-x-auto rounded-xl border border-line bg-surface/95 p-1 backdrop-blur">
-      <TB label="Undo" onClick={() => c().undo().run()} disabled={!editor.can().undo()}><IconUndo className="h-4 w-4" /></TB>
-      <TB label="Redo" onClick={() => c().redo().run()} disabled={!editor.can().redo()}><IconUndo className="h-4 w-4 -scale-x-100" /></TB>
+    <div role="toolbar" aria-label={tr("files.formatting")} className="sticky top-0 z-10 mx-auto mb-2 flex w-full max-w-[816px] items-center gap-0.5 overflow-x-auto rounded-xl border border-line bg-surface/95 p-1 backdrop-blur">
+      <TB label={tr("files.undo")} onClick={() => c().undo().run()} disabled={!editor.can().undo()}><IconUndo className="h-4 w-4" /></TB>
+      <TB label={tr("files.redo")} onClick={() => c().redo().run()} disabled={!editor.can().redo()}><IconUndo className="h-4 w-4 -scale-x-100" /></TB>
       <span className="mx-1 h-5 w-px shrink-0 bg-line" aria-hidden />
-      <TB label="Heading 1" on={editor.isActive("heading", { level: 1 })} onClick={() => c().toggleHeading({ level: 1 }).run()}><IconHeading1 className="h-4 w-4" /></TB>
-      <TB label="Heading 2" on={editor.isActive("heading", { level: 2 })} onClick={() => c().toggleHeading({ level: 2 }).run()}><IconHeading2 className="h-4 w-4" /></TB>
-      <TB label="Bold" on={editor.isActive("bold")} onClick={() => c().toggleBold().run()}><IconBold className="h-4 w-4" /></TB>
-      <TB label="Italic" on={editor.isActive("italic")} onClick={() => c().toggleItalic().run()}><IconItalic className="h-4 w-4" /></TB>
-      <TB label="Underline" on={editor.isActive("underline")} onClick={() => c().toggleUnderline().run()}><span className="font-semibold underline">U</span></TB>
-      <TB label="Strikethrough" on={editor.isActive("strike")} onClick={() => c().toggleStrike().run()}><span className="font-semibold line-through">S</span></TB>
+      <TB label={tr("files.heading_1")} on={editor.isActive("heading", { level: 1 })} onClick={() => c().toggleHeading({ level: 1 }).run()}><IconHeading1 className="h-4 w-4" /></TB>
+      <TB label={tr("files.heading_2")} on={editor.isActive("heading", { level: 2 })} onClick={() => c().toggleHeading({ level: 2 }).run()}><IconHeading2 className="h-4 w-4" /></TB>
+      <TB label={tr("files.bold")} on={editor.isActive("bold")} onClick={() => c().toggleBold().run()}><IconBold className="h-4 w-4" /></TB>
+      <TB label={tr("files.italic")} on={editor.isActive("italic")} onClick={() => c().toggleItalic().run()}><IconItalic className="h-4 w-4" /></TB>
+      <TB label={tr("files.underline")} on={editor.isActive("underline")} onClick={() => c().toggleUnderline().run()}><span className="font-semibold underline">U</span></TB>
+      <TB label={tr("files.strikethrough")} on={editor.isActive("strike")} onClick={() => c().toggleStrike().run()}><span className="font-semibold line-through">S</span></TB>
       <span className="mx-1 h-5 w-px shrink-0 bg-line" aria-hidden />
-      <TB label="Bulleted list" on={editor.isActive("bulletList")} onClick={() => c().toggleBulletList().run()}><IconList className="h-4 w-4" /></TB>
-      <TB label="Numbered list" on={editor.isActive("orderedList")} onClick={() => c().toggleOrderedList().run()}><IconListOrdered className="h-4 w-4" /></TB>
-      <TB label="Quote" on={editor.isActive("blockquote")} onClick={() => c().toggleBlockquote().run()}><IconQuote className="h-4 w-4" /></TB>
-      <TB label="Link" on={editor.isActive("link")} onClick={() => setLink(editor.isActive("link") ? String(editor.getAttributes("link").href ?? "") : "https://")}><IconLink className="h-4 w-4" /></TB>
-      <TB label="Insert table" onClick={() => c().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><IconTable className="h-4 w-4" /></TB>
+      <TB label={tr("files.bulleted_list")} on={editor.isActive("bulletList")} onClick={() => c().toggleBulletList().run()}><IconList className="h-4 w-4" /></TB>
+      <TB label={tr("files.numbered_list")} on={editor.isActive("orderedList")} onClick={() => c().toggleOrderedList().run()}><IconListOrdered className="h-4 w-4" /></TB>
+      <TB label={tr("nav.quote")} on={editor.isActive("blockquote")} onClick={() => c().toggleBlockquote().run()}><IconQuote className="h-4 w-4" /></TB>
+      <TB label={tr("files.link")} on={editor.isActive("link")} onClick={() => setLink(editor.isActive("link") ? String(editor.getAttributes("link").href ?? "") : "https://")}><IconLink className="h-4 w-4" /></TB>
+      <TB label={tr("files.insert_table")} onClick={() => c().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><IconTable className="h-4 w-4" /></TB>
       {link !== null && (
         <form className="ml-1 flex shrink-0 items-center gap-1" onSubmit={(e) => { e.preventDefault(); const href = link.trim(); if (!href || href === "https://") c().unsetLink().run(); else if (/^(https?:\/\/|mailto:)/i.test(href)) c().extendMarkRange("link").setLink({ href }).run(); else { toast.error("Links start with https:// or mailto:"); return; } setLink(null); }}>
-          <label className="sr-only" htmlFor="office-link">Link address</label>
+          <label className="sr-only" htmlFor="office-link">{tr("files.link_address")}</label>
           <input id="office-link" autoFocus value={link} onChange={(e) => setLink(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") setLink(null); }} className="h-8 w-48 rounded-md border border-line bg-surface px-2 text-[13px] text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" />
-          <Button size="sm" type="submit">Apply</Button>
+          <Button size="sm" type="submit">{tr("files.apply")}</Button>
         </form>
       )}
     </div>
@@ -335,12 +337,12 @@ function SheetEditor({ wb, notes, overCap, csv, canEdit, onDirty, builder }: { w
   const val = calc.value(si, sel.r, sel.c);
   return (
     <div>
-      {overCap && <div role="status" className="mb-3 flex items-start gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-[13px] text-fg"><IconWarning className="mt-0.5 h-4 w-4 shrink-0 text-warn" /><span>{overCap} Download it to edit the whole file.</span></div>}
-      {narrow && canEdit && !overCap && <div role="status" className="mb-3 flex items-start gap-2 rounded-xl bg-fill px-3 py-2 text-[13px] text-muted"><IconInfo className="mt-0.5 h-4 w-4 shrink-0" /><span>Edit sheets on a bigger screen. You can view here.</span></div>}
+      {overCap && <div role="status" className="mb-3 flex items-start gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-[13px] text-fg"><IconWarning className="mt-0.5 h-4 w-4 shrink-0 text-warn" /><span>{overCap} {tr("files.download_it_to_edit_the_whole_file")}</span></div>}
+      {narrow && canEdit && !overCap && <div role="status" className="mb-3 flex items-start gap-2 rounded-xl bg-fill px-3 py-2 text-[13px] text-muted"><IconInfo className="mt-0.5 h-4 w-4 shrink-0" /><span>{tr("files.edit_sheets_on_a_bigger_screen_you_can_view_here")}</span></div>}
       <Notes notes={notes} />
       <div className="flex items-center gap-2 rounded-t-xl border border-b-0 border-line bg-surface px-2 py-1.5">
-        <span className="w-14 shrink-0 rounded bg-fill px-2 py-1 text-center font-mono text-xs text-muted" aria-label="Selected cell">{cellKey}</span>
-        <label htmlFor="office-fx" className="sr-only">Cell contents</label>
+        <span className="w-14 shrink-0 rounded bg-fill px-2 py-1 text-center font-mono text-xs text-muted" aria-label={tr("files.selected_cell")}>{cellKey}</span>
+        <label htmlFor="office-fx" className="sr-only">{tr("files.cell_contents")}</label>
         <input id="office-fx" className="h-8 min-w-0 flex-1 rounded-md border border-line bg-surface px-2 font-mono text-[13px] text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand read-only:bg-fill max-sm:h-11"
           readOnly={!editable} value={edit ?? inputOf(sh.cells.get(cellKey))}
           onFocus={() => { if (editable && edit === null) setEdit(inputOf(sh.cells.get(cellKey))); }}
@@ -349,10 +351,10 @@ function SheetEditor({ wb, notes, overCap, csv, canEdit, onDirty, builder }: { w
         <span className={cn("hidden max-w-[30%] truncate text-xs sm:block", val instanceof FErr ? "text-bad" : "text-subtle")} aria-live="polite">{val instanceof FErr ? errorHelp(val) : ""}</span>
       </div>
       <div ref={scroller} className="relative h-[calc(100vh-280px)] min-h-[320px] overflow-auto border border-line bg-surface" onScroll={(e) => setTop((e.target as HTMLDivElement).scrollTop)}>
-        <div ref={grid} role="grid" tabIndex={0} aria-label={`${sh.name} sheet`} aria-rowcount={sh.rowCount + 1} aria-colcount={sh.colCount + 1} aria-readonly={!editable}
+        <div ref={grid} role="grid" tabIndex={0} aria-label={tr("files.name_sheet", { name: sh.name })} aria-rowcount={sh.rowCount + 1} aria-colcount={sh.colCount + 1} aria-readonly={!editable}
           aria-activedescendant={`cell-${si}-${cellKey}`} onKeyDown={onKey} className="relative outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand" style={{ width: totalW, height: (sh.rowCount + 1) * ROW_H }}>
           <div role="row" aria-rowindex={1} className="sticky top-0 z-20 flex border-b border-line bg-fill" style={{ height: ROW_H, width: totalW }}>
-            <div role="columnheader" className="sticky left-0 z-30 border-r border-line bg-fill" style={{ width: HEAD_W }} aria-label="Row numbers" />
+            <div role="columnheader" className="sticky left-0 z-30 border-r border-line bg-fill" style={{ width: HEAD_W }} aria-label={tr("files.row_numbers")} />
             {widths.map((w, c) => <div key={c} role="columnheader" aria-colindex={c + 2} className={cn("flex items-center justify-center border-r border-line text-xs text-muted", c === sel.c && "bg-brand/10 text-fg")} style={{ width: w }}>{colName(c)}</div>)}
           </div>
           {Array.from({ length: last - first + 1 }, (_, i) => first + i).map((r) => (
@@ -379,14 +381,14 @@ function SheetEditor({ wb, notes, overCap, csv, canEdit, onDirty, builder }: { w
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-1 rounded-b-xl border border-t-0 border-line bg-surface px-2 py-1.5">
-        <div role="tablist" aria-label="Sheets" className="flex min-w-0 flex-wrap items-center gap-1">
+        <div role="tablist" aria-label={tr("files.sheets")} className="flex min-w-0 flex-wrap items-center gap-1">
         {wb.sheets.map((s, i) => <button key={i} type="button" role="tab" aria-selected={i === si} onClick={() => { if (edit !== null) commit(edit, null); setSi(i); setSel({ r: 0, c: 0 }); }}
           className={cn("h-8 max-w-[160px] truncate rounded-md px-3 text-[13px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-11", i === si ? "bg-brand/10 font-medium text-fg" : "text-muted hover:bg-hover")}>{s.name}</button>)}
         </div>
-        {editable && !csv && wb.sheets.length < SHEET_CAPS.sheets && <TB label="Add sheet" onClick={addSheet}><IconPlus className="h-4 w-4" /></TB>}
+        {editable && !csv && wb.sheets.length < SHEET_CAPS.sheets && <TB label={tr("files.add_sheet")} onClick={addSheet}><IconPlus className="h-4 w-4" /></TB>}
         <div className="flex-1" />
-        {editable && <><Button size="sm" variant="ghost" onClick={addRows} disabled={sh.rowCount >= SHEET_CAPS.rows}>Add 20 rows</Button><Button size="sm" variant="ghost" onClick={addCol} disabled={sh.colCount >= SHEET_CAPS.cols}>Add column</Button></>}
-        <span className="text-xs text-subtle">Up to {SHEET_CAPS.rows.toLocaleString("en")} rows and {SHEET_CAPS.cols} columns</span>
+        {editable && <><Button size="sm" variant="ghost" onClick={addRows} disabled={sh.rowCount >= SHEET_CAPS.rows}>{tr("files.add_20_rows")}</Button><Button size="sm" variant="ghost" onClick={addCol} disabled={sh.colCount >= SHEET_CAPS.cols}>{tr("files.add_column")}</Button></>}
+        <span className="text-xs text-subtle">{tr("files.up_to")} {SHEET_CAPS.rows.toLocaleString("en")} {tr("files.rows_and")} {SHEET_CAPS.cols} {tr("files.columns")}</span>
       </div>
     </div>
   );
@@ -445,36 +447,36 @@ function SlidesViewer({ bytes, name }: { bytes: Uint8Array; name: string }) {
   }, [count]);
   if (state.step === "drawing") return (
     <div className="rounded-xl border border-line bg-surface p-6" role="status" aria-live="polite">
-      <p className="text-[13.5px] font-medium text-fg">Getting your slides ready</p>
-      <p className="mt-1 text-xs text-subtle">Drawing slides uses one Tools run. Nothing is changed.</p>
+      <p className="text-[13.5px] font-medium text-fg">{tr("files.getting_your_slides_ready")}</p>
+      <p className="mt-1 text-xs text-subtle">{tr("files.drawing_slides_uses_one_tools_run_nothing_is_cha")}</p>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-fill"><div className="h-full bg-brand transition-[width] duration-200" style={{ width: `${Math.max(4, state.pct)}%` }} /></div>
       <Skeleton className="mt-4 aspect-video w-full rounded-lg" />
     </div>
   );
-  if (state.step === "failed") return <EmptyState icon={<IconWarning className="h-6 w-6" />} title="This deck could not be opened here" body={state.why} />;
-  if (!count) return <EmptyState icon={<IconInfo className="h-6 w-6" />} title="This deck has no slides" body="Add slides on your computer, then upload it again as a new version." />;
+  if (state.step === "failed") return <EmptyState icon={<IconWarning className="h-6 w-6" />} title={tr("files.this_deck_could_not_be_opened_here")} body={state.why} />;
+  if (!count) return <EmptyState icon={<IconInfo className="h-6 w-6" />} title={tr("files.this_deck_has_no_slides")} body="Add slides on your computer, then upload it again as a new version." />;
   const cur = Math.min(i, count - 1);
   return (
     <div>
       {state.step === "outline" && <div role="status" className="mb-3 flex items-start gap-2 rounded-xl bg-fill px-3 py-2 text-[13px] text-muted"><IconInfo className="mt-0.5 h-4 w-4 shrink-0" /><span>{state.why}</span></div>}
       <div className="flex flex-col gap-3 md:flex-row">
-        <nav aria-label="Slides" className="flex gap-2 overflow-x-auto md:max-h-[calc(100vh-220px)] md:w-40 md:shrink-0 md:flex-col md:overflow-y-auto md:overflow-x-hidden">
+        <nav aria-label={tr("files.slides")} className="flex gap-2 overflow-x-auto md:max-h-[calc(100vh-220px)] md:w-40 md:shrink-0 md:flex-col md:overflow-y-auto md:overflow-x-hidden">
           {Array.from({ length: count }, (_, n) => (
-            <button key={n} type="button" onClick={() => setI(n)} aria-current={n === cur ? "true" : undefined} aria-label={`Slide ${n + 1}`}
+            <button key={n} type="button" onClick={() => setI(n)} aria-current={n === cur ? "true" : undefined} aria-label={tr("files.slide_count", { count: n + 1 })}
               className={cn("relative shrink-0 overflow-hidden rounded-lg border bg-surface text-left transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-md:w-28", n === cur ? "border-brand" : "border-line hover:border-line-strong")}>
-              {state.step === "pages" ? <img src={state.pages[n]} alt="" className="aspect-video w-full object-contain" /> : <span className="block aspect-video truncate p-2 text-[11px] text-muted">{state.slides[n].title || `Slide ${n + 1}`}</span>}
+              {state.step === "pages" ? <img src={state.pages[n]} alt="" className="aspect-video w-full object-contain" /> : <span className="block aspect-video truncate p-2 text-[11px] text-muted">{state.slides[n].title || tr("files.slide_count", { count: n + 1 })}</span>}
               <span className="absolute bottom-1 left-1 rounded bg-surface/90 px-1 text-[10px] text-muted">{n + 1}</span>
             </button>
           ))}
         </nav>
-        <section className="min-w-0 flex-1" aria-label={`Slide ${cur + 1} of ${count}`}>
+        <section className="min-w-0 flex-1" aria-label={tr("files.slide_count_of_count2", { count: cur + 1, count2: count })}>
           {state.step === "pages"
-            ? <img src={state.pages[cur]} alt={`Slide ${cur + 1}`} className="aspect-video w-full rounded-xl border border-line bg-white object-contain" />
-            : <div className="aspect-video w-full overflow-auto rounded-xl border border-line bg-surface p-6 sm:p-10"><h2 className="text-xl font-semibold text-fg">{state.slides[cur].title || `Slide ${cur + 1}`}</h2><ul className="mt-4 list-disc space-y-1.5 pl-5 text-[15px] text-fg">{state.slides[cur].lines.map((l, k) => <li key={k}>{l}</li>)}</ul></div>}
+            ? <img src={state.pages[cur]} alt={tr("files.slide_count", { count: cur + 1 })} className="aspect-video w-full rounded-xl border border-line bg-white object-contain" />
+            : <div className="aspect-video w-full overflow-auto rounded-xl border border-line bg-surface p-6 sm:p-10"><h2 className="text-xl font-semibold text-fg">{state.slides[cur].title || tr("files.slide_count", { count: cur + 1 })}</h2><ul className="mt-4 list-disc space-y-1.5 pl-5 text-[15px] text-fg">{state.slides[cur].lines.map((l, k) => <li key={k}>{l}</li>)}</ul></div>}
           <div className="mt-2 flex items-center justify-center gap-3">
-            <Button size="sm" variant="secondary" onClick={() => setI(Math.max(0, cur - 1))} disabled={cur === 0} className="max-sm:h-11">Previous</Button>
-            <span className="text-[13px] text-muted" aria-live="polite">Slide {cur + 1} of {count}</span>
-            <Button size="sm" variant="secondary" onClick={() => setI(Math.min(count - 1, cur + 1))} disabled={cur >= count - 1} className="max-sm:h-11">Next</Button>
+            <Button size="sm" variant="secondary" onClick={() => setI(Math.max(0, cur - 1))} disabled={cur === 0} className="max-sm:h-11">{tr("files.previous")}</Button>
+            <span className="text-[13px] text-muted" aria-live="polite">{tr("files.slide_count_of_count2", { count: cur + 1, count2: count })}</span>
+            <Button size="sm" variant="secondary" onClick={() => setI(Math.min(count - 1, cur + 1))} disabled={cur >= count - 1} className="max-sm:h-11">{tr("files.next")}</Button>
           </div>
         </section>
       </div>
