@@ -10,11 +10,16 @@ import { isUiLang, LANG_LOCALE, slugKey, translate, uiLangOf, type Bundle, type 
 export { LANG_NAMES, UI_LANGS, uiLangOf, isUiLang, type UiLang } from "./core";
 
 const STORE = "multies.lang";
-const bundles: Partial<Record<UiLang, Bundle>> = { en };
+// R104B: English grows as pages load (each area's English rides in its own page chunk; see w2/en-*.ts).
+const english: Record<string, Bundle[string]> = { ...en };
+const bundles: Partial<Record<UiLang, Bundle>> = { en: english };
+// R104B: each language is the first wave plus the second (w2), two small chunks fetched together.
 const loaders: Record<Exclude<UiLang, "en">, () => Promise<Bundle>> = {
-  ne: () => import("./ne").then((m) => m.ne),
-  hi: () => import("./hi").then((m) => m.hi),
+  ne: () => Promise.all([import("./ne"), import("./w2/ne")]).then(([a, b]) => ({ ...a.ne, ...b.ne })),
+  hi: () => Promise.all([import("./hi"), import("./w2/hi")]).then(([a, b]) => ({ ...a.hi, ...b.hi })),
 };
+/** R104B: adds a page area's English (called once by each w2/en-*.ts module when its page loads). */
+export function addEnglish(b: Bundle) { Object.assign(english, b); }
 let enabled = false;
 let lang: UiLang = "en";
 let servedLang: string | null = null;
@@ -34,7 +39,7 @@ export function rawMessage(l: UiLang, key: string): string | null {
   return m === undefined ? null : typeof m === "string" ? m : Object.values(m).join(" / ");
 }
 /** Every English key with its text (the admin wording list). */
-export const englishEntries = (): [string, string][] => Object.entries(en).map(([k, m]) => [k, typeof m === "string" ? m : m.other]);
+export const englishEntries = (): [string, string][] => Object.entries(english).map(([k, m]) => [k, typeof m === "string" ? m : m.other]);
 
 /** Keys English itself does not have, seen on this page (the dev check; tests read it too). */
 export const missingKeys = () => [...missing];

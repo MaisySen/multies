@@ -4,7 +4,7 @@
  * admins also get a short list to suggest a better wording for a translated string; suggestions are kept for review
  * in the workspace's activity log and never change the app on their own.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
@@ -86,7 +86,10 @@ export function WordingPanel() {
   const loaded = useQuery({ queryKey: ["i18n-bundle", target], queryFn: () => preloadLang(target).then(() => true), staleTime: Infinity, enabled: admin });
   const list = useQuery({ queryKey: ["i18n-suggestions"], enabled: admin, queryFn: () => api.get<{ suggestions: Suggestion[] }>("/i18n/suggestions") });
   const ready = !!loaded.data; // the language's own file is in, so its current wording can be searched
-  const entries = useMemo(() => englishEntries(), []);
+  // R104B: the second wave's English loads with its pages; the admin list fetches all of it once, on open.
+  const [w2, setW2] = useState(0);
+  useEffect(() => { let live = true; void import("@/web/i18n/w2/all-en").then(() => { if (live) setW2(1); }, () => undefined); return () => { live = false; }; }, []);
+  const entries = useMemo(() => (w2 >= 0 ? englishEntries() : []), [w2]);
   const matches = useMemo(() => {
     const q = find.trim().toLowerCase();
     if (q.length < 2 || !ready) return [];

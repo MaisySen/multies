@@ -6,6 +6,7 @@ import { formatMessage, placeholders, slugKey, translate, uiLangOf, wordsFromKey
 import { en } from "@/web/i18n/en";
 import { ne } from "@/web/i18n/ne";
 import { hi } from "@/web/i18n/hi";
+import { W2_EN } from "@/web/i18n/w2/all-en"; // R104B
 import { enableI18n, missingKeys, setLanguage, t, tl, uiLocale, currentLang } from "@/web/i18n";
 import { pickLanguage } from "@/web/i18n/boot";
 import { localeForPick } from "@/web/components/language-r104";
@@ -57,7 +58,7 @@ describe("bundles", () => {
     const asked = new Set<string>();
     for (const f of files) for (const m of readFileSync(f, "utf8").matchAll(/\b(?:tr|t)\("([a-z0-9_]+\.[a-z0-9_.]+)"/g)) asked.add(m[1]);
     expect(asked.size).toBeGreaterThan(300);
-    expect([...asked].filter((k) => !(k in en))).toEqual([]);
+    expect([...asked].filter((k) => !(k in en) && !(k in W2_EN))).toEqual([]);
   });
   for (const [name, b] of [["ne", ne], ["hi", hi]] as const) {
     it(`${name} only has English keys, keeps every placeholder and the brand, and uses no dashes`, () => {
