@@ -6,6 +6,11 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## VID1 Save a video of the call on your own device (2026-11-03)
+
+- Owners and admins save a video of the whole call (flag VIDEO_REC_VID1; no migration, no new binding): every camera and screen share drawn on a canvas in the browser (grid, names, active speaker, a shared screen large), all voices mixed, recorded as webm (vp9 or vp8 with opus) or mp4 where only that is supported, and saved as one file on the admin's device (written as the call goes where the browser can choose a file, else kept in the tab with a warning at 1.5 GB and a stop at 2 GB). Nothing is uploaded.
+- Everyone in the call sees the Recording video banner; a warning before closing the tab while a video records; members keep today's audio Record and the video permit answers 403; the audio transcript and summary are unchanged. The compositor and recorder load only when an admin starts a video.
+
 ## SOC1 Several Facebook Pages and LinkedIn accounts (2026-11-03)
 
 - Several Facebook Pages per workspace (flag SOCIAL_MULTI_SOC1; migration 0163 social_pages_soc1): after a Facebook connect an admin picks which Pages to add from every Page the login manages (paged past 100, search, Select all), each Page is its own post target with its picture, dedupe by Page id across logins, add or remove Pages later without reconnecting, lost Pages named with Reconnect.

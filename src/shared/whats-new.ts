@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-03-video-recording",
+    date: "2026-11-03",
+    title: "Save a video of your calls",
+    body: "Owners and admins can save a video of the whole call, with every camera, shared screen and voice, straight to their own device. Nothing is uploaded, and everyone in the call sees a Recording banner.",
+  },
+  {
     id: "2026-11-03-polish-devices",
     date: "2026-11-03",
     title: "Devices, clearer errors and quicker search",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-02",
     title: "AI that works from the start",
     body: "Built in AI works with no key needed, up to a daily limit for your workspace. Admins can also connect their own AI in Settings, AI: paste a key and the provider is found for you, pick from the live model list and test it before saving.",
-  },
-  {
-    id: "2026-11-02-get-started",
-    date: "2026-11-02",
-    title: "Get started list and quick tours",
-    body: "A Get started list on Home and My Work ticks itself off as you go. Quick tours show where things live, and admins can build their own tours in Settings, Tours.",
   },
   {
     id: "2026-10-28-whats-new",
