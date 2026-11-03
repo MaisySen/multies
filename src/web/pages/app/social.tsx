@@ -24,11 +24,13 @@ import { capList, capsOf } from "@/shared/social-p2b";
 import { AccountAvatar, AppLogo, appsKeys, useAppAccounts, useAppsStatus, useConnect, useConnectReturn } from "./apps-settings";
 import { Composer, POST_STATUS, PostList, ReconnectButton, useAccountHealth, useSocialPosts, type PostFilter } from "./apps-social";
 import { DirectAccounts } from "./apps-direct";
-import { useConfig } from "@/web/lib/queries";
+import { useConfig, useMe } from "@/web/lib/queries";
+import { soc1ChoiceKey } from "@/shared/social-soc1";
 import { ComposerV2, composerAccounts, useDirectStatus, useLibrary } from "./social-composer";
 import { PlannerV2 } from "./social-planner";
 import { SocialLibrary } from "./social-library";
 import { LoadFailure } from "@/web/components/load-error-t1g";
+import { LoginPages, pagesKey, useSocialPages, useSoc1On } from "./social-soc1"; // SOC1
 import { ScrollRow } from "@/web/components/ui/scroll-row"; // F13b
 
 /** R117: Social P2 (composer v2, planner v2, drafts and approvals, library) sits behind its own flag. */
@@ -292,11 +294,15 @@ function SocialNewPostV2() {
   const draftId = params.get("draft");
   const libId = params.get("lib");
   const lib = useLibrary(!!libId);
-  const list = composerAccounts(accounts.data ?? [], direct.data);
+  const soc1 = useSoc1On();
+  const pages = useSocialPages(soc1);
+  const me = useMe();
+  const list = composerAccounts(accounts.data ?? [], direct.data, soc1 ? pages.data ?? [] : null);
+  const rememberKey = soc1 && me.data?.organization && me.data.user ? soc1ChoiceKey(me.data.organization.id, me.data.user.id) : null;
   const draft = draftId ? (posts.data ?? []).find((p) => p.id === draftId) ?? null : null;
   const libItem = libId ? lib.data?.items.find((i) => i.id === libId) ?? null : null;
   const campaigns = [...new Set((posts.data ?? []).map((p) => p.campaign).filter((c): c is string => !!c))].sort();
-  const waitingOn = status.isPending || accounts.isPending || direct.isPending || (!!draftId && posts.isPending) || (!!libId && lib.isPending);
+  const waitingOn = status.isPending || accounts.isPending || direct.isPending || (soc1 && pages.isPending) || (!!draftId && posts.isPending) || (!!libId && lib.isPending);
   const canPublish = !!status.data?.canManage;
   return (
     <div data-testid="social-new">
@@ -309,7 +315,7 @@ function SocialNewPostV2() {
         : !list.length ? (
           <Card data-testid="social-empty"><EmptyState icon={<IconMegaphone />} title="Connect a social account first" body="Connect Facebook Pages, Instagram, LinkedIn, Pinterest, Reddit, Threads or TikTok, then write one post and send it to all of them." action={<ButtonLink to="/app/social/accounts" size="sm"><IconPlug className="h-4 w-4" aria-hidden />Connect an account</ButtonLink>} /></Card>
         ) : (
-          <ComposerV2 key={draft?.id ?? libItem?.id ?? "new"} accounts={list} canPublish={canPublish} draft={draft} presetAt={params.get("at")} presetAccount={params.get("account")} campaigns={campaigns}
+          <ComposerV2 key={draft?.id ?? libItem?.id ?? "new"} accounts={list} canPublish={canPublish} draft={draft} presetAt={params.get("at")} presetAccount={params.get("account")} campaigns={campaigns} multi={soc1} rememberKey={rememberKey}
             presetLibraryText={libItem && libItem.kind !== "image" ? libItem.body : null}
             presetImage={libItem?.kind === "image" && libItem.imageUrl && libItem.mediaId ? { url: libItem.imageUrl, mediaId: libItem.mediaId } : null} />
         )}
@@ -415,7 +421,11 @@ function TestNetworkCard({ canManage }: { canManage: boolean }) {
 }
 
 export function SocialAccountsPage() {
-  useConnectReturn();
+  // SOC1: several Pages per login (flag SOCIAL_MULTI_SOC1); a new Facebook login opens its Page picker.
+  const soc1 = useSoc1On();
+  const pages = useSocialPages(soc1);
+  const [openPicker, setOpenPicker] = useState<string | null>(null);
+  useConnectReturn((a) => { if (soc1 && a.app === "facebook") setOpenPicker(a.id); });
   const qc = useQueryClient();
   const status = useAppsStatus();
   const accounts = useAppAccounts();
@@ -434,7 +444,7 @@ export function SocialAccountsPage() {
   const connectedApps = new Set(social.filter((a) => a.status === "active").map((a) => a.app));
   const disconnect = useMutation({
     mutationFn: (a: ConnectedAccountView) => api.del<{ ok: true }>(`/apps/accounts/${encodeURIComponent(a.id)}`),
-    onSuccess: (_r, a) => { toast.success(`${a.appName} disconnected`); setRemoving(null); void qc.invalidateQueries({ queryKey: appsKeys.accounts }); },
+    onSuccess: (_r, a) => { toast.success(`${a.appName} disconnected`); setRemoving(null); void qc.invalidateQueries({ queryKey: appsKeys.accounts }); if (soc1) void qc.invalidateQueries({ queryKey: pagesKey }); },
     onError: (e) => toast.error(errorMessage(e, "Couldn't disconnect. Try again.")),
   });
 
@@ -496,8 +506,9 @@ export function SocialAccountsPage() {
                         <p className="truncate text-[15px] font-medium" data-testid="account-name">{a.name ?? a.label ?? a.appName}</p>
                         <p className="flex flex-wrap items-center gap-2 text-[13px] text-muted">{(a.name ?? a.label) ? <span className="text-subtle">{a.appName}</span> : null}{healthLine(a)}<span>Connected {timeAgo(a.createdAt)}</span></p>
                         {bad && h?.text && <p className="mt-1 text-[12.5px] text-warn" data-testid="account-health-text">{h.text}</p>}
-                        {a.app === "linkedin" && <p className="mt-1 text-[12.5px] text-muted" data-testid="linkedin-page-note">{LINKEDIN_PAGE_NOTE}</p>}
+                        {a.app === "linkedin" && !(soc1 && a.companyPages) && <p className="mt-1 text-[12.5px] text-muted" data-testid="linkedin-page-note">{LINKEDIN_PAGE_NOTE}</p>}
                         {p2b && <AccountCaps app={a.app} />}
+                        {soc1 && (a.app === "facebook" || a.app === "linkedin") && <LoginPages account={a} pages={pages.data} health={health.data} canManage={canManage} autoOpen={openPicker === a.id} />}
                       </div>
                       {canManage && (
                         <div className="flex gap-2 max-sm:w-full max-sm:pl-[52px]">
@@ -542,7 +553,7 @@ export function SocialAccountsPage() {
       </div>
       <ConfirmDialog open={!!removing} onClose={() => setRemoving(null)} onConfirm={() => removing && disconnect.mutate(removing)} busy={disconnect.isPending}
         title={removing ? `Disconnect ${removing.appName}${removing.name ? `, ${removing.name}` : ""}?` : "Disconnect"} confirmLabel="Disconnect"
-        description="Scheduled posts to this account will not go out. You can connect it again any time." />
+        description={soc1 && removing?.app === "facebook" ? "Scheduled posts to this account and its Pages will not go out, and its Pages are removed here. You can connect it again any time." : "Scheduled posts to this account will not go out. You can connect it again any time."} />
     </div>
   );
 }

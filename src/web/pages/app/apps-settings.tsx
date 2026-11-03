@@ -221,7 +221,7 @@ function GridSkeleton() {
 }
 
 /** Coming back from the provider's sign in page: confirm the account, say so, and tidy the address bar. */
-export function useConnectReturn() {
+export function useConnectReturn(onConnected?: (a: ConnectedAccountView) => void) {
   const [params, setParams] = useSearchParams();
   const qc = useQueryClient();
   const done = useRef(false);
@@ -238,10 +238,12 @@ export function useConnectReturn() {
         // SA1: the same account signed in again is one row with a fresh sign in, and the toast says so.
         if (r.account.status === "active" && r.account.refreshed) toast.success(`${r.account.appName}${r.account.name ? `, ${r.account.name},` : ""} was already connected. Its sign in is refreshed.`);
         else if (r.account.status === "active") toast.success(`${r.account.appName} connected${r.account.name ? ` as ${r.account.name}` : ""}`);
+        if (r.account.status === "active") onConnected?.(r.account); // SOC1: the Page picker opens for a new Facebook login
         else toast.message(`${r.account.appName} is still finishing sign in. It shows here when it is ready.`);
       })
       .catch((e) => toast.error(errorMessage(e, "Couldn't confirm the connection. Refresh to check.")))
       .finally(() => { void qc.invalidateQueries({ queryKey: appsKeys.accounts }); clean(); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params, qc, setParams]);
 }
 

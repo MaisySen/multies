@@ -94,9 +94,12 @@ export async function listAccounts(deps: Deps, auth: AuthContext): Promise<Conne
       ({ profiles, merged } = await backfillProfiles(deps, cp, auth.orgId, userId, mine, canPostTo));
     } catch (err) { deps.log?.warn("social.profiles_failed", { error: err instanceof Error ? err.message.slice(0, 200) : String(err) }); }
   }
+  // SOC1: whether LinkedIn granted organization access (company Pages), read from the login's granted scope.
+  const soc1 = deps.config.socialMultiSoc1 === true;
+  const orgScope = (a: CpAccount) => { const v = (a as unknown as { state?: { val?: { scope?: unknown; scopes?: unknown } } }).state?.val; const sc = v?.scope ?? v?.scopes; return /w_organization_social/.test(typeof sc === "string" ? sc : Array.isArray(sc) ? sc.join(",") : ""); };
   return mine
     .filter((a) => !merged.has(a.id))
-    .map((a) => withProfile(viewOf(a), profiles.get(a.id)))
+    .map((a) => { const v = withProfile(viewOf(a), profiles.get(a.id)); return soc1 && v.app === "linkedin" ? { ...v, companyPages: orgScope(a) } : v; })
     .filter((v) => !(v.status === "pending" && Date.parse(v.createdAt) < staleBefore))
     .sort((a, b) => a.appName.localeCompare(b.appName) || a.createdAt.localeCompare(b.createdAt));
 }

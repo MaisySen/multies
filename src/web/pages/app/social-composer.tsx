@@ -28,7 +28,8 @@ import {
   CROP_SHAPES, FORMAT_LABELS, NETWORK_RULES, POLL_DAYS, SOCIAL_FORMATS, charCount, composerChecks, cropRect, firstLink, formatFit, networkLabel, textFor,
   type AccountCheck, type CropAnchor, type CropShape, type LibraryView, type PollInput, type SocialFormat,
 } from "@/shared/social-p2";
-import { AppLogo } from "./apps-settings";
+import { AccountAvatar, AppLogo } from "./apps-settings";
+import type { Soc1PageView } from "@/shared/social-soc1"; // SOC1
 import { PostedSheet, postsKey, useAccountHealth, whenText } from "./apps-social";
 import { TikTokPostDialog, directKeys } from "./apps-direct";
 import { LoadErrorInline, LoadFailure } from "@/web/components/load-error-t1g";
@@ -37,7 +38,7 @@ import type { PinDetails } from "@/shared/social-p3";
 
 /* ---------------------------------------------------------------- helpers */
 
-export interface ComposerAccount { id: string; app: string; name: string; label: string | null; needsTarget: boolean; account?: ConnectedAccountView }
+export interface ComposerAccount { id: string; app: string; name: string; label: string | null; needsTarget: boolean; account?: ConnectedAccountView; /** SOC1: a chosen Page (its own account id). */ page?: boolean }
 
 interface PickedImage { key: string; src: string; w: number; h: number; upload?: { contentType: string; dataB64: string }; mediaId?: string }
 
@@ -82,9 +83,16 @@ export function useDirectStatus() {
 }
 
 /** Composio accounts the composer posts to, plus TikTok and Threads when linked. */
-export function composerAccounts(list: ConnectedAccountView[], direct: DirectStatusResponse | undefined): ComposerAccount[] {
-  const out: ComposerAccount[] = list.filter((a) => a.status === "active" && a.app in SOCIAL_NETWORKS && a.app !== "threads" && a.app !== "twitter")
-    .map((a) => ({ id: a.id, app: a.app, name: a.appName, label: a.name ?? a.label ?? null, needsTarget: !!SOCIAL_NETWORKS[a.app]?.target, account: a }));
+export function composerAccounts(list: ConnectedAccountView[], direct: DirectStatusResponse | undefined, pages?: Soc1PageView[] | null): ComposerAccount[] {
+  const live = list.filter((a) => a.status === "active" && a.app in SOCIAL_NETWORKS && a.app !== "threads" && a.app !== "twitter");
+  const out: ComposerAccount[] = [];
+  for (const a of live) {
+    // SOC1: a login with chosen Pages is replaced by one row per Page (its own picture and name); LinkedIn company
+    // Pages come after the member's own profile. Without chosen Pages a login works as before (Page picked per post).
+    const mine = pages ? pages.filter((p) => p.viaAccountId === a.id && p.app === a.app) : [];
+    if (!(a.app === "facebook" && mine.length)) out.push({ id: a.id, app: a.app, name: a.appName, label: a.name ?? a.label ?? null, needsTarget: !!SOCIAL_NETWORKS[a.app]?.target, account: a });
+    for (const p of mine) out.push({ id: p.key, app: p.app, name: a.app === "linkedin" ? "LinkedIn Page" : a.appName, label: p.name, needsTarget: false, account: { ...a, name: p.name, avatarUrl: p.pictureUrl }, page: true });
+  }
   for (const d of direct?.accounts ?? []) {
     if (!d.connected || d.status === "expired") continue;
     out.push({ id: `direct:${d.provider}`, app: d.provider, name: networkLabel(d.provider), label: d.username ? `@${d.username}` : null, needsTarget: false });
@@ -304,6 +312,9 @@ export interface ComposerProps {
   presetAt?: string | null;
   presetAccount?: string | null;
   presetLibraryText?: string | null;
+  /** SOC1: accounts grouped per network with Select all, and each person's last choice remembered in this browser. */
+  multi?: boolean;
+  rememberKey?: string | null;
   presetImage?: { url: string; mediaId: string } | null;
   campaigns?: string[];
 }
@@ -311,7 +322,7 @@ export interface ComposerProps {
 /** R100b: the toast after Post now (the sheet then follows each network). */
 export const POST_NOW_TOAST = "Posting now. Follow it in Posts.";
 
-export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccount, presetLibraryText, presetImage, campaigns = [] }: ComposerProps) {
+export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccount, presetLibraryText, presetImage, campaigns = [], multi = false, rememberKey = null }: ComposerProps) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const health = useAccountHealth();
@@ -323,6 +334,13 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
   const [picked, setPicked] = useState<Record<string, string | null>>(() => {
     if (draft) return Object.fromEntries(draft.targets.map((t) => [t.accountId, t.target]));
     if (presetAccount && accounts.some((a) => a.id === presetAccount)) return { [presetAccount]: null };
+    // SOC1: start from this person's last choice (only accounts still here; anything unreadable is ignored).
+    if (multi && rememberKey) {
+      try {
+        const ids = JSON.parse(localStorage.getItem(rememberKey) ?? "[]") as unknown;
+        if (Array.isArray(ids)) return Object.fromEntries(ids.filter((id): id is string => typeof id === "string" && accounts.some((a) => a.id === id && !a.needsTarget)).map((id) => [id, null]));
+      } catch { /* no saved choice */ }
+    }
     return {};
   });
   const [names, setNames] = useState<Record<string, string>>(() => Object.fromEntries((draft?.targets ?? []).filter((t) => t.targetName).map((t) => [t.accountId, t.targetName!])));
@@ -407,6 +425,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
     onSuccess: (r, mode) => {
       void qc.invalidateQueries({ queryKey: postsKey });
       setServerProblems({});
+      if (multi && rememberKey && mode !== "draft") { try { localStorage.setItem(rememberKey, JSON.stringify(r.post.targets.map((t) => t.accountId).slice(0, 50))); } catch { /* storage full or off */ } }
       if (mode === "draft") { toast.success("Draft saved"); navigate("/app/social/posts?status=drafts"); return; }
       if (mode === "submit") { toast.success("Sent for approval. Owners and admins see it in Approvals."); navigate("/app/social/posts?status=waiting"); return; }
       if (later) { toast.success(`Scheduled for ${whenText(r.post.runAt)}`); navigate("/app/social/posts"); return; }
@@ -456,6 +475,37 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
   const showPoll = apps.includes("linkedin") && format === "text";
   const showLinkCard = apps.some((a) => NETWORK_RULES[a]?.linkCard) && !!firstLink(textFor(text, texts, "facebook"));
   const previewProps = { accounts: chosen, text: textOf, images, linkCard, poll: showPoll ? poll : null, firstComment, format };
+  const row = (a: ComposerAccount) => {
+                const on = a.id in picked;
+                const fit = formatFit(a.app, format);
+                const broken = brokenText(a.id);
+                const max = NETWORK_RULES[a.app]?.maxChars;
+                const tooLong = !on && max !== undefined && charCount(textOf(a.app)) > max ? `Too long for ${a.name}: ${max.toLocaleString()} characters at most.` : null;
+                const block = fit.fit === "no" ? fit.why : tooLong;
+                const greyed = !on && !!block;
+                const why = block ?? broken;
+                return (
+                  <li key={a.id} className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2", greyed && "bg-fill/40")} data-testid={`pick-${a.app}`} data-blocked={greyed ? "true" : undefined}>
+                    <label className={cn("flex min-h-8 min-w-0 flex-1 items-center gap-2.5 text-[13.5px]", greyed ? "cursor-not-allowed" : "cursor-pointer")}>
+                      <input type="checkbox" className="h-4 w-4 shrink-0 accent-[var(--color-brand)]" checked={on} disabled={greyed} onChange={() => toggle(a)} aria-describedby={why ? `why-${a.id}` : undefined} />
+                      {multi && a.account?.avatarUrl ? <AccountAvatar account={a.account} size="sm" /> : <AppLogo slug={a.app} name={a.name} size="sm" />}
+                      <span className={cn("min-w-0 truncate font-medium", greyed && "text-muted")} title={multi ? (a.label ? `${a.name}, ${a.label}` : a.name) : undefined}>{a.name}{a.label ? <span className="font-normal text-muted">, {a.label}</span> : null}</span>
+                    </label>
+                    {on && a.needsTarget && a.account && <TargetField account={a.account} value={picked[a.id] ?? ""} onChange={(v, name) => { setPicked((p) => ({ ...p, [a.id]: v })); setNames((n) => ({ ...n, [a.id]: name ?? v })); }} />}
+                    {why && <p id={`why-${a.id}`} className="basis-full pl-[26px] text-[12.5px] text-muted" data-testid="pick-why">{why}</p>}
+                  </li>
+                );
+  };
+  // SOC1: one group per network; Select all picks every account of it that can take this post.
+  const groups = multi ? [...accounts.reduce((m, a) => m.set(a.app, [...(m.get(a.app) ?? []), a]), new Map<string, ComposerAccount[]>())] : [];
+  const selectable = (a: ComposerAccount) => formatFit(a.app, format).fit !== "no" && !(NETWORK_RULES[a.app]?.maxChars !== undefined && charCount(textOf(a.app)) > NETWORK_RULES[a.app]!.maxChars);
+  const selectAll = (list: ComposerAccount[]) => setPicked((p) => {
+    const n = { ...p };
+    const can = list.filter(selectable);
+    if (can.every((a) => a.id in n)) for (const a of list) delete n[a.id];
+    else for (const a of can) if (!(a.id in n)) n[a.id] = null;
+    return n;
+  });
 
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]" data-testid="composer-v2">
@@ -484,29 +534,27 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
 
           <fieldset>
             <legend className="mb-2 text-[13px] font-medium">Post to</legend>
+            {multi ? (
+              <div className="space-y-3" data-testid="account-groups">
+                {groups.map(([app, list]) => (
+                  <div key={app} data-testid={`group-${app}`}>
+                    {list.length > 1 && (
+                      <div className="mb-1 flex items-center justify-between gap-2 px-1">
+                        <span className="text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">{list[0]!.app === "linkedin" ? "LinkedIn" : list[0]!.name}</span>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => selectAll(list)} data-testid={`select-all-${app}`}>
+                          {list.filter(selectable).every((a) => a.id in picked) ? "Clear" : "Select all"}
+                        </Button>
+                      </div>
+                    )}
+                    <ul className="divide-y divide-line rounded-lg border border-line" data-testid="account-chips">{list.map(row)}</ul>
+                  </div>
+                ))}
+              </div>
+            ) : (
             <ul className="divide-y divide-line rounded-lg border border-line" data-testid="account-chips">
-              {accounts.map((a) => {
-                const on = a.id in picked;
-                const fit = formatFit(a.app, format);
-                const broken = brokenText(a.id);
-                const max = NETWORK_RULES[a.app]?.maxChars;
-                const tooLong = !on && max !== undefined && charCount(textOf(a.app)) > max ? `Too long for ${a.name}: ${max.toLocaleString()} characters at most.` : null;
-                const block = fit.fit === "no" ? fit.why : tooLong;
-                const greyed = !on && !!block;
-                const why = block ?? broken;
-                return (
-                  <li key={a.id} className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2", greyed && "bg-fill/40")} data-testid={`pick-${a.app}`} data-blocked={greyed ? "true" : undefined}>
-                    <label className={cn("flex min-h-8 min-w-0 flex-1 items-center gap-2.5 text-[13.5px]", greyed ? "cursor-not-allowed" : "cursor-pointer")}>
-                      <input type="checkbox" className="h-4 w-4 shrink-0 accent-[var(--color-brand)]" checked={on} disabled={greyed} onChange={() => toggle(a)} aria-describedby={why ? `why-${a.id}` : undefined} />
-                      <AppLogo slug={a.app} name={a.name} size="sm" />
-                      <span className={cn("min-w-0 truncate font-medium", greyed && "text-muted")}>{a.name}{a.label ? <span className="font-normal text-muted">, {a.label}</span> : null}</span>
-                    </label>
-                    {on && a.needsTarget && a.account && <TargetField account={a.account} value={picked[a.id] ?? ""} onChange={(v, name) => { setPicked((p) => ({ ...p, [a.id]: v })); setNames((n) => ({ ...n, [a.id]: name ?? v })); }} />}
-                    {why && <p id={`why-${a.id}`} className="basis-full pl-[26px] text-[12.5px] text-muted" data-testid="pick-why">{why}</p>}
-                  </li>
-                );
-              })}
+              {accounts.map(row)}
             </ul>
+            )}
           </fieldset>
 
           <div>
