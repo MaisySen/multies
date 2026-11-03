@@ -40,6 +40,7 @@ import { SpellAttrs, fixInEditor } from "./doc-spell-r103";
 import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
 import { isServerLoadError } from "@/web/lib/load-errors-t1g";
 import { AskAboutButton } from "@/web/components/ask-about-td1"; // TD1
+import { DocLangLazy } from "@/web/components/lang-tools-r116-lazy"; // R116
 import { ReferencesPanel } from "@/web/components/mentions-td5"; // TD5
 
 const MindMapView = lazyPage(() => import("./docs-visual/mindmap-view"), "MindMapView");
@@ -170,6 +171,7 @@ const LIVE_BOARD_PROPS = { ...BOARD_PROPS, handleDOMEvents: liveDomEvents };
 
 function DocEditor({ doc, session, onReplaced, embed = false }: { doc: Doc; session: CollabSession | null; onReplaced: (d: Doc) => void; /** R124: inside the blog post editor (no back link, breadcrumbs or delete). */ embed?: boolean }) {
   const docsPlus = !!useConfig().data?.docsPlus; // R103
+  const translateOn = !!useConfig().data?.translateR116; // R116
   const [commentsOpen, setCommentsOpen] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("comments") === "1");
   // R36: an opened doc joins "Recently opened" in the command menu (device only, no server write).
   useEffect(() => { recordRecent({ kind: "item", id: `/app/docs/${doc.id}`, label: doc.title || "Untitled", url: `/app/docs/${doc.id}`, hint: "Doc" }); }, [doc.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -286,6 +288,7 @@ function DocEditor({ doc, session, onReplaced, embed = false }: { doc: Doc; sess
         <ShareButton kind="doc" targetId={id} />
         {docsPlus && <DocCommentsButton docId={id} open={commentsOpen} onToggle={() => setCommentsOpen((o) => !o)} />}
         {!embed && <AskAboutButton kind="docs" id={id} title={title} compact />}
+        {translateOn && !isBoard && <DocLangLazy editor={editor} title={title} />}
         <DocHistoryButton onOpen={openHistory} />
         <button aria-label="Save as template" title="Save as template" className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg"
           onClick={async () => {
