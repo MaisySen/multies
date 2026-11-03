@@ -25,7 +25,9 @@ export const canTranscribe = (p: AiProviderId | null | undefined): p is Transcri
 
 export const RECORDING_SETUP_MESSAGE = "Add your OpenAI or Groq key in Settings > AI to record and transcribe. Multies doesn't charge for this; your provider bills your key.";
 /** The codes the app recognises to open the setup prompt. */
-export const SETUP_CODES = { noKey: "recording_needs_ai_key", wrongProvider: "recording_needs_transcribe_key" } as const;
+export const SETUP_CODES = { noKey: "recording_needs_ai_key", wrongProvider: "recording_needs_transcribe_key", aiOff: "recording_needs_ai_on" } as const;
+/** PAR1: the workspace switched AI off (TD1), so no audio goes to any provider and no transcript is made. */
+export const RECORDING_AI_OFF_MESSAGE = "AI is off for this workspace, so calls are not transcribed. An admin can turn it on in Settings > AI.";
 
 export function setupError(provider: AiProviderId | null) {
   if (!provider) return new HttpError(409, SETUP_CODES.noKey, RECORDING_SETUP_MESSAGE);

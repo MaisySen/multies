@@ -42,6 +42,8 @@ export const SETUP_TEXT = "Add your OpenAI or Groq key in Settings > AI to recor
 /** POL1: what the meeting page says while recording is not set up (admins can act, members are told who can). */
 export const SETUP_ADMIN_TEXT = "Recording and transcripts need an AI key that can turn speech into text. Add one in Settings > AI. Multies doesn't charge for this.";
 export const SETUP_MEMBER_TEXT = "Recording isn't set up for this workspace yet. An admin can turn it on in Settings > AI.";
+/** PAR1: the workspace AI switch is off, so nothing is transcribed (the server answers the same words). */
+export const SETUP_AI_OFF_TEXT = "AI is off for this workspace, so calls are not transcribed. An admin can turn it on in Settings > AI.";
 export const CONSENT_TEXT = "Everyone in the call sees that this is being recorded.";
 /** VID2: when a recording signal is sent again (a reliable message can sit unsent until the next one goes). */
 const RESEND_MS = [600, 1500, 3000, 6000];
@@ -53,8 +55,19 @@ export const duration = (sec: number) => {
 };
 
 /** The setup prompt: a link to Settings > AI for owners and admins, "ask an admin" for everyone else. */
-export function RecordSetupPrompt({ setup, compact }: { setup: Pick<RecordingSetup, "canConfigure" | "providerName" | "provider"> | null; compact?: boolean }) {
+export function RecordSetupPrompt({ setup, compact }: { setup: Pick<RecordingSetup, "canConfigure" | "providerName" | "provider"> & { code?: string | null } | null; compact?: boolean }) {
   const wrong = setup?.provider && setup.provider !== "openai" && setup.provider !== "groq";
+  if (setup?.code === "recording_needs_ai_on") {
+    return (
+      <div className={compact ? "" : "flex items-start gap-3"} data-testid="record-setup">
+        {!compact && <IconKey className="mt-0.5 h-4 w-4 shrink-0 text-muted" />}
+        <div className="min-w-0 flex-1 text-[13px]">
+          <p className="text-fg" data-testid="record-ai-off">{SETUP_AI_OFF_TEXT}</p>
+          {setup.canConfigure && <ButtonLink size="sm" variant="secondary" className="mt-3" to="/app/settings#ai" data-testid="record-setup-link">Open Settings &gt; AI</ButtonLink>}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={compact ? "" : "flex items-start gap-3"} data-testid="record-setup">
       {!compact && <IconKey className="mt-0.5 h-4 w-4 shrink-0 text-muted" />}
@@ -374,7 +387,7 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
         <RecordSetupPrompt setup={setup} compact />
       </Dialog>
       {videoAllowed && meetingId && (
-        <VideoRecordDialog open={videoOpen} onClose={() => setVideoOpen(false)} meetingId={meetingId} title={title} transcriptReady={!!setup?.ready}
+        <VideoRecordDialog open={videoOpen} onClose={() => setVideoOpen(false)} meetingId={meetingId} title={title} transcriptReady={!!setup?.ready} aiOff={setup?.code === "recording_needs_ai_on"}
           canAudioOnly={!!setup?.ready} onAudioOnly={() => { setVideoOpen(false); void start(); }} onStart={startWithVideo}
           vid2={vid2 ? { layout, setLayout, quality, setQuality, hd } : undefined} />
       )}

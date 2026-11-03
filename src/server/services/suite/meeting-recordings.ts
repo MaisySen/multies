@@ -17,7 +17,7 @@ import { meetingRecordings, members, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { providerFor } from "../ai/keys";
 import { AI_PROVIDER_INFO, AiProviderError } from "../ai/providers";
-import { canTranscribe, MAX_CHUNK_BYTES, RECORDING_SETUP_MESSAGE, SETUP_CODES, setupError, transcribe, transcribeKeyFor } from "../ai/transcribe";
+import { canTranscribe, MAX_CHUNK_BYTES, RECORDING_AI_OFF_MESSAGE, RECORDING_SETUP_MESSAGE, SETUP_CODES, setupError, transcribe, transcribeKeyFor } from "../ai/transcribe";
 import { aiKeyStatus } from "../ai/keys";
 import { assertWritable, iso, sortableId, type SuiteActor } from "./common";
 import { getMeeting, type Meeting } from "./meetings";
@@ -68,11 +68,13 @@ async function row(deps: Deps, orgId: string, meetingId: string, id: string) {
 /** Whether this workspace can record, and what to tell the person when it can't. Reads only. */
 export async function recordingSetup(deps: Deps, a: SuiteActor) {
   const k = await aiKeyStatus(deps, a.orgId);
-  const ready = canTranscribe(k.provider);
+  // PAR1: the workspace AI switch (TD1) comes first: off means no transcript, whatever key is saved.
+  const on = await aiAllowed(deps, a.orgId);
+  const ready = on && canTranscribe(k.provider);
   return {
     ready, provider: k.provider, providerName: k.providerName,
-    code: ready ? null : k.provider ? SETUP_CODES.wrongProvider : SETUP_CODES.noKey,
-    message: ready ? null : RECORDING_SETUP_MESSAGE,
+    code: ready ? null : !on ? SETUP_CODES.aiOff : k.provider ? SETUP_CODES.wrongProvider : SETUP_CODES.noKey,
+    message: ready ? null : !on ? RECORDING_AI_OFF_MESSAGE : RECORDING_SETUP_MESSAGE,
     /** Owners and admins change Settings > AI; others ask them. */
     canConfigure: a.role === "owner" || a.role === "admin",
   };
@@ -102,6 +104,7 @@ export async function startRecording(deps: Deps, a: SuiteActor, meetingId: strin
   if (!isPerson(a)) throw new HttpError(403, "forbidden", "People record calls from the meeting room. Keys can read transcripts with get_meeting_transcript.");
   const meeting = await getMeeting(deps, a, meetingId);
   if (meeting.status === "cancelled") throw new HttpError(409, "meeting_cancelled", "This meeting was cancelled.");
+  if (!(await aiAllowed(deps, a.orgId))) throw new HttpError(409, SETUP_CODES.aiOff, RECORDING_AI_OFF_MESSAGE); // PAR1
   const k = await aiKeyStatus(deps, a.orgId);
   if (!canTranscribe(k.provider)) throw setupError(k.provider);
   const now = deps.now();
@@ -152,6 +155,8 @@ export async function appendChunk(deps: Deps, a: SuiteActor, meetingId: string, 
   if (input.seq > r.chunkCount) throw new HttpError(409, "out_of_order", `Upload chunk ${r.chunkCount} first.`, { expected: r.chunkCount });
   if (input.audio.byteLength > MAX_CHUNK_BYTES) throw new HttpError(413, "chunk_too_large", "That audio chunk is over 24 MB. Upload it in smaller pieces.");
   if (!input.audio.byteLength) throw new HttpError(422, "validation_failed", "The audio chunk is empty.");
+  // PAR1: AI switched off mid recording: the audio goes nowhere (zero provider calls), the recording keeps what it has.
+  if (!(await aiAllowed(deps, a.orgId))) throw new HttpError(409, SETUP_CODES.aiOff, RECORDING_AI_OFF_MESSAGE);
   const key = await transcribeKeyFor(deps, a.orgId);
   let text: string;
   try {

@@ -19,6 +19,8 @@ import { RecordSettings } from "./video-vid2-ui";
 export const VIDEO_INTRO = "A video of the whole call is saved to this device when you stop. Nothing is uploaded.";
 export const VIDEO_TRANSCRIPT_ON = "A transcript and summary are made too, as with every recording.";
 export const VIDEO_TRANSCRIPT_OFF = "The transcript is off. Add an AI key in Settings > AI to get one with the video.";
+/** PAR1: the workspace AI switch is off: the video records, nothing goes to an AI provider. */
+export const VIDEO_TRANSCRIPT_AI_OFF = "AI is off for this workspace, so no transcript is made. The video still records.";
 export const VIDEO_BANNER_NOTE = "Everyone in the call sees a Recording banner while you record.";
 export const VIDEO_FILE_HINT = "Choose where to save the video. It is written as the call goes, so long calls are fine.";
 export const VIDEO_MEMORY_HINT = "The video is kept in this tab and saved when you stop. For calls over an hour, Chrome or Edge can save it as it records.";
@@ -198,8 +200,8 @@ export function useVideoRecording(room: Room) {
 }
 
 /** The "Record this call" dialog: what is saved where, whether a transcript comes too, then start. */
-export function VideoRecordDialog({ open, onClose, meetingId, title, transcriptReady, canAudioOnly, onAudioOnly, onStart, vid2 }: {
-  open: boolean; onClose: () => void; meetingId: string; title?: string; transcriptReady: boolean; canAudioOnly: boolean;
+export function VideoRecordDialog({ open, onClose, meetingId, title, transcriptReady, aiOff = false, canAudioOnly, onAudioOnly, onStart, vid2 }: {
+  open: boolean; onClose: () => void; meetingId: string; title?: string; transcriptReady: boolean; aiOff?: boolean; canAudioOnly: boolean;
   onAudioOnly: () => void; onStart: (writable: Writable | null, fileName: string, mime: string) => Promise<void>;
   /** VID2: layout and quality picked before starting (the layout can change again while recording). */
   vid2?: { layout: LayoutMode; setLayout: (l: LayoutMode) => void; quality: QualityId; setQuality: (q: QualityId) => void; hd: boolean };
@@ -275,7 +277,7 @@ export function VideoRecordDialog({ open, onClose, meetingId, title, transcriptR
         ) : (
           <>
             <p className="text-fg">{VIDEO_INTRO}</p>
-            <p className={transcriptReady ? "text-muted" : "text-fg"} data-testid="video-rec-transcript">{transcriptReady ? VIDEO_TRANSCRIPT_ON : VIDEO_TRANSCRIPT_OFF}</p>
+            <p className={transcriptReady ? "text-muted" : "text-fg"} data-testid="video-rec-transcript">{transcriptReady ? VIDEO_TRANSCRIPT_ON : aiOff ? VIDEO_TRANSCRIPT_AI_OFF : VIDEO_TRANSCRIPT_OFF}</p>
             <p className="text-muted">{VIDEO_BANNER_NOTE}</p>
             {vid2 && <RecordSettings {...vid2} />}
             <p className="rounded-lg border border-line px-3 py-2 text-muted" data-testid="video-rec-where">{support.current.file ? VIDEO_FILE_HINT : VIDEO_MEMORY_HINT}</p>
