@@ -530,7 +530,7 @@ export function WebmailPage() {
           <div className="grid flex-1 place-items-center p-6 text-center">
             <div><div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl border border-line bg-elevated text-subtle"><IconInbox className="h-5 w-5" /></div>
               <p className="text-sm text-muted">{tr("mail.select_a_message_to_read")}</p>
-              <p className="mt-2 text-xs text-subtle">Press <Kbd>j</Kbd> to open the first one</p></div>
+              <p className="mt-2 text-xs text-subtle">{tr("mail.press_j_to_open", { key: "\u0000" }).split("\u0000").flatMap((part, i) => (i ? [<Kbd key={i}>j</Kbd>, part] : [part]))}</p></div>
           </div>
         )}
       </section>

@@ -2,7 +2,8 @@
  * R31: notification triage on the web. Pure helpers for the Inbox / Later / Done list (day groups, optimistic moves,
  * the page-local keys) so they are unit tested without a browser. The page is src/web/pages/app/notifications.tsx.
  */
-import { tl } from "@/web/i18n"; // POL4 (HQ MB-356)
+import { t, tl, uiLocale } from "@/web/i18n"; // POL4 (HQ MB-356)
+import { formatDateIn } from "@/web/i18n/intl";
 
 export type TriageView = "inbox" | "later" | "done";
 export const TRIAGE_VIEWS: TriageView[] = ["inbox", "later", "done"];
@@ -46,10 +47,11 @@ export function dayLabel(iso: string, now = new Date()): string {
   const d = new Date(iso);
   const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const days = Math.round((start(now) - start(d)) / 86_400_000);
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 7) return d.toLocaleDateString(undefined, { weekday: "long" });
-  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) });
+  const ui = uiLocale(); // POL4 (HQ MB-356): Nepali or Hindi while the app shows one; English exactly as before otherwise
+  if (days <= 0) return ui ? t("notifications.day_today") : "Today";
+  if (days === 1) return ui ? t("notifications.day_yesterday") : "Yesterday";
+  const o: Intl.DateTimeFormatOptions = days < 7 ? { weekday: "long" } : { day: "numeric", month: "short", ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) };
+  return ui ? formatDateIn(d, ui, o) : d.toLocaleDateString(undefined, o);
 }
 
 /** Label for when a snoozed item comes back: Back today, Back tomorrow, Back Friday, Back 3 Nov. */
@@ -57,10 +59,11 @@ export function backLabel(iso: string, now = new Date()): string {
   const d = new Date(iso);
   const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const days = Math.round((start(d) - start(now)) / 86_400_000);
-  if (days <= 0) return "Back today";
-  if (days === 1) return "Back tomorrow";
-  if (days < 7) return `Back ${d.toLocaleDateString(undefined, { weekday: "long" })}`;
-  return `Back ${d.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`;
+  const ui = uiLocale(); // POL4 (HQ MB-356)
+  if (days <= 0) return ui ? t("notifications.back_today") : "Back today";
+  if (days === 1) return ui ? t("notifications.back_tomorrow") : "Back tomorrow";
+  const o: Intl.DateTimeFormatOptions = days < 7 ? { weekday: "long" } : { day: "numeric", month: "short" };
+  return ui ? t("notifications.back_on", { when: formatDateIn(d, ui, o) }) : `Back ${d.toLocaleDateString(undefined, o)}`;
 }
 
 /** When the row sorts in its view: Done by done time, Later by snooze time, Inbox by arrival. */

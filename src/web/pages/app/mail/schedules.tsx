@@ -12,7 +12,7 @@ import { Button } from "@/web/components/ui/button";
 import { Select } from "@/web/components/ui/input";
 import { EmptyState, Skeleton } from "@/web/components/ui/misc";
 import type { MessageListItem } from "@/web/lib/types";
-import { tl } from "@/web/i18n"; // POL4 (HQ MB-356)
+import { tl, tr } from "@/web/i18n"; // POL4 (HQ MB-356)
 
 /** Round 20 (R20.3): Snoozed and Scheduled views, the snooze menu, send later and the returned strip. */
 
@@ -147,7 +147,7 @@ export function RemindSelect({ value, onChange }: { value: number; onChange: (n:
       <IconBellRing className="h-3.5 w-3.5" aria-hidden />
       <Select bare value={value} onChange={(e) => onChange(Number(e.target.value))} className="cursor-pointer bg-transparent outline-none" aria-label="Remind me if no reply"
         phoneClassName="inline-flex min-h-11 min-w-0 max-w-[7.5rem] items-center truncate whitespace-nowrap bg-transparent text-left text-[13px]">
-        {REMIND_CHOICES.map((n) => <option key={n} value={n}>{n === 0 ? "No reminder" : `Remind in ${n} day${n > 1 ? "s" : ""}`}</option>)}
+        {REMIND_CHOICES.map((n) => <option key={n} value={n}>{n === 0 ? tr("compose.no_reminder") : tr("compose.remind_in_days", { count: n })}</option>)}
       </Select>
     </label>
   );

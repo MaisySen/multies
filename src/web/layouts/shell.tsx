@@ -185,7 +185,7 @@ export function ContextSidebar({ section, counts, logo, header, footer }: { sect
         </>}
 
         {section.id === "tasks" && <>
-          {heading("projects", "Projects", (
+          {heading("projects", tl("nav", "Projects"), (
             <button type="button" onClick={() => navigate("/app/tasks?newProject=1")} aria-label={tr("shell.new_project")} title={tr("shell.new_project")}
               className="grid h-6 w-6 place-items-center rounded text-subtle opacity-70 hover:bg-hover hover:text-fg group-hover:opacity-100"><IconPlus className="h-3.5 w-3.5" /></button>
           ))}

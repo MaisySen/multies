@@ -220,7 +220,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
         if (e.key === "Escape") { e.stopPropagation(); close(); }
       }}>
       <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line px-4 max-sm:h-14 max-sm:pl-4 max-sm:pr-1.5">
-        <span className="truncate text-sm font-medium">{d.subject || (d.inReplyToId ? "Reply" : "New message")}</span>
+        <span className="truncate text-sm font-medium">{d.subject || (d.inReplyToId ? tr("compose.reply") : tr("compose.new_message"))}</span>
         <div className="flex items-center">
           <button className="hidden rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg sm:block" onClick={() => setMinimized((m) => !m)} aria-label={minimized ? "Expand" : "Minimize"}><IconMinus className="h-4 w-4" /></button>
           <button className="inline-flex items-center justify-center rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:rounded-full" onClick={close} aria-label={tr("compose.close_and_save_draft")}><IconClose className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>

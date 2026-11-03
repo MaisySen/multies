@@ -11,7 +11,7 @@ import { AvatarStack, TagChips } from "./tasks-r84"; // R84
 import { useWindowedList } from "@/web/lib/use-windowed-list"; // R43 (MB-210)
 import { sortTasks } from "@/web/lib/task-sort-par1"; // PAR1
 import { TABLE_COLUMNS, type TableContext } from "./table"; // PAR1: the same sort keys as the table
-import { tr } from "@/web/i18n"; // POL4 (HQ MB-356)
+import { tr, tl } from "@/web/i18n"; // POL4 (HQ MB-356)
 
 /**
  * R41 (MB-226): the Tasks list on a phone. Below the sm breakpoint each task is one card row, the way native task apps
@@ -87,7 +87,7 @@ function PhoneTaskRows({ tasks, projects, onOpen, plain }: { tasks: Task[]; proj
                 <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-subtle">
                   <span className="inline-flex items-center gap-1 whitespace-nowrap"><TypeIcon type={t.type} /><span className="font-mono">{t.ref}</span></span>
                   <span className="inline-flex items-center gap-1 rounded-full bg-fill px-2 py-0.5 text-[11.5px] font-medium text-fg/80">
-                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: tone(t.statusColor) }} aria-hidden />{t.statusName}
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: tone(t.statusColor) }} aria-hidden />{tl("taskstatus", t.statusName)}
                   </span>
                   {t.due && <span className={cn("rounded-full px-2 py-0.5 text-[11.5px] font-medium", overdue ? "bg-bad-soft text-bad" : "bg-fill text-muted")}>{overdue ? `${tr("tasks.overdue_prefix")} ` : ""}{dueLabel(t.due)}</span>}
                   {t.priority !== "none" && <span className={cn("inline-flex items-center", PRIORITY_COLOR[t.priority])} aria-label={`${PRIORITY_LABEL[t.priority]} priority`} title={PRIORITY_LABEL[t.priority]}><IconFlag className="h-3.5 w-3.5" /></span>}
