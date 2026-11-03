@@ -475,7 +475,7 @@ function ExportCard() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <a href={r.downloadPath} download className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-brand px-4 text-sm font-medium text-brand-fg hover:bg-brand/90 max-sm:min-h-11" data-testid="move-download"><IconDownload className="h-4 w-4" aria-hidden />Download ZIP</a>
+              <a href={r.downloadPath} download className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-brand px-4 text-sm font-medium text-brand-fg hover:bg-brand-press max-sm:min-h-11" data-testid="move-download"><IconDownload className="h-4 w-4" aria-hidden />Download ZIP</a>
               <CopyButton value={link} label="Copy link" />
             </div>
           </div>

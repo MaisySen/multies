@@ -633,7 +633,7 @@ function FilePreview({ it, isAdmin }: { it: DriveItem; isAdmin: boolean }) {
       {office && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2.5">
           <p className="min-w-0 flex-1 text-xs text-subtle">{office === "pptx" ? "See every slide here. Nothing is changed." : it.canEdit ? "Edit it here. Saving keeps the original in Versions." : "You can view it here. Only people who can edit can save."}</p>
-          <Link to={officeEditPath(it.id)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand px-3 text-[13px] font-medium text-white transition-colors duration-150 hover:bg-brand-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 max-sm:h-11" data-testid="drive-open-editor">{officeActionLabel(office)}</Link>
+          <Link to={officeEditPath(it.id)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand px-3 text-[13px] font-medium text-white transition-colors duration-150 hover:bg-brand-press focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 max-sm:h-11" data-testid="drive-open-editor">{officeActionLabel(office)}</Link>
         </div>
       )}
       {kind === "image" && <img src={src} alt={it.name} className="mx-auto h-[min(60vh,28rem)] w-full rounded-lg bg-fill object-contain" data-testid="drive-preview-image" />}

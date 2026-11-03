@@ -70,7 +70,7 @@ export function LiveCallCard({ path, by, at, channelId }: { path: string; by: st
 
 /** Opens the docked call window when video is on; otherwise the meeting page (guest link, video off note). */
 function JoinCall({ path, meetingId, title, videoEnabled, testId, small }: { path: string; meetingId: string; title: string; videoEnabled: boolean; testId: string; small?: boolean }) {
-  const cls = cn("inline-flex shrink-0 items-center rounded-lg bg-brand font-medium text-brand-fg hover:bg-brand-hover", small ? "h-7 px-2.5 text-[12.5px]" : "h-8 px-3 text-[13px]");
+  const cls = cn("inline-flex shrink-0 items-center rounded-lg bg-brand font-medium text-brand-fg hover:bg-brand-press", small ? "h-7 px-2.5 text-[12.5px]" : "h-8 px-3 text-[13px]");
   if (!videoEnabled) return <Link to={path} className={cls} data-testid={testId}>Join</Link>;
   return <button type="button" className={cls} onClick={() => openCallDock({ meetingId, title, path })} data-testid={testId}>Join</button>;
 }

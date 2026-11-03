@@ -186,7 +186,7 @@ export function TrustPage() {
         </Section>
 
         <Section id="contact" icon={IconShieldCheck} title="Report a problem" intro="Found a vulnerability or a privacy issue? Tell us and we will reply.">
-          <a href={`mailto:${SECURITY_EMAIL}`} className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-brand-fg transition-colors hover:bg-brand/90">
+          <a href={`mailto:${SECURITY_EMAIL}`} className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-brand-fg transition-colors hover:bg-brand-press">
             <IconMail className="h-4 w-4" aria-hidden />{SECURITY_EMAIL}
           </a>
           <p className="mt-4 text-[13px] text-subtle">

@@ -423,7 +423,7 @@ export function SocialInboxPage() {
         : noSources ? (
           <Card data-testid="inbox-empty-accounts"><EmptyState icon={<IconInbox />} title="Connect an account to see replies here"
             body="Comments and messages from Facebook Pages, Instagram and Reddit land here. LinkedIn, TikTok and X are posting only for now."
-            action={<Link to="/app/social/accounts" className="inline-flex min-h-10 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-fg hover:bg-brand/90">Go to Accounts</Link>} /></Card>
+            action={<Link to="/app/social/accounts" className="inline-flex min-h-10 items-center rounded-md bg-brand px-4 text-sm font-medium text-brand-fg hover:bg-brand-press">Go to Accounts</Link>} /></Card>
         ) : (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,380px)_1fr]">
             <Card className={cn("overflow-hidden", selected && "max-lg:hidden")} data-testid="inbox-list">

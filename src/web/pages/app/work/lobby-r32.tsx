@@ -144,7 +144,7 @@ export function LobbyRequests({ meetingId, className }: { meetingId?: string; cl
             <button type="button" onClick={() => decide.mutate({ lobbyId: w.id, decision: "deny" })} aria-label={`Deny ${w.name}`} title="Deny (D)"
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" data-testid="lobby-deny"><IconUserX className="h-4 w-4" aria-hidden /></button>
             <button type="button" onClick={() => decide.mutate({ lobbyId: w.id, decision: "admit" })} aria-label={`Admit ${w.name}`} title="Admit (A)"
-              className="inline-flex h-7 items-center gap-1 rounded-full bg-brand px-2.5 text-[12.5px] font-medium text-white hover:bg-brand/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2" data-testid="lobby-admit"><IconUserCheck className="h-3.5 w-3.5" aria-hidden />Admit</button>
+              className="inline-flex h-7 items-center gap-1 rounded-full bg-brand px-2.5 text-[12.5px] font-medium text-white hover:bg-brand-press focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2" data-testid="lobby-admit"><IconUserCheck className="h-3.5 w-3.5" aria-hidden />Admit</button>
           </li>
         ))}
       </ul>

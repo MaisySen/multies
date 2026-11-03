@@ -35,7 +35,7 @@ export function DevelopersPage() {
           <h1 className="mt-5 text-4xl font-semibold leading-[1.08] tracking-[-0.03em] sm:text-5xl">Build on Multies</h1>
           <p className="mx-auto mt-6 max-w-2xl text-[17px] leading-relaxed text-muted">A REST API, an MCP server and signed webhooks for mail on your own domain, tasks, docs and agents. One key, scoped to exactly what it needs.</p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <Ext href="/api/v1/reference" className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand px-5 text-[15px] font-medium text-brand-fg hover:bg-brand/90">API reference <IconArrowRight className="h-4 w-4" aria-hidden /></Ext>
+            <Ext href="/api/v1/reference" className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand px-5 text-[15px] font-medium text-brand-fg hover:bg-brand-press">API reference <IconArrowRight className="h-4 w-4" aria-hidden /></Ext>
             <Link to="/developers/mcp" className="inline-flex h-11 items-center justify-center rounded-lg border border-line px-5 text-[15px] font-medium hover:bg-hover">MCP tools</Link>
           </div>
         </div>

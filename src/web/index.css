@@ -31,6 +31,8 @@
   --color-brand-hover: #0058b0;
   --color-brand-soft: rgb(0 102 204 / 0.1);
   --color-brand-fg: #ffffff;
+  /* POL2: a filled button on hover, a little deeper so its text only gains contrast (was the fill at 90% over the page). */
+  --color-brand-press: #0058b0;
   /* R77: a workspace's second brand colour (selected rows, progress, highlights); the brand colour by default. */
   --color-accent: #0066cc;
   --color-accent-fg: #ffffff;
@@ -107,6 +109,7 @@
     --color-brand-hover: #5ea4ff;
     --color-brand-soft: rgb(10 132 255 / 0.16);
     --color-brand-fg: #ffffff;
+    --color-brand-press: #0063c7;
     --color-accent: #0071e3;
     --color-ok: #30d158;
     --color-ok-soft: rgb(48 209 88 / 0.14);
@@ -141,6 +144,7 @@
       --color-brand-hover: #5ea4ff;
       --color-brand-soft: rgb(10 132 255 / 0.16);
       --color-brand-fg: #ffffff;
+      --color-brand-press: #0063c7;
       --color-accent: #0071e3;
       --color-ok: #30d158;
       --color-ok-soft: rgb(48 209 88 / 0.14);

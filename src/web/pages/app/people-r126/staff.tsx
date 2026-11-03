@@ -259,13 +259,13 @@ function AssetsView({ isAdmin }: { isAdmin: boolean }) {
         <span className="flex w-full gap-2 sm:ml-auto sm:w-auto">
           {isAdmin && !!all.length && <a href="/api/people/assets.csv" download className="inline-flex h-9 items-center gap-2 rounded-lg border border-line-strong px-3 text-[13px] hover:bg-hover max-sm:min-h-11"><IconDownload className="h-4 w-4" aria-hidden="true" />Export CSV</a>}
           {!!all.length && <Link to={`/app/contacts/assets/labels?ids=${shown.map((a) => a.id).join(",")}`} className="inline-flex h-9 items-center gap-2 rounded-lg border border-line-strong px-3 text-[13px] hover:bg-hover max-sm:min-h-11"><IconList className="h-4 w-4" aria-hidden="true" />Print labels</Link>}
-          {isAdmin && <Button size="sm" onClick={() => setCreating(true)} data-testid="asset-new"><IconPlus className="h-4 w-4" aria-hidden="true" />New asset</Button>}
+          {isAdmin && !!all.length && <Button size="sm" onClick={() => setCreating(true)} data-testid="asset-new"><IconPlus className="h-4 w-4" aria-hidden="true" />New asset</Button>}
         </span>
       </div>
       {!shown.length ? (
         <EmptyState icon={<IconLaptop className="h-5 w-5" />} title={all.length ? "No assets match" : "No assets yet"}
           body={all.length ? "Try another search or status." : isAdmin ? "Add laptops, phones, tools and licences, then hand them to people and print QR labels." : "Your admins have not added any equipment yet."}
-          action={!all.length && isAdmin ? <Button size="sm" onClick={() => setCreating(true)}>New asset</Button> : all.length ? <Button size="sm" variant="secondary" onClick={() => { setQ(""); setStatus(""); }}>Clear filters</Button> : undefined} />
+          action={!all.length && isAdmin ? <Button size="sm" onClick={() => setCreating(true)} data-testid="asset-new">New asset</Button> : all.length ? <Button size="sm" variant="secondary" onClick={() => { setQ(""); setStatus(""); }}>Clear filters</Button> : undefined} />
       ) : (
         <>
           <table className="hidden w-full border-collapse overflow-hidden rounded-xl border border-line bg-surface text-[13px] md:table" data-testid="asset-table">

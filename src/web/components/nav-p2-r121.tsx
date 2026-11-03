@@ -94,7 +94,7 @@ export function MoreSheet({ sections, counts, active, canPost, onNavigate }: {
       <div className="mt-4 space-y-2">
         {canPost && (
           <Link to={SOCIAL_NEW} onClick={onNavigate} data-testid="more-new-post"
-            className="flex min-h-12 items-center gap-3 rounded-[14px] bg-brand px-3 text-[16px] font-medium text-brand-fg shadow-[var(--shadow-e1)] transition-colors hover:bg-brand/90">
+            className="flex min-h-12 items-center gap-3 rounded-[14px] bg-brand px-3 text-[16px] font-medium text-brand-fg shadow-[var(--shadow-e1)] transition-colors hover:bg-brand-press">
             <IconMegaphone className="h-5 w-5" aria-hidden />New social post
           </Link>
         )}

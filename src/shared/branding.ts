@@ -182,6 +182,8 @@ export function colourTokens(primary: string | null, accent: string | null, sche
   fill = hoverSafeFill(fill, scheme);
   t["--color-brand"] = fill;
   t["--color-brand-fg"] = readableOn(fill);
+  // POL2: the hovered fill moves away from its text colour (deeper under white text, lighter under dark text), so hover only gains contrast.
+  t["--color-brand-press"] = pressFill(fill);
   // brand-hover doubles as the brand coloured text colour (links, active labels): AA against the surface.
   const textish = scheme === "light" ? mix(p, "#000000", 0.12) : mix(p, "#ffffff", 0.28);
   // R79: also AA on raised cards and on the brand tinted ground of active tabs and chips (axe found 3.8 in dark).
@@ -191,6 +193,11 @@ export function colourTokens(primary: string | null, accent: string | null, sche
   t["--color-accent"] = a;
   t["--color-accent-fg"] = readableOn(a);
   return t;
+}
+
+/** POL2: a filled button's hover colour: 12% toward black under white text, 12% toward white under dark text. */
+export function pressFill(fill: string): string {
+  return mix(fill, readableOn(fill) === "#ffffff" ? "#000000" : "#ffffff", 0.12);
 }
 
 /** The grounds a hovered brand fill (90% fill over the page) can sit on, per scheme. */

@@ -149,7 +149,8 @@ const NOT_FOUND = () => new HttpError(404, "not_found", "That item was not found
 /** The item "Ask about this" scopes to, only when the asker can open it now. 404 otherwise (no hint it exists). */
 export async function resolveAbout(deps: Deps, actor: SuiteActor, raw: unknown): Promise<RetrievedR98> {
   const a = parseAbout(raw);
-  if (!a) throw new HttpError(422, "validation_failed", "That item cannot be asked about.");
+  // POL2 (MB-323): an id that cannot name an item answers like a missing or foreign one, 404 with no hint.
+  if (!a) throw NOT_FOUND();
   const v: SearchViewer = { kind: "actor", actor };
   if (a.kind === "meetings") {
     let docId: string | null, extra: string;

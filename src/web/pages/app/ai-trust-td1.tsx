@@ -55,8 +55,10 @@ export function AiTrustSection() {
                   {q.data.on && q.data.source === "default" && <p className="mt-1 text-xs text-subtle" data-testid="ai-trust-default">On by default. An admin can turn it off at any time.</p>}
                 </div>
                 {q.data.canChange && (
-                  <div className="flex min-h-11 items-center" data-testid="ai-trust-switch">
-                    <Switch checked={q.data.on} onChange={(v) => set.mutate(v)} label="Allow AI in this workspace" disabled={set.isPending} />
+                  <div className="flex min-h-11 items-center gap-2">
+                    {/* POL2 (MB-325): the state is said by the switch (role switch, aria-checked) and shown in words beside it. */}
+                    <span className="text-[13px] font-medium text-muted" aria-hidden="true" data-testid="ai-trust-state">{q.data.on ? "On" : "Off"}</span>
+                    <Switch checked={q.data.on} onChange={(v) => set.mutate(v)} label="Allow AI in this workspace" disabled={set.isPending} testId="ai-trust-switch" />
                   </div>
                 )}
               </div>

@@ -8,7 +8,7 @@ type Size = "sm" | "md" | "lg" | "icon";
 
 const base = "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-[background-color,color,border-color,box-shadow,transform,opacity] duration-150 ease-out select-none disabled:pointer-events-none disabled:opacity-40 active:scale-[0.97] active:opacity-90 [&_svg]:shrink-0";
 const variants: Record<Variant, string> = {
-  primary: "bg-brand text-brand-fg hover:bg-brand/90",
+  primary: "bg-brand text-brand-fg hover:bg-brand-press",
   secondary: "bg-fill text-fg hover:bg-hover",
   outline: "border border-line-strong text-fg hover:bg-hover",
   ghost: "text-muted hover:text-fg hover:bg-hover",

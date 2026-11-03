@@ -24,7 +24,7 @@ export function GoOpenPage() {
         <EmptyState icon={<IconHash />} title={`go/${name} isn't set up`} body={q.isError ? "Go links are only for people in this workspace." : "Nobody has made this go link yet."}
           action={<div className="space-y-4">
             {!!q.data?.suggestions.length && <div className="text-sm"><p className="mb-2 text-muted">Did you mean</p><ul className="flex flex-wrap justify-center gap-2">{q.data.suggestions.map((s) => <li key={s}><Link to={`/app/go/${s}`} className="inline-flex min-h-9 items-center rounded-lg bg-fill px-3 font-medium hover:bg-hover max-sm:min-h-11">go/{s}</Link></li>)}</ul></div>}
-            {!q.isError && <Link to={`/app/tools/links?tab=go&new=${encodeURIComponent(name)}`} className="inline-flex h-9 items-center rounded-lg bg-brand px-4 text-sm font-medium text-brand-fg hover:bg-brand/90 max-sm:min-h-11">Make go/{name}</Link>}
+            {!q.isError && <Link to={`/app/tools/links?tab=go&new=${encodeURIComponent(name)}`} className="inline-flex h-9 items-center rounded-lg bg-brand px-4 text-sm font-medium text-brand-fg hover:bg-brand-press max-sm:min-h-11">Make go/{name}</Link>}
           </div>} />
       </Card>
     </div>

@@ -261,7 +261,7 @@ export function CreateMenu({ flags }: { flags: NavFlags }) {
   const items = useMemo(() => createItems(flags), [flags]);
   return (
     <Menu label="Create" align="end" trigger={
-      <button type="button" id="create" data-testid="create-menu" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-2.5 text-[13px] font-medium text-brand-fg shadow-[var(--shadow-e1)] transition-colors hover:bg-brand/90">
+      <button type="button" id="create" data-testid="create-menu" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-2.5 text-[13px] font-medium text-brand-fg shadow-[var(--shadow-e1)] transition-colors hover:bg-brand-press">
         <IconPlus className="h-4 w-4" aria-hidden />Create<IconChevronDown className="h-3.5 w-3.5 opacity-80" aria-hidden />
       </button>}>
       <MenuLabel>Create</MenuLabel>

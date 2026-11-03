@@ -85,6 +85,11 @@ export function breadcrumbs(pathname: string, search: string, ctx: { projectName
   // R80C, R82F (MB-279): the tabs of Connections.
   const CONNECTION_SUB: Record<string, string> = { mail: "Mail accounts", webhooks: "Webhooks" };
   if (hit.page.to === "/app/settings/apps" && rest[0] && CONNECTION_SUB[rest[0]]) out.push({ label: CONNECTION_SUB[rest[0]] });
+  // POL2 (R126 low): Staff pages sit under Contacts but name themselves, in the crumbs and the tab title.
+  if (hit.page.to === "/app/contacts" && (rest[0] === "staff" || rest[0] === "assets")) {
+    out.push({ label: "Staff", to: "/app/contacts/staff" });
+    if (rest[0] === "assets") out.push({ label: "Assets", to: "/app/contacts/staff?view=assets" });
+  }
   // The last crumb is where you are: it is text, not a link.
   if (out.length) out[out.length - 1] = { label: out[out.length - 1].label };
   return out;

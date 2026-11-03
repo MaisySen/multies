@@ -450,7 +450,7 @@ export function ToursHost() {
             <li key={x.id} className="flex items-center gap-3 py-2.5">
               <div className="min-w-0 flex-1">
                 <p className="text-[13.5px] font-medium">{x.name}</p>
-                <p className="text-[12.5px] text-muted">{t.data?.seen.includes(x.id) ? "Seen" : `${x.steps.length} short steps`}</p>
+                <p className="text-[12.5px] text-muted">{t.data?.seen.includes(x.id) ? "Seen" : `${x.steps.length} short ${x.steps.length === 1 ? "step" : "steps"}`}</p>
               </div>
               <Button size="sm" variant="secondary" data-testid={`tours-start-${x.id.replace("builtin:", "")}`}
                 onClick={() => { set({ list: false }); if (pageMatches(x.page, loc.pathname) || x.page === "/app") { if (x.page !== "/app" || loc.pathname === "/app") startTour(x); else { set({ pending: x }); navigate(x.page); } } else { set({ pending: x }); navigate(x.page); } }}>

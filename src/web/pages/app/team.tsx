@@ -241,7 +241,7 @@ function DemoInvitesOff({ onClose }: { onClose: () => void }) {
       <p className="max-w-xs text-sm text-muted">Everything else in the demo works, so look around first. Your own workspace keeps your team, mail and tasks.</p>
       <div className="mt-1 flex gap-2">
         <Button variant="secondary" onClick={onClose}>Keep exploring</Button>
-        <a href="/signup" className="inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-medium text-white transition-colors duration-150 hover:bg-brand-hover max-sm:h-11">Create your workspace</a>
+        <a href="/signup" className="inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-medium text-white transition-colors duration-150 hover:bg-brand-press max-sm:h-11">Create your workspace</a>
       </div>
     </div>
   );

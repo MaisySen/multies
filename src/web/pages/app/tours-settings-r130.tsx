@@ -17,7 +17,7 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { IconArrowDown, IconArrowUp, IconTrash } from "@/web/components/ui/icons";
 import { SECTIONS_P2 } from "@/shared/nav-menu";
 import { LoadError } from "@/web/components/load-error-t1g";
-import { AUDIENCES, BUILTIN_TOURS, MAX_STEPS, PagePath, type AdminTour, type Audience, type TourStep } from "@/shared/tours-r130";
+import { AUDIENCES, BUILTIN_TOURS, MAX_STEPS, PagePath, desktopOnlySteps, hiddenOnPhone, stepsLabel, type AdminTour, type Audience, type TourStep } from "@/shared/tours-r130";
 import { beginPick, beginPreview, startTour } from "@/web/components/tours-r130";
 
 const adminKey = ["tours-r130", "admin"] as const;
@@ -67,7 +67,7 @@ export function ToursSettings() {
         <Card className="divide-y divide-line">
           {BUILTIN_TOURS.map((t) => (
             <div key={t.id} className="flex items-center gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1"><p className="text-[13.5px] font-medium">{t.name}</p><p className="text-[12.5px] text-muted">{t.phoneOnly ? "Phones only. " : t.desktopOnly ? "Computers and tablets only. " : ""}{`${t.steps.length} steps. Started from the account menu, Tours.`}</p></div>
+              <div className="min-w-0 flex-1"><p className="text-[13.5px] font-medium">{t.name}</p><p className="text-[12.5px] text-muted">{t.phoneOnly ? "Phones only. " : t.desktopOnly ? "Computers and tablets only. " : ""}{`${stepsLabel(t.steps.length)}. Started from the account menu, Tours.`}</p></div>
             </div>
           ))}
         </Card>
@@ -126,7 +126,7 @@ function TourRow({ tour, people }: { tour: AdminTour; people: AdminList["people"
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-2 text-[14px] font-medium"><span className="truncate">{tour.name}</span>
             <Badge tone={tour.status === "published" ? "ok" : "neutral"}>{tour.status === "published" ? "Published" : "Draft"}</Badge></p>
-          <p className="text-[12.5px] text-muted">{`${pageLabel} · ${audienceText(tour)} · ${tour.steps.length} ${tour.steps.length === 1 ? "step" : "steps"}`}</p>
+          <p className="text-[12.5px] text-muted">{`${pageLabel} · ${audienceText(tour)} · ${stepsLabel(tour.steps.length)}${desktopOnlySteps(tour.steps) ? " · Computers and tablets only" : ""}`}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={() => navigate(`/app/settings/tours?edit=${encodeURIComponent(tour.id)}`)} data-testid="tour-edit">Edit</Button>
@@ -201,6 +201,7 @@ function TourEditor({ tour, onBack }: { tour: AdminTour; onBack: () => void }) {
           <h2 id="steps-title" className="text-sm font-semibold">Steps</h2>
           <span className="text-[12.5px] text-muted">{`${steps.length} of ${MAX_STEPS}`}</span>
         </div>
+        {desktopOnlySteps(steps) && <p className="text-[12.5px] text-muted" data-testid="tour-desktop-only">Every step points at the side menu, which phones do not show, so this tour runs on computers and tablets only.</p>}
         {steps.length === 0 && <EmptyState title="No steps yet" body="Add a step, then click the part of the page it should point at." />}
         <ol className="space-y-2">
           {steps.map((s, i) => (
@@ -209,6 +210,7 @@ function TourEditor({ tour, onBack }: { tour: AdminTour; onBack: () => void }) {
                 <div className="flex items-center gap-2">
                   <span className="grid h-6 w-6 place-items-center rounded-full bg-fill text-[12px] font-semibold" aria-hidden>{i + 1}</span>
                   <p className="min-w-0 flex-1 truncate text-[12.5px] text-muted">Points at <span className="font-mono text-fg">{s.target}</span></p>
+                  {hiddenOnPhone(s.target) && <span className="shrink-0 rounded-md bg-warn-soft px-2 py-0.5 text-[12px] text-warn" data-testid={`tour-step-phone-${i}`}>Not shown on phones</span>}
                   <Button size="sm" variant="ghost" onClick={() => pick(i)} disabled={!daysOk}>Pick again</Button>
                   <Button size="sm" variant="ghost" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move step ${i + 1} up`}><IconArrowUp className="h-4 w-4" aria-hidden /></Button>
                   <Button size="sm" variant="ghost" onClick={() => move(i, 1)} disabled={i === steps.length - 1} aria-label={`Move step ${i + 1} down`}><IconArrowDown className="h-4 w-4" aria-hidden /></Button>

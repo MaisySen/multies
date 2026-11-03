@@ -59,7 +59,7 @@ export function DomainTab() {
           </div>}
         </Card>
       ) : !h.verifiedDomains.length ? (
-        <Card><EmptyState icon={<IconGlobe />} title="Use your own domain" body={<>Verify a domain for your workspace first, then come back to put your short links on it, like go.yourcompany.com/sale.</>} action={h.canEdit ? <Link to="/app/domains" className="inline-flex h-9 items-center rounded-lg bg-brand px-4 text-sm font-medium text-brand-fg hover:bg-brand/90 max-sm:min-h-11">Set up a domain</Link> : undefined} /></Card>
+        <Card><EmptyState icon={<IconGlobe />} title="Use your own domain" body={<>Verify a domain for your workspace first, then come back to put your short links on it, like go.yourcompany.com/sale.</>} action={h.canEdit ? <Link to="/app/domains" className="inline-flex h-9 items-center rounded-lg bg-brand px-4 text-sm font-medium text-brand-fg hover:bg-brand-press max-sm:min-h-11">Set up a domain</Link> : undefined} /></Card>
       ) : h.canEdit ? (
         <Card className="space-y-4 p-4 sm:p-5">
           <div><h2 className="text-[15px] font-semibold">Use your own domain</h2><p className="mt-0.5 text-sm text-muted">Pick a name on one of your verified domains. Short links become {sub || "go"}.{h.verifiedDomains.find((d) => d.id === domainId)?.name ?? "yourcompany.com"}/l/name.</p></div>

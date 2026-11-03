@@ -190,6 +190,8 @@ describe("TD1 on", () => {
     expect(r.status).toBe(404);
     expect(JSON.stringify(r.body)).not.toContain("Heron");
     expect((await ask(c, "what is the plan", "tasks:does_not_exist")).status).toBe(404);
+    // POL2 (MB-323): a ref that cannot name any item (unknown kind, bad id) is a 404 too, never 422.
+    for (const bad of ["task:abc", "tasks:has space", "invoices:x1", `tasks:${"x".repeat(81)}`]) expect((await ask(c, "what is the plan", bad)).status).toBe(404);
     expect(prompts.join(" ")).not.toContain("Heron secret");
   });
 

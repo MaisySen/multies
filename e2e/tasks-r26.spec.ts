@@ -75,11 +75,11 @@ test("checklist in the task panel and a task query saved as a view", async ({ br
   await expect(page.getByRole("alert")).toHaveCount(0);
   await box.press("Enter");
   await expect(page).toHaveURL(/q=label/);
-  const rows = page.getByRole("table").getByRole("row");
   await expect(page.getByText("Fix the checkout crash on Safari")).toBeVisible();
   await expect(page.getByText("Old IE layout glitch")).toHaveCount(0);
   await expect(page.getByText("Launch the new pricing page")).toHaveCount(0);
-  await expect(rows).toHaveCount(2); // header and one task
+  // POL2: the list is a grid of task buttons since R84F (no table rows); exactly one task matches the query.
+  await expect(page.getByRole("button", { name: "Fix the checkout crash on Safari", exact: true })).toHaveCount(1);
   // The screenshot shows the suggestions for a second key while the filtered list is on screen.
   await box.click();
   await box.press("End");

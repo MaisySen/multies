@@ -85,10 +85,10 @@ export function Avatar({ label, className, drawn }: { label: string; className?:
   );
 }
 
-export function Switch({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
+export function Switch({ checked, onChange, label, disabled, testId }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean; testId?: string }) {
   return (
     <button
-      type="button" role="switch" aria-checked={checked} aria-label={label} disabled={disabled}
+      type="button" role="switch" aria-checked={checked} aria-label={label} disabled={disabled} data-testid={testId}
       onClick={() => onChange(!checked)}
       className={cn("relative h-6 w-10 shrink-0 rounded-full transition-colors duration-200 ease-out disabled:opacity-40 max-sm:h-[31px] max-sm:w-[51px]", checked ? "bg-brand" : "bg-line-strong")}
     >

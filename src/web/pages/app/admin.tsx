@@ -51,7 +51,7 @@ export function AdminPage() {
       <h1 className="sr-only">Operator console</h1>
       <Card className="overflow-hidden p-0 shadow-[0_1px_2px_rgb(0_0_0/0.04),0_12px_36px_rgb(0_0_0/0.06)]">
         <div className="h-1 bg-gradient-to-r from-[#0071E3] via-[#6BAFFF] to-transparent" aria-hidden />
-        <EmptyState icon={<IconShieldCheck />} title="This console is for platform operators" body="You can keep working in your workspace. If you need access to this console, ask an operator to add you." action={<Link to="/app/my-work" className="inline-flex min-h-11 items-center rounded-lg bg-brand px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">Back to my work</Link>} />
+        <EmptyState icon={<IconShieldCheck />} title="This console is for platform operators" body="You can keep working in your workspace. If you need access to this console, ask an operator to add you." action={<Link to="/app/my-work" className="inline-flex min-h-11 items-center rounded-lg bg-brand px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-press focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">Back to my work</Link>} />
       </Card>
     </div>
   );

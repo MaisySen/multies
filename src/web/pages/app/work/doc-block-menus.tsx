@@ -176,7 +176,7 @@ export function ImageInsertDialog({ editor, open, onClose, upload }: { editor: E
               </>
             )}
             <button type="submit" data-testid="image-insert" disabled={busy || !url.trim()}
-              className="ml-auto inline-flex h-9 items-center rounded-lg bg-brand px-3.5 text-[13px] font-medium text-white hover:bg-brand/90 disabled:opacity-50">Insert</button>
+              className="ml-auto inline-flex h-9 items-center rounded-lg bg-brand px-3.5 text-[13px] font-medium text-white hover:bg-brand-press disabled:opacity-50">Insert</button>
           </div>
         </form>
       </div>

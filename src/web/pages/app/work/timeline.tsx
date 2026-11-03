@@ -352,7 +352,7 @@ export function TaskTimeline({ tasks, links = [], late, daysOff, zoom = "week", 
     <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-line-strong bg-surface p-6" data-testid="task-timeline">
       <p className="text-[14px] font-medium text-fg">Nothing on the timeline yet</p>
       <p className="text-[13px] text-muted">Give a task a start or due date and it shows here as a bar you can drag.</p>
-      {onAdd && <button type="button" onClick={onAdd} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[13px] font-medium text-white hover:bg-brand-hover">Add a task</button>}
+      {onAdd && <button type="button" onClick={onAdd} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[13px] font-medium text-white hover:bg-brand-press">Add a task</button>}
     </div>
   );
   if (narrow && !phoneChart) return (

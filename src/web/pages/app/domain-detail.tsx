@@ -115,7 +115,7 @@ function SetupProgress({ domain: d, passing, required, mailboxes }: { domain: Do
       <Stepper steps={steps} current={current} label={`Setup of ${d.name}`} />
       <div className="mt-4 flex flex-col gap-3 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm"><span className="font-semibold">{current === -1 ? "All set. " : "Next step. "}</span><span className="text-muted">{line}</span></p>
-        {next === "mailbox" && <Link to={appHref("/app/mailboxes")} className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand px-3.5 text-[13px] font-medium text-white transition-colors duration-150 hover:bg-brand-hover max-sm:min-h-11">Create a mailbox</Link>}
+        {next === "mailbox" && <Link to={appHref("/app/mailboxes")} className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand px-3.5 text-[13px] font-medium text-white transition-colors duration-150 hover:bg-brand-press max-sm:min-h-11">Create a mailbox</Link>}
         {next === "records" && <a href="#dns-records" className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-fill px-3.5 text-[13px] font-medium transition-colors duration-150 hover:bg-hover max-sm:min-h-11">Show the records</a>}
       </div>
     </Card>

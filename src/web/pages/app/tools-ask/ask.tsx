@@ -261,7 +261,7 @@ function AskInner() {
   if (state.isPending) return frame(<div className="space-y-3"><Skeleton className="h-28 rounded-xl" /><Skeleton className="h-40 rounded-xl" /></div>);
   if (state.isError) return frame(<LoadFailure block error={state.error} onRetry={() => state.refetch()} />);
   if (state.data?.aiOff) return frame(<div data-testid="ask-ai-off"><EmptyState icon={<IconChatQuote className="h-6 w-6" />} title="AI is off" body={state.data.reason ?? ""}
-    action={state.data.canEnable ? <Link to="/app/settings#ai-trust" className={`inline-flex min-h-11 items-center rounded-lg bg-brand px-4 text-[14px] font-medium text-brand-fg hover:bg-brand/90 ${ring}`} data-testid="ask-ai-off-settings">Open AI settings</Link> : undefined} /></div>);
+    action={state.data.canEnable ? <Link to="/app/settings#ai-trust" className={`inline-flex min-h-11 items-center rounded-lg bg-brand px-4 text-[14px] font-medium text-brand-fg hover:bg-brand-press ${ring}`} data-testid="ask-ai-off-settings">Open AI settings</Link> : undefined} /></div>);
   if (!state.data?.available) return frame(<EmptyState icon={<IconChatQuote className="h-6 w-6" />} title="Ask is not available here" body={state.data?.reason ?? "AI is not available right now. Try again later."} />);
 
   return frame(

@@ -137,6 +137,13 @@ export const BUILTIN_TOURS: TourDef[] = [
 export const builtinToursFor = (phone: boolean) => BUILTIN_TOURS.filter((t) => (phone ? !t.desktopOnly : !t.phoneOnly));
 export const builtinTour = (id: string) => BUILTIN_TOURS.find((t) => t.id === id) ?? null;
 
+/** MB-329: "1 step", "2 steps". */
+export const stepsLabel = (n: number) => `${n} ${n === 1 ? "step" : "steps"}`;
+/** MB-327: the side rail and the sidebar (its section links and account button) are not on the phone layout. */
+export const hiddenOnPhone = (target: string) => /^(rail|nav|sidebar)-/.test(target);
+/** MB-327: a workspace tour with steps that all point at parts phones do not show can only run on computers and tablets. */
+export const desktopOnlySteps = (steps: { target: string }[]) => steps.length > 0 && steps.every((s) => hiddenOnPhone(s.target));
+
 /** The data-tour id for an app link (nav-app-contacts for /app/contacts). */
 export const navTourId = (to: string, prefix = "nav") => `${prefix}-${to.replace(/^\//, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/-+$/, "")}`.slice(0, 80);
 
