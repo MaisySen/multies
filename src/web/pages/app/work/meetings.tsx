@@ -130,7 +130,7 @@ function Room({ join, onLeave, prefs, member, guestToken, title }: { join: Join;
               onConnected={() => { connected.current = true; }}
               onError={(e) => { if (!connected.current) setFailed(e.message); }}
               onDisconnected={() => { if (connected.current) onLeave(); else setFailed("disconnected"); }} style={{ height: "100%" }}>
-              <RecordingLayer join={join} />
+              <RecordingLayer join={join} title={title} />
               <VideoConference />
               <CallRoomExtras meetingId={meetingId} />
             </LiveKitRoom>

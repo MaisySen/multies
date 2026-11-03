@@ -74,6 +74,8 @@ export interface AppConfig {
   crmTd10?: boolean;
   /** TD9: PORTAL_TD9 (client portal access per area, live project view, private comments). Needs CLIENT_PORTAL. Off unless set; off = R120 exactly. */
   portalTd9?: boolean;
+  /** VID1: VIDEO_REC_VID1 (an owner or admin saves a video of the whole call on their own device; nothing uploaded). Off unless set; off = today exactly. */
+  videoRecVid1?: boolean;
   /** R125: tables, a doc type (TABLES_R125). Off unless set. */
   tablesR125?: boolean;
   /** POL1: P1 polish, new behaviour only (tables and courses to the trash with restore). POLISH_POL1, off unless set. */
@@ -491,6 +493,7 @@ const EnvSchema = z.object({
   ASK_TD1: z.string().optional(), // TD1
   CRM_TD10: z.string().optional(), // TD10
   PORTAL_TD9: z.string().optional(), // TD9
+  VIDEO_REC_VID1: z.string().optional(), // VID1
   TABLES_R125: z.string().optional(), // R125
   POLISH_POL1: z.string().optional(), // POL1
   TABLES_EXCLUDE: z.string().optional(), // R125
@@ -653,7 +656,8 @@ const EnvSchema = z.object({
   // R26 (DF-18): the workspace that receives the company's own addresses (support@, security@).
   OPERATOR_INBOX_ORG_ID: z.string().optional(),
   OPERATOR_INBOX_ADDRESSES: z.string().optional(),
-  LIVEKIT_URL: z.string().regex(/^(wss|https):\/\//).optional(),
+  // VID1: ws://localhost (a local LiveKit dev server for the call recording E2E) is allowed outside production only (loadConfig refuses it there).
+  LIVEKIT_URL: z.string().regex(/^((wss|https):\/\/|ws:\/\/(localhost|127\.0\.0\.1)(:\d{2,5})?\/?$)/).optional(),
   CALLS_TEST_HOOK: z.string().optional(),
   E2E_LOCAL_RATE_KEYS: z.string().optional(),
   LIVEKIT_API_KEY: z.string().optional(),
@@ -824,6 +828,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     askTd1: ["1", "true", "on"].includes(String(env.ASK_TD1 ?? "").toLowerCase()), // TD1
     crmTd10: ["1", "true", "on"].includes(String(env.CRM_TD10 ?? "").toLowerCase()), // TD10
     portalTd9: ["1", "true", "on"].includes(String(env.PORTAL_TD9 ?? "").toLowerCase()), // TD9
+    videoRecVid1: ["1", "true", "on"].includes(String(env.VIDEO_REC_VID1 ?? "").toLowerCase()), // VID1
     tablesR125: ["1", "true", "on"].includes(String(env.TABLES_R125 ?? "").toLowerCase()), // R125
     polishPol1: ["1", "true", "on"].includes(String(env.POLISH_POL1 ?? "").toLowerCase()), // POL1
     tablesExclude: env.TABLES_EXCLUDE ?? "", // R125
@@ -1029,7 +1034,10 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     bodyStore: env.BODY_STORE_ENDPOINT && env.BODY_STORE_BUCKET && env.BODY_STORE_ACCESS_KEY_ID && env.BODY_STORE_SECRET_ACCESS_KEY
       ? { endpoint: env.BODY_STORE_ENDPOINT, bucket: env.BODY_STORE_BUCKET, region: env.BODY_STORE_REGION ?? "auto", accessKeyId: env.BODY_STORE_ACCESS_KEY_ID, secretAccessKey: env.BODY_STORE_SECRET_ACCESS_KEY }
       : undefined,
-    meetings: env.LIVEKIT_URL && env.LIVEKIT_API_KEY && env.LIVEKIT_API_SECRET ? { url: env.LIVEKIT_URL, apiKey: env.LIVEKIT_API_KEY, apiSecret: env.LIVEKIT_API_SECRET } : undefined,
+    meetings: (() => {
+      if (env.LIVEKIT_URL?.startsWith("ws://") && mode === "production") throw new ConfigError("LIVEKIT_URL must be wss:// or https:// in production (ws://localhost is for local tests only).");
+      return undefined;
+    })() ?? (env.LIVEKIT_URL && env.LIVEKIT_API_KEY && env.LIVEKIT_API_SECRET ? { url: env.LIVEKIT_URL, apiKey: env.LIVEKIT_API_KEY, apiSecret: env.LIVEKIT_API_SECRET } : undefined),
     callsTestHook: (() => {
       if (!["1", "true", "on", "yes"].includes(String(env.CALLS_TEST_HOOK ?? "").toLowerCase())) return false;
       if (mode === "production") throw new ConfigError("CALLS_TEST_HOOK fakes video rooms for local tests and can't be on in production.");

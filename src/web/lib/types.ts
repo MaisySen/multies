@@ -51,6 +51,8 @@ export interface PublicConfig {
   /** TD10: CRM suggestions, saved analyses, shortcut switch (CRM_TD10). */
   crmTd10?: boolean;
   portalTd9?: boolean;
+  /** VID1: owners and admins can save a video of the whole call on their own device. */
+  videoRecVid1?: boolean;
   /** R128: team password vault (VAULT_R128). */
   vaultR128?: boolean;
   /** R94: CRM timeline (notes are searchable with R98). */

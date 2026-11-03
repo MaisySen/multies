@@ -10,10 +10,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRoomContext } from "@livekit/components-react";
 import { RoomEvent, Track, type RemoteTrack } from "livekit-client";
-import { IconChecklist, IconCircle, IconDocs, IconDownload, IconKey, IconMic, IconSquare, IconTrash } from "@/web/components/ui/icon";
+import { IconChecklist, IconCircle, IconDocs, IconDownload, IconKey, IconMic, IconSquare, IconTrash, IconVideo } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
-import { useMe } from "@/web/lib/queries";
+import { useConfig, useMe } from "@/web/lib/queries";
 import { zonedDateTime } from "@/web/lib/format";
 import { showError } from "@/web/lib/show-error";
 import { Button, ButtonLink } from "@/web/components/ui/button";
@@ -22,6 +22,8 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Badge, Card } from "@/web/components/ui/misc";
 import { blobToBase64, CallRecorder, decodeSignal, encodeSignal, RECORDING_TOPIC, UploadQueue, type Chunk, type RecordingSignal } from "@/web/lib/call-recorder";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
+import { useVideoRecording, VideoRecordDialog, VIDEO_CONSENT_OTHERS, VIDEO_CONSENT_SELF } from "./video-record-vid1"; // VID1
+import type { Writable } from "@/web/lib/video-rec-vid1"; // VID1
 
 export interface ActionItem { text: string; assignee: string | null; due: string | null }
 export interface Recording {
@@ -69,11 +71,17 @@ export function RecordSetupPrompt({ setup, compact }: { setup: Pick<RecordingSet
 type Join = { meeting?: { id: string } } & Record<string, unknown>;
 
 /** Inside <LiveKitRoom>. Members get the Record control; everyone (guests too) gets the banner. */
-export function RecordingLayer({ join }: { join: unknown }) {
+export function RecordingLayer({ join, title }: { join: unknown; title?: string }) {
   const meetingId = (join as Join | null)?.meeting?.id ?? null;
   const room = useRoomContext();
   const me = useMe();
+  const config = useConfig();
   const myName = me.data?.user?.name || me.data?.user?.email || "Someone";
+  // VID1: owners and admins can also save a video of the call on their own device (VIDEO_REC_VID1).
+  const role = me.data?.organization?.role;
+  const videoAllowed = !!config.data?.videoRecVid1 && !!me.data?.user && (role === "owner" || role === "admin");
+  const video = useVideoRecording(room);
+  const [videoOpen, setVideoOpen] = useState(false);
   const [signal, setSignal] = useState<RecordingSignal | null>(null);
   const [mine, setMine] = useState<{ id: string; startedAt: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -84,10 +92,20 @@ export function RecordingLayer({ join }: { join: unknown }) {
   const recorder = useRef<CallRecorder | null>(null);
   const queue = useRef<UploadQueue | null>(null);
   const noticed = useRef(false);
+  const noticedVideo = useRef(false);
+  /** What this person is broadcasting while they record (sent again to everyone who joins). */
+  const mySignal = useRef<RecordingSignal | null>(null);
+  const stopping = useRef(false);
+  const recordingMine = !!mine || video.active;
 
   const broadcast = useCallback(async (s: RecordingSignal) => {
     try { await room.localParticipant.publishData(encodeSignal(s), { reliable: true, topic: RECORDING_TOPIC }); } catch { /* the banner still shows locally */ }
   }, [room]);
+  const announce = useCallback((s: RecordingSignal | null) => {
+    mySignal.current = s;
+    setSignal(s);
+    if (s) { noticed.current = true; noticedVideo.current = noticedVideo.current || !!s.video; void broadcast(s); }
+  }, [broadcast]);
 
   // The banner: data messages from whoever records.
   useEffect(() => {
@@ -96,7 +114,11 @@ export function RecordingLayer({ join }: { join: unknown }) {
       const s = decodeSignal(payload);
       if (!s) return;
       setSignal(s.on ? s : null);
-      if (s.on && !noticed.current) { noticed.current = true; toast(`${s.by} is recording this call`, { description: CONSENT_TEXT }); }
+      if (s.on && s.video && !noticedVideo.current) {
+        noticedVideo.current = true;
+        noticed.current = true;
+        toast(`${s.by} is saving a video of this call`, { description: VIDEO_CONSENT_OTHERS });
+      } else if (s.on && !noticed.current) { noticed.current = true; toast(`${s.by} is recording this call`, { description: CONSENT_TEXT }); }
     };
     room.on(RoomEvent.DataReceived, onData);
     return () => { room.off(RoomEvent.DataReceived, onData); };
@@ -110,34 +132,35 @@ export function RecordingLayer({ join }: { join: unknown }) {
       if (!live) return;
       setSetup(r.setup);
       const on = r.recordings.find((x) => x.status === "recording" && !x.stale);
-      if (on && !recorder.current) {
-        setSignal({ on: true, by: on.startedBy.name, recordingId: on.id, startedAt: on.startedAt });
+      if (on && !recorder.current && !mySignal.current) {
+        setSignal((cur) => cur ?? { on: true, by: on.startedBy.name, recordingId: on.id, startedAt: on.startedAt });
         if (!noticed.current) { noticed.current = true; toast(`${on.startedBy.name} is recording this call`, { description: CONSENT_TEXT }); }
       }
     }).catch(() => undefined);
     return () => { live = false; };
   }, [meetingId]);
 
-  // While recording: every remote audio track joins the mix, and newcomers hear that it is on.
+  // While recording: every remote audio track joins the mix(es), and newcomers hear that it is on.
   useEffect(() => {
-    if (!mine) return;
-    const onTrack = (track: RemoteTrack) => { if (track.kind === Track.Kind.Audio) recorder.current?.addTrack(track.mediaStreamTrack); };
-    const onGone = (track: RemoteTrack) => { if (track.kind === Track.Kind.Audio) recorder.current?.removeTrack(track.mediaStreamTrack); };
-    const onJoin = () => void broadcast({ on: true, by: myName, recordingId: mine.id, startedAt: mine.startedAt });
-    const onLocal = () => { const t = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track?.mediaStreamTrack; if (t) recorder.current?.addTrack(t); };
+    if (!recordingMine) return;
+    const mixers = () => [recorder.current, video.mixer()].filter((m): m is NonNullable<typeof m> => !!m);
+    const onTrack = (track: RemoteTrack) => { if (track.kind === Track.Kind.Audio) for (const m of mixers()) m.addTrack(track.mediaStreamTrack); };
+    const onGone = (track: RemoteTrack) => { if (track.kind === Track.Kind.Audio) for (const m of mixers()) m.removeTrack(track.mediaStreamTrack); };
+    const onJoin = () => { if (mySignal.current) void broadcast(mySignal.current); };
+    const onLocal = () => { const t = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track?.mediaStreamTrack; if (t) for (const m of mixers()) m.addTrack(t); };
     room.on(RoomEvent.TrackSubscribed, onTrack).on(RoomEvent.TrackUnsubscribed, onGone).on(RoomEvent.ParticipantConnected, onJoin).on(RoomEvent.LocalTrackPublished, onLocal);
     const tick = setInterval(() => setElapsed(recorder.current?.elapsedSec ?? 0), 1000);
     return () => { room.off(RoomEvent.TrackSubscribed, onTrack).off(RoomEvent.TrackUnsubscribed, onGone).off(RoomEvent.ParticipantConnected, onJoin).off(RoomEvent.LocalTrackPublished, onLocal); clearInterval(tick); };
-  }, [mine, room, broadcast, myName]);
+  }, [recordingMine, room, broadcast, video.mixer]);
 
-  const start = async () => {
-    if (!meetingId) return;
-    if (setup && !setup.ready) { setSetupOpen(true); return; }
-    if (typeof MediaRecorder === "undefined" || typeof AudioContext === "undefined") { toast.error("This browser can't record audio. Try Chrome, Edge, Firefox or Safari."); return; }
-    setBusy(true);
+  /** The audio recording for the transcript (R23.2). Answers the started recording, or null when it did not start. */
+  const startAudio = async (o: { quiet?: boolean } = {}): Promise<{ id: string; startedAt: string } | null> => {
+    if (!meetingId) return null;
+    if (setup && !setup.ready) { if (!o.quiet) setSetupOpen(true); return null; }
+    if (typeof MediaRecorder === "undefined" || typeof AudioContext === "undefined") { toast.error("This browser can't record audio. Try Chrome, Edge, Firefox or Safari."); return null; }
     try {
       const { recording } = await api.post<{ recording: { id: string; startedAt: string; startedBy: { id: string } }; joined: boolean }>(`/meetings/${meetingId}/recordings`, {});
-      if (recording.startedBy.id !== me.data?.user?.id) { toast("Someone in the call is already recording."); return; }
+      if (recording.startedBy.id !== me.data?.user?.id) { toast("Someone in the call is already recording."); return null; }
       const upload = async (c: Chunk) => {
         await api.put(`/meetings/${meetingId}/recordings/${recording.id}/chunks/${c.seq}`, { audioBase64: await blobToBase64(c.blob), mime: c.blob.type, offsetSec: c.offsetSec, durationSec: c.durationSec });
       };
@@ -149,56 +172,102 @@ export function RecordingLayer({ join }: { join: unknown }) {
       await r.start();
       recorder.current = r;
       setDownload(null);
-      setMine({ id: recording.id, startedAt: recording.startedAt });
-      const s = { on: true, by: myName, recordingId: recording.id, startedAt: recording.startedAt };
-      setSignal(s);
-      noticed.current = true;
-      void broadcast(s);
+      const started = { id: recording.id, startedAt: recording.startedAt };
+      setMine(started);
+      return started;
     } catch (e) {
-      if (e instanceof ApiError && isSetupCode(e.code)) setSetupOpen(true); else showError(e as Error);
+      if (e instanceof ApiError && isSetupCode(e.code)) { if (!o.quiet) setSetupOpen(true); } else showError(e as Error);
+      return null;
+    }
+  };
+
+  const start = async () => {
+    setBusy(true);
+    try {
+      const started = await startAudio();
+      if (started) announce({ on: true, by: myName, recordingId: started.id, startedAt: started.startedAt });
     } finally { setBusy(false); }
   };
 
-  const stop = async () => {
-    if (!meetingId || !mine || !recorder.current) return;
-    setBusy(true);
+  /** VID1: the dialog's Start. The transcript runs too when the AI key is set; the video starts either way. */
+  const startWithVideo = async (writable: Writable | null, fileName: string, mime: string) => {
+    const audio = setup?.ready ? await startAudio({ quiet: true }) : null;
+    try {
+      await video.start({ writable, fileName, mime, audio: audio ? recorder.current?.stream ?? null : null, transcript: !!audio });
+    } catch (e) {
+      // The video could not start: the transcript (if it started) keeps going and says so on the banner.
+      if (audio) announce({ on: true, by: myName, recordingId: audio.id, startedAt: audio.startedAt });
+      throw e;
+    }
+    setVideoOpen(false);
+    announce({ on: true, by: myName, recordingId: audio?.id ?? null, startedAt: audio?.startedAt ?? new Date().toISOString(), video: true });
+  };
+
+  const stopAudio = async (cur: { id: string; startedAt: string }) => {
+    if (!meetingId || !recorder.current) return;
     try {
       const whole = await recorder.current.stop();
       const durationSec = recorder.current.elapsedSec;
       recorder.current = null;
-      void broadcast({ on: false, by: myName, recordingId: mine.id, startedAt: null });
-      setSignal(null);
       await queue.current?.flush();
       if (whole) setDownload(URL.createObjectURL(whole));
-      const r = await api.post<{ recording: Recording; posted: { type: string } | null }>(`/meetings/${meetingId}/recordings/${mine.id}/stop`, { durationSec });
+      const r = await api.post<{ recording: Recording; posted: { type: string } | null }>(`/meetings/${meetingId}/recordings/${cur.id}/stop`, { durationSec });
       toast.success(r.recording.status === "done" && r.posted ? (r.posted.type === "chat" ? "Summary posted to the chat" : "Summary sent to the attendees") : "Recording stopped");
       if (queue.current?.failed) toast.error(`Part of the audio didn't transcribe: ${queue.current.failed.message}`);
-    } catch (e) { showError(e as Error); } finally { setMine(null); setBusy(false); }
+    } catch (e) { showError(e as Error); } finally { setMine(null); }
   };
 
+  const stop = async () => {
+    if (!recordingMine) return;
+    setBusy(true);
+    stopping.current = true;
+    try {
+      // The video first (it records the mix the transcript recorder owns), then the transcript.
+      if (video.active) await video.stop();
+      const was = mySignal.current;
+      void broadcast({ on: false, by: myName, recordingId: was?.recordingId ?? mine?.id ?? null, startedAt: null });
+      mySignal.current = null;
+      setSignal(null);
+      if (mine) await stopAudio(mine);
+    } finally { stopping.current = false; setBusy(false); }
+  };
+
+  // VID1: a video that stopped on its own (size limit, recorder error, leaving) ends the banner if nothing else records.
+  useEffect(() => {
+    if (video.active || stopping.current || !mySignal.current?.video) return;
+    if (mine) announce({ on: true, by: myName, recordingId: mine.id, startedAt: mine.startedAt });
+    else { void broadcast({ on: false, by: myName, recordingId: mySignal.current.recordingId, startedAt: null }); mySignal.current = null; setSignal(null); }
+  }, [video.active, mine, myName, announce, broadcast]);
+
+  const shown = video.active ? video.elapsed : elapsed;
   return (
     <div style={{ position: "relative", height: 0, zIndex: 20 }}>
       <div className="pointer-events-none absolute inset-x-0 top-2 flex flex-col items-center gap-2 px-3">
         {signal && (
-          <div role="status" className="pointer-events-auto flex items-center gap-2 rounded-full bg-[#d70015] px-3 py-1.5 text-[12.5px] font-medium text-white shadow-lg" data-testid="recording-banner">
-            <IconCircle filled className="h-2.5 w-2.5 animate-pulse" />
-            Recording
-            <span className="font-normal text-white/85">started by {mine ? "you" : signal.by}{mine ? ` · ${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}` : ""}</span>
+          <div role="status" className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-[#d70015] px-3 py-1.5 text-[12.5px] font-medium text-white shadow-lg" data-testid="recording-banner" data-video={signal.video ? "1" : undefined}>
+            <IconCircle filled className="h-2.5 w-2.5 shrink-0 animate-pulse" />
+            <span className="shrink-0">{signal.video ? "Recording video" : "Recording"}</span>
+            <span className="min-w-0 truncate font-normal text-white/85">started by {recordingMine ? "you" : signal.by}{recordingMine ? ` · ${Math.floor(shown / 60)}:${String(shown % 60).padStart(2, "0")}` : ""}</span>
           </div>
         )}
         {meetingId && (
-          <div className="pointer-events-auto flex items-center gap-2">
-            {mine
+          <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2">
+            {recordingMine
               ? <Button size="sm" variant="danger" loading={busy} onClick={() => void stop()} data-testid="record-stop"><IconSquare filled className="h-3.5 w-3.5" />Stop recording</Button>
-              : !signal && <Button size="sm" variant="secondary" loading={busy} onClick={() => void start()} data-testid="record-start"><IconMic className="h-3.5 w-3.5" />Record</Button>}
-            {download && !mine && <a href={download} download="call-audio.webm" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/90 px-3 text-[13px] font-medium text-fg shadow"><IconDownload className="h-4 w-4" />Download audio</a>}
+              : !signal && <Button size="sm" variant="secondary" loading={busy} onClick={() => (videoAllowed ? setVideoOpen(true) : void start())} data-testid="record-start">{videoAllowed ? <IconVideo className="h-3.5 w-3.5" /> : <IconMic className="h-3.5 w-3.5" />}Record</Button>}
+            {download && !recordingMine && <a href={download} download="call-audio.webm" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/90 px-3 text-[13px] font-medium text-fg shadow"><IconDownload className="h-4 w-4" />Download audio</a>}
+            {video.saved && !recordingMine && <a href={video.saved.url} download={video.saved.name} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/90 px-3 text-[13px] font-medium text-fg shadow" data-testid="video-save-again"><IconDownload className="h-4 w-4" />Save video</a>}
           </div>
         )}
-        {mine && <p className="rounded-md bg-black/60 px-2 py-1 text-[12px] text-white" data-testid="record-consent">{CONSENT_TEXT}</p>}
+        {recordingMine && <p className="max-w-full rounded-md bg-black/60 px-2 py-1 text-center text-[12px] text-white" data-testid="record-consent">{video.active ? VIDEO_CONSENT_SELF : CONSENT_TEXT}</p>}
       </div>
       <Dialog open={setupOpen} onClose={() => setSetupOpen(false)} title="Record and transcribe">
         <RecordSetupPrompt setup={setup} compact />
       </Dialog>
+      {videoAllowed && meetingId && (
+        <VideoRecordDialog open={videoOpen} onClose={() => setVideoOpen(false)} meetingId={meetingId} title={title} transcriptReady={!!setup?.ready}
+          canAudioOnly={!!setup?.ready} onAudioOnly={() => { setVideoOpen(false); void start(); }} onStart={startWithVideo} />
+      )}
     </div>
   );
 }

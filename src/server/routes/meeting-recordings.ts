@@ -29,6 +29,11 @@ export function meetingRecordingRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/:id/recordings", async (c) => c.json({ recordings: await listRecordings(c.var.deps, c.var.auth, c.req.param("id")), setup: await recordingSetup(c.var.deps, c.var.auth) }))
+    // VID1: who may save a video of the call on their own device (owners and admins; 404 while VIDEO_REC_VID1 is off). Writes nothing.
+    .post("/:id/recordings/video", async (c) => {
+      const { videoRecordingPermit } = await import("../services/suite/video-rec-vid1");
+      return c.json(await videoRecordingPermit(c.var.deps, c.var.auth, c.req.param("id")));
+    })
     .post("/:id/recordings", async (c) => {
       const r = await startRecording(c.var.deps, c.var.auth, c.req.param("id"));
       return c.json(r, r.joined ? 200 : 201);

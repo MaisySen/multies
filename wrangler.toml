@@ -431,6 +431,7 @@ PASSKEY_DES1 = "on" # DES1: passkey sign in (staging only until verifier PASS; r
 TOOLS_FEATURES = "all"
 CLIENT_PORTAL = "on" # R120: client portals (prod after the verifier passes)
 PORTAL_TD9 = "on" # TD9: portal access per area, live project view, private comments (staging only until verifier PASS)
+VIDEO_REC_VID1 = "on" # VID1: owners and admins save a video of the whole call on their own device, nothing uploaded (staging only until verifier PASS)
 MAIL_ARCHIVE_R111 = "on" # R111: mail archive and retention (prod after the verifier passes; even on, nothing deletes until a workspace admin turns a policy on)
 DOC_ENGINE_URL = "https://doctool.multies.si"
 DOC_ENGINE_KEY_ID = "stg-1"

@@ -11,7 +11,8 @@ export const AUDIO_BITS = 32_000;
 /** The data message topic everyone in the room listens on for the Recording banner. */
 export const RECORDING_TOPIC = "multies.recording";
 
-export interface RecordingSignal { on: boolean; by: string; recordingId: string | null; startedAt: string | null }
+/** VID1: video is true when the person recording also saves a video of the call on their own device (absent otherwise). */
+export interface RecordingSignal { on: boolean; by: string; recordingId: string | null; startedAt: string | null; video?: boolean }
 
 export function encodeSignal(s: RecordingSignal): Uint8Array<ArrayBuffer> {
   return new Uint8Array(new TextEncoder().encode(JSON.stringify({ v: 1, ...s })));
@@ -20,7 +21,7 @@ export function decodeSignal(bytes: Uint8Array): RecordingSignal | null {
   try {
     const o = JSON.parse(new TextDecoder().decode(bytes)) as Partial<RecordingSignal> & { v?: number };
     if (o.v !== 1 || typeof o.on !== "boolean") return null;
-    return { on: o.on, by: typeof o.by === "string" ? o.by.slice(0, 80) : "Someone", recordingId: typeof o.recordingId === "string" ? o.recordingId : null, startedAt: typeof o.startedAt === "string" ? o.startedAt : null };
+    return { on: o.on, by: typeof o.by === "string" ? o.by.slice(0, 80) : "Someone", recordingId: typeof o.recordingId === "string" ? o.recordingId : null, startedAt: typeof o.startedAt === "string" ? o.startedAt : null, ...(o.video === true ? { video: true } : {}) };
   } catch {
     return null;
   }
@@ -78,22 +79,17 @@ export const recorderMime = () => {
   return "";
 };
 
-/** Mixes tracks into one stream and records it in self contained segments. Browser only. */
-export class CallRecorder {
-  private ctx: AudioContext;
-  private dest: MediaStreamAudioDestinationNode;
-  private sources = new Map<string, MediaStreamAudioSourceNode>();
-  private segment: MediaRecorder | null = null;
-  private whole: MediaRecorder | null = null;
-  private wholeParts: Blob[] = [];
-  private timer: ReturnType<typeof setInterval> | null = null;
-  private seq = 0;
-  private segmentStart = 0;
-  private startedAt = 0;
-  private stopping = false;
-  readonly mime = recorderMime();
+/**
+ * The AudioContext mix: every added audio track goes into one destination stream. CallRecorder records it for the
+ * transcript; VID1's video recording takes the same stream as its sound (CallRecorder's when a transcript runs,
+ * a stand alone AudioMixer otherwise). Browser only.
+ */
+export class AudioMixer {
+  protected ctx: AudioContext;
+  protected dest: MediaStreamAudioDestinationNode;
+  protected sources = new Map<string, MediaStreamAudioSourceNode>();
 
-  constructor(private onChunk: (c: Chunk) => void) {
+  constructor() {
     this.ctx = new AudioContext();
     this.dest = this.ctx.createMediaStreamDestination();
   }
@@ -109,6 +105,34 @@ export class CallRecorder {
   removeTrack(track: MediaStreamTrack) {
     this.sources.get(track.id)?.disconnect();
     this.sources.delete(track.id);
+  }
+
+  /** VID1: the mixed sound, for the video recording. */
+  get stream(): MediaStream { return this.dest.stream; }
+
+  async resume() { if (this.ctx.state === "suspended") await this.ctx.resume(); }
+
+  async close() {
+    for (const n of this.sources.values()) n.disconnect();
+    this.sources.clear();
+    await this.ctx.close().catch(() => undefined);
+  }
+}
+
+/** Mixes tracks into one stream and records it in self contained segments. Browser only. */
+export class CallRecorder extends AudioMixer {
+  private segment: MediaRecorder | null = null;
+  private whole: MediaRecorder | null = null;
+  private wholeParts: Blob[] = [];
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private seq = 0;
+  private segmentStart = 0;
+  private startedAt = 0;
+  private stopping = false;
+  readonly mime = recorderMime();
+
+  constructor(private onChunk: (c: Chunk) => void) {
+    super();
   }
 
   private startSegment() {
@@ -127,7 +151,7 @@ export class CallRecorder {
   }
 
   async start() {
-    if (this.ctx.state === "suspended") await this.ctx.resume();
+    await this.resume();
     this.startedAt = Date.now();
     this.startSegment();
     this.whole = new MediaRecorder(this.dest.stream, { mimeType: this.mime || undefined, audioBitsPerSecond: AUDIO_BITS });
@@ -154,9 +178,7 @@ export class CallRecorder {
       r.stop();
     });
     await Promise.all([done(this.segment), done(this.whole)]);
-    for (const n of this.sources.values()) n.disconnect();
-    this.sources.clear();
-    await this.ctx.close().catch(() => undefined);
+    await this.close();
     return this.wholeParts.length ? new Blob(this.wholeParts, { type: this.whole?.mimeType || this.mime || "audio/webm" }) : null;
   }
 }
