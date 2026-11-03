@@ -133,6 +133,9 @@ test.beforeAll(async ({ browser }) => {
 });
 test.afterAll(async () => { await ownerCtx?.close(); await mateCtx?.close(); rmSync(TMP, { recursive: true, force: true }); });
 
+/** The recorder's first pieces (a loaded test box can take half a minute before the encoder gives any). */
+const piecesAtLeast = (page: Page, n: number) => expect.poll(() => page.evaluate(() => (window as unknown as { __pieces?: number }).__pieces ?? 0), { timeout: 90_000, intervals: [1000] }).toBeGreaterThanOrEqual(n);
+
 test.describe("VID2 on", () => {
   test.skip(!ON, "VIDEO_REC_VID2 is off in this run");
 
@@ -231,7 +234,7 @@ test.describe("VID2 on", () => {
     const got: string[] = [];
     owner.on("download", async (d) => { if (/\.(webm|mp4)$/.test(d.suggestedFilename())) { const p = `${TMP}/sync-${d.suggestedFilename()}`; await d.saveAs(p); got.push(p); } });
     await owner.getByTestId("record-stop").click();
-    await expect.poll(() => got.length, { timeout: 30_000 }).toBe(1);
+    await expect.poll(() => got.length, { timeout: 60_000 }).toBe(1);
     const { vOn, aOn, range } = onsets(got[0]);
     expect(range).toBeGreaterThan(40); // the flashes are in the video
     const offsets = vOn.map((v) => { const near = aOn.reduce((b, a) => (Math.abs(a - v) < Math.abs(b - v) ? a : b), Number.POSITIVE_INFINITY); return Math.round((near - v) * 1000); }).filter((d) => Math.abs(d) < 500); // a flash cut by the pause has no beep within half a second
@@ -252,11 +255,11 @@ test.describe("VID2 on", () => {
     await expect(hd).toBeChecked();
     await owner.getByTestId("video-rec-memory").click();
     await expect(owner.getByTestId("recording-banner")).toContainText("Recording video", { timeout: 15_000 });
-    await owner.waitForTimeout(4000);
+    await piecesAtLeast(owner, 2);
     const got: string[] = [];
     owner.on("download", async (d) => { if (/\.(webm|mp4)$/.test(d.suggestedFilename())) { const p = `${TMP}/hd-${d.suggestedFilename()}`; await d.saveAs(p); got.push(p); } });
     await owner.getByTestId("record-stop").click();
-    await expect.poll(() => got.length, { timeout: 30_000 }).toBe(1);
+    await expect.poll(() => got.length, { timeout: 60_000 }).toBe(1);
     expect(probe(got[0], "-select_streams v:0 -show_entries stream=width,height").trim()).toBe("1920,1080");
     rmSync(got[0], { force: true });
   });
@@ -430,7 +433,7 @@ test.describe("VID2 off", () => {
     await expect(owner.getByTestId("record-pause")).toHaveCount(0);
     await expect(owner.getByTestId("rec-layout")).toHaveCount(0);
     await expect(owner.getByTestId("call-screen")).not.toHaveAttribute("data-rec", /.+/);
-    await owner.waitForTimeout(5000);
+    await piecesAtLeast(owner, 2);
     const dl = owner.waitForEvent("download", { timeout: 60_000 });
     await owner.getByTestId("record-stop").click();
     expect((await dl).suggestedFilename()).toMatch(/\.(webm|mp4)$/);

@@ -94,10 +94,10 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     body: "On a meeting page, Suggest reads the transcript, the notes or pasted text and lists the action items with who and when. Accept makes a task, Discard drops it, and Follow up email opens a ready draft for you to send."
   },
   {
-    id: "2026-11-02-ai-connect",
-    date: "2026-11-02",
-    title: "AI that works from the start",
-    body: "Built in AI works with no key needed, up to a daily limit for your workspace. Admins can also connect their own AI in Settings, AI: paste a key and the provider is found for you, pick from the live model list and test it before saving.",
+    id: "2026-10-28-whats-new",
+    date: "2026-10-28",
+    title: "What's new, in the app",
+    body: "The account menu has a What's new item, with a small dot when something new has shipped since you last looked. The same list is on the public changelog page.",
   },
 ];
 

@@ -21,8 +21,8 @@ export function ChoiceGroup<T extends string>({ label, value, options, onChange,
 }) {
   const name = useId();
   return (
-    <fieldset className={cn("min-w-0", compact ? "" : "space-y-1.5")} data-testid={testid}>
-      <legend className={compact ? "sr-only" : "text-[12.5px] font-medium text-fg"}>{label}</legend>
+    <fieldset className={cn("min-w-0", compact ? "" : "space-y-1.5")} data-testid={testid} aria-label={compact ? label : undefined}>
+      {!compact && <legend className="text-[12.5px] font-medium text-fg">{label}</legend>}
       <div className={cn("inline-flex max-w-full rounded-lg p-0.5", onDark ? "bg-black/60" : "bg-fill")}>
         {options.map((o) => (
           <label key={o.value} title={o.hint} className={cn("relative cursor-pointer whitespace-nowrap rounded-md px-3 text-[12.5px] font-medium leading-none transition-colors duration-150 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-1 has-[:focus-visible]:outline-brand",
