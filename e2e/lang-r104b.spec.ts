@@ -58,21 +58,25 @@ test.setTimeout(20 * 60_000);
 
 test("flag off: English, no language chunk, no Devanagari on the second wave pages", async ({ browser }) => {
   test.skip(!OFF);
-  const ctx = await browser.newContext({ baseURL: test.info().project.use.baseURL!, locale: "hi-IN", extraHTTPHeaders: { "x-forwarded-for": ip() } });
-  const { p } = await demo(ctx);
-  const chunks: string[] = [];
-  p.on("request", (r) => { if (/\/assets\/(ne|hi)-[\w-]+\.js$/.test(r.url())) chunks.push(r.url()); });
-  expect((await (await p.request.get("/api/config")).json()).langR104).toBe(false);
-  for (const [name, path] of PAGES) {
-    await p.goto(path);
-    await settle(p);
-    expect(await lang(p), name).not.toMatch(/^(ne|hi)/);
-    const text = await p.evaluate(() => document.body.innerText);
-    expect(text.match(DEVA)?.length ?? 0, `${name} has Devanagari with the flag off`).toBe(0);
-    expect(text.match(KEYISH)?.[0] ?? null, `${name} shows a raw key`).toBeNull();
+  // A Hindi browser still gets English words and no language file (dates already follow the browser's own locale
+  // on main, so the Devanagari count is checked in an English browser).
+  for (const locale of ["hi-IN", "en-AU"]) {
+    const ctx = await browser.newContext({ baseURL: test.info().project.use.baseURL!, locale, extraHTTPHeaders: { "x-forwarded-for": ip() } });
+    const { p } = await demo(ctx);
+    const chunks: string[] = [];
+    p.on("request", (r) => { if (/\/assets\/(ne|hi)-[\w-]+\.js$/.test(r.url())) chunks.push(r.url()); });
+    expect((await (await p.request.get("/api/config")).json()).langR104).toBe(false);
+    for (const [name, path] of PAGES) {
+      await p.goto(path);
+      await settle(p);
+      expect(await lang(p), name).not.toMatch(/^(ne|hi)/);
+      const text = await p.evaluate(() => document.body.innerText);
+      if (locale === "en-AU") expect(text.match(DEVA)?.length ?? 0, `${name} has Devanagari with the flag off`).toBe(0);
+      expect(text.match(KEYISH)?.[0] ?? null, `${name} shows a raw key`).toBeNull();
+    }
+    expect(chunks, locale).toEqual([]);
+    await ctx.close();
   }
-  expect(chunks).toEqual([]);
-  await ctx.close();
 });
 
 for (const code of ["ne", "hi"] as const) {
