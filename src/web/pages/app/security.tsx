@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconCheckCircle, IconDownload, IconKey, IconLaptop, IconLogOut, IconMailWarning, IconShieldCheck, IconSmartphone } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
-import { ApiError } from "@/web/lib/api";
+import { ApiError, api } from "@/web/lib/api";
 import { authClient, unwrap } from "@/web/lib/auth-client";
 import { describeUserAgent } from "@/shared/user-agent";
 import { qk, useConfig, useMe } from "@/web/lib/queries";
@@ -211,23 +211,24 @@ function TwoFactorSection() {
   );
 }
 
-interface SessionRow { id: string; token: string; ipAddress?: string | null; userAgent?: string | null; createdAt: string | Date; updatedAt: string | Date }
+/** POL2 (HQ MB-345): from /api/account/sessions; no session token ever reaches the page. */
+interface SessionRow { id: string; current: boolean; ipAddress?: string | null; userAgent?: string | null; createdAt: string | Date; updatedAt: string | Date }
 
 function DevicesSection() {
   const qc = useQueryClient();
-  const current = useQuery({ queryKey: ["session"], queryFn: () => unwrap(authClient.getSession()) });
-  const sessions = useQuery({ queryKey: ["sessions"], queryFn: () => unwrap(authClient.listSessions()) as Promise<SessionRow[]> });
+  const sessions = useQuery({ queryKey: ["sessions"], queryFn: async () => (await api.get<{ sessions: SessionRow[] }>("/account/sessions")).sessions });
   const revoke = useMutation({
-    mutationFn: (token: string) => unwrap(authClient.revokeSession({ token })),
+    mutationFn: (id: string) => api.post(`/account/sessions/${encodeURIComponent(id)}/revoke`, {}),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sessions"] }); toast.success("Signed out that device"); },
     onError: (e) => showError(e),
   });
   const revokeAll = useMutation({
     mutationFn: () => unwrap(authClient.revokeOtherSessions()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sessions"] }); toast.success("Signed out everywhere else"); },
+    onError: (e) => showError(e),
   });
   const rows = (sessions.data ?? [])
-    .map((s) => ({ ...s, current: s.token === current.data?.session.token, device: describeUserAgent(s.userAgent) }))
+    .map((s) => ({ ...s, device: describeUserAgent(s.userAgent) }))
     .sort((a, b) => Number(b.current) - Number(a.current) || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   const others = rows.filter((s) => !s.current).length;
   return (
@@ -247,7 +248,7 @@ function DevicesSection() {
                   <div className="flex items-center gap-2 text-sm font-medium">{s.device.browser} on {s.device.os}{s.current && <Badge tone="ok">This device</Badge>}</div>
                   <div className="truncate text-xs text-muted">{s.ipAddress || "Unknown IP"} · signed in {timeAgo(String(s.createdAt))} · active {timeAgo(String(s.updatedAt))}</div>
                 </div>
-                {!s.current && <Button size="sm" variant="ghost" loading={revoke.isPending && revoke.variables === s.token} onClick={() => revoke.mutate(s.token)} aria-label={`Sign out ${s.device.browser} on ${s.device.os}`}><IconLogOut className="h-3.5 w-3.5" />Sign out</Button>}
+                {!s.current && <Button size="sm" variant="ghost" loading={revoke.isPending && revoke.variables === s.id} onClick={() => revoke.mutate(s.id)} aria-label={`Sign out ${s.device.browser} on ${s.device.os}`}><IconLogOut className="h-3.5 w-3.5" />Sign out</Button>}
               </li>
             ))}
           </ul>

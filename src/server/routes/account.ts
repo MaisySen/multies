@@ -2,7 +2,7 @@ import { optionalWritesPaused } from "../services/write-budget";
 import { exportWorkspace, personalData } from "../services/privacy";
 import { Hono } from "hono";
 import { z } from "zod";
-import { and, count, eq, gt, isNotNull, like, ne, notLike, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, isNotNull, like, ne, notLike, sql } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import type { DB } from "../db";
 import { parseBody, requireAuth } from "../middleware";
@@ -12,6 +12,7 @@ import { beforeUserDelete } from "../services/privacy";
 import { HttpError, notFound, tooMany } from "../lib/errors";
 import { authFor, providersAnswer } from "../auth";
 import { verifyPassword } from "../lib/crypto";
+import { authHeaders } from "../lib/host-cookie";
 import { DbRateLimitStore, RateLimiter } from "../lib/rate-limit";
 import { audit } from "../services/audit";
 import { peekOrgCached } from "../services/plans";
@@ -206,6 +207,26 @@ export function accountRoutes() {
       return c.json({ ok: true });
     })
     .use("*", requireAuth)
+    // POL2 (HQ MB-345): the Devices card on Account and security. Better Auth's own list answers 403 once the
+    // session is older than its 15 minute fresh window, so the card read here instead: only the signed in
+    // person's own sessions, newest first, bounded, and never a session token. Signing one out goes through
+    // Better Auth (revoke-session) after this route has checked the session is the caller's own.
+    .get("/sessions", async (c) => {
+      const { auth, deps } = c.var;
+      const rows = await deps.db.select({ id: sessions.id, ipAddress: sessions.ipAddress, userAgent: sessions.userAgent, createdAt: sessions.createdAt, updatedAt: sessions.updatedAt })
+        .from(sessions).where(and(eq(sessions.userId, auth.userId), gt(sessions.expiresAt, deps.now()))).orderBy(desc(sessions.updatedAt)).limit(50).all();
+      c.header("cache-control", "no-store");
+      return c.json({ sessions: rows.map((r) => ({ ...r, current: r.id === auth.sessionId })) });
+    })
+    .post("/sessions/:id/revoke", async (c) => {
+      const { auth, deps } = c.var;
+      const id = c.req.param("id");
+      if (id === auth.sessionId) throw new HttpError(400, "bad_request", "Use Sign out to end this session.");
+      const row = await deps.db.select({ token: sessions.token }).from(sessions).where(and(eq(sessions.id, id), eq(sessions.userId, auth.userId))).get();
+      if (!row) throw notFound("Session");
+      await authFor(deps).api.revokeSession({ body: { token: row.token }, headers: authHeaders(c.req.raw.headers, deps.config.mode === "production") });
+      return c.json({ ok: true });
+    })
     .get("/me", async (c) => {
       const { auth } = c.var;
       // R40 deploy 3: a workspace that is already onboarded (that never goes back) is read from the short per

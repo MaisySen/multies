@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconBuilding, IconCheck, IconCreditCard, IconCrown, IconDatabase, IconDocs, IconExternalLink, IconGlobe, IconInbox, IconMails, IconMinus, IconPlugZap, IconPlus, IconReceipt, IconSend, IconSliders, IconWarning } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
+import { LoadFailure } from "@/web/components/load-error-t1g";
 import { api } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
 import { ADDON_ORDER, ADDONS, PLANS, YEARLY_BELOW_MONTHLY, YEARLY_MONTHS_CHARGED, chargeFor, yearlyOnly, type Addon, type AddonId, type AddonQuantities, type BillingInterval, type Plan, type PlanId, formatPlanPrice } from "@/shared/plans";
@@ -99,7 +100,8 @@ export function BillingSettings() {
   });
 
   if (billing.isPending) return <Card className="p-6"><Skeleton className="h-6 w-48" /><Skeleton className="mt-4 h-24" /></Card>;
-  if (billing.error) return <Card className="p-6 text-sm text-bad">{billing.error.message}</Card>;
+  // POL2 (HQ MB-325): the plain words with a Retry button, as the other pages show a failed read.
+  if (billing.error) return <Card className="p-0" data-testid="billing-error"><LoadFailure error={billing.error} onRetry={() => billing.refetch()} block /></Card>;
   const b = billing.data;
   const sub = b.subscription;
   const status = sub?.status ? STATUS[sub.status] ?? { label: sub.status, tone: "neutral" as const } : null;

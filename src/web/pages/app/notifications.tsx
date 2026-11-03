@@ -23,7 +23,7 @@ import { CaughtUpArt } from "@/web/components/illustrations"; // R36
 import { KindTile } from "@/web/components/premium4-r39"; // R39 premium pass 4
 import { NOTIFICATION_FILTER_KEY, readStoredFilter } from "@/web/lib/premium4-r39";
 import { AlertStatusLine, DeliverySettings, PauseMenu, useNotificationSettings, useSaveSettings, type ChannelPrefs } from "@/web/components/notification-centre-r97"; // R97
-import { LoadErrorInline } from "@/web/components/load-error-t1g";
+import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
 
 export type NotificationCategory = "mention" | "assignment" | "comment" | "approval" | "due_soon" | "chat" | "email" | "status";
 export interface InboxItem { id: string; type: string; category: NotificationCategory; entityType: string; entityId: string; title: string; actor: { name: string } | null; read: boolean; createdAt: string; link: string; doneAt: string | null; snoozedUntil: string | null }
@@ -171,7 +171,10 @@ export function NotificationsPage() {
         ))}
         <label className="ml-auto flex items-center gap-2 text-[13px] text-muted max-sm:min-h-9 max-sm:pl-2"><input type="checkbox" className="h-4 w-4 accent-[#0071E3]" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />Unread only</label>
       </div>
-      {q.isPending ? <Card className="p-0"><SkeletonRows rows={6} label="Loading notifications" /></Card> : !items.length ? (
+      {q.isPending ? <Card className="p-0"><SkeletonRows rows={6} label="Loading notifications" /></Card> : q.isError && !q.data ? (
+        // POL2 (HQ MB-323): a failed read is not "all caught up"; it says so and offers Retry.
+        <Card className="p-0" data-testid="notifications-error"><LoadError onRetry={() => q.refetch()} /></Card>
+      ) : !items.length ? (
         view === "inbox" ? (
           <EmptyState icon={<IconCheckCircle />} art={<CaughtUpArt />} title="You're all caught up" body="When someone mentions you, assigns you work or needs an approval, it shows here."
             action={<Button size="sm" variant="secondary" onClick={() => setView("done")}>View done</Button>} />
