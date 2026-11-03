@@ -18,6 +18,8 @@ import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { IconMore, IconPin, IconPlus } from "@/web/components/ui/icons";
 import { CHAT_PLUS_LIMITS as L, DECISION_BLOCK_NEEDS_REASON, DECISION_REASON_PLACEHOLDER, DECISION_RESULT_LABEL, POLL_KIND_LABEL, STANCE_LABEL, type PollKind, type Stance } from "@/shared/chat-plus";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-chat"; // R104B
 
 export type Topic = { id: string; channelId: string; name: string; resolved: boolean; unread: number; total: number };
 type Tally = { key: string; label: string; count: number; names: string[] };
@@ -53,21 +55,21 @@ export function TopicBar({ channelId, topicId, onPick, canAdmin }: { channelId: 
   const chip = (active: boolean) => cn("inline-flex min-h-8 max-sm:min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[12.5px] transition-colors duration-150",
     active ? "border-brand bg-brand/10 text-fg" : "border-line text-muted hover:bg-hover hover:text-fg");
   return (
-    <div className="flex items-center gap-1.5 overflow-x-auto border-b border-line px-4 py-1.5 max-sm:px-2" role="toolbar" aria-label="Topics" data-testid="topic-bar">
-      <button type="button" className={chip(!topicId)} aria-pressed={!topicId} onClick={() => onPick(null)}>All messages</button>
+    <div className="flex items-center gap-1.5 overflow-x-auto border-b border-line px-4 py-1.5 max-sm:px-2" role="toolbar" aria-label={tr("chat.topics")} data-testid="topic-bar">
+      <button type="button" className={chip(!topicId)} aria-pressed={!topicId} onClick={() => onPick(null)}>{tr("chat.all_messages")}</button>
       {list.map((t) => (
         <button key={t.id} type="button" className={chip(t.id === topicId)} aria-pressed={t.id === topicId} onClick={() => onPick(t.id)} data-testid="topic-chip">
-          {t.resolved && <span aria-label="Resolved" className="text-ok">✓</span>}
+          {t.resolved && <span aria-label={tr("chat.resolved")} className="text-ok">✓</span>}
           <span className={cn("max-w-40 truncate", t.resolved && "text-subtle")}>{t.name}</span>
           {t.unread > 0 && <span className="rounded-full bg-brand px-1.5 text-[11px] font-semibold text-white" aria-label={`${t.unread} unread`}>{t.unread}</span>}
         </button>
       ))}
-      <button type="button" className={chip(false)} onClick={() => setNaming({ mode: "new" })} data-testid="topic-new"><IconPlus className="h-3.5 w-3.5" aria-hidden />New topic</button>
+      <button type="button" className={chip(false)} onClick={() => setNaming({ mode: "new" })} data-testid="topic-new"><IconPlus className="h-3.5 w-3.5" aria-hidden />{tr("chat.new_topic")}</button>
       {current && (
         <div className="ml-auto shrink-0">
-          <Menu label={`Topic ${current.name}`} trigger={<button type="button" aria-label={`Options for topic ${current.name}`} className="inline-flex h-8 w-8 max-sm:h-11 max-sm:w-11 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-fg" data-testid="topic-more"><IconMore className="h-4 w-4" aria-hidden /></button>}>
-            <MenuItem onSelect={() => void resolve(current)}>{current.resolved ? "Reopen topic" : "Mark as resolved"}</MenuItem>
-            <MenuItem onSelect={() => setNaming({ mode: "rename", topic: current })}>Rename or merge</MenuItem>
+          <Menu label={tr("chat.topic_name", { name: current.name })} trigger={<button type="button" aria-label={tr("chat.options_for_topic_name", { name: current.name })} className="inline-flex h-8 w-8 max-sm:h-11 max-sm:w-11 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-fg" data-testid="topic-more"><IconMore className="h-4 w-4" aria-hidden /></button>}>
+            <MenuItem onSelect={() => void resolve(current)}>{current.resolved ? tr("chat.reopen_topic") : tr("chat.mark_as_resolved")}</MenuItem>
+            <MenuItem onSelect={() => setNaming({ mode: "rename", topic: current })}>{tr("chat.rename_or_merge")}</MenuItem>
           </Menu>
         </div>
       )}
@@ -93,13 +95,13 @@ function TopicDialog({ channelId, topic, onClose, onDone }: { channelId: string;
     } finally { setBusy(false); }
   };
   return (
-    <Dialog open onClose={onClose} title={topic ? "Rename topic" : "New topic"} description={topic ? "Give it a new name. Picking the name of another topic merges the two." : "Topics keep one conversation together inside the channel."}
+    <Dialog open onClose={onClose} title={topic ? tr("chat.rename_topic") : tr("chat.new_topic")} description={topic ? tr("chat.give_it_a_new_name_picking_the_name_of_another_t") : tr("chat.topics_keep_one_conversation_together_inside_the")}
       footer={<>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        {clash ? <Button onClick={() => void save(undefined, true)} disabled={busy} data-testid="topic-merge">Merge topics</Button> : <Button onClick={() => void save()} disabled={busy || !name.trim()} data-testid="topic-save">{topic ? "Save" : "Create topic"}</Button>}
+        <Button variant="ghost" onClick={onClose}>{tr("common.cancel")}</Button>
+        {clash ? <Button onClick={() => void save(undefined, true)} disabled={busy} data-testid="topic-merge">{tr("chat.merge_topics")}</Button> : <Button onClick={() => void save()} disabled={busy || !name.trim()} data-testid="topic-save">{topic ? tr("common.save") : tr("chat.create_topic")}</Button>}
       </>}>
       <form onSubmit={(e) => void save(e)}>
-        <Field label="Topic name" hint={clash ?? undefined}>{(p) => <Input {...p} autoFocus value={name} maxLength={L.topic} onChange={(e) => { setName(e.target.value); setClash(null); }} data-testid="topic-name" />}</Field>
+        <Field label={tr("chat.topic_name_2")} hint={clash ?? undefined}>{(p) => <Input {...p} autoFocus value={name} maxLength={L.topic} onChange={(e) => { setName(e.target.value); setClash(null); }} data-testid="topic-name" />}</Field>
       </form>
     </Dialog>
   );
@@ -112,13 +114,13 @@ export function MoveToTopic({ open, messageId, channelId, current, onClose, onMo
     try { await api.post(`/chat-plus/messages/${messageId}/topic`, { topicId }); onMoved(); } catch (e) { showError(e as Error); }
   };
   return (
-    <Dialog open={open} onClose={onClose} title="Move to topic" description="The message and its thread move together.">
-      <ul className="space-y-1" aria-label="Topics">
-        <li><button type="button" className="w-full rounded-lg px-3 py-2 text-left text-[13.5px] hover:bg-hover disabled:opacity-50" disabled={!current} onClick={() => void move(null)}>No topic</button></li>
+    <Dialog open={open} onClose={onClose} title={tr("chat.move_to_topic")} description={tr("chat.the_message_and_its_thread_move_together")}>
+      <ul className="space-y-1" aria-label={tr("chat.topics")}>
+        <li><button type="button" className="w-full rounded-lg px-3 py-2 text-left text-[13.5px] hover:bg-hover disabled:opacity-50" disabled={!current} onClick={() => void move(null)}>{tr("chat.no_topic")}</button></li>
         {(topics.data ?? []).map((t) => (
           <li key={t.id}><button type="button" className="w-full rounded-lg px-3 py-2 text-left text-[13.5px] hover:bg-hover disabled:opacity-50" disabled={t.id === current} onClick={() => void move(t.id)} data-testid="move-topic-option">{t.resolved ? "✓ " : ""}{t.name}</button></li>
         ))}
-        {topics.data && !topics.data.length && <li className="px-3 py-2 text-[13px] text-subtle">No topics yet. Start one from the topic bar.</li>}
+        {topics.data && !topics.data.length && <li className="px-3 py-2 text-[13px] text-subtle">{tr("chat.no_topics_yet_start_one_from_the_topic_bar")}</li>}
       </ul>
     </Dialog>
   );
@@ -130,12 +132,12 @@ export function ChatPlusAdd({ channelId, topicId, meetingId, isAdmin, onDone, co
   const [kind, setKind] = useState<PollKind | "announce" | null>(null);
   return (
     <>
-      <Menu align="start" label="Add to chat" trigger={<button type="button" aria-label="Add a poll, decision, questions or word cloud" data-testid="chat-plus-add" className={cn("inline-flex items-center gap-1.5 rounded-lg px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg", compact ? "h-8" : "h-8 max-sm:h-11")}><IconPlus className="h-4 w-4" aria-hidden /><span>Add</span></button>}>
-        <MenuItem onSelect={() => setKind("poll")} hint="Ask and count">Poll</MenuItem>
-        <MenuItem onSelect={() => setKind("decision")} hint="Agree, abstain, disagree or block">Decision</MenuItem>
-        <MenuItem onSelect={() => setKind("qa")} hint="Live questions with upvotes">Questions</MenuItem>
-        <MenuItem onSelect={() => setKind("cloud")} hint="Up to three words each">Word cloud</MenuItem>
-        {isAdmin && channelId && <MenuItem onSelect={() => setKind("announce")} icon={<IconPin className="h-4 w-4" />}>Announcement</MenuItem>}
+      <Menu align="start" label={tr("chat.add_to_chat")} trigger={<button type="button" aria-label={tr("chat.add_a_poll_decision_questions_or_word_cloud")} data-testid="chat-plus-add" className={cn("inline-flex items-center gap-1.5 rounded-lg px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg", compact ? "h-8" : "h-8 max-sm:h-11")}><IconPlus className="h-4 w-4" aria-hidden /><span>{tr("common.add")}</span></button>}>
+        <MenuItem onSelect={() => setKind("poll")} hint={tr("chat.ask_and_count")}>{tr("chat.poll")}</MenuItem>
+        <MenuItem onSelect={() => setKind("decision")} hint={tr("chat.agree_abstain_disagree_or_block")}>{tr("chat.decision")}</MenuItem>
+        <MenuItem onSelect={() => setKind("qa")} hint={tr("chat.live_questions_with_upvotes")}>{tr("chat.questions")}</MenuItem>
+        <MenuItem onSelect={() => setKind("cloud")} hint={tr("chat.up_to_three_words_each")}>{tr("chat.word_cloud")}</MenuItem>
+        {isAdmin && channelId && <MenuItem onSelect={() => setKind("announce")} icon={<IconPin className="h-4 w-4" />}>{tr("chat.announcement")}</MenuItem>}
       </Menu>
       {kind === "announce" && channelId && <AnnounceDialog channelId={channelId} topicId={topicId ?? null} onClose={() => setKind(null)} onDone={() => { setKind(null); onDone(); }} />}
       {kind && kind !== "announce" && <NewPollDialog kind={kind} channelId={channelId} topicId={topicId ?? null} meetingId={meetingId} onClose={() => setKind(null)} onDone={() => { setKind(null); onDone(); }} />}
@@ -168,25 +170,25 @@ function NewPollDialog({ kind, channelId, topicId, meetingId, onClose, onDone }:
   };
   return (
     <Dialog open onClose={onClose} title={copy.title} className="sm:max-w-lg"
-      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={() => void submit()} disabled={busy || !question.trim()} data-testid="poll-create">Post</Button></>}>
+      footer={<><Button variant="ghost" onClick={onClose}>{tr("common.cancel")}</Button><Button onClick={() => void submit()} disabled={busy || !question.trim()} data-testid="poll-create">{tr("chat.post")}</Button></>}>
       <form className="space-y-3" onSubmit={(e) => void submit(e)}>
         <Field label={copy.label}>{(p) => <Input {...p} autoFocus value={question} maxLength={L.question} placeholder={copy.ph} onChange={(e) => setQuestion(e.target.value)} data-testid="poll-question" />}</Field>
         {kind === "poll" && (
           <fieldset className="space-y-2">
-            <legend className="mb-1 text-[12.5px] font-medium">Choices</legend>
+            <legend className="mb-1 text-[12.5px] font-medium">{tr("chat.choices")}</legend>
             {options.map((o, i) => (
               <div key={i} className="flex items-center gap-2">
-                <Input aria-label={`Choice ${i + 1}`} value={o} maxLength={L.option} onChange={(e) => setOptions(options.map((x, j) => (j === i ? e.target.value : x)))} data-testid="poll-option" />
-                {options.length > 2 && <Button variant="ghost" size="sm" aria-label={`Remove choice ${i + 1}`} onClick={() => setOptions(options.filter((_, j) => j !== i))}>Remove</Button>}
+                <Input aria-label={tr("chat.choice_count", { count: i + 1 })} value={o} maxLength={L.option} onChange={(e) => setOptions(options.map((x, j) => (j === i ? e.target.value : x)))} data-testid="poll-option" />
+                {options.length > 2 && <Button variant="ghost" size="sm" aria-label={tr("chat.remove_choice_count", { count: i + 1 })} onClick={() => setOptions(options.filter((_, j) => j !== i))}>{tr("common.remove")}</Button>}
               </div>
             ))}
-            {options.length < L.maxOptions && <Button variant="ghost" size="sm" onClick={() => setOptions([...options, ""])} data-testid="poll-add-option">Add a choice</Button>}
-            <label className="flex items-center gap-2 text-[13px]"><input type="checkbox" checked={multi} onChange={(e) => setMulti(e.target.checked)} /> People can pick more than one</label>
-            <label className="flex items-center gap-2 text-[13px]"><input type="checkbox" checked={anonymous} onChange={(e) => setAnonymous(e.target.checked)} /> Hide who voted for what</label>
+            {options.length < L.maxOptions && <Button variant="ghost" size="sm" onClick={() => setOptions([...options, ""])} data-testid="poll-add-option">{tr("chat.add_a_choice")}</Button>}
+            <label className="flex items-center gap-2 text-[13px]"><input type="checkbox" checked={multi} onChange={(e) => setMulti(e.target.checked)} /> {tr("chat.people_can_pick_more_than_one")}</label>
+            <label className="flex items-center gap-2 text-[13px]"><input type="checkbox" checked={anonymous} onChange={(e) => setAnonymous(e.target.checked)} /> {tr("chat.hide_who_voted_for_what")}</label>
           </fieldset>
         )}
-        {kind === "decision" && <p className="text-[12.5px] text-muted">Everyone picks Agree, Abstain, Disagree or Block. Any block stops it; otherwise it is agreed when more people agree than disagree. The outcome is posted in the thread when it closes.</p>}
-        <Field label={kind === "decision" ? "Deadline" : "Ends (optional)"}>{(p) => <Input {...p} type="datetime-local" value={ends} onChange={(e) => setEnds(e.target.value)} data-testid="poll-ends" />}</Field>
+        {kind === "decision" && <p className="text-[12.5px] text-muted">{tr("chat.everyone_picks_agree_abstain_disagree_or_block_a")}</p>}
+        <Field label={kind === "decision" ? tr("chat.deadline") : tr("chat.ends_optional")}>{(p) => <Input {...p} type="datetime-local" value={ends} onChange={(e) => setEnds(e.target.value)} data-testid="poll-ends" />}</Field>
       </form>
     </Dialog>
   );
@@ -201,9 +203,9 @@ function AnnounceDialog({ channelId, topicId, onClose, onDone }: { channelId: st
     try { await api.post(`/chat-plus/channels/${channelId}/announcements`, { body, topicId }); await qc.invalidateQueries({ queryKey: ["chat-plus", "announcements"] }); onDone(); } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   return (
-    <Dialog open onClose={onClose} title="New announcement" description="It is pinned in the channel and shows in Announcements, with who has seen it."
-      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={() => void submit()} disabled={busy || !body.trim()} data-testid="announce-post">Announce</Button></>}>
-      <Field label="Announcement">{(p) => <Textarea {...p} autoFocus rows={5} value={body} onChange={(e) => setBody(e.target.value)} data-testid="announce-body" />}</Field>
+    <Dialog open onClose={onClose} title={tr("chat.new_announcement")} description={tr("chat.it_is_pinned_in_the_channel_and_shows_in_announc")}
+      footer={<><Button variant="ghost" onClick={onClose}>{tr("common.cancel")}</Button><Button onClick={() => void submit()} disabled={busy || !body.trim()} data-testid="announce-post">{tr("chat.announce")}</Button></>}>
+      <Field label={tr("chat.announcement")}>{(p) => <Textarea {...p} autoFocus rows={5} value={body} onChange={(e) => setBody(e.target.value)} data-testid="announce-body" />}</Field>
     </Dialog>
   );
 }
@@ -227,7 +229,7 @@ export function usePoll(pollId: string, version?: string, guest = false) {
 export function PollCard({ pollId, version, guest }: { pollId: string; version?: string; guest?: boolean }) {
   const q = usePoll(pollId, version, guest);
   if (q.isPending) return <Skeleton className="mt-1 h-24 max-w-md" />;
-  if (!q.data) return <p className="text-[13px] text-subtle">This vote is not available.</p>;
+  if (!q.data) return <p className="text-[13px] text-subtle">{tr("chat.this_vote_is_not_available")}</p>;
   return <PollBody poll={q.data} onChange={() => void q.refetch()} />;
 }
 
@@ -248,8 +250,8 @@ export function PollBody({ poll, onChange }: { poll: PollView; onChange: () => v
       {poll.kind === "cloud" && <Cloud poll={poll} act={act} />}
       {poll.kind === "qa" && <Questions poll={poll} act={act} />}
       <footer className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-subtle">
-        <span>{poll.kind === "qa" ? `${poll.questions?.length ?? 0} ${(poll.questions?.length ?? 0) === 1 ? "question" : "questions"}` : `${poll.voters} ${poll.voters === 1 ? "vote" : "votes"}`}{poll.anonymous ? " · anonymous" : ""} · by {poll.createdByName}</span>
-        {poll.canManage && poll.open && <Button variant="ghost" size="sm" className="ml-auto" onClick={() => void act(`/chat-plus/polls/${poll.id}/close`)} data-testid="poll-close">Close now</Button>}
+        <span>{poll.kind === "qa" ? `${poll.questions?.length ?? 0} ${(poll.questions?.length ?? 0) === 1 ? "question" : "questions"}` : `${poll.voters} ${poll.voters === 1 ? "vote" : "votes"}`}{poll.anonymous ? " · anonymous" : ""} {tr("chat.by")} {poll.createdByName}</span>
+        {poll.canManage && poll.open && <Button variant="ghost" size="sm" className="ml-auto" onClick={() => void act(`/chat-plus/polls/${poll.id}/close`)} data-testid="poll-close">{tr("chat.close_now")}</Button>}
       </footer>
     </section>
   );
@@ -273,10 +275,10 @@ function ChoiceList({ poll, act }: { poll: PollView; act: Act }) {
     <div>
       {poll.kind === "decision" && (poll.standing || poll.outcome?.result) && (
         <p className="mb-2 text-[12.5px]" data-testid="decision-standing">
-          {poll.outcome?.result ? <><strong>Outcome:</strong> {poll.outcome.summary}</> : <>Right now: <strong>{poll.standing!.label}</strong></>}
+          {poll.outcome?.result ? <><strong>{tr("chat.outcome")}</strong> {poll.outcome.summary}</> : <>{tr("chat.right_now")} <strong>{poll.standing!.label}</strong></>}
         </p>
       )}
-      {poll.kind === "poll" && !poll.open && poll.outcome?.winners && <p className="mb-2 text-[12.5px]"><strong>Result:</strong> {poll.outcome.winners.length ? poll.outcome.winners.join(", ") : "No votes"}</p>}
+      {poll.kind === "poll" && !poll.open && poll.outcome?.winners && <p className="mb-2 text-[12.5px]"><strong>{tr("chat.result")}</strong> {poll.outcome.winners.length ? poll.outcome.winners.join(", ") : tr("chat.no_votes")}</p>}
       <ul className={cn(poll.kind === "decision" ? "grid grid-cols-2 gap-1.5 sm:grid-cols-4" : "space-y-1.5")} role="list">
         {poll.tally?.map((t) => {
           const mine = poll.mine.includes(t.key);
@@ -297,15 +299,15 @@ function ChoiceList({ poll, act }: { poll: PollView; act: Act }) {
       </ul>
       {poll.kind === "decision" && poll.canVote && (
         <div className="mt-2">
-          <label className="sr-only" htmlFor={`reason-${poll.id}`}>Your reason</label>
+          <label className="sr-only" htmlFor={`reason-${poll.id}`}>{tr("chat.your_reason")}</label>
           <Input id={`reason-${poll.id}`} placeholder={pendingBlock ? DECISION_BLOCK_NEEDS_REASON : DECISION_REASON_PLACEHOLDER} value={reason} maxLength={L.reason}
             aria-invalid={pendingBlock && !reason.trim()} aria-describedby={pendingBlock ? `reason-err-${poll.id}` : undefined}
             onChange={(e) => { setReason(e.target.value); setPendingBlock(false); }} data-testid="decision-reason" />
-          {pendingBlock && <p id={`reason-err-${poll.id}`} role="alert" className="mt-1 text-[12px] text-bad" data-testid="decision-reason-error">{DECISION_BLOCK_NEEDS_REASON}, then pick Block again.</p>}
+          {pendingBlock && <p id={`reason-err-${poll.id}`} role="alert" className="mt-1 text-[12px] text-bad" data-testid="decision-reason-error">{DECISION_BLOCK_NEEDS_REASON}{tr("chat.then_pick_block_again")}</p>}
         </div>
       )}
       {!!poll.reasons?.length && (
-        <ul className="mt-2 space-y-1 text-[12.5px]" aria-label="Reasons">
+        <ul className="mt-2 space-y-1 text-[12.5px]" aria-label={tr("chat.reasons")}>
           {poll.reasons.map((r, i) => <li key={i}><strong>{r.name}</strong> <span className="text-muted">({STANCE_LABEL[r.stance]})</span>: {r.reason}</li>)}
         </ul>
       )}
@@ -319,15 +321,15 @@ function Cloud({ poll, act }: { poll: PollView; act: Act }) {
   return (
     <div>
       {poll.cloud?.length ? (
-        <p className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 py-2" aria-label="Word cloud" data-testid="word-cloud">
+        <p className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 py-2" aria-label={tr("chat.word_cloud")} data-testid="word-cloud">
           {poll.cloud.map((w) => <span key={w.word} className="text-brand-hover" style={{ fontSize: `${13 + Math.round((w.count / max) * 17)}px`, fontWeight: w.count === max ? 700 : 500 }} title={`${w.count}`}>{w.word}</span>)}
         </p>
-      ) : <p className="py-2 text-center text-[12.5px] text-subtle">No words yet.</p>}
+      ) : <p className="py-2 text-center text-[12.5px] text-subtle">{tr("chat.no_words_yet")}</p>}
       {poll.canVote && (
         <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); void act(`/chat-plus/polls/${poll.id}/vote`, { choices: [text] }); }}>
-          <label className="sr-only" htmlFor={`cloud-${poll.id}`}>Your words</label>
-          <Input id={`cloud-${poll.id}`} placeholder="Up to three words, split with commas" value={text} onChange={(e) => setText(e.target.value)} data-testid="cloud-input" />
-          <Button type="submit" size="sm" disabled={!text.trim()} data-testid="cloud-send">Send</Button>
+          <label className="sr-only" htmlFor={`cloud-${poll.id}`}>{tr("chat.your_words")}</label>
+          <Input id={`cloud-${poll.id}`} placeholder={tr("chat.up_to_three_words_split_with_commas")} value={text} onChange={(e) => setText(e.target.value)} data-testid="cloud-input" />
+          <Button type="submit" size="sm" disabled={!text.trim()} data-testid="cloud-send">{tr("common.send")}</Button>
         </form>
       )}
     </div>
@@ -340,13 +342,13 @@ function Questions({ poll, act }: { poll: PollView; act: Act }) {
     <div>
       {poll.canVote && (
         <form className="mb-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (text.trim()) void act(`/chat-plus/polls/${poll.id}/questions`, { body: text }).then(() => setText("")); }}>
-          <label className="sr-only" htmlFor={`q-${poll.id}`}>Your question</label>
-          <Input id={`q-${poll.id}`} placeholder="Ask a question" maxLength={L.item} value={text} onChange={(e) => setText(e.target.value)} data-testid="qa-input" />
-          <Button type="submit" size="sm" disabled={!text.trim()} data-testid="qa-ask">Ask</Button>
+          <label className="sr-only" htmlFor={`q-${poll.id}`}>{tr("chat.your_question")}</label>
+          <Input id={`q-${poll.id}`} placeholder={tr("chat.ask_a_question")} maxLength={L.item} value={text} onChange={(e) => setText(e.target.value)} data-testid="qa-input" />
+          <Button type="submit" size="sm" disabled={!text.trim()} data-testid="qa-ask">{tr("chat.ask")}</Button>
         </form>
       )}
-      {!poll.questions?.length ? <p className="text-[12.5px] text-subtle">No questions yet.</p> : (
-        <ol className="space-y-1.5" aria-label="Questions">
+      {!poll.questions?.length ? <p className="text-[12.5px] text-subtle">{tr("chat.no_questions_yet")}</p> : (
+        <ol className="space-y-1.5" aria-label={tr("chat.questions")}>
           {poll.questions.map((q) => (
             <li key={q.id} className={cn("flex items-start gap-2 rounded-lg border border-line px-2 py-1.5", q.answered && "bg-fill")} data-testid="qa-item">
               <button type="button" aria-pressed={q.upvoted} aria-label={`${q.votes} ${q.votes === 1 ? "upvote" : "upvotes"}, upvote ${q.body}`} disabled={!poll.canVote || q.mineQuestion || q.answered}
@@ -358,7 +360,7 @@ function Questions({ poll, act }: { poll: PollView; act: Act }) {
                 <p className="text-[13px]">{q.body}</p>
                 <p className="text-[11.5px] text-muted">{q.authorName}{q.answered ? " · answered" : ""}</p>
               </div>
-              {poll.canManage && <Button variant="ghost" size="sm" onClick={() => void act(`/chat-plus/questions/${q.id}/answered`, { answered: !q.answered })}>{q.answered ? "Reopen" : "Answered"}</Button>}
+              {poll.canManage && <Button variant="ghost" size="sm" onClick={() => void act(`/chat-plus/questions/${q.id}/answered`, { answered: !q.answered })}>{q.answered ? tr("chat.reopen") : tr("chat.answered")}</Button>}
             </li>
           ))}
         </ol>
@@ -381,8 +383,8 @@ export function AnnouncementsNav({ active, onOpen }: { active: boolean; onOpen: 
   return (
     <button type="button" onClick={onOpen} aria-current={active ? "page" : undefined} data-testid="announcements-nav"
       className={cn("mb-3 flex min-h-9 max-sm:min-h-11 w-full items-center gap-2 rounded-lg px-2 text-[13.5px]", active ? "bg-selected font-medium" : "text-muted hover:bg-hover hover:text-fg")}>
-      <IconPin className="h-3.5 w-3.5" aria-hidden /><span className="flex-1 text-left">Announcements</span>
-      {n > 0 && <span className="rounded-full bg-brand px-1.5 text-[11px] font-semibold text-white" aria-label={`${formatCount(n)} new`}>{badgeCount(n)}</span>}
+      <IconPin className="h-3.5 w-3.5" aria-hidden /><span className="flex-1 text-left">{tr("chat.announcements")}</span>
+      {n > 0 && <span className="rounded-full bg-brand px-1.5 text-[11px] font-semibold text-white" aria-label={tr("chat.n_new", { n: formatCount(n) })}>{badgeCount(n)}</span>}
     </button>
   );
 }
@@ -405,7 +407,7 @@ export function AnnouncementsFeed({ onOpenMessage }: { onOpenMessage: (channelId
   return (
     <div className="flex-1 overflow-y-auto px-4 py-3 max-sm:px-2" data-testid="announcements-feed">
       {feed.isPending ? <Skeleton className="h-40" /> : !feed.data?.announcements.length ? (
-        <EmptyState icon={<IconPin />} title="No announcements yet" body={feed.data?.canPost ? "Post one from a channel: Add, then Announcement. It is pinned and shows here for everyone who can see the channel." : "When an admin posts an announcement in a channel you can see, it shows here."} />
+        <EmptyState icon={<IconPin />} title={tr("chat.no_announcements_yet")} body={feed.data?.canPost ? "Post one from a channel: Add, then Announcement. It is pinned and shows here for everyone who can see the channel." : "When an admin posts an announcement in a channel you can see, it shows here."} />
       ) : (
         <ul className="mx-auto max-w-2xl space-y-3">
           {feed.data.announcements.map((a) => (
@@ -414,12 +416,12 @@ export function AnnouncementsFeed({ onOpenMessage }: { onOpenMessage: (channelId
                 <span className="font-semibold text-fg">{a.message.author.name}</span>
                 <button type="button" className="hover:underline" onClick={() => onOpenMessage(a.channel.id, a.message.id)}>#{a.channel.name}</button>
                 <time dateTime={a.message.createdAt}>{mailDate(a.message.createdAt)}</time>
-                {!a.seenByMe && <span className="rounded bg-brand/15 px-1.5 text-[11px] text-brand-hover">New</span>}
+                {!a.seenByMe && <span className="rounded bg-brand/15 px-1.5 text-[11px] text-brand-hover">{tr("chat.new")}</span>}
               </div>
               <p className="whitespace-pre-wrap text-[14px]">{a.message.body}</p>
               <Reactions reactions={(a.message as { reactions?: Reaction[] }).reactions} myId={myId} onToggle={(e) => void react(a.message.id, e)} />
               <div className="mt-2 flex items-center gap-2">
-                <button type="button" className="text-[12px] text-muted hover:text-fg hover:underline" onClick={() => setReceipts(a.message.id)} data-testid="announcement-seen">Seen by {a.seenCount} of {a.audience}</button>
+                <button type="button" className="text-[12px] text-muted hover:text-fg hover:underline" onClick={() => setReceipts(a.message.id)} data-testid="announcement-seen">{tr("chat.seen_by")} {a.seenCount} {tr("chat.of")} {a.audience}</button>
                 <ReactionPicker onPick={(e) => void react(a.message.id, e)} className="relative ml-auto" />
               </div>
             </li>
@@ -434,10 +436,10 @@ export function AnnouncementsFeed({ onOpenMessage }: { onOpenMessage: (channelId
 function ReceiptsDialog({ messageId, onClose }: { messageId: string; onClose: () => void }) {
   const q = useQuery({ queryKey: ["chat-plus", "receipts", messageId], queryFn: () => api.get<{ seenCount: number; audience: number; seen: { name: string; readAt: string }[] | null }>(`/chat-plus/announcements/${messageId}/receipts`) });
   return (
-    <Dialog open onClose={onClose} title="Seen by" description={q.data ? `${q.data.seenCount} of ${q.data.audience} people` : undefined}>
+    <Dialog open onClose={onClose} title={tr("chat.seen_by")} description={q.data ? `${q.data.seenCount} of ${q.data.audience} people` : undefined}>
       {q.isPending ? <Skeleton className="h-16" /> : q.data?.seen ? (
         <ul className="max-h-72 space-y-1 overflow-y-auto">{q.data.seen.map((s, i) => <li key={i} className="flex justify-between text-[13px]"><span>{s.name}</span><time className="text-subtle" dateTime={s.readAt}>{mailDate(s.readAt)}</time></li>)}</ul>
-      ) : <p className="text-[13px] text-muted">Only the poster and admins see names.</p>}
+      ) : <p className="text-[13px] text-muted">{tr("chat.only_the_poster_and_admins_see_names")}</p>}
     </Dialog>
   );
 }
@@ -449,8 +451,8 @@ export function MeetingLivePanel({ meetingId, isAdmin }: { meetingId: string; is
   const q = useQuery({ queryKey: ["chat-plus", "meeting", meetingId], refetchInterval: 8000, queryFn: async () => (await api.get<{ polls: PollView[] }>(`/chat-plus/meetings/${meetingId}/polls`)).polls });
   return (
     <div className="space-y-3 p-3" data-testid="meeting-live">
-      <div className="flex items-center justify-between"><h3 className="text-[13px] font-semibold">Live polls and questions</h3><ChatPlusAdd meetingId={meetingId} isAdmin={isAdmin} onDone={() => void q.refetch()} compact /></div>
-      {q.isPending ? <Skeleton className="h-24" /> : !q.data?.length ? <p className="text-[12.5px] text-subtle">Nothing yet. Use Add to run a poll, take questions or make a word cloud during the call.</p>
+      <div className="flex items-center justify-between"><h3 className="text-[13px] font-semibold">{tr("chat.live_polls_and_questions")}</h3><ChatPlusAdd meetingId={meetingId} isAdmin={isAdmin} onDone={() => void q.refetch()} compact /></div>
+      {q.isPending ? <Skeleton className="h-24" /> : !q.data?.length ? <p className="text-[12.5px] text-subtle">{tr("chat.nothing_yet_use_add_to_run_a_poll_take_questions")}</p>
         : q.data.map((p) => <PollBody key={p.id} poll={p} onChange={() => void q.refetch()} />)}
     </div>
   );

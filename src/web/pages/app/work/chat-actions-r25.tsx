@@ -10,15 +10,17 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { cn } from "@/web/lib/cn";
 import type { MessageAction, MessageActionId } from "@/web/lib/message-actions";
 import { EMOJI_GRID, QUICK_EMOJI } from "./chat-r20";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-chat"; // R104B
 
 const ICONS: Partial<Record<MessageActionId, IconComponent>> = { thread: IconChat, copy: IconCopy, translate: IconGlobe, read: IconVolume, triage: IconInbox, task: IconTasks, pin: IconPin, unpin: IconPinOff, edit: IconEdit, delete: IconTrash, report: IconFlag, block: IconBlock };
 
 export async function copyText(text: string) {
   try {
     await navigator.clipboard.writeText(text);
-    toast.success("Copied");
+    toast.success(tr("chat.copied"));
   } catch {
-    toast.error("Couldn't copy on this device.");
+    toast.error(tr("chat.couldn_t_copy_on_this_device"));
   }
 }
 
@@ -32,19 +34,19 @@ export function MessageActionSheet({ open, onClose, author, excerpt, actions, on
   const react = (e: string) => { close(); onReact(e); };
   const canReact = actions.some((a) => a.id === "react");
   return (
-    <Dialog open={open} onClose={close} title="Message actions" description={<span className="line-clamp-2 break-words"><span className="font-medium text-fg">{author}:</span> {excerpt || "(no text)"}</span>} className="[&>div>div:nth-child(2)]:px-3 [&>div>div:nth-child(2)]:pt-3 [&>div>div:nth-child(2)]:pb-3">
+    <Dialog open={open} onClose={close} title={tr("chat.message_actions")} description={<span className="line-clamp-2 break-words"><span className="font-medium text-fg">{author}:</span> {excerpt || tr("chat.no_text")}</span>} className="[&>div>div:nth-child(2)]:px-3 [&>div>div:nth-child(2)]:pt-3 [&>div>div:nth-child(2)]:pb-3">
       <div data-testid="message-action-sheet">
         {canReact && (
           <div className="border-b border-line px-1 pb-3">
-            <div className="flex justify-between" role="group" aria-label="Quick reactions">
+            <div className="flex justify-between" role="group" aria-label={tr("chat.quick_reactions")}>
               {QUICK_EMOJI.map((e) => <button key={e} type="button" onClick={() => react(e)} className="flex h-11 w-11 items-center justify-center rounded-xl text-[22px] hover:bg-hover active:bg-hover" aria-label={`React with ${e}`}>{e}</button>)}
             </div>
             {allEmoji ? (
-              <div className="mt-2 grid max-h-44 grid-cols-8 gap-0.5 overflow-y-auto" role="group" aria-label="All reactions">
+              <div className="mt-2 grid max-h-44 grid-cols-8 gap-0.5 overflow-y-auto" role="group" aria-label={tr("chat.all_reactions")}>
                 {EMOJI_GRID.map((e) => <button key={e} type="button" onClick={() => react(e)} className="flex h-10 w-full items-center justify-center rounded-lg text-[20px] hover:bg-hover active:bg-hover" aria-label={`React with ${e}`}>{e}</button>)}
               </div>
             ) : (
-              <button type="button" onClick={() => setAllEmoji(true)} className="mt-1 h-10 w-full rounded-lg text-[13px] font-medium text-muted hover:bg-hover">More reactions</button>
+              <button type="button" onClick={() => setAllEmoji(true)} className="mt-1 h-10 w-full rounded-lg text-[13px] font-medium text-muted hover:bg-hover">{tr("chat.more_reactions")}</button>
             )}
           </div>
         )}

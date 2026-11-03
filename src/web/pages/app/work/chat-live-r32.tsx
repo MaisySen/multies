@@ -4,6 +4,8 @@
  */
 import { IconRefresh } from "@/web/components/ui/icon";
 import { typingText, useTyping, type TypingStore } from "@/web/lib/live-chat";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-chat"; // R104B
 
 export function ChatLiveLine({ store, channelId, degraded }: { store: TypingStore; channelId: string; degraded: boolean }) {
   const typers = useTyping(store, channelId);
@@ -15,7 +17,7 @@ export function ChatLiveLine({ store, channelId, degraded }: { store: TypingStor
       </span>
       {degraded && (
         <span role="status" data-testid="chat-reconnecting" className="ml-auto inline-flex items-center gap-1 rounded-full bg-hover px-2 py-0.5 text-[11.5px] text-muted">
-          <IconRefresh className="h-3 w-3 motion-safe:animate-spin" aria-hidden />Reconnecting
+          <IconRefresh className="h-3 w-3 motion-safe:animate-spin" aria-hidden />{tr("errors.reconnecting")}
         </span>
       )}
     </div>

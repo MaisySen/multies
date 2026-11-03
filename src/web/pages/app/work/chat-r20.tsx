@@ -14,6 +14,8 @@ import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
 import { useConfig } from "@/web/lib/queries";
 import { LiveCallCard, openCallDock } from "./call-r23";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-chat"; // R104B
 
 export interface Reaction { emoji: string; count: number; reactors: { id: string; name: string }[] }
 
@@ -41,9 +43,9 @@ export function ReactionPicker({ onPick, className }: { onPick: (emoji: string) 
   const pick = (e: string) => { setOpen(false); onPick(e); };
   return (
     <div ref={ref} className={cn("relative", className)}>
-      <Button variant="ghost" size="sm" aria-label="Add reaction" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((o) => !o)} data-testid="reaction-add"><IconReaction className="h-4 w-4" /></Button>
+      <Button variant="ghost" size="sm" aria-label={tr("chat.add_reaction")} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((o) => !o)} data-testid="reaction-add"><IconReaction className="h-4 w-4" /></Button>
       {open && (
-        <div role="dialog" aria-label="Pick a reaction" className="absolute right-0 z-50 mt-1.5 w-72 animate-pop-in rounded-xl border border-line bg-elevated p-2 shadow-pop" data-testid="reaction-picker">
+        <div role="dialog" aria-label={tr("chat.pick_a_reaction")} className="absolute right-0 z-50 mt-1.5 w-72 animate-pop-in rounded-xl border border-line bg-elevated p-2 shadow-pop" data-testid="reaction-picker">
           <div className="flex justify-between border-b border-line pb-2">
             {QUICK_EMOJI.map((e) => <button key={e} type="button" onClick={() => pick(e)} className="flex h-9 w-9 items-center justify-center rounded-lg text-[20px] hover:bg-hover" aria-label={`React with ${e}`}>{e}</button>)}
           </div>
@@ -110,7 +112,7 @@ export function CallButton({ channelId, onStarted }: { channelId: string; onStar
       else navigate(`/app/meetings/${r.meeting.id}`);
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
-  return <Button variant="ghost" size="icon" aria-label="Start a call" title="Start a call" loading={busy} onClick={() => void start()} data-testid="chat-call"><IconVideo className="h-4 w-4" /></Button>;
+  return <Button variant="ghost" size="icon" aria-label={tr("chat.start_a_call")} title={tr("chat.start_a_call")} loading={busy} onClick={() => void start()} data-testid="chat-call"><IconVideo className="h-4 w-4" /></Button>;
 }
 
 // ---------------------------------------------------------------- search
@@ -129,29 +131,29 @@ export function ChatSearch({ channelId, onOpen }: { channelId: string; onOpen: (
     queryKey: ["chat", "search", everywhere ? "" : channelId, q], enabled: open && q.length >= 2, staleTime: 10_000,
     queryFn: async () => (await api.get<{ results: ChatSearchResult[] }>(`/chat/search?q=${encodeURIComponent(q)}&limit=30${everywhere ? "" : `&channelId=${channelId}`}`)).results,
   });
-  if (!open) return <Button variant="ghost" size="icon" aria-label="Search messages" title="Search messages" onClick={() => setOpen(true)} data-testid="chat-search-open"><IconSearch className="h-4 w-4" /></Button>;
+  if (!open) return <Button variant="ghost" size="icon" aria-label={tr("chat.search_messages")} title={tr("chat.search_messages")} onClick={() => setOpen(true)} data-testid="chat-search-open"><IconSearch className="h-4 w-4" /></Button>;
   return (
     <div ref={ref} className="relative">
       <div className="flex items-center gap-1 rounded-lg border border-line bg-surface px-2 focus-within:border-brand/70 focus-within:ring-4 focus-within:ring-brand/15">
         <IconSearch className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden />
-        <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={everywhere ? "Search all chats" : "Search this chat"} aria-label="Search messages"
+        <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={everywhere ? tr("chat.search_all_chats") : tr("chat.search_this_chat")} aria-label={tr("chat.search_messages")}
           className="h-8 w-40 bg-transparent text-[13px] focus:outline-none sm:w-56" data-testid="chat-search" />
-        <button type="button" aria-label="Close search" onClick={() => { setOpen(false); setText(""); }} className="text-subtle hover:text-fg"><IconClose className="h-3.5 w-3.5" /></button>
+        <button type="button" aria-label={tr("chat.close_search")} onClick={() => { setOpen(false); setText(""); }} className="text-subtle hover:text-fg"><IconClose className="h-3.5 w-3.5" /></button>
       </div>
       <div className="absolute right-0 z-50 mt-1.5 w-80 rounded-xl border border-line bg-elevated p-1 shadow-pop" data-testid="chat-search-results">
-        <div className="flex gap-1 p-1 text-[12px]" role="group" aria-label="Where to search">
-          <button type="button" aria-pressed={!everywhere} onClick={() => setEverywhere(false)} className={cn("rounded-md px-2 py-1", !everywhere ? "bg-fill font-medium" : "text-muted hover:bg-hover")}>This chat</button>
-          <button type="button" aria-pressed={everywhere} onClick={() => setEverywhere(true)} className={cn("rounded-md px-2 py-1", everywhere ? "bg-fill font-medium" : "text-muted hover:bg-hover")}>All chats</button>
+        <div className="flex gap-1 p-1 text-[12px]" role="group" aria-label={tr("chat.where_to_search")}>
+          <button type="button" aria-pressed={!everywhere} onClick={() => setEverywhere(false)} className={cn("rounded-md px-2 py-1", !everywhere ? "bg-fill font-medium" : "text-muted hover:bg-hover")}>{tr("chat.this_chat")}</button>
+          <button type="button" aria-pressed={everywhere} onClick={() => setEverywhere(true)} className={cn("rounded-md px-2 py-1", everywhere ? "bg-fill font-medium" : "text-muted hover:bg-hover")}>{tr("chat.all_chats")}</button>
         </div>
-        {q.length < 2 ? <p className="px-3 py-2 text-[12.5px] text-subtle">Type at least 2 letters.</p>
-          : results.isPending ? <p className="px-3 py-2 text-[12.5px] text-subtle">Searching</p>
-          : !results.data?.length ? <p className="px-3 py-2 text-[12.5px] text-subtle">No messages match.</p>
+        {q.length < 2 ? <p className="px-3 py-2 text-[12.5px] text-subtle">{tr("chat.type_at_least_2_letters")}</p>
+          : results.isPending ? <p className="px-3 py-2 text-[12.5px] text-subtle">{tr("chat.searching")}</p>
+          : !results.data?.length ? <p className="px-3 py-2 text-[12.5px] text-subtle">{tr("chat.no_messages_match")}</p>
           : (
             <ul className="max-h-80 overflow-y-auto">
               {results.data.map((r) => (
                 <li key={r.id}>
                   <button type="button" onClick={() => { setOpen(false); onOpen(r); }} className="w-full rounded-lg px-3 py-2 text-left hover:bg-hover" data-testid="chat-search-result">
-                    <span className="flex items-baseline gap-2 text-[12px] text-subtle"><span className="font-medium text-fg">{r.authorName}</span>{everywhere && <span>{r.channel}</span>}{r.parentId && <span>in a thread</span>}<span className="ml-auto">{mailDate(r.createdAt)}</span></span>
+                    <span className="flex items-baseline gap-2 text-[12px] text-subtle"><span className="font-medium text-fg">{r.authorName}</span>{everywhere && <span>{r.channel}</span>}{r.parentId && <span>{tr("chat.in_a_thread")}</span>}<span className="ml-auto">{mailDate(r.createdAt)}</span></span>
                     <span className="line-clamp-2 text-[13px]">{r.preview}</span>
                   </button>
                 </li>
@@ -190,7 +192,7 @@ export function JumpToUnread({ first, onJump }: { first: { messageId: string | n
     <div className="sticky top-0 z-10 flex justify-center py-1">
       <button type="button" onClick={() => { onJump(first.messageId!); setHidden(true); }} data-testid="jump-unread"
         className="inline-flex items-center gap-1.5 rounded-full border border-line bg-elevated px-3 py-1 text-[12.5px] font-medium shadow-pop hover:border-line-strong">
-        <IconArrowDown className="h-3.5 w-3.5" aria-hidden />{first.unread === 1 ? "1 new message" : `${first.unread} new messages`}, jump to first
+        <IconArrowDown className="h-3.5 w-3.5" aria-hidden />{first.unread === 1 ? tr("chat.1_new_message") : `${first.unread} new messages`}{tr("chat.jump_to_first")}
       </button>
     </div>
   );

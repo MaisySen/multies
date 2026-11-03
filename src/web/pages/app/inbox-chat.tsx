@@ -29,6 +29,8 @@ import { chatQuery, closedWindowCopy, fileTooBig, fillTemplate, mergeByDate, siz
 import { LoadFailure } from "@/web/components/load-error-t1g";
 export { mergeByDate };
 import type { InboxView } from "./inbox-assign";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-chat"; // R104B
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
 
@@ -60,20 +62,20 @@ export function useChatConversations(enabled: boolean, view: InboxView, assignee
 
 /** The channel filter: a segmented control on desktop, the phone picker on a phone. */
 export function ChannelFilterControl({ filter, set, providers }: { filter: ChannelFilter; set: (f: ChannelFilter) => void; providers: ChannelProvider[] }) {
-  const opts: { v: ChannelFilter; label: string }[] = [{ v: "all", label: "All" }, { v: "email", label: "Email" }, { v: "whatsapp", label: "WhatsApp" }];
+  const opts: { v: ChannelFilter; label: string }[] = [{ v: "all", label: tr("notifications.all") }, { v: "email", label: tr("common.email") }, { v: "whatsapp", label: tr("chat.whatsapp") }];
   for (const p of ["messenger", "instagram", "mock"] as const) if (providers.includes(p)) opts.push({ v: p, label: PROVIDER_LABEL[p] });
   return (
     <>
-      <div role="group" aria-label="Channel" data-testid="channel-filter" className="inline-flex items-center gap-0.5 rounded-lg bg-fill p-0.5 max-sm:hidden">
+      <div role="group" aria-label={tr("chat.channel")} data-testid="channel-filter" className="inline-flex items-center gap-0.5 rounded-lg bg-fill p-0.5 max-sm:hidden">
         {opts.map((o) => (
           <button key={o.v} type="button" onClick={() => set(o.v)} aria-pressed={filter === o.v}
             className={cn("h-7 rounded-md px-3 text-[13px] font-medium transition-colors duration-150", filter === o.v ? "bg-elevated text-fg shadow-sm" : "text-muted hover:text-fg")}>{o.label}</button>
         ))}
       </div>
       <div className="sm:hidden" data-testid="channel-filter-phone">
-        <Select bare aria-label="Channel" value={filter} onChange={(e) => set(e.target.value as ChannelFilter)}
+        <Select bare aria-label={tr("chat.channel")} value={filter} onChange={(e) => set(e.target.value as ChannelFilter)}
           phoneClassName={cn("h-11 min-w-[8.5rem] rounded-lg border border-line-strong bg-surface pl-3 pr-8 text-left text-[15px] font-medium", filter !== "all" && "border-brand/50 text-brand-hover")}>
-          {opts.map((o) => <option key={o.v} value={o.v}>{o.v === "all" ? "All channels" : o.label}</option>)}
+          {opts.map((o) => <option key={o.v} value={o.v}>{o.v === "all" ? tr("chat.all_channels") : o.label}</option>)}
         </Select>
       </div>
     </>
@@ -89,19 +91,19 @@ export function ChatRow({ c, selected, onOpen, channelName }: { c: ConversationS
         <span className="flex min-w-0 items-center gap-1.5">
           <ChannelChip provider={c.provider} compact />
           <span className={cn("truncate text-sm", c.unreadCount ? "font-semibold" : "font-medium")}>{c.contactName}</span>
-          {c.unreadCount > 0 && <span className="grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-full bg-brand px-1 text-[11px] font-semibold text-brand-fg tabular-nums" aria-label={`${c.unreadCount} unread`}>{c.unreadCount}</span>}
+          {c.unreadCount > 0 && <span className="grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-full bg-brand px-1 text-[11px] font-semibold text-brand-fg tabular-nums" aria-label={tr("chat.unreadcount_unread", { unreadCount: c.unreadCount })}>{c.unreadCount}</span>}
         </span>
         <time className={cn("shrink-0 text-xs", c.unreadCount ? "font-semibold text-brand-hover" : "text-subtle")} dateTime={c.lastMessageAt}>{mailDate(c.lastMessageAt)}</time>
       </div>
-      <div className={cn("mt-0.5 truncate text-sm", c.unreadCount ? "text-fg" : "text-muted")}>{c.snippet || "Attachment"}</div>
+      <div className={cn("mt-0.5 truncate text-sm", c.unreadCount ? "text-fg" : "text-muted")}>{c.snippet || tr("chat.attachment")}</div>
       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
         <span className="truncate text-subtle">{channelName ? `${PROVIDER_LABEL[c.provider]} · ${channelName}` : PROVIDER_LABEL[c.provider]}</span>
         {c.labels.map((l) => <Badge key={l}>{l}</Badge>)}
         {(c.assignee || c.status !== "open") && (
           <span className="ml-auto inline-flex items-center gap-1.5" data-testid="chat-assignee">
-            {c.status === "waiting" && <IconHourglass className="h-3.5 w-3.5 text-subtle" aria-label="Waiting on the customer" />}
-            {c.status === "done" && <IconCheckCircle className="h-3.5 w-3.5 text-ok" aria-label="Done" />}
-            {c.assignee && <span title={`Assigned to ${c.assignee.name}`}><Avatar label={initials(c.assignee.name)} className="h-5 w-5 text-[9px]" /><span className="sr-only">Assigned to {c.assignee.name}</span></span>}
+            {c.status === "waiting" && <IconHourglass className="h-3.5 w-3.5 text-subtle" aria-label={tr("chat.waiting_on_the_customer")} />}
+            {c.status === "done" && <IconCheckCircle className="h-3.5 w-3.5 text-ok" aria-label={tr("common.done")} />}
+            {c.assignee && <span title={tr("chat.assigned_to_name", { name: c.assignee.name })}><Avatar label={initials(c.assignee.name)} className="h-5 w-5 text-[9px]" /><span className="sr-only">{tr("chat.assigned_to_name", { name: c.assignee.name })}</span></span>}
           </span>
         )}
       </div>
@@ -148,7 +150,7 @@ export function ChatView({ id, onBack }: { id: string; onBack: () => void }) {
       if (e instanceof ApiError && e.code === "window_closed") {
         setPending((xs) => xs.filter((x) => x.key !== p.key));
         setClosedByServer(true);
-        toast.error("The reply window has closed. Send an approved template instead.");
+        toast.error(tr("chat.the_reply_window_has_closed_send_an_approved_tem"));
         return;
       }
       setPending((xs) => xs.map((x) => x.key === p.key ? { ...x, failed: errorMessage(e, "Couldn't send. Tap to try again.") } : x));
@@ -169,7 +171,7 @@ export function ChatView({ id, onBack }: { id: string; onBack: () => void }) {
       {/* Header. On a phone the view is full screen and its bottom follows the keyboard (--kb-h from lib/keyboard-inset). */}
       <div className="border-b border-line bg-surface/90 px-3 py-2.5 backdrop-blur max-lg:pt-[calc(0.625rem+env(safe-area-inset-top))] md:px-4">
         <div className="flex items-center gap-2">
-          <button onClick={onBack} className="-ml-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-brand-hover hover:bg-hover lg:hidden" aria-label="Back to the inbox"><IconArrowLeft className="h-5 w-5" /></button>
+          <button onClick={onBack} className="-ml-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-brand-hover hover:bg-hover lg:hidden" aria-label={tr("chat.back_to_the_inbox")}><IconArrowLeft className="h-5 w-5" /></button>
           <Avatar label={initials(c.contactName)} className="h-9 w-9 shrink-0 text-[13px] max-sm:hidden" />
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
@@ -181,7 +183,7 @@ export function ChatView({ id, onBack }: { id: string; onBack: () => void }) {
               <span className="truncate">{c.contactHandle !== c.contactName ? `+${c.contactHandle.replace(/^\+/, "")} · ` : ""}{d.channel.name}</span>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setNotes(true)} aria-label="Notes" title="Notes"><IconStickyNote className="h-[18px] w-[18px]" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => setNotes(true)} aria-label={tr("chat.notes")} title={tr("chat.notes")}><IconStickyNote className="h-[18px] w-[18px]" /></Button>
         </div>
         <ChatControls c={c} />
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -190,7 +192,7 @@ export function ChatView({ id, onBack }: { id: string; onBack: () => void }) {
               pill.tone === "ok" && "bg-ok-soft text-ok", pill.tone === "warn" && "bg-warn-soft text-warn", pill.tone === "closed" && "bg-fill text-muted")}>
             <IconClock className="h-3.5 w-3.5" aria-hidden />{pill.label}
           </span>
-          {disconnected && <Badge tone="warn">This number is disconnected</Badge>}
+          {disconnected && <Badge tone="warn">{tr("chat.this_number_is_disconnected")}</Badge>}
         </div>
       </div>
 
@@ -201,12 +203,12 @@ export function ChatView({ id, onBack }: { id: string; onBack: () => void }) {
 
       {/* Composer, or the template prompt once the window has closed */}
       <div className="border-t border-line bg-surface px-3 pb-[calc(0.625rem+env(safe-area-inset-bottom))] pt-2.5 md:px-4">
-        {disconnected ? <p className="py-2 text-center text-[13px] text-muted">Reconnect this number in Settings to reply.</p>
+        {disconnected ? <p className="py-2 text-center text-[13px] text-muted">{tr("chat.reconnect_this_number_in_settings_to_reply")}</p>
           : w.open ? <Composer onSend={(body, file) => void send({ key: newIdempotencyKey("chat"), text: body.text ?? "", file, date: new Date().toISOString(), failed: null, body })} />
           : (
             <div className="flex flex-col gap-2 py-1 sm:flex-row sm:items-center" data-testid="window-closed">
               <p className="flex-1 text-[13px] leading-relaxed text-muted">{closedWindowCopy(c.provider)}</p>
-              <Button onClick={() => setSheet(true)} className="max-sm:w-full">Choose a template</Button>
+              <Button onClick={() => setSheet(true)} className="max-sm:w-full">{tr("chat.choose_a_template")}</Button>
             </div>
           )}
       </div>
@@ -231,29 +233,29 @@ function ChatControls({ c }: { c: ConversationSummary }) {
     onSuccess: (r, body) => {
       qc.setQueryData<ConversationDetail>(detailKey(c.id), (d) => d ? { ...d, conversation: r.conversation } : d);
       void qc.invalidateQueries({ queryKey: ["channels", "list"] });
-      if ("assigneeUserId" in body) toast.success(r.conversation.assignee ? `Assigned to ${r.conversation.assignee.name}` : "Unassigned");
-      else toast.success(r.conversation.status === "done" ? "Marked done" : r.conversation.status === "waiting" ? "Waiting on the customer" : "Reopened");
+      if ("assigneeUserId" in body) toast.success(r.conversation.assignee ? tr("chat.assigned_to_name", { name: r.conversation.assignee.name }) : tr("chat.unassigned"));
+      else toast.success(r.conversation.status === "done" ? tr("notifications.marked_done") : r.conversation.status === "waiting" ? tr("chat.waiting_on_the_customer") : tr("chat.reopened"));
     },
     onError: (e) => toast.error(errorMessage(e, "Couldn't change this chat. Try again.")),
   });
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5" data-testid="chat-assign">
       <Menu align="start" trigger={
-        <Button variant="outline" size="sm" loading={patch.isPending && patch.variables && "assigneeUserId" in patch.variables} aria-label={c.assignee ? `Assigned to ${c.assignee.name}. Change` : "Assign"}>
-          {c.assignee ? <><Avatar label={initials(c.assignee.name)} className="h-5 w-5 text-[9px]" />{c.assignee.name}</> : <><IconAssign className="h-4 w-4" aria-hidden />Assign</>}
+        <Button variant="outline" size="sm" loading={patch.isPending && patch.variables && "assigneeUserId" in patch.variables} aria-label={c.assignee ? tr("chat.assigned_to_name_change", { name: c.assignee.name }) : tr("chat.assign")}>
+          {c.assignee ? <><Avatar label={initials(c.assignee.name)} className="h-5 w-5 text-[9px]" />{c.assignee.name}</> : <><IconAssign className="h-4 w-4" aria-hidden />{tr("chat.assign")}</>}
         </Button>
       }>
-        {myId && c.assignee?.userId !== myId && <MenuItem icon={<IconUserRound />} onSelect={() => patch.mutate({ assigneeUserId: myId })}>Assign to me</MenuItem>}
-        <MenuLabel>Team</MenuLabel>
+        {myId && c.assignee?.userId !== myId && <MenuItem icon={<IconUserRound />} onSelect={() => patch.mutate({ assigneeUserId: myId })}>{tr("chat.assign_to_me")}</MenuItem>}
+        <MenuLabel>{tr("nav.team")}</MenuLabel>
         {people.map((m) => (
           <MenuItem key={m.userId} icon={c.assignee?.userId === m.userId ? <IconCheck /> : <Avatar label={initials(m.name)} className="h-4 w-4 text-[8px]" />} onSelect={() => patch.mutate({ assigneeUserId: m.userId })}>{m.name}</MenuItem>
         ))}
-        {c.assignee && <MenuItem icon={<IconUserMinus />} onSelect={() => patch.mutate({ assigneeUserId: null })}>Unassign</MenuItem>}
+        {c.assignee && <MenuItem icon={<IconUserMinus />} onSelect={() => patch.mutate({ assigneeUserId: null })}>{tr("chat.unassign")}</MenuItem>}
       </Menu>
       {c.status === "open"
-        ? <Button variant="ghost" size="sm" disabled={patch.isPending} onClick={() => patch.mutate({ status: "waiting" })}><IconHourglass className="h-4 w-4" aria-hidden />Waiting</Button>
-        : <Button variant="ghost" size="sm" disabled={patch.isPending} onClick={() => patch.mutate({ status: "open" })}><IconCircleDot className="h-4 w-4" aria-hidden />Reopen</Button>}
-      {c.status !== "done" && <Button variant="secondary" size="sm" disabled={patch.isPending} onClick={() => patch.mutate({ status: "done" })}><IconCheckCircle className="h-4 w-4" aria-hidden />Mark done</Button>}
+        ? <Button variant="ghost" size="sm" disabled={patch.isPending} onClick={() => patch.mutate({ status: "waiting" })}><IconHourglass className="h-4 w-4" aria-hidden />{tr("chat.waiting")}</Button>
+        : <Button variant="ghost" size="sm" disabled={patch.isPending} onClick={() => patch.mutate({ status: "open" })}><IconCircleDot className="h-4 w-4" aria-hidden />{tr("chat.reopen")}</Button>}
+      {c.status !== "done" && <Button variant="secondary" size="sm" disabled={patch.isPending} onClick={() => patch.mutate({ status: "done" })}><IconCheckCircle className="h-4 w-4" aria-hidden />{tr("chat.mark_done")}</Button>}
     </div>
   );
 }
@@ -269,17 +271,17 @@ function dayLabel(iso: string) {
 const clock = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 
 function Ticks({ m }: { m: Pick<ChatMessage, "delivery"> }) {
-  if (m.delivery === "read") return <IconCheckDouble className="h-3.5 w-3.5 text-[#7FD3FF]" aria-label="Read" />;
-  if (m.delivery === "delivered") return <IconCheckDouble className="h-3.5 w-3.5 opacity-80" aria-label="Delivered" />;
-  if (m.delivery === "sent") return <IconCheck className="h-3.5 w-3.5 opacity-80" aria-label="Sent" />;
-  if (m.delivery === "pending") return <IconClock className="h-3 w-3 opacity-80" aria-label="Sending" />;
-  if (m.delivery === "failed") return <IconWarning className="h-3.5 w-3.5" aria-label="Not delivered" />;
+  if (m.delivery === "read") return <IconCheckDouble className="h-3.5 w-3.5 text-[#7FD3FF]" aria-label={tr("chat.read")} />;
+  if (m.delivery === "delivered") return <IconCheckDouble className="h-3.5 w-3.5 opacity-80" aria-label={tr("chat.delivered")} />;
+  if (m.delivery === "sent") return <IconCheck className="h-3.5 w-3.5 opacity-80" aria-label={tr("mailfolder.sent")} />;
+  if (m.delivery === "pending") return <IconClock className="h-3 w-3 opacity-80" aria-label={tr("chat.sending")} />;
+  if (m.delivery === "failed") return <IconWarning className="h-3.5 w-3.5" aria-label={tr("chat.not_delivered")} />;
   return null;
 }
 
 function Bubbles({ messages, pending, conversationId, onRetry }: { messages: ChatMessage[]; pending: Pending[]; conversationId: string; onRetry: (p: Pending) => void }) {
   const [active, setActive] = useState<string | null>(null);
-  if (!messages.length && !pending.length) return <p className="py-10 text-center text-sm text-muted">No messages yet.</p>;
+  if (!messages.length && !pending.length) return <p className="py-10 text-center text-sm text-muted">{tr("chat.no_messages_yet")}</p>;
   let lastDay = "";
   return (
     <ol className="space-y-1.5">
@@ -299,7 +301,7 @@ function Bubbles({ messages, pending, conversationId, onRetry }: { messages: Cha
             className={cn("max-w-[80%] rounded-[18px] rounded-br-md px-3.5 py-2 text-left text-[15px] leading-snug text-white sm:max-w-[70%]", p.failed ? "bg-brand/60 ring-1 ring-bad" : "bg-brand/80")}>
             {p.file && <span className="mb-1 flex items-center gap-1.5 text-[13px]"><IconFile className="h-4 w-4" aria-hidden />{p.file.name}</span>}
             {p.text && <span className="whitespace-pre-wrap break-words">{p.text}</span>}
-            <span className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-white/75">{p.failed ? "Not sent" : "Sending"}<Ticks m={{ delivery: p.failed ? "failed" : "pending" }} /></span>
+            <span className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-white/75">{p.failed ? tr("chat.not_sent") : tr("chat.sending")}<Ticks m={{ delivery: p.failed ? "failed" : "pending" }} /></span>
             {p.failed && <span className="mt-1 block text-[12px] text-white">{p.failed}</span>}
           </button>
         </li>
@@ -320,29 +322,29 @@ function Bubble({ m, active, onToggle, conversationId }: { m: ChatMessage; activ
           out && draft ? "rounded-br-md border border-dashed border-brand/60 bg-brand/[0.06] text-fg"
             : out ? "rounded-br-md bg-brand text-white" : "rounded-bl-md bg-fill text-fg",
           failed && "bg-bad-soft text-fg ring-1 ring-bad/40")}>
-        {draft && <span className="mb-1 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-brand-hover" data-testid="draft-label"><IconAgent className="h-3.5 w-3.5" aria-hidden />Draft by {m.agent?.name ?? "an agent"}</span>}
-        {m.templateName && <span className={cn("mb-1 block text-[11px] font-medium uppercase tracking-wide", out && !failed && !draft ? "text-white/75" : "text-subtle")}>Template · {m.templateName}</span>}
+        {draft && <span className="mb-1 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-brand-hover" data-testid="draft-label"><IconAgent className="h-3.5 w-3.5" aria-hidden />{tr("chat.draft_by")} {m.agent?.name ?? tr("chat.an_agent")}</span>}
+        {m.templateName && <span className={cn("mb-1 block text-[11px] font-medium uppercase tracking-wide", out && !failed && !draft ? "text-white/75" : "text-subtle")}>{tr("chat.template_templatename", { templateName: m.templateName })}</span>}
         {isImage && (
           <a href={m.media!.url!} target="_blank" rel="noreferrer" className="-mx-1.5 -mt-0.5 mb-1 block overflow-hidden rounded-[12px]" onClick={(e) => e.stopPropagation()}>
-            <img src={m.media!.url!} alt={m.text || m.media!.filename || "Image"} loading="lazy" className="max-h-64 w-full min-w-[160px] object-cover" />
+            <img src={m.media!.url!} alt={m.text || m.media!.filename || tr("chat.image")} loading="lazy" className="max-h-64 w-full min-w-[160px] object-cover" />
           </a>
         )}
         {m.media && !isImage && (
           <a href={m.media.url ?? undefined} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
             className={cn("mb-1 flex items-center gap-2 rounded-xl px-2.5 py-2 text-[13px]", out && !failed ? "bg-white/15" : "bg-surface")}>
             <IconFile className="h-5 w-5 shrink-0" aria-hidden />
-            <span className="min-w-0"><span className="block truncate font-medium">{m.media.filename || "File"}</span><span className="block text-[11px] opacity-75">{sizeLabel(m.media.size)}</span></span>
+            <span className="min-w-0"><span className="block truncate font-medium">{m.media.filename || tr("nav.file")}</span><span className="block text-[11px] opacity-75">{sizeLabel(m.media.size)}</span></span>
           </a>
         )}
         {m.text && !(isImage && m.kind === "image" && !m.text) && <p className="whitespace-pre-wrap break-words">{m.text}</p>}
-        {!m.text && !m.media && m.kind !== "text" && <p className="italic opacity-75">{m.kind === "unsupported" ? "A message this inbox can't show yet" : `A ${m.kind} message`}</p>}
+        {!m.text && !m.media && m.kind !== "text" && <p className="italic opacity-75">{m.kind === "unsupported" ? tr("chat.a_message_this_inbox_can_t_show_yet") : tr("chat.a_kind_message", { kind: m.kind })}</p>}
         <span className={cn("mt-0.5 flex items-center justify-end gap-1 text-[11px]", out && !failed && !draft ? "text-white/75" : "text-subtle")}>
           {out && !draft && m.agent && <span className="flex items-center gap-0.5 truncate"><IconAgent className="h-3 w-3" aria-hidden />{m.agent.name} ·</span>}
           {out && !draft && !m.agent && m.sentBy && <span className="truncate">{m.sentBy.name} ·</span>}
           <time dateTime={m.date} title={fullDate(m.date)}>{clock(m.date)}</time>
           {out && !draft && <Ticks m={m} />}
         </span>
-        {failed && <span className="mt-1 block text-[12px] font-medium text-bad" data-testid="bubble-error">Not delivered{m.error ? `: ${m.error}` : ""}</span>}
+        {failed && <span className="mt-1 block text-[12px] font-medium text-bad" data-testid="bubble-error">{tr("chat.not_delivered")}{m.error ? `: ${m.error}` : ""}</span>}
         {draft && <DraftActions messageId={m.id} conversationId={conversationId} />}
       </div>
       <MessageTaskButton messageId={m.id} conversationId={conversationId} visible={active} />
@@ -358,7 +360,7 @@ function DraftActions({ messageId, conversationId }: { messageId: string; conver
     setBusy(what === "approve" ? "send" : "discard");
     try {
       await api.post(`/channels/messages/${encodeURIComponent(messageId)}/${what}`, {});
-      if (what === "discard") toast.success("Draft discarded");
+      if (what === "discard") toast.success(tr("chat.draft_discarded"));
     } catch (e) {
       toast.error(errorMessage(e, what === "approve" ? "Couldn't send the draft. Try again." : "Couldn't discard the draft. Try again."));
     } finally {
@@ -369,8 +371,8 @@ function DraftActions({ messageId, conversationId }: { messageId: string; conver
   };
   return (
     <span className="mt-2 flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-      <Button size="sm" variant="ghost" onClick={() => void act("discard")} loading={busy === "discard"} disabled={!!busy} data-testid="draft-discard"><IconTrash className="h-3.5 w-3.5" aria-hidden />Discard</Button>
-      <Button size="sm" onClick={() => void act("approve")} loading={busy === "send"} disabled={!!busy} data-testid="draft-send"><IconSend className="h-3.5 w-3.5" aria-hidden />Send</Button>
+      <Button size="sm" variant="ghost" onClick={() => void act("discard")} loading={busy === "discard"} disabled={!!busy} data-testid="draft-discard"><IconTrash className="h-3.5 w-3.5" aria-hidden />{tr("branding.discard")}</Button>
+      <Button size="sm" onClick={() => void act("approve")} loading={busy === "send"} disabled={!!busy} data-testid="draft-send"><IconSend className="h-3.5 w-3.5" aria-hidden />{tr("common.send")}</Button>
     </span>
   );
 }
@@ -384,12 +386,12 @@ function MessageTaskButton({ messageId, conversationId, visible }: { messageId: 
     try {
       const r = await api.post<{ task: { id: string; ref: string } }>(`/channels/messages/${encodeURIComponent(messageId)}/task`, {}, { idempotencyKey: `chat-task-${messageId}-${Date.now() >> 12}` });
       await qc.invalidateQueries({ queryKey: ["tasks"] });
-      toast.success(`${r.task.ref} created`, { action: { label: "Open", onClick: () => navigate(`/app/tasks?view=list&task=${encodeURIComponent(r.task.id)}`) } });
+      toast.success(tr("chat.ref_created", { ref: r.task.ref }), { action: { label: tr("tours.open"), onClick: () => navigate(`/app/tasks?view=list&task=${encodeURIComponent(r.task.id)}`) } });
     } catch (e) { toast.error(errorMessage(e, "Couldn't make a task. Try again.")); } finally { setBusy(false); }
   };
   void conversationId;
   return (
-    <button type="button" onClick={() => void make()} disabled={busy} aria-label="Make a task from this message" title="Make a task" data-testid="message-task"
+    <button type="button" onClick={() => void make()} disabled={busy} aria-label={tr("chat.make_a_task_from_this_message")} title={tr("chat.make_a_task")} data-testid="message-task"
       className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full text-subtle transition-opacity duration-150 hover:bg-hover hover:text-fg focus-visible:opacity-100 disabled:opacity-40 max-sm:h-11 max-sm:w-11",
         visible ? "opacity-100" : "opacity-0 group-hover:opacity-100 max-sm:pointer-events-none max-sm:opacity-0")}>
       <IconListPlus className="h-4 w-4" aria-hidden />
@@ -443,18 +445,18 @@ function Composer({ onSend }: { onSend: (body: Pending["body"], file: Pending["f
       {(file || err) && (
         <div className="mb-2 flex flex-wrap items-center gap-2">
           {file && <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-line bg-elevated py-1 pl-2.5 pr-1 text-[13px]"><IconFile className="h-4 w-4 shrink-0 text-subtle" aria-hidden /><span className="truncate">{file.name}</span><span className="text-subtle">{sizeLabel(file.size)}</span>
-            <button type="button" onClick={() => setFile(null)} className="grid h-7 w-7 place-items-center rounded-full text-subtle hover:bg-hover" aria-label={`Remove ${file.name}`}><IconClose className="h-3.5 w-3.5" /></button></span>}
+            <button type="button" onClick={() => setFile(null)} className="grid h-7 w-7 place-items-center rounded-full text-subtle hover:bg-hover" aria-label={tr("chat.remove_name", { name: file.name })}><IconClose className="h-3.5 w-3.5" /></button></span>}
           {err && <p role="alert" className="text-[13px] text-bad" data-testid="composer-error">{err}</p>}
         </div>
       )}
       <div className="flex items-end gap-1.5">
         <input ref={picker} type="file" className="hidden" data-testid="composer-file" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
-        <button type="button" onClick={() => picker.current?.click()} aria-label="Attach a file" title="Attach a file (up to 5 MB)"
+        <button type="button" onClick={() => picker.current?.click()} aria-label={tr("chat.attach_a_file")} title={tr("chat.attach_a_file_up_to_5_mb")}
           className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted transition-colors duration-150 hover:bg-hover hover:text-fg"><IconAttachment className="h-5 w-5" /></button>
-        <Textarea ref={ta} rows={1} value={text} onChange={(e) => setText(e.target.value)} aria-label="Reply" placeholder="Write a reply"
+        <Textarea ref={ta} rows={1} value={text} onChange={(e) => setText(e.target.value)} aria-label={tr("common.reply")} placeholder={tr("chat.write_a_reply")}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void submit(); } }}
           className="max-h-40 min-h-11 flex-1 resize-none rounded-[22px] py-2.5 text-[15px] leading-snug" />
-        <button type="button" onClick={() => void submit()} disabled={!text.trim() && !file} aria-label="Send"
+        <button type="button" onClick={() => void submit()} disabled={!text.trim() && !file} aria-label={tr("common.send")}
           className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand text-white transition-[transform,opacity] duration-150 active:scale-95 disabled:opacity-35"><IconSend className="h-5 w-5" /></button>
       </div>
     </div>
@@ -477,16 +479,16 @@ function TemplateSheet({ open, onClose, conversationId, onSent }: { open: boolea
     try {
       const r = await api.post<{ message: ChatMessage }>(`/channels/conversations/${encodeURIComponent(conversationId)}/template`, { name: pick.name, language: pick.language, params: params.map((p) => p.trim()) }, { idempotencyKey: key });
       onSent(r.message);
-      toast.success("Template sent");
+      toast.success(tr("chat.template_sent"));
       onClose();
     } catch (e) { setErr(errorMessage(e, "Couldn't send the template. Try again.")); } finally { setBusy(false); }
   };
   return (
-    <Dialog open={open} onClose={onClose} title="Choose a template" description="Approved templates can be sent at any time.">
+    <Dialog open={open} onClose={onClose} title={tr("chat.choose_a_template")} description={tr("chat.approved_templates_can_be_sent_at_any_time")}>
       <div className="max-h-[60dvh] space-y-2 overflow-y-auto px-6 pb-2 pt-4" data-testid="template-sheet">
         {q.isPending ? <><Skeleton className="h-16 rounded-xl" /><Skeleton className="h-16 rounded-xl" /></>
           : q.error ? <LoadFailure error={q.error} onRetry={() => q.refetch()} />
-          : !q.data.templates.length ? <p className="text-sm text-muted">No approved templates yet.</p>
+          : !q.data.templates.length ? <p className="text-sm text-muted">{tr("chat.no_approved_templates_yet")}</p>
           : q.data.templates.map((t) => {
             const on = pick?.name === t.name && pick.language === t.language;
             return (
@@ -511,8 +513,8 @@ function TemplateSheet({ open, onClose, conversationId, onSent }: { open: boolea
         {err && <p role="alert" className="rounded-lg bg-bad-soft px-3 py-2 text-[13px] text-bad">{err}</p>}
       </div>
       <div className="flex flex-col-reverse gap-2 px-6 pb-5 pt-3 sm:flex-row sm:justify-end">
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={() => void send()} loading={busy} disabled={!pick || missing}>Send</Button>
+        <Button variant="secondary" onClick={onClose}>{tr("common.cancel")}</Button>
+        <Button onClick={() => void send()} loading={busy} disabled={!pick || missing}>{tr("common.send")}</Button>
       </div>
     </Dialog>
   );
@@ -531,11 +533,11 @@ function NotesSheet({ open, onClose, conversationId }: { open: boolean; onClose:
     onError: (e) => toast.error(errorMessage(e, "Couldn't save the note. Try again.")),
   });
   return (
-    <Dialog open={open} onClose={onClose} title="Notes" description="Only your team sees these. The customer never does.">
+    <Dialog open={open} onClose={onClose} title={tr("chat.notes")} description={tr("chat.only_your_team_sees_these_the_customer_never_doe")}>
       <div className="max-h-[50dvh] space-y-3 overflow-y-auto px-6 pt-4" data-testid="chat-notes">
         {q.isPending ? <Skeleton className="h-12 rounded-xl" />
           : q.error ? <LoadFailure error={q.error} onRetry={() => q.refetch()} />
-          : !q.data.notes.length ? <p className="text-sm text-muted">No notes yet.</p>
+          : !q.data.notes.length ? <p className="text-sm text-muted">{tr("chat.no_notes_yet")}</p>
           : q.data.notes.map((n) => (
             <div key={n.id} className="rounded-xl bg-[#FFF8E1] px-3.5 py-2.5 text-[14px] text-[#3D3200] dark:bg-[#3A3214] dark:text-[#F5E9B8]">
               <p className="whitespace-pre-wrap break-words">{n.body}</p>
@@ -544,8 +546,8 @@ function NotesSheet({ open, onClose, conversationId }: { open: boolean; onClose:
           ))}
       </div>
       <form className="flex items-end gap-2 px-6 pb-5 pt-3" onSubmit={(e) => { e.preventDefault(); if (body.trim()) add.mutate(body.trim()); }}>
-        <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={2} aria-label="New note" placeholder="Add a note for your team" className="flex-1 resize-none" />
-        <Button type="submit" loading={add.isPending} disabled={!body.trim()}>Add</Button>
+        <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={2} aria-label={tr("chat.new_note")} placeholder={tr("chat.add_a_note_for_your_team")} className="flex-1 resize-none" />
+        <Button type="submit" loading={add.isPending} disabled={!body.trim()}>{tr("common.add")}</Button>
       </form>
     </Dialog>
   );
