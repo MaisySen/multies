@@ -78,6 +78,8 @@ export interface AppConfig {
   videoRecVid1?: boolean;
   /** VID2: VIDEO_REC_VID2 (pause and resume, speaker or gallery view, quality, crash safe pieces on the device, chat and transcript saved next to the video). Needs VID1; off = VID1 exactly. */
   videoRecVid2?: boolean;
+  /** VID3: VIDEO_PHONE_VID3 (recording on phone browsers: mp4 first, parts at the phone's memory budget, Save through the share sheet, pause in the background). Needs VID2; prod names it in FEATURES; off = VID2 exactly. */
+  videoPhoneVid3?: boolean;
   /** R116: TRANSLATE_R116 (translate and read aloud in mail, docs and chat). Off unless set; off = today exactly. */
   translateR116?: boolean;
   /** R104: LANG_R104 (the app in Nepali and Hindi: language picker, translated pages, admin wording suggestions). Off unless set; off = today exactly. */
@@ -504,6 +506,7 @@ const EnvSchema = z.object({
   PORTAL_TD9: z.string().optional(), // TD9
   VIDEO_REC_VID1: z.string().optional(), // VID1
   VIDEO_REC_VID2: z.string().optional(), // VID2
+  VIDEO_PHONE_VID3: z.string().optional(), // VID3 (production names it in FEATURES; no own var)
   TRANSLATE_R116: z.string().optional(), // R116
   LANG_R104: z.string().optional(), // R104 (production names it in FEATURES; no own var)
   /** R116: switches named in one comma list (for example "VIDEO_REC_VID2,TRANSLATE_R116"), read like their own var set to "on". Production holds its switches here because the Worker allows at most 128 text bindings (vars plus secrets). */
@@ -844,6 +847,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     portalTd9: ["1", "true", "on"].includes(String(env.PORTAL_TD9 ?? "").toLowerCase()), // TD9
     videoRecVid1: ["1", "true", "on"].includes(String(env.VIDEO_REC_VID1 ?? "").toLowerCase()), // VID1
     videoRecVid2: flagOn(env.VIDEO_REC_VID2, "VIDEO_REC_VID2", env.FEATURES), // VID2 (its own var or FEATURES)
+    videoPhoneVid3: flagOn(env.VIDEO_PHONE_VID3, "VIDEO_PHONE_VID3", env.FEATURES), // VID3 (FEATURES)
     translateR116: flagOn(env.TRANSLATE_R116, "TRANSLATE_R116", env.FEATURES), // R116 (its own var or FEATURES)
     langR104: flagOn(env.LANG_R104, "LANG_R104", env.FEATURES), // R104 (FEATURES)
     tablesR125: ["1", "true", "on"].includes(String(env.TABLES_R125 ?? "").toLowerCase()), // R125

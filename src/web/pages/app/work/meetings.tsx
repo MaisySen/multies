@@ -20,6 +20,8 @@ import { MeetingNotes } from "./meeting-notes";
 import { MeetingSuggestions } from "./meeting-suggest-td3"; // TD3
 import { RecordingLayer, RecordingSection } from "./meeting-recording";
 import { RecoverRecording } from "./video-vid2-ui"; // VID2
+import { PhoneSaves } from "./video-phone-vid3"; // VID3
+import { isPhoneDevice } from "@/web/lib/video-phone-vid3"; // VID3
 import { useJoinFromDock } from "./call-r23";
 import { CallRoomExtras } from "./call-dock-r23";
 import { PreJoin, type JoinPrefs } from "./prejoin-r31";
@@ -247,6 +249,8 @@ export function MeetingPage() {
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const cfg = useConfig().data;
+  // VID3: on a phone, videos recorded in the call wait here for a Save tap after hanging up.
+  const phonePage = !!(cfg?.videoRecVid2 && cfg?.videoPhoneVid3) && typeof navigator !== "undefined" && isPhoneDevice({ ua: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints });
   const meetTd3 = !!cfg?.meetTd3; // TD3: meetings to tasks
   // Round 31: Join now opens the pre-join screen; its choices carry into the call.
   // R40 (MB-207): Start now opens the meeting with ?join=1, straight to the camera and name check.
@@ -300,7 +304,8 @@ export function MeetingPage() {
           </div>
         </Card>
       )}
-      {cfg?.videoRecVid2 && (me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin") && <RecoverRecording meetingId={m.id} className="mb-4" />}
+      {cfg?.videoRecVid2 && (me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin") && <RecoverRecording meetingId={m.id} className="mb-4" phone={phonePage} />}
+      {phonePage && <PhoneSaves className="mb-4" />}
       <RecordingSection meetingId={m.id} title={m.title} />
       <div className="mt-4 flex flex-wrap gap-2">
         <Button size="sm" variant="secondary" onClick={() => setEditing(true)}><IconEdit className="h-4 w-4" />{m.recurrence ? "Edit series" : "Edit"}</Button>

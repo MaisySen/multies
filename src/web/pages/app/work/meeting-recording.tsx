@@ -28,6 +28,9 @@ import { saveText, useVideoRecording, VideoRecordDialog, VIDEO_CONSENT_OTHERS, V
 import { canOffer1080, chatLog, QUALITIES, sideName, transcriptText, type LayoutMode, type QualityId } from "@/web/lib/video-rec-vid2"; // VID2
 import { ChoiceGroup, PAUSED_NOTE, RecoverRecording } from "./video-vid2-ui"; // VID2
 import { videoFileName, type Writable } from "@/web/lib/video-rec-vid1"; // VID1
+import { backgroundAction, isPhoneDevice, PHONE_QUALITY, phoneBudget, readyVideos } from "@/web/lib/video-phone-vid3"; // VID3
+import { PhoneSaves } from "./video-phone-vid3"; // VID3
+import { t as tt } from "@/web/i18n"; // VID3
 
 export interface ActionItem { text: string; assignee: string | null; due: string | null }
 export interface Recording {
@@ -102,11 +105,17 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
   const videoAllowed = vid1 && !!me.data?.user && (role === "owner" || role === "admin");
   // VID2 (VIDEO_REC_VID2): pause and resume, speaker or gallery view, quality, crash safe pieces, chat and transcript files.
   const vid2 = vid1 && !!config.data?.videoRecVid2;
+  // VID3 (VIDEO_PHONE_VID3): recording on a phone browser: mp4 first, saved in parts at the phone's memory budget, a
+  // Save video tap opens the share sheet, and the recording pauses when the call goes to the background.
+  const vid3 = vid2 && !!config.data?.videoPhoneVid3;
+  const [phone] = useState(() => vid3 && typeof navigator !== "undefined" && isPhoneDevice({ ua: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints }));
+  const [away, setAway] = useState(false);
+  const awayPaused = useRef(false);
   const [layout, setLayoutState] = useState<LayoutMode>("speaker");
   const layoutRef = useRef<LayoutMode>("speaker");
   const setLayout = useCallback((l: LayoutMode) => { layoutRef.current = l; setLayoutState(l); }, []);
   const [quality, setQuality] = useState<QualityId>("hd720");
-  const hd = typeof navigator !== "undefined" && canOffer1080(navigator.hardwareConcurrency, (navigator as Navigator & { deviceMemory?: number }).deviceMemory);
+  const hd = !phone && typeof navigator !== "undefined" && canOffer1080(navigator.hardwareConcurrency, (navigator as Navigator & { deviceMemory?: number }).deviceMemory);
   const { chatMessages } = useChat();
   const chatRef = useRef(chatMessages);
   chatRef.current = chatMessages;
@@ -236,7 +245,7 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
     transcriptWanted.current = vid2 && audio ? fileName : null;
     const startedWhen = new Date().toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
     const vid2Args = vid2 ? {
-      quality: QUALITIES[quality === "hd1080" && hd ? "hd1080" : "hd720"], layout: () => layoutRef.current, meetingId, title: title ?? "",
+      quality: phone ? PHONE_QUALITY : QUALITIES[quality === "hd1080" && hd ? "hd1080" : "hd720"], layout: () => layoutRef.current, meetingId, title: title ?? "",
       // The call's chat while it recorded, saved next to the video with the same name.
       sideFiles: (name: string) => {
         const since = recStart.current;
@@ -245,7 +254,8 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
       },
     } : undefined;
     try {
-      await video.start({ writable, fileName, mime, audio: audio ? recorder.current?.stream ?? null : null, transcript: !!audio, vid2: vid2Args });
+      await video.start({ writable, fileName, mime, audio: audio ? recorder.current?.stream ?? null : null, transcript: !!audio, vid2: vid2Args,
+        phone: phone ? phoneBudget({ ua: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints, deviceMemoryGb: (navigator as Navigator & { deviceMemory?: number }).deviceMemory }) : undefined });
     } catch (e) {
       // The video could not start: the transcript (if it started) keeps going and says so on the banner.
       if (audio) announce({ on: true, by: myName, recordingId: audio.id, startedAt: audio.startedAt });
@@ -263,7 +273,12 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
       await new Promise((res) => setTimeout(res, 5000));
       try { r = (await api.get<RecordingList>(`/meetings/${meetingId}/recordings`)).recordings.find((x) => x.id === id); } catch { /* try again */ }
     }
-    if (r?.transcript) saveText(sideName(fileName, "transcript"), transcriptText(title ?? "", when, r.transcript));
+    if (r?.transcript && phone) {
+      // VID3: the transcript joins the video's Save button (a phone saves files only from a tap).
+      const side = { name: sideName(fileName, "transcript"), text: transcriptText(title ?? "", when, r.transcript) };
+      if (readyVideos.addSide(fileName, side)) toast(tt("meetingrec.transcript_ready"), { description: tt("meetingrec.transcript_ready_hint") });
+      else toast(tt("meetingrec.transcript_on_page"));
+    } else if (r?.transcript) saveText(sideName(fileName, "transcript"), transcriptText(title ?? "", when, r.transcript));
     else toast("The transcript isn't ready yet", { description: "It shows under Recording and transcript on the meeting page when it is, with Save transcript." });
   };
 
@@ -273,6 +288,8 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
     if (!cur) return;
     if (video.paused) {
       if (!video.resume()) return;
+      awayPaused.current = false;
+      setAway(false);
       recorder.current?.setMuted(false);
       announce({ ...cur, paused: false });
     } else {
@@ -315,6 +332,37 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
       if (mine) await stopAudio(mine);
     } finally { stopping.current = false; setBusy(false); }
   };
+
+  // VID3: a phone that locks or leaves the call screen stops drawing the video, so the recording pauses (or, where the
+  // browser can't pause, stops and keeps what was recorded) and says so plainly when the person comes back.
+  const stopNow = useRef(stop);
+  stopNow.current = stop;
+  useEffect(() => {
+    if (!phone || !videoActive) return;
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        if (awayPaused.current) {
+          awayPaused.current = false;
+          setAway(true);
+          toast(tt("meetingrec.paused_away_title"), { id: "video-away", description: tt("meetingrec.paused_away") });
+        }
+        return;
+      }
+      if (video.paused) return;
+      const cur = mySignal.current;
+      if (backgroundAction(true) === "pause" && video.pause()) {
+        recorder.current?.setMuted(true);
+        if (cur) announce({ ...cur, paused: true });
+        awayPaused.current = true;
+      } else {
+        toast(tt("meetingrec.stopped_away"), { id: "video-away" });
+        void stopNow.current();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [phone, videoActive, video, announce]);
+  useEffect(() => { if (!videoActive) { setAway(false); awayPaused.current = false; } }, [videoActive]);
 
   // VID2 (MB-351): the call hangs up only when the page really goes (pagehide), never on beforeunload alone. A
   // beforeunload can fire and the page stay (Stay on a leave prompt, a check like a layout change test), and the
@@ -376,12 +424,13 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
         )}
         {vid2 && video.active && (
           <div className="pointer-events-auto max-w-full">
-            <ChoiceGroup label="Recording layout" compact onDark value={layout} onChange={setLayout} testid="rec-layout"
+            <ChoiceGroup label="Recording layout" compact onDark big={phone} value={layout} onChange={setLayout} testid="rec-layout"
               options={[{ value: "speaker", label: "Speaker" }, { value: "gallery", label: "Gallery" }]} />
           </div>
         )}
-        {recordingMine && <p className="max-w-full rounded-md bg-black/60 px-2 py-1 text-center text-[12px] text-white" data-testid="record-consent">{video.paused ? PAUSED_NOTE : video.active ? VIDEO_CONSENT_SELF : CONSENT_TEXT}</p>}
-        {vid2 && videoAllowed && !recordingMine && <div className="pointer-events-auto w-full max-w-xl"><RecoverRecording meetingId={meetingId} onDark /></div>}
+        {recordingMine && <p className="max-w-full rounded-md bg-black/60 px-2 py-1 text-center text-[12px] text-white" data-testid="record-consent">{video.paused ? (away ? tt("meetingrec.paused_away") : PAUSED_NOTE) : video.active ? VIDEO_CONSENT_SELF : CONSENT_TEXT}</p>}
+        {phone && <div className="pointer-events-auto w-full max-w-xl"><PhoneSaves onDark /></div>}
+        {vid2 && videoAllowed && !recordingMine && <div className="pointer-events-auto w-full max-w-xl"><RecoverRecording meetingId={meetingId} onDark phone={phone} /></div>}
       </div>
       <Dialog open={setupOpen} onClose={() => setSetupOpen(false)} title="Record and transcribe">
         <RecordSetupPrompt setup={setup} compact />
@@ -389,7 +438,7 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
       {videoAllowed && meetingId && (
         <VideoRecordDialog open={videoOpen} onClose={() => setVideoOpen(false)} meetingId={meetingId} title={title} transcriptReady={!!setup?.ready} aiOff={setup?.code === "recording_needs_ai_on"}
           canAudioOnly={!!setup?.ready} onAudioOnly={() => { setVideoOpen(false); void start(); }} onStart={startWithVideo}
-          vid2={vid2 ? { layout, setLayout, quality, setQuality, hd } : undefined} />
+          vid2={vid2 ? { layout, setLayout, quality, setQuality, hd } : undefined} phone={phone} />
       )}
     </div>
   );

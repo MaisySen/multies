@@ -55,6 +55,8 @@ export interface PublicConfig {
   videoRecVid1?: boolean;
   /** VID2: pause and resume, speaker or gallery view, crash safe pieces, chat and transcript saved next to the video. */
   videoRecVid2?: boolean;
+  /** VID3: recording on phone browsers (mp4 first, parts, Save through the share sheet, pause in the background). */
+  videoPhoneVid3?: boolean;
   translateR116?: boolean; // R116: translate and read aloud
   langR104?: boolean; // R104: the app in Nepali and Hindi
   /** R128: team password vault (VAULT_R128). */

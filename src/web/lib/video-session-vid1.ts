@@ -38,6 +38,11 @@ export interface VideoSession {
   /** The stand alone mix when no transcript recorder runs (tracks are added to it as people join). */
   mixer: AudioMixer | null;
   stop(): Promise<Saved>;
+  /**
+   * VID3: a phone's memory is small, so a long call is saved in parts: the current recording is finished (its file
+   * answered) and a new one starts at once on the same picture and sound. recording points at the new one after.
+   */
+  rollover(next: { keep?: { put(b: Blob): Promise<void> } }): Promise<Saved>;
   /** VID2: the frame rate the drawing runs at now (it steps down on a slow device). */
   frameRate(): number;
 }
@@ -54,6 +59,8 @@ export async function startVideoSession(o: {
   draw?: CompositorOptions;
   videoBits?: number;
   keep?: { put(b: Blob): Promise<void> };
+  /** VID3: a phone's memory limits (warning, then the part is saved); VID1's 1.5 GB and 2 GB when absent. */
+  limits?: { warn: number; hard: number };
 }): Promise<VideoSession> {
   const Recorder = (globalThis as { MediaRecorder?: RecorderCtor }).MediaRecorder;
   if (!Recorder) throw new Error("This browser can't record video.");
@@ -70,18 +77,29 @@ export async function startVideoSession(o: {
     const sound = (o.audio ?? mixer!.stream).getAudioTracks();
     const stream = new MediaStream([video, ...sound]);
     const sink: Sink = o.writable ? new FileSink(o.writable) : new MemorySink(o.mime.split(";")[0] || "video/webm");
-    const recording = new VideoRecording({ stream, mime: o.mime, sink, Recorder, onEvent: o.onEvent, videoBits: o.videoBits, keep: o.keep });
+    const make = (s: Sink, keep?: { put(b: Blob): Promise<void> }) => new VideoRecording({ stream, mime: o.mime, sink: s, Recorder, onEvent: o.onEvent, videoBits: o.videoBits, keep, warnBytes: o.limits?.warn, hardBytes: o.limits?.hard });
     const comp = compositor;
     comp.onFail = (message) => o.onEvent({ type: "error", message: `drawing the video failed (${message})` });
-    recording.start();
+    const first = make(sink, o.keep);
+    first.start();
     let done: Promise<Saved> | null = null;
-    return {
-      recording,
+    const session: VideoSession = {
+      recording: first,
       mixer,
       frameRate: () => comp.frameRate,
+      async rollover(next) {
+        if (done) return done;
+        const old = session.recording;
+        const saved = await old.stop();
+        if (done) return saved;
+        const fresh = make(new MemorySink(o.mime.split(";")[0] || "video/webm"), next.keep);
+        fresh.start();
+        session.recording = fresh;
+        return saved;
+      },
       stop() {
         if (done) return done;
-        done = recording.stop().finally(async () => {
+        done = session.recording.stop().finally(async () => {
           comp.dispose();
           video.stop();
           await mixer?.close();
@@ -89,6 +107,7 @@ export async function startVideoSession(o: {
         return done;
       },
     };
+    return session;
   } catch (e) {
     compositor?.dispose();
     await mixer?.close();

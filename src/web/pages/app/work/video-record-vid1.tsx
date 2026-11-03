@@ -15,6 +15,8 @@ import { pickVideoType, sizeText, videoFileName, type Saved, type VideoEvent, ty
 import type { VideoSession } from "@/web/lib/video-session-vid1";
 import type { LayoutMode, PieceStore, Quality, QualityId } from "@/web/lib/video-rec-vid2";
 import { RecordSettings } from "./video-vid2-ui";
+import { iosTooOld, partFileName, pickPhoneVideoType, readyVideos } from "@/web/lib/video-phone-vid3";
+import { t as tt } from "@/web/i18n";
 
 export const VIDEO_INTRO = "A video of the whole call is saved to this device when you stop. Nothing is uploaded.";
 export const VIDEO_TRANSCRIPT_ON = "A transcript and summary are made too, as with every recording.";
@@ -32,10 +34,11 @@ type Picker = (o: { suggestedName: string; types: { description: string; accept:
 const picker = () => (typeof window !== "undefined" ? (window as unknown as { showSaveFilePicker?: Picker }).showSaveFilePicker : undefined);
 
 /** What this browser can do: the recording type, and whether it can write to a file as the call goes. */
-export function videoSupport() {
+export function videoSupport(phone = false) {
   const MR = (globalThis as { MediaRecorder?: { isTypeSupported?: (t: string) => boolean } }).MediaRecorder;
   const canvasOk = typeof document !== "undefined" && typeof (document.createElement("canvas") as HTMLCanvasElement & { captureStream?: unknown }).captureStream === "function";
-  const type = canvasOk && typeof AudioContext !== "undefined" ? pickVideoType(MR?.isTypeSupported?.bind(MR)) : null;
+  const pick = phone ? pickPhoneVideoType : pickVideoType; // VID3: mp4 first on a phone (Photos and the gallery take it)
+  const type = canvasOk && typeof AudioContext !== "undefined" ? pick(MR?.isTypeSupported?.bind(MR)) : null;
   return { type, file: !!picker() && typeof window !== "undefined" && window.isSecureContext };
 }
 
@@ -52,7 +55,9 @@ export function download(url: string, name: string) {
 
 export interface VideoStartArgs { writable: Writable | null; fileName: string; mime: string; audio: MediaStream | null; transcript: boolean;
   /** VID2: quality, the layout (read every frame), the meeting for recovery, and the side files written at the end. */
-  vid2?: { quality: Quality; layout: () => LayoutMode; meetingId: string | null; title: string; sideFiles: (fileName: string) => { name: string; text: string }[] } }
+  vid2?: { quality: Quality; layout: () => LayoutMode; meetingId: string | null; title: string; sideFiles: (fileName: string) => { name: string; text: string }[] };
+  /** VID3: recording on a phone: saved in parts at the phone's memory budget, and kept for the person's Save tap (no download on its own). */
+  phone?: { warn: number; part: number } }
 
 /** VID2: a text file saved next to the video (chat log, transcript). */
 export function saveText(name: string, text: string) {
@@ -64,7 +69,9 @@ export function saveText(name: string, text: string) {
 /** One video recording in this room: start, stop and save, the size warning, errors, leaving the page. */
 export function useVideoRecording(room: Room) {
   const session = useRef<VideoSession | null>(null);
-  const meta = useRef<{ fileName: string; file: boolean; transcript: boolean; vid2?: VideoStartArgs["vid2"] } | null>(null);
+  const meta = useRef<{ fileName: string; file: boolean; transcript: boolean; vid2?: VideoStartArgs["vid2"]; phone?: VideoStartArgs["phone"]; part: number; offsetSec: number; mime: string } | null>(null);
+  /** VID3: a part is being saved while the next one starts. */
+  const rolling = useRef(false);
   const keep = useRef<PieceStore | null>(null);
   const [active, setActive] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -72,6 +79,7 @@ export function useVideoRecording(room: Room) {
   const [elapsed, setElapsed] = useState(0);
   const [saved, setSaved] = useState<{ url: string; name: string } | null>(null);
   const stopRef = useRef<() => Promise<Saved | null>>(async () => null);
+  const partRef = useRef<() => Promise<void>>(async () => undefined);
 
   const finish = useCallback(async (): Promise<Saved | null> => {
     const s = session.current;
@@ -90,7 +98,12 @@ export function useVideoRecording(room: Room) {
     setPaused(false);
     toast.dismiss("video-size");
     if (m.vid2) toast.dismiss("video-saving");
-    if (out?.kind === "memory" && out.blob && out.blob.size) {
+    if (m.phone && out?.kind === "memory" && out.blob && out.blob.size) {
+      // VID3: a phone only opens its share sheet from a tap, so the video waits for the person's Save tap.
+      const k = keep.current;
+      readyVideos.add(partFileName(m.fileName, m.part), out.blob, { group: m.fileName, keepId: k?.id ?? null, release: k ? () => void k.finish().catch(() => undefined) : null });
+      if (out.reason !== "error") toast.success(tt("meetingrec.video_ready", { size: sizeText(out.blob.size) }), { description: tt("meetingrec.tap_save") });
+    } else if (out?.kind === "memory" && out.blob && out.blob.size) {
       const url = URL.createObjectURL(out.blob);
       setSaved((old) => { if (old) URL.revokeObjectURL(old.url); return { url, name: m.fileName }; });
       download(url, m.fileName);
@@ -102,7 +115,10 @@ export function useVideoRecording(room: Room) {
     }
     // VID2: the chat (and anything else asked for) saved next to the video, then the pieces on the device go.
     const savedOk = !!out && ((out.kind === "memory" && !!out.blob?.size) || (out.kind === "file" && out.bytes > 0));
-    if (m.vid2 && savedOk) {
+    if (m.vid2 && savedOk && m.phone) {
+      // VID3: the chat joins the video in the Save list (one share with it when the phone takes several files).
+      for (const f of m.vid2.sideFiles(m.fileName)) readyVideos.addSide(m.fileName, f);
+    } else if (m.vid2 && savedOk) {
       for (const f of m.vid2.sideFiles(m.fileName)) saveText(f.name, f.text);
       // The pieces go in the background: ending the banner for everyone never waits on the device's storage.
       const k = keep.current;
@@ -115,7 +131,17 @@ export function useVideoRecording(room: Room) {
 
   const onEvent = useCallback((e: VideoEvent) => {
     const m = meta.current;
-    if (e.type === "warn") {
+    if (e.type === "warn" && m?.phone) {
+      toast.warning(tt("meetingrec.part_warn", { size: sizeText(e.bytes) }), {
+        id: "video-size",
+        duration: Infinity,
+        description: tt("meetingrec.part_warn_hint"),
+        action: { label: tt("meetingrec.save_part"), onClick: () => void partRef.current() },
+      });
+    } else if (e.type === "limit" && m?.phone) {
+      toast(tt("meetingrec.part_saved", { size: sizeText(e.bytes) }), { description: tt("meetingrec.part_saved_hint") });
+      void partRef.current();
+    } else if (e.type === "warn") {
       toast.warning(`The video is ${sizeText(e.bytes)} so far`, {
         id: "video-size",
         duration: Infinity,
@@ -133,7 +159,7 @@ export function useVideoRecording(room: Room) {
 
   const start = useCallback(async (a: VideoStartArgs) => {
     const { startVideoSession } = await import("@/web/lib/video-session-vid1");
-    meta.current = { fileName: a.fileName, file: !!a.writable, transcript: a.transcript, vid2: a.vid2 };
+    meta.current = { fileName: a.fileName, file: !!a.writable, transcript: a.transcript, vid2: a.vid2, phone: a.phone, part: 1, offsetSec: 0, mime: a.mime };
     let draw: Parameters<typeof startVideoSession>[0]["draw"];
     if (a.vid2) {
       // VID2: every piece is kept on this device as it comes, so a crash or a closed tab loses nothing.
@@ -147,7 +173,8 @@ export function useVideoRecording(room: Room) {
       setFps(q.fps);
     }
     try {
-      session.current = await startVideoSession({ room, audio: a.audio, mime: a.mime, writable: a.writable, onEvent, draw, videoBits: a.vid2?.quality.videoBits, keep: keep.current ?? undefined });
+      session.current = await startVideoSession({ room, audio: a.audio, mime: a.mime, writable: a.writable, onEvent, draw, videoBits: a.vid2?.quality.videoBits, keep: keep.current ?? undefined,
+        limits: a.phone && !a.writable ? { warn: a.phone.warn, hard: a.phone.part } : undefined });
     } catch (e) {
       await keep.current?.finish().catch(() => undefined);
       keep.current = null;
@@ -161,7 +188,7 @@ export function useVideoRecording(room: Room) {
   // While recording: the clock, a warning before closing or reloading the tab, and stop and save on leaving.
   useEffect(() => {
     if (!active) return;
-    const tick = setInterval(() => setElapsed(session.current?.recording.elapsedSec ?? 0), 1000);
+    const tick = setInterval(() => setElapsed((meta.current?.offsetSec ?? 0) + (session.current?.recording.elapsedSec ?? 0)), 1000);
     const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
     window.addEventListener("beforeunload", warn);
     // The call itself hangs up on beforeunload, before the person can choose to stay. While a video records it
@@ -187,7 +214,7 @@ export function useVideoRecording(room: Room) {
   /** VID2: pause and resume. Answers whether it took (false when this browser can't pause a recording). */
   const pause = useCallback(() => {
     const ok = !!session.current?.recording.pause();
-    if (ok) { setPaused(true); setElapsed(session.current?.recording.elapsedSec ?? 0); }
+    if (ok) { setPaused(true); setElapsed((meta.current?.offsetSec ?? 0) + (session.current?.recording.elapsedSec ?? 0)); }
     return ok;
   }, []);
   const resume = useCallback(() => {
@@ -196,30 +223,69 @@ export function useVideoRecording(room: Room) {
     return ok;
   }, []);
 
-  return { active, elapsed, saved, start, stop: finish, mixer, paused, pause, resume, fps };
+  /**
+   * VID3: saves what is recorded so far as a part (it joins the Save list) and keeps recording into a new part at
+   * once, on the same picture and sound. Used at a phone's memory budget, and from the warning's Save this part.
+   */
+  const savePart = useCallback(async () => {
+    const s = session.current;
+    const m = meta.current;
+    if (!s || !m?.phone || m.file || rolling.current) return;
+    rolling.current = true;
+    toast.dismiss("video-size");
+    const wasPaused = s.recording.paused;
+    const old = s.recording;
+    const oldKeep = keep.current;
+    let nextKeep: PieceStore | null = null;
+    try {
+      if (m.vid2 && oldKeep) {
+        const [{ PieceStore: Store }, { idbBackend }] = await Promise.all([import("@/web/lib/video-rec-vid2"), import("@/web/lib/video-store-vid2")]);
+        nextKeep = new Store(idbBackend, { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, meetingId: m.vid2.meetingId, title: m.vid2.title, fileName: partFileName(m.fileName, m.part + 1), mime: m.mime, startedAt: Date.now() });
+        await nextKeep.begin();
+      }
+      const out = await s.rollover({ keep: nextKeep ?? undefined });
+      if (session.current !== s) return;
+      m.offsetSec += old.elapsedSec;
+      if (out.blob && out.blob.size) {
+        readyVideos.add(partFileName(m.fileName, m.part), out.blob, { group: m.fileName, keepId: oldKeep?.id ?? null, release: oldKeep ? () => void oldKeep.finish().catch(() => undefined) : null });
+      }
+      m.part += 1;
+      keep.current = nextKeep;
+      if (wasPaused && s.recording.pause()) setPaused(true);
+    } catch (e) {
+      showError(e as Error);
+    } finally {
+      rolling.current = false;
+    }
+  }, []);
+  partRef.current = savePart;
+
+  return { active, elapsed, saved, start, stop: finish, mixer, paused, pause, resume, fps, savePart };
 }
 
 /** The "Record this call" dialog: what is saved where, whether a transcript comes too, then start. */
-export function VideoRecordDialog({ open, onClose, meetingId, title, transcriptReady, aiOff = false, canAudioOnly, onAudioOnly, onStart, vid2 }: {
+export function VideoRecordDialog({ open, onClose, meetingId, title, transcriptReady, aiOff = false, canAudioOnly, onAudioOnly, onStart, vid2, phone = false }: {
   open: boolean; onClose: () => void; meetingId: string; title?: string; transcriptReady: boolean; aiOff?: boolean; canAudioOnly: boolean;
   onAudioOnly: () => void; onStart: (writable: Writable | null, fileName: string, mime: string) => Promise<void>;
   /** VID2: layout and quality picked before starting (the layout can change again while recording). */
   vid2?: { layout: LayoutMode; setLayout: (l: LayoutMode) => void; quality: QualityId; setQuality: (q: QualityId) => void; hd: boolean };
+  /** VID3: recording on a phone (mp4 first, kept until the person taps Save, plain words for an old iPhone). */
+  phone?: boolean;
 }) {
   const [permit, setPermit] = useState<{ ok: boolean; title: string | null; error: string | null } | null>(null);
   const [busy, setBusy] = useState<"file" | "memory" | null>(null);
-  const support = useRef(videoSupport());
+  const support = useRef(videoSupport(phone));
 
   useEffect(() => {
     if (!open) return;
-    support.current = videoSupport();
+    support.current = videoSupport(phone);
     setPermit(null);
     let live = true;
     api.post<{ ok: true; meeting: { title: string | null } }>(`/meetings/${meetingId}/recordings/video`, {})
       .then((r) => { if (live) setPermit({ ok: true, title: r.meeting.title, error: null }); })
       .catch((e: Error) => { if (live) setPermit({ ok: false, title: null, error: e.message || "You can't record video in this call." }); });
     return () => { live = false; };
-  }, [open, meetingId]);
+  }, [open, meetingId, phone]);
 
   const type = support.current.type;
   const fileName = (ext: "webm" | "mp4") => videoFileName(permit?.title ?? title ?? "", new Date(), ext);
@@ -273,14 +339,14 @@ export function VideoRecordDialog({ open, onClose, meetingId, title, transcriptR
     <Dialog open={open} onClose={onClose} title="Record this call" footer={footer}>
       <div className="space-y-3 text-[13px]" data-testid="video-rec-dialog">
         {!type ? (
-          <p className="flex items-start gap-2 text-fg" data-testid="video-rec-unsupported"><IconWarning className="mt-0.5 h-4 w-4 shrink-0 text-muted" />{VIDEO_UNSUPPORTED}</p>
+          <p className="flex items-start gap-2 text-fg" data-testid="video-rec-unsupported"><IconWarning className="mt-0.5 h-4 w-4 shrink-0 text-muted" />{phone && typeof navigator !== "undefined" && iosTooOld(navigator.userAgent) ? tt("meetingrec.ios_too_old") : phone ? tt("meetingrec.phone_unsupported") : VIDEO_UNSUPPORTED}</p>
         ) : (
           <>
             <p className="text-fg">{VIDEO_INTRO}</p>
             <p className={transcriptReady ? "text-muted" : "text-fg"} data-testid="video-rec-transcript">{transcriptReady ? VIDEO_TRANSCRIPT_ON : aiOff ? VIDEO_TRANSCRIPT_AI_OFF : VIDEO_TRANSCRIPT_OFF}</p>
             <p className="text-muted">{VIDEO_BANNER_NOTE}</p>
             {vid2 && <RecordSettings {...vid2} />}
-            <p className="rounded-lg border border-line px-3 py-2 text-muted" data-testid="video-rec-where">{support.current.file ? VIDEO_FILE_HINT : VIDEO_MEMORY_HINT}</p>
+            <p className="rounded-lg border border-line px-3 py-2 text-muted" data-testid="video-rec-where">{support.current.file ? VIDEO_FILE_HINT : phone ? tt("meetingrec.phone_hint") : VIDEO_MEMORY_HINT}</p>
           </>
         )}
         {permit && !permit.ok && <p role="alert" className="text-danger" data-testid="video-rec-refused">{permit.error}</p>}

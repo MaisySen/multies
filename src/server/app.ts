@@ -492,6 +492,7 @@ export function createApp(deps: Deps) {
       portalTd9: !!(deps.config.clientPortal && deps.config.portalTd9), // TD9: portal access per area, project view, private comments
       videoRecVid1: !!(deps.config.videoRecVid1 && deps.config.meetings), // VID1: admins save a video of the call on their own device
       videoRecVid2: !!(deps.config.videoRecVid2 && deps.config.videoRecVid1 && deps.config.meetings), // VID2: pause, layouts, crash safe, chat and transcript files
+      videoPhoneVid3: !!(deps.config.videoPhoneVid3 && deps.config.videoRecVid2 && deps.config.videoRecVid1 && deps.config.meetings), // VID3: recording on phone browsers
       translateR116: !!deps.config.translateR116, // R116: translate and read aloud
       langR104: !!deps.config.langR104, // R104: the app in Nepali and Hindi
       vaultR128: !!deps.config.vaultR128, // R128: team password vault

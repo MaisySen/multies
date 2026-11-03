@@ -11,13 +11,16 @@ import { IconWarning } from "@/web/components/ui/icon";
 import { sizeText } from "@/web/lib/video-rec-vid1";
 import type { LayoutMode, QualityId, StoredMeta } from "@/web/lib/video-rec-vid2";
 import { download } from "./video-record-vid1";
+import { readyVideos } from "@/web/lib/video-phone-vid3";
 
 export const LAYOUT_LABEL: Record<LayoutMode, string> = { speaker: "Speaker view", gallery: "Gallery view" };
 export const PAUSED_NOTE = "Recording paused. Nothing is recorded until it resumes.";
 
 /** A row of two or three pill shaped radio buttons (native radios, so keyboard and screen readers just work). */
-export function ChoiceGroup<T extends string>({ label, value, options, onChange, testid, compact, onDark }: {
+export function ChoiceGroup<T extends string>({ label, value, options, onChange, testid, compact, onDark, big }: {
   label: string; value: T; options: { value: T; label: string; disabled?: boolean; hint?: string }[]; onChange: (v: T) => void; testid: string; compact?: boolean; onDark?: boolean;
+  /** VID3: 44 px tall on a phone. */
+  big?: boolean;
 }) {
   const name = useId();
   return (
@@ -26,7 +29,7 @@ export function ChoiceGroup<T extends string>({ label, value, options, onChange,
       <div className={cn("inline-flex max-w-full rounded-lg p-0.5", onDark ? "bg-black/60" : "bg-fill")}>
         {options.map((o) => (
           <label key={o.value} title={o.hint} className={cn("relative cursor-pointer whitespace-nowrap rounded-md px-3 text-[12.5px] font-medium leading-none transition-colors duration-150 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-1 has-[:focus-visible]:outline-brand",
-            compact ? "py-2" : "py-2.5",
+            compact ? "py-2" : "py-2.5", big && "max-sm:inline-flex max-sm:min-h-11 max-sm:items-center",
             o.value === value ? (onDark ? "bg-white text-[#1c1c1e]" : "bg-surface text-fg shadow-sm") : (onDark ? "text-white" : "text-muted hover:text-fg"),
             o.disabled && "cursor-not-allowed opacity-60")}>
             <input type="radio" name={name} value={o.value} checked={o.value === value} disabled={o.disabled} onChange={() => onChange(o.value)} className="sr-only" data-testid={`${testid}-${o.value}`} />
@@ -51,7 +54,9 @@ export function RecordSettings({ layout, setLayout, quality, setQuality, hd }: {
 }
 
 /** "A recording didn't finish saving": rebuild and save it, or discard it. Shows only when pieces are on this device. */
-export function RecoverRecording({ meetingId, className, onDark }: { meetingId?: string | null; className?: string; onDark?: boolean }) {
+export function RecoverRecording({ meetingId, className, onDark, phone }: { meetingId?: string | null; className?: string; onDark?: boolean;
+  /** VID3: on a phone the rebuilt video joins the Save list (the share sheet needs its own tap), and pieces already there are left alone. */
+  phone?: boolean }) {
   const [list, setList] = useState<StoredMeta[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => {
@@ -61,11 +66,12 @@ export function RecoverRecording({ meetingId, className, onDark }: { meetingId?:
         const [{ recoverable, sweep }, { idbBackend }] = await Promise.all([import("@/web/lib/video-rec-vid2"), import("@/web/lib/video-store-vid2")]);
         await sweep(idbBackend, Date.now());
         const found = recoverable(await idbBackend.metas(), Date.now());
-        if (live) setList(found.filter((m) => !meetingId || !m.meetingId || m.meetingId === meetingId));
+        const held = phone ? new Set(readyVideos.keepIds()) : null;
+        if (live) setList(found.filter((m) => (!meetingId || !m.meetingId || m.meetingId === meetingId) && !held?.has(m.id)));
       } catch { /* no store in this browser: nothing to recover */ }
     })();
     return () => { live = false; };
-  }, [meetingId]);
+  }, [meetingId, phone]);
   const m = list[0];
   if (!m) return null;
   const recover = async () => {
@@ -74,6 +80,11 @@ export function RecoverRecording({ meetingId, className, onDark }: { meetingId?:
       const [{ rebuild }, { idbBackend }] = await Promise.all([import("@/web/lib/video-rec-vid2"), import("@/web/lib/video-store-vid2")]);
       const blob = await rebuild(idbBackend, m);
       if (!blob) throw new Error("nothing was kept");
+      if (phone) {
+        readyVideos.add(m.fileName, blob, { keepId: m.id, release: () => void idbBackend.remove(m.id).catch(() => undefined) });
+        setList((l) => l.filter((x) => x.id !== m.id));
+        return;
+      }
       const url = URL.createObjectURL(blob);
       download(url, m.fileName);
       setTimeout(() => URL.revokeObjectURL(url), 120_000);
