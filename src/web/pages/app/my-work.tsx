@@ -2,6 +2,7 @@
 import { Suspense, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { formatCount } from "@/web/lib/format-count";
 import { api } from "@/web/lib/api";
 import { MyWorkNewTask } from "./work/my-work-new-task-load"; // F13b (MB-306)
 import { GetStartedCard } from "@/web/components/tours-r130"; // R130
@@ -57,14 +58,15 @@ function Section({ title, icon, items, empty, tone, testId }: { title: string; i
  * `wide` lays a card out in one row so a lone last card does not stretch into a tall empty box.
  */
 function Stat({ to, icon: Glyph, tint, value, label, sub, testId, action, className, wide }: { className?: string; to: string; icon: IconComponent; tint: string; value: ReactNode; label: string; sub?: ReactNode; testId: string; action?: ReactNode; wide?: boolean }) {
+  const shown = typeof value === "number" ? formatCount(value) : value;
   return (
     <div className={cn("elev-1 pressable relative flex min-w-0 flex-col rounded-[var(--radius-r14)] bg-surface p-4 transition-shadow duration-200 hover:shadow-[var(--shadow-e2)] max-sm:p-3", wide && "max-lg:flex-row max-lg:items-center max-lg:gap-3", className)} data-testid={testId}>
-      <Link to={to} className="absolute inset-0 rounded-[var(--radius-r14)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" aria-label={`${label}: ${typeof value === "number" || typeof value === "string" ? value : ""}`} />
+      <Link to={to} className="absolute inset-0 rounded-[var(--radius-r14)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" aria-label={`${label}: ${typeof shown === "string" ? shown : ""}`} />
       <div className={cn("flex items-start justify-between gap-2", wide && "max-lg:contents")}>
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-r10)] text-white max-sm:h-7 max-sm:w-7 max-sm:rounded-full" style={{ background: tint }} aria-hidden><Glyph size={18} filled /></span>
-        <span className={cn("truncate text-[26px] font-bold leading-8 tracking-tight tabular-nums text-fg sm:hidden", wide && "max-lg:order-3 max-lg:ml-auto")}>{value}</span>
+        <span className={cn("truncate text-[26px] font-bold leading-8 tracking-tight tabular-nums text-fg sm:hidden", wide && "max-lg:order-3 max-lg:ml-auto")}>{shown}</span>
       </div>
-      <span className="mt-3 hidden truncate text-[26px] font-bold leading-8 tracking-tight tabular-nums text-fg sm:block">{value}</span>
+      <span className="mt-3 hidden truncate text-[26px] font-bold leading-8 tracking-tight tabular-nums text-fg sm:block">{shown}</span>
       <div className={cn("min-w-0 max-sm:mt-2", wide && "max-lg:mt-0 max-lg:flex-1")}>
         <span className="block truncate text-[13px] font-medium text-fg max-sm:text-[13.5px] max-sm:font-semibold max-sm:text-muted">{label}</span>
         {sub && <span className="block truncate text-[12px] text-muted max-sm:text-[11.5px]">{sub}</span>}
@@ -175,11 +177,11 @@ export function MyWorkPage() {
             </div>
           ) : (
           <div className="mb-6 grid grid-cols-2 gap-3 max-sm:gap-2.5 lg:grid-cols-5" data-testid="today-cards">
-            <Stat testId="today-mail" to="/app/mail" icon={IconInbox} tint="#0071E3" value={c?.mail.inbox ?? "0"} label="Unread mail" sub={c ? `${c.mail.important} important` : undefined} />
-            <Stat testId="today-tasks" to="/app/tasks" icon={IconTasks} tint={overdue > 0 ? "#D70015" : "#34C759"} value={due} label="Due today" sub={overdue > 0 ? <span className="text-bad">{overdue} overdue</span> : "Nothing overdue"} />
+            <Stat testId="today-mail" to="/app/mail" icon={IconInbox} tint="#0071E3" value={c?.mail.inbox ?? "0"} label="Unread mail" sub={c ? `${formatCount(c.mail.important)} important` : undefined} />
+            <Stat testId="today-tasks" to="/app/tasks" icon={IconTasks} tint={overdue > 0 ? "#D70015" : "#34C759"} value={due} label="Due today" sub={overdue > 0 ? <span className="text-bad">{formatCount(overdue)} overdue</span> : "Nothing overdue"} />
             <Stat testId="today-meeting" to={next?.item.url ?? "/app/meetings"} icon={IconVideo} tint="#30B0C7" value={next?.item.at ? meetingTime(next.item.at, w?.timeZone) : "None"} label="Next meeting" sub={next?.item.title ?? "No meetings today"}
               action={next?.joinable ? <Link to={next.item.url} className="pressable inline-flex h-8 items-center gap-1 rounded-full bg-[#0071E3] px-3 text-[12.5px] font-semibold text-white" data-testid="today-join"><IconVideo size={14} filled />Join</Link> : undefined} />
-            <Stat testId="today-mentions" to="/app/notifications" icon={IconMention} tint="#5856D6" value={mentions} label="Mentions" sub={c && c.chat.unread > 0 ? `${c.chat.unread} unread in chat` : "All caught up"} />
+            <Stat testId="today-mentions" to="/app/notifications" icon={IconMention} tint="#5856D6" value={mentions} label="Mentions" sub={c && c.chat.unread > 0 ? `${formatCount(c.chat.unread)} unread in chat` : "All caught up"} />
             <Stat className="max-lg:col-span-2" wide testId="today-approvals" to="/app/approvals" icon={IconApprovals} tint="#FF9500" value={w.approvals.length} label="Approvals waiting" sub={w.approvals.length ? "Open Approvals" : "None waiting"} />
           </div>
           )}

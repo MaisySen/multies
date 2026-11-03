@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { formatCount } from "@/web/lib/format-count";
 import { displayFirstName } from "@/shared/display-name";
 import { GetStartedCard, useToursMe } from "@/web/components/tours-r130"; // R130
 import { IconAgent, IconArrowRight, IconCheck, IconGlobe, IconInbox, IconMention, IconSend, IconTeam, IconUserRound } from "@/web/components/ui/icon";
@@ -43,11 +44,11 @@ function OverviewClassic({ embedded }: { embedded?: boolean }) {
           {!tours.on && !data.onboarding.dismissed && !Object.values(data.onboarding.steps).every(Boolean) ? <GettingStarted data={data} /> : null}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-5">
             <Stat icon={<IconGlobe />} label="Domains" value={`${data.domains.filter((d) => d.status === "verified").length}/${data.usage.domains}`} sub={`verified, plan allows ${data.plan.limits.domains}`} used={data.usage.domains} max={data.plan.limits.domains} />
-            <Stat icon={<IconTeam />} label="Mailboxes" value={String(data.usage.mailboxes)} sub={`of ${data.plan.limits.mailboxes}`} used={data.usage.mailboxes} max={data.plan.limits.mailboxes} />
-            <Stat icon={<IconUserRound />} label="People" value={String(data.team.members)} sub={`of ${data.plan.limits.seats} seats`} used={data.team.members} max={data.plan.limits.seats}
+            <Stat icon={<IconTeam />} label="Mailboxes" value={formatCount(data.usage.mailboxes)} sub={`of ${data.plan.limits.mailboxes}`} used={data.usage.mailboxes} max={data.plan.limits.mailboxes} />
+            <Stat icon={<IconUserRound />} label="People" value={formatCount(data.team.members)} sub={`of ${data.plan.limits.seats} seats`} used={data.team.members} max={data.plan.limits.seats}
               note={<span className="inline-flex items-center gap-1"><IconAgent className="h-3.5 w-3.5" aria-hidden="true" />{data.team.agents === 1 ? "1 AI agent" : `${data.team.agents} AI agents`}, no seat used</span>} />
-            <Stat icon={<IconMention />} label="Aliases" value={String(data.usage.aliases)} sub={`of ${data.plan.limits.aliases.toLocaleString(LOCALE)}`} used={data.usage.aliases} max={data.plan.limits.aliases} />
-            <Stat icon={<IconSend />} label="Sent today" value={String(data.sentToday)} sub={`of ${data.plan.limits.dailySends.toLocaleString(LOCALE)}`} used={data.sentToday} max={data.plan.limits.dailySends} />
+            <Stat icon={<IconMention />} label="Aliases" value={formatCount(data.usage.aliases)} sub={`of ${data.plan.limits.aliases.toLocaleString(LOCALE)}`} used={data.usage.aliases} max={data.plan.limits.aliases} />
+            <Stat icon={<IconSend />} label="Sent today" value={formatCount(data.sentToday)} sub={`of ${data.plan.limits.dailySends.toLocaleString(LOCALE)}`} used={data.sentToday} max={data.plan.limits.dailySends} />
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
             <Card className="p-5 lg:col-span-2">

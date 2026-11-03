@@ -1,4 +1,5 @@
 import { setDisplayLocale } from "@/web/lib/date-input";
+import { badgeCount } from "@/web/lib/format-count";
 import { pageFrameClass, pageWidth } from "@/web/lib/page-width"; // R75: page widths next to the sidebar
 import { Suspense, useEffect, useState, type ReactElement } from "react";
 import { createPortal } from "react-dom";
@@ -288,10 +289,10 @@ export function AppLayout() {
               {({ isActive }) => (<>
               {/* R79: calm monochrome glyphs; colour is kept for the active item and for counts that need you. */}
               <Icon filled={isActive} className="h-[18px] w-[18px] shrink-0 opacity-90" aria-hidden />{label}
-              {to === "/app/notifications" && (unreadNotes.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" data-badge aria-label={`${unreadNotes.data} unread`}>{unreadNotes.data}</span>}
-              {to === "/app/mail" && mailUnread > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" data-badge aria-label={`${mailUnread} unread in Inbox`}>{mailUnread > 999 ? "999+" : mailUnread}</span>}
-              {to === "/app/chat" && (chatUnread.data?.total ?? 0) > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" data-badge aria-label={`${chatUnread.data?.total} unread messages`}>{chatUnread.data?.total}</span>}
-              {to === "/app/triage" && (triageCount.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" data-badge aria-label={`${triageCount.data} waiting in Triage`}>{triageCount.data}</span>}
+              {to === "/app/notifications" && (unreadNotes.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" data-badge aria-label={`${unreadNotes.data} unread`}>{badgeCount(unreadNotes.data ?? 0)}</span>}
+              {to === "/app/mail" && mailUnread > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" data-badge aria-label={`${mailUnread} unread in Inbox`}>{badgeCount(mailUnread)}</span>}
+              {to === "/app/chat" && (chatUnread.data?.total ?? 0) > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" data-badge aria-label={`${chatUnread.data?.total} unread messages`}>{badgeCount(chatUnread.data?.total ?? 0)}</span>}
+              {to === "/app/triage" && (triageCount.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" data-badge aria-label={`${triageCount.data} waiting in Triage`}>{badgeCount(triageCount.data ?? 0)}</span>}
               {to === "/app/admin" && (openReports.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-bad px-1.5 text-[11px] font-semibold tabular-nums text-white" data-badge aria-label={`${openReports.data} reports to review`} data-testid="nav-reports-badge">{openReports.data}</span>}
               {to === "/app/approvals" && pendingCount > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" data-badge aria-label={`${pendingCount} waiting`}>{pendingCount}</span>}
               </>)}

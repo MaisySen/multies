@@ -4,6 +4,7 @@
  * breadcrumbs, search, one Create menu and a View menu for the person's own layout.
  */
 import { useEffect, useMemo, type ReactNode } from "react";
+import { badgeCount } from "@/web/lib/format-count";
 import { navTourId } from "@/shared/tours-r130"; // R130: stable tour targets on section pages
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -47,7 +48,7 @@ export const NAV_ICONS: Record<IconKey, IconComponent> = {
 /** Counts the shell shows, keyed by page path. "alert" counts use the brand colour; the rest stay neutral. */
 export type NavCounts = Record<string, { n: number; label: string; alert?: boolean }>;
 
-const fmt = (n: number) => (n > 999 ? "999+" : String(n));
+const fmt = (n: number) => badgeCount(n);
 
 function CountPill({ c, className }: { c?: NavCounts[string]; className?: string }) {
   if (!c || c.n <= 0) return null;
@@ -88,7 +89,7 @@ export function IconRail({ sections, active, counts, footer }: { sections: Secti
           <Icon filled={on} className="h-[19px] w-[19px]" aria-hidden />
         </span>
         <span className="max-w-full truncate px-0.5">{s.label}</span>
-        {n > 0 && <span className={cn("absolute right-1.5 top-0.5 min-w-[16px] rounded-full px-1 text-center text-[10px] font-semibold leading-4", badge.alert ? "bg-brand text-brand-fg" : "bg-fill text-muted")} aria-label={badge.alert ? `${n} need you` : `${n} unread`}>{n > 99 ? "99+" : n}</span>}
+        {n > 0 && <span className={cn("absolute right-1.5 top-0.5 min-w-[16px] rounded-full px-1 text-center text-[10px] font-semibold leading-4", badge.alert ? "bg-brand text-brand-fg" : "bg-fill text-muted")} aria-label={badge.alert ? `${n} need you` : `${n} unread`}>{badgeCount(n)}</span>}
       </Link>
     );
   };

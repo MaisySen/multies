@@ -4,6 +4,7 @@
  * the one menu model (src/shared/nav-menu.ts), so the rail, the sheet and the app list the same places.
  */
 import { useEffect, useRef, useState } from "react";
+import { badgeCount } from "@/web/lib/format-count";
 import { Link, NavLink } from "react-router";
 import { IconBack, IconChevronRight, IconMegaphone, IconSettings, IconSliders } from "@/web/components/ui/icon";
 import { Dialog } from "@/web/components/ui/dialog";
@@ -16,7 +17,7 @@ import { canHide, FOURTH_TABS, sectionBadge, withoutHidden, type FourthTab, type
 import { NAV_ICONS } from "@/web/layouts/shell";
 import { SOCIAL_NEW } from "@/web/layouts/shell-nav";
 
-const fmt = (n: number) => (n > 99 ? "99+" : String(n));
+const fmt = (n: number) => badgeCount(n);
 
 function Badge({ n, alert, label }: { n: number; alert: boolean; label: string }) {
   if (n <= 0) return null;

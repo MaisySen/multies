@@ -268,9 +268,11 @@
 :root[data-design="des1"][data-theme="dark"] { --ds-shell: #040405; }
 @media (prefers-color-scheme: dark) { :root[data-design="des1"]:not([data-theme="light"]) { --ds-shell: #040405; } }
 @media (min-width: 1024px) {
-  :root[data-design="des1"] .app-shell { background: var(--ds-shell); }
+  /* DESF1: a workspace brand sidebar colour paints the canvas and the sidebar, because the brand's sidebar text
+     colours (white on a dark brand sidebar) are only readable on that ground. Without a brand colour: the shell. */
+  :root[data-design="des1"] .app-shell { background: var(--brand-sidebar, var(--ds-shell)); }
   :root[data-design="des1"] .app-shell [data-testid="icon-rail"],
-  :root[data-design="des1"] .app-shell .glass-sidebar { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border-right-color: transparent; }
+  :root[data-design="des1"] .app-shell .glass-sidebar { background: var(--brand-sidebar, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; border-right-color: transparent; }
   :root[data-design="des1"] .app-shell [data-testid="rail-bottom"] { border-top-color: var(--color-line); }
   :root[data-design="des1"] .app-shell div:has(> [data-desktop-topbar]) {
     margin: 8px 8px 8px 0; height: calc(100% - 16px); border-radius: 16px; overflow: hidden;
@@ -359,3 +361,31 @@
   /* Notice cards (text plus one button): the text takes the row and the button drops below it. */
   :root[data-design="des1"] #main [role="status"].flex-wrap > p.flex-1 { flex-basis: 15rem; }
 }
+
+/* ===== DESF1: light mode layers (owner 12:30 PM Sydney Nov 3: "light mode is fully white"). =====
+   Light only: the icon rail sits on a brand tinted canvas, the section sidebar on its own lighter tinted surface, the
+   working sheet on a soft tinted neutral, and cards stay white with a visible edge and a soft shadow. Section headers
+   use a strong muted ink tinted by the brand. Every colour follows the workspace brand (Forest and custom brands), and
+   text keeps 4.5:1 on each ground (measured by e2e/sidebar-contrast-desf1.spec.ts). Dark mode keeps its DES1 values. */
+:root[data-design="des1"] {
+  --ds-shell: color-mix(in srgb, var(--color-brand) 9%, #e4e7ec);
+  --ds-sidebar: color-mix(in srgb, var(--color-brand) 4%, #f0f2f5);
+  --color-bg: color-mix(in srgb, var(--color-brand) 2.5%, #f3f4f7);
+  --color-hover: color-mix(in srgb, var(--color-brand) 6%, #e9ecf0);
+  --ds-card-ring: rgb(15 23 42 / 0.09);
+  --ds-shadow-card: 0 0 0 1px var(--ds-card-ring), 0 1px 2px rgb(15 23 42 / 0.05), 0 4px 14px -6px rgb(15 23 42 / 0.12);
+  --ds-elev1: var(--ds-shadow-card);
+  --ds-section-ink: color-mix(in srgb, var(--color-brand) 30%, #3b404c);
+}
+:root[data-design="des1"][data-theme="dark"] { --ds-shell: #040405; --ds-sidebar: transparent; --ds-elev1: var(--shadow-e1); --ds-section-ink: var(--color-muted); }
+@media (prefers-color-scheme: dark) {
+  :root[data-design="des1"]:not([data-theme="light"]) { --ds-shell: #040405; --ds-sidebar: transparent; --ds-elev1: var(--shadow-e1); --ds-section-ink: var(--color-muted); }
+}
+@media (min-width: 1024px) {
+  /* The section sidebar is its own layer between the rail's canvas and the working sheet (a brand sidebar colour wins). */
+  :root[data-design="des1"] .app-shell .glass-sidebar:not([data-testid="icon-rail"]) { background: var(--brand-sidebar, var(--ds-sidebar)); }
+}
+/* Cards that use the app's first elevation get a visible edge in light mode. */
+:root[data-design="des1"] #main .elev-1.bg-surface { box-shadow: var(--ds-elev1); }
+/* Section headers in the sidebar: strong muted ink, not faint grey. A brand sidebar sets its own value (shared/branding.ts). */
+:root[data-design="des1"] [data-testid="context-sidebar"] nav button[aria-expanded] { color: var(--ds-section-ink); font-weight: 650; }

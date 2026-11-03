@@ -5,6 +5,7 @@
  * so one slow or failing widget never holds up Home. Widgets below the fold read when scrolled near.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { formatCount } from "@/web/lib/format-count";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type Announcements, type DragEndEvent } from "@dnd-kit/core";
@@ -156,7 +157,7 @@ function InboxWidget({ on }: { on: boolean }) {
       {tiles.map((t) => (
         <Link key={t.label} to={t.to} className="rounded-lg bg-fill px-3 py-2.5 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
           <span className="flex items-center gap-1.5 text-xs text-muted [&_svg]:h-3.5 [&_svg]:w-3.5">{t.icon}{t.label}</span>
-          <span className="mt-0.5 block text-[20px] font-semibold tabular-nums text-fg">{t.n}</span>
+          <span className="mt-0.5 block text-[20px] font-semibold tabular-nums text-fg">{formatCount(t.n)}</span>
         </Link>
       ))}
     </div>

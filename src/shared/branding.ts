@@ -220,6 +220,8 @@ export function sidebarTokens(sidebar: string | null): Tokens {
     // Quiet text stays AA on the sidebar and on its own hover and fill grounds (search, chips).
     "--color-muted": ensureContrast(ensureContrast(mix(fg, sidebar, 0.3), fill, 4.6), sidebar, 4.6),
     "--color-subtle": ensureContrast(ensureContrast(mix(fg, sidebar, 0.38), fill, 4.6), sidebar, 4.6),
+    // DESF1: the DES1 section header ink on this sidebar (the same AA safe quiet text).
+    "--ds-section-ink": ensureContrast(ensureContrast(mix(fg, sidebar, 0.3), fill, 4.6), sidebar, 4.6),
     "--color-hover": mix(sidebar, dark ? "#ffffff" : "#000000", 0.1),
     "--color-fill": fill,
     // Initials keep the sidebar's text colour readable: dark tiles on a dark sidebar, light tiles on a light one.
@@ -271,6 +273,9 @@ export function brandCss(b: Brand, personal: Personal | null = null): string {
     block(':root[data-theme="dark"]', dark),
     Object.keys(dark).length ? `@media (prefers-color-scheme:dark){${block(':root:not([data-theme="light"])', dark)}}` : "",
     spacing ? `@media (min-width:640px){${block(":root", { "--spacing": spacing })}}` : "",
+    // DESF1: the brand sidebar colour as a page wide value, so a layout that paints the shell itself (the DES1
+    // desktop canvas) keeps the sidebar's own ground under the sidebar's text colours.
+    b.sidebar ? block(":root", { "--brand-sidebar": b.sidebar }) : "",
     block(".glass-sidebar,[data-brand-sidebar]", side),
     // Text that inherits its colour (no text class of its own) follows the sidebar too.
     b.sidebar ? `.glass-sidebar,[data-brand-sidebar]{color:${readableOn(b.sidebar)}}` : "",
