@@ -14,7 +14,7 @@ import { installCspReport } from "./routes/csp-report-r30";
 import { installMonitoringTunnel } from "./routes/monitoring-tunnel-pol3";
 import type { AppEnv, Deps } from "./context";
 import { HttpError } from "./lib/errors";
-import { clientIp, csrfGuard } from "./middleware";
+import { clientIp, csrfGuard, requireAuth } from "./middleware";
 import { jsonLogger, requestIdFrom } from "./lib/logger";
 import { rateLimit } from "./lib/rate-limit";
 import { createHash } from "./lib/hash";
@@ -492,6 +492,7 @@ export function createApp(deps: Deps) {
       portalTd9: !!(deps.config.clientPortal && deps.config.portalTd9), // TD9: portal access per area, project view, private comments
       videoRecVid1: !!(deps.config.videoRecVid1 && deps.config.meetings), // VID1: admins save a video of the call on their own device
       videoRecVid2: !!(deps.config.videoRecVid2 && deps.config.videoRecVid1 && deps.config.meetings), // VID2: pause, layouts, crash safe, chat and transcript files
+      translateR116: !!deps.config.translateR116, // R116: translate and read aloud
       vaultR128: !!deps.config.vaultR128, // R128: team password vault
       peopleR126: !!deps.config.peopleR126, // R126: staff directory, onboarding, assets
       mentionsTd5: !!deps.config.mentionsTd5, // TD5: record mentions and References
@@ -582,6 +583,9 @@ export function createApp(deps: Deps) {
   app.route("/api/ai-trust", aiTrustRoutes()); // TD1: AI on or off per workspace, provider and region
   app.route("/api/crm-td10", crmTd10Routes()); // TD10: CRM suggestions from mail, saved analyses, shortcut switch
   app.route("/api/tools/ai", toolsAiRoutes()); // Tools P2: AI documents (ask, translate, invoices, expenses, contracts)
+  // R116: translate a mail, doc or chat message (TRANSLATE_R116). Off: no such endpoint, as before. Loaded on first use.
+  app.post("/api/translate", async (c, next) => (c.var.deps.config.translateR116 ? next() : notFoundHandler(c)), requireAuth,
+    async (c) => (await import("./routes/translate-r116")).translateHandler(c));
   app.route("/api/tools/share", toolsShareRoutes()); // Tools P2: share links
   app.route("/api/tools/requests", toolsRequestRoutes()); // R88: file requests
   app.route("/api/portals", portalRoutes()); // R120: client portals

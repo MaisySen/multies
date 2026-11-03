@@ -55,6 +55,7 @@ export interface PublicConfig {
   videoRecVid1?: boolean;
   /** VID2: pause and resume, speaker or gallery view, crash safe pieces, chat and transcript saved next to the video. */
   videoRecVid2?: boolean;
+  translateR116?: boolean; // R116: translate and read aloud
   /** R128: team password vault (VAULT_R128). */
   vaultR128?: boolean;
   /** R94: CRM timeline (notes are searchable with R98). */

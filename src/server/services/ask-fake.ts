@@ -11,8 +11,17 @@ export function fakeAskAllowed(env: { ASK_AI_FAKE?: string; APP_URL?: string }) 
 
 export const fakeAskAi: AiRunner = {
   async run(_model: string, input: unknown) {
+    // R116: translation through the Tools door (R116 translate uses deps.askAi in tests): "[Nepali] text" for each string.
+    const tl = input as { text?: string; target_lang?: string };
+    if (typeof tl.text === "string" && typeof tl.target_lang === "string") return { translated_text: `[${tl.target_lang}] ${tl.text}` };
     const msgs = (input as { messages?: { role: string; content: string }[] }).messages ?? [];
     const user = msgs.find((m) => m.role === "user")?.content ?? "";
+    const sys = msgs.find((m) => m.role === "system")?.content ?? "";
+    if (sys.startsWith("You are a careful professional translator")) {
+      const lang = / into ([A-Z][a-z]+)/.exec(sys)?.[1] ?? "Translated";
+      const arr = JSON.parse(user) as string[];
+      return { response: JSON.stringify(arr.map((s) => `[${lang}] ${s}`)), usage: { prompt_tokens: 120, completion_tokens: 60 } };
+    }
     const question = (/Question: (.*)$/s.exec(user)?.[1] ?? "").toLowerCase();
     const first = /\[1\] ([^:\n]+): ([^\n]*)/.exec(user);
     const lines = [first ? `From ${first[1].toLowerCase()} "${first[2].replace(/ \(.*\)$/, "")}": this is the answer [1].` : "I could not find it."];

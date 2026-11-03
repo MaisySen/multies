@@ -78,6 +78,8 @@ export interface AppConfig {
   videoRecVid1?: boolean;
   /** VID2: VIDEO_REC_VID2 (pause and resume, speaker or gallery view, quality, crash safe pieces on the device, chat and transcript saved next to the video). Needs VID1; off = VID1 exactly. */
   videoRecVid2?: boolean;
+  /** R116: TRANSLATE_R116 (translate and read aloud in mail, docs and chat). Off unless set; off = today exactly. */
+  translateR116?: boolean;
   /** R125: tables, a doc type (TABLES_R125). Off unless set. */
   tablesR125?: boolean;
   /** POL1: P1 polish, new behaviour only (tables and courses to the trash with restore). POLISH_POL1, off unless set. */
@@ -497,6 +499,7 @@ const EnvSchema = z.object({
   PORTAL_TD9: z.string().optional(), // TD9
   VIDEO_REC_VID1: z.string().optional(), // VID1
   VIDEO_REC_VID2: z.string().optional(), // VID2
+  TRANSLATE_R116: z.string().optional(), // R116
   TABLES_R125: z.string().optional(), // R125
   POLISH_POL1: z.string().optional(), // POL1
   TABLES_EXCLUDE: z.string().optional(), // R125
@@ -833,6 +836,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     portalTd9: ["1", "true", "on"].includes(String(env.PORTAL_TD9 ?? "").toLowerCase()), // TD9
     videoRecVid1: ["1", "true", "on"].includes(String(env.VIDEO_REC_VID1 ?? "").toLowerCase()), // VID1
     videoRecVid2: ["1", "true", "on"].includes(String(env.VIDEO_REC_VID2 ?? "").toLowerCase()), // VID2
+    translateR116: ["1", "true", "on"].includes(String(env.TRANSLATE_R116 ?? "").toLowerCase()), // R116
     tablesR125: ["1", "true", "on"].includes(String(env.TABLES_R125 ?? "").toLowerCase()), // R125
     polishPol1: ["1", "true", "on"].includes(String(env.POLISH_POL1 ?? "").toLowerCase()), // POL1
     tablesExclude: env.TABLES_EXCLUDE ?? "", // R125
