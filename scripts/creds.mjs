@@ -55,10 +55,15 @@ export const PUBLIC_KEYS = new Set(["WEB_ANALYTICS_BEACON_TOKEN", "CF_BEACON_TOK
 const classes = (v) => [/[a-z]/, /[A-Z]/, /\d/].filter((r) => r.test(v)).length;
 
 /** Values of credential-named keys that look like secrets (not prose, a URL, an email, a path or a date). Used by the leak check and the masking. */
+/** A line that only points at where a secret lives (Bitwarden), with no value in it. Its task ids and tenant
+ * names are not secrets; treating them as such made the R27 scan flag every log that mentions them (SEC5, Nov 2 2026). */
+export const isPointer = (v) => /bitwarden/i.test(v) && /not stored here|value only in|superseded value removed|\bsee\b/i.test(v);
+
 export function secretTokens(entries, min = 8) {
   const toks = new Set();
   for (const { key, value } of entries) {
     if (!SECRET_NAME.test(key) || /\bnames?\b/i.test(key) || PUBLIC_KEYS.has(key)) continue;
+    if (isPointer(value)) continue; // "not stored here, see Bitwarden item ..." holds no value (SEC5)
     for (const t of value.split(/\s+/)) {
       const v = clean(t).replace(/^[("'<`]+|[)"'>`,.;:]+$/g, "");
       if (/["'()<>]/.test(v)) continue;

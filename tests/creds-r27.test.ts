@@ -19,6 +19,8 @@ const FIXTURE = [
   "WEB_ANALYTICS_BEACON_TOKEN=publicBeacon1234567890abcd",
   "- Token name: multies-deploy",
   "- What it is: the test server on the build box",
+  "AUTH0_MGMT_CLIENT_SECRET=(not stored here; rotated 2026-11-02 by task ab12cd34, value only in Bitwarden item \"OLD tenant (dev-x1y2) secret\")",
+  "- Auth0 account password: (superseded value removed 2026-11-02 by task ef56ab78; see Bitwarden.)",
 ].join("\n");
 const entries = parseCredentials(FIXTURE);
 
@@ -38,6 +40,8 @@ describe("R27 credentials helper: values go to env or files, never to output", (
     expect(toks).toContain("QWERTYfake1234567890abcdefgh");
     expect(toks).not.toContain("multies-deploy");
     expect(toks).not.toContain("publicBeacon1234567890abcd");
+    // SEC5: a Bitwarden pointer line holds no value, so its task ids and tenant names are not tokens
+    for (const t of ["ab12cd34", "dev-x1y2", "ef56ab78"]) expect(toks).not.toContain(t);
     expect(toks.join(" ")).not.toContain("mymail-provisioner@mymail.test");
   });
 
@@ -105,6 +109,9 @@ describe("R27 credential leak check over the task directories", () => {
   const live = existsSync(DEFAULT_PATH) && existsSync("/home/user/tab/tasks");
   it.runIf(live)("no CREDENTIALS value is in any log under /home/user/tab/tasks (live check on the build box)", () => {
     const r = scan({ roots: ["/home/user/tab/tasks"], cacheFile: path.join(os.homedir(), ".cache", "multies-cred-leak-scan.json") });
-    expect(r.hits.map((h: { file: string; keys: string[] }) => `${h.file}: ${h.keys.join(", ")}`)).toEqual([]);
+    // SEC5: report only the file path and key names (a key that is not a plain name is shown as [label]), never a value
+    const safeKey = (k: string) => (/^[A-Za-z0-9_ ]{2,60}$/.test(k) ? k : "[label]");
+    const lines = r.hits.map((h: { file: string; keys: string[] }) => `${h.file}: ${h.keys.map(safeKey).join(", ")}`);
+    expect(lines.length, `credential values found (path: key):\n${lines.join("\n")}`).toBe(0);
   }, 120_000);
 });
