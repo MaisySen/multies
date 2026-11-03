@@ -25,3 +25,4 @@ __pycache__/
 
 # Rebuilt from vendor/scalar/ by scripts/restore-vendor.mjs (too large for one request to the code host)
 /public/vendor/scalar-api-reference-*.js
+worker-startup.cpuprofile
