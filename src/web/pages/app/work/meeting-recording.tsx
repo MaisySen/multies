@@ -242,12 +242,12 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
   const shown = video.active ? video.elapsed : elapsed;
   return (
     <div style={{ position: "relative", height: 0, zIndex: 20 }}>
-      <div className="pointer-events-none absolute inset-x-0 top-2 flex flex-col items-center gap-2 px-3">
+      <div className="pointer-events-none absolute inset-x-0 top-2 flex flex-col items-center gap-2 px-3" data-testid="recording-layer">
         {signal && (
           <div role="status" className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-[#d70015] px-3 py-1.5 text-[12.5px] font-medium text-white shadow-lg" data-testid="recording-banner" data-video={signal.video ? "1" : undefined}>
             <IconCircle filled className="h-2.5 w-2.5 shrink-0 animate-pulse" />
             <span className="shrink-0">{signal.video ? "Recording video" : "Recording"}</span>
-            <span className="min-w-0 truncate font-normal text-white/85">started by {recordingMine ? "you" : signal.by}{recordingMine ? ` · ${Math.floor(shown / 60)}:${String(shown % 60).padStart(2, "0")}` : ""}</span>
+            <span className="min-w-0 truncate font-normal text-white">started by {recordingMine ? "you" : signal.by}{recordingMine ? ` · ${Math.floor(shown / 60)}:${String(shown % 60).padStart(2, "0")}` : ""}</span>
           </div>
         )}
         {meetingId && (

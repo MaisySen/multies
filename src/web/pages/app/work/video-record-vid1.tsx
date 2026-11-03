@@ -116,8 +116,16 @@ export function useVideoRecording(room: Room) {
     const tick = setInterval(() => setElapsed(session.current?.recording.elapsedSec ?? 0), 1000);
     const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
     window.addEventListener("beforeunload", warn);
-    return () => { clearInterval(tick); window.removeEventListener("beforeunload", warn); };
-  }, [active]);
+    // The call itself hangs up on beforeunload, before the person can choose to stay. While a video records it
+    // hangs up on pagehide only (when the page really goes), so choosing Stay keeps the call and the recording.
+    const hangUp = (room as unknown as { onPageLeave?: EventListener }).onPageLeave;
+    if (typeof hangUp === "function") window.removeEventListener("beforeunload", hangUp);
+    return () => {
+      clearInterval(tick);
+      window.removeEventListener("beforeunload", warn);
+      if (typeof hangUp === "function" && room.state !== "disconnected") window.addEventListener("beforeunload", hangUp);
+    };
+  }, [active, room]);
   // Leaving the room or the page while recording: stop and save what was recorded; the last saved link is freed later.
   const savedUrl = useRef<string | null>(null);
   savedUrl.current = saved?.url ?? null;
