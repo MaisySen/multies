@@ -963,6 +963,8 @@ export const en: Bundle = {
   "translate.translate_into": "Translate into",
   "translate.translate_into_hint": "Mail, docs and chat translate into this language unless you pick another one there.",
   "translate.uses_ai_note": "Translation uses the built in AI and counts toward today's free AI use. Read aloud uses your device's own voices and sends nothing anywhere.",
+  "whatsnew.2026-11-04-languages-wave-2.body": "Docs, Chat, Calendar settings, Compose, Contacts and deals, Meetings and calls, Drive and Files, the social composer, Home widgets and Get started now follow your language. Names and words people typed stay as they wrote them.",
+  "whatsnew.2026-11-04-languages-wave-2.title": "Nepali and Hindi in Docs, Chat, Meetings and more",
   "whatsnew.2026-11-03-languages-polish.body": "Mail folders and tabs, task views, filters and due dates, the calendar and notifications now follow your language. The cookie notice speaks your language and never covers the language switch, and Read aloud says plainly when a device has no voice.",
   "whatsnew.2026-11-03-languages-polish.title": "More of Multies in Nepali and Hindi",
   "whatsnew.2026-11-03-nepali-hindi.body": "Pick English, नेपाली or हिन्दी in Settings, Appearance and the app changes straight away, with dates and numbers written the way your language writes them. Sign in pages follow your browser's language, and workspace admins can suggest a better wording.",

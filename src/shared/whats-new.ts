@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-04-languages-wave-2",
+    date: "2026-11-04",
+    title: "Nepali and Hindi in Docs, Chat, Meetings and more",
+    body: "Docs, Chat, Calendar settings, Compose, Contacts and deals, Meetings and calls, Drive and Files, the social composer, Home widgets and Get started now follow your language. Names and words people typed stay as they wrote them.",
+  },
+  {
     id: "2026-11-03-languages-polish",
     date: "2026-11-03",
     title: "More of Multies in Nepali and Hindi",
@@ -92,12 +98,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-03",
     title: "Team AI",
     body: "A visible memory for the assistant, saved instructions, routines that write drafts or chat messages, and @assistant in channels. Free built in AI with a daily limit, or your own AI key for unlimited use.",
-  },
-  {
-    id: "2026-10-28-whats-new",
-    date: "2026-10-28",
-    title: "What's new, in the app",
-    body: "The account menu has a What's new item, with a small dot when something new has shipped since you last looked. The same list is on the public changelog page.",
   },
 ];
 
