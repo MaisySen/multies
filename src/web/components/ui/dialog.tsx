@@ -58,11 +58,11 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
         <div>
           <WorkspaceSwitchedBanner variant="dialog" />
           <div className="flex items-start justify-between gap-4 px-6 pt-5">
-            <div>
+            <div className="min-w-0">
               <h2 id="dialog-title" className="text-[17px] font-semibold">{title}</h2>
               {description && <p className="mt-1 text-sm text-muted">{description}</p>}
             </div>
-            <button type="button" onClick={onClose} className="-mr-2 grid place-items-center rounded-full p-1.5 text-subtle transition-colors hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11" aria-label="Close">
+            <button type="button" onClick={onClose} className="-mr-2 grid shrink-0 place-items-center rounded-full p-1.5 text-subtle transition-colors hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11" aria-label="Close">
               <IconClose className="h-4 w-4" />
             </button>
           </div>
