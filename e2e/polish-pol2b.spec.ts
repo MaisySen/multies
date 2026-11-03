@@ -54,7 +54,7 @@ test("Devices card lists my sessions; Account and security is the name; passkey 
   await page.goto("/app/settings/account");
   await expect(page.getByRole("list", { name: "Signed-in devices" })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId("devices-error")).toHaveCount(0);
-  await expect(page.getByText("This device")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Signed-in devices" }).getByText("This device")).toBeVisible();
   await expect(page.getByText("Account & security")).toHaveCount(0);
   for (const scheme of ["light", "dark"] as const) { await page.emulateMedia({ colorScheme: scheme }); await axe(`account 390 ${scheme}`); }
   await page.emulateMedia({ colorScheme: "light" });
@@ -152,4 +152,33 @@ test("the app loading skeleton passes axe while the account loads (HQ MB-349)", 
   release();
   await page.unroute("**/api/account/me");
   await expect(page.getByTestId("today-date")).toBeVisible({ timeout: 20_000 });
+});
+
+test("the press fill follows each brand scope and keeps AA with its text (light and dark)", async () => {
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto("/app/my-work");
+  await expect(page.getByTestId("today-date")).toBeVisible({ timeout: 20_000 });
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    const rows = await page.evaluate(() => {
+      const lum = (c: string) => { const unit = c.startsWith("color(") ? 1 : 255; const m = c.replace(/^color\(srgb/, "").match(/[\d.]+/g)!.slice(0, 3).map(Number).map((v) => { v /= unit; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]; };
+      const ratio = (a: string, b: string) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+      const probe = (accent: string | null) => {
+        const wrap = document.createElement("div");
+        if (accent) { wrap.className = "td7-brand"; wrap.dataset.brandAccent = accent; }
+        const b = document.createElement("span");
+        b.style.backgroundColor = "var(--color-brand-press)"; b.style.color = "var(--color-brand-fg)"; b.textContent = "x";
+        const rest = document.createElement("span"); rest.style.backgroundColor = "var(--color-brand)";
+        wrap.append(b, rest); document.body.append(wrap);
+        const cs = getComputedStyle(b); const out = { accent, press: cs.backgroundColor, rest: getComputedStyle(rest).backgroundColor, ratio: ratio(cs.backgroundColor, cs.color) };
+        wrap.remove(); return out;
+      };
+      return [null, "ocean", "forest", "plum", "coral", "teal", "ink"].map(probe);
+    });
+    for (const r of rows) expect(r.ratio, `${scheme} ${r.accent ?? "app"} ${r.press}`).toBeGreaterThanOrEqual(4.5);
+    // Forest keeps its own hue: its press fill is not the app's blue.
+    const app = rows.find((r) => r.accent === null)!, forest = rows.find((r) => r.accent === "forest")!;
+    expect(forest.press).not.toBe(app.press);
+  }
+  await page.emulateMedia({ colorScheme: "light" });
 });
