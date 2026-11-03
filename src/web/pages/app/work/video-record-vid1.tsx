@@ -16,7 +16,8 @@ import type { VideoSession } from "@/web/lib/video-session-vid1";
 import type { LayoutMode, PieceStore, Quality, QualityId } from "@/web/lib/video-rec-vid2";
 import { RecordSettings } from "./video-vid2-ui";
 import { iosTooOld, partFileName, pickPhoneVideoType, readyVideos } from "@/web/lib/video-phone-vid3";
-import { t as tt } from "@/web/i18n";
+import { t as tt, tr } from "@/web/i18n";
+import "@/web/i18n/w2/en-meetings"; // R104B
 
 export const VIDEO_INTRO = "A video of the whole call is saved to this device when you stop. Nothing is uploaded.";
 export const VIDEO_TRANSCRIPT_ON = "A transcript and summary are made too, as with every recording.";
@@ -108,11 +109,11 @@ export function useVideoRecording(room: Room) {
       const url = URL.createObjectURL(out.blob);
       setSaved((old) => { if (old) URL.revokeObjectURL(old.url); return { url, name: m.fileName }; });
       download(url, m.fileName);
-      if (out.reason !== "error") toast.success(m.vid2 ? `Video saved, ${sizeText(out.blob.size)}` : "Video saved", { description: m.fileName });
+      if (out.reason !== "error") toast.success(m.vid2 ? `Video saved, ${sizeText(out.blob.size)}` : tr("meetingrec.saved_title"), { description: m.fileName });
     } else if (out?.kind === "file" && out.bytes > 0) {
-      if (out.reason !== "error") toast.success(m.vid2 ? `Video saved, ${sizeText(out.bytes)}` : "Video saved", { description: `Saved to ${m.fileName}` });
+      if (out.reason !== "error") toast.success(m.vid2 ? `Video saved, ${sizeText(out.bytes)}` : tr("meetingrec.saved_title"), { description: tr("meetings.saved_to_filename", { fileName: m.fileName }) });
     } else if (out && out.reason !== "error") {
-      toast.error("The video was empty, so nothing was saved.");
+      toast.error(tr("meetings.the_video_was_empty_so_nothing_was_saved"));
     }
     // VID2: the chat (and anything else asked for) saved next to the video, then the pieces on the device go.
     const savedOk = !!out && ((out.kind === "memory" && !!out.blob?.size) || (out.kind === "file" && out.bytes > 0));
@@ -146,14 +147,14 @@ export function useVideoRecording(room: Room) {
       toast.warning(`The video is ${sizeText(e.bytes)} so far`, {
         id: "video-size",
         duration: Infinity,
-        description: "This browser keeps it in memory. Stop and save now to keep it safe, then start a new recording if you need to.",
-        action: { label: "Stop and save", onClick: () => void stopRef.current() },
+        description: tr("meetings.this_browser_keeps_it_in_memory_stop_and_save_no"),
+        action: { label: tr("meetings.stop_and_save"), onClick: () => void stopRef.current() },
       });
     } else if (e.type === "limit") {
-      toast.warning(`The video reached ${sizeText(e.bytes)}, so it was stopped and saved.`, { description: "Start a new recording to keep going." });
+      toast.warning(`The video reached ${sizeText(e.bytes)}, so it was stopped and saved.`, { description: tr("meetings.start_a_new_recording_to_keep_going") });
       void stopRef.current();
     } else if (e.type === "error") {
-      toast.error(`The video stopped recording: ${e.message}.`, { description: m?.transcript ? "What was recorded is saved. The transcript keeps going." : "What was recorded is saved." });
+      toast.error(`The video stopped recording: ${e.message}.`, { description: m?.transcript ? tr("meetings.what_was_recorded_is_saved_the_transcript_keeps") : tr("meetings.what_was_recorded_is_saved") });
       void stopRef.current();
     }
   }, []);
@@ -167,7 +168,7 @@ export function useVideoRecording(room: Room) {
       const [{ PieceStore }, { idbBackend, keepStorage }] = await Promise.all([import("@/web/lib/video-rec-vid2"), import("@/web/lib/video-store-vid2")]);
       void keepStorage();
       keep.current = new PieceStore(idbBackend, { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, meetingId: a.vid2.meetingId, title: a.vid2.title, fileName: a.fileName, mime: a.mime, startedAt: Date.now() });
-      keep.current.onFail = (reason) => toast.warning("This video isn't being kept safe on this device", { description: `It still records and saves when you stop. The browser said: ${reason}`, duration: 15_000 });
+      keep.current.onFail = (reason) => toast.warning(tr("meetings.this_video_isn_t_being_kept_safe_on_this_device"), { description: `It still records and saves when you stop. The browser said: ${reason}`, duration: 15_000 });
       await keep.current.begin();
       const q = a.vid2.quality;
       draw = { width: q.w, height: q.h, fps: q.fps, layout: a.vid2.layout, onFps: (f) => setFps(f) };
@@ -301,11 +302,11 @@ export function VideoRecordDialog({ open, onClose, meetingId, title, transcriptR
       if (!pick) return;
       try {
         // Called first, inside the click: browsers only open the save picker for a direct click.
-        handle = await pick({ suggestedName: name, types: [{ description: "Video", accept: { [type.mime.split(";")[0]]: [`.${type.ext}`] } }] });
+        handle = await pick({ suggestedName: name, types: [{ description: tr("meetings.video"), accept: { [type.mime.split(";")[0]]: [`.${type.ext}`] } }] });
         writable = await handle.createWritable();
       } catch (e) {
         if ((e as { name?: string }).name === "AbortError") return;
-        toast.error("Couldn't open that file for writing. Try another place, or save at the end instead.");
+        toast.error(tr("meetings.couldn_t_open_that_file_for_writing_try_another"));
         return;
       }
     }
@@ -321,23 +322,23 @@ export function VideoRecordDialog({ open, onClose, meetingId, title, transcriptR
 
   const footer = !type ? (
     <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:justify-end">
-      <Button variant="ghost" className="max-sm:w-full" onClick={onClose}>Close</Button>
-      {canAudioOnly && <Button className="max-sm:w-full" onClick={onAudioOnly} data-testid="video-rec-audio-only">Record audio only</Button>}
+      <Button variant="ghost" className="max-sm:w-full" onClick={onClose}>{tr("meetings.close")}</Button>
+      {canAudioOnly && <Button className="max-sm:w-full" onClick={onAudioOnly} data-testid="video-rec-audio-only">{tr("meetings.record_audio_only")}</Button>}
     </div>
   ) : support.current.file ? (
     <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:justify-end">
-      <Button variant="ghost" className="max-sm:w-full" onClick={() => void go("memory")} loading={busy === "memory"} disabled={!permit?.ok || !!busy} data-testid="video-rec-memory">Save at the end instead</Button>
-      <Button className="max-sm:w-full" onClick={() => void go("file")} loading={busy === "file"} disabled={!permit?.ok || !!busy} data-testid="video-rec-file"><IconFolder className="h-4 w-4" />Choose where to save</Button>
+      <Button variant="ghost" className="max-sm:w-full" onClick={() => void go("memory")} loading={busy === "memory"} disabled={!permit?.ok || !!busy} data-testid="video-rec-memory">{tr("meetings.save_at_the_end_instead")}</Button>
+      <Button className="max-sm:w-full" onClick={() => void go("file")} loading={busy === "file"} disabled={!permit?.ok || !!busy} data-testid="video-rec-file"><IconFolder className="h-4 w-4" />{tr("meetings.choose_where_to_save")}</Button>
     </div>
   ) : (
     <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:justify-end">
-      <Button variant="ghost" className="max-sm:w-full" onClick={onClose}>Cancel</Button>
-      <Button className="max-sm:w-full" onClick={() => void go("memory")} loading={busy === "memory"} disabled={!permit?.ok || !!busy} data-testid="video-rec-memory"><IconVideo className="h-4 w-4" />Start recording</Button>
+      <Button variant="ghost" className="max-sm:w-full" onClick={onClose}>{tr("common.cancel")}</Button>
+      <Button className="max-sm:w-full" onClick={() => void go("memory")} loading={busy === "memory"} disabled={!permit?.ok || !!busy} data-testid="video-rec-memory"><IconVideo className="h-4 w-4" />{tr("meetings.start_recording")}</Button>
     </div>
   );
 
   return (
-    <Dialog open={open} onClose={onClose} title="Record this call" footer={footer}>
+    <Dialog open={open} onClose={onClose} title={tr("meetings.record_this_call")} footer={footer}>
       <div className="space-y-3 text-[13px]" data-testid="video-rec-dialog">
         {!type ? (
           <p className="flex items-start gap-2 text-fg" data-testid="video-rec-unsupported"><IconWarning className="mt-0.5 h-4 w-4 shrink-0 text-muted" />{phone && typeof navigator !== "undefined" && iosTooOld(navigator.userAgent) ? tt("meetingrec.ios_too_old") : phone ? tt("meetingrec.phone_unsupported") : VIDEO_UNSUPPORTED}</p>

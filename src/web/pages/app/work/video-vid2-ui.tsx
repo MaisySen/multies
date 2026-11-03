@@ -12,6 +12,8 @@ import { sizeText } from "@/web/lib/video-rec-vid1";
 import type { LayoutMode, QualityId, StoredMeta } from "@/web/lib/video-rec-vid2";
 import { download } from "./video-record-vid1";
 import { readyVideos } from "@/web/lib/video-phone-vid3";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-meetings"; // R104B
 
 export const LAYOUT_LABEL: Record<LayoutMode, string> = { speaker: "Speaker view", gallery: "Gallery view" };
 export const PAUSED_NOTE = "Recording paused. Nothing is recorded until it resumes.";
@@ -45,10 +47,10 @@ export function ChoiceGroup<T extends string>({ label, value, options, onChange,
 export function RecordSettings({ layout, setLayout, quality, setQuality, hd }: { layout: LayoutMode; setLayout: (l: LayoutMode) => void; quality: QualityId; setQuality: (q: QualityId) => void; hd: boolean }) {
   return (
     <div className="flex flex-wrap gap-x-6 gap-y-3" data-testid="video-rec-settings">
-      <ChoiceGroup label="Layout" value={layout} onChange={setLayout} testid="video-rec-layout"
-        options={[{ value: "speaker", label: "Speaker" }, { value: "gallery", label: "Gallery" }]} />
-      <ChoiceGroup label="Quality" value={quality} onChange={setQuality} testid="video-rec-quality"
-        options={[{ value: "hd720", label: "720p" }, { value: "hd1080", label: "1080p", disabled: !hd, hint: hd ? undefined : "This device may not keep up with 1080p" }]} />
+      <ChoiceGroup label={tr("shell.layout")} value={layout} onChange={setLayout} testid="video-rec-layout"
+        options={[{ value: "speaker", label: tr("meetings.speaker") }, { value: "gallery", label: tr("meetings.gallery") }]} />
+      <ChoiceGroup label={tr("meetings.quality")} value={quality} onChange={setQuality} testid="video-rec-quality"
+        options={[{ value: "hd720", label: "720p" }, { value: "hd1080", label: "1080p", disabled: !hd, hint: hd ? undefined : tr("meetings.this_device_may_not_keep_up_with_1080p") }]} />
     </div>
   );
 }
@@ -105,15 +107,15 @@ export function RecoverRecording({ meetingId, className, onDark, phone }: { meet
   };
   const when = new Date(m.startedAt).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
   return (
-    <div role="region" aria-label="Recover a recording" className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-4 py-3 text-[13px]", onDark ? "border-white/20 bg-[#1c1c1e] text-white" : "border-line bg-surface text-fg", className)} data-testid="video-recover">
+    <div role="region" aria-label={tr("meetings.recover_a_recording")} className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-4 py-3 text-[13px]", onDark ? "border-white/20 bg-[#1c1c1e] text-white" : "border-line bg-surface text-fg", className)} data-testid="video-recover">
       <IconWarning className={cn("h-4 w-4 shrink-0", onDark ? "text-white/80" : "text-muted")} aria-hidden />
       <p className="min-w-0 flex-1 basis-56">
-        <span className="font-medium">A video recording didn't finish saving.</span>{" "}
-        <span className={onDark ? "text-white/80" : "text-muted"}>{m.title || "Meeting"}, {when}, {sizeText(m.bytes)}. It is kept on this device only.</span>
+        <span className="font-medium">{tr("meetings.a_video_recording_didn_t_finish_saving")}</span>{" "}
+        <span className={onDark ? "text-white/80" : "text-muted"}>{m.title || tr("mywork.meeting")}, {when}, {sizeText(m.bytes)}{tr("meetings.it_is_kept_on_this_device_only")}</span>
       </p>
       <div className="flex shrink-0 gap-2">
-        <Button size="sm" variant="ghost" className={onDark ? "text-white hover:bg-white/10" : undefined} onClick={() => void discard()} loading={busy === "discard"} disabled={!!busy} data-testid="video-recover-discard">Discard</Button>
-        <Button size="sm" onClick={() => void recover()} loading={busy === "recover"} disabled={!!busy} data-testid="video-recover-save">Recover last recording</Button>
+        <Button size="sm" variant="ghost" className={onDark ? "text-white hover:bg-white/10" : undefined} onClick={() => void discard()} loading={busy === "discard"} disabled={!!busy} data-testid="video-recover-discard">{tr("branding.discard")}</Button>
+        <Button size="sm" onClick={() => void recover()} loading={busy === "recover"} disabled={!!busy} data-testid="video-recover-save">{tr("meetings.recover_last_recording")}</Button>
       </div>
     </div>
   );

@@ -30,7 +30,8 @@ import { ChoiceGroup, PAUSED_NOTE, RecoverRecording } from "./video-vid2-ui"; //
 import { videoFileName, type Writable } from "@/web/lib/video-rec-vid1"; // VID1
 import { backgroundAction, isPhoneDevice, PHONE_QUALITY, phoneBudget, readyVideos } from "@/web/lib/video-phone-vid3"; // VID3
 import { PhoneSaves } from "./video-phone-vid3"; // VID3
-import { t as tt } from "@/web/i18n"; // VID3
+import { t as tt, tr } from "@/web/i18n"; // VID3
+import "@/web/i18n/w2/en-meetings"; // R104B
 
 export interface ActionItem { text: string; assignee: string | null; due: string | null }
 export interface Recording {
@@ -66,7 +67,7 @@ export function RecordSetupPrompt({ setup, compact }: { setup: Pick<RecordingSet
         {!compact && <IconKey className="mt-0.5 h-4 w-4 shrink-0 text-muted" />}
         <div className="min-w-0 flex-1 text-[13px]">
           <p className="text-fg" data-testid="record-ai-off">{SETUP_AI_OFF_TEXT}</p>
-          {setup.canConfigure && <ButtonLink size="sm" variant="secondary" className="mt-3" to="/app/settings#ai" data-testid="record-setup-link">Open Settings &gt; AI</ButtonLink>}
+          {setup.canConfigure && <ButtonLink size="sm" variant="secondary" className="mt-3" to="/app/settings#ai" data-testid="record-setup-link">{tr("meetings.open_settings_ai")}</ButtonLink>}
         </div>
       </div>
     );
@@ -78,9 +79,9 @@ export function RecordSetupPrompt({ setup, compact }: { setup: Pick<RecordingSet
         {/* POL1: plain words without provider names; only people who can act are asked to. */}
         {setup?.canConfigure ? (
           <>
-            {wrong && <p className="mb-1 text-muted">The AI key in Settings can't turn speech into text.</p>}
+            {wrong && <p className="mb-1 text-muted">{tr("meetings.the_ai_key_in_settings_can_t_turn_speech_into_te")}</p>}
             <p className="text-fg">{SETUP_ADMIN_TEXT}</p>
-            <ButtonLink size="sm" variant="secondary" className="mt-3" to="/app/settings#ai" data-testid="record-setup-link">Open Settings &gt; AI</ButtonLink>
+            <ButtonLink size="sm" variant="secondary" className="mt-3" to="/app/settings#ai" data-testid="record-setup-link">{tr("meetings.open_settings_ai")}</ButtonLink>
           </>
         ) : <p className="text-muted" data-testid="record-ask-admin">{SETUP_MEMBER_TEXT}</p>}
       </div>
@@ -164,8 +165,8 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
       if (s.on && s.video && !noticedVideo.current) {
         noticedVideo.current = true;
         noticed.current = true;
-        toast(`${s.by} is saving a video of this call`, { description: VIDEO_CONSENT_OTHERS });
-      } else if (s.on && !noticed.current) { noticed.current = true; toast(`${s.by} is recording this call`, { description: CONSENT_TEXT }); }
+        toast(tr("meetings.by_is_saving_a_video_of_this_call", { by: s.by }), { description: VIDEO_CONSENT_OTHERS });
+      } else if (s.on && !noticed.current) { noticed.current = true; toast(tr("meetings.by_is_recording_this_call", { by: s.by }), { description: CONSENT_TEXT }); }
     };
     // VID2: whoever was recording left the call (their recording stops and saves on its own): the banner goes too.
     const onLeft = (p: { identity: string }) => { if (vid2 && signalFrom.current && p.identity === signalFrom.current) { signalFrom.current = null; setSignal(null); } };
@@ -206,10 +207,10 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
   const startAudio = async (o: { quiet?: boolean } = {}): Promise<{ id: string; startedAt: string } | null> => {
     if (!meetingId) return null;
     if (setup && !setup.ready) { if (!o.quiet) setSetupOpen(true); return null; }
-    if (typeof MediaRecorder === "undefined" || typeof AudioContext === "undefined") { toast.error("This browser can't record audio. Try Chrome, Edge, Firefox or Safari."); return null; }
+    if (typeof MediaRecorder === "undefined" || typeof AudioContext === "undefined") { toast.error(tr("meetings.this_browser_can_t_record_audio_try_chrome_edge")); return null; }
     try {
       const { recording } = await api.post<{ recording: { id: string; startedAt: string; startedBy: { id: string } }; joined: boolean }>(`/meetings/${meetingId}/recordings`, {});
-      if (recording.startedBy.id !== me.data?.user?.id) { toast("Someone in the call is already recording."); return null; }
+      if (recording.startedBy.id !== me.data?.user?.id) { toast(tr("meetings.someone_in_the_call_is_already_recording")); return null; }
       const upload = async (c: Chunk) => {
         await api.put(`/meetings/${meetingId}/recordings/${recording.id}/chunks/${c.seq}`, { audioBase64: await blobToBase64(c.blob), mime: c.blob.type, offsetSec: c.offsetSec, durationSec: c.durationSec });
       };
@@ -279,7 +280,7 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
       if (readyVideos.addSide(fileName, side)) toast(tt("meetingrec.transcript_ready"), { description: tt("meetingrec.transcript_ready_hint") });
       else toast(tt("meetingrec.transcript_on_page"));
     } else if (r?.transcript) saveText(sideName(fileName, "transcript"), transcriptText(title ?? "", when, r.transcript));
-    else toast("The transcript isn't ready yet", { description: "It shows under Recording and transcript on the meeting page when it is, with Save transcript." });
+    else toast(tr("meetings.the_transcript_isn_t_ready_yet"), { description: tr("meetings.it_shows_under_recording_and_transcript_on_the_m") });
   };
 
   /** VID2: pause and resume; everyone's banner and tile dots follow. The transcript hears nothing while paused. */
@@ -293,7 +294,7 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
       recorder.current?.setMuted(false);
       announce({ ...cur, paused: false });
     } else {
-      if (!video.pause()) { toast.error("This browser can't pause a recording. Stop and start a new one instead."); return; }
+      if (!video.pause()) { toast.error(tr("meetings.this_browser_can_t_pause_a_recording_stop_and_st")); return; }
       recorder.current?.setMuted(true);
       announce({ ...cur, paused: true });
     }
@@ -310,7 +311,7 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
       const r = await api.post<{ recording: Recording; posted: { type: string } | null }>(`/meetings/${meetingId}/recordings/${cur.id}/stop`, { durationSec });
       if (transcriptWanted.current) void saveTranscript(cur.id, r.recording, transcriptWanted.current);
       transcriptWanted.current = null;
-      toast.success(r.recording.status === "done" && r.posted ? (r.posted.type === "chat" ? "Summary posted to the chat" : "Summary sent to the attendees") : "Recording stopped");
+      toast.success(r.recording.status === "done" && r.posted ? (r.posted.type === "chat" ? tr("meetings.summary_posted_to_the_chat") : tr("meetings.summary_sent_to_the_attendees")) : tr("meetings.recording_stopped"));
       if (queue.current?.failed) toast.error(`Part of the audio didn't transcribe: ${queue.current.failed.message}`);
     } catch (e) { showError(e as Error); } finally { setMine(null); }
   };
@@ -396,43 +397,43 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
   return (
     <div ref={layerRef} style={{ position: "relative", height: 0, zIndex: 20 }}>
       {vid2 && slot && recState && createPortal(
-        <span className={cn("inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-semibold leading-none text-white max-sm:px-2", recState === "paused" ? "bg-[#3a3a3c]" : "bg-[#d70015]")} data-testid="rec-header-pill" title={recState === "paused" ? "Recording paused" : "This call is being recorded"}>
+        <span className={cn("inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-semibold leading-none text-white max-sm:px-2", recState === "paused" ? "bg-[#3a3a3c]" : "bg-[#d70015]")} data-testid="rec-header-pill" title={recState === "paused" ? tr("meetingrec.paused_away_title") : tr("meetings.this_call_is_being_recorded")}>
           {recState === "paused" ? <IconPause className="h-3 w-3" aria-hidden /> : <IconCircle filled className="h-2 w-2" aria-hidden />}
-          <span className="max-sm:sr-only">{recState === "paused" ? "Paused" : "Rec"}</span><span className="sr-only">{recState === "paused" ? ", recording paused" : ", this call is being recorded"}</span>
+          <span className="max-sm:sr-only">{recState === "paused" ? tr("meetings.paused") : tr("meetings.rec")}</span><span className="sr-only">{recState === "paused" ? tr("meetings.recording_paused") : tr("meetings.this_call_is_being_recorded_2")}</span>
         </span>, slot)}
       <div className="pointer-events-none absolute inset-x-0 top-2 flex flex-col items-center gap-2 px-3" data-testid="recording-layer">
         {signal && (
           <div role="status" className={cn("pointer-events-auto flex max-w-full items-center gap-2 rounded-full px-3 py-1.5 text-[12.5px] font-medium text-white shadow-lg", signal.paused ? "bg-[#3a3a3c]" : "bg-[#d70015]")} data-testid="recording-banner" data-video={signal.video ? "1" : undefined} data-paused={signal.paused ? "1" : undefined}>
             {signal.paused ? <IconPause className="h-3 w-3 shrink-0" aria-hidden /> : <IconCircle filled className="h-2.5 w-2.5 shrink-0 animate-pulse" />}
-            <span className="shrink-0">{signal.paused ? "Recording paused" : signal.video ? "Recording video" : "Recording"}</span>
-            <span className={cn("min-w-0 truncate font-normal", vid1 ? "text-white" : "text-white/85")}>started by {recordingMine ? "you" : signal.by}{recordingMine ? ` · ${Math.floor(shown / 60)}:${String(shown % 60).padStart(2, "0")}` : ""}</span>
+            <span className="shrink-0">{signal.paused ? tr("meetingrec.paused_away_title") : signal.video ? tr("meetings.recording_video") : tr("meetings.recording")}</span>
+            <span className={cn("min-w-0 truncate font-normal", vid1 ? "text-white" : "text-white/85")}>{tr("meetings.started_by")} {recordingMine ? "you" : signal.by}{recordingMine ? ` · ${Math.floor(shown / 60)}:${String(shown % 60).padStart(2, "0")}` : ""}</span>
           </div>
         )}
         {meetingId && (
           <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2">
             {vid2 && video.active && (
               <Button size="sm" variant="secondary" onClick={pauseOrResume} className="shadow-lg" data-testid={video.paused ? "record-resume" : "record-pause"}>
-                {video.paused ? <IconPlay className="h-3.5 w-3.5" aria-hidden /> : <IconPause className="h-3.5 w-3.5" aria-hidden />}{video.paused ? "Resume" : "Pause"}
+                {video.paused ? <IconPlay className="h-3.5 w-3.5" aria-hidden /> : <IconPause className="h-3.5 w-3.5" aria-hidden />}{video.paused ? tr("notifications.resume") : tr("notifications.pause")}
               </Button>
             )}
             {recordingMine
-              ? <Button size="sm" variant="danger" loading={busy} onClick={() => void stop()} className={vid1 ? "bg-[#d70015]! text-white! shadow-lg hover:bg-[#b80012]!" : undefined} data-testid="record-stop"><IconSquare filled className="h-3.5 w-3.5" />Stop recording</Button>
-              : !signal && <Button size="sm" variant="secondary" loading={busy} onClick={() => (videoAllowed ? setVideoOpen(true) : void start())} data-testid="record-start">{videoAllowed ? <IconVideo className="h-3.5 w-3.5" /> : <IconMic className="h-3.5 w-3.5" />}Record</Button>}
-            {download && !recordingMine && <a href={download} download="call-audio.webm" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/90 px-3 text-[13px] font-medium text-fg shadow"><IconDownload className="h-4 w-4" />Download audio</a>}
-            {video.saved && !recordingMine && <a href={video.saved.url} download={video.saved.name} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/90 px-3 text-[13px] font-medium text-fg shadow" data-testid="video-save-again"><IconDownload className="h-4 w-4" />Save video</a>}
+              ? <Button size="sm" variant="danger" loading={busy} onClick={() => void stop()} className={vid1 ? "bg-[#d70015]! text-white! shadow-lg hover:bg-[#b80012]!" : undefined} data-testid="record-stop"><IconSquare filled className="h-3.5 w-3.5" />{tr("meetings.stop_recording")}</Button>
+              : !signal && <Button size="sm" variant="secondary" loading={busy} onClick={() => (videoAllowed ? setVideoOpen(true) : void start())} data-testid="record-start">{videoAllowed ? <IconVideo className="h-3.5 w-3.5" /> : <IconMic className="h-3.5 w-3.5" />}{tr("meetings.record")}</Button>}
+            {download && !recordingMine && <a href={download} download="call-audio.webm" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/90 px-3 text-[13px] font-medium text-fg shadow"><IconDownload className="h-4 w-4" />{tr("meetings.download_audio")}</a>}
+            {video.saved && !recordingMine && <a href={video.saved.url} download={video.saved.name} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/90 px-3 text-[13px] font-medium text-fg shadow" data-testid="video-save-again"><IconDownload className="h-4 w-4" />{tr("meetingrec.save_video")}</a>}
           </div>
         )}
         {vid2 && video.active && (
           <div className="pointer-events-auto max-w-full">
-            <ChoiceGroup label="Recording layout" compact onDark big={phone} value={layout} onChange={setLayout} testid="rec-layout"
-              options={[{ value: "speaker", label: "Speaker" }, { value: "gallery", label: "Gallery" }]} />
+            <ChoiceGroup label={tr("meetings.recording_layout")} compact onDark big={phone} value={layout} onChange={setLayout} testid="rec-layout"
+              options={[{ value: "speaker", label: tr("meetings.speaker") }, { value: "gallery", label: tr("meetings.gallery") }]} />
           </div>
         )}
         {recordingMine && <p className="max-w-full rounded-md bg-black/60 px-2 py-1 text-center text-[12px] text-white" data-testid="record-consent">{video.paused ? (away ? tt("meetingrec.paused_away") : PAUSED_NOTE) : video.active ? VIDEO_CONSENT_SELF : CONSENT_TEXT}</p>}
         {phone && <div className="pointer-events-auto w-full max-w-xl"><PhoneSaves onDark /></div>}
         {vid2 && videoAllowed && !recordingMine && <div className="pointer-events-auto w-full max-w-xl"><RecoverRecording meetingId={meetingId} onDark phone={phone} /></div>}
       </div>
-      <Dialog open={setupOpen} onClose={() => setSetupOpen(false)} title="Record and transcribe">
+      <Dialog open={setupOpen} onClose={() => setSetupOpen(false)} title={tr("meetings.record_and_transcribe")}>
         <RecordSetupPrompt setup={setup} compact />
       </Dialog>
       {videoAllowed && meetingId && (
@@ -460,7 +461,7 @@ export function RecordingSection({ meetingId, title }: { meetingId: string; titl
   });
   const refresh = () => void qc.invalidateQueries({ queryKey: key });
   const remove = async (r: Recording) => {
-    if (!(await confirm({ title: `Delete the recording from ${new Date(r.startedAt).toLocaleString()}?`, description: "Its transcript and summary go with it.", confirmLabel: "Delete recording" }))) return;
+    if (!(await confirm({ title: tr("meetings.delete_the_recording_from_value", { value: new Date(r.startedAt).toLocaleString() }), description: tr("meetings.its_transcript_and_summary_go_with_it"), confirmLabel: tr("meetings.delete_recording") }))) return;
     try { await api.del(`/meetings/${meetingId}/recordings/${r.id}`); refresh(); } catch (e) { showError(e as Error); }
   };
   const finish = async (r: Recording) => {
@@ -472,12 +473,12 @@ export function RecordingSection({ meetingId, title }: { meetingId: string; titl
       {dialogs}
       <div className="flex items-center gap-2">
         <IconDocs className="h-4 w-4 text-muted" />
-        <h2 className="text-[13px] font-semibold">Recording and transcript</h2>
+        <h2 className="text-[13px] font-semibold">{tr("meetings.recording_and_transcript")}</h2>
       </div>
-      {!data ? (q.error ? <LoadErrorInline onRetry={() => q.refetch()} className="mt-3" /> : <SkeletonRows rows={2} rowHeight={40} label="Loading recording" className="mt-2" />) : ( // POL1: a failed read says so
+      {!data ? (q.error ? <LoadErrorInline onRetry={() => q.refetch()} className="mt-3" /> : <SkeletonRows rows={2} rowHeight={40} label={tr("meetings.loading_recording")} className="mt-2" />) : ( // POL1: a failed read says so
         <>
           {!data.recordings.length && (data.setup.ready
-            ? <p className="mt-2 text-[13px] text-muted">No recordings yet. Press Record in the call to get a transcript; the summary is posted to the chat afterwards.</p>
+            ? <p className="mt-2 text-[13px] text-muted">{tr("meetings.no_recordings_yet_press_record_in_the_call_to_ge")}</p>
             : <div className="mt-3"><RecordSetupPrompt setup={data.setup} /></div>)}
           <ul className="mt-3 space-y-3">
             {data.recordings.map((r) => (
@@ -485,16 +486,16 @@ export function RecordingSection({ meetingId, title }: { meetingId: string; titl
                 <div className="flex flex-wrap items-center gap-2 text-[13px]">
                   <StatusBadge r={r} />
                   <span className="font-medium">{zonedDateTime(r.startedAt)}</span>
-                  <span className="text-muted">· {duration(r.durationSec)} · recorded by {r.startedBy.name}</span>
+                  <span className="text-muted">{tr("meetings.durationsec_recorded_by_name", { durationSec: duration(r.durationSec), name: r.startedBy.name })}</span>
                   <span className="ml-auto flex gap-1">
-                    {r.status === "recording" && r.stale && <Button size="sm" variant="secondary" onClick={() => void finish(r)}>Finish and summarise</Button>}
-                    <Button size="sm" variant="ghost" aria-label="Delete recording" onClick={() => void remove(r)} data-testid="recording-delete"><IconTrash className="h-4 w-4" /></Button>
+                    {r.status === "recording" && r.stale && <Button size="sm" variant="secondary" onClick={() => void finish(r)}>{tr("meetings.finish_and_summarise")}</Button>}
+                    <Button size="sm" variant="ghost" aria-label={tr("meetings.delete_recording")} onClick={() => void remove(r)} data-testid="recording-delete"><IconTrash className="h-4 w-4" /></Button>
                   </span>
                 </div>
                 {r.summary && <p className="mt-3 whitespace-pre-line text-[13.5px] leading-relaxed" data-testid="recording-summary">{r.summary}</p>}
                 {r.actionItems.length > 0 && (
                   <div className="mt-3">
-                    <h3 className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-subtle"><IconChecklist className="h-3.5 w-3.5" />Action items</h3>
+                    <h3 className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-subtle"><IconChecklist className="h-3.5 w-3.5" />{tr("meetings.action_items")}</h3>
                     <ul className="mt-1.5 space-y-1 text-[13px]">
                       {r.actionItems.map((a, i) => <li key={i} className="flex gap-2"><span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-brand" /><span>{a.text}{(a.assignee || a.due) && <span className="text-muted"> · {[a.assignee, a.due && `due ${a.due}`].filter(Boolean).join(", ")}</span>}</span></li>)}
                     </ul>
@@ -503,11 +504,11 @@ export function RecordingSection({ meetingId, title }: { meetingId: string; titl
                 {r.error && <p className="mt-2 text-[12.5px] text-muted">{r.error}</p>}
                 {r.transcript && (
                   <details className="mt-3 text-[13px]" data-testid="recording-transcript">
-                    <summary className="cursor-pointer select-none font-medium text-brand-hover">Transcript</summary>
+                    <summary className="cursor-pointer select-none font-medium text-brand-hover">{tr("meetings.transcript")}</summary>
                     <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-fill p-3 font-sans text-[13px] leading-relaxed">{r.transcript}</pre>
                     {vid2Save && <Button size="sm" variant="secondary" className="mt-2" data-testid="recording-transcript-save"
                       onClick={() => saveText(sideName(videoFileName(title ?? "", new Date(r.startedAt), "webm"), "transcript"), transcriptText(title ?? "", new Date(r.startedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }), r.transcript))}>
-                      <IconDownload className="h-4 w-4" aria-hidden />Save transcript</Button>}
+                      <IconDownload className="h-4 w-4" aria-hidden />{tr("meetingrec.save_transcript")}</Button>}
                   </details>
                 )}
               </li>
@@ -520,8 +521,8 @@ export function RecordingSection({ meetingId, title }: { meetingId: string; titl
 }
 
 function StatusBadge({ r }: { r: Recording }) {
-  if (r.status === "recording") return r.stale ? <Badge tone="warn">Stopped without finishing</Badge> : <Badge tone="bad" dot>Recording</Badge>;
-  if (r.status === "processing") return <Badge tone="brand" dot>Summarising</Badge>;
-  if (r.status === "failed") return <Badge tone="warn">Transcript only</Badge>;
-  return <Badge tone="ok">Done</Badge>;
+  if (r.status === "recording") return r.stale ? <Badge tone="warn">{tr("meetings.stopped_without_finishing")}</Badge> : <Badge tone="bad" dot>{tr("meetings.recording")}</Badge>;
+  if (r.status === "processing") return <Badge tone="brand" dot>{tr("meetings.summarising")}</Badge>;
+  if (r.status === "failed") return <Badge tone="warn">{tr("meetings.transcript_only")}</Badge>;
+  return <Badge tone="ok">{tr("common.done")}</Badge>;
 }

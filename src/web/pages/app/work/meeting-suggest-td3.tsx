@@ -16,6 +16,8 @@ import { Input, Select, Textarea } from "@/web/components/ui/input";
 import { Card, Skeleton } from "@/web/components/ui/misc";
 import { attachToNewEmail } from "@/web/lib/compose-files";
 import { LoadErrorInline, LoadFailure } from "@/web/components/load-error-t1g";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-meetings"; // R104B
 
 interface Who { type: "member" | "agent"; id: string; name: string }
 export interface Suggestion {
@@ -76,7 +78,7 @@ export function MeetingSuggestions({ meetingId }: { meetingId: string }) {
   if (q.isError || !v) {
     return (
       <Card className="mt-4 p-5" data-testid="meeting-suggest-error">
-        <h2 className="mb-2 text-[13px] font-semibold">Suggested action items</h2>
+        <h2 className="mb-2 text-[13px] font-semibold">{tr("meetings.suggested_action_items")}</h2>
         <LoadFailure error={q.error} onRetry={() => q.refetch()} />
       </Card>
     );
@@ -92,26 +94,26 @@ export function MeetingSuggestions({ meetingId }: { meetingId: string }) {
     const r = await api.post<{ suggestions: Suggestion[]; added: number }>(`/meeting-td3/${meetingId}/suggest`, body);
     setList(r.suggestions);
     setNoneFound(!r.added);
-    toast.success(r.added ? `${r.added} ${r.added === 1 ? "suggestion" : "suggestions"} ready to review` : "No action items found in this text");
+    toast.success(r.added ? `${r.added} ${r.added === 1 ? "suggestion" : "suggestions"} ready to review` : tr("meetings.no_action_items_found_in_this_text"));
   });
   const accept = (s: Suggestion) => run(s.id, async () => {
     const r = await api.post<{ suggestion: Suggestion | null }>(`/meeting-td3/${meetingId}/suggestions/${s.id}/accept`, {});
     await refresh();
-    if (r.suggestion?.task) toast.success("Task created", { action: { label: "Undo", onClick: () => void undo([s.id]) } });
+    if (r.suggestion?.task) toast.success(tr("meetings.task_created"), { action: { label: tr("meetings.undo"), onClick: () => void undo([s.id]) } });
   });
   const discard = (s: Suggestion) => run(s.id, async () => {
     await api.post(`/meeting-td3/${meetingId}/suggestions/${s.id}/discard`, {});
     await refresh();
-    toast("Suggestion discarded", { action: { label: "Undo", onClick: () => void undo([s.id]) } });
+    toast(tr("meetings.suggestion_discarded"), { action: { label: tr("meetings.undo"), onClick: () => void undo([s.id]) } });
   });
   const undo = async (ids: string[]) => {
-    try { const r = await api.post<{ suggestions: Suggestion[]; undone: string[] }>(`/meeting-td3/${meetingId}/undo`, { ids }); setList(r.suggestions); toast.success(r.undone.length === 1 ? "Undone" : `${r.undone.length} undone`); }
+    try { const r = await api.post<{ suggestions: Suggestion[]; undone: string[] }>(`/meeting-td3/${meetingId}/undo`, { ids }); setList(r.suggestions); toast.success(r.undone.length === 1 ? tr("meetings.undone") : tr("meetings.length_undone", { length: r.undone.length })); }
     catch (e) { showError(e as Error); }
   };
   const acceptAll = () => run("all", async () => {
     const r = await api.post<{ accepted: string[]; suggestions: Suggestion[] }>(`/meeting-td3/${meetingId}/accept-all`, {});
     setList(r.suggestions);
-    toast.success(`${r.accepted.length} ${r.accepted.length === 1 ? "task" : "tasks"} created`, { action: { label: "Undo", onClick: () => void undo(r.accepted) } });
+    toast.success(`${r.accepted.length} ${r.accepted.length === 1 ? "task" : "tasks"} created`, { action: { label: tr("meetings.undo"), onClick: () => void undo(r.accepted) } });
   });
   const edit = (s: Suggestion, patch: { assigneeId?: string | null; due?: string | null }) => run(s.id, async () => {
     const r = await api.patch<{ suggestion: Suggestion }>(`/meeting-td3/${meetingId}/suggestions/${s.id}`, patch);
@@ -132,33 +134,33 @@ export function MeetingSuggestions({ meetingId }: { meetingId: string }) {
     <Card className="mt-4 p-5" data-testid="meeting-suggest">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <IconSparkle className="h-4 w-4 text-muted" />
-        <h2 className="text-[13px] font-semibold">Suggested action items</h2>
-        <span className="text-[12px] text-subtle">{accepted.length ? `${accepted.length} made into tasks` : ""}</span>
+        <h2 className="text-[13px] font-semibold">{tr("meetings.suggested_action_items")}</h2>
+        <span className="text-[12px] text-subtle">{accepted.length ? tr("meetings.length_made_into_tasks", { length: accepted.length }) : ""}</span>
         <Button size="sm" variant="secondary" className="ml-auto" onClick={() => void followUp()} loading={busy === "email"} disabled={off} data-testid="meeting-follow-up">
-          <IconMailPlus className="h-4 w-4" />Follow up email
+          <IconMailPlus className="h-4 w-4" />{tr("meetings.follow_up_email")}
         </Button>
       </div>
 
-      {off && <p role="status" className="mb-3 rounded-md bg-warn-soft px-3 py-2 text-[12.5px]" data-testid="meeting-suggest-offline">You're offline. Suggestions and tasks will work again when you're back online.</p>}
+      {off && <p role="status" className="mb-3 rounded-md bg-warn-soft px-3 py-2 text-[12.5px]" data-testid="meeting-suggest-offline">{tr("meetings.you_re_offline_suggestions_and_tasks_will_work_a")}</p>}
 
       <div className="flex flex-wrap items-end gap-2">
         <label className="min-w-0 flex-1 text-[12px] text-muted">
-          Read from
+          {tr("meetings.read_from")}
           <Select className="mt-1 h-9 w-full text-[13px]" value={source} onChange={(e) => { setSrc(e.target.value); setSelection(""); }} data-testid="meeting-suggest-source">
-            {v.sources.recordings.map((r) => <option key={r.id} value={`rec:${r.id}`}>Transcript, {when(r.startedAt)}</option>)}
-            {v.sources.notes && <option value="notes">Meeting notes</option>}
-            <option value="pasted">Pasted text</option>
+            {v.sources.recordings.map((r) => <option key={r.id} value={`rec:${r.id}`}>{tr("meetings.transcript_2")} {when(r.startedAt)}</option>)}
+            {v.sources.notes && <option value="notes">{tr("meetings.meeting_notes")}</option>}
+            <option value="pasted">{tr("meetings.pasted_text")}</option>
           </Select>
         </label>
         <Button size="sm" className="h-9" onClick={() => void doSuggest()} loading={busy === "suggest"} disabled={off || !aiReady || (source === "pasted" && !pasted.trim())} data-testid="meeting-suggest-run">
-          <IconSparkle className="h-4 w-4" />{open.length || accepted.length ? "Suggest again" : "Suggest"}
+          <IconSparkle className="h-4 w-4" />{open.length || accepted.length ? tr("meetings.suggest_again") : tr("meetings.suggest")}
         </Button>
-        {source !== "pasted" && <Button size="sm" variant="ghost" className="h-9" onClick={() => setShowText((x) => !x)} aria-expanded={showText} data-testid="meeting-suggest-show-text">{showText ? "Hide text" : "Show text"}</Button>}
+        {source !== "pasted" && <Button size="sm" variant="ghost" className="h-9" onClick={() => setShowText((x) => !x)} aria-expanded={showText} data-testid="meeting-suggest-show-text">{showText ? tr("meetings.hide_text") : tr("meetings.show_text")}</Button>}
       </div>
       {!aiReady && v.ai.message && <p className="mt-2 text-[12.5px] text-muted" data-testid="meeting-suggest-ai-note">{v.ai.message}</p>}
 
       {source === "pasted" && (
-        <Textarea className="mt-3 min-h-[120px] text-[13px]" aria-label="Paste the transcript or notes" placeholder="Paste the transcript or notes from another tool. It is read once and not kept."
+        <Textarea className="mt-3 min-h-[120px] text-[13px]" aria-label={tr("meetings.paste_the_transcript_or_notes")} placeholder={tr("meetings.paste_the_transcript_or_notes_from_another_tool")}
           value={pasted} onChange={(e) => setPasted(e.target.value)} onMouseUp={() => { const el = document.activeElement as HTMLTextAreaElement | null; if (el?.selectionEnd && el.selectionEnd > el.selectionStart) setSelection(el.value.slice(el.selectionStart, el.selectionEnd).replace(/\s+/g, " ").trim().slice(0, 2000)); }} data-testid="meeting-suggest-paste" />
       )}
       {showText && source !== "pasted" && (
@@ -169,37 +171,37 @@ export function MeetingSuggestions({ meetingId }: { meetingId: string }) {
       )}
       <div className="mt-3 flex flex-wrap gap-2">
         <Button size="sm" variant="secondary" disabled={off || !selection} onClick={() => setAdding({ title: selection.slice(0, 300), quote: selection })} data-testid="meeting-suggest-from-selection">
-          <IconQuote className="h-4 w-4" />Make task from selection
+          <IconQuote className="h-4 w-4" />{tr("meetings.make_task_from_selection")}
         </Button>
-        <Button size="sm" variant="ghost" disabled={off} onClick={() => setAdding({ title: "", quote: "" })} data-testid="meeting-suggest-add"><IconListPlus className="h-4 w-4" />Add action item</Button>
+        <Button size="sm" variant="ghost" disabled={off} onClick={() => setAdding({ title: "", quote: "" })} data-testid="meeting-suggest-add"><IconListPlus className="h-4 w-4" />{tr("meetings.add_action_item")}</Button>
       </div>
       {adding && <AddForm people={v.people} initial={adding} busy={busy === "add"} onCancel={() => setAdding(null)} onSave={(x) => run("add", async () => {
         await api.post(`/meeting-td3/${meetingId}/suggestions`, { ...x, accept: true });
-        setAdding(null); setSelection(""); await refresh(); toast.success("Task created");
+        setAdding(null); setSelection(""); await refresh(); toast.success(tr("meetings.task_created"));
       })} />}
 
       {!v.suggestions.length && (noneFound
-        ? <p className="mt-4 text-[13px] text-muted" role="status" data-testid="meeting-suggest-none">No action items found in this text. Try another source, or select lines and make tasks by hand.</p>
-        : <p className="mt-4 text-[13px] text-muted" data-testid="meeting-suggest-empty">No suggestions yet. Pick what to read from and press Suggest, or select lines and make tasks by hand.</p>)}
+        ? <p className="mt-4 text-[13px] text-muted" role="status" data-testid="meeting-suggest-none">{tr("meetings.no_action_items_found_in_this_text_try_another_s")}</p>
+        : <p className="mt-4 text-[13px] text-muted" data-testid="meeting-suggest-empty">{tr("meetings.no_suggestions_yet_pick_what_to_read_from_and_pr")}</p>)}
 
       {open.length > 0 && (
-        <ul className="mt-4 space-y-2" aria-label="Suggestions to review">
+        <ul className="mt-4 space-y-2" aria-label={tr("meetings.suggestions_to_review")}>
           {open.map((s) => (
             <li key={s.id} className="rounded-lg border border-line p-3 transition-colors duration-150 hover:bg-hover/40" data-testid="meeting-suggestion">
               <div className="flex flex-wrap items-start gap-2">
                 <span className="min-w-0 flex-1 basis-full text-[13px] font-medium sm:basis-0">{s.title}</span>
                 <span className="ml-auto flex shrink-0 gap-2">
-                <Button size="sm" onClick={() => void accept(s)} loading={busy === s.id} disabled={off || (!!busy && busy !== s.id)} aria-label={`Accept: ${s.title}`} data-testid="meeting-suggestion-accept"><IconCheck className="h-4 w-4" />Accept</Button>
-                <Button size="sm" variant="ghost" onClick={() => void discard(s)} disabled={off || !!busy} aria-label={`Discard: ${s.title}`} data-testid="meeting-suggestion-discard"><IconClose className="h-4 w-4" />Discard</Button>
+                <Button size="sm" onClick={() => void accept(s)} loading={busy === s.id} disabled={off || (!!busy && busy !== s.id)} aria-label={tr("meetings.accept_title", { title: s.title })} data-testid="meeting-suggestion-accept"><IconCheck className="h-4 w-4" />{tr("meetings.accept")}</Button>
+                <Button size="sm" variant="ghost" onClick={() => void discard(s)} disabled={off || !!busy} aria-label={tr("meetings.discard_title", { title: s.title })} data-testid="meeting-suggestion-discard"><IconClose className="h-4 w-4" />{tr("branding.discard")}</Button>
                 </span>
               </div>
               {s.quote && <blockquote className="mt-1.5 border-l-2 border-line pl-2 text-[12.5px] text-muted" data-testid="meeting-suggestion-quote">“{s.quote}”</blockquote>}
               <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <Select aria-label={`Owner for ${s.title}`} className="h-8 text-[12.5px]" value={s.assignee?.id ?? ""} disabled={off} onChange={(e) => void edit(s, { assigneeId: e.target.value || null })}>
-                  <option value="">No owner</option>
+                <Select aria-label={tr("meetings.owner_for_title", { title: s.title })} className="h-8 text-[12.5px]" value={s.assignee?.id ?? ""} disabled={off} onChange={(e) => void edit(s, { assigneeId: e.target.value || null })}>
+                  <option value="">{tr("meetings.no_owner")}</option>
                   {v.people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </Select>
-                <Input type="date" aria-label={`Due date for ${s.title}`} className="h-8 text-[12.5px]" value={s.due ?? ""} disabled={off} onChange={(e) => void edit(s, { due: e.target.value || null })} />
+                <Input type="date" aria-label={tr("meetings.due_date_for_title", { title: s.title })} className="h-8 text-[12.5px]" value={s.due ?? ""} disabled={off} onChange={(e) => void edit(s, { due: e.target.value || null })} />
               </div>
             </li>
           ))}
@@ -207,33 +209,33 @@ export function MeetingSuggestions({ meetingId }: { meetingId: string }) {
       )}
       {open.length > 1 && (
         <div className="mt-3 flex justify-end">
-          <Button size="sm" onClick={() => void acceptAll()} loading={busy === "all"} disabled={off || !!busy} data-testid="meeting-suggest-accept-all">Accept all {open.length}</Button>
+          <Button size="sm" onClick={() => void acceptAll()} loading={busy === "all"} disabled={off || !!busy} data-testid="meeting-suggest-accept-all">{tr("meetings.accept_all_length", { length: open.length })}</Button>
         </div>
       )}
 
       {accepted.length > 0 && (
-        <ul className="mt-4 space-y-1" aria-label="Made into tasks">
+        <ul className="mt-4 space-y-1" aria-label={tr("meetings.made_into_tasks")}>
           {accepted.map((s) => (
             <li key={s.id} className="flex items-start gap-2 rounded-lg px-2 py-1.5" data-testid="meeting-suggestion-accepted">
               <IconCheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-good" />
               <div className="min-w-0 flex-1 text-[13px]">
                 <span>{s.title}</span>
-                {s.task && <Link to={`/app/tasks?view=list&task=${s.task.id}`} className="ml-2 text-[12px] text-brand-hover hover:underline">{s.task.ref || "Open task"}</Link>}
+                {s.task && <Link to={`/app/tasks?view=list&task=${s.task.id}`} className="ml-2 text-[12px] text-brand-hover hover:underline">{s.task.ref || tr("meetings.open_task")}</Link>}
                 {(s.assignee || s.due) && <div className="text-[12px] text-subtle">{[s.assignee?.name, s.due && `due ${dayLabel(s.due)}`].filter(Boolean).join(", ")}</div>}
               </div>
-              {s.canUndo && <Button size="sm" variant="ghost" onClick={() => void undo([s.id])} disabled={off} aria-label={`Undo: ${s.title}`} data-testid="meeting-suggestion-undo"><IconUndo className="h-4 w-4" />Undo</Button>}
+              {s.canUndo && <Button size="sm" variant="ghost" onClick={() => void undo([s.id])} disabled={off} aria-label={tr("meetings.undo_title", { title: s.title })} data-testid="meeting-suggestion-undo"><IconUndo className="h-4 w-4" />{tr("meetings.undo")}</Button>}
             </li>
           ))}
         </ul>
       )}
       {discarded.length > 0 && (
         <details className="mt-3 text-[13px]" data-testid="meeting-suggest-discarded">
-          <summary className="cursor-pointer text-[12.5px] text-muted">{discarded.length} discarded</summary>
+          <summary className="cursor-pointer text-[12.5px] text-muted">{tr("meetings.length_discarded", { length: discarded.length })}</summary>
           <ul className="mt-2 space-y-1">
             {discarded.map((s) => (
               <li key={s.id} className="flex items-center gap-2 px-2 text-muted">
                 <span className="min-w-0 flex-1 line-through">{s.title}</span>
-                <Button size="sm" variant="ghost" onClick={() => void undo([s.id])} disabled={off} aria-label={`Bring back: ${s.title}`}><IconUndo className="h-4 w-4" />Bring back</Button>
+                <Button size="sm" variant="ghost" onClick={() => void undo([s.id])} disabled={off} aria-label={tr("meetings.bring_back_title", { title: s.title })}><IconUndo className="h-4 w-4" />{tr("meetings.bring_back")}</Button>
               </li>
             ))}
           </ul>
@@ -249,20 +251,20 @@ function AddForm({ people, initial, busy, onCancel, onSave }: { people: Who[]; i
   const [due, setDue] = useState("");
   return (
     <form className="mt-3 rounded-lg border border-line p-3" data-testid="meeting-suggest-form" onSubmit={(e) => { e.preventDefault(); if (title.trim()) onSave({ title: title.trim(), quote: initial.quote || null, assigneeId: owner || null, due: due || null }); }}>
-      <label className="block text-[12px] text-muted">Task
-        <Input autoFocus className="mt-1 h-9 text-[13px]" value={title} maxLength={300} onChange={(e) => setTitle(e.target.value)} placeholder="What needs doing" data-testid="meeting-suggest-form-title" />
+      <label className="block text-[12px] text-muted">{tr("nav.task")}
+        <Input autoFocus className="mt-1 h-9 text-[13px]" value={title} maxLength={300} onChange={(e) => setTitle(e.target.value)} placeholder={tr("meetings.what_needs_doing")} data-testid="meeting-suggest-form-title" />
       </label>
       {initial.quote && <blockquote className="mt-2 border-l-2 border-line pl-2 text-[12.5px] text-muted">“{initial.quote.slice(0, 400)}”</blockquote>}
       <div className="mt-2 grid grid-cols-2 gap-2">
-        <Select aria-label="Owner" className="h-8 text-[12.5px]" value={owner} onChange={(e) => setOwner(e.target.value)}>
-          <option value="">No owner</option>
+        <Select aria-label={tr("meetings.owner")} className="h-8 text-[12.5px]" value={owner} onChange={(e) => setOwner(e.target.value)}>
+          <option value="">{tr("meetings.no_owner")}</option>
           {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
-        <Input type="date" aria-label="Due date" className="h-8 text-[12.5px]" value={due} onChange={(e) => setDue(e.target.value)} />
+        <Input type="date" aria-label={tr("taskgroup.due_date")} className="h-8 text-[12.5px]" value={due} onChange={(e) => setDue(e.target.value)} />
       </div>
       <div className="mt-3 flex justify-end gap-2">
-        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>
-        <Button type="submit" size="sm" loading={busy} disabled={!title.trim()} data-testid="meeting-suggest-form-save">Create task</Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>{tr("common.cancel")}</Button>
+        <Button type="submit" size="sm" loading={busy} disabled={!title.trim()} data-testid="meeting-suggest-form-save">{tr("meetings.create_task")}</Button>
       </div>
     </form>
   );

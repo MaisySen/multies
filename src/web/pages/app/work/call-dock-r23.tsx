@@ -16,6 +16,8 @@ import { useCallNotesDoc } from "./call-panel-r31";
 import { DockSoFar, LobbyRequests } from "./lobby-r32";
 import { roomMedia } from "@/web/lib/prejoin-prefs";
 import { useMe } from "@/web/lib/queries";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-meetings"; // R104B
 
 /** Tells the server this app left the call, a moment after disconnecting, so an empty room ends the call once. */
 function reportLeft(meetingId: string) {
@@ -35,8 +37,8 @@ export function CallRoomExtras({ meetingId }: { meetingId?: string }) {
   return (
     <div role="status" className="absolute left-1/2 top-3 z-20 flex max-w-md -translate-x-1/2 items-start gap-2 rounded-xl border border-line bg-elevated p-3 text-[12.5px] text-fg shadow-pop" data-testid="share-blocked">
       <IconScreenShare className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
-      <p>Your browser blocked the screen, camera or microphone. Allow it from the icon at the left of the address bar, then try again. On a Mac, also allow screen recording for your browser in System Settings, Privacy and Security.</p>
-      <button type="button" aria-label="Close hint" onClick={() => setBlocked(false)} className="text-subtle hover:text-fg"><IconClose className="h-3.5 w-3.5" /></button>
+      <p>{tr("meetings.your_browser_blocked_the_screen_camera_or_microp")}</p>
+      <button type="button" aria-label={tr("meetings.close_hint")} onClick={() => setBlocked(false)} className="text-subtle hover:text-fg"><IconClose className="h-3.5 w-3.5" /></button>
     </div>
   );
 }
@@ -73,15 +75,15 @@ export function CallDock() {
     setSize({ w: Math.min(Math.max(320, d.w + d.x - e.clientX), window.innerWidth - 32), h: Math.min(Math.max(220, d.h + d.y - e.clientY), window.innerHeight - 32) });
   };
   return (
-    <section aria-label={`Call: ${call.title}`} className="fixed bottom-[calc(1rem+var(--tabbar-h,0px))] right-4 z-40 flex flex-col overflow-hidden rounded-2xl border border-line bg-elevated shadow-pop" style={{ width: size.w, height: size.h }} data-testid="call-dock">
-      <div onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => { drag.current = null; }} className="absolute left-0 top-0 z-10 h-4 w-4 cursor-nwse-resize" aria-hidden title="Resize" />
+    <section aria-label={tr("meetings.call_title", { title: call.title })} className="fixed bottom-[calc(1rem+var(--tabbar-h,0px))] right-4 z-40 flex flex-col overflow-hidden rounded-2xl border border-line bg-elevated shadow-pop" style={{ width: size.w, height: size.h }} data-testid="call-dock">
+      <div onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => { drag.current = null; }} className="absolute left-0 top-0 z-10 h-4 w-4 cursor-nwse-resize" aria-hidden title={tr("meetings.resize")} />
       <header className="flex items-center gap-2 border-b border-line px-3 py-2">
         <span className="h-2 w-2 shrink-0 rounded-full bg-ok" aria-hidden />
         <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold">{call.title}</h2>
         {prefs && <DockSoFar meetingId={call.meetingId} />}
-        {docId && <button type="button" onClick={() => navigate(`/app/docs/${docId}`)} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="call-dock-notes"><IconNotes className="h-3.5 w-3.5" aria-hidden />Notes</button>}
-        <button type="button" onClick={expand} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="call-dock-expand"><IconMaximize className="h-3.5 w-3.5" aria-hidden />Expand</button>
-        <button type="button" onClick={leave} className="inline-flex h-7 items-center gap-1 rounded-md bg-danger/10 px-2 text-[12.5px] font-medium text-danger hover:bg-danger/15" data-testid="call-dock-leave"><IconPhoneOff className="h-3.5 w-3.5" aria-hidden />Leave</button>
+        {docId && <button type="button" onClick={() => navigate(`/app/docs/${docId}`)} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="call-dock-notes"><IconNotes className="h-3.5 w-3.5" aria-hidden />{tr("meetings.notes")}</button>}
+        <button type="button" onClick={expand} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="call-dock-expand"><IconMaximize className="h-3.5 w-3.5" aria-hidden />{tr("meetings.expand")}</button>
+        <button type="button" onClick={leave} className="inline-flex h-7 items-center gap-1 rounded-md bg-danger/10 px-2 text-[12.5px] font-medium text-danger hover:bg-danger/15" data-testid="call-dock-leave"><IconPhoneOff className="h-3.5 w-3.5" aria-hidden />{tr("meetings.leave")}</button>
       </header>
       <div className="relative min-h-0 flex-1" data-lk-theme="default">
         {!prefs ? (
@@ -93,7 +95,7 @@ export function CallDock() {
             <LobbyRequests meetingId={call.meetingId} className="absolute right-2 top-2 z-30 w-64" />
           </LiveKitRoom>
         ) : (
-          <p className="p-4 text-[13px] text-muted">{join.error ? (join.error as Error).message : "Connecting"}</p>
+          <p className="p-4 text-[13px] text-muted">{join.error ? (join.error as Error).message : tr("meetings.connecting")}</p>
         )}
       </div>
     </section>

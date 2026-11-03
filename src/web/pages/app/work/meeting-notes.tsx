@@ -25,6 +25,8 @@ import { tone } from "@/web/components/app-bits";
 import { colourFor, type CollabSession, type Peer } from "./doc-collab";
 import { docExtensions, liveDomEvents, liveKeyDown, useCollabDoc, useCollabSession } from "./collab-editor";
 import { collabMode, editingLabel, initialsOf } from "./collab-logic";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-meetings"; // R104B
 
 interface Who { type: "member" | "agent"; id: string; name: string }
 interface ActionItem {
@@ -83,10 +85,10 @@ export function MeetingNotes({ meetingId }: { meetingId: string }) {
       <Card className="mt-4 flex items-start gap-3 p-5" data-testid="meeting-notes">
         <IconNotes className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
         <div className="min-w-0 flex-1">
-          <h2 className="text-[13px] font-semibold">Agenda and notes</h2>
-          <p className="mt-1 text-[13px] text-muted">One doc for this meeting that everyone in the workspace can edit. Checklist items become tasks in one click.</p>
+          <h2 className="text-[13px] font-semibold">{tr("meetings.agenda_and_notes")}</h2>
+          <p className="mt-1 text-[13px] text-muted">{tr("meetings.one_doc_for_this_meeting_that_everyone_in_the_wo")}</p>
         </div>
-        <Button size="sm" onClick={() => void open()} loading={opening} data-testid="open-notes"><IconNotes className="h-4 w-4" />Notes</Button>
+        <Button size="sm" onClick={() => void open()} loading={opening} data-testid="open-notes"><IconNotes className="h-4 w-4" />{tr("meetings.notes")}</Button>
       </Card>
     );
   }
@@ -175,24 +177,24 @@ function NotesBody({ meetingId, doc, people, onSaved, session }: { meetingId: st
       setVersion(row.version);
       ed.commands.setContent(row.content as never, { emitUpdate: false });
       setState("saved");
-      toast.message("The notes changed elsewhere, so the latest version is shown.");
+      toast.message(tr("meetings.the_notes_changed_elsewhere_so_the_latest_versio"));
     },
   });
   onUpdate.current = schedule;
   return (
     <Card className="p-5">
       <div className="mb-2 flex items-center gap-2">
-        <h2 className="text-[13px] font-semibold">Agenda and notes</h2>
-        {session && <span className="ml-1 inline-flex items-center gap-1 text-[12px] text-subtle" data-testid="notes-live"><span className="h-1.5 w-1.5 rounded-full bg-good" aria-hidden />Live</span>}
-        <span className="ml-auto text-[12px] text-subtle" role="status" data-testid="notes-state">{state === "saving" ? "Saving" : state === "unsaved" ? "Unsaved changes" : "Saved"}</span>
-        <Link to={`/app/docs/${doc.id}`} className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="open-doc" aria-label={`Open the doc for meeting ${meetingId}`}><IconExternalLink className="h-3.5 w-3.5" />Open doc</Link>
+        <h2 className="text-[13px] font-semibold">{tr("meetings.agenda_and_notes")}</h2>
+        {session && <span className="ml-1 inline-flex items-center gap-1 text-[12px] text-subtle" data-testid="notes-live"><span className="h-1.5 w-1.5 rounded-full bg-good" aria-hidden />{tr("meetings.live")}</span>}
+        <span className="ml-auto text-[12px] text-subtle" role="status" data-testid="notes-state">{state === "saving" ? tr("meetings.saving") : state === "unsaved" ? tr("branding.unsaved_changes") : tr("common.saved")}</span>
+        <Link to={`/app/docs/${doc.id}`} className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="open-doc" aria-label={`Open the doc for meeting ${meetingId}`}><IconExternalLink className="h-3.5 w-3.5" />{tr("meetings.open_doc")}</Link>
       </div>
       {session && peers.length > 0 && <NotesPresence peers={peers} />}
-      <p className="mb-2 text-[12px] text-subtle">Type [ ] and a space for a checklist item. Type @ to pick who it is for, and "due Fri" for a date.</p>
+      <p className="mb-2 text-[12px] text-subtle">{tr("meetings.type_and_a_space_for_a_checklist_item_type_to_pi")}</p>
       <div className="relative">
         <EditorContent editor={editor} />
         {picker && picker.matches.length > 0 && (
-          <ul role="listbox" aria-label="People to mention" data-testid="mention-picker" style={{ top: picker.top, left: picker.left }}
+          <ul role="listbox" aria-label={tr("meetings.people_to_mention")} data-testid="mention-picker" style={{ top: picker.top, left: picker.left }}
             className="absolute z-20 max-h-56 w-56 overflow-auto rounded-lg border border-line bg-surface py-1 text-[13px] shadow-pop">
             {picker.matches.map((w, i) => (
               <li key={`${w.type}:${w.id}`} role="option" aria-selected={i === picker.index}
@@ -227,17 +229,17 @@ function ActionItems({ meetingId, view, onDone }: { meetingId: string; view: Mee
       const r = await api.post<{ created: unknown[]; notes: MeetingNotesView }>(`/meeting-notes/${meetingId}/action-items`, { items, projectId: projectId || undefined });
       onDone(r.notes);
       setEdits({});
-      toast.success(r.created.length ? `${r.created.length} ${r.created.length === 1 ? "task" : "tasks"} created` : "Those are tasks already");
+      toast.success(r.created.length ? `${r.created.length} ${r.created.length === 1 ? "task" : "tasks"} created` : tr("meetings.those_are_tasks_already"));
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   return (
     <Card className="p-5" data-testid="action-items">
       <div className="mb-3 flex items-center gap-2">
         <IconChecklist className="h-4 w-4 text-muted" />
-        <h2 className="text-[13px] font-semibold">Action items</h2>
-        <span className="ml-auto text-[12px] text-subtle">{view.actionItems.length ? `${made.length} of ${view.actionItems.length} are tasks` : ""}</span>
+        <h2 className="text-[13px] font-semibold">{tr("meetings.action_items")}</h2>
+        <span className="ml-auto text-[12px] text-subtle">{view.actionItems.length ? tr("meetings.length_of_length2_are_tasks", { length: made.length, length2: view.actionItems.length }) : ""}</span>
       </div>
-      {!view.actionItems.length && <p className="text-[13px] text-muted">Checklist items in the notes show here, ready to become tasks.</p>}
+      {!view.actionItems.length && <p className="text-[13px] text-muted">{tr("meetings.checklist_items_in_the_notes_show_here_ready_to")}</p>}
       <ul className="space-y-2">
         {pending.map((i) => {
           const e = edits[i.key] ?? {};
@@ -245,11 +247,11 @@ function ActionItems({ meetingId, view, onDone }: { meetingId: string; view: Mee
             <li key={i.key} className="rounded-lg border border-line p-2.5" data-testid="action-item">
               <div className="flex items-start gap-2"><IconCircle className="mt-0.5 h-4 w-4 shrink-0 text-subtle" /><span className="min-w-0 flex-1 text-[13px] font-medium">{i.title}</span></div>
               <div className="mt-2 grid grid-cols-2 gap-2 pl-6">
-                <Select aria-label={`Assignee for ${i.title}`} className="h-8 text-[12.5px]" value={e.assignee ?? whoKey(i.assignee)} onChange={(ev) => set(i.key, { assignee: ev.target.value })}>
-                  <option value="">No one</option>
+                <Select aria-label={tr("meetings.assignee_for_title", { title: i.title })} className="h-8 text-[12.5px]" value={e.assignee ?? whoKey(i.assignee)} onChange={(ev) => set(i.key, { assignee: ev.target.value })}>
+                  <option value="">{tr("meetings.no_one")}</option>
                   {view.people.map((p) => <option key={whoKey(p)} value={whoKey(p)}>{p.name}</option>)}
                 </Select>
-                <Input type="date" aria-label={`Due date for ${i.title}`} className="h-8 text-[12.5px]" value={e.due ?? i.due ?? ""} onChange={(ev) => set(i.key, { due: ev.target.value })} />
+                <Input type="date" aria-label={tr("meetings.due_date_for_title", { title: i.title })} className="h-8 text-[12.5px]" value={e.due ?? i.due ?? ""} onChange={(ev) => set(i.key, { due: ev.target.value })} />
               </div>
             </li>
           );
@@ -261,7 +263,7 @@ function ActionItems({ meetingId, view, onDone }: { meetingId: string; view: Mee
               <span>{i.title}</span>
               {i.task ? (
                 <Link to={`/app/tasks?view=list&task=${i.task.id}`} className="ml-2 text-[12px] text-brand-hover hover:underline">{i.task.ref} · {i.task.status}</Link>
-              ) : <span className="ml-2 text-[12px] text-subtle">Task deleted</span>}
+              ) : <span className="ml-2 text-[12px] text-subtle">{tr("meetings.task_deleted")}</span>}
               {(i.assignee || i.due) && <div className="text-[12px] text-subtle">{[i.assignee?.name, i.due && `due ${dayLabel(i.due)}`].filter(Boolean).join(", ")}</div>}
             </div>
           </li>
@@ -269,11 +271,11 @@ function ActionItems({ meetingId, view, onDone }: { meetingId: string; view: Mee
       </ul>
       {pending.length > 0 && (
         <div className="mt-3 flex items-center gap-2">
-          <Select aria-label="Project for the tasks" className="h-8 min-w-0 flex-1 text-[12.5px]" value={projectId} onChange={(ev) => setProjectId(ev.target.value)}>
-            <option value="">Default project</option>
+          <Select aria-label={tr("meetings.project_for_the_tasks")} className="h-8 min-w-0 flex-1 text-[12.5px]" value={projectId} onChange={(ev) => setProjectId(ev.target.value)}>
+            <option value="">{tr("meetings.default_project")}</option>
             {(projects.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </Select>
-          <Button size="sm" onClick={() => void create()} loading={busy} data-testid="create-tasks">Create {pending.length} {pending.length === 1 ? "task" : "tasks"}</Button>
+          <Button size="sm" onClick={() => void create()} loading={busy} data-testid="create-tasks">{tr("common.create")} {pending.length} {pending.length === 1 ? "task" : "tasks"}</Button>
         </div>
       )}
     </Card>
@@ -288,7 +290,7 @@ export function MeetingNotesBacklink({ docId }: { docId: string }) {
   const date = new Date(m.startsAt).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
   return (
     <Link to={`/app/meetings/${m.id}`} data-testid="doc-meeting-link" className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-0.5 text-[12px] text-muted hover:text-fg">
-      <IconNotes className="h-3 w-3" />Notes for {m.title}, {date}
+      <IconNotes className="h-3 w-3" />{tr("meetings.notes_for")} {m.title}, {date}
     </Link>
   );
 }
@@ -308,9 +310,9 @@ function SummaryItems({ meetingId, view, onDone }: { meetingId: string; view: Me
   };
   return (
     <Card className="p-5" data-testid="summary-items">
-      <h2 className="mb-2 text-[13px] font-semibold">From the call summary</h2>
+      <h2 className="mb-2 text-[13px] font-semibold">{tr("meetings.from_the_call_summary")}</h2>
       <ul className="mb-3 space-y-1 text-[13px]">{items.map((i) => <li key={i.title} className="flex gap-2"><IconCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-subtle" />{i.title}</li>)}</ul>
-      <Button size="sm" onClick={() => void add()} loading={busy} data-testid="summary-items-add">Add to notes and make {items.length} {items.length === 1 ? "task" : "tasks"}</Button>
+      <Button size="sm" onClick={() => void add()} loading={busy} data-testid="summary-items-add">{tr("meetings.add_to_notes_and_make")} {items.length} {items.length === 1 ? "task" : "tasks"}</Button>
     </Card>
   );
 }

@@ -35,6 +35,8 @@ import { NoMeetingsArt } from "@/web/components/illustrations"; // R36
 import { startMeetingNow } from "./meeting-start"; // R40 (MB-207)
 import { useWebinarOn, WebinarCard } from "./webinar-r114"; // R114
 import { AskAboutButton, useAskAboutOn } from "@/web/components/ask-about-td1"; // TD1
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-meetings"; // R104B
 
 export interface Meeting {
   id: string; title: string; room: string; startsAt: string; durationMin: number; endsAt: string; status: "scheduled" | "ended" | "cancelled";
@@ -61,16 +63,16 @@ function RepeatFields({ value, onChange, startDay }: { value: RepeatState; onCha
   const set = (p: Partial<RepeatState>) => onChange({ ...value, ...p });
   return (
     <div className="space-y-3">
-      <Field label="Repeat">{(fp) => (
+      <Field label={tr("meetings.repeat")}>{(fp) => (
         <Select {...fp} value={value.every} onChange={(e) => set({ every: e.target.value as RepeatState["every"] })}>
-          <option value="none">Does not repeat</option>
-          <option value="1">Every week</option>
-          <option value="2">Every 2 weeks</option>
+          <option value="none">{tr("meetings.does_not_repeat")}</option>
+          <option value="1">{tr("meetings.every_week")}</option>
+          <option value="2">{tr("meetings.every_2_weeks")}</option>
         </Select>
       )}</Field>
       {value.every !== "none" && (
         <>
-          <div role="group" aria-label="Days" className="flex flex-wrap gap-1.5">
+          <div role="group" aria-label={tr("notifications.days")} className="flex flex-wrap gap-1.5">
             {DAYS.map(([d, label]) => {
               const on = d === startDay || value.days.includes(d);
               return (
@@ -83,15 +85,15 @@ function RepeatFields({ value, onChange, startDay }: { value: RepeatState; onCha
             })}
           </div>
           <div className="grid grid-cols-[1fr_1fr] gap-3">
-            <Field label="Ends">{(fp) => (
+            <Field label={tr("meetings.ends")}>{(fp) => (
               <Select {...fp} value={value.end} onChange={(e) => set({ end: e.target.value as RepeatState["end"] })}>
-                <option value="never">Never</option>
-                <option value="until">On a date</option>
-                <option value="count">After a number of meetings</option>
+                <option value="never">{tr("meetings.never")}</option>
+                <option value="until">{tr("meetings.on_a_date")}</option>
+                <option value="count">{tr("meetings.after_a_number_of_meetings")}</option>
               </Select>
             )}</Field>
-            {value.end === "until" && <Field label="Last day">{(fp) => (<Input {...fp} type="date" value={value.until} onChange={(e) => set({ until: e.target.value })} />)}</Field>}
-            {value.end === "count" && <Field label="Meetings">{(fp) => (<Input {...fp} type="number" min={1} max={520} value={value.count} onChange={(e) => set({ count: e.target.value })} />)}</Field>}
+            {value.end === "until" && <Field label={tr("meetings.last_day")}>{(fp) => (<Input {...fp} type="date" value={value.until} onChange={(e) => set({ until: e.target.value })} />)}</Field>}
+            {value.end === "count" && <Field label={tr("calendar.meetings")}>{(fp) => (<Input {...fp} type="number" min={1} max={520} value={value.count} onChange={(e) => set({ count: e.target.value })} />)}</Field>}
           </div>
         </>
       )}
@@ -125,8 +127,8 @@ function Room({ join, onLeave, prefs, member, guestToken, title }: { join: Join;
         <div data-lk-theme="default" className={cn("relative h-[calc(100dvh-220px)] min-h-[420px] min-w-0 flex-1 overflow-hidden rounded-xl border border-line", member && "max-md:h-auto max-md:min-h-0 max-md:rounded-none max-md:border-x-0 max-md:border-b-0")} data-testid="meeting-room">
           {failed ? (
             <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 bg-[#1c1c1e] p-6 text-center text-[13px] text-white/85" data-testid="meeting-connect-failed">
-              <p>Couldn't connect to the call. Check your connection and try again.</p>
-              <Button variant="secondary" onClick={onLeave}>Back</Button>
+              <p>{tr("meetings.couldn_t_connect_to_the_call_check_your_connecti")}</p>
+              <Button variant="secondary" onClick={onLeave}>{tr("common.back")}</Button>
             </div>
           ) : (
             <LiveKitRoom serverUrl={join.url} token={join.token} connect video={media.video} audio={media.audio} options={media.options}
@@ -168,11 +170,11 @@ export function MeetingsPage() {
   const past = q.data?.meetings.filter((m) => !upcomingIds.has(m.id) && !(m.recurrence && m.status === "scheduled")) ?? [];
   return (
     <div>
-      <PageHeader title="Meetings" description="Video meetings in the browser, started from a thread, task or contact. Guests join with a link, no account needed. Record a call to get a transcript and summary; everyone in the call sees when it is on." actions={<div className="flex flex-wrap items-center gap-2"><Button variant="secondary" onClick={() => { setAsWebinar(false); setOpen(true); }} data-testid="meeting-schedule"><IconCalendarClock className="h-4 w-4" />Schedule</Button>{webinarOn && <Button variant="secondary" onClick={() => { setAsWebinar(true); setOpen(true); }} data-testid="meeting-new-webinar"><IconMegaphone className="h-4 w-4" />Webinar</Button>}<Button onClick={() => { setStarting(true); void startMeetingNow(navigate).finally(() => setStarting(false)); }} loading={starting} data-testid="meeting-start-now"><IconVideo className="h-4 w-4" />Start now</Button></div>} />
+      <PageHeader title={tr("calendar.meetings")} description={tr("meetings.video_meetings_in_the_browser_started_from_a_thr")} actions={<div className="flex flex-wrap items-center gap-2"><Button variant="secondary" onClick={() => { setAsWebinar(false); setOpen(true); }} data-testid="meeting-schedule"><IconCalendarClock className="h-4 w-4" />{tr("myday.schedule")}</Button>{webinarOn && <Button variant="secondary" onClick={() => { setAsWebinar(true); setOpen(true); }} data-testid="meeting-new-webinar"><IconMegaphone className="h-4 w-4" />{tr("meetings.webinar")}</Button>}<Button onClick={() => { setStarting(true); void startMeetingNow(navigate).finally(() => setStarting(false)); }} loading={starting} data-testid="meeting-start-now"><IconVideo className="h-4 w-4" />{tr("meetings.start_now")}</Button></div>} />
       <CallMinutesUsage className="-mt-3 mb-4" />
       {q.data && !q.data.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><IconVideoOff className="mt-0.5 h-4 w-4 shrink-0" />{VIDEO_OFF}</Card>}
       {q.isPending ? <Skeleton className="h-40" /> : q.error || !q.data ? <Card data-testid="meetings-error"><LoadFailure error={q.error} onRetry={() => q.refetch()} block /></Card> : !q.data.meetings.length ? (
-        <Card><EmptyState icon={<IconVideo />} art={<NoMeetingsArt />} title="No meetings yet" body="Start one now and share the guest link, schedule one for later, or start a meeting from any email thread, task or contact." /></Card>
+        <Card><EmptyState icon={<IconVideo />} art={<NoMeetingsArt />} title={tr("meetings.no_meetings_yet")} body="Start one now and share the guest link, schedule one for later, or start a meeting from any email thread, task or contact." /></Card>
       ) : (
         <div className="space-y-6">
           {[["Upcoming", upcoming], ["Earlier", past]].map(([label, list]) => (list as Meeting[]).length ? (
@@ -181,10 +183,10 @@ export function MeetingsPage() {
               <Card className="divide-y divide-line">
                 {(list as Meeting[]).map((m) => (
                   <Link key={`${m.id}:${m.startsAt}`} to={`/app/meetings/${m.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors duration-150 ease-out first:rounded-t-xl last:rounded-b-xl hover:bg-hover focus-visible:bg-hover focus-visible:outline-none max-sm:min-h-14" data-testid="meeting-row">
-                    {m.recurrence ? <IconRepeat className="h-4 w-4 shrink-0 text-muted" aria-label="Repeats" /> : <IconCalendarClock className="h-4 w-4 shrink-0 text-muted" />}
-                    <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-medium">{m.title}</div><div className="text-[12.5px] text-muted">{when(m.startsAt)} · {m.durationMin} min{m.invitees.length ? ` · ${m.invitees.length} ${m.invitees.length === 1 ? "guest" : "guests"}` : ""}{m.recurrence ? ` · ${m.recurrence.summary}` : ""}</div></div>
-                    {m.status !== "scheduled" && <Badge>{m.status === "ended" ? "Ended" : "Cancelled"}</Badge>}
-                    {m.invitesSentAt && <Badge tone="ok">Invited</Badge>}
+                    {m.recurrence ? <IconRepeat className="h-4 w-4 shrink-0 text-muted" aria-label={tr("meetings.repeats")} /> : <IconCalendarClock className="h-4 w-4 shrink-0 text-muted" />}
+                    <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-medium">{m.title}</div><div className="text-[12.5px] text-muted">{when(m.startsAt)} · {m.durationMin} {tr("meetings.min")}{m.invitees.length ? ` · ${m.invitees.length} ${m.invitees.length === 1 ? "guest" : "guests"}` : ""}{m.recurrence ? ` · ${m.recurrence.summary}` : ""}</div></div>
+                    {m.status !== "scheduled" && <Badge>{m.status === "ended" ? tr("meetings.ended") : tr("meetings.cancelled")}</Badge>}
+                    {m.invitesSentAt && <Badge tone="ok">{tr("meetings.invited")}</Badge>}
                   </Link>
                 ))}
               </Card>
@@ -210,31 +212,31 @@ function ScheduleDialog({ open, onClose, onMade, webinar: startAsWebinar = false
     try {
       const invitees = guests.split(/[\s,;]+/).map((g) => g.trim()).filter(Boolean);
       const r = await api.post<{ meeting: Meeting; invites: { status: string } | null }>("/meetings", { title: title || undefined, startsAt: zonedInputToIso(at), durationMin: Number(duration), invitees, sendInvites: send && invitees.length > 0, ...(repeat.every !== "none" ? { recurrence: repeatBody(repeat) } : {}) });
-      if (r.invites?.status === "sent") toast.success("Invites sent");
+      if (r.invites?.status === "sent") toast.success(tr("meetings.invites_sent"));
       // POL1 (MB-318): webinar mode in the same step; if it can't be turned on, the meeting still stands and the page has the switch.
       if (webinar && webinarOn) {
-        try { await api.patch(`/webinars/${r.meeting.id}`, { enabled: true }); toast.success("Webinar scheduled. Share the registration link from its page."); }
+        try { await api.patch(`/webinars/${r.meeting.id}`, { enabled: true }); toast.success(tr("meetings.webinar_scheduled_share_the_registration_link_fr")); }
         catch (e) { showError(e as Error); }
       }
       onClose(); onMade(r.meeting.id);
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   return (
-    <Dialog open={open} onClose={onClose} title={webinar && webinarOn ? "Schedule a webinar" : "Schedule a meeting"} footer={<><Button variant="ghost" onClick={() => void save(false)} loading={busy}>Save without inviting</Button><Button onClick={() => void save(true)} loading={busy}>Save and send invites</Button></>}>
+    <Dialog open={open} onClose={onClose} title={webinar && webinarOn ? tr("meetings.schedule_a_webinar") : tr("meetings.schedule_a_meeting")} footer={<><Button variant="ghost" onClick={() => void save(false)} loading={busy}>{tr("meetings.save_without_inviting")}</Button><Button onClick={() => void save(true)} loading={busy}>{tr("meetings.save_and_send_invites")}</Button></>}>
       <div className="space-y-3">
-        <Field label="Title">{(fp) => (<Input {...fp} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={webinar && webinarOn ? "Webinar" : "Meeting"} />)}</Field>
+        <Field label={tr("common.title")}>{(fp) => (<Input {...fp} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={webinar && webinarOn ? tr("meetings.webinar") : tr("mywork.meeting")} />)}</Field>
         {webinarOn && (
           <div className="flex items-start justify-between gap-3 rounded-lg border border-line p-3" data-testid="schedule-webinar">
-            <div className="min-w-0 text-[13px]"><div className="font-medium text-fg">Make it a webinar</div><div className="text-muted">Hosts and panelists are on stage. Everyone else registers with a link, watches, asks questions and votes in polls.</div></div>
-            <Switch checked={webinar} onChange={setWebinar} label="Make it a webinar" />
+            <div className="min-w-0 text-[13px]"><div className="font-medium text-fg">{tr("meetings.make_it_a_webinar")}</div><div className="text-muted">{tr("meetings.hosts_and_panelists_are_on_stage_everyone_else_r")}</div></div>
+            <Switch checked={webinar} onChange={setWebinar} label={tr("meetings.make_it_a_webinar")} />
           </div>
         )}
         <div className="grid grid-cols-[1fr_110px] gap-3">
           <Field label={`Starts (${tz()})`}>{(fp) => (<Input {...fp} type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />)}</Field>
-          <Field label="Minutes">{(fp) => (<Input {...fp} type="number" min={5} max={480} value={duration} onChange={(e) => setDuration(e.target.value)} />)}</Field>
+          <Field label={tr("meetings.minutes")}>{(fp) => (<Input {...fp} type="number" min={5} max={480} value={duration} onChange={(e) => setDuration(e.target.value)} />)}</Field>
         </div>
         <RepeatFields value={repeat} onChange={setRepeat} startDay={dayOfInput(at)} />
-        <Field label="Guests" hint="Email addresses, separated by commas. Each gets a calendar invite with the join link.">{(fp) => (<Input {...fp} value={guests} onChange={(e) => setGuests(e.target.value)} placeholder="maria@blueharbor.co" />)}</Field>
+        <Field label={tr("tasks.guests")} hint={tr("meetings.email_addresses_separated_by_commas_each_gets_a")}>{(fp) => (<Input {...fp} value={guests} onChange={(e) => setGuests(e.target.value)} placeholder="maria@blueharbor.co" />)}</Field>
       </div>
     </Dialog>
   );
@@ -269,30 +271,30 @@ export function MeetingPage() {
   };
   useJoinFromDock(!!m?.videoEnabled && m.status === "scheduled" && !join, () => void enter()); // Round 23 (the dock already passed pre-join)
   const invite = async () => {
-    try { const r = await api.post<{ status: string }>(`/meetings/${id}/invite`, {}); toast.success(r.status === "sent" ? "Invites sent" : "Invites are waiting for approval"); void qc.invalidateQueries({ queryKey: ["meeting", id] }); } catch (e) { showError(e as Error); }
+    try { const r = await api.post<{ status: string }>(`/meetings/${id}/invite`, {}); toast.success(r.status === "sent" ? tr("meetings.invites_sent") : tr("meetings.invites_are_waiting_for_approval")); void qc.invalidateQueries({ queryKey: ["meeting", id] }); } catch (e) { showError(e as Error); }
   };
   const setStatus = async (status: "ended" | "cancelled") => { try { await api.patch(`/meetings/${id}`, { status }); void qc.invalidateQueries({ queryKey: ["meeting", id] }); } catch (e) { showError(e as Error); } };
   if (!m) return q.error ? <Card data-testid="meeting-error"><LoadFailure error={q.error} onRetry={() => q.refetch()} block /></Card> : <Skeleton className="h-40" />; // POL1
-  if (join) return <div><PageHeader title={m.title} actions={<Button variant="secondary" onClick={() => setJoin(null)}>Leave</Button>} /><Room join={join} prefs={prefs} member title={m.title} onLeave={() => setJoin(null)} /></div>;
+  if (join) return <div><PageHeader title={m.title} actions={<Button variant="secondary" onClick={() => setJoin(null)}>{tr("meetings.leave")}</Button>} /><Room join={join} prefs={prefs} member title={m.title} onLeave={() => setJoin(null)} /></div>;
   if (prejoin) return <div className="py-2"><PreJoin title={m.title} who={{ mode: "member", name: me.data?.user?.name || me.data?.user?.email || "you" }} inCall={inCall.data?.participants.map((p) => p.name)} busy={busy} footnote={PREJOIN_NOTE} onJoin={(p) => void enter(p)} onCancel={() => setPrejoin(false)} /></div>;
-  const source = m.source ? (m.source.type === "task" ? { to: `/app/tasks?task=${m.source.id}`, label: "the task" } : m.source.type === "contact" ? { to: `/app/contacts/${m.source.id}`, label: "the contact" } : { to: `/app/mail`, label: "the thread" }) : null;
+  const source = m.source ? (m.source.type === "task" ? { to: `/app/tasks?task=${m.source.id}`, label: tr("meetings.the_task") } : m.source.type === "contact" ? { to: `/app/contacts/${m.source.id}`, label: tr("meetings.the_contact") } : { to: `/app/mail`, label: tr("meetings.the_thread") }) : null;
   return (
     <div data-testid="meeting-page">
-      <PageHeader title={m.title} description={<>{when(m.startsAt)} · {m.durationMin} minutes{source && <> · started from <Link className="text-brand-hover hover:underline" to={source.to}>{source.label}</Link></>}</>}
-        actions={askOn ? <div className="flex flex-wrap items-center gap-2"><AskAboutButton kind="meetings" id={m.id} title={m.title} />{m.status === "scheduled" ? <Button onClick={() => setPrejoin(true)} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><IconVideo className="h-4 w-4" />Join now</Button> : <Badge>{m.status === "ended" ? "Ended" : "Cancelled"}</Badge>}</div> : m.status === "scheduled" ? <Button onClick={() => setPrejoin(true)} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><IconVideo className="h-4 w-4" />Join now</Button> : <Badge>{m.status === "ended" ? "Ended" : "Cancelled"}</Badge>} />
+      <PageHeader title={m.title} description={<>{when(m.startsAt)} · {m.durationMin} {tr("meetings.minutes_2")}{source && <> {tr("meetings.started_from")} <Link className="text-brand-hover hover:underline" to={source.to}>{source.label}</Link></>}</>}
+        actions={askOn ? <div className="flex flex-wrap items-center gap-2"><AskAboutButton kind="meetings" id={m.id} title={m.title} />{m.status === "scheduled" ? <Button onClick={() => setPrejoin(true)} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><IconVideo className="h-4 w-4" />{tr("meetings.join_now")}</Button> : <Badge>{m.status === "ended" ? tr("meetings.ended") : tr("meetings.cancelled")}</Badge>}</div> : m.status === "scheduled" ? <Button onClick={() => setPrejoin(true)} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><IconVideo className="h-4 w-4" />{tr("meetings.join_now")}</Button> : <Badge>{m.status === "ended" ? tr("meetings.ended") : tr("meetings.cancelled")}</Badge>} />
       {!m.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><IconVideoOff className="mt-0.5 h-4 w-4 shrink-0" />{VIDEO_OFF}</Card>}
       {phonePage && <PhoneSaves className="mb-4" />}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-5">
-          <h2 className="text-[13px] font-semibold">Guest link</h2>
-          <p className="mt-1 text-[13px] text-muted">Anyone with this link can join from a browser. No account or app needed.</p>
-          <div className="mt-3 flex items-center gap-2"><Input readOnly value={m.guestUrl} aria-label="Guest link" className="font-mono text-[12.5px]" /><CopyButton value={m.guestUrl} /></div>
+          <h2 className="text-[13px] font-semibold">{tr("meetings.guest_link")}</h2>
+          <p className="mt-1 text-[13px] text-muted">{tr("meetings.anyone_with_this_link_can_join_from_a_browser_no")}</p>
+          <div className="mt-3 flex items-center gap-2"><Input readOnly value={m.guestUrl} aria-label={tr("meetings.guest_link")} className="font-mono text-[12.5px]" /><CopyButton value={m.guestUrl} /></div>
           <GuestsWaitSetting meetingId={m.id} value={m.guestsWait !== false} />
         </Card>
         <Card className="p-5">
-          <h2 className="text-[13px] font-semibold">Guests</h2>
-          {m.invitees.length ? <ul className="mt-2 space-y-1 text-[13px]">{m.invitees.map((g) => <li key={g} className="flex items-center gap-2"><IconMail className="h-3.5 w-3.5 text-muted" />{g}</li>)}</ul> : <p className="mt-1 text-[13px] text-muted">No guests yet. Share the link, or schedule with guest emails.</p>}
-          {m.invitees.length > 0 && m.status === "scheduled" && <div className="mt-3 flex items-center gap-3"><Button size="sm" variant="secondary" onClick={() => void invite()}>{m.invitesSentAt ? "Send invites again" : "Send calendar invites"}</Button>{m.invitesSentAt && <span className="text-[12px] text-subtle">Sent {when(m.invitesSentAt)}</span>}</div>}
+          <h2 className="text-[13px] font-semibold">{tr("tasks.guests")}</h2>
+          {m.invitees.length ? <ul className="mt-2 space-y-1 text-[13px]">{m.invitees.map((g) => <li key={g} className="flex items-center gap-2"><IconMail className="h-3.5 w-3.5 text-muted" />{g}</li>)}</ul> : <p className="mt-1 text-[13px] text-muted">{tr("meetings.no_guests_yet_share_the_link_or_schedule_with_gu")}</p>}
+          {m.invitees.length > 0 && m.status === "scheduled" && <div className="mt-3 flex items-center gap-3"><Button size="sm" variant="secondary" onClick={() => void invite()}>{m.invitesSentAt ? tr("meetings.send_invites_again") : tr("meetings.send_calendar_invites")}</Button>{m.invitesSentAt && <span className="text-[12px] text-subtle">{tr("mailfolder.sent")} {when(m.invitesSentAt)}</span>}</div>}
         </Card>
       </div>
       {webinarOn && <WebinarCard meetingId={m.id} status={m.status} />}
@@ -301,16 +303,16 @@ export function MeetingPage() {
           <IconRepeat className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
           <div className="min-w-0 flex-1">
             <h2 className="text-[13px] font-semibold">{m.recurrence.summary}</h2>
-            <p className="mt-1 text-[13px] text-muted">First meeting {when(m.startsAt)}. Changes apply to every meeting in the series, and the same guest link works each time.</p>
+            <p className="mt-1 text-[13px] text-muted">{tr("meetings.first_meeting")} {when(m.startsAt)}{tr("meetings.changes_apply_to_every_meeting_in_the_series_and")}</p>
           </div>
         </Card>
       )}
       {cfg?.videoRecVid2 && (me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin") && <RecoverRecording meetingId={m.id} className="mb-4" phone={phonePage} />}
       <RecordingSection meetingId={m.id} title={m.title} />
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button size="sm" variant="secondary" onClick={() => setEditing(true)}><IconEdit className="h-4 w-4" />{m.recurrence ? "Edit series" : "Edit"}</Button>
-        <a href={`/api/meetings/${m.id}/ics`} download className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium text-muted hover:bg-hover hover:text-fg"><IconDownload className="h-4 w-4" />Calendar file</a>
-        {m.status === "scheduled" && <><Button size="sm" variant="ghost" onClick={() => void setStatus("ended")}>Mark as ended</Button><Button size="sm" variant="ghost" onClick={() => void setStatus("cancelled")}>{m.recurrence ? "Cancel series" : "Cancel meeting"}</Button></>}
+        <Button size="sm" variant="secondary" onClick={() => setEditing(true)}><IconEdit className="h-4 w-4" />{m.recurrence ? tr("meetings.edit_series") : tr("meetings.edit")}</Button>
+        <a href={`/api/meetings/${m.id}/ics`} download className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium text-muted hover:bg-hover hover:text-fg"><IconDownload className="h-4 w-4" />{tr("meetings.calendar_file")}</a>
+        {m.status === "scheduled" && <><Button size="sm" variant="ghost" onClick={() => void setStatus("ended")}>{tr("meetings.mark_as_ended")}</Button><Button size="sm" variant="ghost" onClick={() => void setStatus("cancelled")}>{m.recurrence ? tr("meetings.cancel_series") : tr("meetings.cancel_meeting")}</Button></>}
       </div>
       <MeetingNotes meetingId={m.id} />
       {meetTd3 && <MeetingSuggestions meetingId={m.id} />}
@@ -332,18 +334,18 @@ function EditMeetingDialog({ m, onClose, onSaved }: { m: Meeting; onClose: () =>
     try {
       const startsAt = zonedInputToIso(at);
       await api.patch(`/meetings/${m.id}`, { title, durationMin: Number(duration), ...(startsAt !== m.startsAt ? { startsAt } : {}), recurrence: repeatBody(repeat) });
-      toast.success(m.recurrence || repeat.every !== "none" ? "Series saved" : "Meeting saved");
+      toast.success(m.recurrence || repeat.every !== "none" ? tr("meetings.series_saved") : tr("meetings.meeting_saved"));
       onSaved();
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   return (
-    <Dialog open onClose={onClose} title={m.recurrence ? "Edit series" : "Edit meeting"} description={m.recurrence ? "Changes apply to every meeting in the series." : undefined}
-      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={() => void save()} loading={busy}>Save</Button></>}>
+    <Dialog open onClose={onClose} title={m.recurrence ? tr("meetings.edit_series") : tr("meetings.edit_meeting")} description={m.recurrence ? tr("meetings.changes_apply_to_every_meeting_in_the_series") : undefined}
+      footer={<><Button variant="ghost" onClick={onClose}>{tr("common.cancel")}</Button><Button onClick={() => void save()} loading={busy}>{tr("common.save")}</Button></>}>
       <div className="space-y-3">
-        <Field label="Title">{(fp) => (<Input {...fp} value={title} onChange={(e) => setTitle(e.target.value)} />)}</Field>
+        <Field label={tr("common.title")}>{(fp) => (<Input {...fp} value={title} onChange={(e) => setTitle(e.target.value)} />)}</Field>
         <div className="grid grid-cols-[1fr_110px] gap-3">
           <Field label={`${m.recurrence ? "First meeting" : "Starts"} (${tz()})`}>{(fp) => (<Input {...fp} type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />)}</Field>
-          <Field label="Minutes">{(fp) => (<Input {...fp} type="number" min={5} max={480} value={duration} onChange={(e) => setDuration(e.target.value)} />)}</Field>
+          <Field label={tr("meetings.minutes")}>{(fp) => (<Input {...fp} type="number" min={5} max={480} value={duration} onChange={(e) => setDuration(e.target.value)} />)}</Field>
         </div>
         <RepeatFields value={repeat} onChange={setRepeat} startDay={dayOfInput(at)} />
       </div>
@@ -384,18 +386,18 @@ export function GuestMeetingPage() {
   return (
     <main className="min-h-dvh bg-bg px-4 py-6 text-fg">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-6 flex items-center justify-between"><Logo /><span className="text-[12px] text-subtle">Video meeting</span></div>
-        {q.isPending ? <Skeleton className="h-40" /> : !m ? <Card className="p-8 text-center"><h1 className="text-lg font-semibold">This meeting link doesn't work</h1><p className="mt-1 text-[13px] text-muted">Ask whoever invited you for a new link.</p></Card>
+        <div className="mb-6 flex items-center justify-between"><Logo /><span className="text-[12px] text-subtle">{tr("meetings.video_meeting")}</span></div>
+        {q.isPending ? <Skeleton className="h-40" /> : !m ? <Card className="p-8 text-center"><h1 className="text-lg font-semibold">{tr("meetings.this_meeting_link_doesn_t_work")}</h1><p className="mt-1 text-[13px] text-muted">{tr("meetings.ask_whoever_invited_you_for_a_new_link")}</p></Card>
           : join ? <Room join={join} prefs={prefs} member={false} guestToken={token} onLeave={() => { setJoin(null); setLeft(true); }} />
           : lobby ? <Card className="mx-auto max-w-3xl p-6"><GuestLobby token={token!} lobbyId={lobby.id} name={lobby.name} prefs={prefs} title={m.title} onAdmitted={() => void go(prefs, lobby.id)} onLeave={() => setLobby(null)} onAskAgain={() => { if (prefs) void ask(prefs); }} /></Card>
           : (
             <Card className={m.status === "scheduled" && m.videoEnabled ? "mx-auto max-w-3xl p-6" : "mx-auto max-w-md p-6"} data-testid="guest-meeting">
-              <p className="text-[12.5px] text-muted">{m.host} invited you to</p>
+              <p className="text-[12.5px] text-muted">{m.host} {tr("meetings.invited_you_to")}</p>
               <h1 className="mt-1 text-xl font-semibold">{m.title}</h1>
-              <p className="mt-1 text-[13px] text-muted">{when(m.startsAt)} · {m.durationMin} minutes</p>
-              {left && <p className="mt-3 text-[13px] text-muted">You left the meeting. Join again below.</p>}
-              {m.status !== "scheduled" ? <p className="mt-4 text-[13px]">{m.status === "cancelled" ? "This meeting was cancelled." : "This meeting has ended."}</p>
-                : !m.videoEnabled ? <p className="mt-4 text-[13px] text-muted">The video service isn't switched on yet. Try again at the meeting time, or reply to the invite.</p>
+              <p className="mt-1 text-[13px] text-muted">{when(m.startsAt)} · {m.durationMin} {tr("meetings.minutes_2")}</p>
+              {left && <p className="mt-3 text-[13px] text-muted">{tr("meetings.you_left_the_meeting_join_again_below")}</p>}
+              {m.status !== "scheduled" ? <p className="mt-4 text-[13px]">{m.status === "cancelled" ? tr("meetings.this_meeting_was_cancelled") : tr("meetings.this_meeting_has_ended")}</p>
+                : !m.videoEnabled ? <p className="mt-4 text-[13px] text-muted">{tr("meetings.the_video_service_isn_t_switched_on_yet_try_agai")}</p>
                 : (
                   <div className="mt-5"><PreJoin bare title={m.title} who={{ mode: "guest" }} inCall={here.data?.names} inCallCount={here.data?.count} busy={busy} joinLabel={m.guestsWait ? "Ask to join" : "Join meeting"} footnote={PREJOIN_NOTE} onJoin={(p) => { setName(p.name ?? ""); void ask(p); }} /></div>
                 )}

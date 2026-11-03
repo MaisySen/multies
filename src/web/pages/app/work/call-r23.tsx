@@ -12,6 +12,8 @@ import { mailDate } from "@/web/lib/format";
 import { useConfig } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
 import { lazyPage } from "@/web/components/lazy-page";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-meetings"; // R104B
 
 export interface CallStatus {
   meetingId: string; title: string; channelId: string | null; state: "live" | "waiting" | "ended";
@@ -60,10 +62,10 @@ export function LiveCallCard({ path, by, at, channelId }: { path: string; by: st
         {live && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-surface bg-ok" aria-hidden />}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[13.5px] font-semibold">{done ? `Call ended, ${call!.durationMin} min` : live ? "In call" : "Call started"}</p>
+        <p className="text-[13.5px] font-semibold">{done ? tr("meetings.call_ended_durationmin_min", { durationMin: call!.durationMin }) : live ? tr("meetings.in_call") : tr("meetings.call_started")}</p>
         <p className="truncate text-[12px] text-muted" data-testid="call-card-who">{live ? inCallNames(call!.participants, call!.count) : `${by}, ${mailDate(at)}`}</p>
       </div>
-      {!done && <JoinCall path={path} meetingId={meetingId} title={call?.title ?? "Call"} videoEnabled={videoOn(config.data)} testId="call-join" />}
+      {!done && <JoinCall path={path} meetingId={meetingId} title={call?.title ?? tr("meetings.call")} videoEnabled={videoOn(config.data)} testId="call-join" />}
     </div>
   );
 }
@@ -71,8 +73,8 @@ export function LiveCallCard({ path, by, at, channelId }: { path: string; by: st
 /** Opens the docked call window when video is on; otherwise the meeting page (guest link, video off note). */
 function JoinCall({ path, meetingId, title, videoEnabled, testId, small }: { path: string; meetingId: string; title: string; videoEnabled: boolean; testId: string; small?: boolean }) {
   const cls = cn("inline-flex shrink-0 items-center rounded-lg bg-brand font-medium text-brand-fg hover:bg-brand-press", small ? "h-7 px-2.5 text-[12.5px]" : "h-8 px-3 text-[13px]");
-  if (!videoEnabled) return <Link to={path} className={cls} data-testid={testId}>Join</Link>;
-  return <button type="button" className={cls} onClick={() => openCallDock({ meetingId, title, path })} data-testid={testId}>Join</button>;
+  if (!videoEnabled) return <Link to={path} className={cls} data-testid={testId}>{tr("mywork.join")}</Link>;
+  return <button type="button" className={cls} onClick={() => openCallDock({ meetingId, title, path })} data-testid={testId}>{tr("mywork.join")}</button>;
 }
 
 /** The chat header while people are in a call here: "In call: Maya, Sam (+2)" and Join. Reads what the cards fetch. */
@@ -84,7 +86,7 @@ export function CallHeaderStatus({ channelId }: { channelId: string }) {
   return (
     <div className="flex min-w-0 items-center gap-2 rounded-full border border-brand/30 bg-brand/5 py-0.5 pl-2.5 pr-0.5 text-[12.5px]" data-testid="call-header">
       <span className="h-2 w-2 shrink-0 rounded-full bg-ok" aria-hidden />
-      <span className="truncate">In call: {inCallNames(live.participants, live.count)}</span>
+      <span className="truncate">{tr("meetings.in_call_2")} {inCallNames(live.participants, live.count)}</span>
       <JoinCall path={`/app/meetings/${live.meetingId}`} meetingId={live.meetingId} title={live.title} videoEnabled={videoOn(config.data)} testId="call-header-join" small />
     </div>
   );

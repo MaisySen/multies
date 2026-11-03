@@ -17,6 +17,8 @@ import { Switch } from "@/web/components/ui/misc";
 import { DOCK_SO_FAR_MS, LOBBY_COPY, LOBBY_HOST_POLL_MS, LOBBY_POLL_MS } from "@/shared/meeting-lobby";
 import type { JoinPrefs } from "@/web/lib/prejoin-prefs";
 import { SoFarView, type SoFar } from "./call-panel-r31";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-meetings"; // R104B
 
 export interface LobbyAsk { lobbyId: string | null; status: "pending" | "admitted"; waitingRoom: boolean }
 type GuestStatus = "pending" | "admitted" | "denied" | "expired";
@@ -67,8 +69,8 @@ export function GuestLobby({ token, lobbyId, name, prefs, title, onAdmitted, onL
   return (
     <section className="mx-auto grid max-w-3xl gap-5 md:grid-cols-[1.4fr_1fr]" data-testid="guest-lobby" aria-labelledby="lobby-heading">
       <div className="relative aspect-video overflow-hidden rounded-2xl bg-[#1c1c1e]">
-        <video ref={videoRef} muted playsInline autoPlay aria-label="Your camera preview" data-testid="lobby-preview" className={cn("h-full w-full -scale-x-100 object-cover", !prefs?.cam && "invisible")} />
-        {!prefs?.cam && <div className="absolute inset-0 flex items-center justify-center text-[12.5px] text-white/80">Camera is off</div>}
+        <video ref={videoRef} muted playsInline autoPlay aria-label={tr("meetings.your_camera_preview")} data-testid="lobby-preview" className={cn("h-full w-full -scale-x-100 object-cover", !prefs?.cam && "invisible")} />
+        {!prefs?.cam && <div className="absolute inset-0 flex items-center justify-center text-[12.5px] text-white/80">{tr("meetings.camera_is_off")}</div>}
         <span className="absolute bottom-3 left-3 rounded-md bg-black/45 px-2 py-0.5 text-[12px] text-white">{name}</span>
       </div>
       <div className="flex flex-col justify-center gap-3" role="status" aria-live="polite">
@@ -82,8 +84,8 @@ export function GuestLobby({ token, lobbyId, name, prefs, title, onAdmitted, onL
         <p className="text-[13px] text-muted">{body}</p>
         <p className="text-[12.5px] text-subtle">{title}</p>
         <div className="mt-1 flex gap-2">
-          {status === "expired" && <Button onClick={onAskAgain} data-testid="lobby-ask-again">Ask again</Button>}
-          <Button variant={status === "pending" ? "ghost" : "secondary"} onClick={onLeave} data-testid="lobby-leave">{status === "pending" ? "Leave" : "Back"}</Button>
+          {status === "expired" && <Button onClick={onAskAgain} data-testid="lobby-ask-again">{tr("meetings.ask_again")}</Button>}
+          <Button variant={status === "pending" ? "ghost" : "secondary"} onClick={onLeave} data-testid="lobby-leave">{status === "pending" ? tr("meetings.leave") : tr("common.back")}</Button>
         </div>
       </div>
     </section>
@@ -119,7 +121,7 @@ export function LobbyRequests({ meetingId, className }: { meetingId?: string; cl
     for (const w of q.data.waiting) {
       if (seen.current.has(w.id)) continue;
       seen.current.add(w.id);
-      toast(`${w.name} wants to join`, { id: `lobby-${w.id}`, duration: 8000, action: { label: "Admit", onClick: () => decideRef.current({ lobbyId: w.id, decision: "admit" }) } });
+      toast(tr("meetings.name_wants_to_join", { name: w.name }), { id: `lobby-${w.id}`, duration: 8000, action: { label: tr("meetings.admit"), onClick: () => decideRef.current({ lobbyId: w.id, decision: "admit" }) } });
     }
   }, [q.data]);
   if (!waiting.length) return null;
@@ -130,21 +132,21 @@ export function LobbyRequests({ meetingId, className }: { meetingId?: string; cl
     if (k === LOBBY_KEYS.deny) { e.preventDefault(); decide.mutate({ lobbyId: id, decision: "deny" }); }
   };
   return (
-    <section aria-label="Waiting to join" className={cn("w-72 rounded-2xl border border-line bg-elevated p-2 text-fg shadow-pop", className)} data-testid="lobby-requests">
+    <section aria-label={tr("meetings.waiting_to_join")} className={cn("w-72 rounded-2xl border border-line bg-elevated p-2 text-fg shadow-pop", className)} data-testid="lobby-requests">
       <header className="flex items-center gap-2 px-2 pb-1 pt-1">
         <IconDoorOpen className="h-4 w-4 text-brand" aria-hidden />
-        <h2 className="flex-1 text-[13px] font-semibold">Waiting to join ({waiting.length})</h2>
-        {waiting.length > 1 && <Button size="sm" variant="secondary" onClick={() => decide.mutate({ all: true, decision: "admit" })} data-testid="lobby-admit-all">Admit all</Button>}
+        <h2 className="flex-1 text-[13px] font-semibold">{tr("meetings.waiting_to_join_length", { length: waiting.length })}</h2>
+        {waiting.length > 1 && <Button size="sm" variant="secondary" onClick={() => decide.mutate({ all: true, decision: "admit" })} data-testid="lobby-admit-all">{tr("meetings.admit_all")}</Button>}
       </header>
       <ul className="max-h-60 space-y-0.5 overflow-y-auto" aria-live="polite">
         {waiting.map((w) => (
-          <li key={w.id} tabIndex={0} onKeyDown={(e) => onKey(e, w.id)} aria-label={`${w.name} wants to join. Press A to admit or D to deny.`}
+          <li key={w.id} tabIndex={0} onKeyDown={(e) => onKey(e, w.id)} aria-label={tr("meetings.name_wants_to_join_press_a_to_admit_or_d_to_deny", { name: w.name })}
             className="flex items-center gap-2 rounded-xl px-2 py-1.5 outline-none transition-colors duration-150 hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand motion-reduce:transition-none" data-testid="lobby-row">
-            <span className="min-w-0 flex-1 truncate text-[13px]"><span className="font-medium">{w.name}</span> <span className="text-muted">wants to join</span></span>
-            <button type="button" onClick={() => decide.mutate({ lobbyId: w.id, decision: "deny" })} aria-label={`Deny ${w.name}`} title="Deny (D)"
+            <span className="min-w-0 flex-1 truncate text-[13px]"><span className="font-medium">{w.name}</span> <span className="text-muted">{tr("meetings.wants_to_join")}</span></span>
+            <button type="button" onClick={() => decide.mutate({ lobbyId: w.id, decision: "deny" })} aria-label={tr("meetings.deny_name", { name: w.name })} title={tr("meetings.deny_d")}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" data-testid="lobby-deny"><IconUserX className="h-4 w-4" aria-hidden /></button>
-            <button type="button" onClick={() => decide.mutate({ lobbyId: w.id, decision: "admit" })} aria-label={`Admit ${w.name}`} title="Admit (A)"
-              className="inline-flex h-7 items-center gap-1 rounded-full bg-brand px-2.5 text-[12.5px] font-medium text-white hover:bg-brand-press focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2" data-testid="lobby-admit"><IconUserCheck className="h-3.5 w-3.5" aria-hidden />Admit</button>
+            <button type="button" onClick={() => decide.mutate({ lobbyId: w.id, decision: "admit" })} aria-label={tr("meetings.admit_name", { name: w.name })} title={tr("meetings.admit_a")}
+              className="inline-flex h-7 items-center gap-1 rounded-full bg-brand px-2.5 text-[12.5px] font-medium text-white hover:bg-brand-press focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2" data-testid="lobby-admit"><IconUserCheck className="h-3.5 w-3.5" aria-hidden />{tr("meetings.admit")}</button>
           </li>
         ))}
       </ul>
@@ -166,10 +168,10 @@ export function GuestsWaitSetting({ meetingId, value }: { meetingId: string; val
   return (
     <div className="mt-3 flex items-start gap-3" data-testid="guests-wait">
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium">Guests wait to be let in</p>
-        <p className="text-[12px] text-muted">People who open the guest link wait until someone in the meeting admits them.</p>
+        <p className="text-[13px] font-medium">{tr("meetings.guests_wait_to_be_let_in")}</p>
+        <p className="text-[12px] text-muted">{tr("meetings.people_who_open_the_guest_link_wait_until_someon")}</p>
       </div>
-      <Switch checked={on} onChange={(v) => save.mutate(v)} label="Guests wait to be let in" disabled={save.isPending} />
+      <Switch checked={on} onChange={(v) => save.mutate(v)} label={tr("meetings.guests_wait_to_be_let_in")} disabled={save.isPending} />
     </div>
   );
 }
@@ -195,16 +197,16 @@ export function DockSoFar({ meetingId }: { meetingId: string }) {
     <>
       <button ref={btn} type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls="dock-so-far" aria-haspopup="dialog"
         className={cn("inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand", open && "bg-hover text-fg")} data-testid="call-dock-so-far">
-        <IconClock className="h-3.5 w-3.5" aria-hidden />So far
+        <IconClock className="h-3.5 w-3.5" aria-hidden />{tr("meetings.so_far")}
       </button>
       {open && (
-        <div id="dock-so-far" ref={panel} tabIndex={-1} role="dialog" aria-label="So far in this call"
+        <div id="dock-so-far" ref={panel} tabIndex={-1} role="dialog" aria-label={tr("meetings.so_far_in_this_call")}
           className="absolute inset-x-2 top-11 z-30 max-h-[calc(100%-3.5rem)] overflow-y-auto rounded-2xl border border-line bg-elevated pb-3 shadow-pop outline-none motion-safe:animate-[fade-in_160ms_ease-out]" data-testid="dock-so-far">
           <div className="flex items-center justify-between px-4 pt-3">
-            <h3 className="text-[13px] font-semibold">So far</h3>
-            <button type="button" onClick={() => { setOpen(false); btn.current?.focus(); }} aria-label="Close So far" className="rounded-md p-1 text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"><IconClose className="h-3.5 w-3.5" aria-hidden /></button>
+            <h3 className="text-[13px] font-semibold">{tr("meetings.so_far")}</h3>
+            <button type="button" onClick={() => { setOpen(false); btn.current?.focus(); }} aria-label={tr("meetings.close_so_far")} className="rounded-md p-1 text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"><IconClose className="h-3.5 w-3.5" aria-hidden /></button>
           </div>
-          {q.data ? <SoFarView data={q.data} /> : <p className="px-4 py-3 text-[13px] text-muted" aria-live="polite">{q.error ? (q.error as Error).message : "Loading"}</p>}
+          {q.data ? <SoFarView data={q.data} /> : <p className="px-4 py-3 text-[13px] text-muted" aria-live="polite">{q.error ? (q.error as Error).message : tr("meetings.loading")}</p>}
         </div>
       )}
     </>

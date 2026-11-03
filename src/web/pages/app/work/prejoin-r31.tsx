@@ -13,6 +13,8 @@ import { Input, Select } from "@/web/components/ui/input";
 import { cn } from "@/web/lib/cn";
 import { deviceLabel, levelOf, loadPrefs, pickDevice, savePrefs, type JoinPrefs } from "@/web/lib/prejoin-prefs";
 import { hereText } from "@/shared/meeting-lobby";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-meetings"; // R104B
 
 export type { JoinPrefs } from "@/web/lib/prejoin-prefs";
 
@@ -173,18 +175,18 @@ export function PreJoin({ title, who, inCall, inCallCount, busy, compact, bare, 
   };
 
   return (
-    <form className={cn("mx-auto w-full", compact ? "p-3" : "max-w-3xl")} data-testid="prejoin" aria-label={`Get ready to join ${title}`}
+    <form className={cn("mx-auto w-full", compact ? "p-3" : "max-w-3xl")} data-testid="prejoin" aria-label={tr("meetings.get_ready_to_join_title", { title })}
       onSubmit={(e) => { e.preventDefault(); join(); }}>
-      {!compact && !bare && <h1 className="mb-1 text-xl font-semibold tracking-tight">Ready to join?</h1>}
+      {!compact && !bare && <h1 className="mb-1 text-xl font-semibold tracking-tight">{tr("meetings.ready_to_join")}</h1>}
       {!compact && !bare && <p className="mb-4 text-[13px] text-muted">{title}</p>}
       <div className={cn("grid gap-4", compact ? "" : "md:grid-cols-[1.4fr_1fr]")}>
         <div className="relative aspect-video overflow-hidden rounded-2xl bg-[#1c1c1e]">
-          <video ref={videoRef} muted playsInline autoPlay aria-label="Your camera preview" data-testid="prejoin-preview"
+          <video ref={videoRef} muted playsInline autoPlay aria-label={tr("meetings.your_camera_preview")} data-testid="prejoin-preview"
             className={cn("h-full w-full -scale-x-100 object-cover", (!prefs.cam || blocked) && "invisible")} />
           {(!prefs.cam || blocked) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/80">
               <IconVideoOff className="h-6 w-6" aria-hidden />
-              <span className="text-[12.5px]">{blocked ? "Camera unavailable" : "Camera is off"}</span>
+              <span className="text-[12.5px]">{blocked ? tr("meetings.camera_unavailable") : tr("meetings.camera_is_off")}</span>
             </div>
           )}
           <div className="absolute inset-x-0 bottom-3 flex items-center justify-center gap-3">
@@ -192,56 +194,56 @@ export function PreJoin({ title, who, inCall, inCallCount, busy, compact, bare, 
             {toggle(prefs.cam, "Camera", IconVideo, IconVideoOff, () => set({ cam: !prefs.cam }), "prejoin-cam")}
           </div>
           {prefs.mic && !blocked && (
-            <div className="absolute left-3 top-3 flex h-6 items-end gap-0.5 rounded-md bg-black/40 px-1.5 py-1" role="meter" aria-label="Microphone level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(level * 100)} data-testid="prejoin-meter">
+            <div className="absolute left-3 top-3 flex h-6 items-end gap-0.5 rounded-md bg-black/40 px-1.5 py-1" role="meter" aria-label={tr("meetings.microphone_level")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(level * 100)} data-testid="prejoin-meter">
               {[0.1, 0.25, 0.45, 0.65, 0.85].map((t) => <span key={t} className={cn("w-1 rounded-sm transition-[height,background-color] duration-100 motion-reduce:transition-none", level > t ? "bg-ok" : "bg-white/35")} style={{ height: `${6 + t * 12}px` }} />)}
             </div>
           )}
         </div>
 
         <div className="flex min-w-0 flex-col gap-3">
-          {unsupported && <p role="alert" className="rounded-xl bg-fill p-3 text-[12.5px] text-muted">This browser can't show a camera preview. You can still join.</p>}
+          {unsupported && <p role="alert" className="rounded-xl bg-fill p-3 text-[12.5px] text-muted">{tr("meetings.this_browser_can_t_show_a_camera_preview_you_can")}</p>}
           {blocked && (
             <div role="alert" className="rounded-xl border border-line bg-elevated p-3 text-[12.5px] text-fg" data-testid="prejoin-blocked">
               <p>{BLOCKED_COPY[blocked]}</p>
               <div className="mt-2 flex flex-wrap gap-2">
-                <Button size="sm" variant="secondary" onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
-                <Button size="sm" variant="ghost" onClick={() => join({ cam: false, mic: blocked === "denied" ? false : prefs.mic })} data-testid="prejoin-without-camera">Join without camera</Button>
+                <Button size="sm" variant="secondary" onClick={() => setAttempt((n) => n + 1)}>{tr("common.try_again")}</Button>
+                <Button size="sm" variant="ghost" onClick={() => join({ cam: false, mic: blocked === "denied" ? false : prefs.mic })} data-testid="prejoin-without-camera">{tr("meetings.join_without_camera")}</Button>
               </div>
             </div>
           )}
           {!compact && (
             <>
-              <label className="block text-[12px] font-medium text-muted" htmlFor={`${ids}-cam`}>Camera</label>
+              <label className="block text-[12px] font-medium text-muted" htmlFor={`${ids}-cam`}>{tr("meetings.camera")}</label>
               <Select id={`${ids}-cam`} value={pickDevice(cams, prefs.videoDeviceId) ?? ""} onChange={(e) => set({ videoDeviceId: e.target.value })} disabled={!cams.length} data-testid="prejoin-camera-select">
-                {cams.length ? cams.map((d, i) => <option key={d.deviceId || i} value={d.deviceId}>{deviceLabel(d, i)}</option>) : <option value="">No camera found</option>}
+                {cams.length ? cams.map((d, i) => <option key={d.deviceId || i} value={d.deviceId}>{deviceLabel(d, i)}</option>) : <option value="">{tr("meetings.no_camera_found")}</option>}
               </Select>
-              <label className="block text-[12px] font-medium text-muted" htmlFor={`${ids}-mic`}>Microphone</label>
+              <label className="block text-[12px] font-medium text-muted" htmlFor={`${ids}-mic`}>{tr("meetings.microphone")}</label>
               <Select id={`${ids}-mic`} value={pickDevice(mics, prefs.audioDeviceId) ?? ""} onChange={(e) => set({ audioDeviceId: e.target.value })} disabled={!mics.length} data-testid="prejoin-mic-select">
-                {mics.length ? mics.map((d, i) => <option key={d.deviceId || i} value={d.deviceId}>{deviceLabel(d, i)}</option>) : <option value="">No microphone found</option>}
+                {mics.length ? mics.map((d, i) => <option key={d.deviceId || i} value={d.deviceId}>{deviceLabel(d, i)}</option>) : <option value="">{tr("meetings.no_microphone_found")}</option>}
               </Select>
-              <label className="block text-[12px] font-medium text-muted" htmlFor={`${ids}-spk`}>Speaker</label>
+              <label className="block text-[12px] font-medium text-muted" htmlFor={`${ids}-spk`}>{tr("meetings.speaker")}</label>
               <div className="flex gap-2">
                 <Select id={`${ids}-spk`} className="min-w-0 flex-1" value={pickDevice(speakers, prefs.speakerDeviceId) ?? ""} onChange={(e) => set({ speakerDeviceId: e.target.value })} disabled={!speakers.length} data-testid="prejoin-speaker-select">
-                  {speakers.length ? speakers.map((d, i) => <option key={d.deviceId || i} value={d.deviceId}>{deviceLabel(d, i)}</option>) : <option value="">System default</option>}
+                  {speakers.length ? speakers.map((d, i) => <option key={d.deviceId || i} value={d.deviceId}>{deviceLabel(d, i)}</option>) : <option value="">{tr("meetings.system_default")}</option>}
                 </Select>
-                <Button variant="secondary" onClick={() => void playTone(prefs.speakerDeviceId)} aria-label="Test speaker" data-testid="prejoin-test-speaker"><IconVolume className="h-4 w-4" aria-hidden />Test</Button>
+                <Button variant="secondary" onClick={() => void playTone(prefs.speakerDeviceId)} aria-label={tr("meetings.test_speaker")} data-testid="prejoin-test-speaker"><IconVolume className="h-4 w-4" aria-hidden />{tr("meetings.test")}</Button>
               </div>
             </>
           )}
           {who.mode === "guest" ? (
             <div>
-              <label className="block text-[12px] font-medium text-muted" htmlFor={`${ids}-name`}>Your name</label>
+              <label className="block text-[12px] font-medium text-muted" htmlFor={`${ids}-name`}>{tr("auth.your_name")}</label>
               <Input id={`${ids}-name`} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required maxLength={60} className="mt-1" data-testid="prejoin-name" />
             </div>
           ) : (
             callName === null ? (
               <p className="flex items-center gap-2 text-[12.5px] text-muted" data-testid="prejoin-joining-as">
-                <span>Joining as <span className="font-medium text-fg">{who.name}</span></span>
-                <button type="button" onClick={() => setCallName(who.name)} className="rounded text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center max-sm:justify-center max-sm:px-1" data-testid="prejoin-change-name">Change</button>
+                <span>{tr("meetings.joining_as")} <span className="font-medium text-fg">{who.name}</span></span>
+                <button type="button" onClick={() => setCallName(who.name)} className="rounded text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center max-sm:justify-center max-sm:px-1" data-testid="prejoin-change-name">{tr("meetings.change")}</button>
               </p>
             ) : (
               <div>
-                <label className="block text-[12px] font-medium text-muted" htmlFor={`${ids}-callname`}>Your name in this call</label>
+                <label className="block text-[12px] font-medium text-muted" htmlFor={`${ids}-callname`}>{tr("meetings.your_name_in_this_call")}</label>
                 <Input id={`${ids}-callname`} value={callName} onChange={(e) => setCallName(e.target.value)} autoComplete="name" required maxLength={60} autoFocus className="mt-1" data-testid="prejoin-member-name" />
               </div>
             )
@@ -253,7 +255,7 @@ export function PreJoin({ title, who, inCall, inCallCount, busy, compact, bare, 
             </p>
           )}
           <div className={cn("mt-auto flex gap-2", compact && "justify-end")}>
-            {onCancel && <Button variant="ghost" onClick={onCancel}>Cancel</Button>}
+            {onCancel && <Button variant="ghost" onClick={onCancel}>{tr("common.cancel")}</Button>}
             <Button type="submit" size={compact ? "md" : "lg"} className={compact ? "" : "flex-1"} loading={busy} disabled={!nameOk} autoFocus={who.mode === "member"} data-testid="prejoin-join">
               <IconVideo className="h-4 w-4" aria-hidden />{joinLabel}
             </Button>
