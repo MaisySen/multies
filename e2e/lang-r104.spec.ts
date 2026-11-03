@@ -139,7 +139,8 @@ test("pick Nepali in Appearance: applied without a reload, saved, every first wa
   await page.goto("/changelog");
   await settle();
   await expect(page.locator("time").first()).toHaveText(/[०-९]/);
-  await expect(page.getByTestId("changelog-entry").first()).toContainText("Multies नेपाली र हिन्दीमा");
+  // POL4 put its own entry on top; the R104 entry is still listed.
+  await expect(page.getByTestId("changelog-entry").filter({ hasText: "Multies नेपाली र हिन्दीमा" })).toHaveCount(1);
 });
 
 test("phones 375, 390, 430 and themes: Nepali then Hindi, no sideways scroll, 44 px picker, axe", async () => {
