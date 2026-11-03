@@ -8,6 +8,8 @@ import { ButtonLink } from "@/web/components/ui/button";
 import { useSignedIn } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
 import { AREAS } from "@/shared/marketing-areas";
+import { tr, tl } from "@/web/i18n"; // R104
+import { LanguageSwitch } from "@/web/i18n/switch"; // R104
 
 // W1: the areas have their own pages now.
 const links = [
@@ -46,10 +48,10 @@ export function MarketingLayout() {
 
   return (
     <div className="min-h-dvh overflow-x-clip">
-      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-fg focus:px-3 focus:py-2 focus:text-bg">Skip to content</a>
+      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-fg focus:px-3 focus:py-2 focus:text-bg">{tr("site.skip_to_content")}</a>
       <header className={cn("fixed inset-x-0 top-0 z-50 transition-[background,border-color,backdrop-filter] duration-200", scrolled || open ? "border-b border-line bg-bg/75 backdrop-blur-xl" : "border-b border-transparent")}>
-        <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5" aria-label="Main">
-          <Link to="/" aria-label="Multies home" className="inline-flex items-center max-sm:min-h-11"><Logo /></Link>
+        <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5" aria-label={tr("site.main")}>
+          <Link to="/" aria-label={tr("site.multies_home")} className="inline-flex items-center max-sm:min-h-11"><Logo /></Link>
           <div className="hidden items-center gap-1 md:flex">
             {links.map((l) => (
               <NavLink key={l.to} to={l.to} className="rounded-md px-3 py-1.5 text-sm text-muted transition-colors hover:text-fg">{l.label}</NavLink>
@@ -57,11 +59,11 @@ export function MarketingLayout() {
           </div>
           <div className="hidden items-center gap-2 md:flex">
             {signedIn ? (
-              <ButtonLink to="/app" size="sm">Open dashboard</ButtonLink>
+              <ButtonLink to="/app" size="sm">{tr("site.open_dashboard")}</ButtonLink>
             ) : (
               <>
-                <ButtonLink to="/login" variant="ghost" size="sm">Sign in</ButtonLink>
-                <ButtonLink to="/signup" size="sm">Start free</ButtonLink>
+                <ButtonLink to="/login" variant="ghost" size="sm">{tr("common.sign_in")}</ButtonLink>
+                <ButtonLink to="/signup" size="sm">{tr("site.start_free")}</ButtonLink>
               </>
             )}
           </div>
@@ -75,10 +77,10 @@ export function MarketingLayout() {
               <Link key={l.to} to={l.to} className="block rounded-md py-2.5 text-[15px] text-muted hover:text-fg">{l.label}</Link>
             ))}
             <div className="mt-3 grid grid-cols-2 gap-2">
-              {signedIn ? <ButtonLink to="/app" className="col-span-2">Open dashboard</ButtonLink> : (
+              {signedIn ? <ButtonLink to="/app" className="col-span-2">{tr("site.open_dashboard")}</ButtonLink> : (
                 <>
-                  <ButtonLink to="/login" variant="secondary">Sign in</ButtonLink>
-                  <ButtonLink to="/signup">Start free</ButtonLink>
+                  <ButtonLink to="/login" variant="secondary">{tr("common.sign_in")}</ButtonLink>
+                  <ButtonLink to="/signup">{tr("site.start_free")}</ButtonLink>
                 </>
               )}
             </div>
@@ -90,65 +92,66 @@ export function MarketingLayout() {
         <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
           <div className="space-y-3 md:col-span-2">
             <Logo />
-            <p className="max-w-xs text-sm text-muted">One workspace for your team on your own domain: mail, tasks, chat, docs, files, meetings, booking, contacts and invoices.</p>
-            <p className="text-sm text-muted">Questions? <Link to="/contact" className="font-medium text-brand-hover hover:underline">Contact us</Link></p>
+            <p className="max-w-xs text-sm text-muted">{tr("site.one_workspace_for_your_team_on_your_own_domain_m")}</p>
+            <p className="text-sm text-muted">{tr("site.questions")} <Link to="/contact" className="font-medium text-brand-hover hover:underline">{tr("site.contact_us")}</Link></p>
           </div>
           <div>
-            <h2 className="text-[13px] font-medium text-fg">Product</h2>
+            <h2 className="text-[13px] font-medium text-fg">{tr("site.product")}</h2>
             <ul className="mt-3 space-y-2 text-sm text-muted">
-              <li><Link to="/features" className="hover:text-fg">All features</Link></li>
-              <li><Link to="/pricing" className="hover:text-fg">Pricing</Link></li>
-              <li><Link to="/startups" className="hover:text-fg">Free for small teams</Link></li>
-              <li><Link to="/switch" className="hover:text-fg">Move to Multies</Link></li>
-              <li><Link to="/#faq" className="hover:text-fg">FAQ</Link></li>
-              <li><Link to="/check" className="hover:text-fg">Check your domain</Link></li>
-              <li><Link to="/status" className="hover:text-fg">System status</Link></li>
-              <li><Link to="/whats-new" className="hover:text-fg">What's new</Link></li>
+              <li><Link to="/features" className="hover:text-fg">{tr("site.all_features")}</Link></li>
+              <li><Link to="/pricing" className="hover:text-fg">{tr("site.pricing")}</Link></li>
+              <li><Link to="/startups" className="hover:text-fg">{tr("site.free_for_small_teams")}</Link></li>
+              <li><Link to="/switch" className="hover:text-fg">{tr("site.move_to_multies")}</Link></li>
+              <li><Link to="/#faq" className="hover:text-fg">{tr("site.faq")}</Link></li>
+              <li><Link to="/check" className="hover:text-fg">{tr("site.check_your_domain")}</Link></li>
+              <li><Link to="/status" className="hover:text-fg">{tr("site.system_status")}</Link></li>
+              <li><Link to="/whats-new" className="hover:text-fg">{tr("site.what_s_new")}</Link></li>
             </ul>
           </div>
           <div>
-            <h2 className="text-[13px] font-medium text-fg">Features</h2>
+            <h2 className="text-[13px] font-medium text-fg">{tr("site.features")}</h2>
             <ul className="mt-3 space-y-2 text-sm text-muted">
-              {AREAS.map((a) => <li key={a.slug}><Link to={`/features/${a.slug}`} className="hover:text-fg">{a.name}</Link></li>)}
+              {AREAS.map((a) => <li key={a.slug}><Link to={`/features/${a.slug}`} className="hover:text-fg">{tl("nav", a.name)}</Link></li>)}
             </ul>
           </div>
           <div>
-            <h2 className="text-[13px] font-medium text-fg">Developers</h2>
+            <h2 className="text-[13px] font-medium text-fg">{tr("site.developers")}</h2>
             <ul className="mt-3 space-y-2 text-sm text-muted">
-              <li><Link to="/developers" className="hover:text-fg">Developer hub</Link></li>
-              <li><a href="/api/v1/reference" className="hover:text-fg">API reference</a></li>
-              <li><Link to="/developers/mcp" className="hover:text-fg">MCP tools</Link></li>
-              <li><Link to="/agents" className="hover:text-fg">Agent inboxes</Link></li>
-              <li><Link to="/developers#webhooks" className="hover:text-fg">Webhooks</Link></li>
+              <li><Link to="/developers" className="hover:text-fg">{tr("site.developer_hub")}</Link></li>
+              <li><a href="/api/v1/reference" className="hover:text-fg">{tr("site.api_reference")}</a></li>
+              <li><Link to="/developers/mcp" className="hover:text-fg">{tr("site.mcp_tools")}</Link></li>
+              <li><Link to="/agents" className="hover:text-fg">{tr("site.agent_inboxes")}</Link></li>
+              <li><Link to="/developers#webhooks" className="hover:text-fg">{tr("site.webhooks")}</Link></li>
             </ul>
           </div>
           <div>
-            <h2 className="text-[13px] font-medium text-fg">Account</h2>
+            <h2 className="text-[13px] font-medium text-fg">{tr("common.account")}</h2>
             <ul className="mt-3 space-y-2 text-sm text-muted">
-              <li><Link to="/signup" className="hover:text-fg">Create account</Link></li>
-              <li><Link to="/login" className="hover:text-fg">Sign in</Link></li>
-              <li><Link to="/app" className="hover:text-fg">Dashboard</Link></li>
-              <li><Link to="/contact" className="hover:text-fg">Contact</Link></li>
-              <li><Link to="/support" className="hover:text-fg">Support</Link></li>
+              <li><Link to="/signup" className="hover:text-fg">{tr("site.create_account")}</Link></li>
+              <li><Link to="/login" className="hover:text-fg">{tr("common.sign_in")}</Link></li>
+              <li><Link to="/app" className="hover:text-fg">{tr("site.dashboard")}</Link></li>
+              <li><Link to="/contact" className="hover:text-fg">{tr("site.contact")}</Link></li>
+              <li><Link to="/support" className="hover:text-fg">{tr("site.support")}</Link></li>
             </ul>
           </div>
           <div>
-            <h2 className="text-[13px] font-medium text-fg">Legal</h2>
+            <h2 className="text-[13px] font-medium text-fg">{tr("site.legal")}</h2>
             <ul className="mt-3 space-y-2 text-sm text-muted">
-              <li><Link to="/privacy" className="hover:text-fg">Privacy</Link></li>
-              <li><Link to="/terms" className="hover:text-fg">Terms</Link></li>
-              <li><Link to="/acceptable-use" className="hover:text-fg">Acceptable use</Link></li>
-              <li><Link to="/dpa" className="hover:text-fg">Data processing</Link></li>
-              <li><Link to="/trust" className="hover:text-fg">Security and trust</Link></li>
+              <li><Link to="/privacy" className="hover:text-fg">{tr("site.privacy")}</Link></li>
+              <li><Link to="/terms" className="hover:text-fg">{tr("site.terms")}</Link></li>
+              <li><Link to="/acceptable-use" className="hover:text-fg">{tr("site.acceptable_use")}</Link></li>
+              <li><Link to="/dpa" className="hover:text-fg">{tr("site.data_processing")}</Link></li>
+              <li><Link to="/trust" className="hover:text-fg">{tr("site.security_and_trust")}</Link></li>
             </ul>
           </div>
         </div>
         <div className="mx-auto flex max-w-6xl flex-col gap-2 border-t border-line px-5 py-6 text-xs text-subtle max-sm:pb-28 sm:flex-row sm:items-center sm:justify-between">
           <span className="flex flex-col gap-1">
-            <span>© {new Date().getFullYear()} Multies. Built for small businesses and startups that own their domain.</span>
+            <span>© {new Date().getFullYear()} Multies. {tr("site.built_for_small_businesses")}</span>
             <LegalLine />
+            <LanguageSwitch className="-ml-2.5 mt-1" />
           </span>
-          <span data-testid="cookie-notice"><IconCookie className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />We use only essential cookies, to keep you signed in. No tracking or advertising cookies. <Link to="/privacy" className="underline underline-offset-2 hover:text-fg">Privacy</Link></span>
+          <span data-testid="cookie-notice"><IconCookie className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />{tr("site.we_use_only_essential_cookies_to_keep_you_signed")} <Link to="/privacy" className="underline underline-offset-2 hover:text-fg">{tr("site.privacy")}</Link></span>
         </div>
       </footer>
       <MarketingBottom />

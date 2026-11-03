@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-03-nepali-hindi",
+    date: "2026-11-03",
+    title: "Multies in Nepali and Hindi",
+    body: "Pick English, नेपाली or हिन्दी in Settings, Appearance and the app changes straight away, with dates and numbers written the way your language writes them. Sign in pages follow your browser's language, and workspace admins can suggest a better wording.",
+  },
+  {
     id: "2026-11-03-phone-parity",
     date: "2026-11-03",
     title: "Everything on your phone, and the iPhone beta",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-03",
     title: "Branded forms that open and close on time",
     body: "Give a form your colours, font and logo, close it on a date or after a number of answers, or add a password. People can save and finish later from a link, and you see views, completions and where people stop.",
-  },
-  {
-    id: "2026-11-02-one-inbox",
-    date: "2026-11-02",
-    title: "One inbox",
-    body: "Mail, chat, mentions, tasks and assistant replies in one list. Important first, the rest waits in Noise; move anything and we remember the sender.",
   },
   {
     id: "2026-10-28-whats-new",

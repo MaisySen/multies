@@ -11,6 +11,7 @@ import { RESIDENCY_ANSWER } from "@/shared/residency";
 import { OFFER_COPY } from "@/shared/offers";
 import { GetTheApp } from "@/web/components/get-the-app";
 import { aiCostAnswer } from "@/shared/ai-public-copy";
+import { tr } from "@/web/i18n"; // R104
 
 /**
  * W1 (owner, Nov 1: "website is missing a lot"): the home page tells the whole story, one workspace for the team,
@@ -97,23 +98,23 @@ export function Landing() {
       <section className="relative overflow-hidden pt-32 sm:pt-40">
         <div className="relative mx-auto max-w-6xl px-5 text-center">
           <h1 className="mx-auto max-w-4xl text-[40px] font-semibold leading-[1.05] tracking-[-0.035em] text-fg sm:text-5xl md:text-6xl">
-            One workspace for your team.
+            {tr("landing.one_workspace_for_your_team")}
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-[17px] leading-relaxed text-muted">
-            Mail on your own domain, with tasks, chat, docs, files, meetings, booking, contacts, invoices and signing in the same place. AI agents help, and a person approves what they send.
+            {tr("landing.mail_on_your_own_domain_with_tasks_chat_docs_fil")}
           </p>
           <div data-hero-cta className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <ButtonLink to="/signup" size="lg" className="w-full sm:w-auto" data-testid="hero-cta">Start free <IconArrowRight className="h-4 w-4" aria-hidden /></ButtonLink>
+            <ButtonLink to="/signup" size="lg" className="w-full sm:w-auto" data-testid="hero-cta">{tr("landing.start_free")} <IconArrowRight className="h-4 w-4" aria-hidden /></ButtonLink>
             {demoEnabled && (
               <Button size="lg" variant="secondary" onClick={demo.start} loading={demo.loading} className="w-full sm:w-auto">
-                <IconPlay className="h-4 w-4" aria-hidden /> Try the live demo
+                <IconPlay className="h-4 w-4" aria-hidden /> {tr("landing.try_the_live_demo")}
               </Button>
             )}
           </div>
           {demo.paused && <DemoPausedNote />}
-          <p className="mt-4 text-xs text-subtle">Free forever for 1 domain, 3 mailboxes and 3 agent inboxes. No card.</p>
+          <p className="mt-4 text-xs text-subtle">{tr("landing.free_forever_for_1_domain_3_mailboxes_and_3_agen")}</p>
           {/* R60 (trust): try it without a client mailbox, stated where people decide. */}
-          <p className="mt-1 text-xs text-subtle" data-testid="hero-safe-trial">Testing first? Use the live demo or a free test address. No client mailbox needed. <Link to="/trust#try" className="font-medium text-brand-hover hover:underline">How to try it safely</Link></p>
+          <p className="mt-1 text-xs text-subtle" data-testid="hero-safe-trial">{tr("landing.testing_first_use_the_live_demo_or_a_free_test_a")} <Link to="/trust#try" className="font-medium text-brand-hover hover:underline">{tr("landing.how_to_try_it_safely")}</Link></p>
         </div>
         <div className="relative mx-auto mt-14 max-w-6xl px-5 pb-16 sm:mt-16">
           <ProductShot name="mail" alt="The Multies mail screen with a list of threads and an open message." priority />
@@ -122,11 +123,11 @@ export function Landing() {
 
       <section id="features" className="scroll-mt-20 border-t border-line" aria-labelledby="areas-title">
         <div className="mx-auto max-w-6xl px-5 py-20 sm:py-24">
-          <p className="text-sm font-medium text-brand-hover">Everything in one place</p>
-          <h2 id="areas-title" className="mt-2 max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">Stop paying for ten apps that don't talk to each other.</h2>
-          <p className="mt-4 max-w-2xl text-muted">Every area works with the others: a thread becomes a task, a contact gets an invoice, a meeting keeps its notes. All of it comes with the free plan.</p>
+          <p className="text-sm font-medium text-brand-hover">{tr("landing.everything_in_one_place")}</p>
+          <h2 id="areas-title" className="mt-2 max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">{tr("landing.stop_paying_for_ten_apps_that_don_t_talk_to_each")}</h2>
+          <p className="mt-4 max-w-2xl text-muted">{tr("landing.every_area_works_with_the_others_a_thread_become")}</p>
           <div className="mt-10"><AreaGrid /></div>
-          <p className="mt-6 text-sm"><Link to="/features" className="font-medium text-brand-hover hover:underline">See every feature</Link></p>
+          <p className="mt-6 text-sm"><Link to="/features" className="font-medium text-brand-hover hover:underline">{tr("landing.see_every_feature")}</Link></p>
         </div>
       </section>
 
@@ -152,20 +153,20 @@ export function Landing() {
       <section id="trust" className="scroll-mt-20 border-y border-line bg-surface/40" aria-labelledby="trust-title">
         <div className="mx-auto grid max-w-6xl gap-8 px-5 py-16 md:grid-cols-3">
           <div className="md:col-span-1">
-            <h2 id="trust-title" className="text-2xl font-semibold tracking-tight">Built for small businesses that own their domain.</h2>
+            <h2 id="trust-title" className="text-2xl font-semibold tracking-tight">{tr("landing.built_for_small_businesses_that_own_their_domain")}</h2>
           </div>
           <ul className="grid gap-5 text-[15px] text-muted sm:grid-cols-2 md:col-span-2">
-            <li><span className="font-semibold text-fg">Your data in Oceania.</span> Workspace data is stored in the Oceania region. Some services run in the United States, and the <Link to="/trust" className="text-brand-hover underline underline-offset-2">Trust page</Link> lists each one.</li>
-            <li><span className="font-semibold text-fg">Free to start.</span> One domain, three mailboxes and every feature, with no card and no trial clock.</li>
-            <li><span className="font-semibold text-fg">Priced per business.</span> Add-ons raise limits for the whole workspace, never per person. Guests are free.</li>
-            <li><span className="font-semibold text-fg">Open to your tools.</span> A REST API, an MCP server and signed webhooks. <Link to="/developers" className="text-brand-hover underline underline-offset-2">Developer hub</Link></li>
+            <li><span className="font-semibold text-fg">{tr("landing.your_data_in_oceania")}</span> Workspace data is stored in the Oceania region. Some services run in the United States, and the <Link to="/trust" className="text-brand-hover underline underline-offset-2">{tr("landing.trust_page")}</Link> lists each one.</li>
+            <li><span className="font-semibold text-fg">{tr("landing.free_to_start")}</span> {tr("landing.one_domain_three_mailboxes_and_every_feature_wit")}</li>
+            <li><span className="font-semibold text-fg">{tr("landing.priced_per_business")}</span> Add-ons raise limits for the whole workspace, never per person. Guests are free.</li>
+            <li><span className="font-semibold text-fg">{tr("landing.open_to_your_tools")}</span> {tr("landing.a_rest_api_an_mcp_server_and_signed_webhooks")} <Link to="/developers" className="text-brand-hover underline underline-offset-2">{tr("landing.developer_hub")}</Link></li>
           </ul>
         </div>
       </section>
 
       <section id="how" className="scroll-mt-20" aria-labelledby="how-title">
         <div className="mx-auto max-w-6xl px-5 py-20 sm:py-24">
-          <h2 id="how-title" className="text-3xl font-semibold tracking-tight sm:text-4xl">Set up in about five minutes</h2>
+          <h2 id="how-title" className="text-3xl font-semibold tracking-tight sm:text-4xl">{tr("landing.set_up_in_about_five_minutes")}</h2>
           <ol className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {steps.map((step, i) => (
               <li key={step.t} className="rounded-xl border border-line bg-surface p-5">
@@ -180,16 +181,16 @@ export function Landing() {
 
       <section id="pricing" className="scroll-mt-20 border-t border-line" aria-labelledby="pricing-title">
         <div className="mx-auto max-w-6xl px-5 py-20 sm:py-24">
-          <p className="text-sm font-medium text-brand-hover">Pricing</p>
-          <h2 id="pricing-title" className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Free, then only what you need.</h2>
+          <p className="text-sm font-medium text-brand-hover">{tr("landing.pricing")}</p>
+          <h2 id="pricing-title" className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{tr("landing.free_then_only_what_you_need")}</h2>
           <div className="mt-10"><PlanCards headingLevel={3} /></div>
-          <p className="mt-6 text-sm"><Link to="/pricing" className="font-medium text-brand-hover hover:underline">Work out your price</Link></p>
+          <p className="mt-6 text-sm"><Link to="/pricing" className="font-medium text-brand-hover hover:underline">{tr("landing.work_out_your_price")}</Link></p>
         </div>
       </section>
 
       <section id="faq" className="scroll-mt-20 border-t border-line" aria-labelledby="faq-title">
         <div className="mx-auto max-w-3xl px-5 py-20 sm:py-24">
-          <h2 id="faq-title" className="text-3xl font-semibold tracking-tight">Questions, answered.</h2>
+          <h2 id="faq-title" className="text-3xl font-semibold tracking-tight">{tr("landing.questions_answered")}</h2>
           <dl className="mt-8 divide-y divide-line border-y border-line">
             {faqs.map((f) => (
               <div key={f.q} className="py-5">
@@ -207,10 +208,10 @@ export function Landing() {
 
       <section className="border-t border-line">
         <div className="mx-auto max-w-6xl px-5 py-20 text-center sm:py-24">
-          <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">Bring your team, your clients and your agents into one workspace.</h2>
+          <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">{tr("landing.bring_your_team_your_clients_and_your_agents_int")}</h2>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <ButtonLink to="/signup" size="lg" className="w-full sm:w-auto">Start free <IconArrowRight className="h-4 w-4" aria-hidden /></ButtonLink>
-            <ButtonLink to="/features" size="lg" variant="secondary" className="w-full sm:w-auto">See every feature</ButtonLink>
+            <ButtonLink to="/signup" size="lg" className="w-full sm:w-auto">{tr("landing.start_free")} <IconArrowRight className="h-4 w-4" aria-hidden /></ButtonLink>
+            <ButtonLink to="/features" size="lg" variant="secondary" className="w-full sm:w-auto">{tr("landing.see_every_feature")}</ButtonLink>
           </div>
         </div>
       </section>

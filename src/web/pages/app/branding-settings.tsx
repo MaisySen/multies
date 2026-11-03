@@ -17,12 +17,14 @@ import { useDialogs } from "@/web/components/ui/confirm";
 import { IconCheck, IconCheckCircle, IconImage, IconInbox, IconLock, IconMonitor, IconMoon, IconRefresh, IconSearch, IconSparkle, IconTasks, IconToday, IconTrash, IconUpload, IconWarning, IconDocs, IconMail } from "@/web/components/ui/icon";
 import { AppearanceControl, useAppearance } from "@/web/components/theme";
 import { applyBrand, brandQueryKey, paintBrandCss, useBranding, type BrandingData } from "@/web/lib/brand";
-import { useMe } from "@/web/lib/queries";
+import { useConfig, useMe } from "@/web/lib/queries";
+import { LanguagePanel, WordingPanel } from "@/web/components/language-r104"; // R104
 import {
   FONTS, LOGO_MAX_BYTES, PRESETS, brandCss, checkBrand, logoUrl, paletteFromPixels, parseHex, pickLogo, previewTokens,
   type Appearance, type Brand, type BrandPatch, type FontId, type LogoKind, type Personal, type Radius,
 } from "@/shared/branding";
 import { LoadFailure } from "@/web/components/load-error-t1g";
+import { tr } from "@/web/i18n"; // R104
 
 type Draft = Omit<Brand, "logos">;
 const draftOf = (b: Brand): Draft => { const { logos: _l, ...d } = b; return d; };
@@ -125,7 +127,7 @@ function ColourField({ label, value, onChange, placeholder, allowNone, disabled,
             onBlur={(e) => commit(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit((e.target as HTMLInputElement).value); } }}
             className={cn("w-28 rounded-md border bg-bg px-2 py-1 font-mono text-[12.5px] uppercase outline-none transition-colors focus-visible:ring-2 disabled:opacity-60 max-sm:w-32 max-sm:py-2.5 max-sm:text-[16px]",
               bad ? "border-bad focus:border-bad focus-visible:ring-bad/30" : "border-line focus:border-brand focus-visible:ring-brand/40")} />
-          {allowNone && value && !disabled && <Button variant="ghost" size="sm" onClick={() => onChange(null)} aria-label={`Clear ${label.toLowerCase()}`}>Clear</Button>}
+          {allowNone && value && !disabled && <Button variant="ghost" size="sm" onClick={() => onChange(null)} aria-label={`Clear ${label.toLowerCase()}`}>{tr("common.clear")}</Button>}
         </div>
         {bad && <p id={errId} role="alert" data-testid={testId ? `${testId}-error` : undefined} className="mt-1 text-[12.5px] text-bad">Use a hex colour like {placeholder.startsWith("#") ? placeholder : "#0066cc"}.</p>}
       </div>
@@ -185,17 +187,17 @@ function LogoSlot({ data, kind, label, mode, help, wide, dark, canEdit, onChange
         <p className="mt-0.5 text-[12px] leading-snug text-subtle">{help}</p>
         <div aria-live="polite" className="min-h-0">
           {state.phase === "uploading" && <p className="mt-1 text-[12px] text-muted">Uploading…</p>}
-          {state.phase === "saved" && <p className="mt-1 flex items-center gap-1 text-[12px] text-ok"><IconCheck className="h-3.5 w-3.5" aria-hidden />Saved</p>}
+          {state.phase === "saved" && <p className="mt-1 flex items-center gap-1 text-[12px] text-ok"><IconCheck className="h-3.5 w-3.5" aria-hidden />{tr("common.saved")}</p>}
           {state.phase === "error" && <p className="mt-1 flex items-start gap-1 text-[12px] text-bad" role="alert"><IconWarning className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden /><span>{state.message}</span></p>}
         </div>
         {canEdit && (
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} aria-label={`Upload ${name}`} />
             {state.phase === "error" && state.file
-              ? <Button variant="secondary" size="sm" onClick={() => void upload(state.file!)}><IconRefresh className="h-4 w-4" />Try again</Button>
+              ? <Button variant="secondary" size="sm" onClick={() => void upload(state.file!)}><IconRefresh className="h-4 w-4" />{tr("common.try_again")}</Button>
               : <Button variant="secondary" size="sm" loading={busy} onClick={() => input.current?.click()} aria-label={`${v ? "Replace" : "Upload"} ${name}`}><IconUpload className="h-4 w-4" />{v ? "Replace" : "Upload"}</Button>}
-            {state.phase === "error" && state.file && <Button variant="ghost" size="sm" onClick={() => input.current?.click()}>Choose another</Button>}
-            {v && state.phase !== "error" && <Button variant="ghost" size="sm" disabled={busy} onClick={() => void remove()} aria-label={`Remove ${name}`}><IconTrash className="h-4 w-4" />Remove</Button>}
+            {state.phase === "error" && state.file && <Button variant="ghost" size="sm" onClick={() => input.current?.click()}>{tr("branding.choose_another")}</Button>}
+            {v && state.phase !== "error" && <Button variant="ghost" size="sm" disabled={busy} onClick={() => void remove()} aria-label={`Remove ${name}`}><IconTrash className="h-4 w-4" />{tr("common.remove")}</Button>}
           </div>
         )}
       </div>
@@ -248,13 +250,13 @@ export function BrandPreview({ brand, data, personal, scheme, compact, name }: {
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex h-11 shrink-0 items-center gap-2 border-b border-line bg-surface px-3">
-            <div className="flex h-7 flex-1 items-center gap-1.5 rounded-md bg-fill px-2 text-[11.5px] text-subtle"><IconSearch className="h-3.5 w-3.5" aria-hidden />Search</div>
+            <div className="flex h-7 flex-1 items-center gap-1.5 rounded-md bg-fill px-2 text-[11.5px] text-subtle"><IconSearch className="h-3.5 w-3.5" aria-hidden />{tr("common.search")}</div>
             <span className="grid h-7 w-7 place-items-center rounded-full bg-accent text-[10.5px] font-semibold text-accent-fg">AL</span>
           </div>
           <div className="min-h-0 flex-1 space-y-3 overflow-hidden p-3">
             <div className="rounded-xl border border-line bg-surface p-3 shadow-card">
               <div className="text-[13px] font-semibold">Welcome back</div>
-              <p className="mt-0.5 text-[11.5px] text-muted">3 new messages and 2 tasks due today. <span className="font-medium text-brand-hover">See all</span></p>
+              <p className="mt-0.5 text-[11.5px] text-muted">3 new messages and 2 tasks due today. <span className="font-medium text-brand-hover">{tr("branding.see_all")}</span></p>
               <div className="mt-2.5 flex flex-wrap gap-2">
                 <span className="inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-lg bg-brand px-2.5 text-[11.5px] font-medium text-brand-fg">New message</span>
                 <span className="inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-lg border border-line bg-surface px-2.5 text-[11.5px] text-fg">Invite</span>
@@ -289,7 +291,7 @@ function PreviewPane({ brand, data, personal, name, caption }: { brand: Brand; d
   return (
     <div className="space-y-3" data-testid="preview-pane">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[15px] font-semibold">Live preview</h2>
+        <h2 className="text-[15px] font-semibold">{tr("branding.live_preview")}</h2>
         <Segmented label="Preview in" value={scheme} onChange={setScheme} options={[{ id: "light", label: "Light", icon: <IconToday className="h-3.5 w-3.5" /> }, { id: "dark", label: "Dark", icon: <IconMoon className="h-3.5 w-3.5" /> }]} />
       </div>
       <BrandPreview brand={brand} data={data} personal={personal} scheme={scheme} name={name} />
@@ -346,15 +348,15 @@ export function BrandingSettings() {
   };
   const save = useMutation({
     mutationFn: () => { const { primary, accent, sidebar, radius, density, font, appearance, locked, preset } = draft as Draft; return api.put<{ brand: Brand; css: string }>("/branding", { primary, accent, sidebar, radius, density, font, appearance, locked, preset } satisfies BrandPatch); },
-    onSuccess: (r) => { onSaved(r); setJustSaved(true); toast.success("Brand saved for everyone in this workspace"); },
+    onSuccess: (r) => { onSaved(r); setJustSaved(true); toast.success(tr("branding.brand_saved_for_everyone_in_this_workspace")); },
     onError: (e) => showError(e),
   });
   const reset = useMutation({
     mutationFn: () => api.del<{ brand: Brand; css: string }>("/branding"),
-    onSuccess: (r) => { onSaved(r); setJustSaved(true); toast.success("Back to the Multies look"); },
+    onSuccess: (r) => { onSaved(r); setJustSaved(true); toast.success(tr("branding.back_to_the_multies_look")); },
     onError: (e) => showError(e),
   });
-  const discard = useCallback(() => { if (saved) { setDraft(saved); toast.message("Changes discarded"); } }, [saved]);
+  const discard = useCallback(() => { if (saved) { setDraft(saved); toast.message(tr("branding.changes_discarded")); } }, [saved]);
   // Ctrl or Cmd S saves, like a document.
   const saveRef = useRef(() => {});
   saveRef.current = () => { if (dirty && canEdit && !save.isPending) save.mutate(); };
@@ -372,14 +374,14 @@ export function BrandingSettings() {
   const takeLogoColours = async () => {
     if (!q.data || !brand) return;
     const kind = pickLogo(brand, "mark", "light") ?? pickLogo(brand, "wide", "light");
-    if (!kind) { toast.message("Upload a logo first, then pick its colours."); document.getElementById("brand-logos")?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+    if (!kind) { toast.message(tr("branding.upload_a_logo_first_then_pick_its_colours")); document.getElementById("brand-logos")?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
     setExtracting(true);
     try {
       const cols = await logoColours(logoUrl(q.data.orgId, kind, brand.logos[kind]!));
-      if (!cols.length) { toast.message("That logo has no strong colours to use. Pick one below."); return; }
+      if (!cols.length) { toast.message(tr("branding.that_logo_has_no_strong_colours_to_use_pick_one")); return; }
       set({ primary: cols[0], accent: cols[1] ?? cols[0], preset: "logo" });
-      toast.success("Colours taken from your logo. Save to keep them.");
-    } catch { toast.error("Couldn't read the logo's colours."); } finally { setExtracting(false); }
+      toast.success(tr("branding.colours_taken_from_your_logo_save_to_keep_them"));
+    } catch { toast.error(tr("branding.couldn_t_read_the_logo_s_colours")); } finally { setExtracting(false); }
   };
 
   if (q.isError) return <LoadFailure block error={q.error} onRetry={() => q.refetch()} />;
@@ -399,40 +401,40 @@ export function BrandingSettings() {
   const fails = checks.filter((c) => !c.ok);
   const orgName = me.data?.organization?.name;
   const status = ro
-    ? <span className="flex items-center gap-2 text-muted"><IconLock className="h-4 w-4 shrink-0" aria-hidden />Only workspace owners and admins can change the brand.</span>
+    ? <span className="flex items-center gap-2 text-muted"><IconLock className="h-4 w-4 shrink-0" aria-hidden />{tr("branding.only_workspace_owners_and_admins_can_change_the")}</span>
     : save.isPending ? <span className="text-muted">Saving…</span>
-      : dirty ? <span className="flex items-center gap-2 font-medium"><span className="h-2 w-2 shrink-0 rounded-full bg-warn" aria-hidden /><span className="max-sm:hidden">Unsaved changes</span><span className="sm:hidden">Unsaved</span><span className="font-normal text-subtle max-md:hidden">· you see them now, your team sees them after you save</span></span>
-        : justSaved ? <span className="flex items-center gap-1.5 font-medium text-ok"><IconCheckCircle className="h-4 w-4 shrink-0" aria-hidden /><span className="max-sm:hidden">Saved for everyone</span><span className="sm:hidden">Saved</span></span>
-          : <span className="flex items-center gap-1.5 text-muted"><IconCheck className="h-4 w-4 shrink-0" aria-hidden /><span className="max-sm:hidden">All changes saved</span><span className="sm:hidden">Saved</span></span>;
+      : dirty ? <span className="flex items-center gap-2 font-medium"><span className="h-2 w-2 shrink-0 rounded-full bg-warn" aria-hidden /><span className="max-sm:hidden">{tr("branding.unsaved_changes")}</span><span className="sm:hidden">{tr("branding.unsaved")}</span><span className="font-normal text-subtle max-md:hidden">· you see them now, your team sees them after you save</span></span>
+        : justSaved ? <span className="flex items-center gap-1.5 font-medium text-ok"><IconCheckCircle className="h-4 w-4 shrink-0" aria-hidden /><span className="max-sm:hidden">{tr("branding.saved_for_everyone")}</span><span className="sm:hidden">{tr("common.saved")}</span></span>
+          : <span className="flex items-center gap-1.5 text-muted"><IconCheck className="h-4 w-4 shrink-0" aria-hidden /><span className="max-sm:hidden">{tr("branding.all_changes_saved")}</span><span className="sm:hidden">{tr("common.saved")}</span></span>;
   return (
     <div className="@container" data-testid="branding-settings">
       {dialogs}
       <ActionBar status={status} testId="brand-actions">
         {canEdit && <>
-          <Button variant="ghost" disabled={!dirty || save.isPending} onClick={discard}>Discard</Button>
-          <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!dirty} title={`Save brand (${isMac() ? "Cmd" : "Ctrl"} S)`}>Save brand</Button>
+          <Button variant="ghost" disabled={!dirty || save.isPending} onClick={discard}>{tr("branding.discard")}</Button>
+          <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!dirty} title={`Save brand (${isMac() ? "Cmd" : "Ctrl"} S)`}>{tr("branding.save_brand")}</Button>
         </>}
       </ActionBar>
       <div className="grid items-start gap-6 @min-[640px]:grid-cols-[minmax(0,1fr)_minmax(280px,42%)] @min-[960px]:grid-cols-[minmax(0,1fr)_440px] @min-[1200px]:grid-cols-[minmax(0,1fr)_520px]">
         <div className="order-2 min-w-0 space-y-4 @min-[640px]:order-1">
-          <Panel title="Theme" description="Pick a ready made theme or take the colours from your logo. The app changes as you click." testId="brand-presets">
+          <Panel title={tr("branding.theme")} description={tr("branding.pick_a_ready_made_theme_or_take_the_colours_from")} testId="brand-presets">
             <div className="grid grid-cols-[repeat(auto-fill,minmax(72px,1fr))] gap-1">
               {PRESETS.map((p) => (
                 <Swatch key={p.id} primary={p.primary} accent={p.accent} sidebar={p.sidebar} label={p.name} disabled={ro}
                   selected={draft.preset === p.id || (!draft.preset && p.id === "multies" && !draft.primary)}
                   onClick={() => set(p.id === "multies" ? { primary: null, accent: null, sidebar: null, preset: null } : { primary: p.primary, accent: p.accent, sidebar: p.sidebar, preset: p.id })} />
               ))}
-              <Swatch primary="#000" accent="#000" label="Use my logo colours" selected={draft.preset === "logo"} disabled={ro || extracting} onClick={() => void takeLogoColours()}>
+              <Swatch primary="#000" accent="#000" label={tr("branding.use_my_logo_colours")} selected={draft.preset === "logo"} disabled={ro || extracting} onClick={() => void takeLogoColours()}>
                 <span className="absolute inset-0 grid place-items-center bg-[conic-gradient(from_180deg,#f43f5e,#f59e0b,#22c55e,#06b6d4,#6366f1,#f43f5e)]">
                   <span className="grid h-8 w-8 place-items-center rounded-full bg-white/90 text-black">{extracting ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/20 border-t-black motion-reduce:animate-none" aria-hidden /> : <IconSparkle className="h-4 w-4" />}</span>
                 </span>
               </Swatch>
             </div>
-            {!hasLogo && <p className="mt-2 text-[12px] text-subtle">Upload a logo below to use its colours.</p>}
+            {!hasLogo && <p className="mt-2 text-[12px] text-subtle">{tr("branding.upload_a_logo_below_to_use_its_colours")}</p>}
           </Panel>
 
           <div id="brand-logos">
-            <Panel title="Logo" description="PNG, JPEG or WebP, up to 512 KB. Drop a file on a row or choose one. Logos save at once." testId="brand-logos">
+            <Panel title={tr("branding.logo")} description={tr("branding.png_jpeg_or_webp_up_to_512_kb_drop_a_file_on_a_r")} testId="brand-logos">
               <ul className="grid gap-2 @min-[560px]/panel:grid-cols-2">
                 {LOGO_SLOTS.map((s) => <LogoSlot key={s.kind} data={q.data} {...s} canEdit={canEdit} onChanged={logoChanged}
                   confirmRemove={async () => await confirm({ title: `Remove the ${s.label.toLowerCase()} for ${s.mode.toLowerCase()}?`, description: "It is taken off for everyone in this workspace. You can upload it again any time.", confirmLabel: "Remove", tone: "danger" })} />)}
@@ -440,15 +442,15 @@ export function BrandingSettings() {
             </Panel>
           </div>
 
-          <Panel title="Colours" description="Text on your colours is picked for you so it stays readable." testId="brand-colours">
+          <Panel title={tr("branding.colours")} description={tr("branding.text_on_your_colours_is_picked_for_you_so_it_sta")} testId="brand-colours">
             <div className="grid gap-4 @min-[480px]/panel:grid-cols-2 @min-[720px]/panel:grid-cols-3">
-              <ColourField label="Brand colour" value={draft.primary} placeholder="#0066cc" disabled={ro} onChange={(v) => set({ primary: v, preset: null })} testId="brand-primary" />
-              <ColourField label="Accent colour" value={draft.accent} placeholder={draft.primary ?? "#0066cc"} allowNone disabled={ro} onChange={(v) => set({ accent: v, preset: null })} testId="brand-accent" />
-              <ColourField label="Sidebar colour" value={draft.sidebar} placeholder="#f5f5f7" allowNone disabled={ro} onChange={(v) => set({ sidebar: v, preset: null })} testId="brand-sidebar" />
+              <ColourField label={tr("branding.brand_colour")} value={draft.primary} placeholder="#0066cc" disabled={ro} onChange={(v) => set({ primary: v, preset: null })} testId="brand-primary" />
+              <ColourField label={tr("branding.accent_colour")} value={draft.accent} placeholder={draft.primary ?? "#0066cc"} allowNone disabled={ro} onChange={(v) => set({ accent: v, preset: null })} testId="brand-accent" />
+              <ColourField label={tr("branding.sidebar_colour")} value={draft.sidebar} placeholder="#f5f5f7" allowNone disabled={ro} onChange={(v) => set({ sidebar: v, preset: null })} testId="brand-sidebar" />
             </div>
             <div className="mt-4 space-y-1.5" data-testid="brand-contrast">
               {fails.length === 0
-                ? <p className="flex items-center gap-1.5 text-[12.5px] text-ok"><IconCheck className="h-4 w-4" aria-hidden />All text on these colours meets WCAG AA.</p>
+                ? <p className="flex items-center gap-1.5 text-[12.5px] text-ok"><IconCheck className="h-4 w-4" aria-hidden />{tr("branding.all_text_on_these_colours_meets_wcag_aa")}</p>
                 : fails.map((c) => (
                   <p key={c.id} className="flex items-start gap-1.5 text-[12.5px] text-warn"><IconWarning className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                     <span>{c.label}: contrast {c.ratio.toFixed(1)} to 1, under the 4.5 AA needs. Multies adjusts the shade so it stays readable.</span></p>
@@ -456,13 +458,13 @@ export function BrandingSettings() {
             </div>
           </Panel>
 
-          <Panel title="Shape and type" testId="brand-shape">
+          <Panel title={tr("branding.shape_and_type")} testId="brand-shape">
             <div className="space-y-4">
-              <Row label="Corners"><Segmented<Radius> label="Corners" value={draft.radius} disabled={ro} onChange={(radius) => set({ radius })} options={[{ id: "sharp", label: "Sharp" }, { id: "default", label: "Default" }, { id: "round", label: "Round" }]} /></Row>
+              <Row label={tr("branding.corners")}><Segmented<Radius> label={tr("branding.corners")} value={draft.radius} disabled={ro} onChange={(radius) => set({ radius })} options={[{ id: "sharp", label: "Sharp" }, { id: "default", label: "Default" }, { id: "round", label: "Round" }]} /></Row>
               {/* R82F (MB-285): density is each person's own choice, in the View menu only (it was here too). */}
               <div>
-                <span className="text-[13px] font-medium">Font</span>
-                <div role="radiogroup" aria-label="Font" className="mt-2 grid grid-cols-2 gap-2 @min-[420px]/panel:grid-cols-3 @min-[720px]/panel:grid-cols-6">
+                <span className="text-[13px] font-medium">{tr("branding.font")}</span>
+                <div role="radiogroup" aria-label={tr("branding.font")} className="mt-2 grid grid-cols-2 gap-2 @min-[420px]/panel:grid-cols-3 @min-[720px]/panel:grid-cols-6">
                   {FONTS.map((f) => (
                     <button key={f.id} type="button" role="radio" aria-checked={draft.font === f.id} disabled={ro} onClick={() => set({ font: f.id as FontId })}
                       className={cn("min-w-0 rounded-xl border px-3 py-2 text-left outline-none transition-[border-color,background-color,transform] duration-150 focus-visible:ring-2 focus-visible:ring-brand enabled:active:scale-[0.97] disabled:opacity-60 motion-reduce:transform-none", draft.font === f.id ? "border-brand bg-brand-soft" : "border-line enabled:hover:border-line-strong enabled:hover:bg-hover")}>
@@ -477,20 +479,20 @@ export function BrandingSettings() {
 
           <Panel title="For your team" testId="brand-team">
             <div className="space-y-3">
-              <Row label="Default appearance" hint="People who picked light or dark for themselves keep their choice.">
-                <Segmented<Appearance> label="Default appearance" value={draft.appearance} disabled={ro} onChange={(appearance) => set({ appearance })}
+              <Row label={tr("branding.default_appearance")} hint={tr("branding.people_who_picked_light_or_dark_for_themselves_k")}>
+                <Segmented<Appearance> label={tr("branding.default_appearance")} value={draft.appearance} disabled={ro} onChange={(appearance) => set({ appearance })}
                   options={[{ id: "system", label: "System", icon: <IconMonitor className="h-3.5 w-3.5" /> }, { id: "light", label: "Light", icon: <IconToday className="h-3.5 w-3.5" /> }, { id: "dark", label: "Dark", icon: <IconMoon className="h-3.5 w-3.5" /> }]} />
               </Row>
-              <SwitchRow label="Lock the brand" hint="Members can't pick their own accent colour." checked={draft.locked} disabled={ro} onChange={(locked) => set({ locked })} testId="brand-lock" />
+              <SwitchRow label={tr("branding.lock_the_brand")} hint={tr("branding.members_can_t_pick_their_own_accent_colour")} checked={draft.locked} disabled={ro} onChange={(locked) => set({ locked })} testId="brand-lock" />
             </div>
           </Panel>
 
           {canEdit && (
-            <Panel title="Start over" testId="brand-reset">
-              <Row label="Reset to Multies default" hint="Removes your colours, corners, font and logos for everyone.">
+            <Panel title={tr("branding.start_over")} testId="brand-reset">
+              <Row label={tr("branding.reset_to_multies_default")} hint={tr("branding.removes_your_colours_corners_font_and_logos_for")}>
                 <Button variant="danger" loading={reset.isPending} onClick={async () => {
                   if (await confirm({ title: "Reset to the Multies look?", description: "Your colours, corners, font and logos are removed for everyone in this workspace.", confirmLabel: "Reset", tone: "danger" })) reset.mutate();
-                }}><IconRefresh className="h-4 w-4" />Reset to Multies default</Button>
+                }}><IconRefresh className="h-4 w-4" />{tr("branding.reset_to_multies_default")}</Button>
               </Row>
             </Panel>
           )}
@@ -506,6 +508,7 @@ export function BrandingSettings() {
 /** Settings > Appearance: light, dark or system, and an own accent unless the workspace locked its brand. Saves as you pick. */
 export function AppearanceSettings() {
   const me = useMe();
+  const langOn = !!useConfig().data?.langR104; // R104: language picker and wording suggestions
   const q = useBranding(!!me.data?.organization);
   const qc = useQueryClient();
   const save = useMutation({
@@ -513,7 +516,7 @@ export function AppearanceSettings() {
     onSuccess: (r) => {
       const next = { ...(q.data as BrandingData), personal: r.personal, css: r.css };
       qc.setQueryData(brandQueryKey, next); applyBrand(next);
-      toast.success("Appearance saved");
+      toast.success(tr("branding.appearance_saved"));
     },
     onError: (e) => showError(e),
   });
@@ -536,11 +539,12 @@ export function AppearanceSettings() {
     <div className="@container" data-testid="appearance-settings">
       <div className="grid items-start gap-6 @min-[640px]:grid-cols-[minmax(0,1fr)_minmax(280px,42%)] @min-[960px]:grid-cols-[minmax(0,1fr)_440px] @min-[1200px]:grid-cols-[minmax(0,1fr)_520px]">
         <div className="order-2 min-w-0 space-y-4 @min-[640px]:order-1">
-          <Panel title="Light or dark" description="System follows your device. Your workspace may set a default.">
+          {langOn && <LanguagePanel />}
+          <Panel title={tr("branding.light_or_dark")} description={tr("branding.system_follows_your_device_your_workspace_may_se")}>
             <AppearanceControl className="w-full sm:w-auto [&>button]:min-h-9 max-sm:[&>button]:min-h-11 [&>button]:flex-1 [&>button]:justify-center" />
           </Panel>
-          <Panel title="Accent colour" description={locked ? "Your workspace admin set one brand for everyone." : "Use your workspace's brand, or pick your own accent. Only you see it."} testId="personal-accent">
-            <SwitchRow label="Follow workspace brand" hint={locked ? "Locked by an admin" : "On by default"} checked={follow} disabled={locked || save.isPending}
+          <Panel title={tr("branding.accent_colour")} description={locked ? "Your workspace admin set one brand for everyone." : "Use your workspace's brand, or pick your own accent. Only you see it."} testId="personal-accent">
+            <SwitchRow label={tr("branding.follow_workspace_brand")} hint={locked ? "Locked by an admin" : "On by default"} checked={follow} disabled={locked || save.isPending}
               onChange={(v) => save.mutate({ followBrand: v, accent: p.accent ?? PRESETS[3].primary })} testId="follow-brand" />
             {!follow && (
               <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(72px,1fr))] gap-1">
@@ -549,11 +553,12 @@ export function AppearanceSettings() {
                 ))}
               </div>
             )}
-            {!follow && <div className="mt-3"><ColourField label="Custom accent" value={p.accent} placeholder="#0066cc" onChange={(v) => v && save.mutate({ followBrand: false, accent: v })} /></div>}
+            {!follow && <div className="mt-3"><ColourField label={tr("branding.custom_accent")} value={p.accent} placeholder="#0066cc" onChange={(v) => v && save.mutate({ followBrand: false, accent: v })} /></div>}
           </Panel>
+          {langOn && <WordingPanel />}
         </div>
         <div className="order-1 min-w-0 @min-[640px]:sticky @min-[640px]:top-[76px] @min-[640px]:order-2">
-          <PreviewPane brand={d.brand} data={d} personal={locked ? null : p} name={me.data?.organization?.name} caption="This is how Multies looks for you. Changes apply as soon as you pick them." />
+          <PreviewPane brand={d.brand} data={d} personal={locked ? null : p} name={me.data?.organization?.name} caption={tr("branding.this_is_how_multies_looks_for_you_changes_apply")} />
         </div>
       </div>
     </div>

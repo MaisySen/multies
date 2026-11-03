@@ -3,6 +3,8 @@ import { Link, Outlet } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Logo } from "@/web/components/logo";
 import { authProvidersQuery } from "@/web/lib/auth-providers";
+import { tr } from "@/web/i18n"; // R104
+import { LanguageSwitch } from "@/web/i18n/switch"; // R104
 
 /**
  * R30: the logo and the card paint together, once, at their final size. The card is centred, so
@@ -24,8 +26,9 @@ export function AuthLayout() {
       <Suspense fallback={hold}>
         <WhenProvidersKnown>
           <main className="relative w-full max-w-[400px]">
-            <Link to="/" className="mx-auto mb-8 flex w-fit items-center justify-center max-sm:min-h-11" aria-label="Multies home"><Logo /></Link>
+            <Link to="/" className="mx-auto mb-8 flex w-fit items-center justify-center max-sm:min-h-11" aria-label={tr("auth.multies_home")}><Logo /></Link>
             <Outlet />
+            <LanguageSwitch className="mt-6 justify-center" />
           </main>
         </WhenProvidersKnown>
       </Suspense>
