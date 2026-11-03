@@ -179,6 +179,8 @@ export class PieceStore {
   private chain: Promise<void> = Promise.resolve();
   private meta: StoredMeta;
   failed = false;
+  /** Told once when keeping pieces stops working (storage full, private window). */
+  onFail: ((reason: string) => void) | null = null;
   constructor(private db: PieceBackend, meta: Omit<StoredMeta, "updatedAt" | "pieces" | "bytes" | "done">, private now: () => number = Date.now) {
     this.meta = { ...meta, updatedAt: now(), pieces: 0, bytes: 0, done: false };
   }
@@ -193,9 +195,16 @@ export class PieceStore {
       this.meta.bytes += b.size;
       this.meta.updatedAt = this.now();
       await this.db.putMeta({ ...this.meta });
-    }).catch(() => { this.failed = true; });
+    }).catch((e: unknown) => {
+      const first = !this.failed;
+      this.failed = true;
+      this.error = e instanceof Error ? e.message || e.name : String(e);
+      if (first) this.onFail?.(this.error);
+    });
     return this.chain;
   }
+  /** Why keeping pieces stopped (the recording itself goes on). */
+  error: string | null = null;
   async finish() { await this.chain; await this.db.remove(this.meta.id).catch(() => undefined); }
   async flushed() { await this.chain; }
 }

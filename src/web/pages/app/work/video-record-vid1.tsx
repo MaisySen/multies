@@ -138,6 +138,7 @@ export function useVideoRecording(room: Room) {
       const [{ PieceStore }, { idbBackend, keepStorage }] = await Promise.all([import("@/web/lib/video-rec-vid2"), import("@/web/lib/video-store-vid2")]);
       void keepStorage();
       keep.current = new PieceStore(idbBackend, { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, meetingId: a.vid2.meetingId, title: a.vid2.title, fileName: a.fileName, mime: a.mime, startedAt: Date.now() });
+      keep.current.onFail = (reason) => toast.warning("This video isn't being kept safe on this device", { description: `It still records and saves when you stop. The browser said: ${reason}`, duration: 15_000 });
       await keep.current.begin();
       const q = a.vid2.quality;
       draw = { width: q.w, height: q.h, fps: q.fps, layout: a.vid2.layout, onFps: (f) => setFps(f) };

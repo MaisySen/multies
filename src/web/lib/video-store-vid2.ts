@@ -45,9 +45,11 @@ export const idbBackend: PieceBackend = {
     return (await ask(db.transaction(META, "readonly").objectStore(META).getAll())) as StoredMeta[];
   },
   async putPiece(id: string, seq: number, b: Blob) {
+    // Bytes, not the Blob itself: some browsers can't keep Blobs in IndexedDB (private windows), bytes always work.
+    const bytes = await b.arrayBuffer();
     const db = await open();
     const t = db.transaction(PIECES, "readwrite");
-    t.objectStore(PIECES).put(b, key(id, seq));
+    t.objectStore(PIECES).put(bytes, key(id, seq));
     await done(t);
   },
   async pieces(id: string) {
@@ -55,7 +57,7 @@ export const idbBackend: PieceBackend = {
     const range = IDBKeyRange.bound(`${id}:`, `${id}:\uffff`);
     const store = db.transaction(PIECES, "readonly").objectStore(PIECES);
     const [keys, values] = await Promise.all([ask(store.getAllKeys(range)), ask(store.getAll(range))]);
-    return keys.map((k, i) => ({ seq: Number(String(k).split(":").pop()), blob: values[i] as Blob }));
+    return keys.map((k, i) => ({ seq: Number(String(k).split(":").pop()), blob: values[i] instanceof Blob ? values[i] : new Blob([values[i] as ArrayBuffer]) }));
   },
   async remove(id: string) {
     const db = await open();
