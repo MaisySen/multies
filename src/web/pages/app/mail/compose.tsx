@@ -26,6 +26,7 @@ import { SpellButton, fixPlainText } from "@/web/components/spell-check-r103";
 import { useConfig } from "@/web/lib/queries"; // R103
 import { SendSecurelyButton } from "./send-securely"; // R88
 import { tr } from "@/web/i18n"; // R104
+import "@/web/i18n/w2/en-compose"; // R104B
 
 export interface ComposeDraft {
   mailboxId: string;
@@ -52,14 +53,14 @@ type SendResult = { messageId?: string; internal: string[]; external: { address:
 function reportSent(r: SendResult) {
   // R34: a sending limit queued the whole message until midnight UTC; Outbox (Scheduled) shows it with the reason.
   const q = (r as SendResult & { queued?: { reason: string } }).queued;
-  if (q) { toast.warning("Queued until tomorrow", { duration: 10000, description: `${q.reason.replace(/ ?Queued until tomorrow[^.]*\./, "")} It's in Scheduled and goes at midnight UTC.`.trim() }); return; }
+  if (q) { toast.warning(tr("compose.queued_until_tomorrow"), { duration: 10000, description: `${q.reason.replace(/ ?Queued until tomorrow[^.]*\./, "")} It's in Scheduled and goes at midnight UTC.`.trim() }); return; }
   const failed = r.external.filter((e) => e.status === "failed");
   const queued = r.external.filter((e) => e.status === "queued");
   if (failed.length) toast.error(`Couldn't deliver to ${failed.map((f) => f.address).join(", ")}`, { description: failed[0].detail });
   else if (queued.length) {
     const held = queued.some((q) => q.detail?.startsWith("Held:"));
     const n = `${queued.length} outside recipient${queued.length > 1 ? "s" : ""}`;
-    toast.warning("Saved to Sent, not delivered outside yet", {
+    toast.warning(tr("compose.saved_to_sent_not_delivered_outside_yet"), {
       duration: 10000,
       description: `${r.internal.length ? `Delivered inside Multies to ${r.internal.length}. ` : ""}${held
         ? `${n} held: verify this domain with the email provider to send outside Multies.`
@@ -131,10 +132,10 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
     // or a double tap on a phone) used to start a second hold and a second toast.
     if (sentOnce.current) return;
     if (!d.to.trim()) { toRef.current?.focus(); return; }
-    if (unverified) { toast.error(`Verify ${unverified.name} before sending from it.`, { description: "Pick another From address, or verify the domain first." }); return; }
+    if (unverified) { toast.error(tr("compose.verify_name_before_sending_from_it", { name: unverified.name }), { description: tr("compose.pick_another_from_address_or_verify_the_domain_f") }); return; }
     // A gentle nudge, once: Send again (or "Send anyway") sends it without a subject.
     if (!anyway && shouldAskForSubject(d.subject, askedSubject)) { setAskedSubject(true); return; }
-    if (later && att.count) { toast.error(tr("compose.scheduled_sends_can_t_carry_attachments_yet"), { description: "Send it now, or remove the files to schedule it." }); return; }
+    if (later && att.count) { toast.error(tr("compose.scheduled_sends_can_t_carry_attachments_yet"), { description: tr("compose.send_it_now_or_remove_the_files_to_schedule_it") }); return; }
     sentOnce.current = true;
     const files = att.forSend();
     const snapshot = { ...d, files, toolFiles: att.tools, draftId: takeAutoDraft() ?? d.draftId };
@@ -156,8 +157,8 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
         to,
         send: () => api.post<{ dueAt: string }>("/mail-schedules/send", laterBody, { idempotencyKey: key }),
         handoff: { path: "/mail-schedules/send", key, body: () => laterBody, draft: snapshot },
-        onSent: (r) => { void qc.invalidateQueries({ queryKey: ["mail"] }); toast.success(`Scheduled for ${zonedDateTime(r.dueAt)}`, { description: "Find it in Scheduled to edit or cancel it." }); },
-        onError: (e) => { toast.error(e instanceof ApiError ? e.message : "Couldn't schedule it.", { description: "Your message is back in Compose." }); reopenDraft(snapshot, "failed"); },
+        onSent: (r) => { void qc.invalidateQueries({ queryKey: ["mail"] }); toast.success(`Scheduled for ${zonedDateTime(r.dueAt)}`, { description: tr("compose.find_it_in_scheduled_to_edit_or_cancel_it") }); },
+        onError: (e) => { toast.error(e instanceof ApiError ? e.message : tr("compose.couldn_t_schedule_it"), { description: tr("compose.your_message_is_back_in_compose") }); reopenDraft(snapshot, "failed"); },
         onUndo: () => reopenDraft(snapshot, "undo"),
       });
       onClose();
@@ -187,7 +188,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
         }
       },
       onError: (e) => {
-        toast.error(e instanceof ApiError ? e.message : "Couldn't send.", { description: "Your message is back in Compose." });
+        toast.error(e instanceof ApiError ? e.message : tr("compose.couldn_t_send"), { description: tr("compose.your_message_is_back_in_compose") });
         reopenDraft(snapshot, "failed");
       },
       onUndo: () => reopenDraft(snapshot, "undo"),
@@ -222,7 +223,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
       <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line px-4 max-sm:h-14 max-sm:pl-4 max-sm:pr-1.5">
         <span className="truncate text-sm font-medium">{d.subject || (d.inReplyToId ? tr("compose.reply") : tr("compose.new_message"))}</span>
         <div className="flex items-center">
-          <button className="hidden rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg sm:block" onClick={() => setMinimized((m) => !m)} aria-label={minimized ? "Expand" : "Minimize"}><IconMinus className="h-4 w-4" /></button>
+          <button className="hidden rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg sm:block" onClick={() => setMinimized((m) => !m)} aria-label={minimized ? tr("compose.expand") : tr("compose.minimize")}><IconMinus className="h-4 w-4" /></button>
           <button className="inline-flex items-center justify-center rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:rounded-full" onClick={close} aria-label={tr("compose.close_and_save_draft")}><IconClose className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>
           {/* R48 mobile: Send sits top right on a phone, the way native mail apps put it, so the foot row stays one line. */}
           {!minimized && <button type="button" data-testid="compose-send-phone" disabled={!d.to.trim() || !!unverified} onClick={() => send()} aria-label={tr("common.send")}
@@ -242,20 +243,20 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
           {unverified && (
             <div role="alert" data-testid="compose-unverified" className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-line bg-warn-soft px-4 py-2 text-[13px]">
               <IconWarning className="h-4 w-4 shrink-0 text-warn" aria-hidden />
-              <span className="min-w-0 flex-1">{unverified.name} isn't verified yet, so mail from {from?.address} can't go out. Verify the domain or pick another From address.</span>
+              <span className="min-w-0 flex-1">{unverified.name} {tr("compose.isn_t_verified_yet_so_mail_from")} {from?.address} {tr("compose.can_t_go_out_verify_the_domain_or_pick_another_f")}</span>
               <Link to={`/app/domains/${unverified.id}`} onClick={() => close()} className="shrink-0 rounded-md px-2 py-1 font-medium text-brand-hover hover:bg-hover max-sm:min-h-11 max-sm:inline-flex max-sm:items-center">{tr("compose.verify_domain")}</Link>
             </div>
           )}
           <Row label={tr("compose.to")}>
             <input ref={toRef} value={d.to} onChange={set("to")} className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-subtle" placeholder="name@example.com" aria-label={tr("compose.to")} autoComplete="off" spellCheck={false} />
-            {!showCc && <button type="button" className="shrink-0 text-xs text-muted hover:text-fg" onClick={() => setShowCc(true)}>Cc Bcc</button>}
+            {!showCc && <button type="button" className="shrink-0 text-xs text-muted hover:text-fg" onClick={() => setShowCc(true)}>{tr("compose.cc_bcc")}</button>}
           </Row>
           {showCc && <>
-            <Row label="Cc"><input value={d.cc ?? ""} onChange={set("cc")} className="h-9 w-full bg-transparent text-sm outline-none" aria-label="Cc" spellCheck={false} /></Row>
-            <Row label="Bcc"><input value={d.bcc ?? ""} onChange={set("bcc")} className="h-9 w-full bg-transparent text-sm outline-none" aria-label="Bcc" spellCheck={false} /></Row>
+            <Row label={tr("compose.cc")}><input value={d.cc ?? ""} onChange={set("cc")} className="h-9 w-full bg-transparent text-sm outline-none" aria-label={tr("compose.cc")} spellCheck={false} /></Row>
+            <Row label={tr("compose.bcc")}><input value={d.bcc ?? ""} onChange={set("bcc")} className="h-9 w-full bg-transparent text-sm outline-none" aria-label={tr("compose.bcc")} spellCheck={false} /></Row>
           </>}
           <Row label={tr("common.subject")}><input ref={subjectRef} value={d.subject} onChange={set("subject")} className="h-9 w-full bg-transparent text-sm font-medium outline-none" aria-label={tr("common.subject")} /></Row>
-          <textarea ref={bodyRef} value={d.text} onChange={set("text")} onKeyDown={snippetKeys} aria-label={tr("compose.message")} spellCheck={spell.on} lang={spell.lang} className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 text-[14.5px] leading-relaxed outline-none placeholder:text-subtle" placeholder="Write your message…" />
+          <textarea ref={bodyRef} value={d.text} onChange={set("text")} onKeyDown={snippetKeys} aria-label={tr("compose.message")} spellCheck={spell.on} lang={spell.lang} className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 text-[14.5px] leading-relaxed outline-none placeholder:text-subtle" placeholder={tr("compose.write_your_message")} />
           {askedSubject && !d.subject.trim() && (
             <div role="status" data-testid="subject-prompt" className="flex shrink-0 flex-wrap items-center gap-2 border-t border-line bg-brand/[0.06] px-4 py-2 text-[13px]">
               <IconInfo className="h-4 w-4 shrink-0 text-brand-hover" aria-hidden />
@@ -270,7 +271,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
             {/* R48 mobile: on a phone Send is in the header, so this row is one line of 44 px controls even at 360 px. */}
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 max-sm:flex-nowrap max-sm:gap-x-0.5">
               <Button type="submit" disabled={!d.to.trim() || !!unverified} className="max-sm:hidden"><IconSend className="h-4 w-4" />{tr("common.send")}</Button>
-              {saveState && <span className="text-[12px] text-subtle" role="status" data-testid="draft-autosave">{saveState === "saving" ? "Saving" : saveState === "saved" ? "Saved" : "Not saved yet"}</span>}
+              {saveState && <span className="text-[12px] text-subtle" role="status" data-testid="draft-autosave">{saveState === "saving" ? tr("compose.saving") : saveState === "saved" ? tr("common.saved") : tr("compose.not_saved_yet")}</span>}
               {/* Tools P2: attachments go now, not later (Tools results are kept for an hour; scheduled sends carry no files yet). */}
               <SendLaterMenu disabled={!d.to.trim() || att.count > 0 || !!unverified} onPick={(when) => send(true, when)} />
               <AttachButton c={att} />

@@ -15,6 +15,8 @@ import type { ToolFileRef } from "@/web/lib/compose-files";
 import { IconClose, IconFile, IconUndo } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
 import { COMPOSE_ATTACH_MAX_BYTES, COMPOSE_ATTACH_MAX_FILES, formatMb, ruleFor, type SendRules } from "@/shared/tools-automation";
+import { tr } from "@/web/i18n"; // R104B
+import "@/web/i18n/w2/en-compose"; // R104B
 
 export interface ComposeFile {
   id: string;
@@ -90,7 +92,7 @@ export function useComposeFiles(initial: File[] | undefined, initialTools: ToolF
     if (tools.length + items.length + files.length > COMPOSE_ATTACH_MAX_FILES) { toast.error(`You can attach up to ${COMPOSE_ATTACH_MAX_FILES} files.`); return; }
     // Rules may shrink big PDFs, so only refuse what no rule can bring under the limit.
     if (total > COMPOSE_ATTACH_MAX_BYTES && !files.some((f) => rules && ruleFor(rules, { name: f.name, type: f.type, size: f.size }) === "compress")) {
-      toast.error(`Attachments can add up to ${formatMb(COMPOSE_ATTACH_MAX_BYTES)} in one email.`, { description: "A share link suits bigger files." });
+      toast.error(tr("compose.attachments_can_add_up_to_compose_attach_max_byt", { COMPOSE_ATTACH_MAX_BYTES: formatMb(COMPOSE_ATTACH_MAX_BYTES) }), { description: tr("compose.a_share_link_suits_bigger_files") });
       return;
     }
     setItems((xs) => [...xs, ...files.map((file) => ({ id: nextId(), file, state: "ready" as const }))]);
@@ -111,14 +113,14 @@ export function useComposeFiles(initial: File[] | undefined, initialTools: ToolF
 export function AttachmentChips({ c }: { c: ReturnType<typeof useComposeFiles> }) {
   if (!c.count) return null;
   return (
-    <ul data-testid="compose-attachments" aria-label="Attachments" className="flex shrink-0 flex-col gap-1.5 border-t border-line px-4 py-2">
+    <ul data-testid="compose-attachments" aria-label={tr("compose.attachments")} className="flex shrink-0 flex-col gap-1.5 border-t border-line px-4 py-2">
       {c.tools.map((t) => (
         <li key={t.token} data-testid="compose-tool-file" className="flex min-w-0 items-center gap-2 text-[13px]">
           <IconFile className="h-4 w-4 shrink-0 text-muted" aria-hidden />
           <span className="min-w-0 truncate font-medium">{t.name}</span>
           {t.bytes ? <span className="shrink-0 text-subtle">{sizeOf(t.bytes)}</span> : null}
-          <span className="shrink-0 text-[12px] text-subtle">From Tools</span>
-          <button type="button" onClick={() => c.removeTool(t.token)} aria-label={`Remove ${t.name}`} className="ml-auto inline-flex shrink-0 items-center justify-center rounded-md p-1 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11"><IconClose className="h-3.5 w-3.5" /></button>
+          <span className="shrink-0 text-[12px] text-subtle">{tr("compose.from_tools")}</span>
+          <button type="button" onClick={() => c.removeTool(t.token)} aria-label={tr("compose.remove_name", { name: t.name })} className="ml-auto inline-flex shrink-0 items-center justify-center rounded-md p-1 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11"><IconClose className="h-3.5 w-3.5" /></button>
         </li>
       ))}
       {c.items.map((it) => (
@@ -127,13 +129,13 @@ export function AttachmentChips({ c }: { c: ReturnType<typeof useComposeFiles> }
             <IconFile className="h-4 w-4 shrink-0 text-muted" aria-hidden />
             <span className="min-w-0 truncate font-medium">{it.file.name}</span>
             <span className="shrink-0 text-subtle">{sizeOf(it.file.size)}</span>
-            {it.state === "working" && <span role="status" className="shrink-0 text-[12px] text-muted">Applying your rule</span>}
-            <button type="button" onClick={() => c.remove(it.id)} aria-label={`Remove ${it.file.name}`} className="ml-auto inline-flex shrink-0 items-center justify-center rounded-md p-1 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11"><IconClose className="h-3.5 w-3.5" /></button>
+            {it.state === "working" && <span role="status" className="shrink-0 text-[12px] text-muted">{tr("compose.applying_your_rule")}</span>}
+            <button type="button" onClick={() => c.remove(it.id)} aria-label={tr("compose.remove_name", { name: it.file.name })} className="ml-auto inline-flex shrink-0 items-center justify-center rounded-md p-1 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11"><IconClose className="h-3.5 w-3.5" /></button>
           </div>
           {it.chip && (
             <div data-testid="rule-chip" className="flex items-center gap-2 pl-6">
               <span className="rounded-full bg-[#34C759]/[0.12] px-2 py-0.5 text-[12px] text-fg">{it.chip}</span>
-              <button type="button" onClick={() => c.undo(it.id)} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] font-medium text-brand-hover hover:bg-hover max-sm:min-h-11"><IconUndo className="h-3 w-3" aria-hidden />Undo</button>
+              <button type="button" onClick={() => c.undo(it.id)} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] font-medium text-brand-hover hover:bg-hover max-sm:min-h-11"><IconUndo className="h-3 w-3" aria-hidden />{tr("compose.undo")}</button>
             </div>
           )}
           {it.note && <p data-testid="rule-note" className="pl-6 text-[12px] text-muted">{it.note}</p>}
@@ -148,7 +150,7 @@ export function AttachButton({ c, className }: { c: ReturnType<typeof useCompose
   return (
     <>
       <input ref={input} type="file" multiple hidden data-testid="compose-file-input" onChange={(e) => { const fs = [...(e.target.files ?? [])]; if (fs.length) c.add(fs); e.target.value = ""; }} />
-      <button type="button" onClick={() => input.current?.click()} aria-label="Attach files" title={c.rulesOn ? "Attach files (your rules run before sending)" : "Attach files"}
+      <button type="button" onClick={() => input.current?.click()} aria-label={tr("compose.attach_files")} title={c.rulesOn ? tr("compose.attach_files_your_rules_run_before_sending") : tr("compose.attach_files")}
         className={cn("inline-flex items-center justify-center rounded-md p-2 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11", className)}>
         <PaperclipIcon />
       </button>
