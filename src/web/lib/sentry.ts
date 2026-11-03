@@ -31,6 +31,8 @@ export async function startSentry() {
       dsn: config.sentry.dsn,
       environment: config.sentry.environment,
       release: config.sentry.release,
+      // POL3: reports go through our own origin (POST /api/monitoring/tunnel), which checks and forwards them.
+      tunnel: "/api/monitoring/tunnel",
       // Performance tracing: page loads, navigations and API calls (same origin only).
       integrations: [mod.browserTracingIntegration()],
       tracesSampleRate: config.sentry.tracesSampleRate ?? 0.1,

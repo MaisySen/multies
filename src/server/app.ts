@@ -11,6 +11,7 @@ import { healthView, noteD1LimitHit, readsView, writeBudget } from "./services/w
 import { deferredCounts } from "./services/write-priority";
 import { API_CSP, CAMPAIGN_PUBLIC_CSP, EMBED_FORM_PATH, PRIVATE_PAGE_PATH, appCsp, docsCsp, frameableCsp, isHttps, securityHeaders, snapShareCsp } from "./lib/security-headers";
 import { installCspReport } from "./routes/csp-report-r30";
+import { installMonitoringTunnel } from "./routes/monitoring-tunnel-pol3";
 import type { AppEnv, Deps } from "./context";
 import { HttpError } from "./lib/errors";
 import { clientIp, csrfGuard } from "./middleware";
@@ -287,6 +288,7 @@ export function createApp(deps: Deps) {
     if (!c.res.headers.has("cache-control")) c.header("cache-control", "no-store");
   });
   installCspReport(app); // R30: CSP violation reports, logged only; before the limiters so it writes nothing
+  installMonitoringTunnel(app); // POL3: same origin tunnel for browser error reports (own per isolate limits, lazy handler)
   installHttpCache(app); // R25 API speed: ETag and 304 for a few read only GETs (src/server/lib/http-cache.ts)
   // Rate limits (hono-rate-limiter; a Cloudflare binding when bound, else a shared counter).
   const ipKey = (c: { var: { ip: string } }) => c.var.ip;
