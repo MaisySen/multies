@@ -34,7 +34,7 @@ export function RouteError() {
     <div role="alert" className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-4 p-8 text-center">
       <h1 className="text-xl font-semibold">Something went wrong on this page</h1>
       <p className="text-sm opacity-70">Reload to try again. If it keeps happening, tell us at support.</p>
-      <button type="button" className="rounded-lg bg-[#0071E3] px-4 py-2 text-sm font-medium text-white" onClick={() => window.location.reload()}>Reload</button>
+      <button type="button" className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white" onClick={() => window.location.reload()}>Reload</button>
     </div>
   );
 }

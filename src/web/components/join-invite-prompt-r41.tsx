@@ -31,7 +31,7 @@ export function JoinInvitePrompt({ invite, onSkip }: { invite: Invite; onSkip: (
   return (
     <div className="grid min-h-dvh place-items-center bg-canvas p-5" data-testid="join-invite-prompt">
       <div className="w-full max-w-[420px] rounded-2xl border border-line bg-surface/90 p-7 shadow-pop backdrop-blur">
-        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-[#0071E3] to-[#5E5CE6] text-lg font-semibold text-white shadow-[0_6px_16px_-6px_rgb(0_113_227/0.6)]" aria-hidden>
+        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand to-[#5E5CE6] text-lg font-semibold text-white shadow-[0_6px_16px_-6px_rgb(0_113_227/0.6)]" aria-hidden>
           {(invite.organization.name.trim()[0] ?? "M").toUpperCase()}
         </div>
         <h1 className="mt-4 text-[24px] font-semibold leading-tight tracking-[-0.02em]">Join {invite.organization.name}</h1>

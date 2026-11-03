@@ -12,7 +12,7 @@ export interface HealthWrites {
 }
 
 const LEVEL: Record<HealthWrites["level"], { label: string; tone: string; bar: string; note: string }> = {
-  ok: { label: "Normal", tone: "text-emerald-700 dark:text-emerald-400", bar: "bg-[#0071E3]", note: "Every write goes through." },
+  ok: { label: "Normal", tone: "text-emerald-700 dark:text-emerald-400", bar: "bg-brand", note: "Every write goes through." },
   warn: { label: "Watch", tone: "text-amber-700 dark:text-amber-400", bar: "bg-amber-500", note: "Visits and last used times are written at most every 15 minutes. The alert mail has gone out." },
   shed: { label: "Saving writes", tone: "text-red-700 dark:text-red-400", bar: "bg-red-500", note: "Visits, read markers and last used times are skipped and new demos are paused. Mail, sign in and people's work keep writing." },
 };
@@ -46,7 +46,7 @@ export function WriteBudgetMeter() {
     <Card className="p-5" data-testid="write-budget">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#0071E3]/10 text-[#0071E3]"><IconDatabase className="h-4 w-4" aria-hidden="true" /></span>
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand/10 text-brand-hover"><IconDatabase className="h-4 w-4" aria-hidden="true" /></span>
           <div>
             <h2 className="text-sm font-semibold">D1 writes today</h2>
             <p className="text-xs text-muted">Production and staging share one daily budget. Resets at 00:00 UTC, in {untilReset(w.resetAt)}.</p>

@@ -204,7 +204,7 @@ function TaskRow({ task: t, unit, onOpen, menu, compact, win, select, drag, rowI
       onDragStart={drag ? (e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData(DRAG_TYPE, JSON.stringify(drag())); e.dataTransfer.setData("text/plain", t.ref ?? t.title); } : undefined}>
       {select && (
         <input type="checkbox" aria-label={`Select ${t.title}`} checked={select.checked} readOnly data-backlog-check=""
-          onClick={(e) => select.onToggle(e.shiftKey)} className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded accent-[#0071E3] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" />
+          onClick={(e) => select.onToggle(e.shiftKey)} className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded accent-[var(--color-brand)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" />
       )}
       {t.status === "done" ? <IconCheckCircle className="h-4 w-4 shrink-0 text-ok" aria-label="Done" /> : <IconCircle className="h-4 w-4 shrink-0 text-subtle" aria-hidden />}
       <span className={cn("shrink-0 text-[12px] tabular-nums text-subtle", compact ? "w-12" : "w-14")}>{t.ref}</span>
@@ -510,7 +510,7 @@ function CompleteDialog({ sprint, unfinished, next, onClose, onDone }: { sprint:
   };
   const opt = (v: "next" | "backlog", title: string, body: string) => (
     <label className={cn("flex cursor-pointer items-start gap-3 rounded-xl border p-3", to === v ? "border-brand bg-brand-soft" : "border-line hover:bg-hover")}>
-      <input type="radio" name="carry" className="mt-1 accent-[#0071E3]" checked={to === v} onChange={() => setTo(v)} />
+      <input type="radio" name="carry" className="mt-1 accent-[var(--color-brand)]" checked={to === v} onChange={() => setTo(v)} />
       <span><span className="block text-[13.5px] font-medium">{title}</span><span className="block text-[12.5px] text-muted">{body}</span></span>
     </label>
   );

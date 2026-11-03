@@ -67,7 +67,7 @@ function PickTime({ open, title, onClose, onPick }: { open: boolean; title: stri
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={() => { onPick(value); onClose(); }} disabled={!value}>Save</Button></>}>
       <label className="block text-[13px] text-muted">Date and time
         <input type="datetime-local" aria-label="Date and time" value={value} onChange={(e) => setValue(e.target.value)}
-          className="mt-1.5 h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-fg outline-none focus:border-[#0071E3]" />
+          className="mt-1.5 h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-fg outline-none focus:border-brand" />
       </label>
     </Dialog>
   );
@@ -142,7 +142,7 @@ export const REMIND_CHOICES = [0, 1, 2, 3, 5, 7, 14] as const;
 /** "Remind me if no reply" in Compose. 0 means off. */
 export function RemindSelect({ value, onChange }: { value: number; onChange: (n: number) => void }) {
   return (
-    <label className={cn("flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] hover:bg-hover max-sm:min-h-11 max-sm:min-w-0 max-sm:px-2", value ? "text-[#0071E3]" : "text-muted")} title="Bring this thread back if nobody replies">
+    <label className={cn("flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] hover:bg-hover max-sm:min-h-11 max-sm:min-w-0 max-sm:px-2", value ? "text-brand-hover" : "text-muted")} title="Bring this thread back if nobody replies">
       <IconBellRing className="h-3.5 w-3.5" aria-hidden />
       <Select bare value={value} onChange={(e) => onChange(Number(e.target.value))} className="cursor-pointer bg-transparent outline-none" aria-label="Remind me if no reply"
         phoneClassName="inline-flex min-h-11 min-w-0 max-w-[7.5rem] items-center truncate whitespace-nowrap bg-transparent text-left text-[13px]">
@@ -153,18 +153,18 @@ export function RemindSelect({ value, onChange }: { value: number; onChange: (n:
 }
 
 function Chip({ tone, children }: { tone: "brand" | "warn"; children: React.ReactNode }) {
-  return <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", tone === "brand" ? "bg-[#0071E3]/10 text-[#0071E3]" : "bg-amber-500/15 text-amber-700 dark:text-amber-400")}>{children}</span>;
+  return <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", tone === "brand" ? "bg-brand/10 text-brand-hover" : "bg-amber-500/15 text-amber-700 dark:text-amber-400")}>{children}</span>;
 }
 
 /** Snoozed threads and reminders that came back: on top of Inbox, marked, until opened. */
 export function ReturnedStrip({ items, onOpen }: { items: ScheduleItem[]; onOpen: (item: ScheduleItem) => void }) {
   if (!items.length) return null;
   return (
-    <ul aria-label="Back in your inbox" className="border-b border-line bg-[#0071E3]/[0.03]">
+    <ul aria-label="Back in your inbox" className="border-b border-line bg-brand/[0.03]">
       {items.map((it) => it.message && (
         <li key={it.id}>
           <button type="button" onClick={() => onOpen(it)} data-testid="returned-row" className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-hover">
-            {it.kind === "snooze" ? <IconSnooze className="h-4 w-4 shrink-0 text-[#0071E3]" aria-hidden /> : <IconBellRing className="h-4 w-4 shrink-0 text-amber-600" aria-hidden />}
+            {it.kind === "snooze" ? <IconSnooze className="h-4 w-4 shrink-0 text-brand-hover" aria-hidden /> : <IconBellRing className="h-4 w-4 shrink-0 text-amber-600" aria-hidden />}
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13.5px] font-medium">{it.message.subject || "(no subject)"}</span>
               <span className="block truncate text-[12.5px] text-muted">{it.message.from.name || it.message.from.address} · {it.message.snippet}</span>

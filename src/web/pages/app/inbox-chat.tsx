@@ -296,7 +296,7 @@ function Bubbles({ messages, pending, conversationId, onRetry }: { messages: Cha
       {pending.map((p) => (
         <li key={p.key} className="flex justify-end">
           <button type="button" disabled={!p.failed} onClick={() => onRetry(p)} data-testid="chat-bubble" data-direction="out" data-delivery={p.failed ? "failed" : "pending"}
-            className={cn("max-w-[80%] rounded-[18px] rounded-br-md px-3.5 py-2 text-left text-[15px] leading-snug text-white sm:max-w-[70%]", p.failed ? "bg-[#0071E3]/60 ring-1 ring-bad" : "bg-[#0071E3]/80")}>
+            className={cn("max-w-[80%] rounded-[18px] rounded-br-md px-3.5 py-2 text-left text-[15px] leading-snug text-white sm:max-w-[70%]", p.failed ? "bg-brand/60 ring-1 ring-bad" : "bg-brand/80")}>
             {p.file && <span className="mb-1 flex items-center gap-1.5 text-[13px]"><IconFile className="h-4 w-4" aria-hidden />{p.file.name}</span>}
             {p.text && <span className="whitespace-pre-wrap break-words">{p.text}</span>}
             <span className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-white/75">{p.failed ? "Not sent" : "Sending"}<Ticks m={{ delivery: p.failed ? "failed" : "pending" }} /></span>
@@ -317,10 +317,10 @@ function Bubble({ m, active, onToggle, conversationId }: { m: ChatMessage; activ
     <div className={cn("group flex items-end gap-1.5", out ? "flex-row-reverse" : "flex-row")}>
       <div onClick={onToggle} data-testid="chat-bubble" data-direction={m.direction} data-delivery={m.delivery}
         className={cn("max-w-[80%] rounded-[18px] px-3.5 py-2 text-[15px] leading-snug sm:max-w-[70%]",
-          out && draft ? "rounded-br-md border border-dashed border-[#0071E3]/60 bg-[#0071E3]/[0.06] text-fg"
-            : out ? "rounded-br-md bg-[#0071E3] text-white" : "rounded-bl-md bg-fill text-fg",
+          out && draft ? "rounded-br-md border border-dashed border-brand/60 bg-brand/[0.06] text-fg"
+            : out ? "rounded-br-md bg-brand text-white" : "rounded-bl-md bg-fill text-fg",
           failed && "bg-bad-soft text-fg ring-1 ring-bad/40")}>
-        {draft && <span className="mb-1 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-[#0071E3]" data-testid="draft-label"><IconAgent className="h-3.5 w-3.5" aria-hidden />Draft by {m.agent?.name ?? "an agent"}</span>}
+        {draft && <span className="mb-1 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-brand-hover" data-testid="draft-label"><IconAgent className="h-3.5 w-3.5" aria-hidden />Draft by {m.agent?.name ?? "an agent"}</span>}
         {m.templateName && <span className={cn("mb-1 block text-[11px] font-medium uppercase tracking-wide", out && !failed && !draft ? "text-white/75" : "text-subtle")}>Template · {m.templateName}</span>}
         {isImage && (
           <a href={m.media!.url!} target="_blank" rel="noreferrer" className="-mx-1.5 -mt-0.5 mb-1 block overflow-hidden rounded-[12px]" onClick={(e) => e.stopPropagation()}>
@@ -455,7 +455,7 @@ function Composer({ onSend }: { onSend: (body: Pending["body"], file: Pending["f
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void submit(); } }}
           className="max-h-40 min-h-11 flex-1 resize-none rounded-[22px] py-2.5 text-[15px] leading-snug" />
         <button type="button" onClick={() => void submit()} disabled={!text.trim() && !file} aria-label="Send"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#0071E3] text-white transition-[transform,opacity] duration-150 active:scale-95 disabled:opacity-35"><IconSend className="h-5 w-5" /></button>
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand text-white transition-[transform,opacity] duration-150 active:scale-95 disabled:opacity-35"><IconSend className="h-5 w-5" /></button>
       </div>
     </div>
   );

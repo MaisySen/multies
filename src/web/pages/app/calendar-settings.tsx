@@ -78,7 +78,7 @@ function FeedSection() {
                 )}
               </Field>
               <div className="flex flex-wrap gap-2">
-                <a className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#0071E3] px-3 text-[13px] font-medium text-white hover:opacity-90" href={fresh?.webcalUrl}><IconCalendarDays className="size-4" />Open in Apple Calendar</a>
+                <a className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[13px] font-medium text-white hover:opacity-90" href={fresh?.webcalUrl}><IconCalendarDays className="size-4" />Open in Apple Calendar</a>
                 <a className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-fill px-3 text-[13px] text-fg hover:bg-hover" href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(fresh?.webcalUrl ?? url)}`} target="_blank" rel="noreferrer">Add to Google Calendar</a>
               </div>
               <p className="text-[12.5px] text-muted">Copy it now: for your safety Multies shows it only once. Lost it? Reset below for a new one.</p>

@@ -174,7 +174,7 @@ function BatchDialog({ info, files, onClose }: { info: ToolsInfo; files: BatchAt
                     return (
                       <li key={f.id}>
                         <label className={`flex items-center gap-3 px-3 py-2 text-sm max-sm:min-h-11 ${takes ? "" : "opacity-50"}`}>
-                          <input type="checkbox" className="h-4 w-4 accent-[#0071E3]" disabled={!takes} checked={takes && !skip.has(f.id)}
+                          <input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" disabled={!takes} checked={takes && !skip.has(f.id)}
                             onChange={() => setSkip((cur) => { const n = new Set(cur); if (n.has(f.id)) n.delete(f.id); else n.add(f.id); return n; })} />
                           <IconFile className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
                           <span className="min-w-0 flex-1 truncate">{f.filename}</span>

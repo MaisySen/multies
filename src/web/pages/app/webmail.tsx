@@ -770,7 +770,7 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
       </div>
       {/* R48 mobile: the reply bar sits under the thumb on a phone, like a native mail app; 44 px targets, one row at 360. */}
       <div data-testid="thread-reply-bar" className="hidden shrink-0 items-stretch gap-2 border-t border-line bg-elevated/95 px-3 py-2 backdrop-blur max-sm:flex">
-        <button type="button" onClick={() => reply(false)} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-[#0071E3] text-[15px] font-medium text-white transition-colors duration-150 active:bg-[#0062c4]"><IconReply className="h-[18px] w-[18px]" aria-hidden />Reply</button>
+        <button type="button" onClick={() => reply(false)} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-brand text-[15px] font-medium text-white transition-colors duration-150 active:bg-[#0062c4]"><IconReply className="h-[18px] w-[18px]" aria-hidden />Reply</button>
         {(last.to.length + last.cc.length > 1) && <button type="button" onClick={() => reply(true)} className="flex h-11 items-center justify-center rounded-full border border-line-strong px-4 text-[15px] font-medium text-fg transition-colors duration-150 active:bg-hover">Reply all</button>}
         <button type="button" onClick={forward} aria-label="Forward" className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line-strong text-fg transition-colors duration-150 active:bg-hover"><IconForward className="h-[18px] w-[18px]" aria-hidden /></button>
         {/* R50 (MB-238): make a task, or open the thread's task, without scrolling back up. */}

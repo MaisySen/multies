@@ -75,7 +75,7 @@ export function ProviderFolderNav({ connectionId, current, onPick }: { connectio
             {own.map((f) => (
               <li key={f.key}>
                 <label className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-[13px] hover:bg-hover">
-                  <input type="checkbox" className="h-4 w-4 accent-[#0071E3]" checked={pending[f.path] ?? f.synced}
+                  <input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={pending[f.path] ?? f.synced}
                     onChange={(e) => setSync(f.path, e.target.checked)} />
                   <span className="truncate">{f.path}</span>
                 </label>

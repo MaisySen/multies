@@ -62,7 +62,7 @@ export function EpicProgressBar({ progress, className }: { progress: EpicProgres
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-fill" role="progressbar" aria-label="Epic progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.percent}>
-        <div className="h-full rounded-full bg-[#0071E3] transition-[width]" style={{ width: `${progress.percent}%` }} />
+        <div className="h-full rounded-full bg-brand transition-[width]" style={{ width: `${progress.percent}%` }} />
       </div>
       <span className="shrink-0 text-[12px] tabular-nums text-muted" data-testid="epic-progress">{progress.done} of {progress.total} done, {progress.percent}%</span>
     </div>

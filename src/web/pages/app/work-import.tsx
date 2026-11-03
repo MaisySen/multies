@@ -109,7 +109,7 @@ export function WorkToolsImport() {
             onDrop={(e) => { e.preventDefault(); setOver(false); void pick(e.dataTransfer.files?.[0]); }}
             className={"group grid cursor-pointer place-items-center rounded-xl border-[1.5px] border-dashed px-6 py-8 text-center transition-[background-color,border-color,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 motion-reduce:transition-none " + (over ? "scale-[1.01] border-brand bg-brand-soft" : "border-line-strong bg-fill/40 hover:border-brand/60 hover:bg-brand-soft/40")}
           >
-            <span className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-surface text-[#0071E3] shadow-[0_0_0_0.5px_rgb(0_0_0/0.06),0_2px_6px_rgb(0_0_0/0.08)] [&_svg]:h-5 [&_svg]:w-5" aria-hidden><IconFileUp /></span>
+            <span className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-surface text-brand-hover shadow-[0_0_0_0.5px_rgb(0_0_0/0.06),0_2px_6px_rgb(0_0_0/0.08)] [&_svg]:h-5 [&_svg]:w-5" aria-hidden><IconFileUp /></span>
             <p className="text-[14px] font-semibold">Drop an export file here, or choose one</p>
             <p className="mt-1 text-[12.5px] text-muted">CSV, JSON or Excel. Running it again only adds what is new.</p>
             <ol className="mt-4 flex flex-wrap justify-center gap-2 text-[12px] text-muted">

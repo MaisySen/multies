@@ -77,7 +77,7 @@ export function InvitePage() {
 
   return (
     <div className={card}>
-      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-[#0071E3] to-[#5E5CE6] text-lg font-semibold text-white shadow-[0_6px_16px_-6px_rgb(0_113_227/0.6)]" aria-hidden>{workspaceInitial(inv.organization.name)}</div>
+      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand to-[#5E5CE6] text-lg font-semibold text-white shadow-[0_6px_16px_-6px_rgb(0_113_227/0.6)]" aria-hidden>{workspaceInitial(inv.organization.name)}</div>
       <h1 className="mt-4 text-[24px] font-semibold leading-tight tracking-[-0.02em]">Join {inv.organization.name}</h1>
       <p className="mt-1 text-sm text-muted">{inv.invitedBy ? `${inv.invitedBy} invited you to work together in Multies.` : "You've been invited to work together in Multies."}</p>
       <ul className="mt-5 divide-y divide-line rounded-xl border border-line bg-elevated/60 text-[13px]">

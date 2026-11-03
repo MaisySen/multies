@@ -160,7 +160,7 @@ export function WorkloadView({ projectId, onOpen }: { projectId?: string; onOpen
                 <th className="w-48 px-3 py-2 font-medium">Person</th>
                 {cols.map((c) => (
                   <th key={c} className="px-2 py-2 font-medium" data-week={c}>
-                    {c === OVERDUE ? <span className="text-bad">Overdue</span> : <>Week of {weekLabel(c)}{c === mondayOf(new Date()) && <span className="ml-1.5 rounded bg-[#0071E3]/10 px-1.5 py-0.5 text-[11px] text-[#0071E3]">This week</span>}</>}
+                    {c === OVERDUE ? <span className="text-bad">Overdue</span> : <>Week of {weekLabel(c)}{c === mondayOf(new Date()) && <span className="ml-1.5 rounded bg-brand/10 px-1.5 py-0.5 text-[11px] text-brand-hover">This week</span>}</>}
                   </th>
                 ))}
               </tr>
@@ -175,7 +175,7 @@ export function WorkloadView({ projectId, onOpen }: { projectId?: string; onOpen
                       <button className="flex w-full items-center gap-2 text-left" aria-expanded={open} onClick={() => setCollapsed((s) => ({ ...s, [pk]: open }))}>
                         {p.id === null
                           ? <span className="grid h-7 w-7 place-items-center rounded-full bg-fill text-muted"><IconUserRound className="h-3.5 w-3.5" /></span>
-                          : p.isAgent ? <span className="grid h-7 w-7 place-items-center rounded-full bg-[#0071E3]/10 text-[#0071E3]"><IconAgent className="h-3.5 w-3.5" /></span>
+                          : p.isAgent ? <span className="grid h-7 w-7 place-items-center rounded-full bg-brand/10 text-brand-hover"><IconAgent className="h-3.5 w-3.5" /></span>
                           : <Avatar label={initials(p.name)} className="h-7 w-7 text-[10.5px]" />}
                         <span className="min-w-0 flex-1 truncate font-medium">{p.name}</span>
                         <IconChevronDown className={cn("h-3.5 w-3.5 text-subtle transition-transform", !open && "-rotate-90")} />
@@ -209,7 +209,7 @@ function Cell({ person, col, cell, capacity, unit, overdue, open, people, cols, 
   const pct = Math.min(100, capacity ? (cell.load / capacity) * 100 : 0);
   const color = cell.over ? "#E5484D" : cell.near ? "#F5A524" : "#0071E3";
   return (
-    <td ref={setNodeRef} data-cell={`${person}|${col}`} className={cn("px-2 py-2.5 transition-colors", isOver && "bg-[#0071E3]/5")}>
+    <td ref={setNodeRef} data-cell={`${person}|${col}`} className={cn("px-2 py-2.5 transition-colors", isOver && "bg-brand/5")}>
       {!overdue && (
         <div className="mb-1.5" title={`${fmtLoad(cell.load)} of ${capacity} ${unit}`}>
           <div className="flex items-baseline justify-between text-[11.5px] text-muted">
@@ -271,7 +271,7 @@ function CapacityEditor({ person, unit, fallback, editable }: { person: Workload
   const label = `${fmtLoad(value)} ${short} a week${person.capacitySource === "default" ? " (default)" : ""}`;
   if (!editing) {
     return editable
-      ? <button data-testid="capacity" className="mt-1 ml-9 inline-flex items-center gap-1 rounded text-[11.5px] text-muted hover:text-[#0071E3]" aria-label={`Weekly capacity for ${person.name}: ${label}. Change`}
+      ? <button data-testid="capacity" className="mt-1 ml-9 inline-flex items-center gap-1 rounded text-[11.5px] text-muted hover:text-brand-hover" aria-label={`Weekly capacity for ${person.name}: ${label}. Change`}
           onClick={() => { setDraft(String(value)); setEditing(true); }}><IconGauge className="h-3 w-3" />{label}</button>
       : <span data-testid="capacity" className="mt-1 ml-9 inline-flex items-center gap-1 text-[11.5px] text-subtle"><IconGauge className="h-3 w-3" />{label}</span>;
   }
@@ -281,9 +281,9 @@ function CapacityEditor({ person, unit, fallback, editable }: { person: Workload
     <form className="mt-1 ml-9 flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); if (valid) save.mutate(n); }}>
       <input autoFocus inputMode="decimal" aria-label={`Weekly capacity in ${unit}`} value={draft} onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }}
-        className="h-6 w-14 rounded-md border border-line bg-surface px-1.5 text-[12px] outline-none focus:border-[#0071E3]" />
+        className="h-6 w-14 rounded-md border border-line bg-surface px-1.5 text-[12px] outline-none focus:border-brand" />
       <span className="text-[11.5px] text-muted">{short}</span>
-      <button type="submit" disabled={!valid || save.isPending} aria-label="Save capacity" className="grid h-6 w-6 place-items-center rounded-md text-[#0071E3] hover:bg-fill disabled:opacity-40"><IconCheck className="h-3.5 w-3.5" /></button>
+      <button type="submit" disabled={!valid || save.isPending} aria-label="Save capacity" className="grid h-6 w-6 place-items-center rounded-md text-brand-hover hover:bg-fill disabled:opacity-40"><IconCheck className="h-3.5 w-3.5" /></button>
       <button type="button" aria-label="Cancel" onClick={() => setEditing(false)} className="grid h-6 w-6 place-items-center rounded-md text-muted hover:bg-fill"><IconClose className="h-3.5 w-3.5" /></button>
       {person.capacitySource === "stored" && <button type="button" className="text-[11px] text-muted hover:text-fg" onClick={() => save.mutate(null)}>Use default</button>}
     </form>

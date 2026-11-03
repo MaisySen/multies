@@ -226,7 +226,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
           {/* R48 mobile: Send sits top right on a phone, the way native mail apps put it, so the foot row stays one line. */}
           {!minimized && <button type="button" data-testid="compose-send-phone" disabled={!d.to.trim() || !!unverified} onClick={() => send()} aria-label="Send"
             className="ml-1 hidden h-11 w-11 place-items-center rounded-full transition-opacity duration-150 disabled:opacity-40 max-sm:grid">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-[#0071E3] text-white"><IconSend className="h-[18px] w-[18px]" aria-hidden /></span>
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-brand text-white"><IconSend className="h-[18px] w-[18px]" aria-hidden /></span>
           </button>}
         </div>
       </div>
@@ -256,10 +256,10 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
           <Row label="Subject"><input ref={subjectRef} value={d.subject} onChange={set("subject")} className="h-9 w-full bg-transparent text-sm font-medium outline-none" aria-label="Subject" /></Row>
           <textarea ref={bodyRef} value={d.text} onChange={set("text")} onKeyDown={snippetKeys} aria-label="Message" spellCheck={spell.on} lang={spell.lang} className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 text-[14.5px] leading-relaxed outline-none placeholder:text-subtle" placeholder="Write your message…" />
           {askedSubject && !d.subject.trim() && (
-            <div role="status" data-testid="subject-prompt" className="flex shrink-0 flex-wrap items-center gap-2 border-t border-line bg-[#0071E3]/[0.06] px-4 py-2 text-[13px]">
-              <IconInfo className="h-4 w-4 shrink-0 text-[#0071E3]" aria-hidden />
+            <div role="status" data-testid="subject-prompt" className="flex shrink-0 flex-wrap items-center gap-2 border-t border-line bg-brand/[0.06] px-4 py-2 text-[13px]">
+              <IconInfo className="h-4 w-4 shrink-0 text-brand-hover" aria-hidden />
               <span className="min-w-0 flex-1">{SUBJECT_PROMPT}</span>
-              <button type="button" className="rounded-md px-2 py-1 font-medium text-[#0071E3] hover:bg-hover" onClick={() => subjectRef.current?.focus()}>Add subject</button>
+              <button type="button" className="rounded-md px-2 py-1 font-medium text-brand-hover hover:bg-hover" onClick={() => subjectRef.current?.focus()}>Add subject</button>
               <button type="button" className="rounded-md px-2 py-1 text-muted hover:bg-hover hover:text-fg" onClick={() => send(true)}>Send anyway</button>
             </div>
           )}

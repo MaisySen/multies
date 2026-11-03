@@ -128,7 +128,7 @@ export function AutoRedactPanel({ tool, fromMail, file, disabled, onUsage, onDon
             <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
               {PII_KINDS.map((k) => (
                 <label key={k.kind} className="flex items-center gap-2 text-sm max-sm:min-h-11">
-                  <input type="checkbox" className="h-4 w-4 accent-[#0071E3]" checked={kinds.has(k.kind)} disabled={busy}
+                  <input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={kinds.has(k.kind)} disabled={busy}
                     onChange={(e) => setKinds((cur) => { const n = new Set(cur); if (e.target.checked) n.add(k.kind); else n.delete(k.kind); return n; })} data-testid={`autoredact-kind-${k.kind}`} />
                   {k.label}
                 </label>
@@ -169,7 +169,7 @@ export function AutoRedactPanel({ tool, fromMail, file, disabled, onUsage, onDon
               return (
                 <Card key={g.kind} className="overflow-hidden p-0" data-testid={`autoredact-group-${g.kind}`}>
                   <label className="flex items-center gap-3 border-b border-line bg-surface px-3 py-2 text-sm font-medium max-sm:min-h-11">
-                    <input type="checkbox" className="h-4 w-4 accent-[#0071E3]" checked={on === keys.length} disabled={busy}
+                    <input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={on === keys.length} disabled={busy}
                       ref={(el) => { if (el) el.indeterminate = on > 0 && on < keys.length; }} onChange={(e) => toggleGroup(keys, e.target.checked)} aria-label={`All ${g.label.toLowerCase()}`} />
                     <span className="flex-1">{g.label}</span>
                     <span className="text-[12.5px] font-normal text-muted tabular-nums">{on} of {keys.length}</span>
@@ -178,7 +178,7 @@ export function AutoRedactPanel({ tool, fromMail, file, disabled, onUsage, onDon
                     {g.items.map((m) => (
                       <li key={m.key}>
                         <label className="flex items-center gap-3 px-3 py-2 text-sm max-sm:min-h-11">
-                          <input type="checkbox" className="h-4 w-4 accent-[#0071E3]" checked={ticked.has(m.key)} disabled={busy} onChange={() => toggle(m.key)} />
+                          <input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={ticked.has(m.key)} disabled={busy} onChange={() => toggle(m.key)} />
                           <span className="min-w-0 flex-1 truncate font-mono text-[13px]">{reveal ? m.text : mask(m.text)}</span>
                           {m.page > 0 && <span className="shrink-0 text-[12.5px] text-muted">Page {m.page}</span>}
                         </label>

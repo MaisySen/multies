@@ -64,7 +64,7 @@ export function ProviderButton({ logo, loading, className, children, disabled, t
       className={cn(
         "mm-provider-btn relative inline-flex h-10 w-full items-center justify-center gap-2.5 whitespace-nowrap rounded-lg px-3 text-sm font-medium",
         "transition-[background-color,box-shadow,opacity] duration-150 ease-out select-none max-sm:min-h-11",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0071E3]/50 disabled:pointer-events-none disabled:opacity-40",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 disabled:pointer-events-none disabled:opacity-40",
         className,
       )}
       {...rest}

@@ -68,7 +68,7 @@ export function OtherCalendarsBar({ layer }: { layer: ReturnType<typeof useOther
           </button>
         );
       })}
-      <Link to="/app/settings/calendar#other-calendars" className="inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[#0071E3] hover:bg-hover">
+      <Link to="/app/settings/calendar#other-calendars" className="inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-brand-hover hover:bg-hover">
         <IconCalendarPlus className="size-3.5" />Connect a calendar
       </Link>
       {layer.errors.map((e) => <span key={e.name} className="text-[12px] text-[#C93400]">{e.name}: {e.message}</span>)}

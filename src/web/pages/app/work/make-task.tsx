@@ -89,7 +89,7 @@ export function MakeTaskBarButton({ messageId, threadId }: { messageId: string; 
       onClick={() => (existing ? open(existing.id) : void make())}
       aria-label={existing ? `Open task ${existing.ref}` : "Make a task"}
       className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line-strong text-fg transition-colors duration-150 active:bg-hover disabled:opacity-50">
-      {existing ? <IconTasks className="h-[18px] w-[18px] text-[#0071E3]" aria-hidden /> : <IconListPlus className="h-[18px] w-[18px]" aria-hidden />}
+      {existing ? <IconTasks className="h-[18px] w-[18px] text-brand-hover" aria-hidden /> : <IconListPlus className="h-[18px] w-[18px]" aria-hidden />}
     </button>
   );
 }

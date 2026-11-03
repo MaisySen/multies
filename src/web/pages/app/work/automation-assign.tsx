@@ -50,7 +50,7 @@ export function AssignThreadFields({ config, onChange }: { config: Cfg; onChange
         {([["person", "One person", IconUserRound], ["round_robin", "Round robin", IconRepeat]] as const).map(([k, label, Icon]) => (
           <button key={k} type="button" role="radio" aria-checked={mode === k}
             onClick={() => onChange(k === "person" ? { mode: "person" } : { mode: "round_robin", userIds: [] })}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 ${mode === k ? "bg-[#0071E3] text-white" : "text-muted hover:text-ink"}`}>
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 ${mode === k ? "bg-brand text-white" : "text-muted hover:text-ink"}`}>
             <Icon className="h-3.5 w-3.5" />{label}
           </button>
         ))}
@@ -69,7 +69,7 @@ export function AssignThreadFields({ config, onChange }: { config: Cfg; onChange
             {members.map((m) => (
               <li key={m.id}>
                 <label className="flex items-center gap-2 text-[13px]">
-                  <input type="checkbox" className="h-4 w-4 accent-[#0071E3]" checked={picked.includes(m.id)} onChange={(e) => toggle(m.id, e.target.checked)} />
+                  <input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={picked.includes(m.id)} onChange={(e) => toggle(m.id, e.target.checked)} />
                   {m.name}
                   {picked.includes(m.id) && <span className="ml-auto text-[12px] tabular-nums text-subtle">{picked.indexOf(m.id) + 1}</span>}
                 </label>

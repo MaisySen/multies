@@ -428,7 +428,7 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
           <thead className="text-left text-[12px] text-subtle">
             <tr>
               <th className="sticky top-0 z-20 w-9 border-b border-line bg-surface/95 px-3 py-2 backdrop-blur">
-                <input type="checkbox" aria-label="Select all tasks" checked={allPicked} onChange={() => setSelected(allPicked ? new Set() : new Set(rows.map((t) => t.id)))} className="h-3.5 w-3.5 accent-[#0071E3]" />
+                <input type="checkbox" aria-label="Select all tasks" checked={allPicked} onChange={() => setSelected(allPicked ? new Set() : new Set(rows.map((t) => t.id)))} className="h-3.5 w-3.5 accent-[var(--color-brand)]" />
               </th>
               {columns.map((col) => (
                 <th key={col.id} className={cn("sticky top-0 z-20 border-b border-line bg-surface/95 px-3 py-2 font-medium backdrop-blur", col.width, col.hideOnPhone && "hidden md:table-cell")}
@@ -460,7 +460,7 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
                   <td className="relative border-b border-line px-3 py-2">
                     {edge}
                     <input type="checkbox" aria-label={`Select ${t.title}`} checked={isPicked} readOnly
-                      onClick={(e) => { e.stopPropagation(); toggleRow(r, e.shiftKey); }} className="h-3.5 w-3.5 accent-[#0071E3]" />
+                      onClick={(e) => { e.stopPropagation(); toggleRow(r, e.shiftKey); }} className="h-3.5 w-3.5 accent-[var(--color-brand)]" />
                   </td>
                   {columns.map((col, c) => {
                     const isFocus = focus?.r === r && focus.c === c;

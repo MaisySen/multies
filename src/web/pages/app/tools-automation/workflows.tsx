@@ -42,7 +42,7 @@ function StepsEditor({ steps, onChange }: { steps: WorkflowStep[]; onChange: (s:
     <ol className="space-y-2" data-testid="workflow-steps">
       {steps.map((s, i) => (
         <li key={i} className="flex flex-wrap items-center gap-2 rounded-lg border border-line p-2">
-          <span className="grid h-6 w-6 place-items-center rounded-full bg-[#0071E3]/10 text-[12px] font-semibold text-[#0071E3]">{i + 1}</span>
+          <span className="grid h-6 w-6 place-items-center rounded-full bg-brand/10 text-[12px] font-semibold text-brand-hover">{i + 1}</span>
           <Select value={s.op} onChange={(e) => set(i, { op: e.target.value as WorkflowOp, options: {} })} aria-label={`Step ${i + 1}`} className="w-56">
             {WORKFLOW_OPS.map((op) => <option key={op} value={op}>{WORKFLOW_OP_LABELS[op]}</option>)}
           </Select>
@@ -127,7 +127,7 @@ export function WorkflowsPage() {
   return (
     <AutoPage entryKey="workflows" title="Workflows" description="Chain tools into one step, for example clean up a scan, make it searchable, then compress it. Everyone in the workspace can use saved workflows."
       actions={<Button onClick={() => setEdit({ name: "", steps: [{ op: "ocr", options: {} }, { op: "compress", options: {} }], finish: "download" })}>New workflow</Button>}>
-      {attachment && <p className="rounded-lg bg-[#0071E3]/[0.06] px-3 py-2 text-sm">Pick a workflow to run on {attachment.name}.</p>}
+      {attachment && <p className="rounded-lg bg-brand/[0.06] px-3 py-2 text-sm">Pick a workflow to run on {attachment.name}.</p>}
       {running && <Runner wf={running} attachment={attachment} onClose={() => setRunning(null)} />}
       {edit && (
         <Card className="space-y-4 p-4" data-testid="workflow-builder">

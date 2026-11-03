@@ -20,7 +20,7 @@ export function ShareSignCards() {
   const card = "flex items-center gap-3 rounded-xl border border-line bg-elevated px-4 py-3 text-sm hover:border-line-strong hover:bg-hover/40";
   return (
     <div className="grid gap-3 sm:grid-cols-2" data-testid="share-sign-cards">
-      {share && <Link to="/app/tools/share" className={card}><span className="grid h-9 w-9 place-items-center rounded-lg bg-[#0071E3] text-white"><IconLink className="h-4 w-4" /></span><span><span className="block font-medium">Share links</span><span className="text-muted">Send a big file as a link with expiry and password</span></span></Link>}
+      {share && <Link to="/app/tools/share" className={card}><span className="grid h-9 w-9 place-items-center rounded-lg bg-brand text-white"><IconLink className="h-4 w-4" /></span><span><span className="block font-medium">Share links</span><span className="text-muted">Send a big file as a link with expiry and password</span></span></Link>}
       {sign && <Link to="/app/tools/sign" className={card}><span className="grid h-9 w-9 place-items-center rounded-lg bg-[#AF52DE] text-white"><IconPenLine className="h-4 w-4" /></span><span><span className="block font-medium">E-sign</span><span className="text-muted">Sign a PDF or ask others to sign it</span></span></Link>}
     </div>
   );

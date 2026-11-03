@@ -257,7 +257,7 @@ function ImportWizard({ source, onClose }: { source: Source; onClose: () => void
               onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
               onDrop={(e) => { e.preventDefault(); setOver(false); void pick(e.dataTransfer.files?.[0]); }}
               className={"grid cursor-pointer place-items-center rounded-xl border-[1.5px] border-dashed px-6 py-8 text-center transition-[background-color,border-color,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 motion-reduce:transition-none " + (over ? "scale-[1.01] border-brand bg-brand-soft" : "border-line-strong bg-fill/40 hover:border-brand/60 hover:bg-brand-soft/40")}>
-              {preview.isPending ? <ProgressRing value={null} size={44} label="Reading the file" /> : <span className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-surface text-[#0071E3] shadow-[0_0_0_0.5px_rgb(0_0_0/0.06),0_2px_6px_rgb(0_0_0/0.08)] [&_svg]:h-5 [&_svg]:w-5" aria-hidden><IconFileUp /></span>}
+              {preview.isPending ? <ProgressRing value={null} size={44} label="Reading the file" /> : <span className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-surface text-brand-hover shadow-[0_0_0_0.5px_rgb(0_0_0/0.06),0_2px_6px_rgb(0_0_0/0.08)] [&_svg]:h-5 [&_svg]:w-5" aria-hidden><IconFileUp /></span>}
               <p className="mt-2 text-[14px] font-semibold">{file ? file.name : "Drop the file here, or choose one"}</p>
               <p className="mt-1 text-[12.5px] text-muted">Up to 6 MB. Running it again only adds what is new.</p>
             </div>
@@ -457,7 +457,7 @@ function ExportCard() {
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2">
         {INCLUDED.map((i) => (
           <li key={i.label} className="flex items-center gap-2.5 rounded-xl border border-line bg-fill/30 px-3 py-2">
-            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-surface text-[#0071E3] shadow-[0_0_0_0.5px_rgb(0_0_0/0.06)] [&_svg]:h-4 [&_svg]:w-4" aria-hidden>{i.icon}</span>
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-surface text-brand-hover shadow-[0_0_0_0.5px_rgb(0_0_0/0.06)] [&_svg]:h-4 [&_svg]:w-4" aria-hidden>{i.icon}</span>
             <span className="min-w-0"><span className="block truncate text-[13px] font-medium">{i.label}</span><span className="block text-[11.5px] text-muted">{i.fmt}</span></span>
           </li>
         ))}

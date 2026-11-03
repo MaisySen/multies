@@ -250,7 +250,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
       contentClassName="fixed left-1/2 top-[12vh] z-[100] flex w-[min(640px,calc(100vw-24px))] -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-line-strong bg-surface/95 shadow-pop backdrop-blur-xl backdrop-saturate-150 animate-pop-in motion-reduce:animate-none max-sm:inset-0 max-sm:top-0 max-sm:h-dvh max-sm:w-full max-sm:translate-x-0 max-sm:left-0 max-sm:rounded-none max-sm:border-0 max-sm:pt-[env(safe-area-inset-top)] max-sm:animate-sheet-up">
       {picker && (
         <div className="flex items-center gap-1.5 border-b border-line px-3.5 pt-2.5 pb-2 text-[12px] text-subtle">
-          <button type="button" onClick={() => onPage(null)} aria-label="Back" className="grid h-6 w-6 place-items-center rounded hover:bg-hover max-sm:h-9 max-sm:w-9 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0071E3]"><IconBack className="h-3.5 w-3.5" /></button>
+          <button type="button" onClick={() => onPage(null)} aria-label="Back" className="grid h-6 w-6 place-items-center rounded hover:bg-hover max-sm:h-9 max-sm:w-9 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"><IconBack className="h-3.5 w-3.5" /></button>
           <span className="min-w-0 truncate" data-testid="palette-crumb">{taskTitle}</span>
         </div>
       )}

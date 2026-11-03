@@ -83,7 +83,7 @@ export function SavedRepliesButton({ draft, bodyRef, onApply }: { draft: DraftLi
   return (
     <div ref={wrap} className="relative">
       <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="listbox" aria-label="Saved replies" title="Saved replies"
-        className={cn("flex items-center rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:justify-center max-sm:rounded-full", open && "bg-[#0071E3]/10 text-[#0071E3]")}>
+        className={cn("flex items-center rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:justify-center max-sm:rounded-full", open && "bg-brand/10 text-brand-hover")}>
         <IconChatQuote className="h-4 w-4 max-sm:h-5 max-sm:w-5" aria-hidden />
       </button>
       {open && (
@@ -110,7 +110,7 @@ export function SavedRepliesButton({ draft, bodyRef, onApply }: { draft: DraftLi
             {items.map((s, i) => (
               <li key={s.id} role="option" aria-selected={i === active}>
                 <button type="button" onMouseEnter={() => setActive(i)} onClick={() => void pick(s)} disabled={busy}
-                  className={cn("flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left", i === active && "bg-[#0071E3]/[0.08]")}>
+                  className={cn("flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left", i === active && "bg-brand/[0.08]")}>
                   <span className="flex w-full items-center gap-2 text-[13px] font-medium">
                     <span className="truncate">{s.name}</span>
                     {s.shortcut && <span className="shrink-0 rounded bg-fill px-1.5 py-px font-mono text-[11px] text-muted">/{s.shortcut}</span>}
@@ -123,7 +123,7 @@ export function SavedRepliesButton({ draft, bodyRef, onApply }: { draft: DraftLi
           </ul>
           <div className="flex items-center justify-between border-t border-line px-3 py-2 text-[12px]">
             <span className="text-subtle">Type /shortcut then Tab</span>
-            <Link to="/app/settings#saved-replies" className="flex items-center gap-1 font-medium text-[#0071E3] hover:underline"><IconSettings2 className="h-3.5 w-3.5" aria-hidden />Manage</Link>
+            <Link to="/app/settings#saved-replies" className="flex items-center gap-1 font-medium text-brand-hover hover:underline"><IconSettings2 className="h-3.5 w-3.5" aria-hidden />Manage</Link>
           </div>
         </div>
       )}
@@ -200,7 +200,7 @@ export function SavedRepliesSection({ Section }: { Section: (p: { id?: string; t
           <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
             {items.map((s) => (
               <li key={s.id} className="flex items-start gap-3 px-4 py-3" data-testid="saved-reply-row">
-                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#0071E3]/10 text-[#0071E3]"><IconChatQuote className="h-3.5 w-3.5" aria-hidden /></span>
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand-hover"><IconChatQuote className="h-3.5 w-3.5" aria-hidden /></span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
                     <span className="truncate">{s.name}</span>
@@ -237,11 +237,11 @@ export function SavedRepliesSection({ Section }: { Section: (p: { id?: string; t
               <Field label="Reply">{(p) => <Textarea {...p} ref={bodyRef} rows={7} value={form.body} maxLength={SNIPPET_BODY_MAX} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder={"Hi {{first_name}},\n\nThanks for getting in touch."} />}</Field>
               <div className="flex flex-wrap gap-1">
                 {SNIPPET_VARIABLES.map((v) => (
-                  <button key={v} type="button" title={SNIPPET_VARIABLE_HELP[v]} onClick={() => addVar(v)} className="rounded-md border border-line px-1.5 py-0.5 font-mono text-[11px] text-muted hover:border-[#0071E3] hover:text-[#0071E3]">{`{{${v}}}`}</button>
+                  <button key={v} type="button" title={SNIPPET_VARIABLE_HELP[v]} onClick={() => addVar(v)} className="rounded-md border border-line px-1.5 py-0.5 font-mono text-[11px] text-muted hover:border-brand hover:text-brand-hover">{`{{${v}}}`}</button>
                 ))}
               </div>
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={form.shared} onChange={(e) => setForm({ ...form, shared: e.target.checked })} className="h-4 w-4 accent-[#0071E3]" />
+                <input type="checkbox" checked={form.shared} onChange={(e) => setForm({ ...form, shared: e.target.checked })} className="h-4 w-4 accent-[var(--color-brand)]" />
                 Share with the team
               </label>
             </div>

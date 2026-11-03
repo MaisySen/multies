@@ -173,7 +173,7 @@ function DocumentTemplates({ switcher }: { switcher?: React.ReactNode } = {}) {
             <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Document templates">
               {q.data!.templates.map((x) => (
                 <button key={x.id} role="tab" aria-selected={x.id === t.id} onClick={() => setId(x.id)}
-                  className={cn("rounded-full border px-3 py-1 text-[13px]", x.id === t.id ? "border-[#0071E3] bg-[#0071E3]/10 text-[#0071E3]" : "border-line text-muted hover:text-fg")}>{x.name}</button>
+                  className={cn("rounded-full border px-3 py-1 text-[13px]", x.id === t.id ? "border-brand bg-brand/10 text-brand-hover" : "border-line text-muted hover:text-fg")}>{x.name}</button>
               ))}
             </div>
             {t.kind !== "letter" && t.fields.some((f) => f.type === "lines") && (

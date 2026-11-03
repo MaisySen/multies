@@ -133,7 +133,7 @@ export function AttachmentChips({ c }: { c: ReturnType<typeof useComposeFiles> }
           {it.chip && (
             <div data-testid="rule-chip" className="flex items-center gap-2 pl-6">
               <span className="rounded-full bg-[#34C759]/[0.12] px-2 py-0.5 text-[12px] text-fg">{it.chip}</span>
-              <button type="button" onClick={() => c.undo(it.id)} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] font-medium text-[#0071E3] hover:bg-hover max-sm:min-h-11"><IconUndo className="h-3 w-3" aria-hidden />Undo</button>
+              <button type="button" onClick={() => c.undo(it.id)} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] font-medium text-brand-hover hover:bg-hover max-sm:min-h-11"><IconUndo className="h-3 w-3" aria-hidden />Undo</button>
             </div>
           )}
           {it.note && <p data-testid="rule-note" className="pl-6 text-[12px] text-muted">{it.note}</p>}

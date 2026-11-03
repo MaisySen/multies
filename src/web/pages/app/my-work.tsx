@@ -34,7 +34,7 @@ function Section({ title, icon, items, empty, tone, testId }: { title: string; i
       <div className="hairline-b flex items-center gap-2 px-4 py-3">
         <span className={cn("text-subtle [&_svg]:h-4 [&_svg]:w-4", tone === "danger" && items.length > 0 && "text-bad")}>{icon}</span>
         <h2 className="text-[14px] font-semibold text-fg">{title}</h2>
-        {items.length > 0 && <span className={cn("ml-auto rounded-full px-2 py-0.5 text-[11.5px] font-medium", tone === "danger" ? "bg-bad/10 text-bad" : "bg-[#0071E3]/10 text-[#0071E3]")}>{items.length}</span>}
+        {items.length > 0 && <span className={cn("ml-auto rounded-full px-2 py-0.5 text-[11.5px] font-medium", tone === "danger" ? "bg-bad/10 text-bad" : "bg-brand/10 text-brand-hover")}>{items.length}</span>}
       </div>
       {items.length ? (
         <ul className="divide-y divide-line">
@@ -152,11 +152,11 @@ export function MyWorkPage() {
       {/* R46 mobile: one row that scrolls sideways with snap, fading at the right edge so the cut off chip reads as "more". */}
       <div className="no-scrollbar -mx-4 mb-5 flex snap-x snap-mandatory scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 [mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] max-sm:mb-4 sm:mx-0 sm:flex-wrap sm:px-0 sm:[mask-image:none]" role="group" aria-label="Quick add" data-testid="today-quick">
         <button type="button" onClick={() => setNewTask(true)} data-testid="mywork-new-task" className="pressable elev-1 inline-flex min-h-9 shrink-0 snap-start items-center gap-1.5 rounded-full bg-surface px-3.5 text-[13px] font-medium text-fg hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand max-sm:min-h-11 max-sm:px-4 max-sm:text-[14px]">
-          <IconPlus size={16} className="text-[#0071E3] dark:text-brand-hover" />New task
+          <IconPlus size={16} className="text-brand-hover dark:text-brand-hover" />New task
         </button>
         {QUICK.map((k) => (
           <Link key={k.label} to={k.to} className="pressable elev-1 inline-flex min-h-9 shrink-0 snap-start items-center gap-1.5 rounded-full bg-surface px-3.5 text-[13px] font-medium text-fg hover:bg-hover max-sm:min-h-11 max-sm:px-4 max-sm:text-[14px] last:mr-6 sm:last:mr-0">
-            <k.icon size={16} className="text-[#0071E3] dark:text-brand-hover" />{k.label}
+            <k.icon size={16} className="text-brand-hover dark:text-brand-hover" />{k.label}
           </Link>
         ))}
       </div>
@@ -180,7 +180,7 @@ export function MyWorkPage() {
             <Stat testId="today-mail" to="/app/mail" icon={IconInbox} tint="#0071E3" value={c?.mail.inbox ?? "0"} label="Unread mail" sub={c ? `${formatCount(c.mail.important)} important` : undefined} />
             <Stat testId="today-tasks" to="/app/tasks" icon={IconTasks} tint={overdue > 0 ? "#D70015" : "#34C759"} value={due} label="Due today" sub={overdue > 0 ? <span className="text-bad">{formatCount(overdue)} overdue</span> : "Nothing overdue"} />
             <Stat testId="today-meeting" to={next?.item.url ?? "/app/meetings"} icon={IconVideo} tint="#30B0C7" value={next?.item.at ? meetingTime(next.item.at, w?.timeZone) : "None"} label="Next meeting" sub={next?.item.title ?? "No meetings today"}
-              action={next?.joinable ? <Link to={next.item.url} className="pressable inline-flex h-8 items-center gap-1 rounded-full bg-[#0071E3] px-3 text-[12.5px] font-semibold text-white" data-testid="today-join"><IconVideo size={14} filled />Join</Link> : undefined} />
+              action={next?.joinable ? <Link to={next.item.url} className="pressable inline-flex h-8 items-center gap-1 rounded-full bg-brand px-3 text-[12.5px] font-semibold text-white" data-testid="today-join"><IconVideo size={14} filled />Join</Link> : undefined} />
             <Stat testId="today-mentions" to="/app/notifications" icon={IconMention} tint="#5856D6" value={mentions} label="Mentions" sub={c && c.chat.unread > 0 ? `${formatCount(c.chat.unread)} unread in chat` : "All caught up"} />
             <Stat className="max-lg:col-span-2" wide testId="today-approvals" to="/app/approvals" icon={IconApprovals} tint="#FF9500" value={w.approvals.length} label="Approvals waiting" sub={w.approvals.length ? "Open Approvals" : "None waiting"} />
           </div>

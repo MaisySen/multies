@@ -197,7 +197,7 @@ function NotesBody({ meetingId, doc, people, onSaved, session }: { meetingId: st
             {picker.matches.map((w, i) => (
               <li key={`${w.type}:${w.id}`} role="option" aria-selected={i === picker.index}
                 onMouseDown={(e) => { e.preventDefault(); choose.current(w); }}
-                className={`flex cursor-pointer items-center gap-2 px-2.5 py-1.5 ${i === picker.index ? "bg-[#0071E3] text-white" : "hover:bg-hover"}`}>
+                className={`flex cursor-pointer items-center gap-2 px-2.5 py-1.5 ${i === picker.index ? "bg-brand text-white" : "hover:bg-hover"}`}>
                 {w.type === "agent" ? <IconAgent className="h-3.5 w-3.5 shrink-0" /> : <IconUserRound className="h-3.5 w-3.5 shrink-0" />}
                 <span className="truncate">{w.name}</span>
               </li>

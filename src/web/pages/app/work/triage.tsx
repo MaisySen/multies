@@ -158,7 +158,7 @@ export function TriagePage() {
         <div role="tablist" aria-label="Triage views" className="inline-flex rounded-lg bg-fill p-0.5">
           {(["pending", "snoozed"] as const).map((v) => (
             <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => { setParam("view", v === "pending" ? "" : v); setCursor(0); }}
-              className={cn("rounded-md px-3 py-1 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0071E3]", view === v ? "bg-surface text-fg shadow-sm" : "text-muted hover:text-fg")}>
+              className={cn("rounded-md px-3 py-1 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand", view === v ? "bg-surface text-fg shadow-sm" : "text-muted hover:text-fg")}>
               {v === "pending" ? "Queue" : "Snoozed"}
             </button>
           ))}
@@ -193,12 +193,12 @@ export function TriagePage() {
                 const active = current?.id === it.id;
                 return (
                   <li key={it.id} aria-current={active ? "true" : undefined} data-testid="triage-row"
-                    className={cn("flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors duration-150 motion-reduce:transition-none", active ? "bg-[#0071E3]/[0.07]" : "hover:bg-hover")}
+                    className={cn("flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors duration-150 motion-reduce:transition-none", active ? "bg-brand/[0.07]" : "hover:bg-hover")}
                     onClick={() => setCursor(i)}>
-                    <input type="checkbox" aria-label={`Select ${it.title}`} className="mt-1 h-4 w-4 accent-[#0071E3]" checked={selected.has(it.id)}
+                    <input type="checkbox" aria-label={`Select ${it.title}`} className="mt-1 h-4 w-4 accent-[var(--color-brand)]" checked={selected.has(it.id)}
                       onClick={(e) => e.stopPropagation()}
                       onChange={(e) => setSelected((s) => { const n = new Set(s); if (e.target.checked) n.add(it.id); else n.delete(it.id); return n; })} />
-                    <span className={cn("mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full", active ? "bg-[#0071E3] text-white" : "bg-fill text-muted")} title={S.label}><S.icon className="h-3.5 w-3.5" aria-hidden /></span>
+                    <span className={cn("mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full", active ? "bg-brand text-white" : "bg-fill text-muted")} title={S.label}><S.icon className="h-3.5 w-3.5" aria-hidden /></span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-baseline gap-2">
                         <span className="truncate text-[13.5px] font-medium text-fg">{fromName(it.triage?.from) || S.label}</span>
@@ -281,7 +281,7 @@ function SnoozeDialog({ open, item, onClose, onPick }: { open: boolean; item: Tr
       <div className="grid gap-2 sm:grid-cols-3">
         {presets.map((p) => (
           <button key={p.label} type="button" onClick={() => onPick(p.until.toISOString())}
-            className="rounded-xl border border-line px-3 py-2.5 text-left transition-colors duration-150 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0071E3]">
+            className="rounded-xl border border-line px-3 py-2.5 text-left transition-colors duration-150 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
             <span className="block text-[13.5px] font-medium text-fg">{p.label}</span>
             <span className="block text-xs text-subtle">{p.until.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}</span>
           </button>
@@ -314,7 +314,7 @@ function DeclineDialog({ open, item, onClose, onDone, onUndo }: { open: boolean;
         <Textarea className="mt-1" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} placeholder="Not a fit for us right now" />
       </label>
       <label className={cn("mt-3 flex items-center gap-2 text-[13px]", canReply ? "text-fg" : "text-subtle")}>
-        <input type="checkbox" className="h-4 w-4 accent-[#0071E3]" checked={reply && canReply} disabled={!canReply} onChange={(e) => setReply(e.target.checked)} />
+        <input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={reply && canReply} disabled={!canReply} onChange={(e) => setReply(e.target.checked)} />
         {canReply ? `Send ${fromName(item.triage?.from)} a short, polite reply` : "No address to reply to"}
       </label>
     </Dialog>

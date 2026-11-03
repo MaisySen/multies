@@ -26,7 +26,7 @@ export function BrowserNotifications() {
   };
   return (
     <Card className="flex items-start gap-3 p-4" data-testid="browser-notifications">
-      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#0071E3]/10 text-[#0071E3]" aria-hidden="true"><IconDevices className="h-4 w-4" /></span>
+      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand-hover" aria-hidden="true"><IconDevices className="h-4 w-4" /></span>
       <div className="min-w-0 flex-1">
         <div className="text-[14px] font-medium" id="browser-notifications-title">Browser notifications</div>
         <p className="text-[13px] text-muted">
