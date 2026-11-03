@@ -5,6 +5,7 @@ import { parseBody } from "../middleware";
 import { HttpError, tooMany } from "../lib/errors";
 import { RateLimiter } from "../lib/rate-limit";
 import { newId } from "../lib/crypto";
+import { LEGAL_ENTITY } from "../../shared/legal-entity";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Enter your name.").max(100, "Keep your name under 100 characters."),
@@ -44,7 +45,7 @@ export function contactFormRoutes() {
       if (res.status !== "sent" && deps.outbound.name !== "log") throw new Error(`status ${res.status}`);
     } catch (err) {
       deps.log?.error("contact.send_failed", { error: String(err) });
-      throw new HttpError(502, "send_failed", `Your message couldn't be sent just now. Try again, or email ${to}.`);
+      throw new HttpError(502, "send_failed", `Your message couldn't be sent just now. Try again, or email ${LEGAL_ENTITY.contactEmail}.`);
     }
     deps.log?.info("contact.sent", {});
     return c.json({ ok: true });

@@ -42,8 +42,10 @@ export function SwitchIndexPage() {
 }
 
 /** R58 (MB-237): /switch/<tool>, what moves over, the steps, a sample file and the button into the real import. */
-export function SwitchPage() {
-  const { source } = useParams();
+export function SwitchPage({ source: fixed }: { source?: string } = {}) {
+  // WEB1: the build passes the tool, so the served HTML carries the page (and its h1) before scripts run.
+  const params = useParams();
+  const source = fixed ?? params.source;
   const s = switchSource(source);
   if (!s) return <NotFound embedded />;
   return <SwitchSourcePage s={s} />;

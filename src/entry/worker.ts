@@ -7,7 +7,7 @@ import { kvToolFileStore, type AiRunner } from "../server/services/tools/p2-bind
 import { movedPath } from "../shared/nav-menu"; // R121
 import { WEB_META_PATHS } from "../server/routes/web-meta-r32"; // R32: /version.json, /llms.txt
 import { isKnownPage } from "../shared/known-routes";
-import { metaFor, SITE_URL } from "../web/components/seo-meta";
+import { canonicalUrl, metaFor, SITE_URL } from "../web/components/seo-meta";
 import { residencyStaticHtml, STATIC_FACTS_PATHS } from "../shared/residency"; // R60 (trust)
 
 const cleanPath = (p: string) => p.replace(/\/+$/, "") || "/";
@@ -546,7 +546,7 @@ function withPageMeta(res: Response, path: string, prerendered = false): Respons
     .on('meta[property="og:image"]', content(meta.image ?? `${SITE_URL}/og-image.png`))
     .on('meta[name="twitter:image"]', content(meta.image ?? `${SITE_URL}/og-image.png`))
     .on('meta[property="og:image:alt"]', content(meta.title))
-    .on('link[rel="canonical"]', { element: (el) => { el.setAttribute("href", url); } })
+    .on('link[rel="canonical"]', { element: (el) => { el.setAttribute("href", canonicalUrl(path)); } })
     .on("head", { element: (el) => { if (meta.noindex) el.append('<meta name="robots" content="noindex" />', { html: true }); } })
     // R60 (trust): residency, safe trial and connections as plain HTML for readers that do not run scripts.
     // R76: a prerendered page already carries its content for those readers; the facts then follow it in <noscript>, so

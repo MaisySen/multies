@@ -176,7 +176,7 @@ export const AREAS: readonly MarketingArea[] = [
       { t: "Signing with an email code", b: "Signers confirm a code sent to their email before they sign." },
       { t: "A sealed signing record", b: "Every signed document comes with a record of who signed and when, and a page anyone can use to check it." },
       { t: "Templates and lists", b: "Save documents as templates and send one to a whole list of people." },
-      { t: "Forms that make tasks", b: "Public forms turn website enquiries into tasks for the right person." },
+      { t: "Forms that make tasks", b: "Public forms turn website enquiries into tasks for the right person, with file uploads, signatures, pages with a progress bar and questions that show or hide based on earlier answers." },
     ],
     where: "Docs for signing, and Forms under Work.",
     shotAlt: "The Multies forms page.",

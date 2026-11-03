@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { IconMail, IconSend } from "@/web/components/ui/icon";
 import { api, ApiError } from "@/web/lib/api";
-import { useConfig } from "@/web/lib/queries";
+import { LEGAL_ENTITY } from "@/shared/legal-entity";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input, Textarea } from "@/web/components/ui/input";
 
@@ -20,8 +20,8 @@ function check(v: { name: string; email: string; message: string }): Fields {
 /** Public contact form. Sends to the support address; the thank-you page follows. */
 export function ContactUsPage() {
   const navigate = useNavigate();
-  const config = useConfig();
-  const email = config.data?.supportEmail ?? "contact@fintex.au";
+  // WEB1: one public address everywhere, the same before and after the page loads.
+  const email = LEGAL_ENTITY.contactEmail;
   const [fields, setFields] = useState<Fields>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

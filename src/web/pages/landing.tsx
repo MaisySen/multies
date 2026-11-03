@@ -9,6 +9,7 @@ import { useStartDemo } from "@/web/lib/demo";
 import { DemoPausedNote } from "@/web/components/demo-paused";
 import { RESIDENCY_ANSWER } from "@/shared/residency";
 import { OFFER_COPY } from "@/shared/offers";
+import { GetTheApp } from "@/web/components/get-the-app";
 
 /**
  * W1 (owner, Nov 1: "website is missing a lot"): the home page tells the whole story, one workspace for the team,
@@ -46,7 +47,7 @@ const deeper: { id: string; kicker: string; title: string; body: string; shot?: 
       "Quotes and Australian tax invoices with GST, a link to pay and part payments.",
       "Booking pages, rooms and desks, time polls and events with tickets.",
       "Contacts that build themselves, with a timeline, a deal pipeline and client portals.",
-      "Signing with an email code and a sealed record, and forms that make tasks.",
+      "Signing with an email code and a sealed record, and forms with file uploads, signatures, pages and show or hide logic.",
     ],
     more: "/features/invoices",
   },
@@ -197,6 +198,10 @@ export function Landing() {
             ))}
           </dl>
         </div>
+      </section>
+
+      <section id="get-the-app" className="scroll-mt-20 border-t border-line" aria-labelledby="get-app-title">
+        <div className="mx-auto max-w-6xl px-5 py-20 sm:py-24"><GetTheApp /></div>
       </section>
 
       <section className="border-t border-line">

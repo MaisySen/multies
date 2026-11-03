@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link, useParams } from "react-router";
-import { LEGAL_DOCS, LEGAL_EFFECTIVE, type Block, type LegalSlug } from "@/shared/legal";
+import { LEGAL_DOCS, LEGAL_EFFECTIVE, LEGAL_UPDATED, type Block, type LegalSlug } from "@/shared/legal";
 import { NotFound } from "./not-found";
 
 function Body({ block }: { block: Block }) {
@@ -29,7 +29,7 @@ export function LegalPage({ slug: fixed }: { slug?: LegalSlug }) {
       <p className="text-xs uppercase tracking-wide text-subtle">Legal</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">{doc.title}</h1>
       <p className="mt-2 text-muted">{doc.summary}</p>
-      <p className="mt-1 text-xs text-subtle">Effective {LEGAL_EFFECTIVE}. Governed by the laws of New South Wales, Australia.</p>
+      <p className="mt-1 text-xs text-subtle">Effective {LEGAL_EFFECTIVE}.{slug === "privacy" ? ` Last updated ${LEGAL_UPDATED}.` : ""} Governed by the laws of New South Wales, Australia.</p>
       <nav aria-label="On this page" className="mt-8 rounded-lg border border-line p-4 text-sm">
         <ol className="grid gap-1.5 sm:grid-cols-2">
           {doc.sections.map((s, i) => <li key={s.id}><a href={`#${s.id}`} className="text-muted hover:text-fg">{i + 1}. {s.title}</a></li>)}

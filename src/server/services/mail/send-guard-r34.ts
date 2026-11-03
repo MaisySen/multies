@@ -24,7 +24,7 @@ export interface SendGuardConfig { providerDailyCap: number; holdAt: number; new
 export const SEND_GUARD_DEFAULTS: SendGuardConfig = { providerDailyCap: 100, holdAt: 90, newSenderDaily: 20, newSenderDays: 7 };
 export const guardConfig = (deps: Deps): SendGuardConfig => ({ ...SEND_GUARD_DEFAULTS, ...(deps.config as { sendGuard?: Partial<SendGuardConfig> }).sendGuard });
 
-export const SENDING_OFF_MESSAGE = "Sending is turned off for this workspace. Write to support@multies.si and we'll look at it with you.";
+export const SENDING_OFF_MESSAGE = "Sending is turned off for this workspace. Write to contact@fintex.au and we'll look at it with you.";
 
 /** Midnight UTC after `now`: when a queued send goes. */
 export function nextUtcMidnight(now: Date): Date {

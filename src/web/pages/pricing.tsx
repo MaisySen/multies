@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { aiCostAnswer } from "@/shared/ai-public-copy";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
@@ -27,7 +28,7 @@ const FAQ: { q: string; a: string }[] = [
   { q: "What do tasks, boards, docs and contacts cost?", a: "Nothing. They come with every workspace, Free included: projects, tasks, custom fields, the portfolio, docs with live co-editing, contacts, deals, time tracking, forms, reports and video meetings for everyone on your team, with no per person price. Automations run up to 1,000 times a month on Free." },
   { q: "Do guests cost anything?", a: "No. Guests are free on every plan, Free included, and they never count as people on your plan. Invite a client to one project by email: they see its tasks, comments and docs, and can comment and upload files. Nothing else in your workspace." },
   { q: "Why per business and not per person?", a: "Most small teams share mailboxes, and adding a person shouldn't cost another A$10 a month. Add-ons raise limits for the whole workspace." },
-  { q: "What does AI cost?", a: "Nothing from us. Bring your own AI: connect any AI app or agent through MCP, free. If you want the assistant in the inbox, add your own model provider key in Settings and your provider bills you directly. Multies never resells AI." },
+  { q: "What does AI cost?", a: aiCostAnswer() },
   { q: "Why do small totals bill yearly?", a: "A card payment in Australia costs about 1.7 percent plus 30 cents, so a A$1 monthly charge would lose a third to fees. When your add-ons come to less than A$5 a month we charge once a year, at ten times the monthly price. At A$5 or more you choose monthly or yearly." },
   // R62: the offers come from src/shared/offers.ts, the same source as the terms, billing settings and llms.txt.
   { q: "Is paying yearly cheaper?", a: OFFER_COPY.yearly },

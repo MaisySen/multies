@@ -11,7 +11,8 @@ import { qk } from "./lib/queries";
 import { AUTH_CARD_ROUTES, type AuthCardPage, type LoginVariant } from "../shared/prerender-shell";
 import { PricingPage } from "./pages/pricing";
 import { StartupsPage } from "./pages/startups";
-import { SwitchIndexPage } from "./pages/switch";
+import { SwitchIndexPage, SwitchPage } from "./pages/switch";
+import { SWITCH_SLUGS } from "../shared/switch-sources";
 import { AgentsDevPage } from "./pages/agents";
 import { DevelopersPage } from "./pages/developers-hub";
 import { McpDocsPage } from "./pages/mcp-docs";
@@ -113,6 +114,7 @@ const PUBLIC_ELEMENTS: Record<string, () => ReactElement> = {
   "/pricing": () => <PricingPage />,
   "/startups": () => <StartupsPage />,
   "/switch": () => <SwitchIndexPage />,
+  ...Object.fromEntries(SWITCH_SLUGS.map((slug) => [`/switch/${slug}`, () => <SwitchPage source={slug} />])),
   "/agents": () => <AgentsDevPage />,
   "/developers": () => <DevelopersPage />,
   "/developers/mcp": () => <McpDocsPage />,

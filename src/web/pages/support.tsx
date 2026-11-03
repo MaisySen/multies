@@ -1,15 +1,17 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { IconHelp, IconMail, IconSmartphone, IconTrash } from "@/web/components/ui/icon";
-import { useConfig, useSession } from "@/web/lib/queries";
+import { useSession } from "@/web/lib/queries";
+import { LEGAL_ENTITY } from "@/shared/legal-entity";
+import { GetTheApp } from "@/web/components/get-the-app";
 import { api, ApiError } from "@/web/lib/api";
 import { Button } from "@/web/components/ui/button";
 
 const card = "rounded-xl border border-line bg-fill/60 p-5";
 
+/** WEB1: one public support address everywhere (the company address in legal-entity.ts). */
 function SupportEmail() {
-  const config = useConfig();
-  const email = config.data?.supportEmail ?? "support@multies.si";
+  const email = LEGAL_ENTITY.supportEmail;
   return <a href={`mailto:${email}`} className="font-medium text-accent hover:underline">{email}</a>;
 }
 
@@ -36,6 +38,9 @@ export function SupportPage() {
           <IconSmartphone className="h-5 w-5 text-accent" aria-hidden />
           <h2 id="s-app" className="mt-3 font-semibold">The phone app</h2>
           <p className="mt-1.5 text-[14px] text-muted">Sign in with your Multies email and password, or tap Explore with sample data to look around first. The app is free and has no purchases.</p>
+        </section>
+        <section className={`${card} sm:col-span-2`} aria-labelledby="s-get-app">
+          <GetTheApp headingId="s-get-app" compact />
         </section>
         <section className={card} aria-labelledby="s-delete">
           <IconTrash className="h-5 w-5 text-accent" aria-hidden />

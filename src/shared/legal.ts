@@ -1,4 +1,5 @@
 import { RESIDENCY_ANSWER, WHERE_DATA_LIVES } from "./residency";
+import { aiPrivacyBlocks } from "./ai-public-copy";
 
 /**
  * Legal documents for Multies: privacy policy, terms of service, acceptable use policy and
@@ -12,7 +13,7 @@ import { LEGAL_ENTITY, LEGAL_LINE_TEXT } from "./legal-entity";
 
 /** The date the current version of every legal document took effect. */
 export const LEGAL_EFFECTIVE = "30 October 2026";
-export const LEGAL_UPDATED = "1 November 2026";
+export const LEGAL_UPDATED = "3 November 2026";
 
 export type Block = string | { list: string[] } | { table: string[][] };
 export interface LegalSection { id: string; title: string; body: Block[] }
@@ -148,6 +149,26 @@ export const PRIVACY: LegalDoc = {
         "E-sign: when your workspace uses it, the document is kept for up to 30 days while signatures are collected. The signing record keeps each signer's name and email address, what they did (sent, opened, signed or declined), the time and the country each action came from, and stays with the request until you delete it. People asked to sign need no account; their name and email are used only for the document, reminders and the finished copy.",
         "Mail merge: when your workspace uses it, the names, email addresses and fields in your list are used only to make each person's PDF and send their email. The PDFs are kept for up to 3 days so sends can be retried, then deleted. Unsubscribe requests are kept so they keep being honoured.",
       ] },
+    ] },
+    { id: "phone-apps", title: "The Multies phone apps", body: [
+      "The Multies apps for iPhone and Android use the same account and workspace as the web, and this policy covers them. The apps have no advertising, no in app purchases, and do not track you across other apps or websites.",
+      { list: [
+        "On your device: the app keeps your sign in in the device's secure storage and a local copy of recent items so it opens quickly. Deleting the app removes them from the device.",
+        "Notifications: only if you allow them. We keep a device push token and message ids, never the message text (see Who we share it with).",
+        "Face ID, Touch ID or fingerprint unlock: only if you turn it on. The check happens on your device and we never receive any biometric data.",
+        "The apps do not ask for access to your location, camera, microphone or contacts.",
+        "Error reports from the app go to our error monitoring provider with account ids and technical details, no message content.",
+        "Updates to the app are downloaded from our app update service, which sees the app version and the device's network address, not your content.",
+      ] },
+      "Delete your account from the app in Settings, then Delete my account, or on our website at multies.si/delete-account. What happens next is described in How long we keep it.",
+    ] },
+    { id: "ai", title: "AI in Multies", body: aiPrivacyBlocks() },
+    { id: "networks", title: "Social networks and chat channels you connect", body: [
+      "When your workspace connects a social account or a chat channel, Multies exchanges posts, comments and messages with that network for you: Meta for Facebook, Instagram, Messenger and WhatsApp, and LinkedIn or any other network you connect. Only the posts, comments and messages you send or receive there, and the names of the accounts involved, pass between Multies and the network.",
+      "Social posting and the social inbox connect through our connected apps provider, which holds the access the network grants and carries posts, comments and messages between Multies and the network. Chat channels such as WhatsApp connect to Meta directly, and we store the access Meta grants encrypted. Each network's own privacy policy applies to what it holds. An admin can disconnect a network at any time in Settings, Connections.",
+    ] },
+    { id: "demo", title: "Demo and review accounts", body: [
+      "Our live demo and the accounts we give app store reviewers use test workspaces filled with made up sample data. They never hold real customer data, and demo workspaces are cleared regularly.",
     ] },
     { id: "security", title: "Security", body: [
       "Data is encrypted in transit (TLS) and at rest. Signing keys, secrets and connected mailbox passwords are encrypted again before they are stored; sign in has lockout and optional two factor authentication, and important changes are written to an audit log. To report a security problem, see /.well-known/security.txt or our Trust page.",

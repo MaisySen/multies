@@ -1,4 +1,4 @@
-import { metaFor, OG_IMAGE, SITE_URL } from "./seo-meta";
+import { canonicalUrl, metaFor, OG_IMAGE, SITE_URL } from "./seo-meta";
 import { pageTitle } from "../layouts/shell-nav"; // R82F (MB-283)
 
 function tag(selector: string, create: () => HTMLElement): HTMLElement {
@@ -23,5 +23,5 @@ export function applyMeta(path: string) {
   meta("name", "twitter:image", m.image ?? OG_IMAGE);
   meta("name", "twitter:title", m.title);
   meta("name", "twitter:description", m.description);
-  (tag('link[rel="canonical"]', () => { const l = document.createElement("link"); l.rel = "canonical"; return l; }) as HTMLLinkElement).href = url;
+  (tag('link[rel="canonical"]', () => { const l = document.createElement("link"); l.rel = "canonical"; return l; }) as HTMLLinkElement).href = canonicalUrl(path);
 }

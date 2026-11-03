@@ -10,7 +10,7 @@ export const SITE_URL = "https://multies.si";
 export const OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 /** image: the shared link preview picture (W1: one per product area); OG_IMAGE when unset. */
-export interface PageMeta { title: string; description: string; noindex?: boolean; image?: string }
+export interface PageMeta { title: string; description: string; noindex?: boolean; image?: string; /** WEB1: a duplicate page points search engines at its main address. */ canonical?: string }
 
 const DEFAULT: PageMeta = {
   title: "Multies: one workspace for your team, on your own domain",
@@ -33,7 +33,7 @@ export const PUBLIC_META: Record<string, PageMeta> = {
   "/trust": TRUST_META,
   "/security": TRUST_META,
   "/status": { title: "System status | Multies", description: "Live status of Multies' web app, API, inbound mail and outbound delivery." },
-  "/changelog": { title: "What's new | Multies", description: "What changed in Multies, newest first: new features, fixes and speed improvements." },
+  "/changelog": { title: "What's new | Multies", description: "What changed in Multies, newest first: new features, fixes and speed improvements.", canonical: "/whats-new" },
   "/whats-new": { title: "What's new | Multies", description: "New in Multies, newest first: invoices and quotes, booking, Ask, contracts, files, newsletters and more.", image: `${SITE_URL}/og/whats-new.jpg` },
   // W1: the features list and one page per product area, each with its own link preview picture.
   "/features": { title: "Features | Multies", description: "Mail, tasks, chat, docs, files, meetings, booking, contacts, invoices, signing, social and AI agents, in one workspace on your own domain.", image: `${SITE_URL}/og/features.jpg` },
@@ -62,6 +62,12 @@ export const PUBLIC_META: Record<string, PageMeta> = {
 };
 
 export const NOT_FOUND_META: PageMeta = { title: "Page not found | Multies", description: "This address doesn't exist on Multies.", noindex: true };
+
+/** WEB1: the canonical address for a path: its own, or the main page a duplicate points at. */
+export function canonicalUrl(path: string): string {
+  const own = path === "/" ? "/" : path.replace(/\/+$/, "");
+  return SITE_URL + (metaFor(path).canonical ?? own);
+}
 
 /** The meta for a path: a public page, the signed-in app, or not found. */
 export function metaFor(path: string): PageMeta {
