@@ -78,8 +78,9 @@ test("checklist in the task panel and a task query saved as a view", async ({ br
   await expect(page.getByText("Fix the checkout crash on Safari")).toBeVisible();
   await expect(page.getByText("Old IE layout glitch")).toHaveCount(0);
   await expect(page.getByText("Launch the new pricing page")).toHaveCount(0);
-  // POL2: the list is a grid of task buttons since R84F (no table rows); exactly one task matches the query.
-  await expect(page.getByRole("button", { name: "Fix the checkout crash on Safari", exact: true })).toHaveCount(1);
+  // POL2: since R84F the list is an ARIA grid (role grid on the table) with a header row and a new task row,
+  // so count the rows that carry a task: exactly one matches the query.
+  await expect(page.getByRole("grid", { name: "Tasks" }).locator("tr[data-task-id]")).toHaveCount(1);
   // The screenshot shows the suggestions for a second key while the filtered list is on screen.
   await box.click();
   await box.press("End");
@@ -92,16 +93,18 @@ test("checklist in the task panel and a task query saved as a view", async ({ br
   // R44: since R34 (MB-192) the name is asked in a themed dialog, not the browser's prompt, so the old
   // page.once("dialog") listener never fired and no view was saved.
   await page.getByRole("button", { name: "Saved views" }).click();
-  await page.getByRole("menuitem", { name: "Save this view" }).click();
+  // POL2: since R84 the menu item reads "Save as new view".
+  await page.getByRole("menuitem", { name: "Save as new view" }).click();
   const named = page.getByRole("dialog", { name: "Save view" });
-  await named.getByRole("textbox", { name: "View name" }).fill("Open bugs");
+  await named.getByRole("textbox").fill("Open bugs");
   await named.getByRole("button", { name: "Save view" }).click();
   await expect(named).toBeHidden();
   await expect.poll(async () => (await (await page.request.get("/api/tasks/views")).json()).views.map((v: { name: string; filters: Record<string, string> }) => `${v.name}|${v.filters.q}`)).toContain("Open bugs|label:bug -label:wontfix");
   await page.getByRole("button", { name: "Clear the query" }).click();
   await expect(page.getByText("Old IE layout glitch")).toBeVisible();
   await page.getByRole("button", { name: "Saved views" }).click();
-  await page.getByRole("menuitem", { name: "Open bugs" }).click();
+  // A saved view is a menuitemradio (checked when active); "menuitem" here would match "Update Open bugs" instead.
+  await page.getByRole("menuitemradio", { name: /^Open bugs/ }).click();
   await expect(box).toHaveValue("label:bug -label:wontfix");
   await expect(page.getByText("Old IE layout glitch")).toHaveCount(0);
   await expect(page.getByText("Fix the checkout crash on Safari")).toBeVisible();

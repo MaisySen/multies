@@ -210,12 +210,12 @@ function TourEditor({ tour, onBack }: { tour: AdminTour; onBack: () => void }) {
                 <div className="flex items-center gap-2">
                   <span className="grid h-6 w-6 place-items-center rounded-full bg-fill text-[12px] font-semibold" aria-hidden>{i + 1}</span>
                   <p className="min-w-0 flex-1 truncate text-[12.5px] text-muted">Points at <span className="font-mono text-fg">{s.target}</span></p>
-                  {hiddenOnPhone(s.target) && <span className="shrink-0 rounded-md bg-warn-soft px-2 py-0.5 text-[12px] text-warn" data-testid={`tour-step-phone-${i}`}>Not shown on phones</span>}
                   <Button size="sm" variant="ghost" onClick={() => pick(i)} disabled={!daysOk}>Pick again</Button>
                   <Button size="sm" variant="ghost" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move step ${i + 1} up`}><IconArrowUp className="h-4 w-4" aria-hidden /></Button>
                   <Button size="sm" variant="ghost" onClick={() => move(i, 1)} disabled={i === steps.length - 1} aria-label={`Move step ${i + 1} down`}><IconArrowDown className="h-4 w-4" aria-hidden /></Button>
                   <Button size="sm" variant="ghost" onClick={() => setSteps((x) => x.filter((_, k) => k !== i))} aria-label={`Remove step ${i + 1}`}><IconTrash className="h-4 w-4" aria-hidden /></Button>
                 </div>
+                {hiddenOnPhone(s.target) && <p className="w-fit rounded-md bg-warn-soft px-2 py-0.5 text-[12px] text-warn" data-testid={`tour-step-phone-${i}`}>Not shown on phones</p>}
                 <Field label="Title">{(fp) => <Input {...fp} value={s.title} onChange={(e) => edit(i, { title: e.target.value })} maxLength={80} data-testid={`tour-step-title-${i}`} />}</Field>
                 <Field label="Text">{(fp) => <textarea {...fp} value={s.body} onChange={(e) => edit(i, { body: e.target.value })} maxLength={400} rows={2} data-testid={`tour-step-body-${i}`}
                   className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60" />}</Field>
