@@ -1,4 +1,6 @@
-import PostalMime from "postal-mime";
+/* STB1 (startup budget): the MIME parser loads on the first parse, once per isolate, not at Worker startup. */
+let postalMimeModule: Promise<typeof import("postal-mime")> | null = null;
+const loadPostalMime = () => (postalMimeModule ??= import("postal-mime").catch((err: unknown) => { postalMimeModule = null; throw err; }));
 import type { Address, AuthResults } from "@/shared/mail";
 
 export interface ParsedAttachment {
@@ -53,6 +55,7 @@ export function parseAuthResults(headerValues: string[]): AuthResults {
 
 /** Parses a raw RFC 5322 message (string or bytes). */
 export async function parseMime(raw: string | Uint8Array | ArrayBuffer): Promise<ParsedEmail> {
+  const { default: PostalMime } = await loadPostalMime();
   const email = await PostalMime.parse(raw as ArrayBuffer);
   const headers: Record<string, string> = {};
   const authHeaders: string[] = [];

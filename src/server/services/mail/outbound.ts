@@ -1,4 +1,4 @@
-import { Resend } from "resend";
+import type { Resend } from "resend";
 import { toB64 } from "../../lib/crypto";
 export interface OutboundAddress { address: string; name?: string }
 
@@ -82,21 +82,35 @@ const NEEDS_DOMAIN = /verify a domain|domain is not verified|testing emails to y
 export const NEEDS_DOMAIN_DETAIL =
   "Held: the email provider only delivers to outside addresses once the sending domain is verified with it. Mail inside Multies is unaffected.";
 
+/*
+ * STB1 (startup budget): the Resend SDK (and the MIME parser it carries) loads on the first send, once per isolate,
+ * instead of at Worker startup. Config already refuses the resend driver without a key, so nothing changes there.
+ */
+let resendModule: Promise<typeof import("resend")> | null = null;
+const loadResend = () => (resendModule ??= import("resend").catch((err: unknown) => { resendModule = null; throw err; }));
+
 /** Outbound through Resend's official SDK. */
 export class ResendOutbound implements OutboundProvider {
   readonly name = "resend";
-  private client: Resend;
-  constructor(apiKey: string) {
-    this.client = new Resend(apiKey);
+  private client: Resend | null = null;
+  constructor(private readonly apiKey: string) {}
+
+  private async resend(): Promise<Resend> {
+    if (!this.client) {
+      const { Resend } = await loadResend();
+      this.client ??= new Resend(this.apiKey);
+    }
+    return this.client;
   }
 
   async send(msg: OutboundMessage): Promise<OutboundResult> {
     const headers: Record<string, string> = { ...(msg.headers ?? {}), "Message-ID": msg.messageId };
     if (msg.inReplyTo) headers["In-Reply-To"] = msg.inReplyTo;
     if (msg.references) headers["References"] = msg.references;
+    const client = await this.resend();
     let res: Awaited<ReturnType<Resend["emails"]["send"]>>;
     try {
-      res = await this.client.emails.send({
+      res = await client.emails.send({
         from: formatAddress(msg.from),
         to: msg.to,
         cc: msg.cc?.length ? msg.cc : undefined,

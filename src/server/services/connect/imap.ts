@@ -4,7 +4,15 @@
  * 993 to Gmail and Microsoft reached the login step). The sync engine talks to the small ImapSession
  * interface below, so unit tests can use an in-memory mailbox and the live test uses a real server.
  */
-import { ImapFlow } from "imapflow";
+import type { ImapFlow } from "imapflow";
+
+/*
+ * STB1 (startup budget): ImapFlow and the mail libraries under it (MIME, charsets, SOCKS) cost about 35 ms of
+ * Worker startup CPU when imported at the top, yet only a mailbox connection uses them. They load on the first
+ * connection instead, once per isolate.
+ */
+let imapFlowModule: Promise<typeof import("imapflow")> | null = null;
+const loadImapFlow = () => (imapFlowModule ??= import("imapflow").catch((err: unknown) => { imapFlowModule = null; throw err; }));
 import type { ServerSettings } from "@/shared/mail-connect";
 
 /** R59: the largest second partial fetch of one message (headers longer than this are read from the envelope only). */
@@ -238,8 +246,9 @@ class FlowSession implements ImapSession {
   }
 }
 
-function newFlow(server: ServerSettings, auth: ImapAuth, opts: ImapConnectOptions) {
+async function newFlow(server: ServerSettings, auth: ImapAuth, opts: ImapConnectOptions): Promise<ImapFlow> {
   const timeout = opts.timeoutMs ?? 20_000;
+  const { ImapFlow } = await loadImapFlow();
   const client = new ImapFlow({
     host: server.host, port: server.port, secure: server.security === "tls", doSTARTTLS: server.security === "starttls" ? true : undefined,
     auth: auth.xoauth2 ? { user: auth.user, accessToken: auth.secret } : { user: auth.user, pass: auth.secret },
@@ -253,7 +262,7 @@ function newFlow(server: ServerSettings, auth: ImapAuth, opts: ImapConnectOption
 
 /** The default connector: ImapFlow, quiet (it never logs, so no password or mail reaches a log). */
 export const imapflowConnector: ImapConnector = async (server, auth, opts = {}) => {
-  const client = newFlow(server, auth, opts);
+  const client = await newFlow(server, auth, opts);
   await client.connect();
   return new FlowSession(client);
 };
@@ -275,7 +284,7 @@ export type InboxWatcher = (server: ServerSettings, auth: ImapAuth, opts: ImapCo
 export const IDLE_RESTART_MS = 4 * 60_000;
 
 export const imapflowWatcher: InboxWatcher = async (server, auth, opts, onNew) => {
-  const client = newFlow(server, auth, opts);
+  const client = await newFlow(server, auth, opts);
   await client.connect();
   try {
     await client.mailboxOpen(opts.path ?? "INBOX", { readOnly: true });

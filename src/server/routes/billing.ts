@@ -7,7 +7,7 @@ import { audit } from "../services/audit";
 import { billingOverview, changePlan, confirmCheckout, previewAddons, previewPlanChange, handleStripeWebhook, listInvoices, openPortal, startAddonCheckout, startCheckout, updateAddons } from "../services/billing";
 import { getOrg } from "../services/plans";
 import { referralInfo } from "../services/billing/referrals";
-import { Stripe } from "../services/billing/stripe";
+import { isStripeError } from "../services/billing/stripe-lazy";
 import { HttpError } from "../lib/errors";
 
 // R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
@@ -15,7 +15,7 @@ const Q_BILLING_1 = z.object({ plan: z.enum(["pro", "business"]) });
 
 const wrapStripe = async <T>(fn: () => Promise<T>): Promise<T> => {
   try { return await fn(); } catch (e) {
-    if (e instanceof Stripe.errors.StripeError) throw new HttpError(502, "billing_provider_error", `The payment provider said: ${e.message}`);
+    if (isStripeError(e)) throw new HttpError(502, "billing_provider_error", `The payment provider said: ${e.message}`);
     throw e;
   }
 };

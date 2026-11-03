@@ -24,7 +24,8 @@ import { audit } from "../audit";
 import { getAddons, getOrg } from "../plans";
 import { enqueue, PermanentJobError } from "../jobs";
 import { billingContacts } from "./dunning";
-import { stripeClient, type Stripe } from "./stripe";
+import type { Stripe } from "./stripe";
+import { loadStripe } from "./stripe-lazy";
 
 const DAY = 86_400_000;
 type Org = typeof organizations.$inferSelect;
@@ -84,9 +85,10 @@ export function selfReferralReason(
   return null;
 }
 
-function client(deps: Deps) {
+async function client(deps: Deps): Promise<Stripe> {
   const b = deps.config.billing;
   if (!b.enabled || !b.stripeSecretKey) throw new HttpError(409, "billing_not_connected", "Billing isn't connected on this deployment.");
+  const { stripeClient } = await loadStripe();
   return stripeClient(b.stripeSecretKey, deps.fetch);
 }
 
@@ -218,7 +220,7 @@ export async function grantReferral(deps: Deps, referralId: string) {
   ]);
   if (!referred?.stripeCustomerId) return finish("void", { reason: "workspace_gone" });
   if (!referrer) return finish("void", { reason: "referrer_gone" });
-  const stripe = client(deps);
+  const stripe = await client(deps);
   // The payment must still stand: invoice paid, no credit note after payment, no refund or dispute on the charges.
   if (row.invoiceId) {
     const inv = await stripe.invoices.retrieve(row.invoiceId) as unknown as { status?: string; post_payment_credit_notes_amount?: number };

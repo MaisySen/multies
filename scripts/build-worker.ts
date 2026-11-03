@@ -12,7 +12,8 @@
  */
 import { build, type BuildOptions, type Plugin } from "esbuild";
 import { builtinModules } from "node:module";
-import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import { appCsp, securityHeaders } from "../src/server/lib/security-headers";
@@ -112,6 +113,24 @@ const nodeBuiltins: Plugin = {
     });
   },
 };
+// STB1 (startup budget): the prerendered public pages (about 3.6 MB of HTML) and sign in cards used to be JSON
+// defines, which the bundler turns into one big object literal built at Worker startup (about 10 ms of startup
+// CPU). They are now an injected module with the same shape, where every long string is a getter: each page's
+// HTML is made the first time that page is read, and reads give exactly the same values as before.
+function lazyLiteral(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "undefined";
+  if (Array.isArray(value)) return `[${value.map(lazyLiteral).join(", ")}]`;
+  return `{ ${Object.entries(value as Record<string, unknown>).map(([k, v]) =>
+    typeof v === "string" && v.length >= 1024 ? `get ${JSON.stringify(k)}() { return ${JSON.stringify(v)}; }` : `${JSON.stringify(k)}: ${lazyLiteral(v)}`,
+  ).join(", ")} }`;
+}
+const injectDir = mkdtempSync(path.join(tmpdir(), "mymail-prerender-"));
+const prerenderInject = path.join(injectDir, "prerender-inject.js");
+writeFileSync(prerenderInject, [
+  `export const __mymailPublicHtml = ${lazyLiteral(publicPages)};`,
+  `export const __mymailLoginPrerender = ${lazyLiteral(loginPrerender)};`,
+  "",
+].join("\n"));
 const options = (banner: string): BuildOptions => ({
   entryPoints: [path.join(root, "src/entry/worker.ts")],
   outfile: path.join(out, "_worker.js"),
@@ -127,7 +146,8 @@ const options = (banner: string): BuildOptions => ({
   // Production builds keep an external map for Sentry and wrangler (never served).
   sourcemap: profile === "preview" ? false : "external",
   alias: { "@": path.join(root, "src"), module: path.join(root, "src/server/shims/module.ts"), "@react-email/code-block": path.join(root, "src/server/shims/empty.ts") },
-  define: { __MYMAIL_BUILD_ENV__: JSON.stringify({ ...PROFILES[profile], ...secrets }), __MYMAIL_SHELL_HTML__: JSON.stringify(shellHtml), __MYMAIL_LANDING_HTML__: JSON.stringify(landingHtml), __MYMAIL_AUTH_HTML__: JSON.stringify(authHtml), __MYMAIL_LOGIN_PRERENDER__: JSON.stringify(loginPrerender), __MYMAIL_PUBLIC_HTML__: JSON.stringify(publicPages) },
+  define: { __MYMAIL_BUILD_ENV__: JSON.stringify({ ...PROFILES[profile], ...secrets }), __MYMAIL_SHELL_HTML__: JSON.stringify(shellHtml), __MYMAIL_LANDING_HTML__: JSON.stringify(landingHtml), __MYMAIL_AUTH_HTML__: JSON.stringify(authHtml), __MYMAIL_LOGIN_PRERENDER__: "__mymailLoginPrerender", __MYMAIL_PUBLIC_HTML__: "__mymailPublicHtml" },
+  inject: [prerenderInject],
   logLevel: "warning",
 });
 await build({ ...options(""), write: false });
@@ -137,7 +157,7 @@ const banner = names.length ? [
   `const __nodeBuiltins = { ${names.map((n, i) => `${JSON.stringify(n)}: __nb${i}`).join(", ")} };`,
   "const require = (n) => { const m = __nodeBuiltins[String(n).replace(/^node:/, \"\")]; if (!m) throw new Error(\"Module not available on Workers: \" + n); return m.default ?? m; };",
 ].join("\n") : "";
-await build(options(banner));
+try { await build(options(banner)); } finally { rmSync(injectDir, { recursive: true, force: true }); }
 if (names.length) console.log(`node built-ins required by bundled libraries: ${names.join(", ")}`);
 
 // Never serve the server bundle, its source map or the hosting declaration as static files.

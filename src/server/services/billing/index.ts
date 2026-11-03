@@ -10,7 +10,8 @@ import { LAUNCH_CODE, LAUNCH_MONTHS, LAUNCH_PERCENT_OFF } from "@/shared/offers"
 import { audit } from "../audit";
 import { getAddons, getOrg, overLimits, setAddons, usage } from "../plans";
 import { sentToday } from "../mail/delivery";
-import { constructWebhookEvent, stripeClient, type Stripe } from "./stripe";
+import type { Stripe } from "./stripe";
+import { loadStripe } from "./stripe-lazy";
 import { onInvoicePaid, onPaymentFailed, sendingPausedForPayment } from "./dunning";
 import { onReferralPayment, onReferralRefund } from "./referrals";
 
@@ -26,9 +27,10 @@ export type StripeSubscription = Pick<Stripe.Subscription, "id" | "status" | "ca
 
 export const notConnected = () => new HttpError(409, "billing_not_connected", "Billing isn't connected on this deployment. Add-ons apply instantly and nothing is charged.");
 
-function client(deps: Deps) {
+async function client(deps: Deps): Promise<Stripe> {
   const b = deps.config.billing;
   if (!b.enabled || !b.stripeSecretKey) throw notConnected();
+  const { stripeClient } = await loadStripe();
   return stripeClient(b.stripeSecretKey, deps.fetch);
 }
 
@@ -178,7 +180,7 @@ async function withCustomer<T>(deps: Deps, auth: AuthContext, fn: (customer: str
 async function ensureCustomer(deps: Deps, auth: AuthContext) {
   const org = await getOrg(deps.db, auth.orgId);
   if (org.stripeCustomerId) return org.stripeCustomerId;
-  const c = await client(deps).customers.create({
+  const c = await (await client(deps)).customers.create({
     email: auth.email, name: org.name, metadata: { orgId: org.id },
     // The workspace country pre-fills checkout; en-AU receipts and invoices.
     address: { country: org.country }, preferred_locales: ["en-AU"],
@@ -228,7 +230,7 @@ export async function startAddonCheckout(deps: Deps, auth: AuthContext, input: R
   if (org.stripeSubscriptionId && LIVE.has(org.subscriptionStatus ?? "")) {
     throw new HttpError(409, "has_subscription", "You already have a subscription. Change add-ons in place instead.");
   }
-  const stripe = client(deps);
+  const stripe = await client(deps);
   const interval = intervalFor(addons, 0, opts.interval);
   const items = await addonItems(deps, stripe, addons, interval);
   const base = `${deps.config.appUrl}/app/settings/billing`;
@@ -253,7 +255,7 @@ async function plannedItems(deps: Deps, auth: AuthContext, input: Record<string,
   const addons = cleanAddons(input);
   const org = await getOrg(deps.db, auth.orgId);
   if (!org.stripeSubscriptionId || !LIVE.has(org.subscriptionStatus ?? "")) throw new HttpError(409, "no_subscription", "There's no active subscription to change. Start one with checkout.");
-  const stripe = client(deps);
+  const stripe = await client(deps);
   const sub = await stripe.subscriptions.retrieve(org.stripeSubscriptionId) as unknown as StripeSubscription;
   const planItem = sub.items.data.find((i) => planForPrice(deps, i.price));
   const keepPlan = planItem && !opts.dropLegacyPlan;
@@ -321,7 +323,7 @@ async function liveItem(deps: Deps, auth: AuthContext, plan: PlanId) {
   if (!org.stripeSubscriptionId || !LIVE.has(org.subscriptionStatus ?? "")) throw new HttpError(409, "no_subscription", "There's no active subscription to change.");
   if (!PLANS[org.plan].legacy) throw new HttpError(410, "plan_retired", "Pro and Business are no longer sold. Add only what you need from the add-ons.");
   if (org.plan === plan) throw badRequest("You're already on that plan.");
-  const stripe = client(deps);
+  const stripe = await client(deps);
   const sub = await stripe.subscriptions.retrieve(org.stripeSubscriptionId);
   const item = sub.items.data.find((i) => planForPrice(deps, i.price as StripePrice)) ?? sub.items.data[0];
   if (!item) throw new HttpError(409, "no_subscription", "The subscription has no plan item.");
@@ -360,7 +362,7 @@ export async function changePlan(deps: Deps, auth: AuthContext, plan: PlanId) {
 
 export async function openPortal(deps: Deps, auth: AuthContext) {
   if (auth.role !== "owner") throw forbidden("Only the workspace owner can change billing.");
-  const stripe = client(deps);
+  const stripe = await client(deps);
   // STRIPE_PORTAL_CONFIG: Multies' own portal settings, so a Stripe account shared with other businesses keeps its default.
   const configuration = deps.config.billing.portalConfigId;
   const portal = await withCustomer(deps, auth, (customer) => stripe.billingPortal.sessions.create({
@@ -374,7 +376,7 @@ export async function listInvoices(deps: Deps, orgId: string) {
   const org = await getOrg(deps.db, orgId);
   if (!org.stripeCustomerId) return [];
   // A customer from the other Stripe mode (test before the live switch) has no invoices here.
-  const res = await client(deps).invoices.list({ customer: org.stripeCustomerId, limit: 24 }).catch((err) => {
+  const res = await (await client(deps)).invoices.list({ customer: org.stripeCustomerId, limit: 24 }).catch((err) => {
     if (isMissingInStripe(err)) return { data: [] as Stripe.Invoice[] };
     throw err;
   });
@@ -391,7 +393,7 @@ export async function listInvoices(deps: Deps, orgId: string) {
  * mirrors the subscription right away, so the plan changes without waiting for a webhook.
  */
 export async function confirmCheckout(deps: Deps, auth: AuthContext, sessionId: string) {
-  const stripe = client(deps);
+  const stripe = await client(deps);
   const session = await stripe.checkout.sessions.retrieve(sessionId);
   const sessionOrg = session.metadata?.orgId ?? session.client_reference_id;
   if (sessionOrg !== auth.orgId) throw forbidden("That checkout belongs to another workspace.");
@@ -421,7 +423,7 @@ export async function cancelForDeletion(deps: Deps, org: typeof organizations.$i
   const b = deps.config.billing;
   if (!b.enabled || !b.stripeSecretKey) return false;
   try {
-    await stripeClient(b.stripeSecretKey, deps.fetch).subscriptions.cancel(org.stripeSubscriptionId, { prorate: true, invoice_now: true });
+    await (await loadStripe()).stripeClient(b.stripeSecretKey, deps.fetch).subscriptions.cancel(org.stripeSubscriptionId, { prorate: true, invoice_now: true });
     return true;
   } catch (err) {
     deps.reportError?.(err, { where: "cancelForDeletion", org: org.id });
@@ -475,10 +477,10 @@ export async function handleStripeWebhook(deps: Deps, rawBody: string, signature
   const secret = deps.config.billing.stripeWebhookSecret;
   if (!deps.config.billing.enabled || !secret) throw notConnected();
   if (!signature) throw new HttpError(400, "bad_signature", "Invalid Stripe signature.");
-  const stripe = client(deps);
+  const stripe = await client(deps);
   let event: Stripe.Event;
   try {
-    event = await constructWebhookEvent(stripe, rawBody, signature, secret, deps.now());
+    event = await (await loadStripe()).constructWebhookEvent(stripe, rawBody, signature, secret, deps.now());
   } catch {
     throw new HttpError(400, "bad_signature", "Invalid Stripe signature.");
   }

@@ -53,7 +53,8 @@ export const PUBLIC_META: Record<string, PageMeta> = {
   "/thank-you": { title: "Thank you | Multies", description: "Thanks for getting in touch with Multies. We reply within one business day.", noindex: true },
   "/thanks": { title: "Thank you | Multies", description: "Thanks for getting in touch with Multies.", noindex: true },
   // R58 (MB-237): the free plan page and the switch pages. The free plan numbers come from plans.ts.
-  "/startups": { title: "Free for startups and small teams | Multies", description: `${freeHeadline()} Mail on your own domain with tasks, chat and docs, no card and no trial clock.` },
+  // STB1 (startup budget): read on first use, so the number formatting it needs isn't paid at Worker startup.
+  "/startups": { title: "Free for startups and small teams | Multies", get description() { return `${freeHeadline()} Mail on your own domain with tasks, chat and docs, no card and no trial clock.`; } },
   "/switch": { title: "Move your work to Multies | Multies", description: "Bring your tasks over from the tool you use now: export a file, upload it, check a preview, and undo the whole import if you change your mind." },
   ...Object.fromEntries(SWITCH_SOURCES.map((s) => [`/switch/${s.slug}`, {
     title: `Import from ${s.label} | Multies`,
