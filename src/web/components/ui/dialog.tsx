@@ -4,6 +4,8 @@ import { cn } from "@/web/lib/cn";
 // R58 (MB-245): an open dialog makes the page inert, so the "switched in another tab" strip shows inside it too.
 import { WorkspaceSwitchedBanner } from "@/web/components/workspace-switched-banner-r58";
 
+const FIRST_FIELD = 'input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), select:not([disabled])';
+
 /** Modal built on the native <dialog>: focus trapping, Esc and inert background come for free. */
 export function Dialog({ open, onClose, title, description, children, footer, className, returnFocus }: {
   open: boolean; onClose: () => void; title: string; description?: ReactNode; children?: ReactNode; footer?: ReactNode; className?: string;
@@ -25,7 +27,8 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
       d.showModal();
       // R56 (MB-243): showModal() focuses the first focusable element, the Close button, after React's autoFocus already
       // ran on a field that was not yet shown. A field asking for focus (data-autofocus, set by Input and Textarea) gets it back.
-      d.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+      // POL2 (HQ MB-327): with no field asking, the first field to fill gets focus instead of Close.
+      (d.querySelector<HTMLElement>("[data-autofocus]") ?? d.querySelector<HTMLElement>(FIRST_FIELD))?.focus();
     }
     if (!open && d.open) d.close();
     if (!open && wasOpen.current) {

@@ -133,7 +133,8 @@ function MemoryTab({ s }: { s: TeamAiState }) {
   const refresh = () => qc.invalidateQueries({ queryKey: qk.memory });
   const add = useMutation({
     mutationFn: () => api.create<MemoryEntry>("/team-ai/memory", { text }),
-    onSuccess: async (m) => { setText(""); await refresh(); toast.success(m.status === "active" ? "Note added" : "Suggestion sent to your admins"); },
+    // POL2 (HQ MB-327): focus stays in the note box (the button goes disabled once the box is empty).
+    onSuccess: async (m) => { setText(""); document.querySelector<HTMLElement>("[data-testid='memory-input']")?.focus(); await refresh(); toast.success(m.status === "active" ? "Note added" : "Suggestion sent to your admins"); },
     onError: (e) => toast.error(errorMessage(e)),
   });
   const act = async (fn: () => Promise<unknown>, done: string) => { try { await fn(); await refresh(); toast.success(done); } catch (e) { toast.error(errorMessage(e)); } };

@@ -5,6 +5,7 @@
  */
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState, type HTMLAttributes } from "react";
 import { cn } from "@/web/lib/cn";
+import { IconChevronRight } from "@/web/components/ui/icon";
 
 const FADE = 28;
 
@@ -56,6 +57,15 @@ export const ScrollRow = forwardRef<HTMLDivElement, Props>(function ScrollRow({ 
     measure();
   }, [activeKey, measure]);
   const Tag = as;
+  // POL2 (QA14, HQ MB-310 / MB-319 / MB-326): a faded edge alone read as a cut tab, so an edge with more tabs also
+  // shows a small chevron that pages the row. It is a pointer hint only: the tabs stay the keyboard path.
+  const page = (dir: 1 | -1) => {
+    const el = ref.current;
+    if (!el) return;
+    const smooth = typeof window !== "undefined" && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    el.scrollBy({ left: dir * Math.max(80, el.clientWidth * 0.7), behavior: smooth ? "smooth" : "auto" });
+  };
+  const hint = "absolute inset-y-0 z-[1] grid w-7 place-items-center text-muted hover:text-fg";
   return (
     <div className={cn("relative min-w-0 max-w-full", outerClassName)}>
       <Tag
@@ -66,6 +76,16 @@ export const ScrollRow = forwardRef<HTMLDivElement, Props>(function ScrollRow({ 
         {...rest}>
         {children}
       </Tag>
+      {edges.left && (
+        <button type="button" tabIndex={-1} aria-hidden="true" data-testid="scroll-row-prev" className={cn(hint, "left-0")} onClick={() => page(-1)}>
+          <IconChevronRight className="h-4 w-4 rotate-180" />
+        </button>
+      )}
+      {edges.right && (
+        <button type="button" tabIndex={-1} aria-hidden="true" data-testid="scroll-row-next" className={cn(hint, "right-0")} onClick={() => page(1)}>
+          <IconChevronRight className="h-4 w-4" />
+        </button>
+      )}
     </div>
   );
 });

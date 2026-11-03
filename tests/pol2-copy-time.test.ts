@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { dayLabel, findNextStep, localDay, parseWhen } from "@/shared/crm-td10";
 import { whenInZone } from "@/shared/teamai-td8";
 import { askOrder } from "@/server/services/search-r98";
+import { tracksErrors } from "@/web/lib/sentry";
 
 /** POL2: HQ MB-344 (relative days in the person's zone), MB-330 (day label), MB-329 (one clock), MB-324 (search ask order). */
 describe("next weekday in the person's zone (HQ MB-344)", () => {
@@ -65,5 +66,12 @@ describe("search asks the quick groups first (HQ MB-324)", () => {
     expect(asked.indexOf("contacts")).toBeLessThan(asked.indexOf("mail"));
     expect([...asked].sort()).toEqual(["attachments", "chat", "contacts", "deals", "docs", "files", "mail", "notes", "tasks"]);
     expect(askOrder(["zzz", "mail"])).toEqual(["mail", "zzz"]);
+  });
+});
+
+describe("error tracking only inside the app (HQ MB-343)", () => {
+  it("public pages start none", () => {
+    for (const p of ["/", "/pricing", "/login", "/signup", "/f/abc", "/p/xyz", "/book/me", "/whats-new", "/application", "/apps"]) expect(tracksErrors(p)).toBe(false);
+    for (const p of ["/app", "/app/", "/app/mail", "/guest", "/guest/x"]) expect(tracksErrors(p)).toBe(true);
   });
 });

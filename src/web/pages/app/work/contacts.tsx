@@ -26,6 +26,7 @@ import { walkRows } from "@/web/lib/crm-keys-td10"; // TD10
 import { LoadError } from "@/web/components/load-error-t1g"; // T1G (T1-8)
 import { isServerLoadError } from "@/web/lib/load-errors-t1g";
 import { ReferencesPanel } from "@/web/components/mentions-td5"; // TD5
+import { ScrollRow } from "@/web/components/ui/scroll-row"; // POL2
 
 interface Company { id: string; name: string; domain: string | null; contactCount: number; lastContactAt: string | null }
 interface ThreadRow { threadId: string; subject: string; lastAt: string; firstAt: string; count: number; lastDirection: "inbound" | "outbound"; snippet: string; messageId: string }
@@ -76,12 +77,13 @@ export function ContactsPage() {
       <PageHeader title="Contacts" description="Everyone you email with, added automatically, with their companies. Open someone to see every thread, task and deal with them."
         actions={<><Link to="/app/deals" className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconHandshake className="h-4 w-4" />Deals</Link>{invoicesOn && <Link to="/app/contacts/invoices" className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconReceipt className="h-4 w-4" />Invoices</Link>}{crm.on && (tab === "companies" ? <Button variant="secondary" onClick={() => setNewCompany(true)} data-testid="new-company"><IconBuilding className="h-4 w-4" />New company</Button> : <Button variant="secondary" onClick={() => setImporting(true)} data-testid="import-contacts"><IconUpload className="h-4 w-4" />Import</Button>)}<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />Add contact</Button></>} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div role="tablist" className="flex rounded-lg bg-fill p-0.5">
+        {/* POL2 (HQ MB-326): one row that scrolls inside itself at phone widths, never wrapping or cutting Staff. */}
+        <ScrollRow role="tablist" aria-label="Contacts" activeKey={tab} outerClassName="w-full sm:w-auto" className="flex rounded-lg bg-fill p-0.5 [&>*]:shrink-0 [&>*]:whitespace-nowrap">
           {(["people", "companies", ...(portalsOn ? (["portals"] as const) : []), ...(maps ? (["visits"] as const) : []), ...(crmTd10 ? (["suggestions"] as const) : [])] as const).map((t) => (
             <button key={t} role="tab" aria-selected={tab === t} onClick={() => setParams(t === "people" ? {} : { tab: t })} className={cn("rounded-md px-3 py-1.5 text-[13px]", tab === t ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")} data-testid={`contacts-tab-${t}`}>{TAB_LABEL[t]}{t === "suggestions" && !!suggestions.data?.length && <span className="ml-1.5 rounded-full bg-brand/15 px-1.5 text-[11px] font-semibold text-fg" aria-label={`${suggestions.data.length} waiting`}>{suggestions.data.length}</span>}</button>
           ))}
           {peopleOn && <Link to="/app/contacts/staff" role="tab" aria-selected={false} className="rounded-md px-3 py-1.5 text-[13px] text-muted hover:text-fg" data-testid="contacts-tab-staff">Staff</Link>}{/* R126 */}
-        </div>
+        </ScrollRow>
         {tab !== "visits" && tab !== "suggestions" && <Input aria-label="Search contacts" placeholder={tab === "people" ? "Search by name or email" : tab === "portals" ? "Search portals" : "Search companies"} value={q} onChange={(e) => setQ(e.target.value)} className="h-9 max-w-xs" />}
         {tab === "people" && people.data && <span className="text-[12.5px] text-subtle">{people.data.total} {people.data.total === 1 ? "person" : "people"}</span>}
       </div>

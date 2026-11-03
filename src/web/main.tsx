@@ -9,7 +9,7 @@ import { api } from "./lib/api";
 import { queryRetry } from "./lib/load-errors-t1g"; // T1G
 import { qk } from "./lib/queries";
 import type { PublicConfig } from "./lib/types";
-import { captureWarning, scheduleSentry } from "./lib/sentry";
+import { captureWarning, scheduleSentry, tracksErrors } from "./lib/sentry";
 import { ErrorBoundary } from "./components/error-boundary";
 import { ThemedToaster } from "./components/theme";
 import { applyMeta } from "./components/seo";
@@ -42,7 +42,15 @@ if (window.location.pathname.startsWith("/app")) void import("./layouts/app").ca
 const privatePage = /^\/(report|data-request)(\/|$)/.test(window.location.pathname);
 
 // R34: after the page has loaded and gone idle, so error tracking never delays it; earlier errors are queued.
-if (!privatePage) scheduleSentry();
+// POL2 (HQ MB-343): only inside the signed in app. Public pages (home, pricing, sign in, public forms, portals,
+// booking) start no error tracking at all, so they send nothing to the tracker host; the policy is unchanged.
+// Signing in moves to /app in this same page, so tracking starts on the first visit there.
+if (!privatePage) {
+  if (tracksErrors(window.location.pathname)) scheduleSentry();
+  else {
+    const stop = router.subscribe((state) => { if (tracksErrors(state.location.pathname)) { stop(); scheduleSentry(); } });
+  }
+}
 
 // R32: offline app shell and browser notifications (production builds only; see lib/sw-client.ts).
 if (!privatePage) registerServiceWorker({ navigate: (url) => void router.navigate(url) });

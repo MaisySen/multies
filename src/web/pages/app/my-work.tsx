@@ -115,8 +115,8 @@ export function MyWorkPage() {
   const w = q.data;
   const c = counts.data;
   const nothing = w && !w.overdue.length && !w.dueToday.length && !w.mentions.length && !w.threads.length && !w.assignedThreads?.length && !w.approvals.length && !w.meetings.length && !w.snoozed?.length;
-  const day = w ? new Date(`${w.date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })
-    : new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+  // POL2 (HQ MB-332): the account's day only; while it loads a placeholder holds the place, never the browser's day.
+  const day = w ? new Date(`${w.date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }) : null;
   const next = w ? nextMeeting(w.meetings) : null;
   const focus = w ? focusItems(w) : [];
   const due = c?.tasks.dueToday ?? w?.dueToday.length ?? 0;
@@ -129,7 +129,7 @@ export function MyWorkPage() {
       {/* Large title with the date above it, like the system Today screens. */}
       <div className="mb-5 flex flex-col gap-3 max-sm:mb-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-brand-hover" data-testid="today-date"><span>My Work</span><span aria-hidden> · </span><span className="text-muted">{day}</span></p>
+          <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-brand-hover" data-testid="today-date"><span>My Work</span><span aria-hidden> · </span>{day ? <span className="text-muted">{day}</span> : <span className="skeleton inline-block h-3 w-28 align-middle" aria-hidden data-testid="today-date-loading" />}</p>
           <h1 data-large-title className="text-[32px] font-bold leading-[38px] tracking-[-0.025em] text-fg sm:text-[34px] sm:leading-[41px]">Good {dayPart()}{first ? `, ${first}` : ""}</h1>
           <p className={cn("mt-1 text-[14px] text-muted", allQuiet && "sr-only")}>{!w ? "What is waiting on you today." : nothing ? "Nothing is waiting on you. Enjoy the quiet." : overdue > 0 ? `${overdue} overdue and ${due} due today. Start with the top of Focus.` : `${due ? `${due} due today` : "Nothing due today"}${next ? `, next up: ${next.item.title}` : ""}.`}</p>
           {q.cachedAt !== null && q.isError && (

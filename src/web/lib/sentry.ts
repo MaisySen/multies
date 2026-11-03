@@ -71,6 +71,11 @@ export const queuedErrorCount = () => early.length;
  * R34: error tracking starts only after the page has loaded and the browser is idle (at most 4 s after load),
  * so its code is never on a page's critical path (sign in was spending 148 KB on it before first paint).
  */
+/** POL2 (HQ MB-343): error tracking runs only on signed in pages (/app, and /guest for invited guests). */
+export function tracksErrors(pathname: string): boolean {
+  return /^\/(app|guest)(\/|$)/.test(pathname);
+}
+
 export function scheduleSentry(win: Window & typeof globalThis = window) {
   const stopEarly = queueEarlyErrors(win);
   const start = () => void startSentry().finally(stopEarly);

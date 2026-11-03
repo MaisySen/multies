@@ -40,6 +40,21 @@ function headline(s: Suggestion) {
   return `${s.fields.title || "Follow up"}, ${s.fields.when || dayLabel(s.fields.due)}`;
 }
 
+/** POL2 (HQ MB-327): the row that takes focus when one leaves (the next, else the one before). */
+function neighbourOf(id: string): string | null {
+  const rows = [...document.querySelectorAll<HTMLElement>("[data-crm-row]")];
+  const i = rows.findIndex((r) => r.dataset.suggestionId === id);
+  if (i < 0) return null;
+  return (rows[i + 1] ?? rows[i - 1])?.dataset.suggestionId ?? null;
+}
+/** Focus goes to that row, else to the list's heading area, never to the page body. */
+function focusAfterRemove(id: string | null) {
+  requestAnimationFrame(() => {
+    const row = id ? document.querySelector<HTMLElement>(`[data-crm-row][data-suggestion-id="${CSS.escape(id)}"]`) : null;
+    (row ?? document.querySelector<HTMLElement>("[data-testid='crm-check-mail']"))?.focus();
+  });
+}
+
 function detail(s: Suggestion): string[] {
   if (s.kind === "last_contacted") return [`Emailed ${s.fields.contactName || "the contact"} on ${dayLabel(s.fields.date)}`];
   if (s.kind === "next_step") return [`Due ${dayLabel(s.fields.due)}`, `For ${s.target.label}`];
@@ -81,7 +96,9 @@ export function SuggestionsTab() {
     setBusy(s.id);
     try {
       await api.post(`/crm-td10/suggestions/${s.id}/discard`, {});
+      const next = neighbourOf(s.id);
       qc.setQueryData<Suggestion[]>(KEY, (old) => old?.filter((x) => x.id !== s.id));
+      focusAfterRemove(next);
       toast("Suggestion discarded", { action: { label: "Undo", onClick: async () => { try { await api.post(`/crm-td10/suggestions/${s.id}/undo`, {}); await qc.invalidateQueries({ queryKey: KEY }); } catch (e) { showError(e as Error); } } } });
     } catch (e) { showError(e as Error); await qc.invalidateQueries({ queryKey: KEY }); } finally { setBusy(null); }
   };
@@ -101,7 +118,7 @@ export function SuggestionsTab() {
       </div>
       {!online && <p role="status" className="mb-3 rounded-lg border border-line bg-fill px-3 py-2 text-[13px] text-muted" data-testid="crm-offline">You're offline. Suggestions will refresh when you're back.</p>}
       {list.isError && !list.data ? <LoadError onRetry={() => list.refetch()} />
-        : list.isPending ? <div aria-busy="true" aria-label="Loading suggestions" className="space-y-2"><Skeleton className="h-16" /><Skeleton className="h-16" /><Skeleton className="h-16" /></div>
+        : list.isPending ? <div role="status" aria-busy="true" aria-label="Loading suggestions" className="space-y-2"><Skeleton className="h-16" /><Skeleton className="h-16" /><Skeleton className="h-16" /></div>
         : !list.data.length ? (
           <EmptyState icon={<IconMail />} title="Nothing to update" body="When mail brings a new contact, a phone number, a job title or a next step, it shows here for you to accept." />
         ) : (
