@@ -7,7 +7,8 @@
  * Everyone in the workspace can see what is connected; only owners and admins connect, reconnect, disconnect or post.
  * Every connect and disconnect is audited.
  */
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
+import { inIds } from "../../lib/sql-chunks";
 import { socialPostTargets, socialPosts } from "../../db/schema";
 import type { AuthContext, Deps } from "../../context";
 import { audit } from "../audit";
@@ -240,7 +241,7 @@ export async function lastTarget(deps: Deps, auth: AuthContext, accountId: strin
   const recent = await deps.db.select({ id: socialPosts.id }).from(socialPosts).where(eq(socialPosts.orgId, auth.orgId)).orderBy(desc(socialPosts.createdAt)).limit(50).all();
   if (!recent.length) return null;
   const rows = await deps.db.select({ postId: socialPostTargets.postId, target: socialPostTargets.target, targetName: socialPostTargets.targetName }).from(socialPostTargets)
-    .where(and(eq(socialPostTargets.accountId, accountId), inArray(socialPostTargets.postId, recent.map((r) => r.id)))).all();
+    .where(and(eq(socialPostTargets.accountId, accountId), inIds(socialPostTargets.postId, recent.map((r) => r.id)))).all();
   const order = new Map(recent.map((r, i) => [r.id, i]));
   const best = rows.filter((r) => (r.target ?? "").trim()).sort((x, y) => order.get(x.postId)! - order.get(y.postId)!)[0];
   return best ? { id: best.target!, name: (best.targetName ?? best.target!).slice(0, 200) } : null;
