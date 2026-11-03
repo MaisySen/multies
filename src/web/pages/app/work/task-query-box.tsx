@@ -7,6 +7,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { IconClose, IconSearch } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
 import { parseTaskQuery, suggest, TaskQueryError, type QueryKey } from "@/shared/task-query";
+import { tr } from "@/web/i18n"; // POL4 (HQ MB-356)
 
 export function TaskQueryBox({ value, onApply, values }: { value: string; onApply: (q: string | null) => void; values: Partial<Record<QueryKey, string[]>> }) {
   const [text, setText] = useState(value);
@@ -49,9 +50,9 @@ export function TaskQueryBox({ value, onApply, values }: { value: string; onAppl
     <div className="relative">
       <div className={cn("flex h-8 w-72 items-center gap-1.5 rounded-lg border bg-elevated px-2 text-[13px] transition-[border-color,box-shadow] duration-150 ease-out focus-within:border-brand focus-within:ring-4 focus-within:ring-brand/15 max-sm:h-11 max-sm:w-64 max-sm:px-3", error && !items.length ? "border-bad" : "border-line")}>
         <IconSearch className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden />
-        <input ref={ref} aria-label="Search tasks" role="combobox" aria-expanded={items.length > 0} aria-controls="task-query-suggestions" aria-autocomplete="list"
+        <input ref={ref} aria-label={tr("tasks.search_tasks")} role="combobox" aria-expanded={items.length > 0} aria-controls="task-query-suggestions" aria-autocomplete="list"
           aria-invalid={!!error} aria-describedby={error ? "task-query-error" : undefined}
-          placeholder="Search or filter: assignee:me status:doing" value={text} spellCheck={false}
+          placeholder={tr("tasks.search_or_filter")} value={text} spellCheck={false}
           className="min-w-0 flex-1 bg-transparent font-mono text-[12.5px] outline-none placeholder:font-sans placeholder:text-subtle max-sm:text-base"
           onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 120)}
           onChange={(e) => { setText(e.target.value); setCursor(e.target.selectionStart ?? e.target.value.length); setOpen(true); setActive(0); setNavigated(false); }}

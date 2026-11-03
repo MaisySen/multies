@@ -51,7 +51,7 @@ import { NO_LANE, SWIMLANES, boardViewKeys, lanesFrom, type Swimlanes } from "@/
 import { ClashScope } from "./schedule-r38"; // R38: clash badges on list rows and board cards
 import { lazyPage } from "@/web/components/lazy-page";
 import { ReferencesPanel } from "@/web/components/mentions-td5"; // POL2
-import { tr } from "@/web/i18n"; // R104
+import { tr, tl } from "@/web/i18n"; // R104
 
 const TaskCalendar = lazyPage(() => import("./calendar"), "TaskCalendar");
 const PlannedTimeline = lazyPage(() => import("./timeline-plan-r37"), "default"); // R37: timeline with dependency planning
@@ -60,14 +60,14 @@ const WorkloadView = lazyPage(() => import("./workload"), "WorkloadView");
 const MindMapView = lazyPage(() => import("./mindmap-r95"), "MindMapView"); // R95
 
 const BASE_VIEWS: { id: ViewKind; label: string; icon: IconComponent }[] = [
-  { id: "board", label: "Board", icon: IconBoard },
-  { id: "list", label: "List", icon: IconList },
-  { id: "calendar", label: "Calendar", icon: IconCalendarDays },
-  { id: "timeline", label: "Timeline", icon: IconTimeline },
-  { id: "sprints", label: "Sprints", icon: IconSprint },
-  { id: "workload", label: "Workload", icon: IconTeam },
+  { id: "board", get label() { return tl("taskview", "Board"); }, icon: IconBoard },
+  { id: "list", get label() { return tl("taskview", "List"); }, icon: IconList },
+  { id: "calendar", get label() { return tl("taskview", "Calendar"); }, icon: IconCalendarDays },
+  { id: "timeline", get label() { return tl("taskview", "Timeline"); }, icon: IconTimeline },
+  { id: "sprints", get label() { return tl("taskview", "Sprints"); }, icon: IconSprint },
+  { id: "workload", get label() { return tl("taskview", "Workload"); }, icon: IconTeam },
 ];
-const MINDMAP_VIEW: { id: ViewKind; label: string; icon: IconComponent } = { id: "mindmap", label: "Mind map", icon: IconListTree }; // R95
+const MINDMAP_VIEW: { id: ViewKind; label: string; icon: IconComponent } = { id: "mindmap", get label() { return tl("taskview", "Mind map"); }, icon: IconListTree }; // R95
 const FILTER_KEYS = ["q", "assignee", "priority", "label", "status", "type"] as const;
 
 export function TasksPage() {
@@ -231,7 +231,7 @@ export function TasksPage() {
     if (listSort) out.push(`Sorted by ${listSort.id.startsWith("field:") ? listFields.find((f) => `field:${f.id}` === listSort.id)?.name ?? "a field" : listSort.id}`);
     return out;
   };
-  const groupOptions = [{ value: "", label: "None" }, ...(["status", "assignee", "priority", "due", "tag"] as const).map((g) => ({ value: g, label: GROUP_LABEL[g]! })),
+  const groupOptions = [{ value: "", label: tr("tasks.none") }, ...(["status", "assignee", "priority", "due", "tag"] as const).map((g) => ({ value: g, label: tl("taskgroup", GROUP_LABEL[g]!) })),
     ...(project ? [] : [{ value: "project", label: "Project" }]),
     ...listFields.filter((f) => ["select", "multiselect", "checkbox", "person", "text", "number", "date", "url", "currency"].includes(f.type)).map((f) => ({ value: `field:${f.id}`, label: f.name }))];
   const groupName = (g: string) => (g.startsWith("field:") ? listFields.find((f) => `field:${f.id}` === g)?.name ?? "field" : GROUP_LABEL[g] ?? g).toLowerCase();
@@ -321,14 +321,14 @@ export function TasksPage() {
       <div className="-mx-4 mb-4 flex items-center gap-2 overflow-x-auto overscroll-x-contain px-4 pb-1 [scrollbar-width:none] max-sm:pr-10 max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" aria-label={tr("tasks.filters")}>
         <TaskQueryBox value={filters.q ?? ""} onApply={(q) => set({ q })} values={queryValues} />
         <PhoneFilters groups={[
-          { key: "assignee", label: "Assignee", value: filters.assignee ?? "", onChange: (v) => set({ assignee: v || null }), options: [{ value: "", label: "Anyone" }, { value: "me", label: "Me" }, { value: "none", label: "Nobody" }, ...(people.data ?? []).map((p) => ({ value: p.id, label: p.name }))] },
-          { key: "priority", label: "Priority", value: filters.priority ?? "", onChange: (v) => set({ priority: v || null }), options: [{ value: "", label: "Any" }, ...(["urgent", "high", "medium", "low"] as Priority[]).map((p) => ({ value: p, label: PRIORITY_LABEL[p] }))] },
-          { key: "status", label: "Status", value: filters.status ?? "", onChange: (v) => set({ status: v || null }), options: [{ value: "", label: "Any" }, { value: "todo", label: "To do" }, { value: "doing", label: "Doing" }, { value: "done", label: "Done" }] },
-          { key: "type", label: "Type", value: filters.type ?? "", onChange: (v) => set({ type: v || null }), options: [{ value: "", label: "Any" }, ...TASK_TYPES.map((k) => ({ value: k, label: TYPE_META[k].label }))] },
-          { key: "label", label: "Tag", value: filters.label ?? "", onChange: (v) => set({ label: v || null }), options: [{ value: "", label: "Any" }, ...(tagList.data ?? []).map((t) => ({ value: t.name, label: t.name }))] },
-          ...(view === "list" ? [{ key: "group", label: "Group", value: listGroup ?? "", onChange: (v: string) => set({ group: v || null }), options: groupOptions }] : []),
+          { key: "assignee", label: tr("common.assignee"), value: filters.assignee ?? "", onChange: (v) => set({ assignee: v || null }), options: [{ value: "", label: tr("tasks.anyone") }, { value: "me", label: tr("tasks.me") }, { value: "none", label: tr("tasks.nobody") }, ...(people.data ?? []).map((p) => ({ value: p.id, label: p.name }))] },
+          { key: "priority", label: tr("common.priority"), value: filters.priority ?? "", onChange: (v) => set({ priority: v || null }), options: [{ value: "", label: tr("tasks.any") }, ...(["urgent", "high", "medium", "low"] as Priority[]).map((p) => ({ value: p, label: PRIORITY_LABEL[p] }))] },
+          { key: "status", label: tr("common.status"), value: filters.status ?? "", onChange: (v) => set({ status: v || null }), options: [{ value: "", label: tr("tasks.any") }, { value: "todo", label: tr("tasks.to_do") }, { value: "doing", label: tr("tasks.doing") }, { value: "done", label: tr("common.done") }] },
+          { key: "type", label: tr("tasks.type"), value: filters.type ?? "", onChange: (v) => set({ type: v || null }), options: [{ value: "", label: tr("tasks.any") }, ...TASK_TYPES.map((k) => ({ value: k, label: TYPE_META[k].label }))] },
+          { key: "label", label: tr("tasks.tag"), value: filters.label ?? "", onChange: (v) => set({ label: v || null }), options: [{ value: "", label: tr("tasks.any") }, ...(tagList.data ?? []).map((t) => ({ value: t.name, label: t.name }))] },
+          ...(view === "list" ? [{ key: "group", label: tr("tasks.group"), value: listGroup ?? "", onChange: (v: string) => set({ group: v || null }), options: groupOptions }] : []),
           // PAR1: on a computer the list sorts from its column headers; a phone has no headers, so Sort sits with the filters.
-          ...(view === "list" ? [{ key: "sort", label: "Sort", value: sortValue(listSort), onChange: (v: string) => set(parseSortValue(v)), options: [...PHONE_SORTS] }] : []),
+          ...(view === "list" ? [{ key: "sort", label: tr("tasks.sort"), value: sortValue(listSort), onChange: (v: string) => set(parseSortValue(v)), options: PHONE_SORTS.map((o) => ({ ...o, label: tl("tasksort", o.label) })) }] : []),
         ]} />
         {/* R79: light toolbar controls that say their setting; colour only when a filter is on. */}
         <ChipSelect label={tr("common.assignee")} aria-label={tr("tasks.assignee_filter")} active={!!filters.assignee} value={filters.assignee ?? ""} onChange={(e) => set({ assignee: e.target.value || null })} className="max-sm:hidden">

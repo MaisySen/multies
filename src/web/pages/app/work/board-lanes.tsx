@@ -28,6 +28,7 @@ import {
 } from "@/shared/board-lanes";
 import { PRIORITY_LABEL, positionBetween, type AssigneeOption, type Project, type Task, isAgentLike } from "./data";
 import { ColumnCards, TaskCard } from "./board";
+import { tr, tl } from "@/web/i18n"; // POL4 (HQ MB-356)
 
 export const SWIMLANE_LABEL: Record<Swimlanes, string> = { none: "None", assignee: "Assignee", epic: "Epic", priority: "Priority", project: "Project" };
 
@@ -95,7 +96,7 @@ export function LimitMenu({ title, limit, onSet }: { title: string; limit?: Colu
   return (
     <>
       <Menu align="end" label={`Limits for ${title}`} trigger={
-        <button type="button" aria-label={`Set a limit for ${title}`} data-testid="column-limit-menu"
+        <button type="button" aria-label={tr("tasks.set_a_limit_for", { name: tl("taskstatus", title) })} data-testid="column-limit-menu"
           className="grid h-11 w-11 place-items-center rounded-full text-subtle transition-colors hover:bg-elevated hover:text-fg sm:h-6 sm:w-6 sm:rounded"><IconGauge className="h-3.5 w-3.5 max-sm:h-[18px] max-sm:w-[18px]" /></button>
       }>
         <MenuLabel>Most cards in {title}</MenuLabel>

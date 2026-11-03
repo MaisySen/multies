@@ -15,14 +15,15 @@ import { Input, Select } from "@/web/components/ui/input";
 import { Button } from "@/web/components/ui/button";
 import { Skeleton } from "@/web/components/ui/misc";
 import { dueLabel, useTasks, type Project, type Task } from "./data";
+import { tl } from "@/web/i18n"; // POL4 (HQ MB-356)
 
 export type TaskType = "task" | "story" | "bug" | "epic";
 export const TASK_TYPES: TaskType[] = ["task", "story", "bug", "epic"];
 export const TYPE_META: Record<TaskType, { label: string; Icon: IconComponent; color: string }> = {
-  task: { label: "Task", Icon: IconTasks, color: "#4a90d9" },
-  story: { label: "Story", Icon: IconBook, color: "#2f9e62" },
-  bug: { label: "Bug", Icon: IconBug, color: "#d9534f" },
-  epic: { label: "Epic", Icon: IconMountain, color: "#8a5cc7" },
+  task: { get label() { return tl("tasktype", "Task"); }, Icon: IconTasks, color: "#4a90d9" },
+  story: { get label() { return tl("tasktype", "Story"); }, Icon: IconBook, color: "#2f9e62" },
+  bug: { get label() { return tl("tasktype", "Bug"); }, Icon: IconBug, color: "#d9534f" },
+  epic: { get label() { return tl("tasktype", "Epic"); }, Icon: IconMountain, color: "#8a5cc7" },
 };
 export const typeOf = (t: { type?: string } | undefined): TaskType => (t?.type && t.type in TYPE_META ? t.type as TaskType : "task");
 

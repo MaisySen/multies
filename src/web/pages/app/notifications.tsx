@@ -24,14 +24,22 @@ import { KindTile } from "@/web/components/premium4-r39"; // R39 premium pass 4
 import { NOTIFICATION_FILTER_KEY, readStoredFilter } from "@/web/lib/premium4-r39";
 import { AlertStatusLine, DeliverySettings, PauseMenu, useNotificationSettings, useSaveSettings, type ChannelPrefs } from "@/web/components/notification-centre-r97"; // R97
 import { LoadError, LoadErrorInline } from "@/web/components/load-error-t1g";
-import { tr } from "@/web/i18n"; // R104
+import { tr, tl } from "@/web/i18n"; // R104
 
 export type NotificationCategory = "mention" | "assignment" | "comment" | "approval" | "due_soon" | "chat" | "email" | "status";
 export interface InboxItem { id: string; type: string; category: NotificationCategory; entityType: string; entityId: string; title: string; actor: { name: string } | null; read: boolean; createdAt: string; link: string; doneAt: string | null; snoozedUntil: string | null }
 interface InboxPage { notifications: InboxItem[]; unread: number; counts: Record<NotificationCategory, number>; hasMore: boolean; view: TriageView; viewCounts: ViewCounts }
 
 export const CATEGORY_LABELS: Record<NotificationCategory, string> = {
-  mention: "Mentions", assignment: "Assigned to me", comment: "Comments and replies", approval: "Approvals", due_soon: "Due soon", chat: "Direct messages", email: "Mail on tasks", status: "Status changes",
+  // POL4 (HQ MB-356): read in the language on screen.
+  get mention() { return tl("notifcat", "Mentions"); },
+  get assignment() { return tl("notifcat", "Assigned to me"); },
+  get comment() { return tl("notifcat", "Comments and replies"); },
+  get approval() { return tl("notifcat", "Approvals"); },
+  get due_soon() { return tl("notifcat", "Due soon"); },
+  get chat() { return tl("notifcat", "Direct messages"); },
+  get email() { return tl("notifcat", "Mail on tasks"); },
+  get status() { return tl("notifcat", "Status changes"); },
 };
 const FILTERS: (NotificationCategory | "all")[] = ["all", "mention", "assignment", "comment", "approval", "due_soon", "chat", "email", "status"];
 /** Where an item lives, read from its entity type. */
@@ -167,7 +175,7 @@ export function NotificationsPage() {
         {FILTERS.map((f) => (
           <button key={f} onClick={() => setFilter(f)} aria-pressed={filter === f}
             className={cn("rounded-full border px-3 py-1 text-[12.5px] tabular-nums transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-11 max-sm:px-3.5", filter === f ? "border-fg bg-fg text-bg" : "border-line text-muted hover:border-line-strong hover:text-fg")}>
-            {f === "all" ? "All" : CATEGORY_LABELS[f]}{f === "all" ? (q.data?.unread ? ` ${q.data.unread}` : "") : counts?.[f] ? ` ${counts[f]}` : ""}
+            {f === "all" ? tr("notifications.all") : CATEGORY_LABELS[f]}{f === "all" ? (q.data?.unread ? ` ${q.data.unread}` : "") : counts?.[f] ? ` ${counts[f]}` : ""}
           </button>
         ))}
         <label className="ml-auto flex items-center gap-2 text-[13px] text-muted max-sm:min-h-11 max-sm:pl-2"><input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />{tr("notifications.unread_only")}</label>

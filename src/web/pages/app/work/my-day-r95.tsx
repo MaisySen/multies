@@ -172,7 +172,7 @@ function AddToDay({ onAdd, day }: { onAdd: (title: string) => Promise<void>; day
   return (
     <form className="hairline-b flex items-center gap-2 px-4 py-2" onSubmit={(e) => { e.preventDefault(); void submit(); }} data-testid="my-day-add">
       <IconPlus className="h-4 w-4 shrink-0 text-subtle" aria-hidden="true" />
-      <Input ref={input} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} placeholder={`Add a task for ${day}`} aria-label={`Add a task for ${day}`}
+      <Input ref={input} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} placeholder={day === "today" ? tr("myday.add_a_task_for_today") : tr("myday.add_a_task_for_tomorrow")} aria-label={day === "today" ? tr("myday.add_a_task_for_today") : tr("myday.add_a_task_for_tomorrow")}
         className="h-9 flex-1 border-transparent bg-transparent px-1 text-[13.5px] shadow-none max-sm:h-11" />
       <Button size="sm" type="submit" variant="secondary" loading={busy} disabled={!title.trim()}>{tr("common.add")}</Button>
     </form>
@@ -288,10 +288,10 @@ function DayColumn({ day, isToday, items, onPlace, onRemove, onFinish }: {
   return (
     <div className="elev-1 overflow-hidden rounded-[var(--radius-r14)] bg-surface" data-testid="my-day-column">
       <div className="hairline-b flex items-center justify-between px-4 py-2.5">
-        <h3 className="text-[13px] font-semibold">{isToday ? "Today" : new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })}</h3>
-        <span className="text-[12px] text-subtle">{items.length ? `${items.length} blocked, ${Math.round(items.reduce((s, i) => s + i.minutes, 0) / 6) / 10}h` : "No time blocked"}</span>
+        <h3 className="text-[13px] font-semibold">{isToday ? tr("myday.today") : new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })}</h3>
+        <span className="text-[12px] text-subtle">{items.length ? tr("myday.blocked_hours", { count: items.length, hours: Math.round(items.reduce((s, i) => s + i.minutes, 0) / 6) / 10 }) : tr("myday.no_time_blocked")}</span>
       </div>
-      <div ref={scroller} className="relative h-[460px] overflow-y-auto overscroll-contain rounded-b-[var(--radius-r14)] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand max-sm:h-[380px]" tabIndex={0} role="region" aria-label={isToday ? "Today's schedule" : "Tomorrow's schedule"} data-testid="my-day-scroll">
+      <div ref={scroller} className="relative h-[460px] overflow-y-auto overscroll-contain rounded-b-[var(--radius-r14)] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand max-sm:h-[380px]" tabIndex={0} role="region" aria-label={isToday ? tr("myday.todays_schedule") : tr("myday.tomorrows_schedule")} data-testid="my-day-scroll">
         <div ref={grid} className="relative" style={{ height: 24 * HOUR_PX }} onDragOver={over} onDragLeave={() => setGhost(null)} onDrop={drop} data-testid="my-day-grid">
           {hours.map((h) => (
             <div key={h} className="absolute inset-x-0 flex" style={{ top: h * HOUR_PX, height: HOUR_PX }} aria-hidden>

@@ -15,6 +15,7 @@ import { CopyButton, Switch } from "@/web/components/ui/misc";
 import { useMe } from "@/web/lib/queries";
 import { useConfig } from "@/web/lib/queries"; // R103
 import { toast } from "sonner";
+import { tr } from "@/web/i18n"; // POL4 (HQ MB-356)
 
 type Kind = "doc" | "project_board";
 interface ShareLink { id: string; kind: Kind; targetId: string; showWorkspaceName: boolean; createdAt: string; expiresAt: string | null; url?: string; comments?: "off" | "on" }
@@ -25,7 +26,7 @@ export function ShareButton({ kind, targetId, size = "sm" }: { kind: Kind; targe
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="ghost" size={size} className="shrink-0 max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg max-sm:px-0 max-sm:[&_svg]:h-5 max-sm:[&_svg]:w-5" onClick={() => setOpen(true)} aria-label="Share" data-testid="share-button"><IconShare className="h-4 w-4" /><span className="max-sm:hidden">Share</span></Button>
+      <Button variant="ghost" size={size} className="shrink-0 max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg max-sm:px-0 max-sm:[&_svg]:h-5 max-sm:[&_svg]:w-5" onClick={() => setOpen(true)} aria-label={tr("tasks.share")} data-testid="share-button"><IconShare className="h-4 w-4" /><span className="max-sm:hidden">{tr("tasks.share")}</span></Button>
       {open && <ShareSheet kind={kind} targetId={targetId} onClose={() => setOpen(false)} />}
     </>
   );
@@ -122,10 +123,10 @@ export function ShareLinksSetting() {
   return (
     <div className="flex items-center gap-3" data-testid="share-links-setting">
       <div className="min-w-0 flex-1">
-        <p className="text-[13.5px] font-medium">Allow share links</p>
-        <p className="text-[12.5px] text-muted">Members can share a read only link to a doc or a board. Off stops every link at once.</p>
+        <p className="text-[13.5px] font-medium">{tr("settings.allow_share_links")}</p>
+        <p className="text-[12.5px] text-muted">{tr("settings.allow_share_links_hint")}</p>
       </div>
-      <Switch checked={q.data?.allowShareLinks ?? true} onChange={(v) => void set(v)} label="Allow share links" disabled={!canEdit || !q.data} />
+      <Switch checked={q.data?.allowShareLinks ?? true} onChange={(v) => void set(v)} label={tr("settings.allow_share_links")} disabled={!canEdit || !q.data} />
     </div>
   );
 }

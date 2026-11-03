@@ -19,6 +19,7 @@ import { TypeIcon } from "./task-type";
 import { TagChips } from "./tasks-r84"; // R84: coloured workspace tags
 import { LimitChip, LimitMenu, overLimitToast } from "./board-lanes"; // R34 (MB-186)
 import { limitState, wouldExceed, type BoardLimits, type ColumnLimit } from "@/shared/board-lanes";
+import { tl, tr } from "@/web/i18n"; // POL4 (HQ MB-356)
 
 export function TaskCard({ t, onOpen, dragging, handle, project }: { t: Task; onOpen?: () => void; dragging?: boolean; handle?: React.ReactNode; /** R36: given, the card edits in place. */ project?: Project }) {
   return (
@@ -184,14 +185,14 @@ export function ColumnComposer({ title, onQuickAdd, variant = "column" }: {
           className="h-11 w-full rounded-lg border border-brand bg-surface px-3 text-[14px] text-fg outline-none ring-4 ring-brand/15 placeholder:text-subtle max-sm:text-base sm:h-10" />
       ) : (
         list ? (
-          <button type="button" onClick={() => setOpen(true)} title={`Add a task to ${title}`}
+          <button type="button" onClick={() => setOpen(true)} title={tr("tasks.add_a_task_to", { name: tl("taskstatus", title) })}
             className="group flex min-h-12 w-full items-center gap-2.5 rounded-xl border border-dashed border-line-strong px-3.5 text-left text-[15px] text-muted transition-colors duration-150 hover:border-brand/50 hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 motion-reduce:transition-none sm:min-h-10 sm:text-[13.5px]">
             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-soft text-brand-hover transition-transform duration-150 group-active:scale-90 motion-reduce:transition-none" aria-hidden><IconPlus className="h-3.5 w-3.5" /></span>
-            <span>Add task</span><span className="ml-auto truncate text-[12px] text-subtle">{title}</span>
+            <span>{tr("tasks.add_task")}</span><span className="ml-auto truncate text-[12px] text-subtle">{tl("taskstatus", title)}</span>
           </button>
         ) : (
           <button type="button" onClick={() => setOpen(true)} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 text-[13px] text-muted transition-colors duration-150 hover:bg-elevated hover:text-fg motion-reduce:transition-none sm:min-h-9">
-            <IconPlus className="h-3.5 w-3.5" aria-hidden />Add task
+            <IconPlus className="h-3.5 w-3.5" aria-hidden />{tr("tasks.add_task")}
           </button>
         )
       )}
@@ -214,11 +215,11 @@ function Column({ id, title, color, count, children, onAdd, limit, onSetLimit, o
         {/* R75: the status as a tinted pill with its dot, then the count, like a column header in a planning tool. */}
         <h2 className="inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-[12.5px] font-semibold text-fg max-sm:text-[15px]" style={{ background: `color-mix(in srgb, ${tone(color)} 16%, transparent)` }} data-testid="column-pill">
           <span className="h-2 w-2 shrink-0 rounded-full max-sm:h-2.5 max-sm:w-2.5" style={{ background: tone(color) }} aria-hidden />
-          <span className="truncate">{title}</span>
+          <span className="truncate">{tl("taskstatus", title)}</span>
         </h2>
         <LimitChip count={count} limit={limit} />
         {onSetLimit && <span className="ml-auto"><LimitMenu title={title} limit={limit} onSet={onSetLimit} /></span>}
-        <button onClick={onAdd} className={cn(!onSetLimit && "ml-auto", "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-subtle hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:rounded sm:p-1")} aria-label={`Add a task to ${title}`}><IconPlus className="h-3.5 w-3.5 max-sm:h-5 max-sm:w-5" /></button>
+        <button onClick={onAdd} className={cn(!onSetLimit && "ml-auto", "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-subtle hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:rounded sm:p-1")} aria-label={tr("tasks.add_a_task_to", { name: tl("taskstatus", title) })}><IconPlus className="h-3.5 w-3.5 max-sm:h-5 max-sm:w-5" /></button>
       </header>
       {/* R75: quick add sits at the top of the column, where the eye lands, instead of under a long list. */}
       {onQuickAdd && <ColumnComposer title={title} onQuickAdd={onQuickAdd} />}

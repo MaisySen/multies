@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { IconCalendarPlus, IconEye, IconEyeOff } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
+import { tr } from "@/web/i18n"; // POL4 (HQ MB-356)
 
 /**
  * Round 23 (R23.4): the "Other calendars" layer on the work calendar. Events from the person's own
@@ -50,13 +51,13 @@ export function useOtherCalendars() {
 export function OtherCalendarsBar({ layer }: { layer: ReturnType<typeof useOtherCalendars> }) {
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2 px-1 text-[12.5px]" data-testid="other-calendars">
-      <button type="button" onClick={layer.toggleMeetings} aria-pressed={layer.showMeetings} aria-label={`${layer.showMeetings ? "Hide" : "Show"} meetings`} data-testid="calendar-meetings-toggle"
+      <button type="button" onClick={layer.toggleMeetings} aria-pressed={layer.showMeetings} aria-label={layer.showMeetings ? tr("calendar.hide_meetings") : tr("calendar.show_meetings")} data-testid="calendar-meetings-toggle"
         className={cn("inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 transition-colors max-sm:h-11 max-sm:px-3.5", layer.showMeetings ? "border-line bg-fill text-fg" : "border-line text-subtle")}>
         <span className="size-2 rounded-full" style={{ background: layer.showMeetings ? "#0071E3" : "transparent", boxShadow: "inset 0 0 0 1.5px #0071E3" }} aria-hidden />
-        Meetings
+        {tr("calendar.meetings")}
         {layer.showMeetings ? <IconEye className="size-3.5 text-muted" /> : <IconEyeOff className="size-3.5" />}
       </button>
-      <span className="font-medium text-muted">Other calendars</span>
+      <span className="font-medium text-muted">{tr("calendar.other_calendars")}</span>
       {layer.sources.map((s) => {
         const off = layer.hidden.has(s.id);
         return (
@@ -69,7 +70,7 @@ export function OtherCalendarsBar({ layer }: { layer: ReturnType<typeof useOther
         );
       })}
       <Link to="/app/settings/calendar#other-calendars" className="inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-brand-hover hover:bg-hover max-sm:h-11 max-sm:px-3.5">
-        <IconCalendarPlus className="size-3.5" />Connect a calendar
+        <IconCalendarPlus className="size-3.5" />{tr("calendar.connect_a_calendar")}
       </Link>
       {layer.errors.map((e) => <span key={e.name} className="text-[12px] text-[#C93400]">{e.name}: {e.message}</span>)}
     </div>

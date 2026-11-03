@@ -18,7 +18,7 @@ import { cn } from "@/web/lib/cn";
 import { agendaDays } from "./calendar-agenda";
 import { emptyTasksCopy } from "@/web/lib/empty-states"; // R30
 import { OtherCalendarsBar, useOtherCalendars } from "./calendar-other";
-import { tr } from "@/web/i18n"; // R104
+import { tr, uiLocale } from "@/web/i18n"; // R104
 
 /** Month calendar of due dates (FullCalendar Standard, MIT). Drag a task to another day to move its due date. */
 export function TaskCalendar({ tasks, onOpen, onDue }: { tasks: Task[]; onOpen: (id: string) => void; onDue: (id: string, due: string) => void }) {
@@ -47,7 +47,7 @@ export function TaskCalendar({ tasks, onOpen, onDue }: { tasks: Task[]; onOpen: 
           {(["agenda", "month"] as const).map((m) => (
             <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => setMode(m)}
               className={cn("h-11 rounded-[8px] text-[15px] font-medium transition-colors duration-150 motion-reduce:transition-none", mode === m ? "bg-surface text-fg shadow-card" : "text-muted")}>
-              {m === "agenda" ? "Agenda" : "Month"}
+              {m === "agenda" ? tr("calendar.agenda") : tr("calendar.month")}
             </button>
           ))}
         </div>
@@ -55,9 +55,9 @@ export function TaskCalendar({ tasks, onOpen, onDue }: { tasks: Task[]; onOpen: 
       {agenda ? <PhoneAgenda tasks={tasks} onOpen={onOpen} /> : <>
       <OtherCalendarsBar layer={other} />
       <FullCalendar
-        plugins={[classicThemePlugin, dayGridPlugin, interactionPlugin]} initialView="dayGridMonth" locale="en-au" firstDay={1} height="auto"
+        plugins={[classicThemePlugin, dayGridPlugin, interactionPlugin]} initialView="dayGridMonth" locale={uiLocale()?.toLowerCase() ?? "en-au"} firstDay={1} height="auto"
         events={[...events, ...other.events]} datesSet={(r) => other.setRange({ from: r.start.toISOString(), to: r.end.toISOString() })} editable eventStartEditable eventDurationEditable={false} dayMaxEvents={4}
-        headerToolbar={{ start: "title", center: "", end: "today prev,next" }} buttons={{ today: { text: "Today", hint: "Today" } }}
+        headerToolbar={{ start: "title", center: "", end: "today prev,next" }} buttons={{ today: { text: tr("myday.today"), hint: tr("myday.today") } }}
         toolbarTitleClass="mm-fc-title" dayHeaderInnerClass="mm-fc-muted" dayCellTopInnerClass="mm-fc-muted" eventClass="mm-fc-event"
         eventDidMount={(a) => { const src = a.event.extendedProps.sourceColor as string | undefined; if (src) a.el.style.setProperty("--mm-src", src); }}
         eventClick={(e) => { e.jsEvent.preventDefault(); const href = e.event.extendedProps.href as string | null | undefined; if (href) navigate(href); else if (!e.event.extendedProps.readOnly) onOpen(e.event.id); }} eventDrop={onDrop}

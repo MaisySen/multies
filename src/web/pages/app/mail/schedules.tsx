@@ -12,13 +12,14 @@ import { Button } from "@/web/components/ui/button";
 import { Select } from "@/web/components/ui/input";
 import { EmptyState, Skeleton } from "@/web/components/ui/misc";
 import type { MessageListItem } from "@/web/lib/types";
+import { tl } from "@/web/i18n"; // POL4 (HQ MB-356)
 
 /** Round 20 (R20.3): Snoozed and Scheduled views, the snooze menu, send later and the returned strip. */
 
 export type ScheduleView = "snoozed" | "scheduled";
 export const SCHEDULE_VIEWS: { id: ScheduleView; label: string; icon: IconComponent }[] = [
-  { id: "snoozed", label: "Snoozed", icon: IconSnooze },
-  { id: "scheduled", label: "Scheduled", icon: IconCalendarClock },
+  { id: "snoozed", get label() { return tl("mailfolder", "Snoozed"); }, icon: IconSnooze },
+  { id: "scheduled", get label() { return tl("mailfolder", "Scheduled"); }, icon: IconCalendarClock },
 ];
 export const isScheduleView = (v: string): v is ScheduleView => v === "snoozed" || v === "scheduled";
 

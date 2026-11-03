@@ -2,9 +2,11 @@
  * R31: notification triage on the web. Pure helpers for the Inbox / Later / Done list (day groups, optimistic moves,
  * the page-local keys) so they are unit tested without a browser. The page is src/web/pages/app/notifications.tsx.
  */
+import { tl } from "@/web/i18n"; // POL4 (HQ MB-356)
+
 export type TriageView = "inbox" | "later" | "done";
 export const TRIAGE_VIEWS: TriageView[] = ["inbox", "later", "done"];
-export const VIEW_LABELS: Record<TriageView, string> = { inbox: "Inbox", later: "Later", done: "Done" };
+export const VIEW_LABELS: Record<TriageView, string> = { get inbox() { return tl("notifview", "Inbox"); }, get later() { return tl("notifview", "Later"); }, get done() { return tl("notifview", "Done"); } }; // POL4 (HQ MB-356)
 export type SnoozePreset = "later_today" | "tomorrow" | "next_week";
 export const SNOOZE_LABELS: Record<SnoozePreset, string> = { later_today: "Later today", tomorrow: "Tomorrow", next_week: "Next week" };
 

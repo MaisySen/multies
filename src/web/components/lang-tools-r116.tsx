@@ -22,6 +22,7 @@ import {
 import {
   detectLanguage, htmlPieces, joinHtml, joinPieces, languageLabel, R116_LANGUAGES, textPieces, type R116Language,
 } from "@/shared/translate-r116";
+import { tr } from "@/web/i18n"; // POL4 (HQ MB-356)
 
 const focus = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
 const LANGS = Object.entries(R116_LANGUAGES) as [R116Language, string][];
@@ -290,17 +291,17 @@ export function TranslateSettingsR116() {
   return (
     <div className="grid max-w-xl gap-4" data-testid="translate-settings">
       <div className="grid gap-1.5">
-        <label htmlFor={`${id}-lang`} className="text-sm font-medium text-fg">Translate into</label>
-        <Select id={`${id}-lang`} value={prefs.target} onChange={(e) => { setPrefs({ target: e.target.value as R116Language }); toast.success("Saved."); }} className="max-w-xs">
+        <label htmlFor={`${id}-lang`} className="text-sm font-medium text-fg">{tr("translate.translate_into")}</label>
+        <Select id={`${id}-lang`} value={prefs.target} onChange={(e) => { setPrefs({ target: e.target.value as R116Language }); toast.success(tr("translate.saved")); }} className="max-w-xs">
           {LANGS.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
         </Select>
-        <p className="text-[13px] text-muted">Mail, docs and chat translate into this language unless you pick another one there.</p>
+        <p className="text-[13px] text-muted">{tr("translate.translate_into_hint")}</p>
       </div>
       <label className="flex min-h-11 items-start gap-3 text-sm text-fg">
-        <input type="checkbox" checked={prefs.autoOffer} onChange={(e) => { setPrefs({ autoOffer: e.target.checked }); toast.success("Saved."); }} className={cn("mt-0.5 h-5 w-5 shrink-0 accent-brand", focus)} />
-        <span>Offer to translate messages written in another language<span className="block text-[13px] text-muted">A Translate button shows on mail and chat messages that are not in your language.</span></span>
+        <input type="checkbox" checked={prefs.autoOffer} onChange={(e) => { setPrefs({ autoOffer: e.target.checked }); toast.success(tr("translate.saved")); }} className={cn("mt-0.5 h-5 w-5 shrink-0 accent-brand", focus)} />
+        <span>{tr("translate.offer")}<span className="block text-[13px] text-muted">{tr("translate.offer_hint")}</span></span>
       </label>
-      <p className="text-[13px] text-muted">Translation uses the built in AI and counts toward today's free AI use. Read aloud uses your device's own voices and sends nothing anywhere.</p>
+      <p className="text-[13px] text-muted">{tr("translate.uses_ai_note")}</p>
     </div>
   );
 }

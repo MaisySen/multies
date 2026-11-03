@@ -20,6 +20,7 @@ import {
 } from "@/shared/mail-splits";
 import type { TabStyle } from "@/shared/mail-rules-r85";
 import { MAIL_DRAG_TYPE, TabStyleSection } from "./tabs-r85";
+import { tr, tl } from "@/web/i18n"; // POL4 (HQ MB-356)
 
 export const DEFAULT_SPLIT = "important";
 const STYLE_INTRO: Record<TabStyle, string> = {
@@ -47,7 +48,7 @@ export function SplitTabs({ tabs, active, onChange, onEdit, onDropMessage }: { t
   return (
     <div className="flex items-center gap-1 border-b border-line px-2" data-testid="split-tabs">
       {/* R85: arrow keys, Home and End move between tabs (the tabs pattern); only the open tab is in the Tab order. */}
-      <div role="tablist" aria-label="Inbox tabs" className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto py-1.5 [scrollbar-width:none]"
+      <div role="tablist" aria-label={tr("mail.inbox_tabs")} className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto py-1.5 [scrollbar-width:none]"
         onKeyDown={(e) => {
           const keys: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1, Home: -Infinity, End: Infinity };
           if (!(e.key in keys) || !tabs.length) return;
@@ -66,12 +67,12 @@ export function SplitTabs({ tabs, active, onChange, onEdit, onDropMessage }: { t
             className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[13px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 max-sm:h-11",
               t.id === active ? "bg-brand-soft font-medium text-brand-hover" : "text-muted hover:bg-hover hover:text-fg",
               over === t.id && "bg-brand-soft text-brand-hover ring-2 ring-brand/40")}>
-            {t.name}
-            {t.unread > 0 && <span className={cn("min-w-5 rounded-full px-1.5 text-center text-[11px] tabular-nums", t.id === active ? "bg-brand text-white" : "bg-fill text-muted")} aria-label={`${t.unread} unread`}>{t.unread > 99 ? "99+" : t.unread}</span>}
+            {t.builtIn ? tl("mailtab", t.name) : t.name}
+            {t.unread > 0 && <span className={cn("min-w-5 rounded-full px-1.5 text-center text-[11px] tabular-nums", t.id === active ? "bg-brand text-white" : "bg-fill text-muted")} aria-label={tr("mail.count_unread", { count: t.unread })}>{t.unread > 99 ? "99+" : t.unread}</span>}
           </button>
         ))}
       </div>
-      <button type="button" onClick={onEdit} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-subtle hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11" aria-label="Edit tabs" title="Edit tabs">
+      <button type="button" onClick={onEdit} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-subtle hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11" aria-label={tr("mail.edit_tabs")} title={tr("mail.edit_tabs")}>
         <IconSliders className="h-4 w-4" />
       </button>
     </div>

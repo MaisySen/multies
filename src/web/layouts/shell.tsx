@@ -97,7 +97,7 @@ export function IconRail({ sections, active, counts, footer }: { sections: Secti
   return (
     <nav aria-label={tr("shell.sections")} className="glass-sidebar hairline-r flex h-full w-[72px] shrink-0 flex-col items-center gap-1 py-2" data-testid="icon-rail">
       <button type="button" onClick={() => toggleSidebar(loc.pathname)} aria-pressed={!hidden} data-testid="sidebar-toggle"
-        title={`${hidden ? "Show" : "Hide"} sidebar (${MOD} \\)`} aria-label={hidden ? "Show sidebar" : "Hide sidebar"} hidden={ownsSidebar(loc.pathname)}
+        title={`${hidden ? tr("shell.show_sidebar") : tr("shell.hide_sidebar")} (${MOD} \\)`} aria-label={hidden ? tr("shell.show_sidebar") : tr("shell.hide_sidebar")} hidden={ownsSidebar(loc.pathname)}
         className="mb-1 grid h-9 w-9 place-items-center rounded-lg text-muted transition-colors hover:bg-hover hover:text-fg">
         <IconSidebar className="h-[18px] w-[18px]" aria-hidden />
       </button>
@@ -244,7 +244,7 @@ export function Breadcrumbs({ projectName }: { projectName?: string | null }) {
       </ol>
       {fav && (
         <button type="button" onClick={() => toggleFavourite(fav)} aria-pressed={starred} data-testid="favourite-star"
-          aria-label={starred ? "Remove from favourites" : "Add to favourites"} title={starred ? "Remove from favourites" : "Add to favourites"}
+          aria-label={starred ? tr("shell.remove_from_favourites") : tr("shell.add_to_favourites")} title={starred ? tr("shell.remove_from_favourites") : tr("shell.add_to_favourites")}
           className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-md hover:bg-hover", starred ? "text-warn" : "text-subtle hover:text-fg")}>
           <IconStar filled={starred} className="h-4 w-4" aria-hidden />
         </button>

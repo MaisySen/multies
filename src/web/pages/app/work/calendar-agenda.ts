@@ -3,6 +3,9 @@
  * every title cut to a few letters, so phones get a list by day instead: Overdue first, then Today, Tomorrow and each
  * later day that has something due, up to `days` ahead. Pure, so it is unit tested without a browser.
  */
+import { formatDateIn } from "@/web/i18n/intl";
+import { tr, uiLocale } from "@/web/i18n"; // POL4 (HQ MB-356)
+
 export type AgendaTask = { id: string; due: string | null; start: string | null; status: string };
 export type AgendaDay<T> = { key: string; label: string; overdue?: boolean; items: T[] };
 
@@ -23,9 +26,12 @@ function fromKey(key: string): Date {
 /** "Today", "Tomorrow", or "Wed 29 Oct". */
 export function dayLabel(key: string, todayKey: string): string {
   const diff = Math.round((fromKey(key).getTime() - fromKey(todayKey).getTime()) / DAY);
-  if (diff === 0) return "Today";
-  if (diff === 1) return "Tomorrow";
+  // POL4 (HQ MB-356): Nepali or Hindi words and dates while the app shows one; English exactly as before otherwise.
+  const ui = uiLocale();
+  if (diff === 0) return ui ? tr("myday.today") : "Today";
+  if (diff === 1) return ui ? tr("calendar.tomorrow") : "Tomorrow";
   const d = fromKey(key);
+  if (ui) return formatDateIn(d, ui, { weekday: "short", day: "numeric", month: "short" });
   return `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
 }
 
@@ -47,8 +53,8 @@ export function agendaDays<T extends AgendaTask>(tasks: T[], today: Date, days =
     if (list) list.push(t); else byDay.set(when, [t]);
   }
   const out: AgendaDay<T>[] = [];
-  if (overdue.length) out.push({ key: "overdue", label: "Overdue", overdue: true, items: overdue.sort((a, b) => ((a.due ?? a.start)! < (b.due ?? b.start)! ? -1 : 1)) });
-  if (!byDay.has(todayKey)) out.push({ key: todayKey, label: "Today", items: [] });
+  if (overdue.length) out.push({ key: "overdue", label: uiLocale() ? tr("mywork.overdue") : "Overdue", overdue: true, items: overdue.sort((a, b) => ((a.due ?? a.start)! < (b.due ?? b.start)! ? -1 : 1)) });
+  if (!byDay.has(todayKey)) out.push({ key: todayKey, label: uiLocale() ? tr("myday.today") : "Today", items: [] });
   for (const key of [...byDay.keys()].sort()) out.push({ key, label: dayLabel(key, todayKey), items: byDay.get(key)! });
   return out.sort((a, b) => (a.key === "overdue" ? -1 : b.key === "overdue" ? 1 : a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 }

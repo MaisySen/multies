@@ -52,17 +52,17 @@ import { archiveOlderOffered, emptyInboxTitle } from "./mail/archive-older-offer
 import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33 offline
 import { SNOOZE_WORDS, emptySelection, prune, selectAll, selectRange, setSelectionCount, toggleOne, undoPlan, UNDO_MS, type BulkCall, type Selection } from "@/web/lib/mail-selection"; // R32
 import { LoadError } from "@/web/components/load-error-t1g";
-import { tr } from "@/web/i18n"; // R104
+import { tl, tr } from "@/web/i18n"; // R104, POL4 (HQ MB-356)
 
 type View = Folder | "starred" | "snoozed" | "scheduled" | `f:${string}`;
 const FOLDER_UI: { id: View; label: string; icon: IconComponent }[] = [
-  { id: "inbox", label: "Inbox", icon: IconInbox },
-  { id: "starred", label: "Starred", icon: IconStar },
-  { id: "sent", label: "Sent", icon: IconSend },
-  { id: "drafts", label: "Drafts", icon: IconFileEdit },
-  { id: "archive", label: "Archive", icon: IconArchive },
-  { id: "spam", label: "Spam", icon: IconBlock },
-  { id: "trash", label: "Trash", icon: IconTrash },
+  { id: "inbox", get label() { return tl("mailfolder", "Inbox"); }, icon: IconInbox },
+  { id: "starred", get label() { return tl("mailfolder", "Starred"); }, icon: IconStar },
+  { id: "sent", get label() { return tl("mailfolder", "Sent"); }, icon: IconSend },
+  { id: "drafts", get label() { return tl("mailfolder", "Drafts"); }, icon: IconFileEdit },
+  { id: "archive", get label() { return tl("mailfolder", "Archive"); }, icon: IconArchive },
+  { id: "spam", get label() { return tl("mailfolder", "Spam"); }, icon: IconBlock },
+  { id: "trash", get label() { return tl("mailfolder", "Trash"); }, icon: IconTrash },
 ];
 
 export function WebmailPage() {

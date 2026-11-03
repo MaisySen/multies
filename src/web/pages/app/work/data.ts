@@ -5,6 +5,8 @@ import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33
 import { usePagedTasks } from "./paged-tasks-r46"; // R46 (MB-234)
 import { announceTaskChange } from "@/web/lib/task-sync-r40"; // R40 (MB-204)
 import { showError } from "@/web/lib/show-error";
+import { formatDateIn } from "@/web/i18n/intl";
+import { tl, uiLocale } from "@/web/i18n"; // POL4 (HQ MB-356)
 
 export type Category = "todo" | "doing" | "done";
 export type Priority = "none" | "low" | "medium" | "high" | "urgent";
@@ -59,7 +61,11 @@ export interface Tag { id: string; name: string; color: string; position: number
 export interface WorkspaceField { key: string; name: string; type: FieldType; options: FieldOption[]; projects: number }
 export type ViewKind = "board" | "list" | "calendar" | "timeline" | "sprints" | "workload" | "mindmap"; // R95: mindmap
 
-export const PRIORITY_LABEL: Record<Priority, string> = { none: "No priority", low: "Low", medium: "Medium", high: "High", urgent: "Urgent" };
+// POL4 (HQ MB-356): labels read in the language on screen (English while languages are off).
+export const PRIORITY_LABEL: Record<Priority, string> = {
+  get none() { return tl("priority", "No priority"); }, get low() { return tl("priority", "Low"); }, get medium() { return tl("priority", "Medium"); },
+  get high() { return tl("priority", "High"); }, get urgent() { return tl("priority", "Urgent"); },
+};
 export const PRIORITY_COLOR: Record<Priority, string> = { none: "text-subtle", low: "text-muted", medium: "text-brand-hover", high: "text-warn", urgent: "text-bad" };
 
 export const sk = {
@@ -127,6 +133,8 @@ export function positionBetween(before?: number, after?: number) {
 export const dueLabel = (iso: string | null) => {
   if (!iso) return null;
   const d = new Date(iso);
+  const ui = uiLocale(); // POL4 (HQ MB-356): Nepali or Hindi dates while the app shows one
+  if (ui) return formatDateIn(d, ui, { day: "numeric", month: "short", timeZone: "UTC" });
   return d.toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "UTC" });
 };
 export const isOverdue = (t: Pick<Task, "due" | "status">) => !!t.due && t.status !== "done" && new Date(t.due).getTime() < Date.now() - 86_400_000 + 1;
