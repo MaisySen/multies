@@ -480,7 +480,7 @@ export function WebmailPage() {
         {splitsOn && splitTabs.length > 0 && <SplitTabs tabs={splitTabs} active={split} onChange={setSplit} onEdit={() => setEditSplits(true)} onDropMessage={(id, tab) => teach.mutate({ messageId: id, tab })} />}
         {splitsOn && splits.data && splitTabs.length === 0 && (
           <div className="flex items-center justify-end border-b border-line px-2 py-1">
-            <button type="button" onClick={() => setEditSplits(true)} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[12px] text-subtle hover:bg-hover hover:text-fg max-sm:h-10">Turn on tabs</button>
+            <button type="button" onClick={() => setEditSplits(true)} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[12px] text-subtle hover:bg-hover hover:text-fg max-sm:h-11">Turn on tabs</button>
           </div>
         )}
         <div className="flex items-center justify-between px-4 py-2 text-xs text-subtle">
@@ -489,7 +489,7 @@ export function WebmailPage() {
           : <span>{q ? `Results for “${q}”` : FOLDER_UI.find((f) => f.id === folder)?.label ?? SCHEDULE_VIEWS.find((f) => f.id === folder)?.label ?? folder.slice(2)}</span>}
           {folder === "trash" && !q && items.length > 0 && <button className="text-muted hover:text-bad" onClick={() => act.mutate({ ids: items.map((i) => i.id), action: "delete" })}>Empty trash</button>}
           {archiveOlderOffered({ folder, q, loaded: items.length, inboxTotal: mb.folders.inbox?.total ?? 0 }) && <button type="button" data-testid="archive-older" onClick={() => setOlderOpen(true)} aria-haspopup="dialog"
-            className="-my-1.5 -mr-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 font-medium text-muted transition-colors duration-150 hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-10">
+            className="-my-1.5 -mr-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 font-medium text-muted transition-colors duration-150 hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-11">
             <IconArchive className="h-3.5 w-3.5" />Archive older</button>}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto" data-mail-list>
