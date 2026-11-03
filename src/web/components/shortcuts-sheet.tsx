@@ -17,6 +17,9 @@ import { showError } from "@/web/lib/show-error"; // TD10
 import { Switch } from "@/web/components/ui/misc"; // TD10
 import { inKeyWidget, isSingleKey, setCrmScopeOn, setSingleKeysOff, singleKeysOff } from "@/web/lib/shortcut-pref-td10"; // TD10
 
+/** POL3 (MB-314): an element marked data-keys-own takes plain keys itself; no shortcut reads them. */
+const ownsKeys = (t: EventTarget | null) => { const el = t as HTMLElement | null; return !!el && typeof el.closest === "function" && !!el.closest("[data-keys-own]"); };
+
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
 export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -111,7 +114,8 @@ export function ShortcutsHost() {
     const reset = () => { state.current = idleKeys(); setHint(null); };
     const onOpen = () => setOpen(true);
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || isTypingTarget(e.target) || document.querySelector("dialog[open], [role=dialog]:not([data-keys-pass])")) { reset(); return; }
+      // POL3 (MB-314): a control that owns the keys for a moment (Row while its new row is made) is skipped like a field.
+      if (e.defaultPrevented || isTypingTarget(e.target) || ownsKeys(e.target) || document.querySelector("dialog[open], [role=dialog]:not([data-keys-pass])")) { reset(); return; }
       // TD10: single keys switched off for this person: nothing (here or on a page) reads them; chords still work.
       if (singleKeysOff() && isSingleKey(e)) { if (!inKeyWidget(e.target)) e.stopPropagation(); reset(); return; }
       if (e.key === "Escape") {

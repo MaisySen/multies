@@ -206,7 +206,8 @@ export function TableDoc({ docId }: { docId: string }) {
   // in that gap are kept here and become the new row's first cell text once the grid has the row.
   const typedAhead = useRef("");
   const awaitingRow = useRef(false);
-  const takeTyped = useCallback(() => { const t = typedAhead.current; typedAhead.current = ""; awaitingRow.current = false; return t; }, []);
+  const [ownKeys, setOwnKeys] = useState(false); // while true, plain keys on Row are ours (no app shortcut reads them)
+  const takeTyped = useCallback(() => { const t = typedAhead.current; typedAhead.current = ""; awaitingRow.current = false; setOwnKeys(false); return t; }, []);
   const view = d?.views.find((v) => v.id === viewId) ?? d?.views[0];
   const [local, setLocal] = useState<ViewConfig>({});
   useEffect(() => { setLocal({}); }, [view?.id]);
@@ -350,7 +351,7 @@ export function TableDoc({ docId }: { docId: string }) {
             {canEdit && <Button variant="ghost" size="sm" onClick={() => setImporting(true)} aria-label="Import a CSV file"><IconUpload className="h-4 w-4" /></Button>}
             <a className="inline-flex min-h-[36px] items-center rounded-lg px-2 text-muted hover:bg-hover" href={`/api/tables/${docId}/export.csv?view=${view.id}`} aria-label="Export as CSV" data-testid="export-csv" download><IconDownload className="h-4 w-4" /></a>
             {canEdit && d.views.length > 1 && <Button variant="ghost" size="sm" aria-label={`Delete the view ${view.name}`} onClick={() => void ask({ title: `Delete the view "${view.name}"?`, description: "The rows stay.", confirmLabel: "Delete view", tone: "danger" }).then((ok) => { if (ok) delView.mutate(view.id); })}><IconTrash className="h-4 w-4" /></Button>}
-            {canEdit && view.type === "grid" && <Button size="sm" onClick={() => { if (addRows.isPending) return; typedAhead.current = ""; awaitingRow.current = true; addRows.mutate([{}], { onSuccess: (r) => { if (r.rows[0]) setFocusRow({ id: r.rows[0].id, n: Date.now() }); else awaitingRow.current = false; }, onError: () => { awaitingRow.current = false; } }); }} onKeyDown={(e) => { if (awaitingRow.current && e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) { typedAhead.current += e.key; e.preventDefault(); } }} aria-disabled={addRows.isPending || undefined} data-testid="add-row"><IconPlus className="h-4 w-4" />Row</Button>}
+            {canEdit && view.type === "grid" && <Button size="sm" onClick={() => { if (addRows.isPending) return; typedAhead.current = ""; awaitingRow.current = true; setOwnKeys(true); addRows.mutate([{}], { onSuccess: (r) => { if (r.rows[0]) setFocusRow({ id: r.rows[0].id, n: Date.now() }); else { awaitingRow.current = false; setOwnKeys(false); } }, onError: () => { awaitingRow.current = false; setOwnKeys(false); } }); }} onKeyDown={(e) => { if (awaitingRow.current && e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) { typedAhead.current += e.key; e.preventDefault(); e.stopPropagation(); } }} aria-disabled={addRows.isPending || undefined} data-keys-own={ownKeys || undefined} data-testid="add-row"><IconPlus className="h-4 w-4" />Row</Button>}
           </div>
         </div>
       )}
