@@ -22,9 +22,9 @@ import {
   type AdminTour, type ChecklistStepDef, type ChecklistView, type TourDef, type ToursMe,
 } from "@/shared/tours-r130";
 import { tr, tl } from "@/web/i18n"; // R104
-import { enHome } from "@/web/i18n/w2/en-home"; // R104B
+import { enTours } from "@/web/i18n/w2/en-tours"; // R104B
 /** R104B: built in checklist and tour words in the language on screen; words an admin wrote stay as written. */
-const BUILTIN = new Map(Object.entries(enHome).filter(([k]) => k.startsWith("home.builtin_")).map(([k, v]) => [v as string, k]));
+const BUILTIN = new Map(Object.entries(enTours).filter(([k]) => k.startsWith("home.builtin_")).map(([k, v]) => [v as string, k]));
 const builtIn = (text: string) => { const k = BUILTIN.get(text); return k ? tr(k) : text; };
 
 export const toursKey = ["tours-r130", "me"] as const;
