@@ -14,6 +14,7 @@ import { build, type BuildOptions, type Plugin } from "esbuild";
 import { builtinModules } from "node:module";
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import { appCsp, securityHeaders } from "../src/server/lib/security-headers";
@@ -131,6 +132,13 @@ writeFileSync(prerenderInject, [
   `export const __mymailLoginPrerender = ${lazyLiteral(loginPrerender)};`,
   "",
 ].join("\n"));
+// The injected values must read back exactly as the JSON they replace (same keys, order and strings).
+{
+  const injected = await import(pathToFileURL(prerenderInject).href) as { __mymailPublicHtml: unknown; __mymailLoginPrerender: unknown };
+  if (JSON.stringify(injected.__mymailPublicHtml) !== JSON.stringify(publicPages) || JSON.stringify(injected.__mymailLoginPrerender) !== JSON.stringify(loginPrerender)) {
+    throw new Error("prerendered pages: the injected module does not match the prerendered JSON");
+  }
+}
 const options = (banner: string): BuildOptions => ({
   entryPoints: [path.join(root, "src/entry/worker.ts")],
   outfile: path.join(out, "_worker.js"),
