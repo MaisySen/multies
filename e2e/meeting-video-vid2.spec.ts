@@ -308,9 +308,14 @@ test.describe("VID2 on", () => {
     await owner.getByTestId("record-start").click();
     await owner.getByTestId("video-rec-file").click();
     await expect(owner.getByTestId("recording-banner")).toContainText("Recording video", { timeout: 15_000 });
-    await owner.waitForTimeout(3000);
+    await expect.poll(() => owner.evaluate(() => (window as unknown as { __vid: { bytes: number } | null }).__vid?.bytes ?? 0), { timeout: 60_000, intervals: [1000] }).toBeGreaterThan(0);
     await owner.getByTestId("record-stop").click();
+    await owner.waitForTimeout(1500);
     await expect(owner.getByText(/^Video saved/)).toBeVisible({ timeout: 15_000 });
+    // What the verifier did before the drop: a beforeunload that the page survives (no close warning after Stop).
+    expect(await owner.evaluate(() => { const e = new Event("beforeunload", { cancelable: true }); dispatchEvent(e); return e.defaultPrevented; })).toBe(false);
+    await owner.waitForTimeout(1500);
+    await expect(owner.getByTestId("call-screen")).toBeVisible();
     for (const [w, h] of [[375, 812], [1280, 860], [390, 844], [430, 932]] as const) {
       await owner.setViewportSize({ width: w, height: h });
       await owner.waitForTimeout(2500);
@@ -340,16 +345,19 @@ test.describe("VID2 on", () => {
     const token = ((await invite.json()).link as string).split("/invite/")[1];
     const { ctx, page: kim } = await person(browser, 430, 932);
     expect((await kim.request.post("/api/auth/sign-up/email", { data: { name: "Kim Late", email: `kim-vid2-${tag}@example.com`, password: "a-strong-password" }, headers: headers() })).status()).toBe(200);
+    await kim.request.patch("/api/account/preferences", { data: { timezone: "UTC", locale: "en" }, headers: headers() });
     await confirmEmail(kim.request, `kim-vid2-${tag}@example.com`);
     expect([200, 410]).toContain((await kim.request.post(`/api/invites/${token}/accept`, { data: {}, headers: headers() })).status());
+    expect((await (await kim.request.get("/api/account/me")).json()).organization?.role).toBe("member");
     await joinCall(kim);
     await expect(kim.getByTestId("recording-banner")).toContainText("Recording video", { timeout: 15_000 });
     await expect(kim.getByText("Olive Owner is saving a video of this call")).toBeVisible({ timeout: 10_000 });
     await expect(kim.getByTestId("call-screen")).toHaveAttribute("data-rec", "on");
     await shot(kim, "vid2-430-light-joined-late");
     // Leaving stops and saves on its own, with the size.
-    const dl = owner.waitForEvent("download", { timeout: 30_000 });
-    await owner.goto(`/app/meetings/${meetingId}`);
+    const dl = owner.waitForEvent("download", { timeout: 60_000 });
+    await owner.getByRole("button", { name: "Leave", exact: true }).first().click();
+    await expect(owner.getByTestId("call-screen")).toHaveCount(0, { timeout: 15_000 });
     const d = await dl;
     expect(d.suggestedFilename()).toMatch(/\.(webm|mp4)$/);
     await expect(kim.getByTestId("recording-banner")).toHaveCount(0, { timeout: 20_000 });

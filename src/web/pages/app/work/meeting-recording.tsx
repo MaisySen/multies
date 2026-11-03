@@ -98,6 +98,8 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
   const chatRef = useRef(chatMessages);
   chatRef.current = chatMessages;
   const recStart = useRef(0);
+  /** VID2: who sent the recording signal now shown (so it clears when they leave the call). */
+  const signalFrom = useRef<string | null>(null);
   const transcriptWanted = useRef<string | null>(null);
   const video = useVideoRecording(room);
   const { active: videoActive, mixer: videoMixer } = video;
@@ -131,10 +133,11 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
 
   // The banner: data messages from whoever records.
   useEffect(() => {
-    const onData = (payload: Uint8Array, _p?: unknown, _k?: unknown, topic?: string) => {
+    const onData = (payload: Uint8Array, from?: { identity?: string }, _k?: unknown, topic?: string) => {
       if (topic !== RECORDING_TOPIC) return;
       const s = decodeSignal(payload);
       if (!s) return;
+      signalFrom.current = s.on ? from?.identity ?? null : null;
       setSignal(s.on ? s : null);
       if (s.on && s.video && !noticedVideo.current) {
         noticedVideo.current = true;
@@ -142,9 +145,11 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
         toast(`${s.by} is saving a video of this call`, { description: VIDEO_CONSENT_OTHERS });
       } else if (s.on && !noticed.current) { noticed.current = true; toast(`${s.by} is recording this call`, { description: CONSENT_TEXT }); }
     };
-    room.on(RoomEvent.DataReceived, onData);
-    return () => { room.off(RoomEvent.DataReceived, onData); };
-  }, [room]);
+    // VID2: whoever was recording left the call (their recording stops and saves on its own): the banner goes too.
+    const onLeft = (p: { identity: string }) => { if (vid2 && signalFrom.current && p.identity === signalFrom.current) { signalFrom.current = null; setSignal(null); } };
+    room.on(RoomEvent.DataReceived, onData).on(RoomEvent.ParticipantDisconnected, onLeft);
+    return () => { room.off(RoomEvent.DataReceived, onData).off(RoomEvent.ParticipantDisconnected, onLeft); };
+  }, [room, vid2]);
 
   // A member who joins late reads the state once from the server (no polling in the room).
   useEffect(() => {
@@ -297,6 +302,15 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
       if (mine) await stopAudio(mine);
     } finally { stopping.current = false; setBusy(false); }
   };
+
+  // VID2 (MB-351): the call hangs up only when the page really goes (pagehide), never on beforeunload alone. A
+  // beforeunload can fire and the page stay (Stay on a leave prompt, a check like a layout change test), and the
+  // call then dropped. VID1 put the hang up back on beforeunload after each recording; VID2 keeps it off.
+  useEffect(() => {
+    if (!vid2) return;
+    const hangUp = (room as unknown as { onPageLeave?: EventListener }).onPageLeave;
+    if (typeof hangUp === "function") window.removeEventListener("beforeunload", hangUp);
+  }, [vid2, room, videoActive, room.state]);
 
   // VID1: a video that stopped on its own (size limit, recorder error, leaving) ends the banner if nothing else records.
   useEffect(() => {
