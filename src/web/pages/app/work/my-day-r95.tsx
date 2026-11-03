@@ -18,6 +18,7 @@ import { IconCalendarClock, IconCheck, IconChevronDown, IconChevronUp, IconClose
 import { addDays, clampBlock, clockOf, fitBlock, minutesText, type Block } from "@/shared/tasks-plus-r95";
 import { tone } from "@/web/components/app-bits";
 import { LoadErrorInline } from "@/web/components/load-error-t1g";
+import { tr, tl } from "@/web/i18n"; // R104
 
 interface PlanTask { id: string; ref: string; title: string; status: "todo" | "doing" | "done"; priority: string; due: string | null; project: { id: string; name: string; color: string } | null }
 interface PlanItem { id: string; taskId: string; day: string; start: number | null; minutes: number; position: number; task: PlanTask }
@@ -76,7 +77,7 @@ export function MyDay({ focusTaskId, userEmail }: { focusTaskId?: string | null;
     let start = opts.start;
     if (start !== null) {
       const fit = fitBlock(blocks, { id: opts.itemId ?? "new", ...clampBlock(start, minutes) });
-      if (fit === null) { toast.error("No free time left that long on this day."); return; }
+      if (fit === null) { toast.error(tr("myday.no_free_time_left_that_long_on_this_day")); return; }
       start = fit;
     }
     try {
@@ -114,17 +115,17 @@ export function MyDay({ focusTaskId, userEmail }: { focusTaskId?: string | null;
   return (
     <section className="mb-6" aria-labelledby="myday-h" data-testid="my-day">
       <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
-        <h2 id="myday-h" className="text-[13px] font-semibold uppercase tracking-[0.04em] text-subtle">My day</h2>
-        <div className="flex rounded-lg bg-fill p-0.5" role="tablist" aria-label="Day">
+        <h2 id="myday-h" className="text-[13px] font-semibold uppercase tracking-[0.04em] text-subtle">{tr("myday.my_day")}</h2>
+        <div className="flex rounded-lg bg-fill p-0.5" role="tablist" aria-label={tr("myday.day")}>
           {[{ d: today, label: "Today" }, { d: tomorrow, label: "Tomorrow" }].map((x) => (
             <button key={x.label} role="tab" aria-selected={day === x.d} onClick={() => setDay(x.d)}
-              className={cn("min-h-8 rounded-md px-2.5 text-[12.5px] transition-colors duration-150 max-sm:min-h-11", day === x.d ? "bg-surface font-medium text-fg shadow-sm" : "text-muted hover:text-fg")}>{x.label}</button>
+              className={cn("min-h-8 rounded-md px-2.5 text-[12.5px] transition-colors duration-150 max-sm:min-h-11", day === x.d ? "bg-surface font-medium text-fg shadow-sm" : "text-muted hover:text-fg")}>{tl("myday", x.label)}</button>
           ))}
         </div>
-        <span className="text-[12.5px] text-muted">{q.data ? (items.length ? `${left} left of ${items.length}` : "") : ""}</span>
+        <span className="text-[12.5px] text-muted">{q.data ? (items.length ? tr("myday.left_of", { left, total: items.length }) : "") : ""}</span>
         {day === today && items.some((i) => i.task.status !== "done") && (
           <Button size="sm" variant="secondary" className="ml-auto" onClick={() => planTomorrow.mutate()} loading={planTomorrow.isPending} data-testid="plan-tomorrow">
-            <IconSunrise className="h-4 w-4" />Plan tomorrow
+            <IconSunrise className="h-4 w-4" />{tr("myday.plan_tomorrow")}
           </Button>
         )}
       </div>
@@ -173,7 +174,7 @@ function AddToDay({ onAdd, day }: { onAdd: (title: string) => Promise<void>; day
       <IconPlus className="h-4 w-4 shrink-0 text-subtle" aria-hidden="true" />
       <Input ref={input} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} placeholder={`Add a task for ${day}`} aria-label={`Add a task for ${day}`}
         className="h-9 flex-1 border-transparent bg-transparent px-1 text-[13.5px] shadow-none max-sm:h-11" />
-      <Button size="sm" type="submit" variant="secondary" loading={busy} disabled={!title.trim()}>Add</Button>
+      <Button size="sm" type="submit" variant="secondary" loading={busy} disabled={!title.trim()}>{tr("common.add")}</Button>
     </form>
   );
 }
@@ -181,11 +182,11 @@ function AddToDay({ onAdd, day }: { onAdd: (title: string) => Promise<void>; day
 function ScheduleAt({ it, onPlace }: { it: PlanItem; onPlace: (o: { itemId: string; start: number | null; title: string }) => void }) {
   const [open, setOpen] = useState(false);
   const [val, setVal] = useState(minutesText(it.start ?? Math.min(1380, Math.ceil(nowMinute() / 15) * 15)));
-  if (!open) return <Button size="sm" variant="ghost" onClick={() => setOpen(true)} aria-label={`Schedule ${it.task.title}`}><IconCalendarClock className="h-4 w-4" /><span className="max-sm:hidden">Schedule</span></Button>;
+  if (!open) return <Button size="sm" variant="ghost" onClick={() => setOpen(true)} aria-label={tr("myday.schedule_task", { title: it.task.title })}><IconCalendarClock className="h-4 w-4" /><span className="max-sm:hidden">{tr("myday.schedule")}</span></Button>;
   return (
     <form className="flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); const [h, m] = val.split(":").map(Number); setOpen(false); onPlace({ itemId: it.id, start: h * 60 + m, title: it.task.title }); }}>
       <Input type="time" step={900} value={val} onChange={(e) => setVal(e.target.value)} aria-label={`Start time for ${it.task.title}`} className="h-8 w-[108px] text-[13px] max-sm:h-11" autoFocus />
-      <Button size="sm" type="submit">Set</Button>
+      <Button size="sm" type="submit">{tr("myday.set")}</Button>
     </form>
   );
 }
@@ -199,14 +200,14 @@ function DayList({ items, scheduled, suggestions, onPlace, onRemove, onFinish, o
   return (
     <div className="elev-1 rounded-[var(--radius-r14)] bg-surface" data-testid="my-day-list">
       <div className="hairline-b flex items-center justify-between px-4 py-2.5">
-        <h3 className="text-[13px] font-semibold">To do</h3>
-        <span className="text-[12px] text-subtle max-sm:hidden">Drag onto the day to block time</span>
+        <h3 className="text-[13px] font-semibold">{tr("myday.to_do")}</h3>
+        <span className="text-[12px] text-subtle max-sm:hidden">{tr("myday.drag_onto_the_day_to_block_time")}</span>
       </div>
       <AddToDay onAdd={onAdd} day={day} />
       {!items.length && !scheduled.length && !suggestions.length ? (
         <div className="px-4 py-6 text-center">
-          <p className="text-[14px] font-medium">Plan your day</p>
-          <p className="mt-1 text-[13px] text-muted">Type a task above, or use Add to My Day on any task. Then give it a time.</p>
+          <p className="text-[14px] font-medium">{tr("myday.plan_your_day")}</p>
+          <p className="mt-1 text-[13px] text-muted">{tr("myday.type_a_task_above_or_use_add_to_my_day_on_any_ta")}</p>
         </div>
       ) : !items.length ? (
         <p className="px-4 py-3 text-[13px] text-muted">{scheduled.length ? "Everything on today's list has a time." : "Nothing on the list yet."}</p>
@@ -224,14 +225,14 @@ function DayList({ items, scheduled, suggestions, onPlace, onRemove, onFinish, o
       )}
       {suggestions.length > 0 && (
         <div className="hairline-t px-4 pb-3 pt-2.5" data-testid="my-day-suggestions">
-          <p className="mb-1.5 text-[12px] font-medium text-subtle">Due for you</p>
+          <p className="mb-1.5 text-[12px] font-medium text-subtle">{tr("myday.due_for_you")}</p>
           <ul className="space-y-0.5">
             {suggestions.map((t) => (
               <li key={t.id} draggable onDragStart={(e) => dragTask(e, t)} className="flex min-h-10 items-center gap-2.5 rounded-lg px-1 text-[13px] hover:bg-hover">
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: tone(t.project?.color) }} aria-hidden />
                 <span className="min-w-0 flex-1 truncate">{t.title}</span>
                 {t.due && <span className={cn("shrink-0 text-[12px]", new Date(t.due).getTime() < Date.now() ? "text-bad" : "text-subtle")}>{new Date(t.due).getTime() < Date.now() ? "Overdue" : "Today"}</span>}
-                <Button size="sm" variant="ghost" onClick={() => onPlace({ taskId: t.id, start: null, title: t.title })} aria-label={`Add ${t.title} to My Day`}><IconPlus className="h-4 w-4" />Add</Button>
+                <Button size="sm" variant="ghost" onClick={() => onPlace({ taskId: t.id, start: null, title: t.title })} aria-label={tr("myday.add_task_to_my_day", { title: t.title })}><IconPlus className="h-4 w-4" />{tr("common.add")}</Button>
               </li>
             ))}
           </ul>
@@ -300,7 +301,7 @@ function DayColumn({ day, isToday, items, onPlace, onRemove, onFinish }: {
           ))}
           {isToday && <div className="pointer-events-none absolute left-12 right-0 z-10 flex items-center" style={{ top: now * PX_PER_MIN - 4 }} aria-hidden><span className="h-2 w-2 rounded-full bg-bad" /><span className="h-px flex-1 bg-bad" /></div>}
           {ghost && <div className="pointer-events-none absolute left-14 right-2 rounded-lg border-2 border-dashed border-brand/60 bg-brand/5" style={{ top: ghost.start * PX_PER_MIN, height: ghost.minutes * PX_PER_MIN }} aria-hidden />}
-          <ol aria-label="Time blocks">
+          <ol aria-label={tr("myday.time_blocks")}>
             {items.map((it) => {
               const minutes = resize?.id === it.id ? resize.minutes : it.minutes;
               const done = it.task.status === "done";
@@ -343,8 +344,8 @@ export function AddToMyDay({ taskId }: { taskId: string }) {
   const [busy, setBusy] = useState(false);
   const add = async () => {
     setBusy(true);
-    try { await api.post("/my-day", { day: localYmd(), taskId, start: null }); toast("Added to My Day"); void qc.invalidateQueries({ queryKey: ["my-day"] }); }
+    try { await api.post("/my-day", { day: localYmd(), taskId, start: null }); toast(tr("myday.added_to_my_day")); void qc.invalidateQueries({ queryKey: ["my-day"] }); }
     catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
-  return <Button size="sm" variant="secondary" onClick={() => void add()} loading={busy} data-testid="add-to-my-day"><IconSunrise className="h-4 w-4" />Add to My Day</Button>;
+  return <Button size="sm" variant="secondary" onClick={() => void add()} loading={busy} data-testid="add-to-my-day"><IconSunrise className="h-4 w-4" />{tr("myday.add_to_my_day")}</Button>;
 }

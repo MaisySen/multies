@@ -21,6 +21,7 @@ import {
   BUILTIN_TOURS, builtinToursFor, checklistVisible, inApp, pageMatches, TARGET_RE,
   type AdminTour, type ChecklistStepDef, type ChecklistView, type TourDef, type ToursMe,
 } from "@/shared/tours-r130";
+import { tr, tl } from "@/web/i18n"; // R104
 
 export const toursKey = ["tours-r130", "me"] as const;
 const PICK_KEY = "multies-tour-pick";
@@ -175,7 +176,7 @@ function TourRunner({ run, onEnd }: { run: NonNullable<Running>; onEnd: (state: 
             <p className="text-[11.5px] font-medium text-subtle" data-testid="tour-count">{`Step ${i + 1} of ${steps.length}`}{run.preview ? " · Preview" : ""}</p>
             <h2 id={titleId} className="mt-0.5 text-[15px] font-semibold">{step.title}</h2>
           </div>
-          <button type="button" onClick={() => close("skipped")} aria-label="Close tour" data-testid="tour-close"
+          <button type="button" onClick={() => close("skipped")} aria-label={tr("tours.close_tour")} data-testid="tour-close"
             className="-mr-1 -mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">
             <IconClose className="h-4 w-4" aria-hidden />
           </button>
@@ -185,7 +186,7 @@ function TourRunner({ run, onEnd }: { run: NonNullable<Running>; onEnd: (state: 
         <div className="mt-4 flex items-center justify-between gap-2">
           <div className="flex gap-1" aria-hidden>{steps.map((_, n) => <span key={n} className={cn("h-1.5 w-1.5 rounded-full", n === i ? "bg-brand" : "bg-line")} />)}</div>
           <div className="flex gap-2">
-            <Button variant="secondary" size="sm" onClick={() => go(-1)} disabled={i === 0} data-testid="tour-back">Back</Button>
+            <Button variant="secondary" size="sm" onClick={() => go(-1)} disabled={i === 0} data-testid="tour-back">{tr("common.back")}</Button>
             <Button size="sm" onClick={() => go(1)} data-tour-primary data-testid="tour-next">{last ? "Done" : "Next"}</Button>
           </div>
         </div>
@@ -219,7 +220,7 @@ export function ChecklistPanel({ view, embedded, onNavigate }: { view: Checklist
   };
   const hide = () => {
     act.mutate({ action: "dismiss" }, {
-      onSuccess: () => toast("Checklist hidden. Bring it back from your account menu, Get started.", { action: { label: "Undo", onClick: () => act.mutate({ action: "resume" }) } }),
+      onSuccess: () => toast(tr("tours.checklist_hidden_bring_it_back_from_your_account"), { action: { label: "Undo", onClick: () => act.mutate({ action: "resume" }) } }),
       onError: showError,
     });
     onNavigate?.();
@@ -229,10 +230,10 @@ export function ChecklistPanel({ view, embedded, onNavigate }: { view: Checklist
       <Card className={cn("flex items-center gap-4 px-5 py-4", embedded && "border-0 shadow-none")} data-testid="checklist-complete">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ok-soft text-ok"><IconCheck className="h-5 w-5" aria-hidden /></span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold">You're all set</h2>
-          <p className="text-[13px] text-muted">Every step is done. Tours stay in your account menu.</p>
+          <h2 className="text-sm font-semibold">{tr("tours.you_re_all_set")}</h2>
+          <p className="text-[13px] text-muted">{tr("tours.every_step_is_done_tours_stay_in_your_account_me")}</p>
         </div>
-        <Button variant="secondary" size="sm" onClick={() => { act.mutate({ action: "celebrated" }); onNavigate?.(); }} data-testid="checklist-done">Done</Button>
+        <Button variant="secondary" size="sm" onClick={() => { act.mutate({ action: "celebrated" }); onNavigate?.(); }} data-testid="checklist-done">{tr("common.done")}</Button>
       </Card>
     );
   }
@@ -242,10 +243,10 @@ export function ChecklistPanel({ view, embedded, onNavigate }: { view: Checklist
       <div className="flex items-center gap-3 px-5 pb-3 pt-4">
         <Ring done={view.doneCount} total={view.total} size={28} />
         <div className="min-w-0 flex-1">
-          <h2 id="checklist-title" className="text-sm font-semibold">Get started</h2>
-          <p className="text-xs text-muted" data-testid="checklist-count">{view.doneCount} of {view.total} done</p>
+          <h2 id="checklist-title" className="text-sm font-semibold">{tr("common.get_started")}</h2>
+          <p className="text-xs text-muted" data-testid="checklist-count">{tr("tours.n_of_total_done", { done: view.doneCount, total: view.total })}</p>
         </div>
-        <button type="button" onClick={hide} aria-label="Hide the checklist" data-testid="checklist-hide"
+        <button type="button" onClick={hide} aria-label={tr("tours.hide_the_checklist")} data-testid="checklist-hide"
           className="grid h-11 w-11 place-items-center rounded-full text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 sm:h-8 sm:w-8">
           <IconClose className="h-4 w-4" aria-hidden />
         </button>
@@ -261,7 +262,7 @@ export function ChecklistPanel({ view, embedded, onNavigate }: { view: Checklist
               {!s.done && <p className="text-[12.5px] text-muted">{s.body}</p>}
             </div>
             {!s.done && <Button size="sm" variant={n === next ? "primary" : "secondary"} onClick={() => doStep(s)} data-testid={`checklist-go-${s.id}`}>
-              {s.action === "palette" ? "Try it" : s.action === "tour" ? "Start" : "Open"}<span className="sr-only">{`: ${s.title}`}</span>
+              {tl("tours", s.action === "palette" ? "Try it" : s.action === "tour" ? "Start" : "Open")}<span className="sr-only">{`: ${s.title}`}</span>
             </Button>}
           </li>
         ))}
@@ -284,7 +285,7 @@ export function ChecklistRing({ className }: { className?: string }) {
   if (!t.on || !v || !checklistVisible(v) || v.complete) return null;
   return (
     <button type="button" onClick={openGetStarted} data-testid="tours-ring" data-tour="tours-ring" data-done={v.doneCount} data-total={v.total}
-      aria-label={`Get started, ${v.doneCount} of ${v.total} done`}
+      aria-label={tr("tours.get_started_progress", { done: v.doneCount, total: v.total })}
       className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 lg:h-8 lg:w-8", className)}>
       <Ring done={v.doneCount} total={v.total} />
     </button>
@@ -323,7 +324,7 @@ function PickerBar({ pick, onDone }: { pick: Pick; onDone: () => void }) {
       steps[pick.index] = { ...steps[pick.index]!, target };
       return api.patch<AdminTour>(`/tours/admin/${encodeURIComponent(pick.tourId)}`, { steps });
     },
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["tours-r130", "admin"] }); finish(); toast("Element picked"); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["tours-r130", "admin"] }); finish(); toast(tr("tours.element_picked")); },
     onError: showError,
   });
   const finish = () => { sessionStorage.removeItem(PICK_KEY); onDone(); navigate(`/app/settings/tours?edit=${encodeURIComponent(pick.tourId)}`); };
@@ -353,14 +354,14 @@ function PickerBar({ pick, onDone }: { pick: Pick; onDone: () => void }) {
   return (
     <>
       {hover && <div aria-hidden data-tour-ui className="pointer-events-none fixed z-[89] rounded-md ring-2 ring-brand" style={{ left: hover.left - 3, top: hover.top - 3, width: hover.width + 6, height: hover.height + 6 }} />}
-      <div data-tour-ui role="region" aria-label="Pick an element" data-testid="tour-picker"
+      <div data-tour-ui role="region" aria-label={tr("tours.pick_an_element")} data-testid="tour-picker"
         className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[91] mx-auto max-w-xl rounded-xl border border-line bg-surface p-3 shadow-card lg:bottom-4">
         <div className="flex items-center gap-2">
           <p className="min-w-0 flex-1 text-[13.5px] font-medium">{`Choose an element for step ${pick.index + 1}`}</p>
-          <Button size="sm" variant="secondary" onClick={finish} data-testid="tour-picker-cancel">Cancel</Button>
+          <Button size="sm" variant="secondary" onClick={finish} data-testid="tour-picker-cancel">{tr("common.cancel")}</Button>
         </div>
-        <p className="mt-0.5 text-[12.5px] text-muted">Click it on the page, or pick it from this list.</p>
-        <ul className="mt-2 max-h-40 space-y-px overflow-y-auto" aria-label="Elements on this page">
+        <p className="mt-0.5 text-[12.5px] text-muted">{tr("tours.click_it_on_the_page_or_pick_it_from_this_list")}</p>
+        <ul className="mt-2 max-h-40 space-y-px overflow-y-auto" aria-label={tr("tours.elements_on_this_page")}>
           {items.map((it) => (
             <li key={it.id}>
               <button type="button" onClick={() => save.mutate(it.id)} onFocus={() => { const el = findTarget(it.id); setHover(el ? el.getBoundingClientRect() : null); }}
@@ -431,7 +432,7 @@ export function ToursHost() {
   const end = useCallback((state: "done" | "skipped" | "empty", step: number) => {
     const run = store.running;
     set({ running: null });
-    if (!run || run.preview || state === "empty") { if (run?.preview && state !== "empty") toast("Preview finished"); return; }
+    if (!run || run.preview || state === "empty") { if (run?.preview && state !== "empty") toast(tr("tours.preview_finished")); return; }
     progress.mutate({ key: run.tour.id, state, step });
   }, [progress]);
 
@@ -441,10 +442,10 @@ export function ToursHost() {
     <>
       {s.running && <TourRunner key={s.running.tour.id + String(s.running.preview)} run={s.running} onEnd={end} />}
       {pick && <PickerBar pick={pick} onDone={() => setPick(null)} />}
-      <Dialog open={s.panel && !!view} onClose={() => set({ panel: false })} title="Get started" className="max-w-lg">
+      <Dialog open={s.panel && !!view} onClose={() => set({ panel: false })} title={tr("common.get_started")} className="max-w-lg">
         {view && s.panel && <ChecklistPanel view={view} embedded onNavigate={() => set({ panel: false })} />}
       </Dialog>
-      <Dialog open={s.list} onClose={() => set({ list: false })} title="Tours" description="Short walk throughs of where things live.">
+      <Dialog open={s.list} onClose={() => set({ list: false })} title={tr("tours.tours")} description={tr("tours.short_walk_throughs_of_where_things_live")}>
         <ul className="divide-y divide-line" data-testid="tours-list">
           {tours.map((x) => (
             <li key={x.id} className="flex items-center gap-3 py-2.5">
@@ -454,12 +455,12 @@ export function ToursHost() {
               </div>
               <Button size="sm" variant="secondary" data-testid={`tours-start-${x.id.replace("builtin:", "")}`}
                 onClick={() => { set({ list: false }); if (pageMatches(x.page, loc.pathname) || x.page === "/app") { if (x.page !== "/app" || loc.pathname === "/app") startTour(x); else { set({ pending: x }); navigate(x.page); } } else { set({ pending: x }); navigate(x.page); } }}>
-                Start<span className="sr-only">{`: ${x.name}`}</span>
+                {tr("tours.start")}<span className="sr-only">{`: ${x.name}`}</span>
               </Button>
             </li>
           ))}
         </ul>
-        {me.data?.organization && t.data?.canBuild && <p className="mt-3 text-[12.5px] text-muted">Build tours for your team in Settings, Tours.</p>}
+        {me.data?.organization && t.data?.canBuild && <p className="mt-3 text-[12.5px] text-muted">{tr("tours.build_tours_for_your_team_in_settings_tours")}</p>}
       </Dialog>
     </>
   );

@@ -54,7 +54,7 @@ export function MarketingLayout() {
           <Link to="/" aria-label={tr("site.multies_home")} className="inline-flex items-center max-sm:min-h-11"><Logo /></Link>
           <div className="hidden items-center gap-1 md:flex">
             {links.map((l) => (
-              <NavLink key={l.to} to={l.to} className="rounded-md px-3 py-1.5 text-sm text-muted transition-colors hover:text-fg">{l.label}</NavLink>
+              <NavLink key={l.to} to={l.to} className="rounded-md px-3 py-1.5 text-sm text-muted transition-colors hover:text-fg">{tl("site", l.label)}</NavLink>
             ))}
           </div>
           <div className="hidden items-center gap-2 md:flex">
@@ -74,7 +74,7 @@ export function MarketingLayout() {
         {open && (
           <div className="animate-fade-in border-t border-line px-5 pb-5 pt-2 md:hidden">
             {links.map((l) => (
-              <Link key={l.to} to={l.to} className="block rounded-md py-2.5 text-[15px] text-muted hover:text-fg">{l.label}</Link>
+              <Link key={l.to} to={l.to} className="block rounded-md py-2.5 text-[15px] text-muted hover:text-fg">{tl("site", l.label)}</Link>
             ))}
             <div className="mt-3 grid grid-cols-2 gap-2">
               {signedIn ? <ButtonLink to="/app" className="col-span-2">{tr("site.open_dashboard")}</ButtonLink> : (

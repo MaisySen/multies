@@ -151,7 +151,7 @@ function EmailPaths({ onDone }: { onDone: () => void }) {
       <Card className="flex items-start gap-3 p-4 sm:p-5" data-testid="path-connect">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fill text-muted"><IconMail className="h-4 w-4" aria-hidden /></span>
         <div className="min-w-0 flex-1">
-          <h2 className="flex items-center gap-2 font-semibold">Connect your existing email{!canConnect && connections.isFetched && <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-medium text-muted">Not on this server</span>}</h2>
+          <h2 className="flex items-center gap-2 font-semibold">{tr("onboarding.connect_your_existing_email")}{!canConnect && connections.isFetched && <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-medium text-muted">Not on this server</span>}</h2>
           {connected ? (
             <div className="mt-1.5 flex flex-wrap items-center gap-3" data-testid="connect-done">
               <span className="inline-flex items-center gap-1.5 text-sm text-ok"><IconCheckCircle className="h-4 w-4" aria-hidden />{connected.email} is connected. Recent mail is coming in now.</span>

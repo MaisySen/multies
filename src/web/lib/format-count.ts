@@ -3,6 +3,7 @@
  * badges stop at "99+" so a pill never grows wider than its slot.
  */
 import { uiLocale } from "@/web/i18n"; // R104
+import { numberLocale } from "@/web/i18n/intl"; // R104
 const cache = new Map<string, Intl.NumberFormat>();
 
 function userLocale(): string | undefined {
@@ -23,7 +24,7 @@ function formatter(locale?: string): Intl.NumberFormat {
 
 /** A whole count with locale grouping: 15536 reads "15,536" (en). Non finite values read "0". */
 export function formatCount(n: number, locale: string | undefined = userLocale()): string {
-  return formatter(locale).format(Number.isFinite(n) ? Math.round(n) : 0);
+  return formatter(locale ? numberLocale(locale) : locale).format(Number.isFinite(n) ? Math.round(n) : 0);
 }
 
 /** A nav badge: the count with grouping up to the cap, then "99+". */

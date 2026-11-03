@@ -938,7 +938,7 @@ function NoMailboxes() {
     <div className="w-full max-w-lg space-y-4" data-testid="mail-no-mailboxes">
       {offer && <FreeAddressCard />}
       <EmptyState icon={<IconInbox />} title={tr("mail.no_mailboxes_yet")}
-        body={offer ? "Take the free address above, or create a mailbox on a domain you own. Its mail will show up here." : "Create a mailbox on one of your domains and its mail will show up here."}
+        body={offer ? tr("mail.take_the_free_address") : tr("mail.create_a_mailbox_on_one_of_your_domains")}
         action={<ButtonLink to="/app/mailboxes" variant={offer ? "secondary" : "primary"}>{tr("mail.create_a_mailbox")}</ButtonLink>} />
     </div>
   );

@@ -3,6 +3,7 @@ import { formatWhatsNewDate, type WhatsNewEntry } from "@/shared/whats-new";
 import { publicWhatsNew } from "@/shared/whats-new-public";
 import { LOCALE } from "@/shared/locale";
 import { tr, uiLocale } from "@/web/i18n"; // R104
+import { formatDateIn } from "@/web/i18n/intl"; // R104
 
 /** R53 (MB-133): the public changelog. The same list the account menu's What's new item points to.
  * W1: also at /whats-new, with the earlier live features below the in-app list (ids already in it are skipped). */
@@ -15,7 +16,7 @@ export function ChangelogPage() {
       <ol className="mt-8 divide-y divide-line border-y border-line">
         {ENTRIES.map((e) => (
           <li key={e.id} id={e.id} className="grid gap-1.5 py-6 sm:grid-cols-[8.5rem_1fr] sm:gap-6" data-testid="changelog-entry">
-            <time dateTime={e.date} className="text-sm tabular-nums text-subtle sm:pt-0.5">{formatWhatsNewDate(e.date, uiLocale() ?? LOCALE)}</time>
+            <time dateTime={e.date} className="text-sm tabular-nums text-subtle sm:pt-0.5">{uiLocale() ? formatDateIn(new Date(`${e.date}T00:00:00Z`), uiLocale()!, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : formatWhatsNewDate(e.date, LOCALE)}</time>
             <div className="min-w-0">
               <h2 className="text-lg font-semibold tracking-tight">{tr(`whatsnew.${e.id}.title`, undefined, e.title)}</h2>
               <p className="mt-1.5 text-[15px] leading-relaxed text-muted">{tr(`whatsnew.${e.id}.body`, undefined, e.body)}</p>

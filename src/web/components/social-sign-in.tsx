@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { GoogleSignInButton, MicrosoftLogo, ProviderButton } from "./google-button";
 import { authClient, unwrap } from "@/web/lib/auth-client";
 import { useConfig } from "@/web/lib/queries";
+import { tr } from "@/web/i18n"; // R104
 
 /**
  * Round 25: "Continue with Google" and "Continue with Microsoft". Each starts the identity
@@ -42,7 +43,7 @@ export function SocialSignInButtons({ callbackURL, loginHint }: { callbackURL: s
     <div className="space-y-2" data-testid="social-sign-in">
       {list.map((c) => c === "google-oauth2"
         ? <GoogleSignInButton key={c} loading={busy === c} disabled={!!busy && busy !== c} onClick={() => go(c)} data-testid={`social-${c}`} />
-        : <ProviderButton key={c} logo={<MicrosoftLogo />} loading={busy === c} disabled={!!busy && busy !== c} onClick={() => go(c)} data-testid={`social-${c}`}>Continue with {SOCIAL_LABELS[c]}</ProviderButton>)}
+        : <ProviderButton key={c} logo={<MicrosoftLogo />} loading={busy === c} disabled={!!busy && busy !== c} onClick={() => go(c)} data-testid={`social-${c}`}>{tr("auth.continue_with", { name: SOCIAL_LABELS[c] })}</ProviderButton>)}
     </div>
   );
 }

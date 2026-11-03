@@ -81,7 +81,7 @@ export function BulkBar({ count, total, folder, connectionId, snoozeOpen, setSno
       className="sticky top-0 z-10 flex items-center gap-1 border-b border-line bg-surface/95 px-2 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-surface/80 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150">
       <BarBtn label={tr("mail.clear_selection")} hint="Esc" onClick={onClear}><IconClose /></BarBtn>
       <span className="min-w-0 truncate px-1 text-[13px] font-medium text-fg" aria-live="polite" data-testid="bulk-count">{more?.all ? more.chosen : `${count} selected`}</span>
-      {!more?.all && count < total && <button type="button" onClick={onSelectAll} className="rounded-md px-1.5 py-0.5 text-[12.5px] text-brand hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">Select all {total}</button>}
+      {!more?.all && count < total && <button type="button" onClick={onSelectAll} className="rounded-md px-1.5 py-0.5 text-[12.5px] text-brand hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">{tr("mail.select_all_n", { n: total })}</button>}
       {more && !more.all && count >= total && <button type="button" onClick={more.onAll} data-testid="bulk-select-everything" className="rounded-md px-1.5 py-0.5 text-[12.5px] text-brand hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">{more.offer}</button>}
       <div className="ml-auto flex items-center gap-0.5">
         {folder === "archive" ? <BarBtn label={tr("mail.move_to_inbox")} hint="E" onClick={() => onAct({ action: "inbox" })}><IconInbox /></BarBtn>

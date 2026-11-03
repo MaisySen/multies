@@ -353,7 +353,7 @@ export function TasksPage() {
         <div className="max-sm:hidden">
           <Popover label={tr("tasks.more_filters")} testId="tasks-more-filters" className="w-[22rem]" button={({ open }) => (
             <span className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] transition-colors", open || moreFilterCount ? "bg-brand-soft text-brand-hover" : "text-muted hover:bg-hover hover:text-fg")}>
-              <IconSliders className="h-3.5 w-3.5" />Filters{moreFilterCount ? <span className="ml-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-brand px-1 text-[11px] font-semibold text-white">{moreFilterCount}</span> : null}
+              <IconSliders className="h-3.5 w-3.5" />{tr("tasks.filters")}{moreFilterCount ? <span className="ml-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-brand px-1 text-[11px] font-semibold text-white">{moreFilterCount}</span> : null}
             </span>
           )}>
             <div className="grid gap-3">

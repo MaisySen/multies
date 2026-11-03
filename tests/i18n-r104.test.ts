@@ -175,3 +175,18 @@ describe("wording suggestions (admins)", () => {
     expect((await new Client(ctx.app).get("/api/i18n/suggestions")).status).toBe(401);
   });
 });
+
+describe("Nepali without the browser's Nepali data", () => {
+  it("still writes Nepali digits, lakh grouping and Nepali month and weekday names", async () => {
+    const { formatDateIn, numberLocale, devaDigits } = await import("../src/web/i18n/intl");
+    expect((150000).toLocaleString(numberLocale("ne-NP", false))).toBe("१,५०,०००");
+    expect(numberLocale("ne-NP", true)).toBe("ne-NP");
+    expect(numberLocale("hi-IN", false)).toBe("hi-IN");
+    const d = new Date(Date.UTC(2026, 10, 3, 9, 5));
+    expect(formatDateIn(d, "ne-NP", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }, false)).toBe("३ नोभेम्बर २०२६");
+    expect(formatDateIn(d, "ne-NP", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }, false)).toBe("मङ्गलबार ३ नोभेम्बर");
+    expect(formatDateIn(d, "ne-NP", { hour: "numeric", minute: "2-digit", timeZone: "UTC" }, false)).toBe("९:०५");
+    expect(formatDateIn(d, "en-AU", { day: "numeric", month: "short", timeZone: "UTC" }, false)).toBe("3 Nov");
+    expect(devaDigits("2026")).toBe("२०२६");
+  });
+});

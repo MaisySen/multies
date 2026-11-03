@@ -90,7 +90,7 @@ function IdentityButtons({ mode, showDivider }: { mode: "signin" | "signup"; sho
   const primary = mode === "signup" ? "signup" : "signin";
   const secondary = primary === "signin" ? "signup" : "signin";
   // R40 (MB-213): the sign up heading already says "Create your account"; the button says what it does.
-  const label = { signin: "Continue with Multies", signup: "Sign up with email" };
+  const label = { signin: tr("auth.continue_with_multies"), signup: tr("auth.sign_up_with_email") };
   return (
     <div className="mt-6 space-y-2">
       <Button className="w-full" size="lg" loading={busy === primary} onClick={() => go(primary)} data-testid="idp-primary">{label[primary]}</Button>
@@ -134,7 +134,7 @@ function SocialButtons() {
       {list.map((p) => (
         p === "google"
           ? <GoogleSignInButton key={p} loading={busy === p} disabled={!!busy && busy !== p} onClick={() => go(p)} data-testid="social-google" />
-          : <ProviderButton key={p} logo={<GitHubLogo />} loading={busy === p} disabled={!!busy && busy !== p} onClick={() => go(p)} data-testid={`social-${p}`}>Continue with {label[p]}</ProviderButton>
+          : <ProviderButton key={p} logo={<GitHubLogo />} loading={busy === p} disabled={!!busy && busy !== p} onClick={() => go(p)} data-testid={`social-${p}`}>{tr("auth.continue_with", { name: label[p] })}</ProviderButton>
       ))}
       <div className="flex items-center gap-3 pt-2 text-xs text-subtle"><span className="h-px flex-1 bg-line" />or use email<span className="h-px flex-1 bg-line" /></div>
     </div>
@@ -164,7 +164,7 @@ function DemoLink() {
   if (!config.data?.demoEnabled) return null;
   return (
     <>
-      <div className="my-6 flex items-center gap-3 text-xs text-subtle"><span className="h-px flex-1 bg-line" />or<span className="h-px flex-1 bg-line" /></div>
+      <div className="my-6 flex items-center gap-3 text-xs text-subtle"><span className="h-px flex-1 bg-line" />{tr("common.or")}<span className="h-px flex-1 bg-line" /></div>
       <Button variant="secondary" className="w-full" onClick={demo.start} loading={demo.loading}><IconPlay className="h-4 w-4" /> {tr("auth.explore_a_demo_workspace")}</Button>
       {demo.paused && <DemoPausedNote />}
     </>

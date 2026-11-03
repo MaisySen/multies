@@ -1,4 +1,5 @@
 /** My Work (round 20), the Today home since R35: a large dated title, summary cards with depth, a Focus list and quick add. */
+import { formatDateIn } from "@/web/i18n/intl"; // R104
 import { Suspense, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -20,8 +21,7 @@ import { useCounts } from "@/web/lib/counts";
 import { dayPart } from "@/web/lib/format";
 import { LoadError } from "@/web/components/load-error-t1g";
 import { Button } from "@/web/components/ui/button";
-import { LOAD_ERROR_TITLE } from "@/web/lib/load-errors-t1g";
-import { tr } from "@/web/i18n"; // R104
+import { tr, uiLocale, tl } from "@/web/i18n"; // R104
 
 /** R56 (MB-247): the tile reads the meeting's time in the same zone as the list under it (the zone My Work was built in), not the browser's. */
 function meetingTime(at: string, timeZone?: string | null): string {
@@ -117,7 +117,8 @@ export function MyWorkPage() {
   const c = counts.data;
   const nothing = w && !w.overdue.length && !w.dueToday.length && !w.mentions.length && !w.threads.length && !w.assignedThreads?.length && !w.approvals.length && !w.meetings.length && !w.snoozed?.length;
   // POL2 (HQ MB-332): the account's day only; while it loads a placeholder holds the place, never the browser's day.
-  const day = w ? new Date(`${w.date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }) : null;
+  const ui = uiLocale(); // R104: the day line in the app language
+  const day = w ? (ui ? formatDateIn(new Date(`${w.date}T12:00:00Z`), ui, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }) : new Date(`${w.date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })) : null;
   const next = w ? nextMeeting(w.meetings) : null;
   const focus = w ? focusItems(w) : [];
   const due = c?.tasks.dueToday ?? w?.dueToday.length ?? 0;
@@ -131,18 +132,18 @@ export function MyWorkPage() {
       <div className="mb-5 flex flex-col gap-3 max-sm:mb-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-brand-hover" data-testid="today-date"><span>{tr("mywork.my_work")}</span><span aria-hidden> · </span>{day ? <span className="text-muted">{day}</span> : <span className="skeleton inline-block h-3 w-28 align-middle" aria-hidden data-testid="today-date-loading" />}</p>
-          <h1 data-large-title className="text-[32px] font-bold leading-[38px] tracking-[-0.025em] text-fg sm:text-[34px] sm:leading-[41px]">Good {dayPart()}{first ? `, ${first}` : ""}</h1>
-          <p className={cn("mt-1 text-[14px] text-muted", allQuiet && "sr-only")}>{!w ? "What is waiting on you today." : nothing ? "Nothing is waiting on you. Enjoy the quiet." : overdue > 0 ? `${formatCount(overdue)} overdue and ${formatCount(due)} due today. Start with the top of Focus.` : `${due ? `${formatCount(due)} due today` : "Nothing due today"}${next ? `, next up: ${next.item.title}` : ""}.`}</p>
+          <h1 data-large-title className="text-[32px] font-bold leading-[38px] tracking-[-0.025em] text-fg sm:text-[34px] sm:leading-[41px]">{first ? tr(`mywork.good_${dayPart()}_name`, { name: first }) : tr(`mywork.good_${dayPart()}`)}</h1>
+          <p className={cn("mt-1 text-[14px] text-muted", allQuiet && "sr-only")}>{!w ? tr("mywork.what_is_waiting") : nothing ? tr("mywork.nothing_waiting") : overdue > 0 ? tr("mywork.overdue_and_due", { overdue: formatCount(overdue), due: formatCount(due) }) : tr(`mywork.${due ? "due" : "nothing_due"}${next ? "_next" : ""}_line`, { due: formatCount(due), title: next?.item.title ?? "" })}</p>
           {q.cachedAt !== null && q.isError && (
             /* F12 (MB-297): the read failed; the stored list stays on screen, said plainly, with Retry. */
             <p className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-full bg-elevated py-1 pl-2.5 pr-1 text-[12px] font-medium text-muted" role="alert" data-testid="mywork-stale">
-              <IconAlertCircle className="h-3.5 w-3.5" aria-hidden="true" />{LOAD_ERROR_TITLE}. Showing your list from {new Date(q.cachedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+              <IconAlertCircle className="h-3.5 w-3.5" aria-hidden="true" />{tr("mywork.stale_list", { time: ui ? formatDateIn(new Date(q.cachedAt), ui, { hour: "numeric", minute: "2-digit" }) : new Date(q.cachedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) })}
               <Button size="sm" variant="secondary" onClick={() => void q.refetch()} data-testid="mywork-retry">{tr("common.retry")}</Button>
             </p>
           )}
           {q.cachedAt !== null && !q.isError && (
             <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-elevated px-2.5 py-1 text-[12px] font-medium text-muted" role="status" data-testid="mywork-updating">
-              <IconRefresh className="h-3.5 w-3.5 motion-safe:animate-spin [animation-duration:1.6s]" aria-hidden="true" />Updating. Showing your list from {new Date(q.cachedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+              <IconRefresh className="h-3.5 w-3.5 motion-safe:animate-spin [animation-duration:1.6s]" aria-hidden="true" />{tr("mywork.updating_list", { time: ui ? formatDateIn(new Date(q.cachedAt), ui, { hour: "numeric", minute: "2-digit" }) : new Date(q.cachedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) })}
             </p>
           )}
         </div>
@@ -157,7 +158,7 @@ export function MyWorkPage() {
         </button>
         {QUICK.map((k) => (
           <Link key={k.label} to={k.to} className="pressable elev-1 inline-flex min-h-9 shrink-0 snap-start items-center gap-1.5 rounded-full bg-surface px-3.5 text-[13px] font-medium text-fg hover:bg-hover max-sm:min-h-11 max-sm:px-4 max-sm:text-[14px] last:mr-6 sm:last:mr-0">
-            <k.icon size={16} className="text-brand-hover dark:text-brand-hover" />{k.label}
+            <k.icon size={16} className="text-brand-hover dark:text-brand-hover" />{tl("mywork", k.label)}
           </Link>
         ))}
       </div>
@@ -179,7 +180,7 @@ export function MyWorkPage() {
           ) : (
           <div className="mb-6 grid grid-cols-2 gap-3 max-sm:gap-2.5 lg:grid-cols-5" data-testid="today-cards">
             <Stat testId="today-mail" to="/app/mail" icon={IconInbox} tint="#0071E3" value={c?.mail.inbox ?? "0"} label={tr("mywork.unread_mail")} sub={c ? `${formatCount(c.mail.important)} important` : undefined} />
-            <Stat testId="today-tasks" to="/app/tasks" icon={IconTasks} tint={overdue > 0 ? "#D70015" : "#34C759"} value={due} label={tr("mywork.due_today")} sub={overdue > 0 ? <span className="text-bad">{formatCount(overdue)} overdue</span> : "Nothing overdue"} />
+            <Stat testId="today-tasks" to="/app/tasks" icon={IconTasks} tint={overdue > 0 ? "#D70015" : "#34C759"} value={due} label={tr("mywork.due_today")} sub={overdue > 0 ? <span className="text-bad">{tr("mywork.n_overdue", { n: formatCount(overdue) })}</span> : tr("mywork.nothing_overdue")} />
             <Stat testId="today-meeting" to={next?.item.url ?? "/app/meetings"} icon={IconVideo} tint="#30B0C7" value={next?.item.at ? meetingTime(next.item.at, w?.timeZone) : "None"} label={tr("mywork.next_meeting")} sub={next?.item.title ?? "No meetings today"}
               action={next?.joinable ? <Link to={next.item.url} className="pressable inline-flex h-8 items-center gap-1 rounded-full bg-brand px-3 text-[12.5px] font-semibold text-white" data-testid="today-join"><IconVideo size={14} filled />{tr("mywork.join")}</Link> : undefined} />
             <Stat testId="today-mentions" to="/app/notifications" icon={IconMention} tint="#5856D6" value={mentions} label={tr("mywork.mentions")} sub={c && c.chat.unread > 0 ? `${formatCount(c.chat.unread)} unread in chat` : "All caught up"} />
