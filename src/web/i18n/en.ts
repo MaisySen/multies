@@ -576,6 +576,8 @@ export const en: Bundle = {
   "onboarding.welcome_to_multies": "Welcome to Multies",
   "onboarding.where_your_data_lives": "Where your data lives",
   "onboarding.your_name": "Your name",
+  "read.no_voice": "This device has no voice for reading aloud. Add one in your device's speech settings.",
+  "read.stopped": "Reading stopped. Try Read aloud again.",
   "settings.a_zip_with_your_settings_members_domains_mailbox": "A ZIP with your settings, members, domains, mailboxes, audit log and every message with its attachments, in JSON and CSV. Large workspaces take a minute.",
   "settings.at_least_10_characters": "At least 10 characters.",
   "settings.changing_it_signs_you_out_on_every_other_device": "Changing it signs you out on every other device.",

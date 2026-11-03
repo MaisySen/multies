@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { api } from "./api";
+import { t } from "@/web/i18n"; // POL4
 import { useMe } from "./queries";
 import {
   batches, detectLanguage, isR116Language, languageLabel, pickVoice, readPrefs, R116_LIMITS, R116_PREFS_KEY, SPEECH_TAGS, speechChunks, uniqueTexts,
@@ -93,8 +94,18 @@ export type SpeechState = { status: "idle" | "playing" | "paused"; owner: string
 let speech: SpeechState = { status: "idle", owner: null, rate: 1, note: null };
 const subs = new Set<() => void>();
 const emit = (p: Partial<SpeechState>) => { speech = { ...speech, ...p }; subs.forEach((f) => f()); };
-let queue: string[] = [], at = 0, gen = 0, voice: SpeechSynthesisVoice | null = null, lang = "en";
+let queue: string[] = [], at = 0, gen = 0, voice: SpeechSynthesisVoice | null = null, lang = "en", noVoices = false;
 
+/** POL4 (HQ MB-355): a device with no speech voice at all hears that plainly; trying again cannot help there. */
+const NO_VOICE_ERRORS = new Set(["synthesis-unavailable", "voice-unavailable", "language-unavailable"]);
+export function readingStoppedNote(error: string, deviceHasNoVoices: boolean): string {
+  return deviceHasNoVoices || NO_VOICE_ERRORS.has(error)
+    ? t("read.no_voice", undefined, "This device has no voice for reading aloud. Add one in your device's speech settings.")
+    : t("read.stopped", undefined, "Reading stopped. Try Read aloud again.");
+}
+
+/** The read aloud state as the hook reads it (unit tests). */
+export const __speechForTest = () => speech;
 export const useSpeech = () => useSyncExternalStore((f) => { subs.add(f); return () => { subs.delete(f); }; }, () => speech, () => speech);
 export const speechSupported = () => typeof window !== "undefined" && "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance === "function";
 
@@ -120,7 +131,7 @@ function speakNext(my: number) {
   u.onerror = (e) => {
     if (my !== gen || e.error === "interrupted" || e.error === "canceled") return;
     gen++;
-    emit({ status: "idle", note: "Reading stopped. Try Read aloud again." });
+    emit({ status: "idle", note: readingStoppedNote(e.error, noVoices) });
   };
   window.speechSynthesis.speak(u);
 }
@@ -136,6 +147,7 @@ export async function startReading(owner: string, text: string): Promise<void> {
   emit({ status: "playing", owner, note: null });
   const list = await deviceVoices();
   if (my !== gen) return;
+  noVoices = list.length === 0;
   const pick = pickVoice(list, code);
   if (!pick.voice && list.length > 0) {
     gen++;

@@ -576,6 +576,8 @@ export const ne: Bundle = {
   "onboarding.welcome_to_multies": "Multies मा स्वागत छ",
   "onboarding.where_your_data_lives": "तपाईंको डेटा कहाँ रहन्छ",
   "onboarding.your_name": "तपाईंको नाम",
+  "read.no_voice": "यो डिभाइसमा पढेर सुनाउने कुनै आवाज छैन। डिभाइसको बोली सेटिङमा एउटा आवाज थप्नुहोस्।",
+  "read.stopped": "पढ्न रोकियो। फेरि पढेर सुनाउनुहोस् थिच्नुहोस्।",
   "settings.a_zip_with_your_settings_members_domains_mailbox": "तपाईंका सेटिङ, सदस्य, डोमेन, मेलबक्स, अडिट लग र हरेक सन्देश संलग्न फाइलसहित, JSON र CSV मा भएको ZIP। ठूला वर्कस्पेसलाई एक मिनेट लाग्छ।",
   "settings.at_least_10_characters": "कम्तीमा १० अक्षर।",
   "settings.changing_it_signs_you_out_on_every_other_device": "यो बदल्दा तपाईं अरू सबै डिभाइसबाट साइन आउट हुनुहुन्छ।",

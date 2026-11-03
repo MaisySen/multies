@@ -576,6 +576,8 @@ export const hi: Bundle = {
   "onboarding.welcome_to_multies": "Multies में आपका स्वागत है",
   "onboarding.where_your_data_lives": "आपका डेटा कहाँ रहता है",
   "onboarding.your_name": "आपका नाम",
+  "read.no_voice": "इस डिवाइस में पढ़कर सुनाने के लिए कोई आवाज़ नहीं है। डिवाइस की स्पीच सेटिंग में एक आवाज़ जोड़ें।",
+  "read.stopped": "पढ़ना रुक गया। फिर से पढ़कर सुनाएं दबाएं।",
   "settings.a_zip_with_your_settings_members_domains_mailbox": "आपकी सेटिंग्स, सदस्य, डोमेन, मेलबॉक्स, ऑडिट लॉग और हर संदेश उसकी फ़ाइलों के साथ, JSON और CSV में एक ZIP। बड़े वर्कस्पेस में एक मिनट लगता है।",
   "settings.at_least_10_characters": "कम से कम 10 अक्षर।",
   "settings.changing_it_signs_you_out_on_every_other_device": "इसे बदलने पर आप हर दूसरे डिवाइस से साइन आउट हो जाते हैं।",
