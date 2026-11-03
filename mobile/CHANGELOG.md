@@ -3,6 +3,13 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.10.13 (OTA, runs on Android versionCode 16 and iOS build 20), 3 Nov 2026
+
+- A cleaner Today: the colour card now fills the width with Write, My tasks and Search side by side, and nothing overlaps.
+- Today shows what matters below the counts: your newest unread mail, what is due today and what is coming up.
+- Counts read properly: 15,527 instead of 15527, badges stop at 99+, and unread mail is no longer called today's.
+- Clearer badges in dark mode, menu names that fit on small phones, and a short guide on the Security screen before you turn on the lock.
+
 ## 1.10.12 (OTA, runs on Android versionCode 16 and iOS build 20), 3 Nov 2026
 
 - A new look: softer cards with depth instead of boxes, rounder corners, true black dark mode, tinted icons and a colour hero on Today with Write, My tasks and Search one tap away.

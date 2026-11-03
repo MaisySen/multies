@@ -29,6 +29,8 @@ const light = {
   warnSoft: "rgba(255,159,10,0.16)",
   bad: "#C4001A",
   badSoft: "rgba(215,0,21,0.10)",
+  /** M5: count badges (white text, 4.5:1 or better in both modes). */
+  badge: "#C4001A",
   shadow: "rgba(0,0,0,0.04)",
 };
 
@@ -55,6 +57,7 @@ const dark: typeof light = {
   warnSoft: "rgba(255,179,64,0.14)",
   bad: "#FF6961",
   badSoft: "rgba(255,105,97,0.14)",
+  badge: "#D70015",
   shadow: "rgba(0,0,0,0.4)",
 };
 

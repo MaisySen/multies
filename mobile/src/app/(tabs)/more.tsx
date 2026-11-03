@@ -45,12 +45,12 @@ function Tile({ s, n, width, editing, hidden, onPress, onToggle }: {
         </View>
         {editing ? (hideable ? <Icon name={hidden ? "plus" : "check-circle"} size={20} color={hidden ? colors.subtle : colors.brand} /> : <Icon name="lock" size={16} color={colors.subtle} />)
           : n > 0 ? (
-            <View testID={`more-count-${s.id}`} style={{ minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: 11, backgroundColor: colors.bad, alignItems: "center", justifyContent: "center" }}>
+            <View testID={`more-count-${s.id}`} style={{ minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: 11, backgroundColor: colors.badge, alignItems: "center", justifyContent: "center" }}>
               <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700" }}>{countText(n)}</Text>
             </View>
           ) : null}
       </View>
-      <Text style={[font.body, { color: colors.fg, fontWeight: "600", fontSize: 15, lineHeight: 20 }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{s.label}</Text>
+      <Text style={[font.body, { color: colors.fg, fontWeight: "600", fontSize: width < 112 ? 13 : 15, lineHeight: width < 112 ? 17 : 20, letterSpacing: width < 112 ? -0.1 : -0.24 }]} numberOfLines={2} maxFontSizeMultiplier={1.3}>{s.label}</Text>
     </Pressable>
   );
 }

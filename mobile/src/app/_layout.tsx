@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { shouldRetry } from "@/lib/retry";
 import { Platform, View } from "react-native";
 import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -26,7 +27,7 @@ if (Platform.OS !== "web") configureNotifications();
 
 export default function RootLayout() {
   const [client] = useState(() => new QueryClient({
-    defaultOptions: { queries: { retry: (n, err) => n < 2 && (err as { status?: number }).status !== 401, staleTime: 15_000 } },
+    defaultOptions: { queries: { retry: shouldRetry, staleTime: 15_000 } },
   }));
   // R37: gesture handler root on 1.10.0 builds (a plain View where the module is missing).
   const GH = nativeGestureHandler();

@@ -145,7 +145,8 @@ describe("runs screens", () => {
     await fireEvent.press(screen.getAllByText("Failed")[0]);
     await waitFor(() => expect(transport.calls.some((c) => c.path === "/agent-runs?status=failed&limit=50")).toBe(true));
     await waitFor(() => expect(screen.queryByTestId("run-run_s3")).toBeNull());
-    await fireEvent.press(screen.getByTestId("run-run_s2"));
+    // M5: wait for the filtered list (the old line raced the reload and failed under load).
+    await fireEvent.press(await screen.findByTestId("run-run_s2"));
     expect(mockPush).toHaveBeenCalledWith("/run/run_s2");
   });
 

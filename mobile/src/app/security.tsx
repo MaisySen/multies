@@ -99,6 +99,21 @@ export default function Security() {
         {!s?.on ? (
           <View style={{ padding: space.lg }}>
             <Button label="Turn on lock" icon="lock" onPress={() => { setLen(4); setPinValue(""); setError(null); setStep({ kind: "create" }); }} testID="lock-turn-on" />
+            <View style={{ marginTop: space.xl, gap: space.lg }} testID="lock-benefits">
+              {[
+                { icon: "lock" as const, title: bioOk ? `${bioName} or your PIN` : "Your PIN", body: "Needed each time Multies opens, or after the time you choose." },
+                { icon: "eye" as const, title: "Private in the app switcher", body: "Your mail is covered while you switch apps." },
+                { icon: "shield" as const, title: "Safe if your phone is lost", body: "Ten wrong PINs sign you out of Multies on this phone." },
+              ].map((r) => (
+                <View key={r.title} style={{ flexDirection: "row", gap: space.md, alignItems: "flex-start" }}>
+                  <TintIcon icon={r.icon} color={colors.brand} size={36} />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={font.headline}>{r.title}</Text>
+                    <Text style={font.small}>{r.body}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
           </View>
         ) : (
           <>

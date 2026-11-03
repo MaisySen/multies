@@ -1,4 +1,5 @@
-import type { Meeting, Task } from "@/api/types";
+import type { Meeting, MessageSummary, Task } from "@/api/types";
+import { groupCount } from "./numbers";
 
 /** R34: "Good morning" before noon, "Good afternoon" to 6 pm, then "Good evening". */
 export function greeting(now = new Date()): string {
@@ -31,3 +32,18 @@ export function focusTasks(tasks: readonly Task[] | undefined, today: string, li
   return (tasks ?? []).filter((t) => t.status !== "done" && !!t.due && t.due.slice(0, 10) <= today)
     .sort((a, b) => (a.due! < b.due! ? -1 : a.due! > b.due! ? 1 : 0)).slice(0, limit);
 }
+
+/** The newest unread mail, up to `limit`. Exported for tests. */
+export function topUnread(list: readonly MessageSummary[] | undefined, limit = 3): MessageSummary[] {
+  return (list ?? []).filter((m) => !m.isRead).slice(0, limit);
+}
+
+/**
+ * The hero line: what the day holds, in plain words. Unread mail lives in its tile, not here (1.10.12 said
+ * "15527 unread today", which was all unread, not today's). Exported for tests.
+ */
+export function daySummary(due: number, next: string | null): string {
+  const head = due ? `${groupCount(due)} ${due === 1 ? "task needs" : "tasks need"} you today.` : "Nothing due today.";
+  return next ? `${head} Next: ${next}.` : head;
+}
+

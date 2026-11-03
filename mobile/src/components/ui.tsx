@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useState, type ComponentRef, type ReactNode } from "react";
+import { compactCount, groupCount } from "@/lib/numbers";
 import {
   ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, TextInput, View,
   type PressableProps, type StyleProp, type TextInputProps, type TextStyle, type ViewStyle,
@@ -142,10 +143,10 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
 
 export function Chip({ label, selected, onPress, count }: { label: string; selected?: boolean; onPress?: () => void; count?: number }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!selected }} accessibilityLabel={count ? `${label}, ${count} unread` : label}
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!selected }} accessibilityLabel={count ? `${label}, ${groupCount(count)} unread` : label}
       style={[styles.chip, selected && { backgroundColor: colors.brandSoft, borderColor: colors.brandLine }]}>
       <Text style={{ color: selected ? colors.brandHover : colors.muted, fontWeight: "600", fontSize: 14 }}>{label}</Text>
-      {count ? <Text style={{ color: selected ? colors.brand : colors.subtle, fontSize: 13 }}>{count}</Text> : null}
+      {count ? <Text style={{ color: selected ? colors.brand : colors.subtle, fontSize: 13, fontVariant: ["tabular-nums"] }}>{compactCount(count)}</Text> : null}
     </Pressable>
   );
 }

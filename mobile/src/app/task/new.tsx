@@ -27,11 +27,12 @@ export default function NewTask() {
       onSuccess: () => success(),
       onError: (e) => { warning(); Alert.alert("Couldn't add the task", (e as Error).message); },
     });
-    if (router.canGoBack()) router.back();
+    // M5: opened straight from a link or a quick action there is nothing to go back to; land on Tasks, where the new row shows.
+    if (router.canGoBack()) router.back(); else router.replace("/tasks" as never);
   };
   return (
     <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg }} keyboardShouldPersistTaps="handled">
-      <Field label="Title" testID="task-title" value={title} onChangeText={setTitle} autoFocus placeholder="Call Jordan tomorrow 3pm #ops !high" returnKeyType="done" onSubmitEditing={save} />
+      <Field label="Title" testID="task-title" value={title} onChangeText={(v) => { setTitle(v); if (error) setError(null); }} autoFocus placeholder="Call Jordan tomorrow 3pm #ops !high" returnKeyType="done" onSubmitEditing={save} />
       {parsed.chips.length ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: -space.sm }} testID="quick-add-chips" accessibilityLabel={`Understood: ${parsed.chips.map((c) => c.text).join(", ")}`}>
           {parsed.chips.map((c) => (

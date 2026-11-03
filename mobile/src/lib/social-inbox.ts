@@ -1,3 +1,4 @@
+import { capBadge } from "./numbers";
 /**
  * 1.10.8: the Social inbox and account health on the phone, the same as the web's Social inbox (server R118).
  * Types and rules mirror the server's shared module (src/shared/social-p2b.ts in the web app), so the phone shows the
@@ -165,8 +166,7 @@ export function pinBroken<T>(list: T[], broken: (x: T) => boolean): T[] {
 
 /** Badge text on the Social entry: open conversations, capped. */
 export function badgeText(n: number | undefined): string | null {
-  if (!n) return null;
-  return n > 99 ? "99+" : String(n);
+  return capBadge(n);
 }
 
 /** A list item with the server's newer copy put in place. */

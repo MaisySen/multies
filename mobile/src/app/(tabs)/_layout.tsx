@@ -14,6 +14,7 @@ import { tick } from "@/lib/haptics";
 import { notifyApprovals } from "@/lib/push";
 import { FEATURES } from "@/config";
 import { colors } from "@/theme";
+import { capBadge, groupCount } from "@/lib/numbers";
 import { useQuickActions } from "@/lib/native-features";
 
 export default function TabsLayout() {
@@ -62,20 +63,20 @@ export default function TabsLayout() {
       tabBarBackground: hasBarBlur() ? () => <BarBlur /> : undefined,
       tabBarLabelStyle: { fontSize: 10, fontWeight: "500", letterSpacing: 0.1 },
       tabBarActiveTintColor: colors.brand, tabBarInactiveTintColor: colors.subtle,
-      tabBarBadgeStyle: { backgroundColor: colors.bad, color: "#FFFFFF", fontWeight: "600", fontSize: 11 },
+      tabBarBadgeStyle: { backgroundColor: colors.badge, color: "#FFFFFF", fontWeight: "600", fontSize: 11, fontVariant: ["tabular-nums"] },
       sceneStyle: { backgroundColor: colors.bg },
     }}>
       <Tabs.Screen name="today" options={{ title: "Today", tabBarIcon: ({ color, focused }) => <Icon name="today" size={25} filled={focused} color={color as string} />,
-        tabBarBadge: waiting || undefined, tabBarAccessibilityLabel: waiting ? `Today, ${waiting} approvals waiting` : "Today" }} />
-      <Tabs.Screen name="inbox" options={{ title: "Inbox", tabBarIcon: ({ color, focused }) => <Icon name="inbox" size={25} filled={focused} color={color as string} />, tabBarBadge: unread || undefined, tabBarAccessibilityLabel: unread ? `Inbox, ${unread} unread` : "Inbox" }} />
-      <Tabs.Screen name="approvals" options={{ title: "Approvals", href: null, tabBarIcon: ({ color, focused }) => <Icon name="approvals" size={25} filled={focused} color={color as string} />, tabBarBadge: waiting || undefined, tabBarAccessibilityLabel: waiting ? `Approvals, ${waiting} waiting` : "Approvals" }} />
-      <Tabs.Screen name="chat" options={{ title: "Chat", tabBarIcon: ({ color, focused }) => <Icon name="chat" size={25} filled={focused} color={color as string} />, tabBarBadge: chatUnread || undefined,
-        tabBarAccessibilityLabel: chatUnread ? `Chat, ${chatUnread} unread${chatMentions ? `, ${chatMentions} ${chatMentions === 1 ? "mention" : "mentions"}` : ""}` : "Chat" }} />
+        tabBarBadge: capBadge(waiting) ?? undefined, tabBarAccessibilityLabel: waiting ? `Today, ${waiting} approvals waiting` : "Today" }} />
+      <Tabs.Screen name="inbox" options={{ title: "Inbox", tabBarIcon: ({ color, focused }) => <Icon name="inbox" size={25} filled={focused} color={color as string} />, tabBarBadge: capBadge(unread) ?? undefined, tabBarAccessibilityLabel: unread ? `Inbox, ${groupCount(unread)} unread` : "Inbox" }} />
+      <Tabs.Screen name="approvals" options={{ title: "Approvals", href: null, tabBarIcon: ({ color, focused }) => <Icon name="approvals" size={25} filled={focused} color={color as string} />, tabBarBadge: capBadge(waiting) ?? undefined, tabBarAccessibilityLabel: waiting ? `Approvals, ${waiting} waiting` : "Approvals" }} />
+      <Tabs.Screen name="chat" options={{ title: "Chat", tabBarIcon: ({ color, focused }) => <Icon name="chat" size={25} filled={focused} color={color as string} />, tabBarBadge: capBadge(chatUnread) ?? undefined,
+        tabBarAccessibilityLabel: chatUnread ? `Chat, ${groupCount(chatUnread)} unread${chatMentions ? `, ${chatMentions} ${chatMentions === 1 ? "mention" : "mentions"}` : ""}` : "Chat" }} />
       {/* M3 (1.10.11): five tabs. Activity is the same inbox as the bell on Today, so it left the bar (still a route for old links). */}
-      <Tabs.Screen name="activity" options={{ title: "Activity", href: null, tabBarIcon: ({ color, focused }) => <Icon name="bell" size={25} filled={focused} color={color as string} />, tabBarBadge: activity || undefined,
-        tabBarAccessibilityLabel: activity ? `Activity, ${activity} unread` : "Activity" }} />
+      <Tabs.Screen name="activity" options={{ title: "Activity", href: null, tabBarIcon: ({ color, focused }) => <Icon name="bell" size={25} filled={focused} color={color as string} />, tabBarBadge: capBadge(activity) ?? undefined,
+        tabBarAccessibilityLabel: activity ? `Activity, ${groupCount(activity)} unread` : "Activity" }} />
       <Tabs.Screen name="tasks" options={{ title: "Tasks", href: FEATURES.tasks ? undefined : null, tabBarIcon: ({ color, focused }) => <Icon name="tasks" size={25} filled={focused} color={color as string} />,
-        tabBarBadge: due || undefined, tabBarAccessibilityLabel: due ? `Tasks, ${due} due today or overdue` : "Tasks" }} />
+        tabBarBadge: capBadge(due) ?? undefined, tabBarAccessibilityLabel: due ? `Tasks, ${groupCount(due)} due today or overdue` : "Tasks" }} />
       {/* M2 (1.10.10): More (the web's menu sections as a grid) takes the last tab, as on the web for phones. Settings is a
           stack screen of its own (src/app/settings.tsx), opened from More > Settings or any link to /settings. */}
       <Tabs.Screen name="more" options={{ title: "More", tabBarIcon: ({ color, focused }) => <Icon name="more" size={25} filled={focused} color={color as string} />,
