@@ -177,7 +177,7 @@ async function preparePost(deps: Deps, auth: AuthContext, input: CreatePostInput
     const pg = pages?.get(t.accountId);
     const a = direct ? undefined : byId.get(pg ? pg.viaAccountId : t.accountId);
     const app = direct ?? pg?.app ?? (isPageKey(t.accountId) ? "" : a?.toolkit?.slug ?? "");
-    const label = pg ? (pg.name ?? pg.pageId) : direct === "testnet" ? (testLink?.name ?? "Test network") : direct ? (link?.username ? `@${link.username}` : appLabel(direct)) : a?.alias?.trim() || appLabel(app);
+    const label = pg ? appLabel(pg.app) : direct === "testnet" ? (testLink?.name ?? "Test network") : direct ? (link?.username ? `@${link.username}` : appLabel(direct)) : a?.alias?.trim() || appLabel(app);
     const row = pg
       ? { accountId: t.accountId, app, label, target: pg.app === "linkedin" ? `urn:li:organization:${pg.pageId}` : pg.pageId, targetName: (pg.name ?? pg.pageId).slice(0, 200) }
       : { accountId: t.accountId, app, label, target: (t.target ?? "").trim() || null, targetName: (t.targetName ?? "").trim().slice(0, 200) || null };

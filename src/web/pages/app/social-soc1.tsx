@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { api, errorMessage } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
 import { useConfig } from "@/web/lib/queries";
-import { Badge, Skeleton } from "@/web/components/ui/misc";
+import { Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Input } from "@/web/components/ui/input";
 import { Dialog } from "@/web/components/ui/dialog";
@@ -42,16 +42,18 @@ export function PagePicker({ account, open, onClose }: { account: ConnectedAccou
   const isLinkedIn = account.app === "linkedin";
   const what = isLinkedIn ? "company Pages" : "Pages";
   const avail = useQuery({
-    queryKey: ["social", "pages", "available", account.id],
+    queryKey: ["social", "pages", "available", account.id] as const,
     queryFn: () => api.get<Soc1AvailableView>(`/apps/accounts/${encodeURIComponent(account.id)}/pages`),
     enabled: open, retry: false, staleTime: 0,
   });
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<Set<string> | null>(null);
-  useEffect(() => { if (!open) { setSel(null); setQ(""); } }, [open]);
+  const availKey = ["social", "pages", "available", account.id];
+  // A closed picker forgets its list, so the next open reads what is chosen now (never a stale copy).
+  useEffect(() => { if (!open) { setSel(null); setQ(""); qc.removeQueries({ queryKey: availKey }); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (open && avail.data && sel === null) setSel(new Set(avail.data.pages.filter((p) => p.added && !p.addedElsewhere).map((p) => p.id)));
-  }, [open, avail.data, sel]);
+    if (open && avail.data && !avail.isFetching && sel === null) setSel(new Set(avail.data.pages.filter((p) => p.added && !p.addedElsewhere).map((p) => p.id)));
+  }, [open, avail.data, avail.isFetching, sel]);
   const postable = useMemo(() => (avail.data?.pages ?? []).filter((p) => p.canPost), [avail.data]);
   const shown = useMemo(() => filterPages(postable, q), [postable, q]);
   const cantPost = (avail.data?.pages ?? []).length - postable.length;
@@ -131,7 +133,7 @@ export function PagePicker({ account, open, onClose }: { account: ConnectedAccou
                 </li>
               ))}
             </ul>
-            {cantPost > 0 && <p className="mt-2 px-1 text-[12px] text-subtle">{cantPost === 1 ? "1 Page" : `${cantPost.toLocaleString()} Pages`} you can only view are not listed. Posting needs a Page role that can create content.</p>}
+            {cantPost > 0 && <p className="mt-2 px-1 text-[12px] text-subtle" data-testid="pages-view-only">{cantPost === 1 ? "1 Page you can only view is not listed." : `${cantPost.toLocaleString()} Pages you can only view are not listed.`} Posting needs a Page role that can create content.</p>}
           </>
         )}
       </div>
@@ -146,6 +148,7 @@ export function LoginPages({ account, pages, health, canManage, autoOpen }: {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [removing, setRemoving] = useState<Soc1PageView | null>(null);
+  const [all, setAll] = useState(false);
   useEffect(() => { if (autoOpen && canManage) setOpen(true); }, [autoOpen, canManage]);
   const isLinkedIn = account.app === "linkedin";
   const mine = (pages ?? []).filter((p) => p.viaAccountId === account.id);
@@ -154,9 +157,8 @@ export function LoginPages({ account, pages, health, canManage, autoOpen }: {
     onSuccess: (_r, p) => { toast.success(`${p.name} removed`); setRemoving(null); void qc.invalidateQueries({ queryKey: pagesKey }); },
     onError: (e) => toast.error(errorMessage(e, "Couldn't remove that Page. Try again.")),
   });
-  if (isLinkedIn && !account.companyPages) {
-    return <p className="mt-1 flex items-center gap-1.5 text-[12.5px] text-muted" data-testid="linkedin-org-state"><Badge tone="neutral">{SOC1_COPY.orgNeedsApproval}</Badge></p>;
-  }
+  // Without organization access the row keeps its plain note (company Pages need LinkedIn approval); no button.
+  if (isLinkedIn && !account.companyPages) return null;
   if (account.status !== "active") return null;
   const what = isLinkedIn ? "company Pages" : "Pages";
   return (
@@ -166,7 +168,7 @@ export function LoginPages({ account, pages, health, canManage, autoOpen }: {
           <p className="text-[12.5px] text-muted" data-testid="login-pages-none">{isLinkedIn ? "No company Pages chosen yet" : SOC1_COPY.noPagesYet}{!isLinkedIn ? ". Posts go to the Page picked in each post until you choose." : "."}</p>
         ) : (
           <ul className="divide-y divide-line rounded-lg border border-line" aria-label={`${what} of ${account.name ?? account.appName}`}>
-            {mine.map((p) => {
+            {(all ? mine : mine.slice(0, 5)).map((p) => {
               const h = health?.get(p.key);
               const lost = p.state === "lost" || (h && !h.ok && h.code !== "check_failed");
               return (
@@ -184,6 +186,11 @@ export function LoginPages({ account, pages, health, canManage, autoOpen }: {
                 </li>
               );
             })}
+            {mine.length > 5 && (
+              <li className="px-3 py-1.5">
+                <Button variant="ghost" size="sm" onClick={() => setAll((v) => !v)} aria-expanded={all} data-testid="login-pages-more">{all ? "Show fewer" : `Show all ${mine.length}`}</Button>
+              </li>
+            )}
           </ul>
         )}
       {canManage && (

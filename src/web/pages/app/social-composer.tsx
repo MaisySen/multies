@@ -91,7 +91,7 @@ export function composerAccounts(list: ConnectedAccountView[], direct: DirectSta
     // Pages come after the member's own profile. Without chosen Pages a login works as before (Page picked per post).
     const mine = pages ? pages.filter((p) => p.viaAccountId === a.id && p.app === a.app) : [];
     if (!(a.app === "facebook" && mine.length)) out.push({ id: a.id, app: a.app, name: a.appName, label: a.name ?? a.label ?? null, needsTarget: !!SOCIAL_NETWORKS[a.app]?.target, account: a });
-    for (const p of mine) out.push({ id: p.key, app: p.app, name: a.app === "linkedin" ? "LinkedIn Page" : a.appName, label: p.name, needsTarget: false, account: { ...a, name: p.name, avatarUrl: p.pictureUrl }, page: true });
+    for (const p of mine) out.push({ id: p.key, app: p.app, name: p.name, label: null, needsTarget: false, account: { ...a, name: p.name, avatarUrl: p.pictureUrl }, page: true });
   }
   for (const d of direct?.accounts ?? []) {
     if (!d.connected || d.status === "expired") continue;
@@ -540,7 +540,7 @@ export function ComposerV2({ accounts, canPublish, draft, presetAt, presetAccoun
                   <div key={app} data-testid={`group-${app}`}>
                     {list.length > 1 && (
                       <div className="mb-1 flex items-center justify-between gap-2 px-1">
-                        <span className="text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">{list[0]!.app === "linkedin" ? "LinkedIn" : list[0]!.name}</span>
+                        <span className="text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">{list[0]!.account?.appName ?? list[0]!.name}</span>
                         <Button type="button" variant="ghost" size="sm" onClick={() => selectAll(list)} data-testid={`select-all-${app}`}>
                           {list.filter(selectable).every((a) => a.id in picked) ? "Clear" : "Select all"}
                         </Button>

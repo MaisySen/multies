@@ -107,7 +107,7 @@ describe("SOC1 several Facebook Pages", () => {
     expect(post.targets).toHaveLength(3);
     const fbT = post.targets.filter((t: { app: string }) => t.app === "facebook");
     expect(fbT.map((t: { target: string }) => t.target).sort()).toEqual(["pg_100", "pg_200"]);
-    expect(fbT.map((t: { label: string }) => t.label).sort()).toEqual(["Acme Bakery", "Acme Bakery Melbourne"]);
+    expect(fbT.map((t: { targetName: string }) => t.targetName).sort()).toEqual(["Acme Bakery", "Acme Bakery Melbourne"]);
     expect(fbT.every((t: { status: string }) => t.status === "sent")).toBe(true);
     // Feed posts went to each Page with the Page token, through the one login.
     const feeds = mock.proxied.filter((p) => p.method === "POST" && /\/feed$/.test(p.endpoint));
