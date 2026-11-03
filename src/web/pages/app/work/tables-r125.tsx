@@ -202,6 +202,11 @@ export function TableDoc({ docId }: { docId: string }) {
   usePageTitle(d ? [d.table.title || "Untitled table", "Docs"] : null); // POL1 (MB-321)
   const trash = useTrashAction("table", docId, d?.table.title ?? "", { rows: d?.table.rowCount }); // POL1 (MB-313)
   const [focusRow, setFocusRow] = useState<{ id: string; n: number } | null>(null); // POL1 (MB-314)
+  // POL3 (MB-314): Row stays focusable while the row is made (a disabled button dropped focus to the page), and keys typed
+  // in that gap are kept here and become the new row's first cell text once the grid has the row.
+  const typedAhead = useRef("");
+  const awaitingRow = useRef(false);
+  const takeTyped = useCallback(() => { const t = typedAhead.current; typedAhead.current = ""; awaitingRow.current = false; return t; }, []);
   const view = d?.views.find((v) => v.id === viewId) ?? d?.views[0];
   const [local, setLocal] = useState<ViewConfig>({});
   useEffect(() => { setLocal({}); }, [view?.id]);
@@ -345,7 +350,7 @@ export function TableDoc({ docId }: { docId: string }) {
             {canEdit && <Button variant="ghost" size="sm" onClick={() => setImporting(true)} aria-label="Import a CSV file"><IconUpload className="h-4 w-4" /></Button>}
             <a className="inline-flex min-h-[36px] items-center rounded-lg px-2 text-muted hover:bg-hover" href={`/api/tables/${docId}/export.csv?view=${view.id}`} aria-label="Export as CSV" data-testid="export-csv" download><IconDownload className="h-4 w-4" /></a>
             {canEdit && d.views.length > 1 && <Button variant="ghost" size="sm" aria-label={`Delete the view ${view.name}`} onClick={() => void ask({ title: `Delete the view "${view.name}"?`, description: "The rows stay.", confirmLabel: "Delete view", tone: "danger" }).then((ok) => { if (ok) delView.mutate(view.id); })}><IconTrash className="h-4 w-4" /></Button>}
-            {canEdit && view.type === "grid" && <Button size="sm" onClick={() => addRows.mutate([{}], { onSuccess: (r) => { if (r.rows[0]) setFocusRow({ id: r.rows[0].id, n: Date.now() }); } })} disabled={addRows.isPending} data-testid="add-row"><IconPlus className="h-4 w-4" />Row</Button>}
+            {canEdit && view.type === "grid" && <Button size="sm" onClick={() => { if (addRows.isPending) return; typedAhead.current = ""; awaitingRow.current = true; addRows.mutate([{}], { onSuccess: (r) => { if (r.rows[0]) setFocusRow({ id: r.rows[0].id, n: Date.now() }); else awaitingRow.current = false; }, onError: () => { awaitingRow.current = false; } }); }} onKeyDown={(e) => { if (awaitingRow.current && e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) { typedAhead.current += e.key; e.preventDefault(); } }} aria-disabled={addRows.isPending || undefined} data-testid="add-row"><IconPlus className="h-4 w-4" />Row</Button>}
           </div>
         </div>
       )}
@@ -358,7 +363,7 @@ export function TableDoc({ docId }: { docId: string }) {
           onSave={saveCells} onPaste={(c, x) => void paste(c, x)} onAdd={(list) => addRows.mutate(list)} onOpen={setOpenRow} onUndo={() => void runUndo()} onDelete={(ids) => removeRows.mutate(ids)}
           onField={(f) => setFieldDlg({ field: f })} onAddField={() => setFieldDlg({})} onImport={() => setImporting(true)}
           onResize={(fid, w) => changeView({ widths: { ...(cfg.widths ?? {}), [fid]: w } })}
-          more={rows.hasNextPage ? () => void rows.fetchNextPage() : undefined} loadingMore={rows.isFetchingNextPage} focusRow={focusRow} />
+          more={rows.hasNextPage ? () => void rows.fetchNextPage() : undefined} loadingMore={rows.isFetchingNextPage} focusRow={focusRow} takeTyped={takeTyped} />
       ) : view.type === "kanban" ? (
         <Kanban fields={fields} rows={all} by={fields.find((f) => f.id === cfg.by && f.type === "select") ?? null} canEdit={canEdit} loading={rows.isPending}
           onMove={(r, f, v) => saveCells([{ row: r, cells: { [f.id]: v } }])} onOpen={setOpenRow} onAdd={(f, v) => addRows.mutate([{ [f.id]: v }])} more={rows.hasNextPage ? () => void rows.fetchNextPage() : undefined} />
@@ -504,6 +509,8 @@ interface GridProps {
   more?: () => void; loadingMore: boolean;
   /** POL1 (MB-314): a row just added with Row; its first typable cell becomes active and the grid takes focus. */
   focusRow?: { id: string; n: number } | null;
+  /** POL3 (MB-314): keys typed on Row while the row was being made; read once when the row is focused. */
+  takeTyped?: () => string;
 }
 function Grid(props: GridProps) {
   const { fields, rows, canEdit } = props;
@@ -541,6 +548,9 @@ function Grid(props: GridProps) {
     const c = Math.max(0, fields.findIndex((f) => typable(f)));
     setAnchor(null); setAct({ r, c });
     wrap.current?.focus({ preventScroll: true });
+    const typed = props.takeTyped?.() ?? "";
+    const f = fields[c];
+    if (typed && f && typable(f)) { editRef.current = typed; setErr(""); setEdit({ value: typed }); }
     requestAnimationFrame(() => document.getElementById(`cell-${r}-${c}`)?.scrollIntoView({ block: "nearest", inline: "nearest" }));
   }, [props.focusRow, rows, fields]); // eslint-disable-line react-hooks/exhaustive-deps
   const focusGrid = () => { const a = document.activeElement; if (a instanceof HTMLInputElement && wrap.current?.contains(a)) return; wrap.current?.focus({ preventScroll: true }); };
