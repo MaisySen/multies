@@ -148,7 +148,7 @@ export function PortalPage() {
       <Link to="/app/contacts?tab=portals" className="mb-4 inline-flex items-center gap-1 text-[12.5px] text-subtle hover:text-fg"><IconArrowLeft className="h-3.5 w-3.5" />Client portals</Link>
       <div className="mb-4 flex flex-wrap items-start gap-4">
         <Avatar label={initials(p.name)} className="h-12 w-12 text-sm" />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-48">
           <h1 className="large-title break-words" data-testid="portal-name">{p.name}</h1>
           <p className="text-[13.5px] text-muted">
             {p.company ? <>For <Link className="hover:underline" to={`/app/contacts?tab=companies`}>{p.company.name}</Link></> : p.contact ? <>For <Link className="hover:underline" to={`/app/contacts/${p.contact.id}`}>{p.contact.name}</Link></> : null}
