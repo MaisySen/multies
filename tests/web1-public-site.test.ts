@@ -71,6 +71,12 @@ describe("WEB1 privacy policy covers what is live", () => {
       expect(aiCostAnswer()).toMatch(/Bring your own AI/);
     }
     if (!TEAM_AI_LIVE) expect(privacy).not.toMatch(/Team AI/);
+    if (BUILT_IN_AI_LIVE) expect(privacy).toMatch(/Built in AI runs on our infrastructure/);
+    if (TEAM_AI_LIVE) {
+      expect(privacy).toMatch(/Team AI keeps the memory/);
+      expect(aiCostAnswer()).toMatch(/Team AI gets 50 free runs a day per workspace/);
+    }
+    expect(aiCostAnswer(true, false)).not.toMatch(/Team AI/);
     expect(aiPrivacyBlocks(true).join(" ")).toMatch(/never bills/);
     expect(aiCostAnswer(true)).toMatch(/never bills you/);
   });

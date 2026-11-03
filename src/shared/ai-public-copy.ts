@@ -5,12 +5,13 @@
  * TEAM_AI_LIVE: set true only once TD8 (Team AI) is live on prod.
  * Whoever ships those rounds flips the value; the pricing FAQ and the privacy policy follow.
  */
-export const BUILT_IN_AI_LIVE = false;
-export const TEAM_AI_LIVE = false;
+export const BUILT_IN_AI_LIVE = true; // AI2 live on prod 7c4696056b64 (Nov 2)
+export const TEAM_AI_LIVE = true; // TD8 live on prod 85cc035064fa (Nov 2)
 
-export function aiCostAnswer(builtIn: boolean = BUILT_IN_AI_LIVE): string {
+export function aiCostAnswer(builtIn: boolean = BUILT_IN_AI_LIVE, teamAi: boolean = TEAM_AI_LIVE): string {
+  const team = teamAi ? " Team AI gets 50 free runs a day per workspace on built in AI, with no run limit from us on your own key." : "";
   return builtIn
-    ? "Nothing from us. Every workspace gets a daily allowance of built in AI at no cost, and when it is used up AI pauses until the next day, so it never bills you. For more, add your own model provider key in Settings and your provider bills you directly. You can also connect any AI app or agent through MCP, free. An admin can turn AI off for the whole workspace."
+    ? `Nothing from us. Every workspace gets a daily allowance of built in AI at no cost, and when it is used up AI pauses until the next day, so it never bills you.${team} For more, add your own model provider key in Settings and your provider bills you directly. You can also connect any AI app or agent through MCP, free. An admin can turn AI off for the whole workspace.`
     : "Nothing from us. Bring your own AI: connect any AI app or agent through MCP, free. If you want the assistant in the inbox, add your own model provider key in Settings and your provider bills you directly. Multies never resells AI.";
 }
 

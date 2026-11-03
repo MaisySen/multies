@@ -10,6 +10,7 @@ import { DemoPausedNote } from "@/web/components/demo-paused";
 import { RESIDENCY_ANSWER } from "@/shared/residency";
 import { OFFER_COPY } from "@/shared/offers";
 import { GetTheApp } from "@/web/components/get-the-app";
+import { aiCostAnswer } from "@/shared/ai-public-copy";
 
 /**
  * W1 (owner, Nov 1: "website is missing a lot"): the home page tells the whole story, one workspace for the team,
@@ -58,7 +59,7 @@ const deeper: { id: string; kicker: string; title: string; body: string; shot?: 
     points: [
       "Agent inboxes that read mail as clean JSON and reply in the thread.",
       "Daily caps, allowed recipients and an audit log of every action.",
-      "Bring your own AI: connect any AI app or agent through MCP, free.",
+      "Free built in AI with a daily allowance that never bills, or your own key. Connect any AI app or agent through MCP, free.",
       "Ask a question across your workspace and get an answer that cites only what you can open.",
     ],
     more: "/features/agents",
@@ -77,7 +78,7 @@ const faqs = [
   // R62: from src/shared/offers.ts, the same words as the pricing page.
   { q: "Do you reward referrals?", a: OFFER_COPY.referral },
   { q: "Are tasks, docs, booking and invoices extra?", a: "No. Tasks, chat, docs, files, meetings, booking, contacts, invoices, signing and social come with every workspace, the free plan too. Add-ons only raise limits like mailboxes and storage." },
-  { q: "What does the AI cost?", a: "Nothing from us. Bring your own AI: connect any AI app or agent through MCP, free. Multies never resells AI or meters it." },
+  { q: "What does the AI cost?", a: aiCostAnswer() },
   { q: "Can an agent send email without me?", a: "Only if you let it. New agents need a person to approve every message. You can relax that to only mail leaving Multies, or turn it off, and set a daily cap and a list of who it may write to." },
   { q: "Do I need to move my domain?", a: "No. Keep your domain wherever it's registered. You add a few DNS records. We show you each one, check them live, and tell you when everything's right." },
   { q: "I already have email somewhere else. Can I switch?", a: "Yes. We spot your existing mail records and show you exactly what to change, including a merged SPF record, so nothing breaks during the move. You can bring your tasks over from the tool you use now too." },
