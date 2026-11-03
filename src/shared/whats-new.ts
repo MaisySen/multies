@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-03-video-recording-plus",
+    date: "2026-11-03",
+    title: "Pause, speaker view and safer call videos",
+    body: "Pause and resume a call video while everyone sees it is paused, and switch between speaker and gallery view as you record. The chat and transcript save next to the video, and if the tab crashes, Recover last recording brings it back from this device.",
+  },
+  {
     id: "2026-11-03-video-recording",
     date: "2026-11-03",
     title: "Save a video of your calls",
@@ -92,12 +98,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-02",
     title: "AI that works from the start",
     body: "Built in AI works with no key needed, up to a daily limit for your workspace. Admins can also connect their own AI in Settings, AI: paste a key and the provider is found for you, pick from the live model list and test it before saving.",
-  },
-  {
-    id: "2026-10-28-whats-new",
-    date: "2026-10-28",
-    title: "What's new, in the app",
-    body: "The account menu has a What's new item, with a small dot when something new has shipped since you last looked. The same list is on the public changelog page.",
   },
 ];
 

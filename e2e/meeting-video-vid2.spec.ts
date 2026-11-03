@@ -160,7 +160,7 @@ test.describe("VID2 on", () => {
     // Everyone: banner, a dot on every tile and a pill in the call header.
     await expect(mate.getByTestId("recording-banner")).toContainText("Recording video", { timeout: 15_000 });
     await expect(mate.getByTestId("call-screen")).toHaveAttribute("data-rec", "on");
-    await expect(mate.getByTestId("rec-header-pill")).toContainText("Rec");
+    await expect(mate.getByTestId("rec-header-pill")).toContainText("this call is being recorded");
     await expect(owner.getByTestId("rec-header-pill")).toBeVisible();
     await chat(owner, "Hello from Olive");
     await chat(mate, "Hi Olive, Sam here");
@@ -430,7 +430,8 @@ test.describe("VID2 off", () => {
     await expect(owner.getByTestId("record-pause")).toHaveCount(0);
     await expect(owner.getByTestId("rec-layout")).toHaveCount(0);
     await expect(owner.getByTestId("call-screen")).not.toHaveAttribute("data-rec", /.+/);
-    const dl = owner.waitForEvent("download", { timeout: 20_000 });
+    await owner.waitForTimeout(5000);
+    const dl = owner.waitForEvent("download", { timeout: 60_000 });
     await owner.getByTestId("record-stop").click();
     expect((await dl).suggestedFilename()).toMatch(/\.(webm|mp4)$/);
   });

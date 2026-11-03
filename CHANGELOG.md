@@ -6,6 +6,14 @@ version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` af
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
 
+## VID2 Call videos: pause, speaker or gallery view, crash safe, chat and transcript files (2026-11-03)
+
+- Pause and resume while recording (flag VIDEO_REC_VID2, needs VIDEO_REC_VID1; no migration, no new binding, nothing uploaded): MediaRecorder pause keeps paused time out of the file, the banner, a dot on every tile and a pill in the call header switch to Paused for everyone, and the transcript mix goes silent while paused.
+- Speaker view (the person talking large with a 1.5 s hold, others in a strip) or gallery view, picked before and switched while recording; a screen share always takes the big area. 720p30 at 4 Mbps by default, 1080p30 at 8 Mbps on devices with 4 cores and 4 GB; the drawing steps down to 24, 20 or 15 fps when frames come late.
+- Crash safe: every second of video is also kept in IndexedDB on the device; after a crash or a closed tab, Recover last recording rebuilds the file (meeting page and in the call); pieces are removed once saved and after 7 days.
+- The call's chat is saved next to the video as "<video name> chat.txt", and the transcript as "<video name> transcript.txt" once ready (Save transcript on the meeting page too). Saving shows the size; leaving the call stops and saves on its own.
+- MB-351: the call hangs up only when the page really goes (pagehide), never on a beforeunload the page survives; the banner clears for everyone when the person recording leaves; recording signals are said again shortly after each change so every banner matches.
+
 ## VID1 Save a video of the call on your own device (2026-11-03)
 
 - Owners and admins save a video of the whole call (flag VIDEO_REC_VID1; no migration, no new binding): every camera and screen share drawn on a canvas in the browser (grid, names, active speaker, a shared screen large), all voices mixed, recorded as webm (vp9 or vp8 with opus) or mp4 where only that is supported, and saved as one file on the admin's device (written as the call goes where the browser can choose a file, else kept in the tab with a warning at 1.5 GB and a stop at 2 GB). Nothing is uploaded.

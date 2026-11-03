@@ -5,6 +5,7 @@
 import { WHATS_NEW, type WhatsNewEntry } from "./whats-new";
 
 export const WHATS_NEW_EARLIER: readonly WhatsNewEntry[] = [
+  { id: "2026-10-28-whats-new", date: "2026-10-28", title: "What's new, in the app", body: "The account menu has a What's new item, with a small dot when something new has shipped since you last looked. The same list is on the public changelog page." }, // VID2: moved from the in app list (keeps 14)
   { id: "2026-11-02-forms-upgrade", date: "2026-11-02", title: "Forms with uploads, signatures and pages", body: "Forms take time, date and time, web address, file upload and signature questions. Split a form into pages with a progress bar or show one question at a time, and show or hide questions based on earlier answers." }, // WEB1: TD2 news, public earlier list
   { id: "2026-11-02-ask-v2", date: "2026-11-02", title: "Ask shows its sources, and AI has an off switch", body: "Answers from Ask your workspace show where each one came from, using only what you can open. Admins can turn AI off for the whole workspace in Settings." }, // WEB1: TD1 news, public earlier list
   { id: "2026-11-02-menu", date: "2026-11-02", title: "A tidier menu", body: "Contacts now has its own place in the menu with People and Deals. Mailboxes, Domains and Deliverability moved to Settings, Mail setup, and Files sits in Docs. Hide what you never use from View, Customise menu, and on phones More shows every section as a tile." }, // DES1: moved from the in app list (cap 14 kept)

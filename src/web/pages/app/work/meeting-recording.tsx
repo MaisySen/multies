@@ -335,9 +335,9 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
   return (
     <div ref={layerRef} style={{ position: "relative", height: 0, zIndex: 20 }}>
       {vid2 && slot && recState && createPortal(
-        <span className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold leading-none text-white", recState === "paused" ? "bg-[#3a3a3c]" : "bg-[#d70015]")} data-testid="rec-header-pill">
+        <span className={cn("inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-semibold leading-none text-white max-sm:px-2", recState === "paused" ? "bg-[#3a3a3c]" : "bg-[#d70015]")} data-testid="rec-header-pill" title={recState === "paused" ? "Recording paused" : "This call is being recorded"}>
           {recState === "paused" ? <IconPause className="h-3 w-3" aria-hidden /> : <IconCircle filled className="h-2 w-2" aria-hidden />}
-          {recState === "paused" ? "Paused" : "Rec"}<span className="sr-only">{recState === "paused" ? ", recording paused" : ", this call is being recorded"}</span>
+          <span className="max-sm:sr-only">{recState === "paused" ? "Paused" : "Rec"}</span><span className="sr-only">{recState === "paused" ? ", recording paused" : ", this call is being recorded"}</span>
         </span>, slot)}
       <div className="pointer-events-none absolute inset-x-0 top-2 flex flex-col items-center gap-2 px-3" data-testid="recording-layer">
         {signal && (
