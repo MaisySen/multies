@@ -7,6 +7,8 @@
  * Everyone in the workspace can see what is connected; only owners and admins connect, reconnect, disconnect or post.
  * Every connect and disconnect is audited.
  */
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { socialPostTargets, socialPosts } from "../../db/schema";
 import type { AuthContext, Deps } from "../../context";
 import { audit } from "../audit";
 import { HttpError, forbidden, tooMany } from "../../lib/errors";
@@ -230,6 +232,20 @@ export function findList(data: unknown, keys = ["data", "items", "pages", "board
   return [];
 }
 
+/**
+ * SOCFIX: the Page, board or community this workspace last chose for one account (newest of its last 50 posts), so the
+ * composer can offer it again. Two small reads; nothing new is stored.
+ */
+export async function lastTarget(deps: Deps, auth: AuthContext, accountId: string): Promise<TargetOption | null> {
+  const recent = await deps.db.select({ id: socialPosts.id }).from(socialPosts).where(eq(socialPosts.orgId, auth.orgId)).orderBy(desc(socialPosts.createdAt)).limit(50).all();
+  if (!recent.length) return null;
+  const rows = await deps.db.select({ postId: socialPostTargets.postId, target: socialPostTargets.target, targetName: socialPostTargets.targetName }).from(socialPostTargets)
+    .where(and(eq(socialPostTargets.accountId, accountId), inArray(socialPostTargets.postId, recent.map((r) => r.id)))).all();
+  const order = new Map(recent.map((r, i) => [r.id, i]));
+  const best = rows.filter((r) => (r.target ?? "").trim()).sort((x, y) => order.get(x.postId)! - order.get(y.postId)!)[0];
+  return best ? { id: best.target!, name: (best.targetName ?? best.target!).slice(0, 200) } : null;
+}
+
 export async function listTargets(deps: Deps, auth: AuthContext, accountId: string): Promise<TargetOption[]> {
   const cp = platformForId(deps);
   limitRead(auth.orgId);
@@ -251,6 +267,8 @@ export async function listTargets(deps: Deps, auth: AuthContext, accountId: stri
     }
     if (app === "pinterest") {
       const r = await cp.execute("PINTEREST_LIST_BOARDS", a.id, uid, { page_size: 100 });
+      // SOCFIX: a refused read is an error the picker can retry, never a silent "no boards".
+      if (!r.ok) throw new IntegrationError("unavailable", "Pinterest didn't list the boards. Try again.");
       return pick(findList(r.data));
     }
     return [];

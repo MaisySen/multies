@@ -124,7 +124,7 @@ export interface SocialNetwork {
 export const SOCIAL_NETWORKS: Record<string, SocialNetwork> = {
   facebook: { app: "facebook", maxChars: 63206, image: "optional", target: { kind: "page", label: "Page" } },
   instagram: { app: "instagram", maxChars: 2200, image: "required", target: null },
-  linkedin: { app: "linkedin", maxChars: 3000, image: "none", target: null },
+  linkedin: { app: "linkedin", maxChars: 3000, image: "optional", target: null }, // SOCFIX: images go up first, then the post
   pinterest: { app: "pinterest", maxChars: 800, image: "required", target: { kind: "board", label: "Board" } },
   reddit: { app: "reddit", maxChars: 40000, image: "none", target: { kind: "subreddit", label: "Community" } },
   twitter: { app: "twitter", maxChars: 280, image: "none", target: null },

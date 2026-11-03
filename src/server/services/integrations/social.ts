@@ -517,6 +517,8 @@ export interface PublishCtx {
   pageToken?: string | null;
   /** SOC1: this target is a Page an admin chose (only then may LinkedIn post as an organization). */
   chosenPage?: boolean;
+  /** SOCFIX: every image's bytes (base64) and type, in post order (LinkedIn uploads them before the post). */
+  images?: { b64: string; type: string }[];
 }
 interface PublishResult { status: "sent" | "failed" | "skipped"; url?: string | null; error?: string | null; remoteId?: string | null; note?: string | null }
 
@@ -671,6 +673,21 @@ export function linkedinPoll(p: { question: string; options: string[]; days: num
   return { question: p.question.trim().slice(0, 140), options: p.options.map((o) => o.trim()).filter(Boolean).slice(0, 4).map((text) => ({ text: text.slice(0, 30) })), settings: { duration } };
 }
 
+/**
+ * SOCFIX: one image to LinkedIn for a post by author (a member or an organization): register the upload, send the
+ * bytes to the address LinkedIn gives (through the platform, which signs it), answer the image's urn. Proven on a
+ * real member account with a hidden draft on Nov 4 (register 200, bytes 201, draft with the image 201, deleted).
+ */
+export async function linkedinUploadImage(ctx: PublishCtx, author: string, im: { b64: string; type: string }): Promise<string> {
+  const init = await linkedinCall(ctx, "POST", "https://api.linkedin.com/rest/images?action=initializeUpload", { initializeUploadRequest: { owner: author } });
+  const v = (init.data as { value?: { uploadUrl?: unknown; image?: unknown } } | null)?.value;
+  const uploadUrl = str(v?.uploadUrl); const urn = str(v?.image);
+  if (!uploadUrl || !urn || !/^https:\/\/[a-z0-9.-]*linkedin\.com\//i.test(uploadUrl)) throw new PublishError("bad_image", "LinkedIn did not take the image");
+  const put = await proxy(ctx, { endpoint: uploadUrl, method: "PUT", binaryBody: { base64: im.b64, contentType: im.type } });
+  if (put.status >= 400) throw put.status === 401 || put.status === 403 ? linkedinError(put.status, (put.data ?? null) as never) : new PublishError("bad_image", `LinkedIn did not take the image (${put.status})`);
+  return urn;
+}
+
 export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResult>> = {
   async facebook(ctx) {
     // Hotfix Oct 31: a Page post must be made with the Page's own token. The platform's ready made tools post with
@@ -713,11 +730,35 @@ export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResu
     const me = await run(ctx, "INSTAGRAM_GET_USER_INFO", {});
     const igId = dig(me, ["id"]);
     if (!igId) throw new PublishError("rejected", "no account id");
-    const container = await run(ctx, "INSTAGRAM_CREATE_MEDIA_CONTAINER", { ig_user_id: igId, image_url: ctx.imageUrl, caption: ctx.text, content_type: "photo" });
-    const creationId = dig(container, ["id", "creation_id", "container_id"]);
+    // SOCFIX: two or more images are one carousel (each image its own item, then the carousel, then the post). If
+    // Instagram will not make the carousel, the post still goes with the first image and says so.
+    const urls = (ctx.imageUrls?.length ? ctx.imageUrls : [ctx.imageUrl]).slice(0, NETWORK_RULES.instagram!.maxImages);
+    let creationId: string | null = null;
+    let note: string | null = null;
+    if (urls.length > 1) {
+      try {
+        const children: string[] = [];
+        for (const url of urls) {
+          const item = await run(ctx, "INSTAGRAM_CREATE_MEDIA_CONTAINER", { ig_user_id: igId, image_url: url, content_type: "carousel_item", is_carousel_item: true });
+          const cid = dig(item, ["id", "creation_id", "container_id"]);
+          if (!cid) throw new PublishError("rejected", "no item");
+          children.push(cid);
+        }
+        const car = await run(ctx, "INSTAGRAM_CREATE_CAROUSEL_CONTAINER", { ig_user_id: igId, children, caption: ctx.text });
+        creationId = dig(car, ["id", "creation_id", "container_id"]);
+      } catch (err) {
+        if (err instanceof PublishError && err.code === "account_gone") throw err;
+        creationId = null;
+      }
+      if (!creationId) note = "Instagram took the first image only";
+    }
+    if (!creationId) {
+      const container = await run(ctx, "INSTAGRAM_CREATE_MEDIA_CONTAINER", { ig_user_id: igId, image_url: urls[0], caption: ctx.text, content_type: "photo" });
+      creationId = dig(container, ["id", "creation_id", "container_id"]);
+    }
     if (!creationId) throw new PublishError("rejected", "no container");
     const post = await run(ctx, "INSTAGRAM_CREATE_POST", { ig_user_id: igId, creation_id: creationId });
-    return { status: "sent", url: dig(post, ["permalink"]), remoteId: dig(post, ["id", "media_id"]) };
+    return { status: "sent", url: dig(post, ["permalink"]), remoteId: dig(post, ["id", "media_id"]), note };
   },
   async linkedin(ctx) {
     // Hotfix Oct 31: the platform's ready made LinkedIn tool asks for an API version LinkedIn has retired, so we call
@@ -731,11 +772,20 @@ export const PUBLISHERS: Record<string, (ctx: PublishCtx) => Promise<PublishResu
       if (!raw) throw new PublishError("reconnect", "no author");
       author = raw.startsWith("urn:") ? raw : `urn:li:person:${raw}`;
     }
+    // SOCFIX: images go up first (LinkedIn's Images API: register, then the bytes), then the post names them.
+    // A poll post carries no images (LinkedIn allows one content kind per post).
+    const imgs = ctx.extras?.poll ? [] : (ctx.images ?? (ctx.image ? [ctx.image] : [])).slice(0, NETWORK_RULES.linkedin!.maxImages);
+    const ids: string[] = [];
+    for (const im of imgs) ids.push(await linkedinUploadImage(ctx, author, im));
+    const content = ctx.extras?.poll ? { poll: linkedinPoll(ctx.extras.poll) }
+      : ids.length > 1 ? { multiImage: { images: ids.map((id) => ({ id })) } }
+      : ids.length === 1 ? { media: { id: ids[0] } }
+      : null;
     const r = await linkedinCall(ctx, "POST", "https://api.linkedin.com/rest/posts", {
       author, commentary: linkedinText(ctx.text), visibility: "PUBLIC",
       distribution: { feedDistribution: "MAIN_FEED", targetEntities: [], thirdPartyDistributionChannels: [] },
       lifecycleState: "PUBLISHED", isReshareDisabledByAuthor: false,
-      ...(ctx.extras?.poll ? { content: { poll: linkedinPoll(ctx.extras.poll) } } : {}),
+      ...(content ? { content } : {}),
     });
     const id = r.headers["x-restli-id"] ?? r.headers["x-linkedin-id"] ?? dig(r.data, ["id"]);
     return { status: "sent", url: id ? `https://www.linkedin.com/feed/update/${id}` : null, remoteId: id };
@@ -777,6 +827,7 @@ export async function publishPost(deps: Deps, postId: string): Promise<PostStatu
   const ordered = allIds.map((id) => mediaRows.find((m) => m.id === id)).filter((m): m is NonNullable<typeof m> => !!m);
   const media = ordered[0];
   const imageUrls = ordered.map((m) => mediaUrl(deps, m)!).filter(Boolean);
+  const imageBodies = ordered.map((m) => ({ b64: m.contentB64, type: m.contentType }));
   const pending = targets.filter((t) => t.status === "pending");
   const needsPlatform = pending.some((t) => !directOf(t.accountId));
   const cp = needsPlatform ? platform(deps) : (null as unknown as Composio);
@@ -820,6 +871,7 @@ export async function publishPost(deps: Deps, postId: string): Promise<PostStatu
           res = await PUBLISHERS[t.app]!({
             cp, userId, accountId: pr ? pr.viaAccountId : t.accountId, text, chosenPage: !!pr, pageToken: pr && t.target ? pageTokens.get(pr.viaAccountId)?.get(t.target) ?? null : null, imageUrl: takesImages ? imageUrl : null, image: takesImages ? image : null, target: t.target, now: deps.now(),
             imageUrls: takesImages ? imageUrls.slice(0, Math.max(1, maxImages)) : [], extras,
+            images: takesImages ? imageBodies.slice(0, Math.max(1, maxImages)) : [],
           });
         }
       } catch (err) {

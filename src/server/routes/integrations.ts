@@ -93,7 +93,12 @@ export function appConnectionRoutes() {
     .post("/accounts/:id/confirm", async (c) => c.json({ account: await (await svc()).confirmConnect(c.var.deps, c.var.auth, c.req.param("id"), clientIp(c)) }))
     .post("/accounts/:id/reconnect", async (c) => c.json(await (await svc()).reconnect(c.var.deps, c.var.auth, c.req.param("id"), clientIp(c))))
     .delete("/accounts/:id", async (c) => c.json(await (await svc()).disconnect(c.var.deps, c.var.auth, c.req.param("id"), clientIp(c))))
-    .get("/accounts/:id/targets", async (c) => c.json({ targets: await (await svc()).listTargets(c.var.deps, c.var.auth, c.req.param("id")) }))
+    .get("/accounts/:id/targets", async (c) => {
+      const s = await svc();
+      const targets = await s.listTargets(c.var.deps, c.var.auth, c.req.param("id"));
+      // SOCFIX: the last board or community this workspace used for the account, offered again.
+      return c.json({ targets, last: await s.lastTarget(c.var.deps, c.var.auth, c.req.param("id")) });
+    })
     // SOC1 (flag SOCIAL_MULTI_SOC1; 404 when off): Pages per login, chosen by an admin, each its own post target.
     .get("/accounts/:id/pages", async (c) => c.json(await (await soc1()).listAvailable(c.var.deps, c.var.auth, c.req.param("id"))))
     .put("/accounts/:id/pages", async (c) => c.json({ pages: await (await soc1()).savePages(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, PagesBody)).pageIds, clientIp(c)) }))

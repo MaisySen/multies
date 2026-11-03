@@ -29,8 +29,11 @@ describe("R117 pure rules", () => {
   });
 
   it("says what changes and what is left out, by format", () => {
-    expect(formatFit("linkedin", "image")).toEqual({ fit: "changed", how: "Text only, the image is left off" });
-    expect(formatFit("instagram", "carousel")).toEqual({ fit: "changed", how: "First image only" });
+    // SOCFIX: LinkedIn now takes images and Instagram a carousel; Reddit stays text only, Pinterest one image.
+    expect(formatFit("linkedin", "image")).toEqual({ fit: "yes" });
+    expect(formatFit("reddit", "image")).toEqual({ fit: "changed", how: "Text only, the image is left off" });
+    expect(formatFit("instagram", "carousel")).toEqual({ fit: "yes" });
+    expect(formatFit("pinterest", "carousel")).toEqual({ fit: "changed", how: "First image only" });
     expect(formatFit("instagram", "text")).toMatchObject({ fit: "no" });
     expect(formatFit("tiktok", "text")).toEqual({ fit: "no", why: "TikTok takes videos." });
     expect(formatFit("tiktok", "video")).toEqual({ fit: "yes" });

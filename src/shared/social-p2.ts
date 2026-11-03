@@ -37,8 +37,8 @@ export interface NetworkRules {
 
 export const NETWORK_RULES: Record<string, NetworkRules> = {
   facebook: { maxChars: 63206, maxImages: 10, aspect: null, fold: 480, firstComment: true, poll: false, linkCard: true, schedule: true },
-  instagram: { maxChars: 2200, maxImages: 1, aspect: { min: 0.8, max: 1.91, fix: "portrait" }, fold: 125, firstComment: false, poll: false, linkCard: false, schedule: true },
-  linkedin: { maxChars: 3000, maxImages: 0, aspect: null, fold: 210, firstComment: false, poll: true, linkCard: false, schedule: true },
+  instagram: { maxChars: 2200, maxImages: 10, aspect: { min: 0.8, max: 1.91, fix: "portrait" }, fold: 125, firstComment: false, poll: false, linkCard: false, schedule: true },
+  linkedin: { maxChars: 3000, maxImages: 10, aspect: null, fold: 210, firstComment: false, poll: true, linkCard: false, schedule: true },
   pinterest: { maxChars: 800, maxImages: 1, aspect: null, fold: 100, firstComment: false, poll: false, linkCard: false, schedule: true },
   reddit: { maxChars: 40000, maxImages: 0, aspect: null, fold: 300, firstComment: false, poll: false, linkCard: false, schedule: true },
   threads: { maxChars: 500, maxImages: 1, aspect: null, fold: 500, firstComment: false, poll: false, linkCard: false, schedule: true },
@@ -132,6 +132,16 @@ export function firstLink(text: string): string | null {
   return m ? m[0].replace(/[.,;:!?]+$/, "") : null;
 }
 
+/**
+ * SOCFIX: the board, Page or community to start from for one account. The one this workspace used last when it is
+ * still there, else the only one there is. A community (typed, not listed) starts from the last one used.
+ */
+export function defaultTarget(listed: boolean, list: readonly { id: string; name: string }[], last: { id: string; name: string } | null): { id: string; name: string } | null {
+  if (!listed) return last && last.id.trim() ? last : null;
+  if (last && list.some((t) => t.id === last.id)) return list.find((t) => t.id === last.id)!;
+  return list.length === 1 ? list[0]! : null;
+}
+
 /** Every rule the composer and the server check, per account, in plain words. */
 export function composerChecks(input: CheckInput): AccountCheck[] {
   return input.accounts.map((a) => {
@@ -167,6 +177,7 @@ export function composerChecks(input: CheckInput): AccountCheck[] {
     }
     if (input.extras?.firstComment?.trim() && !r.firstComment) notes.push("First comment is left off here");
     if (input.extras?.poll && !r.poll) notes.push("Poll is left off here");
+    if (input.extras?.poll && r.poll && usesImages && input.images.length) notes.push("A poll post carries no image, so the image is left off");
     if (input.extras?.linkCard && r.linkCard && firstLink(text)) notes.push("Link card from your first link");
     const changed = notes.some((n) => !n.startsWith("Link card"));
     return { accountId: a.id, app: a.app, state: changed ? "changed" : "ready", notes };

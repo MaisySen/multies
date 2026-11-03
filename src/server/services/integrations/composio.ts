@@ -141,10 +141,11 @@ export function composioFrom(deps: Deps) {
      * sign in. Used where the platform's ready made tools fall behind the network (a retired API version, a
      * person token where a page token is needed). Answers the network's own status, body and headers.
      */
-    async proxy(accountId: string, userId: string, req: { endpoint: string; method: "GET" | "POST" | "DELETE"; body?: Record<string, unknown>; headers?: Record<string, string> }): Promise<{ status: number; data: unknown; headers: Record<string, string> }> {
+    async proxy(accountId: string, userId: string, req: { endpoint: string; method: "GET" | "POST" | "PUT" | "DELETE"; body?: Record<string, unknown>; headers?: Record<string, string>; /** SOCFIX: raw bytes (an image upload). */ binaryBody?: { base64: string; contentType?: string } }): Promise<{ status: number; data: unknown; headers: Record<string, string> }> {
       const parameters = Object.entries(req.headers ?? {}).map(([name, value]) => ({ name, value, type: "header" }));
+      const binary = req.binaryBody ? { binary_body: { base64: req.binaryBody.base64, ...(req.binaryBody.contentType ? { content_type: req.binaryBody.contentType } : {}) } } : {};
       const r = await call<{ data?: unknown; status?: number; headers?: Record<string, string> }>("POST", "/tools/execute/proxy", {
-        body: { connected_account_id: accountId, user_id: userId, endpoint: req.endpoint, method: req.method, ...(req.body ? { body: req.body } : {}), ...(parameters.length ? { parameters } : {}) },
+        body: { connected_account_id: accountId, user_id: userId, endpoint: req.endpoint, method: req.method, ...(req.body ? { body: req.body } : {}), ...binary, ...(parameters.length ? { parameters } : {}) },
         timeoutMs: 30_000,
       });
       const headers: Record<string, string> = {};

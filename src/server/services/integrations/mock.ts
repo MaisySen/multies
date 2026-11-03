@@ -28,7 +28,7 @@ export interface MockComposioState {
   authConfigs: { id: string; toolkit: string; managed: boolean; scheme: string }[];
   executed: { slug: string; accountId: string; args: Record<string, unknown> }[];
   /** Raw network calls made through the platform's proxy (hotfix Oct 31). */
-  proxied: { method: string; endpoint: string; accountId: string; body: Record<string, unknown>; headers: Record<string, string> }[];
+  proxied: { method: string; endpoint: string; accountId: string; body: Record<string, unknown>; headers: Record<string, string>; binary?: number }[];
   /** R117: Facebook turns first comments down. */
   commentRefused?: boolean;
   /** Calls seen, "METHOD /path", for tests. */
@@ -39,6 +39,8 @@ export interface MockComposioState {
   permalinkDown?: boolean;
   /** Post ids deleted on the network (by Multies or by the person there). */
   goneRemote?: Set<string>;
+  /** SOCFIX: LinkedIn images registered so far. */
+  liImages?: number;
   /** A network refuses to delete (tests the partial delete). */
   deleteRefused?: boolean;
   /** Facebook answers the post check with this error (a permission problem, not a deleted post). */
@@ -90,10 +92,13 @@ function execute(state: MockComposioState, slug: string, body: { connected_accou
   const ok = (data: Record<string, unknown>) => json({ data, successful: true, error: null });
   switch (slug) {
     case "FACEBOOK_GET_USER_PAGES": return ok({ response_data: { data: [{ id: "pg_100", name: "Acme Studio" }, { id: "pg_200", name: "Acme Shop" }] } });
-    case "PINTEREST_LIST_BOARDS": return ok({ items: [{ id: "bd_1", name: "Launch ideas" }] });
+    // SOCFIX: data.boards sets how many boards the account has (one by default, as before).
+    case "PINTEREST_LIST_BOARDS": return acct.data.boardsFail ? json({ data: {}, successful: false, error: "Pinterest is down" }) : ok({ items: Array.from({ length: Number(acct.data.boards ?? 1) }, (_, i) => ({ id: `bd_${i + 1}`, name: i === 0 ? "Launch ideas" : `Board ${i + 1}` })) });
     case "LINKEDIN_GET_MY_INFO": return ok({ response_dict: { author_id: "urn:li:person:mock1", name: "Ada" } });
     case "INSTAGRAM_GET_USER_INFO": return ok({ id: "ig_1", username: "acme" });
     case "INSTAGRAM_CREATE_MEDIA_CONTAINER": return ok({ id: nid("ctr") });
+    // SOCFIX: a carousel (data.noCarousel makes Instagram refuse it, so the post falls back to the first image).
+    case "INSTAGRAM_CREATE_CAROUSEL_CONTAINER": return acct.data.noCarousel ? json({ data: {}, successful: false, error: "carousel refused" }) : Array.isArray(args.children) && args.children.length >= 2 ? ok({ id: nid("car") }) : json({ data: {}, successful: false, error: "needs 2 children" });
     case "INSTAGRAM_CREATE_POST": return ok({ id: nid("igp"), permalink: "https://www.instagram.com/p/mock/" });
     case "REDDIT_CREATE_REDDIT_POST": return ok({ json: { data: { url: "https://www.reddit.com/r/test/comments/mock/" } } });
     default:
@@ -103,14 +108,14 @@ function execute(state: MockComposioState, slug: string, body: { connected_accou
 }
 
 /** The platform's proxy: answers Facebook Graph and LinkedIn calls the way the networks do (shape checked 31 Oct 2026). */
-function proxy(state: MockComposioState, body: { connected_account_id?: string; user_id?: string; endpoint?: string; method?: string; body?: Record<string, unknown>; parameters?: { name: string; value: string; type: string }[] }) {
+function proxy(state: MockComposioState, body: { connected_account_id?: string; user_id?: string; endpoint?: string; method?: string; body?: Record<string, unknown>; parameters?: { name: string; value: string; type: string }[]; binary_body?: { base64?: string; content_type?: string } }) {
   const acct = state.accounts.get(body.connected_account_id ?? "");
   if (!acct || acct.user_id !== body.user_id) return json({ error: { message: "connected account not found" } }, 404);
   const endpoint = String(body.endpoint ?? "");
   const method = String(body.method ?? "GET");
   const args = body.body ?? {};
   const headers = Object.fromEntries((body.parameters ?? []).filter((p) => p.type === "header").map((p) => [p.name, p.value]));
-  state.proxied.push({ method, endpoint, accountId: acct.id, body: args, headers });
+  state.proxied.push({ method, endpoint, accountId: acct.id, body: args, headers, ...(body.binary_body?.base64 ? { binary: body.binary_body.base64.length } : {}) });
   const net = (status: number, data: unknown, h: Record<string, string> = {}) => json({ data, status, headers: h });
   const text = String(args.message ?? args.caption ?? args.commentary ?? "");
   const u = new URL(endpoint);
@@ -169,7 +174,13 @@ function proxy(state: MockComposioState, body: { connected_account_id?: string; 
     return net(404, { error: { code: 404, message: "Not found" } });
   }
   if (u.hostname === "api.pinterest.com") return acct.data.expired ? net(401, { code: 2, message: "Authentication failed." }) : net(200, { username: "acme", account_type: "BUSINESS" });
+  // SOCFIX: LinkedIn image bytes go to the upload address LinkedIn gave (data.noUpload makes it refuse).
+  if (u.hostname === "www.linkedin.com" && u.pathname.startsWith("/dms-uploads/") && method === "PUT") return acct.data.noUpload ? net(400, { message: "upload refused" }) : body.binary_body?.base64 ? net(201, "") : net(400, { message: "no bytes" });
   if (u.hostname === "api.linkedin.com") {
+    if (u.pathname === "/rest/images" && u.searchParams.get("action") === "initializeUpload" && method === "POST") {
+      const n = (state.liImages = (state.liImages ?? 0) + 1);
+      return net(200, { value: { uploadUrlExpiresAt: Date.now() + 86_400_000, uploadUrl: `https://www.linkedin.com/dms-uploads/sp/v2/mock${n}`, image: `urn:li:image:mock${n}` } });
+    }
     if (u.pathname === "/v2/userinfo") return acct.data.expired ? net(401, { status: 401, code: "REVOKED_ACCESS_TOKEN", message: "The token used in the request has been revoked by the user" }) : net(200, { sub: String(acct.data.sub ?? "mock1"), name: String(acct.data.name ?? "Ada"), picture: acct.data.picture ?? undefined });
     // SOC1: company Pages the member administers (acct.data.orgs lists organization ids).
     if (u.pathname === "/rest/organizationAcls" && method === "GET") {
@@ -190,6 +201,9 @@ function proxy(state: MockComposioState, body: { connected_account_id?: string; 
       if (!/^20\d{4}$/.test(headers["LinkedIn-Version"] ?? "") || headers["LinkedIn-Version"]! < "202501") return net(426, { status: 426, code: "NONEXISTENT_VERSION", message: `Requested version ${headers["LinkedIn-Version"]}01 is not active` });
       if (/EXPIRED/.test(text)) return net(401, { status: 401, code: "REVOKED_ACCESS_TOKEN", message: "The token used in the request has been revoked by the user" });
       if (/FAIL/.test(text)) return net(422, { status: 422, message: "The network turned this post down." });
+      const content = args.content as { media?: { id?: string }; multiImage?: { images?: { id?: string }[] } } | undefined;
+      const ids = content?.media ? [content.media.id] : content?.multiImage ? (content.multiImage.images ?? []).map((i) => i.id) : [];
+      if (ids.some((id) => !/^urn:li:image:/.test(String(id))) || (content?.multiImage && ids.length < 2)) return net(422, { status: 422, message: "Bad image content" });
       return net(201, "", { "x-restli-id": `urn:li:share:${Date.now()}` });
     }
   }
