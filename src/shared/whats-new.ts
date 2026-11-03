@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-03-phone-parity",
+    date: "2026-11-03",
+    title: "Everything on your phone, and the iPhone beta",
+    body: "Every action from a computer is now in reach on a phone: row actions show without hovering, docs keep less used actions under More, and the task list can be sorted. Saved call videos show their length, and anyone can join the iPhone beta from the home page.",
+  },
+  {
     id: "2026-11-03-translate-read-aloud",
     date: "2026-11-03",
     title: "Translate and read aloud",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-02",
     title: "One inbox",
     body: "Mail, chat, mentions, tasks and assistant replies in one list. Important first, the rest waits in Noise; move anything and we remember the sender.",
-  },
-  {
-    id: "2026-11-02-mentions",
-    date: "2026-11-02",
-    title: "Mention any record",
-    body: "Type @ in chat, a task, a comment or a contact note to link a task, project, doc, contact, deal, meeting, form or invoice. Every record shows what mentions it and what it mentions, and people without access see a restricted card.",
   },
   {
     id: "2026-10-28-whats-new",

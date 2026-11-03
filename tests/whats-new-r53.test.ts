@@ -169,7 +169,9 @@ describe("R53 whats-new list", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-11-02-bill-time")).toBe(false);
     // POL3: phone and theme polish joined at the top; "2026-11-02-meeting-tasks" (the oldest after What's new itself) moved to the public earlier list.
     expect(WHATS_NEW.some((e) => e.id === "2026-11-02-meeting-tasks")).toBe(false);
-    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-03-translate-read-aloud", "2026-11-03-polish-phone-themes", "2026-11-03-video-recording-plus", "2026-11-03-video-recording", "2026-11-03-polish-devices", "2026-11-03-several-pages", "2026-11-03-new-look-passkeys", "2026-11-03-client-portal-access", "2026-11-03-crm-from-mail", "2026-11-03-team-ai", "2026-11-03-forms-pro", "2026-11-02-one-inbox", "2026-11-02-mentions", "2026-10-28-whats-new"]);
+    // PAR1: phone parity joined at the top; "2026-11-02-mentions" (the oldest after What's new itself) moved to the public earlier list.
+    expect(WHATS_NEW.some((e) => e.id === "2026-11-02-mentions")).toBe(false);
+    expect(WHATS_NEW.map((e) => e.id)).toEqual(["2026-11-03-phone-parity", "2026-11-03-translate-read-aloud", "2026-11-03-polish-phone-themes", "2026-11-03-video-recording-plus", "2026-11-03-video-recording", "2026-11-03-polish-devices", "2026-11-03-several-pages", "2026-11-03-new-look-passkeys", "2026-11-03-client-portal-access", "2026-11-03-crm-from-mail", "2026-11-03-team-ai", "2026-11-03-forms-pro", "2026-11-02-one-inbox", "2026-10-28-whats-new"]);
     // TD4: bill time joined at the top; "2026-11-01-sites" (the oldest after What's new itself) moved to the public earlier list.
     expect(WHATS_NEW.some((e) => e.id === "2026-11-01-sites")).toBe(false);
     // WEB1: Forms upgrade (TD2) and Ask v2 (TD1) news went to the public earlier list, not the in app list.
