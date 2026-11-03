@@ -5,6 +5,7 @@
 import { WHATS_NEW, type WhatsNewEntry } from "./whats-new";
 
 export const WHATS_NEW_EARLIER: readonly WhatsNewEntry[] = [
+  { id: "2026-11-02-bill-time", date: "2026-11-02", title: "Bill time", body: "Turn tracked hours into a draft invoice in a few clicks: pick a project and dates, set rates and rounding, and the billed time is locked so it is never billed twice. Home shows the hours still to bill." },
   { id: "2026-11-02-meeting-tasks", date: "2026-11-02", title: "Meetings to tasks", body: "On a meeting page, Suggest reads the transcript, the notes or pasted text and lists the action items with who and when. Accept makes a task, Discard drops it, and Follow up email opens a ready draft for you to send." },
   { id: "2026-11-02-ai-connect", date: "2026-11-02", title: "AI that works from the start", body: "Built in AI works with no key needed, up to a daily limit for your workspace. Admins can also connect their own AI in Settings, AI: paste a key and the provider is found for you, pick from the live model list and test it before saving." }, // VID2: moved from the in app list (keeps 14)
   { id: "2026-11-02-forms-upgrade", date: "2026-11-02", title: "Forms with uploads, signatures and pages", body: "Forms take time, date and time, web address, file upload and signature questions. Split a form into pages with a progress bar or show one question at a time, and show or hide questions based on earlier answers." }, // WEB1: TD2 news, public earlier list

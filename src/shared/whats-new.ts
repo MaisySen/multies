@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-11-03-translate-read-aloud",
+    date: "2026-11-03",
+    title: "Translate and read aloud",
+    body: "Translate a mail, a doc or a chat message into English, Nepali, Hindi and nine more languages, then switch back to the original with one tap. Read aloud uses your device's own voices, with pause, stop and speed.",
+  },
+  {
     id: "2026-11-03-polish-phone-themes",
     date: "2026-11-03",
     title: "Easier to tap, clearer in every theme",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-11-02",
     title: "Mention any record",
     body: "Type @ in chat, a task, a comment or a contact note to link a task, project, doc, contact, deal, meeting, form or invoice. Every record shows what mentions it and what it mentions, and people without access see a restricted card.",
-  },
-  {
-    id: "2026-11-02-bill-time",
-    date: "2026-11-02",
-    title: "Bill time",
-    body: "Turn tracked hours into a draft invoice in a few clicks: pick a project and dates, set rates and rounding, and the billed time is locked so it is never billed twice. Home shows the hours still to bill.",
   },
   {
     id: "2026-10-28-whats-new",
