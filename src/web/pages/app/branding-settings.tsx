@@ -24,7 +24,7 @@ import {
   type Appearance, type Brand, type BrandPatch, type FontId, type LogoKind, type Personal, type Radius,
 } from "@/shared/branding";
 import { LoadFailure } from "@/web/components/load-error-t1g";
-import { tr } from "@/web/i18n"; // R104
+import { tr, tl } from "@/web/i18n"; // R104
 
 type Draft = Omit<Brand, "logos">;
 const draftOf = (b: Brand): Draft => { const { logos: _l, ...d } = b; return d; };
@@ -292,7 +292,7 @@ function PreviewPane({ brand, data, personal, name, caption }: { brand: Brand; d
     <div className="space-y-3" data-testid="preview-pane">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-[15px] font-semibold">{tr("branding.live_preview")}</h2>
-        <Segmented label="Preview in" value={scheme} onChange={setScheme} options={[{ id: "light", label: "Light", icon: <IconToday className="h-3.5 w-3.5" /> }, { id: "dark", label: "Dark", icon: <IconMoon className="h-3.5 w-3.5" /> }]} />
+        <Segmented label={tr("branding.preview_in")} value={scheme} onChange={setScheme} options={[{ id: "light", label: tl("theme", "Light"), icon: <IconToday className="h-3.5 w-3.5" /> }, { id: "dark", label: tl("theme", "Dark"), icon: <IconMoon className="h-3.5 w-3.5" /> }]} />
       </div>
       <BrandPreview brand={brand} data={data} personal={personal} scheme={scheme} name={name} />
       <p className="text-[12px] leading-snug text-subtle">{caption}</p>
@@ -543,8 +543,8 @@ export function AppearanceSettings() {
           <Panel title={tr("branding.light_or_dark")} description={tr("branding.system_follows_your_device_your_workspace_may_se")}>
             <AppearanceControl className="w-full sm:w-auto [&>button]:min-h-9 max-sm:[&>button]:min-h-11 [&>button]:flex-1 [&>button]:justify-center" />
           </Panel>
-          <Panel title={tr("branding.accent_colour")} description={locked ? "Your workspace admin set one brand for everyone." : "Use your workspace's brand, or pick your own accent. Only you see it."} testId="personal-accent">
-            <SwitchRow label={tr("branding.follow_workspace_brand")} hint={locked ? "Locked by an admin" : "On by default"} checked={follow} disabled={locked || save.isPending}
+          <Panel title={tr("branding.accent_colour")} description={locked ? tr("branding.admin_set_one_brand") : tr("branding.use_workspace_brand_or_own")} testId="personal-accent">
+            <SwitchRow label={tr("branding.follow_workspace_brand")} hint={locked ? tr("branding.locked_by_an_admin") : tr("branding.on_by_default")} checked={follow} disabled={locked || save.isPending}
               onChange={(v) => save.mutate({ followBrand: v, accent: p.accent ?? PRESETS[3].primary })} testId="follow-brand" />
             {!follow && (
               <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(72px,1fr))] gap-1">
