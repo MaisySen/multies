@@ -383,7 +383,6 @@ export const ne: Bundle = {
   "meetingrec.share_failed": "सेयर गर्ने विकल्प खुलेन। बरु डाउनलोड गर्न फेरि भिडियो सेभ गर्नुहोस् थिच्नुहोस्।",
   "meetingrec.share_hint": "भिडियो सेभ गर्नुहोस् थिच्दा फोनका सेयर विकल्पहरू खुल्छन्, जस्तै Save to Files वा Save video।",
   "meetingrec.stopped_away": "कल स्क्रिनबाट हटेपछि रेकर्डिङ बन्द भयो। रेकर्ड भएको भाग सेभ गर्न तयार छ।",
-  "meetingrec.tap_save": "यो फोनमा राख्न भिडियो सेभ गर्नुहोस् थिच्नुहोस्।",
   "meetingrec.transcript_on_page": "ट्रान्सक्रिप्ट मिटिङ पृष्ठको रेकर्डिङ र ट्रान्सक्रिप्टमा छ।",
   "meetingrec.transcript_ready": "ट्रान्सक्रिप्ट तयार छ",
   "meetingrec.transcript_ready_hint": "भिडियोको छेउमा ट्रान्सक्रिप्ट सेभ गर्नुहोस् थिच्नुहोस्।",

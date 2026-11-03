@@ -318,7 +318,8 @@ test.describe("flag off", () => {
     expect((await (await iphone.request.get("/api/config")).json()).videoPhoneVid3).toBe(false);
     await joinCall(iphone);
     await startRecording(iphone);
-    await expect(iphone.getByTestId("video-rec-where")).toContainText("The video is kept in this tab and saved when you stop");
+    // VID2 as it is: Chromium (even with the iPhone profile) offers its save picker; save at the end downloads at Stop.
+    await expect(iphone.getByTestId("video-rec-where")).toContainText("Choose where to save the video");
     await iphone.getByTestId("video-rec-memory").click();
     await expect(iphone.getByTestId("recording-banner")).toContainText("Recording video", { timeout: 15_000 });
     await iphone.waitForTimeout(2500);

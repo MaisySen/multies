@@ -344,7 +344,7 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
         if (awayPaused.current) {
           awayPaused.current = false;
           setAway(true);
-          toast(tt("meetingrec.paused_away_title"), { id: "video-away", description: tt("meetingrec.paused_away") });
+          toast(tt("meetingrec.paused_away_title"), { id: "video-away" }); // the full words stay on screen under the controls
         }
         return;
       }

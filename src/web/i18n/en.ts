@@ -383,7 +383,6 @@ export const en: Bundle = {
   "meetingrec.share_failed": "The share options didn't open. Tap Save video again to download it instead.",
   "meetingrec.share_hint": "Save video opens your phone's share options, such as Save to Files or Save video.",
   "meetingrec.stopped_away": "Recording stopped when the call went off screen. What was recorded is ready to save.",
-  "meetingrec.tap_save": "Tap Save video to keep it on this phone.",
   "meetingrec.transcript_on_page": "The transcript is under Recording and transcript on the meeting page.",
   "meetingrec.transcript_ready": "Transcript ready",
   "meetingrec.transcript_ready_hint": "Tap Save transcript next to the video.",

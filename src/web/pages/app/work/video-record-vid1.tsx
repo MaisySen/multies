@@ -103,7 +103,7 @@ export function useVideoRecording(room: Room) {
       // VID3: a phone only opens its share sheet from a tap, so the video waits for the person's Save tap.
       const k = keep.current;
       readyVideos.add(partFileName(m.fileName, m.part), out.blob, { group: m.fileName, keepId: k?.id ?? null, release: k ? () => void k.finish().catch(() => undefined) : null });
-      if (out.reason !== "error") toast.success(tt("meetingrec.video_ready", { size: sizeText(out.blob.size) }), { description: tt("meetingrec.tap_save") });
+      if (out.reason !== "error") toast.success(tt("meetingrec.video_ready", { size: sizeText(out.blob.size) }));
     } else if (out?.kind === "memory" && out.blob && out.blob.size) {
       const url = URL.createObjectURL(out.blob);
       setSaved((old) => { if (old) URL.revokeObjectURL(old.url); return { url, name: m.fileName }; });

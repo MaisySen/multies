@@ -383,7 +383,6 @@ export const hi: Bundle = {
   "meetingrec.share_failed": "शेयर के विकल्प नहीं खुले। डाउनलोड करने के लिए फिर से वीडियो सेव करें टैप करें।",
   "meetingrec.share_hint": "वीडियो सेव करें से फ़ोन के शेयर विकल्प खुलते हैं, जैसे Save to Files या Save video।",
   "meetingrec.stopped_away": "कॉल स्क्रीन से हटने पर रिकॉर्डिंग बंद हुई। जो रिकॉर्ड हुआ वह सेव करने के लिए तैयार है।",
-  "meetingrec.tap_save": "इसे इस फ़ोन पर रखने के लिए वीडियो सेव करें टैप करें।",
   "meetingrec.transcript_on_page": "ट्रांसक्रिप्ट मीटिंग पेज पर रिकॉर्डिंग और ट्रांसक्रिप्ट में है।",
   "meetingrec.transcript_ready": "ट्रांसक्रिप्ट तैयार है",
   "meetingrec.transcript_ready_hint": "वीडियो के पास ट्रांसक्रिप्ट सेव करें टैप करें।",
