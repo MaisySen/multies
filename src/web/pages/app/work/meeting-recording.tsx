@@ -108,7 +108,7 @@ export function RecordingLayer({ join, title }: { join: unknown; title?: string 
   // VID3 (VIDEO_PHONE_VID3): recording on a phone browser: mp4 first, saved in parts at the phone's memory budget, a
   // Save video tap opens the share sheet, and the recording pauses when the call goes to the background.
   const vid3 = vid2 && !!config.data?.videoPhoneVid3;
-  const [phone] = useState(() => vid3 && typeof navigator !== "undefined" && isPhoneDevice({ ua: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints }));
+  const phone = vid3 && typeof navigator !== "undefined" && isPhoneDevice({ ua: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints });
   const [away, setAway] = useState(false);
   const awayPaused = useRef(false);
   const [layout, setLayoutState] = useState<LayoutMode>("speaker");

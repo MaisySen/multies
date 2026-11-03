@@ -281,6 +281,7 @@ export function MeetingPage() {
       <PageHeader title={m.title} description={<>{when(m.startsAt)} · {m.durationMin} minutes{source && <> · started from <Link className="text-brand-hover hover:underline" to={source.to}>{source.label}</Link></>}</>}
         actions={askOn ? <div className="flex flex-wrap items-center gap-2"><AskAboutButton kind="meetings" id={m.id} title={m.title} />{m.status === "scheduled" ? <Button onClick={() => setPrejoin(true)} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><IconVideo className="h-4 w-4" />Join now</Button> : <Badge>{m.status === "ended" ? "Ended" : "Cancelled"}</Badge>}</div> : m.status === "scheduled" ? <Button onClick={() => setPrejoin(true)} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><IconVideo className="h-4 w-4" />Join now</Button> : <Badge>{m.status === "ended" ? "Ended" : "Cancelled"}</Badge>} />
       {!m.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><IconVideoOff className="mt-0.5 h-4 w-4 shrink-0" />{VIDEO_OFF}</Card>}
+      {phonePage && <PhoneSaves className="mb-4" />}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-5">
           <h2 className="text-[13px] font-semibold">Guest link</h2>
@@ -305,7 +306,6 @@ export function MeetingPage() {
         </Card>
       )}
       {cfg?.videoRecVid2 && (me.data?.organization?.role === "owner" || me.data?.organization?.role === "admin") && <RecoverRecording meetingId={m.id} className="mb-4" phone={phonePage} />}
-      {phonePage && <PhoneSaves className="mb-4" />}
       <RecordingSection meetingId={m.id} title={m.title} />
       <div className="mt-4 flex flex-wrap gap-2">
         <Button size="sm" variant="secondary" onClick={() => setEditing(true)}><IconEdit className="h-4 w-4" />{m.recurrence ? "Edit series" : "Edit"}</Button>

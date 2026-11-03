@@ -39,7 +39,8 @@ export function videoSupport(phone = false) {
   const canvasOk = typeof document !== "undefined" && typeof (document.createElement("canvas") as HTMLCanvasElement & { captureStream?: unknown }).captureStream === "function";
   const pick = phone ? pickPhoneVideoType : pickVideoType; // VID3: mp4 first on a phone (Photos and the gallery take it)
   const type = canvasOk && typeof AudioContext !== "undefined" ? pick(MR?.isTypeSupported?.bind(MR)) : null;
-  return { type, file: !!picker() && typeof window !== "undefined" && window.isSecureContext };
+  // VID3: a phone keeps the video for a Save tap (phone browsers have no save picker; an emulated one is ignored).
+  return { type, file: !phone && !!picker() && typeof window !== "undefined" && window.isSecureContext };
 }
 
 export function download(url: string, name: string) {
