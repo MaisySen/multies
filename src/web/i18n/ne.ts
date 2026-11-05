@@ -971,4 +971,8 @@ export const ne: Bundle = {
   "whatsnew.2026-11-03-nepali-hindi.title": "Multies नेपाली र हिन्दीमा",
   "whatsnew.heading": "नयाँ के छ",
   "whatsnew.intro": "Multies मा के बदलियो, नयाँ पहिले।",
+  "common.copy": "कपी गर्नुहोस्",
+  "common.copied": "कपी भयो",
+  "common.copy_aria": "कपी गर्नुहोस् (क्लिपबोर्डमा)",
+  "common.label_to_clipboard": "{label} (क्लिपबोर्डमा)",
 };

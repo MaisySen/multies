@@ -971,4 +971,9 @@ export const en: Bundle = {
   "whatsnew.2026-11-03-nepali-hindi.title": "Multies in Nepali and Hindi",
   "whatsnew.heading": "What's new",
   "whatsnew.intro": "What changed in Multies, newest first.",
+  // POL5 (MB-363): the shared Copy button.
+  "common.copy": "Copy",
+  "common.copied": "Copied",
+  "common.copy_aria": "Copy to clipboard",
+  "common.label_to_clipboard": "{label} to clipboard",
 };

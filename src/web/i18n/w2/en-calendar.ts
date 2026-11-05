@@ -73,5 +73,6 @@ export const enCalendar = {
   "calendar.your_email_as_user_name_the_app_password_as_pass": ", your email as user name, the app password as password.",
   "calendar.your_meetings_and_the_due_dates_of_your_tasks_in": "Your meetings and the due dates of your tasks, in the calendar app you already use. It refreshes about once an hour. Anyone with the address can read it, so keep it to yourself.",
   "calendar.hide_name": "Hide {name}",
+  "calendar.app_password_copied": "App password copied", // POL5
 } as const;
 addEnglish(enCalendar);

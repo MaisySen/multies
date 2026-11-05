@@ -152,7 +152,8 @@ function Room({ join, onLeave, prefs, member, guestToken, title }: { join: Join;
 /** Round 31: the pre-join footnote (recording is always visible to everyone in the call). */
 const PREJOIN_NOTE = "Press Enter to join. If the call is recorded, you see a banner while it is on.";
 
-const VIDEO_OFF = "Video calls aren't switched on for this workspace yet. You can still schedule meetings and send invites, and the same links start working once it is.";
+/** POL5 (MB-363): read when shown, so it follows the picked language. */
+const videoOff = () => tr("meetings.video_off");
 
 export function MeetingsPage() {
   const q = useQuery({ queryKey: ["meetings"], ...quickRetry, queryFn: () => api.get<{ meetings: Meeting[]; videoEnabled: boolean }>("/meetings") });
@@ -172,19 +173,19 @@ export function MeetingsPage() {
     <div>
       <PageHeader title={tr("calendar.meetings")} description={tr("meetings.video_meetings_in_the_browser_started_from_a_thr")} actions={<div className="flex flex-wrap items-center gap-2"><Button variant="secondary" onClick={() => { setAsWebinar(false); setOpen(true); }} data-testid="meeting-schedule"><IconCalendarClock className="h-4 w-4" />{tr("myday.schedule")}</Button>{webinarOn && <Button variant="secondary" onClick={() => { setAsWebinar(true); setOpen(true); }} data-testid="meeting-new-webinar"><IconMegaphone className="h-4 w-4" />{tr("meetings.webinar")}</Button>}<Button onClick={() => { setStarting(true); void startMeetingNow(navigate).finally(() => setStarting(false)); }} loading={starting} data-testid="meeting-start-now"><IconVideo className="h-4 w-4" />{tr("meetings.start_now")}</Button></div>} />
       <CallMinutesUsage className="-mt-3 mb-4" />
-      {q.data && !q.data.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><IconVideoOff className="mt-0.5 h-4 w-4 shrink-0" />{VIDEO_OFF}</Card>}
+      {q.data && !q.data.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><IconVideoOff className="mt-0.5 h-4 w-4 shrink-0" />{videoOff()}</Card>}
       {q.isPending ? <Skeleton className="h-40" /> : q.error || !q.data ? <Card data-testid="meetings-error"><LoadFailure error={q.error} onRetry={() => q.refetch()} block /></Card> : !q.data.meetings.length ? (
-        <Card><EmptyState icon={<IconVideo />} art={<NoMeetingsArt />} title={tr("meetings.no_meetings_yet")} body="Start one now and share the guest link, schedule one for later, or start a meeting from any email thread, task or contact." /></Card>
+        <Card><EmptyState icon={<IconVideo />} art={<NoMeetingsArt />} title={tr("meetings.no_meetings_yet")} body={tr("meetings.empty_body")} /></Card>
       ) : (
         <div className="space-y-6">
-          {[["Upcoming", upcoming], ["Earlier", past]].map(([label, list]) => (list as Meeting[]).length ? (
+          {[[tr("meetings.upcoming"), upcoming], [tr("meetings.earlier"), past]].map(([label, list]) => (list as Meeting[]).length ? (
             <section key={label as string}>
               <h2 className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-wide text-subtle">{label as string}</h2>
               <Card className="divide-y divide-line">
                 {(list as Meeting[]).map((m) => (
                   <Link key={`${m.id}:${m.startsAt}`} to={`/app/meetings/${m.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors duration-150 ease-out first:rounded-t-xl last:rounded-b-xl hover:bg-hover focus-visible:bg-hover focus-visible:outline-none max-sm:min-h-14" data-testid="meeting-row">
                     {m.recurrence ? <IconRepeat className="h-4 w-4 shrink-0 text-muted" aria-label={tr("meetings.repeats")} /> : <IconCalendarClock className="h-4 w-4 shrink-0 text-muted" />}
-                    <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-medium">{m.title}</div><div className="text-[12.5px] text-muted">{when(m.startsAt)} · {m.durationMin} {tr("meetings.min")}{m.invitees.length ? ` · ${m.invitees.length} ${m.invitees.length === 1 ? "guest" : "guests"}` : ""}{m.recurrence ? ` · ${m.recurrence.summary}` : ""}</div></div>
+                    <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-medium">{m.title}</div><div className="text-[12.5px] text-muted">{when(m.startsAt)} · {m.durationMin} {tr("meetings.min")}{m.invitees.length ? ` · ${tr("meetings.guest_count", { count: m.invitees.length })}` : ""}{m.recurrence ? ` · ${m.recurrence.summary}` : ""}</div></div>
                     {m.status !== "scheduled" && <Badge>{m.status === "ended" ? tr("meetings.ended") : tr("meetings.cancelled")}</Badge>}
                     {m.invitesSentAt && <Badge tone="ok">{tr("meetings.invited")}</Badge>}
                   </Link>
@@ -282,7 +283,7 @@ export function MeetingPage() {
     <div data-testid="meeting-page">
       <PageHeader title={m.title} description={<>{when(m.startsAt)} · {m.durationMin} {tr("meetings.minutes_2")}{source && <> {tr("meetings.started_from")} <Link className="text-brand-hover hover:underline" to={source.to}>{source.label}</Link></>}</>}
         actions={askOn ? <div className="flex flex-wrap items-center gap-2"><AskAboutButton kind="meetings" id={m.id} title={m.title} />{m.status === "scheduled" ? <Button onClick={() => setPrejoin(true)} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><IconVideo className="h-4 w-4" />{tr("meetings.join_now")}</Button> : <Badge>{m.status === "ended" ? tr("meetings.ended") : tr("meetings.cancelled")}</Badge>}</div> : m.status === "scheduled" ? <Button onClick={() => setPrejoin(true)} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><IconVideo className="h-4 w-4" />{tr("meetings.join_now")}</Button> : <Badge>{m.status === "ended" ? tr("meetings.ended") : tr("meetings.cancelled")}</Badge>} />
-      {!m.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><IconVideoOff className="mt-0.5 h-4 w-4 shrink-0" />{VIDEO_OFF}</Card>}
+      {!m.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><IconVideoOff className="mt-0.5 h-4 w-4 shrink-0" />{videoOff()}</Card>}
       {phonePage && <PhoneSaves className="mb-4" />}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-5">

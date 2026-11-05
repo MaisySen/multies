@@ -346,7 +346,7 @@ export function PhoneSyncSection() {
               {(p) => (
                 <div className="flex items-center gap-2">
                   <Input {...p} readOnly autoFocus value={made.password} data-testid="dav-password" onFocus={(e) => e.currentTarget.select()} className="font-mono text-[15px] tracking-wide" />
-                  <CopyButton value={made.password} toastText="App password copied" />
+                  <CopyButton value={made.password} toastText={tr("calendar.app_password_copied")} />
                 </div>
               )}
             </Field>

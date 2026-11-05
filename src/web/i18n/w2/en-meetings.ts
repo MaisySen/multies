@@ -387,5 +387,15 @@ export const enMeetings = {
   "meetings.your_name_in_this_call": "Your name in this call",
   "meetings.your_question": "Your question",
   "meetings.your_word": "Your word",
+  // POL5 (MB-363)
+  "meetings.upcoming": "Upcoming",
+  "meetings.earlier": "Earlier",
+  "meetings.guest_count": { one: "{count} guest", other: "{count} guests" },
+  "meetings.video_off": "Video calls aren't switched on for this workspace yet. You can still schedule meetings and send invites, and the same links start working once it is.",
+  "meetings.empty_body": "Start one now and share the guest link, schedule one for later, or start a meeting from any email thread, task or contact.",
+  "meetings.minutes_usage": "{used} of {cap} free call minutes used in {month}. Resets {day}.",
+  "meetings.minutes_used_up": "This workspace has used its {cap} free call minutes this month. This call can finish; new calls start again on {day}.",
+  "meetings.minutes_last": { one: "{count} free call minute left this month. This call can finish; new calls wait until {day}.", other: "{count} free call minutes left this month. This call can finish; new calls wait until {day}." },
+  "meetings.minutes_percent": "{percent}% of this month's {cap} free call minutes used.",
 } as const;
 addEnglish(enMeetings);

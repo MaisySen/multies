@@ -114,7 +114,7 @@ export async function handleMonitoringTunnel(c: Context<AppEnv>): Promise<Respon
     upstream = await send(`https://${ours.host}/api/${ours.projectId}/envelope/`, {
       method: "POST",
       headers: { "content-type": "application/x-sentry-envelope" },
-      body: filtered.body,
+      body: filtered.body as unknown as BodyInit,
       signal: AbortSignal.timeout(FORWARD_TIMEOUT_MS),
     });
   } catch {

@@ -3,26 +3,29 @@ import { IconClock } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { LOCALE } from "@/shared/locale";
 import { cn } from "@/web/lib/cn";
+import { tr, uiLocale } from "@/web/i18n"; // POL5 (MB-363)
+import "@/web/i18n/w2/en-meetings";
 
 /** R34 (MB-171): the workspace's call minutes, as the server sends them on a live call or from /chat/call-minutes. */
 export interface CallMinutes { used: number; cap: number | null; remaining?: number; percent?: number; warn?: null | "eighty" | "last_minutes" | "used_up"; period: string; resetsOn: string }
 
-const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(LOCALE, { day: "numeric", month: "long", timeZone: "UTC" });
+const loc = () => uiLocale() ?? LOCALE;
+const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(loc(), { day: "numeric", month: "long", timeZone: "UTC" });
 
 /** Pure: the words for the in-call warning, or null when there is nothing to say. */
 export function minutesBannerText(m: CallMinutes | null | undefined): string | null {
   if (!m || m.cap === null || !m.warn) return null;
-  const cap = m.cap.toLocaleString(LOCALE);
-  if (m.warn === "used_up") return `This workspace has used its ${cap} free call minutes this month. This call can finish; new calls start again on ${day(m.resetsOn)}.`;
-  if (m.warn === "last_minutes") return `${m.remaining ?? 0} free call ${(m.remaining ?? 0) === 1 ? "minute" : "minutes"} left this month. This call can finish; new calls wait until ${day(m.resetsOn)}.`;
-  return `${m.percent ?? 80}% of this month's ${cap} free call minutes used.`;
+  const cap = m.cap.toLocaleString(loc());
+  if (m.warn === "used_up") return tr("meetings.minutes_used_up", { cap, day: day(m.resetsOn) });
+  if (m.warn === "last_minutes") return tr("meetings.minutes_last", { count: m.remaining ?? 0, day: day(m.resetsOn) });
+  return tr("meetings.minutes_percent", { percent: m.percent ?? 80, cap });
 }
 
 /** Pure: a short line for the meetings page ("320 of 1,000 call minutes used in October"). Null when there is no cap. */
 export function minutesUsageLine(m: CallMinutes | null | undefined): string | null {
   if (!m || m.cap === null) return null;
-  const month = new Date(`${m.period}-01T00:00:00Z`).toLocaleDateString(LOCALE, { month: "long", timeZone: "UTC" });
-  return `${m.used.toLocaleString(LOCALE)} of ${m.cap.toLocaleString(LOCALE)} free call minutes used in ${month}. Resets ${day(m.resetsOn)}.`;
+  const month = new Date(`${m.period}-01T00:00:00Z`).toLocaleDateString(loc(), { month: "long", timeZone: "UTC" });
+  return tr("meetings.minutes_usage", { used: m.used.toLocaleString(loc()), cap: m.cap.toLocaleString(loc()), month, day: day(m.resetsOn) });
 }
 
 /** In a call (members): polls the call status once a minute and shows the warning at 80% and in the last 5 minutes. */

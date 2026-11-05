@@ -3,6 +3,7 @@ import { IconCheck, IconCopy } from "./icon";
 import { cn } from "@/web/lib/cn";
 import { useMarkSkeleton } from "@/web/lib/load-errors-t1g"; // T1G (T1-8)
 import { toast } from "sonner";
+import { tr } from "@/web/i18n"; // POL5 (MB-363)
 
 export function Card({ className, children, ...rest }: { className?: string; children: ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("ds-card rounded-xl border border-line bg-surface shadow-card", className)} {...rest}>{children}</div>;
@@ -43,7 +44,7 @@ export function EmptyState({ icon, art, title, body, action, className }: { icon
 }
 
 /** R39: `toastText` also shows a toast naming what was copied (one tap copy on the domain records). */
-export function CopyButton({ value, label = "Copy", className, toastText }: { value: string; label?: string; className?: string; toastText?: string }) {
+export function CopyButton({ value, label, className, toastText }: { value: string; label?: string; className?: string; toastText?: string }) {
   const [done, setDone] = useState(false);
   return (
     <button
@@ -55,10 +56,10 @@ export function CopyButton({ value, label = "Copy", className, toastText }: { va
         setTimeout(() => setDone(false), 1400);
       }}
       className={cn("inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-fill px-2 text-xs text-muted transition-colors hover:bg-hover hover:text-fg max-sm:min-h-11 max-sm:px-3", className)}
-      aria-label={done ? "Copied" : `${label} to clipboard`}
+      aria-label={done ? tr("common.copied") : label ? tr("common.label_to_clipboard", { label }) : tr("common.copy_aria")}
     >
       {done ? <IconCheck className="h-3.5 w-3.5 text-ok" /> : <IconCopy className="h-3.5 w-3.5" />}
-      <span>{done ? "Copied" : label}</span>
+      <span>{done ? tr("common.copied") : label ?? tr("common.copy")}</span>
     </button>
   );
 }

@@ -69,7 +69,7 @@ describe("POL5 binary values", () => {
 });
 
 describe("POL5 trace cap", () => {
-  const fake = (n: number, op = (i: number) => (i % 2 ? "ui.long-animation-frame" : "ui.long-task")) => ({
+  const fake = (n: number, op: (i: number) => string = (i) => (i % 2 ? "ui.long-animation-frame" : "ui.long-task")): { type: string; transaction: string; tags?: Record<string, string>; spans: { op: string; data: Record<string, unknown> }[] } => ({
     type: "transaction", transaction: "/app/meetings/:id",
     spans: Array.from({ length: n }, (_, i) => ({ op: op(i), description: "Main UI thread blocked", start_timestamp: i, timestamp: i + 0.1, span_id: `s${i}`, trace_id: "t".repeat(32), data: { "browser.script.invoker": "requestAnimationFrame callback", "browser.script.source_url": "https://multies.si/assets/call.js", i } })),
   });

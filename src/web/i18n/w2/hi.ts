@@ -1839,4 +1839,15 @@ export const hi: Bundle = {
   "social.write_once_and_send_it_to_every_account_you_pick": "एक बार लिखें और चुने गए हर खाते पर भेजें। जो नेटवर्क पोस्ट नहीं लेते, वे वजह के साथ धुंधले दिखते हैं।",
   "social.your_week_of_posts_with_free_time_slots_to_fill": "आपके हफ़्ते की पोस्ट, भरने के लिए ख़ाली समय के साथ।",
   "social.discard_draft": "ड्राफ़्ट हटाएँ",
+  // POL5 (MB-363)
+  "meetings.upcoming": "आने वाली",
+  "meetings.earlier": "पिछली",
+  "meetings.guest_count": { one: "{count} मेहमान", other: "{count} मेहमान" },
+  "meetings.video_off": "इस वर्कस्पेस के लिए वीडियो कॉल अभी चालू नहीं हैं। आप फिर भी मीटिंग तय कर सकते हैं और न्योते भेज सकते हैं, और चालू होते ही वही लिंक काम करने लगेंगे।",
+  "meetings.empty_body": "अभी एक शुरू करें और मेहमान लिंक साझा करें, बाद के लिए तय करें, या किसी भी ईमेल थ्रेड, काम या संपर्क से मीटिंग शुरू करें।",
+  "meetings.minutes_usage": "{month} में {cap} मुफ़्त कॉल मिनटों में से {used} इस्तेमाल हुए। {day} को फिर से शुरू होंगे।",
+  "meetings.minutes_used_up": "इस वर्कस्पेस ने इस महीने के अपने {cap} मुफ़्त कॉल मिनट इस्तेमाल कर लिए हैं। यह कॉल पूरी हो सकती है; नई कॉल {day} से फिर शुरू होंगी।",
+  "meetings.minutes_last": { one: "इस महीने {count} मुफ़्त कॉल मिनट बचा है। यह कॉल पूरी हो सकती है; नई कॉल {day} तक रुकेंगी।", other: "इस महीने {count} मुफ़्त कॉल मिनट बचे हैं। यह कॉल पूरी हो सकती है; नई कॉल {day} तक रुकेंगी।" },
+  "meetings.minutes_percent": "इस महीने के {cap} मुफ़्त कॉल मिनटों में से {percent}% इस्तेमाल हुए।",
+  "calendar.app_password_copied": "ऐप पासवर्ड कॉपी हो गया",
 };
