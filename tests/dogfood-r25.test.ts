@@ -154,7 +154,7 @@ describe("DF-11, DF-13, DF-14, DF-16, DF-17", () => {
     const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(`${d}/${e.name}`) : /\.(ts|tsx)$/.test(e.name) ? [`${d}/${e.name}`] : []));
     const hits = walk("src").filter((f) => /this Multies\b/.test(readFileSync(f, "utf8")));
     expect(hits).toEqual([]);
-    expect(readFileSync("src/web/pages/app/work/meetings.tsx", "utf8")).toContain("Video calls aren't switched on for this workspace yet");
+    expect(readFileSync("src/web/i18n/w2/en-meetings.ts", "utf8")).toContain("Video calls aren't switched on for this workspace yet"); // POL5: the words moved to the meetings English file
   });
 
   it("DF-17: the default support address is the Multies one", async () => {
