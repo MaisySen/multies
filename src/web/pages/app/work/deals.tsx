@@ -17,7 +17,7 @@ import { aud } from "./contacts";
 import type { Contact } from "./data";
 import { useCrmTimelineOn } from "./crm-timeline"; // R94
 import { CloseReasonDialog, DealDetailsDialog, ForecastStrip } from "./crm-contacts-r94"; // R94
-import { tr } from "@/web/i18n"; // R104B
+import { tr, uiLocale } from "@/web/i18n"; // R104B, POL5
 import "@/web/i18n/w2/en-contacts"; // R104B
 
 interface Stage { id: string; name: string; total: number }
@@ -29,17 +29,17 @@ function DealCard({ d, crm, onOpen }: { d: Deal; crm?: boolean; onOpen?: (d: Dea
     <li ref={setNodeRef} {...listeners} style={transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : undefined}
       className={cn("touch-none rounded-lg border border-line bg-elevated p-3", isDragging && "z-10 border-brand/40 shadow-pop")} data-testid="deal-card">
       <div className="flex items-start gap-2">
-        {crm && onOpen ? <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => onOpen(d)} className="flex-1 text-left text-[13.5px] font-medium hover:underline" data-testid="deal-open">{d.title}</button> : <div className="flex-1 text-[13.5px] font-medium">{d.title}</div>}
-        <button type="button" {...attributes} {...listeners} aria-roledescription="Draggable deal" aria-label={tr("contacts.move_title", { title: d.title })}
-          className="-mr-1 -mt-1 grid h-6 w-6 shrink-0 place-items-center rounded text-subtle hover:bg-surface hover:text-fg"><IconGrip className="h-3.5 w-3.5" aria-hidden /></button>
+        {crm && onOpen ? <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => onOpen(d)} className="flex-1 text-left text-[13.5px] font-medium hover:underline max-sm:min-h-11" data-testid="deal-open">{d.title}</button> : <div className="flex-1 text-[13.5px] font-medium">{d.title}</div>}
+        <button type="button" {...attributes} {...listeners} aria-roledescription={tr("contacts.draggable_deal")} aria-label={tr("contacts.move_title", { title: d.title })}
+          className="-mr-1 -mt-1 grid h-6 w-6 shrink-0 place-items-center rounded text-subtle hover:bg-surface hover:text-fg max-sm:-mr-3 max-sm:h-11 max-sm:w-11"><IconGrip className="h-3.5 w-3.5" aria-hidden /></button>
       </div>
       <div className="mt-1 flex items-center justify-between text-[12px] text-muted">
         <span className="truncate">{d.company?.name ?? d.contact?.name ?? d.contact?.email ?? ""}</span>
         <span className="font-medium tabular-nums text-fg">{aud(d.value)}</span>
       </div>
-      {crm && d.stage !== "won" && d.stage !== "lost" && d.probability !== undefined && <div className="mt-1 text-[12px] text-subtle" data-testid="deal-chance">{d.probability}{tr("contacts.chance")}{d.expectedClose ? ` · closes ${new Date(d.expectedClose).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}` : ""}</div>}
+      {crm && d.stage !== "won" && d.stage !== "lost" && d.probability !== undefined && <div className="mt-1 text-[12px] text-subtle" data-testid="deal-chance">{d.probability}{tr("contacts.chance")}{d.expectedClose ? ` · ${tr("contacts.closes_on", { date: new Date(d.expectedClose).toLocaleDateString(uiLocale() ?? "en-AU", { day: "numeric", month: "short" }) })}` : ""}</div>}
       {crm && d.closeReason && <div className="mt-1 truncate text-[12px] text-subtle">{tr("contacts.why")} {d.closeReason}</div>}
-      {d.contact && <Link to={`/app/contacts/${d.contact.id}`} onPointerDown={(e) => e.stopPropagation()} className="mt-1 block min-h-6 truncate py-1 text-[12px] text-subtle hover:text-fg">{d.contact.email}</Link>}
+      {d.contact && <Link to={`/app/contacts/${d.contact.id}`} onPointerDown={(e) => e.stopPropagation()} className="mt-1 block min-h-6 truncate py-1 text-[12px] text-subtle hover:text-fg max-sm:py-[13px]">{d.contact.email}</Link>}
     </li>
   );
 }
@@ -93,8 +93,8 @@ export function DealsPage() {
   const open = q.data?.deals.filter((d) => d.stage !== "won" && d.stage !== "lost").reduce((n, d) => n + d.value, 0) ?? 0;
   return (
     <div>
-      <Link to="/app/contacts" className="mb-4 inline-flex items-center gap-1 text-[12.5px] text-muted hover:text-fg"><IconArrowLeft className="h-3.5 w-3.5" />{tr("nav.contacts")}</Link>
-      <PageHeader title={tr("nav.deals")} description={q.data ? `${aud(open)} open in the pipeline, ex GST.` : tr("contacts.your_sales_pipeline")} actions={<>{invoicesOn && <Link to="/app/contacts/invoices" className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconReceipt className="h-4 w-4" />{tr("contacts.invoices")}</Link>}<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />{tr("contacts.new_deal")}</Button></>} />
+      <Link to="/app/contacts" className="mb-4 inline-flex items-center gap-1 text-[12.5px] text-muted hover:text-fg max-sm:mb-1 max-sm:min-h-11"><IconArrowLeft className="h-3.5 w-3.5" />{tr("nav.contacts")}</Link>
+      <PageHeader title={tr("nav.deals")} description={q.data ? tr("contacts.open_in_pipeline", { amount: aud(open) }) : tr("contacts.your_sales_pipeline")} actions={<>{invoicesOn && <Link to="/app/contacts/invoices" className="inline-flex h-9 max-sm:h-11 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconReceipt className="h-4 w-4" />{tr("contacts.invoices")}</Link>}<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />{tr("contacts.new_deal")}</Button></>} />
       {crm.on && !!q.data?.deals.length && <ForecastStrip />}
       {q.isPending ? <Skeleton className="h-64" /> : !q.data?.deals.length ? (
         <EmptyState icon={<IconHandshake />} title={tr("contacts.no_deals_yet_2")} body="Add a deal from a contact, or here. Drag deals across stages as they move." action={<Button onClick={() => setAdding(true)}>{tr("contacts.new_deal")}</Button>} />

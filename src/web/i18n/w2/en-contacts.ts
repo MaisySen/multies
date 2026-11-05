@@ -194,5 +194,9 @@ export const enContacts = {
   "contacts.you_re_offline_suggestions_will_refresh_when_you": "You're offline. Suggestions will refresh when you're back.",
   "contacts.you_wrote_last": "you wrote last",
   "contacts.your_sales_pipeline": "Your sales pipeline.",
+  // POL5
+  "contacts.open_in_pipeline": "{amount} open in the pipeline, ex GST.",
+  "contacts.closes_on": "closes {date}",
+  "contacts.draggable_deal": "Draggable deal",
 } as const;
 addEnglish(enContacts);

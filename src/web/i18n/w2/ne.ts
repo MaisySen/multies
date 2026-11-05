@@ -1850,4 +1850,7 @@ export const ne: Bundle = {
   "meetings.minutes_last": { one: "यो महिना {count} निःशुल्क कल मिनेट बाँकी छ। यो कल सकिन सक्छ; नयाँ कल {day} सम्म पर्खनेछन्।", other: "यो महिना {count} निःशुल्क कल मिनेट बाँकी छन्। यो कल सकिन सक्छ; नयाँ कल {day} सम्म पर्खनेछन्।" },
   "meetings.minutes_percent": "यो महिनाका {cap} निःशुल्क कल मिनेटमध्ये {percent}% प्रयोग भयो।",
   "calendar.app_password_copied": "एप पासवर्ड कपी भयो",
+  "contacts.open_in_pipeline": "पाइपलाइनमा {amount} खुला, GST बाहेक।",
+  "contacts.closes_on": "{date} मा बन्द हुन्छ",
+  "contacts.draggable_deal": "तान्न मिल्ने सम्झौता अवसर",
 };

@@ -1850,4 +1850,7 @@ export const hi: Bundle = {
   "meetings.minutes_last": { one: "इस महीने {count} मुफ़्त कॉल मिनट बचा है। यह कॉल पूरी हो सकती है; नई कॉल {day} तक रुकेंगी।", other: "इस महीने {count} मुफ़्त कॉल मिनट बचे हैं। यह कॉल पूरी हो सकती है; नई कॉल {day} तक रुकेंगी।" },
   "meetings.minutes_percent": "इस महीने के {cap} मुफ़्त कॉल मिनटों में से {percent}% इस्तेमाल हुए।",
   "calendar.app_password_copied": "ऐप पासवर्ड कॉपी हो गया",
+  "contacts.open_in_pipeline": "पाइपलाइन में {amount} खुला, GST छोड़कर।",
+  "contacts.closes_on": "{date} को बंद होगी",
+  "contacts.draggable_deal": "खींचने योग्य डील",
 };

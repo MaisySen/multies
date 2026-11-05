@@ -121,7 +121,7 @@ function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onRea
           {m.announcement && !m.deleted && <span className="rounded bg-brand/15 px-1.5 text-[11px] text-brand-hover" data-testid="announcement-label">{tr("chat.announcement")}</span>}
           {m.pinnedAt && !m.deleted && <span className="inline-flex items-center gap-1 text-[11px] text-subtle" data-testid="pinned-label"><IconPin className="h-3 w-3" aria-hidden />{tr("chat.pinned")}{m.pinnedBy ? ` by ${m.pinnedBy}` : ""}</span>}
           {compact && !m.deleted && (
-            <button type="button" onClick={() => setSheet(true)} aria-label={tr("chat.message_actions")} aria-haspopup="dialog" data-testid="message-more" className="-my-2.5 -mr-2 ml-auto inline-flex h-10 w-10 shrink-0 items-center justify-center self-center rounded-lg text-subtle active:bg-elevated">
+            <button type="button" onClick={() => setSheet(true)} aria-label={tr("chat.message_actions")} aria-haspopup="dialog" data-testid="message-more" className="-my-3 -mr-2 ml-auto inline-flex h-11 w-11 shrink-0 items-center justify-center self-center rounded-lg text-subtle active:bg-elevated">
               <IconMore className="h-4 w-4" aria-hidden />
             </button>
           )}
