@@ -2,7 +2,7 @@
  * Browser error tracking with the official Sentry SDK. Off unless the server reports a DSN,
  * and loaded only then (it is about a third of the first-load JavaScript otherwise).
  */
-import { sentryPrivacy } from "../../shared/sentry-scrub";
+import { envelopeItemAllowed, sentryPrivacy } from "../../shared/sentry-scrub";
 import { shouldHoldBack as slowConnection } from "./prefetch";
 import { isStaleChunkError } from "./stale-chunk";
 
@@ -34,16 +34,29 @@ export async function startSentry() {
       // POL3: reports go through our own origin (POST /api/monitoring/tunnel), which checks and forwards them.
       tunnel: "/api/monitoring/tunnel",
       // Performance tracing: page loads, navigations and API calls (same origin only).
-      integrations: [mod.browserTracingIntegration()],
+      // POL5: no long task or long animation frame spans (a phone video compositor makes thousands of them).
+      integrations: [mod.browserTracingIntegration({ enableLongTask: false, enableLongAnimationFrame: false })],
       tracesSampleRate: config.sentry.tracesSampleRate ?? 0.1,
       tracePropagationTargets: [/^\/api\//],
       ...sentryPrivacy,
       beforeSend: (event) => sentryPrivacy.beforeSend(downgradePageLoadFailures(event)),
     });
+    // POL5: only plain report items leave; attachments, replays and profiles are dropped before the tunnel.
+    mod.getClient()?.on("beforeEnvelope", filterEnvelope);
     sdk = mod;
     for (const q of early.splice(0)) mod.captureException(q.err, q.warning ? { level: "warning", tags: q.warning.tags } : undefined);
   } catch {
     // Error tracking must never break the app.
+  }
+}
+
+/** POL5: removes every envelope item whose type is not on the allowed list, in place. */
+export function filterEnvelope(envelope: unknown) {
+  const items = Array.isArray(envelope) ? (envelope[1] as unknown) : null;
+  if (!Array.isArray(items)) return;
+  for (let i = items.length - 1; i >= 0; i--) {
+    const head = Array.isArray(items[i]) ? (items[i][0] as { type?: unknown } | undefined) : undefined;
+    if (!envelopeItemAllowed(head?.type)) items.splice(i, 1);
   }
 }
 

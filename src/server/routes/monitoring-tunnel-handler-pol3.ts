@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import { RateLimiter } from "../lib/rate-limit";
+import { envelopeItemAllowed } from "../../shared/sentry-scrub";
 
 /**
  * POL3: forwards one error tracker envelope from the signed in app to the tracker's ingest host, server side.
@@ -52,6 +53,42 @@ export function envelopeDsn(body: string): ParsedDsn | null {
 
 export const sameDsn = (a: ParsedDsn | null, b: ParsedDsn | null) => !!a && !!b && a.host === b.host && a.projectId === b.projectId && a.publicKey === b.publicKey;
 
+/**
+ * POL5: rebuilds the envelope with only allowed item types (no attachment, replay or profile ever reaches the
+ * tracker). Items with a length header are skipped by byte count; others run to the next newline. Returns null
+ * when the envelope cannot be read, and the kept bytes otherwise (possibly with no items).
+ */
+export function filterEnvelopeBytes(buf: Uint8Array): { body: Uint8Array; kept: number; dropped: number } | null {
+  const dec = new TextDecoder();
+  const lineEnd = (from: number) => { const i = buf.indexOf(10, from); return i < 0 ? buf.length : i; };
+  const headEnd = lineEnd(0);
+  const parts: Uint8Array[] = [buf.subarray(0, Math.min(headEnd + 1, buf.length))];
+  let pos = headEnd + 1, kept = 0, dropped = 0;
+  while (pos < buf.length) {
+    const hEnd = lineEnd(pos);
+    const headText = dec.decode(buf.subarray(pos, hEnd)).trim();
+    if (!headText) { pos = hEnd + 1; continue; }
+    let head: { type?: unknown; length?: unknown };
+    try { head = JSON.parse(headText); } catch { return null; }
+    if (!head || typeof head !== "object") return null;
+    const start = hEnd + 1;
+    let end: number;
+    if (typeof head.length === "number" && Number.isInteger(head.length) && head.length >= 0) {
+      end = start + head.length;
+      if (end > buf.length) return null;
+    } else end = lineEnd(start);
+    const next = Math.min(end + 1, buf.length);
+    if (envelopeItemAllowed(head.type)) { parts.push(buf.subarray(pos, next)); kept++; } else dropped++;
+    pos = next;
+  }
+  if (dropped === 0) return { body: buf, kept, dropped };
+  const total = parts.reduce((n, p) => n + p.length, 0);
+  const body = new Uint8Array(total);
+  let o = 0;
+  for (const p of parts) { body.set(p, o); o += p.length; }
+  return { body, kept, dropped };
+}
+
 const PASS_HEADERS = ["retry-after", "x-sentry-rate-limits"];
 
 export async function handleMonitoringTunnel(c: Context<AppEnv>): Promise<Response> {
@@ -68,13 +105,16 @@ export async function handleMonitoringTunnel(c: Context<AppEnv>): Promise<Respon
   if (buf.byteLength > MAX_BODY) return c.body(null, 413);
   const text = new TextDecoder().decode(buf);
   if (!sameDsn(envelopeDsn(text), ours)) return c.body(null, 400);
+  const filtered = filterEnvelopeBytes(new Uint8Array(buf));
+  if (!filtered) return c.body(null, 400);
+  if (filtered.kept === 0) return c.body(null, 200);
   let upstream: Response;
   try {
     const send = c.var.deps?.fetch ?? fetch;
     upstream = await send(`https://${ours.host}/api/${ours.projectId}/envelope/`, {
       method: "POST",
       headers: { "content-type": "application/x-sentry-envelope" },
-      body: buf,
+      body: filtered.body,
       signal: AbortSignal.timeout(FORWARD_TIMEOUT_MS),
     });
   } catch {

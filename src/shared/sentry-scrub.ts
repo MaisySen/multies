@@ -35,17 +35,93 @@ function scrubObject(o: Record<string, unknown>, depth = 0): Record<string, unkn
   return out;
 }
 
+/**
+ * POL5: nothing binary ever leaves in an error report or a trace. Any Blob, File, ArrayBuffer, typed array or
+ * DataView value, and any data: or blob: string, anywhere in extra, contexts, tags, breadcrumb data and span data
+ * (bounded depth), is replaced by this marker. Recordings stay on the device by construction.
+ */
+export const BINARY_REMOVED = "[binary removed]";
+const MAX_STRIP_DEPTH = 8;
+const BINARY_TAG = /^\[object (Blob|File|ArrayBuffer|SharedArrayBuffer|DataView|MediaStream|MediaSource|ImageData|[A-Za-z0-9]+Array)\]$/;
+const BINARY_URL = /^\s*(data|blob):/i;
+
+export function isBinaryValue(v: unknown): boolean {
+  if (typeof v === "string") return BINARY_URL.test(v);
+  if (v === null || typeof v !== "object") return false;
+  if (Array.isArray(v)) return false;
+  if (typeof ArrayBuffer !== "undefined" && (v instanceof ArrayBuffer || ArrayBuffer.isView(v))) return true;
+  if (typeof Blob !== "undefined" && v instanceof Blob) return true;
+  return BINARY_TAG.test(Object.prototype.toString.call(v));
+}
+
+/** A copy of the value with every binary value (and anything past the depth bound) replaced. */
+export function stripBinary(v: unknown, depth = 0): unknown {
+  if (isBinaryValue(v)) return BINARY_REMOVED;
+  if (v === null || typeof v !== "object") return v;
+  if (depth >= MAX_STRIP_DEPTH) return "[depth limit]";
+  if (Array.isArray(v)) return v.map((x) => stripBinary(x, depth + 1));
+  const out: Record<string, unknown> = {};
+  for (const [k, x] of Object.entries(v as Record<string, unknown>)) out[k] = stripBinary(x, depth + 1);
+  return out;
+}
+
+const asRecord = (v: unknown) => stripBinary(v) as Record<string, unknown>;
+
+interface SpanLike { op?: string; description?: string; data?: Record<string, unknown>; start_timestamp?: number }
+
+/** Strips binary values from one span (transaction child spans and streamed spans). */
+export function scrubSpan<S>(span: S): S {
+  const sp = span as unknown as SpanLike;
+  if (sp && typeof sp === "object") {
+    if (typeof sp.description === "string") sp.description = isBinaryValue(sp.description) ? BINARY_REMOVED : scrubText(sp.description);
+    if (sp.data) sp.data = asRecord(sp.data);
+  }
+  return span;
+}
+
+/**
+ * POL5: a trace stays well under the tunnel's 200 KB. Long animation frame and long task spans are dropped (a phone
+ * video compositor makes thousands), then at most MAX_SPANS spans are kept, then spans are halved until the
+ * serialised event is under TRACE_BUDGET_BYTES. The count dropped rides a tag.
+ */
+export const MAX_SPANS = 300;
+export const TRACE_BUDGET_BYTES = 120_000;
+const NOISY_SPAN = /^ui\.long-(animation-frame|task)/;
+
+export function capTransaction<E>(event: E): E {
+  const e = event as unknown as { spans?: SpanLike[]; tags?: Record<string, unknown> };
+  if (!Array.isArray(e.spans)) return event;
+  const before = e.spans.length;
+  let spans = e.spans.filter((sp) => !NOISY_SPAN.test(sp?.op ?? ""));
+  if (spans.length > MAX_SPANS) spans = spans.slice(0, MAX_SPANS);
+  e.spans = spans;
+  const size = () => { try { return JSON.stringify(event).length; } catch { return Infinity; } };
+  while (e.spans.length > 0 && size() > TRACE_BUDGET_BYTES) e.spans = e.spans.slice(0, Math.floor(e.spans.length / 2));
+  const dropped = before - e.spans.length;
+  if (dropped > 0) e.tags = { ...(e.tags ?? {}), spans_dropped: String(dropped) };
+  return event;
+}
+
 interface ScrubbableEvent {
   message?: string;
   request?: { url?: string; query_string?: unknown; data?: unknown; cookies?: unknown; headers?: Record<string, string> };
   user?: Record<string, unknown>;
   extra?: Record<string, unknown>;
+  contexts?: Record<string, unknown>;
+  tags?: Record<string, unknown>;
+  spans?: SpanLike[];
   exception?: { values?: { value?: string }[] };
   breadcrumbs?: { message?: string; data?: Record<string, unknown> }[];
 }
 
-export function scrubEvent<E>(event: E): E {
+export function scrubEvent<E>(event: E, hint?: { attachments?: unknown[] }): E {
   const e = event as unknown as ScrubbableEvent;
+  // POL5: no attachment ever rides an event (the SDK reads hint.attachments after this hook).
+  if (hint && Array.isArray(hint.attachments)) hint.attachments.length = 0;
+  if (e.extra) e.extra = asRecord(e.extra);
+  if (e.contexts) e.contexts = asRecord(e.contexts);
+  if (e.tags) e.tags = asRecord(e.tags);
+  if (Array.isArray(e.spans)) for (const sp of e.spans) scrubSpan(sp);
   if (e.request) {
     delete e.request.data;
     delete e.request.cookies;
@@ -59,8 +135,9 @@ export function scrubEvent<E>(event: E): E {
   if (e.extra) e.extra = scrubObject(e.extra);
   for (const v of e.exception?.values ?? []) if (v.value) v.value = scrubText(v.value);
   for (const b of e.breadcrumbs ?? []) {
-    if (b.message) b.message = scrubText(b.message);
+    if (b.message) b.message = isBinaryValue(b.message) ? BINARY_REMOVED : scrubText(b.message);
     if (b.data) {
+      b.data = asRecord(b.data);
       if (typeof b.data.url === "string") b.data.url = scrubUrl(b.data.url);
       b.data = scrubObject(b.data);
     }
@@ -68,4 +145,16 @@ export function scrubEvent<E>(event: E): E {
   return event;
 }
 
-export const sentryPrivacy = { sendDefaultPii: false, beforeSend: scrubEvent, beforeSendTransaction: scrubEvent };
+/** POL5: transactions are scrubbed and capped to the trace budget. */
+export function scrubTransaction<E>(event: E, hint?: { attachments?: unknown[] }): E {
+  return capTransaction(scrubEvent(event, hint));
+}
+
+/**
+ * POL5: envelope item types allowed to leave (browser hook and the tunnel use the same list). Attachments,
+ * replays and profiles are never sent.
+ */
+export const ALLOWED_ENVELOPE_ITEMS = ["event", "transaction", "session", "sessions", "client_report", "span", "log"] as const;
+export const envelopeItemAllowed = (type: unknown) => typeof type === "string" && (ALLOWED_ENVELOPE_ITEMS as readonly string[]).includes(type);
+
+export const sentryPrivacy = { sendDefaultPii: false, beforeSend: scrubEvent, beforeSendTransaction: scrubTransaction, beforeSendSpan: scrubSpan };
