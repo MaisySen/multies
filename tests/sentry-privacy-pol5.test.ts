@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { BINARY_REMOVED, MAX_SPANS, TRACE_BUDGET_BYTES, capTransaction, envelopeItemAllowed, isBinaryValue, scrubEvent, scrubSpan, scrubTransaction, sentryPrivacy, stripBinary } from "../src/shared/sentry-scrub";
 import { filterEnvelopeBytes, resetMonitoringTunnelLimits } from "../src/server/routes/monitoring-tunnel-handler-pol3";
 import { MONITORING_TUNNEL_PATH } from "../src/server/routes/monitoring-tunnel-pol3";
-import { filterEnvelope } from "../src/web/lib/sentry";
+import { BROWSER_TRACE_OPTIONS, MAX_ITEM_BYTES, filterEnvelope } from "../src/web/lib/sentry";
+import { readFileSync } from "node:fs";
 import { makeTestApp } from "./helpers";
 
 /** POL5: no binary value, attachment or oversized trace can ever leave in an error report. */
@@ -124,6 +125,17 @@ describe("POL5 envelope items", () => {
   it("tunnel filter refuses a broken envelope", () => {
     expect(filterEnvelopeBytes(enc.encode(`${head}\nnot json\n`))).toBeNull();
     expect(filterEnvelopeBytes(enc.encode(`${head}\n{"type":"attachment","length":999}\nab`))).toBeNull();
+  });
+  it("browser traces use the static lifecycle so the transaction cap applies", () => {
+    expect(BROWSER_TRACE_OPTIONS.traceLifecycle).toBe("static");
+    expect(readFileSync("src/web/lib/sentry.ts", "utf8")).toMatch(/\.\.\.sentryPrivacy,\s*\.\.\.BROWSER_TRACE_OPTIONS,/);
+  });
+  it("browser hook drops an item heavier than the item budget", () => {
+    const big = { type: "transaction", spans: Array.from({ length: 1000 }, (_, i) => ({ op: "ui.interaction", description: "x".repeat(400), i })) };
+    expect(JSON.stringify(big).length).toBeGreaterThan(MAX_ITEM_BYTES);
+    const env: unknown[] = [{}, [[{ type: "event" }, { message: "small" }], [{ type: "span" }, big]]];
+    filterEnvelope(env);
+    expect((env[1] as unknown[]).length).toBe(1);
   });
   it("browser hook removes attachments in place", () => {
     const env: unknown[] = [{}, [[{ type: "event" }, {}], [{ type: "attachment" }, new Uint8Array(3)], [{ type: "replay_event" }, {}]]];

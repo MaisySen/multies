@@ -39,6 +39,7 @@ export async function startSentry() {
       tracesSampleRate: config.sentry.tracesSampleRate ?? 0.1,
       tracePropagationTargets: [/^\/api\//],
       ...sentryPrivacy,
+      ...BROWSER_TRACE_OPTIONS,
       beforeSend: (event) => sentryPrivacy.beforeSend(downgradePageLoadFailures(event)),
     });
     // POL5: only plain report items leave; attachments, replays and profiles are dropped before the tunnel.
@@ -50,13 +51,29 @@ export async function startSentry() {
   }
 }
 
-/** POL5: removes every envelope item whose type is not on the allowed list, in place. */
+/**
+ * POL5: traces leave as one transaction per page or call (the SDK's static lifecycle), so the transaction hook can
+ * drop noisy spans and cap the rest under the trace budget. The SDK's default streamed lifecycle batches up to 1000
+ * spans per post (measured 330 to 440 KB on an emulated phone call, refused by the tunnel) and skips that hook.
+ * beforeSendSpan is left out here: the transaction hook scrubs every span instead.
+ */
+export const BROWSER_TRACE_OPTIONS = { traceLifecycle: "static" as const, beforeSendSpan: undefined };
+
+/** POL5: the most one envelope item may weigh once serialised; a heavier item is dropped, never sent to be refused. */
+export const MAX_ITEM_BYTES = 150_000;
+
+/** POL5: removes every envelope item whose type is not on the allowed list, or that is too heavy, in place. */
 export function filterEnvelope(envelope: unknown) {
   const items = Array.isArray(envelope) ? (envelope[1] as unknown) : null;
   if (!Array.isArray(items)) return;
   for (let i = items.length - 1; i >= 0; i--) {
-    const head = Array.isArray(items[i]) ? (items[i][0] as { type?: unknown } | undefined) : undefined;
-    if (!envelopeItemAllowed(head?.type)) items.splice(i, 1);
+    const item = Array.isArray(items[i]) ? (items[i] as unknown[]) : [];
+    const head = item[0] as { type?: unknown } | undefined;
+    let heavy = false;
+    if (envelopeItemAllowed(head?.type)) {
+      try { const body = item[1]; heavy = (typeof body === "string" ? body.length : JSON.stringify(body)?.length ?? 0) > MAX_ITEM_BYTES; } catch { heavy = true; }
+    }
+    if (!envelopeItemAllowed(head?.type) || heavy) items.splice(i, 1);
   }
 }
 
