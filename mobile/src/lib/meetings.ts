@@ -1,25 +1,30 @@
 import { calFmt } from "./mpar3";
-import { Linking, Platform } from "react-native";
-import * as WebBrowser from "expo-web-browser";
+import { Platform } from "react-native";
+import { appPathOf, openInSystemBrowser, signedInUrl } from "./web-link";
+import { webTransport } from "./web-transport";
 import * as Clipboard from "expo-clipboard";
 import type { Meeting } from "@/api/types";
 import { LOCALE } from "./format";
 import { tr } from "@/i18n";
 
 /**
- * Video runs on the web meeting page, so joining opens it in the in-app browser (the system
- * browser if that fails). On the web preview it opens a new tab.
+ * MFIX1 (1.10.16): joining opens the meeting in the phone's own browser (Safari or Chrome), signed in with a one time
+ * link when it is this server's meeting page, so a recording can be saved and shared there. The in-app browser could
+ * not hand the recorded file to the phone and stayed on "Saving the video". If the phone will not open it, the in-app
+ * browser is the fallback. On the web preview it opens a new tab.
  */
 export async function openMeeting(url: string): Promise<void> {
   if (Platform.OS === "web") {
     globalThis.open?.(url, "_blank", "noopener");
     return;
   }
-  try {
-    await WebBrowser.openBrowserAsync(url);
-  } catch {
-    await Linking.openURL(url);
-  }
+  await openInSystemBrowser(await meetingTarget(url));
+}
+
+/** The URL a meeting opens at: this server's meeting page gets the one time sign in link, any other link as given. */
+export async function meetingTarget(url: string, transport = webTransport()): Promise<string> {
+  const path = appPathOf(url);
+  return path && transport ? signedInUrl(transport, path) : url;
 }
 
 export async function copyGuestLink(m: Pick<Meeting, "guestUrl">): Promise<void> {

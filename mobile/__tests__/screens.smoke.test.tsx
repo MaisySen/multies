@@ -4,6 +4,7 @@
  * timer on a task, start and join a meeting, set custom fields, read the portfolio).
  */
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { Linking } from "react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { SessionProvider } from "@/lib/session";
@@ -185,12 +186,13 @@ it("tasks list shows the running timer and stops it", async () => {
 it("start meeting on a task makes one linked to it and opens the join link", async () => {
   const WebBrowser = require("expo-web-browser");
   WebBrowser.openBrowserAsync.mockClear();
+  (Linking.openURL as jest.Mock).mockClear();
   const { tasks } = await transport.request<{ tasks: { id: string; title: string }[] }>("GET", "/tasks");
   mockParams = { id: tasks[0].id };
   const Detail = require("@/app/task/[id]").default;
   await wrap(<Detail />);
   await fireEvent.press(await screen.findByTestId("start-meeting"));
-  await waitFor(() => expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith(expect.stringContaining("/app/meetings/")));
+  await waitFor(() => expect(Linking.openURL).toHaveBeenCalledWith(expect.stringMatching(/app(\/|%2F)meetings(\/|%2F)/)));
   const { meetings } = await transport.request<{ meetings: { source: { type: string; id: string } | null }[] }>("GET", "/meetings?upcoming=1");
   expect(meetings.some((m) => m.source?.type === "task" && m.source.id === tasks[0].id)).toBe(true);
 });
@@ -198,11 +200,12 @@ it("start meeting on a task makes one linked to it and opens the join link", asy
 it("thread screen starts a meeting from the email", async () => {
   const WebBrowser = require("expo-web-browser");
   WebBrowser.openBrowserAsync.mockClear();
+  (Linking.openURL as jest.Mock).mockClear();
   mockParams = { id: "msg_3" };
   const Thread = require("@/app/thread/[id]").default;
   await wrap(<Thread />);
   await fireEvent.press(await screen.findByTestId("start-meeting"));
-  await waitFor(() => expect(WebBrowser.openBrowserAsync).toHaveBeenCalled());
+  await waitFor(() => expect(Linking.openURL).toHaveBeenCalled());
   const { meetings } = await transport.request<{ meetings: { source: { type: string; id: string } | null }[] }>("GET", "/meetings?upcoming=1");
   expect(meetings.some((m) => m.source?.type === "thread" && m.source.id === "thr_3")).toBe(true);
 });
@@ -211,12 +214,14 @@ it("meetings list joins and copies the guest link", async () => {
   const WebBrowser = require("expo-web-browser");
   const Clipboard = require("expo-clipboard");
   WebBrowser.openBrowserAsync.mockClear();
+  (Linking.openURL as jest.Mock).mockClear();
   const Meetings = require("@/app/meetings").default;
   await wrap(<Meetings />);
   expect(await screen.findByText("Kiosk fit out walkthrough")).toBeTruthy();
   expect(screen.getByText(/Video isn't switched on/)).toBeTruthy();
   await fireEvent.press(screen.getByTestId("join-mtg_s1"));
-  expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://multies.si/app/meetings/mtg_s1");
+  await waitFor(() => expect(Linking.openURL).toHaveBeenCalledWith(expect.stringMatching(/meetings(\/|%2F)mtg_s1/)));
+  expect(WebBrowser.openBrowserAsync).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByTestId("copy-mtg_s1"));
   await waitFor(() => expect(Clipboard.setStringAsync).toHaveBeenCalledWith(expect.stringContaining("/m/")));
 });

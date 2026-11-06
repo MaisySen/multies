@@ -8,6 +8,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, Icon } from "@/components/ui";
 import { colors, font, space } from "@/theme";
 import type { WhatsNewItem } from "@/lib/ota/whats-new.generated";
+import { bundles, tr } from "@/i18n";
+
+/** MFIX1: an item in the language on screen when its words exist (m.wn.<version>.<i>), else the changelog English. */
+export function whatsNewText(version: string, i: number, it: WhatsNewItem): WhatsNewItem {
+  const k = `m.wn.${version}.${i}`;
+  return bundles.en[`${k}.body`] ? { title: tr(`${k}.title`), body: tr(`${k}.body`) } : it;
+}
 
 export function StoreUpdateScreen({ storeUrl, os, message }: { storeUrl: string | null; os: "ios" | "android"; message?: string | null }) {
   const store = os === "ios" ? "the App Store" : "Google Play";
@@ -49,9 +56,9 @@ export function WhatsNewSheet({ version, items, onClose }: { version: string; it
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose} testID="whats-new">
       <View style={{ flex: 1, backgroundColor: colors.bg, paddingBottom: insets.bottom + space.lg }}>
         <ScrollView contentContainerStyle={{ padding: space.xl, gap: space.lg }}>
-          <Text accessibilityRole="header" style={[font.heading, { fontSize: 28 }]}>{"What's new"}</Text>
+          <Text accessibilityRole="header" style={[font.heading, { fontSize: 28 }]}>{tr("m.wn.heading")}</Text>
           <Text style={[font.small, { color: colors.muted, marginTop: -space.sm }]}>Multies {version}</Text>
-          {items.map((it, i) => (
+          {items.map((raw, i) => { const it = whatsNewText(version, i, raw); return (
             <View key={i} style={{ flexDirection: "row", gap: space.md }} testID={`whats-new-item-${i}`}>
               <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" }}>
                 <Icon name="check" size={18} color={colors.brand} />
@@ -61,10 +68,10 @@ export function WhatsNewSheet({ version, items, onClose }: { version: string; it
                 <Text style={[font.small, { color: colors.muted }]}>{it.body}</Text>
               </View>
             </View>
-          ))}
+          ); })}
         </ScrollView>
         <View style={{ paddingHorizontal: space.xl }}>
-          <Button testID="whats-new-continue" label="Continue" onPress={onClose} />
+          <Button testID="whats-new-continue" label={tr("m.wn.continue")} onPress={onClose} />
         </View>
       </View>
     </Modal>

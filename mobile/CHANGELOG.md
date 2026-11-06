@@ -3,6 +3,10 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.10.16 (OTA, runs on Android versionCode 16 and iOS build 20), 7 Nov 2026
+
+- Meetings open in your phone's browser: joining a meeting opens Safari or Chrome, already signed in, so a recording saves and shares properly instead of waiting on Saving the video. Meeting notes on the web open there too.
+
 ## 1.10.15 (OTA, runs on Android versionCode 16 and iOS build 20), 6 Nov 2026
 
 - Calendar in the app: month, week and agenda views, show or hide each calendar, add and edit events, and calendar settings.

@@ -10,13 +10,14 @@ import { en } from "./en";
 import { ne } from "./ne";
 import { hi } from "./hi";
 import { mpar3En, mpar3Hi, mpar3Ne } from "./mpar3";
+import { mfix1En, mfix1Hi, mfix1Ne } from "./mfix1";
 import { readPref, writePref } from "@/lib/startup-prefs";
 
 export { LANG_LOCALE, LANG_NAMES, UI_LANGS, isUiLang, uiLangOf, type UiLang };
 export type LangChoice = "system" | UiLang;
 
 const PREF = "language";
-export const bundles: Record<UiLang, Bundle> = { en: { ...en, ...mpar3En }, ne: { ...ne, ...mpar3Ne }, hi: { ...hi, ...mpar3Hi } };
+export const bundles: Record<UiLang, Bundle> = { en: { ...en, ...mpar3En, ...mfix1En }, ne: { ...ne, ...mpar3Ne, ...mfix1Ne }, hi: { ...hi, ...mpar3Hi, ...mfix1Hi } };
 
 /** The phone's own language as an app language ("ne-NP" is Nepali, "fr-FR" is English). Fails soft to English. */
 export function deviceLang(): UiLang {
