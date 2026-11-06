@@ -9,6 +9,8 @@ Android, CFBundleShortVersionString on iOS).
 
 ## 1.10.15 (OTA, runs on Android versionCode 16 and iOS build 20), 6 Nov 2026
 
+Rollout reverted on 6 Nov 2026; everything below reaches phones with 1.10.16.
+
 - Calendar in the app: month, week and agenda views, show or hide each calendar, add and edit events, and calendar settings.
 - Meetings: read notes, minutes and transcripts right in the app.
 - Writing mail: attach from Files, send later, saved replies and send securely.
