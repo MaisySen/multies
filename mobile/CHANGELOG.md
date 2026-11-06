@@ -3,6 +3,14 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.10.15 (OTA, runs on Android versionCode 16 and iOS build 20), 6 Nov 2026
+
+- Calendar in the app: month, week and agenda views, show or hide each calendar, add and edit events, and calendar settings.
+- Meetings: read notes, minutes and transcripts right in the app.
+- Writing mail: attach from Files, send later, saved replies and send securely.
+- Mailbox folders and bulk select: pick many messages and move, archive or mark them at once.
+- Shared inbox: assign a thread, leave team comments, and see everything in One inbox.
+
 ## 1.10.14 (OTA, runs on Android versionCode 16 and iOS build 20), 4 Nov 2026
 
 - Multies speaks Nepali and Hindi: Today, Inbox, mail, writing mail, Chat, Tasks, More, Search and Settings follow your phone's language, or pick one in Settings, Language. Your account on the web uses the same choice.
