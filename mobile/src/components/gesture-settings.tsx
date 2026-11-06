@@ -30,15 +30,14 @@ export function GestureSettings() {
 
   return (
     <>
-      {/* MPAR2 (MB-362): the whole row toggles, so the target is the row, not only the switch. */}
-      <Pressable onPress={() => { const v = !prefs.haptics; setPrefs({ haptics: v }); if (v) tick(); }} accessibilityRole="switch" accessibilityState={{ checked: prefs.haptics }}
-        accessibilityLabel={tr("m.swipe.haptics")} style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: space.lg, minHeight: 52, gap: space.md }} testID="haptics-setting">
+      {/* MPAR2 (MB-362): a tap anywhere on the row toggles; screen readers and keyboards keep using the switch itself. */}
+      <Pressable onPress={() => { const v = !prefs.haptics; setPrefs({ haptics: v }); if (v) tick(); }} accessible={false} focusable={false}
+        style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: space.lg, minHeight: 52, gap: space.md }} testID="haptics-setting">
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={{ color: colors.fg, fontSize: 16 }} nativeID="haptics-label">{tr("m.swipe.haptics")}</Text>
           <Text style={{ color: colors.subtle, fontSize: 13 }}>{tr("m.swipe.haptics_note")}</Text>
         </View>
         <Switch value={prefs.haptics} onValueChange={(v) => { setPrefs({ haptics: v }); if (v) tick(); }} accessibilityLabel={tr("m.swipe.haptics")} aria-labelledby="haptics-label"
-          accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
           trackColor={{ true: colors.brandFill, false: colors.elevated }} testID="haptics-switch" />
       </Pressable>
 
