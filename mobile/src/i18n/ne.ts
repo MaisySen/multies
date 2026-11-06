@@ -200,6 +200,7 @@ export const ne: Bundle = {
   "m.common.check_your_connection_and_try_again": "इन्टरनेट जाँच गरेर फेरि प्रयास गर्नुहोस्।",
   "m.common.couldn_t_load_tolowercase": "{toLowerCase} लोड हुन सकेन",
   "m.common.go_to_today": "आजमा जानुहोस्",
+  "m.common.label_count_unread": "{label}, {count} नपढिएका",
   "m.common.loading": "लोड हुँदैछ",
   "m.common.retry": "फेरि प्रयास गर्नुहोस्",
   "m.common.today": "आज",

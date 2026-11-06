@@ -63,7 +63,8 @@ export function SectionHeader({ title, action, onAction, testID }: { title: stri
     <View style={h.section} testID={testID}>
       <Text style={h.sectionTitle} accessibilityRole="header" numberOfLines={1}>{title}</Text>
       {action && onAction ? (
-        <Pressable onPress={() => { tick(); onAction(); }} accessibilityRole="button" accessibilityLabel={`${action}, ${title}`} hitSlop={12}>
+        <Pressable onPress={() => { tick(); onAction(); }} accessibilityRole="button" accessibilityLabel={`${action}, ${title}`} hitSlop={12}
+          style={{ minHeight: 44, minWidth: 44, justifyContent: "center", alignItems: "flex-end", marginVertical: -12 }}>
           <Text style={h.sectionAction}>{action}</Text>
         </Pressable>
       ) : null}

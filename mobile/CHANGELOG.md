@@ -3,6 +3,15 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.10.14 (OTA, runs on Android versionCode 16 and iOS build 20), 4 Nov 2026
+
+- Multies speaks Nepali and Hindi: Today, Inbox, mail, writing mail, Chat, Tasks, More, Search and Settings follow your phone's language, or pick one in Settings, Language. Your account on the web uses the same choice.
+- Appearance in Settings: match your phone, always light or always dark, and the Forest green theme from the web app.
+- Account in Settings: change your name and password, and use this phone's time zone. Multies sign in accounts open their sign in settings in the app.
+- Plan and usage in Settings shows your plan and what your workspace uses. The app has no purchases.
+- Get started: the web's checklist is on Today and in Settings, and each step opens its screen in the app.
+- Search results for deals and other pages the app has open in the app instead of the web page.
+
 ## 1.10.13 (OTA, runs on Android versionCode 16 and iOS build 20), 3 Nov 2026
 
 - A cleaner Today: the colour card now fills the width with Write, My tasks and Search side by side, and nothing overlaps.

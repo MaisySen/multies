@@ -200,6 +200,7 @@ export const en: Bundle = {
   "m.common.check_your_connection_and_try_again": "Check your connection and try again.",
   "m.common.couldn_t_load_tolowercase": "Couldn't load {toLowerCase}",
   "m.common.go_to_today": "Go to Today",
+  "m.common.label_count_unread": "{label}, {count} unread",
   "m.common.loading": "Loading",
   "m.common.retry": "Retry",
   "m.common.today": "Today",

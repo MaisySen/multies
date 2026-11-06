@@ -33,7 +33,7 @@ export default function BillingScreen() {
             {usageRows(b).map((r) => (
               <View key={r.id} style={st.meter} accessible accessibilityLabel={`${r.label}, ${r.text}`} testID={`billing-${r.id}`}>
                 <View style={st.meterTop}><Text style={st.meterLabel}>{r.label}</Text><Text style={st.meterText}>{r.text}</Text></View>
-                <ProgressBar value={r.ratio * 100} tone={r.ratio >= 0.9 ? "bad" : r.ratio >= 0.75 ? "warn" : "brand"} />
+                <ProgressBar value={r.ratio * 100} label={`${r.label}, ${r.text}`} tone={r.ratio >= 0.9 ? "bad" : r.ratio >= 0.75 ? "warn" : "brand"} />
               </View>
             ))}
           </InsetGroup>

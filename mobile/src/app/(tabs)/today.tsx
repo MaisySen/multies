@@ -88,7 +88,7 @@ export default function Today() {
             <Tile icon="check-circle" tile="teal" />
             <View style={{ flex: 1, gap: 6 }}>
               <Text style={font.headline}>{tr("common.get_started")}</Text>
-              <ProgressBar value={tours.data!.checklist!.total ? (tours.data!.checklist!.doneCount / tours.data!.checklist!.total) * 100 : 0} />
+              <ProgressBar value={tours.data!.checklist!.total ? (tours.data!.checklist!.doneCount / tours.data!.checklist!.total) * 100 : 0} label={tr("m.started.progress", { done: tours.data!.checklist!.doneCount, total: tours.data!.checklist!.total })} />
               <Text style={font.small}>{tr("m.started.n_of_total_done", { done: tours.data!.checklist!.doneCount, total: tours.data!.checklist!.total })}</Text>
             </View>
             <Icon name="chevron-right" size={18} color={colors.subtle} />

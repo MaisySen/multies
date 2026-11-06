@@ -200,6 +200,7 @@ export const hi: Bundle = {
   "m.common.check_your_connection_and_try_again": "अपना कनेक्शन जाँचें और फिर कोशिश करें।",
   "m.common.couldn_t_load_tolowercase": "{toLowerCase} लोड नहीं हो सके",
   "m.common.go_to_today": "आज पर जाएँ",
+  "m.common.label_count_unread": "{label}, {count} बिना पढ़े",
   "m.common.loading": "लोड हो रहा है",
   "m.common.retry": "फिर कोशिश करें",
   "m.common.today": "आज",

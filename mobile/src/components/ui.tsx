@@ -133,7 +133,7 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
         const on = o.id === value;
         return (
           <Pressable key={o.id} onPress={() => onChange(o.id)} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={o.label} hitSlop={4}
-            style={[styles.segment, on && { backgroundColor: colors.hover }]}>
+            style={[styles.segment, { minHeight: TOUCH }, on && { backgroundColor: colors.hover }]}>
             <Text style={{ color: on ? colors.fg : colors.muted, fontWeight: on ? "600" : "500", fontSize: 14 }}>{o.label}</Text>
           </Pressable>
         );
@@ -143,11 +143,14 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
 }
 
 export function Chip({ label, selected, onPress, count }: { label: string; selected?: boolean; onPress?: () => void; count?: number }) {
+  // MPAR2: the touch area is 44 high (Apple and Android guidance) while the pill keeps its size.
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!selected }} accessibilityLabel={count ? `${label}, ${groupCount(count)} unread` : label}
-      style={[styles.chip, selected && { backgroundColor: colors.brandSoft, borderColor: colors.brandLine }]}>
-      <Text style={{ color: selected ? colors.brandHover : colors.muted, fontWeight: "600", fontSize: 14 }}>{label}</Text>
-      {count ? <Text style={{ color: selected ? colors.brand : colors.subtle, fontSize: 13, fontVariant: ["tabular-nums"] }}>{compactCount(count)}</Text> : null}
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!selected }} accessibilityLabel={count ? tr("m.common.label_count_unread", { label, count: groupCount(count) }) : label}
+      style={{ minHeight: TOUCH, justifyContent: "center" }}>
+      <View style={[styles.chip, selected && { backgroundColor: colors.brandSoft, borderColor: colors.brandLine }]}>
+        <Text style={{ color: selected ? colors.brandHover : colors.muted, fontWeight: "600", fontSize: 14 }}>{label}</Text>
+        {count ? <Text style={{ color: selected ? colors.brandHover : colors.subtle, fontSize: 13, fontVariant: ["tabular-nums"] }}>{compactCount(count)}</Text> : null}
+      </View>
     </Pressable>
   );
 }
