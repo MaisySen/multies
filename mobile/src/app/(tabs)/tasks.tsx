@@ -171,7 +171,7 @@ export function Meta({ t }: { t: Task }) {
       {t.subtasks.total ? <Badge label={`${t.subtasks.done}/${t.subtasks.total}`} icon="list" /> : null}
       {checklist ? <Badge label={checklist} icon="check-square" tone={t.checklist!.done === t.checklist!.total ? "ok" : "neutral"} /> : null}
       {t.commentCount ? <Badge label={String(t.commentCount)} icon="message-circle" /> : null}
-      {t.source?.from ? <Text style={{ color: colors.subtle, fontSize: 12, flexShrink: 1 }} numberOfLines={1}>From email: {senderName(t.source.from)}</Text> : null}
+      {t.source?.from ? <Text style={{ color: colors.subtle, fontSize: 12, flexShrink: 1 }} numberOfLines={1}>{tr("m.tasks.from_email", { name: senderName(t.source.from) })}</Text> : null}
     </View>
   );
 }

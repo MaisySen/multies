@@ -1,3 +1,4 @@
+import { tr } from "@/i18n";
 /**
  * 1.10.7: inbox tabs, labels, snoozed mail and mail rules on the phone. The shapes and words match the web (R85,
  * src/shared/mail-rules-r85.ts on the server); everything here is plain logic so it can be tested without a screen.
@@ -31,7 +32,14 @@ export function countLabel(n: number | undefined | null): string {
 
 /** What a screen reader says for a tab: "Updates, 12 unread". */
 export function tabA11yLabel(t: InboxTab): string {
-  return t.unread > 0 ? `${t.name}, ${t.unread > 99 ? "more than 99" : t.unread} unread` : t.name;
+  const name = tabName(t);
+  return t.unread > 0 ? tr("m.common.label_count_unread", { label: name, count: t.unread > 99 ? tr("m.inbox.more_than_99") : t.unread }) : name;
+}
+
+/** MPAR2: built in tabs (Primary, Updates, Promotions, Social, Forums) in the app's language; your own tabs as named. */
+export function tabName(t: Pick<InboxTab, "id" | "name" | "builtIn">): string {
+  const k = `m.inbox.tab_${t.id}`;
+  return t.builtIn && ["primary", "updates", "promotions", "social", "forums"].includes(t.id) ? tr(k) : t.name;
 }
 
 // ---------------------------------------------------------------- rules

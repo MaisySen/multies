@@ -12,7 +12,7 @@ const TOUCHED = [
   "app/thread/[id].tsx", "app/compose.tsx", "app/chat/[id].tsx", "app/chat/new.tsx", "app/settings.tsx", "app/search.tsx", "app/more/[section].tsx",
   "app/account.tsx", "app/appearance.tsx", "app/language.tsx", "app/billing.tsx", "app/get-started.tsx",
   "components/chat.tsx", "components/m1-more.tsx", "components/m1-work.tsx", "components/message-row.tsx", "components/m3-ui.tsx", "components/ui.tsx",
-  "lib/today.ts", "lib/tasks.ts", "lib/meetings.ts", "lib/triage.ts", "lib/chat.ts", "lib/global-search.ts", "lib/mpar2.ts",
+  "lib/today.ts", "lib/tasks.ts", "lib/social.ts", "lib/mail-rules.ts", "components/gesture-settings.tsx", "components/swipe-row.tsx", "components/meetings.tsx", "components/notification-bell.tsx", "components/task-query-box.tsx", "lib/meetings.ts", "lib/triage.ts", "lib/chat.ts", "lib/global-search.ts", "lib/mpar2.ts",
 ];
 /** Words that read the same in every language (an example address). */
 const SAME = new Set(["m.compose.name_example_com_au"]);
@@ -51,7 +51,7 @@ describe("bundles", () => {
     for (const l of ["ne", "hi"] as const) {
       const english = Object.entries(bundles[l]).filter(([k, v]) => k.startsWith("m.") && typeof v === "string" && latinOnly(v) && !SAME.has(k));
       // Only brand and code words stay Latin (Cc, Re:, Fwd:).
-      expect(english.map(([k]) => k).sort()).toEqual(["m.compose.cc", "m.compose.fwd_subj", "m.compose.re_subj"]);
+      expect(english.map(([k]) => k).sort()).toEqual(["m.compose.cc", "m.compose.fwd_subj", "m.compose.re_subj", "m.thread.cc_names"]);
     }
   });
   it("copy has no dashes and no other product names", () => {

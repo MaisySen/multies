@@ -14,7 +14,7 @@ import { usePrefs } from "@/lib/prefs";
 import { openCommandSheet } from "@/lib/command-sheet-store";
 import { useAgents, useOverview } from "@/lib/queries";
 import { useInboxTabs, useMailMutations, useMessageList, useSnoozed } from "@/lib/mail-queries";
-import { activeTab, backLabel, countLabel, tabA11yLabel, type InboxTab } from "@/lib/mail-rules";
+import { activeTab, backLabel, countLabel, tabA11yLabel, tabName, type InboxTab } from "@/lib/mail-rules";
 import { kv } from "@/lib/kv";
 import { tick, warning } from "@/lib/haptics";
 import { useOffline } from "@/lib/offline";
@@ -179,7 +179,7 @@ export function TabBar({ tabs, current, onPick }: { tabs: InboxTab[]; current: s
           <Pressable key={t.id} onPress={() => { if (!on) onPick(t.id); }} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={tabA11yLabel(t)}
             testID={`inbox-tab-${t.id}`} style={({ pressed }) => ({ flex: 1, minHeight: TOUCH, alignItems: "center", justifyContent: "center", opacity: pressed ? 0.7 : 1 })}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4 }}>
-              <Text style={{ color: on ? colors.fg : colors.muted, fontWeight: on ? "700" : "600", fontSize: 15, flexShrink: 1 }} numberOfLines={1}>{t.name}</Text>
+              <Text style={{ color: on ? colors.fg : colors.muted, fontWeight: on ? "700" : "600", fontSize: 15, flexShrink: 1 }} numberOfLines={1}>{tabName(t)}</Text>
               {n ? (
                 <View style={{ minWidth: 20, paddingHorizontal: 6, height: 20, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", backgroundColor: on ? colors.brandFill : colors.elevated }}>
                   <Text style={{ color: on ? colors.brandFg : colors.muted, fontSize: 12, fontWeight: "700" }}>{n}</Text>

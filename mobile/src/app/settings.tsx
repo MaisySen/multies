@@ -102,7 +102,7 @@ export default function Settings() {
       <Row tile="green" icon="lock" label={tr("m.settings.lock_multies")} value={lockOn ? tr("m.settings.on") : tr("m.settings.off")} onPress={() => router.push("/security")} testID="biometric-lock" />
 
       <SectionTitle>{tr("m.settings.notifications")}</SectionTitle>
-      <Row tile="red" icon="inbox" label={tr("m.settings.notifications_inbox")} value={inbox.data ? `${inbox.data} unread` : undefined} onPress={() => router.push("/notifications")} testID="notifications-link" />
+      <Row tile="red" icon="inbox" label={tr("m.settings.notifications_inbox")} value={inbox.data ? tr("m.common.n_unread", { count: inbox.data }) : undefined} onPress={() => router.push("/notifications")} testID="notifications-link" />
       <Row tile="red" icon="sliders" label={tr("m.settings.notification_settings")} onPress={() => router.push("/notification-settings")} testID="notification-settings-link" />
       <Row tile="red" icon="bell" label={allowed ? tr("m.settings.notifications_allowed") : tr("m.settings.turn_on_notifications")} value={allowed ? tr("m.settings.on") : undefined} onPress={turnOnPush} testID="push" />
       {push?.kind === "allowed" ? <Text style={[font.tiny, { marginHorizontal: space.lg }]}>{push.note}</Text> : null}

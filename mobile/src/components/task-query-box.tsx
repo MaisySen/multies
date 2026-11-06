@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { tl, tr } from "@/i18n";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Chip, Icon } from "@/components/ui";
 import { QUERY_SUGGESTIONS, hasTerm, normaliseQuery, toggleTerm } from "@/lib/task-query";
@@ -22,8 +23,8 @@ export function TaskQueryBox({ value, onSubmit, error }: { value: string; onSubm
         backgroundColor: colors.elevated, borderWidth: error ? 1 : 0, borderColor: error ? colors.bad : "transparent" }}>
         <Icon name="search" size={18} color={colors.subtle} />
         <TextInput value={text} onChangeText={setText} onSubmitEditing={() => run(text)} returnKeyType="search" autoCapitalize="none" autoCorrect={false}
-          placeholder="Search, or try assignee:me due:<7d" placeholderTextColor={colors.subtle} accessibilityLabel="Search tasks"
-          accessibilityHint="Words, or keys like label:bug and status:doing" testID="task-query"
+          placeholder={tr("m.taskquery.placeholder")} placeholderTextColor={colors.subtle} accessibilityLabel={tr("m.taskquery.search_tasks")}
+          accessibilityHint={tr("m.taskquery.hint")} testID="task-query"
           style={{ flex: 1, color: colors.fg, fontSize: 16, paddingVertical: space.sm }} />
         {text ? (
           <Pressable onPress={() => run("")} accessibilityRole="button" accessibilityLabel="Clear search" testID="task-query-clear"
@@ -37,7 +38,7 @@ export function TaskQueryBox({ value, onSubmit, error }: { value: string; onSubm
       ) : null}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm }} keyboardShouldPersistTaps="handled">
         {QUERY_SUGGESTIONS.map((s) => (
-          <Chip key={s.term} label={s.label} selected={hasTerm(value, s.term)} onPress={() => run(toggleTerm(value, s.term))} />
+          <Chip key={s.term} label={tl("m.taskquery", s.label)} selected={hasTerm(value, s.term)} onPress={() => run(toggleTerm(value, s.term))} />
         ))}
       </ScrollView>
     </View>

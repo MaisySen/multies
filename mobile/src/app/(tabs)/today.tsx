@@ -18,7 +18,7 @@ import { badgeText } from "@/lib/social-inbox";
 import { socialSummary } from "@/lib/social";
 import { dayFrom } from "@/lib/tasks";
 import { daySummary, focusTasks, greeting, nextMeeting, topUnread, whenLabel } from "@/lib/today";
-import { displayName, shortDate } from "@/lib/format";
+import { LOCALE, displayName, shortDate } from "@/lib/format";
 import { groupCount, statCount } from "@/lib/numbers";
 import { tick } from "@/lib/haptics";
 import { HeroAction, Hero, SectionHeader, TintIcon, m4s } from "@/components/m4-ui";
@@ -53,7 +53,7 @@ export default function Today() {
   const social = socialOn.data?.available ? socialSummary(posts.data) : null;
   // 1.10.8: open conversations in the Social inbox, as a badge on the card (quiet where the inbox is off).
   const inboxOpen = badgeText(useInboxBadge(!!socialOn.data?.available).data);
-  const date = now.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" });
+  const date = now.toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "long" });
   const go = (path: string) => { tick(); router.push(path as never); };
   const when = next ? whenLabel(next.startsAt, now) : null;
 
@@ -143,7 +143,7 @@ export default function Today() {
               <Text style={font.tiny}>{tr("m.today.social")}</Text>
               <Text style={font.headline} numberOfLines={1}>{social.title}</Text>
               {social.detail ? <Text style={[font.tiny, { color: colors.subtle }]} numberOfLines={1}>{social.detail}</Text> : null}
-              {inboxOpen && social.failed ? <Text style={[font.tiny, { color: colors.subtle }]} numberOfLines={1} testID="today-social-inbox">{inboxOpen} open in the inbox</Text> : null}
+              {inboxOpen && social.failed ? <Text style={[font.tiny, { color: colors.subtle }]} numberOfLines={1} testID="today-social-inbox">{tr("m.today.n_open_in_the_inbox", { count: inboxOpen })}</Text> : null}
             </View>
             {social.failed ? <Badge label={tr("m.today.count_failed", { count: social.failed })} tone="bad" /> : inboxOpen ? <Badge label={tr("m.today.count_to_answer", { count: inboxOpen })} tone="brand" icon="inbox" /> : <Icon name="chevron-right" size={18} color={colors.subtle} />}
           </PressableCard>

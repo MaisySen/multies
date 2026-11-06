@@ -86,7 +86,7 @@ export default function Thread() {
         <ScrollView contentContainerStyle={{ paddingTop: space.md, paddingBottom: 64 + insets.bottom + space.xxl }}>
           <View style={{ paddingHorizontal: space.lg, gap: 6, marginBottom: space.md }}>
             <Text style={[font.title, { fontSize: 24, letterSpacing: 0.2 }]} accessibilityRole="header" selectable>{msg?.subject || tr("m.thread.no_subject")}</Text>
-            <Text style={font.small}>{thread.length === 1 ? "1 message" : `${thread.length} messages`}{people > 1 ? ` from ${people} people` : ""}</Text>
+            <Text style={font.small}>{tr("m.thread.n_messages", { count: thread.length })}{people > 1 ? tr("m.thread.from_n_people", { count: people }) : ""}</Text>
           </View>
           <View style={{ gap: space.sm }}>
             {thread.map((m, i) => {
@@ -162,7 +162,7 @@ function MessageCard({ m, agentName, onCollapse }: { m: Message; agentName?: str
             <Text style={t.time}>{shortDate(m.date)}</Text>
           </View>
           <Text style={{ color: colors.subtle, fontSize: 13 }} numberOfLines={1}>
-            to {m.to.map(displayName).join(", ") || "me"}{m.cc.length ? `, cc ${m.cc.map(displayName).join(", ")}` : ""}
+            {tr("m.thread.to_names", { names: m.to.map(displayName).join(", ") || tr("m.thread.me") })}{m.cc.length ? tr("m.thread.cc_names", { names: m.cc.map(displayName).join(", ") }) : ""}
           </Text>
         </View>
       </Pressable>

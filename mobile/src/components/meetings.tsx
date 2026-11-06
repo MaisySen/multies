@@ -1,4 +1,5 @@
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { tr } from "@/i18n";
 import { useOffline } from "@/lib/offline";
 import { blockOffline } from "@/lib/command-queue";
 import { Badge, Button, Icon, TILE } from "@/components/ui";
@@ -26,7 +27,7 @@ export function StartMeetingButton({ source, title, testID = "start-meeting" }: 
       say("The meeting didn't start", (e as Error).message);
     }
   };
-  return <Button variant="secondary" icon="video" label="Start meeting" onPress={start} loading={create.isPending} testID={testID} />;
+  return <Button variant="secondary" icon="video" label={tr("m.meetings.start_meeting")} onPress={start} loading={create.isPending} testID={testID} />;
 }
 
 /** R36: an event row with a colour bar, the time in a fixed column, and Join plus Copy guest link. */

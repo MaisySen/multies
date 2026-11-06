@@ -1,3 +1,4 @@
+import { tr } from "@/i18n";
 /**
  * 1.10.5: social posting on the phone. The same contract as the web (/api/social, /api/apps, /api/direct),
  * copied here because the phone app builds on its own. Keep in step with the web's shared integrations file.
@@ -369,9 +370,9 @@ export function socialSummary(posts: SocialPostView[] | undefined): { title: str
   const latest = posts.find((p) => p.status !== "canceled");
   if (!latest) return { title: "No posts yet", detail: "Write one post for all your pages", failed: 0, tone: "neutral" };
   const badge = postBadge(latest);
-  const title = failed ? `${failed} ${failed === 1 ? "post needs" : "posts need"} a look` : latest.text.trim() ? latest.text.trim().split("\n")[0]! : "Image only";
+  const title = failed ? tr("m.social.posts_need_a_look", { count: failed }) : latest.text.trim() ? latest.text.trim().split("\n")[0]! : "Image only";
   const bits = [failed ? null : `Latest: ${badge.label.toLowerCase()}`, scheduled ? `${scheduled} scheduled` : null].filter(Boolean);
-  return { title, detail: failed ? "Tap to see why and try again" : bits.join(". "), failed, tone: failed ? "bad" : badge.tone === "ok" ? "ok" : "neutral" };
+  return { title, detail: failed ? tr("m.social.tap_to_see_why") : bits.join(". "), failed, tone: failed ? "bad" : badge.tone === "ok" ? "ok" : "neutral" };
 }
 
 /** The account check in four plain words for the Accounts chips. */

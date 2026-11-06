@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { tr } from "@/i18n";
 import { Animated, PanResponder, Pressable, Text, View, type AccessibilityActionEvent } from "react-native";
 import { setPrefs, usePrefs } from "@/lib/prefs";
 import { clampTravel, releaseSide, shouldCaptureSwipe, stageKey, swipeStage, type SwipeStage } from "@/lib/swipe";
@@ -92,10 +93,10 @@ export function SwipeHint({ testID = "swipe-hint" }: { testID?: string }) {
   const prefs = usePrefs();
   if (prefs.swipeHintSeen) return null;
   return (
-    <Pressable onPress={() => setPrefs({ swipeHintSeen: true })} accessibilityRole="button" accessibilityLabel="Swipe a row left or right for quick actions. Choose them in Settings. Tap to hide this tip." testID={testID}
+    <Pressable onPress={() => setPrefs({ swipeHintSeen: true })} accessibilityRole="button" accessibilityLabel={`${tr("m.swipe.hint")} ${tr("m.swipe.tap_to_hide")}`} testID={testID}
       style={{ flexDirection: "row", alignItems: "center", gap: space.sm, marginHorizontal: space.lg, marginBottom: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: 12, backgroundColor: colors.brandSoft }}>
       <Icon name="arrow-right" size={16} color={colors.brand} />
-      <Text style={{ flex: 1, color: colors.fg, fontSize: 14 }}>Swipe a row left or right for quick actions. Choose them in Settings.</Text>
+      <Text style={{ flex: 1, color: colors.fg, fontSize: 14 }}>{tr("m.swipe.hint")}</Text>
       <Icon name="x" size={16} color={colors.muted} />
     </Pressable>
   );
