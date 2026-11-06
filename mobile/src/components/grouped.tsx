@@ -57,6 +57,13 @@ export function GroupRow({ label, icon, tile, value, sub, onPress, destructive, 
       {onPress && (chevron ?? !destructive) && !toggle ? <Icon name="chevron-right" size={16} color={colors.subtle} /> : null}
     </>
   );
+  if (!onPress && toggle) {
+    // MPAR3 (as MB-362): a tap anywhere on the row flips the switch; screen readers and keyboards use the switch itself.
+    return (
+      <Pressable style={g.row} testID={testID} accessible={false} focusable={false} disabled={toggle.disabled}
+        onPress={() => { tick(); toggle.onChange(!toggle.value); }}>{body}</Pressable>
+    );
+  }
   if (!onPress) {
     return <View style={g.row} testID={testID} accessible={!toggle} accessibilityLabel={value ? `${label}, ${value}` : label}>{body}</View>;
   }

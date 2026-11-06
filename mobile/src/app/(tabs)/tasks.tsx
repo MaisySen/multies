@@ -187,7 +187,7 @@ function TaskRow({ t, onToggle, onLongPress }: { t: Task; onToggle: () => void; 
         testID={`toggle-${t.id}`} style={{ width: 52, minHeight: 56, alignItems: "center", justifyContent: "center" }}>
         <Icon name={done ? "check-circle" : "circle"} size={22} color={done ? colors.ok : colors.subtle} />
       </Pressable>
-      <Pressable onPress={() => open(t)} onLongPress={onLongPress} delayLongPress={350} accessibilityRole="button" accessibilityLabel={tr("m.tasks.open_task_title", { title: t.title })}
+      <Pressable onPress={() => open(t)} onLongPress={onLongPress} delayLongPress={350} accessibilityRole="button" accessibilityLabel={tr("m.m3x.task_open", { title: t.title })}
         accessibilityHint={tr("m.tasks.long_press_for_more_actions")} testID={`task-row-${t.id}`} style={{ flex: 1, paddingVertical: space.md, paddingRight: space.lg, gap: 6 }}>
         <Text style={{ color: done ? colors.subtle : colors.fg, fontSize: 16, textDecorationLine: done ? "line-through" : "none" }}>{t.title}</Text>
         {saving ? <Text style={{ color: colors.brand, fontSize: 12, fontWeight: "600" }}>{tr("m.tasks.saving")}</Text> : <Meta t={t} />}

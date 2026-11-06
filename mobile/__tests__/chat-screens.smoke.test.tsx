@@ -38,10 +38,10 @@ it("chat list shows channels, then DMs, with unread counts and mentions, and ope
   await wrap(<Chat />);
   expect(await screen.findByText("Channels")).toBeTruthy();
   expect(screen.getByText("Direct messages")).toBeTruthy();
-  expect(screen.getByLabelText("#general, 2 unread, 2 mentions")).toBeTruthy();
+  expect(screen.getByLabelText("general, 2 unread, 2 mentions")).toBeTruthy();
   expect(within(screen.getByTestId("mentions-chn_general")).getByText("@2")).toBeTruthy();
   expect(screen.getByLabelText("Josh Tran, 1 unread")).toBeTruthy();
-  expect(screen.getByLabelText("#markets")).toBeTruthy();
+  expect(screen.getByLabelText("markets")).toBeTruthy();
   await fireEvent.press(screen.getByTestId("channel-chn_general"));
   expect(mockPush).toHaveBeenCalledWith({ pathname: "/chat/[id]", params: { id: "chn_general" } });
   await fireEvent.press(screen.getByTestId("new-dm-button"));

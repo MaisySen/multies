@@ -45,10 +45,10 @@ export function Sheet({ visible, title, subtitle, onClose, children, footer, tes
 export function Pill({ label, selected, onPress, icon, testID, color }: { label: string; selected?: boolean; onPress: () => void; icon?: IconName; testID?: string; color?: string }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!selected }} accessibilityLabel={label} testID={testID}
-      style={({ pressed }) => [st.pill, selected ? { backgroundColor: colors.brandSoft, borderColor: colors.brandLine } : { backgroundColor: colors.surface, borderColor: colors.line }, pressed && { opacity: 0.75 }]}>
+      style={({ pressed }) => [st.pill, selected ? { backgroundColor: colors.brandFill, borderColor: colors.brandFill } : { backgroundColor: colors.surface, borderColor: colors.line }, pressed && { opacity: 0.75 }]}>
       {color ? <View style={[st.swatch, { backgroundColor: color, opacity: selected ? 1 : 0.35 }]} /> : null}
-      {icon ? <Icon name={icon} size={16} color={selected ? colors.brand : colors.muted} /> : null}
-      <Text style={[st.pillText, { color: selected ? colors.brand : colors.fg }]} numberOfLines={1}>{label}</Text>
+      {icon ? <Icon name={icon} size={16} color={selected ? colors.brandFg : colors.muted} /> : null}
+      <Text style={[st.pillText, { color: selected ? colors.brandFg : colors.fg }]} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
 }

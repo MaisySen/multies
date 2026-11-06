@@ -29,7 +29,7 @@ const SRC = path.join(__dirname, "..", "src");
 const TOUCHED = [
   "app/calendar.tsx", "app/calendar-settings.tsx", "app/meeting-notes/[id].tsx", "app/one-inbox.tsx", "app/meetings.tsx", "app/compose.tsx", "app/(tabs)/inbox.tsx",
   "app/settings.tsx", "app/_layout.tsx", "components/compose-extras.tsx", "components/mail-bulk.tsx", "components/thread-team.tsx", "components/meetings.tsx",
-  "components/mpar3-ui.tsx", "lib/mpar3.ts",
+  "components/mpar3-ui.tsx", "lib/mpar3.ts", "app/(tabs)/today.tsx", "app/(tabs)/tasks.tsx",
 ];
 const DYNAMIC = ["m.cal.view_month", "m.cal.view_week", "m.cal.view_agenda", "m.compose3.preset_later_today", "m.compose3.preset_tomorrow", "m.compose3.preset_next_week",
   "m.compose3.expires_3600", "m.compose3.expires_86400", "m.compose3.expires_604800", "m.team.status_open", "m.team.status_waiting", "m.team.status_done",
@@ -233,8 +233,8 @@ describe("language, saved picks and theme", () => {
   });
   it("colours meetings with the accent in every look", () => {
     const blue = paletteFor("light", "blue"), forest = paletteFor("dark", "forest");
-    expect(eventColor({ kind: "meeting" }, blue)).toBe(blue.brand);
-    expect(eventColor({ kind: "meeting" }, forest)).toBe(forest.brand);
+    expect(eventColor({ kind: "meeting", color: null }, blue)).toBe(blue.brand);
+    expect(eventColor({ kind: "meeting", color: null }, forest)).toBe(forest.brand);
     expect(eventColor({ kind: "external", color: "#AF52DE" }, forest)).toBe("#AF52DE");
     expect(blue.brand).not.toBe(forest.brand);
   });

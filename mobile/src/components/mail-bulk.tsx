@@ -23,14 +23,16 @@ export function SelectCheck({ on }: { on: boolean }) {
   );
 }
 
-/** A mail row while selecting: one tap target that ticks it, with the row itself inside. */
+/** A mail row while selecting: a tick box (44 pt) beside the row; tapping either ticks it. No control inside another. */
 export function SelectableRow({ on, label, onToggle, children, testID }: { on: boolean; label: string; onToggle: () => void; children: React.ReactNode; testID?: string }) {
   return (
-    <Pressable onPress={() => { tick(); onToggle(); }} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={label} testID={testID}
-      style={({ pressed }) => [s.selRow, on && { backgroundColor: colors.brandSoft }, pressed && { opacity: 0.85 }]}>
-      <View style={{ paddingLeft: space.lg }}><SelectCheck on={on} /></View>
-      <View style={{ flex: 1 }} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">{children}</View>
-    </Pressable>
+    <View style={[s.selRow, on && { backgroundColor: colors.brandSoft }]}>
+      <Pressable onPress={() => { tick(); onToggle(); }} role="checkbox" aria-checked={on} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={label} testID={testID}
+        style={({ pressed }) => [{ width: TOUCH + space.sm, minHeight: TOUCH, alignItems: "center", justifyContent: "center", paddingLeft: space.sm }, pressed && { opacity: 0.6 }]}>
+        <SelectCheck on={on} />
+      </Pressable>
+      <View style={{ flex: 1 }}>{children}</View>
+    </View>
   );
 }
 

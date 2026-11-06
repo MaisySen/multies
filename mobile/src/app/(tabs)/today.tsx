@@ -159,7 +159,7 @@ function Tile({ icon, tile }: { icon: IconName; tile: TileColor }) {
 
 function Stat({ icon, tile, value, label, onPress, testID }: { icon: IconName; tile: TileColor; value: number; label: string; onPress: () => void; testID: string }) {
   return (
-    <PressableCard onPress={onPress} testID={testID} accessibilityRole="button" accessibilityLabel={`${label}, ${groupCount(value)}`}
+    <PressableCard onPress={onPress} testID={testID} accessibilityRole="button" accessibilityLabel={`${groupCount(value)} ${label}`}
       style={{ flex: 1, flexBasis: 0, gap: space.sm, borderRadius: radius.lg, padding: space.lg }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
         <Tile icon={icon} tile={tile} />
@@ -182,7 +182,7 @@ function PressRow({ children, onPress, label, last }: { children: ReactNode; onP
 function MailLine({ m, onPress, last, now }: { m: MessageSummary; onPress: () => void; last: boolean; now: Date }) {
   const who = displayName(m.from);
   return (
-    <PressRow onPress={onPress} last={last} label={tr("m.today.unread_from_who_subject", { who: who, subject: m.subject || "No subject" })}>
+    <PressRow onPress={onPress} last={last} label={tr("m.m3x.row_unread", { who: who, subject: m.subject || tr("m.inbox.no_subject_plain") })}>
       <Avatar name={who} size={36} />
       <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
         <View style={{ flexDirection: "row", alignItems: "baseline", gap: space.sm }}>

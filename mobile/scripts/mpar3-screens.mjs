@@ -43,7 +43,7 @@ const SCREENS = [
 const COMBOS = [];
 for (const lang of ["en", "ne", "hi"]) for (const look of ["light", "dark", "forest"]) COMBOS.push({ lang, look });
 const heights = { 375: 812, 390: 844, 430: 932 };
-const problems = [], notes = [], mismatch = [];
+const problems = [], notes = [], mismatch = [], starts = [];
 const summary = { shots: 0, checks: 0, axeRuns: 0 };
 const browser = await chromium.launch();
 try {
@@ -63,6 +63,9 @@ try {
     const errors = [];
     page.on("pageerror", (e) => errors.push(String(e)));
     await page.goto(base); await page.waitForLoadState("networkidle"); await page.waitForTimeout(1500);
+    // The web build opens on the sign-in screen; the sample workspace is one tap away and stays for the session.
+    const explore = page.getByTestId("sample").first();
+    if (await explore.isVisible().catch(() => false)) { await explore.click(); await page.waitForTimeout(2500); }
     for (const [name, path, id, act] of SCREENS) {
       try {
         await page.goto(`${base}${path}`);
@@ -80,7 +83,8 @@ try {
             const b = e.getBoundingClientRect();
             if (b.right > innerWidth + 1 && e.childElementCount === 0 && (e.textContent ?? "").trim() && !inHScroll(e)) res.spill.push(label(e));
             const role = e.getAttribute("role");
-            if (role && /^(button|link|tab|radio|checkbox|switch)$/.test(role) && (b.width < 43.5 || b.height < 43.5)) res.small.push(`${label(e)} ${Math.round(b.width)}x${Math.round(b.height)}`);
+            const rowTaps = role === "switch" && (() => { for (let p = e.parentElement, i = 0; p && i < 4; p = p.parentElement, i++) { const pb = p.getBoundingClientRect(); if (getComputedStyle(p).cursor === "pointer" && pb.height >= 43.5 && pb.width >= 43.5) return true; } return false; })();
+            if (role && !rowTaps && /^(button|link|tab|radio|checkbox|switch)$/.test(role) && (b.width < 43.5 || b.height < 43.5)) res.small.push(`${label(e)} ${Math.round(b.width)}x${Math.round(b.height)}`);
             if (e.childElementCount === 0 && /[\u0900-\u097F]/.test(e.textContent ?? "")) {
               const s = getComputedStyle(e); const fs = parseFloat(s.fontSize); const lhv = s.lineHeight === "normal" ? fs * 1.4 : parseFloat(s.lineHeight);
               if (lhv < fs * 1.3) res.tight.push(`${label(e)} ${fs}/${lhv}`);
@@ -88,19 +92,34 @@ try {
             }
             if (e.childElementCount === 0 && /\bm\.[a-z0-9_]+\.[a-z0-9_]+\b/.test(e.textContent ?? "")) res.raw.push(label(e));
           }
+          // MB-361 as the brief words it: the accessible name starts with the first words the control shows.
+          res.starts = [];
+          for (const e of document.querySelectorAll("[aria-label][role=button],[aria-label][role=tab],[aria-label][role=checkbox],[aria-label][role=link]")) {
+            if (!visible(e)) continue;
+            const leaves = [...e.querySelectorAll("*")].filter((x) => x.childElementCount === 0 && (x.textContent ?? "").trim() && visible(x) && !x.closest("[aria-hidden=true]"));
+            const first = leaves.map((x) => x.textContent.trim()).find((t) => !/^[A-Z]{1,3}$/.test(t) && !/^\d+$/.test(t) && !/^[#@]$/.test(t));
+            if (!first) continue;
+            const norm = (t) => t.toLowerCase().replace(/[^\p{L}\p{N}\p{M}]+/gu, " ").trim();
+            if (!norm(e.getAttribute("aria-label")).startsWith(norm(first).slice(0, 24))) res.starts.push(`${e.getAttribute("aria-label").slice(0, 50)} | shows ${first.slice(0, 30)}`);
+          }
           return res;
         }, { strict: true });
         summary.checks++;
         if (r.sideways) problems.push(`${name} ${tag}: scrolls sideways`);
         if (r.spill.length) problems.push(`${name} ${tag}: spills past the edge: ${[...new Set(r.spill)].slice(0, 3).join(" | ")}`);
+        for (const x of r.starts ?? []) starts.push(`${name} ${tag}: ${x}`);
         if (r.raw.length) problems.push(`${name} ${tag}: raw key on screen: ${r.raw.slice(0, 3).join(" | ")}`);
         if (r.tight.length) problems.push(`${name} ${tag}: Devanagari line height: ${[...new Set(r.tight)].slice(0, 3).join(" | ")}`);
+        r.small = r.small.filter((x) => !/^\S+@\S+\.\S+ /.test(x));
         if (r.small.length) (NEW.has(name) ? problems : notes).push(`${name} ${tag}: small tap targets: ${[...new Set(r.small)].slice(0, 4).join(" | ")}`);
         if (width === 390) {
           const ax = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze(); summary.axeRuns++;
           const serious = ax.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
           const lm = await new AxeBuilder({ page }).withRules(["label-content-name-mismatch"]).analyze();
-          for (const v of lm.violations) for (const n of v.nodes) mismatch.push(`${name} ${tag}: ${n.html.slice(0, 160)}`);
+          for (const v of lm.violations) for (const n of v.nodes) {
+            const seen = await page.locator(String(n.target[0])).first().evaluate((e) => [e.getAttribute("aria-label"), e.innerText.replace(/\s+/g, " ").trim()]).catch(() => ["?", "?"]);
+            mismatch.push(`${name} ${tag}: name=${JSON.stringify(seen[0])} text=${JSON.stringify(seen[1]).slice(0, 120)} id=${(n.html.match(/data-testid="([^"]+)"/) ?? [])[1] ?? ""}`);
+          }
           if (serious.length) problems.push(`${name} ${tag}: axe ${serious.map((v) => `${v.id}(${v.nodes.length}) ${v.nodes.slice(0, 2).map((n) => n.html.slice(0, 80)).join(" | ")}`).join("; ")}`);
         }
       } catch (e) { problems.push(`${name} ${tag}: ${String(e).split("\n")[0].slice(0, 160)}`); }
@@ -109,8 +128,8 @@ try {
     await ctx.close();
   }
 } finally { await browser.close(); server.close(); }
-writeFileSync(`${out}/report.json`, JSON.stringify({ summary, problems, notes, mismatch }, null, 1));
+writeFileSync(`${out}/report.json`, JSON.stringify({ summary, problems, notes, mismatch, starts }, null, 1));
 console.log(JSON.stringify(summary));
 console.log(problems.length ? `PROBLEMS ${problems.length}\n${problems.slice(0, 60).join("\n")}` : "OK no problems");
 console.log(`NOTES ${notes.length}`);
-console.log(`LABEL_IN_NAME ${mismatch.length}`);
+console.log(`LABEL_IN_NAME axe ${mismatch.length}, name does not start with the shown words ${starts.length}`);

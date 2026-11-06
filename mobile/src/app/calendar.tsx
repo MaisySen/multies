@@ -78,7 +78,7 @@ export default function CalendarScreen() {
             <Text style={s.navTitle} accessibilityRole="header" numberOfLines={1} testID="calendar-title">{title}</Text>
             {view !== "agenda" ? <IconButton icon="chevron-right" label={view === "month" ? tr("m.cal.next_month") : tr("m.cal.next_week")} onPress={() => step(1)} testID="calendar-next" /> : null}
             <Pressable onPress={goToday} accessibilityRole="button" accessibilityLabel={tr("m.cal.today")} style={({ pressed }) => [s.todayBtn, pressed && { opacity: 0.7 }]} testID="calendar-today">
-              <Text style={{ color: colors.brand, fontWeight: "600", fontSize: 15, lineHeight: lh(20) }}>{tr("m.cal.today")}</Text>
+              <Text style={{ color: colors.fg, fontWeight: "600", fontSize: 15, lineHeight: lh(20) }}>{tr("m.cal.today")}</Text>
             </Pressable>
           </View>
         </View>
@@ -152,7 +152,7 @@ function WeekStrip({ anchor, days, picked, today, onPick }: { anchor: Date; days
         const k = dayKey(d); const sel = k === picked; const list = days.get(k) ?? [];
         return (
           <Pressable key={k} onPress={() => onPick(k)} accessibilityRole="button" accessibilityState={{ selected: sel }} testID={`day-${k}`}
-            accessibilityLabel={`${dayTitle(d)}${list.length ? `, ${tr("m.cal.n_events", { count: list.length })}` : ""}`}
+            accessibilityLabel={`${d.toLocaleDateString(currentLocale(), { weekday: "short" })} ${d.toLocaleDateString(currentLocale(), { day: "numeric" })}, ${dayTitle(d)}${list.length ? `, ${tr("m.cal.n_events", { count: list.length })}` : ""}`}
             style={({ pressed }) => [s.weekDay, sel && { backgroundColor: colors.brandFill }, !sel && k === today && { borderWidth: 1.5, borderColor: colors.brand }, pressed && !sel && { backgroundColor: colors.hover }]}>
             <Text style={{ fontSize: 12, lineHeight: lh(16), color: sel ? colors.brandFg : colors.subtle }} numberOfLines={1}>{d.toLocaleDateString(currentLocale(), { weekday: "short" })}</Text>
             <Text style={{ fontSize: 17, lineHeight: lh(22), fontWeight: "600", color: sel ? colors.brandFg : colors.fg }}>{d.toLocaleDateString(currentLocale(), { day: "numeric" })}</Text>
@@ -201,7 +201,7 @@ function EventRow({ e, first, onPress }: { e: CalendarEvent; first: boolean; onP
   const when = e.allDay ? tr("m.cal.all_day") : timeOf(e.start);
   const name = eventTitle(e);
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${name}, ${when}, ${kindLabel(e)}`} testID={`event-${e.id}`}
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${when}, ${name}, ${e.location ? `${kindLabel(e)} · ${e.location}` : kindLabel(e)}`} testID={`event-${e.id}`}
       style={({ pressed }) => [s.row, !first && s.rowLine, pressed && { backgroundColor: colors.hover }]}>
       <View style={[s.bar, { backgroundColor: eventColor(e, colors) }]} />
       <Text style={s.when} numberOfLines={1}>{when}</Text>

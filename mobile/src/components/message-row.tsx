@@ -16,7 +16,8 @@ export const MessageRow = memo(function MessageRow({ m, agents, onPress, onLongP
   const agent = m.sentByAgentId ? agents?.find((a) => a.id === m.sentByAgentId) : undefined;
   const who = showRecipient ? tr("m.inbox.to_displayname", { displayName: m.to.map(displayName).join(", ") }) : agent?.name ?? displayName(m.from);
   const labels = m.labels ?? [];
-  const label = [m.isRead ? "" : tr("m.inbox.unread"), who, m.subject || tr("m.inbox.no_subject_plain"), m.snippet, shortDate(m.date), agent ? tr("m.inbox.written_by_agent", { name: agent.name }) : "", labels.length ? tr("m.inbox.labels_list", { labels: labels.join(", ") }) : "", note ?? ""].filter(Boolean).join(". ");
+  // MB-361: the name starts with what the row shows first (who), so voice control finds it by the visible words.
+  const label = [who, m.subject || tr("m.inbox.no_subject_plain"), m.isRead ? "" : tr("m.inbox.unread"), m.snippet, shortDate(m.date), agent ? tr("m.inbox.written_by_agent", { name: agent.name }) : "", labels.length ? tr("m.inbox.labels_list", { labels: labels.join(", ") }) : "", note ?? ""].filter(Boolean).join(". ");
   const row = (
     <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={350} accessibilityRole="button" accessibilityLabel={label} accessibilityHint={onLongPress ? tr("m.inbox.opens_the_conversation_long_press_for_more_actio") : tr("m.inbox.opens_the_conversation")}
       style={({ pressed }) => [s.row, labels.length && onLabel ? { borderBottomWidth: 0, paddingBottom: space.xs } : null, pressed && { backgroundColor: colors.surface }]}>

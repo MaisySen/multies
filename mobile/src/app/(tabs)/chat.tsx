@@ -49,7 +49,7 @@ export default function Chat() {
 function ChannelRow({ c }: { c: ChatChannel }) {
   const unread = c.unread > 0;
   const title = channelTitle(c);
-  const label = [title, unread ? tr("m.common.n_unread", { count: c.unread }) : null, c.mentions ? tr("m.chat.n_mentions", { count: c.mentions }) : null].filter(Boolean).join(", ");
+  const label = [title.replace(/^#/, ""), unread ? tr("m.common.n_unread", { count: c.unread }) : null, c.mentions ? tr("m.chat.n_mentions", { count: c.mentions }) : null].filter(Boolean).join(", ");
   return (
     <Pressable onPress={() => router.push({ pathname: "/chat/[id]", params: { id: c.id } })} accessibilityRole="button" accessibilityLabel={label} testID={`channel-${c.id}`}
       style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 60, paddingHorizontal: space.lg, paddingVertical: space.sm, backgroundColor: pressed ? colors.hover : "transparent" })}>
