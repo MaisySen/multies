@@ -1,3 +1,4 @@
+import { calFmt } from "./mpar3";
 import { Linking, Platform } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import * as Clipboard from "expo-clipboard";
@@ -28,7 +29,7 @@ export async function copyGuestLink(m: Pick<Meeting, "guestUrl">): Promise<void>
 /** "Tue 27 Oct, 2:30 pm, 30 min" */
 export function meetingWhen(m: Pick<Meeting, "startsAt" | "durationMin">): string {
   const d = new Date(m.startsAt);
-  const day = d.toLocaleDateString(LOCALE, { weekday: "short", day: "numeric", month: "short" });
+  const day = calFmt(d, { weekday: "short", day: "numeric", month: "short" });
   const time = d.toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" });
   return `${day}, ${time}, ${m.durationMin} min`;
 }
@@ -50,7 +51,7 @@ export function meetingDays<M extends Pick<Meeting, "startsAt">>(list: M[], now:
     const key = dayKey(t);
     let g = out.find((x) => x.key === key);
     if (!g) {
-      const label = key === todayKey ? tr("m.today.today") : key === tomorrowKey ? tr("m.today.tomorrow") : new Date(t).toLocaleDateString(LOCALE, { weekday: "short", day: "numeric", month: "short" });
+      const label = key === todayKey ? tr("m.today.today") : key === tomorrowKey ? tr("m.today.tomorrow") : calFmt(new Date(t), { weekday: "short", day: "numeric", month: "short" });
       g = { key, label, today: key === todayKey, items: [] };
       out.push(g);
     }

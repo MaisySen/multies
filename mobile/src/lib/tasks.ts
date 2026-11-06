@@ -1,3 +1,4 @@
+import { calFmt } from "./mpar3";
 import type { Priority, Task, TaskStatus } from "@/api/types";
 import { LOCALE } from "./format";
 import { tr } from "@/i18n";
@@ -52,12 +53,12 @@ export function dueLabel(due: string | null, now = new Date()): { text: string; 
   if (diff === 0) return { text: tr("m.tasks.due_today"), tone: "warn" };
   if (diff === 1) return { text: tr("m.tasks.due_tomorrow"), tone: "plain" };
   const d = new Date(`${day}T00:00:00`);
-  return { text: tr("m.tasks.due_month", { month: d.toLocaleDateString(LOCALE, { weekday: "short", day: "numeric", month: "short" }) }), tone: "plain" };
+  return { text: tr("m.tasks.due_month", { month: calFmt(d, { weekday: "short", day: "numeric", month: "short" }) }), tone: "plain" };
 }
 
 /** "Fri 30 Oct" for a due date. */
 export function dayLabel(due: string): string {
-  return new Date(`${due.slice(0, 10)}T00:00:00`).toLocaleDateString(LOCALE, { weekday: "short", day: "numeric", month: "short" });
+  return calFmt(new Date(`${due.slice(0, 10)}T00:00:00`), { weekday: "short", day: "numeric", month: "short" });
 }
 
 /** "Alex Rivera" from "Alex Rivera <alex@example.com.au>", or the address when there is no name. */

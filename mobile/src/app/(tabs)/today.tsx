@@ -1,3 +1,4 @@
+import { calFmt } from "@/lib/mpar3";
 import type { ReactNode } from "react";
 import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
@@ -53,7 +54,7 @@ export default function Today() {
   const social = socialOn.data?.available ? socialSummary(posts.data) : null;
   // 1.10.8: open conversations in the Social inbox, as a badge on the card (quiet where the inbox is off).
   const inboxOpen = badgeText(useInboxBadge(!!socialOn.data?.available).data);
-  const date = now.toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "long" });
+  const date = calFmt(now, { weekday: "long", day: "numeric", month: "long" });
   const go = (path: string) => { tick(); router.push(path as never); };
   const when = next ? whenLabel(next.startsAt, now) : null;
 

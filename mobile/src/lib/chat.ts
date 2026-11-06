@@ -1,3 +1,4 @@
+import { calFmt } from "./mpar3";
 import type { ChatChannel, ChatLink, ChatMention, ChatMessage, ChatPerson } from "@/api/types";
 import { LOCALE } from "./format";
 import { tr } from "@/i18n";
@@ -127,7 +128,7 @@ export function messageTime(iso: string, now = new Date()): string {
   const d = new Date(iso);
   const time = d.toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" }).replace(/\s/g, " ");
   if (d.toDateString() === now.toDateString()) return time;
-  return `${d.toLocaleDateString(LOCALE, { day: "numeric", month: "short" })}, ${time}`;
+  return `${calFmt(d, { day: "numeric", month: "short" })}, ${time}`;
 }
 
 /** The signed in member's chat id ("member:<userId>") from /account/me, when known. */

@@ -1,4 +1,5 @@
 /** Dates and sizes for an Australian audience: en-AU formats, the device's own time zone. */
+import { calFmt } from "./mpar3";
 import { currentLocale } from "@/i18n";
 /** MPAR2: the language on screen picks the locale (en-AU in English, ne-NP in Nepali, hi-IN in Hindi). */
 export const LOCALE = currentLocale();
@@ -8,13 +9,13 @@ export function shortDate(iso: string, now = new Date()): string {
   const sameDay = d.toDateString() === now.toDateString();
   if (sameDay) return d.toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" }).replace(/\s/g, " ");
   const days = (now.getTime() - d.getTime()) / 86_400_000;
-  if (days < 6) return d.toLocaleDateString(LOCALE, { weekday: "short" });
-  if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString(LOCALE, { day: "numeric", month: "short" });
-  return d.toLocaleDateString(LOCALE, { day: "numeric", month: "short", year: "numeric" });
+  if (days < 6) return calFmt(d, { weekday: "short" });
+  if (d.getFullYear() === now.getFullYear()) return calFmt(d, { day: "numeric", month: "short" });
+  return calFmt(d, { day: "numeric", month: "short", year: "numeric" });
 }
 
 export function longDate(iso: string): string {
-  return new Date(iso).toLocaleString(LOCALE, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+  return calFmt(new Date(iso), { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 export function timeAgo(iso: string, now = Date.now()): string {
@@ -60,7 +61,7 @@ export function parseRecipients(input: string): string[] {
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function quoteForReply(text: string, from: string, iso: string): string {
-  const when = new Date(iso).toLocaleString(LOCALE, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+  const when = calFmt(new Date(iso), { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
   return `\n\nOn ${when}, ${from} wrote:\n${text.split("\n").map((l) => `> ${l}`).join("\n")}`;
 }
 

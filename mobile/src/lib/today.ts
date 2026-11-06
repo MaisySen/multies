@@ -1,3 +1,4 @@
+import { calFmt } from "./mpar3";
 import type { Meeting, MessageSummary, Task } from "@/api/types";
 import { groupCount } from "./numbers";
 import { tr } from "@/i18n";
@@ -26,7 +27,7 @@ export function whenLabel(startsAt: string, now = new Date()): string {
   if (diff < 60 * 60_000) return `in ${Math.max(1, Math.round(diff / 60_000))} min`;
   const time = s.toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" }).toLowerCase();
   const sameDay = s.toDateString() === now.toDateString();
-  return sameDay ? `at ${time}` : `${s.toLocaleDateString(LOCALE, { weekday: "short" })} ${time}`;
+  return sameDay ? `at ${time}` : `${calFmt(s, { weekday: "short" })} ${time}`;
 }
 
 /** Open tasks of mine due today, then overdue ones, at most `limit`. */
