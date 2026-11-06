@@ -172,7 +172,7 @@ export function useUndoSeconds(): [UndoSendSeconds, (s: UndoSendSeconds) => void
 }
 
 /** What a held message carries for the bar, and for Compose if it is taken back. */
-export interface HeldDraft { mailboxId: string; to: string; cc: string; subject: string; text: string; inReplyToId?: string; forwardOf?: string; toolFiles?: { token: string; name: string; bytes?: number }[] }
+export interface HeldDraft { /** MPAR3: files picked on the phone, kept so Undo brings them back. */ files?: import("./mpar3").ComposeFile[]; mailboxId: string; to: string; cc: string; subject: string; text: string; inReplyToId?: string; forwardOf?: string; toolFiles?: { token: string; name: string; bytes?: number }[] }
 export interface HeldItem { hold: HeldSend<unknown>; draft: HeldDraft; label: string }
 
 let items: HeldItem[] = [];

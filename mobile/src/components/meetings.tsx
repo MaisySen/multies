@@ -6,6 +6,7 @@ import { Badge, Button, Icon, TILE } from "@/components/ui";
 import { success, tick, warning } from "@/lib/haptics";
 import { useCreateMeeting } from "@/lib/queries";
 import { copyGuestLink, isLive, meetingTime, meetingWhen, openMeeting } from "@/lib/meetings";
+import { router } from "expo-router";
 import type { Meeting, MeetingSource } from "@/api/types";
 import { colors, shadow, space } from "@/theme";
 
@@ -24,7 +25,7 @@ export function StartMeetingButton({ source, title, testID = "start-meeting" }: 
       const m = await create.mutateAsync({ source, title });
       await openMeeting(m.joinUrl);
     } catch (e) {
-      say("The meeting didn't start", (e as Error).message);
+      say(tr("m.m3x.meeting_not_started"), (e as Error).message);
     }
   };
   return <Button variant="secondary" icon="video" label={tr("m.meetings.start_meeting")} onPress={start} loading={create.isPending} testID={testID} />;
@@ -32,8 +33,8 @@ export function StartMeetingButton({ source, title, testID = "start-meeting" }: 
 
 /** R36: an event row with a colour bar, the time in a fixed column, and Join plus Copy guest link. */
 export function MeetingCard({ m, now }: { m: Meeting; now: number }) {
-  const copy = () => { tick(); copyGuestLink(m).then(() => { success(); say("Guest link copied", "Anyone with it can join from a browser, no account needed."); })
-    .catch((e: Error) => { warning(); say("Couldn't copy the link", e.message); }); };
+  const copy = () => { tick(); copyGuestLink(m).then(() => { success(); say(tr("m.m3x.guest_copied"), tr("m.m3x.guest_copied_body")); })
+    .catch((e: Error) => { warning(); say(tr("m.m3x.copy_failed"), e.message); }); };
   const live = isLive(m, now);
   const bar = live ? colors.brandFill : TILE.teal;
   return (
@@ -42,12 +43,12 @@ export function MeetingCard({ m, now }: { m: Meeting; now: number }) {
       <View style={{ width: 4, backgroundColor: bar }} />
       <View style={{ width: 72, paddingVertical: space.md, paddingLeft: space.md, gap: 2 }}>
         <Text style={{ color: colors.fg, fontSize: 15, fontWeight: "600", fontVariant: ["tabular-nums"] }}>{meetingTime(m.startsAt)}</Text>
-        <Text style={{ color: colors.subtle, fontSize: 13 }}>{m.durationMin} min</Text>
+        <Text style={{ color: colors.subtle, fontSize: 13 }}>{tr("m.cal.n_min", { n: m.durationMin })}</Text>
       </View>
       <View style={{ flex: 1, paddingVertical: space.md, paddingRight: space.md, gap: 6 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
           <Text style={{ color: colors.fg, fontWeight: "600", fontSize: 16, flex: 1, letterSpacing: -0.3 }} numberOfLines={2} accessibilityLabel={`${m.title}, ${meetingWhen(m)}`}>{m.title}</Text>
-          {live ? <Badge label="Now" tone="brand" /> : null}
+          {live ? <Badge label={tr("m.m3x.now")} tone="brand" /> : null}
         </View>
         {m.invitees.length ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -55,16 +56,21 @@ export function MeetingCard({ m, now }: { m: Meeting; now: number }) {
             <Text style={{ color: colors.muted, fontSize: 13, flex: 1 }} numberOfLines={1}>{m.invitees.join(", ")}</Text>
           </View>
         ) : null}
-        <View style={{ flexDirection: "row", gap: space.sm, marginTop: 2 }}>
-          <Pressable onPress={() => { tick(); openMeeting(m.joinUrl); }} testID={`join-${m.id}`} accessibilityRole="button" accessibilityLabel={`Join ${m.title}`}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm, marginTop: 2 }}>
+          <Pressable onPress={() => { tick(); openMeeting(m.joinUrl); }} testID={`join-${m.id}`} accessibilityRole="button" accessibilityLabel={tr("m.m3x.join_named", { name: m.title })}
             style={({ pressed }) => [chip, { backgroundColor: live ? colors.brandFill : colors.brandSoft }, pressed && { opacity: 0.7 }]}>
             <Icon name="video" size={16} color={live ? colors.brandFg : colors.brand} />
-            <Text style={{ color: live ? colors.brandFg : colors.brand, fontWeight: "600", fontSize: 14 }}>Join</Text>
+            <Text style={{ color: live ? colors.brandFg : colors.brand, fontWeight: "600", fontSize: 14 }}>{tr("m.cal.join")}</Text>
           </Pressable>
-          <Pressable onPress={copy} testID={`copy-${m.id}`} accessibilityRole="button" accessibilityLabel="Copy guest link"
+          <Pressable onPress={copy} testID={`copy-${m.id}`} accessibilityRole="button" accessibilityLabel={tr("m.m3x.copy_guest")}
             style={({ pressed }) => [chip, { backgroundColor: colors.neutralSoft }, pressed && { opacity: 0.7 }]}>
             <Icon name="link" size={16} color={colors.fg} />
-            <Text style={{ color: colors.fg, fontWeight: "500", fontSize: 14 }}>Copy guest link</Text>
+            <Text style={{ color: colors.fg, fontWeight: "500", fontSize: 14 }}>{tr("m.m3x.copy_guest")}</Text>
+          </Pressable>
+          <Pressable onPress={() => { tick(); router.push(`/meeting-notes/${m.id}`); }} testID={`notes-${m.id}`} accessibilityRole="button" accessibilityLabel={tr("m.m3x.notes_named", { name: m.title })}
+            style={({ pressed }) => [chip, { backgroundColor: colors.neutralSoft }, pressed && { opacity: 0.7 }]}>
+            <Icon name="file-text" size={16} color={colors.fg} />
+            <Text style={{ color: colors.fg, fontWeight: "500", fontSize: 14 }}>{tr("m.cal.notes")}</Text>
           </Pressable>
         </View>
       </View>
@@ -72,4 +78,4 @@ export function MeetingCard({ m, now }: { m: Meeting; now: number }) {
   );
 }
 
-const chip = { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, height: 34, paddingHorizontal: 12, borderRadius: 17 };
+const chip = { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 22 };

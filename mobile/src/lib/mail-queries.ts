@@ -28,14 +28,15 @@ export function useInboxTabs(mailboxId?: string, enabled = true) {
 }
 
 /** A mail list with an Inbox tab or a label (the plain folders keep useMessages). */
-export function useMessageList(folder: ListFolder, mailboxId: string | undefined, opts: { split?: string; label?: string }, enabled = true) {
+export function useMessageList(folder: ListFolder, mailboxId: string | undefined, opts: { split?: string; label?: string; remote?: string }, enabled = true) {
   const { api, mode } = useSession();
   return useInfiniteQuery({
-    queryKey: [...keys.messages(folder, mailboxId), opts.split ?? "", opts.label ?? ""] as const,
+    queryKey: [...keys.messages(folder, mailboxId), opts.split ?? "", opts.label ?? "", opts.remote ?? ""] as const,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => {
-      const run = () => api.messages({ folder, mailboxId, cursor: pageParam, split: opts.split, label: opts.label });
-      return pageParam || opts.label ? run() : cached<MessagePage>(kv(), `list:${mode}:${folder}:${mailboxId ?? "all"}:${opts.split ?? ""}`, run);
+      // MPAR3: a connected mailbox's own folder is read with ?remote= (never kept on the phone).
+      const run = () => api.messages({ folder, mailboxId, cursor: pageParam, split: opts.split, label: opts.label, remote: opts.remote });
+      return pageParam || opts.label || opts.remote ? run() : cached<MessagePage>(kv(), `list:${mode}:${folder}:${mailboxId ?? "all"}:${opts.split ?? ""}`, run);
     },
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     refetchInterval: 60_000,

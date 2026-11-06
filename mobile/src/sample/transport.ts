@@ -1,6 +1,7 @@
 import { m3Route, sampleM3 } from "./m3";
 import { m4Route, sampleM4 } from "./m4";
 import { mpar2Route, sampleMpar2 } from "./mpar2";
+import { mpar3Route, sampleMpar3, SAMPLE_CONNECTION } from "./mpar3";
 import { SAMPLE_NAV_MENU } from "./nav-menu";
 import { dealsRoute, sampleDeals } from "./deals";
 import { expensesRoute, sampleExpenses } from "./expenses";
@@ -33,6 +34,7 @@ export class SampleTransport implements Transport {
   private extras = sampleExtras(Date.now(), this.data.work, this.data.messages);
   private seq = 100;
   private mpar2 = sampleMpar2();
+  private mpar3 = sampleMpar3(Date.now());
   private chat = sampleChat(Date.now(), this.data.work, this.data.messages);
   private email = sampleEmail(Date.now());
   private runs = sampleRuns(Date.now(), this.data.work);
@@ -68,6 +70,7 @@ export class SampleTransport implements Transport {
     this.dealStore = { deals: sampleDeals() };
     this.m3 = sampleM3(Date.now());
     this.m4 = sampleM4(Date.now());
+    this.mpar3 = sampleMpar3(Date.now());
     this.expenseStore = { items: sampleExpenses(), seq: 1 };
     this.blocks = [];
     this.reports = 0;
@@ -91,6 +94,9 @@ export class SampleTransport implements Transport {
     const m3 = m3Route(this.m3, method, path, body, params);
     if (m3 !== undefined) return json(m3);
     // M4: invoices, scheduling and links.
+    // MPAR3: Calendar, meeting notes, compose extras, folders, bulk select and the shared inbox.
+    const mp3 = mpar3Route(this.mpar3, method, path, body, params, { now: Date.now(), meetings: this.extras.meetings, tasks: d.work.tasks, messages: d.messages });
+    if (mp3 !== undefined) return json(mp3);
     const mp2 = mpar2Route(this.mpar2, method, path, body);
     if (mp2 !== undefined) return json(mp2);
     const m4 = m4Route(this.m4, method, path, params);
@@ -181,12 +187,13 @@ export class SampleTransport implements Transport {
       case "GET /account/me": return json({ ...d.me, hasPassword: true, user: { ...d.me.user, timezone: this.mpar2.timezone, locale: this.mpar2.locale } });
       // Multiws: the sample person is in one workspace; switching to it is a no op.
       case "GET /account/workspaces": return json({ workspaces: d.me.organization ? [{ id: d.me.organization.id, name: d.me.organization.name, plan: d.me.organization.plan, role: d.me.organization.role, isDemo: true }] : [] });
-      case "GET /mail/overview": return json({ mailboxes: d.mailboxes });
+      case "GET /mail/overview": return json({ mailboxes: d.mailboxes.map((m) => (m.id === "mbx_hello" ? { ...m, connectionId: SAMPLE_CONNECTION } : m)) });
       case "GET /agents": return json({ agents: d.agents });
       case "GET /mail/messages": {
         const folder = params.folder || "inbox";
         const search = (params.q || "").toLowerCase();
-        let list = d.messages.filter((m) => (folder === "starred" ? m.isStarred : m.folder === folder));
+        // MPAR3: a connected mailbox's own folder ("f:Suppliers"): the sample shows the archived mail there.
+        let list = params.remote ? d.messages.filter((m) => m.folder === "archive") : d.messages.filter((m) => (folder === "starred" ? m.isStarred : m.folder === folder));
         if (search) {
           list = d.messages.filter((m) => [m.subject, m.text, m.from.address, m.from.name ?? ""].join(" ").toLowerCase().includes(search));
         }

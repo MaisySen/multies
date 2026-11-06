@@ -44,8 +44,8 @@ export function endpoints(t: Transport) {
     workspaces: () => t.request<{ workspaces: WorkspaceSummary[] }>("GET", "/account/workspaces"),
     switchWorkspace: (id: string) => t.request<{ ok: true; workspace?: { id: string; name: string } }>("POST", `/account/workspaces/${encodeURIComponent(id)}/switch`, {}),
     overview: () => t.request<{ mailboxes: MailboxOverview[] }>("GET", "/mail/overview"),
-    messages: (p: { folder?: ListFolder; q?: string; cursor?: string; mailboxId?: string; limit?: number; split?: string; label?: string }) =>
-      t.request<MessagePage>("GET", `/mail/messages${q({ folder: p.folder, q: p.q, cursor: p.cursor, mailboxId: p.mailboxId, limit: p.limit ?? 40, split: p.split, label: p.label })}`),
+    messages: (p: { folder?: ListFolder; q?: string; cursor?: string; mailboxId?: string; limit?: number; split?: string; label?: string; remote?: string }) =>
+      t.request<MessagePage>("GET", `/mail/messages${q({ folder: p.folder, q: p.q, cursor: p.cursor, mailboxId: p.mailboxId, limit: p.limit ?? 40, split: p.split, label: p.label, remote: p.remote })}`),
     message: (id: string) => t.request<ThreadView>("GET", `/mail/messages/${encodeURIComponent(id)}`),
     updateMessage: (id: string, patch: { isRead?: boolean; isStarred?: boolean; folder?: "inbox" | "archive" | "spam" | "trash" }) =>
       t.request<{ ok: true }>("PATCH", `/mail/messages/${encodeURIComponent(id)}`, patch),

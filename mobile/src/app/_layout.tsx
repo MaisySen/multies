@@ -12,6 +12,7 @@ import { configureNotifications } from "@/lib/push";
 import { extractPushData, routeForPush } from "@/lib/push-events";
 import "@/lib/push-task";
 import { SAMPLE_ONLY } from "@/config";
+import { tr } from "@/i18n";
 import { colors, scheme, mode as themeMode } from "@/theme";
 import { Appearance } from "react-native";
 
@@ -99,7 +100,7 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="approval/[id]" options={{ title: "Review message" }} />
         <Stack.Screen name="task/[id]" options={{ title: "Task" }} />
         <Stack.Screen name="task/new" options={{ presentation: "modal", title: "New task" }} />
-        <Stack.Screen name="meetings" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Meetings" }} />
+        <Stack.Screen name="meetings" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: tr("m.m3x.meetings") }} />
         <Stack.Screen name="portfolio" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Portfolio" }} />
         <Stack.Screen name="workspaces" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Workspaces" }} />
         {/* 1.10.6: Social keeps a fixed standard header (no large title): its parts and filters are pinned under it and

@@ -61,7 +61,7 @@ export function m1WorkRoute(s: M1WorkState, method: string, path: string, params
   if (more !== undefined) return more;
   const parts = path.split("/").filter(Boolean);
   if (method === "GET" && path === "/config") {
-    return { maps: true, mailArchive: true, davSync: true, filesPlus: true, docsPlus: true, searchR98: true, tools: true, toolFeatures: ["merge_plus_r109"] };
+    return { maps: true, mailArchive: true, davSync: true, filesPlus: true, docsPlus: true, searchR98: true, tools: true, toolFeatures: ["merge_plus_r109", "secrets"], inboxTd6: true };
   }
   if (parts[0] === "contacts" && method === "GET") {
     if (parts.length === 1) {

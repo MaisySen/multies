@@ -69,7 +69,9 @@ describe("global search rules (the web's)", () => {
     expect(phoneTarget({ type: "deals", id: "x", url: "/app/deals?deal=d1" })).toEqual({ kind: "screen", pathname: "/deal/[id]", params: { id: "d1" } });
     // MPAR2: a page the app has a screen for opens it; a page it has none for still opens on the web.
     expect(phoneTarget({ type: "notes", id: "x", url: "/app/meetings?m=1" })).toEqual({ kind: "screen", pathname: "/meetings", params: {} });
-    expect(phoneTarget({ type: "notes", id: "x", url: "/app/calendar" })).toEqual({ kind: "web", path: "/app/calendar" });
+    expect(phoneTarget({ type: "notes", id: "x", url: "/app/helpdesk" })).toEqual({ kind: "web", path: "/app/helpdesk" });
+    // MPAR3: Calendar has its own screen now.
+    expect(phoneTarget({ type: "notes", id: "x", url: "/app/calendar" })).toEqual({ kind: "screen", pathname: "/calendar", params: {} });
     expect(phoneTarget({ type: "files", id: "x", url: "/app/tasks?project=p&task=t1" })).toMatchObject({ pathname: "/task/[id]" });
     expect(phoneTarget({ type: "notes", id: "x", url: "https://elsewhere.example" }).kind).toBe("web");
   });

@@ -42,6 +42,8 @@ export interface MailboxOverview {
   quotaMb: number;
   kind?: "person" | "agent";
   folders: Partial<Record<Folder, { total: number; unread: number }>>;
+  /** MPAR3: set for a mailbox connected from another provider (its own folders sync through it). */
+  connectionId?: string | null;
 }
 
 export type Role = "owner" | "admin" | "member";
@@ -63,6 +65,8 @@ export interface SendInput {
   inReplyToId?: string;
   /** Tools P2: finished Tools results attached by their download tokens (the server reads each one when sending). */
   toolFiles?: string[];
+  /** MPAR3: files picked on the phone, as base64 (the server takes 10 files and 20 MB per email). */
+  attachments?: { filename: string; contentType: string; data: string }[];
 }
 
 export interface SendResult { messageId: string; status?: string; [k: string]: unknown }

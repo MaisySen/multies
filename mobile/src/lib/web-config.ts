@@ -12,8 +12,9 @@ export interface WebConfig {
 }
 
 export const SAMPLE_WEB_CONFIG: WebConfig = {
-  filesPlus: true, docsPlus: true, searchR98: true, maps: true, mailArchive: true, davSync: true, tools: true, toolFeatures: ["merge_plus_r109"],
+  filesPlus: true, docsPlus: true, searchR98: true, maps: true, mailArchive: true, davSync: true, tools: true, toolFeatures: ["merge_plus_r109", "secrets"],
   expenses: true, invoices: true, // M2 (1.10.10)
+  inboxTd6: true, // MPAR3: One inbox
 };
 
 export const webConfigKey = (mode: string) => ["web-config", mode] as const;

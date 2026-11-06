@@ -22,6 +22,8 @@ import { useSession } from "@/lib/session";
 import type { ListFolder, MessageSummary } from "@/api/types";
 import { colors, radius, space, TOUCH } from "@/theme";
 import { tr } from "@/i18n";
+import { BulkBar, FolderSheet, SelectableRow } from "@/components/mail-bulk";
+import { toggleId } from "@/lib/mpar3";
 
 type View_ = ListFolder | "snoozed";
 const FOLDERS: { id: View_; label: string }[] = [
@@ -44,16 +46,22 @@ export default function Inbox() {
   const [tab, setTabRaw] = useState<string | null>(rememberedTab);
   useEffect(() => { if (rememberedTab === null) void kv().get(TAB_KEY).then((v) => { if (v) { rememberedTab = v; setTabRaw(v); } }).catch(() => {}); }, []);
   const setTab = (id: string) => { tick(); rememberedTab = id; setTabRaw(id); void kv().set(TAB_KEY, id).catch(() => {}); };
-  const setFolder = (f: View_) => { setLabel(null); setFolderRaw(f); };
+  // MPAR3: a connected mailbox's own folder ("f:Suppliers"), and bulk select.
+  const [remote, setRemote] = useState<{ mailboxId: string; key: string; name: string } | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const endSelect = () => { setSelecting(false); setPicked([]); };
+  const setFolder = (f: View_) => { setLabel(null); setRemote(null); endSelect(); setFolderRaw(f); };
   const listFolder: ListFolder = folder === "snoozed" ? "inbox" : folder;
   // 1.10.7: Inbox tabs (only on Inbox, and not while a label is picked).
   const tabsQ = useInboxTabs(mailboxId, folder === "inbox");
   const tabs: InboxTab[] = tabsQ.data && tabsQ.data.style !== "off" ? tabsQ.data.tabs : [];
-  const tabsOn = folder === "inbox" && !label && tabs.length > 0;
+  const tabsOn = folder === "inbox" && !label && !remote && tabs.length > 0;
   const current = tabsOn ? activeTab(tabs, tab, tabsQ.data?.defaultTab) : "";
   // Wait for the tabs before the list, so it does not flash the whole Inbox first.
   const tabsSettled = folder !== "inbox" || !!label || !tabsQ.isPending;
-  const list = useMessageList(listFolder, mailboxId, { split: current || undefined, label: label ?? undefined }, folder !== "snoozed" && tabsSettled);
+  const list = useMessageList(listFolder, remote?.mailboxId ?? mailboxId, { split: remote ? undefined : current || undefined, label: label ?? undefined, remote: remote?.key }, folder !== "snoozed" && tabsSettled);
   const snoozed = useSnoozed("snoozed", mailboxId);
   const returned = useSnoozed("returned", mailboxId, folder === "inbox");
   const backIds = useMemo(() => new Set((returned.data ?? []).map((i) => i.threadId)), [returned.data]);
@@ -67,10 +75,11 @@ export default function Inbox() {
   const collapse = useCollapse(); // R34: large title folds on scroll
   const actions = useMailRowActions(undo.push, { tabs: tabsQ.data?.style === "off" ? [] : tabsQ.data?.tabs, currentTab: current || undefined });
   const prefs = usePrefs(); // R33: the swipe actions chosen in Settings
-  const swipeable = folder === "inbox" || folder === "starred";
+  const swipeable = (folder === "inbox" || folder === "starred") && !selecting && !remote;
   const snoozedRows = useMemo(() => (snoozed.data ?? []).filter((i) => !undo.hidden.has(i.id)), [snoozed.data, undo.hidden]);
   const rows = useMemo(() => (list.data?.pages.flatMap((p) => p.messages) ?? []).filter((m) => !undo.hidden.has(m.id)), [list.data, undo.hidden]);
   const people = overview.data?.filter((m) => m.kind !== "agent") ?? [];
+  const connected = people.filter((m) => !!m.connectionId);
   const unread = (id?: string) => overview.data?.filter((m) => !id || m.id === id).reduce((n, m) => n + (m.folders.inbox?.unread ?? 0), 0) ?? 0;
   const open = (m: MessageSummary) => router.push({ pathname: "/thread/[id]", params: { id: m.id } });
   const backNow = (scheduleId: string) => undo.push(scheduleId, tr("m.inbox.back_in_inbox"), () => mm.unsnooze.mutate(scheduleId, { onError: () => { warning(); } }));
@@ -79,17 +88,27 @@ export default function Inbox() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Header onSearch={() => router.push("/search")} collapsed={collapse.collapsed} />
+      <Header onSearch={() => router.push("/search")} collapsed={collapse.collapsed} selecting={selecting} canSelect={folder !== "snoozed"}
+        onSelect={() => { tick(); if (selecting) endSelect(); else { setSelecting(true); setPicked([]); } }} />
       {offline ? <Banner text={tr("m.inbox.you_re_offline_showing_mail_saved_on_this_phone")} /> : null}
       {mode === "sample" ? <Banner tone="brand" icon="compass" text={tr("m.inbox.sample_workspace_nothing_here_is_real_mail")} /> : null}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingHorizontal: space.lg, paddingVertical: space.sm }} style={{ flexGrow: 0 }}>
-        {FOLDERS.map((f) => <Chip key={f.id} label={f.label} selected={folder === f.id && !label}
+        {FOLDERS.map((f) => <Chip key={f.id} label={f.label} selected={folder === f.id && !label && !remote}
           count={f.id === "inbox" ? unread(mailboxId) : f.id === "snoozed" ? snoozed.data?.length : undefined} onPress={() => setFolder(f.id)} />)}
+        {connected.length ? <Chip label={remote ? remote.name : tr("m.folders.chip")} selected={!!remote} onPress={() => { tick(); setPicking(true); }} /> : null}
         {people.length > 1 ? <View style={{ width: 1, backgroundColor: colors.line, marginHorizontal: 4 }} /> : null}
         {people.length > 1 ? <Chip label={tr("m.inbox.all_mailboxes")} selected={!mailboxId} onPress={() => setMailboxId(undefined)} /> : null}
         {people.length > 1 ? people.map((m) => <Chip key={m.id} label={m.address.split("@")[0]} selected={mailboxId === m.id} onPress={() => setMailboxId(m.id)} />) : null}
       </ScrollView>
       {label ? <LabelBar label={label} onClear={() => setLabel(null)} /> : null}
+      {remote ? <LabelBar label={remote.name} prefix={tr("m.folders.folder")} onClear={() => { setRemote(null); endSelect(); }} /> : null}
+      {selecting ? (
+        <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: space.lg, paddingBottom: space.xs, gap: space.sm }} testID="select-head">
+          <Text style={{ flex: 1, color: colors.fg, fontSize: 15, fontWeight: "600" }} accessibilityLiveRegion="polite">{tr("m.bulk.n_selected", { count: picked.length })}</Text>
+          <Button variant="ghost" label={picked.length === rows.length && rows.length ? tr("m.bulk.select_none") : tr("m.bulk.select_all")} testID="select-all"
+            onPress={() => { tick(); setPicked(picked.length === rows.length ? [] : rows.slice(0, 500).map((m) => m.id)); }} style={{ minHeight: TOUCH }} />
+        </View>
+      ) : null}
       {tabsOn ? <TabBar tabs={tabs} current={current} onPick={setTab} /> : null}
       {folder === "snoozed" ? (
         snoozed.isPending ? <Loading label={tr("m.inbox.loading_snoozed_mail")} /> : snoozed.error && !snoozedRows.length ? (
@@ -123,6 +142,14 @@ export default function Inbox() {
           keyExtractor={(m) => m.id}
           renderItem={({ item }) => {
             const back = folder === "inbox" && !item.isRead && backIds.has(item.threadId);
+            if (selecting) {
+              const on = picked.includes(item.id);
+              return (
+                <SelectableRow on={on} label={`${item.from.name || item.from.address}, ${item.subject || tr("m.bulk.no_subject")}`} onToggle={() => setPicked((cur) => toggleId(cur, item.id))} testID={`select-${item.id}`}>
+                  <MessageRow m={item} agents={agents.data} showRecipient={folder === "sent"} onPress={() => setPicked((cur) => toggleId(cur, item.id))} />
+                </SelectableRow>
+              );
+            }
             const row = <MessageRow m={item} agents={agents.data} showRecipient={folder === "sent"} onLongPress={() => actions.openMenu(item)}
               note={back ? tr("m.inbox.back_from_snooze") : undefined} noteTone="brand" onLabel={(l) => { tick(); setLabel(l); }}
               onPress={() => open(item)} />;
@@ -147,19 +174,23 @@ export default function Inbox() {
       </>)}
       {actions.sheets}
       <UndoToast pending={undo.newest} onUndo={undo.undo} bottom={space.lg + 64} />
-      <View style={{ position: "absolute", right: space.lg, bottom: space.lg }}>
+      {selecting ? <BulkBar ids={picked} mailbox={overview.data?.find((m) => m.id === (remote?.mailboxId ?? mailboxId)) ?? (connected.length === 1 && remote ? connected[0] : undefined)} onDone={endSelect} /> : null}
+      <FolderSheet visible={picking} onClose={() => setPicking(false)} mailboxes={connected} current={remote ? `${remote.mailboxId}|${remote.key}` : null}
+        onPick={(mb, key, name) => { setPicking(false); setLabel(null); endSelect(); setRemote({ mailboxId: mb, key, name }); setFolderRaw("inbox"); }} />
+      <View style={{ position: "absolute", right: space.lg, bottom: space.lg, display: selecting ? "none" : "flex" }}>
         <Button label={tr("m.inbox.compose")} icon="edit-3" onPress={() => router.push("/compose")} testID="compose" style={{ borderRadius: 28, paddingHorizontal: 22, shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 4 }} />
       </View>
     </View>
   );
 }
 
-function Header({ onSearch, collapsed }: { onSearch: () => void; collapsed?: boolean }) {
+function Header({ onSearch, collapsed, selecting, canSelect, onSelect }: { onSearch: () => void; collapsed?: boolean; selecting?: boolean; canSelect?: boolean; onSelect?: () => void }) {
   const { me } = useSession();
   const insets = useSafeAreaInsets();
   return (
     <LargeTitle title={tr("m.inbox.mail")} subtitle={me?.organization?.name} top={insets.top} collapsed={collapsed} right={(
       <>
+        {canSelect ? <IconButton icon={selecting ? "x" : "check-square"} label={selecting ? tr("m.bulk.done_selecting") : tr("m.bulk.select")} onPress={onSelect} testID="inbox-select" /> : null}
         <NotificationBell />
         <IconButton icon="command" label={tr("m.inbox.commands")} onPress={openCommandSheet} testID="open-commands" />
         <IconButton icon="search" label={tr("m.inbox.search")} onPress={onSearch} testID="open-search" />
@@ -194,12 +225,12 @@ export function TabBar({ tabs, current, onPick }: { tabs: InboxTab[]; current: s
   );
 }
 
-function LabelBar({ label, onClear }: { label: string; onClear: () => void }) {
+function LabelBar({ label, onClear, prefix }: { label: string; onClear: () => void; prefix?: string }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.lg, paddingBottom: space.sm }}>
-      <Text style={{ color: colors.muted, fontSize: 14 }}>{tr("m.inbox.label")}</Text>
-      <Pressable onPress={() => { tick(); onClear(); }} accessibilityRole="button" accessibilityLabel={tr("m.inbox.label_label_show_all_mail", { label: label })} testID="label-filter"
-        style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 32, paddingHorizontal: space.md, borderRadius: radius.pill, backgroundColor: colors.brandSoft, borderWidth: 1, borderColor: colors.brandLine }}>
+      <Text style={{ color: colors.muted, fontSize: 14 }}>{prefix ?? tr("m.inbox.label")}</Text>
+      <Pressable onPress={() => { tick(); onClear(); }} accessibilityRole="button" accessibilityLabel={tr("m.m3x.label_clear", { label: label })} testID={prefix ? "folder-filter" : "label-filter"}
+        style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: TOUCH, paddingHorizontal: space.md, borderRadius: radius.pill, backgroundColor: colors.brandSoft, borderWidth: 1, borderColor: colors.brandLine }}>
         <Text style={{ color: colors.brand, fontWeight: "600", fontSize: 14 }} numberOfLines={1}>{label}</Text>
         <Text style={{ color: colors.brand, fontSize: 16, lineHeight: 18 }} accessibilityElementsHidden importantForAccessibility="no">×</Text>
       </Pressable>

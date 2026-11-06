@@ -111,6 +111,8 @@ const NATIVE: Record<string, string> = {
   "/app/settings/mail": "/mail-settings", "/app/settings/mailboxes": "/email-setup",
   // M4: invoices (read, share, pay state), the booking page with upcoming bookings, short links.
   "/app/contacts/invoices": "/invoices", "/app/scheduling": "/scheduling", "/app/tools/links": "/links",
+  // MPAR3 (1.10.15): Calendar with its settings, and One inbox.
+  "/app/calendar": "/calendar", "/app/settings/calendar": "/calendar-settings", "/app/one-inbox": "/one-inbox",
 };
 /** The app screen for a web page, or null when it opens on the web. Tasks needs the app's tasks switch. */
 export function nativeRoute(to: string, opts: { tasks: boolean } = { tasks: true }): string | null {
@@ -161,6 +163,9 @@ export function withUsed(m: NavMenu, used: Record<string, boolean>): NavMenu {
 export function sectionExtras(sectionId: string, flags: Record<string, unknown> | null | undefined, have: readonly string[]): MenuPage[] {
   const on = (k: string) => !!flags && flags[k] === true;
   const out: MenuPage[] = [];
+  // MPAR3: Calendar sits with Tasks (on the web it is a tasks view), One inbox with Mail where it is switched on.
+  if (sectionId === "tasks") out.push({ to: "/app/calendar", label: "Calendar", icon: "calendar" });
+  if (sectionId === "mail" && on("inboxTd6")) out.push({ to: "/app/one-inbox", label: "One inbox", icon: "inbox" });
   if (sectionId === "contacts") {
     out.push({ to: "/app/people", label: "Team", icon: "people" }); // M3: was only in Settings
     if (on("expenses")) out.push({ to: "/app/expenses", label: "Expenses", icon: "deals" });

@@ -5,6 +5,8 @@ import { colors } from "@/theme";
 
 // 1.9.11: the thread screen from the owner's screenshot ("From this email", archive, star, trash) shows
 // the mail body, the quoted text and HTML only mail with tappable links in the brand colour.
+// MPAR3: the shared inbox section has its own tests (mpar3.test.tsx); it needs a session this test does not set up.
+jest.mock("@/components/thread-team", () => ({ ThreadTeam: () => null }));
 jest.mock("expo-router", () => ({ router: { push: jest.fn(), back: jest.fn(), replace: jest.fn() }, useLocalSearchParams: () => ({ id: "m1" }), Stack: { Screen: () => null } }));
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }), SafeAreaView: ({ children }: { children: ReactNode }) => children }));
 

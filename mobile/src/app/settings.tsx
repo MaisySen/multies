@@ -93,6 +93,7 @@ export default function Settings() {
       <Row tile="gray" icon="hard-drive" label={tr("m.settings.storage_used")} value={overview.data ? bytes(used) : undefined} />
       {me?.organization && webCfg.data && toolFeatureOn(webCfg.data, "merge_plus_r109") ? <Row tile="blue" icon="mail" label={tr("m.settings.mail_merge")} value={tr("m.settings.newsletters_and_journeys")} onPress={() => router.push("/mail-merge")} testID="mail-merge-link" /> : null}
       {me?.organization && flagOn(webCfg.data, "mailArchive") ? <Row tile="indigo" icon="archive" label={tr("m.settings.mail_archive")} value={tr("m.settings.retention_and_holds")} onPress={() => router.push("/mail-archive")} testID="mail-archive-link" /> : null}
+      {me?.organization ? <Row tile="orange" icon="calendar" label={tr("m.calset.title")} onPress={() => router.push("/calendar-settings")} testID="calendar-settings-row" /> : null}
       {me?.organization && flagOn(webCfg.data, "davSync") ? <Row tile="green" icon="calendar" label={tr("m.settings.calendar_and_contacts_sync")} onPress={() => router.push("/sync")} testID="sync-link" /> : null}
       <Row tile="gray" icon="external-link" label={tr("m.settings.team_and_domains")} onPress={() => open(WEB_PAGES.team)} />
       {/* M3 (1.10.11): features (Files, Tools, Social, Docs, Meetings, Portfolio, Contacts, People, Agent runs) live in More only, so Settings is settings. */}

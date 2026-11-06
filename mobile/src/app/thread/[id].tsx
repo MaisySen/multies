@@ -19,6 +19,7 @@ import { AttachmentRow } from "@/components/attachment-tools";
 import type { Message } from "@/api/types";
 import { colors, font, radius, shadow, space } from "@/theme";
 import { tr } from "@/i18n";
+import { ThreadTeam } from "@/components/thread-team";
 
 /**
  * R36: the mail thread, laid out from the measured thread viewers (files/teardowns/rea/spark/mail-thread-r36.md):
@@ -98,6 +99,7 @@ export default function Thread() {
                 : <CollapsedRow key={m.id} m={m} agentName={agentName(m)} onPress={() => toggle(m.id)} />;
             })}
           </View>
+          {msg ? <ThreadTeam threadId={msg.threadId} /> : null}
           <InsetGroup header={tr("m.thread.from_this_email")}>
             {FEATURES.tasks ? <GroupRow icon="check-square" tile="blue" label={tr("m.thread.make_a_task_from_this_email")} onPress={makeTask} testID="make-task" value={tasks.fromEmail.isPending ? tr("m.thread.making") : undefined} /> : null}
             {msg ? <View style={{ padding: space.md }}><StartMeetingButton source={{ type: "thread", id: msg.threadId }} title={msg.subject || undefined} /></View> : null}
