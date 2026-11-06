@@ -68,7 +68,7 @@ export function LabelChip({ label, onPress, testID }: { label: string; onPress?:
   if (!onPress) return chip;
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={tr("m.inbox.show_mail_labelled_label", { label: label })} testID={testID} hitSlop={8}
-      style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, minHeight: 24, justifyContent: "center" })}>{chip}</Pressable>
+      style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, minHeight: 44, marginVertical: -10, justifyContent: "center" })}>{chip}</Pressable>
   );
 }
 

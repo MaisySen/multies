@@ -88,7 +88,7 @@ export function Card({ children, style }: { children: ReactNode; style?: StylePr
 
 type Tone = "brand" | "ok" | "warn" | "bad" | "neutral";
 const tones: Record<Tone, { bg: string; fg: string }> = {
-  brand: { bg: colors.brandSoft, fg: colors.brand },
+  brand: { bg: colors.brandSoft, fg: colors.brandHover },
   ok: { bg: colors.okSoft, fg: colors.ok },
   warn: { bg: colors.warnSoft, fg: colors.warn },
   bad: { bg: colors.badSoft, fg: colors.bad },

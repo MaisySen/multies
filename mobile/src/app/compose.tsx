@@ -116,7 +116,7 @@ export default function Compose() {
       <Stack.Screen options={{
         title: replyTo ? tr("m.compose.reply") : forwardOf ? tr("m.compose.forward") : tr("m.compose.new_message"),
         headerLeft: () => <Button variant="ghost" label={tr("m.compose.cancel")} onPress={discard} />,
-        headerRight: () => <Button label={tr("m.compose.send")} icon="send" onPress={submit} testID="send" style={{ minHeight: 38, paddingHorizontal: 14 }} />,
+        headerRight: () => <Button label={tr("m.compose.send")} icon="send" onPress={submit} testID="send" style={{ minHeight: 44, paddingHorizontal: 14 }} />,
       }} />
       <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg }} keyboardShouldPersistTaps="handled">
         {mailboxes.length > 1 ? (
@@ -129,12 +129,12 @@ export default function Compose() {
         ) : mailboxes[0] ? <Text style={{ color: colors.subtle, fontSize: 14 }}>From {mailboxes[0].address}</Text> : overview.data ? (
           <View style={{ backgroundColor: colors.brandSoft, borderRadius: radius.md, padding: space.md, gap: space.sm }} testID="no-mailbox">
             <Text style={{ color: colors.fg, fontSize: 15 }}>{tr("m.compose.you_don_t_have_an_email_address_to_send_from_yet")}</Text>
-            <Button label={tr("m.compose.add_an_email_address")} icon="at-sign" variant="secondary" testID="add-address" onPress={() => router.push("/email-setup")} style={{ alignSelf: "flex-start", minHeight: 36 }} />
+            <Button label={tr("m.compose.add_an_email_address")} icon="at-sign" variant="secondary" testID="add-address" onPress={() => router.push("/email-setup")} style={{ alignSelf: "flex-start", minHeight: 44 }} />
           </View>
         ) : null}
         <Field label={tr("m.compose.to")} testID="to" value={to} onChangeText={setTo} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder={tr("m.compose.name_example_com_au")} />
         {showCc ? <Field label={tr("m.compose.cc")} value={cc} onChangeText={setCc} autoCapitalize="none" keyboardType="email-address" /> : (
-          <Button variant="ghost" label={tr("m.compose.add_cc")} icon="plus" onPress={() => setShowCc(true)} style={{ alignSelf: "flex-start", minHeight: 36 }} />
+          <Button variant="ghost" label={tr("m.compose.add_cc")} icon="plus" onPress={() => setShowCc(true)} style={{ alignSelf: "flex-start", minHeight: 44 }} />
         )}
         <Field ref={subjectRef} label={tr("m.compose.subject")} testID="subject" value={subject} onChangeText={setSubject} />
         {toolFiles.length ? (
