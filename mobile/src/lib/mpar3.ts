@@ -4,7 +4,7 @@
  * Shapes are the web API's own (GET /api/calendar/events, /api/meeting-notes/:id, /api/threads/:id/state, ...).
  * Everything here is plain JavaScript: no new native module, so it rides an update to the store builds.
  */
-import { tr } from "@/i18n";
+import { currentLang, currentLocale, tr } from "@/i18n";
 
 // ---------------------------------------------------------------- calendar
 
@@ -261,3 +261,27 @@ export const oneRefs = (list: Pick<OneItem, "kind" | "id">[]) => list.map((i) =>
 export const SOURCE_ICON: Record<InboxSource, "mail" | "chat" | "at-sign" | "check-square" | "zap" | "bell"> = {
   mail: "mail", chat: "chat", mention: "at-sign", task: "check-square", assistant: "zap", other: "bell",
 };
+
+/* ---------- Dates on the calendar screens ---------- */
+const NE_MONTHS = ["जनवरी", "फेब्रुअरी", "मार्च", "अप्रिल", "मे", "जुन", "जुलाई", "अगस्ट", "सेप्टेम्बर", "अक्टोबर", "नोभेम्बर", "डिसेम्बर"];
+const NE_DAYS = ["आइतबार", "सोमबार", "मङ्गलबार", "बुधबार", "बिहीबार", "शुक्रबार", "शनिबार"];
+const NE_SHORT = ["आइत", "सोम", "मङ्गल", "बुध", "बिही", "शुक्र", "शनि"];
+const NE_NARROW = ["आ", "सो", "मं", "बु", "बि", "शु", "श"];
+/**
+ * A date in the reader's language. Some browsers (and the web build's test browser) carry no Nepali calendar names
+ * and print "M11" or English; then the Nepali names are put together here. Phones carry them, so this is a fallback.
+ */
+export function calFmt(d: Date, o: Intl.DateTimeFormatOptions): string {
+  const named = !!o.weekday || (!!o.month && o.month !== "numeric" && o.month !== "2-digit");
+  const out = o.hour ? d.toLocaleString(currentLocale(), o) : d.toLocaleDateString(currentLocale(), o);
+  if (currentLang() !== "ne" || !named || (/[\u0900-\u097F]/.test(out) && !/\bM\d/.test(out))) return out;
+  const parts: string[] = [];
+  if (o.weekday) parts.push((o.weekday === "long" ? NE_DAYS : o.weekday === "short" ? NE_SHORT : NE_NARROW)[d.getDay()]);
+  const md: string[] = [];
+  if (o.day) md.push(String(d.getDate()));
+  if (o.month) md.push(NE_MONTHS[d.getMonth()]);
+  if (o.year) md.push(String(d.getFullYear()));
+  if (md.length) parts.push(md.join(" "));
+  if (o.hour) parts.push(d.toLocaleTimeString(currentLocale(), { hour: o.hour, minute: o.minute }));
+  return parts.join(", ");
+}

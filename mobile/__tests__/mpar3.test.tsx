@@ -12,7 +12,7 @@ import { placeholders } from "@/i18n/core";
 import { readPref, resetPrefsForTests } from "@/lib/startup-prefs";
 import { paletteFor } from "@/theme";
 import {
-  byDay, composeFileProblem, eventColor, cleanLayers, encryptSecretText, eventDays, eventTitle, icsProblem, insertAt, localMoment, localWhen, meetingIdOf, monthGrid,
+  byDay, calFmt, composeFileProblem, eventColor, cleanLayers, encryptSecretText, eventDays, eventTitle, icsProblem, insertAt, localMoment, localWhen, meetingIdOf, monthGrid,
   ownFolders, packSecretText, secretLink, taskIdOf, toggleId, transcriptLines, windowFor, weekOf, type CalendarEvent, type SealFn,
 } from "@/lib/mpar3";
 
@@ -230,6 +230,14 @@ describe("language, saved picks and theme", () => {
     const r = await wrap(<Calendar />);
     await fireEvent.press(await r.findByLabelText(tr("m.cal.view_week"), {}, { timeout: 10000 }));
     await waitFor(() => expect(readPref("calendar.view")).toBe("week"));
+  });
+  it("names months and weekdays in Nepali even where the browser has no Nepali calendar", () => {
+    setLangForTests("ne");
+    const d = new Date(2026, 10, 5, 9, 30);
+    for (const o of [{ month: "long", year: "numeric" }, { weekday: "long", day: "numeric", month: "long" }, { weekday: "short" }, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }] as Intl.DateTimeFormatOptions[]) {
+      const out = calFmt(d, o);
+      expect([out, /[\u0900-\u097F]/.test(out), /\bM\d/.test(out)]).toEqual([out, true, false]);
+    }
   });
   it("colours meetings with the accent in every look", () => {
     const blue = paletteFor("light", "blue"), forest = paletteFor("dark", "forest");

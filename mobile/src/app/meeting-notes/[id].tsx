@@ -8,7 +8,7 @@ import { currentLocale, tr } from "@/i18n";
 import { tick } from "@/lib/haptics";
 import { openMeeting } from "@/lib/meetings";
 import { openWeb } from "@/lib/web-open";
-import { durationText, transcriptLines, type MeetingRecording } from "@/lib/mpar3";
+import { calFmt, durationText, transcriptLines, type MeetingRecording } from "@/lib/mpar3";
 import { isOff, useMeetingNotes, useMeetingRecordings } from "@/lib/mpar3-queries";
 
 /**
@@ -21,7 +21,7 @@ export default function MeetingNotesScreen() {
   const q = useMeetingNotes(id);
   const rec = useMeetingRecordings(id);
   const n = q.data;
-  const when = n ? new Date(n.meeting.startsAt).toLocaleString(currentLocale(), { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
+  const when = n ? calFmt(new Date(n.meeting.startsAt), { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
   const recordings = (rec.data ?? []).filter((r) => r.transcript || r.summary);
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }} testID="meeting-notes-screen">
@@ -105,7 +105,7 @@ function Transcript({ r }: { r: MeetingRecording }) {
   const [open, setOpen] = useState(false);
   const lines = transcriptLines(r.transcript);
   const shown = open ? lines : lines.slice(0, 3);
-  const started = new Date(r.startedAt).toLocaleString(currentLocale(), { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  const started = calFmt(new Date(r.startedAt), { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
   return (
     <View style={st.rec} testID={`transcript-${r.id}`}>
       <Text style={st.meta}>{tr("m.notes.recorded_by", { name: r.startedBy.name, when: started })}{r.durationSec ? `, ${durationText(r.durationSec)}` : ""}</Text>

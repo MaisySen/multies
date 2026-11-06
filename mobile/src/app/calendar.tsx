@@ -11,7 +11,7 @@ import { readPref, writePref } from "@/lib/startup-prefs";
 import { openMeeting } from "@/lib/meetings";
 import { useCreateMeeting, useTaskMutations } from "@/lib/queries";
 import { useCalendarActions, useCalendarEvents, useCalendarSources } from "@/lib/mpar3-queries";
-import {
+import { calFmt,
   CALENDAR_VIEWS, addDays, byDay, cleanLayers, dayKey, eventColor, eventTitle, isDay, layerOf, localMoment, meetingIdOf, monthGrid, parseDay,
   startOfDay, taskIdOf, weekOf, windowFor, type CalendarEvent, type CalendarView,
 } from "@/lib/mpar3";
@@ -24,7 +24,7 @@ import {
 const PREF = "calendar.hidden";
 const PREF_VIEW = "calendar.view";
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString(currentLocale(), { hour: "numeric", minute: "2-digit" });
-const dayTitle = (d: Date) => d.toLocaleDateString(currentLocale(), { weekday: "long", day: "numeric", month: "long" });
+const dayTitle = (d: Date) => calFmt(d, { weekday: "long", day: "numeric", month: "long" });
 
 export default function CalendarScreen() {
   const [view, setViewState] = useState<CalendarView>(() => { const v = readPref(PREF_VIEW); return (CALENDAR_VIEWS as string[]).includes(v ?? "") ? (v as CalendarView) : "month"; });
@@ -56,7 +56,7 @@ export default function CalendarScreen() {
     { id: "due", label: tr("m.cal.due_dates"), color: colors.warn },
     ...(sources.data ?? []).filter((s) => s.enabled).map((s) => ({ id: s.id, label: s.name, color: s.color })),
   ];
-  const title = view === "month" ? anchor.toLocaleDateString(currentLocale(), { month: "long", year: "numeric" })
+  const title = view === "month" ? calFmt(anchor, { month: "long", year: "numeric" })
     : view === "week" ? weekLabel(anchor) : tr("m.cal.next_30_days");
 
   return (
@@ -101,8 +101,8 @@ export default function CalendarScreen() {
 
 function weekLabel(anchor: Date) {
   const w = weekOf(anchor);
-  const a = w[0].toLocaleDateString(currentLocale(), { day: "numeric", month: "short" });
-  const b = w[6].toLocaleDateString(currentLocale(), { day: "numeric", month: "short" });
+  const a = calFmt(w[0], { day: "numeric", month: "short" });
+  const b = calFmt(w[6], { day: "numeric", month: "short" });
   return tr("m.cal.week_range", { from: a, to: b });
 }
 
@@ -117,7 +117,7 @@ function Dots({ list }: { list: CalendarEvent[] }) {
 
 function MonthGrid({ anchor, days, picked, today, onPick }: { anchor: Date; days: Map<string, CalendarEvent[]>; picked: string; today: string; onPick: (k: string) => void }) {
   const grid = monthGrid(anchor.getFullYear(), anchor.getMonth());
-  const heads = grid.slice(0, 7).map((d) => d.date.toLocaleDateString(currentLocale(), { weekday: "narrow" }));
+  const heads = grid.slice(0, 7).map((d) => calFmt(d.date, { weekday: "narrow" }));
   return (
     <View style={s.month} testID="calendar-month">
       <View style={s.weekRow} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -130,10 +130,10 @@ function MonthGrid({ anchor, days, picked, today, onPick }: { anchor: Date; days
             const sel = d.key === picked; const now = d.key === today;
             return (
               <Pressable key={d.key} onPress={() => onPick(d.key)} accessibilityRole="button" accessibilityState={{ selected: sel }}
-                accessibilityLabel={`${d.date.toLocaleDateString(currentLocale(), { weekday: "long", day: "numeric", month: "long" })}${list.length ? `, ${tr("m.cal.n_events", { count: list.length })}` : ""}`}
+                accessibilityLabel={`${calFmt(d.date, { weekday: "long", day: "numeric", month: "long" })}${list.length ? `, ${tr("m.cal.n_events", { count: list.length })}` : ""}`}
                 testID={`day-${d.key}`} style={({ pressed }) => [s.cell, pressed && { backgroundColor: colors.hover }]}>
                 <View style={[s.num, sel && { backgroundColor: colors.brandFill }, !sel && now && { borderWidth: 1.5, borderColor: colors.brand }]}>
-                  <Text style={[s.numText, { color: sel ? colors.brandFg : !d.inMonth ? colors.subtle : now ? colors.brand : colors.fg }, sel && { fontWeight: "700" }]}>{d.date.toLocaleDateString(currentLocale(), { day: "numeric" })}</Text>
+                  <Text style={[s.numText, { color: sel ? colors.brandFg : !d.inMonth ? colors.subtle : now ? colors.brand : colors.fg }, sel && { fontWeight: "700" }]}>{calFmt(d.date, { day: "numeric" })}</Text>
                 </View>
                 <Dots list={list} />
               </Pressable>
@@ -152,10 +152,10 @@ function WeekStrip({ anchor, days, picked, today, onPick }: { anchor: Date; days
         const k = dayKey(d); const sel = k === picked; const list = days.get(k) ?? [];
         return (
           <Pressable key={k} onPress={() => onPick(k)} accessibilityRole="button" accessibilityState={{ selected: sel }} testID={`day-${k}`}
-            accessibilityLabel={`${d.toLocaleDateString(currentLocale(), { weekday: "short" })} ${d.toLocaleDateString(currentLocale(), { day: "numeric" })}, ${dayTitle(d)}${list.length ? `, ${tr("m.cal.n_events", { count: list.length })}` : ""}`}
+            accessibilityLabel={`${calFmt(d, { weekday: "short" })} ${calFmt(d, { day: "numeric" })}, ${dayTitle(d)}${list.length ? `, ${tr("m.cal.n_events", { count: list.length })}` : ""}`}
             style={({ pressed }) => [s.weekDay, sel && { backgroundColor: colors.brandFill }, !sel && k === today && { borderWidth: 1.5, borderColor: colors.brand }, pressed && !sel && { backgroundColor: colors.hover }]}>
-            <Text style={{ fontSize: 12, lineHeight: lh(16), color: sel ? colors.brandFg : colors.subtle }} numberOfLines={1}>{d.toLocaleDateString(currentLocale(), { weekday: "short" })}</Text>
-            <Text style={{ fontSize: 17, lineHeight: lh(22), fontWeight: "600", color: sel ? colors.brandFg : colors.fg }}>{d.toLocaleDateString(currentLocale(), { day: "numeric" })}</Text>
+            <Text style={{ fontSize: 12, lineHeight: lh(16), color: sel ? colors.brandFg : colors.subtle }} numberOfLines={1}>{calFmt(d, { weekday: "short" })}</Text>
+            <Text style={{ fontSize: 17, lineHeight: lh(22), fontWeight: "600", color: sel ? colors.brandFg : colors.fg }}>{calFmt(d, { day: "numeric" })}</Text>
             <View style={{ height: 6 }}>{!sel ? <Dots list={list} /> : null}</View>
           </Pressable>
         );

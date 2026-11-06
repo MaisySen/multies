@@ -10,7 +10,7 @@ import { Note, Sheet, SheetAction } from "@/components/mpar3-ui";
 import { colors, font, lh, radius, space, TOUCH } from "@/theme";
 import { currentLocale, tr } from "@/i18n";
 import { success, tick, warning } from "@/lib/haptics";
-import { COMMENT_MAX, THREAD_STATUSES, type ThreadStatus } from "@/lib/mpar3";
+import { calFmt, COMMENT_MAX, THREAD_STATUSES, type ThreadStatus } from "@/lib/mpar3";
 import { isOff, useCommentActions, useThreadActions, useThreadComments, useThreadState } from "@/lib/mpar3-queries";
 
 export function ThreadTeam({ threadId }: { threadId: string }) {
@@ -64,7 +64,7 @@ export function ThreadTeam({ threadId }: { threadId: string }) {
             <Avatar name={c.author.name} size={28} />
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ color: colors.fg, fontSize: 14, fontWeight: "600", lineHeight: lh(19) }}>{c.author.name}
-                <Text style={{ color: colors.subtle, fontWeight: "400" }}>{`  ${new Date(c.createdAt).toLocaleString(currentLocale(), { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`}</Text>
+                <Text style={{ color: colors.subtle, fontWeight: "400" }}>{`  ${calFmt(new Date(c.createdAt), { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`}</Text>
               </Text>
               <Text style={{ color: colors.fg, fontSize: 15, lineHeight: lh(21) }} selectable>{c.body}</Text>
             </View>

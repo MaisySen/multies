@@ -91,6 +91,7 @@ try {
               if (s.overflow === "hidden" && e.scrollHeight > e.clientHeight + 2 && !s.webkitLineClamp && s.textOverflow !== "ellipsis") res.tight.push(`clipped: ${label(e)}`);
             }
             if (e.childElementCount === 0 && /\bm\.[a-z0-9_]+\.[a-z0-9_]+\b/.test(e.textContent ?? "")) res.raw.push(label(e));
+            if (e.childElementCount === 0 && /(^|[\s,])M(1[0-2]|[1-9])\b/.test(e.textContent ?? "")) res.raw.push(`month name missing: ${label(e)}`);
           }
           // MB-361 as the brief words it: the accessible name starts with the first words the control shows.
           res.starts = [];
