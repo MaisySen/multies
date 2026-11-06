@@ -1,5 +1,6 @@
 import type { AppNotification, NotificationPage } from "@/api/types";
 import { LOCALE } from "./format";
+import { tr } from "@/i18n";
 
 /**
  * R31: the notifications inbox as a triage list: Inbox (to deal with), Later (snoozed) and Done.
@@ -9,9 +10,9 @@ import { LOCALE } from "./format";
 export type TriageView = "inbox" | "later" | "done";
 
 export const TRIAGE_VIEWS: { id: TriageView; label: string }[] = [
-  { id: "inbox", label: "Inbox" },
-  { id: "later", label: "Later" },
-  { id: "done", label: "Done" },
+  { id: "inbox", label: tr("m.inbox.inbox") },
+  { id: "later", label: tr("m.inbox.later") },
+  { id: "done", label: tr("m.inbox.done") },
 ];
 
 /** True when the server understood `view` (it answers viewCounts). */
@@ -77,6 +78,6 @@ export function badgeCount(page: Pick<NotificationPage, "unread"> | undefined | 
 /** "Back Tue 8:00 am" for a snoozed item (local time). */
 export function backLabel(until: string): string {
   const d = new Date(until);
-  if (Number.isNaN(d.getTime())) return "Snoozed";
-  return `Back ${d.toLocaleString(LOCALE, { weekday: "short", hour: "numeric", minute: "2-digit" })}`;
+  if (Number.isNaN(d.getTime())) return tr("m.inbox.snoozed");
+  return tr("m.inbox.back_minute", { minute: d.toLocaleString(LOCALE, { weekday: "short", hour: "numeric", minute: "2-digit" }) });
 }

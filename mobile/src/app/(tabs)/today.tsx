@@ -8,6 +8,9 @@ import { Avatar, Badge, Icon, LargeTitle, PressableCard, TILE, type IconName, ty
 import { useCollapse } from "@/components/chrome";
 import { NotificationBell } from "@/components/notification-bell";
 import { useBadges } from "@/lib/use-badges";
+import { useToursMe } from "@/lib/mpar2-queries";
+import { checklistVisible } from "@/lib/mpar2";
+import { ProgressBar } from "@/components/m3-ui";
 import { useMeetings, useMessages, useTasks } from "@/lib/queries";
 import { useSession } from "@/lib/session";
 import { useInboxBadge, useSocialPosts, useSocialStatus } from "@/lib/social-queries";
@@ -22,6 +25,7 @@ import { HeroAction, Hero, SectionHeader, TintIcon, m4s } from "@/components/m4-
 import { FEATURES } from "@/config";
 import { shotFixture } from "@/lib/shot-fixture";
 import { colors, font, radius, space } from "@/theme";
+import { tr } from "@/i18n";
 
 /**
  * R34: the Today home. M5 (1.10.13): one glance, nothing twice. The hero says what the day holds (tasks and the next
@@ -32,6 +36,7 @@ export default function Today() {
   const insets = useSafeAreaInsets();
   const { me } = useSession();
   const b = useBadges();
+  const tours = useToursMe();
   const meetings = useMeetings();
   const mine = useTasks({ assignee: "me" });
   const inbox = useMessages("inbox");
@@ -54,40 +59,55 @@ export default function Today() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <LargeTitle title="Today" subtitle={date} top={insets.top} collapsed={collapse.collapsed} right={<NotificationBell />} />
+      <LargeTitle title={tr("m.today.today")} subtitle={date} top={insets.top} collapsed={collapse.collapsed} right={<NotificationBell />} />
       <ScrollView {...collapse.scrollProps} contentContainerStyle={{ paddingHorizontal: space.lg, paddingTop: space.sm, gap: space.md, paddingBottom: space.xxl * 3 }} testID="today"
         refreshControl={<RefreshControl refreshing={false} onRefresh={() => { qc.invalidateQueries(); }} tintColor={colors.brand} />}>
         <Hero testID="today-hero" title={first ? `${greeting(now)}, ${first}` : greeting(now)}
           subtitle={daySummary(FEATURES.tasks ? b.tasks : 0, next ? `${next.title} ${when}` : null)}>
-          <HeroAction icon="compose" label="Write" onPress={() => go("/compose")} testID="today-compose" />
-          {FEATURES.tasks ? <HeroAction icon="tasks" label="My tasks" onPress={() => go("/tasks")} testID="today-mytasks" /> : null}
-          <HeroAction icon="search" label="Search" onPress={() => go("/search")} testID="today-search" />
+          <HeroAction icon="compose" label={tr("m.today.write")} onPress={() => go("/compose")} testID="today-compose" />
+          {FEATURES.tasks ? <HeroAction icon="tasks" label={tr("m.today.my_tasks")} onPress={() => go("/tasks")} testID="today-mytasks" /> : null}
+          <HeroAction icon="search" label={tr("m.today.search")} onPress={() => go("/search")} testID="today-search" />
         </Hero>
 
         <View style={{ flexDirection: "row", gap: space.md }}>
-          <Stat testID="today-mail" icon="inbox" tile="blue" value={b.inbox} label="Unread mail" onPress={() => go("/inbox")} />
-          {FEATURES.tasks ? <Stat testID="today-tasks" icon="tasks" tile="orange" value={b.tasks} label="Due or overdue" onPress={() => go("/tasks")} />
-            : <Stat testID="today-tasks" icon="approvals" tile="green" value={b.approvals} label="Approvals waiting" onPress={() => go("/review")} />}
+          <Stat testID="today-mail" icon="inbox" tile="blue" value={b.inbox} label={tr("m.today.unread_mail")} onPress={() => go("/inbox")} />
+          {FEATURES.tasks ? <Stat testID="today-tasks" icon="tasks" tile="orange" value={b.tasks} label={tr("m.today.due_or_overdue")} onPress={() => go("/tasks")} />
+            : <Stat testID="today-tasks" icon="approvals" tile="green" value={b.approvals} label={tr("m.today.approvals_waiting")} onPress={() => go("/review")} />}
         </View>
         <View style={{ flexDirection: "row", gap: space.md }}>
-          <Stat testID="today-mentions" icon="mention" tile="purple" value={b.mentions} label={b.mentions === 1 ? "Mention" : "Mentions"} onPress={() => go("/chat")} />
-          {FEATURES.tasks ? <Stat testID="today-approvals" icon="approvals" tile="green" value={b.approvals} label="Approvals waiting" onPress={() => go("/review")} />
-            : <Stat testID="today-chat" icon="chat" tile="indigo" value={b.chat} label="Unread chat" onPress={() => go("/chat")} />}
+          <Stat testID="today-mentions" icon="mention" tile="purple" value={b.mentions} label={b.mentions === 1 ? tr("m.today.mention") : tr("m.today.mentions")} onPress={() => go("/chat")} />
+          {FEATURES.tasks ? <Stat testID="today-approvals" icon="approvals" tile="green" value={b.approvals} label={tr("m.today.approvals_waiting")} onPress={() => go("/review")} />
+            : <Stat testID="today-chat" icon="chat" tile="indigo" value={b.chat} label={tr("m.today.unread_chat")} onPress={() => go("/chat")} />}
         </View>
 
-        <SectionHeader title="Unread mail" action={b.inbox ? "See all" : undefined} onAction={() => go("/inbox")} testID="today-unread-header" />
+        {/* MPAR2: the web's Get started checklist, while it is on and not finished. */}
+        {checklistVisible(tours.data?.checklist) ? (
+          <PressableCard onPress={() => go("/get-started")} testID="today-get-started" accessibilityRole="button"
+            accessibilityLabel={`${tr("common.get_started")}, ${tr("m.started.n_of_total_done", { done: tours.data!.checklist!.doneCount, total: tours.data!.checklist!.total })}`}
+            style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+            <Tile icon="check-circle" tile="teal" />
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={font.headline}>{tr("common.get_started")}</Text>
+              <ProgressBar value={tours.data!.checklist!.total ? (tours.data!.checklist!.doneCount / tours.data!.checklist!.total) * 100 : 0} />
+              <Text style={font.small}>{tr("m.started.n_of_total_done", { done: tours.data!.checklist!.doneCount, total: tours.data!.checklist!.total })}</Text>
+            </View>
+            <Icon name="chevron-right" size={18} color={colors.subtle} />
+          </PressableCard>
+        ) : null}
+
+        <SectionHeader title={tr("m.today.unread_mail")} action={b.inbox ? tr("m.today.see_all") : undefined} onAction={() => go("/inbox")} testID="today-unread-header" />
         <View style={m4s.card} testID="today-unread">
           {unreadMail.length ? unreadMail.map((m, i) => (
             <MailLine key={m.id} m={m} last={i === unreadMail.length - 1} now={now} onPress={() => go(`/thread/${m.id}`)} />
           )) : (
-            b.inbox ? <QuietLine icon="inbox" tone="brand" text={`${groupCount(b.inbox)} unread in your inbox`} onPress={() => go("/inbox")} />
-            : <QuietLine icon="check" text="You're all caught up on mail" />
+            b.inbox ? <QuietLine icon="inbox" tone="brand" text={tr("m.today.count_unread_in_your_inbox", { count: groupCount(b.inbox) })} onPress={() => go("/inbox")} />
+            : <QuietLine icon="check" text={tr("m.today.you_re_all_caught_up_on_mail")} />
           )}
         </View>
 
         {FEATURES.tasks ? (
           <>
-            <SectionHeader title="Due today" action={b.tasks ? "See all" : undefined} onAction={() => go("/tasks")} testID="today-focus-header" />
+            <SectionHeader title={tr("m.today.due_today")} action={b.tasks ? tr("m.today.see_all") : undefined} onAction={() => go("/tasks")} testID="today-focus-header" />
             <View style={m4s.card} testID="today-focus">
               {focus.length ? focus.map((t, i) => {
                 const late = t.due!.slice(0, 10) < dayFrom(0, now);
@@ -95,37 +115,37 @@ export default function Today() {
                   <PressRow key={t.id} last={i === focus.length - 1} onPress={() => go(`/task/${t.id}`)} label={`${t.title}, ${late ? "overdue" : "due today"}`}>
                     <Icon name={late ? "overdue" : "due"} size={20} color={late ? colors.bad : colors.brand} filled />
                     <Text style={[font.body, { flex: 1 }]} numberOfLines={2}>{t.title}</Text>
-                    <Text style={{ color: late ? colors.bad : colors.subtle, fontSize: 13, fontWeight: "600" }}>{late ? "Overdue" : "Today"}</Text>
+                    <Text style={{ color: late ? colors.bad : colors.subtle, fontSize: 13, fontWeight: "600" }}>{late ? tr("m.today.overdue") : tr("m.today.today")}</Text>
                   </PressRow>
                 );
-              }) : b.tasks ? <QuietLine icon="tasks" tone="brand" text={`${groupCount(b.tasks)} due or overdue in Tasks`} onPress={() => go("/tasks")} />
-                : <QuietLine icon="check" text="Nothing due today" />}
+              }) : b.tasks ? <QuietLine icon="tasks" tone="brand" text={tr("m.today.count_due_or_overdue_in_tasks", { count: groupCount(b.tasks) })} onPress={() => go("/tasks")} />
+                : <QuietLine icon="check" text={tr("m.today.nothing_due_today")} />}
             </View>
           </>
         ) : null}
 
-        <SectionHeader title="Coming up" />
+        <SectionHeader title={tr("m.today.coming_up")} />
         <PressableCard onPress={() => go("/meetings")} testID="today-meeting" accessibilityRole="button"
-          accessibilityLabel={next ? `Next meeting, ${next.title}, ${when}` : "No meetings coming up"} style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+          accessibilityLabel={next ? tr("m.today.next_meeting_title_when", { title: next.title, when: when }) : tr("m.today.no_meetings_coming_up")} style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
           <Tile icon="video" tile="teal" />
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={font.headline} numberOfLines={2}>{next ? next.title : "No meetings coming up"}</Text>
-            <Text style={[font.small, next ? { color: colors.brand, fontWeight: "600" } : null]} numberOfLines={1}>{next ? when : "Your calendar is clear"}</Text>
+            <Text style={font.headline} numberOfLines={2}>{next ? next.title : tr("m.today.no_meetings_coming_up")}</Text>
+            <Text style={[font.small, next ? { color: colors.brand, fontWeight: "600" } : null]} numberOfLines={1}>{next ? when : tr("m.today.your_calendar_is_clear")}</Text>
           </View>
           <Icon name="chevron-right" size={18} color={colors.subtle} />
         </PressableCard>
 
         {social ? (
           <PressableCard onPress={() => go(inboxOpen && !social.failed ? "/social?tab=inbox" : "/social")} testID="today-social" accessibilityRole="button"
-            accessibilityLabel={`Social, ${social.title}${social.detail ? `, ${social.detail}` : ""}${inboxOpen ? `, ${inboxOpen} open in the inbox` : ""}`} style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+            accessibilityLabel={[tr("m.today.social_title", { title: social.title }), social.detail, inboxOpen ? tr("m.today.open_in_the_inbox", { count: inboxOpen }) : ""].filter(Boolean).join(", ")} style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
             <Tile icon="send" tile="pink" />
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={font.tiny}>Social</Text>
+              <Text style={font.tiny}>{tr("m.today.social")}</Text>
               <Text style={font.headline} numberOfLines={1}>{social.title}</Text>
               {social.detail ? <Text style={[font.tiny, { color: colors.subtle }]} numberOfLines={1}>{social.detail}</Text> : null}
               {inboxOpen && social.failed ? <Text style={[font.tiny, { color: colors.subtle }]} numberOfLines={1} testID="today-social-inbox">{inboxOpen} open in the inbox</Text> : null}
             </View>
-            {social.failed ? <Badge label={`${social.failed} failed`} tone="bad" /> : inboxOpen ? <Badge label={`${inboxOpen} to answer`} tone="brand" icon="inbox" /> : <Icon name="chevron-right" size={18} color={colors.subtle} />}
+            {social.failed ? <Badge label={tr("m.today.count_failed", { count: social.failed })} tone="bad" /> : inboxOpen ? <Badge label={tr("m.today.count_to_answer", { count: inboxOpen })} tone="brand" icon="inbox" /> : <Icon name="chevron-right" size={18} color={colors.subtle} />}
           </PressableCard>
         ) : null}
       </ScrollView>
@@ -162,14 +182,14 @@ function PressRow({ children, onPress, label, last }: { children: ReactNode; onP
 function MailLine({ m, onPress, last, now }: { m: MessageSummary; onPress: () => void; last: boolean; now: Date }) {
   const who = displayName(m.from);
   return (
-    <PressRow onPress={onPress} last={last} label={`Unread from ${who}, ${m.subject || "No subject"}`}>
+    <PressRow onPress={onPress} last={last} label={tr("m.today.unread_from_who_subject", { who: who, subject: m.subject || "No subject" })}>
       <Avatar name={who} size={36} />
       <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
         <View style={{ flexDirection: "row", alignItems: "baseline", gap: space.sm }}>
           <Text style={[font.headline, { flex: 1 }]} numberOfLines={1}>{who}</Text>
           <Text style={[font.tiny, { fontVariant: ["tabular-nums"] }]}>{shortDate(m.date, now)}</Text>
         </View>
-        <Text style={[font.small, { color: colors.fg }]} numberOfLines={1}>{m.subject || "No subject"}</Text>
+        <Text style={[font.small, { color: colors.fg }]} numberOfLines={1}>{m.subject || tr("m.today.no_subject")}</Text>
       </View>
     </PressRow>
   );

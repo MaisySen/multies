@@ -1,5 +1,6 @@
 import type { Transport } from "@/api/transport";
 import type { IconName } from "@/components/icons";
+import { LOCALE } from "./format";
 
 /**
  * M1 (1.10.9): the workspace drive on the phone (web R101 Files plus). Types, limits, labels and the
@@ -109,7 +110,7 @@ const sameYear = (d: Date, now: Date) => d.getFullYear() === now.getFullYear();
 export function dateLabel(iso: string, now = new Date()): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-AU", { day: "numeric", month: "short", ...(sameYear(d, now) ? {} : { year: "numeric" }) });
+  return d.toLocaleDateString(LOCALE, { day: "numeric", month: "short", ...(sameYear(d, now) ? {} : { year: "numeric" }) });
 }
 
 /** The second line of a row: size and date, and where it sits in Starred, Recent, Shared, Trash and search. */

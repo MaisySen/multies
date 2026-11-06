@@ -1,25 +1,27 @@
 import type { Priority, Task, TaskStatus } from "@/api/types";
+import { LOCALE } from "./format";
+import { tr } from "@/i18n";
 
 export type { Task, TaskStatus, Priority } from "@/api/types";
 
 /** The three status groups every project's custom statuses fall into. Boards use them as columns. */
 export const STATUSES: { id: TaskStatus; label: string }[] = [
-  { id: "todo", label: "To do" },
-  { id: "doing", label: "Doing" },
-  { id: "done", label: "Done" },
+  { id: "todo", label: tr("m.tasks.to_do") },
+  { id: "doing", label: tr("m.tasks.doing") },
+  { id: "done", label: tr("m.tasks.done") },
 ];
 
 export const PRIORITIES: { id: Priority; label: string }[] = [
-  { id: "none", label: "None" },
-  { id: "low", label: "Low" },
-  { id: "medium", label: "Medium" },
-  { id: "high", label: "High" },
-  { id: "urgent", label: "Urgent" },
+  { id: "none", label: tr("m.tasks.none") },
+  { id: "low", label: tr("m.tasks.low") },
+  { id: "medium", label: tr("m.tasks.medium") },
+  { id: "high", label: tr("m.tasks.high") },
+  { id: "urgent", label: tr("m.tasks.urgent") },
 ];
 
 export function nextStatus(s: TaskStatus): TaskStatus { return s === "todo" ? "doing" : s === "doing" ? "done" : "todo"; }
 export function statusLabel(s: TaskStatus) { return STATUSES.find((x) => x.id === s)!.label; }
-export function priorityLabel(p: Priority) { return PRIORITIES.find((x) => x.id === p)?.label ?? "None"; }
+export function priorityLabel(p: Priority) { return PRIORITIES.find((x) => x.id === p)?.label ?? tr("m.tasks.none"); }
 
 /** Orders a column: urgent first, then by due date, then by the board position. */
 export function sortTasks(list: Task[]): Task[] {
@@ -46,16 +48,16 @@ export function dueLabel(due: string | null, now = new Date()): { text: string; 
   const day = due.slice(0, 10);
   const today = dayFrom(0, now);
   const diff = Math.round((Date.parse(`${day}T00:00:00`) - Date.parse(`${today}T00:00:00`)) / 86_400_000);
-  if (diff < 0) return { text: diff === -1 ? "Overdue 1 day" : `Overdue ${-diff} days`, tone: "bad" };
-  if (diff === 0) return { text: "Due today", tone: "warn" };
-  if (diff === 1) return { text: "Due tomorrow", tone: "plain" };
+  if (diff < 0) return { text: diff === -1 ? tr("m.tasks.overdue_1_day") : tr("m.tasks.overdue_diff_days", { diff: -diff }), tone: "bad" };
+  if (diff === 0) return { text: tr("m.tasks.due_today"), tone: "warn" };
+  if (diff === 1) return { text: tr("m.tasks.due_tomorrow"), tone: "plain" };
   const d = new Date(`${day}T00:00:00`);
-  return { text: `Due ${d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}`, tone: "plain" };
+  return { text: tr("m.tasks.due_month", { month: d.toLocaleDateString(LOCALE, { weekday: "short", day: "numeric", month: "short" }) }), tone: "plain" };
 }
 
 /** "Fri 30 Oct" for a due date. */
 export function dayLabel(due: string): string {
-  return new Date(`${due.slice(0, 10)}T00:00:00`).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+  return new Date(`${due.slice(0, 10)}T00:00:00`).toLocaleDateString(LOCALE, { weekday: "short", day: "numeric", month: "short" });
 }
 
 /** "Alex Rivera" from "Alex Rivera <alex@example.com.au>", or the address when there is no name. */
@@ -67,7 +69,7 @@ export function senderName(from: string | null | undefined): string {
 }
 
 /** A sensible next action for a task on the board, by its status group. */
-export function moveLabel(s: TaskStatus) { return `Move to ${statusLabel(nextStatus(s))}`; }
+export function moveLabel(s: TaskStatus) { return tr("m.tasks.move_to_nextstatus", { nextStatus: statusLabel(nextStatus(s)) }); }
 
 /** Version 1.0.0 kept tasks on the phone under this key, before the tasks API existed. Sign out clears it. */
 export const LEGACY_KEY = "tasks:v1";

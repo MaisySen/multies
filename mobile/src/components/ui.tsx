@@ -11,6 +11,7 @@ import { Icon as PlatformIcon } from "./Icon";
 import type { IconName } from "./icons";
 import { artFor, EmptyIllustration, type EmptyArt } from "./empty-art";
 import { BarBlur, hasBarBlur, withAlpha } from "./chrome";
+import { tr } from "@/i18n";
 
 export type { IconName } from "./icons";
 
@@ -214,7 +215,7 @@ export function Skeleton({ width, height = 14, radius: r = 6, style }: { width?:
  * data lands: "mail" (avatar and two lines), "task" (a check circle in a card) and "chat" (bubbles
  * left and right). The shimmer stops with Reduce Motion (see Skeleton).
  */
-export function Loading({ label = "Loading", rows = 6, variant = "mail" }: { label?: string; rows?: number; variant?: "mail" | "task" | "chat" }) {
+export function Loading({ label = tr("m.common.loading"), rows = 6, variant = "mail" }: { label?: string; rows?: number; variant?: "mail" | "task" | "chat" }) {
   return (
     <View style={{ paddingVertical: space.md }} accessible accessibilityRole="progressbar" accessibilityLabel={label} testID="loading">
       {Array.from({ length: rows }, (_, i) => variant === "task" ? (

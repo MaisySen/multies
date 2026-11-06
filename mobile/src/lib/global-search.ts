@@ -1,3 +1,5 @@
+import { nativeRoute } from "./nav-menu";
+import { tr } from "@/i18n";
 /**
  * M1: the web's global search on the phone (GET /api/search, server R98 when on). Types, chips and the query rules
  * mirror the web (src/server/services/search.ts and src/web/lib/search-r98.ts), so the phone finds the same things.
@@ -19,8 +21,8 @@ export const LIMIT_ONE = 20;
 /** The chips, in the web's order. Each shows only when the server answered that kind for this person. */
 export type TypeChoice = "all" | "mail" | "tasks" | "docs" | "chat" | "contacts" | "files" | "notes";
 export const TYPE_CHOICES: { id: TypeChoice; label: string }[] = [
-  { id: "all", label: "All" }, { id: "mail", label: "Mail" }, { id: "tasks", label: "Tasks" }, { id: "docs", label: "Docs" },
-  { id: "chat", label: "Chat" }, { id: "contacts", label: "Contacts" }, { id: "files", label: "Files" }, { id: "notes", label: "Notes" },
+  { id: "all", label: tr("m.search.all") }, { id: "mail", label: tr("m.search.mail") }, { id: "tasks", label: tr("m.search.tasks") }, { id: "docs", label: tr("m.search.docs") },
+  { id: "chat", label: tr("m.search.chat") }, { id: "contacts", label: tr("m.search.contacts") }, { id: "files", label: tr("m.search.files") }, { id: "notes", label: tr("m.search.notes") },
 ];
 
 /** Server types for a chip, as on the web: Contacts also brings companies and deals, Mail also brings attachment text. */
@@ -96,8 +98,16 @@ export function phoneTarget(item: Pick<SearchItem, "type" | "id" | "url">): Phon
   if (area === "tasks" && params.get("task")) return { kind: "screen", pathname: "/task/[id]", params: { id: params.get("task")! } };
   if (area === "docs" && id) return { kind: "screen", pathname: "/doc/[id]", params: { id } };
   if (area === "chat" && id) return { kind: "screen", pathname: "/chat/[id]", params: { id } };
-  // TODO(M1): /contact/[id] is built by the "work" part; the merge wires it.
-  if (area === "contacts" && id) return { kind: "screen", pathname: "/contact/[id]", params: { id } };
+  if (area === "contacts" && id && id !== "invoices") return { kind: "screen", pathname: "/contact/[id]", params: { id } };
+  // MPAR2: deals open the deal, invoices the invoice; any other page the app has a screen for opens that screen.
+  if (area === "deals" && params.get("deal")) return { kind: "screen", pathname: "/deal/[id]", params: { id: params.get("deal")! } };
+  const native = nativeRoute(path);
+  if (native) {
+    const [pathname, q = ""] = native.split("?");
+    const p: Record<string, string> = {};
+    for (const kv of q.split("&").filter(Boolean)) { const i = kv.indexOf("="); p[decodeURIComponent(i < 0 ? kv : kv.slice(0, i))] = decodeURIComponent(i < 0 ? "" : kv.slice(i + 1)); }
+    return { kind: "screen", pathname, params: p };
+  }
   return web;
 }
 
@@ -108,5 +118,5 @@ export function itemLabel(it: SearchItem, label: string): string {
 
 /** A "Did you mean" line when the server fixed a typo. */
 export function correctedLine(r: Pick<SearchResult, "query" | "corrected"> | undefined): string | null {
-  return r?.corrected && r.corrected !== r.query ? `Showing results for "${r.corrected}"` : null;
+  return r?.corrected && r.corrected !== r.query ? tr("m.search.showing_results_for_corrected", { corrected: r.corrected }) : null;
 }

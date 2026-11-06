@@ -1,4 +1,6 @@
 import type { ChatChannel, ChatLink, ChatMention, ChatMessage, ChatPerson } from "@/api/types";
+import { LOCALE } from "./format";
+import { tr } from "@/i18n";
 
 /**
  * Team chat helpers. Message bodies are plain text with a small markup, the same in every client:
@@ -36,7 +38,7 @@ export function segments(m: Pick<ChatMessage, "body" | "mentions" | "links">, me
       const id = hit[4];
       const link = m.links.find((x) => x.type === type && x.id === id) ?? null;
       // Inline the short form (the ref, such as OPS-3); the chip under the message carries the full title.
-      out.push({ kind: "link", text: link ? link.ref ?? link.title : type === "task" ? "a task" : type === "thread" ? "an email" : "a doc", link });
+      out.push({ kind: "link", text: link ? link.ref ?? link.title : type === "task" ? tr("m.chat.a_task") : type === "thread" ? tr("m.chat.an_email") : tr("m.chat.a_doc"), link });
     }
     last = at + hit[0].length;
   }
@@ -123,9 +125,9 @@ export function latestChange(list: ChatMessage[]): string | null {
 /** Message time: 2:05 pm today, otherwise the date and time. */
 export function messageTime(iso: string, now = new Date()): string {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" }).replace(/\s/g, " ");
+  const time = d.toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" }).replace(/\s/g, " ");
   if (d.toDateString() === now.toDateString()) return time;
-  return `${d.toLocaleDateString("en-AU", { day: "numeric", month: "short" })}, ${time}`;
+  return `${d.toLocaleDateString(LOCALE, { day: "numeric", month: "short" })}, ${time}`;
 }
 
 /** The signed in member's chat id ("member:<userId>") from /account/me, when known. */

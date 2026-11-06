@@ -1,10 +1,12 @@
 import type { Meeting, MessageSummary, Task } from "@/api/types";
 import { groupCount } from "./numbers";
+import { tr } from "@/i18n";
+import { LOCALE } from "./format";
 
 /** R34: "Good morning" before noon, "Good afternoon" to 6 pm, then "Good evening". */
 export function greeting(now = new Date()): string {
   const h = now.getHours();
-  return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  return h < 12 ? tr("m.today.good_morning") : h < 18 ? tr("m.today.good_afternoon") : tr("m.today.good_evening");
 }
 
 /** The next meeting that has not ended yet, soonest first, or null. */
@@ -20,11 +22,11 @@ export function nextMeeting(meetings: readonly Meeting[] | undefined, now = new 
 export function whenLabel(startsAt: string, now = new Date()): string {
   const s = new Date(startsAt);
   const diff = s.getTime() - now.getTime();
-  if (diff <= 0) return "Now";
+  if (diff <= 0) return tr("m.today.now");
   if (diff < 60 * 60_000) return `in ${Math.max(1, Math.round(diff / 60_000))} min`;
-  const time = s.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" }).toLowerCase();
+  const time = s.toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" }).toLowerCase();
   const sameDay = s.toDateString() === now.toDateString();
-  return sameDay ? `at ${time}` : `${s.toLocaleDateString("en-AU", { weekday: "short" })} ${time}`;
+  return sameDay ? `at ${time}` : `${s.toLocaleDateString(LOCALE, { weekday: "short" })} ${time}`;
 }
 
 /** Open tasks of mine due today, then overdue ones, at most `limit`. */
@@ -43,7 +45,7 @@ export function topUnread(list: readonly MessageSummary[] | undefined, limit = 3
  * "15527 unread today", which was all unread, not today's). Exported for tests.
  */
 export function daySummary(due: number, next: string | null): string {
-  const head = due ? `${groupCount(due)} ${due === 1 ? "task needs" : "tasks need"} you today.` : "Nothing due today.";
-  return next ? `${head} Next: ${next}.` : head;
+  const head = due ? tr("m.today.tasks_need_you_today", { count: due, n: groupCount(due) }) : tr("m.today.nothing_due_today_2");
+  return next ? tr("m.today.head_next_next", { head: head, next: next }) : head;
 }
 

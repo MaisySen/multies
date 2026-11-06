@@ -1,5 +1,6 @@
 import { m3Route, sampleM3 } from "./m3";
 import { m4Route, sampleM4 } from "./m4";
+import { mpar2Route, sampleMpar2 } from "./mpar2";
 import { SAMPLE_NAV_MENU } from "./nav-menu";
 import { dealsRoute, sampleDeals } from "./deals";
 import { expensesRoute, sampleExpenses } from "./expenses";
@@ -31,6 +32,7 @@ export class SampleTransport implements Transport {
   private data = sampleData();
   private extras = sampleExtras(Date.now(), this.data.work, this.data.messages);
   private seq = 100;
+  private mpar2 = sampleMpar2();
   private chat = sampleChat(Date.now(), this.data.work, this.data.messages);
   private email = sampleEmail(Date.now());
   private runs = sampleRuns(Date.now(), this.data.work);
@@ -89,6 +91,8 @@ export class SampleTransport implements Transport {
     const m3 = m3Route(this.m3, method, path, body, params);
     if (m3 !== undefined) return json(m3);
     // M4: invoices, scheduling and links.
+    const mp2 = mpar2Route(this.mpar2, method, path, body);
+    if (mp2 !== undefined) return json(mp2);
     const m4 = m4Route(this.m4, method, path, params);
     if (m4 !== undefined) return json(m4);
     // M2: deals.
@@ -174,7 +178,7 @@ export class SampleTransport implements Transport {
     }
     switch (route) {
       case "POST /auth/sign-out": return json({ success: true });
-      case "GET /account/me": return json(d.me);
+      case "GET /account/me": return json({ ...d.me, hasPassword: true, user: { ...d.me.user, timezone: this.mpar2.timezone, locale: this.mpar2.locale } });
       // Multiws: the sample person is in one workspace; switching to it is a no op.
       case "GET /account/workspaces": return json({ workspaces: d.me.organization ? [{ id: d.me.organization.id, name: d.me.organization.name, plan: d.me.organization.plan, role: d.me.organization.role, isDemo: true }] : [] });
       case "GET /mail/overview": return json({ mailboxes: d.mailboxes });

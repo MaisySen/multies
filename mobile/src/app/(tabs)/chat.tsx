@@ -10,6 +10,7 @@ import { useSession } from "@/lib/session";
 import { channelTitle, groupChannels, messageTime } from "@/lib/chat";
 import type { ChatChannel } from "@/api/types";
 import { colors, font, radius, space } from "@/theme";
+import { tr } from "@/i18n";
 
 /** Team chat: channels first, then direct messages, with unread and mention counts. */
 export default function Chat() {
@@ -17,29 +18,29 @@ export default function Chat() {
   const offline = useOffline();
   const { mode } = useSession();
   const insets = useSafeAreaInsets();
-  const header = <LargeTitle title="Chat" top={insets.top} right={(
+  const header = <LargeTitle title={tr("m.chat.chat")} top={insets.top} right={(
     <>
       <NotificationBell />
-      <IconButton icon="edit" label="New message" onPress={() => router.push("/chat/new")} testID="new-dm" />
+      <IconButton icon="edit" label={tr("m.chat.new_message")} onPress={() => router.push("/chat/new")} testID="new-dm" />
     </>
   )} />;
-  if (q.isPending) return <>{header}<Loading label="Loading chat" /></>;
-  if (q.error) return <>{header}<EmptyState icon="alert-circle" title="Couldn't load chat" body={q.error.message} action={<Button label="Try again" variant="secondary" onPress={() => q.refetch()} />} /></>;
+  if (q.isPending) return <>{header}<Loading label={tr("m.chat.loading_chat")} /></>;
+  if (q.error) return <>{header}<EmptyState icon="alert-circle" title={tr("m.chat.couldn_t_load_chat")} body={q.error.message} action={<Button label={tr("m.chat.try_again")} variant="secondary" onPress={() => q.refetch()} />} /></>;
   const { channels, dms } = groupChannels(q.data);
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingBottom: space.xxl * 2 }} testID="chat-list"
       refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => { q.refetch(); }} />}>
       {header}
-      {offline ? <Banner text="You're offline. This is the chat list saved on this phone." /> : null}
-      {mode === "sample" ? <Text style={[font.tiny, { marginHorizontal: space.lg, marginTop: space.md }]}>Sample workspace. Messages you send stay on this phone.</Text> : null}
-      <SectionTitle>Channels</SectionTitle>
-      {channels.length ? channels.map((c) => <ChannelRow key={c.id} c={c} />) : <Text style={[font.small, { marginHorizontal: space.lg }]}>No channels yet. Make one on the web.</Text>}
-      <SectionTitle>Direct messages</SectionTitle>
+      {offline ? <Banner text={tr("m.chat.you_re_offline_this_is_the_chat_list_saved_on_th")} /> : null}
+      {mode === "sample" ? <Text style={[font.tiny, { marginHorizontal: space.lg, marginTop: space.md }]}>{tr("m.chat.sample_workspace_messages_you_send_stay_on_this")}</Text> : null}
+      <SectionTitle>{tr("m.chat.channels")}</SectionTitle>
+      {channels.length ? channels.map((c) => <ChannelRow key={c.id} c={c} />) : <Text style={[font.small, { marginHorizontal: space.lg }]}>{tr("m.chat.no_channels_yet_make_one_on_the_web")}</Text>}
+      <SectionTitle>{tr("m.chat.direct_messages")}</SectionTitle>
       {dms.length ? dms.map((c) => <ChannelRow key={c.id} c={c} />) : (
-        <Text style={[font.small, { marginHorizontal: space.lg }]}>No direct messages yet.</Text>
+        <Text style={[font.small, { marginHorizontal: space.lg }]}>{tr("m.chat.no_direct_messages_yet")}</Text>
       )}
       <View style={{ paddingHorizontal: space.lg, paddingTop: space.lg }}>
-        <Button label="New message" icon="edit" variant="secondary" onPress={() => router.push("/chat/new")} testID="new-dm-button" />
+        <Button label={tr("m.chat.new_message")} icon="edit" variant="secondary" onPress={() => router.push("/chat/new")} testID="new-dm-button" />
       </View>
     </ScrollView>
   );

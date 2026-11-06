@@ -14,6 +14,7 @@ import { askAboutEmptySubject, needsSubjectPrompt } from "@/lib/subject-prompt";
 import { takePendingToolFiles, type ToolFileRef } from "@/lib/tool-run";
 import { FileChip } from "@/components/tool-ui";
 import { colors, radius, space } from "@/theme";
+import { tr } from "@/i18n";
 
 export default function Compose() {
   const params = useLocalSearchParams<{ replyTo?: string; forward?: string; to?: string; subject?: string; restore?: string; all?: string; tools?: string }>();
@@ -58,10 +59,10 @@ export default function Compose() {
         const others = replyAllCc(original, replyAddress, mailboxes.map((m) => m.address));
         if (others.length) { setCc(others.join(", ")); setShowCc(true); }
       }
-      setSubject(/^re:/i.test(subj) ? subj : `Re: ${subj}`);
+      setSubject(/^re:/i.test(subj) ? subj : tr("m.compose.re_subj", { subj: subj }));
       setText(quoteForReply(original.text ?? "", displayName(original.from), original.date));
     } else {
-      setSubject(/^fwd?:/i.test(subj) ? subj : `Fwd: ${subj}`);
+      setSubject(/^fwd?:/i.test(subj) ? subj : tr("m.compose.fwd_subj", { subj: subj }));
       setText(`\n\n---------- Forwarded message ----------\nFrom: ${displayName(original.from)} <${original.from.address}>\nSubject: ${subj}\n\n${original.text ?? ""}`);
     }
   }, [original, prefilled, params.replyTo, params.all, mailboxes]);
@@ -71,10 +72,10 @@ export default function Compose() {
     const toList = parseRecipients(to);
     const ccList = parseRecipients(cc);
     const bad = [...toList, ...ccList].find((a) => !EMAIL_RE.test(a));
-    if (!from) return setError("You need an email address to send from. Tap Add an email address above.");
-    if (!toList.length) return setError("Add at least one recipient.");
-    if (bad) return setError(`"${bad}" doesn't look like an email address.`);
-    if (!subject.trim() && !text.trim() && !toolFiles.length) return setError("Write a subject or a message first.");
+    if (!from) return setError(tr("m.compose.you_need_an_email_address_to_send_from_tap_add_a"));
+    if (!toList.length) return setError(tr("m.compose.add_at_least_one_recipient"));
+    if (bad) return setError(tr("m.compose.bad_doesn_t_look_like_an_email_address", { bad: bad }));
+    if (!subject.trim() && !text.trim() && !toolFiles.length) return setError(tr("m.compose.write_a_subject_or_a_message_first"));
     // A gentle nudge, never a block: mail with no subject is more likely to go to spam.
     if (needsSubjectPrompt(subject) && Platform.OS !== "web" && !(await askAboutEmptySubject())) return subjectRef.current?.focus();
     // Undo send: close Compose now and post when the hold ends; the bar above the tabs offers Undo.
@@ -92,8 +93,8 @@ export default function Compose() {
       onError: (e) => {
         // Nothing typed is lost: the message goes back into Compose with the reason.
         parkDraft(draft);
-        Alert.alert("Couldn't send", `${(e as Error).message || "Check your connection and try again."} Your message is back in Compose.`, [
-          { text: "Open", onPress: () => router.push({ pathname: "/compose", params: { restore: "1" } }) },
+        Alert.alert(tr("m.compose.couldn_t_send"), tr("m.compose.message_your_message_is_back_in_compose", { message: (e as Error).message || "Check your connection and try again." }), [
+          { text: tr("m.compose.open"), onPress: () => router.push({ pathname: "/compose", params: { restore: "1" } }) },
         ]);
       },
     });
@@ -104,52 +105,52 @@ export default function Compose() {
   const discard = () => {
     if (!text.trim() && !to.trim() && !toolFiles.length) return router.back();
     if (Platform.OS === "web") return router.back();
-    Alert.alert("Discard this message?", "What you've written will be lost.", [
-      { text: "Keep writing", style: "cancel" },
-      { text: "Discard", style: "destructive", onPress: () => router.back() },
+    Alert.alert(tr("m.compose.discard_this_message"), tr("m.compose.what_you_ve_written_will_be_lost"), [
+      { text: tr("m.compose.keep_writing"), style: "cancel" },
+      { text: tr("m.compose.discard"), style: "destructive", onPress: () => router.back() },
     ]);
   };
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.bg }}>
       <Stack.Screen options={{
-        title: replyTo ? "Reply" : forwardOf ? "Forward" : "New message",
-        headerLeft: () => <Button variant="ghost" label="Cancel" onPress={discard} />,
-        headerRight: () => <Button label="Send" icon="send" onPress={submit} testID="send" style={{ minHeight: 38, paddingHorizontal: 14 }} />,
+        title: replyTo ? tr("m.compose.reply") : forwardOf ? tr("m.compose.forward") : tr("m.compose.new_message"),
+        headerLeft: () => <Button variant="ghost" label={tr("m.compose.cancel")} onPress={discard} />,
+        headerRight: () => <Button label={tr("m.compose.send")} icon="send" onPress={submit} testID="send" style={{ minHeight: 38, paddingHorizontal: 14 }} />,
       }} />
       <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg }} keyboardShouldPersistTaps="handled">
         {mailboxes.length > 1 ? (
           <View style={{ gap: 6 }}>
-            <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "500" }}>From</Text>
+            <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "500" }}>{tr("m.compose.from")}</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
               {mailboxes.map((m) => <Chip key={m.id} label={m.address} selected={from === m.id} onPress={() => setFrom(m.id)} />)}
             </View>
           </View>
         ) : mailboxes[0] ? <Text style={{ color: colors.subtle, fontSize: 14 }}>From {mailboxes[0].address}</Text> : overview.data ? (
           <View style={{ backgroundColor: colors.brandSoft, borderRadius: radius.md, padding: space.md, gap: space.sm }} testID="no-mailbox">
-            <Text style={{ color: colors.fg, fontSize: 15 }}>{"You don't have an email address to send from yet. Connect your email or get a free address. It takes a minute."}</Text>
-            <Button label="Add an email address" icon="at-sign" variant="secondary" testID="add-address" onPress={() => router.push("/email-setup")} style={{ alignSelf: "flex-start", minHeight: 36 }} />
+            <Text style={{ color: colors.fg, fontSize: 15 }}>{tr("m.compose.you_don_t_have_an_email_address_to_send_from_yet")}</Text>
+            <Button label={tr("m.compose.add_an_email_address")} icon="at-sign" variant="secondary" testID="add-address" onPress={() => router.push("/email-setup")} style={{ alignSelf: "flex-start", minHeight: 36 }} />
           </View>
         ) : null}
-        <Field label="To" testID="to" value={to} onChangeText={setTo} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="name@example.com.au" />
-        {showCc ? <Field label="Cc" value={cc} onChangeText={setCc} autoCapitalize="none" keyboardType="email-address" /> : (
-          <Button variant="ghost" label="Add Cc" icon="plus" onPress={() => setShowCc(true)} style={{ alignSelf: "flex-start", minHeight: 36 }} />
+        <Field label={tr("m.compose.to")} testID="to" value={to} onChangeText={setTo} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder={tr("m.compose.name_example_com_au")} />
+        {showCc ? <Field label={tr("m.compose.cc")} value={cc} onChangeText={setCc} autoCapitalize="none" keyboardType="email-address" /> : (
+          <Button variant="ghost" label={tr("m.compose.add_cc")} icon="plus" onPress={() => setShowCc(true)} style={{ alignSelf: "flex-start", minHeight: 36 }} />
         )}
-        <Field ref={subjectRef} label="Subject" testID="subject" value={subject} onChangeText={setSubject} />
+        <Field ref={subjectRef} label={tr("m.compose.subject")} testID="subject" value={subject} onChangeText={setSubject} />
         {toolFiles.length ? (
           <View style={{ gap: space.sm }} testID="compose-tool-files">
-            <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "500" }}>{toolFiles.length === 1 ? "Attachment" : `${toolFiles.length} attachments`}</Text>
+            <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "500" }}>{toolFiles.length === 1 ? tr("m.compose.attachment") : `${toolFiles.length} attachments`}</Text>
             {toolFiles.map((f) => <FileChip key={f.token} name={f.name} size={f.bytes} onRemove={() => setToolFiles((cur) => cur.filter((x) => x.token !== f.token))} />)}
-            <Text style={{ color: colors.subtle, fontSize: 12.5 }}>Tools results are kept for an hour, so send within the hour.</Text>
+            <Text style={{ color: colors.subtle, fontSize: 12.5 }}>{tr("m.compose.tools_results_are_kept_for_an_hour_so_send_withi")}</Text>
           </View>
         ) : null}
         <View style={{ gap: 6 }}>
-          <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "500" }} nativeID="body-label">Message</Text>
-          <TextInput testID="body" value={text} onChangeText={setText} multiline accessibilityLabel="Message" accessibilityLabelledBy="body-label"
-            placeholder="Write your message" placeholderTextColor={colors.subtle} selectionColor={colors.brand} textAlignVertical="top"
+          <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "500" }} nativeID="body-label">{tr("m.compose.message")}</Text>
+          <TextInput testID="body" value={text} onChangeText={setText} multiline accessibilityLabel={tr("m.compose.message")} accessibilityLabelledBy="body-label"
+            placeholder={tr("m.compose.write_your_message")} placeholderTextColor={colors.subtle} selectionColor={colors.brand} textAlignVertical="top"
             style={{ minHeight: 220, color: colors.fg, fontSize: 16, lineHeight: 23, padding: space.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface }} />
         </View>
-        <Text style={{ color: colors.subtle, fontSize: 13 }}>{`After Send you have ${undoSeconds} seconds to undo. Change it in Settings.`}</Text>
+        <Text style={{ color: colors.subtle, fontSize: 13 }}>{tr("m.compose.after_send_you_have_count_seconds_to_undo_change", { count: undoSeconds })}</Text>
         {error ? <Text style={{ color: colors.bad, fontSize: 14 }} accessibilityRole="alert">{error}</Text> : null}
       </ScrollView>
     </KeyboardAvoidingView>

@@ -12,6 +12,7 @@ import { useSession } from "@/lib/session";
 import { channelTitle, memberId } from "@/lib/chat";
 import type { ChatMessage } from "@/api/types";
 import { colors, font, space } from "@/theme";
+import { tr } from "@/i18n";
 
 /** One channel or DM: messages oldest first, kept fresh while open, marked read as you read. */
 export default function ChannelScreen() {
@@ -60,15 +61,15 @@ export default function ChannelScreen() {
   const others = isDm ? (channel.data?.members ?? []).filter((x) => x.id !== meId && userIdOf(x.id) !== userIdOf(meId)) : [];
   const other = others.length === 1 ? { userId: others[0].id, name: others[0].name } : null;
   const otherBlocked = other ? safety.isBlocked(other.userId) : false;
-  const screenOptions = { title, headerRight: other ? () => <IconButton icon="more" label={`More for ${other.name}`} onPress={() => setPersonMenu(true)} testID="dm-more" /> : undefined };
-  if (feed.isPending) return <><Stack.Screen options={{ title }} /><Loading variant="chat" label="Loading messages" /></>;
-  if (feed.error) return <EmptyState icon="alert-circle" title="Couldn't load messages" body={feed.error.message} action={<Button label="Try again" variant="secondary" onPress={() => feed.refetch()} />} />;
+  const screenOptions = { title, headerRight: other ? () => <IconButton icon="more" label={tr("m.chat.more_for_name", { name: other.name })} onPress={() => setPersonMenu(true)} testID="dm-more" /> : undefined };
+  if (feed.isPending) return <><Stack.Screen options={{ title }} /><Loading variant="chat" label={tr("m.chat.loading_messages")} /></>;
+  if (feed.error) return <EmptyState icon="alert-circle" title={tr("m.chat.couldn_t_load_messages")} body={feed.error.message} action={<Button label={tr("m.chat.try_again")} variant="secondary" onPress={() => feed.refetch()} />} />;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
       <Stack.Screen options={screenOptions} />
-      {offline ? <Banner text="You're offline. New messages will show when you're back." /> : null}
-      {toTask.error ? <Banner tone="bad" icon="alert-circle" text={`Couldn't make the task: ${toTask.error.message}`} /> : null}
+      {offline ? <Banner text={tr("m.chat.you_re_offline_new_messages_will_show_when_you_r")} /> : null}
+      {toTask.error ? <Banner tone="bad" icon="alert-circle" text={tr("m.chat.couldn_t_make_the_task_message", { message: toTask.error.message })} /> : null}
       <FlatList
         ref={list}
         testID="chat-messages"
@@ -79,20 +80,20 @@ export default function ChannelScreen() {
           <View style={{ paddingHorizontal: space.lg, paddingTop: space.lg, paddingBottom: space.sm, gap: space.sm }}>
             {channel.data?.topic ? <Text style={font.small}>{channel.data.topic}</Text> : null}
             {hidden ? <HiddenMessagesRow /> : null}
-            {feed.data?.hasMore ? <Button label="Show earlier messages" variant="ghost" loading={earlier.isPending} onPress={() => earlier.mutate()} testID="earlier" /> : null}
+            {feed.data?.hasMore ? <Button label={tr("m.chat.show_earlier_messages")} variant="ghost" loading={earlier.isPending} onPress={() => earlier.mutate()} testID="earlier" /> : null}
           </View>
         }
-        ListEmptyComponent={hidden ? undefined : <EmptyState icon="message-circle" title="No messages yet" body="Say hello. Type @ to mention someone." />}
+        ListEmptyComponent={hidden ? undefined : <EmptyState icon="message-circle" title={tr("m.chat.no_messages_yet")} body={tr("m.chat.say_hello_type_to_mention_someone")} />}
         renderItem={({ item }) => item.kind === "day" ? <DayLine label={item.label} />
           : <ChatMessageRow m={item.m} grouped={item.grouped} meId={meId} sample={mode === "sample"} onLongPress={setMenu} onOpenThread={openThread} />}
       />
       {otherBlocked ? (
         <View style={{ borderTopWidth: 1, borderTopColor: colors.line, padding: space.lg, gap: space.sm, alignItems: "center" }} testID="dm-blocked-bar">
-          <Text style={font.small}>{`You blocked ${other?.name ?? "them"}. You won't see their messages.`}</Text>
-          <Button label="Unblock" variant="secondary" onPress={() => other && safety.unblock(other.userId)} testID="dm-unblock" />
+          <Text style={font.small}>{tr("m.chat.you_blocked_name_you_won_t_see_their_messages", { name: other?.name ?? "them" })}</Text>
+          <Button label={tr("m.chat.unblock")} variant="secondary" onPress={() => other && safety.unblock(other.userId)} testID="dm-unblock" />
         </View>
       ) : (
-        <Composer people={people.data ?? []} placeholder={title ? `Message ${title}` : "Message"} sending={send.isPending}
+        <Composer people={people.data ?? []} placeholder={title ? tr("m.chat.message_title", { title: title }) : tr("m.chat.message")} sending={send.isPending}
           onSend={(body, files, onProgress) => send.mutateAsync({ body, attachments: files, onProgress })} />
       )}
       <MessageMenu m={menu} onClose={() => setMenu(null)} onReply={openThread} onMakeTask={makeTask} busy={toTask.isPending}

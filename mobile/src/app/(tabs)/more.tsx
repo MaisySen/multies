@@ -13,12 +13,13 @@ import { useCounts } from "@/lib/queries";
 import { useHiddenSections, useNavMenu, type MenuProblem } from "@/lib/nav-menu-queries";
 import { canHide, colorFor, countText, iconFor, sectionCount, type MenuSection } from "@/lib/nav-menu";
 import { tick } from "@/lib/haptics";
-import { colors, font, radius, space, TOUCH } from "@/theme";
+import { colors, font, radius, space, TOUCH , lh } from "@/theme";
+import { isDevanagari, tl, tr } from "@/i18n";
 
 const NOTE: Record<Exclude<MenuProblem, null>, string> = {
-  old: "Showing what this app can open. Your full menu shows once the server is updated.",
-  offline: "You're offline. Showing your last menu.",
-  error: "Couldn't load your menu. Showing what this app can open.",
+  old: tr("m.more.showing_what_this_app_can_open_your_full_menu_sh"),
+  offline: tr("m.more.you_re_offline_showing_your_last_menu"),
+  error: tr("m.more.couldn_t_load_your_menu_showing_what_this_app_ca"),
 };
 
 export function columnsFor(width: number) { return width >= 600 ? 4 : 3; }
@@ -28,8 +29,8 @@ function Tile({ s, n, width, editing, hidden, onPress, onToggle }: {
 }) {
   const hideable = canHide(s.id);
   const label = editing
-    ? (hideable ? `${hidden ? "Show" : "Hide"} ${s.label}` : `${s.label}, always shown`)
-    : n > 0 ? `${s.label}, ${n} new` : s.label;
+    ? (hideable ? (hidden ? tr("m.more.show_label", { label: tl("nav", s.label) }) : tr("m.more.hide_label", { label: tl("nav", s.label) })) : tr("m.more.label_always_shown", { label: tl("nav", s.label) }))
+    : n > 0 ? tr("m.more.label_new", { label: tl("nav", s.label), count: n }) : tl("nav", s.label);
   return (
     <Pressable testID={`more-tile-${s.id}`} accessibilityRole="button" accessibilityLabel={label}
       accessibilityState={editing && hideable ? { selected: !hidden } : undefined}
@@ -50,7 +51,7 @@ function Tile({ s, n, width, editing, hidden, onPress, onToggle }: {
             </View>
           ) : null}
       </View>
-      <Text style={[font.body, { color: colors.fg, fontWeight: "600", fontSize: width < 112 ? 13 : 15, lineHeight: width < 112 ? 17 : 20, letterSpacing: width < 112 ? -0.1 : -0.24 }]} numberOfLines={2} maxFontSizeMultiplier={1.3}>{s.label}</Text>
+      <Text style={[font.body, { color: colors.fg, fontWeight: "600", fontSize: width < 112 ? 13 : 15, lineHeight: lh(width < 112 ? 17 : 20), letterSpacing: isDevanagari() ? 0 : width < 112 ? -0.1 : -0.24 }]} numberOfLines={2} maxFontSizeMultiplier={1.3}>{tl("nav", s.label)}</Text>
     </Pressable>
   );
 }
@@ -72,9 +73,9 @@ export default function More() {
 
   const right = state && all.length ? (
     <View style={{ flexDirection: "row", gap: space.sm }}>
-      {editing && hidden.length ? <Button label="Reset" variant="secondary" onPress={reset} testID="more-reset" accessibilityHint="Shows every section again" /> : null}
-      <Button label={editing ? "Done" : "Edit"} variant={editing ? "primary" : "secondary"} onPress={() => setEditing((v) => !v)} testID="more-edit"
-        accessibilityHint={editing ? undefined : "Choose which sections show here"} />
+      {editing && hidden.length ? <Button label={tr("m.more.reset")} variant="secondary" onPress={reset} testID="more-reset" accessibilityHint={tr("m.more.shows_every_section_again")} /> : null}
+      <Button label={editing ? tr("m.more.done") : tr("m.more.edit")} variant={editing ? "primary" : "secondary"} onPress={() => setEditing((v) => !v)} testID="more-edit"
+        accessibilityHint={editing ? undefined : tr("m.more.choose_which_sections_show_here")} />
     </View>
   ) : null;
 
@@ -82,23 +83,23 @@ export default function More() {
     <View style={{ flex: 1, backgroundColor: colors.bg }} testID="more-screen">
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 96 }}
         refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => { q.refetch(); counts.refetch(); }} tintColor={colors.muted} />}>
-        <LargeTitle title="More" top={insets.top} right={right} subtitle={editing ? "Tap a section to hide or show it" : null} />
+        <LargeTitle title={tr("m.more.more")} top={insets.top} right={right} subtitle={editing ? tr("m.more.tap_a_section_to_hide_or_show_it") : null} />
         {q.isPending ? (
-          <View testID="more-loading" accessibilityLabel="Loading your menu" accessible style={{ flexDirection: "row", flexWrap: "wrap", gap, paddingHorizontal: space.lg, paddingTop: space.sm }}>
+          <View testID="more-loading" accessibilityLabel={tr("m.more.loading_your_menu")} accessible style={{ flexDirection: "row", flexWrap: "wrap", gap, paddingHorizontal: space.lg, paddingTop: space.sm }}>
             {Array.from({ length: 9 }, (_, i) => <Skeleton key={i} width={tileW} height={96} radius={radius.lg} />)}
           </View>
         ) : q.isError || !state ? (
-          <EmptyState icon="alert-circle" title="Couldn't load your menu" body="Check your connection and try again."
-            action={<Button label="Retry" onPress={() => q.refetch()} testID="more-retry" />} />
+          <EmptyState icon="alert-circle" title={tr("m.more.couldn_t_load_your_menu")} body={tr("m.more.check_your_connection_and_try_again")}
+            action={<Button label={tr("m.more.retry")} onPress={() => q.refetch()} testID="more-retry" />} />
         ) : !shown.length ? (
-          <EmptyState icon="layers" title="Nothing to show yet" body="Your workspace has no sections for you right now."
-            action={<Button label="Retry" onPress={() => q.refetch()} testID="more-retry" />} />
+          <EmptyState icon="layers" title={tr("m.more.nothing_to_show_yet")} body={tr("m.more.your_workspace_has_no_sections_for_you_right_now")}
+            action={<Button label={tr("m.more.retry")} onPress={() => q.refetch()} testID="more-retry" />} />
         ) : (
           <>
             {state.problem ? (
               <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm, gap: space.sm }} testID={`more-note-${state.problem}`}>
                 <Banner tone={state.problem === "offline" ? "warn" : "neutral"} icon={state.problem === "offline" ? "wifi-off" : "info"} text={NOTE[state.problem]} />
-                {state.problem !== "old" ? <Button label="Retry" variant="secondary" onPress={() => q.refetch()} testID="more-retry" /> : null}
+                {state.problem !== "old" ? <Button label={tr("m.more.retry")} variant="secondary" onPress={() => q.refetch()} testID="more-retry" /> : null}
               </View>
             ) : null}
             <View testID="more-grid" style={{ flexDirection: "row", flexWrap: "wrap", gap, paddingHorizontal: space.lg, paddingTop: space.sm }}>
@@ -110,7 +111,7 @@ export default function More() {
             </View>
             {!editing && hidden.length ? (
               <Pressable onPress={() => setEditing(true)} accessibilityRole="button" testID="more-hidden-note" style={{ minHeight: TOUCH, justifyContent: "center", paddingHorizontal: space.lg, marginTop: space.md }}>
-                <Text style={[font.tiny, { color: colors.subtle }]}>{hidden.length === 1 ? "1 section hidden. Tap to edit." : `${hidden.length} sections hidden. Tap to edit.`}</Text>
+                <Text style={[font.tiny, { color: colors.subtle }]}>{tr("m.more.sections_hidden_tap_to_edit", { count: hidden.length })}</Text>
               </Pressable>
             ) : null}
           </>

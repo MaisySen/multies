@@ -5,6 +5,7 @@ import { Avatar, Button, EmptyState, Field, Icon, Loading } from "@/components/u
 import { useChatPeople, useStartDm } from "@/lib/queries";
 import { colors, font, space } from "@/theme";
 import { dmErrorText } from "@/lib/moderation";
+import { tr } from "@/i18n";
 
 /** Start a direct message with one or more teammates. Opens the existing DM if there is one. */
 export default function NewDirectMessage() {
@@ -13,7 +14,7 @@ export default function NewDirectMessage() {
   const [picked, setPicked] = useState<string[]>([]);
   const [filter, setFilter] = useState("");
   if (people.isPending) return <Loading />;
-  if (people.error) return <EmptyState icon="alert-circle" title="Couldn't load your team" body={people.error.message} action={<Button label="Try again" variant="secondary" onPress={() => people.refetch()} />} />;
+  if (people.error) return <EmptyState icon="alert-circle" title={tr("m.chat.couldn_t_load_your_team")} body={people.error.message} action={<Button label={tr("m.chat.try_again")} variant="secondary" onPress={() => people.refetch()} />} />;
   // A DM is between people, so agents are left out here; mention them in a channel instead.
   const f = filter.trim().toLowerCase();
   const list = people.data.filter((p) => p.type === "member" && (!f || p.name.toLowerCase().includes(f) || p.email.toLowerCase().includes(f)));
@@ -23,7 +24,7 @@ export default function NewDirectMessage() {
   });
   return (
     <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.md, paddingBottom: space.xxl * 2 }} keyboardShouldPersistTaps="handled" testID="new-dm-screen">
-      <Field label="To" placeholder="Search your team" value={filter} onChangeText={setFilter} autoCapitalize="none" testID="dm-filter" />
+      <Field label={tr("m.chat.to")} placeholder={tr("m.chat.search_your_team")} value={filter} onChangeText={setFilter} autoCapitalize="none" testID="dm-filter" />
       {list.length ? list.map((p) => {
         const on = picked.includes(p.id);
         return (
@@ -37,9 +38,9 @@ export default function NewDirectMessage() {
             <Icon name={on ? "check-circle" : "circle"} size={22} color={on ? colors.brand : colors.subtle} />
           </Pressable>
         );
-      }) : <Text style={font.small}>No one matches that.</Text>}
+      }) : <Text style={font.small}>{tr("m.chat.no_one_matches_that")}</Text>}
       {start.error ? <Text style={{ color: colors.bad }} accessibilityRole="alert" testID="start-dm-error">{dmErrorText(start.error)}</Text> : null}
-      <Button label={picked.length > 1 ? `Message ${picked.length} people` : "Start message"} onPress={go} disabled={!picked.length} loading={start.isPending} testID="start-dm" />
+      <Button label={picked.length > 1 ? tr("m.chat.message_count_people", { count: picked.length }) : tr("m.chat.start_message")} onPress={go} disabled={!picked.length} loading={start.isPending} testID="start-dm" />
     </ScrollView>
   );
 }

@@ -18,6 +18,7 @@ import { StartMeetingButton } from "@/components/meetings";
 import { AttachmentRow } from "@/components/attachment-tools";
 import type { Message } from "@/api/types";
 import { colors, font, radius, shadow, space } from "@/theme";
+import { tr } from "@/i18n";
 
 /**
  * R36: the mail thread, laid out from the measured thread viewers (files/teardowns/rea/spark/mail-thread-r36.md):
@@ -42,7 +43,7 @@ export default function Thread() {
     if (a === "trash") warning(); else if (a === "archive") success(); else tick();
     action.mutate({ id: msg.id, action: a }, {
       onSuccess: () => { if (a === "archive" || a === "trash" || a === "unread") router.back(); },
-      onError: (e) => { warning(); Alert.alert("That didn't work", e.message); },
+      onError: (e) => { warning(); Alert.alert(tr("m.thread.that_didn_t_work"), e.message); },
     });
   };
 
@@ -56,12 +57,12 @@ export default function Thread() {
       router.push({ pathname: "/task/[id]", params: { id: t.id } });
     } catch (e) {
       warning();
-      Alert.alert("Couldn't make the task", (e as Error).message);
+      Alert.alert(tr("m.thread.couldn_t_make_the_task"), (e as Error).message);
     }
   };
 
   const toggle = (mid: string) => { tick(); animateList(); setOpen((o) => ({ ...o, [mid]: !o[mid] })); };
-  const agentName = (m: Message) => m.sentByAgentId ? agents.data?.find((a) => a.id === m.sentByAgentId)?.name ?? "Agent" : undefined;
+  const agentName = (m: Message) => m.sentByAgentId ? agents.data?.find((a) => a.id === m.sentByAgentId)?.name ?? tr("m.thread.agent") : undefined;
   const people = new Set(thread.map((m) => m.from.address)).size;
 
   return (
@@ -70,21 +71,21 @@ export default function Thread() {
         title: "",
         headerRight: () => msg ? (
           <View style={{ flexDirection: "row" }}>
-            <IconButton icon="archive" label="Archive" onPress={() => act("archive")} testID="archive" />
-            <IconButton icon="star" label={msg.isStarred ? "Remove star" : "Star"} color={msg.isStarred ? colors.warn : colors.fg} onPress={() => act(msg.isStarred ? "unstar" : "star")} testID="star" />
-            <IconButton icon="trash-2" label="Move to trash" onPress={() => act("trash")} testID="trash" />
-            <IconButton icon="more-horizontal" label="More: copy, share, translate" testID="thread-more"
-              onPress={() => { const last = thread[thread.length - 1] ?? msg; const body = bodyText(last); openQuickActions({ title: msg.subject || "(no subject)", subtitle: displayName(last.from), text: [msg.subject, body].filter(Boolean).join("\n\n"), link: firstLink(body) }); }} />
+            <IconButton icon="archive" label={tr("m.thread.archive")} onPress={() => act("archive")} testID="archive" />
+            <IconButton icon="star" label={msg.isStarred ? tr("m.thread.remove_star") : tr("m.thread.star")} color={msg.isStarred ? colors.warn : colors.fg} onPress={() => act(msg.isStarred ? "unstar" : "star")} testID="star" />
+            <IconButton icon="trash-2" label={tr("m.thread.move_to_trash")} onPress={() => act("trash")} testID="trash" />
+            <IconButton icon="more-horizontal" label={tr("m.thread.more_copy_share_translate")} testID="thread-more"
+              onPress={() => { const last = thread[thread.length - 1] ?? msg; const body = bodyText(last); openQuickActions({ title: msg.subject || tr("m.thread.no_subject"), subtitle: displayName(last.from), text: [msg.subject, body].filter(Boolean).join("\n\n"), link: firstLink(body) }); }} />
           </View>
         ) : null,
       }} />
-      {offline ? <Banner text="Offline. This is the copy saved on your phone." /> : null}
-      {q.isPending ? <Loading variant="chat" label="Loading conversation" rows={4} /> : q.error ? (
-        <EmptyState icon="alert-circle" title="Couldn't open this message" body={q.error.message} action={<Button label="Try again" variant="secondary" onPress={() => q.refetch()} />} />
+      {offline ? <Banner text={tr("m.thread.offline_this_is_the_copy_saved_on_your_phone")} /> : null}
+      {q.isPending ? <Loading variant="chat" label={tr("m.thread.loading_conversation")} rows={4} /> : q.error ? (
+        <EmptyState icon="alert-circle" title={tr("m.thread.couldn_t_open_this_message")} body={q.error.message} action={<Button label={tr("m.thread.try_again")} variant="secondary" onPress={() => q.refetch()} />} />
       ) : (
         <ScrollView contentContainerStyle={{ paddingTop: space.md, paddingBottom: 64 + insets.bottom + space.xxl }}>
           <View style={{ paddingHorizontal: space.lg, gap: 6, marginBottom: space.md }}>
-            <Text style={[font.title, { fontSize: 24, letterSpacing: 0.2 }]} accessibilityRole="header" selectable>{msg?.subject || "(no subject)"}</Text>
+            <Text style={[font.title, { fontSize: 24, letterSpacing: 0.2 }]} accessibilityRole="header" selectable>{msg?.subject || tr("m.thread.no_subject")}</Text>
             <Text style={font.small}>{thread.length === 1 ? "1 message" : `${thread.length} messages`}{people > 1 ? ` from ${people} people` : ""}</Text>
           </View>
           <View style={{ gap: space.sm }}>
@@ -97,20 +98,20 @@ export default function Thread() {
                 : <CollapsedRow key={m.id} m={m} agentName={agentName(m)} onPress={() => toggle(m.id)} />;
             })}
           </View>
-          <InsetGroup header="From this email">
-            {FEATURES.tasks ? <GroupRow icon="check-square" tile="blue" label="Make a task from this email" onPress={makeTask} testID="make-task" value={tasks.fromEmail.isPending ? "Making..." : undefined} /> : null}
+          <InsetGroup header={tr("m.thread.from_this_email")}>
+            {FEATURES.tasks ? <GroupRow icon="check-square" tile="blue" label={tr("m.thread.make_a_task_from_this_email")} onPress={makeTask} testID="make-task" value={tasks.fromEmail.isPending ? tr("m.thread.making") : undefined} /> : null}
             {msg ? <View style={{ padding: space.md }}><StartMeetingButton source={{ type: "thread", id: msg.threadId }} title={msg.subject || undefined} /></View> : null}
           </InsetGroup>
         </ScrollView>
       )}
       {last ? (
         <View style={[t.bar, { paddingBottom: Math.max(insets.bottom, space.sm) }]}>
-          <BarButton icon="corner-up-left" label="Reply" testID="reply" primary onPress={() => router.push({ pathname: "/compose", params: { replyTo: last.id } })} />
+          <BarButton icon="corner-up-left" label={tr("m.thread.reply")} testID="reply" primary onPress={() => router.push({ pathname: "/compose", params: { replyTo: last.id } })} />
           {last.to.length + last.cc.length > 1 ? (
-            <BarButton icon="users" label="Reply all" testID="reply-all" onPress={() => router.push({ pathname: "/compose", params: { replyTo: last.id, all: "1" } })} />
+            <BarButton icon="users" label={tr("m.thread.reply_all")} testID="reply-all" onPress={() => router.push({ pathname: "/compose", params: { replyTo: last.id, all: "1" } })} />
           ) : null}
-          <BarButton icon="corner-up-right" label="Forward" testID="forward" onPress={() => router.push({ pathname: "/compose", params: { forward: last.id } })} />
-          <BarButton icon="mail" label="Mark unread" testID="mark-unread" onPress={() => act("unread")} />
+          <BarButton icon="corner-up-right" label={tr("m.thread.forward")} testID="forward" onPress={() => router.push({ pathname: "/compose", params: { forward: last.id } })} />
+          <BarButton icon="mail" label={tr("m.thread.mark_unread")} testID="mark-unread" onPress={() => act("unread")} />
         </View>
       ) : null}
     </View>
@@ -131,7 +132,7 @@ function BarButton({ icon, label, onPress, testID, primary }: { icon: "corner-up
 function CollapsedRow({ m, agentName, onPress }: { m: Message; agentName?: string; onPress: () => void }) {
   const name = agentName ?? displayName(m.from);
   return (
-    <Pressable onPress={onPress} testID={`collapsed-${m.id}`} accessibilityRole="button" accessibilityLabel={`${name}, ${shortDate(m.date)}. ${previewLine(bodyText(m))}`} accessibilityHint="Opens this message"
+    <Pressable onPress={onPress} testID={`collapsed-${m.id}`} accessibilityRole="button" accessibilityLabel={`${name}, ${shortDate(m.date)}. ${previewLine(bodyText(m))}`} accessibilityHint={tr("m.thread.opens_this_message")}
       style={({ pressed }) => [t.card, t.collapsed, pressed && { backgroundColor: colors.hover }]}>
       <Avatar name={name} agent={!!agentName} size={32} />
       <View style={{ flex: 1, gap: 2 }}>
@@ -140,7 +141,7 @@ function CollapsedRow({ m, agentName, onPress }: { m: Message; agentName?: strin
           {m.attachments.length ? <Icon name="paperclip" size={13} color={colors.subtle} /> : null}
           <Text style={t.time}>{shortDate(m.date)}</Text>
         </View>
-        <Text style={{ color: colors.muted, fontSize: 14 }} numberOfLines={1}>{previewLine(bodyText(m)) || "No text"}</Text>
+        <Text style={{ color: colors.muted, fontSize: 14 }} numberOfLines={1}>{previewLine(bodyText(m)) || tr("m.thread.no_text")}</Text>
       </View>
     </Pressable>
   );
@@ -152,7 +153,7 @@ function MessageCard({ m, agentName, onCollapse }: { m: Message; agentName?: str
   const name = agentName ?? displayName(m.from);
   return (
     <View style={[t.card, agentName ? { borderColor: colors.brandLine } : null]} testID={`message-${m.id}`}>
-      <Pressable onPress={onCollapse} disabled={!onCollapse} accessibilityRole={onCollapse ? "button" : undefined} accessibilityHint={onCollapse ? "Folds this message" : undefined}
+      <Pressable onPress={onCollapse} disabled={!onCollapse} accessibilityRole={onCollapse ? "button" : undefined} accessibilityHint={onCollapse ? tr("m.thread.folds_this_message") : undefined}
         style={t.header}>
         <Avatar name={name} agent={!!agentName} size={40} />
         <View style={{ flex: 1, gap: 2 }}>
@@ -165,16 +166,16 @@ function MessageCard({ m, agentName, onCollapse }: { m: Message; agentName?: str
           </Text>
         </View>
       </Pressable>
-      {agentName ? <View style={{ paddingHorizontal: space.lg }}><Badge label={`Written by agent ${agentName}`} tone="brand" icon="cpu" /></View> : null}
+      {agentName ? <View style={{ paddingHorizontal: space.lg }}><Badge label={tr("m.thread.written_by_agent_agentname", { agentName: agentName })} tone="brand" icon="cpu" /></View> : null}
       <Text style={[font.body, { paddingHorizontal: space.lg, paddingTop: space.sm }]} selectable accessibilityHint={longDate(m.date)}>
-        {body ? <LinkedText text={body} testID={`body-${m.id}`} /> : "This message is empty."}
+        {body ? <LinkedText text={body} testID={`body-${m.id}`} /> : tr("m.thread.this_message_is_empty")}
       </Text>
       {quoted ? (
         <View style={{ paddingHorizontal: space.lg, gap: space.sm }}>
           <Pressable onPress={() => { tick(); animateList(); setShowQuoted((v) => !v); }} accessibilityRole="button" testID={`quoted-${m.id}`}
-            accessibilityLabel={showQuoted ? "Hide quoted text" : "Show quoted text"} hitSlop={8} style={({ pressed }) => [t.pill, pressed && { opacity: 0.6 }]}>
+            accessibilityLabel={showQuoted ? tr("m.thread.hide_quoted_text") : tr("m.thread.show_quoted_text")} hitSlop={8} style={({ pressed }) => [t.pill, pressed && { opacity: 0.6 }]}>
             <Icon name="more-horizontal" size={16} color={colors.muted} />
-            <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "500" }}>{showQuoted ? "Hide quoted text" : "Show quoted text"}</Text>
+            <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "500" }}>{showQuoted ? tr("m.thread.hide_quoted_text") : tr("m.thread.show_quoted_text")}</Text>
           </Pressable>
           {showQuoted ? <Text style={t.quoted} selectable><LinkedText text={quoted} testID={`quotedtext-${m.id}`} /></Text> : null}
         </View>

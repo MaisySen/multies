@@ -3,7 +3,6 @@ import { Alert, Platform, ScrollView, Text, View } from "react-native";
 import * as ExpoRouter from "expo-router";
 import { router } from "expo-router";
 import { ScreenHeader } from "@/components/m3-ui";
-import * as Localization from "expo-localization";
 import { Avatar, Badge, Card, Row, SectionTitle, Segmented } from "@/components/ui";
 import { useUndoSeconds, parseUndoSeconds, UNDO_SEND_CHOICES } from "@/lib/undo-send";
 
@@ -14,14 +13,18 @@ import { permissionGranted, registerPush, type PushState } from "@/lib/push";
 import { kv } from "@/lib/kv";
 import { bytes } from "@/lib/format";
 import { LINKS, WEB_PAGES } from "@/config";
-import { colors, font, space } from "@/theme";
+import { colors, font, space, scheme, mode as themeMode, accent as themeAccent } from "@/theme";
+import { LANG_NAMES, currentLang, savedChoice } from "@/i18n";
+import { checklistVisible } from "@/lib/mpar2";
+import { useToursMe } from "@/lib/mpar2-queries";
 import { currentVersionFacts, updateDetail, versionLabel } from "@/lib/app-version";
 import { UpdateRows } from "@/components/update-rows";
 import { GestureSettings } from "@/components/gesture-settings";
 import { getLockSettings } from "@/lib/app-lock";
 import { openWeb } from "@/lib/web-open";
+import { tr } from "@/i18n";
 
-const PLAN_LABEL: Record<string, string> = { free: "Free", starter: "Starter", pro: "Pro", business: "Business" };
+const PLAN_LABEL: Record<string, string> = { free: tr("m.settings.free"), starter: tr("m.settings.starter"), pro: tr("m.settings.pro"), business: tr("m.settings.business") };
 
 /** Re-reads on focus (back from Lock Multies); a plain effect where the router has no focus hook (tests). */
 const useFocus: (cb: () => void) => void = typeof ExpoRouter.useFocusEffect === "function" ? ExpoRouter.useFocusEffect : (cb) => { useEffect(cb, [cb]); };
@@ -46,89 +49,95 @@ export default function Settings() {
     const r = await registerPush(mode === "live" ? api : null, { prompt: true });
     setPush(r);
     setAllowed(r.kind === "allowed");
-    if (r.kind === "denied") Alert.alert("Notifications are off", "Turn them on for Multies in your phone's Settings app.");
+    if (r.kind === "denied") Alert.alert(tr("m.settings.notifications_are_off"), tr("m.settings.turn_them_on_for_multies_in_your_phone_s_setting"));
   };
   const clearCache = async () => {
     for (const p of ["list:", "thread:", "meta:", "task:", "worklist:"]) await kv().clear(p);
-    Alert.alert("Done", "Saved mail and tasks are cleared from this phone.");
+    Alert.alert(tr("m.settings.done"), tr("m.settings.saved_mail_and_tasks_are_cleared_from_this_phone"));
   };
   const confirmSignOut = () => {
     if (Platform.OS === "web") return signOut();
-    Alert.alert("Sign out?", "Mail and tasks saved on this phone are removed when you sign out.", [{ text: "Cancel", style: "cancel" }, { text: "Sign out", style: "destructive", onPress: () => signOut() }]);
+    Alert.alert(tr("m.settings.sign_out"), tr("m.settings.mail_and_tasks_saved_on_this_phone_are_removed_w"), [{ text: tr("m.settings.cancel"), style: "cancel" }, { text: tr("m.settings.sign_out_2"), style: "destructive", onPress: () => signOut() }]);
   };
   const open = (url: string) => openWeb(url); // M3: inside the app, signed in for the web app's pages
   const blockedCount = blocksQ.data?.blocks.length ?? 0;
-  const locale = Localization.getLocales()[0];
+  const tours = useToursMe();
   const used = overview.data?.reduce((n, m) => n + m.usedBytes, 0) ?? 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }} testID="settings-screen">
-    <ScreenHeader title="Settings" />
+    <ScreenHeader title={tr("m.settings.settings")} />
     <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ paddingBottom: space.xxl }}>
       <Card style={{ margin: space.lg, flexDirection: "row", gap: space.md, alignItems: "center" }}>
         <Avatar name={me?.user.name || me?.user.email || "?"} size={48} />
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={[font.heading, { fontSize: 17 }]} numberOfLines={1}>{me?.user.name || "Your account"}</Text>
+          <Text style={[font.heading, { fontSize: 17 }]} numberOfLines={1}>{me?.user.name || tr("m.settings.your_account")}</Text>
           <Text style={font.small} numberOfLines={1}>{me?.user.email}</Text>
           <View style={{ flexDirection: "row", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
-            {me?.organization ? <Badge label={`${PLAN_LABEL[me.organization.plan] ?? me.organization.plan} plan`} tone="brand" /> : null}
-            {me?.user.twoFactor ? <Badge label="Two step sign in on" tone="ok" icon="shield" /> : null}
-            {mode === "sample" ? <Badge label="Sample data" tone="warn" /> : null}
+            {me?.organization ? <Badge label={tr("m.settings.plan_badge", { plan: PLAN_LABEL[me.organization.plan] ?? me.organization.plan })} tone="brand" /> : null}
+            {me?.user.twoFactor ? <Badge label={tr("m.settings.two_step_sign_in_on")} tone="ok" icon="shield" /> : null}
+            {mode === "sample" ? <Badge label={tr("m.settings.sample_data")} tone="warn" /> : null}
           </View>
         </View>
       </Card>
+      {/* MPAR2: account, plan (read only) and Get started are app screens now. */}
+      <Row tile="orange" icon="user" label={tr("m.settings.name_and_password")} onPress={() => router.push("/account")} testID="account-link" />
+      {me?.organization ? <Row tile="green" icon="dollar-sign" label={tr("m.billing.title")} value={PLAN_LABEL[me.organization.plan] ?? me.organization.plan} onPress={() => router.push("/billing")} testID="billing-link" /> : null}
+      {checklistVisible(tours.data?.checklist) ? <Row tile="teal" icon="check-circle" label={tr("common.get_started")} value={tr("m.started.n_of_total_done", { done: tours.data!.checklist!.doneCount, total: tours.data!.checklist!.total })} onPress={() => router.push("/get-started")} testID="get-started-link" /> : null}
 
-      <SectionTitle>Workspace</SectionTitle>
-      <Row tile="indigo" icon="briefcase" label="Workspace" value={me?.organization?.name} onPress={() => router.push("/workspaces")} testID="workspaces-link" />
-      <Row tile="blue" icon="filter" label="Mail" value="Tabs and rules" onPress={() => router.push("/mail-settings")} testID="mail-settings-link" />
-      <Row tile="blue" icon="inbox" label="Email addresses" value={overview.data ? String(overview.data.filter((m) => m.kind !== "agent").length) : undefined} onPress={() => router.push("/email-setup")} testID="email-setup-link" />
-      <Row tile="purple" icon="cpu" label="Agent inboxes" value={overview.data ? String(overview.data.filter((m) => m.kind === "agent").length) : undefined} />
-      <Row tile="gray" icon="hard-drive" label="Storage used" value={overview.data ? bytes(used) : undefined} />
-      {me?.organization && webCfg.data && toolFeatureOn(webCfg.data, "merge_plus_r109") ? <Row tile="blue" icon="mail" label="Mail merge" value="Newsletters and journeys" onPress={() => router.push("/mail-merge")} testID="mail-merge-link" /> : null}
-      {me?.organization && flagOn(webCfg.data, "mailArchive") ? <Row tile="indigo" icon="archive" label="Mail archive" value="Retention and holds" onPress={() => router.push("/mail-archive")} testID="mail-archive-link" /> : null}
-      {me?.organization && flagOn(webCfg.data, "davSync") ? <Row tile="green" icon="calendar" label="Calendar and contacts sync" onPress={() => router.push("/sync")} testID="sync-link" /> : null}
-      <Row tile="gray" icon="external-link" label="Team and domains" onPress={() => open(WEB_PAGES.team)} />
+      <SectionTitle>{tr("m.settings.workspace")}</SectionTitle>
+      <Row tile="indigo" icon="briefcase" label={tr("m.settings.workspace")} value={me?.organization?.name} onPress={() => router.push("/workspaces")} testID="workspaces-link" />
+      <Row tile="blue" icon="filter" label={tr("m.settings.mail")} value={tr("m.settings.tabs_and_rules")} onPress={() => router.push("/mail-settings")} testID="mail-settings-link" />
+      <Row tile="blue" icon="inbox" label={tr("m.settings.email_addresses")} value={overview.data ? String(overview.data.filter((m) => m.kind !== "agent").length) : undefined} onPress={() => router.push("/email-setup")} testID="email-setup-link" />
+      <Row tile="purple" icon="cpu" label={tr("m.settings.agent_inboxes")} value={overview.data ? String(overview.data.filter((m) => m.kind === "agent").length) : undefined} />
+      <Row tile="gray" icon="hard-drive" label={tr("m.settings.storage_used")} value={overview.data ? bytes(used) : undefined} />
+      {me?.organization && webCfg.data && toolFeatureOn(webCfg.data, "merge_plus_r109") ? <Row tile="blue" icon="mail" label={tr("m.settings.mail_merge")} value={tr("m.settings.newsletters_and_journeys")} onPress={() => router.push("/mail-merge")} testID="mail-merge-link" /> : null}
+      {me?.organization && flagOn(webCfg.data, "mailArchive") ? <Row tile="indigo" icon="archive" label={tr("m.settings.mail_archive")} value={tr("m.settings.retention_and_holds")} onPress={() => router.push("/mail-archive")} testID="mail-archive-link" /> : null}
+      {me?.organization && flagOn(webCfg.data, "davSync") ? <Row tile="green" icon="calendar" label={tr("m.settings.calendar_and_contacts_sync")} onPress={() => router.push("/sync")} testID="sync-link" /> : null}
+      <Row tile="gray" icon="external-link" label={tr("m.settings.team_and_domains")} onPress={() => open(WEB_PAGES.team)} />
       {/* M3 (1.10.11): features (Files, Tools, Social, Docs, Meetings, Portfolio, Contacts, People, Agent runs) live in More only, so Settings is settings. */}
 
       {/* M4: Lock Multies (Face ID, fingerprint or PIN) has its own screen. */}
-      <SectionTitle>Security</SectionTitle>
-      <Row tile="green" icon="lock" label="Lock Multies" value={lockOn ? "On" : "Off"} onPress={() => router.push("/security")} testID="biometric-lock" />
+      <SectionTitle>{tr("m.settings.security")}</SectionTitle>
+      <Row tile="green" icon="lock" label={tr("m.settings.lock_multies")} value={lockOn ? tr("m.settings.on") : tr("m.settings.off")} onPress={() => router.push("/security")} testID="biometric-lock" />
 
-      <SectionTitle>Notifications</SectionTitle>
-      <Row tile="red" icon="inbox" label="Notifications inbox" value={inbox.data ? `${inbox.data} unread` : undefined} onPress={() => router.push("/notifications")} testID="notifications-link" />
-      <Row tile="red" icon="sliders" label="Notification settings" onPress={() => router.push("/notification-settings")} testID="notification-settings-link" />
-      <Row tile="red" icon="bell" label={allowed ? "Notifications allowed" : "Turn on notifications"} value={allowed ? "On" : undefined} onPress={turnOnPush} testID="push" />
+      <SectionTitle>{tr("m.settings.notifications")}</SectionTitle>
+      <Row tile="red" icon="inbox" label={tr("m.settings.notifications_inbox")} value={inbox.data ? `${inbox.data} unread` : undefined} onPress={() => router.push("/notifications")} testID="notifications-link" />
+      <Row tile="red" icon="sliders" label={tr("m.settings.notification_settings")} onPress={() => router.push("/notification-settings")} testID="notification-settings-link" />
+      <Row tile="red" icon="bell" label={allowed ? tr("m.settings.notifications_allowed") : tr("m.settings.turn_on_notifications")} value={allowed ? tr("m.settings.on") : undefined} onPress={turnOnPush} testID="push" />
       {push?.kind === "allowed" ? <Text style={[font.tiny, { marginHorizontal: space.lg }]}>{push.note}</Text> : null}
       {push?.kind === "unsupported" ? <Text style={[font.tiny, { marginHorizontal: space.lg }]}>{push.reason}</Text> : null}
 
-      <SectionTitle>This phone</SectionTitle>
-      <Row tile="blue" icon="globe" label="Language and region" value={`English (Australia)${locale?.regionCode && locale.regionCode !== "AU" ? `, phone set to ${locale.regionCode}` : ""}`} />
-      <Row tile="gray" icon="download" label="Clear saved mail" onPress={clearCache} />
+      <SectionTitle>{tr("m.settings.this_phone")}</SectionTitle>
+      {/* MPAR2: language and appearance are chosen here; each restarts the app so every screen follows. */}
+      <Row tile="blue" icon="globe" label={tr("appearance.language")} value={savedChoice() === "system" ? tr("m.settings.phone_language_value", { lang: LANG_NAMES[currentLang()] }) : LANG_NAMES[currentLang()]} onPress={() => router.push("/language")} testID="language-link" />
+      <Row tile="indigo" icon={scheme === "dark" ? "moon" : "sun"} label={tr("m.appearance.title")} value={[themeMode === "system" ? tr("m.appearance.match_phone") : tr(`theme.${themeMode}`), themeAccent === "forest" ? tr("m.appearance.forest") : null].filter(Boolean).join(", ")} onPress={() => router.push("/appearance")} testID="appearance-link" />
+      <Row tile="gray" icon="download" label={tr("m.settings.clear_saved_mail")} onPress={clearCache} />
       <View style={{ paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm, gap: space.sm }} testID="undo-send-setting">
-        <Text style={{ color: colors.fg, fontSize: 16 }} nativeID="undo-send-label">Undo send</Text>
-        <Segmented label="Undo send window" value={String(undoSeconds)} onChange={(v) => setUndoSeconds(parseUndoSeconds(v))}
+        <Text style={{ color: colors.fg, fontSize: 16 }} nativeID="undo-send-label">{tr("m.settings.undo_send")}</Text>
+        <Segmented label={tr("m.settings.undo_send_window")} value={String(undoSeconds)} onChange={(v) => setUndoSeconds(parseUndoSeconds(v))}
           options={UNDO_SEND_CHOICES.map((n) => ({ id: String(n), label: `${n} s` }))} />
-        <Text style={{ color: colors.subtle, fontSize: 13 }}>How long you have to take a message back after Send. Saved on this phone.</Text>
+        <Text style={{ color: colors.subtle, fontSize: 13 }}>{tr("m.settings.how_long_you_have_to_take_a_message_back_after_s")}</Text>
       </View>
 
       <GestureSettings />
 
       <UpdateRows />
 
-      <SectionTitle>Privacy and safety</SectionTitle>
-      <Row tile="red" icon="user-x" label="Blocked people" value={blockedCount ? String(blockedCount) : undefined} onPress={() => router.push("/blocked")} testID="blocked-link" />
-      <Row tile="gray" icon="flag" label="Community rules" onPress={() => open(LINKS.terms)} testID="community-rules" />
-      <Text style={[font.tiny, { marginHorizontal: space.lg, marginTop: space.xs }]}>To report a message, press and hold it in chat. Our team reviews reports within 24 hours.</Text>
+      <SectionTitle>{tr("m.settings.privacy_and_safety")}</SectionTitle>
+      <Row tile="red" icon="user-x" label={tr("m.settings.blocked_people")} value={blockedCount ? String(blockedCount) : undefined} onPress={() => router.push("/blocked")} testID="blocked-link" />
+      <Row tile="gray" icon="flag" label={tr("m.settings.community_rules")} onPress={() => open(LINKS.terms)} testID="community-rules" />
+      <Text style={[font.tiny, { marginHorizontal: space.lg, marginTop: space.xs }]}>{tr("m.settings.to_report_a_message_press_and_hold_it_in_chat_ou")}</Text>
 
-      <SectionTitle>Help and legal</SectionTitle>
-      <Row tile="green" icon="activity" label="Service status" onPress={() => open(LINKS.status)} />
-      <Row tile="blue" icon="lock" label="Privacy policy" onPress={() => open(LINKS.privacy)} />
-      <Row tile="gray" icon="file-text" label="Terms of service" onPress={() => open(LINKS.terms)} />
-      <Row tile="orange" icon="life-buoy" label="Contact support" onPress={() => open(LINKS.support)} />
+      <SectionTitle>{tr("m.settings.help_and_legal")}</SectionTitle>
+      <Row tile="green" icon="activity" label={tr("m.settings.service_status")} onPress={() => open(LINKS.status)} />
+      <Row tile="blue" icon="lock" label={tr("m.settings.privacy_policy")} onPress={() => open(LINKS.privacy)} />
+      <Row tile="gray" icon="file-text" label={tr("m.settings.terms_of_service")} onPress={() => open(LINKS.terms)} />
+      <Row tile="orange" icon="life-buoy" label={tr("m.settings.contact_support")} onPress={() => open(LINKS.support)} />
 
-      <SectionTitle>Account</SectionTitle>
-      <Row tile="gray" icon="log-out" label={mode === "sample" ? "Leave the sample workspace" : "Sign out"} onPress={confirmSignOut} testID="sign-out" />
-      <Row icon="user-x" label="Delete my account" danger onPress={() => router.push("/delete-account")} testID="delete-account" />
+      <SectionTitle>{tr("m.settings.account")}</SectionTitle>
+      <Row tile="gray" icon="log-out" label={mode === "sample" ? tr("m.settings.leave_the_sample_workspace") : tr("m.settings.sign_out_2")} onPress={confirmSignOut} testID="sign-out" />
+      <Row icon="user-x" label={tr("m.settings.delete_my_account")} danger onPress={() => router.push("/delete-account")} testID="delete-account" />
 
       <Text style={[font.tiny, { textAlign: "center", marginTop: space.xl }]} testID="app-version">
         {versionLabel(version)}

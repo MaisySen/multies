@@ -66,7 +66,10 @@ describe("global search rules (the web's)", () => {
     expect(phoneTarget({ type: "docs", id: "x", url: "/app/docs/doc_plan" })).toEqual({ kind: "screen", pathname: "/doc/[id]", params: { id: "doc_plan" } });
     expect(phoneTarget({ type: "chat", id: "x", url: "/app/chat/ch_1?thread=m2" })).toEqual({ kind: "screen", pathname: "/chat/[id]", params: { id: "ch_1" } });
     expect(phoneTarget({ type: "contacts", id: "x", url: "/app/contacts/con_1" })).toEqual({ kind: "screen", pathname: "/contact/[id]", params: { id: "con_1" } });
-    expect(phoneTarget({ type: "deals", id: "x", url: "/app/deals?deal=d1" })).toEqual({ kind: "web", path: "/app/deals?deal=d1" });
+    expect(phoneTarget({ type: "deals", id: "x", url: "/app/deals?deal=d1" })).toEqual({ kind: "screen", pathname: "/deal/[id]", params: { id: "d1" } });
+    // MPAR2: a page the app has a screen for opens it; a page it has none for still opens on the web.
+    expect(phoneTarget({ type: "notes", id: "x", url: "/app/meetings?m=1" })).toEqual({ kind: "screen", pathname: "/meetings", params: {} });
+    expect(phoneTarget({ type: "notes", id: "x", url: "/app/calendar" })).toEqual({ kind: "web", path: "/app/calendar" });
     expect(phoneTarget({ type: "files", id: "x", url: "/app/tasks?project=p&task=t1" })).toMatchObject({ pathname: "/task/[id]" });
     expect(phoneTarget({ type: "notes", id: "x", url: "https://elsewhere.example" }).kind).toBe("web");
   });

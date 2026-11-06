@@ -1,5 +1,7 @@
 /** Dates and sizes for an Australian audience: en-AU formats, the device's own time zone. */
-export const LOCALE = "en-AU";
+import { currentLocale } from "@/i18n";
+/** MPAR2: the language on screen picks the locale (en-AU in English, ne-NP in Nepali, hi-IN in Hindi). */
+export const LOCALE = currentLocale();
 
 export function shortDate(iso: string, now = new Date()): string {
   const d = new Date(iso);

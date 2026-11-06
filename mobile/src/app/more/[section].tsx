@@ -18,6 +18,7 @@ import { useWebConfig } from "@/lib/web-config";
 import { openWebPage } from "@/lib/web-open";
 import { FEATURES } from "@/config";
 import { colors, space } from "@/theme";
+import { tl, tr } from "@/i18n";
 
 export function openPage(to: string, transport: Parameters<typeof openWebPage>[0]) {
   const native = nativeRoute(to, { tasks: FEATURES.tasks });
@@ -56,14 +57,14 @@ export default function MoreSection() {
   const webOnly = all.filter((p) => !isNative(p.to));
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }} testID={`more-section-${s.id}`}>
-      <ScreenHeader title={s.label} back="More" />
+      <ScreenHeader title={tl("nav", s.label)} back={tr("nav.more")} />
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: insets.bottom + space.xl }}>
         {native.length ? (
           <InsetGroup>
             {native.map((p) => {
               const n = countOf(live, (p as { count?: string }).count);
               return (
-                <GroupRow key={p.to} testID={`more-page-${p.to}`} label={p.label} icon={iconFor(p.icon)} tile={colorFor(s.id)}
+                <GroupRow key={p.to} testID={`more-page-${p.to}`} label={tl("nav", p.label)} icon={iconFor(p.icon)} tile={colorFor(s.id)}
                   value={n > 0 ? countText(n) : null} chevron onPress={() => openPage(p.to, transport)} />
               );
             })}
@@ -72,7 +73,7 @@ export default function MoreSection() {
         {webOnly.length ? (
           <InsetGroup header="On the web" footer="These open inside the app, already signed in. Tap Done to come back." testID="more-web-group">
             {webOnly.map((p) => (
-              <GroupRow key={p.to} testID={`more-page-${p.to}`} label={p.label} icon={iconFor(p.icon)} tile="gray" right={web} chevron={false}
+              <GroupRow key={p.to} testID={`more-page-${p.to}`} label={tl("nav", p.label)} icon={iconFor(p.icon)} tile="gray" right={web} chevron={false}
                 hint="Opens inside the app" onPress={() => openPage(p.to, transport)} />
             ))}
           </InsetGroup>

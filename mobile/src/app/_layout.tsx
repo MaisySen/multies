@@ -12,7 +12,11 @@ import { configureNotifications } from "@/lib/push";
 import { extractPushData, routeForPush } from "@/lib/push-events";
 import "@/lib/push-task";
 import { SAMPLE_ONLY } from "@/config";
-import { colors, scheme } from "@/theme";
+import { colors, scheme, mode as themeMode } from "@/theme";
+import { Appearance } from "react-native";
+
+// MPAR2: a fixed Light or Dark choice also sets the phone's own controls (keyboard, alerts) for this app. Fails soft.
+if (themeMode !== "system") { try { Appearance.setColorScheme?.(scheme); } catch { /* older runtime */ } }
 import { useReduceMotion } from "@/lib/motion";
 import { HeldSendBar } from "@/components/held-send-bar";
 import { OtaProvider } from "@/lib/ota/provider";

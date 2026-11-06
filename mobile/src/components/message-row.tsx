@@ -4,6 +4,7 @@ import type { Agent, MessageSummary } from "@/api/types";
 import { Avatar, Badge, Icon } from "./ui";
 import { displayName, shortDate } from "@/lib/format";
 import { colors, space } from "@/theme";
+import { tr } from "@/i18n";
 
 export const MessageRow = memo(function MessageRow({ m, agents, onPress, onLongPress, showRecipient, note, noteTone, onLabel }: {
   m: MessageSummary; agents?: Agent[]; onPress: () => void; onLongPress?: () => void; showRecipient?: boolean;
@@ -13,11 +14,11 @@ export const MessageRow = memo(function MessageRow({ m, agents, onPress, onLongP
   onLabel?: (label: string) => void;
 }) {
   const agent = m.sentByAgentId ? agents?.find((a) => a.id === m.sentByAgentId) : undefined;
-  const who = showRecipient ? `To: ${m.to.map(displayName).join(", ")}` : agent?.name ?? displayName(m.from);
+  const who = showRecipient ? tr("m.inbox.to_displayname", { displayName: m.to.map(displayName).join(", ") }) : agent?.name ?? displayName(m.from);
   const labels = m.labels ?? [];
-  const label = `${m.isRead ? "" : "Unread. "}${who}. ${m.subject || "No subject"}. ${m.snippet}. ${shortDate(m.date)}${agent ? `. Written by agent ${agent.name}` : ""}${labels.length ? `. Labels: ${labels.join(", ")}` : ""}${note ? `. ${note}` : ""}`;
+  const label = [m.isRead ? "" : tr("m.inbox.unread"), who, m.subject || tr("m.inbox.no_subject_plain"), m.snippet, shortDate(m.date), agent ? tr("m.inbox.written_by_agent", { name: agent.name }) : "", labels.length ? tr("m.inbox.labels_list", { labels: labels.join(", ") }) : "", note ?? ""].filter(Boolean).join(". ");
   const row = (
-    <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={350} accessibilityRole="button" accessibilityLabel={label} accessibilityHint={onLongPress ? "Opens the conversation. Long press for more actions." : "Opens the conversation"}
+    <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={350} accessibilityRole="button" accessibilityLabel={label} accessibilityHint={onLongPress ? tr("m.inbox.opens_the_conversation_long_press_for_more_actio") : tr("m.inbox.opens_the_conversation")}
       style={({ pressed }) => [s.row, labels.length && onLabel ? { borderBottomWidth: 0, paddingBottom: space.xs } : null, pressed && { backgroundColor: colors.surface }]}>
       <View style={s.dotCol}>{!m.isRead ? <View style={s.dot} /> : null}</View>
       <Avatar name={displayName(m.from)} agent={!!m.sentByAgentId} />
@@ -26,7 +27,7 @@ export const MessageRow = memo(function MessageRow({ m, agents, onPress, onLongP
           <Text style={[s.from, !m.isRead && s.strong]} numberOfLines={1}>{who}</Text>
           <Text style={[s.date, !m.isRead && { color: colors.brand }]}>{shortDate(m.date)}</Text>
         </View>
-        <Text style={[s.subject, !m.isRead && s.strong]} numberOfLines={1}>{m.subject || "(no subject)"}</Text>
+        <Text style={[s.subject, !m.isRead && s.strong]} numberOfLines={1}>{m.subject || tr("m.inbox.no_subject")}</Text>
         <Text style={s.snippet} numberOfLines={2}>{m.snippet}</Text>
         {note ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
@@ -36,7 +37,7 @@ export const MessageRow = memo(function MessageRow({ m, agents, onPress, onLongP
         ) : null}
         {agent || m.isStarred || m.hasAttachments || (labels.length && !onLabel) ? (
           <View style={{ flexDirection: "row", gap: 6, marginTop: 4, alignItems: "center" }}>
-            {agent ? <Badge label={`Agent: ${agent.name}`} tone="brand" icon="cpu" /> : null}
+            {agent ? <Badge label={tr("m.inbox.agent_name", { name: agent.name })} tone="brand" icon="cpu" /> : null}
             {m.hasAttachments ? <Icon name="paperclip" size={14} /> : null}
             {m.isStarred ? <Icon name="star" size={14} color={colors.warn} /> : null}
             {!onLabel ? labels.slice(0, 3).map((l) => <LabelChip key={l} label={l} />) : null}
@@ -66,7 +67,7 @@ export function LabelChip({ label, onPress, testID }: { label: string; onPress?:
   );
   if (!onPress) return chip;
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`Show mail labelled ${label}`} testID={testID} hitSlop={8}
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={tr("m.inbox.show_mail_labelled_label", { label: label })} testID={testID} hitSlop={8}
       style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, minHeight: 24, justifyContent: "center" })}>{chip}</Pressable>
   );
 }

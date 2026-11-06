@@ -8,11 +8,12 @@ import { toolFeatureOn, useWebConfig } from "@/lib/web-config";
 import { openOnWeb } from "./tool-ui";
 import { Footnote } from "./m1-work";
 import { colors, font, radius, space, TOUCH } from "@/theme";
+import { tr } from "@/i18n";
 
 /** Asks first, then runs. Cancel does nothing. */
 export function confirmThen(title: string, body: string, action: string, run: () => void, destructive = false) {
   Alert.alert(title, body, [
-    { text: "Cancel", style: "cancel" },
+    { text: tr("m.more.cancel"), style: "cancel" },
     { text: action, style: destructive ? "destructive" : "default", onPress: run },
   ]);
 }
@@ -22,7 +23,7 @@ export function WebNote({ text, path, testID }: { text: string; path: string; te
   return (
     <View style={{ gap: space.sm, paddingHorizontal: space.lg }}>
       <Footnote>{text}</Footnote>
-      <Button label="Open on the web" icon="external-link" variant="secondary" onPress={() => openOnWeb(path)} testID={testID ?? "open-on-web"} />
+      <Button label={tr("m.more.open_on_the_web")} icon="external-link" variant="secondary" onPress={() => openOnWeb(path)} testID={testID ?? "open-on-web"} />
     </View>
   );
 }
@@ -43,7 +44,7 @@ export function StatCell({ value, label, testID }: { value: string; label: strin
 }
 
 /** The message from a failed request, in plain words. */
-export function problemText(e: unknown, fallback = "Something went wrong. Try again."): string {
+export function problemText(e: unknown, fallback = tr("m.more.something_went_wrong_try_again")): string {
   if (e && typeof e === "object" && "message" in e && typeof (e as { message: unknown }).message === "string" && (e as { message: string }).message) return (e as { message: string }).message;
   return fallback;
 }
@@ -53,12 +54,12 @@ export function MailMergeEntry({ hidden }: { hidden?: boolean }) {
   const cfg = useWebConfig();
   if (hidden || !toolFeatureOn(cfg.data, "merge_plus_r109")) return null;
   return (
-    <Pressable onPress={() => router.push("/mail-merge")} accessibilityRole="button" accessibilityLabel="Mail merge, newsletters and journeys" testID="tools-mail-merge"
+    <Pressable onPress={() => router.push("/mail-merge")} accessibilityRole="button" accessibilityLabel={tr("m.more.mail_merge_newsletters_and_journeys")} testID="tools-mail-merge"
       style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: space.md, minHeight: TOUCH, padding: space.md, borderRadius: radius.md, backgroundColor: pressed ? colors.bg : colors.elevated })}>
       <Icon name="mail" size={20} color={colors.brand} />
       <View style={{ flex: 1 }}>
-        <Text style={font.headline}>Mail merge</Text>
-        <Text style={font.small}>Newsletters and journeys</Text>
+        <Text style={font.headline}>{tr("m.more.mail_merge")}</Text>
+        <Text style={font.small}>{tr("m.more.newsletters_and_journeys")}</Text>
       </View>
       <Icon name="chevron-right" size={18} color={colors.subtle} />
     </Pressable>

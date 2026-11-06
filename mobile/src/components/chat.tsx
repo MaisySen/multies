@@ -13,6 +13,7 @@ import { colors, font, radius, space, TOUCH } from "@/theme";
 import { useReduceMotion } from "@/lib/motion";
 import { thud } from "@/lib/haptics";
 import { openInApp } from "@/lib/web-open";
+import { tr } from "@/i18n";
 
 const LINK_ICON: Record<ChatLink["type"], IconName> = { task: "check-square", thread: "mail", doc: "file-text" };
 
@@ -31,7 +32,7 @@ export function fileUrl(a: ChatAttachment) {
 
 export function LinkChip({ link }: { link: ChatLink }) {
   const label = linkLabel(link);
-  const kind = link.type === "task" ? "Task" : link.type === "thread" ? "Email" : "Doc";
+  const kind = link.type === "task" ? tr("m.chat.task") : link.type === "thread" ? tr("m.chat.email") : tr("m.chat.doc");
   return (
     <Pressable onPress={() => openLink(link)} accessibilityRole="button" accessibilityLabel={`${kind}: ${label}`} testID={`chip-${link.type}-${link.id}`}
       style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 6, maxWidth: "100%", minHeight: 34, paddingHorizontal: 10, borderRadius: radius.pill,
@@ -56,7 +57,7 @@ function AttachmentRow({ a, messageId, sample }: { a: ChatAttachment; messageId:
     }
   };
   const open = async () => {
-    if (sample) { Alert.alert("Sample file", "Files in the sample workspace are examples, so there is nothing to open."); return; }
+    if (sample) { Alert.alert(tr("m.chat.sample_file"), tr("m.chat.files_in_the_sample_workspace_are_examples_so_th")); return; }
     await openInApp(await freshUrl());
   };
   const share = async () => {
@@ -65,7 +66,7 @@ function AttachmentRow({ a, messageId, sample }: { a: ChatAttachment; messageId:
     Share.share(Platform.OS === "ios" ? { url } : { message: url, title: a.filename }).catch(() => {});
   };
   return (
-    <Pressable onPress={open} onLongPress={share} accessibilityRole="button" accessibilityLabel={`Attachment ${a.filename}, ${bytes(a.size)}`} accessibilityHint="Opens the file. Press and hold to share it."
+    <Pressable onPress={open} onLongPress={share} accessibilityRole="button" accessibilityLabel={tr("m.chat.attachment_filename_size", { filename: a.filename, size: bytes(a.size) })} accessibilityHint={tr("m.chat.opens_the_file_press_and_hold_to_share_it")}
       testID={`attachment-${a.id}`}
       style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: space.sm, padding: 10, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: pressed ? colors.hover : colors.elevated })}>
       <Icon name="paperclip" size={16} />
@@ -86,17 +87,17 @@ export function ChatMessageRow({ m, meId, sample, onLongPress, onOpenThread, sho
   return (
     <Pressable onLongPress={() => { thud(); onLongPress?.(m); }} delayLongPress={350} testID={`chat-msg-${m.id}`}
       accessibilityLabel={grouped ? `${m.author.name}, ${messageTime(m.createdAt)}` : undefined}
-      accessibilityHint={onLongPress ? "Press and hold for more actions" : undefined}
+      accessibilityHint={onLongPress ? tr("m.chat.press_and_hold_for_more_actions") : undefined}
       style={({ pressed }) => ({ flexDirection: "row", gap: space.md, paddingHorizontal: space.lg, paddingTop: grouped ? 2 : 10, paddingBottom: grouped ? 4 : 6, backgroundColor: pressed ? colors.surface : "transparent" })}>
       {grouped ? <View style={{ width: 36 }} /> : <Avatar name={m.author.name} agent={agent} size={36} />}
       <View style={{ flex: 1, gap: 6 }}>
         {grouped ? null : <View style={{ flexDirection: "row", alignItems: "baseline", gap: space.sm, flexWrap: "wrap" }}>
           <Text style={{ color: colors.fg, fontWeight: "700", fontSize: 15 }}>{m.author.name}</Text>
-          {agent ? <Text style={{ color: colors.brand, fontSize: 12, fontWeight: "600" }}>Agent</Text> : null}
-          {m.author.type === "guest" ? <Text style={{ color: colors.warn, fontSize: 12, fontWeight: "600" }}>Guest</Text> : null}
+          {agent ? <Text style={{ color: colors.brand, fontSize: 12, fontWeight: "600" }}>{tr("m.chat.agent")}</Text> : null}
+          {m.author.type === "guest" ? <Text style={{ color: colors.warn, fontSize: 12, fontWeight: "600" }}>{tr("m.chat.guest")}</Text> : null}
           <Text style={font.tiny}>{messageTime(m.createdAt)}{m.editedAt ? " (edited)" : ""}</Text>
         </View>}
-        {m.deleted ? <Text style={[font.small, { fontStyle: "italic" }]}>This message was deleted.</Text> : (
+        {m.deleted ? <Text style={[font.small, { fontStyle: "italic" }]}>{tr("m.chat.this_message_was_deleted")}</Text> : (
           <Text style={font.body} selectable>
             {parts.map((s, i) => s.kind === "text" ? <Text key={i}>{s.text}</Text>
               : s.kind === "mention" ? <Text key={i} style={{ color: colors.brand, fontWeight: "600", backgroundColor: s.self ? colors.brandSoft : undefined }}>{s.text}</Text>
@@ -106,7 +107,7 @@ export function ChatMessageRow({ m, meId, sample, onLongPress, onOpenThread, sho
         {m.links.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{m.links.map((l) => <LinkChip key={`${l.type}:${l.id}`} link={l} />)}</View> : null}
         {m.attachments.length ? <View style={{ gap: 6 }}>{m.attachments.map((a) => <AttachmentRow key={a.id} a={a} messageId={m.id} sample={sample} />)}</View> : null}
         {showReplies && m.replyCount > 0 ? (
-          <Pressable onPress={() => onOpenThread?.(m)} accessibilityRole="button" accessibilityLabel={`${m.replyCount} ${m.replyCount === 1 ? "reply" : "replies"}, open thread`} testID={`replies-${m.id}`}
+          <Pressable onPress={() => onOpenThread?.(m)} accessibilityRole="button" accessibilityLabel={tr("m.chat.replies_open_thread", { count: m.replyCount })} testID={`replies-${m.id}`}
             style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 32 }}>
             <Icon name="corner-down-right" size={14} color={colors.brand} />
             <Text style={{ color: colors.brand, fontWeight: "600", fontSize: 14 }}>{m.replyCount} {m.replyCount === 1 ? "reply" : "replies"}</Text>
@@ -135,15 +136,15 @@ export function MessageMenu({ m, onClose, onReply, onMakeTask, busy, onReport, o
   );
   return (
     <Modal transparent animationType={reduceMotion ? "none" : "slide"} visible onRequestClose={onClose}>
-      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }} onPress={onClose} accessibilityLabel="Close menu">
+      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }} onPress={onClose} accessibilityLabel={tr("m.chat.close_menu")}>
         <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingBottom: space.xl, paddingTop: space.sm }} accessibilityViewIsModal>
           <Text style={[font.small, { paddingHorizontal: space.lg, paddingVertical: space.sm }]} numberOfLines={2}>{m.author.name}: {plainText(m)}</Text>
-          {item("check-square", busy ? "Making task..." : "Make task", () => onMakeTask(m), "menu-make-task")}
-          {onReply && !m.parentId ? item("corner-down-right", "Reply in thread", () => { onClose(); onReply(m); }, "menu-reply") : null}
-          {item("copy", "Copy text", () => { Clipboard.setStringAsync(plainText(m)).catch(() => {}); onClose(); }, "menu-copy")}
-          {onReport && !m.deleted ? item("flag", "Report message", () => { onClose(); onReport(m); }, "menu-report", true) : null}
-          {onBlock ? item("user-x", `Block ${m.author.name}`, () => { onClose(); onBlock(m); }, "menu-block", true) : null}
-          {item("x", "Cancel", onClose, "menu-cancel")}
+          {item("check-square", busy ? tr("m.chat.making_task") : tr("m.chat.make_task"), () => onMakeTask(m), "menu-make-task")}
+          {onReply && !m.parentId ? item("corner-down-right", tr("m.chat.reply_in_thread"), () => { onClose(); onReply(m); }, "menu-reply") : null}
+          {item("copy", tr("m.chat.copy_text"), () => { Clipboard.setStringAsync(plainText(m)).catch(() => {}); onClose(); }, "menu-copy")}
+          {onReport && !m.deleted ? item("flag", tr("m.chat.report_message"), () => { onClose(); onReport(m); }, "menu-report", true) : null}
+          {onBlock ? item("user-x", tr("m.chat.block_name", { name: m.author.name }), () => { onClose(); onBlock(m); }, "menu-block", true) : null}
+          {item("x", tr("m.chat.cancel"), onClose, "menu-cancel")}
         </View>
       </Pressable>
     </Modal>
@@ -171,7 +172,7 @@ export function Composer({ people, placeholder, onSend, sending, testID = "compo
   const ready = (!!text.trim() || files.length > 0) && !busy;
   const attach = async () => {
     if (busy) return;
-    if (files.length >= CHAT_FILES_PER_MESSAGE) { setError(`You can attach up to ${CHAT_FILES_PER_MESSAGE} files at a time.`); return; }
+    if (files.length >= CHAT_FILES_PER_MESSAGE) { setError(tr("m.chat.you_can_attach_up_to_count_files_at_a_time", { count: CHAT_FILES_PER_MESSAGE })); return; }
     try {
       const got = await pickChatFiles(files.length);
       setError(got.problem);
@@ -202,20 +203,20 @@ export function Composer({ people, placeholder, onSend, sending, testID = "compo
   return (
     <View style={{ borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.bg }}>
       {matches.length ? (
-        <View style={{ borderBottomWidth: 1, borderBottomColor: colors.line }} accessibilityLabel="People to mention">
+        <View style={{ borderBottomWidth: 1, borderBottomColor: colors.line }} accessibilityLabel={tr("m.chat.people_to_mention")}>
           {matches.map((p) => (
-            <Pressable key={p.id} testID={`mention-${p.id}`} accessibilityRole="button" accessibilityLabel={`Mention ${p.name}`}
+            <Pressable key={p.id} testID={`mention-${p.id}`} accessibilityRole="button" accessibilityLabel={tr("m.chat.mention_name", { name: p.name })}
               onPress={() => { setText(insertMention(text, p.name)); setPicked((x) => [...x, p]); }}
               style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: TOUCH, paddingHorizontal: space.lg, backgroundColor: pressed ? colors.hover : "transparent" })}>
               <Avatar name={p.name} agent={p.type === "agent"} size={28} />
               <Text style={{ color: colors.fg, fontSize: 15, flex: 1 }}>{p.name}</Text>
-              <Text style={font.tiny}>{p.type === "agent" ? "Agent" : p.email}</Text>
+              <Text style={font.tiny}>{p.type === "agent" ? tr("m.chat.agent") : p.email}</Text>
             </Pressable>
           ))}
         </View>
       ) : null}
       {files.length ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: space.md, paddingTop: space.sm }} accessibilityLabel="Files to send">
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: space.md, paddingTop: space.sm }} accessibilityLabel={tr("m.chat.files_to_send")}>
           {files.map((f, i) => (
             <View key={`${f.uri}-${i}`} testID={`${testID}-file-${i}`}
               style={{ flexDirection: "row", alignItems: "center", gap: 6, maxWidth: "100%", minHeight: 34, paddingLeft: 10, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface }}>
@@ -223,7 +224,7 @@ export function Composer({ people, placeholder, onSend, sending, testID = "compo
               <Text style={{ color: colors.fg, fontSize: 14, flexShrink: 1 }} numberOfLines={1}>{f.name}</Text>
               {f.size !== undefined ? <Text style={font.tiny}>{bytes(f.size)}</Text> : null}
               <Pressable onPress={() => !busy && setFiles((x) => x.filter((_, j) => j !== i))} disabled={busy} hitSlop={8}
-                accessibilityRole="button" accessibilityLabel={`Remove ${f.name}`} testID={`${testID}-file-${i}-remove`}
+                accessibilityRole="button" accessibilityLabel={tr("m.chat.remove_name", { name: f.name })} testID={`${testID}-file-${i}-remove`}
                 style={{ minWidth: 34, minHeight: 34, alignItems: "center", justifyContent: "center" }}>
                 <Icon name="x" size={14} />
               </Pressable>
@@ -242,11 +243,11 @@ export function Composer({ people, placeholder, onSend, sending, testID = "compo
       ) : null}
       {error ? <Text style={{ color: colors.bad, fontSize: 13, paddingHorizontal: space.lg, paddingTop: space.sm }} accessibilityLiveRegion="polite" testID={`${testID}-error`}>{error}</Text> : null}
       <View style={{ flexDirection: "row", alignItems: "flex-end", gap: space.sm, padding: space.sm, paddingHorizontal: space.md }}>
-        {allowFiles ? <IconButton icon="paperclip" label="Attach files" onPress={attach} color={busy ? colors.subtle : colors.fg} testID={`${testID}-attach`} /> : null}
+        {allowFiles ? <IconButton icon="paperclip" label={tr("m.chat.attach_files")} onPress={attach} color={busy ? colors.subtle : colors.fg} testID={`${testID}-attach`} /> : null}
         <TextInput value={text} onChangeText={setText} placeholder={placeholder} placeholderTextColor={colors.subtle} multiline testID={testID}
-          accessibilityLabel={placeholder} accessibilityHint="Type @ to mention someone"
+          accessibilityLabel={placeholder} accessibilityHint={tr("m.chat.type_to_mention_someone")}
           style={{ flex: 1, minHeight: TOUCH, maxHeight: 140, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, color: colors.fg, paddingHorizontal: space.md, paddingTop: 11, paddingBottom: 11, fontSize: 16 }} />
-        <IconButton icon="send" label="Send" onPress={send} color={ready ? colors.brand : colors.subtle} testID={`${testID}-send`} />
+        <IconButton icon="send" label={tr("m.chat.send")} onPress={send} color={ready ? colors.brand : colors.subtle} testID={`${testID}-send`} />
       </View>
     </View>
   );

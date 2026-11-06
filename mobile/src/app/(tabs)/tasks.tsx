@@ -24,6 +24,7 @@ import { loadLastQuery, queryErrorText, saveLastQuery } from "@/lib/task-query";
 import { TaskQueryBox } from "@/components/task-query-box";
 import { STATUSES, dueLabel, moveLabel, nextStatus, senderName, sortTasks, type Task, type TaskStatus } from "@/lib/tasks";
 import { colors, radius, space } from "@/theme";
+import { tr } from "@/i18n";
 
 type Who = "all" | "me";
 
@@ -49,14 +50,14 @@ export default function Tasks() {
   // R33: complete, delete and move hide or change at once with Undo; the call runs when the window closes.
   const undo = useUndoQueue();
   const prefs = usePrefs();
-  const completeLater = (t: Task) => undo.push(t.id, t.status === "done" ? "Marked not done" : "Completed", () => move(t, t.status === "done" ? "todo" : "done"));
-  const deleteLater = (t: Task) => undo.push(t.id, "Task deleted", () => remove.mutate(t.id, onFail));
-  const moveLater = (t: Task, status: TaskStatus) => undo.push(t.id, `Moved to ${STATUSES.find((s) => s.id === status)?.label ?? status}`, () => move(t, status));
+  const completeLater = (t: Task) => undo.push(t.id, t.status === "done" ? tr("m.tasks.marked_not_done") : tr("m.tasks.completed"), () => move(t, t.status === "done" ? "todo" : "done"));
+  const deleteLater = (t: Task) => undo.push(t.id, tr("m.tasks.task_deleted"), () => remove.mutate(t.id, onFail));
+  const moveLater = (t: Task, status: TaskStatus) => undo.push(t.id, tr("m.tasks.moved_to_label", { label: STATUSES.find((s) => s.id === status)?.label ?? status }), () => move(t, status));
   const swipeFor = (t: Task, choice: TaskSwipe): SwipeAction | undefined => {
     switch (choice) {
-      case "complete": return { label: t.status === "done" ? "Not done" : "Complete", icon: "check-circle", color: colors.ok, onAction: () => completeLater(t) };
-      case "schedule": return { label: "Schedule", icon: "calendar", color: colors.warn, onAction: () => setActionsFor(t) };
-      case "delete": return { label: "Delete", icon: "trash-2", color: colors.bad, onAction: () => deleteLater(t) };
+      case "complete": return { label: t.status === "done" ? tr("m.tasks.not_done") : tr("m.tasks.complete"), icon: "check-circle", color: colors.ok, onAction: () => completeLater(t) };
+      case "schedule": return { label: tr("m.tasks.schedule"), icon: "calendar", color: colors.warn, onAction: () => setActionsFor(t) };
+      case "delete": return { label: tr("m.tasks.delete"), icon: "trash-2", color: colors.bad, onAction: () => deleteLater(t) };
       default: return undefined;
     }
   };
@@ -70,33 +71,33 @@ export default function Tasks() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <LargeTitle title="Tasks" top={insets.top} collapsed={collapse.collapsed} right={(
+      <LargeTitle title={tr("m.tasks.tasks")} top={insets.top} collapsed={collapse.collapsed} right={(
         <>
           <NotificationBell />
-          <IconButton icon="command" label="Commands" onPress={openCommandSheet} testID="open-commands" />
-          <IconButton icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="open-meetings" />
-          <IconButton icon="plus" label="New task" onPress={() => router.push("/task/new")} testID="new-task" />
+          <IconButton icon="command" label={tr("m.tasks.commands")} onPress={openCommandSheet} testID="open-commands" />
+          <IconButton icon="video" label={tr("m.tasks.meetings")} onPress={() => router.push("/meetings")} testID="open-meetings" />
+          <IconButton icon="plus" label={tr("m.tasks.new_task")} onPress={() => router.push("/task/new")} testID="new-task" />
         </>
       )} />
       <View style={{ padding: space.lg, paddingBottom: space.sm, gap: space.md }}>
         <TimerChip />
-        <Segmented label="Task view" value={view} onChange={setView} options={[{ id: "list", label: "List" }, { id: "board", label: "Board" }]} />
+        <Segmented label={tr("m.tasks.task_view")} value={view} onChange={setView} options={[{ id: "list", label: tr("m.tasks.list") }, { id: "board", label: tr("m.tasks.board") }]} />
         <View style={{ flexDirection: "row", gap: space.sm }}>
-          <Chip label="All tasks" selected={who === "all"} onPress={() => setWho("all")} />
-          <Chip label="Assigned to me" selected={who === "me"} onPress={() => setWho("me")} />
+          <Chip label={tr("m.tasks.all_tasks")} selected={who === "all"} onPress={() => setWho("all")} />
+          <Chip label={tr("m.tasks.assigned_to_me")} selected={who === "me"} onPress={() => setWho("me")} />
         </View>
         <TaskQueryBox value={query} onSubmit={applyQuery} error={queryError} />
-        {offline ? <Banner text="You're offline. Showing the tasks saved on this phone." /> : null}
+        {offline ? <Banner text={tr("m.tasks.you_re_offline_showing_the_tasks_saved_on_this_p")} /> : null}
       </View>
-      {tasks.isPending ? <Loading variant="task" label="Loading tasks" /> : queryError ? (
-        <EmptyState icon="search" title="Check the search" body="Fix the part named above, or clear the search." />
+      {tasks.isPending ? <Loading variant="task" label={tr("m.tasks.loading_tasks")} /> : queryError ? (
+        <EmptyState icon="search" title={tr("m.tasks.check_the_search")} body={tr("m.tasks.fix_the_part_named_above_or_clear_the_search")} />
       ) : tasks.isError && !list.length ? (
-        <EmptyState icon="alert-circle" title="Couldn't load tasks" body={tasks.error.message} action={<Button label="Try again" icon="refresh-cw" onPress={() => tasks.refetch()} />} />
+        <EmptyState icon="alert-circle" title={tr("m.tasks.couldn_t_load_tasks")} body={tasks.error.message} action={<Button label={tr("m.tasks.try_again")} icon="refresh-cw" onPress={() => tasks.refetch()} />} />
       ) : !list.length && query ? (
-        <EmptyState icon="search" title="No tasks match" body={`Nothing matches ${query}.`} action={<Button label="Clear search" icon="x" onPress={() => applyQuery("")} />} />
+        <EmptyState icon="search" title={tr("m.tasks.no_tasks_match")} body={tr("m.tasks.nothing_matches_query", { query: query })} action={<Button label={tr("m.tasks.clear_search")} icon="x" onPress={() => applyQuery("")} />} />
       ) : !list.length ? (
-        <EmptyState icon="check-square" title={who === "me" ? "Nothing assigned to you" : "No tasks yet"} body="Open an email and tap Make a task, or add one here."
-          action={<Button label="New task" icon="plus" onPress={() => router.push("/task/new")} />} />
+        <EmptyState icon="check-square" title={who === "me" ? tr("m.tasks.nothing_assigned_to_you") : tr("m.tasks.no_tasks_yet")} body={tr("m.tasks.open_an_email_and_tap_make_a_task_or_add_one_her")}
+          action={<Button label={tr("m.tasks.new_task")} icon="plus" onPress={() => router.push("/task/new")} />} />
       ) : view === "list" ? (
         <ScrollView contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.xxl, gap: space.lg }} {...collapse.scrollProps}
           refreshControl={<RefreshControl refreshing={tasks.isRefetching} onRefresh={() => { tasks.refetch(); }} tintColor={colors.brand} />}>
@@ -131,7 +132,7 @@ export default function Tasks() {
                 <ScrollView contentContainerStyle={{ gap: space.sm }} showsVerticalScrollIndicator={false}>
                   {rows.map((t) => (
                     <View key={t.id} style={{ backgroundColor: colors.elevated, borderRadius: radius.md, padding: space.md, gap: space.sm }}>
-                      <Pressable onPress={() => open(t)} onLongPress={() => longPress(t)} delayLongPress={350} accessibilityRole="button" accessibilityLabel={`${t.title}. ${s.label}`} accessibilityHint="Long press for more actions" style={{ gap: 6 }}>
+                      <Pressable onPress={() => open(t)} onLongPress={() => longPress(t)} delayLongPress={350} accessibilityRole="button" accessibilityLabel={`${t.title}. ${s.label}`} accessibilityHint={tr("m.tasks.long_press_for_more_actions")} style={{ gap: 6 }}>
                         <Text style={{ color: colors.subtle, fontSize: 12, fontWeight: "600" }}>{t.ref}</Text>
                         <Text style={{ color: colors.fg, fontSize: 15, fontWeight: "600" }}>{t.title}</Text>
                         <Meta t={t} />
@@ -140,7 +141,7 @@ export default function Tasks() {
                         onPress={() => { tick(); moveLater(t, nextStatus(t.status)); }} style={{ minHeight: 36, alignSelf: "flex-start", paddingHorizontal: 0 }} />
                     </View>
                   ))}
-                  {!rows.length ? <Text style={{ color: colors.subtle, fontSize: 14, paddingVertical: space.md }}>Nothing here</Text> : null}
+                  {!rows.length ? <Text style={{ color: colors.subtle, fontSize: 14, paddingVertical: space.md }}>{tr("m.tasks.nothing_here")}</Text> : null}
                 </ScrollView>
               </View>
             );
@@ -165,7 +166,7 @@ export function Meta({ t }: { t: Task }) {
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
       {due ? <Badge label={due.text} tone={due.tone === "plain" ? "neutral" : due.tone} icon="calendar" /> : null}
-      {urgent ? <Badge label={t.priority === "urgent" ? "Urgent" : "High"} tone={t.priority === "urgent" ? "bad" : "warn"} icon="flag" /> : null}
+      {urgent ? <Badge label={t.priority === "urgent" ? tr("m.tasks.urgent") : tr("m.tasks.high")} tone={t.priority === "urgent" ? "bad" : "warn"} icon="flag" /> : null}
       {t.assignee ? <Badge label={t.assignee.name} icon={t.assignee.type === "agent" ? "cpu" : "user"} /> : null}
       {t.subtasks.total ? <Badge label={`${t.subtasks.done}/${t.subtasks.total}`} icon="list" /> : null}
       {checklist ? <Badge label={checklist} icon="check-square" tone={t.checklist!.done === t.checklist!.total ? "ok" : "neutral"} /> : null}
@@ -182,14 +183,14 @@ function TaskRow({ t, onToggle, onLongPress }: { t: Task; onToggle: () => void; 
   return (
     <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: saving ? colors.brandSoft : colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: saving ? colors.brandLine : colors.line }}
       accessibilityState={{ busy: saving }} testID={saving ? "task-row-saving" : undefined}>
-      <Pressable onPress={onToggle} role="checkbox" aria-checked={done} accessibilityState={{ checked: done }} accessibilityLabel={`Mark ${t.title} ${done ? "not done" : "done"}`}
+      <Pressable onPress={onToggle} role="checkbox" aria-checked={done} accessibilityState={{ checked: done }} accessibilityLabel={(done ? tr("m.tasks.mark_title_not_done", { title: t.title }) : tr("m.tasks.mark_title_done", { title: t.title }))}
         testID={`toggle-${t.id}`} style={{ width: 52, minHeight: 56, alignItems: "center", justifyContent: "center" }}>
         <Icon name={done ? "check-circle" : "circle"} size={22} color={done ? colors.ok : colors.subtle} />
       </Pressable>
-      <Pressable onPress={() => open(t)} onLongPress={onLongPress} delayLongPress={350} accessibilityRole="button" accessibilityLabel={`Open task ${t.title}`}
-        accessibilityHint="Long press for more actions" testID={`task-row-${t.id}`} style={{ flex: 1, paddingVertical: space.md, paddingRight: space.lg, gap: 6 }}>
+      <Pressable onPress={() => open(t)} onLongPress={onLongPress} delayLongPress={350} accessibilityRole="button" accessibilityLabel={tr("m.tasks.open_task_title", { title: t.title })}
+        accessibilityHint={tr("m.tasks.long_press_for_more_actions")} testID={`task-row-${t.id}`} style={{ flex: 1, paddingVertical: space.md, paddingRight: space.lg, gap: 6 }}>
         <Text style={{ color: done ? colors.subtle : colors.fg, fontSize: 16, textDecorationLine: done ? "line-through" : "none" }}>{t.title}</Text>
-        {saving ? <Text style={{ color: colors.brand, fontSize: 12, fontWeight: "600" }}>Saving</Text> : <Meta t={t} />}
+        {saving ? <Text style={{ color: colors.brand, fontSize: 12, fontWeight: "600" }}>{tr("m.tasks.saving")}</Text> : <Meta t={t} />}
       </Pressable>
     </View>
   );

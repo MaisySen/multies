@@ -1,4 +1,6 @@
 import { Appearance, Platform } from "react-native";
+import { readPref, writePref } from "@/lib/startup-prefs";
+import { isDevanagari } from "@/i18n";
 
 /**
  * Multies' design tokens, after Apple's Human Interface Guidelines: the system font, calm neutral
@@ -61,9 +63,48 @@ const dark: typeof light = {
   shadow: "rgba(0,0,0,0.4)",
 };
 
-export const scheme: "light" | "dark" = Appearance.getColorScheme() === "light" ? "light" : "dark";
-export const colors = scheme === "light" ? light : dark;
+/**
+ * MPAR2: Appearance in Settings. Mode follows the phone (System) or is fixed to Light or Dark; the accent is the Multies
+ * blue or Forest, the web's Forest green (#1F6F43 in light, #4CC38A in dark). Chosen once when the app starts, from the
+ * small settings kept on the phone (lib/startup-prefs); changing either restarts the app (lib/app-reload).
+ */
+export type AppearanceMode = "system" | "light" | "dark";
+export type Accent = "blue" | "forest";
+export const APPEARANCE_MODES: readonly AppearanceMode[] = ["system", "light", "dark"];
+export const ACCENTS: readonly Accent[] = ["blue", "forest"];
+const isMode = (v: unknown): v is AppearanceMode => v === "system" || v === "light" || v === "dark";
+export const savedMode = (): AppearanceMode => { const v = readPref("appearance"); return isMode(v) ? v : "system"; };
+export const savedAccent = (): Accent => (readPref("accent") === "forest" ? "forest" : "blue");
+export function saveAppearance(mode: AppearanceMode, accent: Accent) {
+  writePref("appearance", mode === "system" ? null : mode);
+  writePref("accent", accent === "blue" ? null : accent);
+}
+/** The scheme for a mode: the phone's own setting for System. */
+export const resolveScheme = (mode: AppearanceMode, system: string | null | undefined): "light" | "dark" =>
+  mode === "system" ? (system === "light" ? "light" : "dark") : mode;
+
+const forestLight: Partial<typeof light> = {
+  brand: "#1F6F43", brandFill: "#1F6F43", brandHover: "#185A36", brandSoft: "rgba(31,111,67,0.10)", brandLine: "rgba(31,111,67,0.35)",
+};
+const forestDark: Partial<typeof light> = {
+  brand: "#4CC38A", brandFill: "#1F6F43", brandHover: "#4CC38A", brandSoft: "rgba(76,195,138,0.16)", brandLine: "rgba(76,195,138,0.45)",
+};
+/** The palette for a scheme and accent (Forest repaints only the brand colours, as on the web). */
+export function paletteFor(s: "light" | "dark", a: Accent): typeof light {
+  const base = s === "light" ? light : dark;
+  return a === "forest" ? { ...base, ...(s === "light" ? forestLight : forestDark) } : base;
+}
+
+export const mode: AppearanceMode = savedMode();
+export const accent: Accent = savedAccent();
+export const scheme: "light" | "dark" = resolveScheme(mode, Appearance.getColorScheme());
+export const colors = paletteFor(scheme, accent);
 export const palettes = { light, dark };
+
+/** MPAR2: Nepali and Hindi (Devanagari) need taller lines so marks above and below the letters are never cut. */
+const tall = isDevanagari();
+/** A line height for the language on screen: as given in English, a fifth taller in Nepali and Hindi. */
+export const lh = (n: number) => (tall ? Math.round(n * 1.2) : n);
 
 /** An 8 point grid, with 4 for tight spots. */
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
@@ -72,13 +113,13 @@ export const radius = { sm: 8, md: 12, lg: 18, xl: 24, pill: 999 } as const;
 
 /** Apple's text styles, in the system font (San Francisco on iPhone, Roboto on Android). */
 export const font = {
-  largeTitle: { fontSize: 34, fontWeight: "700" as const, color: colors.fg, letterSpacing: 0.37 },
-  title: { fontSize: 28, fontWeight: "700" as const, color: colors.fg, letterSpacing: 0.36 },
-  heading: { fontSize: 20, fontWeight: "600" as const, color: colors.fg, letterSpacing: 0.38 },
-  headline: { fontSize: 17, fontWeight: "600" as const, color: colors.fg, letterSpacing: -0.41 },
-  body: { fontSize: 17, color: colors.fg, lineHeight: 22, letterSpacing: -0.41 },
-  small: { fontSize: 15, color: colors.muted, lineHeight: 20, letterSpacing: -0.24 },
-  tiny: { fontSize: 12, color: colors.subtle },
+  largeTitle: { fontSize: 34, fontWeight: "700" as const, color: colors.fg, letterSpacing: tall ? 0 : 0.37, ...(tall ? { lineHeight: 48 } : {}) },
+  title: { fontSize: 28, fontWeight: "700" as const, color: colors.fg, letterSpacing: tall ? 0 : 0.36, ...(tall ? { lineHeight: 40 } : {}) },
+  heading: { fontSize: 20, fontWeight: "600" as const, color: colors.fg, letterSpacing: tall ? 0 : 0.38, ...(tall ? { lineHeight: 30 } : {}) },
+  headline: { fontSize: 17, fontWeight: "600" as const, color: colors.fg, letterSpacing: tall ? 0 : -0.41, ...(tall ? { lineHeight: 26 } : {}) },
+  body: { fontSize: 17, color: colors.fg, lineHeight: lh(22), letterSpacing: tall ? 0 : -0.41 },
+  small: { fontSize: 15, color: colors.muted, lineHeight: lh(20), letterSpacing: tall ? 0 : -0.24 },
+  tiny: { fontSize: 12, color: colors.subtle, ...(tall ? { lineHeight: 18 } : {}) },
 };
 
 /** A soft card shadow. Android uses elevation. */
@@ -94,7 +135,7 @@ export const raised = Platform.select({
 });
 
 /** M4: gradient stops for hero cards (brand blue to indigo), and a hairline only where depth cannot show (dark mode). */
-export const gradient = { brand: scheme === "light" ? ["#0A84FF", "#5E5CE6"] : ["#0A60D0", "#4B3FC4"], warm: ["#FF9F0A", "#FF375F"] } as const;
+export const gradient = { brand: accent === "forest" ? (scheme === "light" ? ["#2E8B57", "#1F6F43"] : ["#1F6F43", "#14532D"]) : scheme === "light" ? ["#0A84FF", "#5E5CE6"] : ["#0A60D0", "#4B3FC4"], warm: ["#FF9F0A", "#FF375F"] } as const;
 export const hairline = scheme === "dark" ? 1 : 0;
 
 /** Motion: short ease out, springs for sheets. Reduce Motion turns these off (lib/motion.ts). */

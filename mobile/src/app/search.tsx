@@ -17,6 +17,7 @@ import {
 import { openWebPath, plainProblem, useGlobalSearch } from "@/lib/docs-queries";
 import type { MessageSummary } from "@/api/types";
 import { colors, space } from "@/theme";
+import { tr } from "@/i18n";
 
 /**
  * R36, M1: one search across everything the person can open, the same as the web's (mail, tasks, docs, chat, contacts,
@@ -79,14 +80,14 @@ export default function Search() {
       return recent.length ? (
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: space.sm }}>
           <View style={st.headRow}>
-            <Text style={[g.header, { marginHorizontal: 0, marginBottom: 0, flex: 1 }]} accessibilityRole="header">Recent</Text>
-            <Pressable onPress={clearRecent} accessibilityRole="button" accessibilityLabel="Clear recent searches" hitSlop={8} testID="recent-clear">
-              <Text style={{ color: colors.brand, fontSize: 15 }}>Clear</Text>
+            <Text style={[g.header, { marginHorizontal: 0, marginBottom: 0, flex: 1 }]} accessibilityRole="header">{tr("m.search.recent")}</Text>
+            <Pressable onPress={clearRecent} accessibilityRole="button" accessibilityLabel={tr("m.search.clear_recent_searches")} hitSlop={8} testID="recent-clear">
+              <Text style={{ color: colors.brand, fontSize: 15 }}>{tr("m.search.clear")}</Text>
             </Pressable>
           </View>
           <View style={g.group}>
             {recent.map((r, i) => (
-              <Pressable key={r} onPress={() => use(r)} accessibilityRole="button" accessibilityLabel={`Search for ${r}`} testID={`recent-${i}`}
+              <Pressable key={r} onPress={() => use(r)} accessibilityRole="button" accessibilityLabel={tr("m.search.search_for_r", { r: r })} testID={`recent-${i}`}
                 style={({ pressed }) => [st.row, i > 0 && st.sepTop, pressed && { backgroundColor: colors.hover }]}>
                 <Icon name="clock" size={18} color={colors.subtle} />
                 <Text style={{ color: colors.fg, fontSize: 17, flex: 1 }} numberOfLines={1}>{r}</Text>
@@ -95,22 +96,22 @@ export default function Search() {
             ))}
           </View>
         </ScrollView>
-      ) : <EmptyState icon="search" title="Search everything" body="Type at least two letters. Mail, tasks, docs, chat and contacts you can open, typos and all." />;
+      ) : <EmptyState icon="search" title={tr("m.search.search_everything")} body={tr("m.search.type_at_least_two_letters_mail_tasks_docs_chat_a")} />;
     }
     // Offline, or the server has no global search: mail (and tasks) the old way.
     if (local || fallback) {
       const mail = local ?? mailOnly.data?.messages ?? [];
-      if (!local && mailOnly.isPending && !taskHits.length) return <Loading label="Searching" />;
-      if (!mail.length && !taskHits.length) return <EmptyState icon="search" title="No matches" body={`Nothing found for "${q}". Try a name, an address or fewer words.`} />;
+      if (!local && mailOnly.isPending && !taskHits.length) return <Loading label={tr("m.search.searching")} />;
+      if (!mail.length && !taskHits.length) return <EmptyState icon="search" title={tr("m.search.no_matches")} body={tr("m.search.nothing_found_for_q_try_a_name_an_address_or_few", { q: q })} />;
       return (
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: space.xxl * 2 }}>
           {taskHits.length ? (
             <>
-              <Group icon="check-square" title="Tasks" count={taskHits.length} />
+              <Group icon="check-square" title={tr("m.search.tasks")} count={taskHits.length} />
               <View style={g.group}>
                 {taskHits.map((t, i) => (
                   <Pressable key={t.id} onPress={() => { remember(); router.push({ pathname: "/task/[id]", params: { id: t.id } }); }} accessibilityRole="button"
-                    accessibilityLabel={`Task ${t.ref}, ${t.title}`} testID={`search-task-${t.id}`}
+                    accessibilityLabel={tr("m.search.task_ref_title", { ref: t.ref, title: t.title })} testID={`search-task-${t.id}`}
                     style={({ pressed }) => [st.row, i > 0 && st.sepTop, pressed && { backgroundColor: colors.hover }]}>
                     <Icon name={t.status === "done" ? "check-circle" : "circle"} size={20} color={t.status === "done" ? colors.ok : colors.subtle} filled={t.status === "done"} />
                     <View style={{ flex: 1 }}>
@@ -125,22 +126,22 @@ export default function Search() {
           ) : null}
           {mail.length ? (
             <>
-              <Group icon="mail" title="Mail" count={mail.length} />
+              <Group icon="mail" title={tr("m.search.mail")} count={mail.length} />
               {mail.map((item) => <MessageRow key={item.id} m={item} agents={agents.data} onPress={() => { remember(); router.push({ pathname: "/thread/[id]", params: { id: item.id } }); }} />)}
             </>
           ) : null}
         </ScrollView>
       );
     }
-    if (res.isPending) return <Loading label="Searching" />;
+    if (res.isPending) return <Loading label={tr("m.search.searching")} />;
     if (res.error && !res.data) {
-      return <EmptyState icon="alert-circle" title="Search didn't finish" body={plainProblem(res.error, "Search didn't answer. Try again.")} action={<Button label="Try again" variant="secondary" onPress={() => res.refetch()} testID="search-retry" />} />;
+      return <EmptyState icon="alert-circle" title={tr("m.search.search_didn_t_finish")} body={plainProblem(res.error, tr("m.search.search_didn_t_answer_try_again"))} action={<Button label={tr("m.search.try_again")} variant="secondary" onPress={() => res.refetch()} testID="search-retry" />} />;
     }
-    if (!groups.length) return <EmptyState icon="search" title="No matches" body={`Nothing found for "${q}"${choice !== "all" ? " in this type" : ""}. Try other words${choice !== "all" ? " or All" : ""}.`} />;
+    if (!groups.length) return <EmptyState icon="search" title={tr("m.search.no_matches")} body={tr("m.search.nothing_found_for_q_choice_try_other_words_choic", { q: q, choice: choice !== "all" ? " in this type" : "", choice2: choice !== "all" ? " or All" : "" })} />;
     return (
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: space.xxl * 2 }} testID="search-results">
         {fixed ? <Text style={st.fixed} testID="search-corrected">{fixed}</Text> : null}
-        {res.data?.partial ? <Text style={st.fixed}>Some results took too long and are left out. Try more words.</Text> : null}
+        {res.data?.partial ? <Text style={st.fixed}>{tr("m.search.some_results_took_too_long_and_are_left_out_try")}</Text> : null}
         {groups.map((grp) => (
           <View key={grp.type}>
             <Group icon={TYPE_ICON[grp.type]} title={grp.label} count={grp.items.length} />
@@ -150,7 +151,7 @@ export default function Search() {
                   style={({ pressed }) => [st.row, i > 0 && st.sepTop, pressed && { backgroundColor: colors.hover }]}>
                   <Icon name={TYPE_ICON[it.type]} size={20} color={colors.subtle} />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.fg, fontSize: 16 }} numberOfLines={1}>{it.title || "Untitled"}</Text>
+                    <Text style={{ color: colors.fg, fontSize: 16 }} numberOfLines={1}>{it.title || tr("m.search.untitled")}</Text>
                     {it.subtitle ? <Text style={{ color: colors.subtle, fontSize: 13 }} numberOfLines={1}>{it.subtitle}</Text> : null}
                     {it.snippet ? <Text style={{ color: colors.muted, fontSize: 14 }} numberOfLines={2}>{it.snippet}</Text> : null}
                   </View>
@@ -159,7 +160,7 @@ export default function Search() {
               ))}
             </View>
             {choice === "all" && choiceOf(grp.type) !== "all" && grp.items.length >= 5 ? (
-              <Pressable onPress={() => pick(choiceOf(grp.type))} accessibilityRole="button" accessibilityLabel={`Show more ${grp.label}`} style={st.more} testID={`search-more-${grp.type}`}>
+              <Pressable onPress={() => pick(choiceOf(grp.type))} accessibilityRole="button" accessibilityLabel={tr("m.search.show_more_label", { label: grp.label })} style={st.more} testID={`search-more-${grp.type}`}>
                 <Text style={{ color: colors.brand, fontSize: 15 }}>Show more {grp.label.toLowerCase()}</Text>
               </Pressable>
             ) : null}
@@ -174,18 +175,18 @@ export default function Search() {
       <View style={{ paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm }}>
         <View style={st.field}>
           <Icon name="search" size={20} color={colors.subtle} />
-          <TextInput ref={input} testID="search" value={text} onChangeText={setText} autoFocus placeholder="Mail, tasks, docs, people"
-            placeholderTextColor={colors.subtle} selectionColor={colors.brand} accessibilityLabel="Search" returnKeyType="search" autoCapitalize="none" autoCorrect={false} onSubmitEditing={remember}
+          <TextInput ref={input} testID="search" value={text} onChangeText={setText} autoFocus placeholder={tr("m.search.mail_tasks_docs_people")}
+            placeholderTextColor={colors.subtle} selectionColor={colors.brand} accessibilityLabel={tr("m.search.search")} returnKeyType="search" autoCapitalize="none" autoCorrect={false} onSubmitEditing={remember}
             style={st.input} />
           {text ? (
-            <Pressable onPress={() => { tick(); setText(""); setQ(""); setChoice("all"); input.current?.focus(); }} accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={10} testID="search-clear">
+            <Pressable onPress={() => { tick(); setText(""); setQ(""); setChoice("all"); input.current?.focus(); }} accessibilityRole="button" accessibilityLabel={tr("m.search.clear_search")} hitSlop={10} testID="search-clear">
               <Icon name="x" size={18} color={colors.subtle} />
             </Pressable>
           ) : null}
         </View>
       </View>
       {canSearch(q) && !local && !fallback && chips.length > 1 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={st.chips} accessibilityRole="tablist" accessibilityLabel="Result types">
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={st.chips} accessibilityRole="tablist" accessibilityLabel={tr("m.search.result_types")}>
           {chips.map((c) => {
             const n = c.id === "all" ? undefined : counts[c.id];
             const on = c.id === choice;
@@ -199,7 +200,7 @@ export default function Search() {
           })}
         </ScrollView>
       ) : null}
-      {local ? <Banner text="Offline. Searching mail saved on this phone." /> : null}
+      {local ? <Banner text={tr("m.search.offline_searching_mail_saved_on_this_phone")} /> : null}
       {body()}
     </View>
   );

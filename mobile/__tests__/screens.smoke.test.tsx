@@ -304,5 +304,6 @@ it("settings render", async () => {
   expect(screen.queryByTestId("portfolio-link")).toBeNull();
   await fireEvent.press(screen.getByTestId("mail-settings-link"));
   expect(mockPush).toHaveBeenCalledWith("/mail-settings");
-  expect(screen.getByText("English (Australia)", { exact: false })).toBeTruthy();
+  // MPAR2: Language is its own screen now; it follows the phone until a language is picked.
+  expect(screen.getByText("Phone language (English)")).toBeTruthy();
 });

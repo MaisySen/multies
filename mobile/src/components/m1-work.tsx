@@ -5,6 +5,7 @@ import { type ReactNode } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { colors, radius, space, TOUCH } from "@/theme";
 import { Button, EmptyState, Icon, type IconName } from "./ui";
+import { tr } from "@/i18n";
 
 /** A search box in the app's style: 44 pt tall, a clear button, a label for screen readers. */
 export function SearchBox({ value, onChange, label, placeholder, testID }: { value: string; onChange: (v: string) => void; label: string; placeholder: string; testID?: string }) {
@@ -17,7 +18,7 @@ export function SearchBox({ value, onChange, label, placeholder, testID }: { val
         style={{ flex: 1, color: colors.fg, fontSize: 17, paddingVertical: 10 }}
       />
       {value ? (
-        <Pressable onPress={() => onChange("")} accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={10}
+        <Pressable onPress={() => onChange("")} accessibilityRole="button" accessibilityLabel={tr("m.today.clear_search")} hitSlop={10}
           style={{ minWidth: 32, minHeight: 32, alignItems: "center", justifyContent: "center" }} testID={testID ? `${testID}-clear` : undefined}>
           <Icon name="x" size={16} color={colors.subtle} />
         </Pressable>
@@ -28,13 +29,13 @@ export function SearchBox({ value, onChange, label, placeholder, testID }: { val
 
 /** The plain state for a 401 or 403: this account may not open it. */
 export function NoAccess({ what }: { what: string }) {
-  return <EmptyState icon="lock" title="You do not have access to this" body={`${what} is for members of this workspace. Ask an admin if you think you should have it.`} art={null} />;
+  return <EmptyState icon="lock" title={tr("m.today.you_do_not_have_access_to_this")} body={tr("m.today.what_is_for_members_of_this_workspace_ask_an_adm", { what: what })} art={null} />;
 }
 
 /** Something went wrong loading: the server's words and a Try again button. */
 export function LoadError({ title, error, onRetry }: { title: string; error: unknown; onRetry: () => void }) {
-  const msg = error instanceof Error && error.message ? error.message : "Check your connection and try again.";
-  return <EmptyState icon="alert-circle" title={title} body={msg} action={<Button label="Try again" variant="secondary" onPress={onRetry} />} art={null} />;
+  const msg = error instanceof Error && error.message ? error.message : tr("m.today.check_your_connection_and_try_again");
+  return <EmptyState icon="alert-circle" title={title} body={msg} action={<Button label={tr("m.today.try_again")} variant="secondary" onPress={onRetry} />} art={null} />;
 }
 
 /** A small round icon button with a 44 pt target. */
