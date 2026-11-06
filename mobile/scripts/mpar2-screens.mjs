@@ -3,6 +3,7 @@
 // Checks: no sideways scroll, nothing spills past the screen edge, tap targets at least 44 px (new screens strict,
 // older screens listed), no tight line height on Devanagari text, no raw string key on screen, axe serious or critical at 390.
 // Usage: node scripts/mpar2-screens.mjs <web-export-dir> <out-dir> [--only=ne] [--widths=390]
+// One run per language side by side keeps the whole set under ten minutes.
 import { chromium } from "playwright";
 import { AxeBuilder } from "@axe-core/playwright";
 import { createServer } from "node:http";
@@ -22,8 +23,8 @@ const server = createServer((req, res) => {
   res.writeHead(200, { "content-type": types[extname(f)] ?? "application/octet-stream" });
   res.end(readFileSync(f));
 });
-await new Promise((r) => server.listen(9701, "127.0.0.1", r));
-const base = "http://127.0.0.1:9701";
+await new Promise((r) => server.listen(Number(process.env.PORT ?? 0), "127.0.0.1", r));
+const base = `http://127.0.0.1:${server.address().port}`;
 const NEW = new Set(["account", "appearance", "language", "billing", "get-started"]);
 const SCREENS = [
   ["today", "/today", "today-hero"], ["inbox", "/inbox", null], ["thread", "/thread/msg_1", null], ["compose", "/compose", null],
