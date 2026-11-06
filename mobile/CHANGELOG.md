@@ -7,9 +7,7 @@ Android, CFBundleShortVersionString on iOS).
 
 - Meetings open in your phone's browser: joining a meeting opens Safari or Chrome, already signed in, so a recording saves and shares properly instead of waiting on Saving the video. Meeting notes on the web open there too.
 
-## 1.10.15 (OTA, runs on Android versionCode 16 and iOS build 20), 6 Nov 2026
-
-Rollout reverted on 6 Nov 2026; everything below reaches phones with 1.10.16.
+## 1.10.15 (OTA, runs on Android versionCode 16 and iOS build 20, rollout reverted, reaches phones with 1.10.16), 6 Nov 2026
 
 - Calendar in the app: month, week and agenda views, show or hide each calendar, add and edit events, and calendar settings.
 - Meetings: read notes, minutes and transcripts right in the app.
