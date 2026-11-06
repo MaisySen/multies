@@ -81,7 +81,7 @@ export const st = StyleSheet.create({
   title: { color: colors.fg, fontSize: 17, fontWeight: "700", lineHeight: lh(22) },
   sub: { color: colors.subtle, fontSize: 13, lineHeight: lh(18) },
   close: { width: TOUCH, height: TOUCH, marginTop: -10, marginRight: -10, alignItems: "center", justifyContent: "center", borderRadius: TOUCH / 2 },
-  pill: { minHeight: TOUCH, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, borderRadius: TOUCH / 2, borderWidth: StyleSheet.hairlineWidth },
+  pill: { minHeight: TOUCH, minWidth: TOUCH, justifyContent: "center", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, borderRadius: TOUCH / 2, borderWidth: StyleSheet.hairlineWidth },
   pillText: { fontSize: 14, fontWeight: "600", lineHeight: lh(19), flexShrink: 1 },
   swatch: { width: 10, height: 10, borderRadius: 5 },
   action: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: space.md, paddingHorizontal: space.sm, borderRadius: radius.md },

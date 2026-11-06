@@ -55,7 +55,7 @@ export function ScreenHeader({ title, right, back = tr("m.common.back"), testID 
       <Stack.Screen options={{ headerShown: false, title }} />
       <View style={{ paddingTop: insets.top, backgroundColor: colors.bg }} testID={testID ?? "screen-header"}>
         <View style={{ minHeight: 44, flexDirection: "row", alignItems: "center", paddingHorizontal: space.xs }}>
-          <Pressable testID="screen-back" accessibilityRole="button" accessibilityLabel={pushed ? tr("m.common.back_to_back", { back: back === "Back" ? "the previous screen" : back }) : tr("m.common.go_to_today")}
+          <Pressable testID="screen-back" accessibilityRole="button" accessibilityLabel={pushed ? tr("m.common.back_to_back", { back: back === "Back" ? "the previous screen" : back }) : tr("m.m3x.back_today")}
             onPress={() => { if (pushed) router.back(); else router.replace("/today"); }} hitSlop={8}
             style={({ pressed }) => ({ minHeight: 44, minWidth: 44, flexDirection: "row", alignItems: "center", gap: 2, paddingRight: space.sm, opacity: pressed ? 0.5 : 1 })}>
             <Icon name={pushed ? "chevron-left" : "home"} size={pushed ? 26 : 20} color={colors.brand} />

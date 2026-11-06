@@ -100,7 +100,8 @@ try {
             const first = leaves.map((x) => x.textContent.trim()).find((t) => !/^[A-Z]{1,3}$/.test(t) && !/^\d+$/.test(t) && !/^[#@]$/.test(t));
             if (!first) continue;
             const norm = (t) => t.toLowerCase().replace(/[^\p{L}\p{N}\p{M}]+/gu, " ").trim();
-            if (!norm(e.getAttribute("aria-label")).startsWith(norm(first).slice(0, 24))) res.starts.push(`${e.getAttribute("aria-label").slice(0, 50)} | shows ${first.slice(0, 30)}`);
+            const all = leaves.map((x) => x.textContent.trim()).filter((t) => !/^[A-Z]{1,3}$/.test(t)).join(" ");
+            if (!norm(e.getAttribute("aria-label")).startsWith(norm(first).slice(0, 24)) && !norm(e.getAttribute("aria-label")).startsWith(norm(all).slice(0, 24))) res.starts.push(`${e.getAttribute("aria-label").slice(0, 50)} | shows ${first.slice(0, 30)}`);
           }
           return res;
         }, { strict: true });
