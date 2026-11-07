@@ -75,7 +75,7 @@ async function seedSampleConnection(deps: Deps, orgId: string, domainId: string,
   const address = `alex.rivera.${suffix}@personal.example`;
   const mailboxId = newId("mbx");
   const now = deps.now().getTime();
-  await deps.db.insert(mailboxes).values({ id: mailboxId, orgId, domainId, localPart: address.split("@")[0]!, address, displayName: "Alex Rivera (sample connected mail)", quotaMb });
+  await deps.db.insert(mailboxes).values({ id: mailboxId, orgId, domainId, localPart: address.split("@")[0]!, address, displayName: "Alex Rivera (sample connected mail)", quotaMb, personal: true, ownerUserId: userId });
   await deps.db.insert(mailConnections).values({
     id: newId("mcn"), orgId, mailboxId, provider: "custom", email: address, username: address,
     imapHost: SAMPLE_CONNECTION_HOST, imapPort: 993, imapSecurity: "tls", smtpHost: "smtp.sample.example", smtpPort: 465, smtpSecurity: "tls",

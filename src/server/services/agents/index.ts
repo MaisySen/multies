@@ -24,6 +24,7 @@ import { isHosted } from "../mail/delivery";
 import { sendMessage, type SendResult } from "../mail/send";
 import { deprovisionMailbox } from "../mailserver";
 import { mailboxScope } from "../team";
+import { keepOpenableBy } from "../mail-access-priv1a";
 import { agentMessage, extractCodes, extractLinks, latestText } from "./parse";
 import { listThreadStates, threadViewCond, type ThreadView } from "../mail/thread-state";
 import { inChunks, inIds } from "../../lib/sql-chunks";
@@ -65,7 +66,8 @@ async function row(deps: Deps, orgId: string, id: string) {
 /** The agent's own inbox plus the mailboxes it was given. */
 export async function agentMailboxIds(deps: Deps, a: Agent): Promise<string[]> {
   const rows = await deps.db.select({ id: agentMailboxAccess.mailboxId }).from(agentMailboxAccess).where(eq(agentMailboxAccess.agentId, a.id));
-  return [a.mailboxId, ...rows.map((r) => r.id).filter((id) => id !== a.mailboxId)];
+  // PRIV1a: an agent never reaches a personal mailbox its maker can't open (an admin can't route someone's inbox through one).
+  return keepOpenableBy(deps.db, a.orgId, a.createdByUserId, [a.mailboxId, ...rows.map((r) => r.id).filter((id) => id !== a.mailboxId)]);
 }
 
 const startOfUtcDay = (now: Date) => new Date(Math.floor(now.getTime() / DAY) * DAY);
@@ -296,6 +298,7 @@ export async function scopeFor(deps: Deps, actor: Actor): Promise<string[] | nul
   if (actor.agentId) {
     const a = await deps.db.select().from(agents).where(and(eq(agents.id, actor.agentId), eq(agents.orgId, actor.orgId))).get();
     if (!a) throw new HttpError(403, "agent_key_scope", "This agent no longer exists.");
+    // PRIV1a: an agent never reaches a personal mailbox its maker can't open.
     return agentMailboxIds(deps, a);
   }
   return mailboxScope(deps.db, actor);

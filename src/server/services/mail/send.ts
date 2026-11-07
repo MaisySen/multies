@@ -4,6 +4,7 @@ import { suppressedAmong } from "../deliverability/suppressions";
 import { and, eq, isNull, or } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { domains, mailboxes, mailSchedules, messages } from "../../db/schema";
+import { assertOpen } from "../mail-access-priv1a";
 import { decide, externalSentToday, guardConfig, newSenderCap, nextUtcMidnight, providerSentToday, sendingOff, SENDING_OFF_MESSAGE } from "./send-guard-r34";
 import { newId } from "../../lib/crypto";
 import { badRequest, HttpError, notFound, planLimit } from "../../lib/errors";
@@ -67,6 +68,9 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   const { db } = deps;
   const mb = await db.select().from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, auth.orgId))).get();
   if (!mb) throw notFound("Mailbox");
+  // PRIV1a (MB-366): a personal mailbox sends only for its owner and the people it was shared with (a reply needs
+  // Read and reply, new mail needs Send as). Every send path (app, phone, REST, MCP, schedules) comes through here.
+  if (mb.personal) await assertOpen(db, auth, mb.id, input.inReplyToId ? "reply" : "send");
   if (mb.status !== "active") throw badRequest("This mailbox is suspended.");
   // MB-61: a send that names no Reply-To uses the mailbox's default one, when it has one.
   const replyTo = input.replyTo || mb.replyTo || undefined;

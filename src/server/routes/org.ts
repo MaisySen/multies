@@ -62,6 +62,7 @@ export function orgRoutes() {
       if (!isPlanId(plan)) throw badRequest("Unknown plan.");
       const { auth, deps } = c.var;
       const org = await getOrg(deps.db, auth.orgId);
+      if (org.compPlan) throw new HttpError(409, "comp_plan", "This workspace is on an internal plan. Its plan doesn't change here.");
       if (deps.config.billing.enabled && !org.isDemo) {
         throw new HttpError(409, "use_billing", "Plans are changed through billing. Open Settings → Billing.");
       }

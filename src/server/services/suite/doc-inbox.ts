@@ -30,6 +30,7 @@ import { DRIVE_LIMITS, cleanTags } from "@/shared/drive";
 import {
   DOC_LIMITS as L, DOC_TYPES, isDocType, type DocCounts, type DocDetail, type DocField, type DocFields, type DocList, type DocMatch, type DocRow, type DocRule, type DocStatus, type DocType, type DocView,
 } from "@/shared/doc-inbox";
+import { canOpen, scopeFor } from "../mail-access-priv1a";
 
 type Actor = Pick<AuthContext, "orgId" | "userId" | "email" | "role">;
 const isAdmin = (a: Actor) => a.role === "owner" || a.role === "admin";
@@ -505,6 +506,8 @@ export async function addDriveFile(deps: Deps, a: Actor, itemId: string): Promis
 export async function canAddFromMailbox(db: DB, a: Actor, mailboxId: string): Promise<boolean> {
   const mb = (await db.all<{ address: string }>(sql`select address from mailboxes where id = ${mailboxId} and org_id = ${a.orgId} limit 1`))[0];
   if (!mb) return false;
+  // PRIV1a: never from a mailbox the person can't open (someone else's personal mailbox).
+  if (!(await canOpen(db, a, mailboxId))) return false;
   const me = (await db.all<{ email: string }>(sql`select email from users where id = ${a.userId} limit 1`))[0];
   if (me && me.email.toLowerCase() === mb.address.toLowerCase()) return true;
   const grant = await db.all<{ x: number }>(sql`select 1 as x from mailbox_access where user_id = ${a.userId} and mailbox_id = ${mailboxId} and org_id = ${a.orgId} limit 1`);
@@ -521,7 +524,9 @@ export async function addableMailboxes(db: DB, a: Actor): Promise<string[]> {
   const me = (await db.all<{ email: string }>(sql`select email from users where id = ${a.userId} limit 1`))[0]?.email.toLowerCase() ?? "";
   const grants = new Set((await db.all<{ mailbox_id: string }>(sql`select mailbox_id from mailbox_access where user_id = ${a.userId} and org_id = ${a.orgId} limit 500`)).map((r) => r.mailbox_id));
   const owned = isAdmin(a) ? new Set((await db.all<{ email: string }>(sql`select lower(u.email) as email from members m join users u on u.id = m.user_id where m.organization_id = ${a.orgId} limit 2000`)).map((r) => r.email)) : new Set<string>();
-  return boxes.filter((b) => b.address.toLowerCase() === me || grants.has(b.id) || (isAdmin(a) && !owned.has(b.address.toLowerCase()))).map((b) => b.id);
+  const scope = await scopeFor(db, a);
+  return boxes.filter((b) => !scope || scope.includes(b.id))
+    .filter((b) => b.address.toLowerCase() === me || grants.has(b.id) || (isAdmin(a) && !owned.has(b.address.toLowerCase()))).map((b) => b.id);
 }
 
 export async function addFromMail(deps: Deps, a: Actor, attachmentId: string): Promise<DocDetail> {

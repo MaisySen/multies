@@ -32,7 +32,8 @@ export function money(cents: number | null | undefined, currency: string | null 
 }
 
 /** True once the grace period after a failed payment has run out. */
-export function sendingPausedForPayment(org: Pick<Org, "pastDueSince" | "graceEndsAt">, now: Date) {
+export function sendingPausedForPayment(org: Pick<Org, "pastDueSince" | "graceEndsAt"> & { compPlan?: boolean }, now: Date) {
+  if (org.compPlan) return false;
   return !!org.pastDueSince && !!org.graceEndsAt && org.graceEndsAt.getTime() <= now.getTime();
 }
 
@@ -50,7 +51,7 @@ interface InvoiceLike {
 
 /** First failed payment starts the grace period and emails the billing contacts once. */
 export async function onPaymentFailed(deps: Deps, org: Org, inv: InvoiceLike) {
-  if (org.pastDueSince) return { started: false };
+  if (org.pastDueSince || org.compPlan) return { started: false }; // PRIV1a: a comp workspace has no payments to chase
   const now = deps.now();
   const graceEndsAt = new Date(now.getTime() + deps.config.billingGraceDays * DAY);
   await deps.db.update(organizations).set({ pastDueSince: now, graceEndsAt }).where(eq(organizations.id, org.id));

@@ -8,14 +8,15 @@
  *   { mail: { inbox, important, other }, chat: { unread, mentions }, notifications: { unread }, triage,
  *     tasks: { dueToday, overdue }, at }
  */
-import { and, count, eq, inArray, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, count, eq, isNull, lt, ne, sql } from "drizzle-orm";
 import type { Deps } from "../context";
-import { mailboxAccess, messages, notifications, tasks } from "../db/schema";
+import { messages, notifications, tasks } from "../db/schema";
 import { IsolateCache } from "../lib/isolate-cache";
 import { snoozeHiddenCond } from "./mail/schedules";
 import { hasPins, listSplits, splitCountParts, tabCondsFor, tabsState, type TabsState } from "./mail/splits";
 import { unreadQuery } from "./suite/chat";
-import type { SuiteActor } from "./suite/common";
+import { scopeOf, type SuiteActor } from "./suite/common";
+import { inIds } from "../lib/sql-chunks";
 import { DEFAULT_SNOOZE_ZONE, inboxWhere } from "./suite/notify-triage";
 import { triageCountQuery } from "./suite/triage";
 import type { MailSplit } from "@/shared/mail-splits";
@@ -110,10 +111,10 @@ export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string |
   const pinned = tabsMine && hasPins(tabsMine.st.pins)
     ? { important: tabCondsFor(a.orgId, list, tabsMine.st, "important")!, other: tabCondsFor(a.orgId, list, tabsMine.st, "other")! }
     : null;
-  // Owners and admins see every mailbox; a member only the ones granted (a subquery, not a separate read).
-  const scope = (a.role ?? "member") === "member"
-    ? inArray(messages.mailboxId, deps.db.select({ id: mailboxAccess.mailboxId }).from(mailboxAccess).where(and(eq(mailboxAccess.userId, a.userId), eq(mailboxAccess.orgId, a.orgId)))) // D1: a subquery, not a bound list
-    : undefined;
+  // PRIV1a (MB-366): the one mailbox rule (team mailboxes for admins, grants for members, personal mailboxes only for
+  // their owner and shares). One bound variable whatever the list's length.
+  const sc = await scopeOf(deps, a);
+  const scope = sc ? inIds(messages.mailboxId, sc) : undefined;
   const unread = unreadQuery(deps, a.orgId, a.userId).as("u");
   const chatTotal = deps.db.select({ n: sql<number>`coalesce(sum(${unread.unread}), 0)` }).from(unread);
   const chatMentions = deps.db.select({ n: sql<number>`coalesce(sum(${unread.mentions}), 0)` }).from(unread);

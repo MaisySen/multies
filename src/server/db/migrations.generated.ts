@@ -1829,5 +1829,24 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE UNIQUE INDEX `social_pages_key_uq` ON `social_pages` (`org_id`,`key`);",
       "CREATE INDEX `social_pages_via_idx` ON `social_pages` (`org_id`,`via_account_id`);"
     ]
+  },
+  {
+    "name": "0164_mailbox_privacy_priv1a",
+    "statements": [
+      "ALTER TABLE `mailboxes` ADD `personal` integer DEFAULT false NOT NULL;",
+      "ALTER TABLE `mailboxes` ADD `owner_user_id` text;",
+      "CREATE INDEX `mailboxes_personal_idx` ON `mailboxes` (`org_id`,`owner_user_id`) WHERE \"mailboxes\".\"personal\" = 1;",
+      "ALTER TABLE `organizations` ADD `comp_plan` integer DEFAULT false NOT NULL;",
+      "CREATE TABLE `mailbox_delegations` (\n\t`org_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`level` text NOT NULL,\n\t`granted_by_user_id` text,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`mailbox_id`, `user_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `mailbox_delegations_user_idx` ON `mailbox_delegations` (`org_id`,`user_id`);",
+      "CREATE TABLE `mailbox_access_log` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`actor_user_id` text,\n\t`actor_email` text,\n\t`action` text NOT NULL,\n\t`target_id` text,\n\t`device` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `mailbox_access_log_mailbox_idx` ON `mailbox_access_log` (`mailbox_id`,`created_at`);",
+      "UPDATE `mailboxes` SET `personal` = 1 WHERE `kind` = 'person' AND `personal` = 0 AND `id` IN (SELECT `mailbox_id` FROM `mail_connections`);",
+      "UPDATE `mailboxes` SET `personal` = 1 WHERE `kind` = 'person' AND `personal` = 0 AND `id` IN (SELECT `target_id` FROM `audit_logs` WHERE `action` = 'free_address.claimed' AND `target_type` = 'mailbox');",
+      "UPDATE `mailboxes` SET `owner_user_id` = (SELECT c.`created_by_user_id` FROM `mail_connections` c JOIN `members` m ON m.`user_id` = c.`created_by_user_id` AND m.`organization_id` = c.`org_id` WHERE c.`mailbox_id` = `mailboxes`.`id` ORDER BY c.`created_at` LIMIT 1) WHERE `personal` = 1 AND `owner_user_id` IS NULL;",
+      "UPDATE `mailboxes` SET `owner_user_id` = (SELECT a.`actor_user_id` FROM `audit_logs` a JOIN `members` m ON m.`user_id` = a.`actor_user_id` AND m.`organization_id` = a.`org_id` WHERE a.`action` = 'free_address.claimed' AND a.`target_type` = 'mailbox' AND a.`target_id` = `mailboxes`.`id` ORDER BY a.`created_at` LIMIT 1) WHERE `personal` = 1 AND `owner_user_id` IS NULL;",
+      "UPDATE `mailboxes` SET `owner_user_id` = (SELECT x.`user_id` FROM `mailbox_access` x JOIN `members` m ON m.`user_id` = x.`user_id` AND m.`organization_id` = x.`org_id` WHERE x.`mailbox_id` = `mailboxes`.`id`) WHERE `personal` = 1 AND `owner_user_id` IS NULL AND (SELECT count(*) FROM `mailbox_access` x WHERE x.`mailbox_id` = `mailboxes`.`id`) = 1;",
+      "UPDATE `organizations` SET `comp_plan` = 1 WHERE `id` = 'org_14tjeedzlvi8epm3';"
+    ]
   }
 ];

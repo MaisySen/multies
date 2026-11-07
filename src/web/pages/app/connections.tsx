@@ -18,6 +18,8 @@ import { MailFolderArt } from "@/web/components/illustrations";
 import { AvatarTile, PlainStatusPill } from "@/web/components/premium5-r39";
 import { connectionStatus } from "@/web/lib/premium5-r39";
 import { MailboxSyncProgress } from "@/web/components/mail-sync-progress";
+import { MailboxPrivacyPanel } from "@/web/components/mailbox-privacy-priv1a"; // PRIV1a
+import { t } from "@/web/i18n";
 
 const STATUS: Record<ConnectionView["status"], { label: string; tone: "ok" | "warn" | "bad" | "neutral" | "brand" }> = {
   active: { label: "Connected", tone: "ok" },
@@ -59,6 +61,9 @@ export function ConnectionsSettings() {
             {!adding && <Button variant="secondary" onClick={() => setAdding(true)} data-testid="connect-start">Connect another mailbox</Button>}
           </div>
         )}
+      </Section>
+      <Section title={t("priv1a.section_title")} description={t("priv1a.section_desc")}>
+        <MailboxPrivacyPanel />
       </Section>
       {adding && (
         <Section title="Connect a mailbox" description="We check the address and app password with your provider before anything is saved. The first sync copies the last 30 days.">

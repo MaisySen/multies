@@ -84,6 +84,8 @@ const ErrorSchema = z.object({
   error: z.object({ code: z.string().openapi({ example: "not_found" }), message: z.string().openapi({ example: "Mailbox not found." }), details: z.unknown().optional() }),
 }).openapi("Error");
 import { registerReportsR35Routes } from "./reports-r35"; // R35
+import { scopeOf, type SuiteActor } from "../services/suite/common"; // PRIV1a
+import { logMailboxOpen } from "../services/mailbox-sharing-priv1a"; // PRIV1a
 
 const DnsRecord = z.object({
   id: z.string(), type: z.string(), host: z.string(), value: z.string(), priority: z.number().optional(), purpose: z.string().optional(),
@@ -452,7 +454,9 @@ export function v1Routes() {
     const { split, ...q } = c.req.valid("query");
     const { splitCond } = await import("../services/mail/splits");
     const extra = split && q.folder === "inbox" && !q.search ? await splitCond(c.var.deps, c.var.auth as unknown as Parameters<typeof splitCond>[1], split) : undefined;
-    const r = await listMessages(c.var.deps.db, c.var.auth.orgId, { ...q, extra });
+    // PRIV1a (MB-366): the same mailbox rule as the app (a workspace key opens team mailboxes and its maker's own).
+    const scope = await scopeOf(c.var.deps, c.var.auth as unknown as SuiteActor);
+    const r = await listMessages(c.var.deps.db, c.var.auth.orgId, { ...q, extra, scope });
     return c.json({ data: r.messages.map((m) => ({ ...m, date: iso(m.date)! })) as z.infer<typeof MessageSummary>[], nextCursor: r.nextCursor }, 200);
   });
 
@@ -460,7 +464,8 @@ export function v1Routes() {
     responses: { 200: json(Message, "The full message."), 401: errors[401], 404: errors[404] } }),
   async (c) => {
     const { deps, auth } = c.var;
-    const m = await getMessage(deps.db, auth.orgId, c.req.valid("param").id);
+    const m = await getMessage(deps.db, auth.orgId, c.req.valid("param").id, await scopeOf(deps, auth as unknown as SuiteActor));
+    await logMailboxOpen(deps, auth, m.mailboxId, "opened_thread", m.threadId);
     const full = (await getThread(deps.db, auth.orgId, m)).find((x) => x.id === m.id);
     return c.json({ ...full!, date: iso(full!.date)! } as z.infer<typeof Message>, 200);
   });

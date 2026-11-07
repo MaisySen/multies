@@ -7,7 +7,8 @@
  */
 import { and, desc, eq, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { mailboxAccess, mailThreadState, members, messages, users } from "../../db/schema";
+import { mailThreadState, members, messages, users } from "../../db/schema";
+import { whoCanOpenAny } from "../mail-access-priv1a";
 import { badRequest, notFound } from "../../lib/errors";
 import { assertWritable, scopeOf, type SuiteActor } from "../suite/common";
 import { notify } from "../suite/notify";
@@ -76,14 +77,12 @@ export async function getThreadState(deps: Deps, actor: SuiteActor, threadId: st
   return present(deps, actor.orgId, threadId);
 }
 
-/** Can this workspace member open one of these mailboxes? Owners and admins open every mailbox. */
+/** Can this workspace member open one of these mailboxes? PRIV1a: the one rule (personal mailboxes: owner and shares only). */
 async function assertAssignable(deps: Deps, orgId: string, userId: string, mailboxIds: string[]) {
   const m = await deps.db.select({ role: members.role }).from(members).where(and(eq(members.organizationId, orgId), eq(members.userId, userId))).get();
   if (!m) throw badRequest("That person isn't in this workspace.");
-  if (m.role !== "member") return;
-  const grant = await deps.db.select({ id: mailboxAccess.mailboxId }).from(mailboxAccess)
-    .where(and(eq(mailboxAccess.orgId, orgId), eq(mailboxAccess.userId, userId), inIds(mailboxAccess.mailboxId, mailboxIds))).limit(1).get();
-  if (!grant) throw badRequest("That person can't open this thread's mailbox. Give them access to it first.");
+  const can = await whoCanOpenAny(deps.db, orgId, mailboxIds);
+  if (!can.has(userId)) throw badRequest("That person can't open this thread's mailbox. Give them access to it first.");
 }
 
 /** People who can open the thread, for the Assign menu. */
@@ -91,9 +90,8 @@ export async function assignableMembers(deps: Deps, actor: SuiteActor, threadId:
   const t = await openThread(deps, actor, threadId);
   const rows = await deps.db.select({ id: users.id, name: users.name, email: users.email, role: members.role, kind: members.kind }).from(members).innerJoin(users, eq(users.id, members.userId))
     .where(eq(members.organizationId, actor.orgId));
-  const granted = new Set((await deps.db.select({ userId: mailboxAccess.userId }).from(mailboxAccess)
-    .where(and(eq(mailboxAccess.orgId, actor.orgId), inIds(mailboxAccess.mailboxId, t.mailboxIds)))).map((r) => r.userId));
-  return rows.filter((r) => r.role !== "member" || granted.has(r.id)).map((r) => ({ id: r.id, name: r.name, email: r.email, agent: r.kind === "agent" }))
+  const can = await whoCanOpenAny(deps.db, actor.orgId, t.mailboxIds);
+  return rows.filter((r) => can.has(r.id)).map((r) => ({ id: r.id, name: r.name, email: r.email, agent: r.kind === "agent" }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 

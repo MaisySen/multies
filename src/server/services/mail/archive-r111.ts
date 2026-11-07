@@ -14,6 +14,7 @@ import { HttpError, badRequest, conflict, forbidden, notFound } from "../../lib/
 import { newId } from "../../lib/crypto";
 import { inIds, notInIds } from "../../lib/sql-chunks";
 import { audit } from "../audit";
+import { scopeFor } from "../mail-access-priv1a";
 import { toMboxEntry } from "../data-move/formats";
 import {
   ARCHIVE_PAGE, CASE_EXPORT_MAX, MAX_ACTIVE_HOLDS, RETENTION_BATCH, RETENTION_INTERVAL_MS, cleanFilters, describeFilters, graceEnd, isStricter,
@@ -48,6 +49,10 @@ export async function heldScope(deps: Deps, orgId: string): Promise<HeldScope> {
     const access = await deps.db.select({ mailboxId: mailboxAccess.mailboxId }).from(mailboxAccess)
       .where(and(eq(mailboxAccess.orgId, orgId), inIds(mailboxAccess.userId, userIds)));
     for (const a of access) boxes.add(a.mailboxId);
+    // PRIV1a: a person's own personal mailboxes (connected inboxes, free addresses) are theirs to hold too.
+    const own = await deps.db.select({ id: mailboxes.id }).from(mailboxes)
+      .where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.personal, true), inIds(mailboxes.ownerUserId, userIds)));
+    for (const o of own) boxes.add(o.id);
   }
   return { mailboxIds: [...boxes], userIds, active: holds.length };
 }
@@ -259,9 +264,12 @@ function dayStart(dateIso: string, tz: string) {
   const [y, m, d] = dateIso.split("-").map(Number);
   return zoneMidnight(y!, m!, d!, tz);
 }
-async function filterCond(deps: Deps, orgId: string, f: ArchiveFilters): Promise<SQL | undefined> {
-  const tz = await orgZone(deps, orgId);
-  const c: (SQL | undefined)[] = [eq(messages.orgId, orgId), ne(messages.folder, "drafts")];
+async function filterCond(deps: Deps, auth: Actor, f: ArchiveFilters): Promise<SQL | undefined> {
+  const orgId = auth.orgId;
+  const [tz, scope] = await Promise.all([orgZone(deps, orgId), scopeFor(deps.db, auth)]);
+  // PRIV1a (MB-366): the archive search and case exports never reach someone else's personal mailbox. A logged,
+  // owner notified compliance search is a later round.
+  const c: (SQL | undefined)[] = [eq(messages.orgId, orgId), ne(messages.folder, "drafts"), scope ? inIds(messages.mailboxId, scope) : undefined];
   if (f.q) c.push(or(like(messages.subject, f.q), like(messages.snippet, f.q), like(messages.fromAddress, f.q), like(messages.fromName, f.q)));
   if (f.from) c.push(or(like(messages.fromAddress, f.from), like(messages.fromName, f.from)));
   if (f.to) c.push(or(like(messages.to, f.to), like(messages.cc, f.to)));
@@ -278,7 +286,7 @@ export async function searchArchive(deps: Deps, auth: Actor, filters: ArchiveFil
   requireArchiveAdmin(auth);
   const f = cleanFilters(filters);
   if (f.after && f.before && f.after >= f.before) throw badRequest("The start date must be before the end date.");
-  let where = await filterCond(deps, auth.orgId, f);
+  let where = await filterCond(deps, auth, f);
   if (cursor) {
     const m = /^(\d{1,15})_([A-Za-z0-9_]{1,64})$/.exec(cursor);
     if (!m) throw badRequest("That page link is not valid. Search again.");
@@ -361,7 +369,7 @@ export function exportCase(deps: Deps, auth: Actor, kase: MailCaseView): Readabl
       try {
         zip = new Zip((err, chunk, final) => { if (err) { controller.error(err); return; } controller.enqueue(chunk); if (final) controller.close(); });
         const file = (name: string) => { const f = new ZipDeflate(name, { level: 6 }); zip.add(f); return f; };
-        const where = await filterCond(deps, auth.orgId, kase.filters);
+        const where = await filterCond(deps, auth, kase.filters);
         const total = await countWhere(deps, where);
         const mbox = file("mail.mbox");
         const csv = file("messages.csv");

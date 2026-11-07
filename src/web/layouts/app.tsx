@@ -40,6 +40,7 @@ import { OfflineBanner } from "@/web/components/offline-banner-r32"; // R32
 import { useAnnounceWorkspace, WorkspaceSwitchedBanner } from "@/web/components/workspace-switched-banner-r58"; // R58 (MB-245)
 import { workspaceTabs } from "@/web/lib/workspace-tabs-r58"; // R58 (MB-245)
 import { PendingInviteBanner } from "@/web/components/pending-invite-banner-r39"; // R39 (MB-202)
+import { PrivateInboxNotice } from "@/web/components/mailbox-privacy-priv1a"; // PRIV1a (MB-366)
 import { JoinInvitePrompt } from "@/web/components/join-invite-prompt-r41"; // R41 (MB-221)
 import { api } from "@/web/lib/api";
 import { ONE_INBOX_PATH, useOneInboxCount } from "@/web/lib/one-inbox-td6"; // TD6
@@ -361,6 +362,7 @@ export function AppLayout() {
         <OfflineBanner />
         {!!me.error && <ReconnectingPill onRetry={() => void me.refetch()} />}
         <PendingInviteBanner />
+        <PrivateInboxNotice />
         <LoadErrorStrip />{/* T1G (T1-8): a failed read never leaves a page on skeletons without a word */}
         <main id="main" tabIndex={-1} ref={setMainEl} className={cn("min-h-0 flex-1 overflow-x-hidden outline-none", isMail ? "overflow-hidden" : "overflow-y-auto overscroll-y-contain")}>
           {isMail ? <Outlet /> : <div key={loc.pathname.split("/").slice(0, 3).join("/")} className={pageFrameClass(loc.pathname)} data-page-width={pageWidth(loc.pathname)}><Outlet /></div>}

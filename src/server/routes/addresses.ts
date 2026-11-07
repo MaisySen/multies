@@ -8,11 +8,21 @@ import {
   createAlias, createMailbox, deleteAlias, deleteMailbox, listAliases, listMailboxes, updateAlias, updateMailbox,
 } from "../services/addresses";
 import { deprovisionMailbox, syncQuota } from "../services/mailserver";
+import { myMailboxPrivacy, shareMailbox, sharingView, unshareMailbox } from "../services/mailbox-sharing-priv1a";
+import { z } from "zod";
 
 export function mailboxRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => c.json({ mailboxes: await listMailboxes(c.var.deps.db, c.var.auth.orgId) }))
+    // PRIV1a (MB-366): personal mailboxes. My own and the ones shared with me; sharing (owner only) and the access log.
+    .get("/privacy/mine", async (c) => c.json(await myMailboxPrivacy(c.var.deps, c.var.auth)))
+    .get("/:id/sharing", async (c) => c.json(await sharingView(c.var.deps, c.var.auth, c.req.param("id"))))
+    .put("/:id/sharing/:userId", async (c) => {
+      const { level } = await parseBody(c, z.object({ level: z.enum(["read", "reply", "send_as"]) }));
+      return c.json(await shareMailbox(c.var.deps, c.var.auth, c.req.param("id"), c.req.param("userId"), level));
+    })
+    .delete("/:id/sharing/:userId", async (c) => c.json(await unshareMailbox(c.var.deps, c.var.auth, c.req.param("id"), c.req.param("userId"))))
     .post("/", requireAdmin, async (c) => {
       const input = await parseBody(c, createMailboxSchema);
       const { auth, deps } = c.var;

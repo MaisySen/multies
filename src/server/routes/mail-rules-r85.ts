@@ -32,10 +32,10 @@ export function mailLabelRoutes() {
     .get("/", async (c) => c.json({ labels: await listLabels(c.var.deps, c.var.auth.orgId, await mailboxScope(c.var.deps.db, c.var.auth)) }))
     .post("/", async (c) => {
       const b = await parseBody(c, LabelBody);
-      return c.json(await addLabel(c.var.deps, c.var.auth, await mailboxScope(c.var.deps.db, c.var.auth), b.threadId, b.label));
+      return c.json(await addLabel(c.var.deps, c.var.auth, await mailboxScope(c.var.deps.db, c.var.auth, "reply"), b.threadId, b.label)); // PRIV1a: a read only share can't label
     })
     .delete("/", async (c) => {
       const b = parseQuery(c, LabelBody);
-      return c.json(await removeLabel(c.var.deps, c.var.auth, await mailboxScope(c.var.deps.db, c.var.auth), b.threadId, b.label));
+      return c.json(await removeLabel(c.var.deps, c.var.auth, await mailboxScope(c.var.deps.db, c.var.auth, "reply"), b.threadId, b.label));
     });
 }

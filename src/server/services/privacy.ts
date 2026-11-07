@@ -6,7 +6,7 @@
  */
 import { Zip, ZipDeflate } from "fflate";
 import Papa from "papaparse";
-import { and, asc, eq, gt, ne } from "drizzle-orm";
+import { and, asc, eq, gt, ne, or } from "drizzle-orm";
 import type { AuthContext, Deps } from "../context";
 import {
   accounts, aliases, apiKeys, appPasswords, attachments, auditLogs, domains, invitations, mailboxAccess, mailboxes,
@@ -90,7 +90,9 @@ export function exportWorkspace(deps: Deps, auth: AuthContext, opts: { onDone?: 
         const [mem, doms, boxes, als, hooks, keys, pw, inv, sup] = await Promise.all([
           db.select({ email: users.email, name: users.name, role: members.role, joinedAt: members.createdAt }).from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.organizationId, orgId)),
           db.select().from(domains).where(eq(domains.orgId, orgId)),
-          db.select().from(mailboxes).where(eq(mailboxes.orgId, orgId)),
+          // PRIV1a (MB-366): a workspace export carries team mailboxes and the exporter's own; someone else's personal
+          // mailbox (their connected Gmail, their free address) stays theirs. Its owner exports it themselves.
+          db.select().from(mailboxes).where(and(eq(mailboxes.orgId, orgId), or(eq(mailboxes.personal, false), eq(mailboxes.ownerUserId, auth.userId || "-")))),
           db.select().from(aliases).where(eq(aliases.orgId, orgId)),
           db.select({ url: webhookEndpoints.url, events: webhookEndpoints.events, enabled: webhookEndpoints.enabled, createdAt: webhookEndpoints.createdAt }).from(webhookEndpoints).where(eq(webhookEndpoints.orgId, orgId)),
           db.select({ name: apiKeys.name, prefix: apiKeys.prefix, scope: apiKeys.scope, createdAt: apiKeys.createdAt, lastUsedAt: apiKeys.lastUsedAt }).from(apiKeys).where(eq(apiKeys.orgId, orgId)),

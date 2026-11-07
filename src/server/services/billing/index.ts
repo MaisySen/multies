@@ -254,6 +254,7 @@ async function plannedItems(deps: Deps, auth: AuthContext, input: Record<string,
   assertOwner(auth);
   const addons = cleanAddons(input);
   const org = await getOrg(deps.db, auth.orgId);
+  if (org.compPlan) throw new HttpError(409, "comp_plan", "This workspace is on an internal plan. Its plan doesn't change here.");
   if (!org.stripeSubscriptionId || !LIVE.has(org.subscriptionStatus ?? "")) throw new HttpError(409, "no_subscription", "There's no active subscription to change. Start one with checkout.");
   const stripe = await client(deps);
   const sub = await stripe.subscriptions.retrieve(org.stripeSubscriptionId) as unknown as StripeSubscription;
@@ -320,6 +321,7 @@ async function liveItem(deps: Deps, auth: AuthContext, plan: PlanId) {
   assertOwner(auth);
   if (!PAID.includes(plan as PaidPlan)) throw badRequest("To move to Free, keep the add-ons you want and drop the legacy plan from Billing.");
   const org = await getOrg(deps.db, auth.orgId);
+  if (org.compPlan) throw new HttpError(409, "comp_plan", "This workspace is on an internal plan. Its plan doesn't change here.");
   if (!org.stripeSubscriptionId || !LIVE.has(org.subscriptionStatus ?? "")) throw new HttpError(409, "no_subscription", "There's no active subscription to change.");
   if (!PLANS[org.plan].legacy) throw new HttpError(410, "plan_retired", "Pro and Business are no longer sold. Add only what you need from the add-ons.");
   if (org.plan === plan) throw badRequest("You're already on that plan.");
@@ -439,6 +441,11 @@ export async function syncSubscription(deps: Deps, sub: StripeSubscription, dele
   const customer = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const org = await findOrg(deps, customer, sub.metadata?.orgId);
   if (!org) return null;
+  // PRIV1a: an internal comp workspace (set by an operator) is never changed by a subscription event.
+  if (org.compPlan) {
+    await audit(deps.db, { orgId: org.id, action: "billing.comp_kept", metadata: { status: sub.status, deleted } });
+    return { orgId: org.id, plan: org.plan, addons: await getAddons(deps.db, org.id) };
+  }
   const live = !deleted && LIVE.has(sub.status);
   const items = sub.items?.data ?? [];
   let mapped: PlanId | null = null;

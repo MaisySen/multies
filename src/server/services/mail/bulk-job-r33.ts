@@ -89,7 +89,7 @@ async function scopeConds(deps: Deps, actor: ScheduleActor, job: { params: Param
   if (actor.agentId) {
     const { scopeFor } = await import("../agents");
     allowed = await scopeFor(deps, actor as never);
-  } else allowed = await mailboxScope(deps.db, actor);
+  } else allowed = await mailboxScope(deps.db, actor, "reply"); // PRIV1a: a read only share can't change mail
   if (allowed && !allowed.includes(scope.mailboxId)) throw notFound("Mailbox");
   if (scope.remote) conds.push(eq(messages.folder, "archive"), eq(messages.remoteBox, scope.remote));
   else if (scope.folder === "starred") conds.push(eq(messages.isStarred, true));

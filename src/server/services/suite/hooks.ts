@@ -21,6 +21,9 @@ export async function onMailStored(deps: Deps, m: StoredMail) {
   if (m.folder === "spam" || m.folder === "drafts") return;
   await step("contacts", async () => {
     const { upsertFromMail } = await import("./contacts");
+    // PRIV1a (MB-366): who writes to someone's personal mailbox stays private; it never fills the workspace's contacts.
+    const { personalInfo } = await import("../mail-access-priv1a");
+    if (m.mailboxId && await personalInfo(deps.db, m.orgId, m.mailboxId)) return;
     await upsertFromMail(deps, m.orgId, m.direction === "inbound" ? [m.from] : [...(m.to ?? []), ...(m.cc ?? [])], m.date);
   });
   await step("tasks", async () => {

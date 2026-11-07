@@ -139,7 +139,8 @@ export async function createConnection(deps: Deps, auth: AuthContext, input: Con
   const mailboxId = newId("mbx");
   const id = newId("mcn");
   const [local] = s.email.split("@");
-  await deps.db.insert(mailboxes).values({ id: mailboxId, orgId: auth.orgId, domainId: domain.id, localPart: local, address: s.email, displayName: s.displayName, quotaMb: plan.limits.storagePerMailboxMb });
+  // PRIV1a: a connected inbox is personal, private to the person who connected it (a workspace key with no person: a team mailbox).
+  await deps.db.insert(mailboxes).values({ id: mailboxId, orgId: auth.orgId, domainId: domain.id, localPart: local, address: s.email, displayName: s.displayName, quotaMb: plan.limits.storagePerMailboxMb, personal: !!auth.userId, ownerUserId: auth.userId || null });
   await deps.db.insert(mailConnections).values({
     id, orgId: auth.orgId, mailboxId, provider: s.preset, email: s.email, username: s.username,
     imapHost: s.imap.host, imapPort: s.imap.port, imapSecurity: s.imap.security,

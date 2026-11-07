@@ -27,7 +27,7 @@ export async function setAddons(db: DB, orgId: string, addons: AddonQuantities) 
 /** The workspace's plan with its add-ons applied to the limits. */
 export async function getPlan(db: DB, orgId: string): Promise<Plan & { addons: AddonQuantities }> {
   const [org, addons] = await Promise.all([getOrg(db, orgId), getAddons(db, orgId)]);
-  const base = PLANS[org.plan];
+  const base = PLANS[org.compPlan ? "business" : org.plan]; // PRIV1a: an internal comp workspace stays on Business whatever billing says
   return { ...base, limits: effectiveLimits(base, addons, org), addons };
 }
 
@@ -62,7 +62,7 @@ export async function getOrgCached(db: DB, orgId: string): Promise<OrgRow> { ret
 /** getPlan for a read route (a copy up to ORG_CACHE_MS old). Never use it to enforce a limit. */
 export async function getPlanCached(db: DB, orgId: string): Promise<Plan & { addons: AddonQuantities }> {
   const { org, addons } = await orgEntry(db, orgId);
-  const base = PLANS[org.plan];
+  const base = PLANS[org.compPlan ? "business" : org.plan]; // PRIV1a: an internal comp workspace stays on Business whatever billing says
   return { ...base, limits: effectiveLimits(base, addons, org), addons };
 }
 

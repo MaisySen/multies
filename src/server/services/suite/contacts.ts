@@ -114,7 +114,9 @@ export async function backfillContacts(deps: Deps, orgId: string, opts: { force?
     if (done) { seen(deps).add(orgId); return { skipped: true, created: 0 }; }
   }
   const rows = await deps.db.select({ folder: messages.folder, fromAddress: messages.fromAddress, fromName: messages.fromName, to: messages.to, cc: messages.cc, date: messages.date })
-    .from(messages).where(and(eq(messages.orgId, orgId), sql`${messages.folder} not in ('drafts','spam','trash')`)).orderBy(desc(messages.date)).limit(opts.max ?? 2000);
+    .from(messages).where(and(eq(messages.orgId, orgId), sql`${messages.folder} not in ('drafts','spam','trash')`,
+      // PRIV1a (MB-366): personal mailboxes never fill the workspace's contacts.
+      sql`${messages.mailboxId} not in (select id from mailboxes where org_id = ${orgId} and personal = 1)`)).orderBy(desc(messages.date)).limit(opts.max ?? 2000);
   const own = await ownDomains(deps, orgId);
   const agg = new Map<string, { name: string; count: number; first: Date; last: Date }>();
   const add = (address: string, name: string | undefined, at: Date) => {

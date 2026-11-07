@@ -7,7 +7,7 @@ import { z } from "zod";
 import type { Deps } from "../context";
 import { createSplit, deleteSplit, listSplits, splitTabs, updateSplit, type SplitActor } from "../services/mail/splits";
 import { readStatusOf } from "../services/mail/read-status";
-import { mailboxScope } from "../services/team";
+import { scopeOf } from "../services/suite/common";
 import { SPLIT_FIELDS, SPLIT_NAME_MAX, SPLIT_RULES_MAX, SPLIT_VALUE_MAX } from "@/shared/mail-splits";
 import type { Scoped } from "./mcp-server";
 import { mcpCreate } from "./mcp-idempotency"; // R53 (MB-239)
@@ -18,8 +18,8 @@ const RULES_HELP = "Rules: fromContains, fromDomain (example.com), to (an addres
 
 export function registerMailR31Tools(server: McpServer, deps: Deps, actor: Scoped, writable: () => void, tool: Tool) {
   const a = actor as unknown as SplitActor & { role?: "owner" | "admin" | "member" };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const scope = () => (a.agentId ? Promise.resolve(null) : mailboxScope(deps.db, a as any));
+  // PRIV1a: agents get their own mailboxes through the shared rule (never null: that was every mailbox).
+  const scope = () => scopeOf(deps, a as unknown as Parameters<typeof scopeOf>[1]);
   const norm = (rules: { field: (typeof SPLIT_FIELDS)[number]; value?: string }[]) => rules.map((r) => ({ field: r.field, value: r.value ?? "" }));
 
   server.registerTool("mail_split_list", {

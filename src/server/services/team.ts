@@ -17,6 +17,7 @@ import { removeAgentMember } from "./people";
 import { DEFAULT_TIMEZONE } from "@/shared/locale";
 import { sendInviteEmail, takeInviteSend } from "./invite-email";
 import { inIds } from "../lib/sql-chunks";
+import { assertOpen, canOpen, scopeFor, whoCanOpen, type Need } from "./mail-access-priv1a";
 
 /** MB-220: shown when someone in the demo tries to invite a person. */
 export const DEMO_INVITES_OFF = "Invites are off in the demo. Sign up to invite your team.";
@@ -24,34 +25,35 @@ export const DEMO_INVITES_OFF = "Invites are off in the demo. Sign up to invite 
 export type Role = "owner" | "admin" | "member";
 
 /**
- * Mailboxes this user may open: `null` means every mailbox in the workspace
- * (owners and admins); members get the explicit list they were granted.
+ * Mailboxes this user may open: `null` means every mailbox in the workspace; otherwise the exact list.
+ * PRIV1a (MB-366): the one rule lives in mail-access-priv1a.ts. Owners and admins see every team and agent mailbox but
+ * not someone else's personal mailbox; members see the team mailboxes they are granted; personal mailboxes open only
+ * to their owner and the people the owner shared them with. `need` asks for more than reading (a reply, a send).
  */
-export async function mailboxScope(db: DB, auth: Pick<AuthContext, "userId" | "orgId" | "role">): Promise<string[] | null> {
-  if (auth.role !== "member") return null;
-  const rows = await db.select({ id: mailboxAccess.mailboxId }).from(mailboxAccess)
-    .where(and(eq(mailboxAccess.userId, auth.userId), eq(mailboxAccess.orgId, auth.orgId)));
-  return rows.map((r) => r.id);
+export async function mailboxScope(db: DB, auth: Pick<AuthContext, "userId" | "orgId" | "role">, need: Need = "read"): Promise<string[] | null> {
+  return scopeFor(db, auth, need);
 }
 
-/** People who can open a mailbox: owners and admins, plus members granted it. */
+/** People who can open a mailbox (notifications, push, realtime, mentions). PRIV1a: personal mailboxes only reach their owner and shares. */
 export async function usersWhoCanOpen(db: DB, orgId: string, mailboxId: string): Promise<string[]> {
-  const [leads, granted] = await Promise.all([
-    db.select({ userId: members.userId }).from(members).where(and(eq(members.organizationId, orgId), ne(members.role, "member"))),
-    db.select({ userId: mailboxAccess.userId }).from(mailboxAccess).where(and(eq(mailboxAccess.orgId, orgId), eq(mailboxAccess.mailboxId, mailboxId))),
-  ]);
-  return [...new Set([...leads, ...granted].map((r) => r.userId))];
+  return whoCanOpen(db, orgId, mailboxId);
 }
 
-export async function assertMailboxAccess(db: DB, auth: Pick<AuthContext, "userId" | "orgId" | "role">, mailboxId: string) {
-  const scope = await mailboxScope(db, auth);
-  if (scope && !scope.includes(mailboxId)) throw notFound("Mailbox");
+/** True when this person may open the mailbox (at `need`). */
+export async function canOpenMailbox(db: DB, auth: Pick<AuthContext, "userId" | "orgId" | "role">, mailboxId: string, need: Need = "read") {
+  return canOpen(db, auth, mailboxId, need);
+}
+
+export async function assertMailboxAccess(db: DB, auth: Pick<AuthContext, "userId" | "orgId" | "role">, mailboxId: string, need: Need = "read") {
+  return assertOpen(db, auth, mailboxId, need);
 }
 
 async function validMailboxIds(db: DB, orgId: string, ids: string[]): Promise<string[]> {
   if (!ids.length) return [];
-  const rows = await db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), inIds(mailboxes.id, ids)));
+  const rows = await db.select({ id: mailboxes.id, personal: mailboxes.personal }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), inIds(mailboxes.id, ids)));
   if (rows.length !== new Set(ids).size) throw badRequest("One of those mailboxes doesn't exist in this workspace.");
+  // PRIV1a: a personal mailbox is shared by its owner (Share in its settings), never granted by an admin.
+  if (rows.some((r) => r.personal)) throw forbidden("A personal mailbox is private to the person who connected it. Ask them to share it.");
   return rows.map((r) => r.id);
 }
 

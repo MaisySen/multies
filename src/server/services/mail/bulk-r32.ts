@@ -41,7 +41,7 @@ async function ownRows(deps: Deps, actor: ScheduleActor, ids: string[]) {
   if (actor.agentId) {
     const { scopeFor } = await import("../agents");
     scope = await scopeFor(deps, actor as never);
-  } else scope = await mailboxScope(deps.db, actor);
+  } else scope = await mailboxScope(deps.db, actor, "reply"); // PRIV1a: a read only share can't change mail
   const rows = await deps.db.select().from(messages).where(and(eq(messages.orgId, actor.orgId), inIds(messages.id, ids)));
   return rows.filter((r) => !scope || scope.includes(r.mailboxId));
 }

@@ -9,9 +9,10 @@
  */
 import { and, eq, ne, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { mailboxAccess, mailboxes, mailThreadState, members, messages } from "../../db/schema";
+import { mailboxes, mailThreadState, members, messages } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import type { SuiteActor } from "./common";
+import { whoCanOpen } from "../mail-access-priv1a";
 import { inIds } from "../../lib/sql-chunks";
 
 export type AssignThreadConfig =
@@ -49,12 +50,9 @@ export async function eligibleAssignees(deps: Deps, orgId: string, userIds: stri
   if (!userIds.length) return new Set<string>();
   const rows = await deps.db.select({ userId: members.userId, role: members.role }).from(members)
     .where(and(eq(members.organizationId, orgId), inIds(members.userId, userIds)));
-  const needGrant = rows.filter((r) => r.role === "member").map((r) => r.userId);
-  const granted = mailboxId && needGrant.length
-    ? new Set((await deps.db.select({ userId: mailboxAccess.userId }).from(mailboxAccess)
-        .where(and(eq(mailboxAccess.orgId, orgId), eq(mailboxAccess.mailboxId, mailboxId), inIds(mailboxAccess.userId, needGrant)))).map((r) => r.userId))
-    : new Set<string>();
-  return new Set(rows.filter((r) => r.role !== "member" || !mailboxId || granted.has(r.userId)).map((r) => r.userId));
+  // PRIV1a: the one mailbox rule decides (a personal mailbox: its owner and shares only).
+  const can = mailboxId ? new Set(await whoCanOpen(deps.db, orgId, mailboxId)) : null;
+  return new Set(rows.filter((r) => !can || can.has(r.userId)).map((r) => r.userId));
 }
 
 /** Save time checks for an assign_thread rule; returns the normalised action config. */

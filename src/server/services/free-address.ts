@@ -219,7 +219,8 @@ export async function claimFreeAddress(deps: Deps, auth: AuthContext, input: { l
   const plan = await getPlan(deps.db, auth.orgId);
   const id = newId("mbx");
   const displayName = (input.displayName?.trim() || auth.name || local).slice(0, 120);
-  await deps.db.insert(mailboxes).values({ id, orgId: auth.orgId, domainId: domain.id, localPart: local, address, displayName, quotaMb: plan.limits.storagePerMailboxMb });
+  // PRIV1a: a free address is the claimer's personal mailbox.
+  await deps.db.insert(mailboxes).values({ id, orgId: auth.orgId, domainId: domain.id, localPart: local, address, displayName, quotaMb: plan.limits.storagePerMailboxMb, personal: !!auth.userId, ownerUserId: auth.userId || null });
   await audit(deps.db, {
     orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: CLAIM_ACTION, targetType: "mailbox", targetId: id,
     metadata: { address, ...(ctx.deviceId ? { device: ctx.deviceId.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64) } : {}) }, ip: ctx.ip ?? undefined,

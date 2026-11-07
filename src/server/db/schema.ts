@@ -41,6 +41,8 @@ export const organizations = sqliteTable("organizations", {
   /** ISO 3166-1 alpha-2; used as the billing country default. */
   country: text("country").notNull().default("AU"),
   isDemo: integer("is_demo", { mode: "boolean" }).notNull().default(false),
+  /** PRIV1a (0164): an internal complimentary plan (set by an operator, never from the app). Billing, webhooks and limits leave it as it is. */
+  compPlan: integer("comp_plan", { mode: "boolean" }).notNull().default(false),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   /** Stripe's subscription status, mirrored by webhooks (active, trialing, past_due, canceled, ...). */
@@ -214,8 +216,16 @@ export const mailboxes = sqliteTable("mailboxes", {
   kind: text("kind", { enum: ["person", "agent"] }).notNull().default("person"),
   /** MB-61 (R25): the Reply-To a send from this mailbox carries when the send names none. Null: no Reply-To. */
   replyTo: text("reply_to"),
+  /**
+   * PRIV1a (0164, MB-366): a personal mailbox (a connected Gmail or IMAP inbox, or a free address someone claimed) is
+   * private to `ownerUserId` plus the people that person shares it with (mailbox_delegations). Owners and admins manage
+   * it but can't open it. Not personal: a team mailbox, open to admins and the members they grant, as before.
+   */
+  personal: integer("personal", { mode: "boolean" }).notNull().default(false),
+  /** PRIV1a: who a personal mailbox belongs to. Null on a personal mailbox: unresolved, only workspace owners see it. */
+  ownerUserId: text("owner_user_id"),
   createdAt: createdAt(),
-}, (t) => [uniqueIndex("mailboxes_address_uq").on(t.address), index("mailboxes_org_idx").on(t.orgId)]);
+}, (t) => [uniqueIndex("mailboxes_address_uq").on(t.address), index("mailboxes_org_idx").on(t.orgId), index("mailboxes_personal_idx").on(t.orgId, t.ownerUserId).where(sql`${t.personal} = 1`)]);
 
 /** An address that forwards to one or more destinations (internal mailboxes or external addresses). */
 
@@ -399,6 +409,36 @@ export const mailboxAccess = sqliteTable("mailbox_access", {
   mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.userId, t.mailboxId] }), index("mailbox_access_org_idx").on(t.orgId)]);
+
+/** PRIV1a (0164): who a personal mailbox's owner shared it with, and how far. Only the owner grants or revokes. */
+export const mailboxDelegations = sqliteTable("mailbox_delegations", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  /** read: open and search. reply: also reply in its threads and organize them. send_as: also write new mail from it. */
+  level: text("level", { enum: ["read", "reply", "send_as"] }).notNull(),
+  grantedByUserId: text("granted_by_user_id"),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.mailboxId, t.userId] }), index("mailbox_delegations_user_idx").on(t.orgId, t.userId)]);
+
+/**
+ * PRIV1a (0164): "Who opened my mailbox". One row when someone other than the owner opens a personal mailbox or one of
+ * its threads (at most one a quarter hour per person and thread), and one per share granted or taken back. Never content.
+ */
+export const mailboxAccessLog = sqliteTable("mailbox_access_log", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+  actorUserId: text("actor_user_id"),
+  actorEmail: text("actor_email"),
+  /** opened_mailbox, opened_thread, share_granted, share_changed, share_revoked */
+  action: text("action").notNull(),
+  /** The thread or message opened, or the person a share names. Ids only. */
+  targetId: text("target_id"),
+  /** web, phone, api */
+  device: text("device"),
+  createdAt: createdAt(),
+}, (t) => [index("mailbox_access_log_mailbox_idx").on(t.mailboxId, t.createdAt)]);
 
 /** Processed billing webhooks, keyed by the provider's event id so retries are no-ops. */
 export const billingEvents = sqliteTable("billing_events", {

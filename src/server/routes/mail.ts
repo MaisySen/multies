@@ -44,6 +44,7 @@ import { labelCond, labelsFor } from "../services/mail/rules-r85";
 import { readStatusFor } from "../services/mail/read-status";
 import { BULK_MAIL_ACTIONS, BULK_MAIL_MAX, runBulkMail } from "../services/mail/bulk-r32";
 import { deferrableWrite } from "../services/write-priority";
+import { logMailboxOpen } from "../services/mailbox-sharing-priv1a";
 import { BulkJobBody, BulkPreviewBody, bodyToInput, getBulkJob, previewBulkJob, runBulkJob, stepBulkJob, undoBulkJob } from "../services/mail/bulk-job-r33"; // R33, R45 preview
 
 
@@ -136,6 +137,8 @@ export function mailRoutes() {
         // Round 20: a snoozed thread stays out of Inbox until its time. R85: a label narrows any folder.
         extra: and(snoozeExtra, splitExtra, q.label ? labelCond(c.var.auth.orgId, q.label) : undefined),
       });
+      // PRIV1a: a delegate opening someone's personal mailbox lands in its "Who opened" log (the first page only).
+      if (q.mailboxId && !q.cursor) await logMailboxOpen(c.var.deps, c.var.auth, q.mailboxId, "opened_mailbox", null, c.req.raw.headers);
       // R85: labels on the page's threads (one read).
       if (result.messages.length) {
         const labels = await labelsFor(c.var.deps, c.var.auth.orgId, result.messages.map((m) => m.threadId));
@@ -151,6 +154,8 @@ export function mailRoutes() {
     .get("/messages/:id", async (c) => {
       const { db } = c.var.deps;
       let m = await getMessage(db, c.var.auth.orgId, c.req.param("id"), await mailboxScope(db, c.var.auth));
+      // PRIV1a: someone other than the owner opening a personal mailbox's thread lands in its "Who opened" log.
+      await logMailboxOpen(c.var.deps, c.var.auth, m.mailboxId, "opened_thread", m.threadId, c.req.raw.headers);
       if (m.sizeBytes < 0) {
         // R57: older synced mail kept header and snippet only: fetch its body from the provider now, once.
         const { deps } = c.var;
@@ -186,6 +191,7 @@ export function mailRoutes() {
       const patch = await parseBody(c, updateMessageSchema);
       const { db } = c.var.deps;
       const m = await getMessage(db, c.var.auth.orgId, c.req.param("id"), await mailboxScope(db, c.var.auth));
+      await assertMailboxAccess(db, c.var.auth, m.mailboxId, "reply"); // PRIV1a: a read only share can't change mail
       if (patch.folder && (m.folder === "sent" || m.folder === "drafts")) throw badRequest("Sent messages and drafts can only be deleted.");
       await db.update(messages).set(patch).where(eq(messages.id, m.id));
       for (const action of remoteActionsFor(patch, m)) await queueChange(c, [m], action);
@@ -216,6 +222,7 @@ export function mailRoutes() {
     .delete("/messages/:id", async (c) => {
       const { db } = c.var.deps;
       const m = await getMessage(db, c.var.auth.orgId, c.req.param("id"), await mailboxScope(db, c.var.auth));
+      await assertMailboxAccess(db, c.var.auth, m.mailboxId, "reply"); // PRIV1a: a read only share can't delete mail
       if (m.folder === "trash" || m.folder === "drafts") { await assertNotHeld(c.var.deps, c.var.auth.orgId, [m]); await deleteMessagesPermanently(db, [m]); }
       else {
         await db.update(messages).set({ folder: "trash" }).where(eq(messages.id, m.id));
@@ -245,7 +252,7 @@ export function mailRoutes() {
       if (!sendLimiter.take(auth.userId)) throw tooMany("You're sending very fast. Wait a moment.");
       // Tools P2: the composer can carry attachments (base64, COMPOSE_ATTACH_MAX_BYTES in all), passed to the send service as is.
       const { attachments: files, ...input } = await parseBody(c, sendWithFilesSchema);
-      await assertMailboxAccess(deps.db, auth, input.mailboxId);
+      await assertMailboxAccess(deps.db, auth, input.mailboxId, input.inReplyToId ? "reply" : "send");
       // Tools P2: Tools results attached in Compose (engine tokens) and composer files (base64, e.g. after an auto rule) ride as ordinary attachments.
       const { toolFiles, ...plain } = input;
       // One limit for both kinds: 10 files and 20 MB per email.
@@ -264,7 +271,7 @@ export function mailRoutes() {
     .post("/drafts", async (c) => {
       const input = await parseBody(c, saveDraftSchema);
       const { auth, deps } = c.var;
-      await assertMailboxAccess(deps.db, auth, input.mailboxId);
+      await assertMailboxAccess(deps.db, auth, input.mailboxId, input.inReplyToId ? "reply" : "send");
       const mb = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, auth.orgId))).get();
       if (!mb) throw notFound("Mailbox");
       // Round 22: a shared draft reply. Saving over a draft somebody else took over, or one that changed
