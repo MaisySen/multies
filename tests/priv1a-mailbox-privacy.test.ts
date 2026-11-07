@@ -31,6 +31,14 @@ describe("PRIV1a mailbox privacy: role x resource", () => {
     const want: string[] = [];
     for (const r of ROLES) {
       const c = client(w, r);
+      // Badge counts (before anything is opened, so all unread; one statement, its own SQL form of the rule): unread inbox mail only from what this person may open.
+      if (r !== "outsider") {
+        const n = (await c.get("/api/counts")).body?.mail?.inbox;
+        expect(`${r} counts ${n}`).toBe(`${r} counts ${(["personal", "team", "agent"] as const).filter((b) => EXPECT[b].includes(r)).length}`);
+      }
+    }
+    for (const r of ROLES) {
+      const c = client(w, r);
       const list = await c.get("/api/mail/messages?folder=inbox&limit=50");
       const listed = new Set(((list.body?.messages ?? []) as { id: string }[]).map((m) => m.id));
       for (const box of ["personal", "team", "agent"] as const) {

@@ -12,6 +12,7 @@ import { useMe } from "@/web/lib/queries";
 import { showError } from "@/web/lib/show-error";
 import { timeAgo } from "@/web/lib/format";
 import { Button } from "@/web/components/ui/button";
+import { Select } from "@/web/components/ui/input";
 import { t } from "@/web/i18n";
 
 type Level = "read" | "reply" | "send_as";
@@ -27,7 +28,6 @@ const MINE_KEY = ["mailbox-privacy", "mine"] as const;
 const sharingKey = (id: string) => ["mailbox-privacy", "sharing", id] as const;
 const LEVELS: Level[] = ["read", "reply", "send_as"];
 const levelName = (l: Level) => t(`priv1a.level_${l}`);
-const selectClass = "h-9 rounded-lg border border-line bg-surface px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50";
 
 export function useMailboxPrivacy() {
   return useQuery({ queryKey: MINE_KEY, queryFn: () => api.get<Mine>("/api/mailboxes/privacy/mine"), staleTime: 60_000 });
@@ -104,9 +104,9 @@ function ShareCard({ id, address }: { id: string; address: string }) {
               <li key={s.userId} className="flex flex-wrap items-center justify-between gap-2 text-sm" data-testid="priv1a-share">
                 <span className="min-w-0 truncate">{s.name} <span className="text-muted">{s.email}</span></span>
                 <span className="flex items-center gap-2">
-                  <select aria-label={t("priv1a.share_with")} className={selectClass} value={s.level} onChange={(e) => share.mutate({ userId: s.userId, level: e.target.value as Level })}>
+                  <Select aria-label={t("priv1a.share_with")} className="w-auto min-w-[9rem]" value={s.level} onChange={(e) => share.mutate({ userId: s.userId, level: e.target.value as Level })}>
                     {LEVELS.map((l) => <option key={l} value={l}>{levelName(l)}</option>)}
-                  </select>
+                  </Select>
                   <Button size="sm" variant="secondary" disabled={stop.isPending} onClick={() => stop.mutate(s.userId)}>{t("priv1a.stop")}</Button>
                 </span>
               </li>
@@ -114,13 +114,13 @@ function ShareCard({ id, address }: { id: string; address: string }) {
           </ul>
           {v.people.length > 0 && (
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <select aria-label={t("priv1a.share_with")} data-testid="priv1a-person" className={selectClass} value={person} onChange={(e) => setPerson(e.target.value)}>
+              <Select aria-label={t("priv1a.share_with")} data-testid="priv1a-person" className="w-auto min-w-[9rem]" value={person} onChange={(e) => setPerson(e.target.value)}>
                 <option value="">{t("priv1a.pick_person")}</option>
                 {v.people.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.email})</option>)}
-              </select>
-              <select aria-label={t("priv1a.share_with")} data-testid="priv1a-level" className={selectClass} value={level} onChange={(e) => setLevel(e.target.value as Level)}>
+              </Select>
+              <Select aria-label={t("priv1a.share_with")} data-testid="priv1a-level" className="w-auto min-w-[9rem]" value={level} onChange={(e) => setLevel(e.target.value as Level)}>
                 {LEVELS.map((l) => <option key={l} value={l}>{levelName(l)}</option>)}
-              </select>
+              </Select>
               <Button size="sm" data-testid="priv1a-share-button" disabled={!person || share.isPending} onClick={() => share.mutate({ userId: person, level })}>{t("priv1a.share")}</Button>
             </div>
           )}

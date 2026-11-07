@@ -8,7 +8,7 @@
  *   the owner shared it with (read, reply, send as). Owners and admins of the workspace can't open it. If its owner
  *   is unknown or has left, only the workspace's owners see it until it is given to someone.
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import type { DB } from "../db";
 import { mailboxAccess, mailboxDelegations, mailboxes, members } from "../db/schema";
 import { notFound, HttpError } from "../lib/errors";
@@ -83,6 +83,23 @@ export async function scopeFor(db: DB, who: Who, need: Need = "read"): Promise<s
     ? await db.select({ id: mailboxAccess.mailboxId }).from(mailboxAccess).where(and(eq(mailboxAccess.userId, who.userId), eq(mailboxAccess.orgId, who.orgId)))
     : [];
   return [...new Set([...granted.map((r) => r.id).filter((id) => !pic.personal.has(id)), ...open])];
+}
+
+/**
+ * The same rule as scopeFor, as one SQL condition on a mailbox id column (no reads of its own), for hot single
+ * statement routes such as the badge counts. People only; agents and system actors use scopeFor.
+ */
+export function scopeCond(who: Who, col: SQLWrapper): SQL {
+  const me = who.userId || "-";
+  const member = sql`exists (select 1 from members x where x.user_id = m.owner_user_id and x.organization_id = m.org_id)`;
+  const owned = sql`(m.owner_user_id = ${me} and ${member})`;
+  const orphan = sql`(m.owner_user_id is null or not ${member})`;
+  const shared = sql`m.id in (select d.mailbox_id from mailbox_delegations d where d.org_id = ${who.orgId} and d.user_id = ${me})`;
+  const open = who.role === "owner" ? sql`(${owned} or ${orphan} or ${shared})` : sql`(${owned} or ${shared})`;
+  if (who.role === "owner" || who.role === "admin") {
+    return sql`${col} not in (select m.id from mailboxes m where m.org_id = ${who.orgId} and m.personal = 1 and not ${open})`;
+  }
+  return sql`(${col} in (select a.mailbox_id from mailbox_access a join mailboxes m on m.id = a.mailbox_id where a.org_id = ${who.orgId} and a.user_id = ${me} and m.personal = 0) or ${col} in (select m.id from mailboxes m where m.org_id = ${who.orgId} and m.personal = 1 and ${open}))`;
 }
 
 /** True when this person may open the mailbox (at `need`). False for another workspace's mailbox. */
