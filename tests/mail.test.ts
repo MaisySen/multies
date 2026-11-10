@@ -65,7 +65,8 @@ describe("inbound via Cloudflare Email Worker", () => {
     expect(list.body.messages).toHaveLength(1);
     expect(list.body.messages[0]).toMatchObject({ subject: "Hello there", isRead: false, hasAttachments: true, from: { address: "grace@navy.mil", name: "Grace Hopper" } });
     const full = await c.get(`/api/mail/messages/${list.body.messages[0].id}`);
-    expect(full.body.message.authResults).toEqual({ spf: "pass", dkim: "pass", dmarc: "pass" });
+    // PRIV1b (P38): a workspace key's own Authentication-Results headers can't claim pass.
+    expect(full.body.message.authResults).toEqual({ spf: "none", dkim: "none", dmarc: "none" });
     const att = full.body.message.attachments[0];
     expect(att.filename).toBe("notes.txt");
     const dl = await ctx.app.request(`/api/mail/attachments/${att.id}`, { headers: { cookie: c.cookie, host: "localhost" } });

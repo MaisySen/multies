@@ -9,7 +9,9 @@ import { newId } from "../../lib/crypto";
 import type { ParsedEmail } from "./mime";
 import { storeMessage } from "./store";
 import { OutboundError } from "./outbound";
-import { getPlan } from "../plans";
+import { getOrg, getPlan } from "../plans";
+import { maybeAutoSuspend, recentOutboundStats, recordAbuse, scoreOutbound, SPAM_HOLD_AT } from "../abuse";
+import { sendingOff } from "./send-guard-r34";
 import { notifyAgentsOfInbound } from "../agents";
 import { operatorDecision } from "../suite/operator-inbox";
 import { isBulkMail } from "@/shared/mail-splits";
@@ -186,13 +188,24 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
   const result: InboundResult = { accepted: false, code: 550, reason: "No destination accepted the message.", storedIn: [], forwardedTo: [] };
   const external: string[] = [];
   for (const dest of destinations) {
-    if (await isHosted(db, dest)) {
-      const r = await deliverInbound(deps, { ...d, rcptTo: dest, requireOrgId: undefined }, depth + 1, seen);
+    // PRIV1b (P38): a hosted destination is delivered inside only when it is in the alias's own workspace, and the
+    // nested route keeps that workspace as its signer. Another workspace's address goes out as a normal forward.
+    const destRoute = await routeRecipient(db, dest);
+    if (destRoute.kind !== "none" && destRoute.domain.orgId === alias.orgId) {
+      const r = await deliverInbound(deps, { ...d, rcptTo: dest, requireOrgId: alias.orgId }, depth + 1, seen);
       result.storedIn.push(...r.storedIn);
       result.forwardedTo.push(...r.forwardedTo);
     } else {
       external.push(dest);
     }
+  }
+  // PRIV1b (P39): a forward is outbound mail from the workspace, so it passes the same gates as send.ts.
+  const refused = external.length ? await forwardRefusal(deps, alias.orgId, route.domain, d.email, external.length) : null;
+  if (refused) {
+    for (const to of external) {
+      await logDelivery(db, { orgId: alias.orgId, direction: "outbound", fromAddress: alias.address, toAddress: to, subject, status: "rejected", provider: deps.outbound.name, detail: refused });
+    }
+    external.length = 0;
   }
   if (external.length) {
     const fromName = d.email.from.name ? `${d.email.from.name} via ${alias.address}` : `${d.email.from.address} via ${alias.address}`;
@@ -227,13 +240,36 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
   return result;
 }
 
+/** PRIV1b (P39): why an alias may not forward `count` recipients now (suspended, sending off or paused, unverified
+ * domain, over the daily cap, or spam), or null. Refusals are logged, never queued: the sender's MTA gets a bounce. */
+async function forwardRefusal(deps: Deps, orgId: string, domain: typeof domains.$inferSelect, email: ParsedEmail, count: number): Promise<string | null> {
+  const [org, plan, used] = await Promise.all([getOrg(deps.db, orgId), getPlan(deps.db, orgId), sentToday(deps.db, orgId, deps.now())]);
+  if (org.suspendedAt) return "Workspace is suspended";
+  if (sendingOff(org) && !org.isDemo) return "Sending is turned off for this workspace";
+  const { sendingPausedForPayment } = await import("../billing/dunning"); // lazy: dunning pulls in the mail templates
+  if (sendingPausedForPayment(org, deps.now())) return "Sending is paused for payment";
+  if (domain.status !== "verified") return `${domain.name} is not verified`;
+  const cap = org.sendCapDaily ?? plan.limits.dailySends;
+  if (used + count > cap) return `Daily sending limit reached (${cap} recipients a day)`;
+  if (!org.isDemo) {
+    const ageDays = (deps.now().getTime() - new Date(org.createdAt).getTime()) / 86_400_000;
+    const verdict = scoreOutbound({ subject: email.subject ?? "", text: email.text ?? "", html: email.html, recipients: count, workspaceAgeDays: ageDays, recent: await recentOutboundStats(deps, orgId) });
+    if (verdict.score >= SPAM_HOLD_AT) {
+      await recordAbuse(deps, orgId, "outbound_held", verdict.score, verdict.reasons.join("; "));
+      await maybeAutoSuspend(deps, orgId, ageDays);
+      return "Held by the spam filter";
+    }
+  }
+  return null;
+}
+
 /** Recipients sent today (UTC) by an org. This is what the plan's daily limit counts. */
 export async function sentToday(db: DB, orgId: string, now: Date): Promise<number> {
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const row = await db.select({ n: sql<number>`count(*)` }).from(deliveries).where(and(
     eq(deliveries.orgId, orgId),
     eq(deliveries.direction, "outbound"),
-    inArray(deliveries.status, ["sent", "queued", "delivered"]),
+    inArray(deliveries.status, ["sent", "queued", "delivered", "forwarded"]), // PRIV1b (P39): alias forwards count too
     gte(deliveries.createdAt, start),
   )).get();
   return Number(row?.n ?? 0);
