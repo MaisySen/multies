@@ -181,10 +181,27 @@ export async function keepOpenableBy(db: DB, orgId: string, userId: string | nul
  * password, Reply-To, sign in or calendar through it.
  */
 export async function isPersonalOwner(db: DB, who: Who, mailboxId: string): Promise<boolean | undefined> {
+  const st = await personalOwnerState(db, who, mailboxId);
+  return st === undefined ? undefined : st === "owner";
+}
+
+/**
+ * PRIV1b (integration M3): the one ownership test for a personal mailbox row (owner id, and the owner's member row).
+ * "owner": the caller owns it and is still a member. "orphan": its owner is unknown or left, so nobody owns it (P9);
+ * the workspace owner only tidies up after it (lists, disables and deletes its rules, cancels its scheduled sends).
+ * "other": someone else's. Every helper that hands out personal ownership asks here so lists and actions agree.
+ */
+export type PersonalOwnership = "owner" | "orphan" | "other";
+export function personalOwnership(r: { owner: string | null; member: string | null }, userId: string | null | undefined): PersonalOwnership {
+  if (!r.owner || !r.member) return "orphan";
+  return !!userId && r.owner === userId ? "owner" : "other";
+}
+
+/** PRIV1b (integration M3): personalOwnership for one mailbox; undefined for a team or agent mailbox. One indexed read. */
+export async function personalOwnerState(db: DB, who: Who, mailboxId: string): Promise<PersonalOwnership | undefined> {
   const r = await db.select({ personal: mailboxes.personal, owner: mailboxes.ownerUserId, member: members.userId }).from(mailboxes)
     .leftJoin(members, and(eq(members.userId, mailboxes.ownerUserId), eq(members.organizationId, mailboxes.orgId)))
     .where(and(eq(mailboxes.id, mailboxId), eq(mailboxes.orgId, who.orgId))).get();
   if (!r?.personal) return undefined;
-  if (!who.userId) return false;
-  return !!r.owner && !!r.member && r.owner === who.userId;
+  return personalOwnership(r, who.userId);
 }

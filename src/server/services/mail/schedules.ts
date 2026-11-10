@@ -19,7 +19,7 @@ import { sendMessageSchema, type SendMessageInput } from "@/shared/schemas";
 import { zonedDate, zonedTime, validTimezone } from "../suite/scheduling";
 import { presentListItem } from "./mailbox-view";
 import { mailboxScope } from "../team";
-import { assertOpen, canOpen, personalInfo, type Need } from "../mail-access-priv1a";
+import { assertOpen, canOpen, personalInfo, personalOwnership as ownershipOf, type Need } from "../mail-access-priv1a";
 import { setSnoozedProvider, type MyWorkItem } from "../search";
 import { inIds } from "../../lib/sql-chunks";
 
@@ -258,7 +258,8 @@ async function personalOwnership(deps: Deps, actor: ScheduleActor, ids: string[]
   const rows = await deps.db.select({ id: mailboxes.id, owner: mailboxes.ownerUserId, member: members.userId }).from(mailboxes)
     .leftJoin(members, and(eq(members.userId, mailboxes.ownerUserId), eq(members.organizationId, mailboxes.orgId)))
     .where(and(eq(mailboxes.orgId, actor.orgId), eq(mailboxes.personal, true), inIds(mailboxes.id, list)));
-  return new Map(rows.map((r) => [r.id, !!actor.userId && (r.owner && r.member ? r.owner === actor.userId : actor.role === "owner")]));
+  // PRIV1b (integration M3): the shared predicate; an orphan's sends are the workspace owner's to see and cancel only.
+  return new Map(rows.map((r) => { const o = ownershipOf(r, actor.userId); return [r.id, !!actor.userId && (o === "owner" || (o === "orphan" && actor.role === "owner"))]; }));
 }
 
 /**

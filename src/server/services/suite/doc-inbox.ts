@@ -30,7 +30,7 @@ import { DRIVE_LIMITS, cleanTags } from "@/shared/drive";
 import {
   DOC_LIMITS as L, DOC_TYPES, isDocType, type DocCounts, type DocDetail, type DocField, type DocFields, type DocList, type DocMatch, type DocRow, type DocRule, type DocStatus, type DocType, type DocView,
 } from "@/shared/doc-inbox";
-import { canOpen, isPersonalOwner, personalInfo } from "../mail-access-priv1a";
+import { canOpen, isPersonalOwner, personalInfo, personalOwnership } from "../mail-access-priv1a";
 
 type Actor = Pick<AuthContext, "orgId" | "userId" | "email" | "role">;
 const isAdmin = (a: Actor) => a.role === "owner" || a.role === "admin";
@@ -528,8 +528,8 @@ export async function addableMailboxes(db: DB, a: Actor): Promise<string[]> {
   const me = (await db.all<{ email: string }>(sql`select email from users where id = ${a.userId} limit 1`))[0]?.email.toLowerCase() ?? "";
   const grants = new Set((await db.all<{ mailbox_id: string }>(sql`select mailbox_id from mailbox_access where user_id = ${a.userId} and org_id = ${a.orgId} limit 500`)).map((r) => r.mailbox_id));
   const owned = isAdmin(a) ? new Set((await db.all<{ email: string }>(sql`select lower(u.email) as email from members m join users u on u.id = m.user_id where m.organization_id = ${a.orgId} limit 2000`)).map((r) => r.email)) : new Set<string>();
-  // PRIV1b (P21): personal mailboxes as canAddFromMailbox decides them: the owner's own (orphans: the workspace owner).
-  return boxes.filter((b) => (b.personal ? (b.owner && b.member ? b.owner === a.userId : a.role === "owner")
+  // PRIV1b (P21, integration M3): personal mailboxes as canAddFromMailbox decides them: the owner's own; an orphan is nobody's.
+  return boxes.filter((b) => (b.personal ? personalOwnership(b, a.userId) === "owner"
     : b.address.toLowerCase() === me || grants.has(b.id) || (isAdmin(a) && !owned.has(b.address.toLowerCase())))).map((b) => b.id);
 }
 

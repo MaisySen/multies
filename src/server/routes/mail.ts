@@ -279,10 +279,11 @@ export function mailRoutes() {
     .post("/drafts", async (c) => {
       const input = await parseBody(c, saveDraftSchema);
       const { auth, deps } = c.var;
-      await assertMailboxAccess(deps.db, auth, input.mailboxId, input.inReplyToId ? "reply" : "send");
       const mb = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, auth.orgId))).get();
       if (!mb) throw notFound("Mailbox");
       // PRIV1b (P10): a reply share drafts answers to the thread's own people only, as Send checks.
+      // PRIV1b (integration S3): assertSendLevel already checks the level on a personal mailbox; team mail is checked here once.
+      if (!mb.personal) await assertMailboxAccess(deps.db, auth, mb.id, input.inReplyToId ? "reply" : "send");
       await assertSendLevel(deps.db, auth, mb, input);
       // Round 22: a shared draft reply. Saving over a draft somebody else took over, or one that changed
       // in another window, answers 409 instead of overwriting. The delete is the optimistic check: only

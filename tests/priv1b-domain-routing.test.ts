@@ -50,11 +50,14 @@ describe("P36: only verified domains route inside the platform", () => {
     expect((await inbox(B, bob)).some((m) => m.subject === "After verify")).toBe(true);
   });
 
-  it("a demoted (failed) domain stops routing too", async () => {
+  it("a demoted (failed) domain stops routing too, unless it was once proved in DNS", async () => {
     const w = await privacyWorld();
     expect(await isHosted(w.ctx.db, `pat${w.n}@acme.io`)).toBe(false); // no mailbox there
     expect(await isHosted(w.ctx.db, "team@acme.io")).toBe(true);
+    // PRIV1b (integration M1): a failed re-check of a proved domain (verifiedAt kept) keeps routing; never proved does not.
     await w.ctx.db.update(domains).set({ status: "failed" }).where(eq(domains.id, w.domainId));
+    expect(await isHosted(w.ctx.db, "team@acme.io")).toBe(true);
+    await w.ctx.db.update(domains).set({ status: "failed", verifiedAt: null }).where(eq(domains.id, w.domainId));
     expect(await isHosted(w.ctx.db, "team@acme.io")).toBe(false);
   });
 

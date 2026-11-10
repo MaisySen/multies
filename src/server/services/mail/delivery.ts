@@ -39,7 +39,9 @@ export async function routeRecipient(db: DB, address: string): Promise<Recipient
   // PRIV1b (P36): only a domain whose owner proved it in DNS routes inside the platform. A pending or failed
   // claim (anyone can add any name) would otherwise catch password resets, invites and other customers' mail.
   // Platform, operator and sample rows are stored verified. No domain is returned, so nothing is logged to the claimant.
-  if (domain.status !== "verified") return { kind: "none" };
+  // PRIV1b (integration M1): a domain once proved keeps routing when a later re-check fails (an SPF edit, DNS drift):
+  // the re-check keeps verifiedAt, and bouncing every message of a live workspace is worse than the drift.
+  if (domain.status !== "verified" && !domain.verifiedAt) return { kind: "none" };
   const mailbox = await db.select().from(mailboxes).where(eq(mailboxes.address, addr)).get();
   // A connected mailbox (an address at another provider) sits on the shared connected row, not this domain: mail for it goes out over the internet.
   if (mailbox && mailbox.domainId === domain.id) return { kind: "mailbox", mailbox, domain };
@@ -200,7 +202,9 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
     }
   }
   // PRIV1b (P39): a forward is outbound mail from the workspace, so it passes the same gates as send.ts.
-  const refused = external.length ? await forwardRefusal(deps, alias.orgId, route.domain, d.email, external.length) : null;
+  // PRIV1b (integration S1): a failed check refuses the forward but keeps the copies already stored, so the MTA does not retry and store them twice.
+  const refused = external.length ? await forwardRefusal(deps, alias.orgId, route.domain, d.email, external.length)
+    .catch((err) => { deps.reportError?.(err, { where: "alias.forward_guard" }); return "Forward check failed"; }) : null;
   if (refused) {
     for (const to of external) {
       await logDelivery(db, { orgId: alias.orgId, direction: "outbound", fromAddress: alias.address, toAddress: to, subject, status: "rejected", provider: deps.outbound.name, detail: refused });
@@ -252,7 +256,7 @@ async function forwardRefusal(deps: Deps, orgId: string, domain: typeof domains.
   if (sendingOff(org) && !org.isDemo) return "Sending is turned off for this workspace";
   const { sendingPausedForPayment } = await import("../billing/dunning"); // lazy: dunning pulls in the mail templates
   if (sendingPausedForPayment(org, deps.now())) return "Sending is paused for payment";
-  if (domain.status !== "verified") return `${domain.name} is not verified`;
+  if (domain.status !== "verified" && !domain.verifiedAt) return `${domain.name} is not verified`; // the routeRecipient rule (integration M1)
   // PRIV1b (P39): the same R34 guard as send.ts (plan cap, new sender limit, shared headroom), refused instead of queued.
   const cfg = guardConfig(deps);
   const ext = org.isDemo ? 0 : count; // a demo workspace only has the plan cap, as in send.ts

@@ -20,7 +20,7 @@ import {
   type MailRule, type MailRuleActionT, type MailRuleConditionT, type MailRuleInputT, type MailRuleRun, type RuleActionKind, type RuleMessage,
 } from "@/shared/mail-rules-r85";
 import { isRobotSender } from "@/shared/mail-splits";
-import { assertOpen, canOpen, isPersonalOwner, personalInfo, type Need } from "../mail-access-priv1a";
+import { assertOpen, canOpen, personalInfo, personalOwnerState, personalOwnership, type Need } from "../mail-access-priv1a";
 
 export interface RuleActor { orgId: string; userId: string; role?: AuthContext["role"]; agentId?: string | null; scope?: string; email?: string; name?: string }
 const DAY = 86_400_000;
@@ -59,7 +59,8 @@ async function ownedPersonal(deps: Deps, a: RuleActor): Promise<string[]> {
   const rows = await deps.db.select({ id: mailboxes.id, owner: mailboxes.ownerUserId, member: members.userId }).from(mailboxes)
     .leftJoin(members, and(eq(members.userId, mailboxes.ownerUserId), eq(members.organizationId, mailboxes.orgId)))
     .where(and(eq(mailboxes.orgId, a.orgId), eq(mailboxes.personal, true)));
-  return rows.filter((r) => (r.owner && r.member ? r.owner === a.userId : a.role === "owner")).map((r) => r.id);
+  // PRIV1b (integration M3): the shared predicate; an orphan's rules are listed to the workspace owner so she can stop them (own, tidy).
+  return rows.filter((r) => { const o = personalOwnership(r, a.userId); return o === "owner" || (o === "orphan" && a.role === "owner"); }).map((r) => r.id);
 }
 
 /** The person's rules, plus (PRIV1b, P43) every rule anyone made on a personal mailbox they own, with its maker's name. */
@@ -72,17 +73,21 @@ export async function listRules(deps: Deps, a: RuleActor): Promise<(MailRule & {
   return rows.map(({ r, name, email }) => (r.userId === userId ? present(r) : { ...present(r), createdBy: { userId: r.userId, name: name || email || "Someone" } }));
 }
 
-/** The caller's own rule; with `ownerToo` (PRIV1b, P43) also any rule on a personal mailbox the caller owns. */
-async function own(deps: Deps, a: RuleActor, id: string, ownerToo = false) {
+/** The caller's own rule; with `ownerToo` (PRIV1b, P43) also any rule on a personal mailbox the caller owns, and
+ * (integration M3) with `tidy` a rule on an orphan for the workspace owner, the same rows listRules shows her. */
+async function own(deps: Deps, a: RuleActor, id: string, ownerToo = false, tidy = false) {
   const userId = person(a);
   const r = await deps.db.select().from(mailRules).where(and(eq(mailRules.id, id), eq(mailRules.orgId, a.orgId))).get();
   if (!r) throw notFound("Rule");
   if (r.userId === userId) return r;
-  if (ownerToo && (await isPersonalOwner(deps.db, { userId, orgId: a.orgId, role: a.role }, r.mailboxId)) === true) return r;
+  if (ownerToo) {
+    const o = await personalOwnerState(deps.db, { userId, orgId: a.orgId, role: a.role }, r.mailboxId);
+    if (o === "owner" || (tidy && o === "orphan" && a.role === "owner")) return r;
+  }
   throw notFound("Rule");
 }
 
-export async function getRule(deps: Deps, a: RuleActor, id: string) { return present(await own(deps, a, id, true)); }
+export async function getRule(deps: Deps, a: RuleActor, id: string) { return present(await own(deps, a, id, true, true)); }
 
 /** Checks the mailbox is in the person's scope and every action points at something real they can use. */
 async function check(deps: Deps, a: RuleActor, scope: string[] | null, input: { mailboxId: string; actions: MailRuleActionT[] }) {
@@ -130,7 +135,15 @@ export async function createRule(deps: Deps, a: RuleActor, scope: string[] | nul
 
 export async function updateRule(deps: Deps, a: RuleActor, scope: string[] | null, id: string, patch: Partial<MailRuleInputT>) {
   writable(a);
-  const r = present(await own(deps, a, id));
+  const row = await own(deps, a, id, true, true);
+  // PRIV1b (integration M2): the mailbox's owner may turn someone else's rule on or off (an orphan's: off only), not rewrite it.
+  if (row.userId !== person(a)) {
+    const mine = (await personalOwnerState(deps.db, { userId: a.userId, orgId: a.orgId, role: a.role }, row.mailboxId)) === "owner";
+    if (Object.keys(patch).some((k) => k !== "enabled" && (patch as Record<string, unknown>)[k] !== undefined) || (!mine && patch.enabled !== false)) {
+      throw new HttpError(403, "not_your_rule", mine ? "You can only turn this rule on or off. Its maker can change it." : "You can only turn this rule off.");
+    }
+  }
+  const r = present(row);
   const next = { mailboxId: patch.mailboxId ?? r.mailboxId, actions: patch.actions ?? r.actions };
   if (patch.mailboxId !== undefined || patch.actions !== undefined) await check(deps, a, scope, next);
   await deps.db.update(mailRules).set({
@@ -147,14 +160,14 @@ export async function updateRule(deps: Deps, a: RuleActor, scope: string[] | nul
 
 export async function deleteRule(deps: Deps, a: RuleActor, id: string) {
   writable(a);
-  await own(deps, a, id, true);
+  await own(deps, a, id, true, true);
   await deps.db.delete(mailRuleRuns).where(eq(mailRuleRuns.ruleId, id));
   await deps.db.delete(mailRules).where(eq(mailRules.id, id));
   return { deleted: true };
 }
 
 export async function listRuns(deps: Deps, a: RuleActor, id: string, limit = 50): Promise<MailRuleRun[]> {
-  await own(deps, a, id, true);
+  await own(deps, a, id, true, true);
   const rows = await deps.db.select().from(mailRuleRuns).where(eq(mailRuleRuns.ruleId, id)).orderBy(desc(mailRuleRuns.createdAt), desc(mailRuleRuns.id)).limit(Math.min(limit, 100));
   return rows.map((r) => ({ id: r.id, messageId: r.messageId, from: r.fromAddress, subject: r.subject, status: r.status, steps: parse(r.steps, []), createdAt: r.createdAt.toISOString() }));
 }
@@ -368,7 +381,8 @@ export async function runMailRules(deps: Deps, m: { orgId: string; mailboxId: st
 /** "Run on recent mail": applies a rule's quiet actions (never replies or forwards) to matching recent mail. */
 export async function runOnRecent(deps: Deps, a: RuleActor, scope: string[] | null, id: string) {
   writable(a);
-  const rule = await own(deps, a, id);
+  // PRIV1b (integration M2): the mailbox's owner may run a rule made on her mailbox; it still acts at its maker's level.
+  const rule = await own(deps, a, id, true);
   if (scope && !scope.includes(rule.mailboxId)) throw notFound("Mailbox");
   const mine = await ownAddresses(deps, a.orgId);
   const conds = { match: rule.match, conditions: parse<MailRuleConditionT[]>(rule.conditions, []) };

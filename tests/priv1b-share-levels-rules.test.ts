@@ -36,7 +36,7 @@ describe("PRIV1b P43: mail rules on a personal mailbox", () => {
     expect(theirs.map((r) => r.id).sort()).toEqual([`mrl_labl${w.n}aaaaaaaa`, `mrl_task${w.n}aaaaaaaa`]);
     expect(theirs[0].createdBy!.name).toBe("Ada Admin");
     expect((await w.pat.c.get(`/api/mail/rules/mrl_task${w.n}aaaaaaaa`)).status).toBe(200);
-    expect((await w.pat.c.patch(`/api/mail/rules/mrl_task${w.n}aaaaaaaa`, { name: "mine now" })).status).toBe(404);
+    expect((await w.pat.c.patch(`/api/mail/rules/mrl_task${w.n}aaaaaaaa`, { name: "mine now" })).status).toBe(403); // PRIV1b (integration M2): she may toggle it, not rewrite it
     expect((await w.pat.c.del(`/api/mail/rules/mrl_task${w.n}aaaaaaaa`)).status).toBe(200);
     expect((await w.admin.c.get("/api/mail/rules")).body.rules.map((r: { id: string }) => r.id)).toEqual([`mrl_labl${w.n}aaaaaaaa`]);
     expect((await w.nobody.c.get("/api/mail/rules")).body.rules).toEqual([]);
