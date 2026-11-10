@@ -20,6 +20,10 @@ export function durableChatLive(ns: unknown): ChatLiveBus | undefined {
       const res = await ns.get(ns.idFromName(hubName(orgId))).fetch(new Request("https://chat-hub/publish", { method: "POST", body: JSON.stringify({ audience, event }) }));
       if (!res.ok) throw new Error(`chat hub answered ${res.status}`);
     },
+    async kick(orgId, userId) { // PRIV1b (P65)
+      const res = await ns.get(ns.idFromName(hubName(orgId))).fetch(new Request("https://chat-hub/kick", { method: "POST", body: JSON.stringify({ userId }) }));
+      if (!res.ok) throw new Error(`chat hub answered ${res.status}`);
+    },
   };
 }
 

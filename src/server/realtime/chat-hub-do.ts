@@ -9,7 +9,7 @@
  * - GET with Upgrade: websocket, after chatLiveAccess passed. x-chat-user names the person.
  * - POST /publish { audience, event } from publishChat after a chat write.
  */
-import { CLOSE_FULL, deliver, helloFrame, MAX_SOCKETS, type ChatAudience, type ChatLiveEvent, type HubConn } from "./hub";
+import { CLOSE_FULL, deliver, helloFrame, kickUser, MAX_SOCKETS, type ChatAudience, type ChatLiveEvent, type HubConn } from "./hub";
 
 interface HibernatingSocket {
   send(data: string): void;
@@ -48,6 +48,12 @@ export class ChatHub {
       this.seq++;
       const sent = deliver(this.conns(), body.audience, body.event, this.now());
       return Response.json({ sent });
+    }
+    if (request.method === "POST" && url.pathname === "/kick") {
+      // PRIV1b (P65): the person left the workspace or their sessions ended.
+      const body = (await request.json().catch(() => null)) as { userId?: string } | null;
+      if (!body?.userId) return Response.json({ error: "bad_kick" }, { status: 400 });
+      return Response.json({ closed: kickUser(this.conns(), body.userId) });
     }
     if ((request.headers.get("upgrade") ?? "").toLowerCase() !== "websocket") return new Response("Expected a WebSocket upgrade.", { status: 426 });
     const userId = request.headers.get("x-chat-user") ?? "";

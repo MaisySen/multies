@@ -322,6 +322,7 @@ export async function removeMember(deps: Deps, auth: AuthContext, headers: Heade
   else await api.removeMember({ headers, body: { memberIdOrEmail: target.id, organizationId: auth.orgId } });
   await db.delete(mailboxAccess).where(and(eq(mailboxAccess.orgId, auth.orgId), eq(mailboxAccess.userId, userId)));
   await endPersonalMail(deps, auth.orgId, userId, { userId: auth.userId || null, email: auth.email ?? null });
+  await (await import("../realtime/publish")).closeUserSockets(deps, userId, [auth.orgId]); // PRIV1b (P65): live chat stops at once
   return target;
 }
 
