@@ -72,16 +72,23 @@ describe("P56 send later sends an instant from the phone's own zone", () => {
     expect(localWhen("2020-01-01", "09:00")).toHaveProperty("error");
     expect(localWhen("2099-02-30", "09:00")).toHaveProperty("error");
   });
-  it("the request body carries at, not local; presets still go as presets", async () => {
+  it("Compose's typed day and time reach /mail-schedules/send as at, not local", async () => {
+    const Compose = require("@/app/compose").default;
+    await wrap(<Compose />);
+    await act(async () => { fireEvent.changeText(await screen.findByTestId("to", {}, { timeout: 10000 }), "sam@example.com"); fireEvent.changeText(screen.getByTestId("subject"), "Hi"); fireEvent.changeText(screen.getByTestId("body"), "Hello"); });
+    await act(async () => { fireEvent.press(screen.getByTestId("compose-later")); });
+    await act(async () => { fireEvent.changeText(screen.getByTestId("later-day"), "2099-03-04"); fireEvent.changeText(screen.getByTestId("later-time"), "09:05"); });
+    await act(async () => { fireEvent.press(screen.getByTestId("later-custom")); });
+    const sent = await waitFor(() => { const b = calls.filter((c) => c.path === "/mail-schedules/send").map((c) => c.body as Record<string, unknown>); expect(b.length).toBe(1); return b[0]; }, { timeout: 10000 });
+    expect(sent.at).toBe(localMoment("2099-03-04", "09:05")!.toISOString());
+    expect(sent).not.toHaveProperty("local");
+  });
+  it("presets still go as presets", async () => {
     const { result } = await renderHook(() => useSendLater(), { wrapper });
     const message = { mailboxId: "mbx_hello", to: ["sam@example.com"], subject: "Hi", text: "Hello" };
-    const at = new Date(2099, 2, 4, 9, 5).toISOString();
-    await act(async () => { await result.current.mutateAsync({ message: message as never, when: { at }, key: "k1" }); });
     await act(async () => { await result.current.mutateAsync({ message: message as never, when: { preset: "tomorrow" }, key: "k2" }); });
     const sent = calls.filter((c) => c.path === "/mail-schedules/send").map((c) => c.body as Record<string, unknown>);
-    expect(sent[0]).toEqual(expect.objectContaining({ at }));
-    expect(sent[0]).not.toHaveProperty("local");
-    expect(sent[1]).toEqual(expect.objectContaining({ preset: "tomorrow" }));
+    expect(sent[0]).toEqual(expect.objectContaining({ preset: "tomorrow" }));
   });
   it("the sheet's typed day and time schedule as that instant", async () => {
     const { SendLaterSheet } = require("@/components/compose-extras");
@@ -125,10 +132,11 @@ describe("P57 a mailbox or tab switch ends the selection", () => {
   });
   it("All mailboxes ends it too", async () => {
     await selectOne();
-    await act(async () => { fireEvent.press(await mailboxChip()); });
-    await act(async () => { fireEvent.press(screen.getByTestId("inbox-select")); });
+    // A mail is picked and the bar is up when All mailboxes is tapped.
     await act(async () => { fireEvent.press(screen.getByLabelText(tr("m.inbox.all_mailboxes"))); });
     await waitFor(() => expect(screen.queryByTestId("bulk-bar")).toBeNull());
+    expect(screen.queryByTestId("select-head")).toBeNull();
+    expect(calls.some((c) => c.path === "/mail/messages/bulk")).toBe(false);
   });
   it("switching tab ends it", async () => {
     await selectOne();
@@ -158,15 +166,46 @@ describe("P67 phone details", () => {
     expect(await screen.findByText(tr("m.bulk.nothing_changed"))).toBeTruthy();
     expect(onDone).not.toHaveBeenCalled();
   });
+  it("the inbox's Select all picks 500 of 600 and then offers Select none", async () => {
+    transport = recording();
+    const real = transport.request.bind(transport);
+    const many = Array.from({ length: 600 }, (_, i) => ({ id: `msg_b${i}`, threadId: `thr_b${i}`, from: { name: `P${i}`, address: `p${i}@example.com` }, to: [], subject: `S${i}`, snippet: "", date: new Date(2026, 0, 1).toISOString(), isRead: true, isStarred: false, hasAttachments: false, labels: [] }));
+    transport.request = (async (method: string, path: string, body?: unknown, o?: unknown) => (method === "GET" && path.startsWith("/mail/messages?") ? { messages: many, nextCursor: null } : (real as (...a: unknown[]) => Promise<unknown>)(method, path, body, o))) as typeof transport.request;
+    const I = require("@/app/(tabs)/inbox").default;
+    await wrap(<I />);
+    await waitFor(() => expect(screen.getByTestId("inbox-select")).toBeTruthy(), { timeout: 10000 });
+    await act(async () => { fireEvent.press(screen.getByTestId("inbox-select")); });
+    await act(async () => { fireEvent.press(await screen.findByLabelText(tr("m.bulk.select_all"))); });
+    expect(await screen.findByText(tr("m.bulk.n_selected", { count: BULK_MAX }))).toBeTruthy();
+    expect(screen.getByLabelText(tr("m.bulk.select_none"))).toBeTruthy();
+    await act(async () => { fireEvent.press(screen.getByLabelText(tr("m.bulk.select_none"))); });
+    expect(await screen.findByText(tr("m.bulk.n_selected", { count: 0 }))).toBeTruthy();
+  });
+  it("the bulk bar says some mail was not changed when the server skipped part, and offers undo for only what changed", async () => {
+    transport = recording();
+    const real = transport.request.bind(transport);
+    transport.request = (async (method: string, path: string, body?: unknown, o?: unknown) => (path === "/mail/messages/bulk" ? { updated: 1 } : (real as (...a: unknown[]) => Promise<unknown>)(method, path, body, o))) as typeof transport.request;
+    const { BulkBar } = require("@/components/mail-bulk");
+    const onDone = jest.fn();
+    const onUndoable = jest.fn();
+    await wrap(<BulkBar ids={["msg_1", "msg_2", "msg_3"]} mailbox={undefined} onDone={onDone} onUndoable={onUndoable} />);
+    await act(async () => { fireEvent.press(screen.getByTestId("bulk-archive")); });
+    expect(await screen.findByText(tr("m.bulk.some_not_changed"))).toBeTruthy();
+    expect(onUndoable).toHaveBeenCalledWith(1, "archive");
+    expect(onDone).not.toHaveBeenCalled();
+  });
   it("the bulk bar still finishes when the server changed the mail", async () => {
     const { BulkBar } = require("@/components/mail-bulk");
     const onDone = jest.fn();
     const sample = new SampleTransport();
     const ids = (await sample.request<{ messages: { id: string }[] }>("GET", "/mail/messages?folder=inbox")).messages.slice(0, 2).map((m) => m.id);
-    await wrap(<BulkBar ids={ids} mailbox={undefined} onDone={onDone} />);
+    const onUndoable = jest.fn();
+    await wrap(<BulkBar ids={ids} mailbox={undefined} onDone={onDone} onUndoable={onUndoable} />);
     await act(async () => { fireEvent.press(screen.getByTestId("bulk-read")); });
     await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(onUndoable).toHaveBeenCalledWith(2, "read");
     expect(screen.queryByText(tr("m.bulk.nothing_changed"))).toBeNull();
+    expect(screen.queryByText(tr("m.bulk.some_not_changed"))).toBeNull();
   });
 
   it("in select mode a row is a checkbox with its state, not 'opens the conversation'", async () => {
@@ -269,9 +308,9 @@ describe("P35 the missing sign in link is remembered for 10 minutes only", () =>
 
 describe("P33 pages that open in the phone's browser are an explicit list of real routes", () => {
   it.each([
-    ["/app/meetings", true], ["/app/meetings/mtg_1", true], ["/app/meetings/mtg_1/webinar", true], ["/app/files", true], ["/app/files/edit/f1", true],
+    ["/app/meetings", true], ["/app/meetings/mtg_1", true], ["/app/meetings/mtg_1/webinar", true], ["/app/files", true], ["/app/files/", true], ["/app/files?q=x", true],
     ["/app/tools/convert", true], ["/app/tools/edit-pdf", true], ["/app/tools/pdf-fix?x=1", true], ["/app/settings/mail-archive", true], ["/app/settings/data-requests", true],
-    ["/app/go/downloads", false], ["/app/docs/d1/export", false], ["/app/tools/links/recordings", false], ["/app/filesx", false], ["/app/meetingsx", false],
+    ["/app/go/downloads", false], ["/app/docs/d1/export", false], ["/app/tools/links/recordings", false], ["/app/filesx", false], ["/app/meetingsx", false], ["/app/files/edit/f1", false],
     ["/app/tools/compare", false], ["/app/settings/account", false], ["/app/mail?q=/export", false], ["/app", false],
   ])("%s -> %s", (path, out) => { expect(opensInSystemBrowser(path as string)).toBe(out); });
 });

@@ -54,14 +54,16 @@ export function inAppOptions(): WebBrowser.WebBrowserOpenOptions {
  * MFIX1 (1.10.16): pages that record, download or export a file open in the phone's own browser (Safari or Chrome),
  * because the in-app browser cannot hand the finished file to the save or share sheet (a meeting recording got stuck on
  * "Saving the video"). PRIV1b (P33): an explicit list of the web's /app routes (src/web/router.tsx) whose job is to hand
- * over a file: meetings (the room, its recording and notes), Files, Convert, Edit PDF, Fix PDF, and the mail archive and
+ * over a file: meetings (the room, its recording and notes), the Files list, Convert, Edit PDF, Fix PDF, and the mail archive and
  * data request exports in Settings. A guessed pattern matched no real route. Everything else stays inside the app.
  */
-const FILE_ROUTES = ["/app/meetings", "/app/files", "/app/tools/convert", "/app/tools/edit-pdf", "/app/tools/pdf-fix", "/app/settings/mail-archive", "/app/settings/data-requests"];
+const FILE_ROUTES = ["/app/meetings", "/app/tools/convert", "/app/tools/edit-pdf", "/app/tools/pdf-fix", "/app/settings/mail-archive", "/app/settings/data-requests"];
+/** PRIV1b (P33): routes matched only as themselves: the Files list hands off downloads, its office editor (/app/files/edit/:id) stays in the app. */
+const FILE_ROUTES_EXACT = ["/app/files"];
 export function opensInSystemBrowser(path: string): boolean {
   if (typeof path !== "string") return false;
   const bare = path.split(/[?#]/)[0].replace(/\/+$/, "");
-  return FILE_ROUTES.some((r) => bare === r || bare.startsWith(`${r}/`));
+  return FILE_ROUTES_EXACT.includes(bare) || FILE_ROUTES.some((r) => bare === r || bare.startsWith(`${r}/`));
 }
 
 /** Opens a page in the phone's own browser; if the phone refuses, the in-app browser instead. https only (or this server). */
