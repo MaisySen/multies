@@ -26,7 +26,7 @@ import { SpellButton, fixPlainText } from "@/web/components/spell-check-r103";
 import { useConfig } from "@/web/lib/queries"; // R103
 import { SendSecurelyButton } from "./send-securely"; // R88
 import { tr } from "@/web/i18n"; // R104
-import { defaultFrom, fromChoices, isGone } from "@/web/lib/mail-level-priv1b"; // PRIV1b (P66)
+import { defaultFrom, fillFrom, fromChoices, isGone } from "@/web/lib/mail-level-priv1b"; // PRIV1b (P66, WC2)
 import "@/web/i18n/w2/en-compose"; // R104B
 
 export interface ComposeDraft {
@@ -77,6 +77,8 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
   // PRIV1b (P66): From is never a mailbox this person can't send from (a read share, or a reply share for new mail).
   const [d, setD] = useState(() => ({ ...initial, mailboxId: defaultFrom(mailboxes, initial) }));
   const fromList = fromChoices(mailboxes, initial);
+  // PRIV1b (WC2): the mailbox list can arrive after Compose opened; then From takes its default, if none is chosen yet.
+  useEffect(() => { setD((x) => { const id = fillFrom(x.mailboxId, mailboxes, initial); return id === x.mailboxId ? x : { ...x, mailboxId: id }; }); }, [mailboxes, initial]);
   const [spell] = useSpellPref(); // R103: spelling
   const docsPlus = !!useConfig().data?.docsPlus;
   const [showCc, setShowCc] = useState(!!(initial.cc || initial.bcc));

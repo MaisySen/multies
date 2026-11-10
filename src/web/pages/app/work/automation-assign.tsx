@@ -5,7 +5,7 @@
  */
 import { IconRepeat, IconUserRound } from "@/web/components/ui/icon";
 import { Field, Select } from "@/web/components/ui/input";
-import { useMailboxes } from "@/web/lib/queries";
+import { useOpenableMailboxes } from "@/web/lib/queries";
 import { useAssignees } from "./data";
 
 type Cfg = Record<string, unknown>;
@@ -27,7 +27,7 @@ export function usePeopleNames() {
 
 /** Mailbox picker for email rules: an assign rule usually names the shared mailbox it hands out. */
 export function MailboxField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const mailboxes = useMailboxes();
+  const mailboxes = useOpenableMailboxes(); // PRIV1b (WC5): only mailboxes this person can open
   return (
     <Field label="To mailbox">{(f) => (
       <Select {...f} value={value} onChange={(e) => onChange(e.target.value)}>

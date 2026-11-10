@@ -49,11 +49,11 @@ import { jobActionFor, jobConfirmWords, needsConfirm, type JobAction } from "@/w
 import { newJobId, useBulkOps, type JobBody } from "./mail/bulk-ops-r33"; // R33
 import { ArchiveOlderSheet } from "./mail/archive-older-r45"; // R45 (MB-137)
 import { archiveOlderOffered, emptyInboxTitle } from "./mail/archive-older-offer"; // R46
-import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33 offline
+import { dropCopies, withOfflineCopy } from "@/web/lib/offline-lists"; // R33 offline
 import { SNOOZE_WORDS, emptySelection, prune, selectAll, selectRange, setSelectionCount, toggleOne, undoPlan, UNDO_MS, type BulkCall, type Selection } from "@/web/lib/mail-selection"; // R32
 import { LoadError } from "@/web/components/load-error-t1g";
 import { tl, tr } from "@/web/i18n"; // R104, POL4 (HQ MB-356)
-import { canChangeMail, canReplyIn, isGone } from "@/web/lib/mail-level-priv1b"; // PRIV1b (P66)
+import { canChangeMail, canReplyIn, isGone, mailCopyPrefix, pickMailbox } from "@/web/lib/mail-level-priv1b"; // PRIV1b (P66)
 
 type View = Folder | "starred" | "snoozed" | "scheduled" | `f:${string}`;
 const FOLDER_UI: { id: View; label: string; icon: IconComponent }[] = [
@@ -79,9 +79,10 @@ export function WebmailPage() {
   const mailboxes = useMemo(() => overview.data ?? [], [overview.data]);
   useLiveMail(mailboxes.some((m) => m.connected));
   const busiest = [...mailboxes].sort((a, b) => (b.folders.inbox?.total ?? 0) - (a.folders.inbox?.total ?? 0))[0];
-  // PRIV1b (P66): a ?mailbox= this person can't open (not in their overview) is not used; the busiest one opens instead.
+  // PRIV1b (P66, WC1): a ?mailbox= this person can't open (not in their overview) is not used; the busiest one opens
+  // instead. Before the overview answers (or offline, where it has no copy) the URL's mailbox loads straight away.
   const wantedBox = params.get("mailbox");
-  const mailboxId = (wantedBox && mailboxes.some((m) => m.id === wantedBox) ? wantedBox : null) ?? busiest?.id ?? "";
+  const mailboxId = pickMailbox(wantedBox, overview.data, busiest?.id);
   const canChange = canChangeMail(mailboxes.find((m) => m.id === mailboxId));
   const folder = (params.get("folder") ?? "inbox") as View;
   const q = params.get("q") ?? "";
@@ -138,6 +139,7 @@ export function WebmailPage() {
   useEffect(() => {
     if (!goneBox) return;
     qc.removeQueries({ queryKey: ["mail", "list", goneBox] });
+    void dropCopies(mailCopyPrefix(goneBox)); // PRIV1b (WC4): its stored offline copy goes too
     qc.setQueryData<MailboxOverview[]>(qk.overview, (d) => d?.filter((m) => m.id !== goneBox));
     void qc.invalidateQueries({ queryKey: qk.overview });
     setParams((p) => { const n = new URLSearchParams(p); if (n.get("mailbox") === goneBox) n.delete("mailbox"); n.delete("m"); return n; }, { replace: true });
@@ -456,12 +458,14 @@ export function WebmailPage() {
     prevSplit: () => { const l = latest.current; if (l.splitTabs.length) l.setSplit(stepSplit(l.splitTabs, l.split, -1)); },
   }), []);
 
-  if (overview.isPending) return <div className="flex h-full"><div className="hidden w-60 border-r border-line p-4 md:block"><Skeleton className="mb-4 h-9" />{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="mb-2 h-7" />)}</div><div className="flex-1 p-4">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="mb-3 h-14" />)}</div></div>;
+  // PRIV1b (WC1): with a ?mailbox= the list does not wait for the overview; the folders fill in when it answers.
+  const early = !overview.data && !!mailboxId;
+  if (overview.isPending && !early) return <div className="flex h-full"><div className="hidden w-60 border-r border-line p-4 md:block"><Skeleton className="mb-4 h-9" />{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="mb-2 h-7" />)}</div><div className="flex-1 p-4">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="mb-3 h-14" />)}</div></div>;
   // F12 (MB-295): a failed read is not "no mailboxes"; say it failed and offer Retry. Loaded mailboxes stay on screen.
-  if (overview.isError && overview.data === undefined) {
+  if (overview.isError && overview.data === undefined && !early) {
     return <div className="grid h-full place-items-center p-6"><LoadError onRetry={() => overview.refetch()} /></div>;
   }
-  if (!mailboxes.length) {
+  if (!mailboxes.length && !early) {
     return (
       <div className="grid h-full place-items-center p-6">
         {/* R74 (MB-212): no domain needed for a first email: the free address is offered right here when it is on. */}
@@ -469,7 +473,7 @@ export function WebmailPage() {
       </div>
     );
   }
-  const mb = mailboxes.find((m) => m.id === mailboxId) ?? busiest;
+  const mb = mailboxes.find((m) => m.id === mailboxId) ?? busiest ?? ({ id: mailboxId, address: "", displayName: "", usedBytes: 0, quotaMb: 0, folders: {} } as MailboxOverview);
 
   // R79: the list and the reader, placed by the person's reading pane choice below.
   const listSection = (
@@ -567,7 +571,7 @@ export function WebmailPage() {
           <label htmlFor="mailbox-switch" className="sr-only">{tr("mail.mailbox")}</label>
           <Select bare id="mailbox-switch" value={mb.id} onChange={(e) => setParam({ mailbox: e.target.value, m: null, q: null })} className="h-9 w-full truncate rounded-lg border border-line bg-surface px-2 text-[13px] outline-none focus:border-brand/60"
             phoneClassName={`${PHONE_PICK} h-11 w-full px-3`}>
-            {mailboxes.map((m) => <option key={m.id} value={m.id}>{m.address}{m.kind === "agent" ? " (agent)" : ""}{m.folders.inbox?.unread ? ` (${m.folders.inbox.unread})` : ""}</option>)}
+            {(mailboxes.length ? mailboxes : [mb]).map((m) => <option key={m.id} value={m.id}>{m.address || tr("mail.mailbox")}{m.kind === "agent" ? " (agent)" : ""}{m.folders.inbox?.unread ? ` (${m.folders.inbox.unread})` : ""}</option>)}
           </Select>
         </div>
         <nav className="mt-3 flex-1 space-y-0.5 overflow-y-auto px-3" aria-label={tr("mail.folders")}>
@@ -606,8 +610,9 @@ export function WebmailPage() {
           </div>
         </nav>
         <div className="border-t border-line p-3 text-[11px] text-subtle">
+          {mb.quotaMb > 0 && <>
           <div className="mb-1 flex justify-between"><span>{tr("mail.storage")}</span><span>{formatBytes(mb.usedBytes)} of {formatBytes(mb.quotaMb * 1024 * 1024)}</span></div>
-          <div className="h-1 overflow-hidden rounded-full bg-fill"><div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(2, Math.min(100, (mb.usedBytes / (mb.quotaMb * 1048576)) * 100))}%` }} /></div>
+          <div className="h-1 overflow-hidden rounded-full bg-fill"><div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(2, Math.min(100, (mb.usedBytes / (mb.quotaMb * 1048576)) * 100))}%` }} /></div></>}
           <div className="mt-3 hidden gap-x-3 gap-y-1 xl:flex xl:flex-wrap"><span><Kbd>c</Kbd> {tr("mail.key_compose")}</span><span><Kbd>j</Kbd>/<Kbd>k</Kbd> {tr("mail.key_move")}</span><span><Kbd>e</Kbd> {tr("mail.key_archive")}</span><span><Kbd>t</Kbd> {tr("mail.key_task")}</span><span><Kbd>/</Kbd> {tr("mail.key_search")}</span></div>
         </div>
       </aside>

@@ -203,6 +203,22 @@ export function withOfflineCopy<T>(list: string, fetcher: () => Promise<T>): () 
   };
 }
 
+/**
+ * PRIV1b (WC4): forget the stored copies whose list name starts with `prefix` (a mailbox that answered 404: the share
+ * was taken back, so its last list must not come back offline). This person and workspace only. Never throws.
+ */
+export async function dropCopies(prefix: string, s: OfflineScope | null = scope ?? scopeOf(readMeCache()), st: OfflineStore | null = getStore()): Promise<void> {
+  let changed = false;
+  for (const k of [...shown.keys()]) if (k.startsWith(prefix)) changed = shown.delete(k) || changed;
+  if (changed) emit();
+  if (!s || !st) return;
+  try {
+    const head = copyKey(s, prefix);
+    const drop = (await st.all()).filter((c) => c.key.startsWith(head)).map((c) => c.key);
+    await Promise.all(drop.map((k) => st.delete(k)));
+  } catch { /* blocked */ }
+}
+
 /** Sign out: forget every stored list on this device. Never throws. */
 export async function wipeOfflineLists(st: OfflineStore | null = getStore()): Promise<void> {
   scope = null;

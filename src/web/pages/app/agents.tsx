@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconAgent, IconCheck, IconChevronRight, IconKey, IconPause, IconPlay, IconPlus, IconShieldCheck, IconTrash, IconTrendingUp } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
-import { useDomains, useMailboxes, useMe, useOrg } from "@/web/lib/queries";
+import { useDomains, useOpenableMailboxes, useMe, useOrg } from "@/web/lib/queries";
 import { showError } from "@/web/lib/show-error";
 import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
@@ -285,7 +285,7 @@ export function AgentDetailPage() {
 }
 
 function Guardrails({ a, disabled, onSave, saving }: { a: AgentInfo; disabled: boolean; onSave: (p: Partial<AgentInfo>) => void; saving: boolean }) {
-  const mailboxes = useMailboxes();
+  const mailboxes = useOpenableMailboxes(); // PRIV1b (WC5): only mailboxes this person can open
   const [mode, setMode] = useState(a.approvalMode);
   const [cap, setCap] = useState(String(a.sendCapDaily));
   const [allow, setAllow] = useState((a.allowedRecipients ?? []).join("\n"));

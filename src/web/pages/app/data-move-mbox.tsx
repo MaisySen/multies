@@ -8,7 +8,7 @@ import { formatCount } from "@/web/lib/format-count";
 import { useQueryClient } from "@tanstack/react-query";
 import { IconCheckCircle, IconMail, IconUpload, IconWarning } from "@/web/components/ui/icon";
 import { api, newIdempotencyKey } from "@/web/lib/api";
-import { useConfig, useMailboxes } from "@/web/lib/queries";
+import { useConfig, useOpenableMailboxes } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
 import { Field, Select } from "@/web/components/ui/input";
 import { ErrorRetry } from "@/web/components/reconnecting-r40";
@@ -39,7 +39,7 @@ export function keepParts(lines: string[], partChars = PART_CHARS) {
 
 export function MboxImport({ onClose, ring }: { onClose: () => void; ring: (value: number | null, label: string) => ReactNode }) {
   const qc = useQueryClient();
-  const boxes = useMailboxes();
+  const boxes = useOpenableMailboxes(); // PRIV1b (WC5): only mailboxes this person can open
   const backgroundCopy = useBackgroundCopy();
   const input = useRef<HTMLInputElement>(null);
   const [mailboxId, setMailboxId] = useState("");

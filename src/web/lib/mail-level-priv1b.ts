@@ -38,3 +38,18 @@ export const isGone = (e: unknown) => !!e && typeof e === "object" && (e as { st
 
 /** The private-inbox notice is dismissed per person and workspace, not per browser. */
 export const noticeKey = (userId: string | undefined, orgId: string | undefined) => `multies.priv1a.notice:${userId ?? ""}:${orgId ?? ""}`;
+
+/**
+ * PRIV1b (WC1): the mailbox Mail opens. The one in the URL loads at once, before the overview answers (it has no
+ * offline copy, and the server answers 404 for a mailbox this person can't open, which drops it); once the overview
+ * is in, a ?mailbox= missing from it is not used and the fallback (the busiest one) opens instead.
+ */
+export const pickMailbox = (wanted: string | null | undefined, overview: { id: string }[] | undefined, fallback: string | undefined): string =>
+  (wanted && (!overview || overview.some((m) => m.id === wanted)) ? wanted : null) ?? fallback ?? "";
+
+/** PRIV1b (WC2): From once the mailbox list is in: what the person chose, else the default (the list may arrive after Compose opened). */
+export const fillFrom = (chosen: string, boxes: LevelBox[], draft: { mailboxId: string; inReplyToId?: string }): string =>
+  chosen || defaultFrom(boxes, draft);
+
+/** PRIV1b (WC4): the stored offline list copies of one mailbox (offline-lists keys are mail:<id>:<folder>:<split>). */
+export const mailCopyPrefix = (mailboxId: string) => `mail:${mailboxId}:`;

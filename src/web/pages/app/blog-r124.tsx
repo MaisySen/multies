@@ -10,7 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
-import { useConfig, useMailboxes } from "@/web/lib/queries";
+import { useConfig, useOpenableMailboxes } from "@/web/lib/queries";
 import { uploadDocImage } from "@/web/lib/docs-blocks";
 import { Button } from "@/web/components/ui/button";
 import { Input, Select, Textarea } from "@/web/components/ui/input";
@@ -484,7 +484,7 @@ function AuthorDialog({ a, rootDocId, onClose }: { a: AuthorInfo; rootDocId: str
 
 function BlogSettings({ d, blog }: { d: BlogOut; blog: BlogInfo }) {
   const qc = useQueryClient();
-  const mailboxes = useMailboxes();
+  const mailboxes = useOpenableMailboxes(); // PRIV1b (WC5): only mailboxes this person can open
   const n = blog.newsletter;
   const [title, setTitle] = useState(blog.title);
   const [desc, setDesc] = useState(blog.description);

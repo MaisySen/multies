@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconDocs, IconEye, IconPenLine, IconUserRoundCheck } from "@/web/components/ui/icon";
 import { api, ApiError } from "@/web/lib/api";
-import { useMailboxes } from "@/web/lib/queries";
+import { useMailOverview } from "@/web/lib/queries";
 import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { toast } from "sonner";
@@ -84,7 +84,8 @@ interface TakenDraft { draft: { id: string; threadId: string; mailboxId: string;
 /** "Draft by Maya, edited 3 min ago" with a preview; Take over opens it in Compose as yours. */
 function ThreadDrafts({ threadId }: { threadId: string }) {
   const qc = useQueryClient();
-  const mailboxes = useMailboxes();
+  // PRIV1b (WC3): From follows the overview levels, as in the shared inbox, so a read share is never offered as From.
+  const mailboxes = useMailOverview();
   const [compose, setCompose] = useState<ComposeDraft | null>(null);
   const drafts = useQuery({ queryKey: ["thread-drafts", threadId], queryFn: () => api.get<{ drafts: ThreadDraft[] }>(`/threads/${threadId}/drafts`), refetchInterval: 30_000 });
   const take = useMutation({
