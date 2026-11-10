@@ -17,7 +17,9 @@ describe("offline cache", () => {
 
   it("searches mail already on the phone", async () => {
     const store = memoryKV();
-    const m = (id: string, subject: string) => ({ id, subject, snippet: "", from: { address: "a@b.au" }, to: [], date: "2026-10-2" + id.slice(-1) });
+    // PRIV1b (P53): offline search reads only mailboxes in the saved overview, so the test saves one.
+    const m = (id: string, subject: string) => ({ id, mailboxId: "mb1", subject, snippet: "", from: { address: "a@b.au" }, to: [], date: "2026-10-2" + id.slice(-1) });
+    await store.set("meta:live:overview", JSON.stringify({ v: { mailboxes: [{ id: "mb1" }] } }));
     await store.set("list:live:inbox:all", JSON.stringify({ v: { messages: [m("m1", "Invoice INV-1042"), m("m2", "Lunch")], nextCursor: null } }));
     await store.set("thread:live:m3", JSON.stringify({ v: { message: {}, thread: [{ ...m("m3", "Quote"), text: "the invoice is attached" }] } }));
     const hits = await searchCache(store, "invoice");

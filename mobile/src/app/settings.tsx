@@ -10,7 +10,7 @@ import { useSession } from "@/lib/session";
 import { flagOn, toolFeatureOn, useWebConfig } from "@/lib/web-config";
 import { useBlocks, useNotificationCount, useOverview } from "@/lib/queries";
 import { permissionGranted, registerPush, type PushState } from "@/lib/push";
-import { kv } from "@/lib/kv";
+import { clearUserData } from "@/lib/local-data";
 import { bytes } from "@/lib/format";
 import { LINKS, WEB_PAGES } from "@/config";
 import { colors, font, space, scheme, mode as themeMode, accent as themeAccent } from "@/theme";
@@ -52,7 +52,7 @@ export default function Settings() {
     if (r.kind === "denied") Alert.alert(tr("m.settings.notifications_are_off"), tr("m.settings.turn_them_on_for_multies_in_your_phone_s_setting"));
   };
   const clearCache = async () => {
-    for (const p of ["list:", "thread:", "meta:", "task:", "worklist:"]) await kv().clear(p);
+    await clearUserData("cache"); // PRIV1b (P53): the same list as sign out, files included
     Alert.alert(tr("m.settings.done"), tr("m.settings.saved_mail_and_tasks_are_cleared_from_this_phone"));
   };
   const confirmSignOut = () => {

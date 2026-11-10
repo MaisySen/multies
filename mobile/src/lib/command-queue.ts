@@ -20,13 +20,20 @@ export type Command =
   | { id: string; at: number; kind: "task.delete"; taskId: string }
   | { id: string; at: number; kind: "mail.action"; messageId: string; action: MailAction };
 export type NewCommand = Command extends infer C ? (C extends Command ? Omit<C, "id" | "at"> : never) : never;
+/** PRIV1b (P53): the workspace a command was made in ("" for none), recorded when it is queued. */
+export type QueuedCommand = Command & { ws?: string };
+/** The current workspace id ("" for none), or null while it is not known yet. */
+export type WorkspaceOf = () => string | null;
 
 /** Runs one command; a create answers with the real id. */
 export type Executor = (c: Command) => Promise<{ realId?: string } | void>;
 
 export const QUEUE_KEY = "queue:v1";
+/** PRIV1b (P53): the last workspace seen, for changes made offline before the app learns it (cleared with the queue). */
+export const QUEUE_WS_KEY = "queue:ws";
 export const OFFLINE_SYNC_TEXT = "Your changes will sync when you are back online.";
 export const NOT_OFFLINE_TEXT = "Not available offline. Reconnect to do this.";
+export const OTHER_WORKSPACE_TEXT = "This change was made in another workspace.";
 
 /** "1 change waiting", "3 changes waiting". */
 export function waitingLabel(n: number): string { return `${n} ${n === 1 ? "change" : "changes"} waiting`; }
@@ -60,12 +67,14 @@ export class CommandQueue {
   /** temp id to real id, kept so screens can follow a row whose id changed. */
   readonly ids = new Map<string, string>();
 
-  constructor(private store: KV, private exec: Executor) {}
+  constructor(private store: KV, private exec: Executor, private workspace?: WorkspaceOf) {}
 
   async load(): Promise<Command[]> {
     if (!this.loaded) {
       this.loaded = true;
       try { this.items = JSON.parse((await this.store.get(QUEUE_KEY)) ?? "[]") as Command[]; } catch { this.items = []; }
+      const ws = this.workspace?.();
+      if (ws != null) await this.store.set(QUEUE_WS_KEY, ws).catch(() => {});
       this.emit();
     }
     return this.items;
@@ -78,7 +87,8 @@ export class CommandQueue {
 
   async enqueue(c: NewCommand, now = Date.now()): Promise<Command> {
     await this.load();
-    const cmd = { ...c, id: tempId(now).replace("tmp_", "cmd_"), at: now } as Command;
+    const ws = this.workspace ? this.workspace() ?? (await this.store.get(QUEUE_WS_KEY).catch(() => null)) : null;
+    const cmd = { ...c, id: tempId(now).replace("tmp_", "cmd_"), at: now, ...(ws != null ? { ws } : {}) } as Command;
     this.items = [...this.items, cmd];
     await this.save();
     this.emit();
@@ -94,9 +104,13 @@ export class CommandQueue {
   private async run(): Promise<FlushResult> {
     await this.load();
     const out: FlushResult = { sent: 0, rejected: [], stopped: false, ids: {} };
+    // PRIV1b (P53): a change made in one workspace never lands in another. Wait until the workspace is known.
+    const ws = this.workspace ? this.workspace() : undefined;
+    if (ws === null) { out.stopped = true; return out; }
     while (this.items.length) {
       const c = this.items[0];
       try {
+        if (ws !== undefined && (c as QueuedCommand).ws !== ws) throw new ApiError(409, "other_workspace", OTHER_WORKSPACE_TEXT);
         const r = await this.exec(c);
         this.items = this.items.slice(1);
         out.sent++;

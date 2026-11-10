@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { Banner, Button, EmptyState, Icon, Loading } from "@/components/ui";
 import { g } from "@/components/grouped";
 import { MessageRow } from "@/components/message-row";
-import { useAgents, useSearch, useTasks } from "@/lib/queries";
+import { useAgents, useOverview, useSearch, useTasks } from "@/lib/queries";
 import { searchCache, useOffline } from "@/lib/offline";
 import { kv } from "@/lib/kv";
 import { pushRecent, readRecent, saveRecent } from "@/lib/recent-search";
@@ -47,7 +47,10 @@ export default function Search() {
 
   // No connection: search what's already on the phone.
   const wantLocal = canSearch(q) && (offline || netDown(all.error));
-  useEffect(() => { if (wantLocal) searchCache(kv(), q).then(setLocal); }, [q, wantLocal]);
+  // PRIV1b (P53): only mailboxes this person can still open (the overview; the saved one when it has not loaded).
+  const boxes = useOverview().data;
+  const boxIds = useMemo(() => boxes?.map((m) => m.id).join(","), [boxes]);
+  useEffect(() => { if (wantLocal) searchCache(kv(), q, boxIds === undefined ? undefined : boxIds ? boxIds.split(",") : []).then(setLocal); }, [q, wantLocal, boxIds]);
   const local = wantLocal ? cachedHits : null;
 
   const remember = () => { const next = pushRecent(recent, cleanQuery(text) || q); if (next !== recent) { setRecent(next); saveRecent(kv(), next); } };

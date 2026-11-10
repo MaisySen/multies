@@ -18,11 +18,13 @@ const RETRY_MS = 20_000;
  * connection comes back, when the app returns to the front, and every 20 seconds while any wait.
  */
 export function useCommandQueueRunner() {
-  const { api, mode, status } = useSession();
+  const { api, mode, status, me } = useSession();
   const qc = useQueryClient();
   const offline = useOffline();
   const live = mode === "live" && status === "signedIn";
-  const queue = useMemo(() => (live ? new CommandQueue(kv(), apiExecutor(api)) : null), [live, api]);
+  // PRIV1b (P53): one queue per workspace; each command records its workspace and never runs in another.
+  const ws = me ? me.organization?.id ?? "" : null;
+  const queue = useMemo(() => (live ? new CommandQueue(kv(), apiExecutor(api), () => ws) : null), [live, api, ws]);
   useEffect(() => { setCommandQueue(queue); return () => setCommandQueue(null); }, [queue]);
 
   const flushRef = useRef<() => void>(() => {});

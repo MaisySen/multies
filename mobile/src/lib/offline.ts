@@ -29,6 +29,8 @@ export async function cached<T>(store: KV, key: string, fetcher: () => Promise<T
       const hit = await store.get(key);
       if (hit) return (JSON.parse(hit) as { v: T }).v;
     }
+    // PRIV1b (P53): gone or no longer shared with this person, so the saved copy goes too.
+    if (err instanceof ApiError && (err.status === 403 || err.status === 404)) await store.remove(key).catch(() => {});
     throw err;
   }
 }
@@ -41,10 +43,25 @@ async function prune(store: KV, key: string) {
   for (const k of keys.slice(limit)) await store.remove(k);
 }
 
-/** Searches mail already on the phone, for when there's no connection. */
-export async function searchCache(store: KV, query: string): Promise<MessageSummary[]> {
+/** PRIV1b (P53): the mailboxes in the saved overview (`meta:<mode>:overview`), the ones this person can still open. */
+async function overviewIds(store: KV): Promise<Set<string>> {
+  const ids = new Set<string>();
+  for (const k of await store.keys("meta:")) {
+    if (!k.endsWith(":overview")) continue;
+    try { for (const m of (JSON.parse((await store.get(k)) ?? "null") as { v: { mailboxes: { id: string }[] } }).v.mailboxes) ids.add(m.id); } catch { /* skip */ }
+  }
+  return ids;
+}
+
+/**
+ * Searches mail already on the phone, for when there's no connection. PRIV1b (P53): only mail in the mailboxes
+ * of the current overview (`mailboxIds`, else the saved overview), so a share taken away is not searched.
+ */
+export async function searchCache(store: KV, query: string, mailboxIds?: readonly string[]): Promise<MessageSummary[]> {
   const q = query.trim().toLowerCase();
   if (!q) return [];
+  const allowed = mailboxIds ? new Set(mailboxIds) : await overviewIds(store);
+  if (!allowed.size) return [];
   const seen = new Map<string, MessageSummary>();
   for (const k of await store.keys("list:")) {
     const hit = await store.get(k);
@@ -60,6 +77,7 @@ export async function searchCache(store: KV, query: string): Promise<MessageSumm
     }
   }
   return [...seen.values()]
+    .filter((m) => allowed.has(m.mailboxId))
     .filter((m) => [m.subject, m.snippet, m.from.address, m.from.name ?? ""].join(" ").toLowerCase().includes(q))
     .sort((a, b) => b.date.localeCompare(a.date));
 }

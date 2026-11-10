@@ -9,7 +9,7 @@ import { kv } from "./kv";
 import type { Me } from "@/api/types";
 import { JAR_KEY, MODE_KEY } from "./session-keys";
 import { registerPush, unregisterPush } from "./push";
-import { LEGACY_KEY } from "./tasks";
+import { clearUserData } from "./local-data";
 import { signInAtIdp } from "./idp";
 import { verdictFor } from "./auth-keep";
 import { AppState } from "react-native";
@@ -62,8 +62,8 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
     jarRef.current = {};
     await secureStorage.remove(JAR_KEY).catch(() => {});
     await secureStorage.remove(MODE_KEY).catch(() => {});
-    // Nothing from one account stays on the phone for the next one.
-    for (const prefix of ["list:", "thread:", "meta:", "task:", "worklist:", "queue:", LEGACY_KEY]) await kv().clear(prefix).catch(() => {});
+    // Nothing from one account stays on the phone for the next one. PRIV1b (P53): one shared list, files too.
+    await clearUserData("signOut").catch(() => {});
     setMe(null);
   }, []);
 
@@ -177,8 +177,9 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
     async switchWorkspace(id) {
       if (me?.organization?.id === id) return;
       await api.switchWorkspace(id);
-      // Mail, tasks and lists saved on this phone belong to the workspace just left.
-      for (const prefix of ["list:", "thread:", "meta:", "task:", "worklist:"]) await kv().clear(prefix).catch(() => {});
+      // Mail, tasks and lists saved on this phone belong to the workspace just left. PRIV1b (P53): so do
+      // snoozed items, tabs, rules, the tool run, searches, files and the changes waiting to sync.
+      await clearUserData("workspace").catch(() => {});
       setMe(await api.me());
     },
   }), [status, mode, api, transport, me, live, sample, clearLocal]);
