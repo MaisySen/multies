@@ -260,3 +260,171 @@ describe("PRIV1b P8: agent keys can't export or import the workspace", () => {
     expect(good.body.downloadUrl ?? good.body.export?.downloadUrl ?? JSON.stringify(good.body)).toContain("download");
   }, 120_000);
 });
+
+// ---- Review fixes (M1, M2, S1..S4) ----
+
+async function mcpFor(w: W, key: string) {
+  const { Client: McpClient } = await import("@modelcontextprotocol/sdk/client/index.js");
+  const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
+  const fetchViaApp = ((url: string | URL, init?: RequestInit) => w.ctx.app.request(new URL(url).pathname, { ...init, headers: { ...Object.fromEntries(new Headers(init?.headers).entries()), host: "localhost" } })) as typeof fetch;
+  const mcp = new McpClient({ name: "t", version: "1" });
+  await mcp.connect(new StreamableHTTPClientTransport(new URL("http://localhost/api/v1/mcp"), { requestInit: { headers: { authorization: `Bearer ${key}` } }, fetch: fetchViaApp }));
+  const call = async (name: string, args: Record<string, unknown>) => {
+    const r = await mcp.callTool({ name, arguments: args }) as { isError?: boolean; content: { text: string }[] };
+    return { isError: !!r.isError, text: JSON.stringify(r.content) };
+  };
+  return { call, close: () => mcp.close() };
+}
+
+describe("PRIV1b M1: MCP agent tools keep to the caller's scope, like v1", () => {
+  it("another admin's workspace key can't list, read codes from or reply from the maker's personal mailbox through her agent", async () => {
+    const w = await privacyWorld();
+    const pa = await patAgent(w, "never");
+    await notifyAgentsOfInbound(w.ctx.deps, { id: w.boxes.personal, orgId: w.orgId }, { id: "msg_mcpcode", threadId: "thr_mcpcode", from: { address: "x@example.com" }, subject: "CODE-MCPPERS", text: "Your code is 551177" });
+    const adaKey = await wsKey(w.admin.c);
+    const ada = await mcpFor(w, adaKey);
+    try {
+      const list = await ada.call("list_threads", { agentId: pa.id, limit: 50 });
+      expect(list.isError).toBe(false);
+      expect(list.text).not.toContain(`SUBJECT-PERS-${w.n}`);
+      const wait = await ada.call("wait_for_email", { agentId: pa.id, cursor: 0, timeoutSeconds: 0 });
+      expect(wait.isError).toBe(false);
+      expect(wait.text).not.toContain("CODE-MCPPERS");
+      expect(wait.text).not.toContain("551177");
+      const rep = await ada.call("reply", { agentId: pa.id, threadId: `thr_pers${w.n}aaaaaaaaaa`, text: "Ada as Pat" });
+      expect(rep.isError).toBe(true);
+      const mine = await w.ctx.db.select({ id: messages.id }).from(messages).where(and(eq(messages.mailboxId, w.boxes.personal), eq(messages.folder, "sent")));
+      expect(mine).toEqual([]);
+    } finally { await ada.close(); }
+
+    // Pat's own agent key: lists, reads the code and replies from her mailbox (approval "never"), as Pat's box.
+    const pat = await mcpFor(w, pa.secret);
+    try {
+      expect((await pat.call("list_threads", { limit: 50 })).text).toContain(`SUBJECT-PERS-${w.n}`);
+      expect((await pat.call("wait_for_email", { cursor: 0, timeoutSeconds: 0 })).text).toContain("551177");
+      const rep = await pat.call("reply", { threadId: `thr_pers${w.n}aaaaaaaaaa`, text: "Pat's agent" });
+      expect(rep.isError).toBe(false);
+      expect(rep.text).toContain("sent");
+      const sent = await w.ctx.db.select({ from: messages.fromAddress }).from(messages).where(and(eq(messages.mailboxId, w.boxes.personal), eq(messages.folder, "sent"))).all();
+      expect(sent.map((r) => r.from)).toEqual([`pat.private${w.n}@acme.io`]);
+    } finally { await pat.close(); }
+
+    // A team agent through Ada's workspace key: unchanged.
+    const team = await w.admin.c.post("/api/agents", { name: "Team bot", localPart: `teambot${w.n}`, mailboxIds: [w.boxes.team] });
+    const ada2 = await mcpFor(w, adaKey);
+    try { expect((await ada2.call("list_threads", { agentId: team.body.agent.id, limit: 50 })).text).toContain(`SUBJECT-TEAM-${w.n}`); } finally { await ada2.close(); }
+  }, 120_000);
+});
+
+describe("PRIV1b M2: a poller never stalls behind events it can't see", () => {
+  it("600 hidden events then a visible one: /events and wait_for_email return the visible one", async () => {
+    const w = await privacyWorld();
+    const ag = await w.admin.c.post("/api/agents", { name: "Ada helper", localPart: `adahelper${w.n}`, mailboxIds: [w.boxes.team] });
+    const id = ag.body.agent.id as string;
+    const rows = Array.from({ length: 600 }, (_, i) => ({ orgId: w.orgId, agentId: id, type: "message.received", data: JSON.stringify({ mailboxId: w.boxes.personal, subject: `HIDDEN-${i}` }) }));
+    for (let i = 0; i < rows.length; i += 15) await w.ctx.db.insert(agentEvents).values(rows.slice(i, i + 15));
+    await w.ctx.db.insert(agentEvents).values({ orgId: w.orgId, agentId: id, type: "message.received", data: JSON.stringify({ mailboxId: w.boxes.team, subject: "VISIBLE-TEAM" }) });
+    const adaKey = await wsKey(w.admin.c);
+    const r = await v1(w, adaKey, "GET", "/events?after=0&limit=100");
+    expect(r.status).toBe(200);
+    expect(JSON.stringify(r.body)).toContain("VISIBLE-TEAM");
+    expect(JSON.stringify(r.body)).not.toContain("HIDDEN-");
+    const m = await mcpFor(w, adaKey);
+    try {
+      const wait = await m.call("wait_for_email", { agentId: id, cursor: 0, timeoutSeconds: 0 });
+      expect(wait.text).toContain("VISIBLE-TEAM");
+      expect(wait.text).not.toContain("HIDDEN-");
+    } finally { await m.close(); }
+  }, 120_000);
+});
+
+describe("PRIV1b S2/S3: aliases that forward outside, and approval events", () => {
+  it("an own alias forwarding outside waits; an alias to a team mailbox does not", async () => {
+    const w = await privacyWorld();
+    expect((await w.owner.post("/api/aliases", { domainId: w.domainId, localPart: `fwd${w.n}`, destinations: ["someone@gmail.com"] })).status).toBe(201);
+    expect((await w.owner.post("/api/aliases", { domainId: w.domainId, localPart: `inner${w.n}`, destinations: ["team@acme.io"] })).status).toBe(201);
+    const ag = await w.admin.c.post("/api/agents", { name: "Outreach", localPart: `outreach${w.n}`, approvalMode: "external", mailboxIds: [w.boxes.team] });
+    const key = ag.body.apiKey.secret as string;
+    const out = await v1(w, key, "POST", `/agents/${ag.body.agent.id}/send`, { to: [`fwd${w.n}@acme.io`], subject: "Via alias", text: "x" });
+    expect(out.status).toBe(202);
+    expect(out.body.status).toBe("pending_approval");
+    const inn = await v1(w, key, "POST", `/agents/${ag.body.agent.id}/send`, { to: [`inner${w.n}@acme.io`], subject: "Inner alias", text: "x" });
+    expect(inn.status).toBe(200);
+    expect(inn.body.status).toBe("sent");
+  }, 120_000);
+
+  it("approval.requested for a personal-mailbox send reaches only the scope that can open it", async () => {
+    const w = await privacyWorld();
+    const pa = await patAgent(w, "always");
+    const q = await v1(w, pa.secret, "POST", `/agents/${pa.id}/send`, { mailboxId: w.boxes.personal, to: [`max${w.n}@acme.io`], subject: "APPROVE-PERSONAL", text: "x" });
+    expect(q.status).toBe(202);
+    const team = await w.admin.c.post("/api/agents", { name: "Team bot", localPart: `teambot${w.n}`, mailboxIds: [w.boxes.team] });
+    expect((await v1(w, team.body.apiKey.secret, "POST", `/agents/${team.body.agent.id}/send`, { mailboxId: w.boxes.team, to: [`max${w.n}@acme.io`], subject: "APPROVE-TEAM", text: "x" })).status).toBe(202);
+    const adaKey = await wsKey(w.admin.c);
+    const seen = JSON.stringify((await v1(w, adaKey, "GET", "/events?limit=500")).body);
+    expect(seen).toContain("APPROVE-TEAM");
+    expect(seen).not.toContain("APPROVE-PERSONAL");
+    expect(JSON.stringify((await v1(w, pa.secret, "GET", "/events")).body)).toContain("APPROVE-PERSONAL");
+  }, 120_000);
+});
+
+describe("PRIV1b S4: test gaps", () => {
+  it("P31: the send is stored in the maker's personal mailbox, from her address", async () => {
+    const w = await privacyWorld();
+    const pa = await patAgent(w, "never");
+    const sent = await v1(w, pa.secret, "POST", `/agents/${pa.id}/send`, { mailboxId: w.boxes.personal, to: [`max${w.n}@acme.io`], subject: "STORED-PAT", text: "hello" });
+    expect(sent.status).toBe(200);
+    const row = await w.ctx.db.select().from(messages).where(eq(messages.subject, "STORED-PAT")).all();
+    const mine = row.filter((r) => r.mailboxId === w.boxes.personal);
+    expect(mine.length).toBe(1);
+    expect(mine[0].folder).toBe("sent");
+    expect(mine[0].fromAddress).toBe(`pat.private${w.n}@acme.io`);
+  }, 120_000);
+
+  it("P47: the stream ends once the key's creator leaves the workspace", async () => {
+    const w = await privacyWorld();
+    const ag = await w.owner.post("/api/agents", { name: "Streamer", localPart: `streamer${w.n}` });
+    const { id, inboxId } = ag.body.agent;
+    const adaKey = await wsKey(w.admin.c);
+    const res = await w.ctx.app.request(`/api/v1/agents/${id}/events/stream?timeout=900`, { headers: { authorization: `Bearer ${adaKey}`, host: "localhost" } });
+    expect(res.status).toBe(200);
+    const reader = res.body!.getReader();
+    const dec = new TextDecoder();
+    let text = "";
+    const readFor = async (ms: number) => {
+      const end = Date.now() + ms;
+      for (;;) {
+        const r = await Promise.race([reader.read(), new Promise<{ timeout: true }>((ok) => setTimeout(() => ok({ timeout: true }), Math.max(1, end - Date.now())))]);
+        if ("timeout" in r) return false;
+        if (r.done) return true;
+        text += dec.decode(r.value);
+      }
+    };
+    const realNow = Date.now.bind(Date);
+    try {
+      await readFor(1_000);
+      expect(text).toContain("event: ready");
+      expect((await w.owner.del(`/api/team/members/${w.admin.id}`)).status).toBeLessThan(300);
+      vi.spyOn(Date, "now").mockImplementation(() => realNow() + 31_000);
+      await w.ctx.db.insert(agentEvents).values({ orgId: w.orgId, agentId: id, type: "message.received", data: JSON.stringify({ mailboxId: inboxId, subject: "GONE-ADA" }) });
+      const closed = await readFor(8_000);
+      expect(closed).toBe(true);
+      expect(text).not.toContain("GONE-ADA");
+    } finally { vi.restoreAllMocks(); await reader.cancel().catch(() => undefined); }
+  }, 120_000);
+
+  it("P8: MCP import_file and undo_import refuse an agent key", async () => {
+    const w = await privacyWorld();
+    const ag = await w.admin.c.post("/api/agents", { name: "Helper", localPart: `helper${w.n}` });
+    const m = await mcpFor(w, ag.body.apiKey.secret);
+    try {
+      const imp = await m.call("import_file", { kind: "contacts", content: "BEGIN:VCARD\nFN:A\nEND:VCARD" });
+      expect(imp.isError).toBe(true);
+      expect(imp.text).toContain("agent");
+      expect((await m.call("undo_import", { id: "mov_whatever" })).isError).toBe(true);
+    } finally { await m.close(); }
+    const adaKey = await wsKey(w.admin.c);
+    const ok = await v1(w, adaKey, "POST", "/data-moves/imports/run", { kind: "contacts", content: "BEGIN:VCARD\nFN:A\nEND:VCARD" });
+    expect(ok.status).toBeLessThan(300);
+  }, 120_000);
+});
