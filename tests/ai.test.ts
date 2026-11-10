@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { makeTestApp, Client } from "./helpers";
+import { verifiedDomain } from "./priv1a-world"; // PRIV1b (P36): only a verified domain routes mail
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { basicTriage, invoiceChase } from "@/server/services/ai";
 import { aiKeys } from "@/server/db/schema";
@@ -13,7 +14,7 @@ beforeEach(async () => {
   ctx = await makeTestApp();
   c = new Client(ctx.app);
   await c.signup("owner@acme.io");
-  const domainId = (await c.post("/api/domains", { name: "acme.io" })).body.domain.id;
+  const domainId = await verifiedDomain(ctx, c, "acme.io");
   const box = (await c.post("/api/mailboxes", { domainId, localPart: "hello", displayName: "Hello" })).body.mailbox;
   await deliverInbound(ctx.deps, {
     envelopeFrom: "maria@blueharbor.example", rcptTo: "hello@acme.io", sizeBytes: 500, via: "test",

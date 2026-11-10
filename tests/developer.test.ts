@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { Webhook } from "standardwebhooks";
 import { makeTestApp, Client } from "./helpers";
+import { verifiedDomain } from "./priv1a-world"; // PRIV1b (P36): only a verified domain routes mail
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { parseMime } from "@/server/services/mail/mime";
 import { DISABLE_AFTER_DEAD, emitEvent, retryDueDeliveries } from "@/server/services/developer/webhooks";
@@ -132,7 +133,7 @@ describe("outbound webhooks (Standard Webhooks)", () => {
     const ctx = await makeTestApp({}, { fetch: rx.fetch });
     const c = new Client(ctx.app);
     await c.signup();
-    const domainId = (await c.post("/api/domains", { name: "acme.io" })).body.domain.id;
+    const domainId = await verifiedDomain(ctx, c, "acme.io");
     await c.post("/api/mailboxes", { domainId, localPart: "ada", displayName: "Ada" });
     const ep = await c.post("/api/developer/webhooks", { url: "https://hooks.example.com/mymail", events: ["message.received"] });
     expect(ep.status).toBe(201);

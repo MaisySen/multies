@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { makeTestApp, Client } from "./helpers";
+import { verifiedDomain } from "./priv1a-world"; // PRIV1b (P36): only a verified domain routes mail
 
 let ctx: Awaited<ReturnType<typeof makeTestApp>>;
 beforeEach(async () => { ctx = await makeTestApp(); });
@@ -10,9 +11,9 @@ async function ownerWithMailboxes() {
   const owner = new Client(ctx.app);
   await owner.signup("owner@acme.io", "Olive Owner");
   await owner.post("/api/org/plan", { plan: "pro" });
-  const d = await owner.post("/api/domains", { name: "acme.io" });
-  const sales = await owner.post("/api/mailboxes", { domainId: d.body.domain.id, localPart: "sales", displayName: "Sales" });
-  const ceo = await owner.post("/api/mailboxes", { domainId: d.body.domain.id, localPart: "ceo", displayName: "CEO" });
+  const domainId = await verifiedDomain(ctx, owner, "acme.io");
+  const sales = await owner.post("/api/mailboxes", { domainId, localPart: "sales", displayName: "Sales" });
+  const ceo = await owner.post("/api/mailboxes", { domainId, localPart: "ceo", displayName: "CEO" });
   return { owner, salesId: sales.body.mailbox.id as string, ceoId: ceo.body.mailbox.id as string };
 }
 

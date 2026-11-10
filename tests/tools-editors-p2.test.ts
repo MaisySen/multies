@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import { createHmac } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
+import { verifiedDomain } from "./priv1a-world"; // PRIV1b (P36): only a verified domain routes mail
 import { deliverInbound } from "@/server/services/mail/delivery";
 import {
   TOOLS_EDITORS, changedValues, editorResultName, fieldLabel, initialValues, missingRequired, planProblem, planSummary,
@@ -257,7 +258,7 @@ describe("Tools P2 editors: API", () => {
     async function withMail() {
       const ctx = await setup();
       const { c, deps } = ctx;
-      const domainId = (await c.post("/api/domains", { name: "acme.io" })).body.domain.id;
+      const domainId = await verifiedDomain(ctx, c, "acme.io");
       const box = (await c.post("/api/mailboxes", { domainId, localPart: "me", displayName: "Me" })).body.mailbox;
       const send = async (messageId: string, subject: string, attachments: { filename: string; contentType: string; content: Uint8Array }[], inReplyTo?: string) => deliverInbound(deps, {
         envelopeFrom: "a@example.com", rcptTo: "me@acme.io", sizeBytes: 2000, via: "test",

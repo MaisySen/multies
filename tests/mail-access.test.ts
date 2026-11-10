@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { makeTestApp, Client } from "./helpers";
+import { verifiedDomain } from "./priv1a-world"; // PRIV1b (P36): only a verified domain routes mail
 import { fakeStalwart } from "./fake-stalwart";
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { parseMime } from "@/server/services/mail/mime";
@@ -15,7 +16,7 @@ describe("mail app access (Stalwart)", () => {
     ctx = await makeTestApp({ ...server.env, MAIL_CLIENT_HOST: "mail.acme-hosting.net" }, { fetch: server.fetch });
     c = new Client(ctx.app);
     await c.signup();
-    const domainId = (await c.post("/api/domains", { name: "acme.io" })).body.domain.id;
+    const domainId = await verifiedDomain(ctx, c, "acme.io");
     mailboxId = (await c.post("/api/mailboxes", { domainId, localPart: "ada", displayName: "Ada" })).body.mailbox.id;
   });
 
@@ -80,7 +81,7 @@ describe("mail app access without a mail server", () => {
     const c = new Client(ctx.app);
     await c.signup();
     expect((await c.get("/api/mail-access")).body).toMatchObject({ enabled: false, missing: ["STALWART_URL", "STALWART_ADMIN_USER", "STALWART_ADMIN_SECRET"] });
-    const domainId = (await c.post("/api/domains", { name: "acme.io" })).body.domain.id;
+    const domainId = await verifiedDomain(ctx, c, "acme.io");
     const mailboxId = (await c.post("/api/mailboxes", { domainId, localPart: "ada", displayName: "Ada" })).body.mailbox.id;
     const r = await c.post(`/api/mail-access/mailboxes/${mailboxId}/app-passwords`, { name: "x" });
     expect(r.status).toBe(409);

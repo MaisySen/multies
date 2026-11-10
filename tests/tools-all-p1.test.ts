@@ -8,6 +8,7 @@ import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { sql } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
+import { verifiedDomain } from "./priv1a-world"; // PRIV1b (P36): only a verified domain routes mail
 import { EXT_TYPES, TOOLS, isToolOp, resultName, toolDef, toolExtensions, toolsForFile, type ToolOp } from "@/shared/tools";
 import { isEngineOnlyOp } from "@/server/services/tools/run-job";
 import { deliverInbound } from "@/server/services/mail/delivery";
@@ -194,7 +195,7 @@ describe("Tools P1 from mail attachments", () => {
     const ctx = await makeTestApp(ON, { fetch: engine.fetch });
     const c = new Client(ctx.app);
     await c.signup("owner@acme.io", "Ada Lovelace", "Acme");
-    const domainId = (await c.post("/api/domains", { name: "acme.io" })).body.domain.id;
+    const domainId = await verifiedDomain(ctx, c, "acme.io");
     const box = (await c.post("/api/mailboxes", { domainId, localPart: "me", displayName: "Me" })).body.mailbox;
     await deliverInbound(ctx.deps, {
       envelopeFrom: "a@example.com", rcptTo: "me@acme.io", sizeBytes: 2000, via: "test",

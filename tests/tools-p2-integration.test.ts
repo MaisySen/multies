@@ -7,6 +7,7 @@ import { describe, it, expect } from "vitest";
 import { createHmac } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
+import { verifiedDomain } from "./priv1a-world"; // PRIV1b (P36): only a verified domain routes mail
 import { OCR_SLOW_NOTE, batchTools, catalogueFor, toolsForFile, type ToolsInfo } from "@/shared/tools";
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { toolsCronPasses } from "@/server/services/tools/p2-cron";
@@ -72,7 +73,7 @@ async function upload(app: { request: (p: string, i?: RequestInit) => Response |
 
 async function withMail(features = "all") {
   const s = await setup(features);
-  const domainId = (await s.c.post("/api/domains", { name: "acme.io" })).body.domain.id;
+  const domainId = await verifiedDomain(s, s.c, "acme.io");
   const box = (await s.c.post("/api/mailboxes", { domainId, localPart: "me", displayName: "Me" })).body.mailbox;
   await deliverInbound(s.deps, {
     envelopeFrom: "a@example.com", rcptTo: "me@acme.io", sizeBytes: 2000, via: "test",

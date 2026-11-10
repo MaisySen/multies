@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { unzipSync, strFromU8 } from "fflate";
 import Papa from "papaparse";
 import { makeTestApp, Client } from "./helpers";
+import { verifiedDomain } from "./priv1a-world"; // PRIV1b (P36): only a verified domain routes mail
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { parseMime } from "@/server/services/mail/mime";
 
@@ -32,7 +33,7 @@ describe("privacy: data export and account deletion", () => {
   });
 
   it("exports the whole workspace, mail included, as a ZIP", async () => {
-    const domainId = (await owner.post("/api/domains", { name: "acme.io" })).body.domain.id;
+    const domainId = await verifiedDomain(ctx, owner, "acme.io");
     await owner.post("/api/mailboxes", { domainId, localPart: "ada", displayName: "Ada" });
     const raw = new TextEncoder().encode("From: bob@example.com\r\nTo: ada@acme.io\r\nSubject: Quarterly numbers\r\n\r\nSee attached\r\n");
     await deliverInbound(ctx.deps, { envelopeFrom: "bob@example.com", rcptTo: "ada@acme.io", email: await parseMime(raw), sizeBytes: raw.length, via: "test", raw });
