@@ -26,7 +26,7 @@ export function mailboxRoutes() {
     .post("/", requireAdmin, async (c) => {
       const input = await parseBody(c, createMailboxSchema);
       const { auth, deps } = c.var;
-      const m = await createMailbox(deps.db, auth.orgId, input, deps.config);
+      const m = await createMailbox(deps.db, auth.orgId, input, deps.config, { deps, userId: auth.userId, email: auth.email, ip: c.var.ip }); // PRIV1b (P37)
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "mailbox.created", targetType: "mailbox", targetId: m.id, metadata: { address: m.address }, ip: c.var.ip });
       return c.json({ mailbox: m }, 201);
     })
@@ -56,7 +56,7 @@ export function aliasRoutes() {
     .post("/", requireAdmin, async (c) => {
       const input = await parseBody(c, createAliasSchema);
       const { auth, deps } = c.var;
-      const a = await createAlias(deps.db, auth.orgId, input);
+      const a = await createAlias(deps.db, auth.orgId, input, auth.userId); // PRIV1b (P37)
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "alias.created", targetType: "alias", targetId: a.id, metadata: { address: a.address, destinations: a.destinations }, ip: c.var.ip });
       return c.json({ alias: a }, 201);
     })

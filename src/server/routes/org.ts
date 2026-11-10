@@ -50,6 +50,8 @@ export function orgRoutes() {
       if (auth.role !== "owner") throw forbidden("Only the workspace owner can change single sign on enforcement.");
       if (required && !deps.config.auth.auth0 && !deps.config.auth.social.google) throw badRequest("No SSO provider is connected on this deployment yet.");
       await deps.db.update(organizations).set({ requireSso: required }).where(eq(organizations.id, auth.orgId));
+      // PRIV1b (P41): apps signed in before enforcement (maybe from a password session) end; the owner's stay.
+      if (required) await (await import("../services/developer/oauth")).revokeGrantsForSso(deps, auth.orgId);
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: required ? "workspace.sso_required" : "workspace.sso_optional", ip: c.var.ip });
       return c.json({ ok: true, requireSso: required });
     })

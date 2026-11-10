@@ -78,11 +78,12 @@ describe("privacy: data export and account deletion", () => {
 
   it("will not orphan a shared workspace when its only owner deletes their account", async () => {
     const member = await addMember("member");
-    const blocked = await owner.post("/api/auth/delete-user", { password: "a-strong-password" });
+    // PRIV1b (P49): Better Auth's /api/auth/delete-user is closed over HTTP; the app route carries the same check.
+    const blocked = await owner.call("DELETE", "/api/account", { confirm: "DELETE", password: "a-strong-password" });
     expect(blocked.status).toBe(409);
-    expect(blocked.body.message).toMatch(/only owner of Acme/);
+    expect(blocked.body.error.message).toMatch(/only owner of Acme/);
     // A member can leave freely; the workspace and its owner stay.
-    expect((await member.post("/api/auth/delete-user", { password: "a-strong-password" })).status).toBe(200);
+    expect((await member.call("DELETE", "/api/account", { confirm: "DELETE", password: "a-strong-password" })).status).toBe(200);
     expect(await ctx.db.query.organizations.findMany()).toHaveLength(1);
     expect((await owner.get("/api/account/me")).status).toBe(200);
   });

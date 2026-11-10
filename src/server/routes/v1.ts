@@ -380,7 +380,7 @@ export function v1Routes() {
   async (c) => {
     const input = c.req.valid("json");
     const { auth, deps } = c.var;
-    const m = await createMailbox(deps.db, auth.orgId, { ...input, localPart: input.localPart.toLowerCase() }, deps.config);
+    const m = await createMailbox(deps.db, auth.orgId, { ...input, localPart: input.localPart.toLowerCase() }, deps.config, { deps, userId: auth.userId, email: auth.email, ip: c.var.ip }); // PRIV1b (P37)
     await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.created", targetType: "mailbox", targetId: m.id, metadata: { address: m.address, via: "api" }, ip: c.var.ip });
     return c.json(mailboxOut(m), 201);
   });
@@ -434,7 +434,7 @@ export function v1Routes() {
   async (c) => {
     const input = c.req.valid("json");
     const { auth, deps } = c.var;
-    const a = await createAlias(deps.db, auth.orgId, { ...input, localPart: input.localPart.toLowerCase(), destinations: input.destinations.map((d) => d.toLowerCase()) });
+    const a = await createAlias(deps.db, auth.orgId, { ...input, localPart: input.localPart.toLowerCase(), destinations: input.destinations.map((d) => d.toLowerCase()) }, auth.userId); // PRIV1b (P37)
     await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "alias.created", targetType: "alias", targetId: a.id, metadata: { address: a.address, via: "api" }, ip: c.var.ip });
     return c.json({ id: a.id, domainId: a.domainId, address: a.address, destinations: a.destinations, enabled: a.enabled, createdAt: iso(a.createdAt)! }, 201);
   });

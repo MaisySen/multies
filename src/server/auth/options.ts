@@ -51,6 +51,10 @@ const SECURITY_EVENTS: Record<string, string> = {
   "/change-email": "account.email_change_requested",
 };
 
+/** PRIV1b (P48): account recovery steps that also end every app (MCP OAuth grant) the person signed in. */
+const ENDS_APP_GRANTS = new Set(["/change-password", "/set-password", "/revoke-sessions", "/revoke-other-sessions"]);
+const endAppGrants = async (deps: Deps, userId: string) => (await import("../services/developer/oauth")).revokeUserGrants(deps, userId);
+
 const ID_PREFIX: Record<string, string> = {
   user: "usr", session: "ses", account: "acc", verification: "vrf", organization: "org",
   member: "mem", twoFactor: "tfa", rateLimit: "rl",
@@ -114,6 +118,7 @@ export function authOptions(deps: Deps) {
       maxPasswordLength: 200,
       autoSignIn: true,
       revokeSessionsOnPasswordReset: true,
+      onPasswordReset: async ({ user }) => { await endAppGrants(deps, user.id); }, // PRIV1b (P48)
       resetPasswordTokenExpiresIn: 60 * 60,
       password: {
         hash: (password: string) => hashPassword(password),
@@ -121,7 +126,7 @@ export function authOptions(deps: Deps) {
       },
       sendResetPassword: async ({ user, url }) => {
         await sendSystemEmail(deps, {
-          to: user.email,
+          to: user.email, accountSecurity: true, // PRIV1b (P37)
           subject: `Reset your ${config.appName} password`,
           template: "reset", element: createElement((await import("../emails")).Reset, { brand: emailBrand(deps), email: user.email, url }),
           text: `Someone (hopefully you) asked to reset the password for ${user.email}.\n\nThe link works for one hour. If you didn't ask for this, ignore this email; your password stays the same.`,
@@ -138,7 +143,7 @@ export function authOptions(deps: Deps) {
       sendVerificationEmail: async ({ user, url }) => {
         if (user.email.endsWith(".test")) return; // sandbox accounts have no real inbox
         await sendSystemEmail(deps, {
-          to: user.email,
+          to: user.email, accountSecurity: true, // PRIV1b (P37)
           subject: `Confirm your email for ${config.appName}`,
           template: "verify", element: createElement((await import("../emails")).Verify, { brand: emailBrand(deps), name: user.name.split(" ")[0] ?? user.name, email: user.email, url }),
           text: `Hi ${user.name.split(" ")[0]}, confirm that ${user.email} is your address so we can reach you about your account.`,
@@ -188,10 +193,17 @@ export function authOptions(deps: Deps) {
           const returned = ctx.context.returned;
           const userId = ctx.context.session?.user?.id ?? ctx.context.newSession?.user?.id;
           if (userId && !(returned instanceof Error)) {
+            if (ENDS_APP_GRANTS.has(ctx.path)) await endAppGrants(deps, userId);
             const m = await db.select().from(schema.members).where(eq(schema.members.userId, userId)).get();
             const email = ctx.context.session?.user?.email ?? ctx.context.newSession?.user?.email ?? null;
             if (m) await audit(db, { orgId: m.organizationId, actorUserId: userId, actorEmail: email, action: securityAction }).catch(() => undefined);
           }
+          return;
+        }
+        // PRIV1b (P48): a platform ban ends the person's apps too (both token resolvers also refuse a banned person).
+        if (ctx.path === "/admin/ban-user") {
+          const bannedId = typeof ctx.body?.userId === "string" ? ctx.body.userId : "";
+          if (bannedId && !(ctx.context.returned instanceof Error)) await endAppGrants(deps, bannedId);
           return;
         }
         if (ctx.path !== "/sign-in/email") return;
@@ -237,7 +249,7 @@ export function authOptions(deps: Deps) {
         afterDelete: async (user) => {
           deps.log?.info("account.deleted", { user: user.id });
           await sendSystemEmail(deps, {
-            to: user.email, template: "account-deleted", subject: `Your ${deps.config.appName} account is deleted`,
+            to: user.email, accountSecurity: true, template: "account-deleted", subject: `Your ${deps.config.appName} account is deleted`, // PRIV1b (P37)
             text: `Your ${deps.config.appName} account and the workspaces only you belonged to are deleted, including their mail. Backups that still hold this data expire within 30 days.\n\nIf you did not do this, reply to this email straight away.`,
           }).catch(() => undefined);
         },

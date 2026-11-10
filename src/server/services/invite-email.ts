@@ -30,7 +30,7 @@ export async function sendInviteEmail(deps: Deps, data: InviteEmailData) {
   const { config } = deps;
   const url = `${config.appUrl}/invite/${data.id}`;
   const r = await sendSystemEmail(deps, {
-    to: data.email, orgId: data.organization.id,
+    to: data.email, orgId: data.organization.id, accountSecurity: true, // PRIV1b (P37): never through an alias or catch all
     subject: `${data.inviter.name} invited you to ${data.organization.name} on ${config.appName}`,
     template: "invite", element: createElement((await import("../emails")).Invite, {
       brand: emailBrand(deps), inviter: data.inviter.name, inviterEmail: data.inviter.email,

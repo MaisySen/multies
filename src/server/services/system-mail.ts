@@ -5,7 +5,7 @@ import type { Brand } from "../emails";
 const loadEmails = () => import("../emails");
 import type { Deps } from "../context";
 import { newId } from "../lib/crypto";
-import { deliverInbound, isHosted, logDelivery } from "./mail/delivery";
+import { deliverInbound, logDelivery, routeRecipient } from "./mail/delivery";
 import { OutboundError } from "./mail/outbound";
 import { enqueue, PermanentJobError, registerJob } from "./jobs";
 import { eq } from "drizzle-orm";
@@ -28,6 +28,12 @@ export interface SystemEmail {
   element?: ReactElement;
   /** Org the email is about, for the delivery log. */
   orgId?: string;
+  /**
+   * PRIV1b (P37): mail that can take over an account (password reset, email confirmation, invitation, account deleted).
+   * Delivered inside the platform only to a mailbox at exactly that address, never through an alias or a catch all
+   * an admin can point anywhere; otherwise it goes out through the provider like mail to an outside address.
+   */
+  accountSecurity?: boolean;
 }
 
 export interface SystemEmailResult {
@@ -61,7 +67,9 @@ export async function sendSystemEmail(deps: Deps, e: SystemEmail): Promise<Syste
   const messageId = `<${newId("sys")}@${config.systemFrom.address.split("@")[1] ?? "localhost"}>`;
   const to = e.to.toLowerCase();
 
-  if (await isHosted(deps.db, to)) {
+  const route = await routeRecipient(deps.db, to);
+  const internal = e.accountSecurity ? route.kind === "mailbox" && route.mailbox.address.toLowerCase() === to : route.kind !== "none";
+  if (internal) {
     const r = await deliverInbound(deps, {
       envelopeFrom: config.systemFrom.address,
       rcptTo: to,

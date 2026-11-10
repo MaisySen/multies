@@ -1,6 +1,8 @@
 import { and, asc, eq } from "drizzle-orm";
 import type { DB } from "../db";
-import { aliases, domains, mailboxes } from "../db/schema";
+import type { Deps } from "../context";
+import { aliases, domains, mailboxes, members, users } from "../db/schema";
+import { audit } from "./audit";
 import { newId } from "../lib/crypto";
 import { badRequest, conflict, notFound } from "../lib/errors";
 import { assertCanCreate, getPlan } from "./plans";
@@ -22,6 +24,13 @@ async function assertAddressFree(db: DB, address: string) {
   if (m || a) throw conflict(`${address} is already in use.`);
 }
 
+/** PRIV1b (P37): the member of this workspace who signs in with `address`, if any. One indexed read (users.email is unique). */
+async function memberSigningInAs(db: DB, orgId: string, address: string) {
+  return db.select({ userId: users.id, email: users.email }).from(users)
+    .innerJoin(members, and(eq(members.userId, users.id), eq(members.organizationId, orgId), eq(members.kind, "human")))
+    .where(eq(users.email, address.toLowerCase())).get();
+}
+
 // ---------------------------------------------------------------- mailboxes
 
 /** People's mailboxes by default; agent inboxes are listed with their agents. */
@@ -39,7 +48,7 @@ export async function getMailbox(db: DB, orgId: string, id: string) {
  * `operator` (R26, DF-18): the deployment's operator settings. support@ and security@ on the company domain in the
  * operator workspace are the deployment's own addresses, so they don't count against that workspace's plan.
  */
-export async function createMailbox(db: DB, orgId: string, input: CreateMailboxInput, operator?: OperatorConfig) {
+export async function createMailbox(db: DB, orgId: string, input: CreateMailboxInput, operator?: OperatorConfig, who?: { deps: Deps; userId: string; email?: string | null; ip?: string | null }) {
   const d = await domainInOrg(db, orgId, input.domainId);
   const operatorAddress = !!operator && isOperatorDomainRow(operator, { orgId, name: d.name })
     && operator.operatorInbox.addresses.includes(`${input.localPart}@${d.name}`.toLowerCase());
@@ -53,6 +62,16 @@ export async function createMailbox(db: DB, orgId: string, input: CreateMailboxI
   await assertAddressFree(db, address);
   const id = newId("mbx");
   await db.insert(mailboxes).values({ id, orgId, domainId: d.id, localPart: input.localPart, address, displayName: input.displayName, quotaMb });
+  // PRIV1b (P37): a mailbox at a colleague's sign in address receives their account mail (password resets).
+  // Allowed (that is how an admin sets up Pat's mailbox), but Pat is told and the audit log says who did it.
+  if (who) {
+    const target = await memberSigningInAs(db, orgId, address);
+    if (target && target.userId !== who.userId) {
+      await audit(db, { orgId, actorUserId: who.userId || null, actorEmail: who.email ?? null, action: "mailbox.created_at_member_login", targetType: "mailbox", targetId: id, metadata: { address, memberUserId: target.userId }, ip: who.ip ?? null });
+      const { notify } = await import("./suite/notify");
+      await notify(who.deps, orgId, target.userId, { type: "security.mailbox_at_login", entityType: "mailbox", entityId: id, title: `A mailbox was created at your sign in address ${address}. Mail for it, including password resets, now lands there.`, actorName: who.email ?? null });
+    }
+  }
   return getMailbox(db, orgId, id);
 }
 
@@ -98,11 +117,14 @@ function cleanDestinations(address: string, destinations: string[]) {
   return unique;
 }
 
-export async function createAlias(db: DB, orgId: string, input: CreateAliasInput) {
+export async function createAlias(db: DB, orgId: string, input: CreateAliasInput, actorUserId = "") {
   const d = await domainInOrg(db, orgId, input.domainId);
   await assertCanCreate(db, orgId, "aliases");
   const address = `${input.localPart}@${d.name}`;
   await assertAddressFree(db, address);
+  // PRIV1b (P37): an alias at a colleague's sign in address would forward their password resets wherever the admin points it.
+  const target = await memberSigningInAs(db, orgId, address);
+  if (target && target.userId !== actorUserId) throw conflict(`${address} is the sign in address of a member of this workspace. Create a mailbox for them instead.`);
   const id = newId("als");
   await db.insert(aliases).values({ id, orgId, domainId: d.id, localPart: input.localPart, address, destinations: JSON.stringify(cleanDestinations(address, input.destinations)) });
   return presentAlias(await getAlias(db, orgId, id));
