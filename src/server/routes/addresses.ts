@@ -8,13 +8,24 @@ import {
   createAlias, createMailbox, deleteAlias, deleteMailbox, listAliases, listMailboxes, updateAlias, updateMailbox,
 } from "../services/addresses";
 import { deprovisionMailbox, syncQuota } from "../services/mailserver";
+import { mailboxScope } from "../services/team";
 import { myMailboxPrivacy, shareMailbox, sharingView, unshareMailbox } from "../services/mailbox-sharing-priv1a";
 import { z } from "zod";
 
 export function mailboxRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
-    .get("/", async (c) => c.json({ mailboxes: await listMailboxes(c.var.deps.db, c.var.auth.orgId) }))
+    .get("/", async (c) => {
+      const { deps, auth } = c.var;
+      // PRIV1b (P23): members get the mailboxes they can open; admins every team mailbox, and the personal ones they
+      // can't open with only what the admin screens need. `openable` tells the app which is which.
+      const [rows, scope] = await Promise.all([listMailboxes(deps.db, auth.orgId), mailboxScope(deps.db, auth)]);
+      const open = scope ? new Set(scope) : null;
+      const admin = auth.role === "owner" || auth.role === "admin";
+      type Reduced = Pick<(typeof rows)[number], "id" | "address" | "displayName" | "personal" | "ownerUserId" | "status"> & { openable: false };
+      return c.json({ mailboxes: rows.flatMap<((typeof rows)[number] & { openable: true }) | Reduced>((m) => !open || open.has(m.id) ? [{ ...m, openable: true }]
+        : admin ? [{ id: m.id, address: m.address, displayName: m.displayName, personal: m.personal, ownerUserId: m.ownerUserId, status: m.status, openable: false }] : []) });
+    })
     // PRIV1a (MB-366): personal mailboxes. My own and the ones shared with me; sharing (owner only) and the access log.
     .get("/privacy/mine", async (c) => c.json(await myMailboxPrivacy(c.var.deps, c.var.auth)))
     .get("/:id/sharing", async (c) => c.json(await sharingView(c.var.deps, c.var.auth, c.req.param("id"))))
@@ -30,10 +41,11 @@ export function mailboxRoutes() {
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "mailbox.created", targetType: "mailbox", targetId: m.id, metadata: { address: m.address }, ip: c.var.ip });
       return c.json({ mailbox: m }, 201);
     })
-    .patch("/:id", requireAdmin, async (c) => {
+    // PRIV1b (P7): open to the owner of a personal mailbox for its name and Reply-To; updateMailbox decides who may change what.
+    .patch("/:id", async (c) => {
       const patch = await parseBody(c, updateMailboxSchema);
       const { auth, deps } = c.var;
-      const m = await updateMailbox(deps.db, auth.orgId, c.req.param("id"), patch);
+      const m = await updateMailbox(deps.db, auth.orgId, c.req.param("id"), patch, auth);
       if (patch.quotaMb !== undefined) await syncQuota(deps, auth.orgId, m.id, m.quotaMb);
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "mailbox.updated", targetType: "mailbox", targetId: m.id, metadata: { address: m.address, ...patch }, ip: c.var.ip });
       return c.json({ mailbox: m });

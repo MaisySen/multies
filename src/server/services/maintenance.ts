@@ -109,6 +109,7 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
       pruneRateLimits(deps.db, deps.now().getTime()), pruneIdempotencyKeys(deps.db, deps.now()), pruneLockouts(deps.db, deps.now()),
       pruneJobs(deps), pruneAgentEvents(deps), pruneImports(deps),
       import("./suite/flows").then((m) => m.pruneFlowRuns(deps)),
+      import("./mailserver").then((m) => m.sweepForeignAppPasswords(deps)), // PRIV1b (P42): app passwords on personal mailboxes their owner didn't make
     ]);
   });
   // Tools P1: keep the document engine's free host awake (no D1), and prune old usage rows once an hour.

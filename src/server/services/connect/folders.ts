@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { mailConnections } from "../../db/schema";
 import { badRequest } from "../../lib/errors";
-import { connectionSecret, getConnection, imapConnector, type Connection } from ".";
+import { connectionFor, connectionSecret, imapConnector, type Connection } from ".";
 import { pickFolders, type RemoteFolder } from "./imap";
 import { classifyProblem, ConnectFailed } from "./problems";
 import { FOLDER_LIST_TTL_MS, MAX_EXTRA_FOLDERS, parseState, syncedKeys, type SyncState } from "./sync";
@@ -51,7 +51,7 @@ export function folderViews(state: SyncState): FolderView[] {
 
 /** The provider's folders, read again when asked or when the kept list is old (one write when it changed). */
 export async function listFolders(deps: Deps, auth: AuthContext, id: string, opts: { refresh?: boolean } = {}) {
-  const c = await getConnection(deps, auth, id);
+  const c = await connectionFor(deps, auth, id, "read"); // PRIV1b (P14): the folder list signs in to the owner's account
   const state = parseState(c.syncState);
   const stale = !state.listedAt || deps.now().getTime() - state.listedAt > FOLDER_LIST_TTL_MS;
   if (opts.refresh || stale || !state.list?.length) {
@@ -69,7 +69,7 @@ export async function listFolders(deps: Deps, auth: AuthContext, id: string, opt
 
 /** Turns syncing of one of the person's own folders on or off. Off keeps the mail already copied. */
 export async function setFolderSync(deps: Deps, auth: AuthContext, id: string, path: string, on: boolean) {
-  const c = await getConnection(deps, auth, id);
+  const c = await connectionFor(deps, auth, id, "run"); // PRIV1b (P14)
   const state = parseState(c.syncState);
   const view = folderViews(state).find((f) => f.path === path);
   if (!view) throw badRequest("That folder isn't at your provider. Refresh the list and try again.");

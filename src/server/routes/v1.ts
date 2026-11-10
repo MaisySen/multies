@@ -408,7 +408,7 @@ export function v1Routes() {
     const { auth, deps } = c.var;
     const patch = c.req.valid("json");
     if (patch.displayName === undefined && patch.replyTo === undefined) throw new HttpError(422, "validation_failed", "Send displayName or replyTo.");
-    const m = await updateMailbox(deps.db, auth.orgId, c.req.valid("param").id, patch);
+    const m = await updateMailbox(deps.db, auth.orgId, c.req.valid("param").id, patch, auth); // PRIV1b (P7)
     await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.updated", targetType: "mailbox", targetId: m.id, metadata: { address: m.address, ...patch, via: "api" }, ip: c.var.ip });
     return c.json(mailboxOut(m), 200);
   });

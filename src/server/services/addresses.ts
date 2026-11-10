@@ -4,7 +4,8 @@ import type { Deps } from "../context";
 import { aliases, domains, mailboxes, members, users } from "../db/schema";
 import { audit } from "./audit";
 import { newId } from "../lib/crypto";
-import { badRequest, conflict, notFound } from "../lib/errors";
+import { badRequest, conflict, forbidden, notFound } from "../lib/errors";
+import { isPersonalOwner } from "./mail-access-priv1a";
 import { assertCanCreate, getPlan } from "./plans";
 import { isOperatorDomainRow, type OperatorConfig } from "./suite/operator-inbox";
 import type { CreateAliasInput, CreateMailboxInput } from "@/shared/schemas";
@@ -75,8 +76,16 @@ export async function createMailbox(db: DB, orgId: string, input: CreateMailboxI
   return getMailbox(db, orgId, id);
 }
 
-export async function updateMailbox(db: DB, orgId: string, id: string, patch: { displayName?: string; quotaMb?: number; status?: "active" | "suspended"; replyTo?: string | null }) {
+export async function updateMailbox(db: DB, orgId: string, id: string, patch: { displayName?: string; quotaMb?: number; status?: "active" | "suspended"; replyTo?: string | null }, who: { userId: string; role?: "owner" | "admin" | "member" | null }) {
   const m = await getMailbox(db, orgId, id);
+  // PRIV1b (P7): on a personal mailbox only its owner (the workspace owner when it has none) sets the name and Reply-To,
+  // so an admin can't route the owner's replies to herself. Admins keep quota and status; elsewhere admins only.
+  const admin = who.role === "owner" || who.role === "admin";
+  if ((patch.quotaMb !== undefined || patch.status !== undefined) && !admin) throw forbidden("Only workspace owners and admins can change a mailbox's storage or status.");
+  if (patch.displayName !== undefined || patch.replyTo !== undefined) {
+    const own = m.personal ? await isPersonalOwner(db, { userId: who.userId, orgId, role: who.role }, m.id) : undefined;
+    if (m.personal ? !own : !admin) throw forbidden(m.personal ? "Only the person this mailbox belongs to can change its name or Reply-To." : "Only workspace owners and admins can change a mailbox.");
+  }
   if (patch.quotaMb !== undefined) {
     const plan = await getPlan(db, orgId);
     if (patch.quotaMb > plan.limits.storagePerMailboxMb) throw badRequest(`The ${plan.name} plan allows up to ${plan.limits.storagePerMailboxMb} MB per mailbox.`);

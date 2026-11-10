@@ -6,7 +6,7 @@ import { HttpError, tooMany } from "../lib/errors";
 import { RateLimiter } from "../lib/rate-limit";
 import { audit } from "../services/audit";
 import {
-  connectEnabled, createConnection, getConnection, listConnections, reconnect, removeConnection, testConnection,
+  connectEnabled, connectionFor, createConnection, listConnections, openableConnections, reconnect, removeConnection, testConnection,
 } from "../services/connect";
 import { ConnectFailed } from "../services/connect/problems";
 import { setBackfillPaused, syncAndChain, syncConnection } from "../services/connect/sync";
@@ -64,7 +64,8 @@ export function connectionRoutes() {
       const { deps, auth } = c.var;
       if (!beats.take(auth.userId)) throw tooMany("Too many live checks. Slow down a little.");
       const b = await parseBody(c, z.object({ poke: z.boolean().optional(), wait: z.number().int().min(0).max(25_000).optional(), since: z.number().int().min(0).optional() }));
-      let list = (await listConnections(deps, auth)).filter((x) => ["active", "error", "syncing"].includes(x.status)).slice(0, 5);
+      // PRIV1b (P46): only connections this person can open, then the cap (an older connection of their own still gets live mail).
+      let list = (await openableConnections(deps, auth)).filter((x) => ["active", "error", "syncing"].includes(x.status)).slice(0, 5);
       const modes = new Map<string, LiveMode>();
       if (b.poke && deps.config.mailConnect.enabled && deps.config.mailConnect.live && pokes.take(auth.userId)) {
         const touch = deps.liveMail ?? ((id: string, sec: number) => localLiveMail(deps).touch(id, sec));
@@ -83,7 +84,7 @@ export function connectionRoutes() {
           ...list.map((x) => wait(x.id, b.wait!).then((v) => (v ? true : new Promise<boolean>(() => {})))),
           new Promise<boolean>((r) => setTimeout(() => r(false), b.wait)),
         ]);
-        if (stored) list = (await listConnections(deps, auth)).filter((x) => list.some((y) => y.id === x.id));
+        if (stored) list = (await openableConnections(deps, auth)).filter((x) => list.some((y) => y.id === x.id));
       }
       return c.json({
         live: deps.config.mailConnect.live,
@@ -108,13 +109,13 @@ export function connectionRoutes() {
       let waitUntil: ((p: Promise<unknown>) => void) | undefined;
       try { const ctx = c.executionCtx; waitUntil = ctx.waitUntil.bind(ctx); } catch { waitUntil = undefined; }
       if (waitUntil) waitUntil(work); else await work;
-      const fresh = (await listConnections(deps, auth)).find((x) => x.id === connection.id) ?? connection;
+      const fresh = (await openableConnections(deps, auth)).find((x) => x.id === connection.id) ?? connection;
       return c.json({ connection: fresh }, 201);
     })
     .post("/:id/sync", async (c) => {
       const { deps, auth } = c.var;
       if (!syncs.take(auth.userId)) throw tooMany("Syncing already. Give it a minute.");
-      const conn = await getConnection(deps, auth, c.req.param("id"));
+      const conn = await connectionFor(deps, auth, c.req.param("id"), "run"); // PRIV1b (P14)
       const result = await syncConnection(deps, conn.id, { force: true });
       // R57: when more is waiting (new or older mail), the following passes run on their own.
       if (result.more && !result.skipped) {
@@ -124,17 +125,17 @@ export function connectionRoutes() {
           : chainMs > 0 ? new Promise((res) => setTimeout(res, chainMs)).then(() => syncAndChain(deps, conn.id)).catch(() => undefined) : Promise.resolve();
         try { c.executionCtx.waitUntil(next); } catch { void next; }
       }
-      const fresh = (await listConnections(deps, auth)).find((x) => x.id === conn.id);
+      const fresh = (await openableConnections(deps, auth)).find((x) => x.id === conn.id);
       return c.json({ result: { stored: result.stored, more: result.more, error: result.error ?? null, skipped: result.skipped ?? null }, connection: fresh });
     })
     // R57: pause or resume copying older mail (new mail keeps coming either way).
     .post("/:id/backfill", async (c) => {
       const { deps, auth } = c.var;
       const b = await parseBody(c, z.object({ paused: z.boolean() }));
-      const conn = await getConnection(deps, auth, c.req.param("id"));
+      const conn = await connectionFor(deps, auth, c.req.param("id"), "run"); // PRIV1b (P14)
       await setBackfillPaused(deps, conn.id, b.paused);
       if (!b.paused && deps.dispatchMailSync) { try { c.executionCtx.waitUntil(deps.dispatchMailSync(conn.id).catch(() => undefined)); } catch { /* Node: the next scheduled pass */ } }
-      const fresh = (await listConnections(deps, auth)).find((x) => x.id === conn.id);
+      const fresh = (await openableConnections(deps, auth)).find((x) => x.id === conn.id);
       return c.json({ connection: fresh });
     })
     // Round 19: the provider's folders, and which of the person's own folders sync.

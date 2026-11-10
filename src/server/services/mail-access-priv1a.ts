@@ -186,3 +186,17 @@ export async function ownerOfPersonal(db: DB, who: Who, mailboxId: string): Prom
 
 /** Kept for callers: nothing is cached, so there is nothing to forget. */
 export function forgetPicture(_who: object) { /* no cache */ }
+
+/**
+ * PRIV1b (P5, P6, P7, P62): whether this person is the owner of a personal mailbox (the workspace owner when its owner is
+ * unknown or has left). undefined for a team or agent mailbox, or another workspace's. A share, even send as, is not
+ * ownership. One indexed read.
+ */
+export async function isPersonalOwner(db: DB, who: Who, mailboxId: string): Promise<boolean | undefined> {
+  const r = await db.select({ personal: mailboxes.personal, owner: mailboxes.ownerUserId, member: members.userId }).from(mailboxes)
+    .leftJoin(members, and(eq(members.userId, mailboxes.ownerUserId), eq(members.organizationId, mailboxes.orgId)))
+    .where(and(eq(mailboxes.id, mailboxId), eq(mailboxes.orgId, who.orgId))).get();
+  if (!r?.personal) return undefined;
+  if (!who.userId) return false;
+  return r.owner && r.member ? r.owner === who.userId : who.role === "owner";
+}

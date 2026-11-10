@@ -3,12 +3,14 @@
  * served by Stalwart. Multies provisions a server account per mailbox on first use,
  * and people sign in to their mail apps with app passwords created here.
  */
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import type { AuthContext, Deps } from "../../context";
 import { appPasswords, domains, mailboxes, mailServerAccounts } from "../../db/schema";
 import { decryptSecret, encryptSecret, newId, randomToken } from "../../lib/crypto";
 import { HttpError, conflict, forbidden, notFound } from "../../lib/errors";
 import { assertMailboxAccess } from "../team";
+import { isPersonalOwner } from "../mail-access-priv1a";
 import { StalwartClient, StalwartError, type Credentials } from "./stalwart";
 
 export const MAX_APP_PASSWORDS_PER_MAILBOX = 20;
@@ -86,8 +88,10 @@ export function presentAppPassword(p: typeof appPasswords.$inferSelect) {
 export async function listAppPasswords(deps: Deps, auth: AuthContext, mailboxId: string) {
   await mailboxWithDomain(deps, auth.orgId, mailboxId);
   await assertMailboxAccess(deps.db, auth, mailboxId);
+  // PRIV1b (P6): on a personal mailbox the owner sees every app password; anyone else sees only their own.
+  const own = await isPersonalOwner(deps.db, auth, mailboxId);
   const rows = await deps.db.select().from(appPasswords)
-    .where(and(eq(appPasswords.orgId, auth.orgId), eq(appPasswords.mailboxId, mailboxId)))
+    .where(and(eq(appPasswords.orgId, auth.orgId), eq(appPasswords.mailboxId, mailboxId), own === false ? eq(appPasswords.createdByUserId, auth.userId) : undefined))
     .orderBy(desc(appPasswords.createdAt));
   return rows.map(presentAppPassword);
 }
@@ -96,6 +100,9 @@ export async function listAppPasswords(deps: Deps, auth: AuthContext, mailboxId:
 export async function createAppPassword(deps: Deps, auth: AuthContext, mailboxId: string, name: string) {
   const { m } = await mailboxWithDomain(deps, auth.orgId, mailboxId);
   await assertMailboxAccess(deps.db, auth, mailboxId);
+  // PRIV1b (P6): an app password is full IMAP and SMTP (send as, delete), past every share level, so on a personal
+  // mailbox only its owner makes one.
+  if (await isPersonalOwner(deps.db, auth, mailboxId) === false) throw forbidden("Only the person this mailbox belongs to can create app passwords for it.");
   if (m.status !== "active") throw conflict("This mailbox is suspended.");
   const count = (await deps.db.select({ id: appPasswords.id }).from(appPasswords).where(eq(appPasswords.mailboxId, m.id))).length;
   if (count >= MAX_APP_PASSWORDS_PER_MAILBOX) throw conflict(`A mailbox can have up to ${MAX_APP_PASSWORDS_PER_MAILBOX} app passwords. Revoke one you no longer use.`);
@@ -113,15 +120,60 @@ export async function createAppPassword(deps: Deps, auth: AuthContext, mailboxId
 export async function revokeAppPassword(deps: Deps, auth: AuthContext, id: string) {
   const p = await deps.db.select().from(appPasswords).where(and(eq(appPasswords.id, id), eq(appPasswords.orgId, auth.orgId))).get();
   if (!p) throw notFound("App password");
-  await assertMailboxAccess(deps.db, auth, p.mailboxId);
-  if (auth.role === "member" && p.createdByUserId !== auth.userId) throw forbidden("Only the person who created this app password, or an admin, can revoke it.");
+  // PRIV1b (P6, P42): on a personal mailbox its owner revokes any app password on it; anyone else only their own.
+  const own = await isPersonalOwner(deps.db, auth, p.mailboxId);
+  if (own === undefined) {
+    await assertMailboxAccess(deps.db, auth, p.mailboxId);
+    if (auth.role === "member" && p.createdByUserId !== auth.userId) throw forbidden("Only the person who created this app password, or an admin, can revoke it.");
+  } else if (!own && p.createdByUserId !== auth.userId) {
+    await assertMailboxAccess(deps.db, auth, p.mailboxId);
+    throw forbidden("Only the person who created this app password, or the person this mailbox belongs to, can revoke it.");
+  }
+  await destroyAppPasswordRow(deps, p);
+  return presentAppPassword(p);
+}
+
+async function destroyAppPasswordRow(deps: Deps, p: typeof appPasswords.$inferSelect) {
   const client = mailServerClient(deps);
   if (client) {
-    const { creds } = await viaMailServer(() => ensureServerAccount(deps, auth.orgId, p.mailboxId));
+    const { creds } = await viaMailServer(() => ensureServerAccount(deps, p.orgId, p.mailboxId));
     await viaMailServer(() => client.destroyAppPassword(creds, p.serverCredentialId));
   }
   await deps.db.delete(appPasswords).where(eq(appPasswords.id, p.id));
-  return presentAppPassword(p);
+}
+
+/**
+ * PRIV1b (P6, P42): app passwords on personal mailboxes made by someone other than the owner (the workspace owner when
+ * the mailbox has none): ones a delegate made before P6, ones from before the mailbox became personal (0164), ones of
+ * an owner who left. As a SQL condition on app_passwords joined to mailboxes as m.
+ */
+const FOREIGN = sql`m.personal = 1 and not (
+  (exists (select 1 from members x where x.user_id = m.owner_user_id and x.organization_id = m.org_id) and ${appPasswords.createdByUserId} = m.owner_user_id)
+  or (not exists (select 1 from members x where x.user_id = m.owner_user_id and x.organization_id = m.org_id)
+    and exists (select 1 from members o where o.user_id = ${appPasswords.createdByUserId} and o.organization_id = m.org_id and o.role = 'owner')))`;
+
+async function destroyForeign(deps: Deps, where: SQL, limit: number) {
+  const m = alias(mailboxes, "m");
+  const rows = await deps.db.select({ p: appPasswords }).from(appPasswords).innerJoin(m, eq(m.id, appPasswords.mailboxId))
+    .where(and(FOREIGN, where)).limit(limit);
+  let gone = 0;
+  for (const { p } of rows) {
+    try { await destroyAppPasswordRow(deps, p); gone++; } catch (err) { deps.reportError?.(err, { where: "app_passwords.destroy_foreign", appPassword: p.id }); }
+  }
+  return gone;
+}
+
+/**
+ * PRIV1b (P6): destroys the app passwords on one personal mailbox that its owner didn't make. Called when a share is
+ * removed (and for the lifecycle paths: owner left, mailbox handed over). Nothing for a team mailbox.
+ */
+export async function destroyForeignAppPasswords(deps: Deps, orgId: string, mailboxId: string) {
+  return destroyForeign(deps, and(eq(appPasswords.orgId, orgId), eq(appPasswords.mailboxId, mailboxId))!, MAX_APP_PASSWORDS_PER_MAILBOX * 5);
+}
+
+/** PRIV1b (P42): the same for the whole deployment, a few a pass, from the maintenance run. One indexed read when none. */
+export async function sweepForeignAppPasswords(deps: Deps, limit = 20) {
+  return destroyForeign(deps, sql`1 = 1`, limit);
 }
 
 /** Removes the mailbox's server account (and with it every app password). Call before deleting the mailbox. */

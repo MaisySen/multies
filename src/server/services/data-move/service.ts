@@ -11,6 +11,7 @@
  * A big import stops near 15 seconds, at the day's cap or at the write budget's warn level, and the same call with the
  * run id carries on from where it stopped.
  */
+import { assertOpen, personalInfo } from "../mail-access-priv1a"; // PRIV1b (P12)
 import { and, desc, eq, inArray, isNull, like, lt, ne, or, sql } from "drizzle-orm";
 import { strFromU8, unzipSync } from "fflate";
 import type { AuthContext, Deps } from "../../context";
@@ -515,8 +516,13 @@ export async function undoMove(deps: Deps, actor: SuiteActor, id: string) {
   const m = await moveRow(deps, actor.orgId, id);
   if (m.kind !== "import") throw new HttpError(422, "validation_failed", "Only an import can be undone.");
   if (m.status === "undone") return { move: presentMove(m), removed: 0 };
-  if (m.fileKey) await dropKeptFile(deps, m); // R43: the kept upload goes with the run
   const c = parseJson<Created>(m.created, {});
+  // PRIV1b (P12): Undo deletes mail out of the target mailbox. A personal one: its owner (or a Send as share), or the
+  // person who ran the import.
+  if (c.mailboxId && !actor.system && m.createdByUserId !== actor.userId && await personalInfo(deps.db, actor.orgId, c.mailboxId)) {
+    await assertOpen(deps.db, { userId: actor.userId, orgId: actor.orgId, role: actor.role ?? "member" }, c.mailboxId, "send");
+  }
+  if (m.fileKey) await dropKeptFile(deps, m); // R43: the kept upload goes with the run
   let removed = 0;
   const del = async (ids: string[] | undefined, table: typeof tasks | typeof meetings | typeof contacts | typeof docs) => {
     for (let i = 0; i < (ids ?? []).length; i += 90) {

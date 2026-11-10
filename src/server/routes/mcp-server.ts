@@ -279,7 +279,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string, call?:
       },
     }, tool(async (a: { mailboxId: string; replyTo: string | null }) => {
       writable();
-      const m = await updateMailbox(deps.db, actor.orgId, a.mailboxId, { replyTo: a.replyTo ? a.replyTo.trim().toLowerCase() : null });
+      const m = await updateMailbox(deps.db, actor.orgId, a.mailboxId, { replyTo: a.replyTo ? a.replyTo.trim().toLowerCase() : null }, { userId: actor.agentId ? "" : actor.userId, role: actor.role }); // PRIV1b (P7)
       return { mailboxId: m.id, address: m.address, replyTo: m.replyTo ?? null };
     }));
   }

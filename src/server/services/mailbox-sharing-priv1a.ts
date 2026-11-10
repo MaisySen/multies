@@ -113,6 +113,9 @@ export async function unshareMailbox(deps: Deps, who: Who, mailboxId: string, us
   if (!self && mb.owner !== who.userId) throw forbidden("Only the person this mailbox belongs to can stop sharing it.");
   const gone = await deps.db.delete(mailboxDelegations).where(and(eq(mailboxDelegations.orgId, who.orgId), eq(mailboxDelegations.mailboxId, mailboxId), eq(mailboxDelegations.userId, userId))).returning({ userId: mailboxDelegations.userId });
   if (!gone.length) throw notFound("Share");
+  // PRIV1b (P6): a mail app password made under the share would outlive it. A mail server failure doesn't undo the
+  // unshare: the maintenance sweep takes what is left.
+  await (await import("./mailserver")).destroyForeignAppPasswords(deps, who.orgId, mailboxId).catch((err: unknown) => deps.reportError?.(err, { where: "unshare.app_passwords" }));
   await deps.db.insert(mailboxAccessLog).values({ id: newId("mal"), orgId: who.orgId, mailboxId, actorUserId: who.userId, actorEmail: who.email ?? null, action: "share_revoked", targetId: userId, device: null });
   forgetPicture(who);
   return self ? { ok: true } : sharingView(deps, who, mailboxId);
