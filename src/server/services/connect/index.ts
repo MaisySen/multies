@@ -154,18 +154,23 @@ export async function connectionFor(deps: Deps, auth: AuthContext, id: string, n
 export async function createConnection(deps: Deps, auth: AuthContext, input: ConnectInput, extra: { secret?: string; authKind?: "password" | "oauth" } = {}) {
   assertEnabled(deps);
   const s = resolveSettings(deps, { ...input, password: input.password || extra.secret || "" });
-  const taken = await deps.db.select({ id: mailboxes.id, orgId: mailboxes.orgId }).from(mailboxes).where(eq(mailboxes.address, s.email)).get();
-  if (taken) throw conflict(taken.orgId === auth.orgId ? `${s.email} is already in this workspace.` : `${s.email} is already connected to another Multies workspace. Remove it there first.`);
+  const taken = await deps.db.select({ id: mailboxes.id, orgId: mailboxes.orgId, domainId: mailboxes.domainId, personal: mailboxes.personal, ownerUserId: mailboxes.ownerUserId }).from(mailboxes).where(eq(mailboxes.address, s.email)).get();
+  // PRIV1b (P58): a copy kept for a legal hold after its connection was removed goes back to whoever it belongs to (the
+  // personal owner; an admin or key for a team one) when they connect the address again, held or not.
+  const kept = taken && taken.orgId === auth.orgId && (taken.personal ? !!auth.userId && taken.ownerUserId === auth.userId : !auth.userId || auth.role === "owner" || auth.role === "admin")
+    && !(await connectionForMailbox(deps, taken.id)) && (await ensurePlatformDomain(deps, CONNECTED_DOMAIN)).id === taken.domainId ? taken.id : null;
+  if (taken && !kept) throw conflict(taken.orgId === auth.orgId ? `${s.email} is already in this workspace.` : `${s.email} is already connected to another Multies workspace. Remove it there first.`);
   const secret = extra.secret ?? input.password;
   const authKind = extra.authKind ?? "password";
   if (authKind === "password") await testSettings(deps, s, { secret });
   const plan = await getPlan(deps.db, auth.orgId);
   const domain = await ensurePlatformDomain(deps, CONNECTED_DOMAIN);
-  const mailboxId = newId("mbx");
+  const mailboxId = kept ?? newId("mbx");
   const id = newId("mcn");
   const [local] = s.email.split("@");
   // PRIV1a: a connected inbox is personal, private to the person who connected it (a workspace key with no person: a team mailbox).
-  await deps.db.insert(mailboxes).values({ id: mailboxId, orgId: auth.orgId, domainId: domain.id, localPart: local, address: s.email, displayName: s.displayName, quotaMb: plan.limits.storagePerMailboxMb, personal: !!auth.userId, ownerUserId: auth.userId || null });
+  if (kept) await deps.db.update(mailboxes).set({ status: "active", displayName: s.displayName }).where(eq(mailboxes.id, kept));
+  else await deps.db.insert(mailboxes).values({ id: mailboxId, orgId: auth.orgId, domainId: domain.id, localPart: local, address: s.email, displayName: s.displayName, quotaMb: plan.limits.storagePerMailboxMb, personal: !!auth.userId, ownerUserId: auth.userId || null });
   await deps.db.insert(mailConnections).values({
     id, orgId: auth.orgId, mailboxId, provider: s.preset, email: s.email, username: s.username,
     imapHost: s.imap.host, imapPort: s.imap.port, imapSecurity: s.imap.security,
@@ -250,6 +255,8 @@ export async function removeConnection(deps: Deps, auth: AuthContext, id: string
   });
   await deps.db.delete(mailConnections).where(eq(mailConnections.id, c.id));
   if (!held) await deps.db.delete(mailboxes).where(and(eq(mailboxes.id, c.mailboxId), eq(mailboxes.orgId, auth.orgId)));
+  // PRIV1b (P58): the kept copy can't send (no connection to send through); connecting the address again reattaches it.
+  else await deps.db.update(mailboxes).set({ status: "suspended" }).where(and(eq(mailboxes.id, c.mailboxId), eq(mailboxes.orgId, auth.orgId)));
   await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.disconnected", targetType: "mailbox", targetId: c.mailboxId, metadata: { address: c.email, ...(held ? { keptForLegalHold: true } : {}) } });
   return { ok: true as const, ...(held ? { keptForLegalHold: true as const } : {}) };
 }

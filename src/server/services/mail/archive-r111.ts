@@ -14,7 +14,7 @@ import { HttpError, badRequest, conflict, forbidden, notFound } from "../../lib/
 import { newId } from "../../lib/crypto";
 import { inIds, notInIds } from "../../lib/sql-chunks";
 import { audit } from "../audit";
-import { scopeFor } from "../mail-access-priv1a";
+import { personalInfo, scopeFor, whoCanOpen } from "../mail-access-priv1a";
 import { toMboxEntry } from "../data-move/formats";
 import {
   ARCHIVE_PAGE, CASE_EXPORT_MAX, MAX_ACTIVE_HOLDS, RETENTION_BATCH, RETENTION_INTERVAL_MS, cleanFilters, describeFilters, graceEnd, isStricter,
@@ -219,21 +219,50 @@ export async function runRetentionPass(deps: Deps, opts: { maxOrgs?: number } = 
   return { orgs: due.length, deleted };
 }
 
+const legalHold = (what: "mail" | "mailbox") => new HttpError(409, "legal_hold", what === "mail"
+  ? "This mail is on legal hold, so it can't be deleted. An admin can lift the hold in Settings, Archive and retention."
+  : "This mailbox is on legal hold, so it can't be deleted or removed. Lift the hold first.");
+type HeldRow = { mailboxId: string; folder: string; sentByUserId?: string | null };
+/** PRIV1b (P44): whether any of these rows (drafts aside) is held, tested against a scope read once (import Undo). */
+export function rowsHeld(s: HeldScope, rows: HeldRow[]) {
+  if (!s.active) return false;
+  const boxes = new Set(s.mailboxIds);
+  return rows.some((r) => r.folder !== "drafts" && (boxes.has(r.mailboxId) || (!!r.sentByUserId && s.userIds.includes(r.sentByUserId))));
+}
+export function assertRowsNotHeld(s: HeldScope, rows: HeldRow[]) {
+  if (rowsHeld(s, rows)) throw legalHold("mail");
+}
+/**
+ * PRIV1b (P44): whether a hold reaches any of these mailboxes, reading only what the request touches: the holds, then
+ * per mailbox who can open it (the one rule, plus a personal owner who left), stopping at the first match. Past a few
+ * mailboxes the whole scope is cheaper.
+ */
+async function anyHeld(deps: Deps, orgId: string, boxIds: string[], senders: string[]) {
+  const holds = await deps.db.select({ kind: mailLegalHolds.kind, targetId: mailLegalHolds.targetId }).from(mailLegalHolds)
+    .where(and(eq(mailLegalHolds.orgId, orgId), isNull(mailLegalHolds.releasedAt)));
+  if (!holds.length) return false;
+  const people = new Set(holds.filter((h) => h.kind === "person").map((h) => h.targetId));
+  const ids = [...new Set(boxIds)];
+  if (holds.some((h) => h.kind === "mailbox" && ids.includes(h.targetId)) || senders.some((u) => people.has(u))) return true;
+  if (!people.size || !ids.length) return false;
+  if (ids.length > 4) { const s = await heldScope(deps, orgId); return ids.some((id) => s.mailboxIds.includes(id)); }
+  for (const id of ids) {
+    const p = await personalInfo(deps.db, orgId, id);
+    if (p?.owner && people.has(p.owner)) return true;
+    if ((await whoCanOpen(deps.db, orgId, id)).some((u) => people.has(u))) return true;
+  }
+  return false;
+}
 /** Guard for every person driven permanent delete: 409 when any (non draft) message is under a legal hold. */
-export async function assertNotHeld(deps: Deps, orgId: string, rows: { mailboxId: string; folder: string; sentByUserId?: string | null }[]) {
+export async function assertNotHeld(deps: Deps, orgId: string, rows: HeldRow[]) {
   if (!deps.config.mailArchive) return;
   const kept = rows.filter((r) => r.folder !== "drafts");
   if (!kept.length) return;
-  const s = await heldScope(deps, orgId);
-  if (!s.active) return;
-  if (kept.some((r) => s.mailboxIds.includes(r.mailboxId) || (!!r.sentByUserId && s.userIds.includes(r.sentByUserId)))) {
-    throw new HttpError(409, "legal_hold", "This mail is on legal hold, so it can't be deleted. An admin can lift the hold in Settings, Archive and retention.");
-  }
+  if (await anyHeld(deps, orgId, kept.map((r) => r.mailboxId), kept.map((r) => r.sentByUserId).filter((u): u is string => !!u))) throw legalHold("mail");
 }
 export async function assertMailboxNotHeld(deps: Deps, orgId: string, mailboxId: string) {
   if (!deps.config.mailArchive) return;
-  const s = await heldScope(deps, orgId);
-  if (s.mailboxIds.includes(mailboxId)) throw new HttpError(409, "legal_hold", "This mailbox is on legal hold, so it can't be deleted or removed. Lift the hold first.");
+  if (await anyHeld(deps, orgId, [mailboxId], [])) throw legalHold("mailbox");
 }
 
 /* ---------- Legal holds ---------- */

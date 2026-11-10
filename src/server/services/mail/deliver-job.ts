@@ -7,7 +7,7 @@
  */
 import { and, eq } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { attachments, deliveries, mailboxes, messages } from "../../db/schema";
+import { attachments, deliveries, domains, mailboxes, messages } from "../../db/schema";
 import { attachmentBytes } from "./store";
 import { PermanentJobError, RetryableJobError, registerJob } from "../jobs";
 import { deliverInbound } from "./delivery";
@@ -61,6 +61,12 @@ export async function runDeliver(deps: Deps, payload: unknown) {
   // A connected mailbox retries through its own provider's SMTP, like its first try.
   const { connectionForMailbox } = await import("../connect");
   const conn = await connectionForMailbox(deps, mb.id);
+  // PRIV1b (P58): a retry from a connected mailbox whose connection was removed never falls back to the platform outbound.
+  if (!conn) {
+    const { CONNECTED_DOMAIN } = await import("../connect");
+    const d = await deps.db.select({ name: domains.name }).from(domains).where(eq(domains.id, mb.domainId)).get();
+    if (d?.name === CONNECTED_DOMAIN) throw new PermanentJobError(`${mb.address} is no longer connected, so it can't send.`);
+  }
   const outbound = conn ? (await import("../connect/outbound")).connectionOutbound(deps, conn) : deps.outbound;
   // R31: a retry carries the same open image as the first try, when the message has one.
   const { existingToken, pixelUrl, withPixel } = await import("./read-status");

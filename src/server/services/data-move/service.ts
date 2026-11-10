@@ -12,7 +12,7 @@
  * run id carries on from where it stopped.
  */
 import { assertOpen, personalInfo } from "../mail-access-priv1a"; // PRIV1b (P12)
-import { assertNotHeld } from "../mail/archive-r111"; // PRIV1b (P44)
+import { assertRowsNotHeld, heldScope } from "../mail/archive-r111"; // PRIV1b (P44)
 import { and, desc, eq, inArray, isNull, like, lt, ne, or, sql } from "drizzle-orm";
 import { strFromU8, unzipSync } from "fflate";
 import type { AuthContext, Deps } from "../../context";
@@ -524,11 +524,13 @@ export async function undoMove(deps: Deps, actor: SuiteActor, id: string) {
     await assertOpen(deps.db, { userId: actor.userId, orgId: actor.orgId, role: actor.role ?? "member" }, c.mailboxId, "send");
   }
   // PRIV1b (P44): Undo never deletes mail under a legal hold; checked before anything is removed.
-  if (c.messages?.length && deps.config.mailArchive) {
+  // The scope is read once, then each chunk is tested in memory.
+  const held = c.messages?.length && deps.config.mailArchive ? await heldScope(deps, actor.orgId) : null;
+  if (held?.active && c.messages) {
     for (let i = 0; i < c.messages.length; i += 90) {
       const rows = await deps.db.select({ mailboxId: messages.mailboxId, folder: messages.folder, sentByUserId: messages.sentByUserId }).from(messages)
         .where(and(eq(messages.orgId, actor.orgId), inIds(messages.id, c.messages.slice(i, i + 90))));
-      await assertNotHeld(deps, actor.orgId, rows);
+      assertRowsNotHeld(held, rows);
     }
   }
   if (m.fileKey) await dropKeptFile(deps, m); // R43: the kept upload goes with the run

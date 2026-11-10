@@ -1,9 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { privacyWorld } from "./priv1a-world";
 import { Client } from "./helpers";
-import { agents, attachments, dataMoves, mailConnections, mailRetentionPolicies, mailboxes, messages } from "@/server/db/schema";
-import { heldScope, runRetentionPass } from "@/server/services/mail/archive-r111";
+import { agents, attachments, dataMoves, mailConnections, mailRetentionPolicies, mailboxes, members, messages } from "@/server/db/schema";
+import { assertMailboxNotHeld, heldScope, runRetentionPass } from "@/server/services/mail/archive-r111";
+import { CONNECTED_DOMAIN, createConnection } from "@/server/services/connect";
+import { ensurePlatformDomain } from "@/server/services/free-address";
+import { runDeliver } from "@/server/services/mail/deliver-job";
+import type { LogOutbound } from "@/server/services/mail/outbound";
 import { toBase64, splitMbox } from "../src/web/lib/mbox-r40";
 
 /**
@@ -200,5 +204,79 @@ describe("PRIV1b (P58) retention details", () => {
     expect(r.status).toBe(200);
     expect(r.body.keptForLegalHold).toBeUndefined();
     expect(await w.ctx.db.select().from(mailboxes).where(eq(mailboxes.id, w.boxes.personal)).get()).toBeUndefined();
+  });
+});
+
+describe("PRIV1b archive review fixes", () => {
+  // A connected Gmail as the connect flow writes it: on the shared connected domain, personal to Pat.
+  async function connectedWorld() {
+    const w = await world();
+    const dom = await ensurePlatformDomain(w.ctx.deps, CONNECTED_DOMAIN);
+    const box = `mbx_conn${w.n}gmail00000`;
+    const email = `pat.gmail${w.n}@gmail.example`;
+    await w.ctx.db.insert(mailboxes).values({ id: box, orgId: w.orgId, domainId: dom.id, localPart: email.split("@")[0]!, address: email, displayName: "Pat Gmail", quotaMb: 100, personal: true, ownerUserId: w.pat.id });
+    const conn = `conn_rv${w.n}aaaaaaaa`;
+    await w.ctx.db.insert(mailConnections).values({ id: conn, orgId: w.orgId, mailboxId: box, provider: "gmail", email, username: email, imapHost: "imap.example.com", imapPort: 993, imapSecurity: "tls", smtpHost: "smtp.example.com", smtpPort: 465, smtpSecurity: "tls", secretEnc: "x" });
+    return { ...w, box, conn, email };
+  }
+  const outbox = (w: Awaited<ReturnType<typeof world>>) => (w.ctx.deps.outbound as LogOutbound).sent;
+
+  it("M1: a held mailbox kept after disconnect can't send as the external address, by send or by a retry", async () => {
+    const w = await connectedWorld();
+    await w.hold("mailbox", w.box);
+    const r = await w.pat.c.del(`/api/connections/${w.conn}`);
+    expect(r.body).toMatchObject({ ok: true, keptForLegalHold: true });
+    expect((await w.ctx.db.select({ s: mailboxes.status }).from(mailboxes).where(eq(mailboxes.id, w.box)).get())!.s).toBe("suspended");
+    const before = outbox(w).length;
+    const send = await w.pat.c.post("/api/mail/send", { mailboxId: w.box, to: ["x@example.com"], subject: "Hi", text: "Hi" });
+    expect(send.status).toBeGreaterThanOrEqual(400);
+    expect(send.status).toBeLessThan(500);
+    // A row kept before this fix is still active: the missing connection alone refuses it.
+    await w.ctx.db.update(mailboxes).set({ status: "active" }).where(eq(mailboxes.id, w.box));
+    const again = await w.pat.c.post("/api/mail/send", { mailboxId: w.box, to: ["x@example.com"], subject: "Hi", text: "Hi" });
+    expect(again.status).toBe(409);
+    expect(again.body.error.code).toBe("connection_removed");
+    const sent = await w.seed(w.box, new Date(), new Date(), { folder: "sent" });
+    await expect(runDeliver(w.ctx.deps, { orgId: w.orgId, messageId: sent, to: ["x@example.com"], cc: [], bcc: [] })).rejects.toThrow(/no longer connected/);
+    expect(outbox(w).filter((m) => m.from.address === w.email)).toEqual([]);
+    expect(outbox(w).length).toBe(before);
+    // Team mail on a verified domain still sends.
+    const team = await w.owner.post("/api/mail/send", { mailboxId: w.boxes.team, to: ["x@example.com"], subject: "Hi", text: "Hi" });
+    expect(team.status).toBe(201);
+    expect(outbox(w).length).toBe(before + 1);
+  });
+
+  it("S2: the owner can connect the kept address again, held or after release; nobody else takes it", async () => {
+    const w = await connectedWorld();
+    (w.ctx.deps.config.mailConnect as { enabled: boolean }).enabled = true;
+    const h = await w.hold("mailbox", w.box);
+    await w.pat.c.del(`/api/connections/${w.conn}`);
+    const as = (m: { id: string }, role: "owner" | "admin" | "member") => ({ orgId: w.orgId, userId: m.id, email: "x@example.com", role }) as never;
+    await expect(createConnection(w.ctx.deps, as(w.admin, "admin"), { email: w.email, password: "", preset: "gmail" }, { secret: "tok", authKind: "oauth" })).rejects.toMatchObject({ status: 409 });
+    await w.release(h);
+    const back = await createConnection(w.ctx.deps, as(w.pat, "member"), { email: w.email, password: "", preset: "gmail" }, { secret: "tok", authKind: "oauth" });
+    expect(back.mailboxId).toBe(w.box);
+    expect((await w.ctx.db.select({ s: mailboxes.status }).from(mailboxes).where(eq(mailboxes.id, w.box)).get())!.s).toBe("active");
+    // Attached again, the address is taken as before.
+    await expect(createConnection(w.ctx.deps, as(w.pat, "member"), { email: w.email, password: "", preset: "gmail" }, { secret: "tok", authKind: "oauth" })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("S3: the per request hold check matches the full held scope", async () => {
+    const w = await world();
+    const boxes = [w.boxes.personal, w.boxes.team, w.boxes.agent];
+    for (const who of [w.dSend, w.dRead, w.admin, w.nobody, w.member, w.pat]) {
+      const h = await w.hold("person", who.id);
+      const scope = (await heldScope(w.ctx.deps, w.orgId)).mailboxIds;
+      for (const b of boxes) {
+        const refused = await assertMailboxNotHeld(w.ctx.deps, w.orgId, b).then(() => false, (e) => e.code === "legal_hold");
+        expect([who.id, b, refused]).toEqual([who.id, b, scope.includes(b)]);
+      }
+      await w.release(h);
+    }
+    // A person who left still holds the personal mailbox they owned.
+    await w.hold("person", w.pat.id);
+    await w.ctx.db.delete(members).where(and(eq(members.userId, w.pat.id), eq(members.organizationId, w.orgId)));
+    await expect(assertMailboxNotHeld(w.ctx.deps, w.orgId, w.boxes.personal)).rejects.toMatchObject({ status: 409 });
+    await expect(assertMailboxNotHeld(w.ctx.deps, w.orgId, w.boxes.team)).resolves.toBeUndefined();
   });
 });

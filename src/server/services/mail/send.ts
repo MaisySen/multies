@@ -94,6 +94,9 @@ export async function assertSendLevel(db: DB, who: Pick<AuthContext, "userId" | 
 }
 
 /** Sends a message from one of the org's mailboxes. Internal recipients are delivered directly. */
+/** PRIV1b (P58): the refusal for a connected mailbox whose connection is gone (kept for a legal hold). */
+const connectionRemoved = (address: string) => new HttpError(409, "connection_removed", `${address} is no longer connected, so it can't send. Connect it again in Settings, Connections, Mail accounts.`);
+
 export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMessageInput, extra: SendExtras = {}): Promise<SendResult> {
   const { db } = deps;
   const mb = await db.select().from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, auth.orgId))).get();
@@ -110,8 +113,11 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   assertNotPaymentPaused(org, deps.now());
   if (org.suspendedAt) throw new HttpError(403, "workspace_suspended", `This workspace is suspended, so it can't send mail. ${org.suspendedReason ?? ""} Contact support to review it.`.trim());
   // A connected mailbox (an address at another provider) sends through that provider's own SMTP.
-  const { connectionForMailbox } = await import("../connect");
+  const { connectionForMailbox, CONNECTED_DOMAIN } = await import("../connect");
   const conn = await connectionForMailbox(deps, mb.id);
+  // PRIV1b (P58): a connected mailbox kept after its connection was removed (legal hold) has no way to send as that
+  // address; the platform's own outbound must never send as someone else's Gmail.
+  if (!conn && domain.name === CONNECTED_DOMAIN) throw connectionRemoved(mb.address);
   if (conn?.status === "auth_failed") {
     throw new HttpError(409, "connection_auth_failed", `${mb.address} stopped accepting its password. Reconnect it in Settings, Connections, Mail accounts, then send again.`);
   }
