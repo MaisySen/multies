@@ -49,7 +49,7 @@ import { jobActionFor, jobConfirmWords, needsConfirm, type JobAction } from "@/w
 import { newJobId, useBulkOps, type JobBody } from "./mail/bulk-ops-r33"; // R33
 import { ArchiveOlderSheet } from "./mail/archive-older-r45"; // R45 (MB-137)
 import { archiveOlderOffered, emptyInboxTitle } from "./mail/archive-older-offer"; // R46
-import { dropCopies, withOfflineCopy } from "@/web/lib/offline-lists"; // R33 offline
+import { dropCopies, dropMailCopiesNotIn, withOfflineCopy } from "@/web/lib/offline-lists"; // R33 offline
 import { SNOOZE_WORDS, emptySelection, prune, selectAll, selectRange, setSelectionCount, toggleOne, undoPlan, UNDO_MS, type BulkCall, type Selection } from "@/web/lib/mail-selection"; // R32
 import { LoadError } from "@/web/components/load-error-t1g";
 import { tl, tr } from "@/web/i18n"; // R104, POL4 (HQ MB-356)
@@ -78,6 +78,9 @@ export function WebmailPage() {
   const overview = useQuery({ queryKey: qk.overview, queryFn: async () => (await api.get<{ mailboxes: MailboxOverview[] }>("/mail/overview")).mailboxes, refetchInterval: 30_000 });
   const mailboxes = useMemo(() => overview.data ?? [], [overview.data]);
   useLiveMail(mailboxes.some((m) => m.connected));
+  // PRIV1b (WP1): a share that ended while this person was in another mailbox only drops out of the overview; its
+  // stored offline list copy goes too, so it can't come back offline.
+  useEffect(() => { if (overview.data) void dropMailCopiesNotIn(overview.data.map((m) => m.id)); }, [overview.data]);
   const busiest = [...mailboxes].sort((a, b) => (b.folders.inbox?.total ?? 0) - (a.folders.inbox?.total ?? 0))[0];
   // PRIV1b (P66, WC1): a ?mailbox= this person can't open (not in their overview) is not used; the busiest one opens
   // instead. Before the overview answers (or offline, where it has no copy) the URL's mailbox loads straight away.
