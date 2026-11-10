@@ -478,6 +478,8 @@ export async function listMerges(deps: Deps, who: MergeWho) {
 export async function cancelMerge(deps: Deps, who: MergeWho, id: string) {
   const orgId = who.orgId;
   const r = await visibleRun(deps, who, id);
+  // PRIV1b (SL2): stopping someone else's run changes the mailbox's mail, so it takes Read and reply (403 for a read share).
+  if (r.user_id !== who.userId) await assertMailboxAccess(deps.db, who, r.mailbox_id, "reply");
   if (r.status === "done" || r.status === "cancelled" || r.status === "failed") return;
   await deps.db.run(sql`update merge_runs set status = 'cancelled', updated_at = ${deps.now().getTime()} where id = ${id}`);
   const left = await deps.db.get<{ n: number }>(sql`select count(*) as n from merge_recipients where run_id = ${id} and status = 'queued'`);

@@ -520,15 +520,16 @@ export async function canAddFromMailbox(db: DB, a: Actor, mailboxId: string): Pr
 
 /** Mailboxes whose attachments the caller may add (the same rule as canAddFromMailbox), for the Add to documents button. */
 export async function addableMailboxes(db: DB, a: Actor): Promise<string[]> {
-  const boxes = await db.all<{ id: string; address: string }>(sql`select id, address from mailboxes where org_id = ${a.orgId} limit 200`);
+  // PRIV1b (SL5): one read gives each mailbox its own personal flag and owner, so a personal mailbox can never fall
+  // into the team rule (two separately limited lists could miss each other).
+  const boxes = await db.all<{ id: string; address: string; personal: number | null; owner: string | null; member: string | null }>(sql`select m.id, m.address, m.personal, m.owner_user_id as owner, x.user_id as member
+    from mailboxes m left join members x on x.user_id = m.owner_user_id and x.organization_id = m.org_id where m.org_id = ${a.orgId} limit 200`);
   if (!boxes.length) return [];
   const me = (await db.all<{ email: string }>(sql`select email from users where id = ${a.userId} limit 1`))[0]?.email.toLowerCase() ?? "";
   const grants = new Set((await db.all<{ mailbox_id: string }>(sql`select mailbox_id from mailbox_access where user_id = ${a.userId} and org_id = ${a.orgId} limit 500`)).map((r) => r.mailbox_id));
   const owned = isAdmin(a) ? new Set((await db.all<{ email: string }>(sql`select lower(u.email) as email from members m join users u on u.id = m.user_id where m.organization_id = ${a.orgId} limit 2000`)).map((r) => r.email)) : new Set<string>();
   // PRIV1b (P21): personal mailboxes as canAddFromMailbox decides them: the owner's own (orphans: the workspace owner).
-  const personal = new Map((await db.all<{ id: string; owner: string | null; member: string | null }>(sql`select m.id, m.owner_user_id as owner, x.user_id as member from mailboxes m
-    left join members x on x.user_id = m.owner_user_id and x.organization_id = m.org_id where m.org_id = ${a.orgId} and m.personal = 1 limit 500`)).map((r) => [r.id, r.owner && r.member ? r.owner === a.userId : a.role === "owner"]));
-  return boxes.filter((b) => (personal.has(b.id) ? personal.get(b.id) === true
+  return boxes.filter((b) => (b.personal ? (b.owner && b.member ? b.owner === a.userId : a.role === "owner")
     : b.address.toLowerCase() === me || grants.has(b.id) || (isAdmin(a) && !owned.has(b.address.toLowerCase())))).map((b) => b.id);
 }
 

@@ -1,7 +1,8 @@
 import { assertNotPaymentPaused, maybeUsageAlert } from "../billing/dunning";
 import { emitEvent } from "../developer/webhooks";
 import { suppressedAmong } from "../deliverability/suppressions";
-import { and, eq, isNull, ne, or } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { inIds } from "../../lib/sql-chunks";
 import type { AuthContext, Deps } from "../../context";
 import { domains, mailboxes, mailSchedules, messages } from "../../db/schema";
 import { assertOpen, canOpen } from "../mail-access-priv1a";
@@ -69,8 +70,10 @@ async function queueUntilTomorrow(deps: Deps, auth: AuthContext, input: SendMess
  * PRIV1b (P10): what a send needs on a personal mailbox. Send as (and the owner) may write to anyone. Below that, a
  * reply share only answers: inReplyToId must be a message (not a draft) in this mailbox, and every recipient must
  * already be in that thread. Used by Send, drafts and Send later, before anything is written. Team mailboxes pass.
+ * PRIV1b (SL1): below Send as a Reply-To must be the mailbox's own address or someone already in the thread, so a
+ * reply share can't steer the thread's answers to an outside address.
  */
-export async function assertSendLevel(db: DB, who: Pick<AuthContext, "userId" | "orgId" | "role">, mb: { id: string; personal: boolean | null }, input: { inReplyToId?: string | null; to?: string[]; cc?: string[]; bcc?: string[] }) {
+export async function assertSendLevel(db: DB, who: Pick<AuthContext, "userId" | "orgId" | "role">, mb: { id: string; personal: boolean | null; address?: string }, input: { inReplyToId?: string | null; to?: string[]; cc?: string[]; bcc?: string[]; replyTo?: string | null }) {
   if (!mb.personal) return;
   if (!input.inReplyToId) return assertOpen(db, who, mb.id, "send");
   if (await canOpen(db, who, mb.id, "send")) return;
@@ -79,18 +82,21 @@ export async function assertSendLevel(db: DB, who: Pick<AuthContext, "userId" | 
   const parent = await db.select({ threadId: messages.threadId, folder: messages.folder }).from(messages)
     .where(and(eq(messages.id, input.inReplyToId), eq(messages.mailboxId, mb.id), eq(messages.orgId, who.orgId))).get();
   if (!parent || parent.folder === "drafts") throw refuse();
-  const rcpts = [...(input.to ?? []), ...(input.cc ?? []), ...(input.bcc ?? [])].map((a) => a.trim().toLowerCase()).filter(Boolean);
-  if (!rcpts.length) return;
-  const rows = await db.select({ from: messages.fromAddress, to: messages.to, cc: messages.cc, bcc: messages.bcc, replyTo: messages.replyTo }).from(messages)
-    .where(and(eq(messages.mailboxId, mb.id), eq(messages.threadId, parent.threadId), ne(messages.folder, "drafts"))).limit(200);
-  const seen = new Set<string>();
-  const list = (raw: string) => { try { for (const a of JSON.parse(raw) as { address?: string }[]) if (a?.address) seen.add(a.address.toLowerCase()); } catch { /* bad row: adds nobody */ } };
-  for (const r of rows) {
-    seen.add(r.from.toLowerCase());
-    if (r.replyTo) seen.add(r.replyTo.toLowerCase());
-    list(r.to); list(r.cc); list(r.bcc);
-  }
-  if (rcpts.some((a) => !seen.has(a))) throw refuse();
+  const norm = (a: string) => a.trim().toLowerCase();
+  const own = mb.address ? norm(mb.address) : "";
+  const want = [...new Set([...(input.to ?? []), ...(input.cc ?? []), ...(input.bcc ?? []), ...(input.replyTo ? [input.replyTo] : [])].map(norm).filter((a) => a && a !== own))];
+  if (!want.length) return;
+  // PRIV1b (SL4): ask the database which of these addresses appear anywhere in the thread (one statement over the
+  // thread index, one bound list), instead of reading a capped, unordered page of the thread and missing older people.
+  const inThread = sql`mailbox_id = ${mb.id} and thread_id = ${parent.threadId} and folder <> 'drafts'`;
+  const addrs = (col: string) => sql`select lower(json_extract(j.value, '$.address')) as a from messages m, json_each(case when json_valid(m.${sql.raw(col)}) then m.${sql.raw(col)} else '[]' end) j where ${inThread}`;
+  const found = await db.all<{ a: string }>(sql`select distinct a from (
+    select lower(from_address) as a from messages where ${inThread}
+    union all select lower(reply_to) as a from messages where ${inThread} and reply_to is not null
+    union all ${addrs("to_json")} union all ${addrs("cc_json")} union all ${addrs("bcc_json")}
+  ) where ${inIds(sql`a`, want)}`);
+  const seen = new Set(found.map((r) => r.a));
+  if (want.some((a) => !seen.has(a))) throw refuse();
 }
 
 /** Sends a message from one of the org's mailboxes. Internal recipients are delivered directly. */

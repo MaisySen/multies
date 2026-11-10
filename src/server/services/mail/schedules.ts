@@ -19,7 +19,7 @@ import { sendMessageSchema, type SendMessageInput } from "@/shared/schemas";
 import { zonedDate, zonedTime, validTimezone } from "../suite/scheduling";
 import { presentListItem } from "./mailbox-view";
 import { mailboxScope } from "../team";
-import { assertOpen, type Need } from "../mail-access-priv1a";
+import { assertOpen, canOpen, personalInfo, type Need } from "../mail-access-priv1a";
 import { setSnoozedProvider, type MyWorkItem } from "../search";
 import { inIds } from "../../lib/sql-chunks";
 
@@ -196,7 +196,7 @@ export async function scheduleSend(deps: Deps, actor: ScheduleActor, raw: unknow
   } else {
     const scope = await mailboxScope(deps.db, actor);
     if (!inScope(scope, input.mailboxId)) throw notFound("Mailbox");
-    const mb = await deps.db.select({ id: mailboxes.id, personal: mailboxes.personal }).from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, actor.orgId))).get();
+    const mb = await deps.db.select({ id: mailboxes.id, personal: mailboxes.personal, address: mailboxes.address }).from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, actor.orgId))).get();
     if (!mb) throw notFound("Mailbox");
     // PRIV1b (P11, P10): the same need as Send, checked before anything is written or deleted.
     const { assertSendLevel } = await import("./send");
@@ -325,6 +325,9 @@ export async function cancelSchedule(deps: Deps, actor: ScheduleActor, id: strin
 /** Clear every returned item of a thread when the person opens it (0 writes when there are none). */
 export async function clearReturned(deps: Deps, actor: ScheduleActor, messageId: string) {
   const head = await threadHead(deps, actor, { messageId });
+  // PRIV1b (SL3): the returned snoozes and reminders belong to the mailbox; a read share opening the thread leaves
+  // them for its owner (a quiet no-op, opening a thread must not fail).
+  if (!actor.agentId && await personalInfo(deps.db, actor.orgId, head.mailboxId) && !(await canOpen(deps.db, actor, head.mailboxId, "reply"))) return { cleared: 0 };
   const gone = await deps.db.delete(mailSchedules)
     .where(and(eq(mailSchedules.mailboxId, head.mailboxId), eq(mailSchedules.threadId, head.threadId), eq(mailSchedules.status, "returned")))
     .returning({ id: mailSchedules.id });

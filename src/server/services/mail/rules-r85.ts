@@ -288,8 +288,8 @@ export async function ruleGate(deps: Deps, rule: Row, owner: { userId: string; r
 }
 
 /** Runs one rule's actions on one message, logs the run and updates the rule's counters. */
-export async function runRuleOn(deps: Deps, rule: Row, msg: typeof messages.$inferSelect, opts: { quiet?: boolean; own?: Set<string>; gate?: { personal: boolean; ok: boolean } } = {}): Promise<MailRuleRun["status"]> {
-  const owner = await ownerOf(deps, rule);
+export async function runRuleOn(deps: Deps, rule: Row, msg: typeof messages.$inferSelect, opts: { quiet?: boolean; own?: Set<string>; gate?: { personal: boolean; ok: boolean }; owner?: Awaited<ReturnType<typeof ownerOf>> } = {}): Promise<MailRuleRun["status"]> {
+  const owner = opts.owner !== undefined ? opts.owner : await ownerOf(deps, rule);
   const actions = parse<MailRuleActionT[]>(rule.actions, []);
   const steps: Step[] = [];
   let status: MailRuleRun["status"];
@@ -340,10 +340,26 @@ export async function runMailRules(deps: Deps, m: { orgId: string; mailboxId: st
   const allowed = new Set(await usersWhoCanOpen(deps.db, m.orgId, m.mailboxId));
   const rm = toRuleMessage(msg);
   let runs = 0;
+  // PRIV1b (SL6): the personal read once a message (on the first matching rule), the maker and its level once a
+  // maker (and level needed), not about four reads per rule. A team mailbox costs that one read.
+  let personal: Promise<boolean> | undefined;
+  const makers = new Map<string, ReturnType<typeof ownerOf>>();
+  const levels = new Map<string, Promise<boolean>>();
   for (const r of rules) {
     if (r.orgId !== m.orgId || !allowed.has(r.userId)) continue;
     if (!ruleMatches({ match: r.match, conditions: parse(r.conditions, []) }, rm)) continue;
-    await runRuleOn(deps, r, msg);
+    personal ??= personalInfo(deps.db, m.orgId, m.mailboxId).then((p) => !!p);
+    if (!makers.has(r.userId)) makers.set(r.userId, ownerOf(deps, r));
+    const owner = await makers.get(r.userId)!;
+    let gate: { personal: boolean; ok: boolean } | undefined;
+    if (owner && !(await personal)) gate = { personal: false, ok: true };
+    else if (owner) {
+      const need = ruleNeed(parse<MailRuleActionT[]>(r.actions, []));
+      const key = `${r.userId}:${need}`;
+      if (!levels.has(key)) levels.set(key, canOpen(deps.db, { userId: owner.userId, orgId: r.orgId, role: owner.role }, r.mailboxId, need));
+      gate = { personal: true, ok: await levels.get(key)! };
+    }
+    await runRuleOn(deps, r, msg, { gate, owner });
     runs++;
   }
   return runs;
