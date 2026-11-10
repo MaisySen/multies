@@ -185,7 +185,9 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
       // Mail, tasks and lists saved on this phone belong to the workspace just left. PRIV1b (P53): so do
       // snoozed items, tabs, rules, the tool run, searches, files and the changes waiting to sync.
       await clearUserData("workspace").catch(() => {});
-      setMe(await api.me());
+      // PRIV1b (MP1): the queue starts again whatever happens next; the clear above emptied it and each change
+      // still checks its own workspace, so a failed me() can't leave changes stuck until the app restarts.
+      try { setMe(await api.me()); } finally { q?.release(); }
     },
   }), [status, mode, api, transport, me, live, sample, clearLocal]);
 

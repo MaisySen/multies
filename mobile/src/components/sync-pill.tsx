@@ -24,7 +24,10 @@ export function useCommandQueueRunner() {
   const live = mode === "live" && status === "signedIn";
   // PRIV1b (P53): one queue per workspace; each command records its workspace and never runs in another.
   const ws = me ? me.organization?.id ?? "" : null;
-  const queue = useMemo(() => (live ? new CommandQueue(kv(), apiExecutor(api), () => ws) : null), [live, api, ws]);
+  // PRIV1b (MP3): the queue reads the workspace of the latest render, so a flush still running on an old queue sees a switch.
+  const wsRef = useRef(ws);
+  wsRef.current = ws;
+  const queue = useMemo(() => (live ? new CommandQueue(kv(), apiExecutor(api), () => wsRef.current) : null), [live, api, ws]);
   useEffect(() => { setCommandQueue(queue); return () => setCommandQueue(null); }, [queue]);
 
   const flushRef = useRef<() => void>(() => {});
