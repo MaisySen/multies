@@ -3,7 +3,8 @@ import { eq } from "drizzle-orm";
 import { privacyWorld, inboundMail } from "./priv1a-world";
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { authEmailHooks, mailboxes, tasks, webhookDeliveries } from "@/server/db/schema";
-import { getAuthEmailSettings, putAuthEmailSettings } from "@/server/services/mail/auth-email-settings";
+import { getAuthEmailSettings, putAuthEmailSettings, sendAuthEmailTest } from "@/server/services/mail/auth-email-settings";
+import { handleSupabaseHook } from "@/server/services/mail/auth-email-hooks";
 import type { Client } from "./helpers";
 
 /**
@@ -63,6 +64,41 @@ describe("W1: sign-up emails never come from someone's personal mailbox", () => 
     // A team mailbox is still a sender.
     expect(JSON.stringify(await put("team@acme.io"))).toContain("team@acme.io");
     expect(await w.ctx.db.select().from(authEmailHooks).where(eq(authEmailHooks.mailboxId, w.boxes.team)).all()).toHaveLength(1);
+  }, 60_000);
+});
+
+describe("W1 (v1 API): an auth email hook can't be made on or moved to a personal mailbox", () => {
+  it("v1 create and PATCH answer 422 for Pat's address; a hook left on one sends nothing; team mailboxes still work", async () => {
+    const w = await privacyWorld();
+    const key = (await w.admin.c.post("/api/developer/keys", { name: "w1" })).body.secret as string;
+    const v1 = async (method: string, path: string, body: unknown) => {
+      const res = await w.ctx.app.request(`/api/v1${path}`, { method, headers: { authorization: `Bearer ${key}`, host: "localhost", "content-type": "application/json" }, body: JSON.stringify(body) });
+      const text = await res.text();
+      return { status: res.status, text };
+    };
+    const pat = `pat.private${w.n}@acme.io`;
+    const hook = (from: string) => ({ from, secret: `v1,whsec_${"A".repeat(32)}`, supabaseUrl: "https://walk.example.com" });
+    const no = await v1("POST", "/auth-email-hooks", hook(pat));
+    expect(no.status).toBe(422);
+    expect(no.text).toContain("validation_failed");
+    const ok = await v1("POST", "/auth-email-hooks", hook("team@acme.io"));
+    expect(ok.status).toBe(201);
+    const id = JSON.parse(ok.text).id ?? JSON.parse(ok.text).hook?.id;
+    expect(id).toBeTruthy();
+    const moved = await v1("PATCH", `/auth-email-hooks/${id}`, { from: pat });
+    expect(moved.status).toBe(422);
+    expect(await w.ctx.db.select().from(authEmailHooks).where(eq(authEmailHooks.mailboxId, w.boxes.personal)).all()).toHaveLength(0);
+    const renamed = await v1("PATCH", `/auth-email-hooks/${id}`, { from: "team@acme.io", appName: "Walk app" });
+    expect([renamed.status, renamed.text.includes("Walk app")]).toEqual([200, true]);
+    // A hook saved on a personal mailbox before the rule never sends as its owner: not through Supabase, not as a test.
+    await w.ctx.db.update(authEmailHooks).set({ mailboxId: w.boxes.personal }).where(eq(authEmailHooks.id, id));
+    const sent = (await handleSupabaseHook(w.ctx.deps, id, "{}", new Headers())).status;
+    expect(sent).toBe(503);
+    const admin = { orgId: w.orgId, userId: w.admin.id, email: "ada@acme.io", role: "admin", sessionId: "s" } as never;
+    await expect(sendAuthEmailTest(w.ctx.deps, admin, { type: "signup" })).rejects.toMatchObject({ status: 422 });
+    // Back on the team mailbox, the test send goes out.
+    await w.ctx.db.update(authEmailHooks).set({ mailboxId: w.boxes.team }).where(eq(authEmailHooks.id, id));
+    expect(await sendAuthEmailTest(w.ctx.deps, admin, { type: "signup" })).toMatchObject({ sent: true });
   }, 60_000);
 });
 

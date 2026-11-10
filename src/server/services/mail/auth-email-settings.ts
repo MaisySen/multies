@@ -221,6 +221,8 @@ export async function sendAuthEmailTest(deps: Deps, a: Actor, body: { type?: str
   if (!to || !to.includes("@")) throw bad("Your account has no email address to send the test to.");
   const h = await currentHook(deps, a.orgId);
   if (!h) throw notFound("Sign-up email settings");
+  // PRIV1b (W1): an older hook on a personal mailbox never sends a test as its owner. One read by primary key.
+  if ((await deps.db.select({ personal: mailboxes.personal }).from(mailboxes).where(eq(mailboxes.id, h.mailboxId)).get())?.personal) throw bad("Sign-up emails can't come from a personal mailbox. Pick a team mailbox.", "from");
   const now = deps.now().getTime();
   const recent = recentTests(h, now);
   if (recent.length >= TEST_SENDS_PER_HOUR) {

@@ -668,6 +668,7 @@ export async function createTaskFromThread(deps: Deps, actor: SuiteActor, input:
   if (actor.system && await (await import("../mail-access-priv1a")).personalInfo(deps.db, actor.orgId, m.mailboxId)) throw notFound("Message");
   // PRIV1b (W2): a task copies the mail's subject and text where the workspace sees it. On someone else's personal
   // mailbox that takes a reply share, as other writes do; a read share only reads.
+  // Intended difference: a task made by hand is allowed from reply level up, while mail rules never make tasks from any personal mailbox (P43).
   if (!actor.system && !actor.agentId) {
     const rule = await import("../mail-access-priv1a");
     const p = await rule.personalInfo(deps.db, actor.orgId, m.mailboxId);

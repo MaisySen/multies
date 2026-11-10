@@ -64,6 +64,8 @@ const BODIES: Record<string, (ids: Ids) => unknown> = {
   "POST /api/mail/rules/test": (ids) => ({ mailboxId: ids.mailbox, match: "any", conditions: [{ field: "subject", value: "SUBJECT" }] }),
   "PATCH /api/v1/agents/:id": (ids) => ({ status: "active", mailboxIds: [ids.mailbox] }),
   "PUT /api/v1/auth-email-settings": (ids) => ({ from: ids.address, supabaseUrl: "https://walk.example.com" }),
+  // PRIV1b (W1): the v1 hook create checks its secret before the sender, so a bad body answered 400 and never reached it.
+  "POST /api/v1/auth-email-hooks": (ids) => ({ from: ids.address, secret: `v1,whsec_${"A".repeat(32)}`, supabaseUrl: "https://walk.example.com" }),
   "POST /api/v1/messages": (ids) => ({ mailboxId: ids.mailbox, to: ["walk@example.com"], subject: "walk", text: "walk" }),
 };
 
@@ -84,7 +86,7 @@ function idsForParam(path: string, p: string, ids: Ids): string[] {
   if (/draft/.test(name) || seg === "drafts") return [ids.draft, ids.message];
   if (/thread/.test(name) || seg === "threads") return [ids.thread];
   if (/message/.test(name) || seg === "messages") return [ids.message];
-  return [ids.message, ids.thread, ids.mailbox];
+  return [ids.message, ids.thread, ids.mailbox, ids.attachment];
 }
 
 /** The same shape of id, for nothing. */
@@ -153,6 +155,7 @@ describe("PRIV1a route walk: someone else's personal mailbox", () => {
     let lists = 0;
     let idCalls = 0;
     let limited = 0;
+    const slow = new Set<string>(); // PRIV1b: calls past the 2s limit are not checked, so they are counted
 
     /** One call with a body that passes the route's schema: the rich body first, then one filled from the schema the route refused it with. */
     const write = async (who: string, c: Client, method: string, path: string, ids2: Ids, route: string) => {
@@ -193,9 +196,10 @@ describe("PRIV1a route walk: someone else's personal mailbox", () => {
           const res = r.method === "GET" ? await call(who, c, "GET", path) : await write(who, c, r.method, path, me, r.path);
           idCalls++;
           if (res.status === 429) limited++;
-          if (res.status === 0) continue;
+          if (res.status === 0) { slow.add(`${who} ${r.method} ${r.path}`); continue; }
           if (reached(res)) answered.add(`${r.method} ${r.path}`);
-          if (res.status === 422 && r.method !== "GET") stuck.set(`${r.method} ${r.path}`, txt(res.body).slice(0, 160));
+          // PRIV1b (W1): a 400 is a body the route refused before its access check, as stuck as a 422.
+          if ((res.status === 422 || res.status === 400) && r.method !== "GET") stuck.set(`${r.method} ${r.path}`, txt(res.body).slice(0, 160));
           const text = txt(res.body);
           if (res.status >= 500 && res.status !== 503) { leaks.push(`${who} ${r.method} ${r.path} answered ${res.status}`); continue; }
           if (res.status >= 300 || who === "dRead") continue; // dRead may read; its writes show in the state below
@@ -227,6 +231,7 @@ describe("PRIV1a route walk: someone else's personal mailbox", () => {
           const res = await call(who, c, "GET", r.path + s);
           lists++;
           if (res.status === 429) limited++;
+          if (res.status === 0) slow.add(`${who} GET ${r.path}${s ? " (search)" : ""}`);
           if (reached(res)) answered.add(`GET ${r.path}`);
           const text = txt(res.body);
           // A search echoes its own query (and a mailbox filter its id) back: a quoted echo is not a leak.
@@ -237,6 +242,7 @@ describe("PRIV1a route walk: someone else's personal mailbox", () => {
       }
     }
     console.log(`PRIV1a route walk: ${lists} list calls, ${idCalls} id and write calls, ${answered.size} routes reached; ${stuck.size} writes stuck in validation; ${leaks.length} leaks; ${limited} rate limited`);
+    if (slow.size) console.log(`slow (not checked): ${[...slow].sort().join(", ")}`);
     if (stuck.size) console.log(`stuck: ${[...stuck.keys()].sort().join(", ")}`);
     if (process.env.WALK_DEBUG) console.log([...stuck].map(([k, v]) => `${k}: ${v}`).join("\n"));
     if (leaks.length) console.log(leaks.join("\n"));
@@ -250,6 +256,7 @@ describe("PRIV1a route walk: someone else's personal mailbox", () => {
     expect(stuck.size).toBeLessThan(60);
     expect(leaks).toEqual([]);
     expect(limited).toBeLessThan(idCalls / 20); // the walk really ran, not into a rate limit
+    expect(slow.size).toBeLessThan(10);
 
     // Pat's mail is untouched by the walk, and Pat still reads it.
     const mine = await w.pat.c.get(`/api/mail/messages/${w.msgs.personal}`);
@@ -257,12 +264,17 @@ describe("PRIV1a route walk: someone else's personal mailbox", () => {
     expect(mine.body.message.folder).toBe("inbox");
   }, 600_000);
 
-  it("no MCP tool shows or touches it for the workspace owner's or an admin's key", async () => {
+  it("no MCP tool shows or touches it for the workspace owner's, an admin's or an agent's key", async () => {
     const { w, ids, words, idMarks, pat } = await walkWorld();
     const markers = [...idMarks, ...words];
     const keys: Record<string, string> = {};
     keys.owner = (await w.owner.post("/api/developer/keys", { name: "walk" })).body.secret;
     keys.admin = (await w.admin.c.post("/api/developer/keys", { name: "walk" })).body.secret;
+    // PRIV1b: an agent key walks too (an agent on the team mailbox). A member or delegate can't make a key at all
+    // (developer keys need an admin), so a read share has no MCP surface to walk.
+    const agent = await w.admin.c.post("/api/agents", { name: "Walk bot", localPart: `walkbot${w.n}`, approvalMode: "never", mailboxIds: [w.boxes.team] });
+    expect(agent.status).toBe(201);
+    keys.agent = agent.body.apiKey.secret as string;
     // MCP: each key calls every tool with arguments that pass its input schema (PRIV1b, F24: filled by `sample`, with
     // Pat's ids wherever an argument names one), once with the message id and once with the thread id for a generic id.
     const { Client: McpClient } = await import("@modelcontextprotocol/sdk/client/index.js");
@@ -271,13 +283,13 @@ describe("PRIV1a route walk: someone else's personal mailbox", () => {
     const reached = new Set<string>();
     let mcpTried = 0;
     let tools = 0;
-    for (const who of ["owner", "admin"] as const) {
+    for (const who of ["owner", "admin", "agent"] as const) {
       const me = { ...ids, user: w.nobody.id };
       const mcp = new McpClient({ name: "priv1a", version: "1" });
       const fetchViaApp = ((url: string | URL, init?: RequestInit) => w.ctx.app.request(new URL(url).pathname, { ...init, headers: { ...Object.fromEntries(new Headers(init?.headers).entries()), host: "localhost" } })) as typeof fetch;
       await mcp.connect(new StreamableHTTPClientTransport(new URL("http://localhost/api/v1/mcp"), { requestInit: { headers: { authorization: `Bearer ${keys[who]}` } }, fetch: fetchViaApp }));
       const list = (await mcp.listTools()).tools;
-      tools = list.length;
+      tools = Math.max(tools, list.length);
       let before = await patState(w, pat);
       for (const t of list) {
         const generic = Object.keys((t.inputSchema as { properties?: object }).properties ?? {}).some((k) => /^id$|^ids$/.test(k));
