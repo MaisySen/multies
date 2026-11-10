@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { privacyWorld } from "./priv1a-world";
-import { changes, tasks, webhookDeliveries } from "@/server/db/schema";
+import { automations, changes, tasks, webhookDeliveries } from "@/server/db/schema";
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { createEndpoint, emitEvent } from "@/server/services/developer/webhooks";
 
@@ -59,6 +59,20 @@ describe("P1: webhooks and integrations get no personal mail", () => {
     await emitEvent(w.ctx.deps, w.orgId, "task.created", { id: "tsk_1", mailboxId: w.boxes.personal });
     expect(await hooks(w, "task.created")).toHaveLength(1);
   });
+
+  it("message.bounced and message.complained: a personal sender gives no row, a team sender still does", async () => {
+    const w = await privacyWorld();
+    await createEndpoint(w.ctx.deps, w.orgId, { url: "https://example.com/hook", events: ["*"] });
+    for (const type of ["message.bounced", "message.complained"] as const) {
+      await emitEvent(w.ctx.deps, w.orgId, type, { id: "msg_p", to: "doctor@clinic.example.com", from: `pat.private${w.n}@acme.io`, subject: "Private biopsy", detail: null, bounceType: null });
+      expect(await hooks(w, type)).toHaveLength(0);
+      await emitEvent(w.ctx.deps, w.orgId, type, { id: "msg_t", to: "client@example.com", from: "team@acme.io", subject: "Team invoice", detail: null, bounceType: null });
+      const rows = await hooks(w, type);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.payload).toContain("Team invoice");
+    }
+    expect(JSON.stringify(await w.ctx.db.select().from(webhookDeliveries).where(eq(webhookDeliveries.orgId, w.orgId)))).not.toContain("Private biopsy");
+  });
 });
 
 describe("P2: workspace automations and the tasks step leave personal mail alone", () => {
@@ -101,6 +115,20 @@ describe("P2: workspace automations and the tasks step leave personal mail alone
     expect(up.status).toBe(422);
   });
 
+  it("a rule stored before the guard that names a personal mailbox can still be disabled and renamed", async () => {
+    const w = await privacyWorld();
+    const ok = await w.admin.c.post("/api/automations", { name: "Old rule", trigger: "email_received", conditions: { mailboxId: w.boxes.team }, action: "notify", actionConfig: { to: "admins" } });
+    expect(ok.status).toBe(201);
+    const id = (ok.body.automation?.id ?? ok.body.id) as string;
+    await w.ctx.db.update(automations).set({ conditions: JSON.stringify({ mailboxId: w.boxes.personal }) }).where(eq(automations.id, id));
+    const off = await w.admin.c.patch(`/api/automations/${id}`, { enabled: false });
+    expect(off.status).toBe(200);
+    expect((off.body.automation ?? off.body).enabled).toBe(false);
+    expect((await w.admin.c.patch(`/api/automations/${id}`, { name: "Old rule, off" })).status).toBe(200);
+    // Saving the personal condition again is still refused.
+    expect((await w.admin.c.patch(`/api/automations/${id}`, { conditions: { mailboxId: w.boxes.personal } })).status).toBe(422);
+  });
+
   it("createTaskFromThread refuses a personal source for a system actor, people keep it", async () => {
     const w = await privacyWorld();
     const { createTaskFromThread } = await import("@/server/services/suite/tasks");
@@ -127,6 +155,12 @@ describe("P2: workspace automations and the tasks step leave personal mail alone
     expect(JSON.stringify(acts)).not.toContain("eviction");
     expect(JSON.stringify((await w.member.c.get(`/api/tasks/${t.body.task.id}`)).body)).not.toContain("eviction");
     expect(JSON.stringify((await w.member.c.get("/api/notifications")).body)).not.toContain("New reply on Sort the office lease");
+    // A delegate who can open the mailbox, assigned to a task on the same thread, still hears of the reply.
+    const t2 = await w.pat.c.post("/api/tasks/from-email", { messageId: pm.id, projectId, title: "Read the lease", assignee: `member:${w.dRead.id}` });
+    expect(t2.status).toBe(201);
+    await deliverInbound(w.ctx.deps, mail(patAddr, "landlord@rent.example", "Re: Lease renewal - follow up", "again", "<r3@rent.example>", "<orig1@rent.example>"));
+    expect(JSON.stringify((await w.dRead.c.get("/api/notifications")).body)).toContain("New reply on Read the lease");
+    expect(JSON.stringify((await w.member.c.get("/api/notifications")).body)).not.toContain("New reply on Read the lease");
 
     // Team mailbox: the activity keeps sender and subject and the assignee hears of it.
     await deliverInbound(w.ctx.deps, mail("team@acme.io", "client@example.com", "Order 7", "first", "<t1@example.com>"));

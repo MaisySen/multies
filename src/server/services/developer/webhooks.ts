@@ -300,7 +300,8 @@ export async function emitEventMany(deps: Deps, orgId: string, type: WebhookEven
 }
 
 /** PRIV1b (P1): events whose payload carries a mailbox's mail (text, codes, links, recipients, subject). */
-const PRIVATE_MAIL_EVENTS: ReadonlySet<string> = new Set(["message.received", "message.sent", "approval.requested"]);
+// PRIV1b (P1): bounce and complaint events carry the sender, recipient and subject too.
+const PRIVATE_MAIL_EVENTS: ReadonlySet<string> = new Set(["message.received", "message.sent", "approval.requested", "message.bounced", "message.complained"]);
 /** PRIV1b (P1): the event's mailbox (by id, else by its `from` address for approvals) is someone's personal mailbox. */
 async function personalMailbox(deps: Deps, orgId: string, data: Record<string, unknown>) {
   const id = typeof data.mailboxId === "string" ? data.mailboxId : null;

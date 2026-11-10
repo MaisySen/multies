@@ -95,7 +95,8 @@ export async function updateAutomation(deps: Deps, actor: SuiteActor, id: string
   if (!r) throw notFound("Automation");
   const next = { trigger: patch.trigger ?? r.trigger, action: patch.action ?? r.action, conditions: patch.conditions ?? JSON.parse(r.conditions), actionConfig: patch.actionConfig ?? JSON.parse(r.actionConfig) };
   validate(next);
-  await refusePersonalMailbox(deps, actor.orgId, next.conditions);
+  // PRIV1b (P2): check only new conditions, so a rule saved before this guard can still be disabled or renamed.
+  if (patch.conditions !== undefined) await refusePersonalMailbox(deps, actor.orgId, next.conditions);
   next.conditions = (await checkR24(deps, actor.orgId, next)).conditions ?? next.conditions;
   next.actionConfig = await validateAction(deps, actor.orgId, next);
   await deps.db.update(automations).set({
