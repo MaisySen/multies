@@ -10,8 +10,8 @@ import type { ParsedEmail } from "./mime";
 import { storeMessage } from "./store";
 import { OutboundError } from "./outbound";
 import { getOrg, getPlan } from "../plans";
-import { maybeAutoSuspend, recentOutboundStats, recordAbuse, scoreOutbound, SPAM_HOLD_AT } from "../abuse";
-import { sendingOff } from "./send-guard-r34";
+import { recentOutboundStats, recordAbuse, scoreOutbound, SPAM_HOLD_AT } from "../abuse";
+import { decide, externalSentToday, guardConfig, newSenderCap, providerSentToday, sendingOff } from "./send-guard-r34";
 import { notifyAgentsOfInbound } from "../agents";
 import { operatorDecision } from "../suite/operator-inbox";
 import { isBulkMail } from "@/shared/mail-splits";
@@ -241,7 +241,11 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
 }
 
 /** PRIV1b (P39): why an alias may not forward `count` recipients now (suspended, sending off or paused, unverified
- * domain, over the daily cap, or spam), or null. Refusals are logged, never queued: the sender's MTA gets a bounce. */
+ * domain, over the plan cap, the R34 new sender limit or the shared headroom, or spam), or null. Refusals are logged,
+ * never queued: the sender's MTA gets a bounce.
+ * PRIV1b (P39 trade-off): anyone who mails a forwarding alias spends the workspace's daily cap, as the manager decided
+ * forwards count like sends; a refused forward bounces to the envelope sender. A separate per-alias cap would avoid
+ * both and is left for later. */
 async function forwardRefusal(deps: Deps, orgId: string, domain: typeof domains.$inferSelect, email: ParsedEmail, count: number): Promise<string | null> {
   const [org, plan, used] = await Promise.all([getOrg(deps.db, orgId), getPlan(deps.db, orgId), sentToday(deps.db, orgId, deps.now())]);
   if (org.suspendedAt) return "Workspace is suspended";
@@ -249,14 +253,25 @@ async function forwardRefusal(deps: Deps, orgId: string, domain: typeof domains.
   const { sendingPausedForPayment } = await import("../billing/dunning"); // lazy: dunning pulls in the mail templates
   if (sendingPausedForPayment(org, deps.now())) return "Sending is paused for payment";
   if (domain.status !== "verified") return `${domain.name} is not verified`;
-  const cap = org.sendCapDaily ?? plan.limits.dailySends;
-  if (used + count > cap) return `Daily sending limit reached (${cap} recipients a day)`;
-  if (!org.isDemo) {
-    const ageDays = (deps.now().getTime() - new Date(org.createdAt).getTime()) / 86_400_000;
-    const verdict = scoreOutbound({ subject: email.subject ?? "", text: email.text ?? "", html: email.html, recipients: count, workspaceAgeDays: ageDays, recent: await recentOutboundStats(deps, orgId) });
-    if (verdict.score >= SPAM_HOLD_AT) {
-      await recordAbuse(deps, orgId, "outbound_held", verdict.score, verdict.reasons.join("; "));
-      await maybeAutoSuspend(deps, orgId, ageDays);
+  // PRIV1b (P39): the same R34 guard as send.ts (plan cap, new sender limit, shared headroom), refused instead of queued.
+  const cfg = guardConfig(deps);
+  const ext = org.isDemo ? 0 : count; // a demo workspace only has the plan cap, as in send.ts
+  const ageDays = (deps.now().getTime() - new Date(org.createdAt).getTime()) / 86_400_000;
+  const recent = ext ? await recentOutboundStats(deps, orgId) : null;
+  const verdict = decide({
+    cfg, used, cap: org.sendCapDaily ?? plan.limits.dailySends, recipients: count, external: ext,
+    underReview: org.sendCapDaily !== null && org.sendCapDaily < plan.limits.dailySends,
+    externalUsed: ext ? await externalSentToday(deps, orgId) : 0,
+    newCap: recent ? newSenderCap(cfg, ageDays, recent) : null,
+    providerUsed: ext && cfg.providerDailyCap > 0 ? await providerSentToday(deps) : 0,
+  });
+  if (!verdict.ok) return verdict.reason.replace(/ Queued until tomorrow.*$/, "");
+  if (recent) {
+    const spam = scoreOutbound({ subject: email.subject ?? "", text: email.text ?? "", html: email.html, recipients: count, workspaceAgeDays: ageDays, recent });
+    if (spam.score >= SPAM_HOLD_AT) {
+      // PRIV1b (P39, review M1): an outsider wrote this message, so it is logged under its own kind and never counts
+      // toward the workspace's auto-suspension (abuse.ts maybeAutoSuspend counts "outbound_held" only).
+      await recordAbuse(deps, orgId, "forward_held", spam.score, spam.reasons.join("; "));
       return "Held by the spam filter";
     }
   }

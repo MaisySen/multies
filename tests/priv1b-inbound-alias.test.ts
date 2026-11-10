@@ -127,11 +127,13 @@ describe("PRIV1b (P39): alias forwards pass the sending gates", () => {
     expect(await forwarded(ctx, w.orgId)).toHaveLength(2);
     expect((await post(ctx, w.key, "fwd@acme.io", { auth: "" })).rejected).toBeTruthy();
     expect(ctx.outbound.sent.length).toBe(sentBefore + 1);
-    expect((await refused(ctx, w.orgId))[0]!.detail).toMatch(/Daily sending limit/);
+    // An operator cap below the plan's reads as "under review", the same wording send.ts uses.
+    expect((await refused(ctx, w.orgId))[0]!.detail).toMatch(/can send to 3 recipients a day/);
     // The workspace's own sends see the forwards too.
     const mb = (await w.c.post("/api/mailboxes", { domainId: w.domainId, localPart: "hello", displayName: "Hello" })).body.mailbox;
     const send = await w.c.post("/api/mail/send", { mailboxId: mb.id, to: ["c@gmail.com", "d@gmail.com"], subject: "Hi", text: "Hello there" });
-    expect(send.body.queued ?? send.body.error).toBeTruthy();
+    expect(send.status).toBe(202);
+    expect(send.body.queued.reason).toMatch(/can send to 3 recipients a day/);
   });
 
   it("a spam forward is held and not sent", async () => {
@@ -142,5 +144,40 @@ describe("PRIV1b (P39): alias forwards pass the sending gates", () => {
     expect((await post(ctx, w.key, "fwd@acme.io", { subject: "YOU HAVE WON THE LOTTERY", body: "act now, click here https://bit.ly/x" })).rejected).toBeTruthy();
     expect(ctx.outbound.sent.length).toBe(sentBefore);
     expect((await refused(ctx, w.orgId))[0]!.detail).toMatch(/spam/);
+  });
+
+  it("review M1: outsiders' spam to an alias can't auto-suspend the workspace", async () => {
+    const ctx = await makeTestApp();
+    const w = await workspace(ctx, "Acme", "acme.io");
+    expect((await w.c.post("/api/aliases", { domainId: w.domainId, localPart: "info", destinations: ["owner@gmail.com"] })).status).toBe(201);
+    for (let i = 0; i < 3; i++) {
+      expect((await post(ctx, w.key, "info@acme.io", { subject: "YOU HAVE WON THE LOTTERY", body: "act now, click here https://bit.ly/x" })).rejected).toBeTruthy();
+    }
+    expect((await refused(ctx, w.orgId))).toHaveLength(3);
+    const org = await ctx.db.select().from(organizations).where(eq(organizations.id, w.orgId)).get();
+    expect(org!.suspendedAt).toBeNull();
+    // The owner's own mail still goes, and a clean forward still goes out.
+    const mb = (await w.c.post("/api/mailboxes", { domainId: w.domainId, localPart: "hello", displayName: "Hello" })).body.mailbox;
+    const send = await w.c.post("/api/mail/send", { mailboxId: mb.id, to: ["c@gmail.com"], subject: "Hi", text: "Hello there" });
+    expect(send.status).toBe(201);
+    expect(send.body.queued).toBeFalsy();
+    const before = ctx.outbound.sent.length;
+    expect((await post(ctx, w.key, "info@acme.io")).rejected).toBeNull();
+    expect(ctx.outbound.sent.length).toBe(before + 1);
+    expect(ctx.outbound.sent.at(-1)!.to).toEqual(["owner@gmail.com"]);
+  });
+
+  it("review S3: the new sender limit applies to forwards too", async () => {
+    const ctx = await makeTestApp();
+    const w = await workspace(ctx, "Acme", "acme.io");
+    const dests = Array.from({ length: 15 }, (_, i) => `p${i}@gmail.com`);
+    expect((await w.c.post("/api/aliases", { domainId: w.domainId, localPart: "list", destinations: dests })).status).toBe(201);
+    const before = ctx.outbound.sent.length;
+    expect((await post(ctx, w.key, "list@acme.io", { auth: "" })).rejected).toBeNull();
+    expect(ctx.outbound.sent.length).toBe(before + 1);
+    // 15 + 15 is past the 20 outside recipients a new workspace has, though well under the plan's 100.
+    expect((await post(ctx, w.key, "list@acme.io", { auth: "" })).rejected).toBeTruthy();
+    expect(ctx.outbound.sent.length).toBe(before + 1);
+    expect((await refused(ctx, w.orgId))[0]!.detail).toMatch(/New workspaces send to 20 outside recipients/);
   });
 });

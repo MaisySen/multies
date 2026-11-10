@@ -50,7 +50,8 @@ export function newSenderCap(cfg: SendGuardConfig, ageDays: number, recent: { se
 export async function externalSentToday(deps: Deps, orgId: string): Promise<number> {
   const row = await deps.db.select({ n: sql<number>`count(*)` }).from(deliveries).where(and(
     eq(deliveries.orgId, orgId), eq(deliveries.direction, "outbound"), eq(deliveries.provider, deps.outbound.name),
-    inArray(deliveries.status, ["sent", "queued", "delivered", "delayed"]), gte(deliveries.createdAt, dayStart(deps.now())),
+    inArray(deliveries.status, ["sent", "queued", "delivered", "delayed", "forwarded"]), // PRIV1b (P39): alias forwards are outside mail too
+    gte(deliveries.createdAt, dayStart(deps.now())),
   )).get();
   return Number(row?.n ?? 0);
 }
