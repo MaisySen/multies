@@ -186,7 +186,7 @@ export function toolsAutomationRoutes() {
       const templates = await listTemplates(deps, auth.orgId);
       return c.json({
         cap: MERGE_DAILY_CAP[s.plan], usedToday: await mergeUsedToday(deps, auth.orgId), maxRows: MERGE_MAX_ROWS,
-        runs: await listMerges(deps, auth.orgId),
+        runs: await listMerges(deps, auth),
         templates: templates.map((t) => ({ id: t.id, name: t.name, kind: t.kind, fields: mergeFields(t) })),
       });
     })
@@ -194,19 +194,19 @@ export function toolsAutomationRoutes() {
       requireToolFeature(c, "merge_mail");
       const input = await parseBody(c, mergeSchema);
       const { auth, deps } = c.var;
-      await assertMailboxAccess(deps.db, auth, input.mailboxId);
+      await assertMailboxAccess(deps.db, auth, input.mailboxId, "send"); // PRIV1b (P16): a merge sends new mail
       const run = await startMerge(deps, auth, input);
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "tools.merge_started", targetType: "merge_run", targetId: run.id, metadata: { people: run.total, marketing: input.marketing, consent: true }, ip: c.var.ip });
       return c.json(run, 201);
     })
     .get("/merge/:id", async (c) => {
       requireToolFeature(c, "merge_mail");
-      return c.json(await mergeProgress(c.var.deps, c.var.auth.orgId, c.req.param("id")));
+      return c.json(await mergeProgress(c.var.deps, c.var.auth, c.req.param("id")));
     })
     .post("/merge/:id/cancel", async (c) => {
       requireToolFeature(c, "merge_mail");
-      await cancelMerge(c.var.deps, c.var.auth.orgId, c.req.param("id"));
-      return c.json(await mergeProgress(c.var.deps, c.var.auth.orgId, c.req.param("id")));
+      await cancelMerge(c.var.deps, c.var.auth, c.req.param("id"));
+      return c.json(await mergeProgress(c.var.deps, c.var.auth, c.req.param("id")));
     });
 }
 

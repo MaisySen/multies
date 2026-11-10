@@ -1,6 +1,6 @@
 import { and, desc, eq, lt, or, sql, type SQL } from "drizzle-orm";
 import type { DB } from "../../db";
-import { attachments, mailboxes, mailConnections, messages } from "../../db/schema";
+import { attachments, mailboxDelegations, mailboxes, mailConnections, messages } from "../../db/schema";
 import { notFound } from "../../lib/errors";
 import type { Address, Folder } from "@/shared/mail";
 import { inIds } from "../../lib/sql-chunks";
@@ -44,9 +44,19 @@ export function presentMessage(m: Row, atts: (typeof attachments.$inferSelect)[]
 export type Scope = string[] | null;
 const inScope = (scope: Scope) => (scope ? inIds(messages.mailboxId, scope) : undefined);
 
-export async function mailboxOverview(db: DB, orgId: string, scope: Scope = null) {
+/** PRIV1b: how far the viewer may go in a mailbox: their own personal one, a share level, or a team mailbox. */
+export type MailboxLevel = "own" | "send_as" | "reply" | "read" | "team";
+
+export async function mailboxOverview(db: DB, orgId: string, scope: Scope = null, viewer?: { userId: string }) {
   const boxes = (await db.select().from(mailboxes).where(eq(mailboxes.orgId, orgId)).orderBy(mailboxes.address))
     .filter((b) => !scope || scope.includes(b.id));
+  // PRIV1b: the viewer's shares, one read for the whole list (none when no personal mailbox is listed).
+  const shares = viewer?.userId && boxes.some((b) => b.personal)
+    ? new Map((await db.select({ id: mailboxDelegations.mailboxId, level: mailboxDelegations.level }).from(mailboxDelegations)
+      .where(and(eq(mailboxDelegations.orgId, orgId), eq(mailboxDelegations.userId, viewer.userId)))).map((r) => [r.id, r.level]))
+    : new Map<string, string>();
+  // A listed personal mailbox is the viewer's own, shared with them, or (no share) one the workspace owner holds for a missing owner.
+  const levelOf = (b: typeof boxes[number]): MailboxLevel => (!b.personal ? "team" : b.ownerUserId === viewer?.userId ? "own" : (shares.get(b.id) as MailboxLevel | undefined) ?? "own");
   const counts = await db
     .select({ mailboxId: messages.mailboxId, folder: messages.folder, total: sql<number>`count(*)`, unread: sql<number>`sum(case when ${messages.isRead} = 0 then 1 else 0 end)` })
     .from(messages).where(and(eq(messages.orgId, orgId), sql`${messages.fromAddress} <> ${PENDING_FROM}`)).groupBy(messages.mailboxId, messages.folder);
@@ -54,7 +64,7 @@ export async function mailboxOverview(db: DB, orgId: string, scope: Scope = null
   return boxes.map((b) => {
     const folders: Record<string, { total: number; unread: number }> = {};
     for (const c of counts) if (c.mailboxId === b.id) folders[c.folder] = { total: Number(c.total), unread: Number(c.unread ?? 0) };
-    return { id: b.id, address: b.address, displayName: b.displayName, usedBytes: b.usedBytes, quotaMb: b.quotaMb, kind: b.kind, folders, connected: connected.has(b.id), connectionId: connected.get(b.id) ?? null };
+    return { id: b.id, address: b.address, displayName: b.displayName, usedBytes: b.usedBytes, quotaMb: b.quotaMb, kind: b.kind, folders, connected: connected.has(b.id), connectionId: connected.get(b.id) ?? null, ...(viewer ? { level: levelOf(b) } : {}) };
   });
 }
 

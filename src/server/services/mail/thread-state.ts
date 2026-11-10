@@ -9,7 +9,7 @@ import { and, desc, eq, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { mailThreadState, members, messages, users } from "../../db/schema";
 import { whoCanOpenAny } from "../mail-access-priv1a";
-import { badRequest, notFound } from "../../lib/errors";
+import { badRequest, HttpError, notFound } from "../../lib/errors";
 import { assertWritable, scopeOf, type SuiteActor } from "../suite/common";
 import { notify } from "../suite/notify";
 import { inIds } from "../../lib/sql-chunks";
@@ -37,7 +37,7 @@ const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 export const viewerOf = (a: SuiteActor) => (a.agentId ? null : a.userId || null);
 
 /** The thread's mailboxes and subject, after checking the caller can open it. */
-async function openThread(deps: Deps, actor: SuiteActor, threadId: string) {
+async function openThread(deps: Deps, actor: SuiteActor, threadId: string, need: "read" | "reply" = "read") {
   const rows = await deps.db.select({ mailboxId: messages.mailboxId, subject: messages.subject, date: messages.date }).from(messages)
     .where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), sql`${messages.folder} not in ('trash', 'drafts')`))
     .orderBy(desc(messages.date)).limit(200);
@@ -45,6 +45,12 @@ async function openThread(deps: Deps, actor: SuiteActor, threadId: string) {
   const scope = await scopeOf(deps, actor);
   const mailboxIds = [...new Set(rows.map((r) => r.mailboxId))];
   if (scope && !mailboxIds.some((m) => scope.includes(m))) throw notFound("Thread");
+  // PRIV1b (P11): assigning or setting a status needs Read and reply in one of the thread's mailboxes, not a read share.
+  if (need === "reply" && !actor.agentId && !actor.system) {
+    const { mailboxScope } = await import("../team");
+    const can = await mailboxScope(deps.db, { userId: actor.userId, orgId: actor.orgId, role: actor.role ?? "member" }, "reply");
+    if (can && !mailboxIds.some((m) => can.includes(m))) throw new HttpError(403, "share_level", "This mailbox was shared with you to read only. Ask its owner.");
+  }
   return { mailboxIds, newestMailboxId: rows[0].mailboxId, subject: rows[rows.length - 1].subject };
 }
 
@@ -101,7 +107,7 @@ export async function assignableMembers(deps: Deps, actor: SuiteActor, threadId:
  */
 export async function assignThread(deps: Deps, actor: SuiteActor, threadId: string, userId: string | null) {
   assertWritable(actor);
-  const t = await openThread(deps, actor, threadId);
+  const t = await openThread(deps, actor, threadId, "reply");
   const cur = await stateRow(deps, actor.orgId, threadId);
   if ((cur?.assigneeUserId ?? null) === userId) return present(deps, actor.orgId, threadId);
   if (userId) await assertAssignable(deps, actor.orgId, userId, t.mailboxIds);
@@ -123,7 +129,7 @@ export async function assignThread(deps: Deps, actor: SuiteActor, threadId: stri
 export async function setThreadStatus(deps: Deps, actor: SuiteActor, threadId: string, status: ThreadStatus) {
   assertWritable(actor);
   if (!(THREAD_STATUSES as readonly string[]).includes(status)) throw badRequest("Status is open, waiting or done.");
-  const t = await openThread(deps, actor, threadId);
+  const t = await openThread(deps, actor, threadId, "reply");
   const cur = await stateRow(deps, actor.orgId, threadId);
   if ((cur?.status ?? "open") === status) return present(deps, actor.orgId, threadId);
   const now = deps.now();

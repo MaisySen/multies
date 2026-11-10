@@ -25,7 +25,7 @@ import { sendMessage, type SendResult } from "../mail/send";
 import { deprovisionMailbox } from "../mailserver";
 import { mailboxScope } from "../team";
 import { memberSigningInAs } from "../addresses";
-import { keepOpenableBy } from "../mail-access-priv1a";
+import { assertOpen, keepOpenableBy } from "../mail-access-priv1a";
 import { agentMessage, extractCodes, extractLinks, latestText } from "./parse";
 import { listThreadStates, threadViewCond, type ThreadView } from "../mail/thread-state";
 import { inChunks, inIds } from "../../lib/sql-chunks";
@@ -592,12 +592,14 @@ export async function listApprovals(deps: Deps, actor: Actor, q: { status?: stri
   return rows.map(presentApproval);
 }
 
-async function approvalFor(deps: Deps, actor: Actor, id: string) {
+async function approvalFor(deps: Deps, actor: Actor, id: string, need: "reply" | "send") {
   if (actor.agentId) throw new HttpError(403, "agent_key_scope", "An agent can't approve its own messages. A person approves them in the app.");
   const r = await deps.db.select().from(sendApprovals).where(and(eq(sendApprovals.id, id), eq(sendApprovals.orgId, actor.orgId))).get();
   if (!r) throw notFound("Approval");
   const scope = await scopeFor(deps, actor);
   if (scope && !scope.includes(r.mailboxId)) throw notFound("Approval");
+  // PRIV1b (P11): rejecting needs Read and reply, approving (it sends) needs Send as; a read share only looks.
+  await assertOpen(deps.db, actor, r.mailboxId, need);
   if (r.status !== "pending") throw conflict(`This message was already ${r.status === "sent" ? "approved and sent" : r.status}.`);
   if (r.expiresAt.getTime() <= deps.now().getTime()) throw conflict("This request expired. The agent can ask again.");
   return r;
@@ -605,7 +607,7 @@ async function approvalFor(deps: Deps, actor: Actor, id: string) {
 
 /** A person approves (optionally after editing the subject or text): the message is sent as the agent. */
 export async function approveSend(deps: Deps, actor: Actor, id: string, edits: { subject?: string; text?: string } = {}) {
-  const r = await approvalFor(deps, actor, id);
+  const r = await approvalFor(deps, actor, id, "send");
   const { a, mb } = await row(deps, actor.orgId, r.agentId);
   const from = (await deps.db.select().from(mailboxes).where(eq(mailboxes.id, r.mailboxId)).get())!;
   const input = { ...(JSON.parse(r.payload) as AgentSendInput), ...(edits.subject !== undefined ? { subject: edits.subject } : {}), ...(edits.text !== undefined ? { text: edits.text } : {}) };
@@ -629,7 +631,7 @@ export async function approveSend(deps: Deps, actor: Actor, id: string, edits: {
 }
 
 export async function rejectSend(deps: Deps, actor: Actor, id: string, note?: string) {
-  const r = await approvalFor(deps, actor, id);
+  const r = await approvalFor(deps, actor, id, "reply");
   await deps.db.update(sendApprovals).set({ status: "rejected", note: note ?? null, decidedByUserId: actor.userId || null, decidedByEmail: actor.email, decidedAt: deps.now() }).where(eq(sendApprovals.id, r.id));
   await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: r.agentId, action: "approval.rejected", targetType: "approval", targetId: r.id, metadata: { note } });
   await recordEvent(deps, actor.orgId, r.agentId, "approval.decided", { approvalId: r.id, decision: "rejected", note });

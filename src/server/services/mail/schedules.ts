@@ -10,7 +10,7 @@
  *            then the normal send path (services/mail/send.ts or the agent's requestSend).
  *   remind   2 rows on send, 2 when it comes back or a reply cancels it, 2 when the person opens it.
  */
-import { and, asc, desc, eq, gt, inArray, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { mailboxes, mailSchedules, members, messages, organizations, users, apiKeys } from "../../db/schema";
 import { newId } from "../../lib/crypto";
@@ -19,6 +19,7 @@ import { sendMessageSchema, type SendMessageInput } from "@/shared/schemas";
 import { zonedDate, zonedTime, validTimezone } from "../suite/scheduling";
 import { presentListItem } from "./mailbox-view";
 import { mailboxScope } from "../team";
+import { assertOpen, type Need } from "../mail-access-priv1a";
 import { setSnoozedProvider, type MyWorkItem } from "../search";
 import { inIds } from "../../lib/sql-chunks";
 
@@ -123,7 +124,7 @@ async function scopeOf(deps: Deps, actor: ScheduleActor): Promise<string[] | nul
 const inScope = (scope: string[] | null, mailboxId: string) => !scope || scope.includes(mailboxId);
 
 /** The newest message of a thread the actor can open (a message id or a thread id). */
-async function threadHead(deps: Deps, actor: ScheduleActor, ref: { messageId?: string; threadId?: string }) {
+async function threadHead(deps: Deps, actor: ScheduleActor, ref: { messageId?: string; threadId?: string }, need: Need = "read") {
   const scope = await scopeOf(deps, actor);
   let threadId = ref.threadId;
   let mailboxId: string | undefined;
@@ -138,6 +139,8 @@ async function threadHead(deps: Deps, actor: ScheduleActor, ref: { messageId?: s
     .orderBy(desc(messages.date)).limit(20);
   const head = rows.find((r) => inScope(scope, r.mailboxId));
   if (!head) throw notFound("Thread");
+  // PRIV1b (P11): snooze and remind change the mailbox for everyone in it, so a read share can't (403 share_level).
+  if (need !== "read" && !actor.agentId) await assertOpen(deps.db, actor, head.mailboxId, need);
   return head;
 }
 
@@ -155,7 +158,7 @@ export function snoozeHiddenCond(now: Date): SQL {
 
 export async function snoozeThread(deps: Deps, actor: ScheduleActor, ref: { messageId?: string; threadId?: string }, when: WhenInput) {
   writable(actor);
-  const head = await threadHead(deps, actor, ref);
+  const head = await threadHead(deps, actor, ref, "reply");
   const dueAt = await resolveWhen(deps, actor, when);
   // One snooze per thread: a new time replaces the old one (2 rows only when there was one).
   await deps.db.delete(mailSchedules).where(and(eq(mailSchedules.mailboxId, head.mailboxId), eq(mailSchedules.threadId, head.threadId), eq(mailSchedules.kind, "snooze")));
@@ -193,10 +196,14 @@ export async function scheduleSend(deps: Deps, actor: ScheduleActor, raw: unknow
   } else {
     const scope = await mailboxScope(deps.db, actor);
     if (!inScope(scope, input.mailboxId)) throw notFound("Mailbox");
-    const mb = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, actor.orgId))).get();
+    const mb = await deps.db.select({ id: mailboxes.id, personal: mailboxes.personal }).from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, actor.orgId))).get();
     if (!mb) throw notFound("Mailbox");
-    // A draft that is scheduled leaves Drafts now; the scheduled copy is the one that goes.
-    if (input.draftId) await deps.db.delete(messages).where(and(eq(messages.id, input.draftId), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts")));
+    // PRIV1b (P11, P10): the same need as Send, checked before anything is written or deleted.
+    const { assertSendLevel } = await import("./send");
+    await assertSendLevel(deps.db, actor, mb, input);
+    // A draft that is scheduled leaves Drafts now; the scheduled copy is the one that goes. PRIV1b (P11): only the
+    // caller's own draft or one nobody owns (as Send deletes it); someone else's draft stays.
+    if (input.draftId) await deps.db.delete(messages).where(and(eq(messages.id, input.draftId), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts"), or(isNull(messages.sentByUserId), eq(messages.sentByUserId, actor.userId))));
     payload = { via: "person", input: { ...input, draftId: undefined }, remindDays: opts.remindDays, apiKeyId: actor.apiKeyId };
   }
   const id = opts.id ?? newId("msch");
@@ -209,7 +216,7 @@ export async function scheduleSend(deps: Deps, actor: ScheduleActor, raw: unknow
 export async function remindIfNoReply(deps: Deps, actor: ScheduleActor, messageId: string, days: number, from = deps.now()) {
   writable(actor);
   if (!Number.isInteger(days) || days < 1 || days > 60) throw badRequest("Pick between 1 and 60 days.");
-  const head = await threadHead(deps, actor, { messageId });
+  const head = await threadHead(deps, actor, { messageId }, "reply");
   await deps.db.delete(mailSchedules).where(and(eq(mailSchedules.mailboxId, head.mailboxId), eq(mailSchedules.threadId, head.threadId), eq(mailSchedules.kind, "remind")));
   const id = newId("msch");
   const dueAt = new Date(from.getTime() + days * 86_400_000);
@@ -241,12 +248,38 @@ async function repliedSince(deps: Deps, r: Row) {
 
 // ---------------------------------------------------------------- lists and edits
 
+/**
+ * PRIV1b (P11): personal mailboxes for this list of mailbox ids, with whether the actor is their owner (the workspace
+ * owner for one whose owner is unknown or left). One indexed read; team and agent mailboxes are left out.
+ */
+async function personalOwnership(deps: Deps, actor: ScheduleActor, ids: string[]): Promise<Map<string, boolean>> {
+  const list = [...new Set(ids)];
+  if (!list.length) return new Map();
+  const rows = await deps.db.select({ id: mailboxes.id, owner: mailboxes.ownerUserId, member: members.userId }).from(mailboxes)
+    .leftJoin(members, and(eq(members.userId, mailboxes.ownerUserId), eq(members.organizationId, mailboxes.orgId)))
+    .where(and(eq(mailboxes.orgId, actor.orgId), eq(mailboxes.personal, true), inIds(mailboxes.id, list)));
+  return new Map(rows.map((r) => [r.id, !!actor.userId && (r.owner && r.member ? r.owner === actor.userId : actor.role === "owner")]));
+}
+
+/**
+ * Who sees a scheduled item. A team mailbox: a member their own sends, owners, admins and the agent's own key all in
+ * scope. PRIV1b (P11): a personal mailbox: its owner every item, anyone else only their own sends (not by role).
+ */
+function seesRow(actor: ScheduleActor, r: Row, personal: Map<string, boolean>) {
+  if (r.kind !== "send" || actor.agentId) return true;
+  const own = personal.get(r.mailboxId);
+  if (own !== undefined) return own || r.userId === actor.userId;
+  return actor.role !== "member" || r.userId === actor.userId;
+}
+
 async function visibleRow(deps: Deps, actor: ScheduleActor, id: string) {
   const r = await deps.db.select().from(mailSchedules).where(and(eq(mailSchedules.id, id), eq(mailSchedules.orgId, actor.orgId))).get();
   const scope = r ? await scopeOf(deps, actor) : null;
   if (!r || !inScope(scope, r.mailboxId)) throw notFound("Scheduled item");
-  // A member sees and changes their own scheduled sends; owners, admins and the agent's own key see all in scope.
-  if (r.kind === "send" && actor.role === "member" && !actor.agentId && r.userId !== actor.userId) throw notFound("Scheduled item");
+  const personal = await personalOwnership(deps, actor, [r.mailboxId]);
+  if (!seesRow(actor, r, personal)) throw notFound("Scheduled item");
+  // PRIV1b (P11): changing someone else's item in a personal mailbox needs Read and reply or more.
+  if (personal.has(r.mailboxId) && !personal.get(r.mailboxId) && r.userId !== actor.userId && !actor.agentId) await assertOpen(deps.db, actor, r.mailboxId, "reply");
   return r;
 }
 
@@ -268,9 +301,10 @@ export async function listSchedules(deps: Deps, actor: ScheduleActor, q: { view:
   if (q.view === "snoozed") conds.push(eq(mailSchedules.kind, "snooze"), eq(mailSchedules.status, "pending"), gt(mailSchedules.dueAt, deps.now()));
   else if (q.view === "scheduled") conds.push(inArray(mailSchedules.kind, ["send", "remind"]), inArray(mailSchedules.status, ["pending", "failed"]));
   else conds.push(eq(mailSchedules.status, "returned"));
-  const rows = (await deps.db.select().from(mailSchedules).where(and(...conds)).orderBy(q.view === "returned" ? desc(mailSchedules.dueAt) : asc(mailSchedules.dueAt)).limit(Math.min(q.limit ?? 100, 200)))
-    .filter((r) => inScope(scope, r.mailboxId))
-    .filter((r) => !(r.kind === "send" && actor.role === "member" && !actor.agentId && r.userId !== actor.userId));
+  const found = (await deps.db.select().from(mailSchedules).where(and(...conds)).orderBy(q.view === "returned" ? desc(mailSchedules.dueAt) : asc(mailSchedules.dueAt)).limit(Math.min(q.limit ?? 100, 200)))
+    .filter((r) => inScope(scope, r.mailboxId));
+  const personal = await personalOwnership(deps, actor, found.filter((r) => r.kind === "send").map((r) => r.mailboxId));
+  const rows = found.filter((r) => seesRow(actor, r, personal));
   const ids = rows.map((r) => r.messageId).filter((x): x is string => !!x);
   const msgs = ids.length ? await deps.db.select().from(messages).where(inIds(messages.id, ids)) : [];
   const byId = new Map(msgs.map((m) => [m.id, m]));

@@ -7,7 +7,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { attachments, messages } from "../../db/schema";
 import { inIds } from "../../lib/sql-chunks";
 import { attachmentBytes } from "../mail/store";
-import { mailboxScope } from "../team";
+import { assertMailboxAccess, mailboxScope } from "../team";
 import { unzipSync } from "fflate";
 import type { Deps, AuthContext } from "../../context";
 import { HttpError, badRequest, notFound, planLimit } from "../../lib/errors";
@@ -346,9 +346,11 @@ const rowFile = (idx: number) => String(idx).padStart(4, "0");
  * Starts a merge: consent is required, the people are cleaned (valid, unique, not unsubscribed for a
  * marketing send), today's cap is reserved, then one render-batch job makes everyone's PDF.
  */
-export async function startMerge(deps: Deps, auth: Pick<AuthContext, "orgId" | "userId">, input: MergeInput) {
+export async function startMerge(deps: Deps, auth: MergeWho, input: MergeInput) {
   if (input.consent !== true) throw new HttpError(400, "consent_required", CONSENT_REQUIRED);
   if (!input.subject.trim()) throw badRequest("Add a subject.");
+  // PRIV1b (P16): a merge writes new mail to everyone on the list, so it needs the Send level on the mailbox.
+  await assertMailboxAccess(deps.db, auth, input.mailboxId, "send");
   const { engine } = toolsSetup(deps);
   const s = await toolStateOrOff(deps, auth.orgId);
   const t = await getTemplate(deps, auth.orgId, input.templateId);
@@ -403,6 +405,22 @@ async function runRow(deps: Deps, orgId: string, id: string) {
   return r;
 }
 
+/** PRIV1b (P16): who asks about merge runs: a person, whose role and mailboxes decide which runs they see. */
+export type MergeWho = Pick<AuthContext, "orgId" | "userId" | "role">;
+
+/** PRIV1b (P16): the SQL that keeps runs to the ones this person started or whose sending mailbox they can open. */
+async function mergeVisible(deps: Deps, who: MergeWho) {
+  const scope = await mailboxScope(deps.db, who);
+  return scope ? sql`(user_id = ${who.userId} or ${inIds(sql`mailbox_id`, scope)})` : sql`1`;
+}
+
+/** A run this person may see (404 otherwise, as a run in another workspace). */
+async function visibleRun(deps: Deps, who: MergeWho, id: string) {
+  const r = await deps.db.get<RunRow>(sql`select * from merge_runs where org_id = ${who.orgId} and id = ${id} and ${await mergeVisible(deps, who)}`);
+  if (!r) throw notFound("Mail merge");
+  return r;
+}
+
 /**
  * Moves a rendering run on: when the engine's batch is done, every PDF goes to the tool file store
  * (3 days) and one send job per person is queued, spaced MERGE_SPACING_SECONDS apart.
@@ -436,8 +454,9 @@ export async function advanceMerge(deps: Deps, r: RunRow): Promise<RunRow> {
   return { ...r, status: "sending" };
 }
 
-export async function mergeProgress(deps: Deps, orgId: string, id: string) {
-  let r = await runRow(deps, orgId, id);
+export async function mergeProgress(deps: Deps, who: MergeWho, id: string) {
+  const orgId = who.orgId;
+  let r = await visibleRun(deps, who, id);
   if (r.status === "rendering") r = await advanceMerge(deps, r);
   // The cron pass runs queued jobs every 15 minutes; while someone watches the progress view, sends that are
   // due go now (still one per MERGE_SPACING_SECONDS, still through the same queue and its claim).
@@ -450,14 +469,15 @@ export async function mergeProgress(deps: Deps, orgId: string, id: string) {
   return { id: r.id, status: r.status, total: r.total, sent: r.sent, failed: r.failed, error: r.error, marketing: !!r.marketing, subject: r.subject, createdAt: new Date(r.created_at).toISOString(), failures };
 }
 
-export async function listMerges(deps: Deps, orgId: string) {
-  const rows = await deps.db.all<RunRow>(sql`select * from merge_runs where org_id = ${orgId} order by created_at desc limit 20`);
+export async function listMerges(deps: Deps, who: MergeWho) {
+  const rows = await deps.db.all<RunRow>(sql`select * from merge_runs where org_id = ${who.orgId} and ${await mergeVisible(deps, who)} order by created_at desc limit 20`);
   return rows.map((r) => ({ id: r.id, status: r.status, total: r.total, sent: r.sent, failed: r.failed, subject: r.subject, createdAt: new Date(r.created_at).toISOString() }));
 }
 
 /** Stops a run: queued sends are skipped and the unused part of today's allowance comes back. */
-export async function cancelMerge(deps: Deps, orgId: string, id: string) {
-  const r = await runRow(deps, orgId, id);
+export async function cancelMerge(deps: Deps, who: MergeWho, id: string) {
+  const orgId = who.orgId;
+  const r = await visibleRun(deps, who, id);
   if (r.status === "done" || r.status === "cancelled" || r.status === "failed") return;
   await deps.db.run(sql`update merge_runs set status = 'cancelled', updated_at = ${deps.now().getTime()} where id = ${id}`);
   const left = await deps.db.get<{ n: number }>(sql`select count(*) as n from merge_recipients where run_id = ${id} and status = 'queued'`);

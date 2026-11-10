@@ -59,7 +59,9 @@ describe("PRIV1a mailbox privacy: role x resource", () => {
     const draft = (c: Client, reply: boolean) => c.post("/api/mail/drafts", { mailboxId: w.boxes.personal, to: ["a@b.io"], subject: "x", text: "x", ...(reply ? { inReplyToId: w.msgs.personal } : {}) });
     expect((await draft(w.dRead.c, true)).status).toBe(403);
     expect((await draft(w.dRead.c, false)).status).toBe(403);
-    expect((await draft(w.dReply.c, true)).status).toBeLessThan(300);
+    // PRIV1b (P10): a reply share drafts answers to the thread's own people only (a@b.io isn't in the thread).
+    expect((await draft(w.dReply.c, true)).status).toBe(403);
+    expect((await w.dReply.c.post("/api/mail/drafts", { mailboxId: w.boxes.personal, to: [`secret.sender.pers@private.example`], subject: "x", text: "x", inReplyToId: w.msgs.personal })).status).toBeLessThan(300);
     expect((await draft(w.dReply.c, false)).status).toBe(403);
     expect((await draft(w.dSend.c, false)).status).toBeLessThan(300);
     expect((await draft(w.pat.c, false)).status).toBeLessThan(300);

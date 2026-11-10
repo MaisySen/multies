@@ -91,6 +91,9 @@ async function draftFor(deps: Deps, actor: Who, draftId: string) {
 export async function takeOverDraft(deps: Deps, actor: Who & { name?: string }, draftId: string) {
   if (actor.agentId) throw new HttpError(403, "agent_key_scope", "An agent key can't take over a person's draft.");
   const d = await draftFor(deps, actor, draftId);
+  // PRIV1b (P11): taking over a draft reply needs Read and reply (403 share_level for a read share).
+  const { assertOpen } = await import("../mail-access-priv1a");
+  await assertOpen(deps.db, actor, d.mailboxId, "reply");
   const previous = d.sentByUserId;
   if (previous !== actor.userId) {
     const res = await deps.db.update(messages).set({ sentByUserId: actor.userId })

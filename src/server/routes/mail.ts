@@ -7,7 +7,7 @@ import { saveDraftSchema, sendMessageSchema, updateMessageSchema } from "@/share
 import type { Folder } from "@/shared/mail";
 import { attachments, idempotencyKeys, mailboxes, messages } from "../db/schema";
 import { audit } from "../services/audit";
-import { sendMessage } from "../services/mail/send";
+import { assertSendLevel, sendMessage } from "../services/mail/send";
 import { toolFilesAsAttachments } from "../services/tools/attach"; // Tools P2
 import { attachmentBytes, storeMessage } from "../services/mail/store";
 import { assertNotHeld } from "../services/mail/archive-r111"; // R111: legal holds
@@ -117,7 +117,8 @@ export function mailRoutes() {
         .from(idempotencyKeys).where(and(eq(idempotencyKeys.scope, `user:${c.var.auth.userId}`), eq(idempotencyKeys.key, key))).get();
       return c.json({ state: heldState(row) });
     })
-    .get("/overview", async (c) => c.json({ mailboxes: await mailboxOverview(c.var.deps.db, c.var.auth.orgId, await mailboxScope(c.var.deps.db, c.var.auth)) }))
+    // PRIV1b: each mailbox carries the viewer's level (own, send_as, reply, read, team) for the composer and menus.
+    .get("/overview", async (c) => c.json({ mailboxes: await mailboxOverview(c.var.deps.db, c.var.auth.orgId, await mailboxScope(c.var.deps.db, c.var.auth), c.var.auth) }))
     .get("/messages", async (c) => {
       const q = parseQuery(c, MessageListQuery);
       // R33: the moment this list was read (server clock, as messages.created_at): a select all job leaves mail that
@@ -274,6 +275,8 @@ export function mailRoutes() {
       await assertMailboxAccess(deps.db, auth, input.mailboxId, input.inReplyToId ? "reply" : "send");
       const mb = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, auth.orgId))).get();
       if (!mb) throw notFound("Mailbox");
+      // PRIV1b (P10): a reply share drafts answers to the thread's own people only, as Send checks.
+      await assertSendLevel(deps.db, auth, mb, input);
       // Round 22: a shared draft reply. Saving over a draft somebody else took over, or one that changed
       // in another window, answers 409 instead of overwriting. The delete is the optimistic check: only
       // the first of two saves of the same draft finds it.
