@@ -12,7 +12,7 @@
  * name and app password) or a secret ICS link (stored encrypted). Events are fetched when the
  * calendar opens and kept in memory for a few minutes; they are never written to the database.
  */
-import { and, eq, gte, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { calendarFeeds, calendarSources, chatMembers, mailConnections, mailboxes, meetings, members, organizations, projects, tasks, users } from "../../db/schema";
 import { decryptSecret, encryptSecret, randomToken, safeEqual, sha256Hex } from "../../lib/crypto";
@@ -21,7 +21,7 @@ import { assertWritable, sortableId, type SuiteActor } from "./common";
 import { isPersonalOwner } from "../mail-access-priv1a";
 import { buildFeed, type FeedDue, type FeedMeeting } from "./ics-write";
 import { eventsIn, type ExternalEvent } from "./ics-parse";
-import { CALDAV_BASES, CALDAV_NEEDS_OAUTH, checkUrl, davRequest, discoverCalendars, reportEvents, type DavOptions, type RemoteCalendar } from "./caldav";
+import { CALDAV_BASES, CALDAV_NEEDS_OAUTH, checkUrl, davRequest, davUnreachable, discoverCalendars, reportEvents, type DavOptions, type RemoteCalendar } from "./caldav";
 import { expandWeekly, parseRrule } from "./meeting-recurrence";
 import { zonedDate } from "./scheduling";
 
@@ -101,18 +101,19 @@ export async function disableFeed(deps: Deps, actor: SuiteActor) {
 
 /** Meetings and due tasks in [from, to) for one person, or (person null) for the whole workspace. */
 export async function workItems(deps: Deps, orgId: string, person: { id: string; email: string } | null, from: Date, to: Date, opts: { includeTasks: boolean; limit: number }) {
+  // PRIV1b (P54): the person filter, the order and the limit run in SQL, so other people's meetings cannot push
+  // the person's own out of the window; cancelled series no longer match forever.
+  // The invitee match includes the JSON quotes, so it is exact.
+  const email = person?.email.toLowerCase() ?? "";
+  const mineSql = person ? or(
+    and(eq(meetings.createdByType, "member"), eq(meetings.createdById, person.id)),
+    sql`lower(${meetings.invitees}) like ${`%${JSON.stringify(email).replace(/[\\%_]/g, (c) => `\\${c}`)}%`} escape '\\'`,
+    inArray(meetings.channelId, deps.db.select({ id: chatMembers.channelId }).from(chatMembers).where(and(eq(chatMembers.userId, person.id), eq(chatMembers.orgId, orgId)))),
+  ) : undefined;
   const rows = await deps.db.select().from(meetings).where(and(
     eq(meetings.orgId, orgId), isNull(meetings.deletedAt), lt(meetings.startsAt, to),
-    or(gte(meetings.startsAt, new Date(from.getTime() - DAY)), isNotNull(meetings.recurrence)),
-  )).limit(opts.limit * 2);
-  let mine = rows;
-  if (person) {
-    const channels = new Set((await deps.db.select({ id: chatMembers.channelId }).from(chatMembers).where(and(eq(chatMembers.userId, person.id), eq(chatMembers.orgId, orgId)))).map((r) => r.id));
-    const email = person.email.toLowerCase();
-    mine = rows.filter((m) => (m.createdByType === "member" && m.createdById === person.id)
-      || (JSON.parse(m.invitees) as string[]).some((e) => e.toLowerCase() === email)
-      || (!!m.channelId && channels.has(m.channelId)));
-  }
+    or(gte(meetings.startsAt, new Date(from.getTime() - DAY)), and(isNotNull(meetings.recurrence), ne(meetings.status, "cancelled"))), mineSql,
+  )).orderBy(meetings.startsAt).limit(opts.limit * 2);
   const dues = opts.includeTasks ? await deps.db.select({ t: tasks, key: projects.key, project: projects.name }).from(tasks)
     .innerJoin(projects, eq(projects.id, tasks.projectId))
     .where(and(
@@ -120,7 +121,7 @@ export async function workItems(deps: Deps, orgId: string, person: { id: string;
       gte(tasks.dueAt, new Date(from.getTime() - DAY)), lt(tasks.dueAt, new Date(to.getTime() + DAY)),
       person ? and(eq(tasks.assigneeType, "member"), eq(tasks.assigneeId, person.id)) : undefined,
     )).orderBy(tasks.dueAt).limit(opts.limit) : [];
-  return { meetings: mine.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()).slice(0, opts.limit), dues };
+  return { meetings: rows.slice(0, opts.limit), dues };
 }
 
 export async function zoneOf(deps: Deps, orgId: string, userId: string | null) {
@@ -307,7 +308,7 @@ async function fetchIcs(deps: Deps, url: string) {
   const r = await davRequest(davOpts(deps), url, { method: "GET", headers: { accept: "text/calendar, text/plain;q=0.5" } });
   if (r.status === 404 || r.status === 410) throw new HttpError(422, "ics_not_found", "That calendar link was not found. Copy it again from your calendar's settings.");
   if (r.status === 401 || r.status === 403) throw new HttpError(422, "ics_forbidden", "That calendar link needs a sign in. Use the secret (private) address your calendar offers.");
-  if (r.status !== 200) throw new HttpError(502, "ics_error", `The calendar server answered ${r.status}. Try again later.`);
+  if (r.status !== 200) throw davUnreachable(); // PRIV1b (P45): no status echo
   if (!r.text.includes("BEGIN:VCALENDAR")) throw new HttpError(422, "ics_not_calendar", "That link does not lead to a calendar (no iCalendar data). Use the ICS or iCal address.");
   return r.text;
 }

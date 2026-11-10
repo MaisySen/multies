@@ -703,7 +703,8 @@ it("calls in chat (round 23): presence polls write nothing; a DM call rings each
 
 it("calendar sync (round 23): feed on 2, reset at most 3, off 2; other calendars 1 each; serving the feed and viewing events write nothing", async () => {
   const ics = "BEGIN:VCALENDAR\r\nX-WR-CALNAME:Home\r\nBEGIN:VEVENT\r\nUID:a\r\nDTSTART:20261103T090000Z\r\nDTEND:20261103T100000Z\r\nSUMMARY:Dentist\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
-  const ctx = await makeTestApp({}, { fetch: (async () => new Response(ics)) as typeof fetch });
+  // PRIV1b (P45): the calendar fetch checks DNS over HTTPS first; answer it with a public address.
+  const ctx = await makeTestApp({}, { fetch: (async (u: string) => (String(u).startsWith("https://cloudflare-dns.com/") ? Response.json({ Answer: String(u).endsWith("type=A") ? [{ type: 1, data: "93.184.216.34" }] : [] }) : new Response(ics))) as typeof fetch });
   const u = new Client(ctx.app);
   await u.signup("owner@acme.io", "Olive Owner");
   const me = (await u.get("/api/account/me")).body;

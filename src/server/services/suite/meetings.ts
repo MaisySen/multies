@@ -186,7 +186,12 @@ export async function updateMeeting(deps: Deps, actor: SuiteActor, id: string, p
   const m = await meetingRow(deps, actor.orgId, id);
   const set: Partial<MeetingRow> = { updatedAt: deps.now(), version: m.version + 1 };
   if (patch.title !== undefined) set.title = patch.title.trim().slice(0, 200) || m.title;
-  if (patch.startsAt !== undefined) set.startsAt = parseDate(patch.startsAt)!;
+  if (patch.startsAt !== undefined) {
+    // PRIV1b (P64): an empty start is refused, never written into the required column.
+    const d = parseDate(patch.startsAt);
+    if (!d) throw new HttpError(422, "validation_failed", "Give the meeting a start time.");
+    set.startsAt = d;
+  }
   if (patch.durationMin !== undefined) { if (patch.durationMin < 5 || patch.durationMin > 480) throw new HttpError(422, "validation_failed", "A meeting runs between 5 minutes and 8 hours."); set.durationMin = Math.round(patch.durationMin); }
   if (patch.status !== undefined) { set.status = patch.status; if (patch.status === "ended") set.endedAt = deps.now(); }
   if (patch.invitees !== undefined) {

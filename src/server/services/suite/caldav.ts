@@ -7,6 +7,7 @@
  */
 import { HttpError } from "../../lib/errors";
 import { isPublicHost } from "../../lib/ssrf";
+import { assertPublicHost, checkUrlShape, readCapped } from "../../lib/safe-fetch";
 
 export interface CalDavAuth { username: string; password: string }
 export interface RemoteCalendar { url: string; name: string; color: string | null }
@@ -25,6 +26,10 @@ export const CALDAV_BASES: Record<string, string> = {
 export const CALDAV_NEEDS_OAUTH: Record<string, string> = { gmail: "Google", google_workspace: "Google", outlook: "Microsoft", microsoft365: "Microsoft" };
 
 export const davFail = (code: string, message: string, status: 422 | 502 = 422) => new HttpError(status, code, message);
+/** PRIV1b (P45): one text for every fetch failure (DNS, private answer, timeout, redirect, odd status), so the add form is no port or host scanner. */
+export const davUnreachable = () => davFail("unreachable", "The calendar server could not be reached. Check the address and try again.", 502);
+/** PRIV1b (P45): the body is read in a stream and cut here. */
+export const DAV_MAX_BYTES = 5_000_000;
 
 /** Refuses anything but a public https address (http and private hosts only in tests). */
 export function checkUrl(raw: string, allowPrivate: boolean): URL {
@@ -35,38 +40,52 @@ export function checkUrl(raw: string, allowPrivate: boolean): URL {
   if (!allowPrivate) {
     if (u.protocol !== "https:") throw davFail("bad_url", "Use an https:// address.");
     if (!isPublicHost(u.hostname)) throw davFail("private_host", "That address points to a private network. Use the provider's public address.");
+    // PRIV1b (P45): the link preview's shape rules too: port 443 only, no numeric or internal names.
+    try { checkUrlShape(u.toString()); } catch { throw davFail("private_host", "That address points to a private network. Use the provider's public address."); }
   } else if (u.protocol !== "https:" && u.protocol !== "http:") throw davFail("bad_url", "Use an https:// address.");
   return u;
 }
 
 const b64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
 
-/** One request with manual redirects (each hop checked) and a time limit. */
+/**
+ * One request with manual redirects (each hop checked) and a time limit.
+ * PRIV1b (P45): every hop's DNS answers must be public (lib/safe-fetch), one deadline covers the whole request
+ * including the body, and the body is streamed with a byte cap.
+ */
 export async function davRequest(opts: DavOptions, url: string, init: { method: string; headers?: Record<string, string>; body?: string; auth?: CalDavAuth }): Promise<{ status: number; text: string; url: string }> {
   let cur = checkUrl(url, opts.allowPrivateHosts).toString();
+  const deadline = Date.now() + (opts.timeoutMs ?? 10_000);
   for (let hop = 0; hop < 5; hop++) {
+    if (!opts.allowPrivateHosts) {
+      try { await assertPublicHost(opts.fetch as typeof fetch, new URL(cur).hostname.toLowerCase().replace(/^\[|\]$/g, "")); } catch { throw davUnreachable(); }
+    }
+    const left = deadline - Date.now();
+    if (left <= 0) throw davUnreachable();
     const headers: Record<string, string> = { "user-agent": "Multies-Calendar/1.0", ...(init.headers ?? {}) };
     if (init.auth) headers.authorization = `Basic ${b64(`${init.auth.username}:${init.auth.password}`)}`;
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 10_000);
-    let res: Response;
+    const timer = setTimeout(() => ctrl.abort(), left);
     try {
-      res = await opts.fetch(cur, { method: init.method, headers, body: init.body, redirect: "manual", signal: ctrl.signal });
-    } catch {
-      throw davFail("unreachable", "The calendar server did not answer. Try again in a minute.", 502);
+      let res: Response;
+      try {
+        res = await opts.fetch(cur, { method: init.method, headers, body: init.body, redirect: "manual", signal: ctrl.signal });
+      } catch { throw davUnreachable(); }
+      if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
+        try { await res.body?.cancel(); } catch { /* already closed */ }
+        const next = new URL(res.headers.get("location")!, cur);
+        // Credentials go only to the same host or a subdomain of the provider's own domain.
+        const sameSite = next.hostname === new URL(cur).hostname || next.hostname.split(".").slice(-2).join(".") === new URL(cur).hostname.split(".").slice(-2).join(".");
+        if (init.auth && !sameSite) throw davUnreachable();
+        try { cur = checkUrl(next.toString(), opts.allowPrivateHosts).toString(); } catch { throw davUnreachable(); }
+        continue;
+      }
+      let bytes: Uint8Array;
+      try { bytes = (await readCapped(res, DAV_MAX_BYTES)).bytes; } catch { throw davUnreachable(); }
+      return { status: res.status, text: new TextDecoder().decode(bytes), url: cur };
     } finally { clearTimeout(timer); }
-    if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
-      const next = new URL(res.headers.get("location")!, cur);
-      // Credentials go only to the same host or a subdomain of the provider's own domain.
-      const sameSite = next.hostname === new URL(cur).hostname || next.hostname.split(".").slice(-2).join(".") === new URL(cur).hostname.split(".").slice(-2).join(".");
-      if (init.auth && !sameSite) throw davFail("unreachable", "The calendar server sent us somewhere else. Use the provider's own address.", 502);
-      cur = checkUrl(next.toString(), opts.allowPrivateHosts).toString();
-      continue;
-    }
-    const text = (await res.text()).slice(0, 5_000_000);
-    return { status: res.status, text, url: cur };
   }
-  throw davFail("unreachable", "The calendar server redirected too many times.", 502);
+  throw davUnreachable();
 }
 
 const decode = (s: string) => s
@@ -95,7 +114,7 @@ const PROPFIND = (props: string) => `<?xml version="1.0" encoding="utf-8"?><d:pr
 function explain(status: number): never {
   if (status === 401 || status === 403) throw davFail("caldav_auth", "The provider did not accept the app password for its calendar. Check it, or make a new app password.");
   if (status === 404 || status === 405 || status === 501) throw davFail("caldav_unsupported", "This provider does not offer its calendar over CalDAV. Add the calendar's ICS link instead.");
-  throw davFail("caldav_error", `The calendar server answered ${status}. Try again later.`, 502);
+  throw davUnreachable(); // PRIV1b (P45): no status echo
 }
 
 async function propfind(opts: DavOptions, url: string, depth: "0" | "1", props: string, auth: CalDavAuth) {
