@@ -42,12 +42,18 @@ describe("PRIV1b SL4: a long thread", () => {
       fromAddress: `filler${i}@private.example`, to: JSON.stringify([{ name: "", address: "x@acme.io" }]), subject: "Re", date: new Date(Date.now() - 1000 * i), ...extra });
     const rows = Array.from({ length: 260 }, (_, i) => row(i));
     rows.push(row(999, { to: "not json" }));
+    // PRIV1b (SP1): valid JSON whose items are not objects (plain strings, one object, numbers) used to fail every send.
+    rows.push(row(998, { to: JSON.stringify(["Str.Item@private.example", 7]), cc: JSON.stringify({ name: "Solo", address: "solo@private.example" }), bcc: "[1, null, [2]]" }));
     // Added last, so the thread index finds it after every filler row.
     rows.push(row(1000, { fromAddress: "first@private.example", cc: JSON.stringify([{ name: "Old", address: "Old.CC@private.example" }]), date: new Date(Date.now() - 86_400_000 * 30) }));
     for (const r of rows) await w.ctx.db.insert(messages).values(r);
     const base = { mailboxId: w.boxes.personal, subject: "Re", text: "t", inReplyToId: w.msgs.personal };
     expect((await w.dReply.c.post("/api/mail/send", { ...base, to: ["old.cc@private.example"] })).status).toBe(201);
     expect((await w.dReply.c.post("/api/mail/send", { ...base, to: ["first@private.example", "filler3@private.example"] })).status).toBe(201);
+    expect((await w.dReply.c.post("/api/mail/send", { ...base, to: ["str.item@private.example"], cc: ["Solo@private.example"] })).status).toBe(201);
+    const odd = await w.dReply.c.post("/api/mail/send", { ...base, to: ["solo@private.example", "boss@evil.example"] });
+    expect(odd.status).toBe(403);
+    expect(odd.body.error.code).toBe("share_level");
     const out = await w.dReply.c.post("/api/mail/send", { ...base, to: ["old.cc@private.example", "boss@evil.example"] });
     expect(out.status).toBe(403);
     expect(out.body.error.code).toBe("share_level");
@@ -115,21 +121,25 @@ describe("PRIV1b SL3: opening a returned thread", () => {
 });
 
 describe("PRIV1b SL5: Add to Documents mailbox list", () => {
-  it("a personal mailbox never falls into the team rule, also with many personal mailboxes", async () => {
+  it("a personal mailbox never falls into the team rule, also when the personal rows come back in another order", async () => {
     const w = await privacyWorld();
     w.ctx.deps.config.filesPlus = true;
     w.ctx.deps.config.docInbox = true;
-    // 150 personal mailboxes of Sam's, at addresses no member has (the team rule would hand them to an admin).
-    const extra = Array.from({ length: 150 }, (_, i) => ({ id: `mbx_sl5${w.n}_${String(i).padStart(3, "0")}`, orgId: w.orgId, domainId: w.domainId, localPart: `sam.box${i}.${w.n}`,
-      address: `sam.box${i}.${w.n}@acme.io`, displayName: "Sam box", quotaMb: 100, personal: true, ownerUserId: w.dSend.id }));
-    for (const b of extra) await w.ctx.db.insert(mailboxes).values(b);
+    // PRIV1b (SP3): Sam's 30 personal mailboxes come first by row, then 520 ownerless ones. Read by the personal index
+    // (owner first, empty owners sorting first) the ownerless rows filled a separate 500 row list, so Sam's fell out of
+    // it and into the team rule, which hands an admin any mailbox at an address no member has.
+    const box = (i: number, owner: string | null) => ({ id: `mbx_sl5${w.n}_${String(i).padStart(3, "0")}`, orgId: w.orgId, domainId: w.domainId, localPart: `sam.box${i}.${w.n}`,
+      address: `sam.box${i}.${w.n}@acme.io`, displayName: "Sam box", quotaMb: 100, personal: true, ownerUserId: owner });
+    const extra = [...Array.from({ length: 30 }, (_, i) => box(i, w.dSend.id)), ...Array.from({ length: 520 }, (_, i) => box(100 + i, null))];
+    for (let i = 0; i < extra.length; i += 4) await w.ctx.db.insert(mailboxes).values(extra.slice(i, i + 4));
+    const sams = extra.slice(0, 30).map((b) => b.id);
     const ids = async (c: typeof w.pat.c) => { const r = await c.get("/api/doc-inbox/mailboxes"); expect(r.status).toBe(200); return r.body.ids as string[]; };
     const adminIds = await ids(w.admin.c);
     expect(adminIds.filter((id) => id.startsWith("mbx_sl5"))).toEqual([]);
     expect(adminIds).not.toContain(w.boxes.personal);
     expect(adminIds).toContain(w.boxes.team);
     expect((await ids(w.pat.c))).toContain(w.boxes.personal);
-    expect((await ids(w.dSend.c)).filter((id) => id.startsWith("mbx_sl5")).length).toBeGreaterThan(0);
+    expect((await ids(w.dSend.c)).filter((id) => sams.includes(id)).length).toBeGreaterThan(0);
   }, 120_000);
 });
 
@@ -152,9 +162,11 @@ describe("PRIV1b SL6: inbound mail rules", () => {
     const team = await count(w.boxes.team, w.msgs.team);
     const pers = await count(w.boxes.personal, w.msgs.personal);
     // Six rules each, but the mailbox read is not repeated per rule (whoCanOpen reads it once too).
-    expect(team.mailboxReads).toBeLessThanOrEqual(3);
+    // PRIV1b (SP2): one mailbox read a message on a team mailbox (personalInfo, shared with whoCanOpen); on a personal
+    // one that read plus each maker's level check.
+    expect(team.mailboxReads).toBe(1);
     expect(team.delegationReads).toBeLessThanOrEqual(1);
-    expect(pers.mailboxReads).toBeLessThanOrEqual(5);
+    expect(pers.mailboxReads).toBeLessThanOrEqual(3);
     expect(pers.delegationReads).toBeLessThanOrEqual(3);
     const labels = async (prefix: string) => (await w.ctx.db.select().from(mailThreadLabels).where(sql`${mailThreadLabels.label} like ${prefix + "%"}`)).length;
     expect(await labels("team-")).toBe(6);

@@ -89,7 +89,10 @@ export async function assertSendLevel(db: DB, who: Pick<AuthContext, "userId" | 
   // PRIV1b (SL4): ask the database which of these addresses appear anywhere in the thread (one statement over the
   // thread index, one bound list), instead of reading a capped, unordered page of the thread and missing older people.
   const inThread = sql`mailbox_id = ${mb.id} and thread_id = ${parent.threadId} and folder <> 'drafts'`;
-  const addrs = (col: string) => sql`select lower(json_extract(j.value, '$.address')) as a from messages m, json_each(case when json_valid(m.${sql.raw(col)}) then m.${sql.raw(col)} else '[]' end) j where ${inThread}`;
+  // PRIV1b (SP1): only a JSON array (or one object) is walked, and only object items are read by key (a string item is
+  // the address itself), so a stored list of plain strings can't raise "malformed JSON" and fail every send.
+  const addrs = (col: string) => { const c = sql.raw(`m.${col}`); return sql`select lower(case j.type when 'object' then json_extract(j.value, '$.address') when 'text' then j.value end) as a
+    from messages m, json_each(case when not json_valid(${c}) then '[]' when json_type(${c}) = 'array' then ${c} when json_type(${c}) = 'object' then json_array(json(${c})) else '[]' end) j where ${inThread}`; };
   const found = await db.all<{ a: string }>(sql`select distinct a from (
     select lower(from_address) as a from messages where ${inThread}
     union all select lower(reply_to) as a from messages where ${inThread} and reply_to is not null

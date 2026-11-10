@@ -20,7 +20,7 @@ import {
   type MailRule, type MailRuleActionT, type MailRuleConditionT, type MailRuleInputT, type MailRuleRun, type RuleActionKind, type RuleMessage,
 } from "@/shared/mail-rules-r85";
 import { isRobotSender } from "@/shared/mail-splits";
-import { assertOpen, canOpen, personalInfo, personalOwnerState, personalOwnership, type Need } from "../mail-access-priv1a";
+import { assertOpen, canOpen, personalInfo, personalOwnerState, personalOwnership, whoCanOpen, type Need } from "../mail-access-priv1a";
 
 export interface RuleActor { orgId: string; userId: string; role?: AuthContext["role"]; agentId?: string | null; scope?: string; email?: string; name?: string }
 const DAY = 86_400_000;
@@ -349,28 +349,26 @@ export async function runMailRules(deps: Deps, m: { orgId: string; mailboxId: st
   if (!rules.length) return 0;
   const msg = await deps.db.select().from(messages).where(and(eq(messages.id, m.messageId), eq(messages.orgId, m.orgId))).get();
   if (!msg || msg.folder !== "inbox") return 0;
-  const { usersWhoCanOpen } = await import("../team");
-  const allowed = new Set(await usersWhoCanOpen(deps.db, m.orgId, m.mailboxId));
+  // PRIV1b (SP2): personalInfo once a message, shared with whoCanOpen; makers and levels are cached as values, never
+  // as promises (a promise started and not awaited could reject unhandled).
+  const info = await personalInfo(deps.db, m.orgId, m.mailboxId);
+  const allowed = new Set(await whoCanOpen(deps.db, m.orgId, m.mailboxId, info));
   const rm = toRuleMessage(msg);
   let runs = 0;
-  // PRIV1b (SL6): the personal read once a message (on the first matching rule), the maker and its level once a
-  // maker (and level needed), not about four reads per rule. A team mailbox costs that one read.
-  let personal: Promise<boolean> | undefined;
-  const makers = new Map<string, ReturnType<typeof ownerOf>>();
-  const levels = new Map<string, Promise<boolean>>();
+  const makers = new Map<string, Awaited<ReturnType<typeof ownerOf>>>();
+  const levels = new Map<string, boolean>();
   for (const r of rules) {
     if (r.orgId !== m.orgId || !allowed.has(r.userId)) continue;
     if (!ruleMatches({ match: r.match, conditions: parse(r.conditions, []) }, rm)) continue;
-    personal ??= personalInfo(deps.db, m.orgId, m.mailboxId).then((p) => !!p);
-    if (!makers.has(r.userId)) makers.set(r.userId, ownerOf(deps, r));
-    const owner = await makers.get(r.userId)!;
+    if (!makers.has(r.userId)) makers.set(r.userId, await ownerOf(deps, r));
+    const owner = makers.get(r.userId) ?? null;
     let gate: { personal: boolean; ok: boolean } | undefined;
-    if (owner && !(await personal)) gate = { personal: false, ok: true };
+    if (owner && !info) gate = { personal: false, ok: true };
     else if (owner) {
       const need = ruleNeed(parse<MailRuleActionT[]>(r.actions, []));
       const key = `${r.userId}:${need}`;
-      if (!levels.has(key)) levels.set(key, canOpen(deps.db, { userId: owner.userId, orgId: r.orgId, role: owner.role }, r.mailboxId, need));
-      gate = { personal: true, ok: await levels.get(key)! };
+      if (!levels.has(key)) levels.set(key, await canOpen(deps.db, { userId: owner.userId, orgId: r.orgId, role: owner.role }, r.mailboxId, need));
+      gate = { personal: true, ok: levels.get(key)! };
     }
     await runRuleOn(deps, r, msg, { gate, owner });
     runs++;

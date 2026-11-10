@@ -127,8 +127,9 @@ export async function personalInfo(db: DB, orgId: string, mailboxId: string) {
 }
 
 /** Everyone who can open the mailbox: for notifications, mentions, push and realtime. */
-export async function whoCanOpen(db: DB, orgId: string, mailboxId: string): Promise<string[]> {
-  const p = await personalInfo(db, orgId, mailboxId);
+export async function whoCanOpen(db: DB, orgId: string, mailboxId: string, known?: Awaited<ReturnType<typeof personalInfo>>): Promise<string[]> {
+  // PRIV1b (SP2): a caller that already read personalInfo for this mailbox passes it (null for a team mailbox).
+  const p = known !== undefined ? known : await personalInfo(db, orgId, mailboxId);
   if (p) {
     const [owner, shares] = await Promise.all([
       p.owner ? db.select({ userId: members.userId }).from(members).where(and(eq(members.organizationId, orgId), eq(members.userId, p.owner))).get() : Promise.resolve(undefined),
