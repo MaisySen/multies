@@ -104,6 +104,7 @@ export async function onDeliverDead(deps: Deps, payload: unknown, _job: unknown,
       messageId: `<ndr.${m.id}@${deps.config.systemFrom.address.split("@")[1] ?? "localhost"}>`,
       from: { address: deps.config.systemFrom.address, name: "Mail Delivery" }, to: [{ address: mb.address }], cc: [],
       subject: `Undeliverable: ${m.subject || "(no subject)"}`, text, date: deps.now(), attachments: [],
+      // PRIV1b (P40): pass is fine here: the sender is the deployment's own system address, never a workspace's domain.
       authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: { "auto-submitted": "auto-replied" },
       inReplyTo: m.messageIdHeader ?? undefined,
     },

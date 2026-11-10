@@ -191,7 +191,8 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   // Mail from a connected address always goes through its provider, so the Sent copy lives there too.
   for (const r of recipients) ((!conn && (await isHosted(db, r))) ? internal : external).push(r);
 
-  // PRIV1b (P40): internal mail shows pass only for a sender domain proved in DNS.
+  // PRIV1b (P40): internal mail shows pass only for a sender domain proved in DNS. The domain_unverified throw
+  // above already stops unverified senders here, so the "none" branch is a backstop in case that check moves.
   const senderAuth = domain.status === "verified" ? { spf: "pass" as const, dkim: "pass" as const, dmarc: "pass" as const } : { spf: "none" as const, dkim: "none" as const, dmarc: "none" as const };
   for (const rcpt of internal) {
     const r = await deliverInbound(deps, {

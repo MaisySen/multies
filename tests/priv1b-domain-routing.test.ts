@@ -4,6 +4,7 @@ import { makeTestApp, Client } from "./helpers";
 import { privacyWorld, verifiedDomain } from "./priv1a-world";
 import { domains, mailboxes, organizations, users } from "@/server/db/schema";
 import { isHosted } from "@/server/services/mail/delivery";
+import { createDomain } from "@/server/services/domains";
 import { ensurePlatformDomain } from "@/server/services/free-address";
 import { CONNECTED_DOMAIN } from "@/server/services/connect";
 import { CONNECTED_DOMAIN_NAME, assertDomainAllowed } from "@/server/services/suite/operator-inbox";
@@ -187,6 +188,35 @@ describe("P40: a demo workspace can't add or remove domains or send as an unprov
     expect(s2.status).toBe(409);
     expect(s2.body.error.code).toBe("domain_unverified");
     expect((await inbox(A, boxA)).some((x) => x.subject === "Spoof")).toBe(false);
+  });
+
+  it("Check DNS on the demo sample domain keeps it verified; the sample mailboxes still mail each other with pass", async () => {
+    const ctx = await makeTestApp({ DEMO_MODE: "true" });
+    const D = new Client(ctx.app);
+    expect((await D.post("/api/account/demo", {})).status).toBeLessThan(300);
+    const sample = (await D.get("/api/domains")).body.domains[0];
+    const v = await D.post(`/api/domains/${sample.id}/verify`, {});
+    expect(v.status).toBe(200);
+    expect((await ctx.db.select().from(domains).where(eq(domains.id, sample.id)).get())!.status).toBe("verified");
+    const boxes = (await D.get("/api/mailboxes")).body.mailboxes as { id: string; address: string; localPart: string }[];
+    const founders = boxes.find((b) => b.localPart === "founders")!;
+    const support = boxes.find((b) => b.localPart === "support")!;
+    const s = await D.post("/api/mail/send", { mailboxId: founders.id, to: [support.address], subject: "After check", text: "hi" });
+    expect(s.status).toBe(201);
+    expect(s.body.internal).toEqual([support.address]);
+    const m = (await inbox(D, support.id)).find((x) => x.subject === "After check")!;
+    expect(JSON.stringify((await D.get(`/api/mail/messages/${m.id}`)).body)).toMatch(/"dmarc":"pass"/);
+  });
+
+  it("only the demo seeder's sample flag passes the demo guard, not a reused DKIM key", async () => {
+    const ctx = await makeTestApp({ DEMO_MODE: "true" });
+    const D = new Client(ctx.app);
+    expect((await D.post("/api/account/demo", {})).status).toBeLessThan(300);
+    const sample = (await D.get("/api/domains")).body.domains[0];
+    const orgId = (await ctx.db.select().from(domains).where(eq(domains.id, sample.id)).get())!.orgId;
+    const dkimKey = { publicKeyB64: "AAAA", privateKeyPem: "-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----" };
+    await expect(createDomain(ctx.deps, orgId, "partner.io", { dkimKey })).rejects.toMatchObject({ status: 403, code: "demo_domains_off" });
+    expect(await ctx.db.select().from(domains).where(eq(domains.name, "partner.io")).get()).toBeUndefined();
   });
 
   it("a non-demo workspace still adds and removes its own domains", async () => {
