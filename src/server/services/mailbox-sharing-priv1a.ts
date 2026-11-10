@@ -7,7 +7,7 @@ import type { AuthContext, Deps } from "../context";
 import { mailboxAccessLog, mailboxDelegations, mailboxes, members, users } from "../db/schema";
 import { newId } from "../lib/crypto";
 import { badRequest, forbidden, notFound } from "../lib/errors";
-import { forgetPicture, ownerOfPersonal, type ShareLevel } from "./mail-access-priv1a";
+import { personalInfo, type ShareLevel } from "./mail-access-priv1a";
 
 export const SHARE_LEVELS: ShareLevel[] = ["read", "reply", "send_as"];
 export const ACCESS_LOG_PAGE = 50;
@@ -26,14 +26,18 @@ export function deviceOf(headers: Headers | undefined, who: Who): "web" | "phone
 // Isolate memory: skip the database for a repeat open in the window (the database check still holds across isolates).
 const recent = new Map<string, number>();
 
-/** Logs an open by anyone but the owner of a personal mailbox. Never throws into the read. */
+/**
+ * Logs an open by anyone but the owner of a personal mailbox. Never throws into the read. Callers log only what the
+ * person could open (PRIV1b, P17): the shared readers call it after their scope check.
+ */
 export async function logMailboxOpen(deps: Deps, who: Who, mailboxId: string, action: "opened_mailbox" | "opened_thread", targetId: string | null, headers?: Headers) {
   try {
-    const owner = await ownerOfPersonal(deps.db, who, mailboxId);
-    if (owner === undefined || (owner && owner === who.userId)) return;
     const key = `${mailboxId}:${who.userId}:${action}:${targetId ?? ""}`;
     const now = deps.now().getTime();
     if ((recent.get(key) ?? 0) > now - OPEN_LOG_WINDOW_MS) return;
+    // PRIV1b (P29): one indexed read on the mailbox, not the workspace's whole picture.
+    const p = await personalInfo(deps.db, who.orgId, mailboxId);
+    if (!p || (p.owner && p.owner === who.userId)) return;
     if (recent.size > 2000) recent.clear();
     recent.set(key, now);
     const last = await deps.db.select({ at: mailboxAccessLog.createdAt, actor: mailboxAccessLog.actorUserId, action: mailboxAccessLog.action, target: mailboxAccessLog.targetId }).from(mailboxAccessLog)
@@ -101,7 +105,6 @@ export async function shareMailbox(deps: Deps, who: Who, mailboxId: string, user
   if (before) await deps.db.update(mailboxDelegations).set({ level }).where(and(eq(mailboxDelegations.mailboxId, mailboxId), eq(mailboxDelegations.userId, userId)));
   else await deps.db.insert(mailboxDelegations).values({ orgId: who.orgId, mailboxId, userId, level, grantedByUserId: who.userId });
   await deps.db.insert(mailboxAccessLog).values({ id: newId("mal"), orgId: who.orgId, mailboxId, actorUserId: who.userId, actorEmail: who.email ?? null, action: before ? "share_changed" : "share_granted", targetId: `${userId}:${level}`, device: null });
-  forgetPicture(who);
   return sharingView(deps, who, mailboxId);
 }
 
@@ -117,7 +120,6 @@ export async function unshareMailbox(deps: Deps, who: Who, mailboxId: string, us
   // unshare: the maintenance sweep takes what is left.
   await (await import("./mailserver")).destroyForeignAppPasswords(deps, who.orgId, mailboxId).catch((err: unknown) => deps.reportError?.(err, { where: "unshare.app_passwords" }));
   await deps.db.insert(mailboxAccessLog).values({ id: newId("mal"), orgId: who.orgId, mailboxId, actorUserId: who.userId, actorEmail: who.email ?? null, action: "share_revoked", targetId: userId, device: null });
-  forgetPicture(who);
   return self ? { ok: true } : sharingView(deps, who, mailboxId);
 }
 

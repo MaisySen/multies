@@ -26,6 +26,7 @@ import { deprovisionMailbox } from "../mailserver";
 import { mailboxScope } from "../team";
 import { memberSigningInAs } from "../addresses";
 import { assertOpen, keepOpenableBy } from "../mail-access-priv1a";
+import { logMailboxOpen } from "../mailbox-sharing-priv1a";
 import { agentMessage, extractCodes, extractLinks, latestText } from "./parse";
 import { listThreadStates, threadViewCond, type ThreadView } from "../mail/thread-state";
 import { inChunks, inIds } from "../../lib/sql-chunks";
@@ -408,6 +409,8 @@ export async function readThread(deps: Deps, actor: Actor, threadId: string, ori
   const atts = await deps.db.select().from(attachments).where(inIds(attachments.messageId, rows.map((r) => r.id)));
   const names = await agentNames(deps, actor.orgId);
   const approvals = await deps.db.select().from(sendApprovals).where(and(eq(sendApprovals.orgId, actor.orgId), eq(sendApprovals.threadId, threadId), eq(sendApprovals.status, "pending")));
+  // PRIV1b (P17): the Team inbox reader, v1 GET /threads/{id} and MCP read_thread land in "Who opened my mailbox".
+  for (const mb of new Set(rows.map((r) => r.mailboxId))) await logMailboxOpen(deps, actor, mb, "opened_thread", threadId);
   if (actor.agentId) {
     const { a, mb } = await row(deps, actor.orgId, actor.agentId);
     // Reads roll up to one audit row per agent, thread and hour (round 20): an agent polling a thread

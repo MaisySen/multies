@@ -6,7 +6,7 @@
  */
 import { Zip, ZipDeflate } from "fflate";
 import Papa from "papaparse";
-import { and, asc, eq, gt, ne, or } from "drizzle-orm";
+import { and, asc, eq, gt, ne, or, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../context";
 import {
   accounts, aliases, apiKeys, appPasswords, attachments, auditLogs, domains, invitations, mailboxAccess, mailboxes,
@@ -18,6 +18,7 @@ import { cancelForDeletion } from "./billing";
 import { inIds } from "../lib/sql-chunks";
 import { EXPORT_README, writeWorkData, type ZipSink } from "./data-move/export";
 import { toMboxEntry } from "./data-move/formats";
+import { endPersonalMail } from "./team";
 
 const PAGE = 200;
 const enc = new TextEncoder();
@@ -87,12 +88,17 @@ export function exportWorkspace(deps: Deps, auth: AuthContext, opts: { onDone?: 
       try {
         const org = await db.select().from(organizations).where(eq(organizations.id, orgId)).get();
         if (!org) throw new HttpError(404, "not_found", "Workspace not found.");
+        // PRIV1b (P28): the role as stored, since the export link's download rebuilds the auth as an admin.
+        const owner = auth.userId ? (await db.select({ role: members.role }).from(members).where(and(eq(members.organizationId, orgId), eq(members.userId, auth.userId))).get())?.role === "owner" : false;
         const [mem, doms, boxes, als, hooks, keys, pw, inv, sup] = await Promise.all([
           db.select({ email: users.email, name: users.name, role: members.role, joinedAt: members.createdAt }).from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.organizationId, orgId)),
           db.select().from(domains).where(eq(domains.orgId, orgId)),
           // PRIV1a (MB-366): a workspace export carries team mailboxes and the exporter's own; someone else's personal
           // mailbox (their connected Gmail, their free address) stays theirs. Its owner exports it themselves.
-          db.select().from(mailboxes).where(and(eq(mailboxes.orgId, orgId), or(eq(mailboxes.personal, false), eq(mailboxes.ownerUserId, auth.userId || "-")))),
+          // PRIV1b (P28): a workspace owner also takes the orphaned ones (no owner, or the owner left), which open only to
+          // them; mailboxes merely shared with the exporter stay out.
+          db.select().from(mailboxes).where(and(eq(mailboxes.orgId, orgId), or(eq(mailboxes.personal, false), eq(mailboxes.ownerUserId, auth.userId || "-"),
+            owner ? sql`not exists (select 1 from members x where x.user_id = ${mailboxes.ownerUserId} and x.organization_id = ${mailboxes.orgId})` : undefined))),
           db.select().from(aliases).where(eq(aliases.orgId, orgId)),
           db.select({ url: webhookEndpoints.url, events: webhookEndpoints.events, enabled: webhookEndpoints.enabled, createdAt: webhookEndpoints.createdAt }).from(webhookEndpoints).where(eq(webhookEndpoints.orgId, orgId)),
           db.select({ name: apiKeys.name, prefix: apiKeys.prefix, scope: apiKeys.scope, createdAt: apiKeys.createdAt, lastUsedAt: apiKeys.lastUsedAt }).from(apiKeys).where(eq(apiKeys.orgId, orgId)),
@@ -183,6 +189,10 @@ export async function beforeUserDelete(deps: Deps, userId: string) {
       .where(and(eq(members.organizationId, m.organizationId), ne(members.userId, userId), eq(members.kind, "human")));
     if (others.length) {
       await audit(db, { orgId: m.organizationId, actorUserId: userId, action: "member.account_deleted" });
+      // PRIV1b (P9): shares end both ways and the personal connections stop. App passwords on the person's own mailboxes
+      // go with the maintenance sweep once the account (and so the membership) is gone.
+      const u = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).get();
+      await endPersonalMail(deps, m.organizationId, userId, { userId, email: u?.email ?? null });
       continue;
     }
     const org = await db.select().from(organizations).where(eq(organizations.id, m.organizationId)).get();

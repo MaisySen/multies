@@ -115,8 +115,9 @@ export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string |
   // PRIV1a (MB-366): the one mailbox rule (team mailboxes for admins, grants for members, personal mailboxes only for
   // their owner and shares). One bound variable whatever the list's length.
   // People: one SQL condition inside the same statement (R41: counts stays one statement). Agents and system: their list.
-  const sc = a.agentId || a.system ? await scopeOf(deps, a) : null;
-  const scope = a.agentId || a.system ? (sc ? inIds(messages.mailboxId, sc) : undefined) : scopeCond({ userId: a.userId, orgId: a.orgId, role: a.role ?? "member" }, messages.mailboxId);
+  // PRIV1b (P34): agents returned above (person is false for them), so only a system actor reaches the list form.
+  const sc = a.system ? await scopeOf(deps, a) : null;
+  const scope = a.system ? (sc ? inIds(messages.mailboxId, sc) : undefined) : scopeCond({ userId: a.userId, orgId: a.orgId, role: a.role ?? "member" }, messages.mailboxId);
   const unread = unreadQuery(deps, a.orgId, a.userId).as("u");
   const chatTotal = deps.db.select({ n: sql<number>`coalesce(sum(${unread.unread}), 0)` }).from(unread);
   const chatMentions = deps.db.select({ n: sql<number>`coalesce(sum(${unread.mentions}), 0)` }).from(unread);

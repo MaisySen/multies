@@ -127,6 +127,7 @@ export function mailRoutes() {
       // R31: split inbox. Only Inbox has tabs; elsewhere the parameter is ignored.
       const splitExtra = q.split && q.folder === "inbox" && !q.q && !q.remote ? await splitCond(c.var.deps, c.var.auth, q.split) : undefined;
       const snoozeExtra = q.folder === "inbox" && !q.q && !q.remote ? snoozeHiddenCond(c.var.deps.now()) : undefined;
+      const listScope = await mailboxScope(c.var.deps.db, c.var.auth);
       const result = await listMessages(c.var.deps.db, c.var.auth.orgId, {
         mailboxId: q.mailboxId,
         folder: q.remote ? undefined : (q.folder as Folder | "starred" | undefined),
@@ -134,12 +135,13 @@ export function mailRoutes() {
         search: q.q,
         cursor: q.cursor,
         limit: q.limit,
-        scope: await mailboxScope(c.var.deps.db, c.var.auth),
+        scope: listScope,
         // Round 20: a snoozed thread stays out of Inbox until its time. R85: a label narrows any folder.
         extra: and(snoozeExtra, splitExtra, q.label ? labelCond(c.var.auth.orgId, q.label) : undefined),
       });
       // PRIV1a: a delegate opening someone's personal mailbox lands in its "Who opened" log (the first page only).
-      if (q.mailboxId && !q.cursor) await logMailboxOpen(c.var.deps, c.var.auth, q.mailboxId, "opened_mailbox", null, c.req.raw.headers);
+      // PRIV1b (P17): only a mailbox the person could open; any other id showed nothing and accuses them of nothing.
+      if (q.mailboxId && !q.cursor && (!listScope || listScope.includes(q.mailboxId))) await logMailboxOpen(c.var.deps, c.var.auth, q.mailboxId, "opened_mailbox", null, c.req.raw.headers);
       // R85: labels on the page's threads (one read).
       if (result.messages.length) {
         const labels = await labelsFor(c.var.deps, c.var.auth.orgId, result.messages.map((m) => m.threadId));
@@ -234,11 +236,13 @@ export function mailRoutes() {
     .get("/attachments/:id", async (c) => {
       const { db } = c.var.deps;
       const scope = await mailboxScope(db, c.var.auth);
-      const a = await db.select({ a: attachments, orgId: messages.orgId, mailboxId: messages.mailboxId }).from(attachments)
+      const a = await db.select({ a: attachments, orgId: messages.orgId, mailboxId: messages.mailboxId, threadId: messages.threadId }).from(attachments)
         .innerJoin(messages, eq(messages.id, attachments.messageId))
         .where(eq(attachments.id, c.req.param("id"))).get();
       const bytes = a && a.orgId === c.var.auth.orgId && (!scope || scope.includes(a.mailboxId)) ? await attachmentBytes(a.a, c.var.deps.bodyStore) : null;
       if (!a || !bytes) throw notFound("Attachment");
+      // PRIV1b (P17): a download from someone's personal mailbox is an open of its thread.
+      await logMailboxOpen(c.var.deps, c.var.auth, a.mailboxId, "opened_thread", a.threadId, c.req.raw.headers);
       return new Response(bytes as BodyInit, {
         headers: {
           "content-type": "application/octet-stream",
