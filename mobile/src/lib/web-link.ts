@@ -9,8 +9,10 @@ import { isApiError } from "@/api/transport";
 import { API_BASE } from "@/config";
 import { colors } from "@/theme";
 
-let linkMissing = false;
-export function resetWebLink() { linkMissing = false; }
+// PRIV1b (P35): a 404 or 405 is remembered for 10 minutes, not until the app restarts; sign in and sign out forget it.
+export const LINK_MISSING_MS = 10 * 60_000;
+let linkMissingAt = 0;
+export function resetWebLink() { linkMissingAt = 0; }
 
 /** Only pages inside the app (never another host, never a full URL from outside). */
 export const safeAppPath = (p: string) => (typeof p === "string" && /^\/app(\/|$|\?|#)/.test(p) && !p.includes("//") ? p : "/app");
@@ -18,19 +20,19 @@ export const safeAppPath = (p: string) => (typeof p === "string" && /^\/app(\/|$
 /**
  * The URL to open: the server's one time sign in link (MH1: POST /api/auth/mobile/web-link answers a code good for
  * 60 s, then /auth/mobile/web?code=..&next=/app/.. signs the browser in and goes to the page), else the page itself.
- * A fresh code per tap, never kept, logged or reported. 404 (switched off or an older server) is remembered for this
- * session; anything else (signed out, rate limited) just opens the plain page this time.
+ * A fresh code per tap, never kept, logged or reported. 404 (switched off or an older server) is remembered for ten
+ * minutes; anything else (signed out, rate limited) just opens the plain page this time.
  */
 export async function signedInUrl(transport: Pick<Transport, "request">, path: string, base = API_BASE): Promise<string> {
   const next = safeAppPath(path);
   const plain = `${base}${next}`;
-  if (linkMissing) return plain;
+  if (linkMissingAt && Date.now() - linkMissingAt < LINK_MISSING_MS) return plain;
   try {
     const r = await transport.request<{ code?: string }>("POST", "/auth/mobile/web-link", { next });
     const code = typeof r?.code === "string" && /^[A-Za-z0-9_-]{20,128}$/.test(r.code) ? r.code : null;
     return code ? `${base}/auth/mobile/web?code=${code}&next=${encodeURIComponent(next)}` : plain;
   } catch (e) {
-    if (isApiError(e) && (e.status === 404 || e.status === 405)) linkMissing = true;
+    if (isApiError(e) && (e.status === 404 || e.status === 405)) linkMissingAt = Date.now();
     return plain;
   }
 }
@@ -51,13 +53,15 @@ export function inAppOptions(): WebBrowser.WebBrowserOpenOptions {
 /**
  * MFIX1 (1.10.16): pages that record, download or export a file open in the phone's own browser (Safari or Chrome),
  * because the in-app browser cannot hand the finished file to the save or share sheet (a meeting recording got stuck on
- * "Saving the video"). Meetings (the room, its recording and notes) and any recordings, export or download page. The web
- * Tools pages are editors and share links, not file hand offs, so they stay inside the app. Everything else stays inside the app.
+ * "Saving the video"). PRIV1b (P33): an explicit list of the web's /app routes (src/web/router.tsx) whose job is to hand
+ * over a file: meetings (the room, its recording and notes), Files, Convert, Edit PDF, Fix PDF, and the mail archive and
+ * data request exports in Settings. A guessed pattern matched no real route. Everything else stays inside the app.
  */
+const FILE_ROUTES = ["/app/meetings", "/app/files", "/app/tools/convert", "/app/tools/edit-pdf", "/app/tools/pdf-fix", "/app/settings/mail-archive", "/app/settings/data-requests"];
 export function opensInSystemBrowser(path: string): boolean {
   if (typeof path !== "string") return false;
-  const bare = path.split(/[?#]/)[0];
-  return /^\/app\/meetings(\/|$)/.test(bare) || /\/(recordings?|exports?|downloads?)(\/|$)/.test(bare);
+  const bare = path.split(/[?#]/)[0].replace(/\/+$/, "");
+  return FILE_ROUTES.some((r) => bare === r || bare.startsWith(`${r}/`));
 }
 
 /** Opens a page in the phone's own browser; if the phone refuses, the in-app browser instead. https only (or this server). */

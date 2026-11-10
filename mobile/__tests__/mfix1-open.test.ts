@@ -29,7 +29,8 @@ beforeEach(() => {
 describe("which pages leave the app", () => {
   it.each([
     ["/app/meetings", true], ["/app/meetings/mtg_1", true], ["/app/meetings/mtg_1?join=1", true], ["/app/tools/compare", false],
-    ["/app/meetings/mtg_1/recordings", true], ["/app/docs/d1/export", true], ["/app/files/f1/download", true],
+    ["/app/meetings/mtg_1/recordings", true], ["/app/settings/data-requests", true], ["/app/files/f1/download", true], // PRIV1b (P33): real routes only
+    ["/app/docs/d1/export", false],
     ["/app/docs", false], ["/app/settings/apps/mail", false], ["/app", false], ["/app/meetingsx", false], ["/app/mail?q=/export", false],
   ])("%s -> %s", (path, out) => { expect(opensInSystemBrowser(path)).toBe(out); });
 });

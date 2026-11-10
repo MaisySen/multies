@@ -135,7 +135,7 @@ export default function Compose() {
     sel.current = { start: r.cursor, end: r.cursor };
   };
   const laterBlocked = files.length || toolFiles.length ? tr("m.compose3.later_files") : null;
-  const schedule = async (when: { preset: SendLaterPreset } | { local: string }) => {
+  const schedule = async (when: { preset: SendLaterPreset } | { at: string }) => {
     setError(null);
     const toList = parseRecipients(to);
     const ccList = parseRecipients(cc);

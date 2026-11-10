@@ -6,12 +6,14 @@ import { displayName, shortDate } from "@/lib/format";
 import { colors, space } from "@/theme";
 import { tr } from "@/i18n";
 
-export const MessageRow = memo(function MessageRow({ m, agents, onPress, onLongPress, showRecipient, note, noteTone, onLabel }: {
+export const MessageRow = memo(function MessageRow({ m, agents, onPress, onLongPress, showRecipient, note, noteTone, onLabel, checked }: {
   m: MessageSummary; agents?: Agent[]; onPress: () => void; onLongPress?: () => void; showRecipient?: boolean;
   /** 1.10.7: a short line under the snippet ("Back Tomorrow 8:00 am", "Back from snooze"). */
   note?: string; noteTone?: "brand" | "muted";
   /** 1.10.7: a tap on a label chip (shows all mail with that label). */
   onLabel?: (label: string) => void;
+  /** PRIV1b (P67): set while selecting: the row is a checkbox with this state, not "opens the conversation". */
+  checked?: boolean;
 }) {
   const agent = m.sentByAgentId ? agents?.find((a) => a.id === m.sentByAgentId) : undefined;
   const who = showRecipient ? tr("m.inbox.to_displayname", { displayName: m.to.map(displayName).join(", ") }) : agent?.name ?? displayName(m.from);
@@ -19,7 +21,8 @@ export const MessageRow = memo(function MessageRow({ m, agents, onPress, onLongP
   // MB-361: the name starts with what the row shows first (who), so voice control finds it by the visible words.
   const label = [who, m.subject || tr("m.inbox.no_subject_plain"), m.isRead ? "" : tr("m.inbox.unread"), m.snippet, shortDate(m.date), agent ? tr("m.inbox.written_by_agent", { name: agent.name }) : "", labels.length ? tr("m.inbox.labels_list", { labels: labels.join(", ") }) : "", note ?? ""].filter(Boolean).join(". ");
   const row = (
-    <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={350} accessibilityRole="button" accessibilityLabel={label} accessibilityHint={onLongPress ? tr("m.inbox.opens_the_conversation_long_press_for_more_actio") : tr("m.inbox.opens_the_conversation")}
+    <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={350} {...(checked !== undefined ? { role: "checkbox" as const, "aria-checked": checked, accessibilityRole: "checkbox" as const, accessibilityState: { checked } }
+      : { accessibilityRole: "button" as const, accessibilityHint: onLongPress ? tr("m.inbox.opens_the_conversation_long_press_for_more_actio") : tr("m.inbox.opens_the_conversation") })} accessibilityLabel={label}
       style={({ pressed }) => [s.row, labels.length && onLabel ? { borderBottomWidth: 0, paddingBottom: space.xs } : null, pressed && { backgroundColor: colors.surface }]}>
       <View style={s.dotCol}>{!m.isRead ? <View style={s.dot} /> : null}</View>
       <Avatar name={displayName(m.from)} agent={!!m.sentByAgentId} />

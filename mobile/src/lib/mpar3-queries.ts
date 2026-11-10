@@ -80,18 +80,19 @@ export function useMeetingRecordings(id: string) {
 export function useSnippets(enabled: boolean) {
   const { transport, mode } = useSession();
   return useQuery({ queryKey: [...mpar3Keys.snippets, mode], retry, enabled, networkMode: "always",
-    queryFn: async () => (await transport.request<{ snippets: Snippet[] }>("GET", "/mail-snippets")).snippets ?? [] });
+    // PRIV1b (P55): the server mounts saved replies at /api/mail/snippets; /mail-snippets was always a 404 ("off").
+    queryFn: async () => (await transport.request<{ snippets: Snippet[] }>("GET", "/mail/snippets")).snippets ?? [] });
 }
 export function useRenderSnippet() {
   const { transport } = useSession();
   return useMutation({ mutationFn: (p: { id: string; to?: string; mailboxId?: string; threadId?: string }) =>
-    transport.request<{ body: string; subject?: string | null }>("POST", `/mail-snippets/${enc(p.id)}/render`, { to: p.to || null, mailboxId: p.mailboxId || null, threadId: p.threadId || null }) });
+    transport.request<{ body: string; subject?: string | null }>("POST", `/mail/snippets/${enc(p.id)}/render`, { to: p.to || null, mailboxId: p.mailboxId || null, threadId: p.threadId || null }) });
 }
 export function useSendLater() {
   const { transport } = useSession();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (p: { message: SendInput; when: { preset: SendLaterPreset } | { local: string }; key: string }) =>
+    mutationFn: (p: { message: SendInput; when: { preset: SendLaterPreset } | { at: string }; key: string }) =>
       transport.request<unknown>("POST", "/mail-schedules/send", { message: p.message, ...p.when }, { idempotencyKey: p.key }),
     onSettled: () => { void qc.invalidateQueries({ queryKey: ["messages"] }); },
   });

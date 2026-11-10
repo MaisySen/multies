@@ -23,7 +23,7 @@ import type { ListFolder, MessageSummary } from "@/api/types";
 import { colors, radius, space, TOUCH } from "@/theme";
 import { tr } from "@/i18n";
 import { BulkBar, FolderSheet, SelectableRow } from "@/components/mail-bulk";
-import { toggleId } from "@/lib/mpar3";
+import { BULK_MAX, allPickedOf, toggleId } from "@/lib/mpar3";
 
 type View_ = ListFolder | "snoozed";
 const FOLDERS: { id: View_; label: string }[] = [
@@ -45,7 +45,6 @@ export default function Inbox() {
   const [label, setLabel] = useState<string | null>(null);
   const [tab, setTabRaw] = useState<string | null>(rememberedTab);
   useEffect(() => { if (rememberedTab === null) void kv().get(TAB_KEY).then((v) => { if (v) { rememberedTab = v; setTabRaw(v); } }).catch(() => {}); }, []);
-  const setTab = (id: string) => { tick(); rememberedTab = id; setTabRaw(id); void kv().set(TAB_KEY, id).catch(() => {}); };
   // MPAR3: a connected mailbox's own folder ("f:Suppliers"), and bulk select.
   const [remote, setRemote] = useState<{ mailboxId: string; key: string; name: string } | null>(null);
   const [picking, setPicking] = useState(false);
@@ -53,6 +52,10 @@ export default function Inbox() {
   const [picked, setPicked] = useState<string[]>([]);
   const endSelect = () => { setSelecting(false); setPicked([]); };
   const setFolder = (f: View_) => { setLabel(null); setRemote(null); endSelect(); setFolderRaw(f); };
+  // PRIV1b (P57): a new tab or mailbox ends the selection and leaves a connected folder, as the folder picker does,
+  // so Delete never acts on mail picked in a list that is no longer shown.
+  const setTab = (id: string) => { tick(); setRemote(null); endSelect(); rememberedTab = id; setTabRaw(id); void kv().set(TAB_KEY, id).catch(() => {}); };
+  const pickMailbox = (id: string | undefined) => { setRemote(null); endSelect(); setMailboxId(id); };
   const listFolder: ListFolder = folder === "snoozed" ? "inbox" : folder;
   // 1.10.7: Inbox tabs (only on Inbox, and not while a label is picked).
   const tabsQ = useInboxTabs(mailboxId, folder === "inbox");
@@ -84,6 +87,7 @@ export default function Inbox() {
   const open = (m: MessageSummary) => router.push({ pathname: "/thread/[id]", params: { id: m.id } });
   const backNow = (scheduleId: string) => undo.push(scheduleId, tr("m.inbox.back_in_inbox"), () => mm.unsnooze.mutate(scheduleId, { onError: () => { warning(); } }));
   const tabName = tabs.find((t) => t.id === current)?.name ?? "";
+  const allPicked = allPickedOf(picked.length, rows.length);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -97,16 +101,16 @@ export default function Inbox() {
           count={f.id === "inbox" ? unread(mailboxId) : f.id === "snoozed" ? snoozed.data?.length : undefined} onPress={() => setFolder(f.id)} />)}
         {connected.length ? <Chip label={remote ? remote.name : tr("m.folders.chip")} selected={!!remote} onPress={() => { tick(); setPicking(true); }} /> : null}
         {people.length > 1 ? <View style={{ width: 1, backgroundColor: colors.line, marginHorizontal: 4 }} /> : null}
-        {people.length > 1 ? <Chip label={tr("m.inbox.all_mailboxes")} selected={!mailboxId} onPress={() => setMailboxId(undefined)} /> : null}
-        {people.length > 1 ? people.map((m) => <Chip key={m.id} label={m.address.split("@")[0]} selected={mailboxId === m.id} onPress={() => setMailboxId(m.id)} />) : null}
+        {people.length > 1 ? <Chip label={tr("m.inbox.all_mailboxes")} selected={!mailboxId} onPress={() => pickMailbox(undefined)} /> : null}
+        {people.length > 1 ? people.map((m) => <Chip key={m.id} label={m.address.split("@")[0]} selected={mailboxId === m.id} onPress={() => pickMailbox(m.id)} />) : null}
       </ScrollView>
       {label ? <LabelBar label={label} onClear={() => setLabel(null)} /> : null}
       {remote ? <LabelBar label={remote.name} prefix={tr("m.folders.folder")} onClear={() => { setRemote(null); endSelect(); }} /> : null}
       {selecting ? (
         <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: space.lg, paddingBottom: space.xs, gap: space.sm }} testID="select-head">
           <Text style={{ flex: 1, color: colors.fg, fontSize: 15, fontWeight: "600" }} accessibilityLiveRegion="polite">{tr("m.bulk.n_selected", { count: picked.length })}</Text>
-          <Button variant="ghost" label={picked.length === rows.length && rows.length ? tr("m.bulk.select_none") : tr("m.bulk.select_all")} testID="select-all"
-            onPress={() => { tick(); setPicked(picked.length === rows.length ? [] : rows.slice(0, 500).map((m) => m.id)); }} style={{ minHeight: TOUCH }} />
+          <Button variant="ghost" label={allPicked ? tr("m.bulk.select_none") : tr("m.bulk.select_all")} testID="select-all"
+            onPress={() => { tick(); setPicked(allPicked ? [] : rows.slice(0, BULK_MAX).map((m) => m.id)); }} style={{ minHeight: TOUCH }} />
         </View>
       ) : null}
       {tabsOn ? <TabBar tabs={tabs} current={current} onPick={setTab} /> : null}
@@ -146,7 +150,7 @@ export default function Inbox() {
               const on = picked.includes(item.id);
               return (
                 <SelectableRow on={on} label={`${item.from.name || item.from.address}, ${item.subject || tr("m.bulk.no_subject")}`} onToggle={() => setPicked((cur) => toggleId(cur, item.id))} testID={`select-${item.id}`}>
-                  <MessageRow m={item} agents={agents.data} showRecipient={folder === "sent"} onPress={() => setPicked((cur) => toggleId(cur, item.id))} />
+                  <MessageRow m={item} agents={agents.data} showRecipient={folder === "sent"} checked={on} onPress={() => setPicked((cur) => toggleId(cur, item.id))} />
                 </SelectableRow>
               );
             }

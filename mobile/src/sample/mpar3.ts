@@ -154,9 +154,10 @@ export function mpar3Route(s: SampleMpar3, method: string, path: string, body: u
   if (method === "GET" && parts[0] === "meeting-notes" && parts.length === 2) return notes(ctx.meetings.find((m) => m.id === parts[1]), parts[1]);
   if (method === "GET" && parts[0] === "meetings" && parts[2] === "recordings" && parts.length === 3) return { recordings: recordings(parts[1]), setup: { ready: true } };
   // Saved replies, send later, secret links
-  if (method === "GET" && path === "/mail-snippets") return { snippets: SNIPPETS };
-  if (method === "POST" && parts[0] === "mail-snippets" && parts[2] === "render") {
-    const sn = SNIPPETS.find((x) => x.id === parts[1]);
+  // PRIV1b (P55): the same paths as the server (/api/mail/snippets).
+  if (method === "GET" && path === "/mail/snippets") return { snippets: SNIPPETS };
+  if (method === "POST" && parts[0] === "mail" && parts[1] === "snippets" && parts[3] === "render") {
+    const sn = SNIPPETS.find((x) => x.id === parts[2]);
     if (!sn) throw new ApiError(404, "not_found", "Saved reply not found");
     const to = String(b.to ?? "");
     const first = to ? (to.split("@")[0].split(/[._-]/)[0] || "there") : "there";

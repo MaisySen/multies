@@ -2,7 +2,7 @@
 import fs from "fs";
 import path from "path";
 import { webcrypto } from "crypto";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { SessionProvider } from "@/lib/session";
@@ -116,7 +116,8 @@ describe("compose helpers", () => {
     expect(ins.text.endsWith("Thanks")).toBe(true);
     expect(ins.text.slice(0, ins.cursor)).toMatch(/Body\s*$/);
     expect(localWhen("2020-01-01", "09:00")).toHaveProperty("error");
-    expect(localWhen("2099-01-01", "09:00")).toEqual({ local: "2099-01-01T09:00" });
+    // PRIV1b (P56): the instant in the phone's own zone, not a wall clock the server reads in another zone.
+    expect(localWhen("2099-01-01", "09:00")).toEqual({ at: new Date(2099, 0, 1, 9, 0).toISOString() });
   });
   it("locks a secret the way the web opens it", async () => {
     const subtle = webcrypto.subtle;
@@ -161,9 +162,9 @@ describe("sample workspace", () => {
     const feed = await transport.request<{ feed: { url?: string; enabled: boolean } }>("POST", "/calendar/feed", { includeTasks: true });
     expect(feed.feed.enabled).toBe(true);
     expect(feed.feed.url).toMatch(/^https:/);
-    const snips = await transport.request<{ snippets: unknown[] }>("GET", "/mail-snippets");
+    const snips = await transport.request<{ snippets: unknown[] }>("GET", "/mail/snippets");
     expect(snips.snippets.length).toBe(3);
-    const r = await transport.request<{ body: string }>("POST", "/mail-snippets/snp_1/render", { to: "sam@example.com" });
+    const r = await transport.request<{ body: string }>("POST", "/mail/snippets/snp_1/render", { to: "sam@example.com" });
     expect(r.body).not.toContain("{first_name}");
     const sec = await transport.request<{ secret: { url: string } }>("POST", "/tools/secrets", { kind: "text", ciphertext: "abc", label: null, passphrase: false, maxViews: 1, expiresInSeconds: 3600, notify: false });
     expect(sec.secret.url).toMatch(/^https:/);
@@ -182,8 +183,22 @@ describe("screens", () => {
     const Calendar = require("@/app/calendar").default;
     const r = await wrap(<Calendar />);
     expect(await r.findByTestId("calendar-screen", {}, { timeout: 10000 })).toBeTruthy();
-    await fireEvent.press(await r.findByLabelText(tr("m.cal.view_agenda"), {}, { timeout: 10000 }));
-    await waitFor(() => expect(r.getAllByText(/./).length).toBeGreaterThan(5), { timeout: 10000 });
+    // PRIV1b (P68): pick a day, switch to Week (the pick stays), then Agenda (its own list, titled Next 30 days).
+    const today = new Date();
+    const other = new Date(today.getFullYear(), today.getMonth(), today.getDate() === 10 ? 11 : 10);
+    const key = `${other.getFullYear()}-${String(other.getMonth() + 1).padStart(2, "0")}-${String(other.getDate()).padStart(2, "0")}`;
+    const heading = calFmt(other, { weekday: "long", day: "numeric", month: "long" });
+    await fireEvent.press(await r.findByTestId(`day-${key}`, {}, { timeout: 10000 }));
+    await waitFor(() => expect(within(r.getByTestId("calendar-day")).getByText(heading)).toBeTruthy(), { timeout: 10000 });
+    await fireEvent.press(r.getByLabelText(tr("m.cal.view_week")));
+    await waitFor(() => expect(r.getByTestId("calendar-week")).toBeTruthy(), { timeout: 10000 });
+    expect(r.getByTestId(`day-${key}`).props.accessibilityState).toEqual(expect.objectContaining({ selected: true }));
+    expect(within(r.getByTestId("calendar-day")).getByText(heading)).toBeTruthy();
+    await fireEvent.press(r.getByLabelText(tr("m.cal.view_agenda")));
+    expect(await r.findByTestId("calendar-agenda", {}, { timeout: 10000 })).toBeTruthy();
+    expect(r.queryByTestId("calendar-day")).toBeNull();
+    expect(r.queryByTestId("calendar-week")).toBeNull();
+    expect(r.getByTestId("calendar-title").props.children).toBe(tr("m.cal.next_30_days"));
   });
   it("Calendar settings lists other calendars", async () => {
     const S = require("@/app/calendar-settings").default;
@@ -234,10 +249,19 @@ describe("language, saved picks and theme", () => {
   it("names months and weekdays in Nepali even where the browser has no Nepali calendar", () => {
     setLangForTests("ne");
     const d = new Date(2026, 10, 5, 9, 30);
-    for (const o of [{ month: "long", year: "numeric" }, { weekday: "long", day: "numeric", month: "long" }, { weekday: "short" }, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }] as Intl.DateTimeFormatOptions[]) {
-      const out = calFmt(d, o);
-      expect([out, /[\u0900-\u097F]/.test(out), /\bM\d/.test(out)]).toEqual([out, true, false]);
-    }
+    // PRIV1b (P68): force the fallback: a browser with no Nepali calendar prints "M11" or English names.
+    const date = jest.spyOn(Date.prototype, "toLocaleDateString").mockImplementation(() => "M11 2026");
+    const full = jest.spyOn(Date.prototype, "toLocaleString").mockImplementation(() => "Thu, Nov 5, 9:30 AM");
+    const time = jest.spyOn(Date.prototype, "toLocaleTimeString").mockImplementation(() => "९:३०");
+    try {
+      expect(calFmt(d, { month: "long", year: "numeric" })).toBe("नोभेम्बर 2026");
+      expect(calFmt(d, { weekday: "long", day: "numeric", month: "long" })).toBe("बिहीबार, 5 नोभेम्बर");
+      expect(calFmt(d, { weekday: "short" })).toBe("बिही");
+      expect(calFmt(new Date(2026, 0, 4), { weekday: "narrow" })).toBe("आ");
+      expect(calFmt(d, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })).toBe("बिही, 5 नोभेम्बर, ९:३०");
+      expect(date).toHaveBeenCalled();
+      expect(full).toHaveBeenCalled();
+    } finally { date.mockRestore(); full.mockRestore(); time.mockRestore(); }
   });
   it("colours meetings with the accent in every look", () => {
     const blue = paletteFor("light", "blue"), forest = paletteFor("dark", "forest");

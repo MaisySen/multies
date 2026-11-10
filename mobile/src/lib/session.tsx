@@ -14,6 +14,7 @@ import { signInAtIdp } from "./idp";
 import { verdictFor } from "./auth-keep";
 import { AppState } from "react-native";
 import { clearLock } from "./app-lock";
+import { resetWebLink } from "./web-link";
 
 export type Status = "loading" | "signedOut" | "twoFactor" | "signedIn";
 export type Mode = "live" | "sample";
@@ -95,6 +96,9 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
     })();
     return () => { cancelled = true; };
   }, [initialMode, live, sample, transportOverride]);
+
+  // PRIV1b (P35): a sign in or sign out forgets a remembered "no sign in links" answer from the server.
+  useEffect(() => { resetWebLink(); }, [status]);
 
   // R33: renew the session before it runs out, at launch and each time the app comes back.
   useEffect(() => {

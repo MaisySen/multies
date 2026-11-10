@@ -75,7 +75,7 @@ export function ExtraButton({ icon, label, onPress, testID, disabled }: { icon: 
   );
 }
 
-/** The saved replies list: tapping one fills it in for this recipient (POST /api/mail-snippets/:id/render). */
+/** The saved replies list: tapping one fills it in for this recipient (POST /api/mail/snippets/:id/render). */
 export function SavedRepliesSheet({ visible, onClose, to, mailboxId, onPick }: {
   visible: boolean; onClose: () => void; to: string; mailboxId?: string; onPick: (r: { body: string; subject: string }) => void;
 }) {
@@ -109,12 +109,12 @@ export function SavedRepliesSheet({ visible, onClose, to, mailboxId, onPick }: {
 
 /** Send later: Later today, Tomorrow morning, Next week, or a day and time typed in. */
 export function SendLaterSheet({ visible, onClose, onSchedule, busy, blocked }: {
-  visible: boolean; onClose: () => void; onSchedule: (when: { preset: SendLaterPreset } | { local: string }) => Promise<void>; busy: boolean; blocked: string | null;
+  visible: boolean; onClose: () => void; onSchedule: (when: { preset: SendLaterPreset } | { at: string }) => Promise<void>; busy: boolean; blocked: string | null;
 }) {
   const [day, setDay] = useState(() => dayKey(addDays(new Date(), 1)));
   const [time, setTime] = useState("09:00");
   const [err, setErr] = useState<string | null>(null);
-  const go = async (when: { preset: SendLaterPreset } | { local: string }) => {
+  const go = async (when: { preset: SendLaterPreset } | { at: string }) => {
     setErr(null);
     try { await onSchedule(when); } catch (x) { warning(); setErr((x as Error).message || tr("m.compose3.schedule_failed")); }
   };
