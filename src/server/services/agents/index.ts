@@ -20,7 +20,7 @@ import { audit } from "../audit";
 import { addonHint, assertCanCreate, bumpCounter, getPlan, readCounter } from "../plans";
 import { createApiKey, listApiKeys } from "../developer/api-keys";
 import { emitEvent } from "../developer/webhooks";
-import { isHosted } from "../mail/delivery";
+import { routeRecipient } from "../mail/delivery";
 import { sendMessage, type SendResult } from "../mail/send";
 import { deprovisionMailbox } from "../mailserver";
 import { mailboxScope } from "../team";
@@ -71,6 +71,17 @@ export async function agentMailboxIds(deps: Deps, a: Agent): Promise<string[]> {
   return keepOpenableBy(deps.db, a.orgId, a.createdByUserId, [a.mailboxId, ...rows.map((r) => r.id).filter((id) => id !== a.mailboxId)]);
 }
 
+/**
+ * PRIV1b (P4): the agent's mailboxes as this caller may work them. The agent's own key gets them all; a person or a
+ * workspace key acting for the agent loses the personal mailboxes the caller doesn't own (the maker's private inbox
+ * isn't open to every admin's key through the agent).
+ */
+export async function agentMailboxIdsFor(deps: Deps, actor: Actor, agent: Agent | string): Promise<string[]> {
+  const a = typeof agent === "string" ? (await row(deps, actor.orgId, agent)).a : agent;
+  const ids = await agentMailboxIds(deps, a);
+  return actor.agentId === a.id ? ids : keepOpenableBy(deps.db, a.orgId, actor.userId, ids);
+}
+
 const startOfUtcDay = (now: Date) => new Date(Math.floor(now.getTime() / DAY) * DAY);
 
 /**
@@ -119,6 +130,17 @@ export function assertActsAs(actor: Actor, agentId: string) {
 export function assertWorkspaceActor(actor: Actor) {
   if (actor.agentId) throw new HttpError(403, "agent_key_scope", "Agent keys can't manage agents. Use a workspace key from Settings, Developers.");
   if (actor.role === "member") throw forbidden("Only workspace owners and admins can manage agent inboxes.");
+}
+
+/**
+ * PRIV1b (P3, P4): a personal mailbox goes on an agent only by its owner's own hand (for a key: the key's creator).
+ * Admins manage agents, they don't route someone's private inbox through one, and a share never counts.
+ */
+async function assertOwnPersonal(deps: Deps, actor: Actor, ids: string[]) {
+  if (!ids.length) return;
+  const rows = await deps.db.select({ id: mailboxes.id, owner: mailboxes.ownerUserId }).from(mailboxes)
+    .where(and(eq(mailboxes.orgId, actor.orgId), eq(mailboxes.personal, true), inIds(mailboxes.id, ids)));
+  if (rows.some((r) => !actor.userId || r.owner !== actor.userId)) throw forbidden("Only its owner can give a personal mailbox to an agent.");
 }
 
 const actorFields = (actor: Actor) => ({ actorUserId: actor.userId || null, actorEmail: actor.email });
@@ -188,6 +210,7 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
   if (extra.length) {
     const ok = await db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.orgId, actor.orgId), inIds(mailboxes.id, extra)));
     if (ok.length !== extra.length) throw badRequest("One of those mailboxes doesn't exist in this workspace.");
+    await assertOwnPersonal(deps, actor, extra);
   }
   const mailboxId = opts.mailboxId ?? newId("mbx");
   await db.insert(mailboxes).values({
@@ -227,6 +250,11 @@ export interface UpdateAgentInput {
 export async function updateAgent(deps: Deps, actor: Actor, id: string, patch: UpdateAgentInput) {
   assertWorkspaceActor(actor);
   const { a } = await row(deps, actor.orgId, id);
+  if (patch.mailboxIds) {
+    // PRIV1b (P3, P4): checked before any write. Mailboxes the agent already holds may stay; new personal ones need their owner.
+    const held = new Set((await deps.db.select({ id: agentMailboxAccess.mailboxId }).from(agentMailboxAccess).where(eq(agentMailboxAccess.agentId, a.id))).map((r) => r.id));
+    await assertOwnPersonal(deps, actor, [...new Set(patch.mailboxIds)].filter((m) => m !== a.mailboxId && !held.has(m)));
+  }
   const plan = await getPlan(deps.db, actor.orgId);
   if (patch.sendCapDaily !== undefined && patch.sendCapDaily > plan.limits.agentDailySends) {
     throw planLimit(`Agents can send up to ${plan.limits.agentDailySends} messages a day on your plan.`);
@@ -271,6 +299,12 @@ export async function deleteAgent(deps: Deps, actor: Actor, id: string) {
 export async function createAgentKey(deps: Deps, actor: Actor, agentId: string, name?: string) {
   assertWorkspaceActor(actor);
   const { a } = await row(deps, actor.orgId, agentId);
+  // PRIV1b (P4): a key to an agent that holds a personal mailbox is minted only by the agent's maker.
+  if (!actor.userId || actor.userId !== a.createdByUserId) {
+    const personal = await deps.db.select({ id: mailboxes.id }).from(agentMailboxAccess).innerJoin(mailboxes, eq(mailboxes.id, agentMailboxAccess.mailboxId))
+      .where(and(eq(agentMailboxAccess.agentId, a.id), eq(mailboxes.personal, true))).limit(1).get();
+    if (personal) throw forbidden("This agent works a personal mailbox. Only the person who made it can create its keys.");
+  }
   const k = await createApiKey(deps, actor, { name: name ?? `${a.name} agent key`, scope: "full", agentId: a.id });
   await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: a.id, action: "agent.key_created", targetType: "api_key", targetId: k.apiKey.id });
   return k;
@@ -444,7 +478,10 @@ const asAgent = (orgId: string, a: Agent, mb: Mailbox): AuthContext => ({
 });
 
 async function deliverAsAgent(deps: Deps, orgId: string, a: Agent, mb: Mailbox, from: Mailbox, input: AgentSendInput, approvedBy?: Actor) {
-  const res = await sendMessage(deps, approvedBy ? { ...asAgent(orgId, a, mb), userId: approvedBy.userId } : asAgent(orgId, a, mb), {
+  // PRIV1b (P31): from its maker's own personal mailbox (the only personal one agentMailboxIds keeps) the send is
+  // checked as the maker, so approvalMode "never" works there. Any other mailbox sends as before.
+  const userId = approvedBy ? approvedBy.userId : from.personal && a.createdByUserId && from.ownerUserId === a.createdByUserId ? a.createdByUserId : "";
+  const res = await sendMessage(deps, { ...asAgent(orgId, a, mb), userId }, {
     mailboxId: from.id, to: input.to, cc: input.cc, bcc: input.bcc, subject: input.subject, text: input.text, html: input.html, inReplyToId: input.inReplyToId,
   }, { agentId: a.id, attachments: input.attachments?.map((x) => ({ filename: x.filename, contentType: x.contentType, content: fromB64Or(x.contentBase64, () => new HttpError(422, "validation_failed", "Each attachment needs contentBase64 in base64.")) })) });
   await bumpCounter(deps.db, orgId, "agent_messages", deps.now());
@@ -465,7 +502,7 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
   };
   if (a.status !== "active") throw await block("agent_paused", "This agent is paused. A person can resume it in Agents.");
   const fromId = input.mailboxId ?? a.mailboxId;
-  const allowed = await agentMailboxIds(deps, a);
+  const allowed = await agentMailboxIdsFor(deps, actor, a);
   if (!allowed.includes(fromId)) throw await block("mailbox_not_allowed", "This agent can't send from that mailbox.");
   const from = (await deps.db.select().from(mailboxes).where(eq(mailboxes.id, fromId)).get())!;
   const recipients = [...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])];
@@ -483,7 +520,10 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
     if (!parent || !allowed.includes(parent.mailboxId)) throw notFound("Message");
     threadId = parent.threadId;
   }
-  const external = (await Promise.all(recipients.map((r) => isHosted(deps.db, r)))).some((h) => !h);
+  // PRIV1b (P51): "inside" is only a mailbox or alias of this workspace on a verified domain (routeRecipient routes
+  // verified domains only). Another workspace on the platform is outside: its mail waits like any other.
+  const ours = async (r: string) => { const x = await routeRecipient(deps.db, r); return x.kind === "mailbox" ? x.mailbox.orgId === a.orgId : x.kind === "alias" && x.alias.orgId === a.orgId; };
+  const external = (await Promise.all(recipients.map(ours))).some((h) => !h);
   const needsApproval = a.approvalMode === "always" || (a.approvalMode === "external" && external);
   if (needsApproval) {
     const id = newId("apr");
@@ -507,7 +547,7 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
   }
   const result = await deliverAsAgent(deps, actor.orgId, a, mb, from, input);
   await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.message_sent", targetType: "message", targetId: result.messageId, metadata: { to: input.to, subject: input.subject, from: from.address } });
-  await recordEvent(deps, actor.orgId, a.id, "message.sent", { messageId: result.messageId, to: input.to, subject: input.subject });
+  await recordEvent(deps, actor.orgId, a.id, "message.sent", { messageId: result.messageId, mailboxId: from.id, to: input.to, subject: input.subject });
   return { status: "sent", result };
 }
 
@@ -515,7 +555,7 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
 export async function replyInThread(deps: Deps, actor: Actor, agentId: string, threadId: string, input: { text: string; html?: string; replyAll?: boolean; mailboxId?: string }) {
   assertActsAs(actor, agentId);
   const { a } = await row(deps, actor.orgId, agentId);
-  const allowed = await agentMailboxIds(deps, a);
+  const allowed = await agentMailboxIdsFor(deps, actor, a);
   const rows = await deps.db.select().from(messages)
     .where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), inIds(messages.mailboxId, allowed), sql`${messages.folder} <> 'drafts'`)).orderBy(desc(messages.date));
   const last = rows.find((m) => m.folder !== "sent") ?? rows[0];
@@ -601,21 +641,52 @@ export async function expireApprovals(deps: Deps) {
 /** Called after mail lands in a mailbox: every agent that can read it gets an event. */
 export async function notifyAgentsOfInbound(deps: Deps, mb: Pick<Mailbox, "id" | "orgId">, m: { id: string; threadId: string; from: { address: string; name?: string }; subject: string; text: string; html?: string | null }) {
   const own = await deps.db.select({ id: agents.id }).from(agents).where(eq(agents.mailboxId, mb.id));
-  const shared = await deps.db.select({ id: agentMailboxAccess.agentId }).from(agentMailboxAccess).where(eq(agentMailboxAccess.mailboxId, mb.id));
+  const given = await deps.db.select({ id: agents.id, maker: agents.createdByUserId }).from(agentMailboxAccess).innerJoin(agents, eq(agents.id, agentMailboxAccess.agentId))
+    .where(eq(agentMailboxAccess.mailboxId, mb.id));
+  // PRIV1b (P3): the same rule as agentMailboxIds. A personal mailbox's mail reaches only an agent its owner made.
+  const shared: { id: string }[] = [];
+  for (const g of given) if ((await keepOpenableBy(deps.db, mb.orgId, g.maker, [mb.id])).length) shared.push(g);
   const ids = [...new Set([...own, ...shared].map((r) => r.id))];
   const parsed = { messageId: m.id, threadId: m.threadId, mailboxId: mb.id, from: m.from, subject: m.subject, latestText: latestText(m.text), codes: extractCodes(m.text, m.subject), links: extractLinks(m.text, m.html) };
   for (const id of ids) await recordEvent(deps, mb.orgId, id, "message.received", parsed);
   return { agentIds: ids, parsed };
 }
 
-/** Events after `after` (a sequence number), oldest first. Agent keys see their own agent's. */
+/**
+ * Events after `after` (a sequence number), oldest first. Agent keys see their own agent's.
+ * PRIV1b (P3): message events carry mail, so each is kept only when its mailbox is in the caller's own scope (an
+ * agent key: its agent's mailboxes now; a person or workspace key: what they may open), whichever agent it is for.
+ */
 export async function eventsSince(deps: Deps, actor: Actor, q: { after?: number; agentId?: string; limit?: number }) {
+  return (await eventsPage(deps, actor, q)).events;
+}
+
+/** eventsSince plus `last`, the newest sequence number looked at (hidden events included), so a stream moves past them. */
+export async function eventsPage(deps: Deps, actor: Actor, q: { after?: number; agentId?: string; limit?: number }) {
   const agentId = actor.agentId ?? q.agentId;
   if (agentId) await row(deps, actor.orgId, agentId);
-  const rows = await deps.db.select().from(agentEvents).where(and(
-    eq(agentEvents.orgId, actor.orgId), gt(agentEvents.seq, q.after ?? 0), agentId ? eq(agentEvents.agentId, agentId) : undefined,
-  )).orderBy(asc(agentEvents.seq)).limit(Math.min(q.limit ?? 100, 500));
-  return rows.map((r) => ({ id: r.seq, type: r.type, agentId: r.agentId, data: JSON.parse(r.data) as Record<string, unknown>, createdAt: r.createdAt }));
+  const limit = Math.min(q.limit ?? 100, 500);
+  let last = q.after ?? 0;
+  let scope: Set<string> | null | undefined;
+  // A page that was all hidden reads on (a few pages at most), so a poller doesn't stall behind other people's mail.
+  for (let page = 0; page < 5; page++) {
+    const rows = await deps.db.select().from(agentEvents).where(and(
+      eq(agentEvents.orgId, actor.orgId), gt(agentEvents.seq, last), agentId ? eq(agentEvents.agentId, agentId) : undefined,
+    )).orderBy(asc(agentEvents.seq)).limit(limit);
+    const all = rows.map((r) => ({ id: r.seq, type: r.type, agentId: r.agentId, data: JSON.parse(r.data) as Record<string, unknown>, createdAt: r.createdAt }));
+    if (all.length) last = all[all.length - 1].id;
+    if (!all.some((e) => e.type.startsWith("message."))) return { events: all, last }; // no scope read on a quiet poll
+    if (scope === undefined) { const s = await scopeFor(deps, actor); scope = s ? new Set(s) : null; }
+    const open = scope;
+    const events = open ? all.filter((e) => {
+      if (!e.type.startsWith("message.")) return true;
+      const mb = typeof e.data.mailboxId === "string" ? e.data.mailboxId : null;
+      // An older message.sent has no mailbox id: only the agent's own key still sees it.
+      return mb ? open.has(mb) : !!actor.agentId && e.agentId === actor.agentId;
+    }) : all;
+    if (events.length || all.length < limit) return { events, last };
+  }
+  return { events: [], last };
 }
 
 /** The newest event sequence number, so a new stream starts from now. */

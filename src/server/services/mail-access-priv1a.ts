@@ -160,16 +160,18 @@ export async function whoCanOpenAny(db: DB, orgId: string, mailboxIds: string[])
 }
 
 /**
- * An AI agent's mailboxes, minus personal mailboxes its maker can't open: an admin can't route someone's private inbox
+ * An AI agent's mailboxes, minus personal mailboxes its maker doesn't own: an admin can't route someone's private inbox
  * through an agent. Team and agent mailboxes pass as before.
+ * PRIV1b (P4): only the maker's OWN personal mailbox, while the maker is still a member. A share the maker holds no
+ * longer counts: an agent key has no share level, so a read share became trash and delete forever through it.
  */
 export async function keepOpenableBy(db: DB, orgId: string, userId: string | null | undefined, ids: string[]): Promise<string[]> {
   if (!ids.length) return ids;
-  const pic = await loadPicture(db, { orgId, userId: userId ?? "", role: "member" });
+  const pic = await loadPicture(db, { orgId, userId: "", role: "member" }); // shares not needed: one read
   return ids.filter((id) => {
     const p = pic.personal.get(id);
     if (!p) return true;
-    return !!userId && ((p.owner === userId && p.ownerIsMember) || pic.shares.has(id));
+    return !!userId && p.owner === userId && p.ownerIsMember;
   });
 }
 

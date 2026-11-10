@@ -5,7 +5,7 @@
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
-import { mailboxScope } from "../services/team";
+import { scopeOf as suiteScopeOf } from "../services/suite/common";
 import { createSplit, deleteSplit, getSplit, listSplits, previewSplit, reorderSplits, splitTabs, updateSplit, type SplitActor } from "../services/mail/splits";
 import { getMailPrefs, readStatusOf, setMailPrefs } from "../services/mail/read-status";
 import { SplitCreate, SplitPatch, SplitPreview } from "@/shared/mail-splits";
@@ -25,8 +25,9 @@ const send = (c: Context<AppEnv>, data: unknown, status: 200 | 201 = 200) => c.j
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const jsonBody = async (c: Context<AppEnv>, schema: { parse: (v: unknown) => any }) => schema.parse(await c.req.json().catch(() => ({})));
 const pid = (c: Context<AppEnv>) => c.req.param("id") ?? "";
+// PRIV1b (P27): the suite rule, so an agent key gets its agent's mailboxes, not its creator's admin scope.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const scopeOf = async (c: Context<AppEnv>) => mailboxScope(c.var.deps.db, c.var.auth as any);
+const scopeOf = async (c: Context<AppEnv>) => suiteScopeOf(c.var.deps, c.var.auth as any);
 
 /** Read only keys may POST the preview: it counts and writes nothing. */
 export const isSplitPreview = (method: string, path: string) => method === "POST" && /\/mail\/splits\/preview$/.test(path);

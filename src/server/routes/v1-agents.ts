@@ -9,10 +9,10 @@ import { streamSSE } from "hono/streaming";
 import { and, eq } from "drizzle-orm";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
-import { attachments, messages } from "../db/schema";
+import { apiKeys, attachments, members, messages } from "../db/schema";
 import { HttpError, notFound } from "../lib/errors";
 import {
-  agentAudit, approveSend, createAgent, createAgentKey, deleteAgent, eventsSince, getAgent, latestEventSeq, listAgentKeys, listAgents,
+  agentAudit, agentMailboxIdsFor, approveSend, createAgent, createAgentKey, deleteAgent, eventsPage, eventsSince, getAgent, latestEventSeq, listAgentKeys, listAgents,
   listApprovals, listThreads, readThread, rejectSend, replyInThread, requestSend, revokeAgentKey, scopeFor, searchMessages, updateAgent, type Actor,
 } from "../services/agents";
 import { attachmentBytes } from "../services/mail/store";
@@ -25,7 +25,9 @@ const body = <T extends z.ZodTypeAny>(schema: T) => ({ body: { required: true, c
 const secured = [{ bearerAuth: [] }];
 const Id = z.object({ id: z.string().min(1).openapi({ param: { name: "id", in: "path" }, example: "agt_k3j2h1g0f9e8d7c6" }) });
 
-const ApprovalMode = z.enum(["always", "external", "never"]).openapi({ description: "`always`: a person approves every send (the default). `external`: only mail to addresses outside Multies waits. `never`: sends go straight out." });
+// PRIV1b (P51): "external" means outside this workspace: only a mailbox or alias of the agent's own workspace on a
+// verified domain skips approval. Another workspace hosted on the platform waits like any outside address.
+const ApprovalMode = z.enum(["always", "external", "never"]).openapi({ description: "`always`: a person approves every send (the default). `external`: only mail to addresses outside this workspace waits. `never`: sends go straight out." });
 
 const Agent = z.object({
   id: z.string().openapi({ example: "agt_k3j2h1g0f9e8d7c6" }),
@@ -92,6 +94,8 @@ const Event = z.object({ id: z.number().int(), type: z.string(), agentId: z.stri
 /** Dates to ISO strings, the way the JSON response will carry them. */
 const ser = (v: unknown) => JSON.parse(JSON.stringify(v)) as never;
 const actorOf = (c: { var: { auth: unknown } }) => c.var.auth as Actor;
+/** PRIV1b (P47): how often an open event stream re-checks its key, the key's creator and the agent. */
+export const STREAM_RECHECK_MS = 30_000;
 
 export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "post", path: "/agents", tags: ["Agents"], summary: "Create an agent inbox",
@@ -168,8 +172,8 @@ export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
     const { id } = c.req.valid("param");
     const actor = actorOf(c);
     if (actor.agentId && actor.agentId !== id) throw new HttpError(403, "agent_key_scope", "This key belongs to another agent.");
-    const agent = await getAgent(c.var.deps, actor.orgId, id);
-    return c.json(await listThreads(c.var.deps, actor.orgId, agent.mailboxIds, c.req.valid("query")), 200);
+    // PRIV1b (P4): a workspace key listing an agent's threads doesn't see a personal mailbox it doesn't own.
+    return c.json(await listThreads(c.var.deps, actor.orgId, await agentMailboxIdsFor(c.var.deps, actor, id), c.req.valid("query")), 200);
   });
 
   api.openapi(createRoute({ method: "get", path: "/threads/{id}", tags: ["Agents"], summary: "Read a thread as JSON",
@@ -241,16 +245,33 @@ export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
     const resume = Number(c.req.header("last-event-id") ?? "");
     let after = Number.isFinite(resume) && resume > 0 ? resume : q.get("from") === "start" ? 0 : await latestEventSeq(deps, actor.orgId);
     c.header("cache-control", "no-store");
+    // PRIV1b (P47): the actor was resolved once, but a stream runs up to 15 minutes. Every 30 seconds it checks the key
+    // still exists (revoking deletes it), its creator is still a member and the agent is still there; else it ends.
+    // Each message event is also checked against the caller's scope at that moment (eventsPage).
+    const stillValid = async () => {
+      if (actor.apiKeyId) {
+        const k = await deps.db.select({ id: apiKeys.id, member: members.id }).from(apiKeys)
+          .leftJoin(members, and(eq(members.userId, apiKeys.createdByUserId), eq(members.organizationId, apiKeys.orgId)))
+          .where(and(eq(apiKeys.id, actor.apiKeyId), eq(apiKeys.orgId, actor.orgId))).get();
+        if (!k || (actor.userId && !k.member)) return false;
+      }
+      return getAgent(deps, actor.orgId, id).then(() => true, () => false);
+    };
     return streamSSE(c, async (stream) => {
       const started = Date.now();
       let lastBeat = Date.now();
+      let lastCheck = Date.now();
       await stream.writeSSE({ event: "ready", data: JSON.stringify({ agentId: id, after }) });
       while (!stream.aborted) {
-        const events = await eventsSince(deps, { ...actor, agentId: actor.agentId ?? id }, { after, agentId: id, limit: 100 });
-        for (const e of events) {
-          await stream.writeSSE({ id: String(e.id), event: e.type, data: JSON.stringify(e) });
-          after = e.id;
+        if (Date.now() - lastCheck >= STREAM_RECHECK_MS) {
+          if (!(await stillValid())) break;
+          lastCheck = Date.now();
         }
+        // The caller's own scope, not the agent's: a workspace key watching an agent sees only mail it may open.
+        const page = await eventsPage(deps, actor, { after, agentId: id, limit: 100 });
+        for (const e of page.events) await stream.writeSSE({ id: String(e.id), event: e.type, data: JSON.stringify(e) });
+        after = Math.max(after, page.last);
+        const events = page.events;
         if (Date.now() - started >= timeout) break;
         if (Date.now() - lastBeat > 15_000) { await stream.write(": keep-alive\n\n"); lastBeat = Date.now(); }
         await stream.sleep(events.length ? 200 : 2000);

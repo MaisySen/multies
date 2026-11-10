@@ -291,8 +291,9 @@ export function v1Routes() {
   for (const r of ["agents", "threads", "search", "approvals", "events", "attachments", "mcp", "tasks", "projects", "docs", "contacts", "companies", "deals", "changes", "time", "forms", "reports", "meetings", "fields", "guests", "portfolio", "chat", "templates", "goals", "key-results", "integrations", "incoming-hooks", "scheduling", "people", "agent-members"]) api.use(`/${r}/*`, apiKeyAuth);
   api.use("/tools/*", apiKeyAuth, workspaceKeyOnly); // Tools P2: developer API ("/x/*" also matches "/x")
   api.use("/work-imports/*", apiKeyAuth);
-  api.use("/data-moves", apiKeyAuth);
-  api.use("/data-moves/*", apiKeyAuth);
+  // PRIV1b (P8): agent and agent member keys can't export or import the workspace.
+  api.use("/data-moves", apiKeyAuth, workspaceKeyOnly);
+  api.use("/data-moves/*", apiKeyAuth, workspaceKeyOnly);
   api.use("/epics/*", apiKeyAuth);
   api.use("/sprints/*", apiKeyAuth);
   api.use("/triage/*", apiKeyAuth);

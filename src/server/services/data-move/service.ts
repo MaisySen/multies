@@ -44,7 +44,14 @@ type Created = { tasks?: string[]; statuses?: string[]; projects?: string[]; pro
 
 const parseJson = <T>(s: string | null | undefined, fallback: T): T => { try { return s ? JSON.parse(s) as T : fallback; } catch { return fallback; } };
 
+// PRIV1b (P8): an agent key resolves as role admin, but it acts only as its agent. An export (which adds the key
+// creator's own mailboxes) or an import is for people and workspace keys.
+function refuseAgentKey(actor: SuiteActor) {
+  if (actor.agentId) throw new HttpError(403, "agent_key_scope", "Agent keys can't export or import the workspace. Use a workspace key.");
+}
+
 function requireAdmin(actor: SuiteActor) {
+  refuseAgentKey(actor);
   if (actor.role !== "owner" && actor.role !== "admin") throw forbidden("Only workspace owners and admins can export the whole workspace.");
 }
 
@@ -52,6 +59,7 @@ function requireAdmin(actor: SuiteActor) {
  * it, so both are for owners and admins (and workspace keys, which act as admin), like the export. */
 function requireImportAdmin(actor: SuiteActor) {
   if (actor.system) return;
+  refuseAgentKey(actor);
   if (actor.role !== "owner" && actor.role !== "admin") throw forbidden("Only workspace owners and admins can import or undo an import.");
 }
 
