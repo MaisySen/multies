@@ -98,8 +98,10 @@ export async function onInvoicePaid(deps: Deps, org: Org, inv: InvoiceLike) {
 /** Maintenance step: tells billing contacts once when a grace period ends. */
 export async function enforceGracePeriods(deps: Deps) {
   const now = deps.now();
+  // PRIV1b (W3): a comp workspace is never paused (sendingPausedForPayment), so it is never told it is, even with an
+  // old pastDueSince from before the flag.
   const due = await deps.db.select().from(organizations)
-    .where(and(isNotNull(organizations.pastDueSince), isNotNull(organizations.graceEndsAt), lte(organizations.graceEndsAt, now)));
+    .where(and(isNotNull(organizations.pastDueSince), isNotNull(organizations.graceEndsAt), lte(organizations.graceEndsAt, now), eq(organizations.compPlan, false)));
   let notified = 0;
   for (const org of due) {
     const already = await deps.db.select({ id: auditLogs.id }).from(auditLogs)

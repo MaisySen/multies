@@ -63,11 +63,14 @@ async function currentHook(deps: Deps, orgId: string): Promise<HookRow | undefin
   return deps.db.select().from(authEmailHooks).where(eq(authEmailHooks.orgId, orgId)).orderBy(desc(authEmailHooks.createdAt)).limit(1).get();
 }
 
-/** Mailboxes on the workspace's verified domains: the addresses auth emails can come from. */
+/**
+ * Mailboxes on the workspace's verified domains: the addresses auth emails can come from. PRIV1b (W1): team mailboxes
+ * only; a person's personal mailbox is theirs, so an admin can neither list it here nor send sign-up emails as it.
+ */
 export async function senderMailboxes(deps: Deps, orgId: string) {
   return deps.db.select({ id: mailboxes.id, address: mailboxes.address, displayName: mailboxes.displayName }).from(mailboxes)
     .innerJoin(domains, eq(domains.id, mailboxes.domainId))
-    .where(and(eq(mailboxes.orgId, orgId), eq(domains.status, "verified"), eq(mailboxes.status, "active"))).orderBy(mailboxes.address);
+    .where(and(eq(mailboxes.orgId, orgId), eq(domains.status, "verified"), eq(mailboxes.status, "active"), eq(mailboxes.personal, false))).orderBy(mailboxes.address);
 }
 
 const recentTests = (h: HookRow, now: number) => {

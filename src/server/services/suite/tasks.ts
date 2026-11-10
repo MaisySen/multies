@@ -666,6 +666,13 @@ export async function createTaskFromThread(deps: Deps, actor: SuiteActor, input:
   if (!m) throw notFound("Message");
   // PRIV1b (P2): a system actor (workspace automation) never copies a personal mailbox's mail into a task.
   if (actor.system && await (await import("../mail-access-priv1a")).personalInfo(deps.db, actor.orgId, m.mailboxId)) throw notFound("Message");
+  // PRIV1b (W2): a task copies the mail's subject and text where the workspace sees it. On someone else's personal
+  // mailbox that takes a reply share, as other writes do; a read share only reads.
+  if (!actor.system && !actor.agentId) {
+    const rule = await import("../mail-access-priv1a");
+    const p = await rule.personalInfo(deps.db, actor.orgId, m.mailboxId);
+    if (p && p.owner !== actor.userId) await rule.assertOpen(deps.db, { userId: actor.userId, orgId: actor.orgId, role: actor.role ?? "member" }, m.mailboxId, "reply");
+  }
   const fromLine = m.fromName || m.fromAddress;
   const title = input.title?.trim() || cleanSubject(m.subject) || `Follow up with ${fromLine}`;
   const notes = input.notes ?? latestText(m.text).slice(0, 2000);
