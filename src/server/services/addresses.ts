@@ -5,7 +5,7 @@ import { aliases, domains, mailboxes, members, users } from "../db/schema";
 import { audit } from "./audit";
 import { newId } from "../lib/crypto";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors";
-import { isPersonalOwner } from "./mail-access-priv1a";
+import { canOpen, isPersonalOwner } from "./mail-access-priv1a";
 import { assertCanCreate, getPlan } from "./plans";
 import { isOperatorDomainRow, type OperatorConfig } from "./suite/operator-inbox";
 import type { CreateAliasInput, CreateMailboxInput } from "@/shared/schemas";
@@ -84,6 +84,8 @@ export async function updateMailbox(db: DB, orgId: string, id: string, patch: { 
   if ((patch.quotaMb !== undefined || patch.status !== undefined) && !admin) throw forbidden("Only workspace owners and admins can change a mailbox's storage or status.");
   if (patch.displayName !== undefined || patch.replyTo !== undefined) {
     const own = m.personal ? await isPersonalOwner(db, { userId: who.userId, orgId, role: who.role }, m.id) : undefined;
+    // PRIV1b (P7, S3): like the rest of PRIV1a, a personal mailbox the caller can't open answers 404; a share gets 403.
+    if (m.personal && !own && !(await canOpen(db, { userId: who.userId, orgId, role: who.role }, m.id, "read"))) throw notFound("Mailbox");
     if (m.personal ? !own : !admin) throw forbidden(m.personal ? "Only the person this mailbox belongs to can change its name or Reply-To." : "Only workspace owners and admins can change a mailbox.");
   }
   if (patch.quotaMb !== undefined) {

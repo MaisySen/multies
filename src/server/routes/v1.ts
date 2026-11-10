@@ -26,6 +26,7 @@ import { createDomain, getDomain, listDomains, presentDomain, verifyDomain } fro
 import { getMessage, getThread, listMessages } from "../services/mail/mailbox-view";
 import { sendMessage } from "../services/mail/send";
 import { deprovisionMailbox } from "../services/mailserver";
+import { mailboxScope } from "../services/team";
 import { registerAgentRoutes } from "./v1-agents";
 import { registerMcpRoute } from "./mcp";
 import { registerSuiteRoutes } from "./v1-suite";
@@ -370,7 +371,13 @@ export function v1Routes() {
 
   api.openapi(createRoute({ method: "get", path: "/mailboxes", tags: ["Mailboxes"], summary: "List mailboxes", security: secured,
     responses: { 200: json(z.object({ data: z.array(Mailbox) }), "The workspace's mailboxes."), 401: errors[401] } }),
-  async (c) => c.json({ data: (await listMailboxes(c.var.deps.db, c.var.auth.orgId)).map(mailboxOut) }, 200));
+  async (c) => {
+    // PRIV1b (P23, M2): like GET /api/mailboxes, a key sees only the mailboxes its person can open; personal ones
+    // outside that are left out (this list is the full Mailbox shape, Reply-To included).
+    const [rows, scope] = await Promise.all([listMailboxes(c.var.deps.db, c.var.auth.orgId), mailboxScope(c.var.deps.db, c.var.auth)]);
+    const open = scope ? new Set(scope) : null;
+    return c.json({ data: rows.filter((m) => !open || open.has(m.id)).map(mailboxOut) }, 200);
+  });
 
   api.openapi(createRoute({ method: "post", path: "/mailboxes", tags: ["Mailboxes"], summary: "Create a mailbox", security: secured,
     request: body(z.object({

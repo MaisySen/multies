@@ -9,6 +9,7 @@ import { fakeStalwart } from "./fake-stalwart";
 import { verifiedDomain } from "./priv1a-world";
 import { appPasswords, mailboxes, organizations, users } from "@/server/db/schema";
 import { sweepForeignAppPasswords } from "@/server/services/mailserver";
+import { runMaintenance } from "@/server/services/maintenance";
 
 let ip = 0;
 class IpClient extends Client {
@@ -120,5 +121,44 @@ describe("PRIV1b (P42) app passwords from before a mailbox became personal", () 
     expect(await sweepForeignAppPasswords(w.ctx.deps)).toBe(1); // Pat's, now that the mailbox is no longer hers
     const after = await w.ctx.db.select({ id: appPasswords.id }).from(appPasswords).where(eq(appPasswords.mailboxId, box)).all();
     expect(after.map((r) => r.id)).toEqual([op.body.appPassword.id]);
+  }, 120_000);
+
+  it("M1: one whose maker's account is gone (creator NULL) goes too, from unsharing and from the sweep", async () => {
+    const w = await world();
+    const box = (await w.owner.post("/api/mailboxes", { domainId: w.domainId, localPart: "gone", displayName: "Gone" })).body.mailbox.id as string;
+    const a1 = await w.ada.c.post(`/api/mail-access/mailboxes/${box}/app-passwords`, { name: "Ada 1" });
+    const a2 = await w.ada.c.post(`/api/mail-access/mailboxes/${box}/app-passwords`, { name: "Ada 2" });
+    expect(a2.status).toBe(201);
+    await w.ctx.db.update(mailboxes).set({ personal: true, ownerUserId: w.pat.id }).where(eq(mailboxes.id, box));
+    const pp = await w.pat.c.post(`/api/mail-access/mailboxes/${box}/app-passwords`, { name: "Pat" });
+    expect(pp.status).toBe(201);
+    // ON DELETE SET NULL after Ada's account goes.
+    await w.ctx.db.update(appPasswords).set({ createdByUserId: null }).where(eq(appPasswords.mailboxId, box));
+    await w.ctx.db.update(appPasswords).set({ createdByUserId: w.pat.id }).where(eq(appPasswords.id, pp.body.appPassword.id));
+    const acct = w.acct("gone");
+    expect(acct.appPasswords.size).toBe(3);
+    // Unsharing someone on that mailbox takes the NULL one(s) too.
+    expect((await w.pat.c.put(`/api/mailboxes/${box}/sharing/${w.rae.id}`, { level: "read" })).status).toBe(200);
+    expect((await w.pat.c.del(`/api/mailboxes/${box}/sharing/${w.rae.id}`)).status).toBe(200);
+    const left = await w.ctx.db.select({ id: appPasswords.id }).from(appPasswords).where(eq(appPasswords.mailboxId, box)).all();
+    expect(left.map((r) => r.id)).toEqual([pp.body.appPassword.id]);
+    expect(acct.appPasswords.size).toBe(1);
+    expect(a1.status).toBe(201);
+  }, 120_000);
+
+  it("M1, S4: the maintenance pass sweeps a NULL creator one and keeps the owner's", async () => {
+    const w = await world();
+    const box = (await w.owner.post("/api/mailboxes", { domainId: w.domainId, localPart: "swept", displayName: "Swept" })).body.mailbox.id as string;
+    const a1 = await w.ada.c.post(`/api/mail-access/mailboxes/${box}/app-passwords`, { name: "Ada" });
+    expect(a1.status).toBe(201);
+    await w.ctx.db.update(mailboxes).set({ personal: true, ownerUserId: w.pat.id }).where(eq(mailboxes.id, box));
+    const pp = await w.pat.c.post(`/api/mail-access/mailboxes/${box}/app-passwords`, { name: "Pat" });
+    await w.ctx.db.update(appPasswords).set({ createdByUserId: null }).where(eq(appPasswords.id, a1.body.appPassword.id));
+    const acct = w.acct("swept");
+    expect(acct.appPasswords.size).toBe(2);
+    await runMaintenance(w.ctx.deps);
+    const left = await w.ctx.db.select({ id: appPasswords.id }).from(appPasswords).where(eq(appPasswords.mailboxId, box)).all();
+    expect(left.map((r) => r.id)).toEqual([pp.body.appPassword.id]);
+    expect(acct.appPasswords.size).toBe(1);
   }, 120_000);
 });

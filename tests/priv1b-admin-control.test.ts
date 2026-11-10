@@ -5,22 +5,38 @@
  */
 import { describe, it, expect } from "vitest";
 import { and, eq } from "drizzle-orm";
+import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { privacyWorld } from "./priv1a-world";
 import { FakeImapServer, FakeSmtpServer } from "./fake-mail-servers";
 import { toBase64, splitMbox } from "@/web/lib/mbox-r40";
 import { mailConnections, mailboxes, members, messages } from "@/server/db/schema";
 
 const GMAIL = "pat.gmail@gmail.com";
+
+async function mcpFor(app: { request: (p: string, i?: RequestInit) => Response | Promise<Response> }, key: string) {
+  const fetchViaApp = ((url: string | URL, init?: RequestInit) => app.request(new URL(url).pathname, { ...init, headers: { ...Object.fromEntries(new Headers(init?.headers).entries()), host: "localhost" } })) as typeof fetch;
+  const client = new McpClient({ name: "test", version: "1.0.0" });
+  await client.connect(new StreamableHTTPClientTransport(new URL("http://localhost/api/v1/mcp"), { requestInit: { headers: { authorization: `Bearer ${key}` } }, fetch: fetchViaApp }));
+  return client;
+}
 const PW = "abcd efgh ijkl mnop";
 
 describe("PRIV1b (P7) a personal mailbox's name and Reply-To", () => {
   it("only its owner sets them; admins keep quota; team mailboxes stay admin only", async () => {
     const w = await privacyWorld();
     const p = w.boxes.personal;
+    // S3: people who can't open it get 404, as everywhere else in PRIV1a; a share gets 403.
     const ada = await w.admin.c.patch(`/api/mailboxes/${p}`, { replyTo: "ada@evil.example" });
-    expect(ada.status).toBe(403);
-    expect((await w.admin.c.patch(`/api/mailboxes/${p}`, { displayName: "Not Pat" })).status).toBe(403);
-    expect((await w.owner.patch(`/api/mailboxes/${p}`, { replyTo: "olive@evil.example" })).status).toBe(403);
+    expect(ada.status).toBe(404);
+    expect((await w.admin.c.patch(`/api/mailboxes/${p}`, { displayName: "Not Pat" })).status).toBe(404);
+    expect((await w.owner.patch(`/api/mailboxes/${p}`, { replyTo: "olive@evil.example" })).status).toBe(404);
+    expect((await w.nobody.c.patch(`/api/mailboxes/${p}`, { replyTo: "nia@evil.example" })).status).toBe(404);
+    expect((await w.dRead.c.patch(`/api/mailboxes/${p}`, { replyTo: "rae@evil.example" })).status).toBe(403);
+    // S1: an empty patch is a 422, not a 500.
+    const empty = await w.pat.c.patch(`/api/mailboxes/${p}`, {});
+    expect(empty.status).toBe(422);
+    expect((await w.member.c.patch(`/api/mailboxes/${w.boxes.team}`, {})).status).toBe(422);
     // A send as share is not ownership.
     expect((await w.dSend.c.patch(`/api/mailboxes/${p}`, { replyTo: "sam@evil.example" })).status).toBe(403);
     let row = (await w.ctx.db.select().from(mailboxes).where(eq(mailboxes.id, p)).get())!;
@@ -43,9 +59,17 @@ describe("PRIV1b (P7) a personal mailbox's name and Reply-To", () => {
     // v1 and MCP go through the same rule: an admin's workspace key can't set Pat's Reply-To.
     const key = (await w.admin.c.post("/api/developer/keys", { name: "ops" })).body.secret as string;
     const v1 = await w.ctx.app.request(`/api/v1/mailboxes/${p}`, { method: "PATCH", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify({ replyTo: "ada@evil.example" }) });
-    expect(v1.status).toBe(403);
+    expect(v1.status).toBe(404);
+    // S4: the MCP tool on the same key fails the same way.
+    const mcp = await mcpFor(w.ctx.app, key);
+    const r = await mcp.callTool({ name: "set_mailbox_reply_to", arguments: { mailboxId: p, replyTo: "ada@evil.example" } });
+    expect(r.isError).toBe(true);
+    const rt = await mcp.callTool({ name: "set_mailbox_reply_to", arguments: { mailboxId: w.boxes.team, replyTo: "ops@acme.io" } });
+    expect(rt.isError).toBeFalsy();
+    await mcp.close();
     const v1Team = await w.ctx.app.request(`/api/v1/mailboxes/${w.boxes.team}`, { method: "PATCH", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify({ replyTo: "help@acme.io" }) });
     expect(v1Team.status).toBe(200);
+    expect((await w.ctx.db.select().from(mailboxes).where(eq(mailboxes.id, w.boxes.team)).get())!.replyTo).toBe("help@acme.io");
     expect((await w.ctx.db.select().from(mailboxes).where(eq(mailboxes.id, p)).get())!.replyTo).toBe("pat.replies@acme.io");
   }, 120_000);
 });
@@ -73,6 +97,14 @@ describe("PRIV1b (P23) GET /api/mailboxes", () => {
     expect(team.usedBytes).toBeDefined();
     const reduced = ada.body.mailboxes.find((m: { id: string }) => m.id === w.boxes.personal);
     expect(reduced).toEqual({ id: w.boxes.personal, address: `pat.private${w.n}@acme.io`, displayName: "Pat (connected)", personal: true, ownerUserId: w.pat.id, status: "active", openable: false });
+    // M2: the v1 list on an admin's key leaves Pat's mailbox out (it is the full shape, Reply-To included).
+    await w.ctx.db.update(mailboxes).set({ replyTo: "pat.replies@acme.io" }).where(eq(mailboxes.id, w.boxes.personal));
+    const v1 = async (key: string) => (await (await w.ctx.app.request("/api/v1/mailboxes", { headers: { authorization: `Bearer ${key}` } })).json()) as { data: { id: string }[] };
+    const adaKey = (await w.admin.c.post("/api/developer/keys", { name: "ops" })).body.secret as string;
+    const adaV1 = await v1(adaKey);
+    expect(adaV1.data.map((m) => m.id)).toContain(w.boxes.team);
+    expect(adaV1.data.map((m) => m.id)).not.toContain(w.boxes.personal);
+    expect(JSON.stringify(adaV1)).not.toContain("pat.replies@acme.io");
   }, 120_000);
 });
 
@@ -224,5 +256,24 @@ describe("PRIV1b (P12) imports into a personal mailbox", () => {
     const teamRun = await w.owner.call("POST", "/api/data-moves/mbox/batch", { mailboxId: w.boxes.team, total: 1, last: true, messages: mbox(["t1"]) }, { "idempotency-key": "mbox_priv1b_team_0001" });
     expect(teamRun.status).toBe(200);
     expect((await w.admin.c.post(`/api/data-moves/${teamRun.body.move.id}/undo`, {})).status).toBe(200);
+  }, 120_000);
+});
+
+describe("PRIV1b (P62, S2) a personal connection's calendar", () => {
+  it("follows the mailbox owner, not whoever connected it", async () => {
+    const w = await connectedWorld();
+    const id = w.conn.id;
+    await w.ctx.db.update(mailConnections).set({ createdByUserId: w.nobody.id }).where(eq(mailConnections.id, id));
+    // Nia connected it but it is Pat's: Nia isn't offered it and can't add it with Pat's stored password.
+    expect((await w.nobody.c.get("/api/calendar/sources/options")).body.data).toEqual([]);
+    const nia = await w.nobody.c.post("/api/calendar/sources", { kind: "caldav", connectionId: id });
+    expect(nia.status).toBe(403);
+    expect((await w.admin.c.post("/api/calendar/sources", { kind: "caldav", connectionId: id })).status).toBe(403);
+    // Pat is offered it; Gmail's calendar needs OAuth, so adding stops there (not at the owner check).
+    const opts = (await w.pat.c.get("/api/calendar/sources/options")).body.data as { connectionId: string }[];
+    expect(opts.map((o) => o.connectionId)).toEqual([id]);
+    const pat = await w.pat.c.post("/api/calendar/sources", { kind: "caldav", connectionId: id });
+    expect(pat.status).toBe(422);
+    expect(pat.body.error.code).toBe("caldav_needs_oauth");
   }, 120_000);
 });

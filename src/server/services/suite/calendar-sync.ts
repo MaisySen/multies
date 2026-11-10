@@ -14,10 +14,11 @@
  */
 import { and, eq, gte, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { calendarFeeds, calendarSources, chatMembers, mailConnections, meetings, members, organizations, projects, tasks, users } from "../../db/schema";
+import { calendarFeeds, calendarSources, chatMembers, mailConnections, mailboxes, meetings, members, organizations, projects, tasks, users } from "../../db/schema";
 import { decryptSecret, encryptSecret, randomToken, safeEqual, sha256Hex } from "../../lib/crypto";
 import { forbidden, HttpError, notFound } from "../../lib/errors";
 import { assertWritable, sortableId, type SuiteActor } from "./common";
+import { isPersonalOwner } from "../mail-access-priv1a";
 import { buildFeed, type FeedDue, type FeedMeeting } from "./ics-write";
 import { eventsIn, type ExternalEvent } from "./ics-parse";
 import { CALDAV_BASES, CALDAV_NEEDS_OAUTH, checkUrl, davRequest, discoverCalendars, reportEvents, type DavOptions, type RemoteCalendar } from "./caldav";
@@ -257,10 +258,23 @@ export async function listSources(deps: Deps, actor: SuiteActor) {
   return out;
 }
 
+/**
+ * PRIV1b (P62, S2): a connection on a personal mailbox is its owner's (the workspace owner's when it has none), not
+ * whoever connected it, so its stored password reads only the owner's calendar. Team mailboxes: the connector, as before.
+ */
+async function connectionIsMine(deps: Deps, actor: SuiteActor, c: { mailboxId: string; createdByUserId: string | null }) {
+  const own = await isPersonalOwner(deps.db, { userId: actor.userId, orgId: actor.orgId, role: actor.role }, c.mailboxId);
+  return own === undefined ? c.createdByUserId === actor.userId : own;
+}
+
 /** The person's own connected mailboxes and whether each one's provider serves its calendar over CalDAV. */
 export async function calendarOptions(deps: Deps, actor: SuiteActor) {
   personOnly(actor);
-  const rows = await deps.db.select().from(mailConnections).where(and(eq(mailConnections.orgId, actor.orgId), eq(mailConnections.createdByUserId, actor.userId)));
+  // PRIV1b (P62, S2): mine = connected by me on a team mailbox, or on a personal mailbox I own.
+  const rows = (await deps.db.select({ c: mailConnections, personal: mailboxes.personal, owner: mailboxes.ownerUserId }).from(mailConnections)
+    .innerJoin(mailboxes, eq(mailboxes.id, mailConnections.mailboxId))
+    .where(and(eq(mailConnections.orgId, actor.orgId), or(eq(mailConnections.createdByUserId, actor.userId), eq(mailboxes.ownerUserId, actor.userId)))))
+    .filter((r) => r.personal ? r.owner === actor.userId : r.c.createdByUserId === actor.userId).map((r) => r.c);
   return rows.map((c) => {
     const oauth = CALDAV_NEEDS_OAUTH[c.provider];
     return {
@@ -319,7 +333,7 @@ export async function addCalDavSource(deps: Deps, actor: SuiteActor, input: { co
   assertWritable(actor);
   const c = await deps.db.select().from(mailConnections).where(and(eq(mailConnections.id, input.connectionId), eq(mailConnections.orgId, actor.orgId))).get();
   if (!c) throw notFound("Connected mailbox");
-  if (c.createdByUserId !== actor.userId) throw forbidden("Only the person who connected this mailbox can show its calendar.");
+  if (!(await connectionIsMine(deps, actor, c))) throw forbidden("Only the person this mailbox belongs to can show its calendar."); // PRIV1b (P62, S2)
   if (CALDAV_NEEDS_OAUTH[c.provider] && !input.url) throw new HttpError(422, "caldav_needs_oauth", `Calendar from ${c.provider === "gmail" || c.provider.startsWith("google") ? "Gmail" : "Outlook"} needs ${CALDAV_NEEDS_OAUTH[c.provider]} sign in, coming later. For now, add its secret ICS address.`);
   if (c.authKind !== "password") throw new HttpError(422, "caldav_needs_oauth", "This mailbox signs in with OAuth. Add the calendar's ICS address instead.");
   const existing = await deps.db.select({ id: calendarSources.id }).from(calendarSources).where(and(eq(calendarSources.orgId, actor.orgId), eq(calendarSources.userId, actor.userId), eq(calendarSources.connectionId, c.id))).get();
@@ -363,7 +377,7 @@ export async function removeSource(deps: Deps, actor: SuiteActor, id: string) {
 const cache = new Map<string, { at: number; events: ExternalEvent[] }>();
 export function clearCalendarCache() { cache.clear(); }
 
-async function sourceEvents(deps: Deps, s: SourceRow, from: Date, to: Date, tz: string): Promise<ExternalEvent[]> {
+async function sourceEvents(deps: Deps, actor: SuiteActor, s: SourceRow, from: Date, to: Date, tz: string): Promise<ExternalEvent[]> {
   const key = `${s.orgId}:${s.userId}:${s.id}:${from.getTime()}:${to.getTime()}`;
   const hit = cache.get(key);
   const now = Date.now();
@@ -374,7 +388,7 @@ async function sourceEvents(deps: Deps, s: SourceRow, from: Date, to: Date, tz: 
     events = eventsIn(text, from, to, { defaultTz: tz });
   } else {
     const c = await deps.db.select().from(mailConnections).where(and(eq(mailConnections.id, s.connectionId!), eq(mailConnections.orgId, s.orgId))).get();
-    if (!c || c.createdByUserId !== s.userId) throw new HttpError(404, "not_found", "The connected mailbox is gone.");
+    if (!c || !(await connectionIsMine(deps, actor, c))) throw new HttpError(404, "not_found", "The connected mailbox is gone.");
     const auth = { username: c.username, password: await decryptSecret(deps.config.appSecret, c.secretEnc) };
     const cals = JSON.parse(s.calendars) as RemoteCalendar[];
     const texts = (await Promise.all(cals.map((cal) => reportEvents(davOpts(deps), cal.url, auth, from, to)))).flat();
@@ -391,7 +405,7 @@ async function externalEvents(deps: Deps, actor: SuiteActor, from: Date, to: Dat
   const errors: { sourceId: string; name: string; message: string }[] = [];
   await Promise.all(rows.map(async (s) => {
     try {
-      for (const e of await sourceEvents(deps, s, from, to, tz)) {
+      for (const e of await sourceEvents(deps, actor, s, from, to, tz)) {
         events.push({ id: `ext:${s.id}:${e.uid}:${e.start}`, kind: "external", title: e.title, start: e.start, end: e.end, allDay: e.allDay, url: null, sourceId: s.id, sourceName: s.name, color: s.color, readOnly: true, location: e.location });
       }
     } catch (err) {

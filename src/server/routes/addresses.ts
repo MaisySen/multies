@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { assertMailboxNotHeld } from "../services/mail/archive-r111"; // R111
 import type { AppEnv } from "../context";
 import { parseBody, requireAdmin, requireAuth } from "../middleware";
+import { HttpError } from "../lib/errors";
 import { createAliasSchema, createMailboxSchema, updateAliasSchema, updateMailboxSchema } from "@/shared/schemas";
 import { audit } from "../services/audit";
 import {
@@ -44,6 +45,8 @@ export function mailboxRoutes() {
     // PRIV1b (P7): open to the owner of a personal mailbox for its name and Reply-To; updateMailbox decides who may change what.
     .patch("/:id", async (c) => {
       const patch = await parseBody(c, updateMailboxSchema);
+      // PRIV1b (P7, S1): members reach this now; an empty patch would fail in the update as a 500.
+      if (!Object.values(patch).some((v) => v !== undefined)) throw new HttpError(422, "validation_failed", "Send a field to change.");
       const { auth, deps } = c.var;
       const m = await updateMailbox(deps.db, auth.orgId, c.req.param("id"), patch, auth);
       if (patch.quotaMb !== undefined) await syncQuota(deps, auth.orgId, m.id, m.quotaMb);
