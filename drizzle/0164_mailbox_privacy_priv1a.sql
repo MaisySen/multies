@@ -32,8 +32,11 @@ CREATE TABLE `mailbox_access_log` (
 --> statement-breakpoint
 CREATE INDEX `mailbox_access_log_mailbox_idx` ON `mailbox_access_log` (`mailbox_id`,`created_at`);--> statement-breakpoint
 UPDATE `mailboxes` SET `personal` = 1 WHERE `kind` = 'person' AND `personal` = 0 AND `id` IN (SELECT `mailbox_id` FROM `mail_connections`);--> statement-breakpoint
+-- PRIV1b (P18): a short lived index on the claim rows, so UPDATE 4 looks each mailbox up instead of scanning audit_logs once per mailbox.
+CREATE INDEX IF NOT EXISTS `audit_logs_priv1a_claim_tmp_idx` ON `audit_logs` (`target_id`,`created_at`) WHERE `action` = 'free_address.claimed' AND `target_type` = 'mailbox';--> statement-breakpoint
 UPDATE `mailboxes` SET `personal` = 1 WHERE `kind` = 'person' AND `personal` = 0 AND `id` IN (SELECT `target_id` FROM `audit_logs` WHERE `action` = 'free_address.claimed' AND `target_type` = 'mailbox');--> statement-breakpoint
 UPDATE `mailboxes` SET `owner_user_id` = (SELECT c.`created_by_user_id` FROM `mail_connections` c JOIN `members` m ON m.`user_id` = c.`created_by_user_id` AND m.`organization_id` = c.`org_id` WHERE c.`mailbox_id` = `mailboxes`.`id` ORDER BY c.`created_at` LIMIT 1) WHERE `personal` = 1 AND `owner_user_id` IS NULL;--> statement-breakpoint
 UPDATE `mailboxes` SET `owner_user_id` = (SELECT a.`actor_user_id` FROM `audit_logs` a JOIN `members` m ON m.`user_id` = a.`actor_user_id` AND m.`organization_id` = a.`org_id` WHERE a.`action` = 'free_address.claimed' AND a.`target_type` = 'mailbox' AND a.`target_id` = `mailboxes`.`id` ORDER BY a.`created_at` LIMIT 1) WHERE `personal` = 1 AND `owner_user_id` IS NULL;--> statement-breakpoint
+DROP INDEX IF EXISTS `audit_logs_priv1a_claim_tmp_idx`;--> statement-breakpoint
 UPDATE `mailboxes` SET `owner_user_id` = (SELECT x.`user_id` FROM `mailbox_access` x JOIN `members` m ON m.`user_id` = x.`user_id` AND m.`organization_id` = x.`org_id` WHERE x.`mailbox_id` = `mailboxes`.`id`) WHERE `personal` = 1 AND `owner_user_id` IS NULL AND (SELECT count(*) FROM `mailbox_access` x WHERE x.`mailbox_id` = `mailboxes`.`id`) = 1;--> statement-breakpoint
 UPDATE `organizations` SET `comp_plan` = 1 WHERE `id` = 'org_14tjeedzlvi8epm3';

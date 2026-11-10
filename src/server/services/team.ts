@@ -87,7 +87,9 @@ export async function listMembers(db: DB, orgId: string) {
     memberId: members.id, userId: users.id, email: users.email, name: users.name, role: members.role, kind: members.kind, title: members.title, bio: members.bio, joinedAt: members.createdAt,
   }).from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.organizationId, orgId));
   const ids = rows.map((r) => r.userId);
-  const access = await db.select().from(mailboxAccess).where(eq(mailboxAccess.orgId, orgId));
+  // PRIV1b (P24): grants on personal mailboxes mean nothing (the owner shares those), and the editor would send them back and get 403.
+  const access = await db.select({ userId: mailboxAccess.userId, mailboxId: mailboxAccess.mailboxId }).from(mailboxAccess)
+    .innerJoin(mailboxes, eq(mailboxes.id, mailboxAccess.mailboxId)).where(and(eq(mailboxAccess.orgId, orgId), eq(mailboxes.personal, false)));
   const seen = ids.length
     ? await db.select({ userId: sessions.userId, at: max(sessions.updatedAt) }).from(sessions).where(inIds(sessions.userId, ids)).groupBy(sessions.userId)
     : [];

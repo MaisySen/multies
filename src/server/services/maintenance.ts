@@ -9,7 +9,7 @@ import type { DB } from "../db";
 import { appSettings } from "../db/schema";
 import { migrationDriver, pendingMigrations } from "../db";
 import { lt } from "drizzle-orm";
-import { agentTriggers, automations, dataMoves, flowDigestItems, flowRuns, flowWatches, jobs, mailConnections, mailSchedules, organizations, sendApprovals, sessions, socialPosts, verifications, webhookDeliveries } from "../db/schema";
+import { agentTriggers, automations, dataMoves, flowDigestItems, flowRuns, flowWatches, jobs, mailboxAccessLog, mailConnections, mailSchedules, organizations, sendApprovals, sessions, socialPosts, verifications, webhookDeliveries } from "../db/schema";
 import { purgeDemoWorkspaces } from "./demo";
 import { recheckStaleDomains } from "./domains";
 import { checkWriteBudget } from "./write-budget";
@@ -110,6 +110,7 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
       pruneJobs(deps), pruneAgentEvents(deps), pruneImports(deps),
       import("./suite/flows").then((m) => m.pruneFlowRuns(deps)),
       import("./mailserver").then((m) => m.sweepForeignAppPasswords(deps)), // PRIV1b (P42): app passwords on personal mailboxes their owner didn't make
+      pruneMailboxOpens(deps),
     ]);
   });
   // Tools P1: keep the document engine's free host awake (no D1), and prune old usage rows once an hour.
@@ -118,6 +119,17 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
     await t.toolsMaintenance(deps, inSlot(1));
   });
   return { ...legacy, socialPosts: socialRun, jobs: jobsRun, mailSync, mailSchedules, agentTriggers: agentTriggersRun, uptime, crossChecks, dunning, approvalsExpired, reminders, writes: writes ? { level: writes.level, rowsWritten: writes.rowsWritten } : undefined };
+}
+
+/** PRIV1b (P32): "opened" rows of the mailbox access log are kept 400 days. Share changes stay. At most 500 rows a pass. */
+const OPENS_KEPT_MS = 400 * 86_400_000;
+export async function pruneMailboxOpens(deps: Deps, limit = 500) {
+  const l = mailboxAccessLog;
+  // org_id IN (organizations) lets each workspace's range use mailbox_access_log_org_idx (org_id, created_at): no table scan.
+  const old = deps.db.select({ id: l.id }).from(l).where(and(sql`${l.orgId} in (select ${organizations.id} from ${organizations})`,
+    lt(l.createdAt, new Date(deps.now().getTime() - OPENS_KEPT_MS)), inArray(l.action, ["opened_mailbox", "opened_thread"]))).limit(limit);
+  const gone = await deps.db.delete(l).where(inArray(l.id, old)).returning({ id: l.id });
+  return gone.length;
 }
 
 type Waiting = { moves: boolean; jobs: boolean; webhooks: boolean; approvals: boolean; dueSoon: boolean; duePassed: boolean; mailSync: boolean; mailSchedules: boolean; agentTriggers: boolean; social: boolean; flowRuns: boolean; flowWatches: boolean; flowDigests: boolean };

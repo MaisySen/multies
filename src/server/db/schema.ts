@@ -438,7 +438,8 @@ export const mailboxAccessLog = sqliteTable("mailbox_access_log", {
   /** web, phone, api */
   device: text("device"),
   createdAt: createdAt(),
-}, (t) => [index("mailbox_access_log_mailbox_idx").on(t.mailboxId, t.createdAt)]);
+  // PRIV1b (P32, 0165): org_id for the workspace delete cascade and the retention prune.
+}, (t) => [index("mailbox_access_log_mailbox_idx").on(t.mailboxId, t.createdAt), index("mailbox_access_log_org_idx").on(t.orgId, t.createdAt)]);
 
 /** Processed billing webhooks, keyed by the provider's event id so retries are no-ops. */
 export const billingEvents = sqliteTable("billing_events", {
