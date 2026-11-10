@@ -1,6 +1,9 @@
 import { eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { attachments, mailboxes, messages, organizations, users } from "@/server/db/schema";
+import { createConnection } from "@/server/services/connect";
+import { deliverInbound } from "@/server/services/mail/delivery";
+import { createEndpoint } from "@/server/services/developer/webhooks";
 
 type Ctx = Awaited<ReturnType<typeof makeTestApp>>;
 let seq = 0;
@@ -24,9 +27,24 @@ export async function verifiedDomain(ctx: Ctx, c: Client, name: string) {
   return domainId as string;
 }
 
-/** One workspace: owner Olive, admin Ada, member Max (granted the team mailbox), Pat (owns a personal mailbox), three people Pat shares with, and Nia (no grant). */
-export async function privacyWorld() {
-  const ctx = await makeTestApp({});
+/** PRIV1b (F30): the flag gated surfaces PRIV1a changed (archive, doc inbox, one inbox, mentions, Ask), so they answer instead of 404. */
+export const PRIV_FLAGS = { MAIL_ARCHIVE_R111: "on", DOC_INBOX_R102: "on", FILES_PLUS_R101: "on", INBOX_TD6: "on", MENTIONS_TD5: "on", ASK_R110: "on", FREE_MAIL_DOMAIN: "free.example" };
+
+/** PRIV1b (F29): an inbound message as the provider hands it over, with one attachment. */
+export const inboundMail = (to: string, from: string, subject: string, text: string, attachment?: { filename: string; content: string }) => ({
+  envelopeFrom: from, rcptTo: to, sizeBytes: 400, via: "test",
+  email: { messageId: `<${Math.random().toString(36).slice(2)}@x.example.com>`, from: { address: from, name: "Secret" }, to: [{ address: to }], cc: [], subject, text, date: new Date(),
+    attachments: attachment ? [{ filename: attachment.filename, contentType: "application/pdf", content: new TextEncoder().encode(attachment.content) }] : [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+}) as never;
+
+/**
+ * One workspace: owner Olive, admin Ada, member Max (granted the team mailbox), Pat (owns a personal mailbox), three people Pat shares with, and Nia (no grant).
+ * PRIV1b (F29, F30): `flags` turns on PRIV_FLAGS; `real` also gives Pat a free address claimed through the app and a Gmail
+ * connected through createConnection, and delivers mail into Pat's and Ada's personal mailboxes through deliverInbound (with a workspace webhook
+ * listening), so the product's own flows, not hand written rows, decide those mailboxes are personal.
+ */
+export async function privacyWorld(opts: { flags?: boolean; real?: boolean; env?: Record<string, string>; fetch?: typeof fetch } = {}) {
+  const ctx = await makeTestApp({ ...(opts.flags || opts.real ? PRIV_FLAGS : {}), ...opts.env }, opts.fetch ? { fetch: opts.fetch } : {});
   const n = ++seq;
   const owner = new IpClient(ctx.app);
   await owner.signup(`olive${n}@acme.io`, "Olive Owner");
@@ -73,5 +91,29 @@ export async function privacyWorld() {
     const r = await pat.c.put(`/api/mailboxes/${personal}/sharing/${who.id}`, { level });
     if (r.status !== 200) throw new Error(`share ${r.status} ${JSON.stringify(r.body)}`);
   }
-  return { ctx, n, orgId, domainId, owner, admin, member, pat, dRead, dReply, dSend, nobody, outsider, boxes: { personal, team, agent }, msgs, attId };
+  const thread = `thr_pers${n}aaaaaaaaaa`;
+  const base = { ctx, n, orgId, domainId, owner, admin, member, pat, dRead, dReply, dSend, nobody, outsider, boxes: { personal, team, agent }, msgs, attId, thread };
+  if (!opts.real) return { ...base, real: null };
+  // PRIV1b (F29): the real flows. Ada (claiming takes an admin) claims a free address in the app: her personal mailbox,
+  // closed to the workspace owner. Pat connects a Gmail (OAuth, so nothing is dialled).
+  const claim = await admin.c.post("/api/free-address", { localPart: `ada.free${n}` });
+  if (claim.status !== 201) throw new Error(`claim ${claim.status} ${JSON.stringify(claim.body)}`);
+  const claimed = claim.body.mailbox as { id: string; address: string };
+  const gmail = `pat.gmail${n}@gmail.example`;
+  const conn = await createConnection(ctx.deps, { orgId, userId: pat.id, email: `pat${n}@acme.io`, name: "Pat Person", role: "member", emailVerified: true } as never, { email: gmail, password: "", preset: "gmail" } as never, { secret: "tok", authKind: "oauth" });
+  await createEndpoint(ctx.deps, orgId, { url: "https://example.com/hook", events: ["message.received"] });
+  const words = { subject: `REALSUBJ-${n}`, body: `REALBODY-${n}`, file: `realfile${n}.pdf`, from: `real.sender${n}@private.example` };
+  const adaWords = { subject: `ADASUBJ-${n}`, body: `ADABODY-${n}`, file: `adafile${n}.pdf`, from: `ada.sender${n}@private.example` };
+  const got = [] as string[];
+  // Connected mail arrives by IMAP sync, not deliverInbound: Pat's mail is delivered to her acme.io personal address instead.
+  for (const [to, x] of [[`pat.private${n}@acme.io`, words], [claimed.address, adaWords]] as const) {
+    const r = await deliverInbound(ctx.deps, inboundMail(to, x.from, x.subject, x.body, { filename: x.file, content: `BYTES-${x.subject}` }));
+    if (!r.accepted) throw new Error(`deliver ${to} ${r.reason}`);
+    got.push(...r.storedIn);
+  }
+  const sel = async (x: typeof words) => ({
+    msgs: await ctx.db.select({ id: messages.id, threadId: messages.threadId, mailboxId: messages.mailboxId }).from(messages).where(eq(messages.subject, x.subject)).all(),
+    attIds: (await ctx.db.select({ id: attachments.id }).from(attachments).where(eq(attachments.filename, x.file)).all()).map((a) => a.id),
+  });
+  return { ...base, real: { claimed: claimed.id, connected: conn.mailboxId, connectionId: conn.id, stored: got, pat: await sel(words), ada: await sel(adaWords), words, adaWords } };
 }
