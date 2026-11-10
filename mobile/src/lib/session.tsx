@@ -10,6 +10,7 @@ import type { Me } from "@/api/types";
 import { JAR_KEY, MODE_KEY } from "./session-keys";
 import { registerPush, unregisterPush } from "./push";
 import { clearUserData } from "./local-data";
+import { commandQueue } from "./command-queue";
 import { signInAtIdp } from "./idp";
 import { verdictFor } from "./auth-keep";
 import { AppState } from "react-native";
@@ -176,7 +177,11 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
     async refreshMe() { setMe(await api.me()); },
     async switchWorkspace(id) {
       if (me?.organization?.id === id) return;
-      await api.switchWorkspace(id);
+      // PRIV1b (MH1): nothing queued in the workspace being left is sent once the server is in the next one. Stop the
+      // queue first (and wait for a change already on its way); the clear below drops what waits.
+      const q = commandQueue();
+      await q?.hold();
+      try { await api.switchWorkspace(id); } catch (err) { q?.release(); throw err; }
       // Mail, tasks and lists saved on this phone belong to the workspace just left. PRIV1b (P53): so do
       // snoozed items, tabs, rules, the tool run, searches, files and the changes waiting to sync.
       await clearUserData("workspace").catch(() => {});

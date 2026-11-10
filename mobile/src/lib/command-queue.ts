@@ -63,6 +63,9 @@ export class CommandQueue {
   private items: Command[] = [];
   private loaded = false;
   private flushing: Promise<FlushResult> | null = null;
+  /** PRIV1b (MH1): set while a workspace switch runs; `gen` moves on hold and clear so a running flush stops. */
+  private held = false;
+  private gen = 0;
   private listeners = new Set<() => void>();
   /** temp id to real id, kept so screens can follow a row whose id changed. */
   readonly ids = new Map<string, string>();
@@ -104,15 +107,17 @@ export class CommandQueue {
   private async run(): Promise<FlushResult> {
     await this.load();
     const out: FlushResult = { sent: 0, rejected: [], stopped: false, ids: {} };
-    // PRIV1b (P53): a change made in one workspace never lands in another. Wait until the workspace is known.
-    const ws = this.workspace ? this.workspace() : undefined;
-    if (ws === null) { out.stopped = true; return out; }
+    const gen = this.gen;
     while (this.items.length) {
+      // PRIV1b (P53, MH1): a change made in one workspace never lands in another. Each command checks its own workspace
+      // against the current one when it is sent; a hold or clear (workspace switch) stops the flush; wait while unknown.
+      const ws = this.workspace ? this.workspace() : undefined;
+      if (this.held || gen !== this.gen || ws === null) { out.stopped = true; break; }
       const c = this.items[0];
       try {
         if (ws !== undefined && (c as QueuedCommand).ws !== ws) throw new ApiError(409, "other_workspace", OTHER_WORKSPACE_TEXT);
         const r = await this.exec(c);
-        this.items = this.items.slice(1);
+        if (this.items[0] === c) this.items = this.items.slice(1); // a clear while it was sent leaves nothing to drop
         out.sent++;
         if (c.kind === "task.create" && r && r.realId) {
           this.ids.set(c.tempId, r.realId);
@@ -121,7 +126,7 @@ export class CommandQueue {
         }
       } catch (err) {
         if (!isRejection(err)) { out.stopped = true; break; }
-        this.items = this.items.slice(1);
+        if (this.items[0] === c) this.items = this.items.slice(1);
         out.rejected.push({ command: c, error: err as ApiError });
         if (c.kind === "task.create") {
           const dropped = this.items.filter((x) => dependsOn(x, c.tempId));
@@ -137,7 +142,12 @@ export class CommandQueue {
     return out;
   }
 
-  async clear() { this.items = []; this.ids.clear(); await this.store.remove(QUEUE_KEY).catch(() => {}); this.emit(); }
+  async clear() { this.gen++; this.items = []; this.ids.clear(); await this.store.remove(QUEUE_KEY).catch(() => {}); this.emit(); }
+
+  /** PRIV1b (MH1): stops sending before a workspace switch: a running flush stops before its next command, and this waits for the one in flight. */
+  async hold(): Promise<void> { this.held = true; this.gen++; await this.flushing?.catch(() => {}); }
+  /** Sends again (the switch failed, so the workspace did not change). */
+  release() { this.held = false; }
 }
 
 /** The executor for the live API: each command is the same REST call the screen would make. */

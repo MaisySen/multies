@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "./session";
-import { cached, setOffline } from "./offline";
+import { cached, offlinePage, setOffline } from "./offline";
 import { kv } from "./kv";
 import { CHAT_POLL, latestChange, mergeMessages } from "./chat";
 import { useForeground, usePollWhileVisible } from "./visible";
@@ -81,13 +81,16 @@ export function useAgents() {
 
 export function useMessages(folder: ListFolder, mailboxId?: string) {
   const { api, mode } = useSession();
+  const qc = useQueryClient();
   return useInfiniteQuery({
     queryKey: keys.messages(folder, mailboxId),
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => {
       const run = () => api.messages({ folder, mailboxId, cursor: pageParam });
+      // PRIV1b (MH5): a saved page shown offline keeps only mailboxes in the current overview (else the saved one), like offline search.
+      const boxes = qc.getQueryData<{ mailboxes: { id: string }[] }>(keys.overview)?.mailboxes.map((m) => m.id);
       // Only the first page of each folder is kept offline.
-      return pageParam ? run() : cached<MessagePage>(kv(), `list:${mode}:${folder}:${mailboxId ?? "all"}`, run);
+      return pageParam ? run() : cached<MessagePage>(kv(), `list:${mode}:${folder}:${mailboxId ?? "all"}`, run, (p) => offlinePage(kv(), p, boxes));
     },
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     refetchInterval: 60_000,

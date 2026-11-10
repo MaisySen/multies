@@ -4,6 +4,7 @@ import { LEGACY_KEY } from "./tasks";
 import { commandQueue } from "./command-queue";
 import { resetToolRunCache } from "./tool-run";
 import { LAST_QUERY_KEY } from "./task-query";
+import { bumpCacheGeneration } from "./offline";
 
 /**
  * PRIV1b (P53): the one list of what this phone keeps for one person in one workspace. Sign out, a workspace
@@ -49,6 +50,7 @@ export function clearUserFiles(folder: CacheFolder = phoneCache): void {
  * "signOut": sign out, which also drops waiting changes and the old on-phone task list.
  */
 export async function clearUserData(scope: "cache" | "workspace" | "signOut", store: KV = kv(), folder?: CacheFolder): Promise<void> {
+  bumpCacheGeneration(); // PRIV1b (MH2): answers still on their way are not saved after this clear
   const prefixes = [...USER_CACHE_PREFIXES, ...(scope === "cache" ? [] : ["queue:"]), ...(scope === "signOut" ? [LEGACY_KEY] : [])];
   for (const p of prefixes) await store.clear(p).catch(() => {});
   if (scope !== "cache") await commandQueue()?.clear().catch(() => {});

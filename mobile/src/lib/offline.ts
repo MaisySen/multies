@@ -13,21 +13,27 @@ export function useOffline() {
   return useSyncExternalStore((l) => { listeners.add(l); return () => listeners.delete(l); }, () => offline, () => offline);
 }
 
+/** PRIV1b (MH2): bumped by clearUserData, so an answer that arrives after a clear is not saved again. */
+let generation = 0;
+export function bumpCacheGeneration() { generation++; }
+
 /**
  * Runs a request; on success the result is cached under `key`. When the network is down the
- * cached copy comes back instead, and the app shows an offline banner.
+ * cached copy comes back instead (through `onHit` when given), and the app shows an offline banner.
  */
-export async function cached<T>(store: KV, key: string, fetcher: () => Promise<T>): Promise<T> {
+export async function cached<T>(store: KV, key: string, fetcher: () => Promise<T>, onHit?: (v: T) => T | Promise<T>): Promise<T> {
+  const gen = generation;
   try {
     const v = await fetcher();
     setOffline(false);
-    store.set(key, JSON.stringify({ at: Date.now(), v })).then(() => prune(store, key)).catch(() => {});
+    // PRIV1b (MH2): a sign out or workspace switch cleared the cache while this was on its way; it belongs to the last one.
+    if (gen === generation) store.set(key, JSON.stringify({ at: Date.now(), v })).then(() => prune(store, key)).catch(() => {});
     return v;
   } catch (err) {
     if (err instanceof ApiError && err.isNetwork) {
       setOffline(true);
       const hit = await store.get(key);
-      if (hit) return (JSON.parse(hit) as { v: T }).v;
+      if (hit) { const v = (JSON.parse(hit) as { v: T }).v; return onHit ? onHit(v) : v; }
     }
     // PRIV1b (P53): gone or no longer shared with this person, so the saved copy goes too.
     if (err instanceof ApiError && (err.status === 403 || err.status === 404)) await store.remove(key).catch(() => {});
@@ -53,6 +59,17 @@ async function overviewIds(store: KV): Promise<Set<string>> {
   return ids;
 }
 
+/** The mailboxes saved mail may be shown from: the current overview (`mailboxIds`), else the saved one. */
+export async function allowedMailboxes(store: KV, mailboxIds?: readonly string[]): Promise<Set<string>> {
+  return mailboxIds ? new Set(mailboxIds) : overviewIds(store);
+}
+
+/** PRIV1b (MH5): a saved list page shown offline keeps only mail in the mailboxes this person can still open. */
+export async function offlinePage(store: KV, page: MessagePage, mailboxIds?: readonly string[]): Promise<MessagePage> {
+  const allowed = await allowedMailboxes(store, mailboxIds);
+  return { ...page, messages: page.messages.filter((m) => allowed.has(m.mailboxId)) };
+}
+
 /**
  * Searches mail already on the phone, for when there's no connection. PRIV1b (P53): only mail in the mailboxes
  * of the current overview (`mailboxIds`, else the saved overview), so a share taken away is not searched.
@@ -60,7 +77,7 @@ async function overviewIds(store: KV): Promise<Set<string>> {
 export async function searchCache(store: KV, query: string, mailboxIds?: readonly string[]): Promise<MessageSummary[]> {
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  const allowed = mailboxIds ? new Set(mailboxIds) : await overviewIds(store);
+  const allowed = await allowedMailboxes(store, mailboxIds);
   if (!allowed.size) return [];
   const seen = new Map<string, MessageSummary>();
   for (const k of await store.keys("list:")) {
