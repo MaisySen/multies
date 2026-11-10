@@ -13,6 +13,14 @@ const raw = (w: W) => (w.ctx.db as unknown as { $client: Raw }).$client;
 const m0164 = () => MIGRATIONS.find((x) => x.name.startsWith("0164_"))!.statements;
 const m0165 = () => MIGRATIONS.find((x) => x.name.startsWith("0165_"))!.statements;
 const TMP = "audit_logs_priv1a_claim_tmp_idx";
+// PRIV1b (ML3): the backfill steps exactly as the old 0164 file had them (origin/main), pinned here so the comparison is real.
+const OLD_STEPS = [
+  "UPDATE `mailboxes` SET `personal` = 1 WHERE `kind` = 'person' AND `personal` = 0 AND `id` IN (SELECT `mailbox_id` FROM `mail_connections`);",
+  "UPDATE `mailboxes` SET `personal` = 1 WHERE `kind` = 'person' AND `personal` = 0 AND `id` IN (SELECT `target_id` FROM `audit_logs` WHERE `action` = 'free_address.claimed' AND `target_type` = 'mailbox');",
+  "UPDATE `mailboxes` SET `owner_user_id` = (SELECT c.`created_by_user_id` FROM `mail_connections` c JOIN `members` m ON m.`user_id` = c.`created_by_user_id` AND m.`organization_id` = c.`org_id` WHERE c.`mailbox_id` = `mailboxes`.`id` ORDER BY c.`created_at` LIMIT 1) WHERE `personal` = 1 AND `owner_user_id` IS NULL;",
+  "UPDATE `mailboxes` SET `owner_user_id` = (SELECT a.`actor_user_id` FROM `audit_logs` a JOIN `members` m ON m.`user_id` = a.`actor_user_id` AND m.`organization_id` = a.`org_id` WHERE a.`action` = 'free_address.claimed' AND a.`target_type` = 'mailbox' AND a.`target_id` = `mailboxes`.`id` ORDER BY a.`created_at` LIMIT 1) WHERE `personal` = 1 AND `owner_user_id` IS NULL;",
+  "UPDATE `mailboxes` SET `owner_user_id` = (SELECT x.`user_id` FROM `mailbox_access` x JOIN `members` m ON m.`user_id` = x.`user_id` AND m.`organization_id` = x.`org_id` WHERE x.`mailbox_id` = `mailboxes`.`id`) WHERE `personal` = 1 AND `owner_user_id` IS NULL AND (SELECT count(*) FROM `mailbox_access` x WHERE x.`mailbox_id` = `mailboxes`.`id`) = 1;",
+];
 
 describe("PRIV1b P18: 0164 UPDATE 4 looks claims up by index", () => {
   it("the backfill uses a temporary index, drops it, and gives the same owners as the old SQL", async () => {
@@ -24,10 +32,10 @@ describe("PRIV1b P18: 0164 UPDATE 4 looks claims up by index", () => {
     expect(ci).toBeGreaterThan(-1);
     expect(ci).toBeLessThan(u4);
     expect(di).toBeGreaterThan(u4);
-    // The backfill steps as the old file had them, and as the new one has them.
+    // The backfill steps as the old file had them (pinned), and as the new one has them.
     const first = s.findIndex((x) => x.startsWith("UPDATE `mailboxes`"));
     const steps = s.slice(Math.min(first, ci)).filter((x) => !x.includes("comp_plan"));
-    const oldSteps = steps.filter((x) => !x.includes(TMP));
+    const oldSteps = OLD_STEPS;
     expect(steps.length).toBe(oldSteps.length + 2);
 
     // Fixture: several claimed free addresses, claims by people who left, repeated claims, and noise rows.

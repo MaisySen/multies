@@ -104,14 +104,17 @@ export async function onDeliverDead(deps: Deps, payload: unknown, _job: unknown,
     "",
     "Nothing else needs doing on your side for other recipients. You can send it again from your Sent folder.",
   ].join("\n");
+  // PRIV1b (AR1): pass only while the system address's domain is not a workspace claim short of verified (as send.ts
+  // does for workspace senders). A name no workspace holds is the deployment's own mail domain.
+  const sysDomain = await deps.db.select({ status: domains.status }).from(domains).where(eq(domains.name, (deps.config.systemFrom.address.split("@")[1] ?? "").toLowerCase())).get();
+  const ok = !sysDomain || sysDomain.status === "verified";
   await deliverInbound(deps, {
     envelopeFrom: deps.config.systemFrom.address, rcptTo: mb.address, sizeBytes: text.length, via: "internal",
     email: {
       messageId: `<ndr.${m.id}@${deps.config.systemFrom.address.split("@")[1] ?? "localhost"}>`,
       from: { address: deps.config.systemFrom.address, name: "Mail Delivery" }, to: [{ address: mb.address }], cc: [],
       subject: `Undeliverable: ${m.subject || "(no subject)"}`, text, date: deps.now(), attachments: [],
-      // PRIV1b (P40): pass is fine here: the sender is the deployment's own system address, never a workspace's domain.
-      authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: { "auto-submitted": "auto-replied" },
+      authResults: ok ? { spf: "pass", dkim: "pass", dmarc: "pass" } : { spf: "none", dkim: "none", dmarc: "none" }, headers: { "auto-submitted": "auto-replied" },
       inReplyTo: m.messageIdHeader ?? undefined,
     },
   });

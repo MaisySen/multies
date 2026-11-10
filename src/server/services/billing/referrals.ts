@@ -21,7 +21,7 @@ import {
   REFERRAL_CAP_PER_YEAR, REFERRAL_CODE_RE, REFERRAL_COOKIE, REFERRAL_HOLD_DAYS, REFERRAL_MAX_CENTS, REFERRAL_MIN_CENTS, REFERRAL_PARAM, referralCreditCents,
 } from "@/shared/offers";
 import { audit } from "../audit";
-import { getAddons, getOrg } from "../plans";
+import { effectivePlanId, getAddons, getOrg } from "../plans";
 import { enqueue, PermanentJobError } from "../jobs";
 import { billingContacts } from "./dunning";
 import type { Stripe } from "./stripe";
@@ -193,9 +193,10 @@ async function ensureReferrerCustomer(deps: Deps, stripe: Stripe, org: Org, emai
 }
 
 /** A month of the workspace's add-ons (and a legacy plan's price), in A$. */
-async function monthlyTotal(deps: Deps, org: Org) {
+export async function monthlyTotal(deps: Deps, org: Org) {
   const addons = await getAddons(deps.db, org.id);
-  const base = PLANS[org.plan].legacy ? PLANS[org.plan].priceMonthly : 0;
+  const plan = PLANS[effectivePlanId(org)]; // PRIV1b (CB1): a comp workspace is on the plan it was granted
+  const base = plan.legacy ? plan.priceMonthly : 0;
   return base + ADDON_ORDER.reduce((s, id) => s + ADDONS[id].priceMonthly * (addons[id] ?? 0), 0);
 }
 

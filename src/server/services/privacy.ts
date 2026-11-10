@@ -199,4 +199,6 @@ export async function beforeUserDelete(deps: Deps, userId: string) {
     if (org) await cancelForDeletion(deps, org);
     await db.delete(organizations).where(eq(organizations.id, m.organizationId));
   }
+  // PRIV1b (CB2): a deleted account's live chat sockets close now; a socket was only checked when it opened.
+  if (mine.length) await (await import("../realtime/publish")).closeUserSockets(deps, userId, mine.map((m) => m.organizationId));
 }

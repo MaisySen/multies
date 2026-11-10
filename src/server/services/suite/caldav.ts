@@ -40,6 +40,8 @@ export function checkUrl(raw: string, allowPrivate: boolean): URL {
   if (!allowPrivate) {
     if (u.protocol !== "https:") throw davFail("bad_url", "Use an https:// address.");
     if (!isPublicHost(u.hostname)) throw davFail("private_host", "That address points to a private network. Use the provider's public address.");
+    // PRIV1b (CB3): a refused port says so, not "private network".
+    if (u.port && u.port !== "443") throw davFail("bad_url", "That port is not allowed. Use the provider's https address without a port.");
     // PRIV1b (P45): the link preview's shape rules too: port 443 only, no numeric or internal names.
     try { checkUrlShape(u.toString()); } catch { throw davFail("private_host", "That address points to a private network. Use the provider's public address."); }
   } else if (u.protocol !== "https:" && u.protocol !== "http:") throw davFail("bad_url", "Use an https:// address.");

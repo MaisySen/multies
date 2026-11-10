@@ -3,7 +3,7 @@ import { isD1LimitError } from "../lib/d1-limit";
 import { expireApprovals, pruneAgentEvents } from "./agents";
 import { pruneImports } from "./import";
 import { pruneDeliveries, retryDueDeliveries } from "./developer/webhooks";
-import { and, eq, inArray, isNull, lte, ne, or, sql, type SQLWrapper } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte, ne, or, sql, type SQLWrapper } from "drizzle-orm";
 import type { Deps } from "../context";
 import type { DB } from "../db";
 import { appSettings } from "../db/schema";
@@ -123,12 +123,23 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
 
 /** PRIV1b (P32): "opened" rows of the mailbox access log are kept 400 days. Share changes stay. At most 500 rows a pass. */
 const OPENS_KEPT_MS = 400 * 86_400_000;
+/** PRIV1b (ML2): app_settings key holding the time (ms) before which every old open is already pruned. */
+export const OPENS_PRUNED_KEY = "mailbox_opens_pruned_before";
 export async function pruneMailboxOpens(deps: Deps, limit = 500) {
   const l = mailboxAccessLog;
+  const cutoff = deps.now().getTime() - OPENS_KEPT_MS;
+  // PRIV1b (ML2): share rows are kept forever, so each pass starts where the last one stopped instead of re-reading
+  // every old share row. Opens are logged at the time they happen, so nothing new lands behind the mark.
+  const from = Number((await deps.db.select({ v: appSettings.value }).from(appSettings).where(eq(appSettings.key, OPENS_PRUNED_KEY)).get())?.v ?? 0) || 0;
+  if (from >= cutoff) return 0;
   // org_id IN (organizations) lets each workspace's range use mailbox_access_log_org_idx (org_id, created_at): no table scan.
   const old = deps.db.select({ id: l.id }).from(l).where(and(sql`${l.orgId} in (select ${organizations.id} from ${organizations})`,
-    lt(l.createdAt, new Date(deps.now().getTime() - OPENS_KEPT_MS)), inArray(l.action, ["opened_mailbox", "opened_thread"]))).limit(limit);
-  const gone = await deps.db.delete(l).where(inArray(l.id, old)).returning({ id: l.id });
+    gte(l.createdAt, new Date(from)), lt(l.createdAt, new Date(cutoff)), inArray(l.action, ["opened_mailbox", "opened_thread"]))).orderBy(l.createdAt).limit(limit);
+  // A subquery renders in its own parentheses (G1: no inArray over a list).
+  const gone = await deps.db.delete(l).where(sql`${l.id} in ${old}`).returning({ at: l.createdAt });
+  // A full pass reached the cutoff; a cut one stops at its newest row (kept inclusive, so ties are not skipped).
+  const to = gone.length < limit ? cutoff : Math.max(...gone.map((g) => g.at.getTime()));
+  if (to > from) await deps.db.insert(appSettings).values({ key: OPENS_PRUNED_KEY, value: String(to) }).onConflictDoUpdate({ target: appSettings.key, set: { value: String(to) } });
   return gone.length;
 }
 

@@ -249,6 +249,9 @@ export async function actOnReport(deps: Deps, operator: { userId: string }, id: 
     const { sessions } = await import("../../db/schema");
     await deps.db.update(users).set({ banned: true, banReason: `Suspended after a content report (${r.reason}).` }).where(eq(users.id, r.targetUserId));
     await deps.db.delete(sessions).where(eq(sessions.userId, r.targetUserId));
+    // PRIV1b (CB2): as a ban: their apps' OAuth grants end and live sockets close now, not at the next check.
+    await (await import("../developer/oauth")).revokeUserGrants(deps, r.targetUserId);
+    await (await import("../../realtime/publish")).closeUserSockets(deps, r.targetUserId);
     action = "user_suspended";
   }
   await deps.db.update(contentReports).set({ status, action, resolutionNote: note, resolvedBy: operator.userId, resolvedAt: now }).where(eq(contentReports.id, id));

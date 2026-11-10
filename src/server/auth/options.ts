@@ -204,7 +204,10 @@ export function authOptions(deps: Deps) {
         // PRIV1b (P48): a platform ban ends the person's apps too (both token resolvers also refuse a banned person).
         if (ctx.path === "/admin/ban-user") {
           const bannedId = typeof ctx.body?.userId === "string" ? ctx.body.userId : "";
-          if (bannedId && !(ctx.context.returned instanceof Error)) await endAppGrants(deps, bannedId);
+          if (bannedId && !(ctx.context.returned instanceof Error)) {
+            await endAppGrants(deps, bannedId);
+            await (await import("../realtime/publish")).closeUserSockets(deps, bannedId); // PRIV1b (CB2): live chat stops too
+          }
           return;
         }
         if (ctx.path !== "/sign-in/email") return;
@@ -334,8 +337,9 @@ export function authOptions(deps: Deps) {
           afterAcceptInvitation: async ({ invitation, member }) => {
             const ids = JSON.parse((invitation.mailboxIds as string | undefined) ?? "[]") as string[];
             if (member.role !== "member" || !ids.length) return;
+            // PRIV1b (ML1): a personal mailbox is opened by sharing, never by an invite's grant.
             const live = await db.select({ id: schema.mailboxes.id }).from(schema.mailboxes)
-              .where(and(eq(schema.mailboxes.orgId, invitation.organizationId), inIds(schema.mailboxes.id, ids)));
+              .where(and(eq(schema.mailboxes.orgId, invitation.organizationId), inIds(schema.mailboxes.id, ids), eq(schema.mailboxes.personal, false)));
             for (const mb of live) {
               await db.insert(schema.mailboxAccess).values({ orgId: invitation.organizationId, userId: member.userId, mailboxId: mb.id }).onConflictDoNothing();
             }

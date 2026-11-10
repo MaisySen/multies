@@ -549,7 +549,7 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
     const approval = presentApproval((await deps.db.select().from(sendApprovals).where(eq(sendApprovals.id, id)).get())!);
     await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.send_queued", targetType: "approval", targetId: id, metadata: { to: input.to, subject: input.subject, reason: a.approvalMode } });
     await recordEvent(deps, actor.orgId, a.id, "approval.requested", { approvalId: id, mailboxId: from.id, to: input.to, subject: input.subject, threadId }); // PRIV1b (S3): filtered like message events
-    await emitEvent(deps, actor.orgId, "approval.requested", { approvalId: id, agentId: a.id, agent: a.name, from: from.address, to: input.to, subject: input.subject, threadId });
+    await emitEvent(deps, actor.orgId, "approval.requested", { approvalId: id, agentId: a.id, agent: a.name, mailboxId: from.id, from: from.address, to: input.to, subject: input.subject, threadId }); // PRIV1b (AP1): mailboxId, so the webhook filter does not rest on the from address
     // Everyone who can open that inbox gets it in their notifications inbox (and on their phone).
     try {
       const { notify } = await import("../suite/notify");

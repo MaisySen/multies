@@ -12,11 +12,12 @@
  * name and app password) or a secret ICS link (stored encrypted). Events are fetched when the
  * calendar opens and kept in memory for a few minutes; they are never written to the database.
  */
-import { and, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { calendarFeeds, calendarSources, chatMembers, mailConnections, mailboxes, meetings, members, organizations, projects, tasks, users } from "../../db/schema";
 import { decryptSecret, encryptSecret, randomToken, safeEqual, sha256Hex } from "../../lib/crypto";
 import { forbidden, HttpError, notFound } from "../../lib/errors";
+import { containsLower } from "../../lib/sql-chunks";
 import { assertWritable, sortableId, type SuiteActor } from "./common";
 import { isPersonalOwner } from "../mail-access-priv1a";
 import { buildFeed, type FeedDue, type FeedMeeting } from "./ics-write";
@@ -107,8 +108,10 @@ export async function workItems(deps: Deps, orgId: string, person: { id: string;
   const email = person?.email.toLowerCase() ?? "";
   const mineSql = person ? or(
     and(eq(meetings.createdByType, "member"), eq(meetings.createdById, person.id)),
-    sql`lower(${meetings.invitees}) like ${`%${JSON.stringify(email).replace(/[\\%_]/g, (c) => `\\${c}`)}%`} escape '\\'`,
-    inArray(meetings.channelId, deps.db.select({ id: chatMembers.channelId }).from(chatMembers).where(and(eq(chatMembers.userId, person.id), eq(chatMembers.orgId, orgId)))),
+    // PRIV1b (G2): instr, not LIKE: D1 refuses a LIKE pattern over 50 bytes, and a long address made one.
+    containsLower(meetings.invitees, JSON.stringify(email)),
+    // A subquery renders in its own parentheses, so `in` takes it as written (G1: no inArray over a list).
+    sql`${meetings.channelId} in ${deps.db.select({ id: chatMembers.channelId }).from(chatMembers).where(and(eq(chatMembers.userId, person.id), eq(chatMembers.orgId, orgId)))}`,
   ) : undefined;
   const rows = await deps.db.select().from(meetings).where(and(
     eq(meetings.orgId, orgId), isNull(meetings.deletedAt), lt(meetings.startsAt, to),
@@ -131,6 +134,11 @@ export async function zoneOf(deps: Deps, orgId: string, userId: string | null) {
   return o?.tz ?? "UTC";
 }
 const ymd = (d: Date, tz: string) => { const z = zonedDate(d, tz); return `${z.y}-${pad(z.m)}-${pad(z.d)}`; };
+/**
+ * PRIV1b (DUE1): a due date picked as a day is stored as midnight UTC (parseDate). Read as an instant it lands a day
+ * early west of UTC, so exactly midnight UTC means that calendar date in every zone; any other time is an instant.
+ */
+const dueDay = (d: Date, tz: string) => (d.getTime() % DAY === 0 ? d.toISOString().slice(0, 10) : ymd(d, tz));
 
 /** Feed fetches allowed per token per minute (counted in memory by the route). */
 export const FEED_RATE_PER_MIN = 30;
@@ -153,7 +161,7 @@ export async function serveFeed(deps: Deps, token: string): Promise<{ body: stri
   const tz = await zoneOf(deps, row.f.orgId, row.f.userId);
   const app = deps.config.appUrl;
   const ms: FeedMeeting[] = items.meetings.map((m) => ({ id: m.id, title: m.title, startsAt: m.startsAt, durationMin: m.durationMin, status: m.status, recurrence: m.recurrence, recurrenceTz: m.recurrenceTz, version: m.version, updatedAt: m.updatedAt, url: `${app}/app/meetings/${m.id}` }));
-  const ds: FeedDue[] = items.dues.slice(0, Math.max(0, FEED_MAX_ITEMS - ms.length)).map(({ t, key, project }) => ({ id: t.id, title: t.title, ref: `${key}-${t.number}`, project, due: ymd(t.dueAt!, tz), url: `${app}/app/tasks?task=${t.id}`, version: t.version, updatedAt: t.updatedAt }));
+  const ds: FeedDue[] = items.dues.slice(0, Math.max(0, FEED_MAX_ITEMS - ms.length)).map(({ t, key, project }) => ({ id: t.id, title: t.title, ref: `${key}-${t.number}`, project, due: dueDay(t.dueAt!, tz), url: `${app}/app/tasks?task=${t.id}`, version: t.version, updatedAt: t.updatedAt }));
   const body = buildFeed({ meetings: ms, dues: ds });
   const etag = `"${(await sha256Hex(body)).slice(0, 32)}"`;
   return { body, etag };
@@ -211,7 +219,7 @@ export async function listCalendarEvents(deps: Deps, actor: SuiteActor, q: { fro
     }
   }
   for (const { t, key } of items.dues) {
-    const day = ymd(t.dueAt!, tz);
+    const day = dueDay(t.dueAt!, tz);
     const [y, mo, d] = day.split("-").map(Number);
     if (Date.UTC(y, mo - 1, d) >= to.getTime() || Date.UTC(y, mo - 1, d + 1) <= from.getTime()) continue;
     const next = new Date(Date.UTC(y, mo - 1, d + 1));

@@ -9,8 +9,9 @@ import { streamSSE } from "hono/streaming";
 import { and, eq } from "drizzle-orm";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
-import { apiKeys, attachments, members, messages } from "../db/schema";
+import { apiKeys, attachments, members, messages, oauthGrants } from "../db/schema";
 import { HttpError, notFound } from "../lib/errors";
+import { splitToolList } from "../lib/api-scopes";
 import {
   agentAudit, agentMailboxIdsFor, approveSend, createAgent, createAgentKey, deleteAgent, eventsPage, eventsSince, getAgent, latestEventSeq, listAgentKeys, listAgents,
   listApprovals, listThreads, readThread, rejectSend, replyInThread, requestSend, revokeAgentKey, scopeFor, searchMessages, updateAgent, type Actor,
@@ -249,15 +250,25 @@ export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
     // PRIV1b (P47): the actor was resolved once, but a stream runs up to 15 minutes. Every 30 seconds it checks the key
     // still exists (revoking deletes it), its creator is still a member and the agent is still there; else it ends.
     // Each message event is also checked against the caller's scope at that moment (eventsPage).
-    const stillValid = async () => {
-      if (actor.apiKeyId) {
-        const k = await deps.db.select({ id: apiKeys.id, member: members.id }).from(apiKeys)
-          .leftJoin(members, and(eq(members.userId, apiKeys.createdByUserId), eq(members.organizationId, apiKeys.orgId)))
-          .where(and(eq(apiKeys.id, actor.apiKeyId), eq(apiKeys.orgId, actor.orgId))).get();
-        if (!k || (actor.userId && !k.member)) return false;
+    // PRIV1b (SSE1): the key (or OAuth grant) part runs again before every write of events, so nothing more is sent
+    // once it is revoked, its scope changed or its creator left. An idle stream reads nothing extra.
+    const was = (actor as { scope?: string }).scope;
+    const sameScope = (now: string) => was === undefined || now === was;
+    const keyValid = async () => {
+      const grantId = actor.apiKeyId?.startsWith("oauth:") ? actor.apiKeyId.slice(6) : null;
+      if (grantId) {
+        const g = await deps.db.select({ revokedAt: oauthGrants.revokedAt, scope: oauthGrants.scope, member: members.id }).from(oauthGrants)
+          .leftJoin(members, and(eq(members.userId, oauthGrants.userId), eq(members.organizationId, oauthGrants.orgId)))
+          .where(and(eq(oauthGrants.id, grantId), eq(oauthGrants.orgId, actor.orgId))).get();
+        return !!g && !g.revokedAt && !!g.member && sameScope(g.scope);
       }
-      return getAgent(deps, actor.orgId, id).then(() => true, () => false);
+      if (!actor.apiKeyId) return true;
+      const k = await deps.db.select({ id: apiKeys.id, scope: apiKeys.scope, member: members.id }).from(apiKeys)
+        .leftJoin(members, and(eq(members.userId, apiKeys.createdByUserId), eq(members.organizationId, apiKeys.orgId)))
+        .where(and(eq(apiKeys.id, actor.apiKeyId), eq(apiKeys.orgId, actor.orgId))).get();
+      return !!k && !(actor.userId && !k.member) && sameScope(splitToolList(k.scope).scope);
     };
+    const stillValid = async () => (await keyValid()) && getAgent(deps, actor.orgId, id).then(() => true, () => false);
     return streamSSE(c, async (stream) => {
       const started = Date.now();
       let lastBeat = Date.now();
@@ -270,6 +281,7 @@ export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
         }
         // The caller's own scope, not the agent's: a workspace key watching an agent sees only mail it may open.
         const page = await eventsPage(deps, actor, { after, agentId: id, limit: 100 });
+        if (page.events.length && !(await keyValid())) break;
         for (const e of page.events) await stream.writeSSE({ id: String(e.id), event: e.type, data: JSON.stringify(e) });
         after = Math.max(after, page.last);
         const events = page.events;
