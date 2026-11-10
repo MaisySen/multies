@@ -4,7 +4,7 @@ import type { Deps } from "../context";
 import type { DB } from "../db";
 import { aliases, domains, mailboxes, organizations } from "../db/schema";
 import { encryptSecret, generateDkimKeyPair, newId, randomToken } from "../lib/crypto";
-import { conflict, notFound } from "../lib/errors";
+import { conflict, HttpError, notFound } from "../lib/errors";
 import { assertDomainAllowed, isOperatorDomainRow } from "./suite/operator-inbox";
 import { expectedRecords, runDnsChecks } from "./dns/checks";
 import { assertCanCreate } from "./plans";
@@ -71,12 +71,22 @@ export async function getDomain(db: DB, orgId: string, id: string) {
   return d;
 }
 
+export const DEMO_DOMAINS_OFF = "Domains are off in the demo. Sign up to add your own domain.";
+
+/** PRIV1b (P40): the demo keeps its sample domain; it can neither add a domain nor remove the sample. */
+async function assertNotDemo(db: DB, orgId: string) {
+  const org = await db.select({ isDemo: organizations.isDemo }).from(organizations).where(eq(organizations.id, orgId)).get();
+  if (org?.isDemo) throw new HttpError(403, "demo_domains_off", DEMO_DOMAINS_OFF);
+}
+
 /** `dkimKey` reuses an existing key pair (sandbox domains share one, skipping RSA key generation). */
 export async function createDomain(deps: Deps, orgId: string, name: string, opts: { dkimKey?: { publicKeyB64: string; privateKeyPem: string } } = {}) {
   const { db, config } = deps;
   // R26 (DF-18): the company domain in the operator workspace is the deployment's own and is not a plan add-on.
   const operatorDomain = isOperatorDomainRow(config, { orgId, name });
   assertDomainAllowed(config, orgId, name);
+  // PRIV1b (P40): a demo (anonymous) adds no domains; its sample domain comes in with the shared sample key.
+  if (!opts.dkimKey) await assertNotDemo(db, orgId);
   if (!operatorDomain) await assertCanCreate(db, orgId, "domains");
   const existing = await db.select().from(domains).where(eq(domains.name, name)).get();
   if (existing) {
@@ -197,6 +207,7 @@ export async function queuedDomainCount(db: DB) {
 
 export async function deleteDomain(db: DB, orgId: string, id: string, deps?: Deps) {
   const d = await getDomain(db, orgId, id);
+  await assertNotDemo(db, orgId); // PRIV1b (P40)
   await db.delete(domains).where(eq(domains.id, d.id));
   // Free the provider's slot too (its plan counts domains), and hand it to the next domain waiting. Best effort.
   if (deps && d.providerDomainId) {

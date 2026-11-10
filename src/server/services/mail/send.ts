@@ -84,7 +84,8 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   if (conn?.status === "auth_failed") {
     throw new HttpError(409, "connection_auth_failed", `${mb.address} stopped accepting its password. Reconnect it in Settings, Connections, Mail accounts, then send again.`);
   }
-  if (!conn && domain.status !== "verified" && !org.isDemo) {
+  // PRIV1b (P40): no demo exemption. A sandbox's sample domain is stored verified; any other domain must prove itself.
+  if (!conn && domain.status !== "verified") {
     throw new HttpError(409, "domain_unverified", `Verify ${domain.name} before sending from it, so your mail isn't rejected as spoofed.`);
   }
 
@@ -190,6 +191,8 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   // Mail from a connected address always goes through its provider, so the Sent copy lives there too.
   for (const r of recipients) ((!conn && (await isHosted(db, r))) ? internal : external).push(r);
 
+  // PRIV1b (P40): internal mail shows pass only for a sender domain proved in DNS.
+  const senderAuth = domain.status === "verified" ? { spf: "pass" as const, dkim: "pass" as const, dmarc: "pass" as const } : { spf: "none" as const, dkim: "none" as const, dmarc: "none" as const };
   for (const rcpt of internal) {
     const r = await deliverInbound(deps, {
       envelopeFrom: mb.address,
@@ -198,7 +201,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
       via: "internal",
       email: {
         messageId: messageIdHeader, inReplyTo, references, from, to: toList, cc: ccList, replyTo, subject: input.subject,
-        text: input.text, html: input.html, date: now, attachments: atts, authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {},
+        text: input.text, html: input.html, date: now, attachments: atts, authResults: senderAuth, headers: {},
       },
     });
     await logDelivery(db, { orgId: auth.orgId, messageId: sentId, direction: "outbound", fromAddress: mb.address, toAddress: rcpt, subject: input.subject, status: r.accepted ? "delivered" : "failed", provider: "internal", detail: r.reason });

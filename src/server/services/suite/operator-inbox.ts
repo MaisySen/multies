@@ -44,9 +44,36 @@ export function operatorDecision(config: OperatorConfig, rcpt: string): Operator
   return addresses.includes(address) ? { kind: "operator", orgId, address } : { kind: "closed", address };
 }
 
-/** Refuses the company domain to every workspace but the operator's. */
-export function assertDomainAllowed(config: OperatorConfig, orgId: string, name: string): void {
-  if (!isCompanyDomain(config, name)) return;
-  if (config.operatorInbox.orgId && orgId === config.operatorInbox.orgId) return;
-  throw conflict(`${name.trim().toLowerCase()} is reserved for the Multies team.`);
+/** PRIV1b (P36): public mail services. Nobody owns these through a workspace; a claim would catch their users' mail. */
+export const PUBLIC_MAIL_DOMAINS: readonly string[] = [
+  "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "msn.com", "yahoo.com", "ymail.com", "icloud.com", "me.com",
+  "mac.com", "aol.com", "proton.me", "protonmail.com", "pm.me", "gmx.com", "gmx.net", "mail.com", "zoho.com", "yandex.com", "fastmail.com",
+  "hey.com", "tutanota.com", "tuta.com", "qq.com", "163.com", "126.com", "naver.com",
+];
+
+/** PRIV1b (P50): the shared row for connected mailboxes; the same value as CONNECTED_DOMAIN in services/connect. */
+export const CONNECTED_DOMAIN_NAME = "connected.multies.invalid";
+const PLATFORM_ORG_ID = "org_platform";
+
+export type ReservedConfig = OperatorConfig & { freeMail?: { domain?: string }; agents?: { sharedDomain?: string } };
+
+const under = (name: string, d: string) => name === d || name.endsWith(`.${d}`);
+
+/**
+ * Refuses reserved names. The company domain: every workspace but the operator's. PRIV1b (P36, P50): public mail
+ * services, the platform's shared domains (free addresses, agent inboxes, connected mailboxes) and company subdomains:
+ * every workspace (the operator may add other company subdomains). The platform's own rows never come through here.
+ */
+export function assertDomainAllowed(config: ReservedConfig, orgId: string, name: string): void {
+  const n = name.trim().toLowerCase().replace(/\.$/, "");
+  if (orgId === PLATFORM_ORG_ID) return;
+  const operator = !!config.operatorInbox.orgId && orgId === config.operatorInbox.orgId;
+  if (isCompanyDomain(config, n)) {
+    if (operator) return;
+    throw conflict(`${n} is reserved for the Multies team.`);
+  }
+  if (PUBLIC_MAIL_DOMAINS.some((d) => under(n, d))) throw conflict(`${n} is a public mail service. Add a domain you own.`);
+  const platform = [config.freeMail?.domain, config.agents?.sharedDomain, CONNECTED_DOMAIN_NAME].filter((d): d is string => !!d).map((d) => d.toLowerCase());
+  const company = config.operatorInbox.domain;
+  if (platform.some((d) => under(n, d)) || (company && !operator && under(n, company))) throw conflict(`${n} is reserved for the Multies team.`);
 }

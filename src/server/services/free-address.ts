@@ -88,6 +88,9 @@ export function suggestFreeLocalPart(personName: string, workspaceName: string, 
  */
 export async function ensurePlatformDomain(deps: Deps, name: string) {
   const existing = await deps.db.select().from(domains).where(eq(domains.name, name)).get();
+  // PRIV1b (P50): a row some workspace added first is theirs, not the platform's. Adopting it would put every free address
+  // in their hands (and their delete would cascade). Refuse loudly; support releases the name, the squatter's data stays.
+  if (existing && existing.orgId !== PLATFORM_ORG) throw new HttpError(409, "platform_domain_taken", `${name} is held by a workspace, so it can't be used for shared addresses. Contact support.`);
   if (existing) return existing;
   await deps.db.insert(organizations).values({ id: PLATFORM_ORG, name: "Multies platform", slug: "mymail-platform" }).onConflictDoNothing();
   const { publicKeyB64, privateKeyPem } = await generateDkimKeyPair();

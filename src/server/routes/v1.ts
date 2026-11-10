@@ -17,7 +17,7 @@ import { HttpError, unauthorized } from "../lib/errors";
 import { idempotency, idempotentCreate } from "../lib/idempotency"; // R53: idempotentCreate for webhook endpoints
 import { audit } from "../services/audit";
 import { createAlias, createMailbox, deleteAlias, deleteMailbox, getMailbox, listAliases, listMailboxes, updateMailbox } from "../services/addresses";
-import { mailboxReplyToSchema } from "@/shared/schemas";
+import { createDomainSchema, mailboxReplyToSchema } from "@/shared/schemas";
 import { resolveApiKey } from "../services/developer/api-keys";
 import { hasScope, insufficientScopeBody, isPresetScope, routeScopeForRequest } from "../lib/api-scopes";
 import { resolveOAuthToken } from "../services/developer/oauth";
@@ -342,9 +342,13 @@ export function v1Routes() {
     request: body(z.object({ name: z.string().min(3).max(253).openapi({ example: "acme.com" }) })),
     responses: { 201: json(Domain, "The new domain with the DNS records to publish."), 401: errors[401], 422: errors[422] } }),
   async (c) => {
-    const { name } = c.req.valid("json");
+    const { name: raw } = c.req.valid("json");
     const { auth, deps } = c.var;
-    const d = await createDomain(deps, auth.orgId, name.trim().toLowerCase());
+    // PRIV1b (P70): the same name rules as the app (no trailing dot, no scheme, real hostname), so "acme.io." can't sit beside "acme.io".
+    const parsed = createDomainSchema.safeParse({ name: raw });
+    if (!parsed.success) throw new HttpError(422, "validation_failed", parsed.error.issues[0]?.message ?? "Enter a domain like example.com");
+    const { name } = parsed.data;
+    const d = await createDomain(deps, auth.orgId, name);
     await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "domain.added", targetType: "domain", targetId: d.id, metadata: { name: d.name, via: "api" }, ip: c.var.ip });
     await verifyDomain(deps, d);
     return c.json(domainOut(await getDomain(deps.db, auth.orgId, d.id), deps), 201);
