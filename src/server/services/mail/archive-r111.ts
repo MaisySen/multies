@@ -7,7 +7,7 @@
  *   4. Every pass that deletes anything, every hold, search and case export is written to the audit log.
  */
 import { Zip, ZipDeflate } from "fflate";
-import { and, asc, desc, eq, isNull, lt, lte, ne, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lt, lte, ne, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { attachments, mailCases, mailConnections, mailLegalHolds, mailRetentionPolicies, mailboxAccess, mailboxes, members, messages, organizations, users } from "../../db/schema";
 import { HttpError, badRequest, conflict, forbidden, notFound } from "../../lib/errors";
@@ -46,13 +46,29 @@ export async function heldScope(deps: Deps, orgId: string): Promise<HeldScope> {
   const userIds = [...new Set(holds.filter((h) => h.kind === "person").map((h) => h.targetId))];
   const boxes = new Set(holds.filter((h) => h.kind === "mailbox").map((h) => h.targetId));
   if (userIds.length) {
-    const access = await deps.db.select({ mailboxId: mailboxAccess.mailboxId }).from(mailboxAccess)
-      .where(and(eq(mailboxAccess.orgId, orgId), inIds(mailboxAccess.userId, userIds)));
+    const [access, own, roles] = await Promise.all([
+      deps.db.select({ mailboxId: mailboxAccess.mailboxId }).from(mailboxAccess)
+        .where(and(eq(mailboxAccess.orgId, orgId), inIds(mailboxAccess.userId, userIds))),
+      // PRIV1a: a person's own personal mailboxes (connected inboxes, free addresses) are theirs to hold too, also
+      // after they left the workspace.
+      deps.db.select({ id: mailboxes.id }).from(mailboxes)
+        .where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.personal, true), inIds(mailboxes.ownerUserId, userIds))),
+      deps.db.select({ userId: members.userId, role: members.role }).from(members)
+        .where(and(eq(members.organizationId, orgId), inIds(members.userId, userIds))),
+    ]);
     for (const a of access) boxes.add(a.mailboxId);
-    // PRIV1a: a person's own personal mailboxes (connected inboxes, free addresses) are theirs to hold too.
-    const own = await deps.db.select({ id: mailboxes.id }).from(mailboxes)
-      .where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.personal, true), inIds(mailboxes.ownerUserId, userIds)));
     for (const o of own) boxes.add(o.id);
+    // PRIV1b (P44): every mailbox the held person can open by the one rule (grants, role, shares), so a hold on a
+    // delegate or an admin keeps the mail they can open. A person who left holds what they owned (above).
+    const role = new Map(roles.map((r) => [r.userId, r.role as "owner" | "admin" | "member"]));
+    for (const u of userIds) {
+      if (!role.has(u)) continue;
+      const scope = await scopeFor(deps.db, { orgId, userId: u, role: role.get(u) });
+      if (scope) { for (const id of scope) boxes.add(id); continue; }
+      const all = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(eq(mailboxes.orgId, orgId));
+      for (const r of all) boxes.add(r.id);
+      break; // every mailbox is held: nothing more to add
+    }
   }
   return { mailboxIds: [...boxes], userIds, active: holds.length };
 }
@@ -60,12 +76,20 @@ const notHeldCond = (s: HeldScope): SQL | undefined => {
   const parts = [notInIds(messages.mailboxId, s.mailboxIds), s.userIds.length ? or(isNull(messages.sentByUserId), notInIds(messages.sentByUserId, s.userIds)) : undefined].filter(Boolean) as SQL[];
   return parts.length ? and(...parts) : undefined;
 };
+// PRIV1b (P58): team mailboxes only. Personal ones are skipped by the pass and left out of every preview count below.
 async function connectedBoxes(deps: Deps, orgId: string) {
-  return (await deps.db.select({ id: mailConnections.mailboxId }).from(mailConnections).where(eq(mailConnections.orgId, orgId))).map((r) => r.id);
+  return (await deps.db.select({ id: mailConnections.mailboxId }).from(mailConnections).innerJoin(mailboxes, eq(mailboxes.id, mailConnections.mailboxId))
+    .where(and(eq(mailConnections.orgId, orgId), eq(mailboxes.personal, false)))).map((r) => r.id);
 }
 
-/** Past the cutoff, not a draft: what a policy is about. */
-const pastCond = (orgId: string, cutoff: Date) => and(eq(messages.orgId, orgId), lt(messages.date, cutoff), ne(messages.folder, "drafts"));
+/**
+ * Past the cutoff, not a draft, not in a personal mailbox: what a policy is about.
+ * PRIV1b (P58): the Date header is the sender's word, so the stored receive time must be past the cutoff too.
+ * Personal mailboxes are their owner's (the admin can't open them), so a workspace policy never deletes from them and
+ * the preview never counts them (a hold plus a preview was a per mailbox count).
+ */
+const pastCond = (orgId: string, cutoff: Date) => and(eq(messages.orgId, orgId), lt(messages.date, cutoff), lt(messages.createdAt, cutoff), ne(messages.folder, "drafts"),
+  sql`${messages.mailboxId} not in (select p.id from mailboxes p where p.org_id = ${orgId} and p.personal = 1)`);
 async function countWhere(deps: Deps, where: SQL | undefined) {
   const r = await deps.db.select({ n: sql<number>`count(*)` }).from(messages).where(where).get();
   return Number(r?.n ?? 0);
@@ -150,8 +174,13 @@ export async function runRetentionForOrg(deps: Deps, orgId: string): Promise<{ d
   const perBox: Record<string, { n: number; bytes: number }> = {};
   for (let i = 0; i < rows.length; i += 50) {
     const part = rows.slice(i, i + 50);
-    await deps.db.delete(messages).where(and(eq(messages.orgId, orgId), inIds(messages.id, part.map((r) => r.id))));
+    const ids = part.map((r) => r.id);
+    // PRIV1b (P58): large attachments live in the body store; read their keys before the rows (and the attachment
+    // rows, by foreign key) go, then delete the blobs. A failed blob delete never stops the pass.
+    const blobs = deps.bodyStore ? await deps.db.select({ key: attachments.storageKey }).from(attachments).where(and(inIds(attachments.messageId, ids), isNotNull(attachments.storageKey))) : [];
+    await deps.db.delete(messages).where(and(eq(messages.orgId, orgId), inIds(messages.id, ids)));
     for (const r of part) { const b = (perBox[r.mailboxId] ??= { n: 0, bytes: 0 }); b.n++; b.bytes += Math.max(0, r.sizeBytes); }
+    for (const b of blobs) if (b.key) await deps.bodyStore!.delete(b.key).catch((err) => deps.reportError?.(err, { where: "mail.retention.blob", orgId }));
   }
   for (const [id, b] of Object.entries(perBox)) {
     await deps.db.update(mailboxes).set({ usedBytes: sql`max(0, ${mailboxes.usedBytes} - ${b.bytes})` }).where(eq(mailboxes.id, id));
@@ -174,10 +203,18 @@ export async function runRetentionPass(deps: Deps, opts: { maxOrgs?: number } = 
   const due = await deps.db.select({ orgId: mailRetentionPolicies.orgId }).from(mailRetentionPolicies)
     .where(and(eq(mailRetentionPolicies.enabled, true), lte(mailRetentionPolicies.startsAt, now),
       or(isNull(mailRetentionPolicies.lastRunAt), lt(mailRetentionPolicies.lastRunAt, new Date(now.getTime() - RETENTION_INTERVAL_MS)), eq(mailRetentionPolicies.backlog, true))))
+    // PRIV1b (P58): never run first, then the longest waiting, so a backlog or a failing workspace can't starve the rest.
+    .orderBy(sql`${mailRetentionPolicies.lastRunAt} is not null`, asc(mailRetentionPolicies.lastRunAt))
     .limit(opts.maxOrgs ?? 5);
   let deleted = 0;
   for (const d of due) {
-    try { deleted += (await runRetentionForOrg(deps, d.orgId)).deleted; } catch (err) { deps.reportError?.(err, { where: "mail.retention", orgId: d.orgId }); }
+    // PRIV1b (P58): a failed or skipped pass still counts as a run, so the workspace goes to the back of the queue.
+    let ran = false;
+    try {
+      const r = await runRetentionForOrg(deps, d.orgId);
+      deleted += r.deleted; ran = !r.skipped;
+    } catch (err) { deps.reportError?.(err, { where: "mail.retention", orgId: d.orgId }); }
+    if (!ran) await deps.db.update(mailRetentionPolicies).set({ lastRunAt: now }).where(eq(mailRetentionPolicies.orgId, d.orgId)).catch(() => undefined);
   }
   return { orgs: due.length, deleted };
 }

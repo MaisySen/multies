@@ -242,11 +242,16 @@ export async function reconnect(deps: Deps, auth: AuthContext, id: string, input
 export async function removeConnection(deps: Deps, auth: AuthContext, id: string) {
   const c = await getConnection(deps, auth, id);
   await assertCanManage(deps, auth, c, "remove");
-  await assertMailboxNotHeld(deps, auth.orgId, c.mailboxId); // R111: a mailbox on legal hold keeps its copy
+  // R111: a mailbox on legal hold keeps its copy. PRIV1b (P58): but the hold no longer stops the disconnect: the stored
+  // password and the sync go now, the mailbox and its held mail stay until the hold is lifted.
+  const held = await assertMailboxNotHeld(deps, auth.orgId, c.mailboxId).then(() => false, (err) => {
+    if (err instanceof HttpError && err.code === "legal_hold") return true;
+    throw err;
+  });
   await deps.db.delete(mailConnections).where(eq(mailConnections.id, c.id));
-  await deps.db.delete(mailboxes).where(and(eq(mailboxes.id, c.mailboxId), eq(mailboxes.orgId, auth.orgId)));
-  await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.disconnected", targetType: "mailbox", targetId: c.mailboxId, metadata: { address: c.email } });
-  return { ok: true as const };
+  if (!held) await deps.db.delete(mailboxes).where(and(eq(mailboxes.id, c.mailboxId), eq(mailboxes.orgId, auth.orgId)));
+  await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.disconnected", targetType: "mailbox", targetId: c.mailboxId, metadata: { address: c.email, ...(held ? { keptForLegalHold: true } : {}) } });
+  return { ok: true as const, ...(held ? { keptForLegalHold: true as const } : {}) };
 }
 
 export async function connectionForMailbox(deps: Deps, mailboxId: string) {

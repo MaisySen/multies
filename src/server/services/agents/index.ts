@@ -26,6 +26,7 @@ import { deprovisionMailbox } from "../mailserver";
 import { mailboxScope } from "../team";
 import { memberSigningInAs } from "../addresses";
 import { assertOpen, keepOpenableBy } from "../mail-access-priv1a";
+import { assertMailboxNotHeld } from "../mail/archive-r111"; // PRIV1b (P44)
 import { logMailboxOpen } from "../mailbox-sharing-priv1a";
 import { agentMessage, extractCodes, extractLinks, latestText } from "./parse";
 import { listThreadStates, threadViewCond, type ThreadView } from "../mail/thread-state";
@@ -286,6 +287,7 @@ export async function updateAgent(deps: Deps, actor: Actor, id: string, patch: U
 export async function deleteAgent(deps: Deps, actor: Actor, id: string) {
   assertWorkspaceActor(actor);
   const { a, mb } = await row(deps, actor.orgId, id);
+  await assertMailboxNotHeld(deps, actor.orgId, mb.id); // PRIV1b (P44): a held agent inbox stays, as DELETE /api/mailboxes/:id
   await deprovisionMailbox(deps, actor.orgId, mb.id).catch(() => undefined);
   await deps.db.delete(apiKeys).where(eq(apiKeys.agentId, a.id));
   await deps.db.delete(agents).where(eq(agents.id, a.id));
