@@ -128,6 +128,9 @@ export function mailRoutes() {
       const splitExtra = q.split && q.folder === "inbox" && !q.q && !q.remote ? await splitCond(c.var.deps, c.var.auth, q.split) : undefined;
       const snoozeExtra = q.folder === "inbox" && !q.q && !q.remote ? snoozeHiddenCond(c.var.deps.now()) : undefined;
       const listScope = await mailboxScope(c.var.deps.db, c.var.auth);
+      // PRIV1b (P66): a mailbox the person can't open (a share taken back or left) answers 404, so the app drops it
+      // from the screen instead of showing an empty inbox under its name.
+      if (q.mailboxId && listScope && !listScope.includes(q.mailboxId)) throw notFound("Mailbox");
       const result = await listMessages(c.var.deps.db, c.var.auth.orgId, {
         mailboxId: q.mailboxId,
         folder: q.remote ? undefined : (q.folder as Folder | "starred" | undefined),

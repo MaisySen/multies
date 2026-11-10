@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
 import { qk, useMailboxes, useMe, useTeam } from "@/web/lib/queries";
+import { teamPickable } from "@/web/lib/mail-level-priv1b"; // PRIV1b (P24, P66)
 import type { InviteCreated, Mailbox, PendingInvite, Role, TeamMember } from "@/web/lib/types";
 import { Avatar, Badge, Card, CopyButton, EmptyState, Meter, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
@@ -55,7 +56,9 @@ function SsoEnforcement({ required }: { required: boolean }) {
 export function TeamSettings() {
   const team = useTeam();
   const me = useMe();
+  // PRIV1b (P24, P66): access is granted on team mailboxes only; someone's personal mailbox is never offered here.
   const mailboxes = useMailboxes();
+  const grantable = teamPickable(mailboxes.data);
   const [inviting, setInviting] = useState(false);
   const [created, setCreated] = useState<(InviteCreated & { email: string }) | null>(null);
   const myRole = me.data?.organization?.role ?? "member";
@@ -110,7 +113,7 @@ export function TeamSettings() {
           </div>
         </div>
         <ul className="divide-y divide-line" aria-label="Members">
-          {members.map((m) => <MemberRow key={m.userId} m={m} myRole={myRole} myId={me.data?.user.id ?? ""} mailboxes={mailboxes.data ?? []} />)}
+          {members.map((m) => <MemberRow key={m.userId} m={m} myRole={myRole} myId={me.data?.user.id ?? ""} mailboxes={grantable} />)}
         </ul>
       </Card>
 
@@ -134,7 +137,7 @@ export function TeamSettings() {
 
       {myRole === "owner" && <SsoEnforcement required={!!me.data?.organization?.requireSso} />}
 
-      <InviteDialog open={inviting} demo={isDemo} onClose={() => setInviting(false)} myRole={myRole} mailboxes={mailboxes.data ?? []}
+      <InviteDialog open={inviting} demo={isDemo} onClose={() => setInviting(false)} myRole={myRole} mailboxes={grantable}
         onCreated={(r) => { setInviting(false); setCreated(r); }} />
       <Dialog open={!!created} onClose={() => setCreated(null)} title="Invitation ready"
         description={created?.emailed ? `We emailed ${created.email}. You can also share the link yourself.` : `We couldn't email this invite. Copy the link instead and send it to ${created?.email} yourself.`}
@@ -300,13 +303,15 @@ function AccessDialog({ open, onClose, member, mailboxes }: { open: boolean; onC
   const qc = useQueryClient();
   const [ids, setIds] = useState<string[]>(member.mailboxIds ?? []);
   const save = useMutation({
-    mutationFn: () => api.patch(`/team/members/${member.userId}`, { mailboxIds: ids }),
+    // PRIV1b (P24): an old grant on a mailbox not offered here (now personal) is left out, so Save is not refused for it (what the
+    // picker shows is what is saved).
+    mutationFn: () => api.patch(`/team/members/${member.userId}`, { mailboxIds: ids.filter((id) => mailboxes.some((b) => b.id === id)) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: qk.team }); toast.success("Access updated"); onClose(); },
     onError: (e) => showError(e),
   });
   return (
     <Dialog open={open} onClose={onClose} title={`Mailbox access for ${member.name}`} description="They can read, search and send from these mailboxes only."
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={save.isPending} onClick={() => save.mutate()}>Save access</Button></>}>
+      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={save.isPending} disabled={!mailboxes.length} onClick={() => save.mutate()}>Save access</Button></>}>
       <MailboxPicker mailboxes={mailboxes} value={ids} onChange={setIds} />
     </Dialog>
   );

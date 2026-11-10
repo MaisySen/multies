@@ -1003,4 +1003,6 @@ export const en: Bundle = {
   "priv1a.device_api": "through the API",
   "priv1a.shared_with_you": "Shared with you",
   "priv1a.leave": "Leave",
+  "priv1a.private": "Private",
+  "priv1a.marks_read": "When someone you share with opens a message, it shows as read for you too.",
 };

@@ -8,12 +8,13 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
-import { useMe } from "@/web/lib/queries";
+import { qk, useMe } from "@/web/lib/queries";
 import { showError } from "@/web/lib/show-error";
 import { timeAgo } from "@/web/lib/format";
 import { Button } from "@/web/components/ui/button";
 import { Select } from "@/web/components/ui/input";
 import { t } from "@/web/i18n";
+import { noticeKey } from "@/web/lib/mail-level-priv1b"; // PRIV1b (P66)
 
 type Level = "read" | "reply" | "send_as";
 interface Mine { own: { id: string; address: string; displayName: string }[]; shared: { id: string; address: string; displayName: string; level: Level }[]; hiddenFromMe: number }
@@ -35,13 +36,17 @@ export function useMailboxPrivacy() {
 
 /** The one time notice for owners and admins: shown while a personal inbox in the workspace is closed to them, until dismissed. */
 export function PrivateInboxNotice() {
-  const role = useMe().data?.organization?.role;
+  const me = useMe().data;
+  const role = me?.organization?.role;
   const lead = role === "owner" || role === "admin";
   const q = useQuery({ queryKey: MINE_KEY, queryFn: () => api.get<Mine>("/api/mailboxes/privacy/mine"), staleTime: 300_000, enabled: lead });
-  const storeKey = "multies.priv1a.notice";
-  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(storeKey) === "1"; } catch { return false; } });
-  if (!lead || hidden || !q.data?.hiddenFromMe) return null;
-  const close = () => { try { localStorage.setItem(storeKey, "1"); } catch { /* private mode: hide for this visit */ } setHidden(true); };
+  // PRIV1b (P66): dismissed per person and workspace, so the next admin on this browser still sees it.
+  const storeKey = noticeKey(me?.user?.id, me?.organization?.id);
+  const [hiddenFor, setHiddenFor] = useState<string | null>(null);
+  let stored = false;
+  try { stored = localStorage.getItem(storeKey) === "1"; } catch { /* storage blocked */ }
+  if (!lead || stored || hiddenFor === storeKey || !q.data?.hiddenFromMe) return null;
+  const close = () => { try { localStorage.setItem(storeKey, "1"); } catch { /* private mode: hide for this visit */ } setHiddenFor(storeKey); };
   return (
     <div role="status" data-testid="priv1a-notice" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-line bg-brand-soft px-4 py-2 text-[13px] text-fg">
       <span>{t("priv1a.notice")}</span>
@@ -57,7 +62,8 @@ export function MailboxPrivacyPanel() {
   const me = useMe().data?.user?.id;
   const leave = useMutation({
     mutationFn: (id: string) => api.del(`/api/mailboxes/${id}/sharing/${me}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["mailbox-privacy"] }),
+    // PRIV1b (P66): the left mailbox also leaves Mail and every mailbox list at once.
+    onSuccess: () => Promise.all([["mailbox-privacy"], ["mail"], qk.mailboxes, ["team-inbox"]].map((queryKey) => qc.invalidateQueries({ queryKey }))),
     onError: showError,
   });
   if (!q.data) return null;
@@ -98,6 +104,7 @@ function ShareCard({ id, address }: { id: string; address: string }) {
       <div className="text-sm font-medium">{address}</div>
       {!v ? <div className="mt-2 h-8 animate-pulse rounded bg-surface-2" /> : (
         <>
+          <p className="mt-1 text-[12.5px] text-muted" data-testid="priv1a-marks-read">{t("priv1a.marks_read")}</p>
           <ul className="mt-2 space-y-1.5">
             {v.shares.length === 0 && <li className="text-sm text-muted">{t("priv1a.not_shared")}</li>}
             {v.shares.map((s) => (

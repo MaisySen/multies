@@ -53,6 +53,7 @@ import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33 offline
 import { SNOOZE_WORDS, emptySelection, prune, selectAll, selectRange, setSelectionCount, toggleOne, undoPlan, UNDO_MS, type BulkCall, type Selection } from "@/web/lib/mail-selection"; // R32
 import { LoadError } from "@/web/components/load-error-t1g";
 import { tl, tr } from "@/web/i18n"; // R104, POL4 (HQ MB-356)
+import { canChangeMail, canReplyIn, isGone } from "@/web/lib/mail-level-priv1b"; // PRIV1b (P66)
 
 type View = Folder | "starred" | "snoozed" | "scheduled" | `f:${string}`;
 const FOLDER_UI: { id: View; label: string; icon: IconComponent }[] = [
@@ -78,7 +79,10 @@ export function WebmailPage() {
   const mailboxes = useMemo(() => overview.data ?? [], [overview.data]);
   useLiveMail(mailboxes.some((m) => m.connected));
   const busiest = [...mailboxes].sort((a, b) => (b.folders.inbox?.total ?? 0) - (a.folders.inbox?.total ?? 0))[0];
-  const mailboxId = params.get("mailbox") ?? busiest?.id ?? "";
+  // PRIV1b (P66): a ?mailbox= this person can't open (not in their overview) is not used; the busiest one opens instead.
+  const wantedBox = params.get("mailbox");
+  const mailboxId = (wantedBox && mailboxes.some((m) => m.id === wantedBox) ? wantedBox : null) ?? busiest?.id ?? "";
+  const canChange = canChangeMail(mailboxes.find((m) => m.id === mailboxId));
   const folder = (params.get("folder") ?? "inbox") as View;
   const q = params.get("q") ?? "";
   const selected = params.get("m");
@@ -128,6 +132,16 @@ export function WebmailPage() {
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     refetchInterval: 30_000,
   });
+  // PRIV1b (P66): a 404 here means the share was taken back or left: the mailbox leaves the screen (its list too) and
+  // the overview is read again, instead of the last list staying up while every refresh fails quietly.
+  const goneBox = list.error && isGone(list.error) ? mailboxId : "";
+  useEffect(() => {
+    if (!goneBox) return;
+    qc.removeQueries({ queryKey: ["mail", "list", goneBox] });
+    qc.setQueryData<MailboxOverview[]>(qk.overview, (d) => d?.filter((m) => m.id !== goneBox));
+    void qc.invalidateQueries({ queryKey: qk.overview });
+    setParams((p) => { const n = new URLSearchParams(p); if (n.get("mailbox") === goneBox) n.delete("mailbox"); n.delete("m"); return n; }, { replace: true });
+  }, [goneBox, qc, setParams]);
   // Round 20: snoozed threads and reminders that came back sit on top of Inbox, marked, until opened.
   const returned = useScheduleList("returned", mailboxId, folder === "inbox" && !q);
   const returnedItems = useMemo(() => (folder === "inbox" && !q ? returned.data ?? [] : []), [returned.data, folder, q]);
@@ -209,6 +223,7 @@ export function WebmailPage() {
     return () => window.removeEventListener("keydown", on, true);
   }, [confirmJob]);
   const runJob = (action: JobAction, extra: { to?: string; when?: JobBody["when"] } = {}, label?: string, confirmed = false) => {
+    if (!canChange) return; // PRIV1b (P66): a read share changes nothing
     const scope = jobScope();
     const exclude = everything ?? [];
     if (!scope) return;
@@ -246,6 +261,7 @@ export function WebmailPage() {
   confirmRef.current = () => { const c = confirmJob; setConfirmJob(null); if (c) runJob(c.action, c.extra, c.label, true); };
   const runBulk = (partial: Omit<BulkCall, "ids">, folderLabel?: string, confirmed = false) => {
     // R34: snooze, move and delete (to Trash, undoable) run as the server job too when everything is chosen.
+    if (!canChange) return; // PRIV1b (P66)
     const jobAction = everything ? jobActionFor(partial.action, folder) : null;
     if (jobAction) {
       const p = partial as Omit<BulkCall, "ids"> & { to?: string; preset?: "later_today" | "tomorrow" | "next_week"; at?: string; local?: string };
@@ -296,7 +312,7 @@ export function WebmailPage() {
   latestSel.current = { sel, rowIds, current, compose: !!compose, runUndo };
   const hasSel = sel.ids.length > 0;
   const move = (action: string) => {
-    if (!current) return;
+    if (!current || !canChange) return; // PRIV1b (P66)
     const next = items[idx + 1] ?? items[idx - 1];
     // R37: E and # on the open message take the same undoable path as a swipe or a bulk action on one id,
     // so Cmd+Z (and the toast's Undo) bring it back, as the shortcuts sheet promises. Same single write as before.
@@ -375,13 +391,14 @@ export function WebmailPage() {
     "mail-prev": () => { if (!items.length) return false; step(-1); },
     "mail-compose": () => { startCompose(); },
     "mail-search": () => { searchRef.current?.focus(); },
-    "mail-archive": () => { if (hasSel) return runBulk({ action: folder === "archive" ? "inbox" : "archive" }); if (!current) return false; move("archive"); },
-    "mail-trash": () => { if (hasSel) return runBulk({ action: folder === "trash" ? "delete" : "trash" }); if (!current) return false; move("trash"); },
+    "mail-archive": () => { if (!canChange) return false; if (hasSel) return runBulk({ action: folder === "archive" ? "inbox" : "archive" }); if (!current) return false; move("archive"); },
+    "mail-trash": () => { if (!canChange) return false; if (hasSel) return runBulk({ action: folder === "trash" ? "delete" : "trash" }); if (!current) return false; move("trash"); },
     "mail-star": () => {
+      if (!canChange) return false;
       if (hasSel) { const all = sel.ids.every((id) => items.find((m) => m.id === id)?.isStarred); return runBulk({ action: all ? "unstar" : "star" }); }
       if (!current) return false; act.mutate({ ids: [current.id], action: current.isStarred ? "unstar" : "star" });
     },
-    "mail-snooze": () => { if (!hasSel) return false; setSnoozeOpen(true); },
+    "mail-snooze": () => { if (!hasSel || !canChange) return false; setSnoozeOpen(true); },
     "mail-select": () => { const id = cursorId(); if (!id) return false; toggleRow(id, false); },
     "mail-select-all": () => { if (!rowIds.length) return false; setSel(selectAll(rowIds)); },
     // Shift+X, Esc and Cmd/Ctrl+Z are read by the page's own key listener above; these bind the same ids by name.
@@ -395,6 +412,7 @@ export function WebmailPage() {
     "mail-bulk-trash": () => { if (!hasSel) return false; runBulk({ action: folder === "trash" ? "delete" : "trash" }); },
     "mail-bulk-clear": () => { if (!hasSel) return false; setSel(emptySelection()); },
     "mail-read": () => {
+      if (!canChange) return false;
       if (hasSel) { const anyUnread = sel.ids.some((id) => items.find((m) => m.id === id)?.isRead === false); return runBulk({ action: anyUnread ? "read" : "unread" }); }
       if (!current) return false;
       act.mutate({ ids: [current.id], action: current.isRead ? "unread" : "read" });
@@ -422,13 +440,13 @@ export function WebmailPage() {
 
   // R31 (C): the mail actions the command registry calls by name (src/web/lib/mail-actions.ts).
   // Handlers read the newest state through a ref, so they are registered once.
-  const latest = useRef({ items, idx, current, split, splitTabs, move, act, open, startCompose, setSplit });
-  latest.current = { items, idx, current, split, splitTabs, move, act, open, startCompose, setSplit };
+  const latest = useRef({ items, idx, current, split, splitTabs, move, act, open, startCompose, setSplit, canChange });
+  latest.current = { items, idx, current, split, splitTabs, move, act, open, startCompose, setSplit, canChange };
   useEffect(() => registerMailActions({
     archive: () => { const l = latest.current; if (l.current) l.move("archive"); },
     trash: () => { const l = latest.current; if (l.current) l.move("trash"); },
-    star: () => { const l = latest.current; if (l.current) l.act.mutate({ ids: [l.current.id], action: l.current.isStarred ? "unstar" : "star" }); },
-    markUnread: () => { const l = latest.current; if (l.current) { l.act.mutate({ ids: [l.current.id], action: "unread" }); l.open(null); } },
+    star: () => { const l = latest.current; if (l.current && l.canChange) l.act.mutate({ ids: [l.current.id], action: l.current.isStarred ? "unstar" : "star" }); },
+    markUnread: () => { const l = latest.current; if (l.current && l.canChange) { l.act.mutate({ ids: [l.current.id], action: "unread" }); l.open(null); } },
     next: () => { const l = latest.current; if (l.items.length) l.open(l.items[Math.min(l.idx + 1, l.items.length - 1)].id); },
     prev: () => { const l = latest.current; if (l.items.length) l.open(l.items[Math.max(l.idx - 1, 0)].id); },
     compose: () => latest.current.startCompose(),
@@ -488,13 +506,13 @@ export function WebmailPage() {
           {label ? <span className="inline-flex min-w-0 items-center gap-1.5" data-testid="label-view"><IconTag className="h-3.5 w-3.5 shrink-0" aria-hidden /><span className="truncate">{label}</span>
             <button type="button" onClick={() => setParam({ label: null, m: null })} className="grid h-6 w-6 place-items-center rounded hover:bg-hover hover:text-fg max-sm:h-9 max-sm:w-9" aria-label={tr("mail.clear_label")}><IconClose className="h-3 w-3" /></button></span>
           : <span>{q ? `Results for “${q}”` : FOLDER_UI.find((f) => f.id === folder)?.label ?? SCHEDULE_VIEWS.find((f) => f.id === folder)?.label ?? folder.slice(2)}</span>}
-          {folder === "trash" && !q && items.length > 0 && <button className="text-muted hover:text-bad" onClick={() => act.mutate({ ids: items.map((i) => i.id), action: "delete" })}>{tr("mail.empty_trash")}</button>}
-          {archiveOlderOffered({ folder, q, loaded: items.length, inboxTotal: mb.folders.inbox?.total ?? 0 }) && <button type="button" data-testid="archive-older" onClick={() => setOlderOpen(true)} aria-haspopup="dialog"
+          {canChange && folder === "trash" && !q && items.length > 0 && <button className="text-muted hover:text-bad" onClick={() => act.mutate({ ids: items.map((i) => i.id), action: "delete" })}>{tr("mail.empty_trash")}</button>}
+          {canChange && archiveOlderOffered({ folder, q, loaded: items.length, inboxTotal: mb.folders.inbox?.total ?? 0 }) && <button type="button" data-testid="archive-older" onClick={() => setOlderOpen(true)} aria-haspopup="dialog"
             className="-my-1.5 -mr-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 font-medium text-muted transition-colors duration-150 hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-11">
             <IconArchive className="h-3.5 w-3.5" />{tr("mail.archive_older")}</button>}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto" data-mail-list>
-          {hasSel && !(isScheduleView(folder) && !q) && <BulkBar count={everything ? rowIds.length - everything.length : sel.ids.length} total={items.length} folder={q ? "" : folder} connectionId={mb.connectionId}
+          {hasSel && canChange && !(isScheduleView(folder) && !q) && <BulkBar count={everything ? rowIds.length - everything.length : sel.ids.length} total={items.length} folder={q ? "" : folder} connectionId={mb.connectionId}
             snoozeOpen={snoozeOpen} setSnoozeOpen={setSnoozeOpen} onAct={(c, label) => runBulk(c, label)} onSelectAll={() => setSel(selectAll(rowIds))} onClear={() => setSel(emptySelection())}
             more={list.hasNextPage && jobScope() ? everythingWords(everything, folderTotal(), q ? "" : FOLDER_UI.find((f) => f.id === folder)?.label ?? "", () => { setSel(selectAll(rowIds)); setEverything([]); }) : undefined} />}
           {isScheduleView(folder) && !q ? <ScheduleListView view={folder} mailboxId={mailboxId} onOpen={open} onEdit={(it) => void editScheduled(it)} /> : <>
@@ -510,8 +528,8 @@ export function WebmailPage() {
                 {items.slice(mailWin.start, mailWin.end).map((m, i) => <ListRow key={m.id} row={mailWin.start + i} total={items.length} m={m} active={m.id === selected} folder={folder}
                   checked={everything ? !everything.includes(m.id) : sel.ids.includes(m.id)} selecting={hasSel} onCheck={(shift) => toggleRow(m.id, shift)}
                   onOpen={() => (m.folder === "drafts" ? openDraft(m.id) : open(m.id))}
-                  onStar={() => act.mutate({ ids: [m.id], action: m.isStarred ? "unstar" : "star" })}
-                  onSwipe={hasSel ? undefined : (action) => swipeAct(m.id, action)} draggable={splitsOn && splitTabs.length > 1} />)}
+                  onStar={canChange ? () => act.mutate({ ids: [m.id], action: m.isStarred ? "unstar" : "star" }) : undefined}
+                  onSwipe={hasSel || !canChange ? undefined : (action) => swipeAct(m.id, action)} draggable={splitsOn && splitTabs.length > 1} />)}
                 {mailWin.padBottom > 0 && <li aria-hidden="true" style={{ height: mailWin.padBottom }} />}
               </ul>
             )}
@@ -630,7 +648,7 @@ export function WebmailPage() {
 /** DES1: a stable hue per sender for the initials circle. */
 function avatarHue(key: string) { let h = 0; for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 360; return h; }
 
-function ListRow({ m, row, total, active, folder, onOpen, onStar, checked, selecting, onCheck, onSwipe, draggable }: { m: MessageListItem & { labels?: string[] }; row?: number; total?: number; active: boolean; folder: View; onOpen: () => void; onStar: () => void; checked: boolean; selecting: boolean; onCheck: (shift: boolean) => void; onSwipe?: (action: "archive" | "snooze") => void; draggable?: boolean }) {
+function ListRow({ m, row, total, active, folder, onOpen, onStar, checked, selecting, onCheck, onSwipe, draggable }: { m: MessageListItem & { labels?: string[] }; row?: number; total?: number; active: boolean; folder: View; onOpen: () => void; onStar?: () => void; checked: boolean; selecting: boolean; onCheck: (shift: boolean) => void; onSwipe?: (action: "archive" | "snooze") => void; draggable?: boolean }) {
   const who = folder === "sent" || folder === "drafts" ? `To: ${m.to.map((t) => t.name || t.address).join(", ") || "(no recipients)"}` : m.from.name || m.from.address;
   return (
     <li className={cn("group relative border-b border-line transition-colors duration-150 ease-out", checked ? "bg-brand-soft/80" : active ? "bg-brand-soft/60" : "hover:bg-hover")} data-selected={checked || undefined} data-testid="mail-row" data-win-row={row} aria-setsize={total} aria-posinset={row === undefined ? undefined : row + 1}>
@@ -655,9 +673,9 @@ function ListRow({ m, row, total, active, folder, onOpen, onStar, checked, selec
         <div className="mt-0.5 truncate text-[12.5px] text-subtle">{m.snippet || "\u00a0"}</div>
         {folder === "sent" && <ReadStatusLine status={(m as { readStatus?: ReadStatus | null }).readStatus} className="mt-1" />}
       </button>
-      <button onClick={onStar} data-testid="mail-star" className={cn("absolute right-0 top-1 inline-flex h-10 w-10 items-center justify-center rounded-lg transition-opacity", m.isStarred ? "text-warn opacity-100" : "text-subtle opacity-0 hover:text-fg focus:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 max-sm:opacity-100")} aria-label={m.isStarred ? "Unstar" : "Star"} aria-pressed={m.isStarred}>
+      {onStar && <button onClick={onStar} data-testid="mail-star" className={cn("absolute right-0 top-1 inline-flex h-10 w-10 items-center justify-center rounded-lg transition-opacity", m.isStarred ? "text-warn opacity-100" : "text-subtle opacity-0 hover:text-fg focus:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 max-sm:opacity-100")} aria-label={m.isStarred ? "Unstar" : "Star"} aria-pressed={m.isStarred}>
         <IconStar filled={m.isStarred} className="h-4 w-4" />
-      </button>
+      </button>}
       </SwipeRow>
     </li>
   );
@@ -710,8 +728,13 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
   const { message: m, thread } = data;
   const last = thread[thread.length - 1] ?? m;
   const own = new Set(mailboxes.map((b) => b.address));
+  // PRIV1b (P66): a read share gets no reply and no changes here; a reply share gets both (new mail is the composer's call).
+  const box = mailboxes.find((b) => b.id === m.mailboxId);
+  const change = canChangeMail(box);
+  const replyOk = canReplyIn(box);
 
   const reply = (all: boolean, draft = "") => {
+    if (!replyOk) return;
     const target = last;
     const to = own.has(target.from.address) ? target.to.map((t) => t.address) : [target.replyTo || target.from.address];
     const cc = all ? [...target.to, ...target.cc].map((a) => a.address).filter((a) => !own.has(a) && !to.includes(a)) : [];
@@ -726,24 +749,24 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
     text: `\n\n---------- Forwarded message ----------\nFrom: ${last.from.name ? `${last.from.name} <${last.from.address}>` : last.from.address}\nDate: ${fullDate(last.date)}\nSubject: ${last.subject}\nTo: ${last.to.map((t) => t.address).join(", ")}\n\n${last.text}`,
   });
 
-  keys.current = { reply, forward };
+  keys.current = { reply: replyOk ? reply : undefined, forward };
   replyRef.current = { reply: (all) => reply(all), forward };
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       <div data-testid="thread-toolbar" className="flex h-[57px] shrink-0 items-center gap-1 border-b border-line px-3 max-sm:h-14 max-sm:justify-between max-sm:gap-0 max-sm:px-1">
         <button onClick={onBack} className="-ml-1 grid place-items-center rounded-md p-2 text-brand-hover transition-colors duration-150 hover:bg-hover md:hidden max-sm:ml-0 max-sm:mr-auto max-sm:h-11 max-sm:w-11 max-sm:rounded-full" aria-label={tr("mail.back_to_list")}><IconArrowLeft className="h-[18px] w-[18px]" /></button>
-        {m.folder !== "sent" && m.folder !== "drafts" && <>
+        {change && m.folder !== "sent" && m.folder !== "drafts" && <>
           <SnoozeMenu messageId={m.id} onDone={onBack} />
           <IconBtn label={m.folder === "archive" ? "Move to inbox" : "Archive (e)"} onClick={() => onMove(m.folder === "archive" ? "inbox" : "archive")}><IconArchive /></IconBtn>
           <IconBtn label={m.folder === "spam" ? "Not spam" : "Report spam"} onClick={() => onMove(m.folder === "spam" ? "inbox" : "spam")}><IconBlock /></IconBtn>
         </>}
-        <IconBtn label={m.folder === "trash" ? "Delete forever" : "Delete (#)"} onClick={() => onMove(m.folder === "trash" ? "delete" : "trash")}><IconTrash /></IconBtn>
-        {m.remoteBox && m.folder !== "sent" && m.folder !== "drafts" && <MoveTo message={m} mailboxes={mailboxes} onMove={onMove} onMoveTo={onMoveTo} />}
-        <IconBtn label={m.isStarred ? "Unstar (s)" : "Star (s)"} onClick={() => onStar(m)} active={m.isStarred}><IconStar filled={m.isStarred} /></IconBtn>
-        {m.folder === "inbox" && (tabsFor.data?.tabs.length ?? 0) > 1 && <MoveToTabMenu messageId={m.id} tabs={tabsFor.data!.tabs} current={readerParams.get("split") ?? tabsFor.data!.defaultTab} />}
+        {change && <IconBtn label={m.folder === "trash" ? "Delete forever" : "Delete (#)"} onClick={() => onMove(m.folder === "trash" ? "delete" : "trash")}><IconTrash /></IconBtn>}
+        {change && m.remoteBox && m.folder !== "sent" && m.folder !== "drafts" && <MoveTo message={m} mailboxes={mailboxes} onMove={onMove} onMoveTo={onMoveTo} />}
+        {change && <IconBtn label={m.isStarred ? "Unstar (s)" : "Star (s)"} onClick={() => onStar(m)} active={m.isStarred}><IconStar filled={m.isStarred} /></IconBtn>}
+        {change && m.folder === "inbox" && (tabsFor.data?.tabs.length ?? 0) > 1 && <MoveToTabMenu messageId={m.id} tabs={tabsFor.data!.tabs} current={readerParams.get("split") ?? tabsFor.data!.defaultTab} />}
         {/* R48 mobile: on a phone Reply and Forward live in the thumb bar at the foot (below), so this row never crowds. */}
         <div className="ml-auto flex gap-1 max-sm:hidden">
-          <IconBtn label={tr("common.reply")} onClick={() => reply(false)}><IconReply /></IconBtn>
+          {replyOk && <IconBtn label={tr("common.reply")} onClick={() => reply(false)}><IconReply /></IconBtn>}
           <IconBtn label={tr("common.forward")} onClick={forward}><IconForward /></IconBtn>
         </div>
       </div>
@@ -753,8 +776,8 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <MakeTask messageId={last.id} threadId={last.threadId} shortcut />
             {m.folder !== "drafts" && <span className="inline-flex items-center gap-1" data-testid="reader-labels">
-              <LabelChips labels={data.labels} onRemove={(l) => labelEdit.remove.mutate({ threadId: m.threadId, label: l })} />
-              <LabelMenu threadId={m.threadId} labels={data.labels ?? []} />
+              <LabelChips labels={data.labels} onRemove={change ? (l) => labelEdit.remove.mutate({ threadId: m.threadId, label: l }) : undefined} />
+              {change && <LabelMenu threadId={m.threadId} labels={data.labels ?? []} />}
             </span>}
           </div>
           {m.folder !== "drafts" && <ThreadPresenceLine threadId={m.threadId} mailboxId={m.mailboxId} />}
@@ -764,16 +787,16 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
             <BatchTools attachments={thread.flatMap((t) => t.attachments)} /> {/* Tools P2: batch */}
           </div>
           <div className="mt-6 flex gap-2 max-sm:hidden">
-            <Button variant="secondary" onClick={() => reply(false)}><IconReply className="h-4 w-4" />{tr("common.reply")}</Button>
-            {(last.to.length + last.cc.length > 1) && <Button variant="secondary" onClick={() => reply(true)}>{tr("mail.reply_all")}</Button>}
+            {replyOk && <Button variant="secondary" onClick={() => reply(false)}><IconReply className="h-4 w-4" />{tr("common.reply")}</Button>}
+            {replyOk && (last.to.length + last.cc.length > 1) && <Button variant="secondary" onClick={() => reply(true)}>{tr("mail.reply_all")}</Button>}
             <Button variant="ghost" onClick={forward}><IconForward className="h-4 w-4" />{tr("common.forward")}</Button>
           </div>
         </div>
       </div>
       {/* R48 mobile: the reply bar sits under the thumb on a phone, like a native mail app; 44 px targets, one row at 360. */}
       <div data-testid="thread-reply-bar" className="hidden shrink-0 items-stretch gap-2 border-t border-line bg-elevated/95 px-3 py-2 backdrop-blur max-sm:flex">
-        <button type="button" onClick={() => reply(false)} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-brand text-[15px] font-medium text-white transition-colors duration-150 active:bg-[#0062c4]"><IconReply className="h-[18px] w-[18px]" aria-hidden />{tr("common.reply")}</button>
-        {(last.to.length + last.cc.length > 1) && <button type="button" onClick={() => reply(true)} className="flex h-11 items-center justify-center rounded-full border border-line-strong px-4 text-[15px] font-medium text-fg transition-colors duration-150 active:bg-hover">{tr("mail.reply_all")}</button>}
+        {replyOk && <button type="button" onClick={() => reply(false)} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-brand text-[15px] font-medium text-white transition-colors duration-150 active:bg-[#0062c4]"><IconReply className="h-[18px] w-[18px]" aria-hidden />{tr("common.reply")}</button>}
+        {replyOk && (last.to.length + last.cc.length > 1) && <button type="button" onClick={() => reply(true)} className="flex h-11 items-center justify-center rounded-full border border-line-strong px-4 text-[15px] font-medium text-fg transition-colors duration-150 active:bg-hover">{tr("mail.reply_all")}</button>}
         <button type="button" onClick={forward} aria-label={tr("common.forward")} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line-strong text-fg transition-colors duration-150 active:bg-hover"><IconForward className="h-[18px] w-[18px]" aria-hidden /></button>
         {/* R50 (MB-238): make a task, or open the thread's task, without scrolling back up. */}
         <MakeTaskBarButton messageId={last.id} threadId={last.threadId} />

@@ -56,7 +56,8 @@ export async function mailboxOverview(db: DB, orgId: string, scope: Scope = null
       .where(and(eq(mailboxDelegations.orgId, orgId), eq(mailboxDelegations.userId, viewer.userId)))).map((r) => [r.id, r.level]))
     : new Map<string, string>();
   // A listed personal mailbox is the viewer's own, shared with them, or (no share) one the workspace owner holds for a missing owner.
-  const levelOf = (b: typeof boxes[number]): MailboxLevel => (!b.personal ? "team" : b.ownerUserId === viewer?.userId ? "own" : (shares.get(b.id) as MailboxLevel | undefined) ?? "own");
+  // PRIV1b (P66): that last one is read only (mail-access-priv1a.ts personalLevel), so the client offers no changes in it.
+  const levelOf = (b: typeof boxes[number]): MailboxLevel => (!b.personal ? "team" : b.ownerUserId === viewer?.userId ? "own" : (shares.get(b.id) as MailboxLevel | undefined) ?? "read");
   const counts = await db
     .select({ mailboxId: messages.mailboxId, folder: messages.folder, total: sql<number>`count(*)`, unread: sql<number>`sum(case when ${messages.isRead} = 0 then 1 else 0 end)` })
     .from(messages).where(and(eq(messages.orgId, orgId), sql`${messages.fromAddress} <> ${PENDING_FROM}`)).groupBy(messages.mailboxId, messages.folder);

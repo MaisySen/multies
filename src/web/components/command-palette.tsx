@@ -25,6 +25,7 @@ import { Corrected, FilterBar, NoResults, SearchError, TopHits, filterMenuState 
 import { NO_FILTERS, TYPE_CHOICES, dropIndex, hasFilters, instantHits, parseFilterWords, useInstantIndex, useSearchR98, type Filters } from "@/web/lib/search-r98"; // R98
 import { useGoLinks } from "@/web/pages/app/tools-links/data"; // R87
 import { useConfig, useDomains, useMailboxes, useMe } from "@/web/lib/queries";
+import { openableOnly } from "@/web/lib/mail-level-priv1b"; // PRIV1b (P66): no Open for a mailbox the person can't open
 import { useAssignees, useProjects, useTaskDetail, useTaskMutations, type Task } from "@/web/pages/app/work/data";
 import { Kbd } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
@@ -131,7 +132,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   const goItems: Item[] = (goLinks.data?.links ?? []).map((g) => ({ id: `go-${g.id}`, label: `go/${g.name}`, hint: g.description || g.label || "Go link", icon: IconLink, keywords: [g.name, `go ${g.name}`, g.label ?? "", "go link"], run: g.targetKind === "url" ? () => { close(); window.open(g.href, "_blank", "noopener"); } : go(`/app/go/${g.name}`, `go/${g.name}`, "Go link") }));
   const records: Item[] = [
     ...(domains.data ?? []).map((d) => ({ id: `d-${d.id}`, label: d.name, hint: "Domain", icon: IconGlobe, run: go(`/app/domains/${d.id}`, d.name, "Domain") })),
-    ...(mailboxes.data ?? []).map((m) => ({ id: `m-${m.id}`, label: m.address, hint: "Mailbox", icon: IconInbox, run: go(`/app/mail?mailbox=${m.id}`, m.address, "Mailbox") })),
+    ...openableOnly(mailboxes.data).map((m) => ({ id: `m-${m.id}`, label: m.address, hint: "Mailbox", icon: IconInbox, run: go(`/app/mail?mailbox=${m.id}`, m.address, "Mailbox") })),
   ];
   // R36: on an empty query the menu opens on what you used last (read when it opens; device only).
   const empty = !search.trim() && !page;

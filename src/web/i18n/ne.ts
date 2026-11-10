@@ -1002,4 +1002,6 @@ export const ne: Bundle = {
   "priv1a.device_api": "API मार्फत",
   "priv1a.shared_with_you": "तपाईंसँग सेयर गरिएका",
   "priv1a.leave": "छोड्नुहोस्",
+  "priv1a.private": "निजी",
+  "priv1a.marks_read": "तपाईंले सेयर गरेको व्यक्तिले सन्देश खोल्दा त्यो तपाईंका लागि पनि पढिएको देखिन्छ।",
 };

@@ -165,6 +165,11 @@ export interface Mailbox {
   /** MB-61: the Reply-To sends from this mailbox carry when they name none. */
   replyTo?: string | null;
   createdAt: string;
+  /** PRIV1b (P23): a personal mailbox, and its owner. */
+  personal?: boolean;
+  ownerUserId?: string | null;
+  /** PRIV1b (P23, P66): false on an admin's row for someone's personal mailbox: only id, address, name, owner and status come. */
+  openable?: boolean;
 }
 
 export interface Alias {
@@ -223,6 +228,8 @@ export interface MailboxOverview {
   /** A mailbox connected from another provider (round 18). */
   connected?: boolean;
   connectionId?: string | null;
+  /** PRIV1b (P66): the viewer's level here (lib/mail-level-priv1b.ts). */
+  level?: "own" | "send_as" | "reply" | "read" | "team";
 }
 
 export interface Delivery {
