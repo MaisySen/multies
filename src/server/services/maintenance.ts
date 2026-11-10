@@ -17,6 +17,7 @@ import { randomToken } from "../lib/crypto";
 import { pruneRateLimits } from "../lib/rate-limit";
 import { pruneIdempotencyKeys } from "../lib/idempotency";
 import { pruneLockouts } from "./lockout";
+import { inIds } from "../lib/sql-chunks";
 import { pruneJobs, runDueJobs } from "./jobs";
 import { crossCheck, recordUptimeCheck } from "./status";
 import "./mail/deliver-job";
@@ -133,10 +134,11 @@ export async function pruneMailboxOpens(deps: Deps, limit = 500) {
   const from = Number((await deps.db.select({ v: appSettings.value }).from(appSettings).where(eq(appSettings.key, OPENS_PRUNED_KEY)).get())?.v ?? 0) || 0;
   if (from >= cutoff) return 0;
   // org_id IN (organizations) lets each workspace's range use mailbox_access_log_org_idx (org_id, created_at): no table scan.
-  const old = deps.db.select({ id: l.id }).from(l).where(and(sql`${l.orgId} in (select ${organizations.id} from ${organizations})`,
+  const orgs = deps.db.select({ id: organizations.id }).from(organizations);
+  const old = await deps.db.select({ id: l.id }).from(l).where(and(inArray(l.orgId, orgs), // D1: a subquery, no bound list
     gte(l.createdAt, new Date(from)), lt(l.createdAt, new Date(cutoff)), inArray(l.action, ["opened_mailbox", "opened_thread"]))).orderBy(l.createdAt).limit(limit);
-  // A subquery renders in its own parentheses (G1: no inArray over a list).
-  const gone = await deps.db.delete(l).where(sql`${l.id} in ${old}`).returning({ at: l.createdAt });
+  // PRIV1b (SP6): the ids travel as one bound list (inIds), in a form the no-unbounded-IN guard sees.
+  const gone = old.length ? await deps.db.delete(l).where(inIds(l.id, old.map((r) => r.id))).returning({ at: l.createdAt }) : [];
   // A full pass reached the cutoff; a cut one stops at its newest row (kept inclusive, so ties are not skipped).
   const to = gone.length < limit ? cutoff : Math.max(...gone.map((g) => g.at.getTime()));
   if (to > from) await deps.db.insert(appSettings).values({ key: OPENS_PRUNED_KEY, value: String(to) }).onConflictDoUpdate({ target: appSettings.key, set: { value: String(to) } });

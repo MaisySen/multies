@@ -9,7 +9,18 @@ import { deliverInbound, logDelivery, routeRecipient } from "./mail/delivery";
 import { OutboundError } from "./mail/outbound";
 import { enqueue, PermanentJobError, registerJob } from "./jobs";
 import { eq } from "drizzle-orm";
-import { organizations } from "../db/schema";
+import { domains, organizations } from "../db/schema";
+import { systemDomainOf } from "./suite/operator-inbox";
+
+/**
+ * PRIV1b (SP5): the one stamp rule for mail the platform delivers as itself (account mail, bounce notices). Pass while
+ * no workspace holds the system domain short of verified (assertDomainAllowed reserves it for the operator); a name no
+ * workspace holds is the deployment's own mail domain. One indexed read.
+ */
+export async function systemMailAuth(deps: Deps) {
+  const row = await deps.db.select({ status: domains.status }).from(domains).where(eq(domains.name, systemDomainOf(deps.config))).get();
+  return !row || row.status === "verified" ? { spf: "pass" as const, dkim: "pass" as const, dmarc: "pass" as const } : { spf: "none" as const, dkim: "none" as const, dmarc: "none" as const };
+}
 
 async function isDemoOrg(deps: Deps, orgId: string) {
   const row = await deps.db.select({ isDemo: organizations.isDemo }).from(organizations).where(eq(organizations.id, orgId)).get();
@@ -78,7 +89,7 @@ export async function sendSystemEmail(deps: Deps, e: SystemEmail): Promise<Syste
       email: {
         messageId, from: { address: config.systemFrom.address, name: config.systemFrom.name },
         to: [{ address: to }], cc: [], subject: e.subject, text, html,
-        date: deps.now(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" },
+        date: deps.now(), attachments: [], authResults: await systemMailAuth(deps), // PRIV1b (SP5)
         headers: { "auto-submitted": "auto-generated" },
       },
     });

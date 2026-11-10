@@ -12,7 +12,7 @@
  * name and app password) or a secret ICS link (stored encrypted). Events are fetched when the
  * calendar opens and kept in memory for a few minutes; they are never written to the database.
  */
-import { and, eq, gte, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { calendarFeeds, calendarSources, chatMembers, mailConnections, mailboxes, meetings, members, organizations, projects, tasks, users } from "../../db/schema";
 import { decryptSecret, encryptSecret, randomToken, safeEqual, sha256Hex } from "../../lib/crypto";
@@ -110,8 +110,8 @@ export async function workItems(deps: Deps, orgId: string, person: { id: string;
     and(eq(meetings.createdByType, "member"), eq(meetings.createdById, person.id)),
     // PRIV1b (G2): instr, not LIKE: D1 refuses a LIKE pattern over 50 bytes, and a long address made one.
     containsLower(meetings.invitees, JSON.stringify(email)),
-    // A subquery renders in its own parentheses, so `in` takes it as written (G1: no inArray over a list).
-    sql`${meetings.channelId} in ${deps.db.select({ id: chatMembers.channelId }).from(chatMembers).where(and(eq(chatMembers.userId, person.id), eq(chatMembers.orgId, orgId)))}`,
+    // PRIV1b (SP6): inArray over a subquery binds no list; the marker keeps the no-unbounded-IN guard on this line.
+    inArray(meetings.channelId, deps.db.select({ id: chatMembers.channelId }).from(chatMembers).where(and(eq(chatMembers.userId, person.id), eq(chatMembers.orgId, orgId)))), // D1: subquery
   ) : undefined;
   const rows = await deps.db.select().from(meetings).where(and(
     eq(meetings.orgId, orgId), isNull(meetings.deletedAt), lt(meetings.startsAt, to),

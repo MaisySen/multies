@@ -55,7 +55,7 @@ export const PUBLIC_MAIL_DOMAINS: readonly string[] = [
 export const CONNECTED_DOMAIN_NAME = "connected.multies.invalid";
 const PLATFORM_ORG_ID = "org_platform";
 
-export type ReservedConfig = OperatorConfig & { freeMail?: { domain?: string }; agents?: { sharedDomain?: string } };
+export type ReservedConfig = OperatorConfig & { freeMail?: { domain?: string }; agents?: { sharedDomain?: string }; systemFrom?: { address: string } };
 
 const under = (name: string, d: string) => name === d || name.endsWith(`.${d}`);
 
@@ -76,4 +76,14 @@ export function assertDomainAllowed(config: ReservedConfig, orgId: string, name:
   const platform = [config.freeMail?.domain, config.agents?.sharedDomain, CONNECTED_DOMAIN_NAME].filter((d): d is string => !!d).map((d) => d.toLowerCase());
   const company = config.operatorInbox.domain;
   if (platform.some((d) => under(n, d)) || (company && !operator && under(n, company))) throw conflict(`${n} is reserved for the Multies team.`);
+  // PRIV1b (SP5): the domain system mail is sent from. A claim on it (even pending) took the pass stamp off bounce
+  // notices and account mail (systemMailAuth), so only the operator workspace may hold it.
+  const sys = systemDomainOf(config);
+  if (sys && n === sys && !operator) throw conflict(`${n} is reserved for the Multies team.`);
+}
+
+/** PRIV1b (SP5): the domain of the address system mail is sent from (config.systemFrom), lower case. */
+export function systemDomainOf(config: Pick<ReservedConfig, "systemFrom">): string {
+  const a = config.systemFrom?.address ?? "";
+  return a.includes("@") ? a.slice(a.lastIndexOf("@") + 1).toLowerCase().replace(/\.$/, "") : "";
 }

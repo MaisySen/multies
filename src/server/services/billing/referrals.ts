@@ -16,12 +16,12 @@ import type { AuthContext, Deps } from "../../context";
 import { members, organizations, referrals } from "../../db/schema";
 import { HttpError, forbidden } from "../../lib/errors";
 import { newId } from "../../lib/crypto";
-import { ADDONS, ADDON_ORDER, PLANS, PRICE_CURRENCY } from "@/shared/plans";
+import { ADDONS, ADDON_ORDER, PLANS, PRICE_CURRENCY, isPlanId } from "@/shared/plans";
 import {
   REFERRAL_CAP_PER_YEAR, REFERRAL_CODE_RE, REFERRAL_COOKIE, REFERRAL_HOLD_DAYS, REFERRAL_MAX_CENTS, REFERRAL_MIN_CENTS, REFERRAL_PARAM, referralCreditCents,
 } from "@/shared/offers";
 import { audit } from "../audit";
-import { effectivePlanId, getAddons, getOrg } from "../plans";
+import { getAddons, getOrg } from "../plans";
 import { enqueue, PermanentJobError } from "../jobs";
 import { billingContacts } from "./dunning";
 import type { Stripe } from "./stripe";
@@ -195,8 +195,10 @@ async function ensureReferrerCustomer(deps: Deps, stripe: Stripe, org: Org, emai
 /** A month of the workspace's add-ons (and a legacy plan's price), in A$. */
 export async function monthlyTotal(deps: Deps, org: Org) {
   const addons = await getAddons(deps.db, org.id);
-  const plan = PLANS[effectivePlanId(org)]; // PRIV1b (CB1): a comp workspace is on the plan it was granted
-  const base = plan.legacy ? plan.priceMonthly : 0;
+  // PRIV1b (SP4): what the workspace pays, so the stored plan, not effectivePlanId: a comp workspace's granted plan
+  // costs it nothing and adds no base price to the credit. Limits and caps still use effectivePlanId.
+  const plan = org.compPlan ? null : PLANS[isPlanId(org.plan) ? org.plan : "starter"];
+  const base = plan?.legacy ? plan.priceMonthly : 0;
   return base + ADDON_ORDER.reduce((s, id) => s + ADDONS[id].priceMonthly * (addons[id] ?? 0), 0);
 }
 

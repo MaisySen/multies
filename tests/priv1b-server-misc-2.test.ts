@@ -88,7 +88,7 @@ describe("ML2: the access log prune starts where the last pass stopped", () => {
 });
 
 describe("CB1: a comp workspace gets the plan it was granted", () => {
-  it("merge cap and the referral total follow effectivePlanId", async () => {
+  it("merge cap follows effectivePlanId; the referral total follows what is paid", async () => {
     const { ctx, orgId } = await pair();
     await ctx.db.update(organizations).set({ plan: "starter", compPlan: false }).where(eq(organizations.id, orgId));
     expect(await mergeCap(ctx.deps, orgId)).toBe(50);
@@ -96,7 +96,8 @@ describe("CB1: a comp workspace gets the plan it was granted", () => {
     expect(await monthlyTotal(ctx.deps, await org())).toBe(0);
     await ctx.db.update(organizations).set({ compPlan: true }).where(eq(organizations.id, orgId));
     expect(await mergeCap(ctx.deps, orgId)).toBe(2000);
-    expect(await monthlyTotal(ctx.deps, await org())).toBe(49);
+    // PRIV1b (SP4): the referral total is what the workspace pays; a comp workspace pays nothing for its granted plan.
+    expect(await monthlyTotal(ctx.deps, await org())).toBe(0);
   }, 60_000);
 });
 
