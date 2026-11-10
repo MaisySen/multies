@@ -24,7 +24,7 @@ const PAGE = 500;
 type AnyTable = SQLiteTable & Record<string, any>;
 
 /** Tables in the export and the columns left out of them (tokens that open something without signing in). */
-export const EXPORT_TABLES: { name: string; table: AnyTable; omit?: string[] }[] = [
+export const EXPORT_TABLES: { name: string; table: AnyTable; omit?: string[]; byMailbox?: boolean }[] = [
   { name: "projects", table: projects as AnyTable },
   { name: "project_statuses", table: projectStatuses as AnyTable },
   { name: "tasks", table: tasks as AnyTable },
@@ -58,7 +58,8 @@ export const EXPORT_TABLES: { name: string; table: AnyTable; omit?: string[] }[]
   { name: "chat_members", table: chatMembers as AnyTable },
   { name: "chat_messages", table: chatMessages as AnyTable },
   { name: "chat_reactions", table: chatReactions as AnyTable },
-  { name: "thread_comments", table: threadComments as AnyTable },
+  // PRIV1b (P13): notes only on mailboxes the export carries (writeWorkData's mailboxIds).
+  { name: "thread_comments", table: threadComments as AnyTable, byMailbox: true },
 ];
 
 /** Every row of one table for one workspace, a page at a time (by id when the table has one). */
@@ -93,7 +94,8 @@ export interface ZipSink { file(name: string): { push(text: string): void; end()
 /** Rows written per area, for the export summary and the import round trip. */
 export type ExportCounts = Record<string, number>;
 
-export async function writeWorkData(deps: Deps, orgId: string, zip: ZipSink): Promise<ExportCounts> {
+/** `mailboxIds`: the mailboxes this export carries (PRIV1b P13); rows tied to any other mailbox stay out. */
+export async function writeWorkData(deps: Deps, orgId: string, zip: ZipSink, mailboxIds: ReadonlySet<string>): Promise<ExportCounts> {
   const counts: ExportCounts = {};
   // 1. JSON per table.
   for (const t of EXPORT_TABLES) {
@@ -102,6 +104,7 @@ export async function writeWorkData(deps: Deps, orgId: string, zip: ZipSink): Pr
     let n = 0;
     for await (const page of rowsOf(deps, t.table, orgId)) {
       for (const r of page) {
+        if (t.byMailbox && !mailboxIds.has(String(r.mailboxId))) continue;
         for (const k of t.omit ?? []) delete r[k];
         f.push(`${n ? "," : ""}\n${JSON.stringify(r)}`);
         n++;

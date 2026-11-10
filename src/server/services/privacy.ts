@@ -118,7 +118,7 @@ export function exportWorkspace(deps: Deps, auth: AuthContext, opts: { onDone?: 
         add("README.txt", EXPORT_README);
         // R38: tasks, projects, docs, calendar, contacts and chat (JSON, CSV, Markdown, ICS, vCard).
         const sink: ZipSink = { file(name) { const f = new ZipDeflate(name, { level: 6 }); zip.add(f); return { push: (t: string) => f.push(enc.encode(t)), end: () => f.push(new Uint8Array(0), true) }; } };
-        const counts = await writeWorkData(deps, orgId, sink);
+        const counts = await writeWorkData(deps, orgId, sink, new Set(boxes.map((b) => b.id))); // PRIV1b (P13)
         let mailCount = 0;
 
         for (const box of boxes) {

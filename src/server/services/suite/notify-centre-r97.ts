@@ -8,7 +8,7 @@ import type { Deps } from "../../context";
 import { notificationPrefs, notifications, users } from "../../db/schema";
 import { registerJob } from "../jobs";
 import { sendSystemEmail } from "../system-mail";
-import { CATEGORIES, categoryOf, linkFor, mergePrefs, type Category } from "./notify";
+import { CATEGORIES, categoryOf, linkFor, LOST_MAIL_TITLE, lostMailNotifications, mergePrefs, type Category } from "./notify";
 import { inboxWhere } from "./notify-triage";
 import { DIGEST_MAX_ITEMS, nextDigestAt, readDelivery } from "../../../shared/notification-centre";
 
@@ -59,13 +59,14 @@ export async function sendDigest(deps: Deps, row: { userId: string; orgId: strin
   const wanted = new Set(CATEGORIES.filter((c) => prefs[c].mail));
   if (!wanted.size) return 0;
   const since = row.digestLastAt ?? new Date(now.getTime() - (delivery.digest.frequency === "weekly" ? 7 : 1) * 86_400_000);
-  const rows = await deps.db.select({ type: notifications.type, title: notifications.title, actorName: notifications.actorName }).from(notifications)
+  const rows = await deps.db.select({ id: notifications.id, type: notifications.type, title: notifications.title, actorName: notifications.actorName, entityType: notifications.entityType, entityId: notifications.entityId }).from(notifications)
     .where(and(eq(notifications.orgId, row.orgId), eq(notifications.userId, row.userId), isNull(notifications.readAt), inboxWhere(now), gt(notifications.createdAt, since)))
     .orderBy(desc(notifications.createdAt)).limit(DIGEST_SCAN);
+  const lost = await lostMailNotifications(deps, row.orgId, row.userId, rows); // PRIV1b (P61): one check for the digest
   const by = new Map<Category, { title: string; actorName: string | null }[]>();
   for (const r of rows) {
     const c = categoryOf(r.type);
-    if (wanted.has(c)) by.set(c, [...(by.get(c) ?? []), { title: r.title, actorName: r.actorName }]);
+    if (wanted.has(c)) by.set(c, [...(by.get(c) ?? []), { title: lost.has(r.id) ? LOST_MAIL_TITLE : r.title, actorName: r.actorName }]);
   }
   const total = [...by.values()].reduce((s, l) => s + l.length, 0);
   if (!total) return 0;
