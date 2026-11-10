@@ -126,6 +126,8 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
 const OPENS_KEPT_MS = 400 * 86_400_000;
 /** PRIV1b (ML2): app_settings key holding the time (ms) before which every old open is already pruned. */
 export const OPENS_PRUNED_KEY = "mailbox_opens_pruned_before";
+/** PRIV1b (ML2): with nothing pruned, the mark only moves once it trails the cutoff by this much. */
+const OPENS_MARK_STEP_MS = 86_400_000;
 export async function pruneMailboxOpens(deps: Deps, limit = 500) {
   const l = mailboxAccessLog;
   const cutoff = deps.now().getTime() - OPENS_KEPT_MS;
@@ -141,7 +143,9 @@ export async function pruneMailboxOpens(deps: Deps, limit = 500) {
   const gone = old.length ? await deps.db.delete(l).where(inIds(l.id, old.map((r) => r.id))).returning({ at: l.createdAt }) : [];
   // A full pass reached the cutoff; a cut one stops at its newest row (kept inclusive, so ties are not skipped).
   const to = gone.length < limit ? cutoff : Math.max(...gone.map((g) => g.at.getTime()));
-  if (to > from) await deps.db.insert(appSettings).values({ key: OPENS_PRUNED_KEY, value: String(to) }).onConflictDoUpdate({ target: appSettings.key, set: { value: String(to) } });
+  // PRIV1b (ML2): an idle pass writes nothing. The mark moves when rows were deleted, or once it is a day behind the
+  // cutoff, so a pass re-reads at most a day of old share rows and an idle cron writes at most once a day.
+  if (to > from && (gone.length > 0 || to - from >= OPENS_MARK_STEP_MS)) await deps.db.insert(appSettings).values({ key: OPENS_PRUNED_KEY, value: String(to) }).onConflictDoUpdate({ target: appSettings.key, set: { value: String(to) } });
   return gone.length;
 }
 
