@@ -168,7 +168,7 @@ function ThreadView({ id, onBack, canReply, own, onReply, helpdesk }: { id: stri
         <ThreadAssignControls threadId={t.id} />
       </div>
       {helpdesk && <TicketPanel kind="mail" refId={t.id} onReplyText={canReply(t.mailboxId) && t.messages.length ? (text) => onReply({ ...replyDraftFor(t, own, false), text }) : undefined} />}
-      <ThreadCollab threadId={t.id} />
+      <ThreadCollab threadId={t.id} mailboxId={t.mailboxId} />
       {t.messages.length > 0 && <MakeTask messageId={t.messages[t.messages.length - 1].id} threadId={t.id} />}
       {t.messages.map((m) => (
         <Card key={m.id} className={cn("p-4", m.sentBy.type === "agent" && "border-brand/40")}>
@@ -202,7 +202,7 @@ function ThreadView({ id, onBack, canReply, own, onReply, helpdesk }: { id: stri
           <span className="text-xs text-subtle max-sm:w-full">Goes to the customer. Team notes below stay inside your team.</span>
         </div>
       )}
-      <ThreadNotes threadId={t.id} />
+      <ThreadNotes threadId={t.id} mailboxId={t.mailboxId} />
     </div>
   );
 }

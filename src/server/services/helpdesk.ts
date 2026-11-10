@@ -188,7 +188,8 @@ export async function syncTickets(deps: Deps, orgId: string, ctx?: HelpdeskConte
   const cursor = row.syncCursor;
   let created = 0, updated = 0, newCursor = nowMs - 2000;
   if (s.mailboxIds.length) {
-    const boxes = await deps.db.select({ id: mailboxes.id, address: mailboxes.address }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), inIds(mailboxes.id, s.mailboxIds))).all();
+    // PRIV1b (P22, review S4): a personal mailbox saved before settings refused one is never read.
+    const boxes = await deps.db.select({ id: mailboxes.id, address: mailboxes.address }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), inIds(mailboxes.id, s.mailboxIds), eq(mailboxes.personal, false))).all();
     const own = new Set(boxes.map((b) => b.address.toLowerCase()));
     const rows = await deps.db.select({
       threadId: messages.threadId, mailboxId: messages.mailboxId, folder: messages.folder, fromAddress: messages.fromAddress, fromName: messages.fromName,

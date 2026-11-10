@@ -28,10 +28,11 @@ export function registerThreadCommentTools(server: McpServer, deps: Deps, actor:
       threadId: z.string().min(1),
       body: z.string().min(1).max(COMMENT_MAX),
       mentions: z.array(z.string().min(1).max(254)).max(50).optional().describe("User ids or email addresses of teammates to notify."),
+      mailboxId: z.string().min(1).max(64).optional().describe("The mailbox whose copy of the thread the note goes on. Default: the oldest one the key can reply in."),
     },
-  }, tool(async (x: { threadId: string; body: string; mentions?: string[] }) => {
+  }, tool(async (x: { threadId: string; body: string; mentions?: string[]; mailboxId?: string }) => {
     writable();
-    return { comment: await addComment(deps, a, x.threadId, { body: x.body, mentions: x.mentions }, await mcpCreate("tcm")) };
+    return { comment: await addComment(deps, a, x.threadId, { body: x.body, mentions: x.mentions, mailboxId: x.mailboxId }, await mcpCreate("tcm")) };
   }) as never);
 
   server.registerTool("delete_thread_comment", {

@@ -17,9 +17,9 @@ export function registerPresenceTools(server: McpServer, deps: Deps, actor: Scop
   server.registerTool("get_thread_presence", {
     title: "Who is in a thread now", annotations: ro,
     description: "People who have a shared inbox thread open right now and whether each is just viewing or writing a reply. Check it before replying so you don't answer on top of a teammate. Entries expire 40 seconds after the last heartbeat.",
-    inputSchema: { threadId: z.string().min(1) },
-  }, tool(async (x: { threadId: string }) => {
-    const v = await threadPresence(deps, actor, x.threadId, { op: "list" });
+    inputSchema: { threadId: z.string().min(1), mailboxId: z.string().min(1).max(64).optional().describe("The mailbox whose copy of the thread to check. Default: the oldest one the key can open.") },
+  }, tool(async (x: { threadId: string; mailboxId?: string }) => {
+    const v = await threadPresence(deps, actor, x.threadId, { op: "list" }, { mailboxId: x.mailboxId });
     return { threadId: x.threadId, people: v.people, replying: v.people.filter((p) => p.state === "replying").map((p) => p.name) };
   }) as never);
 

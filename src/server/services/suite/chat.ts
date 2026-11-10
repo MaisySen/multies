@@ -426,6 +426,7 @@ export async function getThread(deps: Deps, a: SuiteActor, id: string) {
 
 async function resolveLinks(deps: Deps, a: SuiteActor, raw: { type: ChatLink["type"]; id: string }[]): Promise<ChatLink[]> {
   const out: ChatLink[] = [];
+  let scope: string[] | null | undefined; // PRIV1b (P15, review S6): read once, on the first thread link
   for (const l of raw.slice(0, 20)) {
     if (l.type === "task") {
       const { resolveTaskId } = await import("./tasks");
@@ -438,8 +439,7 @@ async function resolveLinks(deps: Deps, a: SuiteActor, raw: { type: ChatLink["ty
       out.push({ type: "task", id: t.id, ref: p ? `${p.key}-${t.number}` : null, title: t.title });
     } else if (l.type === "thread") {
       // PRIV1b (P15): only a thread the writer can open, by its newest message in their scope, never a draft or trash.
-      const { scopeOf } = await import("./common");
-      const scope = await scopeOf(deps, a);
+      if (scope === undefined) scope = await (await import("./common")).scopeOf(deps, a);
       const m = await deps.db.select({ id: messages.id, subject: messages.subject }).from(messages)
         .where(and(eq(messages.orgId, a.orgId), eq(messages.threadId, l.id), sql`${messages.folder} not in ('drafts', 'trash')`, scope ? inIds(messages.mailboxId, scope) : undefined)).orderBy(desc(messages.date)).limit(1).get();
       if (m) out.push({ type: "thread", id: l.id, ref: null, title: m.subject || "(no subject)", messageId: m.id });

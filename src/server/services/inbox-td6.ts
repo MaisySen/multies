@@ -14,7 +14,7 @@ import { inIds } from "../lib/sql-chunks";
 import { mailboxScope } from "./team";
 import { importantBaseCond, notBulkCond } from "./mail/splits";
 import { PENDING_FROM } from "./mail/pending-from";
-import { linkFor } from "./suite/notify";
+import { linkFor, LOST_MAIL_TITLE, lostMailNotifications } from "./suite/notify";
 import { markDone, markManyDone, markUndone, presetTime, snooze, validZone, viewWhere, VIEW_ORDER, SNOOZE_MAX_MS, SNOOZE_PRESETS, type SnoozePreset } from "./suite/notify-triage";
 import { markNotificationsRead, markNotificationUnread } from "./suite/notify";
 import { isPeopleExcluded } from "./people-r126";
@@ -180,14 +180,15 @@ export async function collect(deps: Deps, a: A, view: InboxView): Promise<InboxI
     loadRuns(deps, a, now),
     loadRefs(deps, a, now),
   ]);
-  const [mailState, runState, refState] = await Promise.all([statesFor(deps, a, "mail", mail.map((m) => m.id)), statesFor(deps, a, "run", runs.map((r) => r.id)),
-    statesFor(deps, a, "ref", refs.map((r) => r.id))]);
+  const [mailState, runState, refState, lost] = await Promise.all([statesFor(deps, a, "mail", mail.map((m) => m.id)), statesFor(deps, a, "run", runs.map((r) => r.id)),
+    statesFor(deps, a, "ref", refs.map((r) => r.id)),
+    lostMailNotifications(deps, a.orgId, a.userId, [...inboxNotes, ...otherNotes].map((x) => x.r))]); // PRIV1b (P61, review S1): one check for every note shown
   const out: InboxItem[] = [];
   for (const { r, channelId } of [...inboxNotes, ...otherNotes]) {
     const key = ruleKey({ kind: "note", type: r.type, entityType: r.entityType, entityId: r.entityId, channelId });
     const s = sortItem({ kind: "note", type: r.type }, key ? rules.get(key) : null);
     const v = viewOf({ doneAt: r.doneAt, snoozedUntil: r.snoozedUntil }, now);
-    out.push({ kind: "note", id: r.id, source: sourceOfNote(r.type), ...s, title: r.title, who: r.actorName ?? null,
+    out.push({ kind: "note", id: r.id, source: sourceOfNote(r.type), ...s, title: lost.has(r.id) ? LOST_MAIL_TITLE : r.title, who: r.actorName ?? null,
       at: (v === "inbox" && r.snoozedUntil ? r.snoozedUntil : r.createdAt).toISOString(), read: !!r.readAt, view: v,
       snoozedUntil: v === "later" && r.snoozedUntil ? r.snoozedUntil.toISOString() : null, link: linkFor(r, channelId) });
   }

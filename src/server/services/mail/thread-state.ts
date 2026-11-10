@@ -67,7 +67,7 @@ async function present(deps: Deps, orgId: string, threadId: string): Promise<Thr
 }
 
 /** States for a set of threads in one query (threads without a row are open and unassigned). */
-export async function listThreadStates(deps: Deps, orgId: string, threadIds: string[]): Promise<Map<string, ThreadState>> {
+export async function listThreadStates(deps: Deps, orgId: string, threadIds: string[], scope?: string[] | null): Promise<Map<string, ThreadState>> {
   const out = new Map<string, ThreadState>();
   const ids = [...new Set(threadIds)];
   if (!ids.length) return out;
@@ -76,14 +76,25 @@ export async function listThreadStates(deps: Deps, orgId: string, threadIds: str
     const rows = await deps.db.select({ s: mailThreadState, name: users.name }).from(mailThreadState).leftJoin(users, eq(users.id, mailThreadState.assigneeUserId))
       .where(and(eq(mailThreadState.orgId, orgId), inArray(mailThreadState.threadId, ids.slice(i, i + 90))));
     for (const { s, name } of rows) {
+      if (scope && !scope.includes(s.mailboxId)) continue; // PRIV1b (P15, review S2): another copy's state reads as open and unassigned
       out.set(s.threadId, { threadId: s.threadId, status: s.status, assignee: s.assigneeUserId ? { id: s.assigneeUserId, name: name ?? "" } : null, assignedAt: iso(s.assignedAt), doneAt: iso(s.doneAt) });
     }
   }
   return out;
 }
 
+/**
+ * PRIV1b (P15, review S2): mail_thread_state holds one row per thread id, not per mailbox copy (no schema change in
+ * PRIV1b). The row belongs to the copy it was first written from (its mailbox_id): callers whose copies don't include
+ * that mailbox see the thread as open and unassigned and can't change it. Residual: thread list view filters (threadViewCond)
+ * still filter by that one row, so a copy's Mine/Done views can follow a status set from another copy.
+ */
+const otherCopy = (cur: { mailboxId: string } | undefined, mailboxIds: string[]) => !!cur && !mailboxIds.includes(cur.mailboxId);
+const notYours = () => new HttpError(409, "conflict", "This thread's status is kept with another mailbox's copy of it.");
+
 export async function getThreadState(deps: Deps, actor: SuiteActor, threadId: string) {
-  await openThread(deps, actor, threadId);
+  const t = await openThread(deps, actor, threadId);
+  if (otherCopy(await stateRow(deps, actor.orgId, threadId), t.mailboxIds)) return { threadId, status: "open", assignee: null, assignedAt: null, doneAt: null } as ThreadState;
   return present(deps, actor.orgId, threadId);
 }
 
@@ -113,6 +124,7 @@ export async function assignThread(deps: Deps, actor: SuiteActor, threadId: stri
   assertWritable(actor);
   const t = await openThread(deps, actor, threadId, "reply");
   const cur = await stateRow(deps, actor.orgId, threadId);
+  if (otherCopy(cur, t.mailboxIds)) throw notYours();
   if ((cur?.assigneeUserId ?? null) === userId) return present(deps, actor.orgId, threadId);
   if (userId) await assertAssignable(deps, actor.orgId, userId, t.mailboxIds);
   const now = deps.now();
@@ -135,6 +147,7 @@ export async function setThreadStatus(deps: Deps, actor: SuiteActor, threadId: s
   if (!(THREAD_STATUSES as readonly string[]).includes(status)) throw badRequest("Status is open, waiting or done.");
   const t = await openThread(deps, actor, threadId, "reply");
   const cur = await stateRow(deps, actor.orgId, threadId);
+  if (otherCopy(cur, t.mailboxIds)) throw notYours();
   if ((cur?.status ?? "open") === status) return present(deps, actor.orgId, threadId);
   const now = deps.now();
   const set = { status, doneAt: status === "done" ? now : null, updatedAt: now };

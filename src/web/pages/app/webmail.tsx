@@ -757,7 +757,7 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
               <LabelMenu threadId={m.threadId} labels={data.labels ?? []} />
             </span>}
           </div>
-          {m.folder !== "drafts" && <ThreadPresenceLine threadId={m.threadId} />}
+          {m.folder !== "drafts" && <ThreadPresenceLine threadId={m.threadId} mailboxId={m.mailboxId} />}
           <Assistant key={last.id} messageId={last.id} onDraft={(text) => reply(false, text)} />
           <div className="mt-6 space-y-4">
             {thread.map((t, i) => <ThreadMessage key={t.id} m={t} defaultOpen={i === thread.length - 1 || !t.isRead} />)}

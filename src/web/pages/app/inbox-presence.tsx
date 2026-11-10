@@ -15,8 +15,8 @@ import { Compose, type ComposeDraft } from "./mail/compose";
  * Round 22 (R22.3, R22.4) in the shared inbox: who else has this thread open (viewing, or replying
  * in amber), and draft replies teammates saved in it, which anyone who can open the mailbox can take over.
  */
-export function ThreadCollab({ threadId }: { threadId: string }) {
-  const presence = useThreadPresence(threadId, "viewing");
+export function ThreadCollab({ threadId, mailboxId }: { threadId: string; mailboxId?: string }) {
+  const presence = useThreadPresence(threadId, "viewing", mailboxId);
   return (
     <>
       <PresenceBar view={presence} />
@@ -26,8 +26,8 @@ export function ThreadCollab({ threadId }: { threadId: string }) {
 }
 
 /** The same bar in webmail's reader, for the thread being read. */
-export function ThreadPresenceLine({ threadId }: { threadId: string }) {
-  const presence = useThreadPresence(threadId, "viewing");
+export function ThreadPresenceLine({ threadId, mailboxId }: { threadId: string; mailboxId?: string }) {
+  const presence = useThreadPresence(threadId, "viewing", mailboxId);
   return <div className="mt-3"><PresenceBar view={presence} /></div>;
 }
 

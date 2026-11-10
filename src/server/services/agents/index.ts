@@ -378,7 +378,7 @@ export async function listThreads(deps: Deps, orgId: string, scope: string[] | n
         .where(and(eq(sendApprovals.orgId, orgId), eq(sendApprovals.status, "pending"), inIds(sendApprovals.threadId, ids), scope ? inIds(sendApprovals.mailboxId, scope) : undefined)).groupBy(sendApprovals.threadId))
     : [];
   const names = await agentNames(deps, orgId);
-  const states = await listThreadStates(deps, orgId, rows.map((r) => r.threadId));
+  const states = await listThreadStates(deps, orgId, rows.map((r) => r.threadId), scope);
   return {
     data: rows.map((r) => {
       const inThread = latest.filter((x) => x.threadId === r.threadId);

@@ -201,7 +201,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
     onError: (e) => showError(e),
   });
   // Round 22: while a reply is open, teammates in the thread see "replying".
-  const presence = useThreadPresence(d.threadId, "replying");
+  const presence = useThreadPresence(d.threadId, "replying", d.mailboxId);
   const close = () => { forgetOpenReply(d.threadId); return dirty && (d.to || d.text.trim() || d.subject) ? saveDraft.mutate() : onClose(); };
   // Round 22: saved replies go in at the cursor; the subject fills only when empty.
   const applySnippet = (next: { subject: string; text: string }, cursor: number) => {

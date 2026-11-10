@@ -22,11 +22,15 @@ export const presenceStore = (deps: Deps): PresenceStore => deps.presence ?? (lo
 
 const scopeCond = (scope: string[] | null) => (scope ? inIds(messages.mailboxId, scope) : undefined);
 
-/** 404 unless at least one message of the thread is in a mailbox the caller can open (same org). Reads only. */
-export async function assertThreadAccess(deps: Deps, actor: Who, threadId: string) {
+/**
+ * 404 unless at least one message of the thread is in a mailbox the caller can open (same org). Reads only.
+ * PRIV1b (P15, review M1): with mailboxId, that copy only (the one the client has open); else the oldest copy in scope.
+ */
+export async function assertThreadAccess(deps: Deps, actor: Who, threadId: string, mailboxId?: string) {
   const scope = await scopeFor(deps, actor as Actor);
+  if (mailboxId && scope && !scope.includes(mailboxId)) throw notFound("Thread");
   const hit = await deps.db.select({ id: messages.id, subject: messages.subject, mailboxId: messages.mailboxId }).from(messages)
-    .where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), scopeCond(scope), sql`${messages.folder} <> 'trash'`)).orderBy(asc(messages.date)).limit(1).get();
+    .where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), mailboxId ? eq(messages.mailboxId, mailboxId) : scopeCond(scope), sql`${messages.folder} <> 'trash'`)).orderBy(asc(messages.date)).limit(1).get();
   if (!hit) throw notFound("Thread");
   return { scope, subject: hit.subject, mailboxId: hit.mailboxId };
 }
@@ -35,8 +39,8 @@ export async function assertThreadAccess(deps: Deps, actor: Who, threadId: strin
 const roomKey = (orgId: string, threadId: string, mailboxId: string) => `${presenceKey(orgId, threadId)}:${mailboxId}`;
 
 /** Beats, leaves or reads the thread's room. Never writes D1. */
-export async function threadPresence(deps: Deps, actor: Who & { name?: string }, threadId: string, op: { op: "beat"; clientId: string; state: PresenceState } | { op: "leave"; clientId: string } | { op: "list" }): Promise<PresenceView> {
-  const { mailboxId } = await assertThreadAccess(deps, actor, threadId);
+export async function threadPresence(deps: Deps, actor: Who & { name?: string }, threadId: string, op: { op: "beat"; clientId: string; state: PresenceState } | { op: "leave"; clientId: string } | { op: "list" }, open?: { mailboxId?: string }): Promise<PresenceView> {
+  const { mailboxId } = await assertThreadAccess(deps, actor, threadId, open?.mailboxId || undefined);
   const store = presenceStore(deps);
   const key = roomKey(actor.orgId, threadId, mailboxId);
   // Client ids are scoped to the person so one person can never end or overwrite another's entry.

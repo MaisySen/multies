@@ -15,7 +15,8 @@ export interface PresenceView { people: PresencePerson[]; notes: PresenceNote[] 
 const BEAT_MS = 15_000;
 const EMPTY: PresenceView = { people: [], notes: [] };
 
-export function useThreadPresence(threadId: string | null | undefined, state: PresenceState): PresenceView {
+/** PRIV1b (P15, review M1): mailboxId is the copy on screen, so the room is that copy's and nobody on another copy sees us. */
+export function useThreadPresence(threadId: string | null | undefined, state: PresenceState, mailboxId?: string | null): PresenceView {
   const [view, setView] = useState<PresenceView>(EMPTY);
   const clientId = useMemo(() => Math.random().toString(36).slice(2) + Date.now().toString(36), []);
   const stateRef = useRef(state);
@@ -30,7 +31,7 @@ export function useThreadPresence(threadId: string | null | undefined, state: Pr
     const beat = async () => {
       if (stopped || document.visibilityState === "hidden") return;
       try {
-        const v = await api.post<PresenceView>(path, { clientId, state: stateRef.current });
+        const v = await api.post<PresenceView>(path, { clientId, state: stateRef.current, ...(mailboxId ? { mailboxId } : {}) });
         if (!stopped) setView(v);
       } catch (e) {
         // No access (or the thread is gone): stop beating.
@@ -38,7 +39,7 @@ export function useThreadPresence(threadId: string | null | undefined, state: Pr
       }
     };
     const leave = () => {
-      void fetch(`/api${path}/leave`, { method: "POST", credentials: "same-origin", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify({ clientId }) }).catch(() => {});
+      void fetch(`/api${path}/leave`, { method: "POST", credentials: "same-origin", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify({ clientId, ...(mailboxId ? { mailboxId } : {}) }) }).catch(() => {});
     };
     beatRef.current = () => void beat();
     timer.id = setInterval(() => void beat(), BEAT_MS);
@@ -55,7 +56,7 @@ export function useThreadPresence(threadId: string | null | undefined, state: Pr
       leave();
       setView(EMPTY);
     };
-  }, [threadId, clientId]);
+  }, [threadId, clientId, mailboxId]);
 
   // A change of state (viewing to replying) goes out at once, not at the next beat.
   const first = useRef(true);
