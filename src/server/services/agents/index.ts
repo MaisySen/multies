@@ -401,7 +401,7 @@ export async function listThreads(deps: Deps, orgId: string, scope: string[] | n
 }
 
 /** One thread as structured JSON: every message with its new text, codes, links and attachments. */
-export async function readThread(deps: Deps, actor: Actor, threadId: string, origin: string) {
+export async function readThread(deps: Deps, actor: Actor, threadId: string, origin: string, headers?: Headers) {
   const scope = await scopeFor(deps, actor);
   const rows = await deps.db.select().from(messages)
     .where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), scopeCond(scope), sql`${messages.folder} <> 'drafts'`)).orderBy(asc(messages.date));
@@ -410,7 +410,7 @@ export async function readThread(deps: Deps, actor: Actor, threadId: string, ori
   const names = await agentNames(deps, actor.orgId);
   const approvals = await deps.db.select().from(sendApprovals).where(and(eq(sendApprovals.orgId, actor.orgId), eq(sendApprovals.threadId, threadId), eq(sendApprovals.status, "pending")));
   // PRIV1b (P17): the Team inbox reader, v1 GET /threads/{id} and MCP read_thread land in "Who opened my mailbox".
-  for (const mb of new Set(rows.map((r) => r.mailboxId))) await logMailboxOpen(deps, actor, mb, "opened_thread", threadId);
+  for (const mb of new Set(rows.map((r) => r.mailboxId))) await logMailboxOpen(deps, actor, mb, "opened_thread", threadId, headers);
   if (actor.agentId) {
     const { a, mb } = await row(deps, actor.orgId, actor.agentId);
     // Reads roll up to one audit row per agent, thread and hour (round 20): an agent polling a thread

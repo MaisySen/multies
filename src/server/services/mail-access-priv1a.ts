@@ -175,9 +175,10 @@ export async function keepOpenableBy(db: DB, orgId: string, userId: string | nul
 }
 
 /**
- * PRIV1b (P5, P6, P7, P62): whether this person is the owner of a personal mailbox (the workspace owner when its owner is
- * unknown or has left). undefined for a team or agent mailbox, or another workspace's. A share, even send as, is not
- * ownership. One indexed read.
+ * PRIV1b (P5, P6, P7, P62): whether this person is the owner of a personal mailbox. undefined for a team or agent
+ * mailbox, or another workspace's. A share, even send as, is not ownership. One indexed read.
+ * PRIV1b (P9, M1): an orphan (owner unknown or left) has no owner: the workspace owner reads it only, so no app
+ * password, Reply-To, sign in or calendar through it.
  */
 export async function isPersonalOwner(db: DB, who: Who, mailboxId: string): Promise<boolean | undefined> {
   const r = await db.select({ personal: mailboxes.personal, owner: mailboxes.ownerUserId, member: members.userId }).from(mailboxes)
@@ -185,5 +186,5 @@ export async function isPersonalOwner(db: DB, who: Who, mailboxId: string): Prom
     .where(and(eq(mailboxes.id, mailboxId), eq(mailboxes.orgId, who.orgId))).get();
   if (!r?.personal) return undefined;
   if (!who.userId) return false;
-  return r.owner && r.member ? r.owner === who.userId : who.role === "owner";
+  return !!r.owner && !!r.member && r.owner === who.userId;
 }

@@ -143,16 +143,15 @@ async function destroyAppPasswordRow(deps: Deps, p: typeof appPasswords.$inferSe
 }
 
 /**
- * PRIV1b (P6, P42): app passwords on personal mailboxes made by someone other than the owner (the workspace owner when
- * the mailbox has none): ones a delegate made before P6, ones from before the mailbox became personal (0164), ones of
+ * PRIV1b (P6, P42): app passwords on personal mailboxes made by someone other than the owner (any, when the mailbox
+ * has none): ones a delegate made before P6, ones from before the mailbox became personal (0164), ones of
  * an owner who left. As a SQL condition on app_passwords joined to mailboxes as m.
  */
 // PRIV1b (M1): coalesce, since created_by_user_id is SET NULL when its maker's account goes; NULL = owner would be
 // NULL and keep the row forever.
+// PRIV1b (P9, M1): an orphan has no owner, so every app password on it is foreign (the workspace owner reads it only).
 const FOREIGN = sql`m.personal = 1 and not (
-  (exists (select 1 from members x where x.user_id = m.owner_user_id and x.organization_id = m.org_id) and coalesce(${appPasswords.createdByUserId}, '') = m.owner_user_id)
-  or (not exists (select 1 from members x where x.user_id = m.owner_user_id and x.organization_id = m.org_id)
-    and exists (select 1 from members o where o.user_id = ${appPasswords.createdByUserId} and o.organization_id = m.org_id and o.role = 'owner')))`;
+  exists (select 1 from members x where x.user_id = m.owner_user_id and x.organization_id = m.org_id) and coalesce(${appPasswords.createdByUserId}, '') = m.owner_user_id)`;
 
 async function destroyForeign(deps: Deps, where: SQL, limit: number) {
   const m = alias(mailboxes, "m");

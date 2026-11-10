@@ -149,11 +149,13 @@ describe("PRIV1b (P5, P62) reconnecting a personal connection", () => {
     expect((await w.admin.c.del(`/api/connections/${id}`)).status).toBe(200);
   }, 120_000);
 
-  it("an orphaned personal connection is changed by the workspace owner only", async () => {
+  it("an orphaned personal connection is changed by nobody; admins can still remove it", async () => {
     const w = await connectedWorld();
     await w.ctx.db.update(mailboxes).set({ ownerUserId: null }).where(eq(mailboxes.id, w.conn.mailboxId));
     expect((await w.admin.c.put(`/api/connections/${w.conn.id}`, { password: PW })).status).toBe(403);
-    expect((await w.owner.put(`/api/connections/${w.conn.id}`, { password: PW })).status).toBe(200);
+    // PRIV1b (P9, rule-lifecycle M1): the workspace owner reads an orphan only; reconnecting would sync and send as its owner.
+    expect((await w.owner.put(`/api/connections/${w.conn.id}`, { password: PW })).status).toBe(403);
+    expect((await w.owner.del(`/api/connections/${w.conn.id}`)).status).toBe(200);
   }, 120_000);
 });
 

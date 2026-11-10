@@ -122,8 +122,8 @@ export function present(c: Connection, mb: { address: string; displayName: strin
 
 /**
  * Who may manage a connection: the person who connected it, or a workspace owner or admin.
- * PRIV1b (P5, P62): on a personal mailbox the mailbox's owner decides, not whoever connected it: only the owner (the
- * workspace owner when it has none) changes the sign in or the servers ("change"); admins can still remove it.
+ * PRIV1b (P5, P62): on a personal mailbox the mailbox's owner decides, not whoever connected it: only the owner (nobody
+ * on an orphan, P9) changes the sign in or the servers ("change"); admins can still remove it.
  */
 async function assertCanManage(deps: Deps, auth: AuthContext, c: Connection, what: "change" | "remove") {
   const own = await isPersonalOwner(deps.db, auth, c.mailboxId);

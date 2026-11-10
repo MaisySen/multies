@@ -61,6 +61,33 @@ describe("PRIV1b (P9) personal mailboxes follow membership", () => {
     expect((await w.member.c.get(`/api/mail/messages/${w.msgs.team}`)).status).toBe(200);
   }, 180_000);
 
+  it("review M1: on an orphan the workspace owner gets no app password, Reply-To, name, sign in or calendar", async () => {
+    const w = await privacyWorld();
+    await connect(w);
+    const box = w.boxes.personal, conn = `mcn_pat${w.n}aaaaaaaa`;
+    const ownerId = (await w.owner.get("/api/account/me")).body.user.id as string;
+    // Before: Pat, the owner, changes the name and Reply-To.
+    expect((await w.pat.c.patch(`/api/mailboxes/${box}`, { displayName: "Pat P", replyTo: `pat.reply${w.n}@acme.io` })).status).toBe(200);
+    expect(await access.isPersonalOwner(w.ctx.db, { userId: w.pat.id, orgId: w.orgId, role: "member" }, box)).toBe(true);
+    expect((await w.owner.del(`/api/team/members/${w.pat.id}`)).status).toBe(200);
+    const pw = await w.owner.post(`/api/mail-access/mailboxes/${box}/app-passwords`, { name: "Olive" });
+    expect(pw.status).toBe(403);
+    expect(pw.body.secret).toBeUndefined();
+    expect(await pws(w)).toEqual([]);
+    expect((await w.owner.patch(`/api/mailboxes/${box}`, { replyTo: `olive.evil${w.n}@acme.io` })).status).toBe(403);
+    expect((await w.owner.patch(`/api/mailboxes/${box}`, { displayName: "Olive" })).status).toBe(403);
+    const row = (await w.ctx.db.select().from(mailboxes).where(eq(mailboxes.id, box)).get())!;
+    expect(row.replyTo).toBe(`pat.reply${w.n}@acme.io`);
+    expect(row.displayName).toBe("Pat P");
+    // Reconnect would set the connection going again: refused, it stays paused.
+    expect((await w.owner.put(`/api/connections/${conn}`, { password: "x" })).status).toBe(403);
+    expect(await status(w)).toBe("paused");
+    expect(await access.isPersonalOwner(w.ctx.db, { userId: ownerId, orgId: w.orgId, role: "owner" }, box)).toBe(false);
+    // Still read only, and team mailboxes are untouched for admins.
+    expect((await w.owner.get(`/api/mail/messages/${w.msgs.personal}`)).status).toBe(200);
+    expect((await w.admin.c.patch(`/api/mailboxes/${w.boxes.team}`, { replyTo: `desk${w.n}@acme.io` })).status).toBe(200);
+  }, 180_000);
+
   it("a removed delegate's share ends and doesn't come back on a re-invite; others keep theirs", async () => {
     const w = await privacyWorld();
     expect((await w.dRead.c.get(`/api/mail/messages/${w.msgs.personal}`)).status).toBe(200);
@@ -151,9 +178,30 @@ describe("PRIV1b (P17) the access log", () => {
     expect(await rows(w, w.admin.id)).toEqual([]);
     expect((await w.pat.c.get(`/api/agents/threads/${thr}`)).status).toBe(200);
     expect(await rows(w, w.pat.id)).toEqual([]);
+    // Review S3: the reader passes the request's headers, so a phone open says phone.
+    await w.dSend.c.call("GET", `/api/agents/threads/${thr}`, undefined, { "user-agent": "Multies/1.0 (iPhone; iOS 18) Expo" });
+    const dev = await w.ctx.db.select({ d: mailboxAccessLog.device }).from(mailboxAccessLog).where(and(eq(mailboxAccessLog.mailboxId, w.boxes.personal), eq(mailboxAccessLog.actorUserId, w.dSend.id))).get();
+    expect(dev?.d).toBe("phone");
     // Team mail is never logged.
     expect((await w.member.c.get(`/api/agents/threads/thr_team${w.n}aaaaaaaaaa`)).status).toBe(200);
     expect((await w.ctx.db.select().from(mailboxAccessLog).where(eq(mailboxAccessLog.mailboxId, w.boxes.team))).length).toBe(0);
+  }, 120_000);
+
+  it("review S2: the v1 attachment download logs a delegate's key; a refused one logs nothing", async () => {
+    const w = await privacyWorld();
+    const v1 = (key: string, path: string) => w.ctx.app.request(`/api/v1${path}`, { headers: { authorization: `Bearer ${key}`, "cf-connecting-ip": "10.77.0.2" } });
+    const mk = async (c: C) => { const r = await c.post("/api/developer/keys", { name: "reader" }); expect(r.status, JSON.stringify(r.body)).toBe(201); return r.body.secret as string; };
+    // Members can't make keys: Pat shares her mailbox with the admin, who reads through a key.
+    expect((await w.pat.c.put(`/api/mailboxes/${w.boxes.personal}/sharing/${w.admin.id}`, { level: "read" })).status).toBe(200);
+    const ok = await v1(await mk(w.admin.c), `/attachments/${w.attId}`);
+    expect(ok.status).toBe(200);
+    expect(await ok.text()).toBe("abc");
+    const log = await w.ctx.db.select().from(mailboxAccessLog).where(and(eq(mailboxAccessLog.mailboxId, w.boxes.personal), eq(mailboxAccessLog.actorUserId, w.admin.id))).all();
+    expect(log.filter((r) => r.action.startsWith("opened")).map((r) => [r.action, r.targetId, r.device])).toEqual([["opened_thread", `thr_pers${w.n}aaaaaaaaaa`, "api"]]);
+    // The workspace owner's key can't open it: 404 and no row.
+    const ownerId = (await w.owner.get("/api/account/me")).body.user.id as string;
+    expect((await v1(await mk(w.owner), `/attachments/${w.attId}`)).status).toBe(404);
+    expect(await rows(w, ownerId)).toEqual([]);
   }, 120_000);
 });
 
@@ -240,7 +288,9 @@ describe("PRIV1b (P28) workspace export and orphaned mailboxes", () => {
     const adminAll = await exported(w, w.admin.c);
     expect(adminAll).not.toContain(`SUBJECT-PERS-${w.n}`);
     expect(adminAll).toContain(`SUBJECT-TEAM-${w.n}`);
-    await w.ctx.db.update(mailboxes).set({ ownerUserId: null }).where(eq(mailboxes.id, w.boxes.personal));
+    // Review: Pat really leaves (her membership goes), not a nulled owner.
+    expect((await w.owner.del(`/api/team/members/${w.pat.id}`)).status).toBe(200);
+    expect((await w.ctx.db.select().from(mailboxes).where(eq(mailboxes.id, w.boxes.personal)).get())!.ownerUserId).toBe(w.pat.id);
     const ownerAll = await exported(w, w.owner);
     expect(ownerAll).toContain(`SUBJECT-PERS-${w.n}`);
     expect(ownerAll).toContain(`SUBJECT-TEAM-${w.n}`);

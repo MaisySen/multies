@@ -506,8 +506,8 @@ export async function addDriveFile(deps: Deps, a: Actor, itemId: string): Promis
 export async function canAddFromMailbox(db: DB, a: Actor, mailboxId: string): Promise<boolean> {
   const mb = (await db.all<{ address: string }>(sql`select address from mailboxes where id = ${mailboxId} and org_id = ${a.orgId} limit 1`))[0];
   if (!mb) return false;
-  // PRIV1b (P21): a personal mailbox is decided here: its owner (the workspace owner when its owner is unknown or
-  // left) who can open it; never a share, never an admin by address. Team mailboxes keep the rule below.
+  // PRIV1b (P21): a personal mailbox is decided here: its owner (nobody on an orphan, P9) who
+  // can open it; never a share, never an admin by address. Team mailboxes keep the rule below.
   if (await personalInfo(db, a.orgId, mailboxId)) return (await isPersonalOwner(db, a, mailboxId)) === true && await canOpen(db, a, mailboxId);
   const me = (await db.all<{ email: string }>(sql`select email from users where id = ${a.userId} limit 1`))[0];
   if (me && me.email.toLowerCase() === mb.address.toLowerCase()) return true;

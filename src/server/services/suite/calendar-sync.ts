@@ -259,7 +259,7 @@ export async function listSources(deps: Deps, actor: SuiteActor) {
 }
 
 /**
- * PRIV1b (P62, S2): a connection on a personal mailbox is its owner's (the workspace owner's when it has none), not
+ * PRIV1b (P62, S2): a connection on a personal mailbox is its owner's (nobody's on an orphan, P9), not
  * whoever connected it, so its stored password reads only the owner's calendar. Team mailboxes: the connector, as before.
  */
 async function connectionIsMine(deps: Deps, actor: SuiteActor, c: { mailboxId: string; createdByUserId: string | null }) {

@@ -78,7 +78,7 @@ export async function createMailbox(db: DB, orgId: string, input: CreateMailboxI
 
 export async function updateMailbox(db: DB, orgId: string, id: string, patch: { displayName?: string; quotaMb?: number; status?: "active" | "suspended"; replyTo?: string | null }, who: { userId: string; role?: "owner" | "admin" | "member" | null }) {
   const m = await getMailbox(db, orgId, id);
-  // PRIV1b (P7): on a personal mailbox only its owner (the workspace owner when it has none) sets the name and Reply-To,
+  // PRIV1b (P7): on a personal mailbox only its owner (nobody on an orphan, P9) sets the name and Reply-To,
   // so an admin can't route the owner's replies to herself. Admins keep quota and status; elsewhere admins only.
   const admin = who.role === "owner" || who.role === "admin";
   if ((patch.quotaMb !== undefined || patch.status !== undefined) && !admin) throw forbidden("Only workspace owners and admins can change a mailbox's storage or status.");

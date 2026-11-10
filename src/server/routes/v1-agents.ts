@@ -16,6 +16,7 @@ import {
   listApprovals, listThreads, readThread, rejectSend, replyInThread, requestSend, revokeAgentKey, scopeFor, searchMessages, updateAgent, type Actor,
 } from "../services/agents";
 import { attachmentBytes } from "../services/mail/store";
+import { logMailboxOpen } from "../services/mailbox-sharing-priv1a";
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
@@ -180,7 +181,7 @@ export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
     description: "Every message with its new text (quoted history removed), one-time codes, links and attachment URLs, plus any sends waiting for approval. Reads by an agent key are written to the audit log.", security: secured,
     request: { params: Id },
     responses: { 200: json(Thread, "The thread."), 401: errors[401], 404: errors[404] } }),
-  async (c) => c.json(ser(await readThread(c.var.deps, actorOf(c), c.req.valid("param").id, new URL(c.req.url).origin)), 200));
+  async (c) => c.json(ser(await readThread(c.var.deps, actorOf(c), c.req.valid("param").id, new URL(c.req.url).origin, c.req.raw.headers)), 200));
 
   api.openapi(createRoute({ method: "get", path: "/search", tags: ["Agents"], summary: "Search mail", description: "Subject, sender, recipients and body, in the mailboxes the key can read.", security: secured,
     request: { query: z.object({ q: z.string().min(1).max(200), limit: z.coerce.number().int().min(1).max(100).default(25) }) },
@@ -294,10 +295,12 @@ export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
   (async (c: Context<AppEnv>) => {
     const actor = actorOf(c);
     const scope = await scopeFor(c.var.deps, actor);
-    const r = await c.var.deps.db.select({ a: attachments, mailboxId: messages.mailboxId }).from(attachments).innerJoin(messages, eq(messages.id, attachments.messageId))
+    const r = await c.var.deps.db.select({ a: attachments, mailboxId: messages.mailboxId, threadId: messages.threadId }).from(attachments).innerJoin(messages, eq(messages.id, attachments.messageId))
       .where(and(eq(attachments.id, c.req.param("id")!), eq(messages.orgId, actor.orgId))).get();
     const bytes = r && (!scope || scope.includes(r.mailboxId)) ? await attachmentBytes(r.a, c.var.deps.bodyStore) : null;
     if (!r || !bytes) throw notFound("Attachment");
+    // PRIV1b (P17): like the app download, a delegate's key leaves a row in "Who opened my mailbox".
+    await logMailboxOpen(c.var.deps, actor, r.mailboxId, "opened_thread", r.threadId, c.req.raw.headers);
     // The sender chose this type, so it is only passed on when it is a plain type token, and the
     // file is always a sandboxed download (an HTML attachment can never run on our origin).
     const type = /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(r.a.contentType) ? r.a.contentType : "application/octet-stream";

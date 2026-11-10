@@ -114,13 +114,13 @@ describe("PRIV1b (P42) app passwords from before a mailbox became personal", () 
     const left = await w.ctx.db.select({ id: appPasswords.id }).from(appPasswords).where(eq(appPasswords.mailboxId, box)).all();
     expect(left.map((r) => r.id)).toEqual([pp.body.appPassword.id]);
     expect(await sweepForeignAppPasswords(w.ctx.deps)).toBe(0);
-    // Orphaned: the workspace owner's own app password is kept, others go.
+    // Orphaned: PRIV1b (P9, rule-lifecycle M1) the workspace owner reads it only, so makes no app password; all go.
     await w.ctx.db.update(mailboxes).set({ ownerUserId: null }).where(eq(mailboxes.id, box));
     const op = await w.owner.post(`/api/mail-access/mailboxes/${box}/app-passwords`, { name: "Olive" });
-    expect(op.status).toBe(201);
+    expect(op.status).toBe(403);
     expect(await sweepForeignAppPasswords(w.ctx.deps)).toBe(1); // Pat's, now that the mailbox is no longer hers
     const after = await w.ctx.db.select({ id: appPasswords.id }).from(appPasswords).where(eq(appPasswords.mailboxId, box)).all();
-    expect(after.map((r) => r.id)).toEqual([op.body.appPassword.id]);
+    expect(after.map((r) => r.id)).toEqual([]);
   }, 120_000);
 
   it("M1: one whose maker's account is gone (creator NULL) goes too, from unsharing and from the sweep", async () => {
