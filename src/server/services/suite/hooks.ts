@@ -19,11 +19,14 @@ export async function onMailStored(deps: Deps, m: StoredMail) {
     try { await fn(); } catch (err) { deps.reportError?.(err, { where: `suite.onMailStored.${name}` }); }
   };
   if (m.folder === "spam" || m.folder === "drafts") return;
+  // PRIV1b (P2): read once; a personal mailbox's mail stays out of contacts, workspace automations and task activity.
+  let personal = false;
+  try { personal = !!m.mailboxId && !!(await (await import("../mail-access-priv1a")).personalInfo(deps.db, m.orgId, m.mailboxId)); }
+  catch (err) { personal = true; deps.reportError?.(err, { where: "suite.onMailStored.personal" }); }
   await step("contacts", async () => {
     const { upsertFromMail } = await import("./contacts");
     // PRIV1a (MB-366): who writes to someone's personal mailbox stays private; it never fills the workspace's contacts.
-    const { personalInfo } = await import("../mail-access-priv1a");
-    if (m.mailboxId && await personalInfo(deps.db, m.orgId, m.mailboxId)) return;
+    if (personal) return;
     await upsertFromMail(deps, m.orgId, m.direction === "inbound" ? [m.from] : [...(m.to ?? []), ...(m.cc ?? [])], m.date);
   });
   await step("tasks", async () => {
@@ -31,10 +34,12 @@ export async function onMailStored(deps: Deps, m: StoredMail) {
     const linked = await deps.db.select({ id: tasks.id, assigneeType: tasks.assigneeType, assigneeId: tasks.assigneeId, title: tasks.title }).from(tasks)
       .where(and(eq(tasks.orgId, m.orgId), eq(tasks.threadId, m.threadId), isNull(tasks.deletedAt)));
     if (!linked.length) return;
-    const actor: SuiteActor = { orgId: m.orgId, userId: "", email: m.from.address, name: m.from.name || m.from.address, system: true };
+    // PRIV1b (P2): on a personal mailbox the activity names no sender or subject, and only people who can open it hear of the reply.
+    const actor: SuiteActor = personal ? { orgId: m.orgId, userId: "", email: "", name: "Email", system: true } : { orgId: m.orgId, userId: "", email: m.from.address, name: m.from.name || m.from.address, system: true };
+    const openers = personal ? new Set(await (await import("../team")).usersWhoCanOpen(deps.db, m.orgId, m.mailboxId)) : null;
     for (const t of linked) {
-      await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "update", verb: m.direction === "inbound" ? "email_received" : "email_sent", data: { messageId: m.messageId, from: m.from.address, subject: m.subject } });
-      if (m.direction === "inbound" && t.assigneeType === "member" && t.assigneeId) {
+      await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "update", verb: m.direction === "inbound" ? "email_received" : "email_sent", data: personal ? { messageId: m.messageId } : { messageId: m.messageId, from: m.from.address, subject: m.subject } });
+      if (m.direction === "inbound" && t.assigneeType === "member" && t.assigneeId && (!openers || openers.has(t.assigneeId))) {
         const { notify } = await import("./notify");
         await notify(deps, m.orgId, t.assigneeId, { type: "task.email_reply", entityType: "task", entityId: t.id, title: `New reply on ${t.title}` });
       }
@@ -42,6 +47,7 @@ export async function onMailStored(deps: Deps, m: StoredMail) {
   });
   if (m.direction !== "inbound") return;
   await step("automations", async () => {
+    if (personal) return; // PRIV1b (P2): workspace rules run as a system actor that nobody shared the mailbox with.
     const { runEmailAutomations } = await import("./automations");
     await runEmailAutomations(deps, m.orgId, { messageId: m.messageId, threadId: m.threadId, mailboxId: m.mailboxId, from: m.from.address, subject: m.subject });
   });

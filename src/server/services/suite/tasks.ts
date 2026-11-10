@@ -662,6 +662,8 @@ export async function createTaskFromThread(deps: Deps, actor: SuiteActor, input:
   const m = await deps.db.select().from(messages).where(and(eq(messages.orgId, actor.orgId), input.messageId ? eq(messages.id, input.messageId) : eq(messages.threadId, input.threadId ?? "-")))
     .orderBy(desc(messages.date)).get();
   if (!m) throw notFound("Message");
+  // PRIV1b (P2): a system actor (workspace automation) never copies a personal mailbox's mail into a task.
+  if (actor.system && await (await import("../mail-access-priv1a")).personalInfo(deps.db, actor.orgId, m.mailboxId)) throw notFound("Message");
   const fromLine = m.fromName || m.fromAddress;
   const title = input.title?.trim() || cleanSubject(m.subject) || `Follow up with ${fromLine}`;
   const notes = input.notes ?? latestText(m.text).slice(0, 2000);
