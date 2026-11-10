@@ -25,7 +25,7 @@ async function assertAddressFree(db: DB, address: string) {
 }
 
 /** PRIV1b (P37): the member of this workspace who signs in with `address`, if any. One indexed read (users.email is unique). */
-async function memberSigningInAs(db: DB, orgId: string, address: string) {
+export async function memberSigningInAs(db: DB, orgId: string, address: string) {
   return db.select({ userId: users.id, email: users.email }).from(users)
     .innerJoin(members, and(eq(members.userId, users.id), eq(members.organizationId, orgId), eq(members.kind, "human")))
     .where(eq(users.email, address.toLowerCase())).get();

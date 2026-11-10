@@ -24,6 +24,7 @@ import { isHosted } from "../mail/delivery";
 import { sendMessage, type SendResult } from "../mail/send";
 import { deprovisionMailbox } from "../mailserver";
 import { mailboxScope } from "../team";
+import { memberSigningInAs } from "../addresses";
 import { keepOpenableBy } from "../mail-access-priv1a";
 import { agentMessage, extractCodes, extractLinks, latestText } from "./parse";
 import { listThreadStates, threadViewCond, type ThreadView } from "../mail/thread-state";
@@ -181,6 +182,8 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
   const address = `${local}@${domain.name}`;
   const taken = await db.select({ id: mailboxes.id }).from(mailboxes).where(eq(mailboxes.address, address)).get();
   if (taken) throw conflict(`${address} is already in use.`);
+  // PRIV1b (P37): an agent inbox is never a person's mailbox; at a member's sign in address it would get their password resets.
+  if (await memberSigningInAs(db, actor.orgId, address)) throw conflict(`${address} is the sign in address of a member of this workspace. Pick another address for the agent.`);
   const extra = [...new Set(input.mailboxIds ?? [])];
   if (extra.length) {
     const ok = await db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.orgId, actor.orgId), inIds(mailboxes.id, extra)));

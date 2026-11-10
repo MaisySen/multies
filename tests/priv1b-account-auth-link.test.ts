@@ -72,14 +72,18 @@ describe("PRIV1b (P33): limiter and burning", () => {
     const t = await makeTestApp({ MOBILE_WEB_LINK: "on" });
     const phone = new Client(t.app);
     await phone.signup();
-    const before = (await (t.db as never as { all: (q: unknown) => Promise<unknown[]> }).all(sql`SELECT key FROM api_rate_limits WHERE key LIKE 'handoff:%'`)).length;
+    const before = (await (t.db as never as { all: (q: unknown) => Promise<unknown[]> }).all(sql`SELECT key FROM api_rate_limits WHERE key LIKE 'rl:handoff:%'`)).length;
     for (let i = 0; i < 25; i++) {
       const r = await open(t.app, "/auth/mobile/web?code=junk");
       expect(r.headers.get("location")).toBe("/login");
     }
-    const after = (await (t.db as never as { all: (q: unknown) => Promise<unknown[]> }).all(sql`SELECT key FROM api_rate_limits WHERE key LIKE 'handoff:%'`)).length;
+    const after = (await (t.db as never as { all: (q: unknown) => Promise<unknown[]> }).all(sql`SELECT key FROM api_rate_limits WHERE key LIKE 'rl:handoff:%'`)).length;
     expect(after).toBe(before);
     const code = await mint(phone, "/app/meetings");
+    // The query does see the limiter: one well formed (unknown) code from another address adds a row.
+    await open(t.app, link(`B00${"x".repeat(40)}`), { "cf-connecting-ip": "198.51.100.8" });
+    const seen = (await (t.db as never as { all: (q: unknown) => Promise<unknown[]> }).all(sql`SELECT key FROM api_rate_limits WHERE key LIKE 'rl:handoff:%'`)).length;
+    expect(seen).toBeGreaterThan(after);
     // Fill this address's minute with well formed (unknown) codes.
     const fake = (i: number) => `A${String(i).padStart(2, "0")}${"x".repeat(40)}`;
     for (let i = 0; i < 25; i++) await open(t.app, link(fake(i)));

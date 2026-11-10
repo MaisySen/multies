@@ -138,6 +138,8 @@ export async function notify(deps: Deps, orgId: string, userId: string, n: { typ
     const cat = categoryOf(n.type);
     const now = deps.now();
     const d = decide(mergePrefs(row?.settings), centreOn(deps) ? readDelivery(row?.delivery) : null, cat, now);
+    // PRIV1b (P37): account security notices can't be muted: always in the inbox and always pushed.
+    if (n.type.startsWith("security.")) { d.inApp = true; d.push = true; }
     if (d.inApp) {
       await deps.db.insert(notifications).values({ id: sortableId("ntf", now.getTime()), orgId, userId, type: n.type, entityType: n.entityType, entityId: n.entityId, title: n.title.slice(0, 300), actorName: n.actorName?.slice(0, 120) ?? null, createdAt: now });
     }

@@ -4,7 +4,7 @@
  * closed over HTTP), P70 (OAuth code exchange race and refresh token reuse). Mobile web link items: priv1b-account-auth-link.test.ts.
  */
 import { describe, it, expect } from "vitest";
-import { and, eq, like } from "drizzle-orm";
+import { and, eq, isNull, like } from "drizzle-orm";
 import { privacyWorld } from "./priv1a-world";
 import { makeTestApp, Client } from "./helpers";
 import { auditLogs, domains, mailboxes, messages, notifications, oauthGrants, organizations, sessions, users, verifications } from "@/server/db/schema";
@@ -49,11 +49,10 @@ describe("PRIV1b (P37): account mail through the workspace's own domain", () => 
     expect(o.status).toBe(409);
     expect(await w.ctx.db.select().from(mailboxes).where(eq(mailboxes.address, pat)).get()).toBeFalsy();
     const key = (await w.owner.post("/api/developer/keys", { name: "k", scope: "full" })).body;
-    const secret = key.secret ?? key.key?.secret;
-    if (secret) {
-      const v1 = await w.ctx.app.request("/api/v1/aliases", { method: "POST", headers: { host: "localhost", "content-type": "application/json", authorization: `Bearer ${secret}` }, body: JSON.stringify({ domainId: w.domainId, localPart: `pat${w.n}`, destinations: [`olive${w.n}@acme.io`] }) });
-      expect(v1.status).toBe(409);
-    }
+    const secret = (key.secret ?? key.key?.secret) as string;
+    expect(secret).toMatch(/^mm_live_/);
+    const v1 = await w.ctx.app.request("/api/v1/aliases", { method: "POST", headers: { host: "localhost", "content-type": "application/json", authorization: `Bearer ${secret}` }, body: JSON.stringify({ domainId: w.domainId, localPart: `pat${w.n}`, destinations: [`olive${w.n}@acme.io`] }) });
+    expect(v1.status).toBe(409);
     const ok = await w.admin.c.post("/api/aliases", { domainId: w.domainId, localPart: `sales${w.n}`, destinations: [`ada${w.n}@acme.io`] });
     expect(ok.status).toBe(201);
   });
@@ -95,6 +94,27 @@ describe("PRIV1b (P37): account mail through the workspace's own domain", () => 
     const all = await w.ctx.db.select().from(notifications).where(eq(notifications.type, "security.mailbox_at_login")).all();
     expect(all.length).toBe(1);
   });
+
+  it("the notice reaches the member even with status updates turned off", async () => {
+    const w = await privacyWorld();
+    expect((await w.pat.c.put("/api/notifications/settings", { settings: { status: { inApp: false, push: false } } })).status).toBe(200);
+    expect((await w.admin.c.post("/api/mailboxes", { domainId: w.domainId, localPart: `pat${w.n}`, displayName: "Pat" })).status).toBe(201);
+    const note = await w.ctx.db.select().from(notifications).where(and(eq(notifications.userId, w.pat.id), eq(notifications.type, "security.mailbox_at_login"))).all();
+    expect(note.length).toBe(1);
+  });
+
+  it("an agent inbox at a member's sign in address is refused; other agent addresses still work", async () => {
+    const w = await privacyWorld();
+    const r = await w.admin.c.post("/api/agents", { name: "Pat bot", localPart: `pat${w.n}` });
+    expect(r.status).toBe(409);
+    expect(JSON.stringify(r.body)).toContain("sign in address");
+    expect(await w.ctx.db.select().from(mailboxes).where(eq(mailboxes.address, `pat${w.n}@acme.io`)).get()).toBeFalsy();
+    // Not even the member herself: an agent inbox is never a person's mailbox.
+    expect((await w.owner.post("/api/agents", { name: "Olive bot", localPart: `olive${w.n}` })).status).toBe(409);
+    const ok = await w.admin.c.post("/api/agents", { name: "Helper", localPart: `helper${w.n}` });
+    expect(ok.status).toBe(201);
+    expect(ok.body.agent.address).toBe(`helper${w.n}@acme.io`);
+  });
 });
 
 describe("PRIV1b (P41): Require SSO holds for OAuth grants", () => {
@@ -109,6 +129,14 @@ describe("PRIV1b (P41): Require SSO holds for OAuth grants", () => {
     const a = await approveFor(w.member.c, cid, w.orgId);
     expect(a.status).toBe(403);
     expect(a.body.error.code).toBe("sso_required");
+    // The consent screen says so before Allow.
+    const q = new URLSearchParams({ client_id: cid, redirect_uri: REDIRECT, response_type: "code", code_challenge: await pkceChallenge(verifier), code_challenge_method: "S256", state: "s", scope: "mcp:read mcp:write" });
+    const consent = await w.member.c.get(`/api/oauth/authorize?${q}`);
+    expect(consent.status).toBe(200);
+    const listed = consent.body.workspaces as { id: string; ssoRequired: boolean }[];
+    expect(listed.find((x) => x.id === w.orgId)?.ssoRequired).toBe(true);
+    expect(listed.some((x) => x.id !== w.orgId && x.ssoRequired === false)).toBe(true);
+    expect(((await w.owner.get(`/api/oauth/authorize?${q}`)).body.workspaces as { id: string; ssoRequired: boolean }[]).find((x) => x.id === w.orgId)?.ssoRequired).toBe(false);
     expect(await w.ctx.db.select().from(oauthGrants).where(eq(oauthGrants.userId, w.member.id)).get()).toBeFalsy();
     // The owner is the break glass account.
     expect((await approveFor(w.owner, cid, w.orgId)).status).toBe(200);
@@ -162,6 +190,38 @@ describe("PRIV1b (P48): recovery ends OAuth grants; a ban stops tokens and keys"
     const o = await connect(ctx.app, other);
     expect((await c.post("/api/auth/revoke-sessions", {})).status).toBe(200);
     expect((await mcp(ctx.app, t.access_token)).status).toBe(401);
+    expect((await mcp(ctx.app, o.access_token)).status).toBe(200);
+  });
+
+  it("signing out other sessions ends the person's apps", async () => {
+    const ctx = await makeTestApp();
+    const c = new Client(ctx.app);
+    await c.signup("victim4@acme.io");
+    const t = await connect(ctx.app, c);
+    expect((await c.post("/api/auth/revoke-other-sessions", {})).status).toBe(200);
+    expect((await mcp(ctx.app, t.access_token)).status).toBe(401);
+    expect((await refresh(ctx.app, t.cid, t.refresh_token)).status).toBe(400);
+    expect((await c.get("/api/account/me")).status).toBe(200);
+  });
+
+  it("a platform admin's ban through the admin endpoint ends the person's apps", async () => {
+    const ctx = await makeTestApp();
+    const ops = new Client(ctx.app);
+    await ops.signup("ops-ban@acme.io");
+    await ctx.db.update(users).set({ role: "admin" }).where(eq(users.email, "ops-ban@acme.io"));
+    const c = new Client(ctx.app);
+    await c.signup("victim5@acme.io");
+    const bystander = new Client(ctx.app);
+    await bystander.signup("bystander5@acme.io");
+    const t = await connect(ctx.app, c);
+    const o = await connect(ctx.app, bystander);
+    const id = (await ctx.db.select({ id: users.id }).from(users).where(eq(users.email, "victim5@acme.io")).get())!.id;
+    const ban = await ops.post("/api/auth/admin/ban-user", { userId: id });
+    expect(ban.status).toBe(200);
+    expect(await ctx.db.select().from(oauthGrants).where(and(eq(oauthGrants.userId, id), isNull(oauthGrants.revokedAt))).get()).toBeFalsy();
+    // Lifting the ban does not bring the old grant back.
+    await ctx.db.update(users).set({ banned: false }).where(eq(users.id, id));
+    expect((await refresh(ctx.app, t.cid, t.refresh_token)).status).toBe(400);
     expect((await mcp(ctx.app, o.access_token)).status).toBe(200);
   });
 
