@@ -5,7 +5,8 @@
  */
 import { sql } from "drizzle-orm";
 import type { DB } from "../../db";
-import { PLANS, isPlanId, type PlanId } from "@/shared/plans";
+import { PLANS, type PlanId } from "@/shared/plans";
+import { effectivePlanId } from "../plans";
 
 export const monthOf = (now: Date) => now.toISOString().slice(0, 7);
 export const dayOf = (now: Date) => now.toISOString().slice(0, 10);
@@ -15,14 +16,14 @@ export interface ToolState { plan: PlanId; mode: ToolsMode; month: number; day: 
 
 /** Plan, the workspace switch and this month's and today's runs, in one statement. Null when the workspace is gone. */
 export async function readToolState(db: DB, orgId: string, now: Date): Promise<ToolState | null> {
-  const r = await db.get<{ plan: string; mode: string | null; m: number | null; d: number | null }>(sql`
-    select o.plan as plan, o.tools_mode as mode,
+  const r = await db.get<{ plan: string; comp: number | null; mode: string | null; m: number | null; d: number | null }>(sql`
+    select o.plan as plan, o.comp_plan as comp, o.tools_mode as mode,
       (select runs from tool_usage where org_id = o.id and period = ${monthOf(now)}) as m,
       (select runs from tool_usage where org_id = o.id and period = ${dayOf(now)}) as d
     from organizations o where o.id = ${orgId}`);
   if (!r) return null;
   return {
-    plan: isPlanId(r.plan) ? r.plan : "starter",
+    plan: effectivePlanId({ plan: r.plan, compPlan: r.comp }), // PRIV1b (P19)
     mode: r.mode === "on" || r.mode === "off" ? r.mode : null,
     month: Number(r.m ?? 0), day: Number(r.d ?? 0),
   };
