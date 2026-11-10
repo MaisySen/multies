@@ -377,19 +377,23 @@ export async function listLabels(deps: Deps, orgId: string, scope: string[] | nu
   return rows.map((r) => ({ label: r.label, threads: Number(r.n) }));
 }
 
-/** Labels for a page of threads (the mail list). One read; nothing when the page is empty. */
-export async function labelsFor(deps: Deps, orgId: string, threadIds: string[]): Promise<Map<string, string[]>> {
+/**
+ * Labels for a page of threads (the mail list). One read; nothing when the page is empty.
+ * PRIV1b (P15): a label sits on one mailbox's copy of a thread; only labels on mailboxes in `scope` show.
+ */
+export async function labelsFor(deps: Deps, orgId: string, threadIds: string[], scope: string[] | null): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
   const ids = [...new Set(threadIds)].filter(Boolean);
   if (!ids.length) return out;
   const rows = await deps.db.select({ threadId: mailThreadLabels.threadId, label: mailThreadLabels.label }).from(mailThreadLabels)
-    .where(and(eq(mailThreadLabels.orgId, orgId), inIds(mailThreadLabels.threadId, ids)));
+    .where(and(eq(mailThreadLabels.orgId, orgId), inIds(mailThreadLabels.threadId, ids), scope ? inIds(mailThreadLabels.mailboxId, scope) : undefined));
   for (const r of rows) out.set(r.threadId, [...(out.get(r.threadId) ?? []), r.label].sort());
   return out;
 }
 
 export function labelCond(orgId: string, label: string) {
-  return sql`${messages.threadId} in (select l.thread_id from mail_thread_labels l where l.org_id = ${orgId} and l.label = ${label})`;
+  // PRIV1b (P15): a label matches only the copy of the thread in the mailbox it was put on.
+  return sql`${messages.threadId} in (select l.thread_id from mail_thread_labels l where l.org_id = ${orgId} and l.label = ${label} and l.mailbox_id = ${messages.mailboxId})`;
 }
 
 async function threadMailbox(deps: Deps, orgId: string, threadId: string, scope: string[] | null) {
@@ -405,12 +409,13 @@ export async function addLabel(deps: Deps, a: RuleActor, scope: string[] | null,
   if (!clean || /^tab:/i.test(clean)) throw badRequest("Pick another label name.");
   const mailboxId = await threadMailbox(deps, a.orgId, threadId, scope);
   await deps.db.insert(mailThreadLabels).values({ orgId: a.orgId, threadId, label: clean, mailboxId, createdAt: deps.now() }).onConflictDoNothing();
-  return { labels: (await labelsFor(deps, a.orgId, [threadId])).get(threadId) ?? [] };
+  return { labels: (await labelsFor(deps, a.orgId, [threadId], scope)).get(threadId) ?? [] };
 }
 
 export async function removeLabel(deps: Deps, a: RuleActor, scope: string[] | null, threadId: string, label: string) {
   writable(a);
   await threadMailbox(deps, a.orgId, threadId, scope);
-  await deps.db.delete(mailThreadLabels).where(and(eq(mailThreadLabels.orgId, a.orgId), eq(mailThreadLabels.threadId, threadId), eq(mailThreadLabels.label, label)));
-  return { labels: (await labelsFor(deps, a.orgId, [threadId])).get(threadId) ?? [] };
+  // PRIV1b (P15): only a label on a copy in the caller's scope; another mailbox's label stays.
+  await deps.db.delete(mailThreadLabels).where(and(eq(mailThreadLabels.orgId, a.orgId), eq(mailThreadLabels.threadId, threadId), eq(mailThreadLabels.label, label), scope ? inIds(mailThreadLabels.mailboxId, scope) : undefined));
+  return { labels: (await labelsFor(deps, a.orgId, [threadId], scope)).get(threadId) ?? [] };
 }

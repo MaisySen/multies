@@ -31,7 +31,20 @@ async function openThread(deps: Deps, a: SuiteActor, threadId: string) {
     .where(and(eq(messages.orgId, a.orgId), eq(messages.threadId, threadId), sql`${messages.folder} <> 'drafts'`, scope ? inIds(messages.mailboxId, scope) : undefined))
     .orderBy(asc(messages.date)).limit(50);
   if (!rows.length) throw notFound("Thread");
-  return { mailboxId: rows[0].mailboxId, mailboxIds: [...new Set(rows.map((r) => r.mailboxId))], subject: rows[0].subject || "(no subject)" };
+  return { scope, mailboxId: rows[0].mailboxId, mailboxIds: [...new Set(rows.map((r) => r.mailboxId))], subject: rows[0].subject || "(no subject)" };
+}
+
+/** PRIV1b (P15): notes belong to one mailbox's copy of a thread; only notes on copies in the caller's scope show. */
+const inScope = (scope: string[] | null) => (scope ? inIds(threadComments.mailboxId, scope) : undefined);
+
+/** PRIV1b (P15): writing a note needs Read and reply in the copy it goes on; a read share only reads. */
+async function noteMailbox(deps: Deps, a: SuiteActor, t: Awaited<ReturnType<typeof openThread>>) {
+  if (a.agentId || a.system) return t.mailboxId;
+  const { mailboxScope } = await import("../team");
+  const can = await mailboxScope(deps.db, { userId: a.userId, orgId: a.orgId, role: a.role ?? "member" }, "reply");
+  const mb = can ? t.mailboxIds.find((m) => can.includes(m)) : t.mailboxId;
+  if (!mb) throw new HttpError(403, "share_level", "This mailbox was shared with you to read only. Ask its owner.");
+  return mb;
 }
 
 /** People who can open this thread's mailbox and so may be mentioned. Agent members are left out. */
@@ -111,13 +124,13 @@ function cleanBody(body: string) {
   return b;
 }
 
-async function notifyMentions(deps: Deps, a: SuiteActor, threadId: string, subject: string, userIds: string[], authorName: string) {
+async function notifyMentions(deps: Deps, a: SuiteActor, threadId: string, mailboxId: string, subject: string, userIds: string[], authorName: string) {
   const me = a.agentId ? null : a.userId;
   const targets = userIds.filter((u) => u !== me);
   if (!targets.length) return;
   // Round 23: phones open a mail thread by one of its messages, so the push carries the newest one's id.
   const newest = await deps.db.select({ id: messages.id }).from(messages)
-    .where(and(eq(messages.orgId, a.orgId), eq(messages.threadId, threadId), ne(messages.folder, "drafts"))).orderBy(desc(messages.date)).limit(1).get();
+    .where(and(eq(messages.orgId, a.orgId), eq(messages.threadId, threadId), eq(messages.mailboxId, mailboxId), ne(messages.folder, "drafts"))).orderBy(desc(messages.date)).limit(1).get();
   for (const userId of targets) {
     await notify(deps, a.orgId, userId, { type: "thread_mention", entityType: "thread", entityId: threadId, title: `${authorName} mentioned you on: ${subject}`, actorName: authorName, pushMessageId: newest?.id ?? null });
   }
@@ -132,7 +145,7 @@ async function actorName(deps: Deps, a: SuiteActor) {
 export async function listComments(deps: Deps, a: SuiteActor, threadId: string) {
   const t = await openThread(deps, a, threadId);
   const rows = await deps.db.select().from(threadComments)
-    .where(and(eq(threadComments.orgId, a.orgId), eq(threadComments.threadId, threadId))).orderBy(asc(threadComments.createdAt), asc(threadComments.id)).limit(500);
+    .where(and(eq(threadComments.orgId, a.orgId), eq(threadComments.threadId, threadId), inScope(t.scope))).orderBy(asc(threadComments.createdAt), asc(threadComments.id)).limit(500);
   const names = await authorNames(deps, a.orgId, rows);
   return { threadId, comments: rows.map((r) => present(r, names, a)), mentionable: await mentionable(deps, a.orgId, t.mailboxIds) };
 }
@@ -144,21 +157,23 @@ export async function addComment(deps: Deps, a: SuiteActor, threadId: string, in
   }
   assertWritable(a);
   const t = await openThread(deps, a, threadId);
+  const mailboxId = await noteMailbox(deps, a, t);
   const body = cleanBody(input.body);
-  const people = await mentionable(deps, a.orgId, t.mailboxIds);
+  // PRIV1b (P15): only people who can open the copy the note goes on are told about it.
+  const people = await mentionable(deps, a.orgId, [mailboxId]);
   const mentioned = parseMentions(body, people, input.mentions ?? []);
   const now = deps.now();
-  const row: Row = { id: opts.id ?? sortableId("tcm", now.getTime()), orgId: a.orgId, threadId, mailboxId: t.mailboxId, ...authorOf(a), body, mentions: JSON.stringify(mentioned), editedAt: null, createdAt: now };
+  const row: Row = { id: opts.id ?? sortableId("tcm", now.getTime()), orgId: a.orgId, threadId, mailboxId, ...authorOf(a), body, mentions: JSON.stringify(mentioned), editedAt: null, createdAt: now };
   if (!row.authorId) throw new HttpError(403, "forbidden", "Only a person or an agent can write a note.");
   await deps.db.insert(threadComments).values(row);
-  await notifyMentions(deps, a, threadId, t.subject, mentioned, await actorName(deps, a));
+  await notifyMentions(deps, a, threadId, mailboxId, t.subject, mentioned, await actorName(deps, a));
   return present(row, await authorNames(deps, a.orgId, [row]), a);
 }
 
 async function ownComment(deps: Deps, a: SuiteActor, threadId: string, commentId: string) {
-  await openThread(deps, a, threadId);
+  const t = await openThread(deps, a, threadId);
   const r = await deps.db.select().from(threadComments)
-    .where(and(eq(threadComments.id, commentId), eq(threadComments.orgId, a.orgId), eq(threadComments.threadId, threadId))).get();
+    .where(and(eq(threadComments.id, commentId), eq(threadComments.orgId, a.orgId), eq(threadComments.threadId, threadId), inScope(t.scope))).get();
   if (!r) throw notFound("Note");
   return r;
 }
@@ -171,12 +186,12 @@ export async function editComment(deps: Deps, a: SuiteActor, threadId: string, c
   if (deps.now().getTime() - r.createdAt.getTime() > EDIT_WINDOW_MS) throw new HttpError(409, "conflict", "Notes can be edited for 24 hours. Add a new note instead.");
   const body = cleanBody(input.body);
   const t = await openThread(deps, a, threadId);
-  const people = await mentionable(deps, a.orgId, t.mailboxIds);
+  const people = await mentionable(deps, a.orgId, [r.mailboxId]);
   const before = JSON.parse(r.mentions) as string[];
   const mentioned = parseMentions(body, people, input.mentions ?? []);
   const editedAt = deps.now();
   await deps.db.update(threadComments).set({ body, mentions: JSON.stringify(mentioned), editedAt }).where(eq(threadComments.id, r.id));
-  await notifyMentions(deps, a, threadId, t.subject, mentioned.filter((u) => !before.includes(u)), await actorName(deps, a));
+  await notifyMentions(deps, a, threadId, r.mailboxId, t.subject, mentioned.filter((u) => !before.includes(u)), await actorName(deps, a));
   const next = { ...r, body, mentions: JSON.stringify(mentioned), editedAt };
   return present(next, await authorNames(deps, a.orgId, [next]), a);
 }

@@ -144,7 +144,7 @@ export function mailRoutes() {
       if (q.mailboxId && !q.cursor && (!listScope || listScope.includes(q.mailboxId))) await logMailboxOpen(c.var.deps, c.var.auth, q.mailboxId, "opened_mailbox", null, c.req.raw.headers);
       // R85: labels on the page's threads (one read).
       if (result.messages.length) {
-        const labels = await labelsFor(c.var.deps, c.var.auth.orgId, result.messages.map((m) => m.threadId));
+        const labels = await labelsFor(c.var.deps, c.var.auth.orgId, result.messages.map((m) => m.threadId), listScope);
         if (labels.size) result.messages = result.messages.map((m) => ({ ...m, labels: labels.get(m.threadId) ?? [] }));
       }
       // R31: Sent shows read status when the sender has it on ("Opened 2x, last 3:14 PM").
@@ -187,7 +187,7 @@ export function mailRoutes() {
       const status = sentIds.length ? await readStatusFor(c.var.deps, c.var.auth.orgId, sentIds) : null;
       const thread = status ? plain.map((t) => (t.folder === "sent" ? { ...t, readStatus: status.get(t.id) ?? null } : t)) : plain;
       // R85: the thread's labels, for the reader's chips.
-      const labels = (await labelsFor(c.var.deps, c.var.auth.orgId, [m.threadId])).get(m.threadId) ?? [];
+      const labels = (await labelsFor(c.var.deps, c.var.auth.orgId, [m.threadId], [m.mailboxId])).get(m.threadId) ?? []; // PRIV1b (P15): this copy's labels
       return c.json({ message: thread.find((t) => t.id === m.id), thread, labels });
     })
     .patch("/messages/:id", async (c) => {

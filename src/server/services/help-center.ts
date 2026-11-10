@@ -3,11 +3,11 @@
  * answers and feedback; the public side reads ONLY rows a workspace published, of a workspace whose help center is on.
  * Every public read goes through `centerBySlug` (on, by slug) and filters status "published" and org_id on each query.
  */
-import { and, asc, desc, eq, gte, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, notInArray, or, sql, type SQL } from "drizzle-orm";
 import { inIds } from "@/server/lib/sql-chunks";
 import type { AuthContext, Deps } from "../context";
 import {
-  docs, hcAnswers, hcArticles, hcCategories, hcFeedback, hcQuestions, hcSettings, hcTerms, hcVotes, hdTickets, hdWebMessages, messages, organizations,
+  docs, hcAnswers, hcArticles, hcCategories, hcFeedback, hcQuestions, hcSettings, hcTerms, hcVotes, hdTickets, hdWebMessages, mailboxes, messages, organizations,
 } from "../db/schema";
 import { hmacSha256Hex, newId } from "../lib/crypto";
 import { badRequest, conflict, forbidden, notFound, tooMany } from "../lib/errors";
@@ -389,8 +389,11 @@ async function ticketParts(deps: Deps, a: AuthContext, ticketId: string) {
   let customer: string[] = [], team: string[] = [];
   const extraNames: string[] = [], extraEmails: string[] = [];
   if (t.kind === "mail") {
+    // PRIV1b (P15): a thread can hold a personal mailbox's copy (References join it org wide). Its drafts, replies and
+    // mail never become a public answer: team mailboxes only, and never a draft or trashed message.
     const rows = await deps.db.select({ from: messages.fromAddress, fromName: messages.fromName, folder: messages.folder, text: messages.text, date: messages.date }).from(messages)
-      .where(and(eq(messages.orgId, a.orgId), eq(messages.threadId, t.refId))).orderBy(asc(messages.date)).limit(60);
+      .innerJoin(mailboxes, and(eq(mailboxes.id, messages.mailboxId), eq(mailboxes.personal, false)))
+      .where(and(eq(messages.orgId, a.orgId), eq(messages.threadId, t.refId), notInArray(messages.folder, ["drafts", "trash"]))).orderBy(asc(messages.date)).limit(60);
     for (const m of rows) {
       const isCustomer = m.folder !== "sent" && (!email || (m.from ?? "").toLowerCase() === email);
       (isCustomer ? customer : team).push(m.text ?? "");

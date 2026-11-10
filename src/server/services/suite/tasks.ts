@@ -4,7 +4,7 @@
  * functions, through the app, the REST API and MCP.
  */
 import { TASK_LIST_LIMIT } from "@/shared/task-list-limit"; // R45b
-import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, ne, notInArray, or, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { agents, changes, docs, entityLinks, members, messages, projectKeyAliases, projectStatusCounts, projectStatuses, projects, savedViews, taskComments, tasks, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
@@ -659,7 +659,9 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
 
 /** One click from an email: the task takes the thread's subject and links back to it. */
 export async function createTaskFromThread(deps: Deps, actor: SuiteActor, input: { messageId?: string; threadId?: string } & Partial<Omit<CreateTaskInput, "source">>, opts: { id?: string; retry?: boolean } = {}) {
-  const m = await deps.db.select().from(messages).where(and(eq(messages.orgId, actor.orgId), input.messageId ? eq(messages.id, input.messageId) : eq(messages.threadId, input.threadId ?? "-")))
+  // PRIV1b (P15): by thread, the newest message the caller can open (their mailbox copy), never a draft or trash.
+  const scope = await scopeOf(deps, actor);
+  const m = await deps.db.select().from(messages).where(and(eq(messages.orgId, actor.orgId), input.messageId ? eq(messages.id, input.messageId) : and(eq(messages.threadId, input.threadId ?? "-"), notInArray(messages.folder, ["drafts", "trash"])), scope ? inIds(messages.mailboxId, scope) : undefined))
     .orderBy(desc(messages.date)).get();
   if (!m) throw notFound("Message");
   // PRIV1b (P2): a system actor (workspace automation) never copies a personal mailbox's mail into a task.

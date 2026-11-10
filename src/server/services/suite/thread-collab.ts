@@ -25,17 +25,20 @@ const scopeCond = (scope: string[] | null) => (scope ? inIds(messages.mailboxId,
 /** 404 unless at least one message of the thread is in a mailbox the caller can open (same org). Reads only. */
 export async function assertThreadAccess(deps: Deps, actor: Who, threadId: string) {
   const scope = await scopeFor(deps, actor as Actor);
-  const hit = await deps.db.select({ id: messages.id, subject: messages.subject }).from(messages)
-    .where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), scopeCond(scope), sql`${messages.folder} <> 'trash'`)).limit(1).get();
+  const hit = await deps.db.select({ id: messages.id, subject: messages.subject, mailboxId: messages.mailboxId }).from(messages)
+    .where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), scopeCond(scope), sql`${messages.folder} <> 'trash'`)).orderBy(asc(messages.date)).limit(1).get();
   if (!hit) throw notFound("Thread");
-  return { scope, subject: hit.subject };
+  return { scope, subject: hit.subject, mailboxId: hit.mailboxId };
 }
+
+/** PRIV1b (P15): one room per mailbox copy of a thread, so only people who can open the same copy see each other. */
+const roomKey = (orgId: string, threadId: string, mailboxId: string) => `${presenceKey(orgId, threadId)}:${mailboxId}`;
 
 /** Beats, leaves or reads the thread's room. Never writes D1. */
 export async function threadPresence(deps: Deps, actor: Who & { name?: string }, threadId: string, op: { op: "beat"; clientId: string; state: PresenceState } | { op: "leave"; clientId: string } | { op: "list" }): Promise<PresenceView> {
-  await assertThreadAccess(deps, actor, threadId);
+  const { mailboxId } = await assertThreadAccess(deps, actor, threadId);
   const store = presenceStore(deps);
-  const key = presenceKey(actor.orgId, threadId);
+  const key = roomKey(actor.orgId, threadId, mailboxId);
   // Client ids are scoped to the person so one person can never end or overwrite another's entry.
   if (op.op === "beat") return store(key, { op: "beat", clientId: `${actor.userId}:${op.clientId}`, userId: actor.userId, name: actor.name || "Someone", state: op.state });
   if (op.op === "leave") return store(key, { op: "leave", clientId: `${actor.userId}:${op.clientId}` });
@@ -104,7 +107,8 @@ export async function takeOverDraft(deps: Deps, actor: Who & { name?: string }, 
     const byName = actor.name || "Someone";
     if (previous) {
       await notify(deps, actor.orgId, previous, { type: "draft_taken_over", entityType: "thread", entityId: d.threadId, title: `${byName} took over your draft on ${subject}`, actorName: byName });
-      await presenceStore(deps)(presenceKey(actor.orgId, d.threadId), { op: "note", note: { type: "draft_taken_over", draftId: d.id, toUserId: previous, byUserId: actor.userId, byName, subject } })
+      // PRIV1b (P15): the note goes to the room of the draft's own mailbox copy.
+      await presenceStore(deps)(roomKey(actor.orgId, d.threadId, d.mailboxId), { op: "note", note: { type: "draft_taken_over", draftId: d.id, toUserId: previous, byUserId: actor.userId, byName, subject } })
         .catch((err) => deps.reportError?.(err, { where: "presence note" }));
     }
   }

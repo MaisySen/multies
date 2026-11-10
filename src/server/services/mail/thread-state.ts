@@ -43,15 +43,19 @@ async function openThread(deps: Deps, actor: SuiteActor, threadId: string, need:
     .orderBy(desc(messages.date)).limit(200);
   if (!rows.length) throw notFound("Thread");
   const scope = await scopeOf(deps, actor);
-  const mailboxIds = [...new Set(rows.map((r) => r.mailboxId))];
-  if (scope && !mailboxIds.some((m) => scope.includes(m))) throw notFound("Thread");
+  // PRIV1b (P15): a thread can hold copies in several mailboxes (a personal one among them). Only the copies in the
+  // caller's scope count: their mailbox ids, newest mailbox and subject, so the Assign menu never lists another
+  // mailbox's shares and nobody is assigned through a copy the caller cannot open.
+  const mine = scope ? rows.filter((r) => scope.includes(r.mailboxId)) : rows;
+  if (!mine.length) throw notFound("Thread");
+  const mailboxIds = [...new Set(mine.map((r) => r.mailboxId))];
   // PRIV1b (P11): assigning or setting a status needs Read and reply in one of the thread's mailboxes, not a read share.
   if (need === "reply" && !actor.agentId && !actor.system) {
     const { mailboxScope } = await import("../team");
     const can = await mailboxScope(deps.db, { userId: actor.userId, orgId: actor.orgId, role: actor.role ?? "member" }, "reply");
     if (can && !mailboxIds.some((m) => can.includes(m))) throw new HttpError(403, "share_level", "This mailbox was shared with you to read only. Ask its owner.");
   }
-  return { mailboxIds, newestMailboxId: rows[0].mailboxId, subject: rows[rows.length - 1].subject };
+  return { mailboxIds, newestMailboxId: mine[0].mailboxId, subject: mine[mine.length - 1].subject };
 }
 
 async function stateRow(deps: Deps, orgId: string, threadId: string) {
@@ -220,7 +224,8 @@ export async function replyStats(deps: Deps, actor: SuiteActor, q: { mailboxId?:
       group by m.thread_id having min(m.date) >= ${from.getTime()}
       order by first_in desc limit ${cap + 1}
     ), outs as (
-      select f.thread_id, (select o.id from ${messages} o where o.org_id = ${actor.orgId} and o.thread_id = f.thread_id and o.folder = 'sent' and o.date >= f.first_in order by o.date asc limit 1) as out_id
+      -- PRIV1b (P15): the first response is a reply from the same mailbox, never another mailbox's copy of the thread.
+      select f.thread_id, (select o.id from ${messages} o where o.org_id = ${actor.orgId} and o.thread_id = f.thread_id and o.mailbox_id = f.mailbox_id and o.folder = 'sent' and o.date >= f.first_in order by o.date asc limit 1) as out_id
       from firsts f
     )
     select f.thread_id, f.mailbox_id, f.first_in, o.date as first_out, o.sent_by_user_id as out_user, o.sent_by_agent_id as out_agent, s.done_at, s.status

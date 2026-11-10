@@ -373,7 +373,7 @@ export async function listThreads(deps: Deps, orgId: string, scope: string[] | n
     : [];
   const pending = rows.length
     ? await inChunks(rows.map((r) => r.threadId), (ids) => deps.db.select({ threadId: sendApprovals.threadId, n: count() }).from(sendApprovals)
-        .where(and(eq(sendApprovals.orgId, orgId), eq(sendApprovals.status, "pending"), inIds(sendApprovals.threadId, ids))).groupBy(sendApprovals.threadId))
+        .where(and(eq(sendApprovals.orgId, orgId), eq(sendApprovals.status, "pending"), inIds(sendApprovals.threadId, ids), scope ? inIds(sendApprovals.mailboxId, scope) : undefined)).groupBy(sendApprovals.threadId))
     : [];
   const names = await agentNames(deps, orgId);
   const states = await listThreadStates(deps, orgId, rows.map((r) => r.threadId));
@@ -408,7 +408,8 @@ export async function readThread(deps: Deps, actor: Actor, threadId: string, ori
   if (!rows.length) throw notFound("Thread");
   const atts = await deps.db.select().from(attachments).where(inIds(attachments.messageId, rows.map((r) => r.id)));
   const names = await agentNames(deps, actor.orgId);
-  const approvals = await deps.db.select().from(sendApprovals).where(and(eq(sendApprovals.orgId, actor.orgId), eq(sendApprovals.threadId, threadId), eq(sendApprovals.status, "pending")));
+  // PRIV1b (P15): approvals are keyed by thread, which a personal mailbox's copy can share: only mailboxes in scope.
+  const approvals = await deps.db.select().from(sendApprovals).where(and(eq(sendApprovals.orgId, actor.orgId), eq(sendApprovals.threadId, threadId), eq(sendApprovals.status, "pending"), scope ? inIds(sendApprovals.mailboxId, scope) : undefined));
   // PRIV1b (P17): the Team inbox reader, v1 GET /threads/{id} and MCP read_thread land in "Who opened my mailbox".
   for (const mb of new Set(rows.map((r) => r.mailboxId))) await logMailboxOpen(deps, actor, mb, "opened_thread", threadId, headers);
   if (actor.agentId) {
