@@ -171,7 +171,7 @@ const allowList = (v: string[] | null | undefined) => (v?.length ? v.map((r) => 
  */
 async function refuseLoosening(deps: Deps, actor: Actor, fields: string[], at: { action: "agent.create_refused" | "agent.update_refused"; agentId?: string; name?: string }) {
   if (!fields.length || isPersonSession(actor)) return;
-  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: at.agentId ?? null, action: at.action, targetType: "agent", targetId: at.agentId ?? null, metadata: { fields, caller: callerKind(actor), ...(at.name ? { name: at.name } : {}) } });
+  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: at.agentId ?? null, action: at.action, targetType: "agent", targetId: at.agentId, metadata: { fields, caller: callerKind(actor), ...(at.name ? { name: at.name } : {}) } });
   try {
     requirePerson(actor, `${at.action === "agent.create_refused" ? "Creating an agent with looser guardrails" : "Loosening an agent's guardrails"} (${fields.join(", ")})`);
   } catch (err) {
