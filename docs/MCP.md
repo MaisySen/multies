@@ -244,7 +244,10 @@ member sees no subject, mail address or IP in the audit log.
 Every entry a tool call writes to the audit log names the key or connected app that made it and carries
 the request's IP. `metadata.caller` names the key (`kind` `workspace_key`, `agent_key` or `agent_member_key`,
 with the key's `key` name and `prefix`) or, for a connected app that signed in with OAuth, `kind`
-`oauth` and the name the app registered with in `app`. The same key reads the same over REST and MCP;
+`oauth` and the name the app registered with in `app`. When the tool call makes an agent act (`send_email`
+or `reply` with `agentId`), that entry's actor is the agent, so a connected app's `caller` also names whose
+app it was: `user` (the person's id), `person` (their name) and `grant` (the connection's id), shown as
+"via Ada Lee's Acme Assistant (connected app)". The same key reads the same over REST and MCP;
 only an agent's thread read says which one it came over (`metadata.via`, `mcp` or `api`). Workspace
 admins see it in the app as "via Acme Assistant (connected app)" or "via API key Billing bot
 (mm_live_3kf9)", and in the CSV and JSON export. A task made or changed by a tool, moved into an epic or

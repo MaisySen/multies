@@ -7,6 +7,9 @@
  * key's name and prefix, or the app's name. A person's own action in the web or phone app has no stamp, so the two
  * read apart even though a connected app carries the person's id and email. The stamp is a copy, so an entry still
  * names its key after the key is deleted.
+ * A connected app's stamp on an entry its request writes for an agent or the system (the agent's send, a rule) also
+ * names the person who connected the app and the connection, since that entry's actor is the agent, not the person:
+ * the app's name is whatever it registered with, so on its own it names nobody (AIS1 review 2).
  *
  * The labels are plain English like the rest of the audit views; the CSV and JSON export use the same words.
  */
@@ -21,15 +24,27 @@ export interface CallerStamp {
   prefix?: string;
   /** A connected AI app's name, as it registered itself (Claude, ChatGPT, Cursor). */
   app?: string;
+  /** A connected app, on an entry written for an agent or the system: the id of the person who connected it. */
+  user?: string;
+  /** That person's name, for the label. */
+  person?: string;
+  /** That connection's id, as Settings, Developers lists it (GET /api/oauth/grants). */
+  grant?: string;
 }
 
 const KINDS: ReadonlySet<string> = new Set<CallerStampKind>(["workspace_key", "agent_key", "agent_member_key", "oauth"]);
 const text = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined);
 
-/** Builds a stamp, dropping empty parts; names are cut to 80 characters, a prefix to 20. */
-export function makeCallerStamp(kind: CallerStampKind, parts: { key?: unknown; prefix?: unknown; app?: unknown } = {}): CallerStamp {
+type StampParts = { key?: unknown; prefix?: unknown; app?: unknown; user?: unknown; person?: unknown; grant?: unknown };
+
+/** Builds a stamp, dropping empty parts; names are cut to 80 characters, a prefix to 20, an id to 64. */
+export function makeCallerStamp(kind: CallerStampKind, parts: StampParts = {}): CallerStamp {
   const key = text(parts.key, 80), prefix = text(parts.prefix, 20), app = text(parts.app, 80);
-  return { kind, ...(key ? { key } : {}), ...(prefix ? { prefix } : {}), ...(app ? { app } : {}) };
+  const user = text(parts.user, 64), person = text(parts.person, 80), grant = text(parts.grant, 64);
+  return {
+    kind, ...(key ? { key } : {}), ...(prefix ? { prefix } : {}), ...(app ? { app } : {}),
+    ...(user ? { user } : {}), ...(person ? { person } : {}), ...(grant ? { grant } : {}),
+  };
 }
 
 /** The stamp in a parsed metadata or data object's `caller` field, or null for a person's own action or an old entry. */
@@ -51,8 +66,9 @@ function keyName(s: CallerStamp, word: string) {
   return s.prefix ? `${named} (${s.prefix})` : named;
 }
 
-/** "via Claude (connected app)", "via API key Billing bot (mm_live_3kf9)". */
+/** "via Claude (connected app)", "via Ada's Claude (connected app)", "via API key Billing bot (mm_live_3kf9)". */
 export function viaLabel(s: CallerStamp): string {
+  if (s.kind === "oauth" && s.person) return s.app ? `via ${s.person}'s ${s.app} (connected app)` : `via ${s.person}'s connected app`;
   if (s.kind === "oauth") return s.app ? `via ${s.app} (connected app)` : "via a connected app";
   return `via ${keyName(s, KEY_WORDS[s.kind])}`;
 }

@@ -321,6 +321,21 @@ describe("AIS1 the stamping rule", () => {
     expect(r.get("t.other")).toMatchObject({ ip: null, meta: null });
   });
 
+  it("a connected app's request names the person and the connection on what it caused, and keeps the plain stamp on the person's own rows", async () => {
+    const app = { userId: "usr_ada", email: "ada@acme.io", name: "Ada Admin", role: "admin" as const, sessionId: "oauth:grant_9", apiKeyId: "oauth:grant_9", agentId: null, clientName: "Claude" };
+    const r = await written(app, IP, [
+      { action: "t.own", actorUserId: "usr_ada", actorEmail: "ada@acme.io" },
+      { action: "t.agent", actorUserId: null, actorEmail: "agent:bot@acme.io", agentId: "agt_1" },
+      { action: "t.system" },
+      { action: "t.other", actorUserId: "usr_other", actorEmail: "o@acme.io" },
+    ]);
+    expect(r.get("t.own")).toMatchObject({ ip: IP, meta: { caller: { kind: "oauth", app: "Claude" } } });
+    const caused = { caller: { kind: "oauth", app: "Claude", user: "usr_ada", person: "Ada Admin", grant: "grant_9" } };
+    expect(r.get("t.agent")).toMatchObject({ ip: IP, meta: caused });
+    expect(r.get("t.system")).toMatchObject({ ip: IP, meta: caused });
+    expect(r.get("t.other")).toMatchObject({ ip: null, meta: null });
+  });
+
   it("a request with nobody signed in yet keeps the IP of rows that name someone; an unknown IP is not stored", async () => {
     const r = await written(null, IP, [{ action: "t.signin", actorUserId: "usr_p", actorEmail: "p@acme.io" }, { action: "t.none" }]);
     expect(r.get("t.signin")).toMatchObject({ ip: IP, meta: null });
@@ -346,6 +361,11 @@ describe("AIS1 audit labels", () => {
     expect(callerStampOf({ kind: "person" })).toBeNull();
     expect(callerStampOf("oauth")).toBeNull();
     expect(callerStampOf({ kind: "oauth", app: 3 })).toEqual({ kind: "oauth" });
+    // AIS1 review 2: a connected app's stamp on what it caused names whose app it was, and survives a round trip.
+    const caused = { kind: "oauth", app: "Claude", user: "usr_ada", person: "Ada Admin", grant: "grant_9" } as const;
+    expect(callerStampOf(JSON.parse(JSON.stringify(caused)))).toEqual(caused);
+    expect(viaLabel(caused)).toBe("via Ada Admin's Claude (connected app)");
+    expect(viaLabel({ kind: "oauth", person: "Ada Admin" })).toBe("via Ada Admin's connected app");
   });
 
   it("names a key by its name and prefix, and an old key entry by its prefix", () => {

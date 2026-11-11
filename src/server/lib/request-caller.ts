@@ -15,7 +15,8 @@
  * - An entry naming a person (actorUserId) gets it only when that person is the caller: a key's or an app's
  *   own person, or the person signed in.
  * - In a request made with a key or a connected app, every other entry it causes (its agent's send, a rule, the system)
- *   gets the stamp and the IP, because the key or the app made it happen.
+ *   gets the stamp and the IP, because the key or the app made it happen. A connected app's stamp there also names
+ *   the person who connected it and the connection (causedStampFor), since the entry's actor is not that person.
  * - In a person's request, a row written for an agent or the system keeps neither their IP nor anything else (an
  *   approved send is the agent's).
  * - In a request with nobody signed in yet (signing up, signing in, a lockout), a row naming someone gets the IP.
@@ -31,6 +32,8 @@ import { makeCallerStamp, type CallerStamp } from "@/shared/audit-caller";
 /** What a resolved auth carries that names its caller. ApiKeyAuth, the OAuth auth and a session's AuthContext all fit. */
 export interface CallerAuth extends CallerLike {
   email?: string | null;
+  /** The person's name (a session's or a connected app's). */
+  name?: string | null;
   /** resolveApiKey: the key's name and prefix. */
   keyName?: string | null;
   keyPrefix?: string | null;
@@ -38,7 +41,7 @@ export interface CallerAuth extends CallerLike {
   clientName?: string | null;
 }
 
-interface NotedCaller { userId: string; email: string; stamp: CallerStamp | null }
+interface NotedCaller { userId: string; email: string; stamp: CallerStamp | null; caused: CallerStamp | null }
 interface RequestCaller { ip: string | null; caller?: NotedCaller }
 
 let store: AsyncLocalStorage<RequestCaller> | undefined;
@@ -59,11 +62,23 @@ export function callerStampFor(auth: CallerAuth): CallerStamp | null {
   return null;
 }
 
+/**
+ * The stamp on an entry the caller's request writes for an agent or the system. A key's is its own stamp (the key
+ * names itself). A connected app's adds the person who connected it (user, person) and the connection (grant), so two
+ * people's apps of the same name sending as one agent read apart in the log and the export.
+ */
+export function causedStampFor(auth: CallerAuth): CallerStamp | null {
+  const own = callerStampFor(auth);
+  if (own?.kind !== "oauth") return own;
+  const grant = auth.apiKeyId?.startsWith("oauth:") ? auth.apiKeyId.slice("oauth:".length) : undefined;
+  return makeCallerStamp("oauth", { app: auth.clientName, user: auth.userId, person: auth.name, grant });
+}
+
 /** Notes who is calling, once auth is resolved (requireAuth, the v1 key check). Outside a request it does nothing. */
 export function noteRequestCaller(auth: CallerAuth): void {
   const s = store?.getStore();
   if (!s) return;
-  s.caller = { userId: auth.userId ?? "", email: auth.email ?? "", stamp: callerStampFor(auth) };
+  s.caller = { userId: auth.userId ?? "", email: auth.email ?? "", stamp: callerStampFor(auth), caused: causedStampFor(auth) };
 }
 
 /** The actor an entry names: an audit row's actor fields, or a task change's actor. */
@@ -79,6 +94,6 @@ export function stampFor(e: EntryActor): { ip: string | null; caller: CallerStam
   const c = s.caller;
   if (!c) return e.actorUserId || e.actorEmail ? { ip: s.ip, caller: null } : null;
   if (e.actorUserId) return e.actorUserId === c.userId ? { ip: s.ip, caller: c.stamp } : null;
-  if (c.stamp) return { ip: s.ip, caller: c.stamp };
+  if (c.stamp) return { ip: s.ip, caller: e.actorEmail && e.actorEmail === c.email ? c.stamp : c.caused };
   return e.actorEmail && e.actorEmail === c.email ? { ip: s.ip, caller: null } : null;
 }
