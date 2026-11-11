@@ -204,14 +204,14 @@ export class Runner {
     this.note("Dry run for a new workspace: planned from the config.");
   }
 
-  /** The write estimate against the server's own daily write budget (its public /api/health). */
+  /** The write estimate against the server's own daily write budget (/api/admin/health: shown only when this session is a platform operator's). */
   async report(t0: number) {
     const calls = Object.values(this.planned).reduce((a, b) => a + b, 0);
     const rows = estimateRows(this.planned);
     const kinds = Object.entries(this.planned).map(([k, n]) => `${n} ${k}`).join(", ") || "nothing";
     let budget = "";
     try {
-      const h = await (await fetch(`${this.base}/api/health`)).json() as { writes?: { today: number; budget: number } };
+      const h = await (await fetch(`${this.base}/api/admin/health`, { headers: this.cookie ? { cookie: this.cookie } : {} })).json() as { writes?: { today: number; budget: number } };
       if (h.writes) budget = ` The server has used ${h.writes.today} of ${h.writes.budget} writes today, so this is about ${Math.round((rows / Math.max(1, h.writes.budget - h.writes.today)) * 100)} percent of what is left.`;
     } catch { /* health not reachable */ }
     this.note(`${this.dry ? "Dry run: would make" : `Done in ${Math.round((Date.now() - t0) / 1000)} s with`} ${calls} create or update calls (${kinds}), about ${rows} database rows.${budget} State: ${this.statePath}`);

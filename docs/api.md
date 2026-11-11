@@ -1022,7 +1022,7 @@ R35: a board view may also store `lanes` (none, assignee, epic, priority or proj
 
 ## Round 25: fixes found by Haajir
 
-- `GET /health` and `GET /healthz` answer the same JSON as `/api/health` (MB-53).
+- `GET /health` and `GET /healthz` answer the same JSON as `/api/health` (MB-53). Since QUAL1 that is only `{ "ok": true, "db": "ok" }` (or `"degraded": true, "db": "migrations_pending"` during a deploy, or 503 `{ "ok": false, "db": "unreachable" }`); the release is on `/api/config`, and the detail (release, D1 writes and reads, budgets, the busiest workspaces) is on `GET /api/admin/health` for platform operators. The public `GET /api/status` shows component states and plain words but no mail volume; operators read the 24 hour volume on `GET /api/admin/status`.
 - `GET /api/v1/projects/{id}/tasks`: a project's tasks, the same filters as `GET /api/v1/tasks?projectId={id}` (MB-52).
 - Sprints: `startDate` and `endDate` are accepted as names for `startAt` and `endAt`. A date with no time (`2026-11-01`) is that calendar day in the workspace's time zone: a start is its first moment, an end its last, on create and on `PATCH` alike. A new sprint with no dates starts today (or the day after the last sprint) in that zone (MB-54, MB-55).
 - Every sprint object carries `url`, the page that opens that sprint (`/app/tasks?project=<id>&view=sprints&sprint=<id>`) (MB-62).

@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 /**
- * R32: the operator console shows the account's D1 writes today as a meter. /api/health and the admin
+ * R32: the operator console shows the account's D1 writes today as a meter. /api/admin/health (QUAL1) and the admin
  * overview are mocked (62% of the budget), so nothing here depends on Cloudflare analytics.
  */
 test("operator console shows the D1 write meter at 62%", async ({ page }) => {
@@ -11,7 +11,7 @@ test("operator console shows the D1 write meter at 62%", async ({ page }) => {
       resetAt: new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 1)).toISOString(),
       byEnvironment: { production: 21_870, staging: 40_470 }, deferred: { written: 12, coalesced: 40, skipped: 0 } },
   };
-  await page.route("**/api/health", (r) => r.fulfill({ json: health }));
+  await page.route("**/api/admin/health", (r) => r.fulfill({ json: health }));
   await page.route("**/api/admin/overview", (r) => r.fulfill({ json: {
     totals: { users: 41, workspaces: 12, domains: 9, mailboxes: 23, deliveries24h: 310 }, tenants: [],
     integrations: { sentryApi: true, sentryWeb: true, outbound: "resend", billing: true, billingTestMode: false, auth0: true, google: true, github: false },

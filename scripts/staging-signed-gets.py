@@ -39,7 +39,11 @@ def main() -> int:
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 50
     if not BASE.startswith("https://mymail-staging."):
         sys.exit("refusing: not staging")
-    h = requests.get("https://multies.si/api/health", timeout=20).json().get("reads", {})
+    # QUAL1 (audit row 36): the reads count is for platform operators only, on /api/admin/health.
+    cookie = os.environ.get("MULTIES_OPERATOR_COOKIE", "")
+    if not cookie:
+        sys.exit("refusing: set MULTIES_OPERATOR_COOKIE to a platform operator's session cookie to read the D1 reads")
+    h = requests.get("https://multies.si/api/admin/health", headers={"cookie": cookie}, timeout=20).json().get("reads", {})
     print(f"D1 reads before: {h.get('pct')}% of the daily budget")
     if (h.get("pct") or 0) >= 50:
         sys.exit("refusing: D1 reads at or above 50% of the daily budget")

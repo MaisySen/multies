@@ -14,7 +14,7 @@
  * a normal non demo workspace with no domain and no mailbox; the worker refuses to mint otherwise. Each mint replaces
  * the last test session. Every mint is in the workspace's audit log. The token and the cookie are written to mode 600
  * files under ~/.multies-secrets and never printed; secrets reach wrangler through a mode 600 file, never argv.
- * It checks /api/health D1 reads first and refuses at 50% or more of the daily budget.
+ * It checks the D1 reads on /api/admin/health first (MULTIES_OPERATOR_COOKIE) and refuses at 50% or more of the daily budget.
  */
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -44,9 +44,10 @@ function wrangler(argv, label) {
   if (r.status !== 0) throw new Error(`${label} failed: ${scrub(r.stderr || r.stdout).slice(-600)}`);
 }
 
-const health = await (await fetch(`${BASE}/api/health`)).json().catch(() => ({}));
+// QUAL1 (audit row 36): the reads count is on /api/admin/health, for platform operators only (MULTIES_OPERATOR_COOKIE).
+const health = await (await fetch(`${BASE}/api/admin/health`, { headers: { cookie: process.env.MULTIES_OPERATOR_COOKIE || "" } })).json().catch(() => ({}));
 const readsPct = Number(health?.reads?.pct ?? NaN);
-if (!Number.isFinite(readsPct)) { console.error("could not read /api/health reads: refusing"); process.exit(3); }
+if (!Number.isFinite(readsPct)) { console.error("could not read /api/admin/health reads (set MULTIES_OPERATOR_COOKIE to a platform operator's session cookie): refusing"); process.exit(3); }
 if (readsPct >= 50) { console.error(`D1 reads at ${readsPct}% of the daily budget: refusing`); process.exit(3); }
 
 if (args.has("--off")) {
