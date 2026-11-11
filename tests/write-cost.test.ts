@@ -1237,3 +1237,34 @@ it("R26 (MB-85): a checklist item costs its row plus two index entries to add, t
   await u.get(`/api/tasks?q=${encodeURIComponent("has:checklist status:todo -label:wontfix")}`);
   expect(take()).toBe(0);
 });
+
+it("AIS1: an agent key's thread read is one audit row an hour per key; reading again writes no audit row, and a second key writes its own one row", async () => {
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup();
+  await verifiedDomain(ctx, u, "acme.io");
+  const made = await u.post("/api/agents", { name: "Reader", localPart: "reader" });
+  const agentId = made.body.agent.id as string;
+  const keyA = made.body.apiKey.secret as string;
+  const keyB = (await u.post(`/api/agents/${agentId}/keys`, { name: "Second key" })).body.secret as string;
+  await deliverInbound(ctx.deps, {
+    envelopeFrom: "grace@example.com", rcptTo: "reader@acme.io", sizeBytes: 300, via: "test",
+    email: { messageId: "<wc-read@example.com>", from: { address: "grace@example.com", name: "Grace" }, to: [{ address: "reader@acme.io" }], cc: [], subject: "Hello", text: "Hi", date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+  });
+  const get = (key: string, p: string) => ctx.app.request(`/api/v1${p}`, { headers: { authorization: `Bearer ${key}`, host: "localhost" } });
+  const threadId = ((await (await get(keyA, `/agents/${agentId}/threads`)).json()) as { data: { id: string }[] }).data[0].id;
+  await get(keyB, `/agents/${agentId}/threads`); // each key's first use stamps its last-used time; not part of the read
+  const take = meter(ctx.db);
+  // Measured 3 a request: the local API rate limit counter, which production keeps in a binding.
+  expect((await get(keyA, `/threads/${threadId}`)).status).toBe(200);
+  // Measured 7: the 3, plus the agent.message_read row and its indexes.
+  const first = take();
+  expect(first).toBeLessThanOrEqual(8);
+  expect((await get(keyA, `/threads/${threadId}`)).status).toBe(200);
+  expect(take()).toBe(3);
+  // The row names its key (metadata.caller), so another key's read is its own row, once an hour, at the same cost.
+  expect((await get(keyB, `/threads/${threadId}`)).status).toBe(200);
+  expect(take()).toBe(first);
+  expect((await get(keyB, `/threads/${threadId}`)).status).toBe(200);
+  expect(take()).toBe(3);
+});
