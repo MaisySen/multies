@@ -16,6 +16,7 @@ import { authEmailHooks, domains, mailboxes, users } from "../../db/schema";
 import { decryptSecret, encryptSecret, newId } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { isPersonSession, requirePerson } from "../../lib/actor-kind";
+import { AGENT_INBOX_HOOK_EDIT } from "./auth-email-hooks";
 import { audit } from "../audit";
 import { sendMessage } from "./send";
 import { AUTH_EMAIL_TYPES, mergeBranding, parseBranding, renderAuthEmail, type AuthEmailBranding } from "./auth-email-branding";
@@ -109,6 +110,10 @@ async function senderFor(deps: Deps, orgId: string, from: string) {
   if (!mb) throw bad(`${from} isn't a mailbox on one of this workspace's verified domains. Add the domain and a mailbox such as no-reply@ first.`, "from");
   return mb;
 }
+/** AIS1: whether a hook still sends from an AI agent's inbox (saved there before row 44). One read by primary key. */
+async function onAgentInbox(deps: Deps, h: HookRow) {
+  return (await deps.db.select({ kind: mailboxes.kind }).from(mailboxes).where(eq(mailboxes.id, h.mailboxId)).get())?.kind === "agent";
+}
 function cleanSupabaseUrl(raw: string) {
   let url: URL;
   try { url = new URL(raw.trim()); } catch { throw bad("Use your Supabase project URL, for example https://abcd1234.supabase.co", "supabaseUrl"); }
@@ -166,6 +171,12 @@ export async function putAuthEmailSettings(deps: Deps, a: Actor, raw: unknown, m
     const json = next ? JSON.stringify(next) : null;
     if (json !== (h.branding ?? null)) set.branding = json;
   }
+  // AIS1 (review 2): a hook saved on an AI agent's inbox before row 44 still sends, as the system, outside the agent's
+  // rules. A key or a connected AI app may switch it off or move it to a team mailbox (in this same call too), not
+  // switch it on or change what it sends while it stays there. Checked before any write.
+  if (!isPersonSession(a) && set.mailboxId === undefined && Object.keys(set).some((f) => f !== "enabled" || set.enabled !== false) && await onAgentInbox(deps, h)) {
+    requirePerson(a, AGENT_INBOX_HOOK_EDIT);
+  }
   const fields = Object.keys(set);
   if (fields.length) {
     await deps.db.update(authEmailHooks).set(set).where(and(eq(authEmailHooks.id, h.id), eq(authEmailHooks.orgId, a.orgId)));
@@ -183,7 +194,7 @@ export async function regenerateAuthEmailSecret(deps: Deps, a: Actor, meta: { ip
   // AIS1: a hook saved on an AI agent's inbox before row 44 still sends, as the system, so the agent's approval rule,
   // daily limit and allowed recipients don't apply. A key or a connected AI app must not get a fresh secret for it and
   // sign its own calls. A person may (their own setup, as Compose is). One read by primary key, only for a non-person.
-  if (!isPersonSession(a) && (await deps.db.select({ kind: mailboxes.kind }).from(mailboxes).where(eq(mailboxes.id, h.mailboxId)).get())?.kind === "agent") {
+  if (!isPersonSession(a) && await onAgentInbox(deps, h)) {
     requirePerson(a, "A new signing secret for sign-up emails sent from an AI agent's inbox");
   }
   const secret = newHookSecret();

@@ -17,7 +17,8 @@ General, AI; it is encrypted at rest.
 There are two ways in. Both keep every guardrail: agent approval rules, daily send caps and read only access.
 Neither can loosen them: only a person signed in to Multies lowers an agent's approval rule, send cap or allowed
 recipients, resumes or deletes a paused agent, or approves an agent's waiting message (AIS1). Sign-up emails can't
-be set to come from an agent's inbox, and neither way gets a new signing secret for an older hook that does.
+be set to come from an agent's inbox. An older hook that still does can only be switched off, moved to a team
+mailbox or deleted this way: switching it back on, changing its words or links, or a new signing secret needs a person.
 
 ### OAuth: add Multies by its URL (round 20)
 

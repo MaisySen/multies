@@ -362,10 +362,14 @@ Sign-up emails (the Supabase auth email hook) are sent by Multies itself, outsid
 come from an agent's inbox: the Sign-up emails From list doesn't offer one, and `POST` or `PATCH
 /api/v1/auth-email-hooks`, `PUT /api/v1/auth-email-settings` and MCP `update_auth_email_hook` and
 `update_auth_email_settings` answer 422 for an agent's address. One exception is left on purpose, so a working
-sign-up flow isn't cut off: a hook saved on an agent's inbox before this change keeps sending what Supabase signs.
-A key or a connected AI app can't get a new signing secret for such a hook (`POST
-/api/v1/auth-email-settings/secret` and MCP `regenerate_auth_email_secret` answer 403 `person_only`); move its
-From to a team mailbox first, or have a person do it in the app.
+sign-up flow isn't cut off: a hook saved on an agent's inbox before this change keeps sending what Supabase signs,
+as it was last saved. While it stays there, a key or a connected AI app may only
+switch it off (`enabled: false`), move its From to a team mailbox (`from`, in the same call or before other
+changes) or delete it. Anything else answers 403 `person_only` and changes nothing: switching it back on, the
+subject and intro, Reply-To, the project URL its links point at, the sender or product name (`PUT
+/api/v1/auth-email-settings`, `PATCH /api/v1/auth-email-hooks/{id}`, MCP `update_auth_email_settings` and
+`update_auth_email_hook`), and a new signing secret (`POST /api/v1/auth-email-settings/secret`, MCP
+`regenerate_auth_email_secret`). A person can do all of it in the app.
 
 ## Weekly meeting series
 

@@ -17,6 +17,7 @@ import { HttpError, notFound } from "../../lib/errors";
 import { sendMessage } from "./send";
 import { AUTH_EMAIL_TYPES, BrandingInputSchema, mergeBranding, parseBranding, renderAuthEmail, type BrandingInput } from "./auth-email-branding";
 import { deferrableWrite } from "../write-priority";
+import { requirePerson } from "../../lib/actor-kind";
 
 type HookRow = typeof authEmailHooks.$inferSelect;
 
@@ -117,6 +118,9 @@ export function parseBrandingInput(raw: unknown): BrandingInput {
 
 export interface AuthHookPatch { appName?: string; from?: string; branding?: BrandingInput | null }
 
+/** AIS1 (review 2): what a key or a connected AI app is refused on a hook that still sends from an AI agent's inbox. */
+export const AGENT_INBOX_HOOK_EDIT = "Changing sign-up emails that still come from an AI agent's inbox, other than switching them off or moving From to a team mailbox,";
+
 /**
  * PATCH /api/v1/auth-email-hooks/{id} (R25, MB-60). One UPDATE of the hook row, nothing else
  * written. Branding merges into what is stored (see mergeBranding); null clears it all.
@@ -145,6 +149,10 @@ export async function updateAuthHook(deps: Deps, a: AuthContext & { agentId?: st
     const json = next ? JSON.stringify(next) : null;
     if (json !== (h.branding ?? null)) set.branding = json;
   }
+  // AIS1 (review 2): a hook saved on an AI agent's inbox before row 44 still sends, as the system, outside the agent's
+  // rules. A key or a connected AI app may move it to a team mailbox (then mb is that mailbox) or delete it, but not
+  // change what it sends while it stays there. A person may. Checked before the write; `mb` is already read.
+  if (mb?.kind === "agent" && Object.keys(set).length) requirePerson(a, AGENT_INBOX_HOOK_EDIT);
   const saved = Object.keys(set).length ? { ...h, ...set } as HookRow : h;
   if (Object.keys(set).length) await deps.db.update(authEmailHooks).set(set).where(and(eq(authEmailHooks.id, id), eq(authEmailHooks.orgId, a.orgId)));
   return presentHook(deps, saved, mb?.address ?? "");

@@ -320,6 +320,76 @@ describe("AIS1 gap: sign-up email hooks can't send from an agent's inbox", () =>
     expect(byPerson.status).toBe(200);
     expect(byPerson.body.secret).toMatch(/^v1,whsec_/);
   });
+
+  // AIS1 repair (review 2): with `from` left out, a key or an AI app could switch such an older hook back on and rewrite
+  // what it sends (subject, intro, Reply-To, the project URL its links use). Supabase signs every sign-up call and anyone
+  // can sign up an address on an open app, so the key chose the words of mail that left the agent's address with no
+  // approval, no cap and no allowed recipients, and undid a person's off switch.
+  describe("an older hook on an agent's inbox", () => {
+    const PHISH = { replyTo: "pay@evil.example", templates: { signup: { subject: "Your invoice is overdue", intro: "Pay now at the link below.", buttonLabel: "Pay" } } };
+    const LEGACY = "/api/auth-hooks/supabase/ahk_legacy";
+    let agent: { address: string; inboxId: string };
+    const stored = async () => (await ctx.db.select().from(authEmailHooks).where(eq(authEmailHooks.id, "ahk_legacy")).get())!;
+
+    beforeEach(async () => {
+      // A person made the agent. The hook was saved on its inbox before the change, and a person switched it off.
+      agent = (await c.post("/api/agents", { name: "Billing" })).body.agent;
+      await ctx.db.insert(authEmailHooks).values({ id: "ahk_legacy", orgId, mailboxId: agent.inboxId, kind: "supabase", secretEnc: await encryptSecret(ctx.deps.config.appSecret, SECRET.replace(/^v1,/, "")), supabaseUrl: "https://abcd1234.supabase.co", appName: "Acme", enabled: false });
+      expect(await hookCall(LEGACY, SECRET, signup("someone@example.com"))).toBe(503);
+    });
+
+    it("a workspace key can't switch it back on or rewrite it (PUT /auth-email-settings), so a sign-up carries none of its words", async () => {
+      const r = await api(wsKey, "PUT", "/auth-email-settings", { enabled: true, supabaseUrl: "https://evil.example", branding: PHISH });
+      expect(r.status).toBe(403);
+      expect(r.body.error.code).toBe("person_only");
+      for (const body of [{ enabled: true }, { senderName: "Billing" }, { appName: "Acme billing" }, { supabaseUrl: "https://evil.example" }, { branding: PHISH }]) {
+        expect((await api(wsKey, "PUT", "/auth-email-settings", body)).status, JSON.stringify(body)).toBe(403);
+      }
+      expect(await stored()).toMatchObject({ enabled: false, supabaseUrl: "https://abcd1234.supabase.co", branding: null, appName: "Acme", senderName: null });
+      // A signed call for a stranger finds the hook still off: nothing leaves the agent's address.
+      expect(await hookCall(LEGACY, SECRET, signup("victim@example.com"))).toBe(503);
+      expect(sentFrom(agent.address)).toEqual([]);
+    });
+
+    it("a workspace key can't rewrite it with PATCH /auth-email-hooks/{id} either", async () => {
+      for (const body of [{ branding: PHISH }, { appName: "Acme billing" }]) {
+        const r = await api(wsKey, "PATCH", "/auth-email-hooks/ahk_legacy", body);
+        expect(r.status, JSON.stringify(body)).toBe(403);
+        expect(r.body.error.code).toBe("person_only");
+      }
+      expect(await stored()).toMatchObject({ branding: null, appName: "Acme" });
+    });
+
+    it("a connected AI app can't switch it on or rewrite it over MCP", async () => {
+      const mcp = await mcpFor(await oauthToken());
+      const settings = await mcp.callTool({ name: "update_auth_email_settings", arguments: { enabled: true, branding: PHISH } });
+      const hook = await mcp.callTool({ name: "update_auth_email_hook", arguments: { hookId: "ahk_legacy", branding: PHISH } });
+      await mcp.close();
+      expect([settings.isError, hook.isError]).toEqual([true, true]);
+      expect(text(settings)).toContain("person_only");
+      expect(text(hook)).toContain("person_only");
+      expect(await stored()).toMatchObject({ enabled: false, branding: null });
+    });
+
+    it("a key may switch it off, send back what it has, or move it to a team mailbox; a person may change anything", async () => {
+      // A person switches it on and words it (their own setup, as Compose is): it sends from the agent's address.
+      expect((await c.put("/api/auth-email-settings", { enabled: true, branding: { templates: { signup: { subject: "Confirm your Acme account" } } } })).status).toBe(200);
+      expect(await hookCall(LEGACY, SECRET, signup("new.user@example.com"))).toBe(200);
+      expect(sentFrom(agent.address).map((m) => m.subject)).toEqual(["Confirm your Acme account"]);
+      // A key may switch it off again, and a value sent back unchanged is not a change.
+      expect((await api(wsKey, "PUT", "/auth-email-settings", { enabled: false })).status).toBe(200);
+      expect((await api(wsKey, "PUT", "/auth-email-settings", { enabled: false, appName: "Acme" })).status).toBe(200);
+      expect((await stored()).enabled).toBe(false);
+      // Moving From to a team mailbox may come with other changes in the same call; then it no longer sends as the agent.
+      expect((await c.post("/api/mailboxes", { domainId, localPart: "no-reply", displayName: "Acme" })).status).toBe(201);
+      const moved = await api(wsKey, "PUT", "/auth-email-settings", { from: "no-reply@acme.io", enabled: true, branding: { templates: { signup: { subject: "Welcome to Acme" } } } });
+      expect(moved.status).toBe(200);
+      expect(moved.body.settings).toMatchObject({ from: "no-reply@acme.io", enabled: true });
+      expect(await hookCall(LEGACY, SECRET, signup("second.user@example.com"))).toBe(200);
+      expect(sentFrom("no-reply@acme.io").map((m) => m.subject)).toEqual(["Welcome to Acme"]);
+      expect(sentFrom(agent.address)).toHaveLength(1);
+    });
+  });
 });
 
 describe("AIS1 row 51: safe defaults for every new agent", () => {
