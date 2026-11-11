@@ -482,7 +482,7 @@ export function v1Routes() {
     return c.json({ ...full!, date: iso(full!.date)! } as z.infer<typeof Message>, 200);
   });
 
-  api.openapi(createRoute({ method: "post", path: "/messages", tags: ["Messages"], summary: "Send a message", description: "Sends from one of your mailboxes. The domain must be verified. Counts toward the plan's daily sending limit.", security: secured,
+  api.openapi(createRoute({ method: "post", path: "/messages", tags: ["Messages"], summary: "Send a message", description: "Sends from one of your mailboxes. The domain must be verified. Counts toward the plan's daily sending limit. An agent's inbox sends only through its agent (`POST /agents/{id}/send`), so its approval rule, daily cap and allowed recipients apply: naming one here answers 403 `agent_inbox`.", security: secured,
     request: body(SendRequest),
     responses: { 200: json(SendResult, "Where each recipient's copy went."), 401: errors[401], 404: errors[404], 422: errors[422] } }),
   async (c) => {

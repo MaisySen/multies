@@ -203,6 +203,29 @@ describe("AIS1 gap: approving an agent's message is a person's decision", () => 
   });
 });
 
+describe("AIS1 gap: mail from an agent's inbox always goes through the agent's rules", () => {
+  it("a workspace key can't send from an agent inbox with POST /messages, by mailboxId or by from", async () => {
+    const { agent } = (await api(wsKey, "POST", "/agents", { name: "Inbox" })).body;
+    for (const body of [{ mailboxId: agent.inboxId }, { from: agent.address }]) {
+      const r = await api(wsKey, "POST", "/messages", { ...body, to: ["grace@example.com"], subject: "Around the rules", text: "x" });
+      expect(r.status).toBe(403);
+      expect(r.body.error.code).toBe("agent_inbox");
+      expect(r.body.error.message).toContain(`/agents/${agent.id}/send`);
+    }
+    expect(ctx.outbound.sent.filter((m) => m.subject === "Around the rules")).toHaveLength(0);
+    // Other mailboxes still send.
+    const team = (await c.post("/api/mailboxes", { domainId, localPart: "team", displayName: "Team" })).body.mailbox;
+    expect((await api(wsKey, "POST", "/messages", { mailboxId: team.id, to: ["grace@example.com"], subject: "Normal", text: "x" })).status).toBe(200);
+  });
+
+  it("a person writing from the agent's inbox in the app is their own approval", async () => {
+    const { agent } = (await c.post("/api/agents", { name: "Shared" })).body;
+    const r = await c.post("/api/mail/send", { mailboxId: agent.inboxId, to: ["grace@example.com"], subject: "From a person", text: "x" });
+    expect(r.status).toBe(201);
+    expect(ctx.outbound.sent.filter((m) => m.subject === "From a person")).toHaveLength(1);
+  });
+});
+
 describe("AIS1 row 51: safe defaults for every new agent", () => {
   it("100 sends a day by default, never the plan ceiling, however the agent is made", async () => {
     await ctx.db.update(organizations).set({ plan: "business" }).where(eq(organizations.id, orgId));

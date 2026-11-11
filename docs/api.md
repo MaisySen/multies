@@ -350,6 +350,14 @@ Approving a waiting send is a person's decision: `POST /api/v1/approvals/{id}/ap
 Keys can list approvals and reject them (`POST /api/v1/approvals/{id}/reject`), which only stops mail. People
 approve in the app (Approvals, or `POST /api/approvals/{id}/approve`).
 
+Mail from an agent's inbox always goes through the agent, so its rules apply: `POST /api/v1/agents/{id}/send`,
+`/agents/{id}/threads/{threadId}/reply`, and on MCP `send_email`, `reply`, `schedule_send` and
+`schedule_meeting` with an agent. `POST /api/v1/messages` naming an agent inbox (by `mailboxId` or `from`)
+answers 403 `agent_inbox` and points at the agent's send. A person can still write from an agent inbox in the
+app's Compose (or Send later); that message is theirs, not the agent's. The other ways mail leaves (mail rules,
+mail merge, campaigns, e-sign, meeting invites from a person) run as the person who set them up, from mailboxes
+they chose in the app; meeting invites from a person only use person mailboxes.
+
 ## Weekly meeting series
 
 A meeting can repeat weekly: every 1 or 2 weeks on chosen days, with an optional last day or number of meetings. A series is one meeting row; the upcoming list (`GET /api/v1/meetings?upcoming=true`) works out the next occurrences on read (up to 12 per series over the next 60 days), each with the series' `id` and `seriesStartsAt`. Nothing is written per occurrence. Times keep their wall clock time in the series' time zone across daylight saving changes.
