@@ -189,6 +189,20 @@ describe("built-in AI never stands in for a workspace's own key unless the deplo
     expect((await t.c.get("/api/team-ai/state")).body.ai).toMatchObject({ source: "none", keyProblem: "key_refused" });
   });
 
+  it("QUAL1 review: an @assistant mention on a refused key says so in the thread instead of going quiet", async () => {
+    const t = await setup();
+    t.setAnswer(refused);
+    const g = (await t.c.get("/api/chat/channels")).body.channels.find((x: { name: string }) => x.name === "general");
+    await t.c.post(`/api/chat/channels/${g.id}/messages`, { body: "@assistant what is due?" });
+    const { drainPending, takePending } = await import("@/server/services/teamai-td8");
+    await drainPending(t.deps, takePending());
+    const replies = await t.deps.db.all<{ body: string }>(sql`select body from chat_messages where body = ${REFUSED}`);
+    expect(replies).toHaveLength(1);
+    const runs = (await t.c.get("/api/team-ai/runs")).body;
+    const list = (Array.isArray(runs) ? runs : runs.runs) as { kind: string; status: string; reason: string }[];
+    expect(list.find((x) => x.kind === "mention")).toMatchObject({ status: "failed", reason: "key_refused" });
+  });
+
   it("AI_KEY_FALLBACK=on: Settings, AI trust names built-in AI as the stand-in before any refusal", async () => {
     const t = await setup({ AI_KEY_FALLBACK: "on" });
     t.deps.ai = fakeAi() as unknown as typeof t.deps.ai;
@@ -269,6 +283,23 @@ describe("with AI_KEY_FALLBACK=on, built-in AI stands in for a refused key, and 
     const failed = (await t.c.post(`/api/team-ai/instructions/${set.body.id}/run`)).body;
     expect(failed).toMatchObject({ status: "failed", reason: "key_refused" });
     expect(failed.reasonText).toMatch(/refused the workspace's AI key/);
+  });
+
+  it("QUAL1 review: when built-in AI cannot stand in (its free limit), an @assistant mention names the key problem, not 'add your own AI key'", async () => {
+    const t = await setup({ ...on, TEAMAI_FREE_DAILY_CALLS: "1" });
+    const ai = { run: vi.fn(async () => ({ response: "Built in draft", usage: { prompt_tokens: 50, completion_tokens: 20 } })) };
+    t.deps.ai = ai as unknown as typeof t.deps.ai;
+    t.setAnswer(refused);
+    const set = await t.c.post("/api/team-ai/instructions", { name: "Standup", body: "Write a standup summary", shared: true });
+    expect((await t.c.post(`/api/team-ai/instructions/${set.body.id}/run`)).body.status).toBe("done"); // uses today's one free run
+    const g = (await t.c.get("/api/chat/channels")).body.channels.find((x: { name: string }) => x.name === "general");
+    await t.c.post(`/api/chat/channels/${g.id}/messages`, { body: "@assistant what is due?" });
+    const { drainPending, takePending } = await import("@/server/services/teamai-td8");
+    await drainPending(t.deps, takePending());
+    const bodies = (await t.deps.db.all<{ body: string }>(sql`select body from chat_messages`)).map((m) => m.body);
+    expect(bodies).toContain(REFUSED);
+    expect(bodies.some((b) => /Add your own AI key/.test(b))).toBe(false);
+    expect(ai.run).toHaveBeenCalledTimes(1);
   });
 
   it("the default Anthropic model is a current one: the same id the curated list recommends (not the older claude-3-5-haiku-latest)", () => {

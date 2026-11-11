@@ -21,7 +21,7 @@ import { audit } from "./audit";
 import type { SuiteActor } from "./suite/common";
 import { aiKeyStatus, keyFallbackOn, keyFor } from "./ai/keys";
 import { AI_PROVIDER_INFO, AiProviderError, keyProblemOf, type AiProvider, type AiProviderId } from "./ai/providers";
-import { aiFallbackText, isAiKeyProblem } from "@/shared/ai-connect-ai2"; // QUAL1
+import { aiFallbackText, aiKeyProblemText, isAiKeyProblem } from "@/shared/ai-connect-ai2"; // QUAL1
 import { isAskExcluded, retrieveFor } from "./ask-r110";
 import { openableR98, type RetrievedR98 } from "./search-r98";
 import { teamAiSwitchOn } from "./teamai-gate-td8";
@@ -656,9 +656,16 @@ export async function processRun(deps: Deps, runId: string): Promise<void> {
         text = key ? await callProvider(key.provider, { system, user }) : await callBuiltIn(deps, r, { system, user });
       } catch (e) {
         // QUAL1 (audit row 14): the provider refused the workspace's key: built-in AI answers under the same free limit
-        // when it is here, and the answer says so in its last line.
+        // when the deployment lets it (AI_KEY_FALLBACK), and the answer says so in its last line.
         if (!key || !(e instanceof RunStop) || !isAiKeyProblem(e.reason) || !builtinStandsIn(deps)) throw e;
-        text = `${await callBuiltIn(deps, r, { system, user }, true)}\n\n${aiFallbackText(e.reason, AI_PROVIDER_INFO[key.providerId as AiProviderId].name)}`.slice(0, CAP.draftChars);
+        try {
+          text = `${await callBuiltIn(deps, r, { system, user }, true)}\n\n${aiFallbackText(e.reason, AI_PROVIDER_INFO[key.providerId as AiProviderId].name)}`.slice(0, CAP.draftChars);
+        } catch (stand) {
+          // QUAL1 review: built-in AI could not stand in (its free limit, a refusal): the key is the thing to fix, so that
+          // is the reason, never "add your own AI key" to a workspace that has one. A timeout stays a timeout.
+          if (stand instanceof RunStop && stand.reason !== "timeout") throw e;
+          throw stand;
+        }
       }
     } catch (e) {
       // In a thread, say plainly that today's free runs are used up (a fixed line, no AI call) instead of going quiet.
@@ -666,6 +673,14 @@ export async function processRun(deps: Deps, runId: string): Promise<void> {
         const { postMessage } = await import("./suite/chat");
         const m = await postMessage(deps, poster, channelId, { body: FREE_LIMIT_REPLY, parentId });
         await finish(deps, r, "skipped", "free_limit", { messageId: m.id });
+        return;
+      }
+      // QUAL1 review: the same for a refused key, its credit or its model (a fixed line naming the provider, no AI
+      // call), so an @assistant mention never goes quiet.
+      if (e instanceof RunStop && isAiKeyProblem(e.reason) && key && r.kind === "mention" && poster && channelId) {
+        const { postMessage } = await import("./suite/chat");
+        const m = await postMessage(deps, poster, channelId, { body: aiKeyProblemText(e.reason, AI_PROVIDER_INFO[key.providerId as AiProviderId].name), parentId });
+        await finish(deps, r, "failed", e.reason, { messageId: m.id });
         return;
       }
       throw e;
