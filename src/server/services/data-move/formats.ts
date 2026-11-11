@@ -16,9 +16,20 @@ export class MoveFileError extends Error {}
 
 export interface ContactIn { name: string; email: string; phone: string | null; title: string | null; company: string | null; notes: string }
 
-const EMAIL = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/;
-/** QUAL1: no address is longer than 254 characters; the pattern backtracks quadratically on a huge value, so check length first. */
-const isEmail = (s: string) => s.length <= 254 && EMAIL.test(s);
+const NOT_IN_EMAIL = /[\s<>"]/;
+/**
+ * An email address: one @ with something before it, a dot after it with something on each side, and no space, <, >
+ * or " anywhere. QUAL1: a plain scan that accepts exactly what /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/ did; that pattern
+ * backtracked quadratically, about a second of work for an 8 MB file of 253 character values. No address is longer
+ * than 254 characters, so longer values are skipped too.
+ */
+export function isEmail(s: string): boolean {
+  if (s.length > 254 || NOT_IN_EMAIL.test(s)) return false;
+  const at = s.indexOf("@");
+  if (at < 1 || s.indexOf("@", at + 1) >= 0) return false;
+  const dot = s.indexOf(".", at + 2);
+  return dot > 0 && dot < s.length - 1;
+}
 const clean = (s: string | undefined | null) => (s ?? "").replace(/\s+/g, " ").trim();
 const vUnescape = (v: string) => v.replace(/\\([nN,;\\])/g, (_m, c: string) => (c === "n" || c === "N" ? "\n" : c));
 
