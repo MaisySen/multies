@@ -201,12 +201,45 @@ describe("AIS1 row 4: a key may only tighten an existing agent", () => {
     expect(del.body.error.code).toBe("person_only");
     expect(del.body.error.message).toContain("paused");
     expect((await api(wsKey, "GET", `/agents/${chaser.id}`)).body).toMatchObject({ status: "paused", sendCapDaily: 5, allowedRecipients: ["bob@acme.io"] });
-    expect((await refusals("agent.delete_refused")).map((r) => ({ agentId: r.agentId, fields: r.metadata.fields }))).toEqual([{ agentId: chaser.id, fields: ["status"] }]);
-    // An active agent can still be deleted by a key (approval stays "always" on anything it makes again).
+    expect((await refusals("agent.delete_refused")).map((r) => ({ agentId: r.agentId, fields: r.metadata.fields }))).toEqual([{ agentId: chaser.id, fields: ["sendCapDaily", "status"] }]);
+    // An active agent at the default cap can still be deleted by a key (approval stays "always" on anything it makes again).
     const active = (await api(wsKey, "POST", "/agents", { name: "Spare" })).body.agent;
     expect((await api(wsKey, "DELETE", `/agents/${active.id}`)).status).toBe(200);
     // A person may delete the paused one.
     expect((await c.del(`/api/agents/${chaser.id}`)).status).toBe(200);
+  });
+
+  // AIS1 repair (review 2): a key could delete an ACTIVE agent a person had held to a lower cap and make it again at the
+  // same address with the defaults (100 a day). Deleting one held under the default cap needs a person too.
+  it("a key can't undo a person's lower cap by deleting an active agent and making it again", async () => {
+    const chaser = (await c.post("/api/agents", { name: "Chaser", localPart: "chaser", approvalMode: "never", sendCapDaily: 5, allowedRecipients: ["bob@acme.io"] })).body.agent;
+    expect(chaser).toMatchObject({ approvalMode: "never", sendCapDaily: 5, allowedRecipients: ["bob@acme.io"], status: "active" });
+    expect((await api(wsKey, "PATCH", `/agents/${chaser.id}`, { sendCapDaily: 100 })).status).toBe(403);
+    const del = await api(wsKey, "DELETE", `/agents/${chaser.id}`);
+    expect(del.status).toBe(403);
+    expect(del.body.error).toMatchObject({ code: "person_only", details: { fields: ["sendCapDaily"] } });
+    expect((await api(wsKey, "POST", "/agents", { name: "Chaser", localPart: "chaser" })).status).toBe(409);
+    const now = (await api(wsKey, "GET", "/agents")).body.data.find((x: { address: string }) => x.address === chaser.address);
+    expect(now).toMatchObject({ id: chaser.id, approvalMode: "never", sendCapDaily: 5, allowedRecipients: ["bob@acme.io"] });
+    // Decision: a narrower list alone doesn't stop a key's delete, since a key may name any list on a new agent and a
+    // person approves every message of it.
+    const narrow = (await c.post("/api/agents", { name: "Narrow", allowedRecipients: ["bob@acme.io"] })).body.agent;
+    expect((await api(wsKey, "DELETE", `/agents/${narrow.id}`)).status).toBe(200);
+    // A person may delete the capped one.
+    expect((await c.del(`/api/agents/${chaser.id}`)).status).toBe(200);
+  });
+
+  it("bounded: an agent a key makes again at a freed address needs a person for every message", async () => {
+    const narrow = (await c.post("/api/agents", { name: "Chaser", localPart: "chaser", approvalMode: "never", allowedRecipients: ["bob@acme.io"] })).body.agent;
+    expect((await api(wsKey, "DELETE", `/agents/${narrow.id}`)).status).toBe(200);
+    const { agent, apiKey } = (await api(wsKey, "POST", "/agents", { name: "Chaser", localPart: "chaser" })).body;
+    expect(agent).toMatchObject({ address: narrow.address, approvalMode: "always", sendCapDaily: 100, allowedRecipients: ["@acme.io"], status: "active" });
+    const r = await api(apiKey.secret, "POST", `/agents/${agent.id}/send`, { to: ["carol@acme.io"], subject: "Wider list", text: "x" });
+    expect(r.body.status).toBe("pending_approval");
+    expect(ctx.outbound.sent.filter((m) => m.subject === "Wider list")).toHaveLength(0);
+    // The key can't approve it, and can't lower the approval rule.
+    expect((await api(wsKey, "POST", `/approvals/${r.body.approval.id}/approve`, {})).status).toBe(403);
+    expect((await api(wsKey, "PATCH", `/agents/${agent.id}`, { approvalMode: "never" })).status).toBe(403);
   });
 });
 

@@ -172,7 +172,7 @@ const allowList = (v: string[] | null | undefined) => (v?.length ? v.map((r) => 
 const REFUSED = {
   "agent.create_refused": "Creating an agent with looser guardrails",
   "agent.update_refused": "Loosening an agent's guardrails",
-  "agent.delete_refused": "Deleting a paused agent",
+  "agent.delete_refused": "Deleting a paused agent or one with a lowered daily cap",
 } as const;
 
 async function refuseLoosening(deps: Deps, actor: Actor, fields: string[], at: { action: keyof typeof REFUSED; agentId?: string; name?: string }) {
@@ -371,9 +371,14 @@ export async function updateAgent(deps: Deps, actor: Actor, id: string, patch: U
 export async function deleteAgent(deps: Deps, actor: Actor, id: string) {
   assertWorkspaceActor(actor);
   const { a, mb } = await row(deps, actor.orgId, id);
-  // AIS1 (review): made again at the same address, a deleted agent comes back active, so for a key or an AI app
-  // deleting a paused agent would undo the pause. Only a person deletes a paused agent. Change it here.
-  if (a.status === "paused") await refuseLoosening(deps, actor, ["status"], { action: "agent.delete_refused", agentId: a.id, name: a.name });
+  // AIS1 (review): made again at the same address, a deleted agent comes back active at the default daily cap, so for a
+  // key or an AI app deleting a paused agent, or one held under that cap, would undo a person's pause or lower cap. Only
+  // a person deletes those. The allow list is left out on purpose: a key may name any list on a new agent (approval
+  // stays "always"). Change it here. One plan read, only for a key or an app deleting such an agent.
+  if (!isPersonSession(actor) && (a.status !== "active" || a.sendCapDaily < AGENT_DEFAULT_DAILY_SENDS)) {
+    const recreated = { status: "active" as const, sendCapDaily: Math.min(AGENT_DEFAULT_DAILY_SENDS, (await getPlan(deps.db, actor.orgId)).limits.agentDailySends) };
+    await refuseLoosening(deps, actor, looserFields(a, recreated, new Set()), { action: "agent.delete_refused", agentId: a.id, name: a.name });
+  }
   await assertMailboxNotHeld(deps, actor.orgId, mb.id); // PRIV1b (P44): a held agent inbox stays, as DELETE /api/mailboxes/:id
   await deprovisionMailbox(deps, actor.orgId, mb.id).catch(() => undefined);
   await deps.db.delete(apiKeys).where(eq(apiKeys.agentId, a.id));

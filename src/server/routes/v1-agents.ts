@@ -146,7 +146,7 @@ export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
     responses: { 200: json(Agent, "The agent."), 401: errors[401], 403: errors[403], 404: errors[404], 422: errors[422] } }),
   async (c) => c.json(ser(await updateAgent(c.var.deps, actorOf(c), c.req.valid("param").id, c.req.valid("json"))), 200));
 
-  api.openapi(createRoute({ method: "delete", path: "/agents/{id}", tags: ["Agents"], summary: "Delete an agent inbox", description: "Deletes the agent, its inbox and mail, and its keys. Needs a workspace key. A paused agent is deleted only by a person in the app (made again it would come back active): a key gets 403 `person_only`, written to the agent's audit log.", security: secured, request: { params: Id },
+  api.openapi(createRoute({ method: "delete", path: "/agents/{id}", tags: ["Agents"], summary: "Delete an agent inbox", description: "Deletes the agent, its inbox and mail, and its keys. Needs a workspace key. A paused agent, or one held under 100 sends a day, is deleted only by a person in the app (made again it would come back active at 100 a day): a key gets 403 `person_only` naming `status` or `sendCapDaily`, written to the agent's audit log.", security: secured, request: { params: Id },
     responses: { 200: json(z.object({ id: z.string(), deleted: z.literal(true) }), "Deleted."), 401: errors[401], 403: errors[403], 404: errors[404] } }),
   async (c) => c.json((await deleteAgent(c.var.deps, actorOf(c), c.req.valid("param").id)) as { id: string; deleted: true }, 200));
 

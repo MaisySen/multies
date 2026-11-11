@@ -330,7 +330,7 @@ them. An API key or a connected AI app (OAuth on MCP) can create agents and tigh
 | `approvalMode` | create with `always` (the default); raise it (`never`, then `external`, then `always`) | create with `external` or `never`; lower it |
 | `sendCapDaily` | create with 100 or less; lower it | create with more than 100 (up to the plan's limit); raise it |
 | `allowedRecipients` | name a list on create; narrow it (every new entry inside the current list: `@acme.io` covers `bob@acme.io`, not the other way round); give a list to an agent that may mail anyone | choose anyone (`null` or `[]`); widen it |
-| `status` | pause (`paused`); delete an active agent | resume (`active`); delete a paused agent (`DELETE /api/v1/agents/{id}` answers 403 `person_only`, logged as `agent.delete_refused`), since made again at the same address it would come back active |
+| `status` | pause (`paused`); delete an active agent at 100 sends a day or more | resume (`active`); delete a paused agent, or one held under 100 a day (or the plan's daily limit, if lower): `DELETE /api/v1/agents/{id}` answers 403 `person_only` naming `status` or `sendCapDaily`, logged as `agent.delete_refused`, since made again at the same address it would come back active at 100 a day. A narrower allow list doesn't stop a key's delete: a key may name any list on a new agent, and a person approves its every message |
 | `mailboxIds` | take mailboxes away | add mailboxes |
 
 `name` and `description` stay open. Sending a field's current value back is not a loosening, so a client can
