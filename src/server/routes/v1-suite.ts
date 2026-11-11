@@ -173,7 +173,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   // R44: a key could create a project but not remove it. Same rule as the app: admins only, so an agent
   // member's key (role member) is refused; the project and its tasks are soft deleted.
   api.openapi(createRoute({ method: "delete", path: "/projects/{id}", tags: tag("Projects"), summary: "Delete a project and its tasks", security: secured,
-    request: { params: Id }, responses: { 200: json(z.object({ ok: z.boolean() }), "Deleted."), 401: errors[401], 403: err("Only an admin's key can delete a project (admin_only)."), 404: errors[404] } }),
+    request: { params: Id }, responses: { 200: json(z.object({ ok: z.boolean() }), "Deleted."), 401: errors[401], 403: err("Only an admin's key can delete a project (admin_only), and not while items wait in its Triage (person_only)."), 404: errors[404] } }),
   async (c) => {
     if (c.var.auth.role === "member") throw new HttpError(403, "admin_only", "Only an admin can delete a project. Use a workspace key.");
     return send(c, await deleteProject(c.var.deps, actor(c), c.req.valid("param").id));

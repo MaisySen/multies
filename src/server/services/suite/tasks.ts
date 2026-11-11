@@ -249,6 +249,11 @@ async function replaceStatuses(deps: Deps, actor: SuiteActor, p: ProjectRow, lis
 export async function deleteProject(deps: Deps, actor: SuiteActor, id: string) {
   assertWritable(actor);
   const p = await projectRow(deps, actor.orgId, id);
+  // AIS1 (audit row 66): the delete would take items that wait in Triage with nobody deciding them. One read on
+  // the Triage index, and only for a key or a connected AI app.
+  if (!isPersonSession(actor) && await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.orgId, actor.orgId), eq(tasks.triageState, "pending"), isNull(tasks.deletedAt), eq(tasks.projectId, id))).get()) {
+    requirePerson(actor, "Deleting a project with items that wait in Triage");
+  }
   const now = deps.now();
   // R52 (MB-239): the endpoints are read once, here instead of inside emitEvent, so nobody subscribed costs exactly
   // what it did before. Only when someone takes task.deleted are the task ids read (one SELECT, before the delete).

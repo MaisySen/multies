@@ -177,6 +177,19 @@ describe("AIS1 row 66: only a person decides Triage", () => {
     expect((await c.del(`/api/tasks/${id}`)).status).toBe(200);
   });
 
+  it("a key can't delete a project while items wait in its Triage; a person can", async () => {
+    const p = await triageProject();
+    const k = await key();
+    const id = await item("Waiting", p.id);
+    const r = await api(k, "DELETE", `/projects/${p.id}`);
+    expect(r.status).toBe(403);
+    expect(r.body.error.code).toBe("person_only");
+    expect(await pending(id)).toBe(true);
+    const empty = (await c.post("/api/projects", { name: "Empty" })).body.project;
+    expect((await api(k, "DELETE", `/projects/${empty.id}`)).status).toBe(200);
+    expect((await c.del(`/api/projects/${p.id}`)).status).toBe(200);
+  });
+
   it("a person in the app still accepts, declines, merges and bulk decides", async () => {
     const p = await triageProject();
     const a = await item("Accept me", p.id);

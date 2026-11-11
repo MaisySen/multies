@@ -103,7 +103,9 @@ describe("meeting.deleted and task.deleted per task on project delete (R52 MB-23
       expect((await s.sent()).filter((e) => e.type === "task.deleted")).toEqual([]);
       // Measured on main 4bbb370 (before R52) with this same counter: 10 statements, 4 writes with no endpoint or one
       // for other events; 16 and 6 with a project.deleted endpoint (its delivery row and attempt). Unchanged by R52.
-      const base = events?.includes("project.deleted") ? { all: 16, w: 6 } : { all: 10, w: 4 };
+      // AIS1 (row 66): one more read for a key, on the Triage index (are items waiting?), and no more writes. This
+      // counter logs every select twice (see the pairs in the list), so the read shows as 2.
+      const base = events?.includes("project.deleted") ? { all: 18, w: 6 } : { all: 12, w: 4 };
       expect(three.length).toBe(base.all);
       expect(writes(three).length).toBe(base.w);
     }
