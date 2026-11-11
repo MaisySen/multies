@@ -30,3 +30,31 @@ condition = "AND"
 paths = ['tests/web-push(-routes)?-r32\.test\.ts']
 regexTarget = "line"
 regexes = ['yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw|q1dXpw3UpT5VOmu_cf_v6ih07Aems3njxI-JWgLcM94|BTBZMqHH6r4Tts7J_aSIgg']
+
+# QUAL1: the call recording tests (R23) and the write cost test prove a workspace's own AI key is stored
+# encrypted and never echoed, using made up keys in the provider's shape (the same fake as tests/ai.test.ts,
+# a Groq shaped twin, and an e2e variant). None is a credential for any service. Path and exact value only.
+[[allowlists]]
+description = "Made up AI keys in the call recording and write cost tests"
+condition = "AND"
+paths = ['tests/meeting-record-r23\.test\.ts', 'tests/write-cost\.test\.ts', 'e2e/meeting-record-r23\.spec\.ts']
+regexTarget = "line"
+regexes = ['"sk-test-0123456789abcdefWXYZ"', '"gsk_test0123456789abcdefWXYZ"', '"sk-e2e-0123456789abcdefWXYZ"']
+
+# QUAL1: R26 log masking test input. The token is built from {"alg":"HS256"}, {"sub":"1234567890"} and the
+# word "signature" twice; it signs nothing. Path and exact value only.
+[[allowlists]]
+description = "Made up token in the log masking test"
+condition = "AND"
+paths = ['tests/secret-mask-r26\.test\.ts']
+regexTarget = "line"
+regexes = ['"jwt eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiIxMjM0NTY3ODkwIn0\.c2lnbmF0dXJlc2lnbmF0dXJl"']
+
+# QUAL1: phone app copy for Send securely. The key names contain "secret" and the values are plain English
+# messages, which the generic key rule mistakes for a key. Path and these two keys only.
+[[allowlists]]
+description = "Send securely messages in the phone app strings"
+condition = "AND"
+paths = ['mobile/src/i18n/mpar3\.ts']
+regexTarget = "line"
+regexes = ['^\s*"m\.compose3\.secret_(empty|failed)": "']
