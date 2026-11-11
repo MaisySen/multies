@@ -106,7 +106,8 @@ export async function refuseAgentAddress(deps: Deps, email: string, ctx: Refusal
   if (orgId) {
     await audit(deps.db, {
       orgId, actorUserId: ctx.actorUserId ?? null, actorEmail: ctx.actorEmail ?? null, action: ctx.action, ip: ctx.ip ?? null,
-      metadata: { email: address, reason: hit.via, ...(hit.orgId && hit.orgId !== orgId ? { agentWorkspace: hit.orgId } : {}), ...ctx.metadata },
+      // Never another workspace's id: this row is read by the admins of the workspace where it was tried.
+      metadata: { email: address, reason: hit.via, ...ctx.metadata },
     }).catch((err: unknown) => deps.reportError?.(err, { where: "agent_address.audit" }));
   }
   deps.log?.warn("agent_address.refused", { action: ctx.action, reason: hit.via });
