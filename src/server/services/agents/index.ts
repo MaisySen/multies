@@ -528,7 +528,8 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
   const who = agentActor(a, mb);
   const fromId = input.mailboxId ?? a.mailboxId;
   // AIS1 review: read before the first check, so even a blocked send's row knows whether the mailbox is personal.
-  // The same read the send needed anyway; only a paused agent's refusal reads one more row than before.
+  // The same read the send needed anyway; only the two refusals before it (agent paused, mailbox not allowed) read
+  // one more row than before.
   const from = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.id, fromId), eq(mailboxes.orgId, actor.orgId))).get();
   const personal = !from || from.personal;
   const block = async (code: string, message: string, status: 403 | 429 = 403) => {
