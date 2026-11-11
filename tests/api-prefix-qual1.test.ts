@@ -8,17 +8,23 @@ import { join, relative } from "node:path";
  * Every helper that adds the prefix itself is listed here; a call to one of them with a path that starts with "/api/"
  * fails this test. The phone's transport adds the prefix the same way (mobile/src/api/transport.ts).
  */
+/**
+ * A type argument that may itself hold parentheses or one level of nested generics, e.g.
+ * api.get<{ run: () => void; list: Array<string> }>( ... ). The patterns are tried on whole files, so \s also spans
+ * a call split over lines.
+ */
+const GENERIC = String.raw`(?:<(?:=>|[^<>]|<[^<>]*>)*>)?`; // "=>" for a function type inside it
 const WEB_PREFIXING = [
-  // src/web/lib/api.ts: fetch(`/api${path}`)
-  /\bapi\.(?:get|post|put|patch|del)\s*(?:<[^()]*?>)?\(\s*[`"']\/api\//,
+  // src/web/lib/api.ts: fetch(`/api${path}`); api.create (postOnce) goes through the same request
+  new RegExp(String.raw`\bapi\.(?:get|post|put|patch|del|create)\s*` + GENERIC + String.raw`\(\s*[\x60"']\/api\/`),
   // src/web/pages/app/tools-ai.tsx: uploadForm, postFile and downloadPost fetch `/api${path}` too
-  /\b(?:uploadForm|postFile|downloadPost)\s*\(\s*[`"']\/api\//,
+  new RegExp(String.raw`\b(?:uploadForm|postFile|downloadPost)\s*\(\s*[\x60"']\/api\/`),
   // a hand written doubled prefix anywhere
   /[`"']\/api\/api\//,
 ];
 const PHONE_PREFIXING = [
   // mobile/src/api/transport.ts: `${this.base}/api${path}`
-  /\brequest\s*(?:<[^()]*?>)?\(\s*["'][A-Z]+["']\s*,\s*[`"']\/api\//,
+  new RegExp(String.raw`\brequest\s*` + GENERIC + String.raw`\(\s*["'][A-Z]+["']\s*,\s*[\x60"']\/api\/`),
   /[`"']\/api\/api\//,
 ];
 
@@ -35,10 +41,15 @@ function offenders(roots: string[], patterns: RegExp[]): string[] {
   const out: string[] = [];
   for (const dir of roots) {
     for (const f of files(join(root, dir))) {
-      const lines = readFileSync(f, "utf8").split("\n");
-      lines.forEach((line, i) => {
-        if (patterns.some((p) => p.test(line))) out.push(`${relative(root, f).replace(/\\/g, "/")}:${i + 1}: ${line.trim().slice(0, 140)}`);
-      });
+      // The whole file, so a call split over lines is caught too; each hit is reported at the line it starts on.
+      const text = readFileSync(f, "utf8");
+      const lines = text.split("\n");
+      for (const p of patterns) {
+        for (const m of text.matchAll(new RegExp(p.source, "g"))) {
+          const at = text.slice(0, m.index).split("\n").length;
+          out.push(`${relative(root, f).replace(/\\/g, "/")}:${at}: ${lines[at - 1].trim().slice(0, 140)}`);
+        }
+      }
     }
   }
   return out;
@@ -60,6 +71,16 @@ describe("no doubled /api prefix (QUAL1, audit row 10)", () => {
     expect(WEB_PREFIXING.some((p) => p.test(oldDel))).toBe(true);
     expect(WEB_PREFIXING.some((p) => p.test('api.get<Mine>("/mailboxes/privacy/mine")'))).toBe(false);
     expect(PHONE_PREFIXING.some((p) => p.test('t.request<X>("GET", "/api/counts")'))).toBe(true);
+  });
+
+  it("QUAL1 review: the guard also catches api.create, a call split over lines and a type argument with parentheses", () => {
+    const caught = (s: string) => WEB_PREFIXING.some((p) => p.test(s));
+    expect(caught('api.create<{ id: string }>("/api/tasks", body)')).toBe(true);
+    expect(caught('api.post<{ ok: boolean }>(\n      "/api/mailboxes/privacy/mine",\n      {},\n    )')).toBe(true);
+    expect(caught('api.get<{ run: () => void; list: Array<string> }>("/api/x")')).toBe(true);
+    expect(caught('api.get<{ run: () => void }>("/mailboxes/privacy/mine")')).toBe(false);
+    expect(caught('api.create("/tasks", body)')).toBe(false);
+    expect(PHONE_PREFIXING.some((p) => p.test('t.request<{ a: () => void }>(\n  "POST",\n  "/api/x")'))).toBe(true);
   });
 
   it("the privacy panel asks for /api/mailboxes/privacy/mine exactly once prefixed", async () => {

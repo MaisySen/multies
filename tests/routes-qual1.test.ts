@@ -83,6 +83,11 @@ describe("addresses that read a word as an id now open their list (QUAL1)", () =
     const channels = readFileSync("src/web/pages/app/channels-settings.tsx", "utf8");
     expect(channels).not.toContain('<Navigate to="/app/settings"');
     expect(channels).toContain("<NotFound embedded />");
+    // An unknown Settings page already showed not found before QUAL1 (only Channels sent people to General): this
+    // guards that the real router keeps it so, with no catch-all under settings and the app wide not found page last.
+    const settingsBlock = router.slice(settingsAt, end);
+    expect(settingsBlock).not.toMatch(/path: "\*"/);
+    expect(router).toMatch(/\{ path: "\*", element: <NotFound \/> \}/);
     expect(leaf("/app/settings/no-such-page")).toBe("not-found");
   });
 });

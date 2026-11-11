@@ -178,7 +178,9 @@ saying the provider would not answer this request. Rate limits are not noted eit
 - `POST /api/ai/models` with a refused key answers the short list of common models with `live: false`,
   `problem: "key_refused"` and a note saying so, and keeps no cached copy.
 - `GET /api/team-ai/state` shows `ai.keyProblem` and `ai.keyProblemMessage`; `ai.source` is `built_in` (or `none`)
-  while the key is refused, never `own_key`.
+  while the key is refused, never `own_key`. An `@assistant` mention whose key is refused posts that sentence in the
+  thread (a fixed line, no AI call) and the run ends `failed` with the reason `key_refused`, `no_credit` or
+  `model_unavailable`.
 
 ## Repeating tasks
 

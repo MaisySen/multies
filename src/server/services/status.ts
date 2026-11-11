@@ -96,7 +96,8 @@ async function computeStatus(deps: Deps) {
     const backlog = q.value.oldestPendingAgeMs > 30 * 60_000;
     components.push({
       id: "queue", name: "Retries and background work", state: backlog ? "degraded" : "operational",
-      detail: backlog ? "Some queued work is waiting longer than usual." : q.value.pending ? `${q.value.pending} item${q.value.pending === 1 ? "" : "s"} queued.` : "Nothing waiting.",
+      // QUAL1 review: no count on the public page (it shows how busy the platform is); operators read it in `volume`.
+      detail: backlog ? "Some queued work is waiting longer than usual." : q.value.pending ? "Work is queued and running normally." : "Nothing waiting.",
       latencyMs: q.latencyMs,
     });
   }
@@ -128,6 +129,8 @@ async function computeStatus(deps: Deps) {
       received, receivedFailed: Number(stats.inboundFailed) || 0, sent, sentFailed: Number(stats.outboundFailed) || 0,
       receivedLine: received ? `${messagesLine(received)} received in the last 24 hours.` : "No mail received in the last 24 hours.",
       sentLine: sent ? `${messagesLine(sent)} sent to other providers in the last 24 hours.` : "No mail sent to other providers in the last 24 hours.",
+      /** Retries and background work waiting now (null when the queue could not be read). */
+      queued: q.value ? q.value.pending : null,
     },
   };
 }

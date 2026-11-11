@@ -96,6 +96,18 @@ describe("the public status page shows no mail volume (QUAL1, row 69)", () => {
     expect((await owner.get("/api/admin/status")).status).toBe(403);
   });
 
+  it("QUAL1 review: the public queue line has no count either; operators see it", async () => {
+    const ctx = await makeTestApp();
+    const { enqueue } = await import("@/server/services/jobs");
+    for (const n of [1, 2, 3]) await enqueue(ctx.deps, "test.status_queue", { n });
+    const queue = (await new Client(ctx.app).get("/api/status")).body.components.find((c: { id: string }) => c.id === "queue");
+    expect(queue).toMatchObject({ state: "operational", detail: "Work is queued and running normally." });
+    expect(queue.detail).not.toMatch(/\d/);
+    resetStatusCache();
+    const full = await (await operator(ctx)).get("/api/admin/status");
+    expect(full.body.volume).toMatchObject({ queued: 3 });
+  });
+
   it("one plural rule: 1 message, 2 messages", () => {
     expect(messagesLine(1)).toBe("1 message");
     expect(messagesLine(2)).toBe("2 messages");
