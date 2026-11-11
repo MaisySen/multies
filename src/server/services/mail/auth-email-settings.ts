@@ -18,7 +18,7 @@ import { HttpError, notFound } from "../../lib/errors";
 import { audit } from "../audit";
 import { sendMessage } from "./send";
 import { AUTH_EMAIL_TYPES, mergeBranding, parseBranding, renderAuthEmail, type AuthEmailBranding } from "./auth-email-branding";
-import { parseBrandingInput } from "./auth-email-hooks";
+import { parseBrandingInput, senderMailboxCond } from "./auth-email-hooks";
 
 export const TEST_SENDS_PER_HOUR = 5;
 const HOUR = 3_600_000;
@@ -66,11 +66,13 @@ async function currentHook(deps: Deps, orgId: string): Promise<HookRow | undefin
 /**
  * Mailboxes on the workspace's verified domains: the addresses auth emails can come from. PRIV1b (W1): team mailboxes
  * only; a person's personal mailbox is theirs, so an admin can neither list it here nor send sign-up emails as it.
+ * AIS1 (audit row 44): the workspace's own domains only (a connected Gmail sits on the platform's shared row, which is
+ * stored verified, so it used to show up) and never an AI agent's inbox. See senderMailboxCond.
  */
 export async function senderMailboxes(deps: Deps, orgId: string) {
   return deps.db.select({ id: mailboxes.id, address: mailboxes.address, displayName: mailboxes.displayName }).from(mailboxes)
     .innerJoin(domains, eq(domains.id, mailboxes.domainId))
-    .where(and(eq(mailboxes.orgId, orgId), eq(domains.status, "verified"), eq(mailboxes.status, "active"), eq(mailboxes.personal, false))).orderBy(mailboxes.address);
+    .where(senderMailboxCond(orgId)).orderBy(mailboxes.address);
 }
 
 const recentTests = (h: HookRow, now: number) => {

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
-import { agents, aliases, auditLogs, domains, invitations, members, projectGuests, sendApprovals, users } from "@/server/db/schema";
+import { agents, aliases, auditLogs, domains, invitations, mailboxes, members, organizations, projectGuests, sendApprovals, users } from "@/server/db/schema";
 import { agentAddress } from "@/server/services/agents/agent-address";
 
 /**
@@ -238,5 +238,29 @@ describe("AIS1 row 1: a guest invite never goes out without a person", () => {
     expect(r.body.delivery.status).toBe("pending_approval");
     expect(await ctx.db.select().from(sendApprovals)).toHaveLength(1);
     expect(ctx.outbound.sent.filter((m) => m.to.includes("client@example.com"))).toEqual([]);
+  });
+});
+
+describe("AIS1 row 44: sign-up emails come only from the workspace's own verified domains, never an agent", () => {
+  const SECRET = "v1,whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw";
+  it("the From list and every save refuse the agent's inbox and a connected address", async () => {
+    expect((await owner.post("/api/mailboxes", { domainId, localPart: "no-reply", displayName: "Acme" })).status).toBe(201);
+    // A connected Gmail sits on the platform's shared row, which is stored verified.
+    await ctx.db.insert(organizations).values({ id: "org_platform", name: "Multies platform" }).onConflictDoNothing();
+    await ctx.db.insert(domains).values({ id: "dom_connected", orgId: "org_platform", name: "connected.multies.invalid", status: "verified", verificationToken: "x", dkimSelector: "x", dkimPublicKey: "x", dkimPrivateKeyEnc: "x" }).onConflictDoNothing();
+    const conn = (await ctx.db.select().from(domains).where(eq(domains.name, "connected.multies.invalid")).get())!;
+    await ctx.db.insert(mailboxes).values({ id: "mbx_gmail", orgId, domainId: conn.id, localPart: "olive", address: "olive@gmail.com", displayName: "Olive", quotaMb: 100 });
+    const senders = (await owner.get("/api/auth-email-settings")).body.senders.map((x: { address: string }) => x.address);
+    expect(senders).toEqual(["no-reply@acme.io"]);
+    for (const from of ["agent@acme.io", "olive@gmail.com"]) {
+      const viaApp = await owner.put("/api/auth-email-settings", { from, supabaseUrl: "https://abcd1234.supabase.co", appName: "Acme", secret: SECRET });
+      expect(viaApp.status, from).toBe(422);
+      const viaKey = await api(wsKey, "POST", "/auth-email-hooks", { from, secret: SECRET, supabaseUrl: "https://abcd1234.supabase.co", appName: "Acme" });
+      expect(viaKey.status, from).toBe(422);
+    }
+    const ok = await api(wsKey, "POST", "/auth-email-hooks", { from: "no-reply@acme.io", secret: SECRET, supabaseUrl: "https://abcd1234.supabase.co", appName: "Acme" });
+    expect(ok.status).toBe(201);
+    const moved = await api(wsKey, "PATCH", `/auth-email-hooks/${ok.body.hook?.id ?? ok.body.id}`, { from: "agent@acme.io" });
+    expect(moved.status).toBe(422);
   });
 });
