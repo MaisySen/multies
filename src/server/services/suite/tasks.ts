@@ -18,6 +18,8 @@ import { claimNumbers } from "./project-counter";
 import { invalidateStatuses, orgStatuses } from "./read-cache";
 import { SQL_IN_CHUNK, inChunks, inIds } from "../../lib/sql-chunks";
 import { isAgentEmail } from "../people";
+import { WITHHELD_TEXT, withheldRow } from "../agents/platform-mail";
+import { isPersonSession } from "../../lib/actor-kind";
 import { containsAny, containsText } from "../../lib/like-search";
 import { rowMapper, selectMapped } from "../../db/fast-rows"; // R52
 
@@ -676,7 +678,8 @@ export async function createTaskFromThread(deps: Deps, actor: SuiteActor, input:
   }
   const fromLine = m.fromName || m.fromAddress;
   const title = input.title?.trim() || cleanSubject(m.subject) || `Follow up with ${fromLine}`;
-  const notes = input.notes ?? latestText(m.text).slice(0, 2000);
+  // AIS1 (row 32): a task is read by agents and apps too, so it never copies the text of the platform's own mail.
+  const notes = input.notes ?? (withheldRow(m, deps.config.systemFrom.address) ? WITHHELD_TEXT : latestText(m.text).slice(0, 2000));
   // R21: mail turned into tasks by rules lands in Triage when the project has it on.
   const triage = input.triage !== undefined ? input.triage : actor.system ? { source: "mail" as const, when: "if_project" as const } : null;
   return createTask(deps, actor, { ...input, title, notes, source: { messageId: m.id, threadId: m.threadId }, triage }, opts); // R53: same id on a retry
@@ -968,12 +971,15 @@ export async function listComments(deps: Deps, orgId: string, taskId: string) {
 /** The thread behind a task: every message the viewer can open, newest last, quoted history removed. */
 export async function threadForTask(deps: Deps, actor: SuiteActor, threadId: string) {
   const scope = await scopeOf(deps, actor);
-  const rows = await deps.db.select({ id: messages.id, mailboxId: messages.mailboxId, folder: messages.folder, fromAddress: messages.fromAddress, fromName: messages.fromName, subject: messages.subject, text: messages.text, date: messages.date, sentByAgentId: messages.sentByAgentId })
+  const app = !isPersonSession(actor);
+  const rows = await deps.db.select({ id: messages.id, mailboxId: messages.mailboxId, folder: messages.folder, fromAddress: messages.fromAddress, fromName: messages.fromName, subject: messages.subject, text: messages.text, date: messages.date, sentByAgentId: messages.sentByAgentId, authResults: messages.authResults })
     .from(messages).where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), ne(messages.folder, "drafts"), scope ? inIds(messages.mailboxId, scope) : undefined))
     .orderBy(asc(messages.date)).limit(200);
   return rows.map((m) => ({
     id: m.id, mailboxId: m.mailboxId, direction: m.folder === "sent" ? "outbound" as const : "inbound" as const,
-    from: { address: m.fromAddress, name: m.fromName }, subject: m.subject, date: m.date.toISOString(), latestText: latestText(m.text).slice(0, 4000), byAgent: !!m.sentByAgentId,
+    from: { address: m.fromAddress, name: m.fromName }, subject: m.subject, date: m.date.toISOString(),
+    // AIS1 (row 32): an agent or an app reading the task gets no text from the platform's own mail.
+    latestText: app && withheldRow(m, deps.config.systemFrom.address) ? WITHHELD_TEXT : latestText(m.text).slice(0, 4000), byAgent: !!m.sentByAgentId,
   }));
 }
 

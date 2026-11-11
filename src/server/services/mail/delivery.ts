@@ -15,6 +15,8 @@ import { decide, externalSentToday, guardConfig, newSenderCap, providerSentToday
 import { notifyAgentsOfInbound } from "../agents";
 import { operatorDecision } from "../suite/operator-inbox";
 import { isBulkMail } from "@/shared/mail-splits";
+import { isWithheld, storedAuth, withoutSecrets, type PlatformMark } from "../agents/platform-mail";
+import { makeSnippet } from "./mime";
 
 export type RecipientRoute =
   | { kind: "mailbox"; mailbox: typeof mailboxes.$inferSelect; domain: typeof domains.$inferSelect }
@@ -71,6 +73,12 @@ export interface InboundDelivery {
   requireOrgId?: string;
   /** The raw message, when the provider handed it over; copied to mail app accounts. */
   raw?: Uint8Array;
+  /**
+   * AIS1 (row 32): set only by the platform's own senders (system-mail.ts "system", the bounce notice "notice"); never
+   * from anything in the message. Stored as `platform` in authResults so agents and apps never get the system mail's
+   * text, codes or links (agents/platform-mail.ts).
+   */
+  platformMail?: PlatformMark;
 }
 
 export interface InboundResult {
@@ -139,6 +147,9 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
       return { accepted: false, code: 552, reason: "The workspace's storage is full.", storedIn: [], forwardedTo: [] };
     }
     const spam = d.email.authResults.dmarc === "fail";
+    // AIS1 (row 32): the platform's own mail keeps its text for people, but its preview loses links and codes and
+    // agents get neither (the From rule also catches system mail that went out and came back in).
+    const withheld = isWithheld(d.platformMail, d.email.from?.address ?? "", deps.config.systemFrom.address);
     const messageId = await storeMessage(db, {
       bodyStore: deps.bodyStore, orgId: mb.orgId,
       mailboxId: mb.id,
@@ -154,10 +165,11 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
       text: d.email.text,
       html: d.email.html,
       date: d.email.date,
-      authResults: d.email.authResults,
+      authResults: storedAuth(d.email.authResults, d.platformMail),
       attachments: d.email.attachments,
       sizeBytes: d.sizeBytes,
       isBulk: isBulkMail(d.email.headers ?? {}, d.email.from.address), // R31: split inbox
+      ...(withheld ? { snippet: makeSnippet(withoutSecrets(d.email.text ?? "")) } : {}),
     });
     await logDelivery(db, { orgId: mb.orgId, messageId, direction: "inbound", fromAddress: d.envelopeFrom, toAddress: rcpt, subject, status: "delivered", provider: d.via, detail: spam ? "Filed as spam (DMARC fail)" : `Delivered to ${mb.address}` });
     if (d.raw) await mirrorInbound(deps, mb.id, d.raw, { spam });
@@ -167,7 +179,7 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
     // Agents that can read this mailbox get an event (stream and poll), and the webhook
     // carries the parsed message: new text without quoted history, codes and links.
     const stored = await db.select({ threadId: messages.threadId }).from(messages).where(eq(messages.id, messageId)).get();
-    const agentsNotified = await notifyAgentsOfInbound(deps, mb, { id: messageId, threadId: stored?.threadId ?? "", from: d.email.from, subject: d.email.subject ?? "", text: d.email.text ?? "", html: d.email.html });
+    const agentsNotified = await notifyAgentsOfInbound(deps, mb, { id: messageId, threadId: stored?.threadId ?? "", from: d.email.from, subject: d.email.subject ?? "", text: d.email.text ?? "", html: d.email.html, withheld });
     await emitEvent(deps, mb.orgId, "message.received", {
       id: messageId, mailboxId: mb.id, to: mb.address, from: d.email.from, subject: d.email.subject ?? "", folder: spam ? "spam" : "inbox", sizeBytes: d.sizeBytes,
       threadId: stored?.threadId, latestText: agentsNotified.parsed.latestText, codes: agentsNotified.parsed.codes, links: agentsNotified.parsed.links, agentIds: agentsNotified.agentIds,

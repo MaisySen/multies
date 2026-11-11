@@ -1,0 +1,172 @@
+import { describe, it, expect, beforeEach } from "vitest";
+import { eq } from "drizzle-orm";
+import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { makeTestApp, Client } from "./helpers";
+import { messages } from "@/server/db/schema";
+import { sendSystemEmail } from "@/server/services/system-mail";
+import { deliverInbound } from "@/server/services/mail/delivery";
+
+/**
+ * AIS1 (audit of 11 Nov 2026, row 32): Multies' own mail (invites, "Confirm your email", password resets, guest
+ * invites) never hands its codes or links to an agent or an app. Outside senders' codes keep working: that is what
+ * the agent feed is for.
+ */
+let ctx: Awaited<ReturnType<typeof makeTestApp>>;
+let owner: Client;
+let wsKey: string;
+let agentKey: string;
+let agentId: string;
+const SECRET = "Zq7mK2pX9wTr4LbN8cVd";
+const CODE = "573918";
+
+async function api(key: string, method: string, path: string, body?: unknown) {
+  const res = await ctx.app.request(`/api/v1${path}`, {
+    method, headers: { authorization: `Bearer ${key}`, host: "localhost", ...(body !== undefined ? { "content-type": "application/json" } : {}) },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  let json: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  try { json = JSON.parse(text); } catch { json = text; }
+  return { status: res.status, body: json };
+}
+
+async function mcpFor(key: string) {
+  const fetchViaApp = ((url: string | URL, init?: RequestInit) => ctx.app.request(new URL(url).pathname, { ...init, headers: { ...Object.fromEntries(new Headers(init?.headers).entries()), host: "localhost" } })) as typeof fetch;
+  const client = new McpClient({ name: "test", version: "1.0.0" });
+  await client.connect(new StreamableHTTPClientTransport(new URL("http://localhost/api/v1/mcp"), { requestInit: { headers: { authorization: `Bearer ${key}` } }, fetch: fetchViaApp }));
+  return client;
+}
+const data = (r: unknown) => JSON.parse((r as { content: { text: string }[] }).content[0].text);
+
+async function verify(id: string) {
+  const { body } = await owner.get(`/api/domains/${id}`);
+  for (const r of body.domain.records) {
+    if (r.id === "mx") ctx.dns.records.mx = { ...ctx.dns.records.mx, [r.fqdn]: r.values.map((v: { value: string; priority: number }) => ({ exchange: v.value, priority: v.priority })) };
+    else ctx.dns.records.txt = { ...ctx.dns.records.txt, [r.fqdn]: [r.value] };
+  }
+  expect((await owner.post(`/api/domains/${id}/verify`)).body.domain.status).toBe("verified");
+}
+
+/** Multies' own mail into the agent's inbox, carrying a one-time code and a link with a secret. */
+async function platformMail(to = "agent@acme.io") {
+  const r = await sendSystemEmail(ctx.deps, {
+    to, subject: "You're invited to Launch", template: "guest-invite",
+    text: `Olive invited you to the project "Launch" on Multies. Your sign-in code is ${CODE}.`,
+    action: { label: "Open the project", url: `http://localhost/g/${SECRET}` },
+  });
+  expect(r).toMatchObject({ delivered: true, via: "internal" });
+  return (await ctx.db.select().from(messages).where(eq(messages.subject, "You're invited to Launch")).get())!;
+}
+
+async function outside(to: string, from: string, subject: string, text: string) {
+  return deliverInbound(ctx.deps, {
+    envelopeFrom: from, rcptTo: to, sizeBytes: text.length + 200, via: "test",
+    email: { messageId: `<${Math.random().toString(36).slice(2)}@example.com>`, from: { address: from, name: "Sender" }, to: [{ address: to }], cc: [], subject, text, date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+  });
+}
+
+beforeEach(async () => {
+  ctx = await makeTestApp();
+  owner = new Client(ctx.app);
+  await owner.signup("owner@acme.io", "Olive Owner");
+  const domainId = (await owner.post("/api/domains", { name: "acme.io" })).body.domain.id;
+  await verify(domainId);
+  wsKey = (await owner.post("/api/developer/keys", { name: "Setup" })).body.secret;
+  const made = await api(wsKey, "POST", "/agents", { name: "Agent", localPart: "agent" });
+  agentKey = made.body.apiKey.secret;
+  agentId = made.body.agent.id;
+});
+
+describe("AIS1 row 32: the platform's own mail never gives an agent its codes or links", () => {
+  it("the stored message carries a marker only the platform sets, and a preview with no link or code", async () => {
+    const m = await platformMail();
+    expect(JSON.parse(m.authResults!)).toMatchObject({ platform: "system" });
+    expect(m.snippet).not.toContain(SECRET);
+    expect(m.snippet).not.toContain(CODE);
+    // People still read the whole message in the app.
+    expect(m.text).toContain(SECRET);
+  });
+
+  it("the agent feed, poll, thread, message, search and MCP tools get no code, link or text", async () => {
+    const m = await platformMail();
+    const events = await api(agentKey, "GET", `/events?after=0`);
+    const received = events.body.data?.filter?.((e: { type: string }) => e.type === "message.received") ?? events.body.events?.filter((e: { type: string }) => e.type === "message.received");
+    expect(received).toHaveLength(1);
+    expect(received[0].data).toMatchObject({ codes: [], links: [], withheld: "platform_mail", subject: "You're invited to Launch" });
+    const reads = [
+      events,
+      await api(agentKey, "GET", `/threads/${m.threadId}`),
+      await api(wsKey, "GET", `/threads/${m.threadId}`),
+      await api(wsKey, "GET", `/messages/${m.id}`),
+      await api(wsKey, "GET", `/messages?mailboxId=${m.mailboxId}`),
+      await api(agentKey, "GET", `/agents/${agentId}/threads`),
+    ];
+    for (const r of reads) {
+      expect(r.status).toBe(200);
+      expect(JSON.stringify(r.body)).not.toContain(SECRET);
+      expect(JSON.stringify(r.body)).not.toContain(CODE);
+    }
+    expect((await api(wsKey, "GET", `/messages/${m.id}`)).body.withheld).toBe("platform_mail");
+    // A search can't be used to read the secret one letter at a time.
+    expect((await api(agentKey, "GET", `/search?q=${SECRET.slice(0, 6)}`)).body.data).toEqual([]);
+    expect((await api(wsKey, "GET", `/messages?search=${SECRET.slice(0, 6)}`)).body.data).toEqual([]);
+    // MCP: wait_for_email, read_thread and search.
+    const mcp = await mcpFor(agentKey);
+    const waited = data(await mcp.callTool({ name: "wait_for_email", arguments: { agentId, timeoutSeconds: 0, cursor: 0 } }));
+    expect(waited.messages).toHaveLength(1);
+    const thread = data(await mcp.callTool({ name: "read_thread", arguments: { threadId: m.threadId } }));
+    const found = data(await mcp.callTool({ name: "search", arguments: { query: SECRET.slice(0, 6) } }));
+    for (const out of [waited, thread, found]) {
+      expect(JSON.stringify(out)).not.toContain(SECRET);
+      expect(JSON.stringify(out)).not.toContain(CODE);
+    }
+    expect(thread.messages[0]).toMatchObject({ withheld: "platform_mail", codes: [], links: [], html: null });
+    // The owner, signed in to the app, reads it all.
+    const mine = await owner.get(`/api/mail/messages/${m.id}`);
+    expect(JSON.stringify(mine.body)).toContain(SECRET);
+  });
+
+  it("a task made from it copies no text, and an agent reading the task gets none", async () => {
+    const m = await platformMail();
+    const mcp = await mcpFor(agentKey);
+    const made = data(await mcp.callTool({ name: "create_task", arguments: { messageId: m.id } }));
+    expect(made.task.notes).not.toContain(SECRET);
+    const read = data(await mcp.callTool({ name: "get_task", arguments: { id: made.task.id } }));
+    expect(JSON.stringify(read)).not.toContain(SECRET);
+    expect(JSON.stringify(read)).not.toContain(CODE);
+  });
+
+  it("mail that can take over an account is never delivered into an agent's inbox", async () => {
+    const r = await sendSystemEmail(ctx.deps, { to: "agent@acme.io", accountSecurity: true, subject: "Reset your Multies password", text: "Reset it.", action: { label: "Choose a new password", url: `http://localhost/reset/${SECRET}` } });
+    expect(r).toMatchObject({ delivered: false, via: "none" });
+    expect(r.detail).toContain("AI agent's inbox");
+    expect(await ctx.db.select().from(messages).where(eq(messages.subject, "Reset your Multies password")).get()).toBeUndefined();
+  });
+
+  it("outside senders' codes and links keep working, a forged Multies sender is hidden, a bounce notice is readable", async () => {
+    await outside("agent@acme.io", "noreply@service.example", "Your Acme code", `Your verification code is ${CODE}. Or open https://service.example/v/${SECRET}`);
+    await outside("agent@acme.io", ctx.deps.config.systemFrom.address, "Forged", `Your verification code is 112233. https://evil.example/x`);
+    await deliverInbound(ctx.deps, {
+      envelopeFrom: ctx.deps.config.systemFrom.address, rcptTo: "agent@acme.io", sizeBytes: 100, via: "internal", platformMail: "notice",
+      email: { messageId: "<ndr.1@localhost>", from: { address: ctx.deps.config.systemFrom.address, name: "Mail Delivery" }, to: [{ address: "agent@acme.io" }], cc: [], subject: "Undeliverable: Hello", text: "Your message could not be delivered to: bob@nowhere.example", date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+    });
+    const events = await api(agentKey, "GET", `/events?after=0`);
+    const list = (events.body.data ?? events.body.events) as { type: string; data: { subject: string; codes: string[]; links: string[]; latestText: string; withheld?: string } }[];
+    const by = (s: string) => list.find((e) => e.data.subject === s)!.data;
+    expect(by("Your Acme code")).toMatchObject({ codes: [CODE], links: [`https://service.example/v/${SECRET}`] });
+    expect(by("Your Acme code").withheld).toBeUndefined();
+    expect(by("Forged")).toMatchObject({ codes: [], links: [], withheld: "platform_mail" });
+    expect(by("Undeliverable: Hello").latestText).toContain("could not be delivered");
+    expect(by("Undeliverable: Hello").withheld).toBeUndefined();
+  });
+
+  it("an outside sender can't set the marker through its own Authentication-Results", async () => {
+    await deliverInbound(ctx.deps, {
+      envelopeFrom: "x@service.example", rcptTo: "agent@acme.io", sizeBytes: 100, via: "test",
+      email: { messageId: "<x.1@service.example>", from: { address: "x@service.example", name: "X" }, to: [{ address: "agent@acme.io" }], cc: [], subject: "Marked by hand", text: `code ${CODE}`, date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass", platform: "notice" } as never, headers: {} },
+    });
+    const row = (await ctx.db.select().from(messages).where(eq(messages.subject, "Marked by hand")).get())!;
+    expect(JSON.parse(row.authResults!).platform).toBeUndefined();
+  });
+});

@@ -78,13 +78,13 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | --- | --- |
 | `list_inboxes` | List inboxes |
 | `list_threads` | List threads (R31: `split` narrows to an Inbox tab) |
-| `read_thread` | Read a thread |
+| `read_thread` | Read a thread (AIS1: Multies' own mail is `withheld`, as in `wait_for_email`) |
 | `search` | Search mail |
 | `search_everything` | One search across mail, tasks (or a key like OPS-12), docs, chat, contacts and deals, grouped by type. Only what the key can open (read only) |
 | `my_work` | What is waiting today: tasks due today and overdue, mentions, threads on my tasks, approvals waiting, today's meetings (read only) |
 | `send_email` | Send an email |
 | `reply` | Reply in a thread |
-| `wait_for_email` | Wait for new email |
+| `wait_for_email` | Wait for new email. AIS1: Multies' own mail (invites, confirmations, resets) comes with `withheld: "platform_mail"`, no codes, links or text; mail from anyone else keeps them |
 | `create_agent_inbox` | Create an agent inbox |
 | `create_agent_member` | Add an AI agent member (no seat, mailbox optional); returns its first key, shown once. Full workspace key (R26) |
 | `set_mailbox_reply_to` | Set a mailbox's default Reply-To, used when a send names none (R25, MB-61) |

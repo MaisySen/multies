@@ -238,7 +238,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string, call?:
 
   server.registerTool("wait_for_email", {
     title: "Wait for new email", annotations: ro,
-    description: "Wait up to timeoutSeconds for new mail to an agent inbox (for example a sign up code), then return the new messages, parsed. Pass the cursor from the last call to avoid repeats.",
+    description: "Wait up to timeoutSeconds for new mail to an agent inbox (for example a sign up code from another service), then return the new messages, parsed. Multies' own mail (invites, confirmations, resets) comes withheld: no text, codes or links. Pass the cursor from the last call to avoid repeats.",
     inputSchema: {
       agentId: z.string().optional(),
       timeoutSeconds: z.number().int().min(0).max(50).default(25),

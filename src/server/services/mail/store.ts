@@ -38,6 +38,8 @@ export interface StoreInput {
   bodyStore?: BodyStore;
   /** R31: bulk mail by its headers (split inbox). */
   isBulk?: boolean;
+  /** AIS1 (row 32): the list preview, when it must not be cut from the text (the platform's own mail, links taken out). */
+  snippet?: string;
 }
 
 /** An attachment's bytes, from the database or the body store; null when it wasn't kept. */
@@ -108,7 +110,7 @@ export async function storeMessage(db: DB, i: StoreInput): Promise<string> {
     subject: i.subject,
     text: i.text,
     html: i.html ?? null,
-    snippet: makeSnippet(i.text, i.html),
+    snippet: i.snippet ?? makeSnippet(i.text, i.html),
     sizeBytes,
     isRead: i.isRead ?? false,
     hasAttachments: (i.attachments?.length ?? 0) > 0,

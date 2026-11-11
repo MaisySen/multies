@@ -29,6 +29,8 @@ import { assertOpen, keepOpenableBy } from "../mail-access-priv1a";
 import { assertMailboxNotHeld } from "../mail/archive-r111"; // PRIV1b (P44)
 import { logMailboxOpen } from "../mailbox-sharing-priv1a";
 import { agentMessage, extractCodes, extractLinks, latestText } from "./parse";
+import { withheldRow, withheldSql, withheldView } from "./platform-mail";
+import { isPersonSession } from "../../lib/actor-kind";
 import { listThreadStates, threadViewCond, type ThreadView } from "../mail/thread-state";
 import { inChunks, inIds } from "../../lib/sql-chunks";
 import { containsAny } from "../../lib/like-search";
@@ -410,6 +412,7 @@ export async function readThread(deps: Deps, actor: Actor, threadId: string, ori
   if (!rows.length) throw notFound("Thread");
   const atts = await deps.db.select().from(attachments).where(inIds(attachments.messageId, rows.map((r) => r.id)));
   const names = await agentNames(deps, actor.orgId);
+  const app = !isPersonSession(actor);
   // PRIV1b (P15): approvals are keyed by thread, which a personal mailbox's copy can share: only mailboxes in scope.
   const approvals = await deps.db.select().from(sendApprovals).where(and(eq(sendApprovals.orgId, actor.orgId), eq(sendApprovals.threadId, threadId), eq(sendApprovals.status, "pending"), scope ? inIds(sendApprovals.mailboxId, scope) : undefined));
   // PRIV1b (P17): the Team inbox reader, v1 GET /threads/{id} and MCP read_thread land in "Who opened my mailbox".
@@ -428,7 +431,11 @@ export async function readThread(deps: Deps, actor: Actor, threadId: string, ori
     mailboxId: rows[0].mailboxId,
     subject: rows[0].subject,
     messageCount: rows.length,
-    messages: rows.map((m) => agentMessage(m, atts.filter((a) => a.messageId === m.id), origin, names)),
+    // AIS1 (row 32): an agent or an app reads the platform's own mail without its text, codes or links.
+    messages: rows.map((m) => {
+      const out = agentMessage(m, atts.filter((a) => a.messageId === m.id), origin, names);
+      return app && withheldRow(m, deps.config.systemFrom.address) ? withheldView(out) : out;
+    }),
     pendingApprovals: approvals.map(presentApproval),
   };
 }
@@ -438,7 +445,9 @@ export async function searchMessages(deps: Deps, actor: Actor, query: string, li
   const scope = await scopeFor(deps, actor);
   const fields = [messages.subject, messages.fromAddress, messages.fromName, messages.text, messages.to];
   const rows = await deps.db.select().from(messages)
-    .where(and(eq(messages.orgId, actor.orgId), scopeCond(scope), sql`${messages.folder} <> 'trash'`, containsAny(fields, query.trim())))
+    .where(and(eq(messages.orgId, actor.orgId), scopeCond(scope), sql`${messages.folder} <> 'trash'`, containsAny(fields, query.trim()),
+      // AIS1 (row 32): a search is an oracle on the text, so an agent or an app never searches the platform's own mail.
+      isPersonSession(actor) ? undefined : sql`not ${withheldSql(deps.config.systemFrom.address)}`))
     .orderBy(desc(messages.date)).limit(Math.min(Math.max(limit, 1), 100));
   return rows.map((m) => ({
     id: m.id, threadId: m.threadId, mailboxId: m.mailboxId, folder: m.folder, subject: m.subject, snippet: m.snippet,
@@ -656,7 +665,7 @@ export async function expireApprovals(deps: Deps) {
 // ---------------------------------------------------------------- inbound and events
 
 /** Called after mail lands in a mailbox: every agent that can read it gets an event. */
-export async function notifyAgentsOfInbound(deps: Deps, mb: Pick<Mailbox, "id" | "orgId">, m: { id: string; threadId: string; from: { address: string; name?: string }; subject: string; text: string; html?: string | null }) {
+export async function notifyAgentsOfInbound(deps: Deps, mb: Pick<Mailbox, "id" | "orgId">, m: { id: string; threadId: string; from: { address: string; name?: string }; subject: string; text: string; html?: string | null; withheld?: boolean }) {
   const own = await deps.db.select({ id: agents.id }).from(agents).where(eq(agents.mailboxId, mb.id));
   const given = await deps.db.select({ id: agents.id, maker: agents.createdByUserId }).from(agentMailboxAccess).innerJoin(agents, eq(agents.id, agentMailboxAccess.agentId))
     .where(eq(agentMailboxAccess.mailboxId, mb.id));
@@ -671,7 +680,10 @@ export async function notifyAgentsOfInbound(deps: Deps, mb: Pick<Mailbox, "id" |
     }
   }
   const ids = [...new Set([...own, ...shared].map((r) => r.id))];
-  const parsed = { messageId: m.id, threadId: m.threadId, mailboxId: mb.id, from: m.from, subject: m.subject, latestText: latestText(m.text), codes: extractCodes(m.text, m.subject), links: extractLinks(m.text, m.html) };
+  const full = { messageId: m.id, threadId: m.threadId, mailboxId: mb.id, from: m.from, subject: m.subject, latestText: latestText(m.text), codes: extractCodes(m.text, m.subject), links: extractLinks(m.text, m.html) };
+  // AIS1 (row 32): the platform's own mail (invites, confirmations, resets) reaches the feed, wait_for_email and the
+  // message.received webhook without its text, codes or links.
+  const parsed = m.withheld ? withheldView(full) : full;
   for (const id of ids) await recordEvent(deps, mb.orgId, id, "message.received", parsed);
   return { agentIds: ids, parsed };
 }

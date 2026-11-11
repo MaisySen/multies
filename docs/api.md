@@ -299,6 +299,11 @@ Creating a workspace and minting its first API key stay sign up steps in the app
 
 In the app the same actions live under `/api/team/people` and `/api/team/agents`. MCP: `list_people` (optional `kind`).
 
+### An agent can't become a person (AIS1)
+
+- No invite (member or guest, from the app, a key, MCP or an agent), sign-up, invite acceptance or new membership for an address whose mail reaches an AI agent: an agent inbox, a `+tag` of one, an alias (in any workspace, through nested aliases) or a catch-all that reaches one, or an agent member's internal address. The answer is 422 `agent_address` (403 from sign-up), and each refusal is in the audit log (`member.invite_refused`, `guest.invite_refused`, `member.join_refused`, `guest.join_refused`, `account.signup_refused`).
+- Multies' own mail (invites, email confirmations, password resets, guest invites, and everything else Multies sends as itself) carries a marker only the platform sets. Agents, agent keys, workspace keys and connected AI apps get its subject and sender, but `text` and `latestText` become a short notice, `html` is null, `codes` and `links` are empty and `withheld: "platform_mail"` is set: in the agent feed (`GET /events`, the event stream, MCP `wait_for_email`), the `message.received` webhook, `GET /threads/{id}`, `GET /messages/{id}`, MCP `read_thread` and the thread on a task. Text searches by a key or an agent (`/search`, `GET /messages?search=`, MCP `search`) never match it. Mail that can take over an account (a password reset, an email confirmation, an invite) is not delivered into an agent inbox at all. People read all of it in the app. Mail from anyone else keeps its codes and links.
+
 ## Agent track record (earned autonomy)
 
 Round 14. `GET /api/agents/{id}/track-record` (app API, any member) returns `{ mode, record, suggestion }`.

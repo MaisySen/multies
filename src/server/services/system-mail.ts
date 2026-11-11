@@ -79,6 +79,11 @@ export async function sendSystemEmail(deps: Deps, e: SystemEmail): Promise<Syste
   const to = e.to.toLowerCase();
 
   const route = await routeRecipient(deps.db, to);
+  // AIS1 (row 32): mail that can take over an account never goes to an AI agent's inbox at all.
+  if (e.accountSecurity && route.kind === "mailbox" && route.mailbox.kind === "agent") {
+    deps.log?.warn("system_mail.agent_inbox_skipped", { template: e.template ?? "notice" });
+    return { delivered: false, via: "none", detail: "This address is an AI agent's inbox. Multies doesn't send account email to agents." };
+  }
   const internal = e.accountSecurity ? route.kind === "mailbox" && route.mailbox.address.toLowerCase() === to : route.kind !== "none";
   if (internal) {
     const r = await deliverInbound(deps, {
@@ -86,6 +91,7 @@ export async function sendSystemEmail(deps: Deps, e: SystemEmail): Promise<Syste
       rcptTo: to,
       sizeBytes: text.length + html.length,
       via: "internal",
+      platformMail: "system", // AIS1 (row 32): agents and apps never get this mail's text, codes or links
       email: {
         messageId, from: { address: config.systemFrom.address, name: config.systemFrom.name },
         to: [{ address: to }], cc: [], subject: e.subject, text, html,
