@@ -71,6 +71,14 @@ export function withoutSecrets(text: string): string {
     .replace(/[ \t]+/g, " ");
 }
 
+/**
+ * A stored preview with any link or code taken out when the message is from the system sender. Rows stored since the
+ * fix already have such a preview; rows stored before it were cut from the text, link included. Costs no read.
+ */
+export function safeSnippet(snippet: string, fromAddress: string, systemFrom: string): string {
+  return same(fromAddress, systemFrom) ? withoutSecrets(snippet).trim() : snippet;
+}
+
 /** A message as an agent or an app may see it when it is the platform's own mail. */
 export function withheldView<T extends { text?: string | null; html?: string | null; latestText?: string; snippet?: string; codes?: string[]; links?: string[] }>(m: T): T & { withheld: "platform_mail" } {
   return {

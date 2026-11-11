@@ -27,6 +27,7 @@ import {
   type SearchItem, type SearchResult, type SearchType, type SearchViewer,
 } from "./search";
 import { containsAny, containsText } from "../lib/like-search";
+import { safeSnippet } from "./agents/platform-mail"; // AIS1 (row 32): pre-fix previews of the platform's own mail
 
 // ---------------------------------------------------------------- words, typos, ranking (pure)
 
@@ -225,7 +226,7 @@ async function mailGroup(c: Ctx): Promise<Candidate[]> {
     seen.add(m.threadId);
     out.push({
       title: m.subject || "", body: `${m.fromName} ${m.fromAddress} ${m.snippet}`, at: m.date ? new Date(m.date).getTime() : 0,
-      item: { type: "mail", id: m.id, title: m.subject || "(no subject)", subtitle: m.fromName ? `${m.fromName} <${m.fromAddress}>` : m.fromAddress, snippet: m.snippet.slice(0, 160),
+      item: { type: "mail", id: m.id, title: m.subject || "(no subject)", subtitle: m.fromName ? `${m.fromName} <${m.fromAddress}>` : m.fromAddress, snippet: safeSnippet(m.snippet, m.fromAddress, c.deps.config.systemFrom.address).slice(0, 160),
         url: `/app/mail?mailbox=${encodeURIComponent(m.mailboxId)}&folder=${encodeURIComponent(m.folder)}&m=${encodeURIComponent(m.id)}`, at: iso(m.date) },
     });
   }

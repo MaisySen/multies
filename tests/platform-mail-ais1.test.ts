@@ -8,6 +8,8 @@ import { aliases, deliveries, messages } from "@/server/db/schema";
 import { sendSystemEmail } from "@/server/services/system-mail";
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { NOT_FORWARDED_TO_AGENT } from "@/server/services/agents/platform-mail";
+import { recordEvent } from "@/server/services/agents";
+import { makeSnippet } from "@/server/services/mail/mime";
 
 /**
  * AIS1 (audit of 11 Nov 2026, row 32): Multies' own mail (invites, "Confirm your email", password resets, guest
@@ -21,6 +23,7 @@ let agentKey: string;
 let agentId: string;
 let domainId: string;
 let orgId: string;
+let inboxId: string;
 const SECRET = "Zq7mK2pX9wTr4LbN8cVd";
 const CODE = "573918";
 
@@ -81,6 +84,7 @@ beforeEach(async () => {
   const made = await api(wsKey, "POST", "/agents", { name: "Agent", localPart: "agent" });
   agentKey = made.body.apiKey.secret;
   agentId = made.body.agent.id;
+  inboxId = made.body.agent.inboxId;
 });
 
 describe("AIS1 row 32: the platform's own mail never gives an agent its codes or links", () => {
@@ -304,4 +308,36 @@ describe("AIS1 row 32 (review): a workspace export a key or an app starts withho
     const mail = await mailIn(ex.body.downloadPath);
     expect(mail).toContain(`reset-password/${SECRET}`);
   }, 60_000);
+});
+
+describe("AIS1 row 32 (review): what the agent already held from before the fix is withheld when read", () => {
+  it("a feed event written before the fix for a confirmation is served withheld, on the feed and wait_for_email", async () => {
+    // The live agent's event log: the feed event written for "Confirm your email" before the fix (its message is gone).
+    await recordEvent(ctx.deps, orgId, agentId, "message.received", {
+      messageId: "msg_old", threadId: "thr_old", mailboxId: inboxId, from: { address: ctx.deps.config.systemFrom.address, name: "Multies" },
+      subject: "Confirm your email for Multies", latestText: `Confirm: http://localhost/verify-email?token=${SECRET}`, codes: [], links: [`http://localhost/verify-email?token=${SECRET}`],
+    });
+    const feed = await api(agentKey, "GET", "/events?after=0");
+    const mcp = await mcpFor(agentKey);
+    const waited = data(await mcp.callTool({ name: "wait_for_email", arguments: { agentId, timeoutSeconds: 0, cursor: 0 } }));
+    expect(JSON.stringify(feed.body)).toContain("Confirm your email for Multies");
+    expect(JSON.stringify(feed.body)).not.toContain(SECRET);
+    expect(JSON.stringify(waited)).not.toContain(SECRET);
+    expect(waited.messages[0]).toMatchObject({ subject: "Confirm your email for Multies", links: [], withheld: "platform_mail" });
+  });
+
+  it("a preview stored before the fix loses its link in list_threads, the agent's threads and search_everything", async () => {
+    const m = await platformMail();
+    // A row stored before the fix: no platform mark, and the preview cut from the text (link included).
+    await ctx.db.update(messages).set({ authResults: JSON.stringify({ spf: "pass", dkim: "pass", dmarc: "pass" }), snippet: makeSnippet(m.text) }).where(eq(messages.id, m.id));
+    expect((await ctx.db.select().from(messages).where(eq(messages.id, m.id)).get())!.snippet).toContain(SECRET.slice(0, 12));
+    const mcp = await mcpFor(agentKey);
+    const reads = [
+      data(await mcp.callTool({ name: "list_threads", arguments: { agentId } })),
+      (await api(agentKey, "GET", `/agents/${agentId}/threads`)).body,
+      data(await mcp.callTool({ name: "search_everything", arguments: { q: "invited" } })),
+    ];
+    for (const r of reads) expect(JSON.stringify(r)).toContain("invited to Launch");
+    for (const r of reads) expect(JSON.stringify(r)).not.toContain(SECRET.slice(0, 12));
+  });
 });
