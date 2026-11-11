@@ -149,10 +149,13 @@ minute per item. `POST /api/catchup/visit` (`{ type, id }`) marks the item caugh
 
 ## The workspace's own AI key: refusals and built-in AI (QUAL1)
 
-When the provider refuses the workspace's own key (401 or 403), says its account has no credit, or no longer offers the
-saved model, Multies notes it on the key with the time, on any AI call (the mail assistant, Tools, Team AI, meeting
-notes and recordings, catch-up, forms, the connection test and the model list). A call on the key that works, a passed
-`POST /api/ai/test`, a new key, or (for the model) a new model clears it.
+When the provider refuses the workspace's own key (401, or a 403 that names the key or a permission), says its account
+has no credit (402 or its own quota or balance code), or no longer offers the saved model, Multies notes it on the key
+with the time, on any AI call (the mail assistant, Tools, Team AI, meeting notes and recordings, catch-up, forms, the
+connection test and the model list). A call on the key that works, a passed `POST /api/ai/test`, a new key, or (for the
+model) a new model clears it. A provider turning down the request's own text (its moderation or a guardrail flags it,
+or it is too long) is never noted on the key and never goes to built-in AI: the answer is `502 ai_provider_error`
+saying the provider would not answer this request. Rate limits are not noted either.
 
 - `GET /api/ai/status` adds `problem` (`key_refused`, `no_credit` or `model_unavailable`), `problemAt` (ISO time) and
   `problemMessage` (the plain sentence the app shows) while the key is refused. They are absent while it works; `connected`

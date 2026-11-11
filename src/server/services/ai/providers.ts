@@ -117,28 +117,54 @@ export function byoProvider(provider: AiProviderId, apiKey: string, model: strin
 }
 
 /**
- * The plain result for a failed provider call. The body is only searched for a few words (credit, model) and is
- * never returned or logged.
+ * Words a provider uses when it refuses the request's own text (moderation, guardrails, its length), never the key:
+ * OpenRouter's 403 "requires moderation ... your input was flagged", an OpenAI style 400 context_length_exceeded.
+ */
+const CONTENT_REFUSAL = /moderat|flagged|guardrail|content[ _-]?(policy|filter|management)|context[ _-]?length|maximum context|too many tokens|max_tokens|prompt is too long|input is too long|reduce the length/;
+/**
+ * An account out of credit, in the codes and phrases providers use: OpenAI insufficient_quota, Anthropic "credit
+ * balance is too low", OpenRouter "insufficient credits", DeepSeek "insufficient balance". Never a bare "credit"
+ * ("No credits were charged") or a billing link (Groq's rate limit answer links its settings/billing page).
+ */
+const NO_CREDIT = /insufficient[ _](quota|balance|credits?|funds)|credit balance|out of credits?|no credits? (left|remaining)|exceeded your current quota|billing[ _]hard[ _]limit|payment[ _]required|key limit exceeded/;
+/** A 403 about the key itself: it names the key, signing in or permission. */
+const KEY_WORDS = /api[ _-]?key|x-api-key|authenticat|unauthori[sz]|permission|forbidden|access denied|invalid (key|token|credentials)|revoked/;
+/** A model that is not offered: "model" with a not found or retired phrase on the same line, or the codes for it. */
+const MODEL_GONE = /model_not_found|model_decommissioned|\bmodels?\b[^\n]{0,160}?(not found|does not exist|not exist|is not available|not available|not supported|decommissioned|deprecated|no longer|do not have access|does not have access|no access)|(unknown|invalid|unsupported) model\b|not a valid model/;
+
+/**
+ * The plain result for a failed provider call, for the connection test and the model list (their request text is
+ * fixed, so any 403 there is about the key). The body is only searched for a few words and is never returned or logged.
  */
 export function mapFailure(status: number | null, body = ""): Ai2ResultCode {
   const b = body.toLowerCase();
   if (status === null) return "unreachable";
-  if (status === 401 || status === 403) return /credit|balance|billing|quota/.test(b) && status === 403 ? "no_credit" : "key_refused";
-  if (status === 402) return "no_credit";
-  if (/insufficient_quota|insufficient balance|insufficient credit|credit balance|out of credit|billing|payment required/.test(b)) return "no_credit";
+  if (status === 401) return "key_refused";
+  if (status === 403) return NO_CREDIT.test(b) ? "no_credit" : "key_refused";
+  if (status === 402 || NO_CREDIT.test(b)) return "no_credit";
   if (status === 429) return "rate_limited";
   if (status === 404) return "model_unavailable";
-  if ((status === 400 || status === 422) && /model/.test(b) && /not (found|exist|available|supported)|invalid|unknown|does not|decommission|no access|not allowed/.test(b)) return "model_unavailable";
+  if ((status === 400 || status === 422) && MODEL_GONE.test(b)) return "model_unavailable";
   if (status === 400 && /api key|api_key|apikey|authentication|unauthor/.test(b)) return "key_refused";
   return "provider_error";
 }
 
 /**
- * QUAL1 (audit rows 12, 14): the lasting problem a provider error names on the saved key or its model, or null for a
- * passing one (a rate limit, an outage, a timeout). The body is only searched for a few words, as in mapFailure.
+ * QUAL1 (audit rows 12, 14): the lasting problem a failed call names on the saved key or its model, or null for a
+ * passing one. Stricter than mapFailure, because a call's text can come from outside (a mail, a form answer): only a
+ * failure about the key, the account's credit or the model counts. A provider refusing the request's own content
+ * (moderation, a guardrail, too long) is never the key's problem, so outside text can neither mark a working key nor
+ * send itself to built-in AI. Rate limits, outages and timeouts are passing too.
  */
 export function keyProblemOf(err: unknown): AiKeyProblem | null {
   if (!(err instanceof AiProviderError) || err.status === null) return null;
-  const code = mapFailure(err.status, err.message);
-  return code === "key_refused" || code === "no_credit" || code === "model_unavailable" ? code : null;
+  const s = err.status, b = err.message.toLowerCase();
+  if (s === 401) return "key_refused";
+  if (CONTENT_REFUSAL.test(b)) return null;
+  if (s === 402 || NO_CREDIT.test(b)) return "no_credit";
+  if (s === 403) return KEY_WORDS.test(b) ? "key_refused" : null;
+  if (s === 404) return "model_unavailable";
+  if ((s === 400 || s === 422) && MODEL_GONE.test(b)) return "model_unavailable";
+  if (s === 400 && /api[ _-]?key|authenticat|unauthori[sz]/.test(b)) return "key_refused"; // Gemini: 400 API_KEY_INVALID
+  return null;
 }

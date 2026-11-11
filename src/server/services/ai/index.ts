@@ -50,6 +50,8 @@ export function keyProblemError(problem: AiKeyProblem, provider: AiProviderId): 
 export function providerFailureError(err: AiProviderError): HttpError {
   const name = AI_PROVIDER_INFO[err.provider].name;
   const why = err.status === 429 ? `${name} says the key is over its rate limit. Try again in a minute.`
+    // QUAL1 review: a refusal of this request's own text (moderation, too long) is not the key, and a retry will not help.
+    : err.status && err.status >= 400 && err.status < 500 ? `${name} would not answer this request (status ${err.status}). It may be too long, or the provider's content rules stopped it.`
     : `${name} could not answer just now${err.status ? ` (status ${err.status})` : ""}. Try again in a minute.`;
   return new HttpError(502, "ai_provider_error", why);
 }
