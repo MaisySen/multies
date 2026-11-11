@@ -89,6 +89,22 @@ describe("AIS1 row 1: which addresses reach an agent", () => {
     expect(await agentAddress(ctx.db, amEmail)).toMatchObject({ orgId, via: "agent_member" });
   });
 
+  it("an agent inbox on the platform's shared agent domain still counts (that row is stored verified)", async () => {
+    const shared = await makeTestApp({ AGENT_MAIL_DOMAIN: "agents.example" });
+    const boss = new Client(shared.app);
+    await boss.signup("boss@nodomain.test", "No Domain");
+    const key = (await boss.post("/api/developer/keys", { name: "Setup" })).body.secret as string;
+    const res = await shared.app.request("/api/v1/agents", { method: "POST", headers: { host: "localhost", authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify({ name: "Helper", localPart: "helper-bot" }) });
+    expect(res.status).toBe(201);
+    const address = ((await res.json()) as { agent: { address?: string; email?: string } }).agent;
+    const agentMail = (address.address ?? address.email ?? "").toLowerCase();
+    expect(agentMail.endsWith("@agents.example")).toBe(true);
+    expect(await agentAddress(shared.db, agentMail)).toMatchObject({ via: "agent_inbox" });
+    const r = await boss.post("/api/team/invites", { email: agentMail, role: "member", mailboxIds: [] });
+    expect(r.status).toBe(422);
+    expect(r.body.error.code).toBe("agent_address");
+  });
+
   it("an agent inbox on a domain nobody proved blocks no one (anyone can add any domain name)", async () => {
     const squat = new Client(ctx.app);
     await squat.signup("boss@squat.test", "Squatter");
