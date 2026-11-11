@@ -6,24 +6,63 @@
  * blockquote, codeBlock, horizontalRule, hardBreak; marks bold, italic, strike, code and link.
  * It covers the markdown agents actually write; anything it does not know stays as plain text,
  * so nothing is lost. Link targets are filtered later by the docs service (http, https, mailto only).
+ *
+ * QUAL1: any member, key or connected AI app can send up to 200,000 characters here, so no line may make the parser
+ * backtrack over itself. Headings and fences are read with plain scans; a run of spaces before the rest of a line is
+ * taken whole ("(?=(\s+))\N" never gives part of it back); inline formatting has a work budget per line. Each case
+ * that used to take seconds is timed in tests/markdown-redos-qual1.test.ts, which also checks that every rewritten
+ * pattern reads lines exactly as the old one did.
  */
 export interface MdNode { type: string; text?: string; content?: MdNode[]; attrs?: Record<string, unknown>; marks?: MdMark[] }
 export interface MdMark { type: string; attrs?: Record<string, unknown> }
 
-const FENCE = /^(\s{0,3})(`{3,}|~{3,})\s*([\w+#.-]*)\s*$/;
-const HEADING = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/;
 const RULE = /^\s{0,3}((\*\s*){3,}|(-\s*){3,}|(_\s*){3,})$/;
 const QUOTE = /^\s{0,3}>\s?(.*)$/;
-const ITEM = /^(\s*)([-*+]|\d{1,9}[.)])\s+(.*)$/;
-const TASK = /^\[([ xX])\]\s+(.*)$/;
+/** [1] indent, [2] marker, [4] text. */
+const ITEM = /^(\s*)([-*+]|\d{1,9}[.)])(?=(\s+))\3(.*)$/;
+/** [1] the box, [3] text. */
+const TASK = /^\[([ xX])\](?=(\s+))\2(.*)$/;
 
 const CALLOUT_OPEN = /^\s{0,3}:::\s*([a-z]+)\s*$/i;
 const CALLOUT_CLOSE = /^\s{0,3}:::\s*$/;
-const QUOTE_ALERT = /^\s{0,3}>\s?\[!([a-z]+)\]\s*(.*)$/i;
+/** [1] the word, [3] text. */
+const QUOTE_ALERT = /^\s{0,3}>\s?\[!([a-z]+)\](?=(\s*))\2(.*)$/i;
 const IMAGE_LINE = /^\s{0,3}!\[([^\]]{0,300})\]\((https:\/\/[^\s)]+)\)\s*$/;
 const TABLE_ROW = /^\s{0,3}\|.*\|\s*$/;
 const TABLE_RULE = /^\s{0,3}\|(\s*:?-{1,}:?\s*\|)+\s*$/;
 const VARIANTS: Record<string, string> = { info: "info", note: "info", important: "info", success: "success", tip: "success", check: "success", warning: "warning", warn: "warning", caution: "warning", danger: "danger", error: "danger", alert: "danger" };
+
+const HEADING_OPEN = /^\s{0,3}(#{1,6})\s/;
+const FENCE_OPEN = /^\s{0,3}(`{3,}|~{3,})/;
+const FENCE_LANG = /^[\w+#.-]*$/;
+const LINE_BREAK = /[\n\r\p{Zl}\p{Zp}]/u;
+
+/**
+ * "## Title ##": the level and the text, closing #s and spaces dropped, or null. Reads lines exactly as
+ * /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/ did before QUAL1, which took seconds on a heading full of spaces.
+ */
+export function headingLine(line: string): { level: number; text: string } | null {
+  const m = HEADING_OPEN.exec(line);
+  if (!m) return null;
+  let text = line.slice(m[0].length).trimStart().trimEnd();
+  let end = text.length;
+  while (end > 0 && text[end - 1] === "#") end--;
+  text = text.slice(0, end).trimEnd();
+  return LINE_BREAK.test(text) ? null : { level: m[1].length, text };
+}
+
+/**
+ * "```ts": the fence and its language word, or null. Reads lines exactly as
+ * /^(\s{0,3})(`{3,}|~{3,})\s*([\w+#.-]*)\s*$/ did before QUAL1, which was quadratic on runs of spaces.
+ */
+export function fenceLine(line: string): { fence: string; lang: string } | null {
+  const m = FENCE_OPEN.exec(line);
+  if (!m) return null;
+  const lang = line.slice(m[0].length).trim();
+  return FENCE_LANG.test(lang) ? { fence: m[1], lang } : null;
+}
+const isHeading = (line: string) => headingLine(line) !== null;
+const isFence = (line: string) => fenceLine(line) !== null;
 
 function callout(word: string, body: string[], depth: number): MdNode {
   const variant = VARIANTS[word.toLowerCase()] ?? "info";
@@ -38,7 +77,9 @@ function cells(row: string): string[] {
 }
 
 function table(rows: string[][]): MdNode {
-  const cols = Math.min(Math.max(...rows.map((r) => r.length)), 30);
+  let widest = 0;
+  for (const r of rows) widest = Math.max(widest, r.length); // QUAL1: a loop, not a spread (thousands of rows overflow the stack)
+  const cols = Math.min(widest, 30);
   const cell = (type: string, text: string): MdNode => ({ type, attrs: { colspan: 1, rowspan: 1, colwidth: null, align: null }, content: [text ? withInline({ type: "paragraph" }, text) : { type: "paragraph" }] });
   return {
     type: "table",
@@ -60,19 +101,19 @@ function blocks(lines: string[], depth: number): MdNode[] {
   while (i < lines.length) {
     const line = lines[i];
     if (blank(line)) { i++; continue; }
-    const fence = line.match(FENCE);
+    const fence = fenceLine(line);
     if (fence) {
-      const close = new RegExp(`^\\s{0,3}${fence[2][0] === "`" ? "`" : "~"}{${fence[2].length},}\\s*$`);
+      const close = new RegExp(`^\\s{0,3}${fence.fence[0] === "`" ? "`" : "~"}{${fence.fence.length},}\\s*$`);
       const body: string[] = [];
       i++;
       while (i < lines.length && !close.test(lines[i])) body.push(lines[i++]);
       i++; // the closing fence (or the end)
       const text = body.join("\n");
-      out.push({ type: "codeBlock", attrs: { language: fence[3] || null }, ...(text ? { content: [{ type: "text", text }] } : {}) });
+      out.push({ type: "codeBlock", attrs: { language: fence.lang || null }, ...(text ? { content: [{ type: "text", text }] } : {}) });
       continue;
     }
-    const h = line.match(HEADING);
-    if (h) { out.push(withInline({ type: "heading", attrs: { level: h[1].length } }, h[2])); i++; continue; }
+    const h = headingLine(line);
+    if (h) { out.push(withInline({ type: "heading", attrs: { level: h.level } }, h.text)); i++; continue; }
     if (RULE.test(line)) { out.push({ type: "horizontalRule" }); i++; continue; }
     // R32: callouts (":::info" ... ":::", or a "> [!NOTE]" quote), a line that is only an image, and pipe tables.
     const open = line.match(CALLOUT_OPEN);
@@ -86,7 +127,7 @@ function blocks(lines: string[], depth: number): MdNode[] {
     }
     const alert = line.match(QUOTE_ALERT);
     if (alert) {
-      const body: string[] = [alert[2]];
+      const body: string[] = [alert[3]];
       i++;
       while (i < lines.length && !blank(lines[i]) && QUOTE.test(lines[i])) body.push(lines[i++].match(QUOTE)![1]);
       out.push(callout(alert[1], body, depth));
@@ -105,7 +146,7 @@ function blocks(lines: string[], depth: number): MdNode[] {
       const inner: string[] = [];
       while (i < lines.length && !blank(lines[i]) && (QUOTE.test(lines[i]) || inner.length)) {
         const q = lines[i].match(QUOTE);
-        if (!q && (ITEM.test(lines[i]) || HEADING.test(lines[i]) || FENCE.test(lines[i]))) break;
+        if (!q && (ITEM.test(lines[i]) || isHeading(lines[i]) || isFence(lines[i]))) break;
         inner.push(q ? q[1] : lines[i]);
         i++;
       }
@@ -115,7 +156,7 @@ function blocks(lines: string[], depth: number): MdNode[] {
     if (ITEM.test(line)) { i = list(lines, i, depth, out); continue; }
     // A paragraph: lines up to a blank line or the start of another block.
     const para: string[] = [];
-    while (i < lines.length && !blank(lines[i]) && !(para.length && (FENCE.test(lines[i]) || HEADING.test(lines[i]) || QUOTE.test(lines[i]) || ITEM.test(lines[i]) || RULE.test(lines[i]) || CALLOUT_OPEN.test(lines[i]) || IMAGE_LINE.test(lines[i])))) {
+    while (i < lines.length && !blank(lines[i]) && !(para.length && (isFence(lines[i]) || isHeading(lines[i]) || QUOTE.test(lines[i]) || ITEM.test(lines[i]) || RULE.test(lines[i]) || CALLOUT_OPEN.test(lines[i]) || IMAGE_LINE.test(lines[i])))) {
       para.push(lines[i]);
       i++;
     }
@@ -129,36 +170,39 @@ function list(lines: string[], start: number, depth: number, out: MdNode[]): num
   const first = lines[start].match(ITEM)!;
   const base = indentOf(lines[start]);
   const ordered = /\d/.test(first[2]);
-  const isTask = !ordered && TASK.test(first[3]);
+  const isTask = !ordered && TASK.test(first[4]);
   const items: MdNode[] = [];
   let i = start;
   while (i < lines.length) {
     const m = lines[i].match(ITEM);
     if (!m || indentOf(lines[i]) !== base) break;
-    if (/\d/.test(m[2]) !== ordered || (!ordered && TASK.test(m[3]) !== isTask)) break; // another kind of list starts
+    if (/\d/.test(m[2]) !== ordered || (!ordered && TASK.test(m[4]) !== isTask)) break; // another kind of list starts
     // The item's own text, then every following line indented deeper (or a lazy continuation).
-    const own: string[] = [m[3]];
+    const own: string[] = [m[4]];
     const nested: string[] = [];
     i++;
     while (i < lines.length) {
       const l = lines[i];
       if (blank(l)) {
-        const next = lines.slice(i + 1).find((x) => !blank(x));
-        if (next !== undefined && indentOf(next) > base) { nested.push(""); i++; continue; }
+        // QUAL1: the blank lines before a deeper line all go with it at once (a slice per blank line was quadratic).
+        let next = i + 1;
+        while (next < lines.length && blank(lines[next])) next++;
+        if (next < lines.length && indentOf(lines[next]) > base) { while (i < next) { nested.push(""); i++; } continue; }
         break;
       }
       if (indentOf(l) > base) { nested.push(l); i++; continue; }
-      if (!nested.length && !ITEM.test(l) && !HEADING.test(l) && !FENCE.test(l) && !QUOTE.test(l) && !RULE.test(l)) { own.push(l); i++; continue; }
+      if (!nested.length && !ITEM.test(l) && !isHeading(l) && !isFence(l) && !QUOTE.test(l) && !RULE.test(l)) { own.push(l); i++; continue; }
       break;
     }
     let text = own.join("\n");
     let checked: boolean | undefined;
-    if (isTask) { const t = text.match(TASK); if (t) { checked = t[1].toLowerCase() === "x"; text = t[2]; } }
+    if (isTask) { const t = text.match(TASK); if (t) { checked = t[1].toLowerCase() === "x"; text = t[3]; } }
     const content: MdNode[] = [paragraphFromLines(text.split("\n"))];
     if (nested.length) {
-      const cut = Math.min(...nested.filter((l) => !blank(l)).map(indentOf));
+      let cut = Infinity;
+      for (const l of nested) if (!blank(l)) cut = Math.min(cut, indentOf(l));
       const inner = nested.map((l) => (blank(l) ? "" : l.replace(/\t/g, "    ").slice(cut)));
-      content.push(...(depth < 16 ? blocks(inner, depth + 1) : [paragraph(inner.join(" ").trim())]));
+      pushAll(content, depth < 16 ? blocks(inner, depth + 1) : [paragraph(inner.join(" ").trim())]);
     }
     items.push(isTask ? { type: "taskItem", attrs: { checked: !!checked }, content } : { type: "listItem", content });
   }
@@ -174,12 +218,28 @@ const paragraph = (text: string): MdNode => withInline({ type: "paragraph" }, te
 function paragraphFromLines(lines: string[]): MdNode {
   const content: MdNode[] = [];
   lines.forEach((raw, n) => {
-    const hard = /( {2,}|\\)$/.test(raw) && n < lines.length - 1;
-    const line = (hard ? raw.replace(/( {2,}|\\)$/, "") : raw).trim();
-    content.push(...inline(line, []));
-    if (n < lines.length - 1) content.push(hard ? { type: "hardBreak" } : { type: "text", text: " " });
+    const keep = n < lines.length - 1 ? breakAt(raw) : -1;
+    const line = (keep >= 0 ? raw.slice(0, keep) : raw).trim();
+    pushAll(content, inline(line, []));
+    if (n < lines.length - 1) content.push(keep >= 0 ? { type: "hardBreak" } : { type: "text", text: " " });
   });
   return { type: "paragraph", ...(content.length ? { content: merge(content) } : {}) };
+}
+
+/**
+ * Where a line that ends in a break (two or more spaces, or a backslash) ends without it, or -1. Same reading as
+ * /( {2,}|\\)$/ before QUAL1, which was quadratic on a long run of spaces inside a line.
+ */
+function breakAt(raw: string): number {
+  let k = raw.length;
+  while (k > 0 && raw[k - 1] === " ") k--;
+  if (raw.length - k >= 2) return k;
+  return raw.endsWith("\\") ? raw.length - 1 : -1;
+}
+
+/** QUAL1: push without a spread, which overflows the stack on very long arrays. */
+function pushAll(out: MdNode[], nodes: MdNode[]) {
+  for (const n of nodes) out.push(n);
 }
 
 function withInline(node: MdNode, text: string): MdNode {
@@ -216,22 +276,50 @@ function plainWithLinks(s: string, marks: MdMark[]): MdNode[] {
   return out;
 }
 
+/**
+ * QUAL1: the work inline formatting may do on one line, in characters scanned: about INLINE_SCANS passes over it.
+ * Ordinary text needs a few. A line built to make the scans quadratic (thousands of unclosed *, _, ~~, [ or `) runs
+ * out and is kept as plain text with its web links, instead of holding the server for seconds.
+ */
+const INLINE_SCANS = 16;
+const INLINE_SLACK = 1024;
+interface Work { left: number }
+class OutOfWork extends Error {}
+const OUT_OF_WORK = new OutOfWork("inline formatting work budget");
+function spend(work: Work, chars: number) {
+  work.left -= chars;
+  if (work.left < 0) throw OUT_OF_WORK;
+}
+
 /** Inline markdown: code spans, links, bold, italic and strike, with backslash escapes. */
 export function inline(s: string, marks: MdMark[], depth = 0): MdNode[] {
+  const work: Work = { left: INLINE_SCANS * s.length + INLINE_SLACK };
+  try {
+    return spans(s, marks, depth, work);
+  } catch (e) {
+    if (e === OUT_OF_WORK) return plainWithLinks(s, marks);
+    throw e;
+  }
+}
+
+function spans(s: string, marks: MdMark[], depth: number, work: Work): MdNode[] {
   const out: MdNode[] = [];
   let buf = "";
-  const flush = () => { if (buf) { out.push(...plainWithLinks(buf, marks)); buf = ""; } };
+  const flush = () => { if (buf) { pushAll(out, plainWithLinks(buf, marks)); buf = ""; } };
   const has = (t: string) => marks.some((m) => m.type === t);
   let i = 0;
   while (i < s.length) {
     const ch = s[i];
     if (ch === "\\" && i + 1 < s.length && /[\\`*_{}[\]()#+\-.!~<>|]/.test(s[i + 1])) { buf += s[i + 1]; i += 2; continue; }
     if (ch === "`") {
-      const run = s.slice(i).match(/^`+/)![0];
-      const end = s.indexOf(run, i + run.length);
+      let j = i;
+      while (s[j] === "`") j++;
+      const run = s.slice(i, j);
+      const end = s.indexOf(run, j);
+      spend(work, (end > i ? end : s.length) - i);
       if (end > i) {
         flush();
-        let code = s.slice(i + run.length, end);
+        let code = s.slice(j, end);
         if (/^ .* $/.test(code)) code = code.slice(1, -1);
         out.push(text(code, [...marks.filter((m) => m.type === "link"), { type: "code" }]));
         i = end + run.length;
@@ -240,11 +328,11 @@ export function inline(s: string, marks: MdMark[], depth = 0): MdNode[] {
     }
     if (depth < 8) {
       if (ch === "[" && !has("link")) {
-        const close = matchBracket(s, i);
+        const close = matchBracket(s, i, work);
         const url = close > 0 && s[close + 1] === "(" ? s.slice(close + 2).match(/^\s*<?([^\s()<>]*(?:\([^\s()]*\)[^\s()<>]*)*)>?(?:\s+["'][^"']*["'])?\s*\)/) : null;
         if (url) {
           flush();
-          out.push(...inline(s.slice(i + 1, close), [...marks, { type: "link", attrs: { href: url[1] } }], depth + 1));
+          pushAll(out, spans(s.slice(i + 1, close), [...marks, { type: "link", attrs: { href: url[1] } }], depth + 1, work));
           i = close + 2 + url[0].length;
           continue;
         }
@@ -257,10 +345,10 @@ export function inline(s: string, marks: MdMark[], depth = 0): MdNode[] {
       if (delim) {
         const mark = delim === "~~" ? "strike" : delim.length === 2 ? "bold" : "italic";
         const leftOk = delim[0] !== "_" || i === 0 || !/[\p{L}\p{N}]/u.test(s[i - 1]);
-        const end = leftOk && !/\s/.test(s[i + delim.length] ?? " ") ? closing(s, i + delim.length, delim) : -1;
+        const end = leftOk && !/\s/.test(s[i + delim.length] ?? " ") ? closing(s, i + delim.length, delim, work) : -1;
         if (end > 0 && !has(mark)) {
           flush();
-          out.push(...inline(s.slice(i + delim.length, end), [...marks, { type: mark }], depth + 1));
+          pushAll(out, spans(s.slice(i + delim.length, end), [...marks, { type: mark }], depth + 1, work));
           i = end + delim.length;
           continue;
         }
@@ -273,26 +361,35 @@ export function inline(s: string, marks: MdMark[], depth = 0): MdNode[] {
   return out;
 }
 
-function matchBracket(s: string, open: number): number {
+function matchBracket(s: string, open: number, work: Work): number {
   let level = 0;
   for (let i = open; i < s.length; i++) {
     if (s[i] === "\\") { i++; continue; }
     if (s[i] === "[") level++;
-    else if (s[i] === "]" && --level === 0) return i;
+    else if (s[i] === "]" && --level === 0) { spend(work, i - open); return i; }
   }
+  spend(work, s.length - open);
   return -1;
 }
 
 /** The index of the delimiter that closes a span opened just before `from`, or -1. */
-function closing(s: string, from: number, delim: string): number {
+function closing(s: string, from: number, delim: string, work: Work): number {
   for (let i = from; i < s.length; i++) {
     if (s[i] === "\\") { i++; continue; }
-    if (s[i] === "`") { const run = s.slice(i).match(/^`+/)![0]; const e = s.indexOf(run, i + run.length); if (e > 0) { i = e + run.length - 1; continue; } }
+    if (s[i] === "`") {
+      let j = i;
+      while (s[j] === "`") j++;
+      const e = s.indexOf(s.slice(i, j), j);
+      spend(work, (e > 0 ? e : s.length) - i);
+      if (e > 0) { i = e + (j - i) - 1; continue; }
+    }
     if (!s.startsWith(delim, i) || /\s/.test(s[i - 1])) continue;
     if (delim.length === 1 && s[i + 1] === delim) { i++; continue; } // a double delimiter inside a single span
     if (delim[0] === "_" && i + delim.length < s.length && /[\p{L}\p{N}]/u.test(s[i + delim.length])) continue;
     if (i === from) continue;
+    spend(work, i - from);
     return i;
   }
+  spend(work, s.length - from);
   return -1;
 }
