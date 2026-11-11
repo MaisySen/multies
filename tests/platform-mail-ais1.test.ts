@@ -252,3 +252,22 @@ describe("AIS1 row 32 (review): a forward never hands the platform's own mail to
     expect(ctx.outbound.sent.filter((m) => m.subject === "Reset your Multies password")).toEqual([]);
   });
 });
+
+describe("AIS1 row 32 (review): a bulk job's search is no oracle on the platform's own mail", () => {
+  it("an agent key's search counts none of it, on v1 and MCP; a person's search in the app finds it", async () => {
+    const m = await platformMail();
+    const job = (id: string, q: string) => ({ client_job_id: id, action: "read", scope: { mailboxId: m.mailboxId, q }, max_received_at: new Date(Date.now() + 60_000).toISOString() });
+    // Before the fix an agent key counted 1 for a right guess and 0 for a wrong one: the secret, a letter at a time.
+    const hit = await api(agentKey, "POST", "/mail/bulk-jobs", job("oracle_hit_0001", SECRET.slice(0, 8)));
+    const miss = await api(agentKey, "POST", "/mail/bulk-jobs", job("oracle_miss_001", `${SECRET.slice(0, 7)}#`));
+    expect([hit.status, miss.status]).toEqual([200, 200]);
+    expect({ hit: hit.body.total, miss: miss.body.total }).toEqual({ hit: 0, miss: 0 });
+    expect((await api(wsKey, "POST", "/mail/bulk-jobs", job("oracle_code_001", CODE))).body.total).toBe(0);
+    const mcp = await mcpFor(agentKey);
+    const viaMcp = data(await mcp.callTool({ name: "mail_bulk_job", arguments: { job_id: "oracle_mcp_0001", action: "read", mailbox_id: m.mailboxId, query: SECRET.slice(0, 8) } }));
+    expect(viaMcp.total).toBe(0);
+    // Without a search, the folder's own count still includes it; a person searching in the app finds it.
+    expect((await api(agentKey, "POST", "/mail/bulk-jobs", { ...job("folder_all_0001", ""), scope: { mailboxId: m.mailboxId, folder: "inbox" } })).body.total).toBe(1);
+    expect((await owner.post("/api/mail/bulk-jobs/preview", { scope: { mailboxId: m.mailboxId, q: SECRET.slice(0, 8) }, max_received_at: new Date(Date.now() + 60_000).toISOString() })).body.total).toBe(1);
+  });
+});

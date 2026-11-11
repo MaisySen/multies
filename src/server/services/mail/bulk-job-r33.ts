@@ -23,6 +23,8 @@ import { runBulkMail, type BulkMailAction, type QueueFn } from "./bulk-r32";
 import { resolveWhen, snoozeHiddenCond, type ScheduleActor, type WhenInput } from "./schedules";
 import { splitCond } from "./splits";
 import { containsAny } from "../../lib/like-search";
+import { isPersonSession, type CallerLike } from "../../lib/actor-kind";
+import { withheldSql } from "../agents/platform-mail";
 
 /** Actions a job can run: the ones with a clear meaning over thousands of messages. */
 // R34: snooze (until one time for every thread) and move (to a connected mailbox's folder) run as a job too.
@@ -98,6 +100,9 @@ async function scopeConds(deps: Deps, actor: ScheduleActor, job: { params: Param
     const fields = [messages.subject, messages.fromAddress, messages.fromName, messages.text, messages.to];
     conds.push(containsAny(fields, scope.q.trim()));
     if (!scope.folder) conds.push(sql`${messages.folder} <> 'trash'`);
+    // AIS1 (row 32): a search's count is an oracle on the text, so a key, an agent or an app never searches the
+    // platform's own mail (as /search and GET /messages?search=). A folder without a search still counts it.
+    if (!isPersonSession(actor as CallerLike)) conds.push(sql`not ${withheldSql(deps.config.systemFrom.address)}`);
   }
   if (scope.folder === "inbox" && !scope.q && !scope.remote) {
     conds.push(snoozeHiddenCond(deps.now()));

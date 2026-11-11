@@ -286,7 +286,7 @@ Registered in src/server/routes/mcp-r32-mail.ts. Same service as the web app's s
 | Tool | What it does |
 | --- | --- |
 | `mail_bulk_action` | One action on up to 500 message ids: read, unread, star, unstar, archive, inbox, spam, trash, delete (forever), move (`to`), snooze (`until` or `preset`) or unsnooze. Inverses undo: inbox undoes archive or trash, unread undoes read, unsnooze undoes snooze |
-| `mail_bulk_job` | Every message in a folder or search (up to 20,000) as one job: read, unread, star, unstar, archive, inbox, spam, trash (delete, undoable), snooze (`snooze_until` or `snooze_preset`; Undo clears it) or move (`to`, a synced folder; R35: Undo moves each message back to the folder it came from). Give your own `job_id`; call again with it to continue until `done` (900 per call). Mail that arrived after `max_received_at` is left alone. `undo: true` puts back exactly what the job changed |
+| `mail_bulk_job` | Every message in a folder or search (up to 20,000) as one job: read, unread, star, unstar, archive, inbox, spam, trash (delete, undoable), snooze (`snooze_until` or `snooze_preset`; Undo clears it) or move (`to`, a synced folder; R35: Undo moves each message back to the folder it came from). Give your own `job_id`; call again with it to continue until `done` (900 per call). Mail that arrived after `max_received_at` is left alone. `undo: true` puts back exactly what the job changed. AIS1: a `query` from a key, an agent or a connected app never matches Multies' own mail (invites, confirmations, resets), so a count can't guess its text |
 
 ### Live chat typing (R32)
 
