@@ -177,7 +177,9 @@ const REFUSED = {
 
 async function refuseLoosening(deps: Deps, actor: Actor, fields: string[], at: { action: keyof typeof REFUSED; agentId?: string; name?: string }) {
   if (!fields.length || isPersonSession(actor)) return;
-  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: at.agentId ?? null, action: at.action, targetType: "agent", targetId: at.agentId, metadata: { fields, caller: callerKind(actor), ...(at.name ? { name: at.name } : {}) } });
+  // The kind of caller goes in `via`, as on the invite refusals: audit() adds `caller`, the key's or app's name and
+  // prefix, only when the entry has none of its own, so a plain string there would hide which key it was.
+  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: at.agentId ?? null, action: at.action, targetType: "agent", targetId: at.agentId, metadata: { fields, via: callerKind(actor), ...(at.name ? { name: at.name } : {}) } });
   try {
     requirePerson(actor, `${REFUSED[at.action]} (${fields.join(", ")})`);
   } catch (err) {

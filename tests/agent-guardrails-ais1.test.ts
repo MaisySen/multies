@@ -105,7 +105,7 @@ describe("AIS1 row 4: a key or an AI app creates agents only at 'a person approv
     // Both refusals are on the audit log, the connected app's under the person it acts for.
     const logged = await refusals("agent.create_refused");
     expect(logged.map((r) => r.metadata.fields)).toEqual([["approvalMode"], ["approvalMode"]]);
-    expect(logged.map((r) => (r.metadata as { caller?: string }).caller).sort()).toEqual(["oauth", "workspace_key"]);
+    expect(logged.map((r) => (r.metadata as { via?: string }).via).sort()).toEqual(["oauth", "workspace_key"]);
   });
 
   it("a person in the app may still create an agent with any approval mode", async () => {
