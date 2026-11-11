@@ -5,6 +5,8 @@ import { agents, aliases, auditLogs, domains, invitations, mailboxes, members, o
 import { agentAddress } from "@/server/services/agents/agent-address";
 import { listStaff } from "@/server/services/people-r126";
 import { assignees } from "@/server/services/suite/tasks";
+import { confirmInvite } from "@/server/services/team";
+import { confirmGuest, newGuestLink } from "@/server/services/suite/guests";
 
 /**
  * AIS1 (audit of 11 Nov 2026, row 1, Critical): an AI agent can't become a person. On the live workspace an API key
@@ -225,6 +227,25 @@ describe("AIS1 row 1: an invite a key makes waits for a person", () => {
     expect(audits).toEqual(expect.arrayContaining(["member.invited", "member.invite_confirmed", "member.joined"]));
     // Confirming twice finds nothing to confirm.
     expect((await owner.post(`/api/team/invites/${r.body.id}/confirm`)).status).toBe(404);
+  });
+
+  it("confirming a held invite or guest, or getting a guest link, needs a person: a key or a connected app gets person_only", async () => {
+    // The app routes take sessions only, so this calls the services as a key and a connected app reach them.
+    const held = await api(wsKey, "POST", "/invites", { email: "sam@example.com" });
+    const project = (await owner.post("/api/projects", { name: "Launch" })).body.project;
+    const guest = (await api(wsKey, "POST", `/projects/${project.id}/guests`, { email: "client@example.com" })).body.guest.id as string;
+    const me = (await owner.get("/api/account/me")).body;
+    const base = { orgId, userId: me.user.id as string, email: me.user.email as string, name: "Olive Owner", role: "owner" as const };
+    const key = { ...base, apiKeyId: "key_x", sessionId: "apikey:key_x" };
+    const app = { ...base, apiKeyId: "oauth:grant_x", sessionId: "mcp:oauth:grant_x" };
+    for (const who of [key, app]) {
+      await expect(confirmInvite(ctx.deps, who as never, held.body.id)).rejects.toMatchObject({ status: 403, code: "person_only" });
+      await expect(confirmGuest(ctx.deps, who as never, guest)).rejects.toMatchObject({ status: 403, code: "person_only" });
+      await expect(newGuestLink(ctx.deps, who as never, guest)).rejects.toMatchObject({ status: 403, code: "person_only" });
+    }
+    // The same owner signed in to the app can.
+    await expect(confirmInvite(ctx.deps, { ...base, sessionId: "sess_owner" } as never, held.body.id)).resolves.toMatchObject({ status: "pending" });
+    await expect(confirmGuest(ctx.deps, { ...base, sessionId: "sess_owner" } as never, guest)).resolves.toMatchObject({ guest: expect.objectContaining({ awaitingConfirmation: false }) });
   });
 
   it("a key re-inviting a person's live invite holds it again; a person inviting a held address sends it", async () => {
