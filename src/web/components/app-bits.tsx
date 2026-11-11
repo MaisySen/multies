@@ -126,7 +126,9 @@ export function describeAudit(e: AuditEntry): { verb: string; object?: string; s
     if (e.action === "agent_trigger.refused") return { verb, object: `${m.triggerName}: ${TRIGGER_REFUSALS[String(m.reason)] ?? String(m.reason ?? "refused")}` };
     return { verb, object: m.triggerName };
   }
-  const object = (m.name ?? m.address ?? m.email ?? (m.to ? `${m.from} → ${m.to}` : undefined)) as string | undefined;
+  // AIS1 (row 15): a thread entry (an agent's read) names the thread by its subject.
+  const subject = e.targetType === "thread" && typeof m.subject === "string" && m.subject ? `"${m.subject}"` : undefined;
+  const object = (subject ?? m.name ?? m.address ?? m.email ?? (m.to ? `${m.from} → ${m.to}` : undefined)) as string | undefined;
   return { verb: ACTIONS[e.action] ?? e.action.replace(/[._]/g, " "), object };
 }
 

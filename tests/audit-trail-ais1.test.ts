@@ -14,6 +14,9 @@ import { pkceChallenge } from "@/server/services/developer/oauth";
 import { audit } from "@/server/services/audit";
 import { noteRequestCaller, runWithRequestCaller } from "@/server/lib/request-caller";
 import { auditWho, callerStampOf, viaLabel } from "@/shared/audit-caller";
+import { deliverInbound } from "@/server/services/mail/delivery";
+import { memberSafeAudit } from "@/server/routes/dashboard";
+import { describeAudit } from "@/web/components/app-bits";
 
 const IP = "203.0.113.7";
 const APP_IP = "198.51.100.4";
@@ -157,6 +160,56 @@ describe("AIS1 row 50: an entry made through a key or a connected AI app says so
     // The MCP and REST task detail carry the same line.
     const detail = (await v1(key.secret, "GET", `/tasks/${viaClaude.id}`)).body;
     expect(detail.activity.find((a: { verb: string }) => a.verb === "created").data.caller).toEqual({ kind: "oauth", app: "Claude" });
+  });
+});
+
+describe("AIS1 row 15: thread reads, deleted keys and IPs", () => {
+  it("an agent's thread read names the thread, its key and the IP, and keeps them after the key is deleted", async () => {
+    const ws = await newKey("Agents");
+    expect((await rows("api_key.created")).find((r) => r.targetId === ws.id)?.meta).toMatchObject({ name: "Agents", prefix: ws.prefix });
+    const { agent, apiKey } = (await v1(ws.secret, "POST", "/agents", { name: "Reader", localPart: "reader" })).body;
+    await deliverInbound(ctx.deps, {
+      envelopeFrom: "grace@example.com", rcptTo: "reader@acme.io", sizeBytes: 300, via: "test",
+      email: { messageId: "<r1@example.com>", from: { address: "grace@example.com", name: "Grace" }, to: [{ address: "reader@acme.io" }], cc: [], subject: "Invoice 42 is late", text: "Hi", date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+    });
+    const threadId = (await v1(apiKey.secret, "GET", `/agents/${agent.id}/threads`)).body.data[0].id as string;
+    expect((await v1(apiKey.secret, "GET", `/threads/${threadId}`)).status).toBe(200);
+    const agentKeyName = (await c.get("/api/developer/keys")).body.apiKeys.find((k: { id: string }) => k.id === apiKey.id).name as string;
+    const agentKeyPrefix = String(apiKey.secret).slice(0, 12);
+    expect((await rows("agent.key_created")).find((r) => r.targetId === apiKey.id)?.meta).toMatchObject({ name: agentKeyName, prefix: agentKeyPrefix });
+
+    const [read] = await rows("agent.message_read");
+    expect(read.targetType).toBe("thread");
+    expect(read.targetId).toBe(threadId);
+    expect(read.meta).toMatchObject({ subject: "Invoice 42 is late", via: "api", caller: { kind: "agent_key", key: agentKeyName, prefix: agentKeyPrefix } });
+    expect(read.ip).toBe(IP);
+
+    // Revoking the agent's key and deleting the workspace key keep every entry readable.
+    expect((await c.del(`/api/agents/${agent.id}/keys/${apiKey.id}`)).status).toBe(200);
+    expect((await c.del(`/api/developer/keys/${ws.id}`)).status).toBe(200);
+    const after = (await c.get("/api/org/audit")).body.entries as { id: string; action: string; metadata: Record<string, unknown> | null; actorEmail: string | null; targetType: string | null; targetId: string | null; ip: string | null; createdAt: string }[];
+    const shown = after.find((e) => e.action === "agent.message_read")!;
+    expect(auditWho(shown)).toEqual({ actor: "agent:reader@acme.io", via: `via agent key ${agentKeyName} (${agentKeyPrefix})` });
+    expect(describeAudit(shown)).toEqual({ verb: "read a thread", object: '"Invoice 42 is late"' });
+    expect(after.find((e) => e.action === "agent.key_revoked")?.metadata).toMatchObject({ name: agentKeyName, prefix: agentKeyPrefix });
+    expect(after.find((e) => e.action === "api_key.deleted")?.metadata).toMatchObject({ name: "Agents", prefix: ws.prefix });
+    expect(auditWho(after.find((e) => e.action === "agent.created")!)).toEqual({ actor: `API key Agents (${ws.prefix})`, via: null });
+  });
+
+  it("an agent member's key keeps its name and prefix in the log after it is revoked", async () => {
+    const made = await c.post("/api/team/agents", { name: "Builder" });
+    expect(made.status).toBe(201);
+    const userId = made.body.member.userId as string;
+    const key = await c.post(`/api/team/agents/${userId}/keys`, { name: "Builder laptop" });
+    expect(key.status).toBe(201);
+    const prefix = String(key.body.secret).slice(0, 12);
+    expect((await rows("agent_member.key_created")).find((r) => r.targetId === key.body.apiKey.id)?.meta).toMatchObject({ member: userId, name: "Builder laptop", prefix });
+    expect((await c.del(`/api/team/agents/${userId}/keys/${key.body.apiKey.id}`)).status).toBe(200);
+    expect((await rows("agent_member.key_revoked"))[0].meta).toMatchObject({ member: userId, name: "Builder laptop", prefix });
+  });
+
+  it("a member's dashboard never shows a thread subject from the audit log", () => {
+    expect(memberSafeAudit({ ip: "1.2.3.4", actorEmail: "agent:a@b.c", metadata: { subject: "Payroll", messages: 2 } })).toEqual({ ip: null, actorEmail: "agent:a@b.c", metadata: { messages: 2 } });
   });
 });
 

@@ -231,7 +231,7 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
   if (input.createKey !== false) {
     const k = await createApiKey(deps, actor, { name: `${input.name} agent key`, scope: "full", agentId: id });
     key = { id: k.apiKey.id, prefix: k.apiKey.prefix, secret: k.secret };
-    await audit(db, { orgId: actor.orgId, ...actorFields(actor), agentId: id, action: "agent.key_created", targetType: "api_key", targetId: k.apiKey.id });
+    await audit(db, { orgId: actor.orgId, ...actorFields(actor), agentId: id, action: "agent.key_created", targetType: "api_key", targetId: k.apiKey.id, metadata: { name: k.apiKey.name, prefix: k.apiKey.prefix } });
   }
   const agent = await getAgent(deps, actor.orgId, id);
   await recordEvent(deps, actor.orgId, id, "agent.created", { agentId: id, address });
@@ -309,7 +309,7 @@ export async function createAgentKey(deps: Deps, actor: Actor, agentId: string, 
     if (personal) throw forbidden("This agent works a personal mailbox. Only the person who made it can create its keys.");
   }
   const k = await createApiKey(deps, actor, { name: name ?? `${a.name} agent key`, scope: "full", agentId: a.id });
-  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: a.id, action: "agent.key_created", targetType: "api_key", targetId: k.apiKey.id });
+  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: a.id, action: "agent.key_created", targetType: "api_key", targetId: k.apiKey.id, metadata: { name: k.apiKey.name, prefix: k.apiKey.prefix } });
   return k;
 }
 
@@ -324,7 +324,7 @@ export async function revokeAgentKey(deps: Deps, actor: Actor, agentId: string, 
   const k = await deps.db.select().from(apiKeys).where(and(eq(apiKeys.id, keyId), eq(apiKeys.orgId, actor.orgId), eq(apiKeys.agentId, agentId))).get();
   if (!k) throw notFound("Agent key");
   await deps.db.delete(apiKeys).where(eq(apiKeys.id, k.id));
-  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId, action: "agent.key_revoked", targetType: "api_key", targetId: k.id });
+  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId, action: "agent.key_revoked", targetType: "api_key", targetId: k.id, metadata: { name: k.name, prefix: k.prefix } }); // AIS1: the row is hard deleted, the log keeps its name
   return { id: k.id, revoked: true };
 }
 
@@ -418,10 +418,11 @@ export async function readThread(deps: Deps, actor: Actor, threadId: string, ori
     const { a, mb } = await row(deps, actor.orgId, actor.agentId);
     // Reads roll up to one audit row per agent, thread and hour (round 20): an agent polling a thread
     // every minute used to write 3 D1 rows a minute. The row still says who read what and when.
+    // AIS1 (audit row 15): it names the thread by its subject as well as its id (the same row, one more field).
     const since = new Date(deps.now().getTime() - READ_AUDIT_ROLLUP_MS);
     const recent = await deps.db.select({ id: auditLogs.id }).from(auditLogs)
       .where(and(eq(auditLogs.agentId, a.id), gte(auditLogs.createdAt, since), eq(auditLogs.action, "agent.message_read"), eq(auditLogs.targetId, threadId))).limit(1).get();
-    if (!recent) await audit(deps.db, { orgId: actor.orgId, ...agentActor(a, mb), action: "agent.message_read", targetType: "thread", targetId: threadId, metadata: { messages: rows.length, via: actor.sessionId.startsWith("mcp:") ? "mcp" : "api", rollup: "hour" } });
+    if (!recent) await audit(deps.db, { orgId: actor.orgId, ...agentActor(a, mb), action: "agent.message_read", targetType: "thread", targetId: threadId, metadata: { messages: rows.length, subject: rows[0].subject.slice(0, 200), via: actor.sessionId.startsWith("mcp:") ? "mcp" : "api", rollup: "hour" } });
   }
   return {
     id: threadId,
