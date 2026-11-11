@@ -32,7 +32,7 @@ import { agentMessage, extractCodes, extractLinks, latestText } from "./parse";
 import { listThreadStates, threadViewCond, type ThreadView } from "../mail/thread-state";
 import { inChunks, inIds } from "../../lib/sql-chunks";
 import { containsAny } from "../../lib/like-search";
-import { isPersonSession } from "../../lib/actor-kind";
+import { callerKind, isPersonSession, requirePerson } from "../../lib/actor-kind";
 
 type Agent = typeof agents.$inferSelect;
 type Mailbox = typeof mailboxes.$inferSelect;
@@ -46,10 +46,14 @@ const DAY = 86_400_000;
 const APPROVAL_TTL_DAYS = 7;
 
 /**
- * AIS1 (row 51): a new agent's daily send cap when nobody asks for another, never above the plan's limit. It used
- * to default to the plan's limit (2,000 a day on Business), for agents made in the app and through the API alike.
+ * AIS1 (row 51): a new agent's daily send cap when nobody asks for another. A person in the app may set more, up
+ * to the plan's limit; a key or a connected AI app may only set less. It used to default to the plan's limit
+ * (2,000 a day on Business), for agents made in the app and through the API alike.
  */
 export const AGENT_DEFAULT_DAILY_SENDS = 100;
+
+/** AIS1 (row 4): how much each approval mode holds back. A key may move an agent up this scale, never down. */
+const APPROVAL_RANK: Record<"never" | "external" | "always", number> = { never: 0, external: 1, always: 2 };
 
 const slug = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "agent";
 
@@ -161,6 +165,42 @@ const agentActor = (a: Agent, mb: Pick<Mailbox, "address">) => ({ actorUserId: n
 const allowList = (v: string[] | null | undefined) => (v?.length ? v.map((r) => r.toLowerCase()) : null);
 
 /**
+ * AIS1 (row 4): an agent's guardrails are lowered only by a person signed in to the app. A workspace key or a
+ * connected AI app (OAuth) that tries is refused with 403 person_only naming the fields, and the attempt is written
+ * to the audit log (on the agent's own log when the agent exists). Nothing is written to the agent.
+ */
+async function refuseLoosening(deps: Deps, actor: Actor, fields: string[], at: { action: "agent.create_refused" | "agent.update_refused"; agentId?: string; name?: string }) {
+  if (!fields.length || isPersonSession(actor)) return;
+  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: at.agentId ?? null, action: at.action, targetType: "agent", targetId: at.agentId ?? null, metadata: { fields, caller: callerKind(actor), ...(at.name ? { name: at.name } : {}) } });
+  try {
+    requirePerson(actor, `${at.action === "agent.create_refused" ? "Creating an agent with looser guardrails" : "Loosening an agent's guardrails"} (${fields.join(", ")})`);
+  } catch (err) {
+    if (err instanceof HttpError) err.details = { fields };
+    throw err;
+  }
+}
+
+/**
+ * AIS1 (row 4): the fields of a patch that would loosen the agent. Tightening is fine: more approval, a lower cap,
+ * a narrower allow list (every new entry inside the current one), a pause, fewer mailboxes. The same value sent back
+ * is not a loosening, so a client can GET, change one field and PATCH the lot.
+ */
+function looserFields(a: Agent, patch: UpdateAgentInput, held: Set<string>): string[] {
+  const out: string[] = [];
+  if (patch.approvalMode && APPROVAL_RANK[patch.approvalMode] < APPROVAL_RANK[a.approvalMode]) out.push("approvalMode");
+  if (patch.sendCapDaily !== undefined && patch.sendCapDaily > a.sendCapDaily) out.push("sendCapDaily");
+  if (patch.allowedRecipients !== undefined) {
+    const now = parseAllow(a.allowedRecipients);
+    const next = allowList(patch.allowedRecipients);
+    // null (or an empty list) is "anyone". "@acme.io" covers bob@acme.io; bob@acme.io doesn't cover "@acme.io".
+    if (now && (!next || next.some((r) => !recipientAllowed(now, r)))) out.push("allowedRecipients");
+  }
+  if (patch.status === "active" && a.status !== "active") out.push("status");
+  if (patch.mailboxIds?.some((m) => m !== a.mailboxId && !held.has(m))) out.push("mailboxIds");
+  return out;
+}
+
+/**
  * AIS1 (row 51): who a new agent may write to unless a person chose otherwise: the workspace's own verified domains.
  * With none verified yet, the creator's own address (a key's: the person who made the key), so the list is never
  * empty, which would mean anyone. Later domains don't join existing agents' lists.
@@ -219,6 +259,11 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
   // R52 (MB-239): a retry under the same Idempotency-Key returns the agent the first attempt made. Its key secret
   // was shown once, in the answer that was lost, so the retry returns apiKey null: make a new key with POST /agents/{id}/keys.
   if (opts.id && opts.retry && await db.select({ id: agents.id }).from(agents).where(and(eq(agents.id, opts.id), eq(agents.orgId, actor.orgId))).get()) return { agent: await getAgent(deps, actor.orgId, opts.id), apiKey: null };
+  // AIS1 (row 4): a key or a connected AI app makes agents that a person approves every message of, at the default cap or lower.
+  await refuseLoosening(deps, actor, [
+    ...(input.approvalMode && input.approvalMode !== "always" ? ["approvalMode"] : []),
+    ...(input.sendCapDaily !== undefined && input.sendCapDaily > AGENT_DEFAULT_DAILY_SENDS ? ["sendCapDaily"] : []),
+  ], { action: "agent.create_refused", name: input.name });
   await assertCanCreate(db, actor.orgId, "agentInboxes");
   const plan = await getPlan(db, actor.orgId);
   // AIS1 (row 51): 100 a day unless someone asks, never above the plan's limit.
@@ -278,23 +323,28 @@ export interface UpdateAgentInput {
 export async function updateAgent(deps: Deps, actor: Actor, id: string, patch: UpdateAgentInput) {
   assertWorkspaceActor(actor);
   const { a } = await row(deps, actor.orgId, id);
+  const held = patch.mailboxIds ? new Set((await deps.db.select({ id: agentMailboxAccess.mailboxId }).from(agentMailboxAccess).where(eq(agentMailboxAccess.agentId, a.id))).map((r) => r.id)) : new Set<string>();
+  // AIS1 (row 4): a key or a connected AI app may only tighten an agent. Checked before any write, the whole patch refused.
+  await refuseLoosening(deps, actor, looserFields(a, patch, held), { action: "agent.update_refused", agentId: a.id });
   if (patch.mailboxIds) {
     // PRIV1b (P3, P4): checked before any write. Mailboxes the agent already holds may stay; new personal ones need their owner.
-    const held = new Set((await deps.db.select({ id: agentMailboxAccess.mailboxId }).from(agentMailboxAccess).where(eq(agentMailboxAccess.agentId, a.id))).map((r) => r.id));
     await assertOwnPersonal(deps, actor, [...new Set(patch.mailboxIds)].filter((m) => m !== a.mailboxId && !held.has(m)));
   }
   const plan = await getPlan(deps.db, actor.orgId);
   if (patch.sendCapDaily !== undefined && patch.sendCapDaily > plan.limits.agentDailySends) {
     throw planLimit(`Agents can send up to ${plan.limits.agentDailySends} messages a day on your plan.`);
   }
-  await deps.db.update(agents).set({
+  const allow = patch.allowedRecipients === undefined ? undefined : allowList(patch.allowedRecipients);
+  const set = {
     ...(patch.name !== undefined ? { name: patch.name } : {}),
     ...(patch.description !== undefined ? { description: patch.description } : {}),
     ...(patch.approvalMode ? { approvalMode: patch.approvalMode } : {}),
     ...(patch.sendCapDaily !== undefined ? { sendCapDaily: patch.sendCapDaily } : {}),
-    ...(patch.allowedRecipients !== undefined ? { allowedRecipients: patch.allowedRecipients?.length ? JSON.stringify(patch.allowedRecipients.map((r) => r.toLowerCase())) : null } : {}),
+    ...(allow !== undefined ? { allowedRecipients: allow ? JSON.stringify(allow) : null } : {}),
     ...(patch.status ? { status: patch.status } : {}),
-  }).where(eq(agents.id, a.id));
+  };
+  // AIS1: a patch of only mailboxIds (taking a mailbox away) has nothing to set on the agent row.
+  if (Object.keys(set).length) await deps.db.update(agents).set(set).where(eq(agents.id, a.id));
   if (patch.name) await deps.db.update(mailboxes).set({ displayName: patch.name }).where(eq(mailboxes.id, a.mailboxId));
   if (patch.mailboxIds) {
     const ids = [...new Set(patch.mailboxIds.filter((m) => m !== a.mailboxId))];

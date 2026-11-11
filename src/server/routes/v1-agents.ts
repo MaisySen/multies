@@ -29,7 +29,8 @@ const Id = z.object({ id: z.string().min(1).openapi({ param: { name: "id", in: "
 
 // PRIV1b (P51): "external" means outside this workspace: only a mailbox or alias of the agent's own workspace on a
 // verified domain skips approval. Another workspace hosted on the platform waits like any outside address.
-const ApprovalMode = z.enum(["always", "external", "never"]).openapi({ description: "`always`: a person approves every send (the default). `external`: only mail to addresses outside this workspace waits. `never`: sends go straight out." });
+// AIS1 (row 4): only a person in the app lowers an agent's approval; a key or a connected AI app gets 403 person_only.
+const ApprovalMode = z.enum(["always", "external", "never"]).openapi({ description: "`always`: a person approves every send (the default). `external`: only mail to addresses outside this workspace waits. `never`: sends go straight out. Only a person in the app can choose `external` or `never` or lower it; an API key gets 403 `person_only`." });
 
 const Agent = z.object({
   id: z.string().openapi({ example: "agt_k3j2h1g0f9e8d7c6" }),
@@ -101,14 +102,14 @@ export const STREAM_RECHECK_MS = 30_000;
 
 export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "post", path: "/agents", tags: ["Agents"], summary: "Create an agent inbox",
-    description: "Creates the agent, its inbox and an agent API key in one call. The key is returned once. Needs a workspace key. A new agent starts safe: a person approves every message (`always`) unless you ask otherwise, 100 sends a day and your own verified domains as its allowed recipients.", security: secured,
+    description: "Creates the agent, its inbox and an agent API key in one call. The key is returned once. Needs a workspace key. A new agent starts safe: a person approves every message (`always`), 100 sends a day and your own verified domains as its allowed recipients. A key can't ask for looser settings (403 `person_only`, naming the field); a person changes them in the app.", security: secured,
     request: body(z.object({
       name: z.string().min(1).max(80).openapi({ example: "Invoice bot" }),
       description: z.string().max(500).optional(),
       localPart: z.string().min(1).max(64).regex(/^[a-z0-9._-]+$/i).optional().openapi({ description: "The part before the @. Defaults to a slug of the name.", example: "invoices" }),
       domainId: z.string().optional().openapi({ description: "Which of your domains to use. Defaults to your first verified domain." }),
       approvalMode: ApprovalMode.optional(),
-      sendCapDaily: z.number().int().min(0).max(100_000).optional().openapi({ description: "Messages a day. Default 100, never above your plan's limit." }),
+      sendCapDaily: z.number().int().min(0).max(100_000).optional().openapi({ description: "Messages a day. Default 100, never above your plan's limit. A key may set 100 or less." }),
       allowedRecipients: z.array(z.string().min(3).max(254)).max(200).nullable().optional().openapi({ description: "Addresses or \"@domain\" entries the agent may send to. Default: your verified domains (with none yet, the key creator's own address). From a key, null or an empty list gets the default too; only a person in the app can let an agent mail anyone." }),
       mailboxIds: z.array(z.string()).max(50).optional().openapi({ description: "Shared mailboxes this agent can also work, for example support@." }),
       createKey: z.boolean().default(true),
@@ -136,7 +137,7 @@ export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
     return c.json(ser(await getAgent(c.var.deps, actorOf(c).orgId, id)), 200);
   });
 
-  api.openapi(createRoute({ method: "patch", path: "/agents/{id}", tags: ["Agents"], summary: "Update an agent inbox", description: "Change the approval mode, send cap, allowed recipients, shared mailboxes, or pause it. Needs a workspace key.", security: secured,
+  api.openapi(createRoute({ method: "patch", path: "/agents/{id}", tags: ["Agents"], summary: "Update an agent inbox", description: "Change the approval mode, send cap, allowed recipients, shared mailboxes, or pause it. Needs a workspace key. A key can only tighten an agent: raise its approval, lower its cap, narrow its allowed recipients, pause it or take mailboxes away. Loosening any of these, or resuming a paused agent, answers 403 `person_only` naming the fields, changes nothing and is written to the agent's audit log; a person does it in the app. Name and description stay open.", security: secured,
     request: { params: Id, ...body(z.object({
       name: z.string().min(1).max(80).optional(), description: z.string().max(500).nullable().optional(), approvalMode: ApprovalMode.optional(),
       sendCapDaily: z.number().int().min(0).max(100_000).optional(), allowedRecipients: z.array(z.string().min(3).max(254)).max(200).nullable().optional(),

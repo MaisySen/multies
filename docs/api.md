@@ -321,6 +321,23 @@ read writes nothing.
 
 ## Agent guardrails (AIS1)
 
+An agent inbox has guardrails: its approval mode, its daily send cap, its allowed recipients, whether it is
+paused, and the mailboxes it works. Only a person signed in to Multies (the web app or the phone app) can lower
+them. An API key or a connected AI app (OAuth on MCP) can create agents and tighten them, nothing more:
+
+| Field | A key or a connected AI app may | Only a person may |
+|---|---|---|
+| `approvalMode` | create with `always` (the default); raise it (`never`, then `external`, then `always`) | create with `external` or `never`; lower it |
+| `sendCapDaily` | create with 100 or less; lower it | create with more than 100 (up to the plan's limit); raise it |
+| `allowedRecipients` | name a list on create; narrow it (every new entry inside the current list: `@acme.io` covers `bob@acme.io`, not the other way round); give a list to an agent that may mail anyone | choose anyone (`null` or `[]`); widen it |
+| `status` | pause (`paused`) | resume (`active`) |
+| `mailboxIds` | take mailboxes away | add mailboxes |
+
+`name` and `description` stay open. Sending a field's current value back is not a loosening, so a client can
+read the agent, change one field and send them all. A loosening answers 403 `person_only`; the message and
+`details.fields` name the fields, nothing in the call is applied, and the attempt is written to the audit log
+(`agent.update_refused` on the agent's own log, `GET /api/v1/agents/{id}/audit`, or `agent.create_refused`).
+
 Every new agent, made in the app, over REST or over MCP, starts with approval `always`, 100 sends a day (never
 above the plan's limit: Free 100, Pro 500, Business 2,000) and the workspace's own verified domains as allowed
 recipients (`["@acme.io"]`). With no verified domain yet it is the creator's own address (for a key, the person

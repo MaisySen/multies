@@ -175,7 +175,8 @@ describe("agent inboxes over the API", () => {
   });
 
   it("rejects, expires, and applies approval modes, allow lists and the daily cap", async () => {
-    const { agent, apiKey } = (await api(wsKey, "POST", "/agents", { name: "Outreach", approvalMode: "external", sendCapDaily: 2, allowedRecipients: ["@example.com", "team@acme.io"] })).body;
+    // AIS1 (row 4): "external" and "never" are a person's choice, so the owner makes and loosens this agent in the app.
+    const { agent, apiKey } = (await c.post("/api/agents", { name: "Outreach", approvalMode: "external", sendCapDaily: 2, allowedRecipients: ["@example.com", "team@acme.io"] })).body;
     await c.post("/api/mailboxes", { domainId, localPart: "team", displayName: "Team" });
     // Internal mail skips approval in "external" mode.
     const internal = await api(apiKey.secret, "POST", `/agents/${agent.id}/send`, { to: ["team@acme.io"], subject: "FYI", text: "Inside" });
@@ -197,13 +198,13 @@ describe("agent inboxes over the API", () => {
     expect(audit.filter((a: string) => a === "agent.send_blocked")).toHaveLength(2);
 
     // "never": sends go straight out; pausing stops everything.
-    await api(wsKey, "PATCH", `/agents/${agent.id}`, { approvalMode: "never", sendCapDaily: 10 });
+    await c.patch(`/api/agents/${agent.id}`, { approvalMode: "never", sendCapDaily: 10 });
     expect((await api(apiKey.secret, "POST", `/agents/${agent.id}/send`, { to: ["lead@example.com"], subject: "Now", text: "x" })).body.status).toBe("sent");
     await api(wsKey, "PATCH", `/agents/${agent.id}`, { status: "paused" });
     expect((await api(apiKey.secret, "POST", `/agents/${agent.id}/send`, { to: ["lead@example.com"], subject: "x", text: "x" })).body.error.code).toBe("agent_paused");
 
     // Requests nobody decides expire after a week.
-    await api(wsKey, "PATCH", `/agents/${agent.id}`, { status: "active", approvalMode: "always" });
+    await c.patch(`/api/agents/${agent.id}`, { status: "active", approvalMode: "always" });
     await api(apiKey.secret, "POST", `/agents/${agent.id}/send`, { to: ["lead@example.com"], subject: "Later", text: "x" });
     const real = ctx.deps.now;
     ctx.deps.now = () => new Date(real().getTime() + 8 * 86400_000);
