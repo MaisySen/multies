@@ -310,7 +310,9 @@ describe("AIS1 row 1: a guest invite never goes out without a person", () => {
   });
 
   it("an agent's guest invite waits for approval even when the agent sends without approval", async () => {
-    await ctx.db.update(agents).set({ approvalMode: "never" });
+    // The agent may write to anyone here, so what holds the invite is the guest rule, not the agent's allowed recipients
+    // (a new agent starts with its own domains only once the guardrails branch is merged).
+    await ctx.db.update(agents).set({ approvalMode: "never", allowedRecipients: null });
     const project = (await owner.post("/api/projects", { name: "Launch" })).body.project;
     const r = await api(agentKey, "POST", `/projects/${project.id}/guests`, { email: "client@example.com" });
     expect(r.status).toBe(201);
