@@ -5,7 +5,7 @@
  * AIS1 (audit row 66): accept, decline, duplicate and restore need a person signed in; keys may unsnooze, and
  * snooze for up to MACHINE_SNOOZE_MAX_DAYS days.
  */
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { tasks } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
@@ -78,6 +78,13 @@ export async function restoreTriage(deps: Deps, actor: SuiteActor, id: string) {
   if (deps.now().getTime() - t.updatedAt.getTime() > 24 * 3600_000) throw new HttpError(409, "too_late", "That change is more than a day old. Make a new task instead.");
   if (!t.deletedAt && t.status === "done") throw new HttpError(409, "conflict", "That task is already done.");
   await deps.db.update(tasks).set({ triageState: "pending", deletedAt: null, triageSnoozedUntil: null, triageReason: null, duplicateOf: null, updatedAt: deps.now(), version: t.version + 1 }).where(eq(tasks.id, t.id));
+  // AIS1 review: its subtasks go back with it. After a decline or merge, the ones removed in that same write (the
+  // same deletedAt) come back as they were; after an accept, the ones that came in through Triage and aren't done
+  // wait again. A subtask removed earlier on its own stays removed.
+  const kids = and(eq(tasks.orgId, actor.orgId), eq(tasks.parentId, t.id));
+  const back = { updatedAt: deps.now(), version: sql`${tasks.version} + 1` };
+  if (t.deletedAt) await deps.db.update(tasks).set({ deletedAt: null, ...back }).where(and(kids, eq(tasks.deletedAt, t.deletedAt)));
+  else await deps.db.update(tasks).set({ triageState: "pending", ...back }).where(and(kids, isNull(tasks.deletedAt), isNull(tasks.triageState), isNotNull(tasks.triageSource), ne(tasks.status, "done")));
   await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "update", version: t.version + 1, verb: "triage_restored", data: { title: t.title, was: t.deletedAt ? "removed" : "accepted" } });
   return getTask(deps, actor, t.id);
 }

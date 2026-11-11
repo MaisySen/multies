@@ -8,8 +8,12 @@
  * AIS1 (audit row 66): Triage is a human check. Accept, decline, merge (and restore, in triage-r32.ts) need a person
  * signed in to Multies; an API key or a connected AI app gets 403 person_only. Keys can still add items, read the
  * queue and snooze.
+ *
+ * AIS1 review: a key's or an AI app's subtasks wait with their parent (a copy, a template, an import). A decision on
+ * the parent takes its direct subtasks with it: accept brings the waiting ones in, decline and merge remove them all
+ * (as a delete does), and restore in triage-r32.ts puts them back.
  */
-import { and, count, eq, isNull, lte, or } from "drizzle-orm";
+import { and, count, eq, isNull, lte, or, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { organizations, taskComments, tasks } from "../../db/schema";
 import { requirePerson } from "../../lib/actor-kind";
@@ -83,8 +87,29 @@ export async function createTriageItem(deps: Deps, actor: SuiteActor, input: Cre
 
 export interface AcceptInput { projectId?: string; assignee?: Assignee | null; statusId?: string; status?: Category; priority?: Priority; due?: string | null }
 
+/**
+ * AIS1 review: `cascaded` collects the subtasks a decision on their parent also decided, so a bulk call counts them
+ * done. Accept leaves the ids in `leave` alone: a bulk accept gives each item it names the same options itself.
+ */
+export interface DecideOpts { cascaded?: Set<string>; leave?: Set<string> }
+
+/** Live direct subtasks of an item; with `waiting`, only those still pending. One read on the parent index. */
+function children(deps: Deps, actor: SuiteActor, parentId: string, waiting: boolean) {
+  return deps.db.select({ id: tasks.id, snoozed: tasks.triageSnoozedUntil }).from(tasks)
+    .where(and(eq(tasks.orgId, actor.orgId), eq(tasks.parentId, parentId), isNull(tasks.deletedAt), waiting ? eq(tasks.triageState, "pending") : undefined));
+}
+
+/** Decline and merge remove the item's live direct subtasks with it, at the same time, so restore finds them again. */
+async function removeChildren(deps: Deps, actor: SuiteActor, parentId: string, now: Date, opts: DecideOpts) {
+  const ids = (await children(deps, actor, parentId, false)).map((r) => r.id);
+  if (!ids.length) return;
+  await deps.db.update(tasks).set({ deletedAt: now, updatedAt: now, version: sql`${tasks.version} + 1` })
+    .where(and(eq(tasks.orgId, actor.orgId), eq(tasks.parentId, parentId), isNull(tasks.deletedAt)));
+  for (const c of ids) opts.cascaded?.add(c);
+}
+
 /** Makes the item a normal task. Every change rides the one task update that clears the flag. */
-export async function acceptTriage(deps: Deps, actor: SuiteActor, id: string, input: AcceptInput = {}) {
+export async function acceptTriage(deps: Deps, actor: SuiteActor, id: string, input: AcceptInput = {}, opts: DecideOpts = {}) {
   assertDecider(actor);
   const t = await pendingRow(deps, actor, id);
   if (t.triageSnoozedUntil) await deps.db.update(tasks).set({ triageSnoozedUntil: null }).where(eq(tasks.id, t.id));
@@ -96,6 +121,13 @@ export async function acceptTriage(deps: Deps, actor: SuiteActor, id: string, in
   if (input.priority !== undefined) patch.priority = input.priority;
   if (input.due !== undefined) patch.due = input.due;
   const task = await updateTask(deps, actor, t.id, patch);
+  // AIS1 review: its waiting subtasks come in with it (the options above are for the item itself).
+  for (const c of await children(deps, actor, t.id, true)) {
+    if (opts.leave?.has(c.id)) continue;
+    if (c.snoozed) await deps.db.update(tasks).set({ triageSnoozedUntil: null }).where(eq(tasks.id, c.id));
+    await updateTask(deps, actor, c.id, { triage: null });
+    opts.cascaded?.add(c.id);
+  }
   await emitTriage(deps, actor, "triage.accepted", { task, source: t.triageSource ?? null });
   return task;
 }
@@ -118,12 +150,13 @@ export function isNoReply(address: string) {
 export interface DeclineInput { reason?: string; reply?: boolean; message?: string }
 
 /** Declines an item: soft deletes it with the reason, and can send the sender a short polite reply (off unless asked). */
-export async function declineTriage(deps: Deps, actor: SuiteActor, id: string, input: DeclineInput = {}) {
+export async function declineTriage(deps: Deps, actor: SuiteActor, id: string, input: DeclineInput = {}, opts: DecideOpts = {}) {
   assertDecider(actor);
   const t = await pendingRow(deps, actor, id);
   const now = deps.now();
   const reason = (input.reason ?? "").trim().slice(0, 500);
   await deps.db.update(tasks).set({ deletedAt: now, triageState: null, triageSnoozedUntil: null, triageReason: reason || null, updatedAt: now, version: t.version + 1 }).where(eq(tasks.id, t.id));
+  await removeChildren(deps, actor, t.id, now, opts); // AIS1 review: its subtasks go with it
   await recordWrite(deps, actor, {
     entityType: "task", entityId: t.id, op: "delete", version: t.version + 1, verb: "triage_declined",
     data: { title: t.title, ...(reason ? { reason } : {}) }, event: "task.deleted", eventData: { id: t.id },
@@ -171,6 +204,7 @@ export async function mergeTriage(deps: Deps, actor: SuiteActor, id: string, tar
   }).where(eq(tasks.id, target.id));
   if (t.threadId && !takeThread) await link(deps, actor.orgId, { type: "task", id: target.id }, { type: "thread", id: t.threadId }, "merged");
   await deps.db.update(tasks).set({ deletedAt: now, triageState: null, triageSnoozedUntil: null, duplicateOf: target.id, updatedAt: now, version: t.version + 1 }).where(eq(tasks.id, t.id));
+  await removeChildren(deps, actor, t.id, now, {}); // AIS1 review: its subtasks go with it
   await recordWrite(deps, actor, {
     entityType: "task", entityId: target.id, op: "update", version: target.version, verb: "triage_merged",
     data: { from: t.id, title: t.title, commentId, ...(takeThread ? { threadId: t.threadId } : {}) }, event: "task.commented",
@@ -192,10 +226,14 @@ export async function bulkTriage(deps: Deps, actor: SuiteActor, input: BulkInput
   if (!ids.length) throw new HttpError(422, "validation_failed", "Pick at least one item.");
   if (ids.length > BULK_LIMIT) throw new HttpError(422, "validation_failed", `Pick at most ${BULK_LIMIT} items at a time.`);
   const results: { id: string; ok: boolean; error?: string }[] = [];
+  // AIS1 review: a subtask its parent's decision already took counts as done, not as "not found".
+  const cascaded = new Set<string>();
+  const leave = new Set(ids);
   for (const id of ids) {
     try {
-      if (input.action === "accept") await acceptTriage(deps, actor, id, input.accept ?? {});
-      else await declineTriage(deps, actor, id, input.decline ?? {});
+      if (cascaded.has(id)) { results.push({ id, ok: true }); continue; }
+      if (input.action === "accept") await acceptTriage(deps, actor, id, input.accept ?? {}, { cascaded, leave });
+      else await declineTriage(deps, actor, id, input.decline ?? {}, { cascaded });
       results.push({ id, ok: true });
     } catch (err) {
       results.push({ id, ok: false, error: err instanceof HttpError ? err.code : "failed" });
