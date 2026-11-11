@@ -6,7 +6,7 @@
 import { TASK_LIST_LIMIT } from "@/shared/task-list-limit"; // R45b
 import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, ne, notInArray, or, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { agents, changes, docs, entityLinks, mailboxes, members, messages, projectKeyAliases, projectStatusCounts, projectStatuses, projects, savedViews, taskComments, tasks, users } from "../../db/schema";
+import { agents, changes, docs, entityLinks, members, messages, projectKeyAliases, projectStatusCounts, projectStatuses, projects, savedViews, taskComments, tasks, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { latestText } from "../agents/parse";
 import { computeForRows } from "./computed";
@@ -18,6 +18,7 @@ import { claimNumbers } from "./project-counter";
 import { invalidateStatuses, orgStatuses } from "./read-cache";
 import { SQL_IN_CHUNK, inChunks, inIds } from "../../lib/sql-chunks";
 import { isAgentEmail } from "../people";
+import { agentInboxIdAt } from "../agents/agent-address";
 import { WITHHELD_TEXT, withheldRow } from "../agents/platform-mail";
 import { isPersonSession } from "../../lib/actor-kind";
 import { containsAny, containsText } from "../../lib/like-search";
@@ -171,8 +172,7 @@ export async function updateProject(deps: Deps, actor: SuiteActor, id: string, p
   const now = deps.now();
   const key = patch.key !== undefined ? await assertKeyFree(deps, actor.orgId, patch.key, id) : undefined;
   if (patch.ownerId) {
-    const m = await deps.db.select({ id: members.id, kind: members.kind, agentInboxId: mailboxes.id }).from(members).innerJoin(users, eq(users.id, members.userId))
-      .leftJoin(mailboxes, and(eq(mailboxes.address, users.email), eq(mailboxes.kind, "agent")))
+    const m = await deps.db.select({ id: members.id, kind: members.kind, agentInboxId: agentInboxIdAt(users.email) }).from(members).innerJoin(users, eq(users.id, members.userId))
       .where(and(eq(members.organizationId, actor.orgId), eq(members.userId, patch.ownerId))).get();
     if (!m) throw new HttpError(422, "validation_failed", "The owner must be a member of this workspace.");
     // AIS1 (audit row 41): a project owner is a person, never an AI agent. An owner set before stays until it changes.
@@ -1230,8 +1230,8 @@ export async function deleteView(deps: Deps, actor: SuiteActor, id: string) {
  */
 export async function assignees(deps: Deps, orgId: string, opts: { pickers?: boolean } = {}) {
   const [ms, ags] = await Promise.all([
-    deps.db.select({ id: users.id, name: users.name, email: users.email, kind: members.kind, disabledAt: members.disabledAt, agentInboxId: mailboxes.id }).from(members).innerJoin(users, eq(users.id, members.userId))
-      .leftJoin(mailboxes, and(eq(mailboxes.address, users.email), eq(mailboxes.kind, "agent"))).where(eq(members.organizationId, orgId)),
+    deps.db.select({ id: users.id, name: users.name, email: users.email, kind: members.kind, disabledAt: members.disabledAt, agentInboxId: agentInboxIdAt(users.email) }).from(members).innerJoin(users, eq(users.id, members.userId))
+      .where(eq(members.organizationId, orgId)),
     deps.db.select({ id: agents.id, name: agents.name, status: agents.status, mailboxId: agents.mailboxId }).from(agents).where(eq(agents.orgId, orgId)),
   ]);
   const agentInboxes = new Set(ags.map((a) => a.mailboxId));

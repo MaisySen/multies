@@ -18,7 +18,7 @@ import { DEFAULT_TIMEZONE } from "@/shared/locale";
 import { sendInviteEmail, takeInviteSend } from "./invite-email";
 import { chunkIds, inIds } from "../lib/sql-chunks";
 import { assertOpen, canOpen, scopeFor, whoCanOpen, type Need } from "./mail-access-priv1a";
-import { refuseAgentAddress } from "./agents/agent-address";
+import { agentInboxIdAt, refuseAgentAddress } from "./agents/agent-address";
 import { callerKind, isPersonSession, requirePerson } from "../lib/actor-kind";
 
 /** MB-220: shown when someone in the demo tries to invite a person. */
@@ -87,12 +87,12 @@ export async function seatsUsed(db: DB, orgId: string, now: Date) {
 
 export async function listMembers(db: DB, orgId: string) {
   // AIS1 (audit rows 1, 41): a person member whose address is an AI agent's inbox (made before invites to agents were
-  // refused) is flagged, so an admin sees it and removes it. One indexed join on the mailbox address; reads only.
+  // refused) is flagged, so an admin sees it and removes it. agentInboxIdAt: an agent inbox on a domain its owner
+  // proved, the rule refuseAgentAddress uses. Two indexed reads per member; reads only.
   const rows = await db.select({
     memberId: members.id, userId: users.id, email: users.email, name: users.name, role: members.role, kind: members.kind, title: members.title, bio: members.bio, joinedAt: members.createdAt,
-    agentInboxId: mailboxes.id,
+    agentInboxId: agentInboxIdAt(users.email),
   }).from(members).innerJoin(users, eq(users.id, members.userId))
-    .leftJoin(mailboxes, and(eq(mailboxes.address, users.email), eq(mailboxes.kind, "agent")))
     .where(eq(members.organizationId, orgId));
   const ids = rows.map((r) => r.userId);
   // PRIV1b (P24): grants on personal mailboxes mean nothing (the owner shares those), and the editor would send them back and get 403.

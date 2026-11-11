@@ -18,7 +18,7 @@
  *
  * Every refusal is flagged in the audit log: in the workspace where it was tried, else in the agent's workspace.
  */
-import { and, eq, gte } from "drizzle-orm";
+import { and, eq, gte, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
 import type { DB } from "../../db";
 import { aliases, auditLogs, domains, mailboxes, members, users } from "../../db/schema";
@@ -51,6 +51,23 @@ function destinationsOf(json: string): string[] {
   }
 }
 
+/**
+ * A domain its owner proved in DNS (status verified, or verifiedAt kept through a later failed re-check), as
+ * routeRecipient (PRIV1b P36): only such a domain routes mail inside the platform. PROVED_SQL is the same test in SQL.
+ */
+const provedDomain = (d: { status: string; verifiedAt: Date | null }) => d.status === "verified" || !!d.verifiedAt;
+const PROVED_SQL = sql`(${domains.status} = 'verified' or ${domains.verifiedAt} is not null)`;
+
+/**
+ * agentAddress's agent inbox step in SQL, for the display flags (Team, people, Staff, the assignee list, the project
+ * owner check): the id of the AI agent inbox at exactly `email` on a domain its owner proved, else null. One rule, so
+ * a flag and a refusal can't disagree: an agent inbox on a claim nobody proved marks no real person as an AI. A scalar
+ * subquery: one indexed read on the mailbox address and one on the domain id per row.
+ */
+export function agentInboxIdAt(email: AnyColumn | SQL): SQL<string | null> {
+  return sql<string | null>`(select ${mailboxes.id} from ${mailboxes} inner join ${domains} on ${domains.id} = ${mailboxes.domainId} where ${mailboxes.address} = lower(${email}) and ${mailboxes.kind} = 'agent' and ${PROVED_SQL} limit 1)`;
+}
+
 /** Where mail to `address` would reach an AI agent, or null when it reaches no agent. */
 export async function agentAddress(db: DB, address: string): Promise<AgentAddress | null> {
   return find(db, normalAddress(address), 0, new Set());
@@ -68,7 +85,7 @@ async function find(db: DB, addr: string, depth: number, seen: Set<string>): Pro
   // inbox on a claim nobody proved never gets that address's mail, so it must not block a real person's invite,
   // sign-up or password reset (anyone can add any domain name).
   const domain = await db.select({ catchAll: domains.catchAllMailboxId, status: domains.status, verifiedAt: domains.verifiedAt }).from(domains).where(eq(domains.name, addr.split("@")[1])).get();
-  if (!domain || (domain.status !== "verified" && !domain.verifiedAt)) return null;
+  if (!domain || !provedDomain(domain)) return null;
   const mb = await db.select({ orgId: mailboxes.orgId, kind: mailboxes.kind }).from(mailboxes).where(eq(mailboxes.address, addr)).get();
   if (mb) return mb.kind === "agent" ? { orgId: mb.orgId, via: "agent_inbox" } : null;
   const alias = await db.select({ destinations: aliases.destinations, enabled: aliases.enabled }).from(aliases).where(eq(aliases.address, addr)).get();

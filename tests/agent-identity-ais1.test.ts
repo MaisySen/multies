@@ -418,6 +418,33 @@ describe("AIS1 rows 41 and 52: an AI that joined as a person is flagged, kept ou
     expect(everyone.find((a) => a.id === "member:usr_agentperson")).toMatchObject({ name: "Agent", email: null, isAgent: true });
   });
 
+  it("an agent inbox another workspace made on a domain nobody proved flags no real member; the flags and the refusals agree", async () => {
+    // Integration review: the flags matched any agent inbox at the member's address, on a claim nobody proved too.
+    await ctx.db.insert(users).values({ id: "usr_ceo", email: "ceo@victim.example", name: "Cee Person", emailVerified: true });
+    await ctx.db.insert(members).values({ id: "mem_ceo", organizationId: orgId, userId: "usr_ceo", role: "member" });
+    const squat = new Client(ctx.app);
+    await squat.signup("boss@squat.test", "Squatter");
+    const claimed = (await squat.post("/api/domains", { name: "victim.example" })).body.domain.id as string;
+    const key = (await squat.post("/api/developer/keys", { name: "Setup" })).body.secret as string;
+    expect((await api(key, "POST", "/agents", { name: "Ceo", localPart: "ceo", domainId: claimed })).status).toBe(201);
+    const ownerId = (await owner.get("/api/account/me")).body.user.id as string;
+    const flags = async () => {
+      const project = (await owner.post("/api/projects", { name: `Work ${Math.random()}` })).body.project as { id: string };
+      return {
+        refused: !!(await agentAddress(ctx.db, "ceo@victim.example")),
+        team: ((await owner.get("/api/team")).body.members as { userId: string; agentInbox: boolean }[]).find((m) => m.userId === "usr_ceo")?.agentInbox,
+        people: !!((await api(wsKey, "GET", "/people")).body.people as { id: string; agentInbox?: boolean }[]).find((p) => p.id === "usr_ceo")?.agentInbox,
+        staff: (await listStaff(ctx.deps, { orgId, userId: ownerId, role: "owner" } as never)).some((p) => p.userId === "usr_ceo"),
+        assignee: (await assignees(ctx.deps, orgId)).find((a) => a.id === "member:usr_ceo")?.email,
+        ownerChange: (await owner.patch(`/api/projects/${project.id}`, { ownerId: "usr_ceo" })).status,
+      };
+    };
+    expect(await flags()).toEqual({ refused: false, team: false, people: false, staff: true, assignee: "ceo@victim.example", ownerChange: 200 });
+    // Once the claim is proved in DNS, mail to that address does reach the agent: every flag and the refusal say so.
+    await ctx.db.update(domains).set({ status: "verified", verifiedAt: new Date() }).where(eq(domains.id, claimed));
+    expect(await flags()).toEqual({ refused: true, team: true, people: true, staff: false, assignee: null, ownerChange: 422 });
+  });
+
   it("a project owner is a person: an AI that joined as a person and an agent member are refused", async () => {
     await ctx.db.insert(users).values({ id: "usr_agentperson", email: "agent@acme.io", name: "Agent", emailVerified: true });
     await ctx.db.insert(members).values({ id: "mem_agentperson", organizationId: orgId, userId: "usr_agentperson", role: "member" });
