@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
-import { agents, aliases, auditLogs, authEmailHooks, domains, invitations, mailboxes, members, organizations, projectGuests, projects, sendApprovals, users } from "@/server/db/schema";
+import { agents, aliases, auditLogs, authEmailHooks, domains, invitations, mailboxes, members, messages, organizations, projectGuests, projects, sendApprovals, users } from "@/server/db/schema";
 import { agentAddress } from "@/server/services/agents/agent-address";
+import { deliverInbound, routeRecipient } from "@/server/services/mail/delivery";
+import { sendSystemEmail } from "@/server/services/system-mail";
 import { listStaff } from "@/server/services/people-r126";
 import { assignees } from "@/server/services/suite/tasks";
 import { confirmInvite } from "@/server/services/team";
@@ -87,6 +89,41 @@ describe("AIS1 row 1: which addresses reach an agent", () => {
     expect(am.status).toBe(201);
     const amEmail = (await ctx.db.select().from(users).where(eq(users.id, amUser)).get())!.email;
     expect(await agentAddress(ctx.db, amEmail)).toMatchObject({ orgId, via: "agent_member" });
+  });
+
+  it("a disabled alias over an agent catch-all: the mail reaches the agent, so the address counts as the agent's", async () => {
+    // Review 2: routeRecipient skips a disabled alias and hands its mail to the catch-all; agentAddress now agrees.
+    await ctx.db.update(domains).set({ catchAllMailboxId: inboxId }).where(eq(domains.id, domainId));
+    await ctx.db.insert(aliases).values({ id: "als_old", orgId, domainId, localPart: "sam", address: "sam@acme.io", destinations: JSON.stringify(["sam@home.example"]), enabled: false });
+    const route = await routeRecipient(ctx.db, "sam@acme.io");
+    expect(route.kind === "mailbox" ? route.mailbox.kind : route.kind).toBe("agent");
+    await deliverInbound(ctx.deps, {
+      envelopeFrom: "noreply@service.example", rcptTo: "sam@acme.io", sizeBytes: 200, via: "test",
+      email: { messageId: "<code@service.example>", from: { address: "noreply@service.example", name: "Service" }, to: [{ address: "sam@acme.io" }], cc: [], subject: "Your code", text: "Your code is 573918", date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+    });
+    expect((await ctx.db.select().from(messages).where(eq(messages.mailboxId, inboxId))).map((m) => m.subject)).toContain("Your code");
+    expect(await agentAddress(ctx.db, "sam@acme.io")).toEqual({ orgId, via: "catch_all" });
+    // So no invite goes to it, and the refusal is in the audit log.
+    const invite = await owner.post("/api/team/invites", { email: "sam@acme.io", role: "member", mailboxIds: [] });
+    expect(invite.status).toBe(422);
+    expect(invite.body.error.code).toBe("agent_address");
+    expect(await refusals("member.invite_refused")).toEqual([expect.objectContaining({ email: "sam@acme.io", reason: "catch_all" })]);
+    // Account mail to a catch-all address goes out through the provider like any other (platform-mail-ais1), and the
+    // copy the catch-all hands the agent has no link.
+    ctx.outbound.sent.length = 0;
+    const SECRET = "Zq7mK2pX9wTr4LbN8cVd";
+    await sendSystemEmail(ctx.deps, { to: "sam@acme.io", accountSecurity: true, subject: "Reset your Multies password", text: "Reset it.", action: { label: "Choose a new password", url: `http://localhost/reset-password/${SECRET}` } });
+    expect(ctx.outbound.sent.filter((m) => m.to.includes("sam@acme.io"))).toHaveLength(1);
+    const sys = ctx.deps.config.systemFrom.address;
+    await deliverInbound(ctx.deps, {
+      envelopeFrom: sys, rcptTo: "sam@acme.io", sizeBytes: 300, via: "test",
+      email: { messageId: "<sys.sam@localhost>", from: { address: sys, name: "Multies" }, to: [{ address: "sam@acme.io" }], cc: [], subject: "Reset your Multies password", text: `Choose a new password: http://localhost/reset-password/${SECRET}`, date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+    });
+    expect((await ctx.db.select().from(messages).where(eq(messages.mailboxId, inboxId))).map((m) => m.subject)).toContain("Reset your Multies password");
+    expect(JSON.stringify((await api(agentKey, "GET", "/events?after=0")).body)).not.toContain(SECRET);
+    // An enabled alias decides on its own: its mail never reaches the catch-all.
+    await ctx.db.update(aliases).set({ enabled: true }).where(eq(aliases.id, "als_old"));
+    expect(await agentAddress(ctx.db, "sam@acme.io")).toBeNull();
   });
 
   it("an agent inbox on the platform's shared agent domain still counts (that row is stored verified)", async () => {

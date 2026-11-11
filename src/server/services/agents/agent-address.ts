@@ -9,7 +9,8 @@
  * - an agent inbox (mailboxes.kind = 'agent'), also with +tags (agent+x@ is agent@);
  * - an alias whose destinations reach one, followed through nested aliases in any workspace (disabled aliases count
  *   too: switching one back on would route account mail to the agent);
- * - an address with no mailbox or alias on a domain whose catch-all is an agent inbox;
+ * - an address with no mailbox or enabled alias on a domain whose catch-all is an agent inbox (a disabled alias is
+ *   skipped by routeRecipient, so its mail reaches the catch-all);
  * - an agent member's internal address (people.ts AGENT_EMAIL_DOMAIN).
  * Only on a domain its owner proved in DNS (as routeRecipient): mail to an address on a claim nobody proved goes to
  * the real domain's own mail server, never to an agent here.
@@ -70,13 +71,15 @@ async function find(db: DB, addr: string, depth: number, seen: Set<string>): Pro
   if (!domain || (domain.status !== "verified" && !domain.verifiedAt)) return null;
   const mb = await db.select({ orgId: mailboxes.orgId, kind: mailboxes.kind }).from(mailboxes).where(eq(mailboxes.address, addr)).get();
   if (mb) return mb.kind === "agent" ? { orgId: mb.orgId, via: "agent_inbox" } : null;
-  const alias = await db.select({ destinations: aliases.destinations }).from(aliases).where(eq(aliases.address, addr)).get();
+  const alias = await db.select({ destinations: aliases.destinations, enabled: aliases.enabled }).from(aliases).where(eq(aliases.address, addr)).get();
   if (alias) {
     for (const dest of destinationsOf(alias.destinations)) {
       const hit = await find(db, normalAddress(dest), depth + 1, seen);
       if (hit) return { orgId: hit.orgId, via: "alias" };
     }
-    return null;
+    // An enabled alias is where the mail goes. A disabled one is skipped by routeRecipient, which then hands the mail
+    // to the catch-all, so the catch-all decides (review 2).
+    if (alias.enabled) return null;
   }
   if (domain.catchAll) {
     const c = await db.select({ orgId: mailboxes.orgId, kind: mailboxes.kind }).from(mailboxes).where(eq(mailboxes.id, domain.catchAll)).get();
