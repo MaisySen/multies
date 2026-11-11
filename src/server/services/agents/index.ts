@@ -507,7 +507,7 @@ async function deliverAsAgent(deps: Deps, orgId: string, a: Agent, mb: Mailbox, 
  * An agent asks to send. Checks status, recipients, the daily cap and the plan's monthly
  * allowance, then either sends now or queues the message for a person to approve.
  */
-export async function requestSend(deps: Deps, actor: Actor, agentId: string, input: AgentSendInput): Promise<{ status: "sent"; result: SendResult } | { status: "pending_approval"; approval: ReturnType<typeof presentApproval> }> {
+export async function requestSend(deps: Deps, actor: Actor, agentId: string, input: AgentSendInput, opts: { requireApproval?: boolean } = {}): Promise<{ status: "sent"; result: SendResult } | { status: "pending_approval"; approval: ReturnType<typeof presentApproval> }> {
   assertActsAs(actor, agentId);
   const { a, mb } = await row(deps, actor.orgId, agentId);
   const who = agentActor(a, mb);
@@ -548,7 +548,8 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
     return Array.isArray(dest) && dest.length > 0 && (await Promise.all(dest.map((d) => typeof d === "string" && box(d)))).every(Boolean);
   };
   const external = (await Promise.all(recipients.map(ours))).some((h) => !h);
-  const needsApproval = a.approvalMode === "always" || (a.approvalMode === "external" && external);
+  // AIS1 (row 1): some sends need a person whatever the agent's own rule says (a guest invite: it lets someone in).
+  const needsApproval = !!opts.requireApproval || a.approvalMode === "always" || (a.approvalMode === "external" && external);
   if (needsApproval) {
     const id = newId("apr");
     await deps.db.insert(sendApprovals).values({

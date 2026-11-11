@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
-import { aliases, auditLogs, domains, invitations, members, projectGuests, users } from "@/server/db/schema";
+import { agents, aliases, auditLogs, domains, invitations, members, projectGuests, sendApprovals, users } from "@/server/db/schema";
 import { agentAddress } from "@/server/services/agents/agent-address";
 
 /**
@@ -202,5 +202,41 @@ describe("AIS1 row 1: an invite a key makes waits for a person", () => {
     const held = await api(wsKey, "POST", "/invites", { email: "kim@example.com" });
     expect((await owner.del(`/api/team/invites/${held.body.id}`)).status).toBe(200);
     expect((await ctx.db.select().from(invitations).where(eq(invitations.id, held.body.id)).get())!.status).toBe("canceled");
+  });
+});
+
+describe("AIS1 row 1: a guest invite never goes out without a person", () => {
+  it("a workspace key's guest invite waits unsent with no link until a person sends it", async () => {
+    const project = (await owner.post("/api/projects", { name: "Launch" })).body.project;
+    const sentBefore = ctx.outbound.sent.length;
+    const r = await api(wsKey, "POST", `/projects/${project.id}/guests`, { email: "client@example.com" });
+    expect(r.status).toBe(201);
+    expect(r.body.delivery.status).toBe("awaiting_confirmation");
+    expect(r.body.guest.awaitingConfirmation).toBe(true);
+    expect(JSON.stringify(r.body)).not.toContain("/g/");
+    expect(ctx.outbound.sent.slice(sentBefore).filter((m) => m.to.includes("client@example.com"))).toEqual([]);
+    const row = (await ctx.db.select().from(projectGuests).where(eq(projectGuests.email, "client@example.com")).get())!;
+    expect(row.inviteHash).toBeNull();
+    // The key can't send it through the app's route either.
+    const byKey = await ctx.app.request(`/api/guests/${row.id}/confirm`, { method: "POST", headers: { host: "localhost", authorization: `Bearer ${wsKey}`, "content-type": "application/json" }, body: "{}" });
+    expect([401, 403]).toContain(byKey.status);
+    // The owner sends it from the project's Guests.
+    const listed = (await owner.get(`/api/guests?projectId=${project.id}`)).body.guests;
+    expect(listed[0]).toMatchObject({ email: "client@example.com", awaitingConfirmation: true });
+    const ok = await owner.post(`/api/guests/${row.id}/confirm`, {});
+    expect(ok.status).toBe(200);
+    expect(ok.body.guest.awaitingConfirmation).toBe(false);
+    expect(ctx.outbound.sent.slice(sentBefore).filter((m) => m.to.includes("client@example.com")).map((m) => m.subject)).toEqual(["You're invited to Launch"]);
+    expect((await owner.post(`/api/guests/${row.id}/confirm`, {})).status).toBe(404);
+  });
+
+  it("an agent's guest invite waits for approval even when the agent sends without approval", async () => {
+    await ctx.db.update(agents).set({ approvalMode: "never" });
+    const project = (await owner.post("/api/projects", { name: "Launch" })).body.project;
+    const r = await api(agentKey, "POST", `/projects/${project.id}/guests`, { email: "client@example.com" });
+    expect(r.status).toBe(201);
+    expect(r.body.delivery.status).toBe("pending_approval");
+    expect(await ctx.db.select().from(sendApprovals)).toHaveLength(1);
+    expect(ctx.outbound.sent.filter((m) => m.to.includes("client@example.com"))).toEqual([]);
   });
 });
