@@ -19,6 +19,7 @@ import { inIds } from "../lib/sql-chunks";
 import { EXPORT_README, writeWorkData, type ZipSink } from "./data-move/export";
 import { toMboxEntry } from "./data-move/formats";
 import { endPersonalMail } from "./team";
+import { callerStampOf, viaLabel } from "@/shared/audit-caller";
 
 const PAGE = 200;
 const enc = new TextEncoder();
@@ -50,13 +51,20 @@ export async function personalData(deps: Deps, userId: string) {
   };
 }
 
-/** Audit log rows for a workspace in a date range, oldest first. */
+/**
+ * Audit log rows for a workspace in a date range, oldest first. AIS1: the last two columns say which key or connected
+ * AI app made the change (callerKind, and via in plain words), empty for a person in the app or an older entry.
+ */
 export async function auditRows(deps: Deps, orgId: string, from?: Date, to?: Date) {
   const rows = await deps.db.select().from(auditLogs).where(eq(auditLogs.orgId, orgId)).orderBy(asc(auditLogs.createdAt)).limit(50_000);
   return rows
     .filter((r) => (!from || r.createdAt >= from) && (!to || r.createdAt <= to))
-    .map((r) => redactAuditRow({ at: iso(r.createdAt), action: r.action, actor: r.actorEmail ?? "", actorUserId: r.actorUserId ?? "", targetType: r.targetType ?? "", targetId: r.targetId ?? "", ip: r.ip ?? "", metadata: r.metadata ?? "" }));
+    .map((r) => {
+      const stamp = r.metadata?.includes("\"caller\"") ? callerStampOf(parseMeta(r.metadata)?.caller) : null;
+      return redactAuditRow({ at: iso(r.createdAt), action: r.action, actor: r.actorEmail ?? "", actorUserId: r.actorUserId ?? "", targetType: r.targetType ?? "", targetId: r.targetId ?? "", ip: r.ip ?? "", metadata: r.metadata ?? "", callerKind: stamp?.kind ?? "", via: stamp ? viaLabel(stamp) : "" });
+    });
 }
+const parseMeta = (raw: string): Record<string, unknown> | null => { try { return JSON.parse(raw) as Record<string, unknown>; } catch { return null; } };
 
 export const toCsv = (rows: Record<string, unknown>[]) => Papa.unparse(rows, { quotes: false, newline: "\r\n" });
 

@@ -119,6 +119,25 @@ describe("AIS1 row 50: an entry made through a key or a connected AI app says so
       expect(r.actorEmail).toBe(`api-key:${key.prefix}`);
     }
   });
+
+  it("the CSV and JSON export end with the kind of caller and a plain via label", async () => {
+    const key = await newKey("Billing bot");
+    expect((await v1(key.secret, "POST", "/agents", { name: "Over REST", localPart: "overrest" })).status).toBe(201);
+    const m = await mcp(await connectClaude());
+    data(await m.callTool({ name: "create_agent_inbox", arguments: { name: "Over Claude", localPart: "overclaude" } }));
+
+    const csv = await c.get("/api/org/audit/export?format=csv");
+    expect(csv.status).toBe(200);
+    const [header, ...lines] = String(csv.body).split("\r\n");
+    expect(header.split(",")).toEqual(["at", "action", "actor", "actorUserId", "targetType", "targetId", "ip", "metadata", "callerKind", "via"]);
+    const line = lines.find((l) => l.includes("Over REST"))!;
+    expect(line).toContain(IP);
+    expect(line.endsWith(`workspace_key,via API key Billing bot (${key.prefix})`)).toBe(true);
+    const json = (await c.get("/api/org/audit/export?format=json")).body as { action: string; metadata: string; callerKind: string; via: string }[];
+    expect(json.find((r) => r.action === "agent.created" && r.metadata.includes("Over Claude"))).toMatchObject({ callerKind: "oauth", via: "via Claude (connected app)" });
+    // A person's own row has empty caller columns.
+    expect(json.find((r) => r.action === "api_key.created")).toMatchObject({ callerKind: "", via: "" });
+  });
 });
 
 describe("AIS1 the stamping rule", () => {
