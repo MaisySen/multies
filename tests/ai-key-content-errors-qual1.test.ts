@@ -38,6 +38,11 @@ describe("only failures about the key, its credit or its model are noted on the 
   it("a 403 that names nothing about the key is passing on a live call", () => {
     expect(keyProblemOf(err("custom", 403, ""))).toBeNull();
     expect(keyProblemOf(err("custom", 403, "<html>Request blocked</html>"))).toBeNull();
+    // A firewall in front of a custom server blocking a request for its content.
+    expect(keyProblemOf(err("custom", 403, "<html><head><title>403 Forbidden</title></head><body><center><h1>403 Forbidden</h1></center><hr><center>nginx</center></body></html>"))).toBeNull();
+    expect(keyProblemOf(err("custom", 403, "Access denied: the request was blocked by the web application firewall"))).toBeNull();
+    // The connection test's fixed probe still reads any 403 as the key (its text cannot be the cause).
+    expect(mapFailure(403, "forbidden")).toBe("key_refused");
   });
 
   it("real key, credit and model answers still count", () => {

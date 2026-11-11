@@ -53,7 +53,7 @@ export function AiConnectPanel({ status, isAdmin }: { status: AiStatus; isAdmin:
   }
   return (
     <div className="space-y-4" data-testid="ai2-panel">
-      <BuiltinCard builtin={status.builtin} ownKey={status.connected} keyProblem={!!status.problem && status.keyFallback === true} />
+      <BuiltinCard builtin={status.builtin} ownKey={status.connected} keyProblem={!!status.problem && status.keyFallback === true} ownKeyRefused={!!status.problem} />
       <section className={cardClass} aria-labelledby="ai2-own-title">
         <button
           type="button" className="flex w-full items-center justify-between gap-3 text-left" aria-expanded={advanced}
@@ -115,7 +115,7 @@ function useReturnFromSignIn(qc: ReturnType<typeof useQueryClient>) {
   }, [qc]);
 }
 
-function BuiltinCard({ builtin, ownKey, keyProblem }: { builtin?: BuiltinStatus; ownKey: boolean; keyProblem?: boolean }) {
+function BuiltinCard({ builtin, ownKey, keyProblem, ownKeyRefused }: { builtin?: BuiltinStatus; ownKey: boolean; keyProblem?: boolean; ownKeyRefused?: boolean }) {
   if (!builtin) return null;
   // QUAL1: while the own key is refused, built-in AI answers in its place (the answers say so).
   const state = !builtin.available ? "off" : ownKey && keyProblem ? "standing_in" : ownKey ? "standby" : builtin.paused ? "paused" : "on";
@@ -126,7 +126,7 @@ function BuiltinCard({ builtin, ownKey, keyProblem }: { builtin?: BuiltinStatus;
         <h3 id="ai2-builtin-title" className="font-medium">Built-in AI</h3>
         {state === "on" && <Badge tone="ok" dot>On</Badge>}
         {state === "paused" && <Badge tone="warn" dot>Paused until tomorrow</Badge>}
-        {state === "standby" && <Badge tone="neutral">Not in use: your own key is used</Badge>}
+        {state === "standby" && <Badge tone="neutral">{ownKeyRefused ? "Not in use: it does not answer in place of your key" : "Not in use: your own key is used"}</Badge>}
         {state === "standing_in" && <Badge tone="warn" dot>Answering while your key is refused</Badge>}
         {state === "off" && <Badge tone="neutral">Not available here</Badge>}
       </div>

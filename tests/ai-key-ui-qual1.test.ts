@@ -38,6 +38,15 @@ describe("Settings, AI: the real state of the saved key (QUAL1)", () => {
     expect(html).toContain("Answering while your key is refused");
   });
 
+  it("QUAL1 review: with the stand-in off (the default), built-in AI does not claim to answer, nor that the key is in use", async () => {
+    const { AiConnectPanel } = await import("@/web/pages/app/ai-connect-ai2");
+    const html = render(createElement(AiConnectPanel, { status: status({ keyFallback: false, problem: "key_refused", problemAt: "2026-11-11T02:00:00.000Z", problemMessage: REFUSED }) as never, isAdmin: true }));
+    expect(html).toContain("Key refused");
+    expect(html).not.toContain("Answering while your key is refused");
+    expect(html).not.toContain("your own key is used");
+    expect(html).toContain("Not in use: it does not answer in place of your key");
+  });
+
   it("a working key still shows Connected", async () => {
     const { AiConnectPanel } = await import("@/web/pages/app/ai-connect-ai2");
     const html = render(createElement(AiConnectPanel, { status: status() as never, isAdmin: true }));

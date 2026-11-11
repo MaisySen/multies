@@ -127,8 +127,11 @@ const CONTENT_REFUSAL = /moderat|flagged|guardrail|content[ _-]?(policy|filter|m
  * ("No credits were charged") or a billing link (Groq's rate limit answer links its settings/billing page).
  */
 const NO_CREDIT = /insufficient[ _](quota|balance|credits?|funds)|credit balance|out of credits?|no credits? (left|remaining)|exceeded your current quota|billing[ _]hard[ _]limit|payment[ _]required|key limit exceeded/;
-/** A 403 about the key itself: it names the key, signing in or permission. */
-const KEY_WORDS = /api[ _-]?key|x-api-key|authenticat|unauthori[sz]|permission|forbidden|access denied|invalid (key|token|credentials)|revoked/;
+/**
+ * A 403 about the key itself: it names the key, signing in or permission. Not a bare "forbidden" or "access denied":
+ * that is what a firewall in front of a custom server answers when it blocks a request for its content.
+ */
+const KEY_WORDS = /api[ _-]?key|x-api-key|authenticat|unauthori[sz]|permission|invalid (key|token|credentials)|revoked/;
 /** A model that is not offered: "model" with a not found or retired phrase on the same line, or the codes for it. */
 const MODEL_GONE = /model_not_found|model_decommissioned|\bmodels?\b[^\n]{0,160}?(not found|does not exist|not exist|is not available|not available|not supported|decommissioned|deprecated|no longer|do not have access|does not have access|no access)|(unknown|invalid|unsupported) model\b|not a valid model/;
 
