@@ -55,3 +55,14 @@ condition = "AND"
 paths = ['^mobile/src/i18n/mpar3\.ts$']
 regexTarget = "secret"
 regexes = ['^m\.compose3\.secret_[a-z]+$']
+
+# AIS1: tests/platform-mail-ais1.test.ts puts a made up value in mail from an outside sender
+# and in Multies' own mail, to prove an agent reads the first and never the second. It opens
+# nothing. The test arrives with the agent safety branch; the entry is here because this file
+# is rewritten on this branch and CI scans every branch.
+[[allowlists]]
+description = "Made up code in the platform mail test"
+condition = "AND"
+paths = ['^tests/platform-mail-ais1\.test\.ts$']
+regexTarget = "secret"
+regexes = ['^Zq7mK2pX9wTr4LbN8cVd$']
