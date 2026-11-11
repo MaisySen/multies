@@ -92,6 +92,24 @@ describe("AIS1 row 66: only a person decides Triage", () => {
     expect((await api(k, "POST", `/tasks/${id}/triage`, { action: "unsnooze" })).status).toBe(200);
   });
 
+  it("a key or an AI app snoozes an item for at most 7 days; a person may snooze longer", async () => {
+    const p = await triageProject();
+    const k = await key();
+    const id = await item("Quote for new menu boards", p.id);
+    const inDays = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString();
+    const long = await api(k, "POST", `/tasks/${id}/triage`, { action: "snooze", until: inDays(8) });
+    expect(long.status).toBe(403);
+    expect(long.body.error.code).toBe("person_only");
+    expect(long.body.error.message).toContain("7 days");
+    const m = await mcpWith(k);
+    const viaMcp = await m.callTool({ name: "task_triage_action", arguments: { id, action: "snooze", until: inDays(30) } });
+    expect((viaMcp as { isError?: boolean }).isError).toBe(true);
+    await m.close();
+    expect((await row(id))?.triageSnoozedUntil).toBeNull();
+    expect((await api(k, "POST", `/tasks/${id}/triage`, { action: "snooze", until: inDays(6) })).status).toBe(200);
+    expect((await c.post(`/api/triage/${id}/action`, { action: "snooze", until: inDays(30) })).status).toBe(200);
+  });
+
   it("the one action door refuses accept, decline, duplicate and restore for a key, and a refused decline writes no comment", async () => {
     const p = await triageProject();
     const k = await key();

@@ -287,8 +287,8 @@ deletes the item.
   or restores an item, or deletes one that still waits (`DELETE /tasks/{id}` and `POST /tasks/bulk-delete`,
   also when a waiting subtask would go with it). An API key, an agent key or a connected AI app (MCP over
   OAuth) gets 403 `person_only` there, and `POST /triage/bulk` refuses the whole call. Keys and AI apps can
-  still add items, read the queue and its count, snooze and unsnooze. The MCP decision tools stay listed and
-  answer `person_only`.
+  still add items, read the queue and its count, unsnooze, and snooze for up to 7 days (longer answers 403
+  `person_only`; a person may snooze up to a year). The MCP decision tools stay listed and answer `person_only`.
 
 ## People and AI agent members
 
