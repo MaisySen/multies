@@ -63,10 +63,7 @@ export async function recordWrite(deps: Deps, a: SuiteActor, w: {
   verb: string; data?: Record<string, unknown>; event?: WebhookEvent | readonly WebhookEvent[]; eventData?: Record<string, unknown>;
 }) {
   const actor = actorOf(a);
-  // AIS1 (audit row 50): a change made through an API key or a connected AI app says which one in its history line
-  // (data.caller, lib/request-caller.ts); a person's own change in the app has none. Same row, no extra write.
-  const caller = stampFor({ actorUserId: actor.type === "member" ? actor.id : null, actorEmail: a.email })?.caller;
-  const change: typeof changes.$inferInsert = changeRow(a.orgId, actor, deps.now(), caller ? { ...w, data: { ...(w.data ?? {}), caller } } : w);
+  const change: typeof changes.$inferInsert = changeRow(a.orgId, actor, deps.now(), w); // AIS1: changeRow adds data.caller
   try {
     if (deps.writeBuffer) deps.writeBuffer.changes.push(change);
     else if (!deps.chatLive) await deps.db.insert(changes).values(change);
@@ -81,13 +78,24 @@ export async function recordWrite(deps: Deps, a: SuiteActor, w: {
   if (w.event) await emitEvent(deps, a.orgId, w.event, { ...(w.eventData ?? {}), actor: { type: actor.type, id: actor.id, name: actor.name } });
 }
 
+/**
+ * AIS1 (audit row 50): a history line's data, with `caller` added when an API key or a connected AI app made the change
+ * (lib/request-caller.ts, the same rule as audit()). A person's own change in the app, and anything outside a request,
+ * gets none. Every writer of a timeline line uses it: changeRow (recordWrite, imports, seeds), the bulk summaries, the
+ * epic and sprint moves and the contact import. Same row, no extra write.
+ */
+export function withCaller(actor: { type: "member" | "agent" | "system"; id: string | null }, data: Record<string, unknown> = {}): Record<string, unknown> {
+  const caller = stampFor({ actorUserId: actor.type === "member" ? actor.id : null })?.caller;
+  return caller ? { ...data, caller } : data;
+}
+
 /** One change feed row that is also a timeline entry (R33). Batch writers (seeds, imports) use it too. */
 export function changeRow(orgId: string, actor: { type: "member" | "agent" | "system"; id: string | null; name: string }, at: Date, w: {
   entityType: string; entityId: string; op: "create" | "update" | "delete"; version?: number; verb: string; data?: Record<string, unknown>;
 }): typeof changes.$inferInsert {
   return {
     orgId, entityType: w.entityType, entityId: w.entityId, op: w.op, version: w.version ?? 1, createdAt: at,
-    actorType: actor.type, actorId: actor.id, actorName: actor.name, verb: w.verb, data: JSON.stringify(w.data ?? {}),
+    actorType: actor.type, actorId: actor.id, actorName: actor.name, verb: w.verb, data: JSON.stringify(withCaller(actor, w.data)),
   };
 }
 
