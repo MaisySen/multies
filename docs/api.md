@@ -266,7 +266,11 @@ No paid calendar APIs and no phone spend. A booking costs two inserts; a slot ca
 
 New work can wait in Triage before it becomes a task. A project's `triage` setting sends tasks from mail
 rules (workspace automations and a person's own rules), public forms, incoming hooks, API keys and AI apps
-(MCP, agents) there, subtasks and copies included; tasks a person makes in the app go straight to the board.
+(MCP, agents) there, subtasks, copies and imports included (`POST /work-imports/run`,
+`POST /data-moves/imports/run` and MCP `import_file` from a key, also into a new project the import makes; the
+work import answers `triage: true` then); tasks a person makes or imports in the app go straight to the board.
+A decision on a task takes its subtasks with it: accept brings in the ones that wait, decline and merge remove
+them, and undo puts them back.
 It is on for every new project, made in the app, by a key (`POST /projects`), from a template, by an import
 or as the first "Tasks" project (AIS1); projects made before keep what they had. Only a person signed in
 turns it off: `triage: false` from a key, on create or on `PATCH /projects/{id}`, answers 403 `person_only`.
@@ -434,7 +438,7 @@ calls are in the public API (`data-moves`, admin area; a read only key may start
 | GET | `/api/v1/data-moves` | The last 50 imports and exports: `kind`, `source`, `status` (running, stopped, done, undone, ready, expired), `done` of `total`, `created` (items made), `canUndo` |
 | POST | `/api/v1/data-moves/exports` | Answers `downloadUrl`, a ZIP that works for 24 hours without a key. Owners and admins only, one every 10 minutes (429), written to the audit log |
 | POST | `/api/v1/data-moves/imports/preview` | `{ kind, content, fileName?, mapping? }`. Writes nothing; answers the count and the first 20 rows |
-| POST | `/api/v1/data-moves/imports/run` | `{ kind, content, fileName?, mapping?, projectId?, projectName?, statusMap?, people?, moveId? }`. One step of about 15 seconds; while `move.status` is `stopped`, send it again with `moveId` |
+| POST | `/api/v1/data-moves/imports/run` | `{ kind, content, fileName?, mapping?, projectId?, projectName?, statusMap?, people?, moveId? }`. One step of about 15 seconds; while `move.status` is `stopped`, send it again with `moveId`. Tasks a key brings into a project with Triage on wait there for a person |
 | POST | `/api/v1/data-moves/{id}/undo` | Removes exactly what that import made |
 | POST | `/api/v1/data-moves/mbox/batch` | R40 mail archive upload. `{ mailboxId, total, messages, moveId?, fileName?, folder?, last? }`: at most 10 raw messages (base64), about 512 KB a call, with an `Idempotency-Key`. Messages already in the mailbox (same Message-ID) are counted as duplicates. Answers `move` and `counts` (`stored`, `duplicates`, `unreadable`). Owners and admins only |
 | POST | `/api/v1/data-moves/mbox/{id}/stop` | Stops a mail archive upload part way; what came in stays |

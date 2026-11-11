@@ -38,7 +38,7 @@ export function registerDataMoveTools(server: McpServer, deps: Deps, actor: Scop
 
   server.registerTool("import_file", {
     title: "Import a file", annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    description: "Brings a file in. kind: tasks (CSV, Excel as xlsx-base64:, Trello JSON, or a Markdown and CSV zip as zip-base64:), calendar (.ics), contacts (.vcf or CSV), docs (Markdown, or a zip of pages) or workspace (an export zip). Runs about 15 seconds; while move.status is stopped, call again with the same content and moveId. Re-running a tasks file skips tasks already in.",
+    description: "Brings a file in. kind: tasks (CSV, Excel as xlsx-base64:, Trello JSON, or a Markdown and CSV zip as zip-base64:), calendar (.ics), contacts (.vcf or CSV), docs (Markdown, or a zip of pages) or workspace (an export zip). Runs about 15 seconds; while move.status is stopped, call again with the same content and moveId. Re-running a tasks file skips tasks already in. Tasks brought into a project with Triage on (a new project starts with it on) wait in Triage for a person.",
     inputSchema: { kind: z.enum(["tasks", "calendar", "contacts", "docs", "workspace"]), content: z.string().min(1).max(8_000_000), fileName: z.string().max(255).optional(), projectId: z.string().optional(), projectName: z.string().max(120).optional(), moveId: z.string().optional() },
   }, tool(async (x: { kind: "tasks" | "calendar" | "contacts" | "docs" | "workspace"; content: string; fileName?: string; projectId?: string; projectName?: string; moveId?: string }) => {
     notAgent();

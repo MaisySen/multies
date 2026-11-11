@@ -111,7 +111,7 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | `set_project_schedule` | A project's rules for dependency dates: `workingDaysOnly` (with `daysOff`) and `strict` moves (R38, `tasks:write`) |
 | `export_workspace` | Starts a full workspace export and answers `downloadUrl` (a ZIP that works for 24 hours) and `counts` (R38, `admin:read`, owners and admins) |
 | `list_data_moves` | The last 50 imports and exports with status, progress and whether each can be undone (R38, `admin:read`) |
-| `import_file` | Brings in a file: `kind` tasks, calendar, contacts, docs or workspace, one step of about 15 seconds; call again with `moveId` while it says stopped (R38, `admin:write`) |
+| `import_file` | Brings in a file: `kind` tasks, calendar, contacts, docs or workspace, one step of about 15 seconds; call again with `moveId` while it says stopped. Tasks it brings into a project with Triage on wait there for a person (R38, `admin:write`) |
 | `undo_import` | Removes exactly what one import made (R38, `admin:write`) |
 | `set_task_repeat` | Make a task repeat |
 | `list_custom_fields` | List a project's custom fields |
@@ -193,7 +193,7 @@ an item with a parent can't become an epic, and an epic that still has items kee
 
 ### Triage
 
-New work from mail rules, public forms, incoming hooks, the API or AI apps can wait in Triage before it becomes a task. Read only keys can list; adding needs a write key. Since AIS1 a new project has Triage on, and every task an AI app or a key makes in a project with Triage on waits there: `create_task` (also from an email and as a subtask), `duplicate_task`, `use_template`, `message_to_task`, `checklist_item_to_subtask` and `create_action_items`. A task form made with `create_form` sends its answers to Triage. Only a person turns a project's Triage off. Only a person signed in to Multies decides: `triage_accept`, `triage_decline` and `triage_merge` answer `person_only` for an API key or a connected AI app (AIS1).
+New work from mail rules, public forms, incoming hooks, the API or AI apps can wait in Triage before it becomes a task. Read only keys can list; adding needs a write key. Since AIS1 a new project has Triage on, and every task an AI app or a key makes in a project with Triage on waits there: `create_task` (also from an email and as a subtask), `duplicate_task`, `use_template`, `message_to_task`, `checklist_item_to_subtask`, `create_action_items` and `import_file` (also into a new project the import makes). A decision on a task takes its subtasks with it, and undo puts them back. A task form made with `create_form` sends its answers to Triage. Only a person turns a project's Triage off. Only a person signed in to Multies decides: `triage_accept`, `triage_decline` and `triage_merge` answer `person_only` for an API key or a connected AI app (AIS1).
 
 | Tool | What it does |
 | --- | --- |
