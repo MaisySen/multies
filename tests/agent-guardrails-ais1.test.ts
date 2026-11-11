@@ -222,7 +222,7 @@ describe("AIS1 gap: mail from an agent's inbox always goes through the agent's r
     const team = (await c.post("/api/mailboxes", { domainId, localPart: "team", displayName: "Team" })).body.mailbox;
     expect((await api(wsKey, "POST", "/messages", { mailboxId: team.id, to: ["grace@example.com"], subject: "Normal", text: "x" })).status).toBe(200);
     // The API reference says so.
-    const doc = (await ctx.app.request("/api/v1/openapi.json", { headers: { host: "localhost" } }).then((r) => r.json())) as { paths: Record<string, Record<string, { responses: Record<string, { description: string }> }>> };
+    const doc = (await (await ctx.app.request("/api/v1/openapi.json", { headers: { host: "localhost" } })).json()) as { paths: Record<string, Record<string, { responses: Record<string, { description: string }> }>> };
     expect(doc.paths["/messages"].post.responses["403"].description).toContain("agent_inbox");
   });
 
