@@ -303,7 +303,7 @@ Registered in src/server/routes/mcp-r32-triage.ts. Same service as the Triage pa
 | Tool | What it does |
 | --- | --- |
 | `task_triage_list` | Tasks waiting in Triage (from mail, forms, the API and agents), newest first, with the count. `view`: pending (default) or snoozed |
-| `task_triage_action` | accept (optional status, project, assignee), decline (optional reason), snooze (`until`, at most 7 days out for a key or an AI app, a year for a person), unsnooze, duplicate (`duplicateOf`) or restore (undo an accept, decline or duplicate from the last day). `comment`: a one line note written with an accept or decline (the answer carries `comment.id`); `commentId` with restore removes it in the same undo |
+| `task_triage_action` | accept (optional status, project, assignee), decline (optional reason), snooze (`until`; a key or an AI app may snooze only until 7 days after the item came in, a person up to a year), unsnooze, duplicate (`duplicateOf`) or restore (undo an accept, decline or duplicate from the last day). `comment`: a one line note written with an accept or decline (the answer carries `comment.id`); `commentId` with restore removes it in the same undo |
 
 ### Chat channels (C1)
 

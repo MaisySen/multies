@@ -110,6 +110,31 @@ describe("AIS1 row 66: only a person decides Triage", () => {
     expect((await c.post(`/api/triage/${id}/action`, { action: "snooze", until: inDays(30) })).status).toBe(200);
   });
 
+  it("snoozing again doesn't stretch a key's 7 days: the item is back in the queue a week after it came in", async () => {
+    const p = await triageProject();
+    const id = await item("Refund request from Grace", p.id);
+    const k = await key();
+    const DAY = 86_400_000;
+    const t0 = Date.now();
+    let now = t0;
+    ctx.deps.now = () => new Date(now);
+    const snooze = async (day: number, days: number) => { now = t0 + day * DAY; return api(k, "POST", `/tasks/${id}/triage`, { action: "snooze", until: new Date(now + days * DAY).toISOString() }); };
+    expect((await snooze(0, 6)).status).toBe(200);
+    // Day 6: snoozing to day 12 reaches past a week after the item came in.
+    const again = await snooze(6, 6);
+    expect(again.status).toBe(403);
+    expect(again.body.error.code).toBe("person_only");
+    // Unsnooze, then snooze, doesn't reset it either.
+    expect((await api(k, "POST", `/tasks/${id}/triage`, { action: "unsnooze" })).status).toBe(200);
+    expect((await snooze(6, 6)).status).toBe(403);
+    expect((await snooze(6, 0.5)).status).toBe(200); // still inside the week
+    for (const day of [12, 18]) expect((await snooze(day, 6)).status).toBe(403);
+    now = t0 + 20 * DAY;
+    expect((await c.get("/api/triage/count")).body.count).toBe(1);
+    // A person may still snooze it.
+    expect((await c.post(`/api/triage/${id}/action`, { action: "snooze", until: new Date(now + 6 * DAY).toISOString() })).status).toBe(200);
+  });
+
   it("the one action door refuses accept, decline, duplicate and restore for a key, and a refused decline writes no comment", async () => {
     const p = await triageProject();
     const k = await key();
@@ -193,6 +218,22 @@ describe("AIS1 row 66: only a person decides Triage", () => {
     expect((await api(k, "DELETE", `/tasks/${normal.id}`)).status).toBe(200);
     // A person in the app may delete a waiting item.
     expect((await c.del(`/api/tasks/${id}`)).status).toBe(200);
+  });
+
+  it("a key can't delete an accepted parent whose subtask waits in Triage, one at a time or in bulk", async () => {
+    const p = await triageProject();
+    const parent = (await c.post("/api/tasks", { title: "Accepted parent", projectId: p.id })).body.task;
+    const k = await key();
+    const sub = (await api(k, "POST", "/tasks", { title: "Waiting subtask", projectId: p.id, parentId: parent.id })).body.task;
+    expect(sub.triage).toMatchObject({ state: "pending" });
+    const one = await api(k, "DELETE", `/tasks/${parent.id}`);
+    expect(one.status).toBe(403);
+    expect(one.body.error.code).toBe("person_only");
+    const bulk = await api(k, "POST", "/tasks/bulk-delete", { ids: [parent.id] });
+    expect(bulk.status).toBe(403);
+    expect(bulk.body.error.code).toBe("person_only");
+    const rows = await ctx.deps.db.select().from(tasks).where(eq(tasks.projectId, p.id)).all();
+    expect(rows.filter((r) => r.deletedAt)).toHaveLength(0);
   });
 
   it("a key can't delete a project while items wait in its Triage; a person can", async () => {

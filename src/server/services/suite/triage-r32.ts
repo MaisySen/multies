@@ -3,7 +3,7 @@
  * then comes back by itself), undo the last accept, decline or snooze, and one action door
  * (accept, decline, snooze, unsnooze, duplicate, restore) that the app, the REST API and MCP share.
  * AIS1 (audit row 66): accept, decline, duplicate and restore need a person signed in; keys may unsnooze, and
- * snooze for up to MACHINE_SNOOZE_MAX_DAYS days.
+ * snooze until at most MACHINE_SNOOZE_MAX_DAYS days after the item came in.
  */
 import { and, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
@@ -20,8 +20,8 @@ export type TriageAction = (typeof TRIAGE_ACTIONS)[number];
 /** A snooze can reach at most a year ahead. */
 const MAX_SNOOZE_MS = 366 * 24 * 3600_000;
 /**
- * AIS1 (audit row 66): a key or a connected AI app may snooze an item for this many days at most, so it can't hide
- * work from the people who decide Triage for long. A person signed in may snooze up to a year.
+ * AIS1 (audit row 66): a key or a connected AI app may keep an item snoozed until at most this many days after it came
+ * into Triage, so it can't hide work from the people who decide for long. A person signed in may snooze up to a year.
  */
 export const MACHINE_SNOOZE_MAX_DAYS = 7;
 
@@ -50,7 +50,9 @@ export async function snoozeTriage(deps: Deps, actor: SuiteActor, id: string, un
   assertWritable(actor);
   const t = await pendingRow(deps, actor, id);
   const when = parseSnoozeUntil(until, deps.now());
-  if (when.getTime() - deps.now().getTime() > MACHINE_SNOOZE_MAX_DAYS * 86_400_000) requirePerson(actor, `Snoozing a Triage item for more than ${MACHINE_SNOOZE_MAX_DAYS} days`);
+  // AIS1 review: counted from when the item came in, not from now, so snoozing again (or unsnoozing first) can't
+  // keep it out of the queue for longer. No extra read: the row is already here.
+  if (when.getTime() - t.createdAt.getTime() > MACHINE_SNOOZE_MAX_DAYS * 86_400_000) requirePerson(actor, `Snoozing a Triage item past ${MACHINE_SNOOZE_MAX_DAYS} days after it came in`);
   await deps.db.update(tasks).set({ triageSnoozedUntil: when, updatedAt: deps.now(), version: t.version + 1 }).where(eq(tasks.id, t.id));
   await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "update", version: t.version + 1, verb: "triage_snoozed", data: { title: t.title, until: when.toISOString() } });
   return getTask(deps, actor, t.id);
