@@ -238,12 +238,14 @@ the log (or the database's daily write budget). Each read names the thread by it
 except a thread in a personal mailbox, which keeps only its id: admins read the audit log, and only the
 mailbox's owner may read that mail.
 
-Everything a tool call writes to the audit log says it came over MCP: the entry carries the request's IP
-and `metadata.caller`, which names the key (`kind` `workspace_key`, `agent_key` or `agent_member_key`,
+Every entry a tool call writes to the audit log names the key or connected app that made it and carries
+the request's IP. `metadata.caller` names the key (`kind` `workspace_key`, `agent_key` or `agent_member_key`,
 with the key's `key` name and `prefix`) or, for a connected app that signed in with OAuth, `kind`
-`oauth` and the name the app registered with in `app`. Workspace admins see it in the app as "via
-Acme Assistant (connected app)" or "via API key Billing bot (mm_live_3kf9)", and in the CSV and JSON export. A
-task made or changed by a tool carries the same `caller` in its history (`get_task`, `activity[].data`).
+`oauth` and the name the app registered with in `app`. The same key reads the same over REST and MCP;
+only an agent's thread read says which one it came over (`metadata.via`, `mcp` or `api`). Workspace
+admins see it in the app as "via Acme Assistant (connected app)" or "via API key Billing bot
+(mm_live_3kf9)", and in the CSV and JSON export. A task made or changed by a tool, moved into an epic or
+sprint, or changed in bulk carries the same `caller` in its history (`get_task`, `activity[].data`).
 See "Audit log: which key or connected app acted" in the REST API reference.
 
 ### Sprints (round 21)
