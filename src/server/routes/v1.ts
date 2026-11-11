@@ -21,6 +21,7 @@ import { createDomainSchema, mailboxReplyToSchema } from "@/shared/schemas";
 import { resolveApiKey } from "../services/developer/api-keys";
 import { hasScope, insufficientScopeBody, isPresetScope, routeScopeForRequest } from "../lib/api-scopes";
 import { resolveOAuthToken } from "../services/developer/oauth";
+import { noteRequestCaller } from "../lib/request-caller";
 import { WEBHOOK_EVENTS, createEndpoint, deleteEndpoint, listEndpoints } from "../services/developer/webhooks";
 import { createDomain, getDomain, listDomains, presentDomain, verifyDomain } from "../services/domains";
 import { getMessage, getThread, listMessages } from "../services/mail/mailbox-view";
@@ -197,6 +198,7 @@ const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
   if (auth.orgSuspended) throw new HttpError(403, "workspace_suspended", "This workspace is suspended. Contact support to review it.");
   c.set("auth", auth);
+  noteRequestCaller(auth); // AIS1: audit entries and task changes name this key or connected app (lib/request-caller.ts)
   await enforceWorkspaceBudget(c, auth.orgId);
   await next();
 };

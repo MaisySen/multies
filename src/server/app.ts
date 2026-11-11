@@ -16,6 +16,7 @@ import type { AppEnv, Deps } from "./context";
 import { HttpError } from "./lib/errors";
 import { clientIp, csrfGuard, requireAuth } from "./middleware";
 import { jsonLogger, requestIdFrom } from "./lib/logger";
+import { runWithRequestCaller } from "./lib/request-caller";
 import { rateLimit } from "./lib/rate-limit";
 import { createHash } from "./lib/hash";
 import { accountRoutes } from "./routes/account";
@@ -248,7 +249,8 @@ export function createApp(deps: Deps) {
     c.set("ip", requestIp(clientIp(c), deps.config.auth.localAddresslessUnlimited));
     c.set("requestId", requestId);
     c.set("log", log);
-    await next();
+    // AIS1: audit entries and task changes made in this request carry its IP and who called (lib/request-caller.ts).
+    await runWithRequestCaller(c.var.ip, next);
     c.res.headers.set("x-request-id", requestId);
     // One access line per API request. No query strings (they can carry tokens) and no bodies.
     // R112: anonymous reports write no access line at all (not even the path and status).

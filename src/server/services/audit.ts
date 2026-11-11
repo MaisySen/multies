@@ -3,6 +3,7 @@ import type { DB } from "../db";
 import { auditLogs } from "../db/schema";
 import { newId } from "../lib/crypto";
 import { containsText, startsWithText } from "../lib/like-search";
+import { stampFor } from "../lib/request-caller";
 
 export interface AuditEntry {
   orgId: string;
@@ -19,8 +20,14 @@ export interface AuditEntry {
   at?: Date;
 }
 
-/** Appends an immutable audit record. Actions are dotted verbs, e.g. `domain.verified`. */
+/**
+ * Appends an immutable audit record. Actions are dotted verbs, e.g. `domain.verified`.
+ * AIS1: inside a request, an entry the caller made also gets the request's IP when none was passed, and, when the caller
+ * is an API key or a connected AI app, `metadata.caller` naming it (lib/request-caller.ts). Same row, no extra write.
+ */
 export async function audit(db: DB, e: AuditEntry): Promise<void> {
+  const req = stampFor(e);
+  const metadata = req?.caller && !(e.metadata && "caller" in e.metadata) ? { ...(e.metadata ?? {}), caller: req.caller } : e.metadata;
   await db.insert(auditLogs).values({
     id: newId("aud"),
     orgId: e.orgId,
@@ -29,8 +36,8 @@ export async function audit(db: DB, e: AuditEntry): Promise<void> {
     action: e.action,
     targetType: e.targetType ?? null,
     targetId: e.targetId ?? null,
-    metadata: e.metadata ? JSON.stringify(e.metadata) : null,
-    ip: e.ip ?? null,
+    metadata: metadata ? JSON.stringify(metadata) : null,
+    ip: e.ip ?? req?.ip ?? null,
     agentId: e.agentId ?? null,
     ...(e.at ? { createdAt: e.at } : {}),
   });
