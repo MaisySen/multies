@@ -118,7 +118,7 @@ export async function listMembers(db: DB, orgId: string) {
 export async function listInvites(db: DB, orgId: string, now: Date) {
   const rows = await db.select({ inv: invitations, inviter: users.name }).from(invitations)
     .innerJoin(users, eq(users.id, invitations.inviterId))
-    .where(and(eq(invitations.organizationId, orgId), inArray(invitations.status, OPEN_INVITES)))
+    .where(and(eq(invitations.organizationId, orgId), inArray(invitations.status, [...OPEN_INVITES])))
     .orderBy(desc(invitations.createdAt));
   return rows.map(({ inv, inviter }) => ({
     id: inv.id, email: inv.email, role: (inv.role ?? "member") as "admin" | "member",
@@ -148,7 +148,8 @@ const viaKey = (auth: AuthContext) => !isPersonSession(auth);
  */
 export const KEY_INVITES_NEED_A_PERSON = true;
 export const INVITE_AWAITING = "awaiting_approval";
-const OPEN_INVITES = ["pending", INVITE_AWAITING];
+/** Fixed, two statuses: spread into a literal list at each inArray (tests/d1-sweep-r27.test.ts reads it so). */
+const OPEN_INVITES = ["pending", INVITE_AWAITING] as const;
 export const INVITE_HELD_DETAIL = "Nothing was emailed yet. An owner or admin confirms this invite in Multies, in Settings, Team, and it is emailed then.";
 const cleanText = (v: string | null | undefined, max: number) => (v === undefined ? undefined : (v ?? "").trim().slice(0, max) || null);
 
@@ -185,7 +186,7 @@ export async function createInvite(deps: Deps, auth: AuthContext, headers: Heade
   const plan = await getPlan(db, auth.orgId);
   const used = await seatsUsed(db, auth.orgId, deps.now());
   let reinvite = await db.select().from(invitations)
-    .where(and(eq(invitations.organizationId, auth.orgId), eq(invitations.email, email), inArray(invitations.status, OPEN_INVITES))).get();
+    .where(and(eq(invitations.organizationId, auth.orgId), eq(invitations.email, email), inArray(invitations.status, [...OPEN_INVITES]))).get();
   if (used.members + used.pendingInvites - (reinvite ? 1 : 0) >= plan.limits.seats) {
     throw planLimit(`Your workspace includes ${plan.limits.seats} seats, and they're all taken or invited. ${addonHint("seats")}`);
   }
@@ -294,7 +295,7 @@ export async function confirmInvite(deps: Deps, auth: AuthContext, id: string) {
 }
 
 export async function getInvite(db: DB, orgId: string, id: string) {
-  const inv = await db.select().from(invitations).where(and(eq(invitations.id, id), eq(invitations.organizationId, orgId), inArray(invitations.status, OPEN_INVITES))).get();
+  const inv = await db.select().from(invitations).where(and(eq(invitations.id, id), eq(invitations.organizationId, orgId), inArray(invitations.status, [...OPEN_INVITES]))).get();
   if (!inv) throw notFound("Invitation");
   return inv;
 }
