@@ -46,7 +46,8 @@ export function useR116Prefs(): [R116Prefs, (p: Partial<R116Prefs>) => void] {
 
 // ------------------------------------------------------------------ translation
 
-export type TranslateResult = { map: Map<string, string>; source: R116Language | null; target: R116Language; same: boolean };
+/** fallback (QUAL1 review): the server's note when built-in AI translated because the workspace's own key was refused. */
+export type TranslateResult = { map: Map<string, string>; source: R116Language | null; target: R116Language; same: boolean; fallback?: string };
 const memo = new Map<string, TranslateResult>();
 
 /**
@@ -65,13 +66,15 @@ export async function translatePieces(key: string, pieces: Piece[], target: R116
   const groups = batches(texts);
   const map = new Map<string, string>();
   let done = 0;
+  let fallback: string | undefined;
   onProgress?.(0, groups.length);
   for (const g of groups) {
-    const r = await api.post<{ texts: string[]; same: boolean }>("/translate", { texts: g.map((i) => texts[i]), target, source });
+    const r = await api.post<{ texts: string[]; same: boolean; fallback?: { message: string } }>("/translate", { texts: g.map((i) => texts[i]), target, source });
     g.forEach((i, n) => { if (r.texts[n]) map.set(texts[i], r.texts[n]); });
+    if (r.fallback?.message) fallback = r.fallback.message;
     onProgress?.(++done, groups.length);
   }
-  const out = { map, source, target, same: false };
+  const out: TranslateResult = { map, source, target, same: false, ...(fallback ? { fallback } : {}) };
   if (memo.size > 100) memo.delete(memo.keys().next().value as string);
   memo.set(k, out);
   return out;

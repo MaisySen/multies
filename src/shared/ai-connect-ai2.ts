@@ -156,6 +156,8 @@ export type AiKeyProblem = (typeof AI_KEY_PROBLEMS)[number];
 export const isAiKeyProblem = (v: unknown): v is AiKeyProblem => typeof v === "string" && (AI_KEY_PROBLEMS as readonly string[]).includes(v);
 /** Where an admin fixes the key: Settings, AI. */
 export const AI_KEY_FIX_PATH = "/app/settings#ai";
+/** QUAL1 review: an API error code for a key problem (ai_key_refused, ai_no_credit, ai_model_unavailable), which gets the fix link. */
+export const isAiKeyProblemCode = (code: unknown): boolean => typeof code === "string" && code.startsWith("ai_") && isAiKeyProblem(code.slice(3));
 
 /** The one plain sentence for a key problem, wherever it shows (Settings, the mail assistant, Team AI, meeting notes, errors). */
 export function aiKeyProblemText(problem: AiKeyProblem, providerName: string | null | undefined): string {

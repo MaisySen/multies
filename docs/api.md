@@ -161,17 +161,18 @@ saying the provider would not answer this request. Rate limits are not noted eit
   `problemMessage` (the plain sentence the app shows) while the key is refused. They are absent while it works; `connected`
   stays `true` because the key is still saved.
 - `POST /api/ai/summary`, `/api/ai/draft` and `/api/ai/triage` (and the meeting suggestions, the forms AI draft, the
-  live meeting summary and `POST /api/catchup/summary`) answer **409** with the code `ai_key_refused`, `ai_no_credit` or
-  `ai_model_unavailable`, the same sentence, and `details.fix: "/app/settings#ai"`. A provider that is down or rate
+  live meeting summary, `POST /api/catchup/summary`, the mail Translate `POST /api/translate`, and the document tools'
+  `POST /api/tools/ai/ask` and `/api/tools/ai/translate`) answer **409** with the code `ai_key_refused`, `ai_no_credit`
+  or `ai_model_unavailable`, the same sentence, and `details.fix: "/app/settings#ai"`. A provider that is down or rate
   limited is still `502 ai_provider_error`. A recording chunk the provider refuses stays `502 ai_provider_error` (so the
   phone keeps the chunk and retries it) with the same sentence.
 - Built-in AI answers in the key's place only where the deployment sets `AI_KEY_FALLBACK=on` (with AI2 on). It is off
   by default: the workspace chose its own provider, so its text never goes to another processor unless the operator
   turns this on (after the privacy policy says so). When it is on, `GET /api/ai-trust` lists built-in AI "In their
   place if your provider refuses your key" before any refusal, and each answer it writes inside the free daily meter
-  carries `fallback: { reason, message }` (`message` starts "Built-in AI wrote this because ..."). The document tools'
-  Ask and Translate answers carry the same `fallback`, their invoice and contract readers put the sentence in `note`,
-  and a Team AI run ends with that line.
+  carries `fallback: { reason, message }` (`message` starts "Built-in AI wrote this because ..."). `POST /api/translate`
+  (also when served from its cache), the forms AI draft and the document tools' Ask and Translate answers carry the
+  same `fallback`, their invoice and contract readers put the sentence in `note`, and a Team AI run ends with that line.
 - `POST /api/ai/models` with a refused key answers the short list of common models with `live: false`,
   `problem: "key_refused"` and a note saying so, and keeps no cached copy.
 - `GET /api/team-ai/state` shows `ai.keyProblem` and `ai.keyProblemMessage`; `ai.source` is `built_in` (or `none`)

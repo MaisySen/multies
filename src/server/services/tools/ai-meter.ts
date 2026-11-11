@@ -17,7 +17,8 @@ import type { Deps } from "../../context";
 import { type PlanId } from "@/shared/plans";
 import { keyFallbackOn, keyFor } from "../ai/keys";
 import { AI_PROVIDER_INFO, keyProblemOf, type AiProvider, type AiProviderId } from "../ai/providers";
-import { aiFallbackText, aiKeyProblemText, type AiKeyProblem } from "@/shared/ai-connect-ai2";
+import { AI_KEY_FIX_PATH, aiFallbackText, aiKeyProblemText, type AiKeyProblem } from "@/shared/ai-connect-ai2";
+import { HttpError } from "../../lib/errors";
 import { dayOf } from "./usage";
 import { effectivePlanId } from "../plans";
 import { aiAllowed } from "../ai-trust-td1"; // TD1: AI trust gate
@@ -84,7 +85,11 @@ export type AiRequest =
 export type AiSource = "own_key" | "free";
 /** fallback (QUAL1): set when the free service answered because the workspace's own key was refused; `message` says so. */
 export type AiOk = { ok: true; source: AiSource; text: string; texts: string[]; units: number; fallback?: { reason: AiKeyProblem; message: string } };
-export type AiRefused = { ok: false; reason: "limit" | "workspace_limit" | "too_big" | "unavailable" | "error"; message: string };
+/**
+ * problem (QUAL1 review): set with reason "error" when the provider refused the workspace's own key, its credit or its
+ * model (and built-in AI did not stand in), so a route can answer 409 ai_<problem> with the fix link (aiRefusalError).
+ */
+export type AiRefused = { ok: false; reason: "limit" | "workspace_limit" | "too_big" | "unavailable" | "error"; message: string; problem?: AiKeyProblem };
 export type AiResult = AiOk | AiRefused;
 
 const enc = new TextEncoder();
@@ -196,9 +201,17 @@ async function runOwnKey(provider: AiProvider, req: AiRequest): Promise<{ result
     // QUAL1: plain words only. The provider's own answer is never shown (it can echo the request or account details).
     const problem = keyProblemOf(err);
     const name = AI_PROVIDER_INFO[provider.name as AiProviderId]?.name ?? null;
-    if (problem) return { result: { ok: false, reason: "error", message: aiKeyProblemText(problem, name) }, problem };
+    if (problem) return { result: { ok: false, reason: "error", message: aiKeyProblemText(problem, name), problem }, problem };
     return { result: { ok: false, reason: "error", message: `${name ?? "Your AI provider"} could not answer just now. Try again in a minute.` }, problem: null };
   }
+}
+
+/**
+ * QUAL1 review: the answer for a refusal that is the workspace key's problem: 409 ai_key_refused (ai_no_credit,
+ * ai_model_unavailable) with the plain sentence and where to fix it, as the mail assistant answers. Null otherwise.
+ */
+export function aiRefusalError(r: AiResult): HttpError | null {
+  return !r.ok && r.problem ? new HttpError(409, `ai_${r.problem}`, r.message, { fix: AI_KEY_FIX_PATH }) : null;
 }
 
 /** Runs the request on the free AI service. The caller has already reserved `reserved` units. */
@@ -281,9 +294,12 @@ export async function askAi(deps: Deps, orgId: string, req: AiRequest, opts: { s
   if (!(await aiAllowed(deps, orgId))) return { ok: false, reason: "unavailable", message: AI_OFF_MESSAGE }; // TD1: AI off, no provider call
   const own = opts.skipOwnKey ? null : await keyFor(deps, orgId).catch(() => null);
   let fallback: AiOk["fallback"];
+  // QUAL1 review: when built-in AI cannot stand in after all (its limit, a failure), the key problem is the thing to fix.
+  let keyRefusal: AiRefused | null = null;
   if (own) {
     const { result, problem } = await runOwnKey(own.provider, req);
     if (result.ok || !problem || !keyFallbackOn(deps)) return result;
+    keyRefusal = result;
     fallback = { reason: problem, message: aiFallbackText(problem, AI_PROVIDER_INFO[own.providerId].name) };
   }
   if (!deps.ai) return { ok: false, reason: "unavailable", message: UNAVAILABLE_MESSAGE };
@@ -292,7 +308,7 @@ export async function askAi(deps: Deps, orgId: string, req: AiRequest, opts: { s
   const est = estimateUnits(req);
   const plan = await planOf(deps, orgId);
   const refused = await reserve(deps, orgId, plan, est, day);
-  if (refused) return refused;
+  if (refused) return keyRefusal ?? refused;
   let actual = est;
   try {
     const r = await runFree(deps, req);
@@ -302,7 +318,7 @@ export async function askAi(deps: Deps, orgId: string, req: AiRequest, opts: { s
   } catch (err) {
     deps.log?.warn?.("tools.ai_failed", { error: err instanceof Error ? err.message : String(err) });
     // A failed call may still have used units; keep the whole reservation counted.
-    return { ok: false, reason: "error", message: "The AI answer failed. Try again in a moment." };
+    return keyRefusal ?? { ok: false, reason: "error", message: "The AI answer failed. Try again in a moment." };
   } finally {
     await settle(deps, orgId, day, est, actual).catch(() => undefined);
   }

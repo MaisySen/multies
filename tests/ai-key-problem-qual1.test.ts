@@ -203,7 +203,7 @@ describe("built-in AI never stands in for a workspace's own key unless the deplo
     t.deps.ai = ai as unknown as typeof t.deps.ai;
     expect(((await t.c.get("/api/ai-trust")).body.providers as { use: string }[]).some((p) => /refuse/i.test(p.use))).toBe(false);
     t.setAnswer(refused);
-    expect(await askAi(t.deps, t.orgId, { task: "chat", system: "s", user: "u" })).toMatchObject({ ok: false, reason: "error", message: REFUSED });
+    expect(await askAi(t.deps, t.orgId, { task: "chat", system: "s", user: "u" })).toEqual({ ok: false, reason: "error", message: REFUSED, problem: "key_refused" });
     expect(ai.run).not.toHaveBeenCalled();
   });
 });
@@ -247,7 +247,7 @@ describe("with AI_KEY_FALLBACK=on, built-in AI stands in for a refused key, and 
     // Without built-in AI the refusal is plain words, not the provider's body.
     t.deps.ai = undefined;
     const plain = await askAi(t.deps, t.orgId, { task: "chat", system: "s", user: "u" });
-    expect(plain).toEqual({ ok: false, reason: "error", message: REFUSED });
+    expect(plain).toEqual({ ok: false, reason: "error", message: REFUSED, problem: "key_refused" });
     noSecret(plain);
   });
 

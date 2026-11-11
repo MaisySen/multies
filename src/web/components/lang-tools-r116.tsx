@@ -4,7 +4,7 @@
  * module is loaded on demand (lang-tools-r116-lazy.tsx), so the app's first load does not grow.
  */
 import { useEffect, useId, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import DOMPurify from "dompurify";
 import type { Editor } from "@tiptap/react";
 import { toast } from "sonner";
@@ -13,7 +13,8 @@ import { Select } from "@/web/components/ui/input";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { IconCircleStop, IconGlobe, IconPause, IconPlay, IconVolume } from "@/web/components/ui/icon";
-import { api, errorMessage } from "@/web/lib/api";
+import { ApiError, api, errorMessage } from "@/web/lib/api";
+import { AI_KEY_FIX_PATH, isAiKeyProblemCode } from "@/shared/ai-connect-ai2"; // QUAL1 review
 import { cn } from "@/web/lib/cn";
 import { HtmlBody, MAIL_PURIFY, TextBody } from "@/web/pages/app/mail/html-body";
 import {
@@ -84,29 +85,38 @@ function useTranslate(key: string) {
   const [prefs, setPrefs] = useR116Prefs();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** QUAL1 review: the error is the workspace AI key's problem, so the line links to where it is fixed. */
+  const [fix, setFix] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
   const [result, setResult] = useState<Translated | null>(null);
   const [showing, setShowing] = useState(false);
   const run = async (make: () => { pieces: ReturnType<typeof textPieces>; join: (m: Map<string, string>) => string }, target: R116Language = prefs.target) => {
-    setError(null); setInfo(null); setBusy("Translating");
+    setError(null); setFix(false); setInfo(null); setBusy("Translating");
     try {
       const { pieces, join } = make();
       const r = await translatePieces(key, pieces, target, (done, total) => setBusy(total > 1 ? `Translating, ${done} of ${total}` : "Translating"));
       if (r.same) { setInfo(`This is already in ${languageLabel(target)}.`); setShowing(false); return; }
       setResult({ body: join(r.map), source: r.source, target });
       setShowing(true);
+      // QUAL1 review: built-in AI translated in place of a refused workspace key: say so under the translation.
+      if (r.fallback) setInfo(r.fallback);
     } catch (e) {
       setError(errorMessage(e, "The translation failed. Try again in a moment."));
+      setFix(e instanceof ApiError && isAiKeyProblemCode(e.code));
     } finally { setBusy(null); }
   };
-  const reset = () => { setResult(null); setShowing(false); setError(null); setInfo(null); };
-  return { prefs, setPrefs, busy, error, info, result, showing, setShowing, run, setError, reset };
+  const reset = () => { setResult(null); setShowing(false); setError(null); setFix(false); setInfo(null); };
+  return { prefs, setPrefs, busy, error, fix, info, result, showing, setShowing, run, setError, reset };
 }
 
-function StatusLine({ error, info, busy, onRetry }: { error: string | null; info: string | null; busy: string | null; onRetry: () => void }) {
+function StatusLine({ error, fix, info, busy, onRetry }: { error: string | null; fix?: boolean; info: string | null; busy: string | null; onRetry: () => void }) {
   if (error) return (
     <div role="alert" data-testid="translate-error" className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-bad-soft px-3 py-2 text-[13px] text-bad">
-      <span>{error}</span><Button variant="outline" size="sm" onClick={onRetry}>{tr("common.retry")}</Button>
+      <span>{error}</span>
+      <span className="flex flex-wrap items-center gap-2">
+        {fix && <Link to={AI_KEY_FIX_PATH} className="font-medium text-brand-hover underline-offset-2 hover:underline" data-testid="translate-fix-key">{tr("ai.fix_key")}</Link>}
+        <Button variant="outline" size="sm" onClick={onRetry}>{tr("common.retry")}</Button>
+      </span>
     </div>
   );
   return <p className="text-[13px] text-muted empty:hidden" aria-live="polite" data-testid="translate-status">{busy ? `${busy}…` : info ?? ""}</p>;
@@ -158,7 +168,7 @@ export function MailBodyR116({ id, html, text }: { id: string; html?: string | n
           </Button>
         )}
       </div>
-      <StatusLine error={t.error} info={t.info} busy={t.busy} onRetry={() => void go()} />
+      <StatusLine error={t.error} fix={t.fix} info={t.info} busy={t.busy} onRetry={() => void go()} />
       <ReadAloudBar owner={owner} />
       {t.result && <TranslatedNote r={t.result} showing={t.showing} onToggle={() => t.setShowing((s) => !s)} testid="mail-translated-note" />}
       {html ? <HtmlBody html={shown ?? html} /> : <TextBody text={shown ?? text} />}
@@ -192,7 +202,7 @@ export function ChatLangR116({ id, text, request, onHandled }: { id: string; tex
           <IconGlobe className="h-3.5 w-3.5" aria-hidden />{tr("docs.translate_to")} {languageLabel(t.prefs.target)}
         </button>
       )}
-      {(t.busy || t.error || t.info) && <div className="mt-1"><StatusLine error={t.error} info={t.info} busy={t.busy} onRetry={() => void go()} /></div>}
+      {(t.busy || t.error || t.info) && <div className="mt-1"><StatusLine error={t.error} fix={t.fix} info={t.info} busy={t.busy} onRetry={() => void go()} /></div>}
       {t.result && (
         <div className="mt-1 space-y-0.5" data-testid="chat-translation">
           {t.showing && <p className="whitespace-pre-wrap break-words rounded-md border-l-2 border-brand/50 pl-2 text-[14px] leading-relaxed text-fg">{t.result.body}</p>}
@@ -270,7 +280,7 @@ export function DocLangR116({ editor, title }: { editor: Editor | null; title: s
             <LangSelect value={t.prefs.target} onChange={(v) => { t.setPrefs({ target: v }); void go(v); }} />
             {t.result && <Button variant="outline" size="sm" onClick={() => void go()} loading={!!t.busy}>{tr("docs.translate_again")}</Button>}
           </div>
-          <StatusLine error={t.error} info={t.info} busy={t.busy} onRetry={() => void go()} />
+          <StatusLine error={t.error} fix={t.fix} info={t.info} busy={t.busy} onRetry={() => void go()} />
           <ReadAloudBar owner="doc-translation" />
           <div className="grid gap-3 sm:grid-cols-2">
             <section aria-label={tr("docs.original")} className="min-w-0 rounded-lg border border-line p-3">

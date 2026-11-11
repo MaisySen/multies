@@ -22,7 +22,7 @@ import { engineFetch, type EngineConfig } from "../services/tools/engine-client"
 import { mintToken, readToken } from "../services/tools/tokens";
 import { readToolState, toolLimits, toolsOnFor, type ToolState } from "../services/tools/usage";
 import { requireToolFeature, toolFeatureOn } from "../services/tools/features";
-import { aiUsage, askAi, isTranslateLanguage, TRANSLATE_LANGUAGES, type AiResult } from "../services/tools/ai-meter";
+import { aiRefusalError, aiUsage, askAi, isTranslateLanguage, TRANSLATE_LANGUAGES, type AiResult } from "../services/tools/ai-meter";
 import {
   applyContractFill, applyInvoiceFill, bullets, chunkDoc, citedPages, cleanRow, contractFillPrompt, contractMissing, contractReminders,
   docChars, expenseTotals, extractContract, extractInvoice, INVOICE_HEADERS, invoiceCells, invoiceFillPrompt, missingFields,
@@ -161,6 +161,9 @@ export async function docFor(c: Context<AppEnv>, token: string): Promise<{ doc: 
 
 const aiFail = (r: AiResult): never => {
   if (r.ok) throw new Error("unreachable");
+  // QUAL1 review: a refused workspace key answers 409 ai_key_refused with the fix link, as the mail assistant does.
+  const keyProblem = aiRefusalError(r);
+  if (keyProblem) throw keyProblem;
   throw new HttpError(r.reason === "limit" || r.reason === "workspace_limit" ? 429 : r.reason === "too_big" ? 413 : 503, `ai_${r.reason}`, r.message);
 };
 
