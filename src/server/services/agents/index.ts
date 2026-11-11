@@ -12,11 +12,12 @@ import {
   agentEvents, agentMailboxAccess, agents, apiKeys, attachments, auditLogs, domains, mailboxes, messages, sendApprovals,
 } from "../../db/schema";
 
-/** Agent thread reads are audited once per agent, thread and hour. */
+/** Agent thread reads are audited once per agent, thread, key or connected app (AIS1) and hour. */
 export const READ_AUDIT_ROLLUP_MS = 60 * 60_000;
 import { fromB64Or, newId, randomToken } from "../../lib/crypto";
 import { HttpError, badRequest, conflict, forbidden, notFound, planLimit } from "../../lib/errors";
 import { audit } from "../audit";
+import { stampFor } from "../../lib/request-caller";
 import { addonHint, assertCanCreate, bumpCounter, getPlan, readCounter } from "../plans";
 import { createApiKey, listApiKeys } from "../developer/api-keys";
 import { emitEvent } from "../developer/webhooks";
@@ -419,9 +420,13 @@ export async function readThread(deps: Deps, actor: Actor, threadId: string, ori
     // Reads roll up to one audit row per agent, thread and hour (round 20): an agent polling a thread
     // every minute used to write 3 D1 rows a minute. The row still says who read what and when.
     // AIS1 (audit row 15): it names the thread by its subject as well as its id (the same row, one more field).
+    // AIS1 review: and one row per key or connected app, since the row names it (metadata.caller): a second key reading
+    // the same thread in that hour gets its own row. audit() appends the same stamp object, so its JSON text matches.
+    const caller = stampFor(agentActor(a, mb))?.caller;
+    const sameCaller = caller ? sql`instr(${auditLogs.metadata}, ${`"caller":${JSON.stringify(caller)}`}) > 0` : undefined;
     const since = new Date(deps.now().getTime() - READ_AUDIT_ROLLUP_MS);
     const recent = await deps.db.select({ id: auditLogs.id }).from(auditLogs)
-      .where(and(eq(auditLogs.agentId, a.id), gte(auditLogs.createdAt, since), eq(auditLogs.action, "agent.message_read"), eq(auditLogs.targetId, threadId))).limit(1).get();
+      .where(and(eq(auditLogs.agentId, a.id), gte(auditLogs.createdAt, since), eq(auditLogs.action, "agent.message_read"), eq(auditLogs.targetId, threadId), sameCaller)).limit(1).get();
     if (!recent) {
       // AIS1 review: a personal mailbox (PRIV1a) is opened only by its owner, but admins and the workspace owner read the
       // audit log and its export. A thread in one keeps its id and loses its subject. One read, on the write path only.
