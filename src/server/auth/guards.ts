@@ -62,10 +62,11 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
   }
   if (!member) {
     // AIS1 (audit row 1): an account made before the fix whose address reaches an AI agent never gets a workspace of
-    // its own either. Only on this no workspace path (a first sign in), never on a signed in read: a few indexed reads.
+    // its own either. Only on this no workspace path (a first sign in), never on a member's signed in read: a few
+    // indexed reads. Such a session lands here on every request, so the refusal is flagged once a day, not each time.
     const { refuseAgentAddress } = await import("../services/agents/agent-address");
     try {
-      await refuseAgentAddress(deps, s.user.email, { action: "member.join_refused", actorUserId: s.user.id, actorEmail: s.user.email, metadata: { via: "new_workspace" } });
+      await refuseAgentAddress(deps, s.user.email, { action: "member.join_refused", actorUserId: s.user.id, actorEmail: s.user.email, metadata: { via: "new_workspace" }, oncePerDay: true });
     } catch (err) {
       if (err instanceof HttpError) throw forbidden(err.message);
       throw err;

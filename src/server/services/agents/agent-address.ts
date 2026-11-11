@@ -17,10 +17,10 @@
  *
  * Every refusal is flagged in the audit log: in the workspace where it was tried, else in the agent's workspace.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 import type { Deps } from "../../context";
 import type { DB } from "../../db";
-import { aliases, domains, mailboxes, members, users } from "../../db/schema";
+import { aliases, auditLogs, domains, mailboxes, members, users } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { audit } from "../audit";
 import { isAgentEmail } from "../people";
@@ -98,7 +98,14 @@ export interface RefusalContext {
   actorEmail?: string | null;
   ip?: string | null;
   metadata?: Record<string, unknown>;
+  /**
+   * Flag it at most once a day per account (resolveAuth: a refused session asks again on every request). One indexed
+   * read on the refused path only; the audit write happens once.
+   */
+  oncePerDay?: boolean;
 }
+
+const DAY = 86_400_000;
 
 /**
  * Throws 422 agent_address when mail to `email` reaches an AI agent, after flagging the attempt in the audit log.
@@ -109,7 +116,11 @@ export async function refuseAgentAddress(deps: Deps, email: string, ctx: Refusal
   if (!hit) return;
   const orgId = ctx.orgId || hit.orgId;
   const address = normalAddress(email) || email;
-  if (orgId) {
+  const flagged = orgId && ctx.oncePerDay && ctx.actorUserId
+    ? await deps.db.select({ id: auditLogs.id }).from(auditLogs).where(and(eq(auditLogs.orgId, orgId), gte(auditLogs.createdAt, new Date(deps.now().getTime() - DAY)),
+      eq(auditLogs.action, ctx.action), eq(auditLogs.actorUserId, ctx.actorUserId))).limit(1).get()
+    : undefined;
+  if (orgId && !flagged) {
     await audit(deps.db, {
       orgId, actorUserId: ctx.actorUserId ?? null, actorEmail: ctx.actorEmail ?? null, action: ctx.action, ip: ctx.ip ?? null,
       // Never another workspace's id: this row is read by the admins of the workspace where it was tried.

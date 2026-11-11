@@ -177,6 +177,18 @@ describe("AIS1 row 1: no account or membership for an agent's address", () => {
     expect((await ctx.db.select().from(organizations)).map((o) => o.id).sort()).toEqual([orgId, own].sort());
     expect(await refusals("member.join_refused")).toEqual([expect.objectContaining({ email: "agent@acme.io", via: "new_workspace" })]);
   });
+
+  it("such a session is refused on every request but flagged in the audit log once a day, not once a request", async () => {
+    // The state the runbook leaves: the owner removed the "Agent" member, and its session lives on.
+    const legacy = new Client(ctx.app);
+    await legacy.signup("legacy@elsewhere.test", "Agent", "");
+    const userId = (await ctx.db.select().from(users).where(eq(users.email, "legacy@elsewhere.test")).get())!.id;
+    await ctx.db.delete(members).where(eq(members.userId, userId));
+    await ctx.db.update(users).set({ email: "agent@acme.io", emailVerified: true }).where(eq(users.id, userId));
+    legacy.autoVerify = false;
+    for (let i = 0; i < 5; i++) expect((await legacy.get("/api/account/me")).status).toBe(403);
+    expect(await refusals("member.join_refused")).toHaveLength(1);
+  });
 });
 
 describe("AIS1 row 1: an invite a key makes waits for a person", () => {
