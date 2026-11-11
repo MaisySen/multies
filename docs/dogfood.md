@@ -33,7 +33,9 @@ templates  [{ name, kind?: task|doc, description?, category?, title, notes }]   
 People references: `member:self` (the founder), `member:<email>` (a member who has joined),
 `agent:<key>` (an agent from the `agents` list). Since round 12 agents are agent members: a
 title, a bio (which should say it is an AI agent), their own key ("<Agent name> key"), no seat
-and no mailbox, 10 on Free. Channel purposes go through `PATCH /api/v1/chat/channels/{id}`, each
+and no mailbox, 10 on Free. A mail agent (`inbox: true`) always starts with a person approving
+every message, since an API key can't lower that (AIS1); with `approvalMode` set to `external` or
+`never` the script says so and you change it in the app (Agents, the agent, Guardrails). Channel purposes go through `PATCH /api/v1/chat/channels/{id}`, each
 welcome post is pinned, and templates are written from scratch with `POST /api/v1/templates`
 (`kind: doc` for a doc template, with `notes` as its body).
 
