@@ -83,25 +83,28 @@ describe("triage accept or decline with a comment", () => {
     expect(await commentsOf(id)).toHaveLength(1);
     expect((await taskRow(id))?.triageState).not.toBe("pending"); // nothing changed
   });
-  it("the API and MCP take a comment on accept and decline", async () => {
+  it("the API and MCP refuse a key's accept, decline or undo with a comment, and write no comment (AIS1 row 66)", async () => {
     const key = (await c.post("/api/developer/keys", { name: "Agent" })).body.secret as string;
     const id = await item("From the API");
     const res = await ctx.app.request(`/api/v1/tasks/${id}/triage`, { method: "POST", headers: { authorization: `Bearer ${key}`, host: "localhost", "content-type": "application/json" }, body: JSON.stringify({ action: "decline", comment: "Duplicate of last week" }) });
-    expect(res.status).toBe(200);
-    const body = await res.json() as { comment: { id: string; body: string } };
-    expect(body.comment.body).toBe("Duplicate of last week");
-    const undo = await ctx.app.request(`/api/v1/tasks/${id}/triage`, { method: "POST", headers: { authorization: `Bearer ${key}`, host: "localhost", "content-type": "application/json" }, body: JSON.stringify({ action: "restore", commentId: body.comment.id }) });
-    expect(((await undo.json()) as { commentRemoved: boolean }).commentRemoved).toBe(true);
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe("person_only");
+    expect(await commentsOf(id)).toHaveLength(0);
+    expect((await taskRow(id))?.triageState).toBe("pending");
+    // A person declines with the comment; the key can't undo it.
+    const done = await c.post(`/api/triage/${id}/action`, { action: "decline", comment: "Duplicate of last week" });
+    const undo = await ctx.app.request(`/api/v1/tasks/${id}/triage`, { method: "POST", headers: { authorization: `Bearer ${key}`, host: "localhost", "content-type": "application/json" }, body: JSON.stringify({ action: "restore", commentId: done.body.comment.id }) });
+    expect(undo.status).toBe(403);
+    expect(await commentsOf(id)).toHaveLength(1);
 
     const fetchViaApp = ((url: string | URL, init?: RequestInit) => ctx.app.request(new URL(url).pathname, { ...init, headers: { ...Object.fromEntries(new Headers(init?.headers).entries()), host: "localhost" } })) as typeof fetch;
     const mcp = new McpClient({ name: "test", version: "1.0.0" });
     await mcp.connect(new StreamableHTTPClientTransport(new URL("http://localhost/api/v1/mcp"), { requestInit: { headers: { authorization: `Bearer ${key}` } }, fetch: fetchViaApp }));
     const id2 = await item("From MCP");
     const out = await mcp.callTool({ name: "task_triage_action", arguments: { id: id2, action: "accept", comment: "Agreed" } });
-    const parsed = JSON.parse((out as { content: { text: string }[] }).content[0].text);
-    expect(parsed.comment.body).toBe("Agreed");
-    const back = await mcp.callTool({ name: "task_triage_action", arguments: { id: id2, action: "restore", commentId: parsed.comment.id } });
-    expect(JSON.parse((back as { content: { text: string }[] }).content[0].text).commentRemoved).toBe(true);
+    expect(out.isError).toBe(true);
+    expect((out as { content: { text: string }[] }).content[0].text).toMatch(/^person_only: /);
+    expect(await commentsOf(id2)).toHaveLength(0);
     await mcp.close();
   });
 });

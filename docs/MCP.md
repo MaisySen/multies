@@ -193,7 +193,7 @@ an item with a parent can't become an epic, and an epic that still has items kee
 
 ### Triage
 
-New work from mail rules, public forms, incoming hooks or the API can wait in Triage before it becomes a task. Read only keys can list; the rest need a write key.
+New work from mail rules, public forms, incoming hooks, the API or AI apps can wait in Triage before it becomes a task. Read only keys can list; adding needs a write key. Only a person signed in to Multies decides: `triage_accept`, `triage_decline` and `triage_merge` answer `person_only` for an API key or a connected AI app (AIS1).
 
 | Tool | What it does |
 | --- | --- |
@@ -298,7 +298,7 @@ Registered in src/server/routes/mcp-r32-live.ts.
 
 ### Task triage queue (R32)
 
-Registered in src/server/routes/mcp-r32-triage.ts. Same service as the Triage page and the v1 triage routes.
+Registered in src/server/routes/mcp-r32-triage.ts. Same service as the Triage page and the v1 triage routes. Over MCP only snooze and unsnooze work: accept, decline, duplicate and restore answer `person_only`, because a person decides Triage in Multies (AIS1).
 
 | Tool | What it does |
 | --- | --- |

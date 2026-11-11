@@ -17,6 +17,7 @@ import { checkTypeRules, topLevelCondition, type TaskType } from "./task-types";
 import { claimNumbers } from "./project-counter";
 import { invalidateStatuses, orgStatuses } from "./read-cache";
 import { SQL_IN_CHUNK, inChunks, inIds } from "../../lib/sql-chunks";
+import { isPersonSession, requirePerson } from "../../lib/actor-kind";
 import { isAgentEmail } from "../people";
 import { containsAny, containsText } from "../../lib/like-search";
 import { rowMapper, selectMapped } from "../../db/fast-rows"; // R52
@@ -896,9 +897,25 @@ async function spawnRepeat(deps: Deps, actor: SuiteActor, taskId: string) {
   return next;
 }
 
-export async function deleteTask(deps: Deps, actor: SuiteActor, idOrRef: string) {
+/**
+ * AIS1 (audit row 66): deleting an item that still waits in Triage removes it with nobody deciding, so a key or a
+ * connected AI app may not; a person may. A delete takes the subtasks too, so a waiting subtask counts. Reads nothing
+ * for a person; one read on the Triage index otherwise.
+ */
+export async function assertNoWaitingItems(deps: Deps, actor: SuiteActor, rows: { id: string; triageState: string | null }[]) {
+  if (!rows.length || isPersonSession(actor)) return;
+  const what = "Deleting a task that waits in Triage";
+  if (rows.some((r) => r.triageState === "pending")) requirePerson(actor, what);
+  const sub = await deps.db.select({ id: tasks.id }).from(tasks)
+    .where(and(eq(tasks.orgId, actor.orgId), eq(tasks.triageState, "pending"), isNull(tasks.deletedAt), inIds(tasks.parentId, rows.map((r) => r.id)))).get();
+  if (sub) requirePerson(actor, what);
+}
+
+/** `own`: the caller removes a task it made moments ago (a lost race, an Undo), so a waiting one may go too. */
+export async function deleteTask(deps: Deps, actor: SuiteActor, idOrRef: string, opts: { own?: boolean } = {}) {
   assertWritable(actor);
   const t = await taskRow(deps, actor.orgId, await resolveTaskId(deps, actor.orgId, idOrRef));
+  if (!opts.own) await assertNoWaitingItems(deps, actor, [t]);
   const now = deps.now();
   await deps.db.update(tasks).set({ deletedAt: now, updatedAt: now, version: t.version + 1 }).where(or(eq(tasks.id, t.id), eq(tasks.parentId, t.id)));
   await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "delete", version: t.version + 1, verb: "deleted", data: { title: t.title }, event: "task.deleted", eventData: { id: t.id } });

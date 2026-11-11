@@ -2,6 +2,7 @@
  * R32: the rest of task Triage. Snooze a pending item until a time (it leaves the queue and its count,
  * then comes back by itself), undo the last accept, decline or snooze, and one action door
  * (accept, decline, snooze, unsnooze, duplicate, restore) that the app, the REST API and MCP share.
+ * AIS1 (audit row 66): accept, decline, duplicate and restore need a person signed in; keys may snooze and unsnooze.
  */
 import { and, eq, isNotNull } from "drizzle-orm";
 import type { Deps } from "../../context";
@@ -9,7 +10,7 @@ import { tasks } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { assertWritable, recordWrite, type SuiteActor } from "./common";
 import { getTask } from "./tasks";
-import { acceptTriage, declineTriage, mergeTriage, type AcceptInput, type DeclineInput } from "./triage";
+import { acceptTriage, assertDecider, declineTriage, mergeTriage, type AcceptInput, type DeclineInput } from "./triage";
 import { checkTriageComment, insertTriageComment, oneLine, removeTriageComment } from "./triage-comment-r33";
 
 export const TRIAGE_ACTIONS = ["accept", "decline", "snooze", "unsnooze", "duplicate", "restore"] as const;
@@ -62,7 +63,7 @@ export async function unsnoozeTriage(deps: Deps, actor: SuiteActor, id: string) 
  * was accepted (and is not done) or declined or merged (soft deleted), within a day of that change.
  */
 export async function restoreTriage(deps: Deps, actor: SuiteActor, id: string) {
-  assertWritable(actor);
+  assertDecider(actor, "Undoing a Triage decision");
   const t = await deps.db.select().from(tasks).where(and(eq(tasks.id, id), eq(tasks.orgId, actor.orgId), isNotNull(tasks.triageSource))).get();
   if (!t) throw notFound();
   if (t.triageState === "pending" && !t.deletedAt) return getTask(deps, actor, t.id);
@@ -87,6 +88,9 @@ export interface TriageActionInput {
 
 /** One door for every Triage action. Answers { action, task? , ... } with the item as it is now. */
 export async function triageAction(deps: Deps, actor: SuiteActor, id: string, input: TriageActionInput) {
+  // AIS1: checked before anything is read or written, so a refused decline with a comment writes no comment.
+  if (input.action === "restore") assertDecider(actor, "Undoing a Triage decision");
+  else if (input.action === "accept" || input.action === "decline" || input.action === "duplicate") assertDecider(actor);
   const note = oneLine(input.comment);
   switch (input.action) {
     case "accept": {

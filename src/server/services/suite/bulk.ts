@@ -24,7 +24,7 @@ import { activity, automations, changes, projectStatuses, projects, taskFieldVal
 import { HttpError } from "../../lib/errors";
 import { writeBudget } from "../write-budget";
 import { actorOf, assertWritable, parseDate, sortableId, type SuiteActor } from "./common";
-import { coAssigneesOf, parseAssignee, presentTaskRows, updateTask, validateAssignee, type Assignee, type Category, type Priority, type Task } from "./tasks";
+import { assertNoWaitingItems, coAssigneesOf, parseAssignee, presentTaskRows, updateTask, validateAssignee, type Assignee, type Category, type Priority, type Task } from "./tasks";
 import { inIds } from "../../lib/sql-chunks";
 import { claimNumbers } from "./project-counter";
 
@@ -432,6 +432,8 @@ export async function bulkDeleteTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
   const ids = capIds(idsOrRefs);
   const level = await assertBudget(deps);
   const rows = await loadTasks(deps, actor.orgId, ids);
+  // AIS1 (audit row 66): a key can't remove items that wait in Triage; refused before any write.
+  await assertNoWaitingItems(deps, actor, rows);
   const now = deps.now();
   const stmts: PromiseLike<unknown>[] = [];
   for (const part of chunk(rows.map((r) => r.id), 45)) {

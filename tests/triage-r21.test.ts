@@ -203,11 +203,16 @@ describe("triage permissions and API", () => {
     expect((await api(key, "GET", "/triage")).body.items).toHaveLength(1);
     expect((await api(key, "GET", "/triage/count")).body.count).toBe(1);
     expect((await api(key, "GET", "/tasks")).body.tasks).toHaveLength(0);
-    const ok = await api(key, "POST", `/triage/${made.body.item.id}/accept`, { status: "doing" });
+    // AIS1 (row 66): a key adds and lists; a person signed in decides.
+    const refused = await api(key, "POST", `/triage/${made.body.item.id}/accept`, { status: "doing" });
+    expect(refused.status).toBe(403);
+    expect(refused.body.error.code).toBe("person_only");
+    const ok = await c.post(`/api/triage/${made.body.item.id}/accept`, { status: "doing" });
     expect(ok.body.task).toMatchObject({ status: "doing", triage: null });
     expect((await api(key, "GET", "/tasks")).body.tasks).toHaveLength(1);
     const other = await api(key, "POST", "/triage", { title: "Junk" });
-    expect((await api(key, "POST", `/triage/${other.body.item.id}/decline`, { reason: "junk" })).body.ok).toBe(true);
+    expect((await api(key, "POST", `/triage/${other.body.item.id}/decline`, { reason: "junk" })).status).toBe(403);
+    expect((await c.post(`/api/triage/${other.body.item.id}/decline`, { reason: "junk" })).body.ok).toBe(true);
   });
 
   it("works over MCP, and read only keys can list but not write", async () => {
@@ -220,9 +225,16 @@ describe("triage permissions and API", () => {
     const target = (await c.post("/api/tasks", { title: "Existing" })).body.task;
     const second = data(await mcp.callTool({ name: "create_triage_item", arguments: { title: "Dup" } }));
     const third = data(await mcp.callTool({ name: "create_triage_item", arguments: { title: "Junk" } }));
-    expect(data(await mcp.callTool({ name: "triage_accept", arguments: { id: made.item.id, priority: "low" } })).task).toMatchObject({ priority: "low", triage: null });
-    expect(data(await mcp.callTool({ name: "triage_merge", arguments: { id: second.item.id, targetId: target.id } })).merged).toBe(second.item.id);
-    expect(data(await mcp.callTool({ name: "triage_decline", arguments: { id: third.item.id, reason: "junk" } })).ok).toBe(true);
+    // AIS1 (row 66): the decision tools stay listed, but only a person signed in to Multies decides.
+    for (const [name, args] of [["triage_accept", { id: made.item.id, priority: "low" }], ["triage_merge", { id: second.item.id, targetId: target.id }], ["triage_decline", { id: third.item.id, reason: "junk" }]] as const) {
+      const out = await mcp.callTool({ name, arguments: args });
+      expect(out.isError).toBe(true);
+      expect((out as { content: { text: string }[] }).content[0].text).toMatch(/^person_only: /);
+    }
+    expect(data(await mcp.callTool({ name: "list_triage", arguments: {} })).count).toBe(3);
+    expect((await c.post(`/api/triage/${made.item.id}/accept`, { priority: "low" })).body.task).toMatchObject({ priority: "low", triage: null });
+    expect((await c.post(`/api/triage/${second.item.id}/merge`, { targetId: target.id })).body.merged).toBe(second.item.id);
+    expect((await c.post(`/api/triage/${third.item.id}/decline`, { reason: "junk" })).body.ok).toBe(true);
     expect(data(await mcp.callTool({ name: "list_triage", arguments: {} })).count).toBe(0);
     const ro = (await c.post("/api/developer/keys", { name: "Reader", scope: "read" })).body.secret;
     const rmcp = await mcpFor(ro);

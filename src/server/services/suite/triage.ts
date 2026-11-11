@@ -4,10 +4,15 @@
  * triage_state = "pending": it keeps its number, but lists, boards, My Work, reports and counts leave it
  * out until someone accepts it. Accept clears the flag in the same write as any other change; decline
  * soft deletes the item (and can send the sender a short reply); merge folds it into an existing task.
+ *
+ * AIS1 (audit row 66): Triage is a human check. Accept, decline, merge (and restore, in triage-r32.ts) need a person
+ * signed in to Multies; an API key or a connected AI app gets 403 person_only. Keys can still add items, read the
+ * queue and snooze.
  */
 import { and, count, eq, isNull, lte, or } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { organizations, taskComments, tasks } from "../../db/schema";
+import { requirePerson } from "../../lib/actor-kind";
 import { HttpError } from "../../lib/errors";
 import { actorOf, assertWritable, createdBy, recordWrite, sortableId, type SuiteActor } from "./common";
 import { emitEvent } from "../developer/webhooks";
@@ -23,6 +28,12 @@ export type TriageSource = "mail" | "form" | "api" | "chat" | "agent";
 export const BULK_LIMIT = 100;
 
 const notFound = () => new HttpError(404, "not_found", "Triage item not found.");
+
+/** AIS1: what every Triage decision checks first: a write key's scope (read_only_key), then that a person decides. */
+export function assertDecider(actor: SuiteActor, what = "Accepting, declining or merging a Triage item") {
+  assertWritable(actor);
+  requirePerson(actor, what);
+}
 
 async function pendingRow(deps: Deps, actor: SuiteActor, id: string) {
   if (typeof id !== "string" || !id) throw notFound();
@@ -74,7 +85,7 @@ export interface AcceptInput { projectId?: string; assignee?: Assignee | null; s
 
 /** Makes the item a normal task. Every change rides the one task update that clears the flag. */
 export async function acceptTriage(deps: Deps, actor: SuiteActor, id: string, input: AcceptInput = {}) {
-  assertWritable(actor);
+  assertDecider(actor);
   const t = await pendingRow(deps, actor, id);
   if (t.triageSnoozedUntil) await deps.db.update(tasks).set({ triageSnoozedUntil: null }).where(eq(tasks.id, t.id));
   const patch: Parameters<typeof updateTask>[3] = { triage: null };
@@ -108,7 +119,7 @@ export interface DeclineInput { reason?: string; reply?: boolean; message?: stri
 
 /** Declines an item: soft deletes it with the reason, and can send the sender a short polite reply (off unless asked). */
 export async function declineTriage(deps: Deps, actor: SuiteActor, id: string, input: DeclineInput = {}) {
-  assertWritable(actor);
+  assertDecider(actor);
   const t = await pendingRow(deps, actor, id);
   const now = deps.now();
   const reason = (input.reason ?? "").trim().slice(0, 500);
@@ -141,7 +152,7 @@ export async function declineTriage(deps: Deps, actor: SuiteActor, id: string, i
  * moves to the target (so replies show there) and the item is deleted.
  */
 export async function mergeTriage(deps: Deps, actor: SuiteActor, id: string, targetId: string) {
-  assertWritable(actor);
+  assertDecider(actor);
   const t = await pendingRow(deps, actor, id);
   if (!targetId || targetId === t.id) throw new HttpError(422, "validation_failed", "Pick another task to merge into.");
   const target = await getTask(deps, actor, targetId);
@@ -175,7 +186,8 @@ export interface BulkInput { ids: string[]; action: "accept" | "decline"; accept
 
 /** Accept or decline several items at once (at most 100). Each item reports on its own. */
 export async function bulkTriage(deps: Deps, actor: SuiteActor, input: BulkInput) {
-  assertWritable(actor);
+  // AIS1: a key is refused for the whole call (a 200 with every item failed reads as success to a script).
+  assertDecider(actor);
   const ids = [...new Set(input.ids ?? [])];
   if (!ids.length) throw new HttpError(422, "validation_failed", "Pick at least one item.");
   if (ids.length > BULK_LIMIT) throw new HttpError(422, "validation_failed", `Pick at most ${BULK_LIMIT} items at a time.`);

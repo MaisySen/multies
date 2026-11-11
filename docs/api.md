@@ -164,7 +164,8 @@ with `{ ids, patch }` and `POST /api/v1/tasks/bulk-delete` with `{ ids }` (the a
 `statusId`, `assignee` (`member:<id>`, `agent:<id>` or null), `priority`, `dueAt` and `startAt` (null
 clears), `addLabels`, `removeLabels`, `type` (task, story or bug; epics change one at a time) and `projectId` (moves the tasks; numbers come from the new
 project and each status maps to the same group there). If any id is not in the workspace nothing is
-changed (404). Read only keys get 403. The writes go out in one batch: each changed task writes its
+changed (404). Read only keys get 403. Deleting a task that waits in Triage, or one with a subtask that waits,
+needs a person signed in: a key gets 403 `person_only` and nothing is deleted (AIS1). The writes go out in one batch: each changed task writes its
 row and one sync feed change, and the action writes one summary activity entry. Webhooks still get
 one `task.updated` (or `task.deleted`) per task. When the daily database write budget is nearly
 used, bulk changes answer 503 and single edits still work. MCP: `bulk_update_tasks`.
@@ -277,6 +278,12 @@ deletes the item.
 - App API: `GET /api/triage` (`projectId`, `limit`), `GET /api/triage/count`, `POST /api/triage`, `GET /api/triage/:id`, `POST /api/triage/:id/accept` `{ projectId?, assignee?, statusId?, status?, priority?, due? }`, `POST /api/triage/:id/decline` `{ reason?, reply?, message? }`, `POST /api/triage/:id/merge` `{ targetId }`, `POST /api/triage/bulk` `{ ids (up to 100), action: accept | decline, accept?, decline? }`
 - Public API: the same under `/api/v1/triage` (`GET /triage`, `GET /triage/count`, `POST /triage`, `GET /triage/{id}`, `POST /triage/{id}/accept`, `POST /triage/{id}/decline`, `POST /triage/{id}/merge`, `POST /triage/bulk`). Read only keys can list but not change anything.
 - MCP: `list_triage`, `triage_accept`, `triage_decline`, `triage_merge`, `create_triage_item`.
+- Who decides (AIS1): only a person signed in to Multies (the web app or the phone) accepts, declines, merges
+  or restores an item, or deletes one that still waits (`DELETE /tasks/{id}` and `POST /tasks/bulk-delete`,
+  also when a waiting subtask would go with it). An API key, an agent key or a connected AI app (MCP over
+  OAuth) gets 403 `person_only` there, and `POST /triage/bulk` refuses the whole call. Keys and AI apps can
+  still add items, read the queue and its count, snooze and unsnooze. The MCP decision tools stay listed and
+  answer `person_only`.
 
 ## People and AI agent members
 

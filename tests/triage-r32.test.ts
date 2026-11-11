@@ -135,7 +135,11 @@ describe("R32 task triage: snooze, duplicate, undo", () => {
     expect((await api(key, "POST", `/tasks/${id}/triage`, { action: "nope" })).status).toBe(422);
     const m = await mcpFor(key);
     expect(data(await m.callTool({ name: "task_triage_list", arguments: { view: "snoozed" } })).items).toHaveLength(1);
-    const acc = data(await m.callTool({ name: "task_triage_action", arguments: { id, action: "accept", status: "doing" } }));
+    // AIS1 (row 66): a key snoozes, but accepting needs a person signed in.
+    const refused = await m.callTool({ name: "task_triage_action", arguments: { id, action: "accept", status: "doing" } });
+    expect(refused.isError).toBe(true);
+    expect((refused as { content: { text: string }[] }).content[0].text).toMatch(/^person_only: /);
+    const acc = (await c.post(`/api/triage/${id}/action`, { action: "accept", accept: { status: "doing" } })).body;
     expect(acc.task).toMatchObject({ id, triage: null, status: "doing" });
     const ro = (await c.post("/api/developer/keys", { name: "Reader", scope: "read" })).body.secret;
     expect((await api(ro, "POST", `/tasks/${id}/triage`, { action: "restore" })).status).toBe(403);
