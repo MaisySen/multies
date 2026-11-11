@@ -331,7 +331,8 @@ export async function sendMessage(deps: Deps, a: AuthContext, convId: string, b:
     if (bytes.byteLength <= MEDIA_INLINE_MAX) mediaB64 = b.file.dataB64;
     else if (deps.bodyStore) { mediaKey = `chat-media/${a.orgId}/${newId("cm")}`; await deps.bodyStore.put(mediaKey, bytes, type); }
     return storeOutbound(deps, a, c, ch, opts, { kind: mediaTypeFor(type), text, mediaName: name, mediaType: type, mediaSize: bytes.byteLength, mediaB64, mediaKey },
-      () => adapter.sendFile(creds, c.contactExternalId, { bytes, contentType: type, filename: name }, text));
+      // Semgrep (QUAL1): a chat channel adapter uploading bytes we hold, not Express res.sendFile reading a path.
+      () => adapter.sendFile(creds, c.contactExternalId, { bytes, contentType: type, filename: name }, text)); // nosemgrep: javascript.express.security.audit.express-res-sendfile.express-res-sendfile
   }
   return storeOutbound(deps, a, c, ch, opts, { kind: "text", text }, () => adapter.sendText(creds, c.contactExternalId, text));
 }

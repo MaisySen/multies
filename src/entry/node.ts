@@ -139,7 +139,9 @@ if (existsSync(webRoot)) {
   };
   const pageHtml = (p: string, search: string) => loginHtmlFor(p, search, AUTH_CARD_PATH.test(p) ? loginPrerender() : null, variant) ?? readFileSync(path.join(webRoot, shellPath(p)), "utf8");
   // R121 (NAV_P2_R121): an old mail setup address lands in Settings, Mail setup (302: the switch can be turned off).
-  app.get("*", (c, next) => { const moved = config.navP2R121 ? movedPath(c.req.path) : null; return moved ? c.redirect(`${moved}${new URL(c.req.url).search}`, 302) : next(); });
+  // Semgrep (QUAL1): not an open redirect. movedPath answers only for the old mail setup paths, always with a fixed
+  // /app/settings/ prefix on our own site; the query string rides along (tests/open-redirect-qual1.test.ts).
+  app.get("*", (c, next) => { const moved = config.navP2R121 ? movedPath(c.req.path) : null; return moved ? c.redirect(`${moved}${new URL(c.req.url).search}`, 302) : next(); }); // nosemgrep: ajinabraham.njsscan.redirect.open_redirect.express_open_redirect
   app.get("*", (c) => (c.req.path.startsWith("/api/") ? c.notFound() : c.html(withOriginHints(pageHtml(c.req.path, new URL(c.req.url).search), hints), isKnownPage(c.req.path) ? 200 : 404)));
 }
 

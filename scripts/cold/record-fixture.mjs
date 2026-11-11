@@ -10,7 +10,8 @@ execFileSync(process.execPath, [new URL("./setup-db.mjs", import.meta.url).pathn
 const DB = recordingD1(fakeD1(dbPath));
 globalThis.fetch = async () => new Response("", { status: 204 });
 const ORIGIN = "https://multies.si";
-const WARM_SECRET = "warm-up-only-copy-signing-value-not-a-secret-0001"; // src/entry/warmup.ts
+// Semgrep (QUAL1): the warm up copy's signing value, the same not-a-secret as src/entry/warmup.ts.
+const WARM_SECRET = "warm-up-only-copy-signing-value-not-a-secret-0001"; // src/entry/warmup.ts // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
 globalThis.__COLD_ENV = { DB, ASSETS: { fetch: async () => new Response("asset") }, APP_MODE: "production", APP_SECRET: WARM_SECRET, APP_URL: ORIGIN, DEMO_MODE: "true", DEMO_DAILY_LIMIT: "1000", STARTUP_WARM: "off", SCHEDULING_ENABLED: "true", FREE_MAIL_DOMAIN: "mail.multies.si" };
 const mod = await import(bundle);
 const ROUTES = ["/api/account/me", "/api/org", "/api/team", "/api/dashboard", "/api/counts", "/api/my-work", "/api/projects", "/api/tasks?limit=50", "/api/notifications", "/api/mailboxes"];

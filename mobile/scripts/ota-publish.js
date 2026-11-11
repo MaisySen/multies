@@ -62,7 +62,8 @@ function fingerprint(platform) {
 }
 
 async function playTracks() {
-  const sa = JSON.parse(readFileSync(process.env.PLAY_SERVICE_ACCOUNT || join(SECRETS, "play-service-account.json"), "utf8"));
+  // Semgrep (QUAL1): a key file path (env, else the private secrets folder); no key in the repo.
+  const sa = JSON.parse(readFileSync(process.env.PLAY_SERVICE_ACCOUNT || join(SECRETS, "play-service-account.json"), "utf8")); // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
   const now = Math.floor(Date.now() / 1000);
   const unsigned = `${b64u(JSON.stringify({ alg: "RS256", typ: "JWT" }))}.${b64u(JSON.stringify({ iss: sa.client_email, scope: "https://www.googleapis.com/auth/androidpublisher", aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 1200 }))}`;
   const jwt = `${unsigned}.${crypto.createSign("RSA-SHA256").update(unsigned).sign(sa.private_key).toString("base64url")}`;
@@ -82,7 +83,8 @@ async function playTracks() {
 }
 
 async function ascBuilds() {
-  const p8 = readFileSync(process.env.ASC_KEY_PATH || join(SECRETS, `AuthKey_${ASC_KEY_ID}.p8`), "utf8");
+  // Semgrep (QUAL1): a key file path (env, else the private secrets folder); no key in the repo.
+  const p8 = readFileSync(process.env.ASC_KEY_PATH || join(SECRETS, `AuthKey_${ASC_KEY_ID}.p8`), "utf8"); // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
   const now = Math.floor(Date.now() / 1000);
   const unsigned = `${b64u(JSON.stringify({ alg: "ES256", kid: ASC_KEY_ID, typ: "JWT" }))}.${b64u(JSON.stringify({ iss: ASC_ISSUER_ID, iat: now, exp: now + 1100, aud: "appstoreconnect-v1" }))}`;
   const sig = crypto.sign("sha256", Buffer.from(unsigned), { key: crypto.createPrivateKey(p8), dsaEncoding: "ieee-p1363" }).toString("base64url");

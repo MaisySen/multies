@@ -97,7 +97,8 @@ export function useComposeFiles(initial: File[] | undefined, initialTools: ToolF
     }
     setItems((xs) => [...xs, ...files.map((file) => ({ id: nextId(), file, state: "ready" as const }))]);
   };
-  const removeTool = (token: string) => setTools((ts) => ts.filter((t) => t.token !== token));
+  // Semgrep (QUAL1): removes an upload from a list in the browser by its id; no secret is compared.
+  const removeTool = (token: string) => setTools((ts) => ts.filter((t) => t.token !== token)); // nosemgrep: ajinabraham.njsscan.crypto.timing_attack_node.node_timing_attack
   const remove = (id: string) => { aborts.current.get(id)?.abort(); ruled.current.add(id); setItems((xs) => xs.filter((x) => x.id !== id)); };
   const undo = (id: string) => setItems((xs) => xs.map((x) => (x.id === id && x.original ? { ...x, file: x.original, original: undefined, chip: undefined, note: undefined } : x)));
   /** What Send takes: the current file of each item. A rule still running is stopped and the original goes. */

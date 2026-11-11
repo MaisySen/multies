@@ -315,9 +315,11 @@ export function secretPublicRoutes() {
   const opens = new RateLimiter(20, 60_000);
   const reports = new RateLimiter(5, 60 * 60_000);
   const view = async (c: Context<AppEnv>) => (publicOn(c, "secrets") ? findPublicSecret(c.var.deps, c.req.param("token") ?? "") : null);
-  const goneMsg = (v: PublicSecretView | null) => v?.state === "paused" ? message("This secret is paused", "It is being checked after a report.")
-    : v?.state === "burned" || v?.state === "opened" ? message("This secret is gone", "It was already opened, so it has been deleted. Ask the sender to send it again if you need it.")
-      : message("This secret is no longer available", "It expired or the sender turned it off. Ask them to send a new one.");
+  // Semgrep (QUAL1): the node_secret hits on these lines and the report reply below are page wording about a secret
+  // link ("This secret is paused"), not a stored secret.
+  const goneMsg = (v: PublicSecretView | null) => v?.state === "paused" ? message("This secret is paused", "It is being checked after a report.") // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
+    : v?.state === "burned" || v?.state === "opened" ? message("This secret is gone", "It was already opened, so it has been deleted. Ask the sender to send it again if you need it.") // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
+      : message("This secret is no longer available", "It expired or the sender turned it off. Ask them to send a new one."); // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
   return new Hono<AppEnv>()
     .get("/_/secret.js", (c) => c.body(SECRET_PAGE_JS, 200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=300" }))
     .get("/:token", async (c) => {
@@ -337,7 +339,7 @@ export function secretPublicRoutes() {
     })
     .post("/:token/report", async (c) => {
       const v = await view(c);
-      if (!v) { const m = message("This secret is no longer available", "Thanks for letting us know."); return c.html(m.html, 404, PUBLIC_HEADERS); }
+      if (!v) { const m = message("This secret is no longer available", "Thanks for letting us know."); return c.html(m.html, 404, PUBLIC_HEADERS); } // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
       const ok = await takeReport(c, "secret", v.row, reports);
       const m = message(ok ? "Thanks for the report" : "Report not sent", ok ? "We will look at this link. You can close this page." : "Open the link again and try once more.");
       return c.html(m.html, ok ? 200 : 429, PUBLIC_HEADERS);

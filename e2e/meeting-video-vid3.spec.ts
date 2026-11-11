@@ -28,7 +28,8 @@ let visitor = 0;
 const ip = () => `10.191.${test.info().workerIndex % 200}.${++visitor}`;
 let origin = "";
 const tag = Math.random().toString(36).slice(2, 8);
-const PASSWORD = "a-strong-password";
+// Semgrep (QUAL1): a made up password for a throwaway e2e account.
+const PASSWORD = "a-strong-password"; // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_password
 const ownerEmail = `olive-vid3-${tag}@example.com`;
 let meetingId = "";
 let iphoneCtx: BrowserContext, pixelCtx: BrowserContext, mateCtx: BrowserContext;

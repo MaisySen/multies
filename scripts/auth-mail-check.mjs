@@ -72,7 +72,8 @@ async function main() {
   const mi = args.indexOf("--minutes");
   const minutes = mi >= 0 ? Number(args[mi + 1]) || 60 : 60;
   const secretsPath = process.env.AUTH0_MULTIES_SECRETS || path.join(os.homedir(), ".multies-secrets", "auth0-multies.json");
-  const s = JSON.parse(readFileSync(secretsPath, "utf8"));
+  // Semgrep (QUAL1): reads the private secrets file (AUTH0_MULTIES_SECRETS or ~/.multies-secrets); no value in the repo.
+  const s = JSON.parse(readFileSync(secretsPath, "utf8")); // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
   const domain = s.domain;
   const tr = await fetch(`https://${domain}/oauth/token`, {
     method: "POST", headers: { "content-type": "application/json" },
@@ -100,7 +101,8 @@ async function main() {
     const key = process.env.RESEND_API_KEY;
     if (!key) throw new Error("--probe needs RESEND_API_KEY in the environment (scripts/creds.mjs run RESEND_API_KEY -- ...)");
     // Our own test inbox (plus addresses reach it). Kept out of the repo: ~/.multies-secrets/auth-mail-probe.json {"inbox": "..."}.
-    const probeFile = path.join(path.dirname(secretsPath), "auth-mail-probe.json");
+    // Semgrep (QUAL1): a file name in the private secrets folder, not a value.
+    const probeFile = path.join(path.dirname(secretsPath), "auth-mail-probe.json"); // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
     const inbox = process.env.AUTH_MAIL_PROBE_INBOX || JSON.parse(readFileSync(probeFile, "utf8")).inbox;
     const [local, host] = inbox.split("@");
     const email = `${local}+mailcheck${randomBytes(3).toString("hex")}@${host}`;

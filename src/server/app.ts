@@ -297,8 +297,10 @@ export function createApp(deps: Deps) {
   // a refusal, a limit or a server error there becomes /login?error=... with a Try again button.
   app.use("/api/auth/*", async (c, next) => {
     if (!isAuthNavigation(c.req.method, c.req.path, c.req.raw.headers)) return next();
-    if (c.req.path.startsWith("/api/auth/error")) return c.redirect(authErrorRedirectUrl(c.req.path, 400, c.req.query("error")), 302);
-    try { await next(); } catch (err) { c.var.log?.warn?.("auth_nav_error", { path: c.req.path, error: String(err).slice(0, 200) }); c.res = c.redirect(authErrorRedirectUrl(c.req.path, 500), 302); return; }
+    // Semgrep (QUAL1): not an open redirect. authErrorRedirectUrl always answers /login with a cleaned code, never a URL
+    // from the request (tests/open-redirect-qual1.test.ts).
+    if (c.req.path.startsWith("/api/auth/error")) return c.redirect(authErrorRedirectUrl(c.req.path, 400, c.req.query("error")), 302); // nosemgrep: ajinabraham.njsscan.redirect.open_redirect.express_open_redirect
+    try { await next(); } catch (err) { c.var.log?.warn?.("auth_nav_error", { path: c.req.path, error: String(err).slice(0, 200) }); c.res = c.redirect(authErrorRedirectUrl(c.req.path, 500), 302); return; } // nosemgrep: ajinabraham.njsscan.redirect.open_redirect.express_open_redirect
     const loc = c.res.status >= 300 && c.res.status < 400 ? c.res.headers.get("location") : null;
     const errLoc = loc ? authErrorPageCode(loc) : undefined;
     if (errLoc !== undefined) {

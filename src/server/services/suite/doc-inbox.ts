@@ -34,7 +34,8 @@ import { canOpen, isPersonalOwner, personalInfo, personalOwnership } from "../ma
 
 type Actor = Pick<AuthContext, "orgId" | "userId" | "email" | "role">;
 const isAdmin = (a: Actor) => a.role === "owner" || a.role === "admin";
-const ENGINE_USER = "doc-inbox";
+// Semgrep (QUAL1): a label for the engine in the activity log, not a login.
+const ENGINE_USER = "doc-inbox"; // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_username
 const EXCLUDED = ["vv8k"];
 const FIELDS: DocField[] = ["type", "sender", "docDate", "dueDate", "amount", "gst", "paid"];
 
