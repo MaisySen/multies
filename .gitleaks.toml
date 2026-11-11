@@ -57,12 +57,24 @@ regexTarget = "secret"
 regexes = ['^m\.compose3\.secret_[a-z]+$']
 
 # AIS1: tests/platform-mail-ais1.test.ts puts a made up value in mail from an outside sender
-# and in Multies' own mail, to prove an agent reads the first and never the second. It opens
-# nothing. The test arrives with the agent safety branch; the entry is here because this file
-# is rewritten on this branch and CI scans every branch.
+# and in Multies' own mail, to prove an agent reads the first and never the second, and
+# tests/agent-identity-ais1.test.ts reuses it in a password reset link to an agent catch-all.
+# It opens nothing. The tests arrive with the agent safety and agent identity branches; the
+# entry is here because this file is rewritten on this branch and CI scans every branch.
 [[allowlists]]
-description = "Made up code in the platform mail test"
+description = "Made up code in the platform mail and agent identity tests"
 condition = "AND"
-paths = ['^tests/platform-mail-ais1\.test\.ts$']
+paths = ['^tests/platform-mail-ais1\.test\.ts$', '^tests/agent-identity-ais1\.test\.ts$']
 regexTarget = "secret"
 regexes = ['^Zq7mK2pX9wTr4LbN8cVd$']
+
+# AIS1: tests/integration-wave1-ais1.test.ts puts a made up invite code in a link in Multies'
+# own mail, to prove a key's task made from that mail keeps the text out of its notes. It
+# opens nothing. The test arrives with the wave 1 integration branch; the entry is here for
+# the same reason as the one above.
+[[allowlists]]
+description = "Made up invite code in the wave 1 integration test"
+condition = "AND"
+paths = ['^tests/integration-wave1-ais1\.test\.ts$']
+regexTarget = "secret"
+regexes = ['^Hq4nW8tZ2yLp6RxC3vBm$']
