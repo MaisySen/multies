@@ -138,6 +138,26 @@ describe("AIS1 row 50: an entry made through a key or a connected AI app says so
     // A person's own row has empty caller columns.
     expect(json.find((r) => r.action === "api_key.created")).toMatchObject({ callerKind: "", via: "" });
   });
+
+  it("task history says when a task was made or changed through a connected app or a key", async () => {
+    const byHand = (await c.post("/api/tasks", { title: "By hand" })).body.task;
+    const m = await mcp(await connectClaude());
+    const viaClaude = data(await m.callTool({ name: "create_task", arguments: { title: "From Claude" } })).task;
+    const key = await newKey("Sync script");
+    const viaKey = (await v1(key.secret, "POST", "/tasks", { title: "From a script" })).body.task;
+    expect((await v1(key.secret, "PATCH", `/tasks/${byHand.id}`, { status: "doing" })).status).toBe(200);
+
+    const history = async (id: string) => (await c.get(`/api/tasks/${id}`)).body.activity as { verb: string; data: Record<string, unknown> }[];
+    const handHistory = await history(byHand.id);
+    expect(handHistory.find((a) => a.verb === "created")?.data.caller).toBeUndefined();
+    const changed = handHistory.find((a) => a.verb !== "created")!;
+    expect(changed.data.caller).toEqual({ kind: "workspace_key", key: "Sync script", prefix: key.prefix });
+    expect((await history(viaClaude.id)).find((a) => a.verb === "created")?.data.caller).toEqual({ kind: "oauth", app: "Claude" });
+    expect((await history(viaKey.id)).find((a) => a.verb === "created")?.data.caller).toEqual({ kind: "workspace_key", key: "Sync script", prefix: key.prefix });
+    // The MCP and REST task detail carry the same line.
+    const detail = (await v1(key.secret, "GET", `/tasks/${viaClaude.id}`)).body;
+    expect(detail.activity.find((a: { verb: string }) => a.verb === "created").data.caller).toEqual({ kind: "oauth", app: "Claude" });
+  });
 });
 
 describe("AIS1 the stamping rule", () => {

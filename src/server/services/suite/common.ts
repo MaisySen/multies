@@ -10,6 +10,7 @@ import type { AuthContext, Deps } from "../../context";
 import { activity, activityFeed, changes } from "../../db/schema";
 import { randomBytes } from "../../lib/crypto";
 import { HttpError } from "../../lib/errors";
+import { stampFor } from "../../lib/request-caller";
 import { emitEvent, type WebhookEvent } from "../developer/webhooks";
 
 const ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
@@ -62,7 +63,10 @@ export async function recordWrite(deps: Deps, a: SuiteActor, w: {
   verb: string; data?: Record<string, unknown>; event?: WebhookEvent | readonly WebhookEvent[]; eventData?: Record<string, unknown>;
 }) {
   const actor = actorOf(a);
-  const change: typeof changes.$inferInsert = changeRow(a.orgId, actor, deps.now(), w);
+  // AIS1 (audit row 50): a change made through an API key or a connected AI app says which one in its history line
+  // (data.caller, lib/request-caller.ts); a person's own change in the app has none. Same row, no extra write.
+  const caller = stampFor({ actorUserId: actor.type === "member" ? actor.id : null, actorEmail: a.email })?.caller;
+  const change: typeof changes.$inferInsert = changeRow(a.orgId, actor, deps.now(), caller ? { ...w, data: { ...(w.data ?? {}), caller } } : w);
   try {
     if (deps.writeBuffer) deps.writeBuffer.changes.push(change);
     else if (!deps.chatLive) await deps.db.insert(changes).values(change);
