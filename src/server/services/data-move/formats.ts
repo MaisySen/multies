@@ -17,6 +17,8 @@ export class MoveFileError extends Error {}
 export interface ContactIn { name: string; email: string; phone: string | null; title: string | null; company: string | null; notes: string }
 
 const EMAIL = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/;
+/** QUAL1: no address is longer than 254 characters; the pattern backtracks quadratically on a huge value, so check length first. */
+const isEmail = (s: string) => s.length <= 254 && EMAIL.test(s);
 const clean = (s: string | undefined | null) => (s ?? "").replace(/\s+/g, " ").trim();
 const vUnescape = (v: string) => v.replace(/\\([nN,;\\])/g, (_m, c: string) => (c === "n" || c === "N" ? "\n" : c));
 
@@ -37,7 +39,7 @@ export function parseVcards(text: string): { contacts: ContactIn[]; skipped: num
       const email = clean(card.EMAIL?.[0]).toLowerCase();
       const n = (card.N?.[0] ?? "").split(";");
       const full = clean(card.FN?.[0]) || clean([n[1], n[2], n[0]].filter(Boolean).join(" "));
-      if (email && EMAIL.test(email)) {
+      if (email && isEmail(email)) {
         contacts.push({ name: vUnescape(full), email, phone: clean(card.TEL?.[0]) || null, title: clean(vUnescape(card.TITLE?.[0] ?? "")) || null,
           company: clean(vUnescape((card.ORG?.[0] ?? "").split(";")[0])) || null, notes: vUnescape(card.NOTE?.[0] ?? "").trim() });
       } else skipped++;
@@ -64,7 +66,7 @@ export function parseContactsCsv(text: string): { contacts: ContactIn[]; skipped
   let skipped = 0;
   for (const r of all.slice(1)) {
     const e = at(r, email).toLowerCase();
-    if (!e || !EMAIL.test(e)) { skipped++; continue; }
+    if (!e || !isEmail(e)) { skipped++; continue; }
     contacts.push({ name: at(r, name) || [at(r, first), at(r, last)].filter(Boolean).join(" "), email: e, phone: at(r, phone) || null,
       title: at(r, title) || null, company: at(r, company) || null, notes: notes >= 0 ? (r[notes] ?? "").trim() : "" });
   }
@@ -118,7 +120,7 @@ export function parseIcsEvents(text: string, defaultTz = "UTC"): { events: Event
       uid: prop("UID")?.value.trim() || `${startsAt.toISOString()}|${prop("SUMMARY")?.value ?? ""}`,
       title: clean(unesc(prop("SUMMARY")?.value ?? "")).slice(0, 200) || "Event",
       startsAt, durationMin: Math.min(24 * 60, Math.max(5, Math.round(ms / 60_000))), allDay: start.allDay, recurrence: weekly, description: notes.slice(0, 20_000),
-      invitees: c.props.filter((p) => p.name === "ATTENDEE").map((p) => p.value.replace(/^mailto:/i, "").trim().toLowerCase()).filter((e) => EMAIL.test(e)).slice(0, 50),
+      invitees: c.props.filter((p) => p.name === "ATTENDEE").map((p) => p.value.replace(/^mailto:/i, "").trim().toLowerCase()).filter(isEmail).slice(0, 50),
     });
   }
   return { events, skipped };
