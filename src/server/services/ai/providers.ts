@@ -21,7 +21,9 @@ export interface AiProviderInfo {
 
 export const AI_PROVIDER_INFO: Record<AiProviderId, AiProviderInfo> = {
   openai: { id: "openai", name: "OpenAI", defaultModel: "gpt-4o-mini", keysUrl: "https://platform.openai.com/api-keys" },
-  anthropic: { id: "anthropic", name: "Anthropic", defaultModel: "claude-3-5-haiku-latest", keysUrl: "https://console.anthropic.com/settings/keys" },
+  // QUAL1 (audit row 14): was claude-3-5-haiku-latest, an alias of Claude Haiku 3.5, which Anthropic retired on 19 Feb 2026;
+  // now the current Haiku, the same id the AI2 curated list recommends (shared/ai-connect-ai2.ts).
+  anthropic: { id: "anthropic", name: "Anthropic", defaultModel: "claude-haiku-5-5", keysUrl: "https://console.anthropic.com/settings/keys" },
   openrouter: { id: "openrouter", name: "OpenRouter", defaultModel: "openai/gpt-4o-mini", keysUrl: "https://openrouter.ai/keys" },
   groq: { id: "groq", name: "Groq", defaultModel: "llama-3.1-8b-instant", keysUrl: "https://console.groq.com/keys" },
   // AI2: offered only while AI_CONNECT_AI2 is on. The saved model comes from the live list (curated fallback).

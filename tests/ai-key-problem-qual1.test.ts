@@ -13,7 +13,7 @@ import { deliverInbound } from "@/server/services/mail/delivery";
 import { aiKeys } from "@/server/db/schema";
 import { askAi } from "@/server/services/tools/ai-meter";
 import { AI_PROVIDER_INFO } from "@/server/services/ai/providers";
-import { aiKeyProblemText } from "@/shared/ai-connect-ai2";
+import { AI2_CURATED_MODELS, aiKeyProblemText, pickRecommended } from "@/shared/ai-connect-ai2";
 
 const ANT = "sk-ant-api03-" + "a".repeat(40) + "WXYZ";
 const ANT2 = "sk-ant-api03-" + "c".repeat(40) + "QRST";
@@ -220,6 +220,11 @@ describe("built-in AI stands in for a refused key, and says so (QUAL1, row 14)",
     const failed = (await t.c.post(`/api/team-ai/instructions/${set.body.id}/run`)).body;
     expect(failed).toMatchObject({ status: "failed", reason: "key_refused" });
     expect(failed.reasonText).toMatch(/refused the workspace's AI key/);
+  });
+
+  it("the default Anthropic model is a current one: the same id the curated list recommends (claude-3-5-haiku-latest was retired)", () => {
+    expect(AI_PROVIDER_INFO.anthropic.defaultModel).toBe(pickRecommended("anthropic", AI2_CURATED_MODELS.anthropic));
+    expect(AI_PROVIDER_INFO.anthropic.defaultModel).not.toMatch(/claude-3/);
   });
 
   it("names the provider in every message", () => {
