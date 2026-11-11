@@ -114,7 +114,7 @@ describe("AIS1: history lines written outside recordWrite name the key or connec
       await importBatch(ctx.deps, { orgId, userId, email: key.email, name: "CRM sync", role: "admin", apiKeyId: "key_imp" }, [{ email: "sam@harbour.com.au", name: "Sam" }], "skip");
     });
     const [line] = await ctx.db.select().from(changes).where(and(eq(changes.entityType, "contact"), eq(changes.verb, "imported")));
-    expect(JSON.parse(line.data)).toEqual({ caller: { kind: "workspace_key", key: "CRM sync", prefix: "mm_live_impt" } });
+    expect(JSON.parse(line.data ?? "{}")).toEqual({ caller: { kind: "workspace_key", key: "CRM sync", prefix: "mm_live_impt" } });
   });
 });
 
