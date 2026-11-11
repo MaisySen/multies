@@ -184,6 +184,25 @@ describe("AIS1 row 4: a key may only tighten an existing agent", () => {
   });
 });
 
+describe("AIS1 gap: approving an agent's message is a person's decision", () => {
+  it("a workspace key can list and reject but not approve; a person approves in the app", async () => {
+    const { agent, apiKey } = (await api(wsKey, "POST", "/agents", { name: "Asker" })).body;
+    const ask = async (subject: string) => (await api(apiKey.secret, "POST", `/agents/${agent.id}/send`, { to: ["owner@acme.io"], subject, text: "x" })).body.approval.id as string;
+    const first = await ask("One");
+    const approve = await api(wsKey, "POST", `/approvals/${first}/approve`, {});
+    expect(approve.status).toBe(403);
+    expect(approve.body.error.code).toBe("person_only");
+    expect(ctx.outbound.sent.filter((m) => m.subject === "One")).toHaveLength(0);
+    expect((await api(wsKey, "GET", "/approvals?status=pending")).body.data).toHaveLength(1);
+    // Rejecting only stops mail, so a key may do it.
+    expect((await api(wsKey, "POST", `/approvals/${first}/reject`, { note: "No" })).body.approval.status).toBe("rejected");
+    const second = await ask("Two");
+    const ok = await c.post(`/api/approvals/${second}/approve`, {});
+    expect(ok.status).toBe(200);
+    expect(ok.body.approval.status).toBe("sent");
+  });
+});
+
 describe("AIS1 row 51: safe defaults for every new agent", () => {
   it("100 sends a day by default, never the plan ceiling, however the agent is made", async () => {
     await ctx.db.update(organizations).set({ plan: "business" }).where(eq(organizations.id, orgId));

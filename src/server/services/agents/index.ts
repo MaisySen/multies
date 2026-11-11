@@ -676,6 +676,9 @@ export async function listApprovals(deps: Deps, actor: Actor, q: { status?: stri
 
 async function approvalFor(deps: Deps, actor: Actor, id: string, need: "reply" | "send") {
   if (actor.agentId) throw new HttpError(403, "agent_key_scope", "An agent can't approve its own messages. A person approves them in the app.");
+  // AIS1: approving sends the agent's mail, so it is a person's decision: never a workspace key or a connected AI app
+  // (the key that queued the send could otherwise approve it). Rejecting only stops mail, so a key may still reject.
+  if (need === "send") requirePerson(actor, "Approving an agent's message");
   const r = await deps.db.select().from(sendApprovals).where(and(eq(sendApprovals.id, id), eq(sendApprovals.orgId, actor.orgId))).get();
   if (!r) throw notFound("Approval");
   const scope = await scopeFor(deps, actor);

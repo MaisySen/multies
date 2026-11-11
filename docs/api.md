@@ -345,6 +345,11 @@ who made the key). From a key, `allowedRecipients` of `null` or `[]` gets this d
 "anyone" picks it in the app (or sends `null` to `POST /api/agents`). Agents made before this change keep their
 settings, and domains verified later don't join existing agents' lists.
 
+Approving a waiting send is a person's decision: `POST /api/v1/approvals/{id}/approve` answers 403
+`person_only` to a workspace key (an agent key still gets `agent_key_scope`), and there is no MCP approve tool.
+Keys can list approvals and reject them (`POST /api/v1/approvals/{id}/reject`), which only stops mail. People
+approve in the app (Approvals, or `POST /api/approvals/{id}/approve`).
+
 ## Weekly meeting series
 
 A meeting can repeat weekly: every 1 or 2 weeks on chosen days, with an optional last day or number of meetings. A series is one meeting row; the upcoming list (`GET /api/v1/meetings?upcoming=true`) works out the next occurrences on read (up to 12 per series over the next 60 days), each with the series' `id` and `seriesStartsAt`. Nothing is written per occurrence. Times keep their wall clock time in the series' time zone across daylight saving changes.

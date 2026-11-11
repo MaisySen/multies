@@ -16,7 +16,7 @@ General, AI; it is encrypted at rest.
 
 There are two ways in. Both keep every guardrail: agent approval rules, daily send caps and read only access.
 Neither can loosen them: only a person signed in to Multies lowers an agent's approval rule, send cap or allowed
-recipients, or resumes a paused agent (AIS1).
+recipients, resumes a paused agent, or approves an agent's waiting message (AIS1).
 
 ### OAuth: add Multies by its URL (round 20)
 

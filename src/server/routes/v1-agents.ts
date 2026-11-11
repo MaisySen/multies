@@ -217,12 +217,12 @@ export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
     responses: { 200: json(z.object({ data: z.array(Approval) }), "Approvals, newest first."), 401: errors[401] } }),
   async (c) => c.json(ser({ data: await listApprovals(c.var.deps, actorOf(c), c.req.valid("query")) }), 200));
 
-  api.openapi(createRoute({ method: "post", path: "/approvals/{id}/approve", tags: ["Approvals"], summary: "Approve and send", description: "Needs a workspace key; an agent can't approve itself. Optional edits to the subject or text.", security: secured,
+  api.openapi(createRoute({ method: "post", path: "/approvals/{id}/approve", tags: ["Approvals"], summary: "Approve and send", description: "Approving sends the agent's mail, so a person does it in the app (Approvals). An API key gets 403: `person_only` for a workspace key, `agent_key_scope` for an agent key. Keys can list and reject. Optional edits to the subject or text.", security: secured,
     request: { params: Id, ...body(z.object({ subject: z.string().max(998).optional(), text: z.string().max(1_000_000).optional() })) },
     responses: { 200: json(z.object({ approval: Approval }), "Sent."), 401: errors[401], 403: errors[403], 404: errors[404], 409: err("Already decided or expired.") } }),
   async (c) => c.json(ser({ approval: (await approveSend(c.var.deps, actorOf(c), c.req.valid("param").id, c.req.valid("json"))).approval }), 200));
 
-  api.openapi(createRoute({ method: "post", path: "/approvals/{id}/reject", tags: ["Approvals"], summary: "Reject", security: secured,
+  api.openapi(createRoute({ method: "post", path: "/approvals/{id}/reject", tags: ["Approvals"], summary: "Reject", description: "Nothing is sent. A workspace key may reject; an agent key can't decide its own requests.", security: secured,
     request: { params: Id, ...body(z.object({ note: z.string().max(1000).optional() })) },
     responses: { 200: json(z.object({ approval: Approval }), "Rejected."), 401: errors[401], 403: errors[403], 404: errors[404], 409: err("Already decided or expired.") } }),
   async (c) => c.json(ser({ approval: await rejectSend(c.var.deps, actorOf(c), c.req.valid("param").id, c.req.valid("json").note) }), 200));
