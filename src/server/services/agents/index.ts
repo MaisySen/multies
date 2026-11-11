@@ -475,6 +475,17 @@ export interface AgentSendInput {
   attachments?: { filename: string; contentType: string; contentBase64: string }[];
 }
 
+/**
+ * AIS1 review: what an audit row says about a send. Mail in someone's personal mailbox (PRIV1a) is theirs alone, but
+ * admins, the workspace owner and the export read the audit log, and a reply's subject is the private thread's own
+ * subject. So a send from a personal mailbox (or one Multies can't place) keeps how many people it went to, not the
+ * subject or any address, as task history does for personal mail (suite/hooks.ts).
+ */
+function sendAuditFacts(personal: boolean, input: Pick<AgentSendInput, "to" | "cc" | "bcc" | "subject">, fromAddress?: string): Record<string, unknown> {
+  if (personal) return { personal: true, recipientCount: input.to.length + (input.cc?.length ?? 0) + (input.bcc?.length ?? 0) };
+  return { to: input.to, subject: input.subject, ...(fromAddress ? { from: fromAddress } : {}) };
+}
+
 function recipientAllowed(allow: string[] | null, address: string) {
   if (!allow) return true;
   const a = address.toLowerCase();
@@ -515,15 +526,18 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
   assertActsAs(actor, agentId);
   const { a, mb } = await row(deps, actor.orgId, agentId);
   const who = agentActor(a, mb);
+  const fromId = input.mailboxId ?? a.mailboxId;
+  // AIS1 review: read before the first check, so even a blocked send's row knows whether the mailbox is personal.
+  // The same read the send needed anyway; only a paused agent's refusal reads one more row than before.
+  const from = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.id, fromId), eq(mailboxes.orgId, actor.orgId))).get();
+  const personal = !from || from.personal;
   const block = async (code: string, message: string, status: 403 | 429 = 403) => {
-    await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.send_blocked", metadata: { code, to: input.to, subject: input.subject } });
+    await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.send_blocked", metadata: { code, ...sendAuditFacts(personal, input) } });
     return new HttpError(status, code, message);
   };
   if (a.status !== "active") throw await block("agent_paused", "This agent is paused. A person can resume it in Agents.");
-  const fromId = input.mailboxId ?? a.mailboxId;
   const allowed = await agentMailboxIdsFor(deps, actor, a);
-  if (!allowed.includes(fromId)) throw await block("mailbox_not_allowed", "This agent can't send from that mailbox.");
-  const from = (await deps.db.select().from(mailboxes).where(eq(mailboxes.id, fromId)).get())!;
+  if (!from || !allowed.includes(fromId)) throw await block("mailbox_not_allowed", "This agent can't send from that mailbox.");
   const recipients = [...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])];
   const allow = parseAllow(a.allowedRecipients);
   const outside = recipients.filter((r) => !recipientAllowed(allow, r));
@@ -560,7 +574,7 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
       apiKeyId: actor.apiKeyId ?? null, expiresAt: new Date(deps.now().getTime() + APPROVAL_TTL_DAYS * DAY),
     });
     const approval = presentApproval((await deps.db.select().from(sendApprovals).where(eq(sendApprovals.id, id)).get())!);
-    await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.send_queued", targetType: "approval", targetId: id, metadata: { to: input.to, subject: input.subject, reason: a.approvalMode } });
+    await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.send_queued", targetType: "approval", targetId: id, metadata: { ...sendAuditFacts(personal, input), reason: a.approvalMode } });
     await recordEvent(deps, actor.orgId, a.id, "approval.requested", { approvalId: id, mailboxId: from.id, to: input.to, subject: input.subject, threadId }); // PRIV1b (S3): filtered like message events
     await emitEvent(deps, actor.orgId, "approval.requested", { approvalId: id, agentId: a.id, agent: a.name, mailboxId: from.id, from: from.address, to: input.to, subject: input.subject, threadId }); // PRIV1b (AP1): mailboxId, so the webhook filter does not rest on the from address
     // Everyone who can open that inbox gets it in their notifications inbox (and on their phone).
@@ -574,7 +588,7 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
     return { status: "pending_approval", approval };
   }
   const result = await deliverAsAgent(deps, actor.orgId, a, mb, from, input);
-  await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.message_sent", targetType: "message", targetId: result.messageId, metadata: { to: input.to, subject: input.subject, from: from.address } });
+  await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.message_sent", targetType: "message", targetId: result.messageId, metadata: sendAuditFacts(personal, input, from.address) });
   await recordEvent(deps, actor.orgId, a.id, "message.sent", { messageId: result.messageId, mailboxId: from.id, to: input.to, subject: input.subject });
   return { status: "sent", result };
 }
@@ -637,7 +651,7 @@ export async function approveSend(deps: Deps, actor: Actor, id: string, edits: {
   try {
     const result = await deliverAsAgent(deps, actor.orgId, a, mb, from, input, actor);
     await deps.db.update(sendApprovals).set({ messageId: result.messageId, payload: JSON.stringify(input) }).where(eq(sendApprovals.id, r.id));
-    await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: a.id, action: "approval.approved", targetType: "approval", targetId: r.id, metadata: { messageId: result.messageId, edited: Object.keys(edits).length > 0, to: input.to, subject: input.subject } });
+    await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: a.id, action: "approval.approved", targetType: "approval", targetId: r.id, metadata: { messageId: result.messageId, edited: Object.keys(edits).length > 0, ...sendAuditFacts(from.personal, input) } });
     await recordEvent(deps, actor.orgId, a.id, "approval.decided", { approvalId: r.id, decision: "approved", messageId: result.messageId });
     await emitEvent(deps, actor.orgId, "approval.decided", { approvalId: r.id, agentId: a.id, decision: "approved", messageId: result.messageId, by: actor.email });
     return { approval: presentApproval((await deps.db.select().from(sendApprovals).where(eq(sendApprovals.id, r.id)).get())!), result };

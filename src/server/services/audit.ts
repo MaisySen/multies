@@ -74,13 +74,17 @@ export function redactAuditRow<T extends { targetType?: string | null; targetId?
 }
 
 const PRIVATE_KEYS = /email|^ip$|ipAddress|userAgent|invit|token|^subject$/i;
+const ADDRESS = /[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+/;
+/** AIS1 review: a value that is, or lists, a mail address (an agent send's to, cc, bcc or from). */
+const holdsAddress = (v: unknown): boolean => (typeof v === "string" ? ADDRESS.test(v) : Array.isArray(v) && v.some((x) => typeof x === "string" && ADDRESS.test(x)));
 /**
  * What a plain member may see of an audit row: no IP, no addresses or invite details in its metadata. AIS1: and no mail
- * subject (an agent's read or send names its thread, which may be in a mailbox the member can't open). Used by the
- * dashboard and, since AIS1, by an agent's audit log (app and v1).
+ * subject (an agent's read or send names its thread, which may be in a mailbox the member can't open), and no field
+ * that holds a mail address under any name, so an agent send's recipients and sender stay hidden while a plan change's
+ * from and to stay readable. Used by the dashboard and, since AIS1, by an agent's audit log (app and v1).
  */
 export function memberSafeAudit<T extends { ip?: string | null; actorEmail?: string | null; metadata?: Record<string, unknown> | null }>(row: T): T {
-  const metadata = row.metadata ? Object.fromEntries(Object.entries(row.metadata).filter(([k]) => !PRIVATE_KEYS.test(k))) : row.metadata;
+  const metadata = row.metadata ? Object.fromEntries(Object.entries(row.metadata).filter(([k, v]) => !PRIVATE_KEYS.test(k) && !holdsAddress(v))) : row.metadata;
   return { ...row, ip: null, metadata };
 }
 

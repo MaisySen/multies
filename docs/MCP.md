@@ -232,11 +232,14 @@ Give a mail thread an owner, mark it done, list threads by view and read reply t
 | `create_incoming_hook` | Create an incoming webhook |
 
 Agents read only the threads they can open, and anything an agent sends outside Multies still goes
-through its approval rule. Sends and approvals are in the audit log. Thread reads by an agent are in
-the audit log too, rolled up to one entry per agent, thread, key or connected app, and hour so a polling agent doesn't fill
-the log (or the database's daily write budget). Each read names the thread by its id and its subject,
-except a thread in a personal mailbox, which keeps only its id: admins read the audit log, and only the
-mailbox's owner may read that mail.
+through its approval rule. Sends and approvals are in the audit log. Thread reads with an agent's own key
+are in the audit log too, rolled up to one entry per agent, thread, agent key and hour so a polling agent doesn't
+fill the log (or the database's daily write budget); a workspace key or a connected app reading a thread
+writes no read entry. Each read names the thread by its id and its subject, except a thread in a personal
+mailbox, which keeps only its id: admins read the audit log, and only the mailbox's owner may read that
+mail. A send, queued send, block or approval from a personal mailbox (a reply in a personal thread
+included) likewise has no subject or addresses, only `personal: true` and `recipientCount`. A plain
+member sees no subject, mail address or IP in the audit log.
 
 Every entry a tool call writes to the audit log names the key or connected app that made it and carries
 the request's IP. `metadata.caller` names the key (`kind` `workspace_key`, `agent_key` or `agent_member_key`,
