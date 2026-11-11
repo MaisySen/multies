@@ -6,6 +6,7 @@
  * /api/admin/status.
  */
 import { describe, it, expect, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
 import { sql } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { deliverInbound } from "@/server/services/mail/delivery";
@@ -36,7 +37,15 @@ describe("public health is the minimum (QUAL1, row 36)", () => {
       expect(await res.json(), path).toEqual({ ok: true, db: "ok" });
     }
     // The deploy is still confirmed through the release on /api/config (scripts/smoke.sh, docs/runbooks/deploy.md).
-    expect((await new Client(ctx.app).get("/api/config")).body).toHaveProperty("release");
+    const config = await ctx.app.request("/api/config", { headers: { host: "localhost" } });
+    expect(await config.text()).toContain('"release":"abcdef123456"');
+  });
+
+  it("the deploy smoke test waits for the release on /api/config, and reads only ok and db from /api/health", () => {
+    const smoke = readFileSync("scripts/smoke.sh", "utf8");
+    expect(smoke).toContain('CONFIG=$(curl -fsS "$BASE/api/config")');
+    expect(smoke).not.toMatch(/HEALTH"? \| grep -q "\\"release/);
+    expect(smoke).toContain(`grep -q '"db":"ok"'`);
   });
 
   it("a database that does not answer is a 503 with no detail", async () => {
