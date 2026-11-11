@@ -63,7 +63,9 @@ export async function listStaff(deps: Deps, a: A): Promise<StaffPerson[]> {
       s.start_date, s.location, s.phone, s.days_off
     from members m join users u on u.id = m.user_id
     left join staff_profiles s on s.org_id = m.organization_id and s.user_id = m.user_id
-    where m.organization_id = ${a.orgId} and m.kind = 'human' order by lower(u.name), u.email`);
+    where m.organization_id = ${a.orgId} and m.kind = 'human'
+      and not exists (select 1 from mailboxes am where am.address = lower(u.email) and am.kind = 'agent')
+    order by lower(u.name), u.email`);
   return rows.map(toPerson);
 }
 

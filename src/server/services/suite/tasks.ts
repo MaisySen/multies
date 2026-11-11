@@ -6,7 +6,7 @@
 import { TASK_LIST_LIMIT } from "@/shared/task-list-limit"; // R45b
 import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, ne, notInArray, or, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { agents, changes, docs, entityLinks, members, messages, projectKeyAliases, projectStatusCounts, projectStatuses, projects, savedViews, taskComments, tasks, users } from "../../db/schema";
+import { agents, changes, docs, entityLinks, mailboxes, members, messages, projectKeyAliases, projectStatusCounts, projectStatuses, projects, savedViews, taskComments, tasks, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { latestText } from "../agents/parse";
 import { computeForRows } from "./computed";
@@ -171,8 +171,14 @@ export async function updateProject(deps: Deps, actor: SuiteActor, id: string, p
   const now = deps.now();
   const key = patch.key !== undefined ? await assertKeyFree(deps, actor.orgId, patch.key, id) : undefined;
   if (patch.ownerId) {
-    const m = await deps.db.select({ id: members.id }).from(members).where(and(eq(members.organizationId, actor.orgId), eq(members.userId, patch.ownerId))).get();
+    const m = await deps.db.select({ id: members.id, kind: members.kind, agentInboxId: mailboxes.id }).from(members).innerJoin(users, eq(users.id, members.userId))
+      .leftJoin(mailboxes, and(eq(mailboxes.address, users.email), eq(mailboxes.kind, "agent")))
+      .where(and(eq(members.organizationId, actor.orgId), eq(members.userId, patch.ownerId))).get();
     if (!m) throw new HttpError(422, "validation_failed", "The owner must be a member of this workspace.");
+    // AIS1 (audit row 41): a project owner is a person, never an AI agent. An owner set before stays until it changes.
+    if ((m.kind === "agent" || m.agentInboxId) && patch.ownerId !== p.ownerUserId) {
+      throw new HttpError(422, "validation_failed", "A project owner is a person. Choose someone on the team, not an AI agent.");
+    }
   }
   await deps.db.update(projects).set({
     ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
@@ -1215,15 +1221,27 @@ export async function deleteView(deps: Deps, actor: SuiteActor, id: string) {
   return { ok: true };
 }
 
-/** Everyone a task can go to: members and agents. */
-export async function assignees(deps: Deps, orgId: string) {
+/**
+ * Everyone a task can go to: members and agents.
+ * AIS1 (audit rows 41, 52): a person member whose address is an AI agent's inbox (it joined before invites to agents
+ * were refused) is an AI and carries isAgent. With `pickers` (the assignee and mention pickers and filters), one that
+ * is the inbox of a mail agent in this workspace is left out, so the one AI shows once (as its mail agent). Without
+ * it (names, workload, capacity) everyone stays, so tasks already assigned to it keep their name.
+ */
+export async function assignees(deps: Deps, orgId: string, opts: { pickers?: boolean } = {}) {
   const [ms, ags] = await Promise.all([
-    deps.db.select({ id: users.id, name: users.name, email: users.email, kind: members.kind, disabledAt: members.disabledAt }).from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.organizationId, orgId)),
-    deps.db.select({ id: agents.id, name: agents.name, status: agents.status }).from(agents).where(eq(agents.orgId, orgId)),
+    deps.db.select({ id: users.id, name: users.name, email: users.email, kind: members.kind, disabledAt: members.disabledAt, agentInboxId: mailboxes.id }).from(members).innerJoin(users, eq(users.id, members.userId))
+      .leftJoin(mailboxes, and(eq(mailboxes.address, users.email), eq(mailboxes.kind, "agent"))).where(eq(members.organizationId, orgId)),
+    deps.db.select({ id: agents.id, name: agents.name, status: agents.status, mailboxId: agents.mailboxId }).from(agents).where(eq(agents.orgId, orgId)),
   ]);
+  const agentInboxes = new Set(ags.map((a) => a.mailboxId));
+  const twin = (m: { agentInboxId: string | null }) => !!m.agentInboxId && agentInboxes.has(m.agentInboxId);
   return [
     // An AI agent member is assigned like a person; its internal address is never shown.
-    ...ms.map((m) => ({ id: `member:${m.id}`, type: "member" as const, name: m.name, email: m.kind === "agent" ? null : m.email as string | null, ...(m.kind === "agent" ? { isAgent: true } : {}), ...(m.disabledAt ? { paused: true } : {}) })), // R26: pickers hide paused agents
+    ...(opts.pickers ? ms.filter((m) => !twin(m)) : ms).map((m) => {
+      const ai = m.kind === "agent" || !!m.agentInboxId;
+      return { id: `member:${m.id}`, type: "member" as const, name: m.name, email: ai ? null : m.email as string | null, ...(ai ? { isAgent: true } : {}), ...(m.disabledAt ? { paused: true } : {}) }; // R26: pickers hide paused agents
+    }),
     ...ags.map((a) => ({ id: `agent:${a.id}`, type: "agent" as const, name: a.name, email: null as string | null })),
   ];
 }

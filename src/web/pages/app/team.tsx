@@ -182,7 +182,8 @@ function MemberRow({ m, myRole, myId, mailboxes }: { m: TeamMember; myRole: Role
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <Avatar label={initials(m.name)} />
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-medium"><span className="truncate">{m.name}</span>{self && <span className="text-xs font-normal text-subtle">(you)</span>}</div>
+          <div className="flex items-center gap-2 text-sm font-medium"><span className="truncate">{m.name}</span>{self && <span className="text-xs font-normal text-subtle">(you)</span>}
+            {m.agentInbox && <span title="This member's address is an AI agent's inbox, so an AI joined as a person. Remove them, then add the agent in Agents." data-testid="member-agent-inbox"><Badge tone="warn"><IconAgent className="h-3 w-3" />AI</Badge></span>}</div>
           <div className="truncate text-xs text-muted">{m.title ? <><span className="text-fg/80">{m.title}</span> · </> : null}{m.email}</div>
           {m.bio && <div className="mt-0.5 line-clamp-2 text-xs text-subtle">{m.bio}</div>}
           <div className="mt-0.5 text-[11px] text-subtle lg:hidden" data-testid="member-last-active">{m.lastActiveAt ? `Active ${timeAgo(m.lastActiveAt)}` : "Not signed in yet"}</div>

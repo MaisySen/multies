@@ -164,7 +164,7 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `list_goals` | Goals and key results |
 | `create_goal` | Create a goal |
 | `update_key_result` | Record progress on a key result |
-| `list_people` | List people and agents |
+| `list_people` | List people and agents (AIS1: a person member whose address is an AI agent's inbox carries `agentInbox: true`) |
 | `list_agent_members` | AI agent members with avatar, paused state, linked inbox and key count (R26) |
 | `update_agent_member` | Edit an agent member or pause it (its keys are refused until resumed). Full workspace key (R26) |
 | `list_notifications` | Your notifications |

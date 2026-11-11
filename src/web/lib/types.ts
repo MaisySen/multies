@@ -286,6 +286,8 @@ export interface TeamMember {
   name: string;
   role: Role;
   kind: "human" | "agent";
+  /** AIS1: a person member whose address is an AI agent's inbox (joined before that was refused). */
+  agentInbox?: boolean;
   title: string | null;
   bio: string | null;
   joinedAt: string;

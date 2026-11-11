@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
-import { agents, aliases, auditLogs, domains, invitations, mailboxes, members, organizations, projectGuests, sendApprovals, users } from "@/server/db/schema";
+import { agents, aliases, auditLogs, domains, invitations, mailboxes, members, organizations, projectGuests, projects, sendApprovals, users } from "@/server/db/schema";
 import { agentAddress } from "@/server/services/agents/agent-address";
+import { listStaff } from "@/server/services/people-r126";
+import { assignees } from "@/server/services/suite/tasks";
 
 /**
  * AIS1 (audit of 11 Nov 2026, row 1, Critical): an AI agent can't become a person. On the live workspace an API key
@@ -262,5 +264,46 @@ describe("AIS1 row 44: sign-up emails come only from the workspace's own verifie
     expect(ok.status).toBe(201);
     const moved = await api(wsKey, "PATCH", `/auth-email-hooks/${ok.body.hook?.id ?? ok.body.id}`, { from: "agent@acme.io" });
     expect(moved.status).toBe(422);
+  });
+});
+
+describe("AIS1 rows 41 and 52: an AI that joined as a person is flagged, kept out of people lists, and shown once", () => {
+  it("the Team list flags it, Staff leaves it out, and the assignee list shows the AI once", async () => {
+    // The live damage: the agent's inbox address became a normal member before invites to agents were refused.
+    await ctx.db.insert(users).values({ id: "usr_agentperson", email: "agent@acme.io", name: "Agent", emailVerified: true });
+    await ctx.db.insert(members).values({ id: "mem_agentperson", organizationId: orgId, userId: "usr_agentperson", role: "member" });
+    const team = (await owner.get("/api/team")).body.members as { userId: string; agentInbox: boolean }[];
+    expect(team.find((m) => m.userId === "usr_agentperson")?.agentInbox).toBe(true);
+    expect(team.filter((m) => m.agentInbox)).toHaveLength(1);
+    const people = (await api(wsKey, "GET", "/people")).body.people as { id: string; agentInbox?: boolean }[];
+    expect(people.find((p) => p.id === "usr_agentperson")?.agentInbox).toBe(true);
+    const ownerId = (await owner.get("/api/account/me")).body.user.id as string;
+    const staff = await listStaff(ctx.deps, { orgId, userId: ownerId, role: "owner" } as never);
+    expect(staff.map((p) => p.userId)).toEqual([ownerId]);
+    const list = (await owner.get("/api/tasks/assignees")).body.assignees as { id: string; type: string; name: string; isAgent?: boolean }[];
+    expect(list.filter((a) => a.name === "Agent").map((a) => a.type)).toEqual(["agent"]);
+    expect(list.find((a) => a.id === "member:usr_agentperson")).toBeUndefined();
+    const chat = (await owner.get("/api/chat/people")).body.people as { name: string; type: string }[];
+    expect(chat.filter((p) => p.name === "Agent").map((p) => p.type)).toEqual(["agent"]);
+    // Names, workload and capacity still know it (tasks already assigned to it keep their name), as an AI with no address.
+    const everyone = await assignees(ctx.deps, orgId);
+    expect(everyone.find((a) => a.id === "member:usr_agentperson")).toMatchObject({ name: "Agent", email: null, isAgent: true });
+  });
+
+  it("a project owner is a person: an AI that joined as a person and an agent member are refused", async () => {
+    await ctx.db.insert(users).values({ id: "usr_agentperson", email: "agent@acme.io", name: "Agent", emailVerified: true });
+    await ctx.db.insert(members).values({ id: "mem_agentperson", organizationId: orgId, userId: "usr_agentperson", role: "member" });
+    const bot = (await owner.post("/api/team/agents", { name: "Builder" })).body.member.userId as string;
+    const ownerId = (await owner.get("/api/account/me")).body.user.id as string;
+    const project = (await owner.post("/api/projects", { name: "Client work" })).body.project as { id: string };
+    for (const who of ["usr_agentperson", bot]) {
+      const r = await owner.patch(`/api/projects/${project.id}`, { ownerId: who });
+      expect(r.status, who).toBe(422);
+      expect(r.body.error.message).toMatch(/person/);
+    }
+    expect((await owner.patch(`/api/projects/${project.id}`, { ownerId })).status).toBe(200);
+    // An AI set as owner before the fix stays, and saving the project again with it works; only a change is checked.
+    await ctx.db.update(projects).set({ ownerUserId: bot }).where(eq(projects.id, project.id));
+    expect((await owner.patch(`/api/projects/${project.id}`, { ownerId: bot, health: "on_track" })).status).toBe(200);
   });
 });

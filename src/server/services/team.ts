@@ -86,9 +86,14 @@ export async function seatsUsed(db: DB, orgId: string, now: Date) {
 }
 
 export async function listMembers(db: DB, orgId: string) {
+  // AIS1 (audit rows 1, 41): a person member whose address is an AI agent's inbox (made before invites to agents were
+  // refused) is flagged, so an admin sees it and removes it. One indexed join on the mailbox address; reads only.
   const rows = await db.select({
     memberId: members.id, userId: users.id, email: users.email, name: users.name, role: members.role, kind: members.kind, title: members.title, bio: members.bio, joinedAt: members.createdAt,
-  }).from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.organizationId, orgId));
+    agentInboxId: mailboxes.id,
+  }).from(members).innerJoin(users, eq(users.id, members.userId))
+    .leftJoin(mailboxes, and(eq(mailboxes.address, users.email), eq(mailboxes.kind, "agent")))
+    .where(eq(members.organizationId, orgId));
   const ids = rows.map((r) => r.userId);
   // PRIV1b (P24): grants on personal mailboxes mean nothing (the owner shares those), and the editor would send them back and get 403.
   const access = await db.select({ userId: mailboxAccess.userId, mailboxId: mailboxAccess.mailboxId }).from(mailboxAccess)
@@ -98,8 +103,10 @@ export async function listMembers(db: DB, orgId: string) {
     : [];
   const order: Record<Role, number> = { owner: 0, admin: 1, member: 2 };
   return rows
-    .map((r) => ({
+    .map(({ agentInboxId, ...r }) => ({
       ...r,
+      /** AIS1: this person member's address is an AI agent's inbox. Remove the member and add the agent in Agents. */
+      agentInbox: !!agentInboxId,
       // An agent member's address is internal and never shown.
       email: r.kind === "agent" ? null : r.email,
       mailboxIds: r.role === "member" ? access.filter((a) => a.userId === r.userId).map((a) => a.mailboxId) : null,
