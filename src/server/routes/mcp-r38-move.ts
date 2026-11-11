@@ -22,7 +22,7 @@ export function registerDataMoveTools(server: McpServer, deps: Deps, actor: Scop
 
   server.registerTool("export_workspace", {
     title: "Export the whole workspace", annotations: { readOnlyHint: true, openWorldHint: false },
-    description: "Starts a full workspace export and answers downloadUrl, a ZIP link that works for 24 hours: JSON for every table, CSV for tasks, projects, comments, contacts, deals, time and chat, Markdown docs, an .ics calendar, a .vcf address book and mbox mail. One export every 10 minutes.",
+    description: "Starts a full workspace export and answers downloadUrl, a ZIP link that works for 24 hours: JSON for every table, CSV for tasks, projects, comments, contacts, deals, time and chat, Markdown docs, an .ics calendar, a .vcf address book and mbox mail. Multies' own mail (invites, confirmations, resets) is in it with its subject and sender only. One export every 10 minutes.",
     inputSchema: {},
   }, tool(async () => {
     notAgent();

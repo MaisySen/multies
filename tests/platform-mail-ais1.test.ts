@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { eq } from "drizzle-orm";
+import { unzipSync, strFromU8 } from "fflate";
 import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { makeTestApp, Client } from "./helpers";
@@ -270,4 +271,37 @@ describe("AIS1 row 32 (review): a bulk job's search is no oracle on the platform
     expect((await api(agentKey, "POST", "/mail/bulk-jobs", { ...job("folder_all_0001", ""), scope: { mailboxId: m.mailboxId, folder: "inbox" } })).body.total).toBe(1);
     expect((await owner.post("/api/mail/bulk-jobs/preview", { scope: { mailboxId: m.mailboxId, q: SECRET.slice(0, 8) }, max_received_at: new Date(Date.now() + 60_000).toISOString() })).body.total).toBe(1);
   });
+});
+
+describe("AIS1 row 32 (review): a workspace export a key or an app starts withholds the platform's own mail", () => {
+  async function mailIn(downloadUrl: string) {
+    const u = new URL(downloadUrl, "http://localhost");
+    const dl = await ctx.app.request(u.pathname + u.search, { headers: { host: "localhost" } });
+    expect(dl.status).toBe(200);
+    const files = unzipSync(new Uint8Array(await dl.arrayBuffer()));
+    return Object.entries(files).filter(([name]) => name.startsWith("mail/")).map(([, bytes]) => strFromU8(bytes)).join(" ");
+  }
+
+  it("a workspace key's export has the reset's subject and sender only, in the JSON and the mbox", async () => {
+    await owner.post("/api/mailboxes", { domainId, localPart: "hello", displayName: "Hello" });
+    await resetMail("hello@acme.io");
+    await outside("hello@acme.io", "noreply@service.example", "Your Acme code", `Your code is ${CODE}`);
+    const ex = await api(wsKey, "POST", "/data-moves/exports", {});
+    expect(ex.status).toBeLessThan(300);
+    const mail = await mailIn(ex.body.downloadUrl);
+    expect(mail).toContain("Reset your Multies password");
+    expect(mail).not.toContain(SECRET);
+    expect(mail).toContain("platform_mail");
+    // Everyone else's mail is exported whole.
+    expect(mail).toContain(CODE);
+  }, 60_000);
+
+  it("an owner's export from the app keeps it whole", async () => {
+    await owner.post("/api/mailboxes", { domainId, localPart: "hello", displayName: "Hello" });
+    await resetMail("hello@acme.io");
+    const ex = await owner.post("/api/data-moves/exports", {});
+    expect(ex.status).toBe(200);
+    const mail = await mailIn(ex.body.downloadPath);
+    expect(mail).toContain(`reset-password/${SECRET}`);
+  }, 60_000);
 });

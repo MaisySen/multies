@@ -34,7 +34,7 @@ export const isDataExportStart = (method: string, path: string) => method === "P
 export function registerDataMoveRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "get", path: "/data-moves", tags: ["Import and export"], summary: "List imports and exports", description: "The last 50 imports and exports, newest first, with status, progress (done of total), what each made and whether it can be undone.", security: [{ bearerAuth: [] }], responses }),
     async (c) => send(c, await listMoves(c.var.deps, actor(c))));
-  api.openapi(createRoute({ method: "post", path: "/data-moves/exports", tags: ["Import and export"], summary: "Export the whole workspace", description: "Answers downloadUrl: a ZIP of everything (JSON per table, CSV for the main tables, Markdown docs, an .ics calendar, a .vcf address book and mbox mail). The link works for 24 hours without a key. One export a workspace every 10 minutes (429 otherwise). Written to the audit log.", security: [{ bearerAuth: [] }], responses }),
+  api.openapi(createRoute({ method: "post", path: "/data-moves/exports", tags: ["Import and export"], summary: "Export the whole workspace", description: "Answers downloadUrl: a ZIP of everything (JSON per table, CSV for the main tables, Markdown docs, an .ics calendar, a .vcf address book and mbox mail). The link works for 24 hours without a key. One export a workspace every 10 minutes (429 otherwise). Written to the audit log. Multies' own mail (invites, confirmations, resets) is in it with its subject and sender only.", security: [{ bearerAuth: [] }], responses }),
     async (c) => {
       const r = await startExport(c.var.deps, actor(c));
       return send(c, { ...r, downloadUrl: new URL(r.downloadPath, c.req.url).toString() });
