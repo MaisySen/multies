@@ -19,7 +19,7 @@ import { HttpError, notFound, forbidden } from "../lib/errors";
 import { newId } from "../lib/crypto";
 import { audit } from "./audit";
 import type { SuiteActor } from "./suite/common";
-import { aiKeyStatus, keyFor } from "./ai/keys";
+import { aiKeyStatus, keyFallbackOn, keyFor } from "./ai/keys";
 import { AI_PROVIDER_INFO, AiProviderError, keyProblemOf, type AiProvider, type AiProviderId } from "./ai/providers";
 import { aiFallbackText, isAiKeyProblem } from "@/shared/ai-connect-ai2"; // QUAL1
 import { isAskExcluded, retrieveFor } from "./ask-r110";
@@ -496,8 +496,8 @@ async function finish(deps: Deps, r: RunRow, status: RunStatus, reason: string |
  * once cannot pass the limit), then goes through askAi, which checks the AI switch again, reserves on the single shared
  * meter before the call and never bills. A refusal made before any call gives the free run back.
  */
-/** QUAL1: built-in AI may stand in for a refused own key (AI_KEY_FALLBACK, on unless off). */
-const builtinStandsIn = (deps: Deps) => !!deps.ai && deps.config.aiKeyFallback !== false;
+/** QUAL1: built-in AI may stand in for a refused own key: the one check every AI path uses (./ai/keys keyFallbackOn). */
+const builtinStandsIn = (deps: Deps) => keyFallbackOn(deps);
 
 async function callBuiltIn(deps: Deps, r: RunRow, req: { system: string; user: string }, skipOwnKey = false): Promise<string> {
   if (!deps.ai) throw new RunStop("no_key", "skipped"); // no key and no built in AI here: nothing can run

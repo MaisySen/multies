@@ -162,10 +162,13 @@ notes and recordings, catch-up, forms, the connection test and the model list). 
   `ai_model_unavailable`, the same sentence, and `details.fix: "/app/settings#ai"`. A provider that is down or rate
   limited is still `502 ai_provider_error`. A recording chunk the provider refuses stays `502 ai_provider_error` (so the
   phone keeps the chunk and retries it) with the same sentence.
-- With built-in AI on (AI2), it answers instead, inside the free daily meter, and the answer carries
-  `fallback: { reason, message }` (`message` starts "Built-in AI wrote this because ..."). The document tools' Ask and
-  Translate answers carry the same `fallback`, their invoice and contract readers put the sentence in `note`, and a Team
-  AI run ends with that line. The deployment switch `AI_KEY_FALLBACK=off` turns this off.
+- Built-in AI answers in the key's place only where the deployment sets `AI_KEY_FALLBACK=on` (with AI2 on). It is off
+  by default: the workspace chose its own provider, so its text never goes to another processor unless the operator
+  turns this on (after the privacy policy says so). When it is on, `GET /api/ai-trust` lists built-in AI "In their
+  place if your provider refuses your key" before any refusal, and each answer it writes inside the free daily meter
+  carries `fallback: { reason, message }` (`message` starts "Built-in AI wrote this because ..."). The document tools'
+  Ask and Translate answers carry the same `fallback`, their invoice and contract readers put the sentence in `note`,
+  and a Team AI run ends with that line.
 - `POST /api/ai/models` with a refused key answers the short list of common models with `live: false`,
   `problem: "key_refused"` and a note saying so, and keeps no cached copy.
 - `GET /api/team-ai/state` shows `ai.keyProblem` and `ai.keyProblemMessage`; `ai.source` is `built_in` (or `none`)

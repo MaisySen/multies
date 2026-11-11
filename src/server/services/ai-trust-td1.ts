@@ -9,6 +9,7 @@ import type { Deps } from "../context";
 import { aiKeys, aiTrust } from "../db/schema";
 import { HttpError } from "../lib/errors";
 import { audit } from "./audit";
+import { keyFallbackOn } from "./ai/keys"; // QUAL1
 import { AI_OFF_MESSAGE, whereOf } from "@/shared/ask-td1";
 
 export interface AiTrustState {
@@ -56,10 +57,14 @@ export async function aiTrustState(deps: Deps, orgId: string, role: string): Pro
   const on = !deps.config.askTd1 ? true : trust ? !!trust.enabled : true;
   const builtin = whereOf("builtin");
   const own = key ? whereOf(key.provider) : null;
-  // QUAL1 (audit row 14): while the provider refuses the saved key, built-in AI answers in its place, and this list says so.
-  const standIn = !!key?.problem && !!deps.ai && deps.config.aiKeyFallback !== false;
+  // QUAL1 (audit row 14): where the deployment lets built-in AI answer while the provider refuses the saved key
+  // (AI_KEY_FALLBACK=on), this list says so before any refusal, and says when it is answering now. The same check
+  // every AI path uses (keyFallbackOn), so the list never claims a stand-in that does not happen.
+  const standIn = !!key && keyFallbackOn(deps)
+    ? [{ use: key.problem ? "In their place now, while your key is refused" : "In their place if your provider refuses your key", ...builtin }]
+    : [];
   const providers = own
-    ? [...(deps.config.askR110 ? [{ use: "Ask", ...builtin }] : []), { use: "Mail, meetings and Tools AI", ...own }, ...(standIn ? [{ use: "In their place while your key is refused", ...builtin }] : [])]
+    ? [...(deps.config.askR110 ? [{ use: "Ask", ...builtin }] : []), { use: "Mail, meetings and Tools AI", ...own }, ...standIn]
     : [{ use: [deps.config.askR110 ? "Ask" : null, "Tools AI", deps.config.aiConnectAi2 ? "mail" : null].filter(Boolean).join(", ").replace(/, ([^,]*)$/, " and $1"), ...builtin }];
   return {
     controls: !!deps.config.askTd1, on, source: trust ? "admin" : "default",

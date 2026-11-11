@@ -15,7 +15,7 @@ import { HttpError } from "../../lib/errors";
 import { getMessage, getThread } from "../mail/mailbox-view";
 import { scopeFor } from "../agents";
 import { latestText } from "../agents/parse";
-import { keyFor } from "./keys";
+import { keyFallbackOn, keyFor } from "./keys";
 import { AI_PROVIDER_INFO, AiProviderError, keyProblemOf, type AiCompletion, type AiProviderId } from "./providers";
 import { assertAiAllowed } from "../ai-trust-td1"; // TD1: AI trust gate
 import { AI_KEY_FIX_PATH, aiFallbackText, aiKeyProblemText, type AiKeyProblem } from "../../../shared/ai-connect-ai2";
@@ -61,8 +61,8 @@ export function aiCallError(err: unknown): HttpError | null {
   return problem ? keyProblemError(problem, err.provider) : providerFailureError(err);
 }
 
-/** QUAL1: built-in AI may stand in for a refused key: AI2 on, the binding present, and AI_KEY_FALLBACK not off. */
-export const canFallBack = (deps: Deps) => !!deps.config.aiConnectAi2 && !!deps.ai && deps.config.aiKeyFallback !== false;
+/** QUAL1: built-in AI may stand in for a refused key (AI_KEY_FALLBACK=on, AI2 on, the binding present): ./keys keyFallbackOn. */
+export const canFallBack = (deps: Deps) => keyFallbackOn(deps);
 
 /** Built-in AI's answer for a workspace whose own key just failed, or null when it is not there or cannot answer. */
 async function builtinInstead(deps: Deps, orgId: string, req: AiCompletion, problem: AiKeyProblem, provider: AiProviderId): Promise<AskResult | null> {

@@ -53,7 +53,7 @@ export function AiConnectPanel({ status, isAdmin }: { status: AiStatus; isAdmin:
   }
   return (
     <div className="space-y-4" data-testid="ai2-panel">
-      <BuiltinCard builtin={status.builtin} ownKey={status.connected} keyProblem={!!status.problem && status.keyFallback !== false} />
+      <BuiltinCard builtin={status.builtin} ownKey={status.connected} keyProblem={!!status.problem && status.keyFallback === true} />
       <section className={cardClass} aria-labelledby="ai2-own-title">
         <button
           type="button" className="flex w-full items-center justify-between gap-3 text-left" aria-expanded={advanced}

@@ -3,7 +3,8 @@
  * "Connected", Team AI said "Ready on your Anthropic key" and POST /api/ai/summary answered a bare 502. Now a 401 or
  * 403 (and an empty account or a model that is gone) is noted on the stored key with the time, the moment it happens
  * on any AI call; a call that works or a passed test clears it; every status shows it; the AI routes answer 409 with
- * their own code and plain words; and built-in AI stands in, inside the free meter, saying so.
+ * their own code and plain words; and, only where the deployment turns it on (AI_KEY_FALLBACK=on), built-in AI stands
+ * in, inside the free meter, saying so.
  */
 import { describe, it, expect, vi } from "vitest";
 import { sql } from "drizzle-orm";
@@ -42,7 +43,8 @@ async function setup(env: Record<string, string> = {}) {
       text: "Hi,\n\nCan we move this week? Please let me know.\n\nMaria", date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
   });
   const messageId = (await c.get(`/api/mail/messages?mailboxId=${box.id}&folder=inbox`)).body.messages[0].id as string;
-  const connected = await c.post("/api/ai/connect", { apiKey: ANT });
+  // AI2 off has no connect route: the key goes in the way today's screen saves it.
+  const connected = env.AI_CONNECT_AI2 === "off" ? await c.put("/api/ai/key", { provider: "anthropic", apiKey: ANT }) : await c.post("/api/ai/connect", { apiKey: ANT });
   expect(connected.status).toBe(200);
   const orgId = (await c.get("/api/account/me")).body.organization.id as string;
   const keyRow = () => ctx.deps.db.select().from(aiKeys).get();
@@ -160,11 +162,57 @@ describe("a refused AI key is noted, shown and explained (QUAL1, rows 12 and 14)
   });
 });
 
-describe("built-in AI stands in for a refused key, and says so (QUAL1, row 14)", () => {
-  const fakeAi = () => ({ run: vi.fn(async () => ({ response: '{"summary":"Built in summary.","actionItems":[]}', usage: { prompt_tokens: 40, completion_tokens: 8 } })) });
+const fakeAi = () => ({ run: vi.fn(async (_model: string, _input: unknown) => ({ response: '{"summary":"Built in summary.","actionItems":[]}', usage: { prompt_tokens: 40, completion_tokens: 8 } })) });
+
+/**
+ * Review of QUAL1 (defect 1): the stand-in was on by default, so on the first refusal a workspace that chose its own
+ * provider had its mail sent to built-in AI (another processor) without an admin choosing it, and Settings, AI trust
+ * said so only afterwards. Now it is off unless the deployment sets AI_KEY_FALLBACK=on, and when it is on the AI trust
+ * list names the stand-in before any refusal.
+ */
+describe("built-in AI never stands in for a workspace's own key unless the deployment turns it on (QUAL1 review)", () => {
+  it("default config: a refused key answers 409 in plain words and the thread goes to no other processor", async () => {
+    const t = await setup();
+    const ai = fakeAi();
+    t.deps.ai = ai as unknown as typeof t.deps.ai;
+    const trust = async () => (await t.c.get("/api/ai-trust")).body.providers as { use: string; name: string }[];
+    expect((await trust()).some((p) => /refuse/i.test(p.use))).toBe(false);
+    t.setAnswer(refused);
+    const r = await t.c.post("/api/ai/summary", { messageId: t.messageId });
+    expect(r.status).toBe(409);
+    expect(r.body.error).toMatchObject({ code: "ai_key_refused", message: REFUSED, details: { fix: "/app/settings#ai" } });
+    expect(r.body.fallback).toBeUndefined();
+    expect(ai.run).not.toHaveBeenCalled();
+    // Settings: no stand-in claimed, the badge does not say built-in AI is answering, Team AI says nothing can run.
+    expect((await trust()).some((p) => /refuse/i.test(p.use))).toBe(false);
+    expect((await t.c.get("/api/ai/status")).body).toMatchObject({ problem: "key_refused", keyFallback: false });
+    expect((await t.c.get("/api/team-ai/state")).body.ai).toMatchObject({ source: "none", keyProblem: "key_refused" });
+  });
+
+  it("AI_KEY_FALLBACK=on: Settings, AI trust names built-in AI as the stand-in before any refusal", async () => {
+    const t = await setup({ AI_KEY_FALLBACK: "on" });
+    t.deps.ai = fakeAi() as unknown as typeof t.deps.ai;
+    const before = (await t.c.get("/api/ai-trust")).body.providers as { use: string; name: string }[];
+    expect(before.find((p) => /built/i.test(p.name) && p.use === "In their place if your provider refuses your key")).toBeTruthy();
+    expect((await t.c.get("/api/ai/status")).body.keyFallback).toBe(true);
+  });
+
+  it("AI_KEY_FALLBACK=on without AI2: no stand-in, and the trust list does not claim one", async () => {
+    const t = await setup({ AI_KEY_FALLBACK: "on", AI_CONNECT_AI2: "off" });
+    const ai = fakeAi();
+    t.deps.ai = ai as unknown as typeof t.deps.ai;
+    expect(((await t.c.get("/api/ai-trust")).body.providers as { use: string }[]).some((p) => /refuse/i.test(p.use))).toBe(false);
+    t.setAnswer(refused);
+    expect(await askAi(t.deps, t.orgId, { task: "chat", system: "s", user: "u" })).toMatchObject({ ok: false, reason: "error", message: REFUSED });
+    expect(ai.run).not.toHaveBeenCalled();
+  });
+});
+
+describe("with AI_KEY_FALLBACK=on, built-in AI stands in for a refused key, and says so (QUAL1, row 14)", () => {
+  const on = { AI_KEY_FALLBACK: "on" };
 
   it("Summarise answers from built-in AI with a fallback note, without calling the refused key twice", async () => {
-    const t = await setup();
+    const t = await setup(on);
     const ai = fakeAi();
     t.deps.ai = ai as unknown as typeof t.deps.ai;
     t.setAnswer(refused);
@@ -178,29 +226,19 @@ describe("built-in AI stands in for a refused key, and says so (QUAL1, row 14)",
     expect((await t.keyRow())?.problem).toBe("key_refused");
   });
 
-  it("Settings, AI trust names built-in AI as answering in the key's place while it is refused", async () => {
-    const t = await setup();
+  it("Settings, AI trust says built-in AI is answering now while the key is refused", async () => {
+    const t = await setup(on);
     t.deps.ai = fakeAi() as unknown as typeof t.deps.ai;
     const before = (await t.c.get("/api/ai-trust")).body.providers as { use: string }[];
-    expect(before.some((p) => p.use.includes("while your key is refused"))).toBe(false);
+    expect(before.some((p) => p.use.includes("now, while your key is refused"))).toBe(false);
     t.setAnswer(refused);
     await t.c.post("/api/ai/summary", { messageId: t.messageId });
     const after = (await t.c.get("/api/ai-trust")).body.providers as { use: string; name: string }[];
-    expect(after.find((p) => p.use.includes("while your key is refused"))).toBeTruthy();
-  });
-
-  it("AI_KEY_FALLBACK=off keeps the plain 409 instead", async () => {
-    const t = await setup({ AI_KEY_FALLBACK: "off" });
-    const ai = fakeAi();
-    t.deps.ai = ai as unknown as typeof t.deps.ai;
-    t.setAnswer(refused);
-    const r = await t.c.post("/api/ai/summary", { messageId: t.messageId });
-    expect(r.status).toBe(409);
-    expect(ai.run).not.toHaveBeenCalled();
+    expect(after.find((p) => p.use === "In their place now, while your key is refused")).toBeTruthy();
   });
 
   it("the Tools door (askAi) falls through to the free service with a note, and never shows the provider's words", async () => {
-    const t = await setup();
+    const t = await setup(on);
     const ai = fakeAi();
     t.deps.ai = ai as unknown as typeof t.deps.ai;
     t.setAnswer(refused);
@@ -214,7 +252,7 @@ describe("built-in AI stands in for a refused key, and says so (QUAL1, row 14)",
   });
 
   it("Team AI is not 'Ready on your key' while it is refused: built-in AI runs and the answer says so", async () => {
-    const t = await setup();
+    const t = await setup(on);
     const ai = { run: vi.fn(async () => ({ response: "Built in draft", usage: { prompt_tokens: 50, completion_tokens: 20 } })) };
     t.deps.ai = ai as unknown as typeof t.deps.ai;
     expect((await t.c.get("/api/team-ai/state")).body.ai).toMatchObject({ key: true, source: "own_key" });

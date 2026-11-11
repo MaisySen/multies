@@ -15,7 +15,7 @@
 import { sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { type PlanId } from "@/shared/plans";
-import { keyFor } from "../ai/keys";
+import { keyFallbackOn, keyFor } from "../ai/keys";
 import { AI_PROVIDER_INFO, keyProblemOf, type AiProvider, type AiProviderId } from "../ai/providers";
 import { aiFallbackText, aiKeyProblemText, type AiKeyProblem } from "@/shared/ai-connect-ai2";
 import { dayOf } from "./usage";
@@ -283,7 +283,7 @@ export async function askAi(deps: Deps, orgId: string, req: AiRequest, opts: { s
   let fallback: AiOk["fallback"];
   if (own) {
     const { result, problem } = await runOwnKey(own.provider, req);
-    if (result.ok || !problem || !deps.ai || deps.config.aiKeyFallback === false) return result;
+    if (result.ok || !problem || !keyFallbackOn(deps)) return result;
     fallback = { reason: problem, message: aiFallbackText(problem, AI_PROVIDER_INFO[own.providerId].name) };
   }
   if (!deps.ai) return { ok: false, reason: "unavailable", message: UNAVAILABLE_MESSAGE };

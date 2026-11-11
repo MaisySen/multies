@@ -38,7 +38,9 @@ export interface AppConfig {
   aiConnectAi2?: boolean;
   /**
    * QUAL1 (audit row 14): AI_KEY_FALLBACK. When the provider refuses a workspace's own key (or its credit or model),
-   * the answer comes from built-in AI inside the free meter and says so. On unless set to off.
+   * the answer comes from built-in AI inside the free meter and says so. Off unless set to on (with AI_CONNECT_AI2 on):
+   * the workspace chose its own provider, so its text goes to built-in AI only when the operator turns this on, after
+   * the privacy policy and sub processor rows (src/shared/legal.ts, src/shared/trust.ts) say so.
    */
   aiKeyFallback?: boolean;
   /** AI2: this deployment's own lower stop on the shared free AI allocation (AI_GLOBAL_DAILY_UNITS); never above 8,000. */
@@ -831,7 +833,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     toursR130: ["1", "true", "on"].includes(String(env.TOURS_R130 ?? "").toLowerCase()), // R130
     toursExclude: env.TOURS_EXCLUDE ?? "", // R130
     aiConnectAi2: ["1", "true", "on"].includes(String(env.AI_CONNECT_AI2 ?? "").toLowerCase()), // AI2
-    aiKeyFallback: !["0", "false", "off"].includes(String(env.AI_KEY_FALLBACK ?? "").toLowerCase()), // QUAL1: on unless off
+    aiKeyFallback: ["1", "true", "on"].includes(String(env.AI_KEY_FALLBACK ?? "").toLowerCase()), // QUAL1: off unless on
     aiGlobalDailyUnits: /^\d{1,6}$/.test(String(env.AI_GLOBAL_DAILY_UNITS ?? "")) ? Number(env.AI_GLOBAL_DAILY_UNITS) : undefined, // AI2: only lowers (ai-meter globalCap)
     // AI2: only an https sign in page is taken (the local stand in is https://openrouter.mock/auth).
     openRouterAuthUrl: /^https:\/\/[^\s]+$/.test(String(env.OPENROUTER_AUTH_URL ?? "")) ? String(env.OPENROUTER_AUTH_URL) : undefined,
