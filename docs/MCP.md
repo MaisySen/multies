@@ -239,7 +239,8 @@ writes no read entry. Each read names the thread by its id and its subject, exce
 mailbox, which keeps only its id: admins read the audit log, and only the mailbox's owner may read that
 mail. A send, queued send, block or approval from a personal mailbox (a reply in a personal thread
 included) likewise has no subject or addresses, only `personal: true` and `recipientCount`. A plain
-member sees no subject, mail address or IP in the audit log.
+member reading the audit log gets no IP and no subject or mail address in an entry's metadata; the
+entry's actor is still shown.
 
 Every entry a tool call writes to the audit log names the key or connected app that made it and carries
 the request's IP. `metadata.caller` names the key (`kind` `workspace_key`, `agent_key` or `agent_member_key`,
