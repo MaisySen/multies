@@ -101,15 +101,15 @@ export const STREAM_RECHECK_MS = 30_000;
 
 export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "post", path: "/agents", tags: ["Agents"], summary: "Create an agent inbox",
-    description: "Creates the agent, its inbox and an agent API key in one call. The key is returned once. Needs a workspace key.", security: secured,
+    description: "Creates the agent, its inbox and an agent API key in one call. The key is returned once. Needs a workspace key. A new agent starts safe: a person approves every message (`always`) unless you ask otherwise, 100 sends a day and your own verified domains as its allowed recipients.", security: secured,
     request: body(z.object({
       name: z.string().min(1).max(80).openapi({ example: "Invoice bot" }),
       description: z.string().max(500).optional(),
       localPart: z.string().min(1).max(64).regex(/^[a-z0-9._-]+$/i).optional().openapi({ description: "The part before the @. Defaults to a slug of the name.", example: "invoices" }),
       domainId: z.string().optional().openapi({ description: "Which of your domains to use. Defaults to your first verified domain." }),
       approvalMode: ApprovalMode.optional(),
-      sendCapDaily: z.number().int().min(0).max(100_000).optional(),
-      allowedRecipients: z.array(z.string().min(3).max(254)).max(200).nullable().optional(),
+      sendCapDaily: z.number().int().min(0).max(100_000).optional().openapi({ description: "Messages a day. Default 100, never above your plan's limit." }),
+      allowedRecipients: z.array(z.string().min(3).max(254)).max(200).nullable().optional().openapi({ description: "Addresses or \"@domain\" entries the agent may send to. Default: your verified domains (with none yet, the key creator's own address). From a key, null or an empty list gets the default too; only a person in the app can let an agent mail anyone." }),
       mailboxIds: z.array(z.string()).max(50).optional().openapi({ description: "Shared mailboxes this agent can also work, for example support@." }),
       createKey: z.boolean().default(true),
     })),

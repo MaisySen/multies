@@ -140,7 +140,7 @@ describe("agent inboxes over the API", () => {
   });
 
   it("queues sends for approval by default, then sends as the agent once a person approves", async () => {
-    const { agent, apiKey } = (await api(wsKey, "POST", "/agents", { name: "Support bot", localPart: "support-bot" })).body;
+    const { agent, apiKey } = (await api(wsKey, "POST", "/agents", { name: "Support bot", localPart: "support-bot", allowedRecipients: ["@example.com"] })).body; // AIS1: outside the default list
     await inbound(agent.address, "Where is my order?", "Hi, order 1182 hasn't arrived.");
     const thread = (await api(apiKey.secret, "GET", `/agents/${agent.id}/threads`)).body.data[0];
     const reply = await api(apiKey.secret, "POST", `/agents/${agent.id}/threads/${thread.id}/reply`, { text: "Sorry about that. It ships today." });
@@ -213,7 +213,7 @@ describe("agent inboxes over the API", () => {
 
   it("lets an agent work a shared mailbox beside people", async () => {
     const team = (await c.post("/api/mailboxes", { domainId, localPart: "support", displayName: "Support" })).body.mailbox;
-    const { agent, apiKey } = (await api(wsKey, "POST", "/agents", { name: "Triage", mailboxIds: [team.id], approvalMode: "never" })).body;
+    const { agent, apiKey } = (await c.post("/api/agents", { name: "Triage", mailboxIds: [team.id], approvalMode: "never", allowedRecipients: null })).body; // AIS1: a person's choice
     expect(agent.mailboxIds).toEqual([agent.inboxId, team.id]);
     await inbound("support@acme.io", "Refund please", "I'd like a refund for invoice 77.");
     const threads = (await api(apiKey.secret, "GET", `/agents/${agent.id}/threads`)).body.data;

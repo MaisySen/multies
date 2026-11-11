@@ -85,7 +85,7 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | `send_email` | Send an email |
 | `reply` | Reply in a thread |
 | `wait_for_email` | Wait for new email |
-| `create_agent_inbox` | Create an agent inbox |
+| `create_agent_inbox` | Create an agent inbox. It starts safe: a person approves every message, 100 sends a day, only the workspace's own verified domains as recipients. A person can widen that in the app (AIS1) |
 | `create_agent_member` | Add an AI agent member (no seat, mailbox optional); returns its first key, shown once. Full workspace key (R26) |
 | `set_mailbox_reply_to` | Set a mailbox's default Reply-To, used when a send names none (R25, MB-61) |
 | `snooze_thread` | Snooze a thread until a time (round 20, registered in src/server/routes/mcp-mail-schedule.ts) |

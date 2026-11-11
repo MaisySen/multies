@@ -319,6 +319,15 @@ Nothing changes on its own: an admin applies a suggestion with the usual `PATCH 
 The agent page shows the record, a bar of outcomes and the suggestion with a one tap switch. The
 read writes nothing.
 
+## Agent guardrails (AIS1)
+
+Every new agent, made in the app, over REST or over MCP, starts with approval `always`, 100 sends a day (never
+above the plan's limit: Free 100, Pro 500, Business 2,000) and the workspace's own verified domains as allowed
+recipients (`["@acme.io"]`). With no verified domain yet it is the creator's own address (for a key, the person
+who made the key). From a key, `allowedRecipients` of `null` or `[]` gets this default too; a person who wants
+"anyone" picks it in the app (or sends `null` to `POST /api/agents`). Agents made before this change keep their
+settings, and domains verified later don't join existing agents' lists.
+
 ## Weekly meeting series
 
 A meeting can repeat weekly: every 1 or 2 weeks on chosen days, with an optional last day or number of meetings. A series is one meeting row; the upcoming list (`GET /api/v1/meetings?upcoming=true`) works out the next occurrences on read (up to 12 per series over the next 60 days), each with the series' `id` and `seriesStartsAt`. Nothing is written per occurrence. Times keep their wall clock time in the series' time zone across daylight saving changes.

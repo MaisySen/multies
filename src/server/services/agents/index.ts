@@ -9,7 +9,7 @@
 import { and, asc, count, desc, eq, gt, gte, lt, or, sql, type SQL } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import {
-  agentEvents, agentMailboxAccess, agents, apiKeys, attachments, auditLogs, domains, mailboxes, messages, sendApprovals,
+  agentEvents, agentMailboxAccess, agents, apiKeys, attachments, auditLogs, domains, mailboxes, messages, sendApprovals, users,
 } from "../../db/schema";
 
 /** Agent thread reads are audited once per agent, thread and hour. */
@@ -32,6 +32,7 @@ import { agentMessage, extractCodes, extractLinks, latestText } from "./parse";
 import { listThreadStates, threadViewCond, type ThreadView } from "../mail/thread-state";
 import { inChunks, inIds } from "../../lib/sql-chunks";
 import { containsAny } from "../../lib/like-search";
+import { isPersonSession } from "../../lib/actor-kind";
 
 type Agent = typeof agents.$inferSelect;
 type Mailbox = typeof mailboxes.$inferSelect;
@@ -43,6 +44,12 @@ export type ApprovalMode = Agent["approvalMode"];
 
 const DAY = 86_400_000;
 const APPROVAL_TTL_DAYS = 7;
+
+/**
+ * AIS1 (row 51): a new agent's daily send cap when nobody asks for another, never above the plan's limit. It used
+ * to default to the plan's limit (2,000 a day on Business), for agents made in the app and through the API alike.
+ */
+export const AGENT_DEFAULT_DAILY_SENDS = 100;
 
 const slug = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "agent";
 
@@ -150,6 +157,21 @@ const actorFields = (actor: Actor) => ({ actorUserId: actor.userId || null, acto
 /** For an agent's own actions: the audit actor is the agent, by address. */
 const agentActor = (a: Agent, mb: Pick<Mailbox, "address">) => ({ actorUserId: null, actorEmail: `agent:${mb.address}`, agentId: a.id });
 
+/** An allow list as it is stored: lower case, and an empty list means anyone (null). */
+const allowList = (v: string[] | null | undefined) => (v?.length ? v.map((r) => r.toLowerCase()) : null);
+
+/**
+ * AIS1 (row 51): who a new agent may write to unless a person chose otherwise: the workspace's own verified domains.
+ * With none verified yet, the creator's own address (a key's: the person who made the key), so the list is never
+ * empty, which would mean anyone. Later domains don't join existing agents' lists.
+ */
+async function defaultAllowList(deps: Deps, actor: Actor, agentAddress: string): Promise<string[]> {
+  const own = await deps.db.select({ name: domains.name }).from(domains).where(and(eq(domains.orgId, actor.orgId), eq(domains.status, "verified"))).orderBy(asc(domains.createdAt));
+  if (own.length) return own.map((d) => `@${d.name.toLowerCase()}`);
+  const me = actor.userId ? await deps.db.select({ email: users.email }).from(users).where(eq(users.id, actor.userId)).get() : undefined;
+  return [(me?.email || agentAddress).toLowerCase()];
+}
+
 export async function recordEvent(deps: Deps, orgId: string, agentId: string | null, type: string, data: Record<string, unknown>) {
   await deps.db.insert(agentEvents).values({ orgId, agentId, type, data: JSON.stringify(data) });
 }
@@ -199,7 +221,8 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
   if (opts.id && opts.retry && await db.select({ id: agents.id }).from(agents).where(and(eq(agents.id, opts.id), eq(agents.orgId, actor.orgId))).get()) return { agent: await getAgent(deps, actor.orgId, opts.id), apiKey: null };
   await assertCanCreate(db, actor.orgId, "agentInboxes");
   const plan = await getPlan(db, actor.orgId);
-  const cap = Math.min(input.sendCapDaily ?? plan.limits.agentDailySends, plan.limits.agentDailySends);
+  // AIS1 (row 51): 100 a day unless someone asks, never above the plan's limit.
+  const cap = Math.min(input.sendCapDaily ?? AGENT_DEFAULT_DAILY_SENDS, plan.limits.agentDailySends);
   const { domain, shared } = await pickDomain(deps, actor.orgId, input.domainId);
   const local = input.localPart?.toLowerCase() ?? (shared ? `${slug(input.name)}-${randomToken(4).toLowerCase().replace(/[^a-z0-9]/g, "x")}` : slug(input.name));
   if (!/^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/.test(local)) throw badRequest("Use letters, numbers, dots, dashes or underscores for the address.");
@@ -214,6 +237,9 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
     if (ok.length !== extra.length) throw badRequest("One of those mailboxes doesn't exist in this workspace.");
     await assertOwnPersonal(deps, actor, extra);
   }
+  // AIS1 (row 51): a named list is kept. With none, or "anyone" (null or []) from a key or an AI app, the agent may
+  // mail only the workspace's own domains. Only a person in the app picks "anyone" for a new agent.
+  const allow = allowList(input.allowedRecipients) ?? (input.allowedRecipients !== undefined && isPersonSession(actor) ? null : await defaultAllowList(deps, actor, address));
   const mailboxId = opts.mailboxId ?? newId("mbx");
   await db.insert(mailboxes).values({
     id: mailboxId, orgId: actor.orgId, domainId: domain.id, localPart: local, address, displayName: input.name, quotaMb: plan.limits.storagePerMailboxMb, kind: "agent",
@@ -222,11 +248,11 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
   await db.insert(agents).values({
     id, orgId: actor.orgId, mailboxId, name: input.name, description: input.description ?? null,
     approvalMode: input.approvalMode ?? "always", sendCapDaily: cap,
-    allowedRecipients: input.allowedRecipients?.length ? JSON.stringify(input.allowedRecipients.map((r) => r.toLowerCase())) : null,
+    allowedRecipients: allow ? JSON.stringify(allow) : null,
     createdByUserId: actor.userId || null,
   });
   if (extra.length) await db.insert(agentMailboxAccess).values(extra.map((m) => ({ agentId: id, mailboxId: m, orgId: actor.orgId })));
-  await audit(db, { orgId: actor.orgId, ...actorFields(actor), agentId: id, action: "agent.created", targetType: "agent", targetId: id, metadata: { name: input.name, address, approvalMode: input.approvalMode ?? "always", via: actor.apiKeyId ? "api" : "app" } });
+  await audit(db, { orgId: actor.orgId, ...actorFields(actor), agentId: id, action: "agent.created", targetType: "agent", targetId: id, metadata: { name: input.name, address, approvalMode: input.approvalMode ?? "always", sendCapDaily: cap, allowedRecipients: allow, via: actor.apiKeyId ? "api" : "app" } });
   let key: { id: string; secret: string; prefix: string } | null = null;
   if (input.createKey !== false) {
     const k = await createApiKey(deps, actor, { name: `${input.name} agent key`, scope: "full", agentId: id });

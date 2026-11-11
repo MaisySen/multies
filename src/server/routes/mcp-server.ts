@@ -261,7 +261,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string, call?:
   if (!actor.agentId && actor.role !== "member") {
     server.registerTool("create_agent_inbox", {
       title: "Create an agent inbox", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
-      description: "Create a new agent with its own email address on the workspace's domain. Its sends need a person's approval unless approvalMode says otherwise. Returns the agent and a key for it, shown once.",
+      description: "Create a new agent with its own email address on the workspace's domain. It starts safe: 100 sends a day and only the workspace's own domains as recipients, and its sends need a person's approval unless approvalMode says otherwise. Returns the agent and a key for it, shown once.",
       inputSchema: {
         name: z.string().min(1).max(80),
         localPart: z.string().regex(/^[a-z0-9._-]+$/i).max(64).optional().describe("The part before the @."),
