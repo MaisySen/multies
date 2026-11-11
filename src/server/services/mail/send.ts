@@ -20,7 +20,8 @@ import { enqueue } from "../jobs";
 import type { DeliverJobPayload } from "./deliver-job";
 import "./deliver-job";
 import { countNewRecipients, maybeAutoSuspend, recentOutboundStats, recordAbuse, scoreOutbound, SPAM_FLAG_AT, SPAM_HOLD_AT } from "../abuse";
-import type { ParsedAttachment } from "./mime";
+import { makeSnippet, type ParsedAttachment } from "./mime";
+import { storedAuth, withoutSecrets, type PlatformMark } from "../agents/platform-mail";
 
 /** Most recipients one message from a free address can have. */
 export const FREE_MAX_RECIPIENTS = 10;
@@ -50,6 +51,11 @@ export interface SendExtras {
   overrideCap?: boolean;
   /** R109: extra headers for bulk mail (List-Unsubscribe, List-Unsubscribe-Post). */
   headers?: Record<string, string>;
+  /**
+   * AIS1 (row 32): this message carries the platform's own mail (a mail rule forwarding an invite or a reset). Its
+   * Sent copy and every copy delivered inside the platform keep the mark, so agents, keys and apps get no text.
+   */
+  platformMail?: PlatformMark;
 }
 
 /** R34: holds a person's message until midnight UTC as a scheduled send that carries the reason. */
@@ -216,6 +222,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
     orgId: auth.orgId, mailboxId: mb.id, folder: "sent", messageIdHeader, inReplyTo, references,
     from, to: toList, cc: ccList, bcc: bccList, replyTo, subject: input.subject, text: input.text, html: input.html, date: now, isRead: true, attachments: atts,
     sentByAgentId: extra.agentId ?? null, sentByUserId: auth.userId || null, bodyStore: deps.bodyStore,
+    ...(extra.platformMail ? { authResults: storedAuth(undefined, extra.platformMail), snippet: makeSnippet(withoutSecrets(input.text)) } : {}), // AIS1 (row 32)
   });
   if (inReplyTo) {
     await db.update(messages).set({ isAnswered: true }).where(and(eq(messages.mailboxId, mb.id), eq(messages.messageIdHeader, inReplyTo)));
@@ -246,6 +253,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
       rcptTo: rcpt,
       sizeBytes: input.text.length + (input.html?.length ?? 0) + 512,
       via: "internal",
+      ...(extra.platformMail ? { platformMail: extra.platformMail } : {}), // AIS1 (row 32): the forwarded copy stays marked
       email: {
         messageId: messageIdHeader, inReplyTo, references, from, to: toList, cc: ccList, replyTo, subject: input.subject,
         text: input.text, html: input.html, date: now, attachments: atts, authResults: senderAuth, headers: {},

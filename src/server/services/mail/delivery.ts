@@ -15,7 +15,7 @@ import { decide, externalSentToday, guardConfig, newSenderCap, providerSentToday
 import { notifyAgentsOfInbound } from "../agents";
 import { operatorDecision } from "../suite/operator-inbox";
 import { isBulkMail } from "@/shared/mail-splits";
-import { isWithheld, storedAuth, withoutSecrets, type PlatformMark } from "../agents/platform-mail";
+import { isWithheld, NOT_FORWARDED_TO_AGENT, storedAuth, withoutSecrets, type PlatformMark } from "../agents/platform-mail";
 import { makeSnippet } from "./mime";
 
 export type RecipientRoute =
@@ -212,6 +212,18 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
     } else {
       external.push(dest);
     }
+  }
+  // AIS1 (row 32): the platform's own mail is never forwarded out to an address that reaches an AI agent (another
+  // workspace's agent inbox, an alias or a catch-all to one): that copy would come back in without its mark. Reads only,
+  // and only for the platform's own mail.
+  if (external.length && isWithheld(d.platformMail, d.email.from?.address ?? "", deps.config.systemFrom.address)) {
+    const { agentAddress } = await import("../agents/agent-address");
+    const keep: string[] = [];
+    for (const to of external) {
+      if (!(await agentAddress(db, to))) { keep.push(to); continue; }
+      await logDelivery(db, { orgId: alias.orgId, direction: "outbound", fromAddress: alias.address, toAddress: to, subject, status: "rejected", provider: deps.outbound.name, detail: NOT_FORWARDED_TO_AGENT });
+    }
+    external.splice(0, external.length, ...keep);
   }
   // PRIV1b (P39): a forward is outbound mail from the workspace, so it passes the same gates as send.ts.
   // PRIV1b (integration S1): a failed check refuses the forward but keeps the copies already stored, so the MTA does not retry and store them twice.

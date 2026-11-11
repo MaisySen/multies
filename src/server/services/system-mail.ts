@@ -79,10 +79,16 @@ export async function sendSystemEmail(deps: Deps, e: SystemEmail): Promise<Syste
   const to = e.to.toLowerCase();
 
   const route = await routeRecipient(deps.db, to);
-  // AIS1 (row 32): mail that can take over an account never goes to an AI agent's inbox at all.
-  if (e.accountSecurity && route.kind === "mailbox" && route.mailbox.kind === "agent") {
-    deps.log?.warn("system_mail.agent_inbox_skipped", { template: e.template ?? "notice" });
-    return { delivered: false, via: "none", detail: "This address is an AI agent's inbox. Multies doesn't send account email to agents." };
+  // AIS1 (row 32): mail that can take over an account never goes to an AI agent at all: its inbox, a +tag of it, or an
+  // alias or a catch-all that reaches one in any workspace (it would otherwise go out and come back in through it).
+  // A few indexed reads, only for account mail (sign up, reset, invite), never on a signed in request.
+  if (e.accountSecurity) {
+    const { agentAddress } = await import("./agents/agent-address");
+    const agent = await agentAddress(deps.db, to);
+    if (agent) {
+      deps.log?.warn("system_mail.agent_inbox_skipped", { template: e.template ?? "notice", via: agent.via });
+      return { delivered: false, via: "none", detail: "This address delivers to an AI agent's inbox. Multies doesn't send account email to agents." };
+    }
   }
   const internal = e.accountSecurity ? route.kind === "mailbox" && route.mailbox.address.toLowerCase() === to : route.kind !== "none";
   if (internal) {

@@ -14,6 +14,11 @@
  * marker, so a message whose From is the system sender's address counts too. Forging that From only hides the
  * forger's own text, so it is safe to believe.
  *
+ * The mark survives a forward inside the platform: a person's mail rule that forwards such a message sends it with
+ * SendExtras.platformMail, so its Sent copy and every copy delivered inside are marked too (mail/send.ts). A forward
+ * never goes to an address that reaches an AI agent at all, from a rule (mail/rules-r85.ts) or an alias
+ * (mail/delivery.ts): an alias's copy to another workspace goes out through the provider and would come back unmarked.
+ *
  * What an agent, an agent key, a workspace key or a connected AI app gets for such a message: the subject and the
  * sender, and in place of the text a short notice; no html, codes or links. People signed in to the app read it all.
  */
@@ -25,6 +30,9 @@ export type PlatformMark = "system" | "notice";
 
 /** What an agent or an app reads in place of the text of the platform's own mail. */
 export const WITHHELD_TEXT = "This is account mail from Multies, such as an invite, an email confirmation or a password reset. Its text, links and codes are hidden from agents and apps. A person can read it in Multies.";
+
+/** Why a mail rule or an alias didn't forward the platform's own mail (rule run log and delivery log). */
+export const NOT_FORWARDED_TO_AGENT = "Not sent: Multies' own account mail is never forwarded to an AI agent.";
 
 /** spf, dkim and dmarc only, plus the platform mark when the platform itself delivered the message. */
 export function storedAuth(auth: AuthResults | undefined, mark?: PlatformMark): AuthResults & { platform?: PlatformMark } {

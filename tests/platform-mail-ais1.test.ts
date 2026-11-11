@@ -3,9 +3,10 @@ import { eq } from "drizzle-orm";
 import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { makeTestApp, Client } from "./helpers";
-import { messages } from "@/server/db/schema";
+import { aliases, deliveries, messages } from "@/server/db/schema";
 import { sendSystemEmail } from "@/server/services/system-mail";
 import { deliverInbound } from "@/server/services/mail/delivery";
+import { NOT_FORWARDED_TO_AGENT } from "@/server/services/agents/platform-mail";
 
 /**
  * AIS1 (audit of 11 Nov 2026, row 32): Multies' own mail (invites, "Confirm your email", password resets, guest
@@ -17,6 +18,8 @@ let owner: Client;
 let wsKey: string;
 let agentKey: string;
 let agentId: string;
+let domainId: string;
+let orgId: string;
 const SECRET = "Zq7mK2pX9wTr4LbN8cVd";
 const CODE = "573918";
 
@@ -70,7 +73,8 @@ beforeEach(async () => {
   ctx = await makeTestApp();
   owner = new Client(ctx.app);
   await owner.signup("owner@acme.io", "Olive Owner");
-  const domainId = (await owner.post("/api/domains", { name: "acme.io" })).body.domain.id;
+  orgId = (await owner.get("/api/account/me")).body.organization.id;
+  domainId = (await owner.post("/api/domains", { name: "acme.io" })).body.domain.id;
   await verify(domainId);
   wsKey = (await owner.post("/api/developer/keys", { name: "Setup" })).body.secret;
   const made = await api(wsKey, "POST", "/agents", { name: "Agent", localPart: "agent" });
@@ -168,5 +172,83 @@ describe("AIS1 row 32: the platform's own mail never gives an agent its codes or
     });
     const row = (await ctx.db.select().from(messages).where(eq(messages.subject, "Marked by hand")).get())!;
     expect(JSON.parse(row.authResults!).platform).toBeUndefined();
+  });
+});
+
+/** A password reset, as Better Auth sends it (accountSecurity), to an address with a mailbox of its own. */
+async function resetMail(to: string) {
+  const r = await sendSystemEmail(ctx.deps, {
+    to, accountSecurity: true, subject: "Reset your Multies password", template: "reset-password",
+    text: "Someone asked to reset the password for your Multies account.",
+    action: { label: "Choose a new password", url: `http://localhost/reset-password/${SECRET}` },
+  });
+  expect(r).toMatchObject({ delivered: true, via: "internal" });
+}
+
+describe("AIS1 row 32 (review): a forward never hands the platform's own mail to an agent", () => {
+  it("a person's mail rule doesn't forward it to the agent, and its forward elsewhere keeps the mark", async () => {
+    const hello = (await owner.post("/api/mailboxes", { domainId, localPart: "hello", displayName: "Hello" })).body.mailbox.id as string;
+    const team = (await owner.post("/api/mailboxes", { domainId, localPart: "team", displayName: "Team" })).body.mailbox.id as string;
+    // An ordinary setup in an AI mail product: "forward my mail to my agent", and to a teammate.
+    const rule = await owner.post("/api/mail/rules", { name: "Forward", mailboxId: hello, conditions: [{ field: "subject", value: "password" }], actions: [{ kind: "forward", to: "agent@acme.io" }, { kind: "forward", to: "team@acme.io" }] });
+    expect(rule.status).toBe(201);
+    await resetMail("hello@acme.io");
+    // Nothing the agent can read carries the link.
+    const events = await api(agentKey, "GET", "/events?after=0");
+    expect(JSON.stringify(events.body)).not.toContain(SECRET);
+    const mcp = await mcpFor(agentKey);
+    expect(JSON.stringify(data(await mcp.callTool({ name: "wait_for_email", arguments: { agentId, timeoutSeconds: 0, cursor: 0 } })))).not.toContain(SECRET);
+    // The rule's run log says why the agent got nothing; the teammate's forward went.
+    const runs = (await owner.get(`/api/mail/rules/${rule.body.rule.id}/runs`)).body.runs as { status: string; steps: { action: string; ok: boolean; detail?: string }[] }[];
+    expect(runs[0].steps).toEqual([{ action: "forward", ok: false, detail: NOT_FORWARDED_TO_AGENT }, { action: "forward", ok: true, detail: "team@acme.io" }]);
+    // The Sent copy in Hello and the copy in Team keep the mark: a workspace key gets neither's text.
+    const copies = await ctx.db.select().from(messages).where(eq(messages.subject, "Fwd: Reset your Multies password"));
+    expect(copies.map((m) => m.mailboxId).sort()).toEqual([hello, team].sort());
+    for (const m of copies) {
+      expect(JSON.parse(m.authResults!)).toMatchObject({ platform: "system" });
+      expect(m.snippet).not.toContain(SECRET);
+      const read = await api(wsKey, "GET", `/messages/${m.id}`);
+      expect(read.body.withheld).toBe("platform_mail");
+      expect(JSON.stringify(read.body)).not.toContain(SECRET);
+    }
+    // People still read it.
+    const inTeam = copies.find((m) => m.mailboxId === team)!;
+    expect(JSON.stringify((await owner.get(`/api/mail/messages/${inTeam.id}`)).body)).toContain(SECRET);
+  });
+
+  it("an alias never forwards it out to another workspace's agent; a plain outside address still gets it", async () => {
+    const other = new Client(ctx.app);
+    await other.signup("boss@beta.test", "Beta Boss");
+    const betaDomain = (await other.post("/api/domains", { name: "beta.test" })).body.domain.id as string;
+    const { body } = await other.get(`/api/domains/${betaDomain}`);
+    for (const r of body.domain.records) {
+      if (r.id === "mx") ctx.dns.records.mx = { ...ctx.dns.records.mx, [r.fqdn]: r.values.map((v: { value: string; priority: number }) => ({ exchange: v.value, priority: v.priority })) };
+      else ctx.dns.records.txt = { ...ctx.dns.records.txt, [r.fqdn]: [r.value] };
+    }
+    expect((await other.post(`/api/domains/${betaDomain}/verify`)).body.domain.status).toBe("verified");
+    const betaKey = (await other.post("/api/developer/keys", { name: "Setup" })).body.secret as string;
+    expect((await api(betaKey, "POST", "/agents", { name: "Bot", localPart: "bot" })).status).toBe(201);
+    await ctx.db.insert(aliases).values({ id: "als_fwd", orgId, domainId, localPart: "fwd", address: "fwd@acme.io", destinations: JSON.stringify(["bot@beta.test", "me@home.example"]) });
+    // What the provider hands back for system mail that went out to the alias (no mark, the system sender's From).
+    const sys = ctx.deps.config.systemFrom.address;
+    const r = await deliverInbound(ctx.deps, {
+      envelopeFrom: sys, rcptTo: "fwd@acme.io", sizeBytes: 300, via: "test",
+      email: { messageId: "<sys.fwd@localhost>", from: { address: sys, name: "Multies" }, to: [{ address: "fwd@acme.io" }], cc: [], subject: "Reset your Multies password", text: `Choose a new password: http://localhost/reset-password/${SECRET}`, date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+    });
+    expect(r.forwardedTo).toEqual(["me@home.example"]);
+    expect(ctx.outbound.sent.filter((m) => m.to.includes("bot@beta.test"))).toEqual([]);
+    const log = await ctx.db.select().from(deliveries).where(eq(deliveries.toAddress, "bot@beta.test"));
+    expect(log.map((d) => [d.status, d.detail])).toEqual([["rejected", NOT_FORWARDED_TO_AGENT]]);
+    // Outside senders' mail through the same alias still reaches the agent.
+    await outside("fwd@acme.io", "noreply@service.example", "Your code", `Your code is ${CODE}`);
+    expect(ctx.outbound.sent.filter((m) => m.to.includes("bot@beta.test")).map((m) => m.subject)).toEqual(["Your code"]);
+  });
+
+  it("account mail to an alias that reaches an agent is not sent at all", async () => {
+    await ctx.db.insert(aliases).values({ id: "als_ops", orgId, domainId, localPart: "ops", address: "ops@acme.io", destinations: JSON.stringify(["agent@acme.io"]) });
+    const r = await sendSystemEmail(ctx.deps, { to: "ops@acme.io", accountSecurity: true, subject: "Reset your Multies password", text: "Reset it.", action: { label: "Choose a new password", url: `http://localhost/reset/${SECRET}` } });
+    expect(r).toMatchObject({ delivered: false, via: "none" });
+    expect(r.detail).toContain("AI agent's inbox");
+    expect(ctx.outbound.sent.filter((m) => m.subject === "Reset your Multies password")).toEqual([]);
   });
 });
