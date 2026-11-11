@@ -53,6 +53,10 @@ export const REASON_TEXT: Record<string, string> = {
   owner_gone: "The person who made the routine left the workspace",
   item_gone: "The item it was about is gone",
   empty: "The AI gave an empty answer",
+  // QUAL1 (audit row 14): the provider refused the workspace's own key, its credit or its model.
+  key_refused: "Your AI provider refused the workspace's AI key. An admin can fix it in Settings, AI",
+  no_credit: "Your AI provider account has no credit left. An admin can fix it in Settings, AI",
+  model_unavailable: "The saved AI model is not offered any more. An admin can pick another in Settings, AI",
 };
 
 export interface MemoryEntry {
@@ -77,7 +81,8 @@ export interface RunEntry {
 export interface TeamAiState {
   isAdmin: boolean;
   /** source: own_key = the workspace's key (no daily free limit); built_in = free built in AI under the daily limit; none = nothing can run. */
-  ai: { on: boolean; key: boolean; provider: string | null; source: "own_key" | "built_in" | "none"; freeUsed: number; freeLimit: number; freePeriod: "day" | "week" };
+  /** keyProblem (QUAL1): set while the provider refuses the saved key (then source is built_in or none), with the plain sentence. */
+  ai: { on: boolean; key: boolean; provider: string | null; source: "own_key" | "built_in" | "none"; freeUsed: number; freeLimit: number; freePeriod: "day" | "week"; keyProblem?: "key_refused" | "no_credit" | "model_unavailable"; keyProblemMessage?: string | null };
   usedToday: number;
   /** POL2 (HQ MB-329): the workspace time zone routines run in (an IANA name, UTC when unset). */
   zone?: string;

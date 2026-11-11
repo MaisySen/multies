@@ -147,6 +147,27 @@ last visit: `counts` (messages, replies, comments, edits, statusChanges, assigne
 minute per item. `POST /api/catchup/visit` (`{ type, id }`) marks the item caught up now. With the workspace's own AI key,
 `POST /api/catchup/summary` writes a short summary on that key (409 `ai_key_required` without one). MCP: `catchup_get`.
 
+## The workspace's own AI key: refusals and built-in AI (QUAL1)
+
+When the provider refuses the workspace's own key (401 or 403), says its account has no credit, or no longer offers the
+saved model, Multies notes it on the key with the time, on any AI call (the mail assistant, Tools, Team AI, meeting
+notes and recordings, catch-up, forms, the connection test and the model list). A call on the key that works, a passed
+`POST /api/ai/test`, a new key, or (for the model) a new model clears it.
+
+- `GET /api/ai/status` adds `problem` (`key_refused`, `no_credit` or `model_unavailable`), `problemAt` (ISO time) and
+  `problemMessage` (the plain sentence the app shows) while the key is refused. They are absent while it works; `connected`
+  stays `true` because the key is still saved.
+- `POST /api/ai/summary`, `/api/ai/draft` and `/api/ai/triage` (and the other routes that run on the key) answer **409**
+  with the code `ai_key_refused`, `ai_no_credit` or `ai_model_unavailable`, the same sentence, and
+  `details.fix: "/app/settings#ai"`. A provider that is down or rate limited is still `502 ai_provider_error`.
+- With built-in AI on (AI2), it answers instead, inside the free daily meter, and the answer carries
+  `fallback: { reason, message }` (`message` starts "Built-in AI wrote this because ..."). The document tools say the same
+  in their results, and a Team AI run ends with that line. The deployment switch `AI_KEY_FALLBACK=off` turns this off.
+- `POST /api/ai/models` with a refused key answers the short list of common models with `live: false`,
+  `problem: "key_refused"` and a note saying so, and keeps no cached copy.
+- `GET /api/team-ai/state` shows `ai.keyProblem` and `ai.keyProblemMessage`; `ai.source` is `built_in` (or `none`)
+  while the key is refused, never `own_key`.
+
 ## Repeating tasks
 
 A task's `repeat` field takes a rule: `{ freq: daily | weekly | monthly | yearly, interval?, weekdays?

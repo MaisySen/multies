@@ -234,9 +234,12 @@ describe("recording a call", () => {
     const r = await chunk(c, meetingId, rid, 0);
     expect(r.status).toBe(502);
     expect(JSON.stringify(r.body)).not.toContain(KEY);
-    expect(r.body.error.message).toContain("did not accept the API key");
+    // QUAL1 (audit row 14): the same plain sentence Settings shows, and the refusal is noted on the key until it works.
+    expect(r.body.error.message).toBe("OpenAI refused your workspace's AI key. An admin can paste a new key in Settings, AI.");
+    expect((await c.get("/api/ai/status")).body.problem).toBe("key_refused");
     transcriptAnswer = () => Response.json({ text: "Back again." });
     expect((await chunk(c, meetingId, rid, 0)).body.recording.transcript).toBe("[00:00] Back again.");
+    expect((await c.get("/api/ai/status")).body.problem).toBeUndefined();
   });
 
   it("with no channel, the attendees who are members get a notification and the meeting page has the summary", async () => {

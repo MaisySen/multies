@@ -3,6 +3,8 @@
  * Multies never pays for model calls. OpenAI, OpenRouter and Groq share the OpenAI chat
  * completions format; Anthropic uses its Messages API.
  */
+import type { Ai2ResultCode, AiKeyProblem } from "../../../shared/ai-connect-ai2";
+
 export const AI_PROVIDERS = ["openai", "anthropic", "openrouter", "groq", "gemini", "mistral", "deepseek", "custom"] as const;
 export type AiProviderId = (typeof AI_PROVIDERS)[number];
 /** The providers offered while AI2 (AI_CONNECT_AI2) is off: today's screen, unchanged. */
@@ -110,4 +112,31 @@ export function byoProvider(provider: AiProviderId, apiKey: string, model: strin
       return text.trim() || null;
     },
   };
+}
+
+/**
+ * The plain result for a failed provider call. The body is only searched for a few words (credit, model) and is
+ * never returned or logged.
+ */
+export function mapFailure(status: number | null, body = ""): Ai2ResultCode {
+  const b = body.toLowerCase();
+  if (status === null) return "unreachable";
+  if (status === 401 || status === 403) return /credit|balance|billing|quota/.test(b) && status === 403 ? "no_credit" : "key_refused";
+  if (status === 402) return "no_credit";
+  if (/insufficient_quota|insufficient balance|insufficient credit|credit balance|out of credit|billing|payment required/.test(b)) return "no_credit";
+  if (status === 429) return "rate_limited";
+  if (status === 404) return "model_unavailable";
+  if ((status === 400 || status === 422) && /model/.test(b) && /not (found|exist|available|supported)|invalid|unknown|does not|decommission|no access|not allowed/.test(b)) return "model_unavailable";
+  if (status === 400 && /api key|api_key|apikey|authentication|unauthor/.test(b)) return "key_refused";
+  return "provider_error";
+}
+
+/**
+ * QUAL1 (audit rows 12, 14): the lasting problem a provider error names on the saved key or its model, or null for a
+ * passing one (a rate limit, an outage, a timeout). The body is only searched for a few words, as in mapFailure.
+ */
+export function keyProblemOf(err: unknown): AiKeyProblem | null {
+  if (!(err instanceof AiProviderError) || err.status === null) return null;
+  const code = mapFailure(err.status, err.message);
+  return code === "key_refused" || code === "no_credit" || code === "model_unavailable" ? code : null;
 }

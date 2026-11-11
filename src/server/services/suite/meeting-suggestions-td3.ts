@@ -41,11 +41,25 @@ export function meetTd3Enabled(deps: Deps) { return !!deps.config.meetTd3; }
 /**
  * The one gate in front of every provider call. "off": the workspace switched AI off (TD1's switch); "no_key": no key and no built in AI; "ready": a call may go out.
  */
-export async function aiGate(deps: Deps, orgId: string): Promise<"ready" | "off" | "no_key"> {
-  if (!(await workspaceAiOn(deps, orgId))) return "off";
-  const { providerFor } = await import("../ai/keys");
-  if (await providerFor(deps, orgId)) return "ready";
-  return builtinReady(deps) ? "ready" : "no_key";
+export async function aiGate(deps: Deps, orgId: string): Promise<"ready" | "off" | "no_key" | "key_problem"> {
+  return (await aiGateView(deps, orgId)).state;
+}
+
+/**
+ * The gate with the words the meeting page shows. QUAL1 (audit row 14): a key the provider refused is "key_problem"
+ * (its plain sentence and a hand route) unless built-in AI stands in for it ("ready", with the same sentence). A call
+ * still goes out on "key_problem": the key may work again, and a refusal answers 409 in plain words.
+ */
+export async function aiGateView(deps: Deps, orgId: string): Promise<{ state: "ready" | "off" | "no_key" | "key_problem"; message: string | null }> {
+  if (!(await workspaceAiOn(deps, orgId))) return { state: "off", message: AI_OFF_TEXT };
+  const { aiKeyStatus } = await import("../ai/keys");
+  const k = await aiKeyStatus(deps, orgId);
+  if (!k.connected) return builtinReady(deps) ? { state: "ready", message: null } : { state: "no_key", message: AI_NO_KEY_TEXT };
+  if (!k.problemMessage) return { state: "ready", message: null };
+  const { canFallBack } = await import("../ai");
+  return canFallBack(deps)
+    ? { state: "ready", message: `${k.problemMessage} Built-in AI writes the suggestions until it is fixed.` }
+    : { state: "key_problem", message: `${k.problemMessage} You can still pick lines and make tasks by hand.` };
 }
 /** TD1's per workspace AI switch (the same gate ask() uses): off means no provider call. */
 async function workspaceAiOn(deps: Deps, orgId: string): Promise<boolean> { return (await import("../ai-trust-td1")).aiAllowed(deps, orgId); }
@@ -112,7 +126,7 @@ export async function meetingSuggestionsView(deps: Deps, a: SuiteActor, meetingI
     deps.db.select({ id: meetingRecordings.id, startedAt: meetingRecordings.startedAt, status: meetingRecordings.status, transcript: meetingRecordings.transcript })
       .from(meetingRecordings).where(and(eq(meetingRecordings.orgId, a.orgId), eq(meetingRecordings.meetingId, meetingId))).orderBy(desc(meetingRecordings.startedAt)).limit(20),
     m.docId ? deps.db.select({ text: docs.plainText }).from(docs).where(and(eq(docs.orgId, a.orgId), eq(docs.id, m.docId))).get() : Promise.resolve(undefined),
-    aiGate(deps, a.orgId),
+    aiGateView(deps, a.orgId),
   ]);
   return {
     suggestions,
@@ -122,7 +136,7 @@ export async function meetingSuggestionsView(deps: Deps, a: SuiteActor, meetingI
       recordings: recs.filter((r) => r.transcript.replace(TRUNCATED_NOTE, "").trim()).map((r) => ({ id: r.id, startedAt: r.startedAt.toISOString(), status: r.status })),
       notes: !!notesDoc?.text?.trim(),
     },
-    ai: { state: ai, message: ai === "off" ? AI_OFF_TEXT : ai === "no_key" ? AI_NO_KEY_TEXT : null },
+    ai,
   };
 }
 
