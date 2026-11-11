@@ -3,6 +3,7 @@
  * workspace key instead of signing in with a password. The key acts as its creator: inviting an
  * admin needs the creator to be the owner, the plan's seats apply, and the invitation email and
  * link are the same as the app's. Agent keys, agent member keys and read only keys can't invite.
+ * AIS1 (audit row 1): a key's invite is held (status awaiting_approval, nothing emailed) until a person confirms it.
  * Members are listed by GET /people.
  */
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
@@ -30,13 +31,13 @@ export function registerInviteRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("get", "/invites", "List pending invitations", "Invitations not yet accepted, newest first, each with its role, mailbox access, title and bio. Members who joined are in GET /people."),
     async (c) => send(c, { invites: await listInvites(c.var.deps.db, c.var.auth.orgId, c.var.deps.now()) }));
 
-  api.openapi(route("post", "/invites", "Invite a member", "Body: { email, role?: admin | member, mailboxIds?, title?, bio? }. Sends the invitation email and returns the link (it works for 7 days, once, only for that address). The title and bio become the member's own when they join. Inviting an admin needs a key created by the workspace owner. Inviting the same address again renews its pending invitation. Nobody is invited as owner: transfer ownership in the app once they have joined.", { request: { body: { required: true, content: { "application/json": { schema: InviteBody } } } } }),
+  api.openapi(route("post", "/invites", "Invite a member", "Body: { email, role?: admin | member, mailboxIds?, title?, bio? }. A key's invite waits for a person: nothing is emailed and the link doesn't work until an owner or admin confirms it in Multies (Settings, Team), which sends the invitation email. The answer carries status awaiting_approval, emailed false and the link (it works for 7 days from the confirmation, once, only for that address). The title and bio become the member's own when they join. Inviting an admin needs a key created by the workspace owner. Inviting the same address again holds its invitation again with the new details. An address whose mail reaches an AI agent (its inbox, a +tag, an alias or a catch-all) is refused with 422 agent_address. Nobody is invited as owner: transfer ownership in the app once they have joined.", { request: { body: { required: true, content: { "application/json": { schema: InviteBody } } } } }),
     async (c) => {
       const { auth, deps } = c.var;
       const input = InviteBody.parse(await c.req.json().catch(() => ({})));
       if (!limiter.take(auth.orgId)) throw tooMany("Too many invitations in the last hour.");
       const res = await createInvite(deps, auth, c.req.raw.headers, input);
-      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "member.invited", targetType: "invitation", targetId: res.id, metadata: { email: input.email, role: input.role, via: "api", ...(input.title ? { title: input.title } : {}) }, ip: c.var.ip });
+      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "member.invited", targetType: "invitation", targetId: res.id, metadata: { email: input.email, role: input.role, via: "api", ...(res.status === "awaiting_approval" ? { awaitingApproval: true } : {}), ...(input.title ? { title: input.title } : {}) }, ip: c.var.ip });
       return send(c, res, 201);
     });
 

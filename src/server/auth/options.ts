@@ -25,7 +25,7 @@ import { localPasswordEnabled } from "./config";
 import { multiesAuthPlugin } from "./mobile";
 import { clearFailures, lockedUntil, recordFailure } from "../services/lockout";
 import { audit } from "../services/audit";
-import { and, count, desc, eq, ne } from "drizzle-orm";
+import { and, count, desc, eq, inArray, ne } from "drizzle-orm";
 import type { Deps } from "../context";
 import * as schema from "../db/schema";
 import { hashPassword, newId, randomToken, verifyPassword } from "../lib/crypto";
@@ -336,7 +336,8 @@ export function authOptions(deps: Deps) {
             const [m, p] = await Promise.all([
               // AI agent members take no seat.
               db.select({ n: count() }).from(schema.members).where(and(eq(schema.members.organizationId, org.id), eq(schema.members.kind, "human"))).get(),
-              db.select({ n: count() }).from(schema.invitations).where(and(eq(schema.invitations.organizationId, org.id), eq(schema.invitations.status, "pending"), ne(schema.invitations.email, invitation.email))).get(),
+              // AIS1: an invite a key made, waiting for a person, holds its seat too.
+              db.select({ n: count() }).from(schema.invitations).where(and(eq(schema.invitations.organizationId, org.id), inArray(schema.invitations.status, ["pending", "awaiting_approval"]), ne(schema.invitations.email, invitation.email))).get(),
             ]);
             if ((m?.n ?? 0) + (p?.n ?? 0) >= plan.limits.seats) {
               throw new APIError("FORBIDDEN", { message: `Your ${plan.name} plan includes ${plan.limits.seats} seats, and they're all taken or invited. Upgrade to add more people.`, code: "PLAN_LIMIT" });

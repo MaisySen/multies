@@ -15,7 +15,6 @@ let wsKey: string;
 let orgId: string;
 let domainId: string;
 let agentKey: string;
-let agentId: string;
 let inboxId: string;
 
 async function api(key: string, method: string, path: string, body?: unknown) {
@@ -52,7 +51,6 @@ beforeEach(async () => {
   const made = await api(wsKey, "POST", "/agents", { name: "Agent", localPart: "agent" });
   expect(made.status).toBe(201);
   agentKey = made.body.apiKey.secret;
-  agentId = made.body.agent.id;
   inboxId = made.body.agent.inboxId;
 });
 
@@ -148,5 +146,61 @@ describe("AIS1 row 1: no account or membership for an agent's address", () => {
     expect(r.body.error.code).toBe("agent_address");
     expect(await ctx.db.select().from(members).where(and(eq(members.organizationId, orgId), eq(members.kind, "human")))).toHaveLength(1);
     expect(await refusals("member.join_refused")).toHaveLength(1);
+  });
+});
+
+describe("AIS1 row 1: an invite a key makes waits for a person", () => {
+  it("is held with nothing emailed, its link doesn't work, and an owner confirms it in the app", async () => {
+    const sentBefore = ctx.outbound.sent.length;
+    const r = await api(wsKey, "POST", "/invites", { email: "sam@example.com", title: "Ops" });
+    expect(r.status).toBe(201);
+    expect(r.body).toMatchObject({ status: "awaiting_approval", emailed: false });
+    expect(r.body.emailDetail).toContain("confirms this invite");
+    expect(ctx.outbound.sent.slice(sentBefore).filter((m) => m.to.includes("sam@example.com"))).toEqual([]);
+    // Listed for the owner as waiting; it holds its seat.
+    const team = (await owner.get("/api/team")).body;
+    expect(team.invites).toEqual([expect.objectContaining({ id: r.body.id, email: "sam@example.com", awaitingApproval: true })]);
+    expect(team.seats.pendingInvites).toBe(1);
+    expect((await api(wsKey, "GET", "/invites")).body.invites[0].awaitingApproval).toBe(true);
+    // The link says so and can't be accepted.
+    expect((await owner.get(`/api/invites/${r.body.id}`)).body.invite.state).toBe("awaiting_approval");
+    const sam = new Client(ctx.app);
+    await sam.signup("sam@example.com", "Sam", "");
+    const early = await sam.post(`/api/invites/${r.body.id}/accept`);
+    expect(early.status).toBe(403);
+    expect(early.body.error.code).toBe("invite_awaiting_approval");
+    // The key can't confirm its own invite, not even through the app's route.
+    const byKey = await ctx.app.request(`/api/team/invites/${r.body.id}/confirm`, { method: "POST", headers: { host: "localhost", authorization: `Bearer ${wsKey}` } });
+    expect([401, 403]).toContain(byKey.status);
+    // The owner confirms: the email goes out from the inviter of record and the link works.
+    const ok = await owner.post(`/api/team/invites/${r.body.id}/confirm`);
+    expect(ok.status).toBe(200);
+    expect(ok.body).toMatchObject({ id: r.body.id, status: "pending" });
+    const invites = ctx.outbound.sent.slice(sentBefore).filter((m) => m.to.includes("sam@example.com") && m.subject.includes("invited you"));
+    expect(invites.map((m) => m.subject)).toEqual(["Olive Owner invited you to Acme on Multies"]);
+    expect((await sam.post(`/api/invites/${r.body.id}/accept`)).status).toBe(200);
+    const audits = (await ctx.db.select().from(auditLogs).where(eq(auditLogs.orgId, orgId))).map((a) => a.action);
+    expect(audits).toEqual(expect.arrayContaining(["member.invited", "member.invite_confirmed", "member.joined"]));
+    // Confirming twice finds nothing to confirm.
+    expect((await owner.post(`/api/team/invites/${r.body.id}/confirm`)).status).toBe(404);
+  });
+
+  it("a key re-inviting a person's live invite holds it again; a person inviting a held address sends it", async () => {
+    const live = await owner.post("/api/team/invites", { email: "lee@example.com", role: "member", mailboxIds: [] });
+    expect(live.status).toBe(201);
+    const again = await api(wsKey, "POST", "/invites", { email: "lee@example.com", role: "member" });
+    expect(again.body).toMatchObject({ id: live.body.id, status: "awaiting_approval" });
+    expect((await ctx.db.select().from(invitations).where(eq(invitations.id, live.body.id)).get())!.status).toBe("awaiting_approval");
+    // A person inviting the same address sends a live invite and the held one goes.
+    const person = await owner.post("/api/team/invites", { email: "lee@example.com", role: "member", mailboxIds: [] });
+    expect(person.status).toBe(201);
+    expect(person.body.status).toBe("pending");
+    const rows = await ctx.db.select().from(invitations).where(eq(invitations.email, "lee@example.com"));
+    expect(rows.filter((x) => x.status === "pending")).toHaveLength(1);
+    expect(rows.filter((x) => x.status === "awaiting_approval")).toHaveLength(0);
+    // A held invite can be revoked by the key or a person.
+    const held = await api(wsKey, "POST", "/invites", { email: "kim@example.com" });
+    expect((await owner.del(`/api/team/invites/${held.body.id}`)).status).toBe(200);
+    expect((await ctx.db.select().from(invitations).where(eq(invitations.id, held.body.id)).get())!.status).toBe("canceled");
   });
 });

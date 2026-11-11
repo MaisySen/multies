@@ -360,18 +360,28 @@ function InviteRow({ inv, onReissued }: { inv: PendingInvite; onReissued: (r: In
     onSuccess: (r) => { qc.invalidateQueries({ queryKey: qk.team }); onReissued(r); },
     onError: (e) => showError(e),
   });
+  // AIS1: an invite an API key or a connected app made sends nothing until a person here confirms it.
+  const confirm = useMutation({
+    mutationFn: () => api.post<InviteCreated>(`/team/invites/${inv.id}/confirm`),
+    onSuccess: (r) => { qc.invalidateQueries({ queryKey: qk.team }); onReissued(r); },
+    onError: (e) => showError(e),
+  });
+  const held = !!inv.awaitingApproval;
   return (
     <li className="flex flex-col gap-3 px-5 py-3.5 transition-colors hover:bg-hover/40 sm:flex-row sm:items-center max-sm:px-4">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-dashed border-line-strong text-subtle"><IconMail className="h-3.5 w-3.5" /></div>
         <div className="min-w-0">
           <div className="truncate text-sm font-medium">{inv.email}{inv.title && <span className="font-normal text-muted"> · {inv.title}</span>}</div>
-          <div className="text-xs text-muted">{inv.expired ? "Expired" : `Expires ${timeAgo(inv.expiresAt)}`}{inv.invitedByName ? ` · invited by ${inv.invitedByName}` : ""}</div>
+          <div className="text-xs text-muted">{held ? "Made by an API key or app. Not sent until you confirm it." : inv.expired ? "Expired" : `Expires ${timeAgo(inv.expiresAt)}`}{inv.invitedByName ? ` · invited by ${inv.invitedByName}` : ""}</div>
         </div>
       </div>
       <div className="flex items-center gap-2 pl-11 sm:pl-0">
+        {held && <Badge tone="warn">Needs you</Badge>}
         <RoleBadge role={inv.role} />
-        <Button size="sm" variant="secondary" loading={resend.isPending} onClick={() => resend.mutate()}><IconRefresh className="h-3.5 w-3.5" />{inv.expired ? "Renew" : "New link"}</Button>
+        {held
+          ? <Button size="sm" loading={confirm.isPending} onClick={() => confirm.mutate()} aria-label={`Confirm and send the invitation for ${inv.email}`} data-testid="invite-confirm"><IconUserCheck className="h-3.5 w-3.5" />Confirm and send</Button>
+          : <Button size="sm" variant="secondary" loading={resend.isPending} onClick={() => resend.mutate()}><IconRefresh className="h-3.5 w-3.5" />{inv.expired ? "Renew" : "New link"}</Button>}
         <ConfirmButton armedLabel="Revoke?" loading={revoke.isPending} onConfirm={() => revoke.mutate()} aria-label={`Revoke invitation for ${inv.email}`}><IconTrash className="h-3.5 w-3.5" /></ConfirmButton>
       </div>
     </li>

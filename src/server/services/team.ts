@@ -4,7 +4,7 @@
  * Multies' stricter role policy, plan seats and per-mailbox access for members.
  */
 import { cancelForDeletion } from "./billing";
-import { and, count, desc, eq, max, ne, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, max, ne, or, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../context";
 import type { DB } from "../db";
 import { accounts, invitations, mailboxAccess, mailboxAccessLog, mailboxDelegations, mailboxes, mailConnections, members, organizations, sessions, users } from "../db/schema";
@@ -19,7 +19,7 @@ import { sendInviteEmail, takeInviteSend } from "./invite-email";
 import { chunkIds, inIds } from "../lib/sql-chunks";
 import { assertOpen, canOpen, scopeFor, whoCanOpen, type Need } from "./mail-access-priv1a";
 import { refuseAgentAddress } from "./agents/agent-address";
-import { callerKind } from "../lib/actor-kind";
+import { callerKind, isPersonSession, requirePerson } from "../lib/actor-kind";
 
 /** MB-220: shown when someone in the demo tries to invite a person. */
 export const DEMO_INVITES_OFF = "Invites are off in the demo. Sign up to invite your team.";
@@ -79,7 +79,8 @@ export async function seatsUsed(db: DB, orgId: string, now: Date) {
   // AI agent members take no seat; a pending invite counts until it expires.
   const row = await db.select({
     members: sql<number>`(select count(*) from ${members} where ${members.organizationId} = ${orgId} and ${members.kind} = 'human')`,
-    pending: sql<number>`(select count(*) from ${invitations} where ${invitations.organizationId} = ${orgId} and ${invitations.status} = 'pending' and ${invitations.expiresAt} > ${sql.param(now, invitations.expiresAt)})`,
+    // AIS1: an invite waiting for a person to confirm it holds its seat too.
+    pending: sql<number>`(select count(*) from ${invitations} where ${invitations.organizationId} = ${orgId} and ${invitations.status} in ('pending', 'awaiting_approval') and ${invitations.expiresAt} > ${sql.param(now, invitations.expiresAt)})`,
   }).from(sql`(select 1)`).get();
   return { members: Number(row?.members ?? 0), pendingInvites: Number(row?.pending ?? 0) };
 }
@@ -110,10 +111,12 @@ export async function listMembers(db: DB, orgId: string) {
 export async function listInvites(db: DB, orgId: string, now: Date) {
   const rows = await db.select({ inv: invitations, inviter: users.name }).from(invitations)
     .innerJoin(users, eq(users.id, invitations.inviterId))
-    .where(and(eq(invitations.organizationId, orgId), eq(invitations.status, "pending")))
+    .where(and(eq(invitations.organizationId, orgId), inArray(invitations.status, OPEN_INVITES)))
     .orderBy(desc(invitations.createdAt));
   return rows.map(({ inv, inviter }) => ({
     id: inv.id, email: inv.email, role: (inv.role ?? "member") as "admin" | "member",
+    /** AIS1: made by an API key or a connected app; nothing was emailed and the link works once a person confirms it. */
+    awaitingApproval: inv.status === INVITE_AWAITING,
     mailboxIds: JSON.parse(inv.mailboxIds ?? "[]") as string[], invitedByName: inviter,
     title: inv.title ?? null, bio: inv.bio ?? null,
     createdAt: inv.createdAt, expiresAt: inv.expiresAt, expired: inv.expiresAt <= now,
@@ -127,8 +130,19 @@ export function inviteLink(deps: Deps, id: string) {
 export interface InviteInput { email: string; role: "admin" | "member"; mailboxIds: string[]; title?: string | null; bio?: string | null }
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60_000;
-/** True for an API key or OAuth caller: there is no Better Auth session to act through. */
-const viaKey = (auth: AuthContext) => auth.sessionId.startsWith("apikey:") || auth.sessionId.startsWith("oauth:");
+/** True for an API key or OAuth caller (AIS1: anything but a person signed in): there is no Better Auth session to act through. */
+const viaKey = (auth: AuthContext) => !isPersonSession(auth);
+
+/**
+ * AIS1 (audit row 1): an invite made by anything but a person signed in (a workspace key, a connected AI app) is
+ * held: no email goes out and its link does not work until an owner or admin confirms it in Settings, Team
+ * (confirmInvite). The status is Better Auth's own text column, and Better Auth accepts only "pending", so a held
+ * invite can't be used even by code that skips this module. To let keys invite on their own again, make this false.
+ */
+export const KEY_INVITES_NEED_A_PERSON = true;
+export const INVITE_AWAITING = "awaiting_approval";
+const OPEN_INVITES = ["pending", INVITE_AWAITING];
+export const INVITE_HELD_DETAIL = "Nothing was emailed yet. An owner or admin confirms this invite in Multies, in Settings, Team, and it is emailed then.";
 const cleanText = (v: string | null | undefined, max: number) => (v === undefined ? undefined : (v ?? "").trim().slice(0, max) || null);
 
 /**
@@ -163,8 +177,8 @@ export async function createInvite(deps: Deps, auth: AuthContext, headers: Heade
   if (input.role === "member") await validMailboxIds(db, auth.orgId, input.mailboxIds);
   const plan = await getPlan(db, auth.orgId);
   const used = await seatsUsed(db, auth.orgId, deps.now());
-  const reinvite = await db.select().from(invitations)
-    .where(and(eq(invitations.organizationId, auth.orgId), eq(invitations.email, email), eq(invitations.status, "pending"))).get();
+  let reinvite = await db.select().from(invitations)
+    .where(and(eq(invitations.organizationId, auth.orgId), eq(invitations.email, email), inArray(invitations.status, OPEN_INVITES))).get();
   if (used.members + used.pendingInvites - (reinvite ? 1 : 0) >= plan.limits.seats) {
     throw planLimit(`Your workspace includes ${plan.limits.seats} seats, and they're all taken or invited. ${addonHint("seats")}`);
   }
@@ -172,9 +186,16 @@ export async function createInvite(deps: Deps, auth: AuthContext, headers: Heade
   const title = cleanText(input.title, 80);
   const bio = cleanText(input.bio, 500);
   let id: string;
+  const held = key && KEY_INVITES_NEED_A_PERSON;
   if (key) {
-    id = await issueInviteDirect(deps, auth, { email, role: input.role, mailboxIds, title, bio }, reinvite);
+    id = await issueInviteDirect(deps, auth, { email, role: input.role, mailboxIds, title, bio }, reinvite, held);
+    if (held) return { id, link: inviteLink(deps, id), emailed: false, emailDetail: INVITE_HELD_DETAIL, status: INVITE_AWAITING };
   } else {
+    // AIS1: a person inviting an address whose invite a key made confirms it: the held row goes and theirs is sent.
+    if (reinvite?.status === INVITE_AWAITING) {
+      await db.update(invitations).set({ status: "canceled" }).where(eq(invitations.id, reinvite.id));
+      reinvite = undefined;
+    }
     const inv = await authFor(deps).api.createInvitation({
       headers,
       body: { email, role: input.role, organizationId: auth.orgId, resend: true, mailboxIds },
@@ -194,37 +215,79 @@ export async function createInvite(deps: Deps, auth: AuthContext, headers: Heade
   const sent = takeInviteSend(id);
   const emailed = sent ? sent.delivered : deps.outbound.name !== "log" || (await isHosted(db, email));
   const emailDetail = emailed ? undefined : inviteNotSentReason(sent?.detail);
-  return { id, link: inviteLink(deps, id), emailed, ...(emailDetail ? { emailDetail } : {}) };
+  return { id, link: inviteLink(deps, id), emailed, ...(emailDetail ? { emailDetail } : {}), status: "pending" };
 }
 
-/** The API key path of createInvite: what Better Auth's createInvitation does, written directly. */
-async function issueInviteDirect(deps: Deps, auth: AuthContext, v: { email: string; role: "admin" | "member"; mailboxIds: string; title?: string | null; bio?: string | null }, reinvite: typeof invitations.$inferSelect | undefined) {
+/**
+ * The API key path of createInvite: what Better Auth's createInvitation does, written directly. Held (AIS1), the row
+ * waits as awaiting_approval and nothing is sent; a key re-inviting an address holds that invite again with what it
+ * asked for, so a key can't change a person's live invite (a role, say) without a person.
+ */
+async function issueInviteDirect(deps: Deps, auth: AuthContext, v: { email: string; role: "admin" | "member"; mailboxIds: string; title?: string | null; bio?: string | null }, reinvite: typeof invitations.$inferSelect | undefined, held: boolean) {
   const { db } = deps;
   const expiresAt = new Date(deps.now().getTime() + INVITE_TTL_MS);
+  const status = held ? INVITE_AWAITING : "pending";
   let id: string;
   if (reinvite) {
     id = reinvite.id;
     await db.update(invitations).set({
-      expiresAt, role: v.role, mailboxIds: v.mailboxIds,
+      expiresAt, role: v.role, mailboxIds: v.mailboxIds, status,
       ...(v.title !== undefined ? { title: v.title } : {}), ...(v.bio !== undefined ? { bio: v.bio } : {}),
     }).where(eq(invitations.id, id));
   } else {
     id = randomToken(24);
     await db.insert(invitations).values({
-      id, organizationId: auth.orgId, email: v.email, role: v.role, status: "pending", expiresAt, inviterId: auth.userId,
+      id, organizationId: auth.orgId, email: v.email, role: v.role, status, expiresAt, inviterId: auth.userId,
       mailboxIds: v.mailboxIds, title: v.title ?? null, bio: v.bio ?? null, createdAt: deps.now(),
     });
   }
-  const [org, inviter] = await Promise.all([
-    db.select({ id: organizations.id, name: organizations.name }).from(organizations).where(eq(organizations.id, auth.orgId)).get(),
-    db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, auth.userId)).get(),
-  ]);
-  await sendInviteEmail(deps, { id, email: v.email, role: v.role, organization: org!, inviter: inviter ?? { name: org!.name, email: auth.email } });
+  if (!held) await emailInvite(deps, auth.orgId, { id, email: v.email, role: v.role, inviterId: auth.userId, fallbackEmail: auth.email });
   return id;
 }
 
+/** The invitation email for a row written here (the key path and a confirmed held invite), from its inviter of record. */
+async function emailInvite(deps: Deps, orgId: string, v: { id: string; email: string; role: string; inviterId: string; fallbackEmail: string }) {
+  const [org, inviter] = await Promise.all([
+    deps.db.select({ id: organizations.id, name: organizations.name }).from(organizations).where(eq(organizations.id, orgId)).get(),
+    deps.db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, v.inviterId)).get(),
+  ]);
+  await sendInviteEmail(deps, { id: v.id, email: v.email, role: v.role, organization: org!, inviter: inviter ?? { name: org!.name, email: v.fallbackEmail } });
+}
+
+/**
+ * AIS1 (audit row 1): an owner or admin, signed in, confirms an invite a key or a connected app made. The address is
+ * checked again (an alias may reach an agent by now), the seat is checked, the link gets a fresh week and the
+ * invitation email goes out from the inviter of record. Only the owner confirms an admin invite.
+ */
+export async function confirmInvite(deps: Deps, auth: AuthContext, id: string) {
+  requirePerson(auth, "Confirming an invite");
+  const { db } = deps;
+  if (auth.role === "member") throw forbidden("Only workspace admins can do that.");
+  const inv = await db.select().from(invitations)
+    .where(and(eq(invitations.id, id), eq(invitations.organizationId, auth.orgId), eq(invitations.status, INVITE_AWAITING))).get();
+  if (!inv) throw notFound("Invitation");
+  const role = inv.role === "admin" ? "admin" : "member";
+  if (role === "admin" && auth.role !== "owner") throw forbidden("Only the workspace owner can invite admins.");
+  await refuseAgentAddress(deps, inv.email, { action: "member.invite_refused", orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, metadata: { invitationId: id, via: "confirm" } });
+  const existing = await db.select({ id: users.id }).from(members).innerJoin(users, eq(users.id, members.userId))
+    .where(and(eq(members.organizationId, auth.orgId), eq(users.email, inv.email))).get();
+  if (existing) throw conflict(`${inv.email} is already in this workspace.`);
+  const [plan, used] = await Promise.all([getPlan(db, auth.orgId), seatsUsed(db, auth.orgId, deps.now())]);
+  // The held invite is counted already (unless it expired), so only more than the plan's seats is too many.
+  const counted = inv.expiresAt > deps.now() ? 0 : 1;
+  if (used.members + used.pendingInvites + counted > plan.limits.seats) {
+    throw planLimit(`Your workspace includes ${plan.limits.seats} seats, and they're all taken or invited. ${addonHint("seats")}`);
+  }
+  await db.update(invitations).set({ status: "pending", expiresAt: new Date(deps.now().getTime() + INVITE_TTL_MS) }).where(eq(invitations.id, id));
+  await emailInvite(deps, auth.orgId, { id, email: inv.email, role, inviterId: inv.inviterId, fallbackEmail: auth.email });
+  const sent = takeInviteSend(id);
+  const emailed = sent ? sent.delivered : deps.outbound.name !== "log" || (await isHosted(db, inv.email));
+  const emailDetail = emailed ? undefined : inviteNotSentReason(sent?.detail);
+  return { id, email: inv.email, link: inviteLink(deps, id), emailed, ...(emailDetail ? { emailDetail } : {}), status: "pending" };
+}
+
 export async function getInvite(db: DB, orgId: string, id: string) {
-  const inv = await db.select().from(invitations).where(and(eq(invitations.id, id), eq(invitations.organizationId, orgId), eq(invitations.status, "pending"))).get();
+  const inv = await db.select().from(invitations).where(and(eq(invitations.id, id), eq(invitations.organizationId, orgId), inArray(invitations.status, OPEN_INVITES))).get();
   if (!inv) throw notFound("Invitation");
   return inv;
 }
@@ -232,7 +295,7 @@ export async function getInvite(db: DB, orgId: string, id: string) {
 export async function revokeInvite(deps: Deps, auth: AuthContext, headers: Headers, id: string) {
   const inv = await getInvite(deps.db, auth.orgId, id);
   // An API key has no session for Better Auth: cancel the row the same way it would.
-  if (viaKey(auth)) await deps.db.update(invitations).set({ status: "canceled" }).where(and(eq(invitations.id, id), eq(invitations.organizationId, auth.orgId)));
+  if (viaKey(auth) || inv.status === INVITE_AWAITING) await deps.db.update(invitations).set({ status: "canceled" }).where(and(eq(invitations.id, id), eq(invitations.organizationId, auth.orgId)));
   else await authFor(deps).api.cancelInvitation({ headers, body: { invitationId: id } });
   return inv;
 }
@@ -245,7 +308,7 @@ export async function describeInvite(db: DB, id: string, now: Date) {
     .where(eq(invitations.id, id)).get();
   if (!row) throw notFound("Invitation");
   const s = row.inv.status;
-  const state = s === "canceled" || s === "rejected" ? "revoked" : s === "accepted" ? "accepted" : row.inv.expiresAt <= now ? "expired" : "pending";
+  const state = s === "canceled" || s === "rejected" ? "revoked" : s === "accepted" ? "accepted" : row.inv.expiresAt <= now ? "expired" : s === INVITE_AWAITING ? INVITE_AWAITING : "pending";
   const hasAccount = !!(await db.select({ id: users.id }).from(users).where(eq(users.email, row.inv.email)).get());
   return {
     email: row.inv.email, role: row.inv.role ?? "member", state, hasAccount,
@@ -259,6 +322,7 @@ export async function acceptInvite(deps: Deps, auth: AuthContext, headers: Heade
   const inv = await db.select().from(invitations).where(eq(invitations.id, id)).get();
   if (!inv || inv.status === "canceled" || inv.status === "rejected") throw notFound("Invitation");
   if (inv.status === "accepted") throw new HttpError(410, "invite_used", "This invitation has already been used.");
+  if (inv.status === INVITE_AWAITING) throw new HttpError(403, "invite_awaiting_approval", "This invitation is waiting for an owner or admin of the workspace to confirm it. Try the link again once they have.");
   if (inv.expiresAt <= deps.now()) throw new HttpError(410, "invite_expired", "This invitation has expired. Ask for a new one.");
   // AIS1 (row 1): an invite made before the fix, to an address that reaches an AI agent, never makes it a member.
   await refuseAgentAddress(deps, inv.email, { action: "member.join_refused", orgId: inv.organizationId, actorUserId: auth.userId, actorEmail: auth.email, metadata: { invitationId: inv.id } });

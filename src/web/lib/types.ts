@@ -306,6 +306,8 @@ export interface PendingInvite {
   expiresAt: string;
   createdAt: string;
   expired: boolean;
+  /** AIS1: made by an API key or a connected app; nothing is emailed until an owner or admin confirms it. */
+  awaitingApproval?: boolean;
 }
 
 export interface TeamInfo {
@@ -315,6 +317,6 @@ export interface TeamInfo {
   agentMembers: { used: number; limit: number };
 }
 
-export interface InviteCreated { id: string; link: string; emailed: boolean; emailDetail?: string }
+export interface InviteCreated { id: string; link: string; emailed: boolean; emailDetail?: string; /** AIS1 */ status?: "pending" | "awaiting_approval" }
 
 export interface Workspace { id: string; name: string; plan: PlanId; role: Role; isDemo: boolean }
