@@ -11,6 +11,8 @@
  *   too: switching one back on would route account mail to the agent);
  * - an address with no mailbox or alias on a domain whose catch-all is an agent inbox;
  * - an agent member's internal address (people.ts AGENT_EMAIL_DOMAIN).
+ * Only on a domain its owner proved in DNS (as routeRecipient): mail to an address on a claim nobody proved goes to
+ * the real domain's own mail server, never to an agent here.
  * Domains, mailbox and alias addresses are unique on the platform, so each step is one indexed read. Reads only.
  *
  * Every refusal is flagged in the audit log: in the workspace where it was tried, else in the agent's workspace.
@@ -61,6 +63,11 @@ async function find(db: DB, addr: string, depth: number, seen: Set<string>): Pro
       .innerJoin(members, and(eq(members.userId, users.id), eq(members.kind, "agent"))).where(eq(users.email, addr)).get();
     return { orgId: m?.orgId ?? null, via: "agent_member" };
   }
+  // As routeRecipient (PRIV1b P36): only a domain its owner proved in DNS routes mail inside the platform. An agent
+  // inbox on a claim nobody proved never gets that address's mail, so it must not block a real person's invite,
+  // sign-up or password reset (anyone can add any domain name).
+  const domain = await db.select({ catchAll: domains.catchAllMailboxId, status: domains.status, verifiedAt: domains.verifiedAt }).from(domains).where(eq(domains.name, addr.split("@")[1])).get();
+  if (!domain || (domain.status !== "verified" && !domain.verifiedAt)) return null;
   const mb = await db.select({ orgId: mailboxes.orgId, kind: mailboxes.kind }).from(mailboxes).where(eq(mailboxes.address, addr)).get();
   if (mb) return mb.kind === "agent" ? { orgId: mb.orgId, via: "agent_inbox" } : null;
   const alias = await db.select({ destinations: aliases.destinations }).from(aliases).where(eq(aliases.address, addr)).get();
@@ -71,8 +78,7 @@ async function find(db: DB, addr: string, depth: number, seen: Set<string>): Pro
     }
     return null;
   }
-  const domain = await db.select({ catchAll: domains.catchAllMailboxId }).from(domains).where(eq(domains.name, addr.split("@")[1])).get();
-  if (domain?.catchAll) {
+  if (domain.catchAll) {
     const c = await db.select({ orgId: mailboxes.orgId, kind: mailboxes.kind }).from(mailboxes).where(eq(mailboxes.id, domain.catchAll)).get();
     if (c?.kind === "agent") return { orgId: c.orgId, via: "catch_all" };
   }

@@ -86,6 +86,18 @@ describe("AIS1 row 1: which addresses reach an agent", () => {
     const amEmail = (await ctx.db.select().from(users).where(eq(users.id, amUser)).get())!.email;
     expect(await agentAddress(ctx.db, amEmail)).toMatchObject({ orgId, via: "agent_member" });
   });
+
+  it("an agent inbox on a domain nobody proved blocks no one (anyone can add any domain name)", async () => {
+    const squat = new Client(ctx.app);
+    await squat.signup("boss@squat.test", "Squatter");
+    const claimed = (await squat.post("/api/domains", { name: "victim.example" })).body.domain.id as string;
+    const key = (await squat.post("/api/developer/keys", { name: "Setup" })).body.secret as string;
+    const made = await api(key, "POST", "/agents", { name: "Ceo", localPart: "ceo", domainId: claimed });
+    expect(made.status).toBe(201);
+    expect(await agentAddress(ctx.db, "ceo@victim.example")).toBeNull();
+    // The real person at that address can still be invited.
+    expect((await owner.post("/api/team/invites", { email: "ceo@victim.example", role: "member", mailboxIds: [] })).status).toBe(201);
+  });
 });
 
 describe("AIS1 row 1: no invite to an agent inbox, on any path", () => {
