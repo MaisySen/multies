@@ -3,7 +3,7 @@ import { test, expect, type Browser, type Page } from "@playwright/test";
 /**
  * R41 join helper: before and after screenshots for the invite landing, where an invited person lands after
  * signing up, and the greeting for someone whose provider name is an email. Local identity provider only.
- * SHOTS_PHASE=before|after, SHOTS_DIR=/home/user/tab/files/multies-r41. Asserts nothing about the new flow.
+ * SHOTS_PHASE=before|after, SHOTS_DIR=SHOTS_ROOT/multies-r41. Asserts nothing about the new flow.
  */
 const BASE = `http://localhost:${process.env.E2E_IDP_PORT ?? "8790"}`;
 const PHASE = process.env.SHOTS_PHASE ?? "after";

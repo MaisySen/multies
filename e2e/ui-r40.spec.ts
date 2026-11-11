@@ -1,9 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R40 ui helper: the timeline (start of the range), Settings Connections with the demo's sample connected mailbox,
  * Mailboxes and Settings Developers load at desktop (1280) and phone (390), light and dark, with no sideways scroll on
- * the phone. With SHOTS=before or SHOTS=after it also saves screenshots to /home/user/tab/files/multies-r40/.
+ * the phone. With SHOTS=before or SHOTS=after it also saves screenshots to SHOTS_ROOT/multies-r40/.
  */
 let visitor = 0;
 test.beforeEach(async ({ context }) => {
@@ -13,7 +14,7 @@ test.setTimeout(180_000);
 
 const SHOTS = process.env.SHOTS;
 const ONLY = (process.env.SHOT_AREAS ?? "timeline,connections,mailboxes,developers").split(",");
-const DIR = "/home/user/tab/files/multies-r40";
+const DIR = `${SHOTS_ROOT}/multies-r40`;
 
 async function demo(page: Page) {
   await page.goto("/login");

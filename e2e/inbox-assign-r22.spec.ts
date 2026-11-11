@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 22 (R22.1 and R22.5) end to end: in the demo workspace's shared inbox, assign a thread to me,
@@ -70,6 +71,6 @@ test("assign a shared inbox thread to me, see it in Mine and My Work, mark it do
   await page.getByRole("button", { name: /Can we move our team over this week/ }).click();
   await expect(page.getByTestId("thread-assign").getByRole("button", { name: "Mark done" })).toBeVisible();
   await expect(page.getByText("Marked done")).toHaveCount(0, { timeout: 15_000 });
-  mkdirSync("/home/user/tab/files/multies-r22", { recursive: true });
-  await page.screenshot({ path: "/home/user/tab/files/multies-r22/assign.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r22`, { recursive: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r22/assign.png` });
 });

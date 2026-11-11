@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R33 (helper d1): a project key edit to a key another project uses is refused inline under the Key field;
@@ -35,8 +36,8 @@ test("a taken key is refused under the field; a free key saves and old refs stil
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("The key OPSX is already used by Operations. Pick another key.")).toBeVisible();
   await expect(key).toHaveAttribute("aria-invalid", "true");
-  mkdirSync("/home/user/tab/files/multies-r33", { recursive: true });
-  await page.screenshot({ path: "/home/user/tab/files/multies-r33/projects-key-taken.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r33`, { recursive: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r33/projects-key-taken.png` });
 
   await key.fill("REVX");
   await page.getByRole("button", { name: "Save", exact: true }).click();

@@ -2,7 +2,7 @@
 import { chromium } from "@playwright/test";
 // R39 premium pass 4: before and after shots of the screens that still look plain.
 const [,, phase, only] = process.argv;
-const OUT = "/home/user/tab/files/multies-r39";
+const OUT = (process.env.SHOTS_ROOT || "/home/user/tab/files") + "/multies-r39";
 const base = process.env.BASE || "http://localhost:8977";
 const PAGES = [
   ["billing", "/app/settings/billing"], ["notifications", "/app/notifications"], ["domain", "DOMAIN"],

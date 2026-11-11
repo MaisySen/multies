@@ -1,12 +1,13 @@
 import { test, expect, type Page, type Browser } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R55: more verbs in the command menu (status, label, move to another project). Each shows one preview row, Enter
  * sends one PATCH, and Undo in the toast puts the task back exactly (status, labels, project and its ref).
  * Snooze and archive are not task features today: the row says so and nothing changes.
  */
-const SHOTS = "/home/user/tab/files/multies-r55/command-bar";
+const SHOTS = `${SHOTS_ROOT}/multies-r55/command-bar`;
 const TAG = process.env.SHOTS_TAG ?? "after";
 let visitor = 0;
 const ip = () => `10.55.${test.info().workerIndex % 200}.${++visitor % 250}`;

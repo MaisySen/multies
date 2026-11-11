@@ -1,5 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R29: an admin edits an agent's trigger from the Triggers dialog (the Add form, filled in), fires it with Run now,
@@ -71,7 +72,7 @@ test("admin edits a trigger, runs it and sees its history", async () => {
   await expect(alertsHistory).toContainText("Refused: the request was not signed");
   await expect(alertsHistory).toContainText("Webhook");
 
-  mkdirSync("/home/user/tab/files/multies-r29", { recursive: true });
-  await dialog.screenshot({ path: "/home/user/tab/files/multies-r29/agent-trigger-history.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r29`, { recursive: true });
+  await dialog.screenshot({ path: `${SHOTS_ROOT}/multies-r29/agent-trigger-history.png` });
   await dialog.getByRole("button", { name: "Done" }).click();
 });

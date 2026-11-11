@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R28 (DF-3 slice 3): an admin opens an agent's Triggers from People, adds a weekday morning schedule and a webhook
@@ -54,8 +55,8 @@ test("admin adds schedule and webhook triggers for an agent; a signed webhook qu
   expect(url).toMatch(/\/api\/hooks\/agent-runs\/trg_/);
   expect(secret).toMatch(/^mtw_/);
   await expect(dialog.getByTestId("agent-trigger")).toHaveCount(2);
-  mkdirSync("/home/user/tab/files/multies-r28", { recursive: true });
-  await dialog.screenshot({ path: "/home/user/tab/files/multies-r28/agent-triggers.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r28`, { recursive: true });
+  await dialog.screenshot({ path: `${SHOTS_ROOT}/multies-r28/agent-triggers.png` });
 
   // A signed POST queues a run; an unsigned one is refused.
   const path = new URL(url).pathname;

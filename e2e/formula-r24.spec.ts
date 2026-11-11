@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R24.1 Formula and rollup fields end to end: add a number field, a formula field (with its live
@@ -81,8 +82,8 @@ test("formula and rollup columns in the table, live preview, rollup of subtasks,
   await expect(page.getByTestId("rollup-Done")).toHaveText("13%"); // 1 of 8 live tasks (subtasks count too)
   // Project rollups stay out of the columns.
   await expect(table.locator('th', { hasText: "Total budget" })).toHaveCount(0);
-  mkdirSync("/home/user/tab/files/multies-r24", { recursive: true });
-  await page.screenshot({ path: "/home/user/tab/files/multies-r24/formula.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r24`, { recursive: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r24/formula.png` });
 
   // A new subtask changes the rollup; it persists across a reload.
   expect((await page.request.post("/api/tasks", { data: { title: "Press kit", projectId: project.id, parentId: ids["Launch campaign"], points: 4 }, headers })).status()).toBe(201);

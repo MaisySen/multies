@@ -1,6 +1,6 @@
 
 const { chromium } = require("playwright");
-const phase = process.argv[2]; const base = "http://localhost:8972"; const out = "/home/user/tab/files/multies-r38/";
+const phase = process.argv[2]; const base = "http://localhost:8972"; const out = (process.env.SHOTS_ROOT || "/home/user/tab/files") + "/multies-r38/";
 const fs = require("fs"); fs.mkdirSync(out, { recursive: true });
 (async () => {
   const b = await chromium.launch();

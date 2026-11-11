@@ -1,6 +1,7 @@
 import path from "node:path";
 import Database from "better-sqlite3";
 import { test, expect, type Page } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R33: "select all" past what is loaded runs as ONE server job. Select every row (Cmd/Ctrl+A), then "Select all ...",
@@ -58,7 +59,7 @@ test("select all across pages archives as one job, leaves a mid job arrival and 
   await page.getByTestId("bulk-select-everything").click();
   await expect(page.getByTestId("bulk-count")).toContainText("All");
   await page.waitForTimeout(250);
-  await page.screenshot({ path: "/home/user/tab/files/multies-r33/mail-select-all-bar.png" });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r33/mail-select-all-bar.png` });
   // Untick the first row: the job leaves it alone.
   const keep = view[0].id;
   await rows.nth(0).getByTestId("mail-select").click();
@@ -73,7 +74,7 @@ test("select all across pages archives as one job, leaves a mid job arrival and 
   await page.getByTestId("bulk-job-confirm").click();
   await expect(page.getByText(/Archived [\d,]+ conversations/)).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(500); // the toast's fade in
-  await page.screenshot({ path: "/home/user/tab/files/multies-r33/mail-select-all-toast.png" });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r33/mail-select-all-toast.png` });
   await expect.poll(async () => (await list(page, mb.id, `folder=inbox&split=${split}`)).map((m) => m.id).sort(), { timeout: 30_000 })
     .toEqual([keep, ...(split === "other" ? ["msg_r33bulk_late"] : [])].sort());
   const archived = (await list(page, mb.id, "folder=archive")).map((m) => m.id);

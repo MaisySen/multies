@@ -1,6 +1,7 @@
 import path from "node:path";
 import Database from "better-sqlite3";
 import { test, expect, type Page } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R34: snooze over everything runs as the same server job, a big job asks first (count, place, action; Esc cancels,
@@ -72,7 +73,7 @@ test("select everything, snooze asks first, Esc cancels, Enter runs the job, Und
   await expect(dialog).toContainText(/Snooze .* until tomorrow\?/);
   await expect(dialog).toContainText("You can undo it.");
   await page.waitForTimeout(300);
-  await page.screenshot({ path: "/home/user/tab/files/multies-r34/mail-everything-confirm.png" });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r34/mail-everything-confirm.png` });
   await page.keyboard.press("Enter");
   await expect(page.getByText(/Snoozed [\d,]+ conversations/)).toBeVisible({ timeout: 60_000 });
   await expect.poll(async () => (await list(page, mb.id, `folder=inbox&split=${split}`)).filter((m) => m.id.startsWith("msg_r34snz_")).length, { timeout: 60_000 }).toBe(0);

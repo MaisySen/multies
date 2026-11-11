@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R28 (found by Haajir): POST /api/v1/docs/{id}/append adds a markdown section that the docs editor
@@ -42,7 +43,7 @@ test("append markdown through the API and see it in the editor", async ({ browse
   await expect(editor.locator("ol > li")).toHaveCount(2);
   await expect(editor.locator("ul[data-type='taskList'] > li")).toHaveCount(2);
   await expect(editor.locator("pre code")).toHaveText("npm run school:setup");
-  const shots = "/home/user/tab/files/multies-r28";
+  const shots = `${SHOTS_ROOT}/multies-r28`;
   mkdirSync(shots, { recursive: true });
   await page.screenshot({ path: `${shots}/docs-append-markdown.png`, fullPage: false });
   await ctx.close();

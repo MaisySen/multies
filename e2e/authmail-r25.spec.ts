@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R25 (MB-60, found by Haajir): branded auth emails. A workspace key brands a Supabase auth email hook
@@ -57,5 +58,5 @@ test("a workspace key brands the auth emails and previews them in English and Ne
   await expect(page.getByRole("link", { name: "इमेल पुष्टि गर्नुहोस्" })).toBeVisible();
   await expect(page.locator('[lang="ne"]')).toContainText("नमस्ते sita.sharma@example.com");
   expect(await page.locator("img").evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0);
-  await page.screenshot({ path: "/home/user/tab/files/multies-r25/r25-authmail.png", fullPage: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r25/r25-authmail.png`, fullPage: true });
 });

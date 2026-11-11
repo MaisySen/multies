@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync, readFileSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R114 webinar mode end to end (WEBINAR_R114=on): the host turns on webinar mode and sees the real cap, someone
@@ -11,7 +12,7 @@ import { mkdirSync, readFileSync } from "node:fs";
  * is not exercised here: the attendee page says video is not switched on, and the controls and API are tested.
  */
 test.describe.configure({ mode: "serial" });
-const SHOTS = process.env.SHOTS_DIR ?? "/home/user/tab/files/catalogue/r114/shots";
+const SHOTS = process.env.SHOTS_DIR ?? `${SHOTS_ROOT}/catalogue/r114/shots`;
 mkdirSync(SHOTS, { recursive: true });
 let visitor = 0;
 const ip = () => `10.114.${test.info().workerIndex % 200}.${++visitor}`;

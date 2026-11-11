@@ -2,7 +2,7 @@
 import { chromium } from "@playwright/test";
 import { join } from "node:path";
 // R38 move your data: after shots of Settings, Import and export (the page, the wizard on its preview step, the export ready).
-const OUT = "/home/user/tab/files/multies-r38";
+const OUT = (process.env.SHOTS_ROOT || "/home/user/tab/files") + "/multies-r38";
 const base = process.env.BASE || "http://localhost:8841";
 const browser = await chromium.launch();
 try {

@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 22 (R22.2) end to end: on a demo workspace, open a shared inbox thread, post a team note that
@@ -61,7 +62,7 @@ test("a team note on a thread mentions a teammate, who gets a notification that 
   await expect(page.locator('button[aria-current="true"]').getByTestId("note-count")).toContainText("2");
   await notes.scrollIntoViewIfNeeded();
 
-  const shots = "/home/user/tab/files/multies-r22";
+  const shots = `${SHOTS_ROOT}/multies-r22`;
   mkdirSync(shots, { recursive: true });
   await page.screenshot({ path: `${shots}/comments.png` });
 

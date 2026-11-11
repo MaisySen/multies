@@ -1,15 +1,16 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R49 mobile web: Docs, Meetings and Chat at 360, 390 and 430 px, light and dark. The open doc keeps its
  * formatting toolbar on one row of 44 px buttons with nothing to scroll sideways; the call's controls sit right
  * above the tab bar; the chat composer sits above the tab bar without scrolling the page. SHOTS=round3/before or
- * round3/after writes shots and metrics to /home/user/tab/files/multies-mobile/. The video room is faked through
+ * round3/after writes shots and metrics to SHOTS_ROOT/multies-mobile/. The video room is faked through
  * the local test hook (CALLS_TEST_HOOK, refused in production) with the browser's fake camera.
  */
 const SHOTS = process.env.SHOTS;
-const DIR = "/home/user/tab/files/multies-mobile";
+const DIR = `${SHOTS_ROOT}/multies-mobile`;
 test.use({
   permissions: ["camera", "microphone"],
   launchOptions: { args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] },

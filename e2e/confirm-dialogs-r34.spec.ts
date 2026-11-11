@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R34 (MB-192): deleting a doc goes through the themed confirm, not the browser's box. The dialog names the doc,
@@ -32,7 +33,7 @@ test("delete a doc through the themed confirm dialog", async ({ browser }) => {
   // The confirm is the red button and has focus, so Enter would confirm; Esc backs out.
   await expect(dialog.getByRole("button", { name: "Delete doc" })).toBeFocused();
   if (!process.env.E2E_BASE_URL) {
-    const dir = "/home/user/tab/files/multies-r34";
+    const dir = `${SHOTS_ROOT}/multies-r34`;
     mkdirSync(dir, { recursive: true });
     await page.waitForTimeout(300); // let the open animation settle
     await page.screenshot({ path: `${dir}/dialogs-confirm-delete-doc.png` });

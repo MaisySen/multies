@@ -1,12 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R36: a key with per area scopes, made in the scopes sheet, gets 403 insufficient_scope outside its
  * areas and works once "Edit scopes" adds them; the public MCP tool docs page lists, searches and links
- * every tool. Screenshots (desktop and phone, light and dark) go to /home/user/tab/files/multies-r36.
+ * every tool. Screenshots (desktop and phone, light and dark) go to SHOTS_ROOT/multies-r36.
  */
-const SHOTS = process.env.R36_SHOTS ?? "/home/user/tab/files/multies-r36";
+const SHOTS = process.env.R36_SHOTS ?? `${SHOTS_ROOT}/multies-r36`;
 const ip = () => `10.36.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`;
 
 /** The cookie notice covers the bottom of the phone shots: dismiss it once per context. */

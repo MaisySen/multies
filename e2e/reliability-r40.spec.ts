@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R40 reliability (MB-200, MB-201, MB-204):
@@ -28,7 +29,7 @@ async function shot(page: Page, name: string) {
       await page.setViewportSize({ width: w, height: w === 390 ? 844 : 860 });
       await page.emulateMedia({ colorScheme: scheme });
       await page.waitForTimeout(300);
-      await page.screenshot({ path: `/home/user/tab/files/multies-r40/rel-after-${name}-${label}-${scheme}.png` });
+      await page.screenshot({ path: `${SHOTS_ROOT}/multies-r40/rel-after-${name}-${label}-${scheme}.png` });
     }
   }
   await page.emulateMedia({ colorScheme: "light" });
