@@ -892,7 +892,7 @@ export const en: Bundle = {
   "tasks.tag": "Tag",
   "tasks.tag_filter": "Tag filter",
   "tasks.tags": "Tags",
-  "tasks.tasks_made_from_mail_rules_and_forms_wait_in_tri": "Tasks made from mail rules and forms wait in Triage until someone accepts them.",
+  "tasks.triage_switch_hint": "Tasks from mail rules, forms, the API and AI apps wait in Triage until a person accepts them. Tasks you add yourself go straight to the board.",
   "tasks.template": "Template",
   "tasks.the_mind_map_shows_one_project_s_tasks_and_subta": "The mind map shows one project's tasks and subtasks. Choose a project above.",
   "tasks.to_do": "To do",

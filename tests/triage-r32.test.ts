@@ -110,7 +110,7 @@ describe("R32 task triage: snooze, duplicate, undo", () => {
 
   it("routes API-key and agent (MCP) tasks into Triage when the project uses it, not otherwise", async () => {
     const p = await triageProject();
-    const plain = (await c.post("/api/projects", { name: "Plain" })).body.project;
+    const plain = (await c.post("/api/projects", { name: "Plain", triage: false })).body.project; // AIS1: new projects start with it on
     const key = (await c.post("/api/developer/keys", { name: "Agent" })).body.secret;
     const viaApi = await api(key, "POST", "/tasks", { title: "From the API", projectId: p.id });
     expect(viaApi.status).toBe(201);

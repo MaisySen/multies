@@ -892,7 +892,7 @@ export const hi: Bundle = {
   "tasks.tag": "टैग",
   "tasks.tag_filter": "टैग फ़िल्टर",
   "tasks.tags": "टैग",
-  "tasks.tasks_made_from_mail_rules_and_forms_wait_in_tri": "मेल नियमों और फ़ॉर्म से बने काम ट्रायाज में तब तक रुकते हैं जब तक कोई उन्हें स्वीकार न करे।",
+  "tasks.triage_switch_hint": "मेल नियमों, फ़ॉर्म, API और AI ऐप से आए काम ट्रायाज में तब तक रुकते हैं जब तक कोई व्यक्ति उन्हें स्वीकार न करे। आपके खुद जोड़े काम सीधे बोर्ड पर जाते हैं।",
   "tasks.template": "टेम्पलेट",
   "tasks.the_mind_map_shows_one_project_s_tasks_and_subta": "माइंड मैप एक प्रोजेक्ट के काम और उपकाम दिखाता है। ऊपर कोई प्रोजेक्ट चुनें।",
   "tasks.to_do": "करना है",

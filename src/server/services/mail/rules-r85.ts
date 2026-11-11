@@ -238,6 +238,8 @@ async function runAction(c: Ctx, act: MailRuleActionT, guard: { own: Set<string>
       if (c.personal) return { action: act.kind, ok: true, skipped: true, detail: "Skipped: tasks aren't made from a personal mailbox." };
       const { createTaskFromThread } = await import("../suite/tasks");
       const t = await createTaskFromThread(deps, { ...suite, system: false }, {
+        // AIS1 (audit row 35): like a workspace automation's task, it waits when the project has Triage on.
+        triage: { source: "mail", when: "if_project" },
         messageId: msg.id, projectId: act.projectId, priority: act.priority,
         due: act.dueInDays !== undefined ? new Date(deps.now().getTime() + act.dueInDays * DAY).toISOString() : undefined,
       });

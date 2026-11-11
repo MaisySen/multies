@@ -116,12 +116,12 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   });
 
   api.openapi(createRoute({ method: "post", path: "/tasks", tags: tag("Tasks"), summary: "Create a task", security: secured,
-    description: "Pass source.messageId or source.threadId to link the task to an email thread: replies on the thread then show on the task. When the project uses Triage, the new task waits there (triage.state pending, source api) until someone accepts it.",
+    description: "Pass source.messageId or source.threadId to link the task to an email thread: replies on the thread then show on the task. When the project uses Triage (new projects do), the new task, and a subtask too, waits there (triage.state pending, source api) until a person accepts it.",
     request: body(TaskCreate), responses: { 201: json(z.object({ task: Task }), "The task."), 401: errors[401], 422: errors[422] } }),
   async (c) => { const b = c.req.valid("json"); return send(c, { task: await createTask(c.var.deps, actor(c), { ...b, assignee: assigneeOf(b), triage: { source: "api", when: "if_project" } }, { id: await idempotentId(c.req.raw, "tsk") }) }, 201); }); // R32: waits in Triage when the project uses it
 
   api.openapi(createRoute({ method: "post", path: "/tasks/from-email", tags: tag("Tasks"), summary: "Make a task from an email", security: secured,
-    description: "One call: the title comes from the subject, the notes from the newest text without quoted history, and the task links to the thread.",
+    description: "One call: the title comes from the subject, the notes from the newest text without quoted history, and the task links to the thread. When the project uses Triage (new projects do), the task waits there (triage.state pending, source api) until a person accepts it.",
     request: body(TaskFromEmail), responses: { 201: json(z.object({ task: Task }), "The task."), 401: errors[401], 404: errors[404], 422: errors[422] } }),
   async (c) => { const b = c.req.valid("json"); return send(c, { task: await createTaskFromThread(c.var.deps, actor(c), { ...b, assignee: parseAssignee(b.assignee) }, await idempotentCreate(c.req.raw, "tsk")) }, 201); });
 
@@ -158,8 +158,8 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   async (c) => send(c, { projects: await listProjects(c.var.deps, actor(c).orgId) }));
 
   api.openapi(createRoute({ method: "post", path: "/projects", tags: tag("Projects"), summary: "Create a project", security: secured,
-    description: "Statuses are optional: the default is To do, In progress, In review and Done. Each status belongs to a group (todo, doing, done).",
-    request: body(ProjectCreate), responses: { 201: json(z.object({ project: Project }), "The project."), 401: errors[401], 422: errors[422] } }),
+    description: "Statuses are optional: the default is To do, In progress, In review and Done. Each status belongs to a group (todo, doing, done). Triage is on unless a person signed in to Multies chooses off.",
+    request: body(ProjectCreate), responses: { 201: json(z.object({ project: Project }), "The project."), 401: errors[401], 403: err("Only a person signed in to Multies can make a project with Triage off (person_only)."), 422: errors[422] } }),
   async (c) => send(c, { project: await createProject(c.var.deps, actor(c), c.req.valid("json"), { id: await idempotentId(c.req.raw, "prj") }) }, 201));
 
   api.openapi(createRoute({ method: "get", path: "/projects/{id}", tags: tag("Projects"), summary: "Get a project", security: secured,
@@ -167,7 +167,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   async (c) => send(c, { project: await getProject(c.var.deps, actor(c).orgId, c.req.valid("param").id) }));
 
   api.openapi(createRoute({ method: "patch", path: "/projects/{id}", tags: tag("Projects"), summary: "Update a project or its statuses", security: secured,
-    request: { params: Id, ...body(ProjectPatch) }, responses: { 200: json(z.object({ project: Project }), "The project."), 401: errors[401], 404: errors[404], 409: err("The key is used by another project (key_taken)."), 422: errors[422] } }),
+    request: { params: Id, ...body(ProjectPatch) }, responses: { 200: json(z.object({ project: Project }), "The project."), 401: errors[401], 403: err("Only a person signed in to Multies can turn Triage off (person_only)."), 404: errors[404], 409: err("The key is used by another project (key_taken)."), 422: errors[422] } }),
   async (c) => send(c, { project: await updateProject(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json")) }));
 
   // R44: a key could create a project but not remove it. Same rule as the app: admins only, so an agent

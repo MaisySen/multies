@@ -32,9 +32,10 @@ const me = async () => (await c.get("/api/account/me")).body.user.id as string;
 
 /** A project with Triage on and a public form for it; submits one answer set and returns the new item id. */
 async function triageForm(opts: { formTriage?: boolean; projectTriage?: boolean } = {}) {
-  const project = (await c.post("/api/projects", { name: "Support" })).body.project;
+  // AIS1: new projects and forms start with Triage on; the test says which it wants, as the web app does.
+  const project = (await c.post("/api/projects", { name: "Support", triage: false })).body.project;
   if (opts.projectTriage ?? true) expect((await c.patch(`/api/projects/${project.id}`, { triage: true })).body.project.triage).toBe(true);
-  const form = (await c.post("/api/forms", { name: "Contact us", projectId: project.id, ...(opts.formTriage ? { triage: true } : {}) })).body.form;
+  const form = (await c.post("/api/forms", { name: "Contact us", projectId: project.id, triage: !!opts.formTriage })).body.form;
   return { project, form };
 }
 async function submit(slug: string, subject: string, email = "grace@harbourcoffee.com.au") {

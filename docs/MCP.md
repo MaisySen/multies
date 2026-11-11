@@ -100,7 +100,7 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | `list_tasks` | List tasks |
 | `get_task` | Get a task |
 | `next_task` | Next task for this agent |
-| `create_task` | Create a task (with `type`, `points` and `sprintId` when wanted) |
+| `create_task` | Create a task (with `type`, `points` and `sprintId` when wanted). When the project uses Triage (new projects do), the task waits there for a person, also when made from an email or as a subtask (AIS1) |
 | `update_task` | Update a task, including its type, estimate (`points`) and sprint (`sprintId`, null for the backlog) |
 | `bulk_update_tasks` | Change up to 500 tasks at once: status, assignee, priority, dates, labels, type (task, story, bug) or project (round 21, registered in src/server/routes/mcp-r21-table.ts) |
 | `comment_on_task` | Comment on a task |
@@ -188,12 +188,12 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `read_chat_thread` | Read a chat thread |
 | `post_message` | Post in a chat channel |
 | `pin_message` | Pin or unpin a chat message |
-| `message_to_task` | Turn a chat message into a task |
+| `message_to_task` | Turn a chat message into a task. It waits in Triage when the project uses it; `triage: true` sends it there anyway |
 | `react_to_chat_message` | Add or take off an emoji reaction on a chat message (write keys) |
 
 ### Triage
 
-New work from mail rules, public forms, incoming hooks, the API or AI apps can wait in Triage before it becomes a task. Read only keys can list; adding needs a write key. Only a person signed in to Multies decides: `triage_accept`, `triage_decline` and `triage_merge` answer `person_only` for an API key or a connected AI app (AIS1).
+New work from mail rules, public forms, incoming hooks, the API or AI apps can wait in Triage before it becomes a task. Read only keys can list; adding needs a write key. Since AIS1 a new project has Triage on, and every task an AI app or a key makes in a project with Triage on waits there: `create_task` (also from an email and as a subtask), `duplicate_task`, `use_template`, `message_to_task`, `checklist_item_to_subtask` and `create_action_items`. A form made with `create_form` sends its answers to Triage. Only a person turns a project's Triage off. Only a person signed in to Multies decides: `triage_accept`, `triage_decline` and `triage_merge` answer `person_only` for an API key or a connected AI app (AIS1).
 
 | Tool | What it does |
 | --- | --- |

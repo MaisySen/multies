@@ -95,10 +95,12 @@ describe("MCP OAuth: sign in and tokens", () => {
     expect(tools.length).toBeGreaterThanOrEqual(57);
     const created = await client.callTool({ name: "create_task", arguments: { title: "From Claude" } });
     expect((created as { isError?: boolean }).isError).toBeFalsy();
-    // The task reads as the person who signed in, not as the workspace.
-    const tasks = await c.get("/api/tasks");
-    const task = (tasks.body.tasks as { title: string; createdByUserId?: string; createdBy?: { name?: string } }[]).find((x) => x.title === "From Claude");
+    // The task reads as the person who signed in, not as the workspace. AIS1: an AI app's task waits in Triage
+    // (the first project, made for it, starts with Triage on) until a person accepts it.
+    const items = await c.get("/api/triage");
+    const task = (items.body.items as { title: string; triage: { source: string }; createdByUserId?: string; createdBy?: { name?: string } }[]).find((x) => x.title === "From Claude");
     expect(task).toBeTruthy();
+    expect(task!.triage.source).toBe("agent");
   });
 
   it("refuses a wrong PKCE verifier, a second use of a code, and a foreign client", async () => {

@@ -399,7 +399,7 @@ function registerSuiteTools(server: McpServer, deps: Deps, actor: Scoped, writab
 
   server.registerTool("create_task", {
     title: "Create a task", annotations: rw,
-    description: "Create a task. Pass messageId or threadId to make it from an email: the title defaults to the subject and the task links to the thread.",
+    description: "Create a task. Pass messageId or threadId to make it from an email: the title defaults to the subject and the task links to the thread. When the project uses Triage (new projects do), the task waits there until a person accepts it, a subtask too.",
     inputSchema: {
       title: z.string().max(300).optional().describe("Required unless messageId or threadId is given."), notes: z.string().max(50_000).optional(),
       projectId: z.string().optional(), status: z.enum(["todo", "doing", "done"]).optional(), assignee: assigneeArg,
@@ -415,7 +415,7 @@ function registerSuiteTools(server: McpServer, deps: Deps, actor: Scoped, writab
     const assignee = parseAssignee(x.assignee);
     if (x.messageId || x.threadId) return { task: await createTaskFromThread(deps, a, { ...x, assignee }, await mcpCreate("tsk")) }; // R53: same id on a retry
     if (!x.title) throw new HttpError(422, "validation_failed", "Give the task a title, or pass messageId to make it from an email.");
-    return { task: await createTask(deps, a, { ...x, title: x.title, assignee, triage: { source: "agent", when: "if_project" } }, await mcpCreate("tsk")) }; // R32: agents' tasks wait in Triage when the project uses it
+    return { task: await createTask(deps, a, { ...x, title: x.title, assignee, triage: { source: "agent", when: "if_project" } }, await mcpCreate("tsk")) }; // R32: agents' tasks wait in Triage when the project uses it (AIS1: subtasks too)
   }));
 
   server.registerTool("update_task", {
@@ -745,7 +745,7 @@ function registerR10Tools(server: McpServer, deps: Deps, actor: Scoped, writable
 
   server.registerTool("message_to_task", {
     title: "Turn a chat message into a task", annotations: rw,
-    description: "Make a task from a chat message. The task links back to the message and the message shows the task. Set triage: true to send it to the Triage queue instead.",
+    description: "Make a task from a chat message. The task links back to the message and the message shows the task. It waits in Triage when the project uses it; set triage: true to send it to the Triage queue anyway.",
     inputSchema: { messageId: z.string(), title: z.string().max(300).optional(), projectId: z.string().optional(), assignee: z.string().optional(), triage: z.boolean().optional() },
   }, tool(async (x: { messageId: string; title?: string; projectId?: string; assignee?: string; triage?: boolean }) => {
     writable();

@@ -26,6 +26,8 @@ describe("lazily built public API", () => {
     const { app } = await makeTestApp();
     const c = new Client(app);
     await c.signup("dev@acme.io");
+    // AIS1: a key's task waits in Triage when the project uses it (new projects do); this first project has it off.
+    await c.post("/api/projects", { name: "Work", triage: false });
     const key = (await c.post("/api/developer/keys", { name: "QA", scopes: ["read", "write"] })).body;
     const token = key.key ?? key.token ?? key.secret;
     expect(typeof token).toBe("string");
