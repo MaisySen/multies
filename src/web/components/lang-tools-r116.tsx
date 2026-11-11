@@ -20,7 +20,7 @@ import {
   htmlText, pauseReading, resumeReading, setReadingRate, speechSupported, startReading, stopReading, translatePieces, useR116Prefs, useSpeech,
 } from "@/web/lib/translate-r116";
 import {
-  detectLanguage, htmlPieces, joinHtml, joinPieces, languageLabel, R116_LANGUAGES, textPieces, type R116Language,
+  detectLanguage, htmlPieces, joinHtml, joinPieces, languageLabel, R116_LANGUAGES, textPieces, translateOffer, type R116Language,
 } from "@/shared/translate-r116";
 import { tr } from "@/web/i18n"; // POL4 (HQ MB-356)
 import "@/web/i18n/w2/en-docs"; // R104B
@@ -30,11 +30,11 @@ const LANGS = Object.entries(R116_LANGUAGES) as [R116Language, string][];
 const RATES = [0.75, 1, 1.25, 1.5, 2];
 
 /** The target language picker. Remembers the last choice for this person. */
-function LangSelect({ value, onChange, className }: { value: R116Language; onChange: (v: R116Language) => void; className?: string }) {
+function LangSelect({ value, onChange, className, label }: { value: R116Language; onChange: (v: R116Language) => void; className?: string; label?: string }) {
   const id = useId();
   return (
     <span className={cn("inline-flex min-w-0 items-center gap-2", className)}>
-      <label htmlFor={id} className="shrink-0 text-[13px] text-muted">{tr("docs.into")}</label>
+      <label htmlFor={id} className="shrink-0 text-[13px] text-muted">{label ?? tr("docs.into")}</label>
       <Select id={id} value={value} onChange={(e) => onChange(e.target.value as R116Language)} className="h-9 w-auto min-w-32 text-[13px]" aria-label={tr("translate.translate_into")}>
         {LANGS.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
       </Select>
@@ -133,7 +133,9 @@ export function MailBodyR116({ id, html, text }: { id: string; html?: string | n
   const clean = useMemo(() => (html ? String(DOMPurify.sanitize(html, MAIL_PURIFY)) : ""), [html]);
   const plain = useMemo(() => (html ? htmlText(clean) : text), [html, clean, text]);
   const detected = useMemo(() => detectLanguage(plain), [plain]);
-  const offer = t.prefs.autoOffer && !t.result && !!detected && detected !== t.prefs.target;
+  // QUAL1 (audit row 29): no "Translate to English" on mail that is already in English.
+  const choice = translateOffer(detected, t.prefs.target, !!t.result);
+  const offer = t.prefs.autoOffer && choice.note;
   const go = (target?: R116Language) => t.run(() => (html
     ? (() => { const pieces = htmlPieces(clean); return { pieces, join: (m) => joinHtml(pieces, m) }; })()
     : (() => { const pieces = textPieces(text); return { pieces, join: (m) => joinPieces(pieces, m) }; })()), target);
@@ -143,10 +145,13 @@ export function MailBodyR116({ id, html, text }: { id: string; html?: string | n
     <div className="space-y-2" data-testid="mail-lang-r116">
       <div className="flex flex-wrap items-center gap-2">
         {offer && <span className="text-[13px] text-muted" data-testid="translate-offer">{tr("docs.this_looks_like")} {languageLabel(detected)}.</span>}
-        <Button variant="outline" size="sm" loading={!!t.busy} onClick={() => void go()} data-testid="translate-mail">
-          {!t.busy && <IconGlobe className="h-4 w-4" aria-hidden />}{t.result ? tr("docs.translate_again") : `Translate to ${languageLabel(t.prefs.target)}`}
-        </Button>
-        <LangSelect value={t.prefs.target} onChange={(v) => { t.setPrefs({ target: v }); if (t.result) void go(v); }} />
+        {choice.button && (
+          <Button variant="outline" size="sm" loading={!!t.busy} onClick={() => void go()} data-testid="translate-mail">
+            {!t.busy && <IconGlobe className="h-4 w-4" aria-hidden />}{t.result ? tr("docs.translate_again") : `Translate to ${languageLabel(t.prefs.target)}`}
+          </Button>
+        )}
+        <LangSelect value={t.prefs.target} label={choice.button ? undefined : tr("translate.translate_into")}
+          onChange={(v) => { t.setPrefs({ target: v }); if (t.result || (choice.pickTranslates && v !== detected)) void go(v); }} />
         {speechSupported() && (
           <Button variant="outline" size="sm" onClick={() => void startReading(owner, readText)} data-testid="read-mail">
             <IconVolume className="h-4 w-4" aria-hidden />{tr("docs.read_aloud")}
