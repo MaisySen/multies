@@ -117,6 +117,16 @@ describe("AIS1 review: a Triage decision on a key's task takes its subtasks with
     expect(r.body).toMatchObject({ done: 3, failed: 0 });
     expect(await count()).toBe(0);
 
+    // A bulk accept's options reach every item it names, a subtask after its parent included; one it doesn't name
+    // comes in with its parent unchanged.
+    const opts = await copyWithSubtasks();
+    const [named, unnamed] = await kidsOf(opts.copyId);
+    const o = await c.post("/api/triage/bulk", { ids: [opts.copyId, named.id], action: "accept", accept: { priority: "high" } });
+    expect(o.body).toMatchObject({ done: 2, failed: 0 });
+    const after = new Map((await kidsOf(opts.copyId)).map((k) => [k.id, k]));
+    expect([after.get(named.id)?.priority, after.get(named.id)?.triageState]).toEqual(["high", null]);
+    expect([after.get(unnamed.id)?.priority, after.get(unnamed.id)?.triageState]).toEqual(["none", null]);
+
     const second = await copyWithSubtasks();
     const ids2 = [second.copyId, ...(await kidsOf(second.copyId)).map((k) => k.id)];
     const d = await c.post("/api/triage/bulk", { ids: ids2, action: "decline" });
