@@ -169,11 +169,17 @@ const allowList = (v: string[] | null | undefined) => (v?.length ? v.map((r) => 
  * connected AI app (OAuth) that tries is refused with 403 person_only naming the fields, and the attempt is written
  * to the audit log (on the agent's own log when the agent exists). Nothing is written to the agent.
  */
-async function refuseLoosening(deps: Deps, actor: Actor, fields: string[], at: { action: "agent.create_refused" | "agent.update_refused"; agentId?: string; name?: string }) {
+const REFUSED = {
+  "agent.create_refused": "Creating an agent with looser guardrails",
+  "agent.update_refused": "Loosening an agent's guardrails",
+  "agent.delete_refused": "Deleting a paused agent",
+} as const;
+
+async function refuseLoosening(deps: Deps, actor: Actor, fields: string[], at: { action: keyof typeof REFUSED; agentId?: string; name?: string }) {
   if (!fields.length || isPersonSession(actor)) return;
   await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: at.agentId ?? null, action: at.action, targetType: "agent", targetId: at.agentId, metadata: { fields, caller: callerKind(actor), ...(at.name ? { name: at.name } : {}) } });
   try {
-    requirePerson(actor, `${at.action === "agent.create_refused" ? "Creating an agent with looser guardrails" : "Loosening an agent's guardrails"} (${fields.join(", ")})`);
+    requirePerson(actor, `${REFUSED[at.action]} (${fields.join(", ")})`);
   } catch (err) {
     if (err instanceof HttpError) err.details = { fields };
     throw err;
@@ -363,6 +369,9 @@ export async function updateAgent(deps: Deps, actor: Actor, id: string, patch: U
 export async function deleteAgent(deps: Deps, actor: Actor, id: string) {
   assertWorkspaceActor(actor);
   const { a, mb } = await row(deps, actor.orgId, id);
+  // AIS1 (review): made again at the same address, a deleted agent comes back active, so for a key or an AI app
+  // deleting a paused agent would undo the pause. Only a person deletes a paused agent. Change it here.
+  if (a.status === "paused") await refuseLoosening(deps, actor, ["status"], { action: "agent.delete_refused", agentId: a.id, name: a.name });
   await assertMailboxNotHeld(deps, actor.orgId, mb.id); // PRIV1b (P44): a held agent inbox stays, as DELETE /api/mailboxes/:id
   await deprovisionMailbox(deps, actor.orgId, mb.id).catch(() => undefined);
   await deps.db.delete(apiKeys).where(eq(apiKeys.agentId, a.id));

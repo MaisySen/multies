@@ -189,6 +189,25 @@ describe("AIS1 row 4: a key may only tighten an existing agent", () => {
     expect(r.body).toMatchObject({ approvalMode: "never", sendCapDaily: 100, allowedRecipients: null, status: "active" });
     expect([...r.body.mailboxIds].sort()).toEqual([agent.inboxId, team.id, other.id].sort());
   });
+
+  // AIS1 repair (review of this branch): deleting a paused agent and making it again at the same address gave an
+  // active agent, so a key could undo a person's pause that way. Deleting a paused agent needs a person.
+  it("a key can't delete a paused agent (it would come back active); a person can", async () => {
+    const chaser = (await c.post("/api/agents", { name: "Chaser", localPart: "chaser", sendCapDaily: 5, allowedRecipients: ["bob@acme.io"] })).body.agent;
+    expect((await c.patch(`/api/agents/${chaser.id}`, { status: "paused" })).status).toBe(200);
+    expect((await api(wsKey, "PATCH", `/agents/${chaser.id}`, { status: "active" })).status).toBe(403);
+    const del = await api(wsKey, "DELETE", `/agents/${chaser.id}`);
+    expect(del.status).toBe(403);
+    expect(del.body.error.code).toBe("person_only");
+    expect(del.body.error.message).toContain("paused");
+    expect((await api(wsKey, "GET", `/agents/${chaser.id}`)).body).toMatchObject({ status: "paused", sendCapDaily: 5, allowedRecipients: ["bob@acme.io"] });
+    expect((await refusals("agent.delete_refused")).map((r) => ({ agentId: r.agentId, fields: r.metadata.fields }))).toEqual([{ agentId: chaser.id, fields: ["status"] }]);
+    // An active agent can still be deleted by a key (approval stays "always" on anything it makes again).
+    const active = (await api(wsKey, "POST", "/agents", { name: "Spare" })).body.agent;
+    expect((await api(wsKey, "DELETE", `/agents/${active.id}`)).status).toBe(200);
+    // A person may delete the paused one.
+    expect((await c.del(`/api/agents/${chaser.id}`)).status).toBe(200);
+  });
 });
 
 describe("AIS1 gap: approving an agent's message is a person's decision", () => {
