@@ -422,7 +422,14 @@ export async function readThread(deps: Deps, actor: Actor, threadId: string, ori
     const since = new Date(deps.now().getTime() - READ_AUDIT_ROLLUP_MS);
     const recent = await deps.db.select({ id: auditLogs.id }).from(auditLogs)
       .where(and(eq(auditLogs.agentId, a.id), gte(auditLogs.createdAt, since), eq(auditLogs.action, "agent.message_read"), eq(auditLogs.targetId, threadId))).limit(1).get();
-    if (!recent) await audit(deps.db, { orgId: actor.orgId, ...agentActor(a, mb), action: "agent.message_read", targetType: "thread", targetId: threadId, metadata: { messages: rows.length, subject: rows[0].subject.slice(0, 200), via: actor.sessionId.startsWith("mcp:") ? "mcp" : "api", rollup: "hour" } });
+    if (!recent) {
+      // AIS1 review: a personal mailbox (PRIV1a) is opened only by its owner, but admins and the workspace owner read the
+      // audit log and its export. A thread in one keeps its id and loses its subject. One read, on the write path only.
+      const personal = await deps.db.select({ id: mailboxes.id }).from(mailboxes)
+        .where(and(eq(mailboxes.orgId, actor.orgId), inIds(mailboxes.id, [...new Set(rows.map((r) => r.mailboxId))]), eq(mailboxes.personal, true))).limit(1).get();
+      const subject = personal ? {} : { subject: rows[0].subject.slice(0, 200) };
+      await audit(deps.db, { orgId: actor.orgId, ...agentActor(a, mb), action: "agent.message_read", targetType: "thread", targetId: threadId, metadata: { messages: rows.length, ...subject, via: actor.sessionId.startsWith("mcp:") ? "mcp" : "api", rollup: "hour" } });
+    }
   }
   return {
     id: threadId,

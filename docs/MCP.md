@@ -234,7 +234,9 @@ Give a mail thread an owner, mark it done, list threads by view and read reply t
 Agents read only the threads they can open, and anything an agent sends outside Multies still goes
 through its approval rule. Sends and approvals are in the audit log. Thread reads by an agent are in
 the audit log too, rolled up to one entry per agent, thread and hour so a polling agent doesn't fill
-the log (or the database's daily write budget). Each read names the thread (its id and subject).
+the log (or the database's daily write budget). Each read names the thread by its id and its subject,
+except a thread in a personal mailbox, which keeps only its id: admins read the audit log, and only the
+mailbox's owner may read that mail.
 
 Everything a tool call writes to the audit log says it came over MCP: the entry carries the request's IP
 and `metadata.caller`, which names the key (`kind` `workspace_key`, `agent_key` or `agent_member_key`,
