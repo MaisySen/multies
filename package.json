@@ -18,7 +18,7 @@
     "start": "node dist/server/node.js",
     "db:generate": "drizzle-kit generate && tsx scripts/bundle-migrations.ts",
     "db:migrate": "tsx scripts/migrate.ts",
-    "typecheck": "node --max-old-space-size=6144 node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
+    "typecheck": "node scripts/typecheck.mjs",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
