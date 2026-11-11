@@ -38,7 +38,7 @@ export function GuestsDialog({ project, onClose }: { project: Project; onClose: 
     catch (e) { showError(e as Error); } finally { setLinking(null); }
   };
   // AIS1 (audit row 1): an invite a key or a connected app made is sent only when a person here says so.
-  const confirm = async (g: Guest) => {
+  const confirmInvite = async (g: Guest) => {
     setLinking(g.id);
     try { const r = await api.post<InviteResult>(`/guests/${g.id}/confirm`, {}); setLast(r); await q.refetch(); }
     catch (e) { showError(e as Error); } finally { setLinking(null); }
@@ -76,7 +76,7 @@ export function GuestsDialog({ project, onClose }: { project: Project; onClose: 
               {g.status === "active" ? "Joined" : g.awaitingConfirmation ? "Needs you" : g.approvalStatus === "pending" ? "Waiting for approval" : g.approvalStatus && g.approvalStatus !== "sent" ? "Invite not sent" : "Invited"}
             </Badge>
             {g.lastSeenAt && <span className="hidden text-[11.5px] text-subtle sm:inline">seen {timeAgo(g.lastSeenAt)}</span>}
-            {g.awaitingConfirmation && <Button size="sm" loading={linking === g.id} onClick={() => void confirm(g)} title="An API key or a connected app asked for this invite. Nothing was sent yet." aria-label={`Send the invite to ${g.email}`}>Send invite</Button>}
+            {g.awaitingConfirmation && <Button size="sm" loading={linking === g.id} onClick={() => void confirmInvite(g)} title="An API key or a connected app asked for this invite. Nothing was sent yet." aria-label={`Send the invite to ${g.email}`}>Send invite</Button>}
             {g.status === "pending" && !g.approvalId && (links[g.id]
               ? <CopyButton value={links[g.id]!} label="Copy link" toastText="Invite link copied" />
               : <Button size="sm" variant="secondary" loading={linking === g.id} onClick={() => void getLink(g)} title="A new link to share by hand. No email is sent and the old link stops working." aria-label={`Get an invite link for ${g.email}`}>Get link</Button>)}
