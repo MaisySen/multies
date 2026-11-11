@@ -339,7 +339,7 @@ read the agent, change one field and send them all. A loosening answers 403 `per
 (`agent.update_refused` on the agent's own log, `GET /api/v1/agents/{id}/audit`, or `agent.create_refused`).
 
 Every new agent, made in the app, over REST or over MCP, starts with approval `always`, 100 sends a day (never
-above the plan's limit: Free 100, Pro 500, Business 2,000) and the workspace's own verified domains as allowed
+above the plan's daily limit for agents) and the workspace's own verified domains as allowed
 recipients (`["@acme.io"]`). With no verified domain yet it is the creator's own address (for a key, the person
 who made the key). From a key, `allowedRecipients` of `null` or `[]` gets this default too; a person who wants
 "anyone" picks it in the app (or sends `null` to `POST /api/agents`). Agents made before this change keep their

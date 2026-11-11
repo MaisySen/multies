@@ -78,6 +78,7 @@ describe("AIS1 row 4: a key or an AI app creates agents only at 'a person approv
       expect(r.status).toBe(403);
       expect(r.body.error.code).toBe("person_only");
       expect(r.body.error.message).toContain("approvalMode");
+      expect(r.body.error.details).toEqual({ fields: ["approvalMode"] });
     }
     expect((await api(wsKey, "GET", "/agents")).body.data).toEqual([]);
     const logged = await refusals("agent.create_refused");
@@ -99,6 +100,10 @@ describe("AIS1 row 4: a key or an AI app creates agents only at 'a person approv
       expect(JSON.parse(text(ok)).agent).toMatchObject({ approvalMode: "always", sendCapDaily: AGENT_DEFAULT_DAILY_SENDS, allowedRecipients: ["@acme.io"] });
       await mcp.close();
     }
+    // Both refusals are on the audit log, the connected app's under the person it acts for.
+    const logged = await refusals("agent.create_refused");
+    expect(logged.map((r) => r.metadata.fields)).toEqual([["approvalMode"], ["approvalMode"]]);
+    expect(logged.map((r) => (r.metadata as { caller?: string }).caller).sort()).toEqual(["oauth", "workspace_key"]);
   });
 
   it("a person in the app may still create an agent with any approval mode", async () => {
@@ -216,6 +221,9 @@ describe("AIS1 gap: mail from an agent's inbox always goes through the agent's r
     // Other mailboxes still send.
     const team = (await c.post("/api/mailboxes", { domainId, localPart: "team", displayName: "Team" })).body.mailbox;
     expect((await api(wsKey, "POST", "/messages", { mailboxId: team.id, to: ["grace@example.com"], subject: "Normal", text: "x" })).status).toBe(200);
+    // The API reference says so.
+    const doc = (await ctx.app.request("/api/v1/openapi.json", { headers: { host: "localhost" } }).then((r) => r.json())) as { paths: Record<string, Record<string, { responses: Record<string, { description: string }> }>> };
+    expect(doc.paths["/messages"].post.responses["403"].description).toContain("agent_inbox");
   });
 
   it("a person writing from the agent's inbox in the app is their own approval", async () => {
