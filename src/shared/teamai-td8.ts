@@ -34,6 +34,8 @@ export const ROUTINE_OUTPUTS = ["draft", "chat"] as const;
 export type RoutineOutput = (typeof ROUTINE_OUTPUTS)[number];
 export const RUN_STATUSES = ["queued", "running", "done", "skipped", "failed"] as const;
 export type RunStatus = (typeof RUN_STATUSES)[number];
+/** AIS1: the statuses a run ends in, which the year's prune may delete. Every status but queued and running. */
+export const FINISHED_RUN_STATUSES: readonly RunStatus[] = RUN_STATUSES.filter((s) => s !== "queued" && s !== "running");
 export type RunKind = "routine" | "mention" | "try";
 
 export const TRIGGER_LABEL: Record<RoutineTrigger, string> = {

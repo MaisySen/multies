@@ -85,6 +85,7 @@ const ACTIONS: Record<string, string> = {
   "agent_trigger.secret_rotated": "rotated the secret of the agent trigger",
   "agent_trigger.fired": "fired the agent trigger",
   "agent_trigger.refused": "refused to fire the agent trigger",
+  "teamai.run_deleted": "deleted a Team AI run", // AIS1
 };
 
 /** R28 (DF-3 slice 3): why a trigger did not fire, in plain words. */

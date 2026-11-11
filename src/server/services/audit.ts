@@ -73,6 +73,17 @@ export function redactAuditRow<T extends { targetType?: string | null; targetId?
   return out;
 }
 
+const PRIVATE_KEYS = /email|^ip$|ipAddress|userAgent|invit|token|^subject$/i;
+/**
+ * What a plain member may see of an audit row: no IP, no addresses or invite details in its metadata. AIS1: and no mail
+ * subject (an agent's read or send names its thread, which may be in a mailbox the member can't open). Used by the
+ * dashboard and, since AIS1, by an agent's audit log (app and v1).
+ */
+export function memberSafeAudit<T extends { ip?: string | null; actorEmail?: string | null; metadata?: Record<string, unknown> | null }>(row: T): T {
+  const metadata = row.metadata ? Object.fromEntries(Object.entries(row.metadata).filter(([k]) => !PRIVATE_KEYS.test(k))) : row.metadata;
+  return { ...row, ip: null, metadata };
+}
+
 /** R111: Audit log filters (Activity > Audit log, flag MAIL_ARCHIVE_R111): action prefixes, who did it, a date range. */
 export interface AuditFilter { prefixes?: string[]; actor?: string; from?: Date; to?: Date }
 export function auditFilterCond(f: AuditFilter | undefined): SQL | undefined {

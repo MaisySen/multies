@@ -722,7 +722,9 @@ export async function pruneAgentEvents(deps: Deps) {
 }
 
 export async function agentAudit(deps: Deps, actor: Actor, agentId: string, limit = 100) {
-  const { listAudit } = await import("../audit");
+  const { listAudit, memberSafeAudit } = await import("../audit");
   await row(deps, actor.orgId, agentId);
-  return listAudit(deps.db, actor.orgId, { agentId, limit });
+  const rows = await listAudit(deps.db, actor.orgId, { agentId, limit });
+  // AIS1: a plain member (or an agent member's key) sees no IPs, addresses or mail subjects, as on the dashboard.
+  return actor.role === "member" ? rows.map(memberSafeAudit) : rows;
 }

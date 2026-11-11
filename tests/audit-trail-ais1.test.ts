@@ -11,11 +11,10 @@ import { eq, sql } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { auditLogs } from "@/server/db/schema";
 import { pkceChallenge } from "@/server/services/developer/oauth";
-import { audit } from "@/server/services/audit";
+import { audit, memberSafeAudit } from "@/server/services/audit";
 import { noteRequestCaller, runWithRequestCaller } from "@/server/lib/request-caller";
 import { auditWho, callerStampOf, viaLabel } from "@/shared/audit-caller";
 import { deliverInbound } from "@/server/services/mail/delivery";
-import { memberSafeAudit } from "@/server/routes/dashboard";
 import { describeAudit } from "@/web/components/app-bits";
 import { TEAMAI_CAPS } from "@/shared/teamai-td8";
 
@@ -212,6 +211,43 @@ describe("AIS1 row 15: thread reads, deleted keys and IPs", () => {
   it("a member's dashboard never shows a thread subject from the audit log", () => {
     expect(memberSafeAudit({ ip: "1.2.3.4", actorEmail: "agent:a@b.c", metadata: { subject: "Payroll", messages: 2 } })).toEqual({ ip: null, actorEmail: "agent:a@b.c", metadata: { messages: 2 } });
   });
+
+  it("a member reading an agent's audit log sees no thread subjects and no IPs; an admin sees both", async () => {
+    const ws = await newKey("Agents");
+    const { agent, apiKey } = (await v1(ws.secret, "POST", "/agents", { name: "Reader", localPart: "reader" })).body;
+    await deliverInbound(ctx.deps, {
+      envelopeFrom: "grace@example.com", rcptTo: "reader@acme.io", sizeBytes: 300, via: "test",
+      email: { messageId: "<r2@example.com>", from: { address: "grace@example.com", name: "Grace" }, to: [{ address: "reader@acme.io" }], cc: [], subject: "Salary review", text: "Hi", date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+    });
+    const threadId = (await v1(apiKey.secret, "GET", `/agents/${agent.id}/threads`)).body.data[0].id as string;
+    await v1(apiKey.secret, "GET", `/threads/${threadId}`);
+    const inv = await c.post("/api/team/invites", { email: "mate@acme.io", role: "member" });
+    const mate = new Client(ctx.app);
+    await mate.signup("mate@acme.io");
+    expect((await mate.post(`/api/invites/${inv.body.link.split("/invite/")[1]}/accept`)).status).toBe(200);
+    const seen = (who: Client) => who.get(`/api/agents/${agent.id}/audit`).then((r) => (r.body.entries as { action: string; ip: string | null; metadata: Record<string, unknown> | null }[]).find((e) => e.action === "agent.message_read")!);
+    const asMember = await seen(mate);
+    expect(asMember.metadata).not.toHaveProperty("subject");
+    expect(asMember.ip).toBeNull();
+    expect(asMember.metadata?.caller).toMatchObject({ kind: "agent_key" });
+    const asAdmin = await seen(c);
+    expect(asAdmin.metadata).toMatchObject({ subject: "Salary review" });
+    expect(asAdmin.ip).toBe(IP);
+  });
+
+  it("signing up, a password change and a lockout keep the IP they came from", async () => {
+    const SIGNIN_IP = "192.0.2.50";
+    const h = { "cf-connecting-ip": SIGNIN_IP };
+    const u = new Client(ctx.app);
+    expect((await u.call("POST", "/api/auth/sign-up/email", { name: "Sam Lee", email: "sam@acme.io", password: "a-strong-password" }, h)).status).toBe(200);
+    expect((await u.call("GET", "/api/account/me", undefined, h)).status).toBe(200);
+    expect((await rows("account.created")).find((r) => r.actorEmail === "sam@acme.io")?.ip).toBe(SIGNIN_IP);
+    expect((await u.call("POST", "/api/auth/change-password", { currentPassword: "a-strong-password", newPassword: "another-strong-one", revokeOtherSessions: false }, h)).status).toBe(200);
+    expect((await rows("account.password_changed")).find((r) => r.actorEmail === "sam@acme.io")?.ip).toBe(SIGNIN_IP);
+    const stranger = new Client(ctx.app);
+    for (let i = 0; i < 10 && !(await rows("account.locked")).length; i++) await stranger.call("POST", "/api/auth/sign-in/email", { email: "sam@acme.io", password: "wrong-password-here" }, { "cf-connecting-ip": "198.51.100.99" });
+    expect((await rows("account.locked"))[0]?.ip).toBe("198.51.100.99");
+  });
 });
 
 describe("AIS1 row 15: the Team AI run log", () => {
@@ -231,6 +267,18 @@ describe("AIS1 row 15: the Team AI run log", () => {
     await runTeamAiPass(t.deps);
     const left = await t.deps.db.all<{ id: string }>(sql`select id from teamai_runs order by id`);
     expect(left.map((r) => r.id)).toEqual(["g400", "r300", "r40"]);
+  });
+
+  it("deleting a run from the log is itself in the audit log", async () => {
+    const t = await makeTestApp({ TEAMAI_TD8: "on" });
+    const u = new Client(t.app);
+    await u.signup("ai@acme.io");
+    const orgId = (await u.get("/api/account/me")).body.organization.id as string;
+    await t.deps.db.run(sql`insert into teamai_runs (id, org_id, kind, label, event_key, status, created_at) values ('run_1', ${orgId}, 'routine', 'Weekly summary', 'k1', 'done', ${Date.now()})`);
+    expect((await u.call("DELETE", "/api/team-ai/runs/run_1", undefined, { "cf-connecting-ip": APP_IP })).status).toBe(200);
+    const [row] = (await t.db.select().from(auditLogs).where(eq(auditLogs.action, "teamai.run_deleted")));
+    expect(row).toMatchObject({ actorEmail: "ai@acme.io", targetType: "teamai_run", targetId: "run_1", ip: APP_IP });
+    expect(JSON.parse(row.metadata!)).toMatchObject({ kind: "routine", name: "Weekly summary", status: "done" });
   });
 });
 
