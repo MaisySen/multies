@@ -149,6 +149,22 @@ describe("AIS1 row 1: no account or membership for an agent's address", () => {
     expect(await ctx.db.select().from(members).where(and(eq(members.organizationId, orgId), eq(members.kind, "human")))).toHaveLength(1);
     expect(await refusals("member.join_refused")).toHaveLength(1);
   });
+
+  it("an account with the agent's address and no workspace doesn't get a new one on sign in", async () => {
+    const legacy = new Client(ctx.app);
+    await legacy.signup("legacy@elsewhere.test", "Agent", "");
+    const userId = (await ctx.db.select().from(users).where(eq(users.email, "legacy@elsewhere.test")).get())!.id;
+    const own = (await ctx.db.select().from(members).where(eq(members.userId, userId)).get())!.organizationId;
+    await ctx.db.delete(members).where(eq(members.userId, userId));
+    await ctx.db.update(users).set({ email: "agent@acme.io", emailVerified: true }).where(eq(users.id, userId));
+    legacy.autoVerify = false;
+    const r = await legacy.patch("/api/org", { name: "Agent's own" });
+    expect(r.status).toBe(403);
+    expect(r.body.error.message).toContain("AI agent's inbox");
+    expect(await ctx.db.select().from(members).where(eq(members.userId, userId))).toHaveLength(0);
+    expect((await ctx.db.select().from(organizations)).map((o) => o.id).sort()).toEqual([orgId, own].sort());
+    expect(await refusals("member.join_refused")).toEqual([expect.objectContaining({ email: "agent@acme.io", via: "new_workspace" })]);
+  });
 });
 
 describe("AIS1 row 1: an invite a key makes waits for a person", () => {
