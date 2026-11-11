@@ -420,7 +420,7 @@ function registerSuiteTools(server: McpServer, deps: Deps, actor: Scoped, writab
 
   server.registerTool("update_task", {
     title: "Update a task", annotations: rw,
-    description: "Change a task: status (todo, doing, done) or a project status id, assignee, priority, due date, labels, title, notes, type (task, story, bug, epic), estimate (points) or sprint (sprintId).",
+    description: "Change a task: status (todo, doing, done) or a project status id, assignee, priority, due date, labels, title, notes, type (task, story, bug, epic), estimate (points) or sprint (sprintId). Moving a task from a project with Triage off into one with Triage on answers person_only; make the task in that project instead, where it waits for a person.",
     inputSchema: {
       id: z.string(), title: z.string().max(300).optional(), notes: z.string().max(50_000).optional(), status: z.enum(["todo", "doing", "done"]).optional(), statusId: z.string().optional(),
       assignee: assigneeArg, priority: z.enum(["none", "low", "medium", "high", "urgent"]).optional(), due: z.string().nullable().optional(), labels: z.array(z.string()).max(20).optional(),

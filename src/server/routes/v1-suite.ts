@@ -140,12 +140,13 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   async (c) => send(c, await taskDetail(c.var.deps, actor(c), c.req.valid("param").id)));
 
   api.openapi(createRoute({ method: "patch", path: "/tasks/{id}", tags: tag("Tasks"), summary: "Update a task", security: secured,
-    description: "Change any field, move it to another status or project, or reorder it with position. Send version to reject the write if the task changed since you read it.",
-    request: { params: Id, ...body(TaskPatch) }, responses: { 200: json(z.object({ task: Task }), "The task."), 401: errors[401], 404: errors[404], 409: errors[409], 422: errors[422] } }),
+    description: "Change any field, move it to another status or project, or reorder it with position. Send version to reject the write if the task changed since you read it. A key can't move a task from a project with Triage off into one with Triage on (403 person_only) unless it waits in Triage or a person accepted it there; make it in that project instead, where it waits.",
+    request: { params: Id, ...body(TaskPatch) }, responses: { 200: json(z.object({ task: Task }), "The task."), 401: errors[401], 403: err("A person must move this task into a project with Triage on (person_only)."), 404: errors[404], 409: errors[409], 422: errors[422] } }),
   async (c) => { const b = c.req.valid("json"); return send(c, { task: await updateTask(c.var.deps, actor(c), c.req.valid("param").id, { ...b, assignee: assigneeOf(b), assignees: b.assignees?.map((x) => parseAssignee(x)!) }) }); });
 
   api.openapi(createRoute({ method: "delete", path: "/tasks/{id}", tags: tag("Tasks"), summary: "Delete a task and its subtasks", security: secured,
-    request: { params: Id }, responses: { 200: json(z.object({ ok: z.boolean() }), "Deleted."), 401: errors[401], 404: errors[404] } }),
+    description: "Deletes the task and its subtasks. A key can't delete a task that waits in Triage, or one whose subtask waits there (403 person_only): a person decides those.",
+    request: { params: Id }, responses: { 200: json(z.object({ ok: z.boolean() }), "Deleted."), 401: errors[401], 403: err("A person must decide a task that waits in Triage (person_only)."), 404: errors[404] } }),
   async (c) => send(c, await deleteTask(c.var.deps, actor(c), c.req.valid("param").id)));
 
   api.openapi(createRoute({ method: "post", path: "/tasks/{id}/comments", tags: tag("Tasks"), summary: "Comment on a task", security: secured,

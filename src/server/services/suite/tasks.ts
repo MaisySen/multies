@@ -607,6 +607,17 @@ export function machineTriage(actor: SuiteActor): NonNullable<CreateTaskInput["t
   return { source: kind === "workspace_key" && !viaMcp ? "api" : "agent", when: "if_project" };
 }
 
+/**
+ * AIS1 review (row 35): a key or a connected AI app may not move a task out of a project with Triage off into one
+ * with Triage on, or work it made where nobody checks would land on a checked board unseen (403 person_only, nothing
+ * changes). A task that waits, or that a person accepted in Triage before, may move; so may one between two projects
+ * with Triage on. People and automations (system) may move anything. Reads nothing: the caller has the rows.
+ */
+export function assertMoveKeepsTriage(actor: SuiteActor, intoTriage: boolean, rows: { triageState: string | null; triageSource: string | null; fromTriage: boolean }[]) {
+  if (!intoTriage || !machineTriage(actor)) return;
+  if (rows.some((r) => !r.triageState && !r.triageSource && !r.fromTriage)) requirePerson(actor, "Moving a task from a project without Triage into one with Triage on");
+}
+
 const cleanSubject = (s: string) => s.replace(/^\s*((re|fw|fwd|aw)\s*:\s*)+/i, "").trim();
 
 export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTaskInput, opts: { id?: string; retry?: boolean } = {}) {
@@ -813,6 +824,8 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
     const p = await projectRow(deps, actor.orgId, patch.projectId);
     // R34: the ref it leaves behind (OPS-12) keeps opening it after the move.
     const from = await projectRow(deps, actor.orgId, t.projectId).catch(() => null);
+    // AIS1 review (row 35): checked before the number claim below writes anything.
+    assertMoveKeepsTriage(actor, !!p.triage, [{ ...t, fromTriage: !!from?.triage }]);
     // R55: moving back to a project it left gives the task its old number again when it is free (exact Undo).
     const refs = await import("./task-refs-r34");
     set.projectId = p.id; set.number = (await refs.keptNumberFor(deps, actor.orgId, p, t.id)) ?? await claimNumbers(deps, p.id); projectId = p.id;

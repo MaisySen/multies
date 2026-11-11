@@ -270,7 +270,9 @@ rules (workspace automations and a person's own rules), public forms, incoming h
 `POST /data-moves/imports/run` and MCP `import_file` from a key, also into a new project the import makes; the
 work import answers `triage: true` then); tasks a person makes or imports in the app go straight to the board.
 A decision on a task takes its subtasks with it: accept brings in the ones that wait, decline and merge remove
-them, and undo puts them back.
+them, and undo puts them back. A key or an AI app can't move a task from a project with Triage off into one
+with Triage on (`PATCH /tasks/{id}` or `POST /tasks/bulk` with `projectId`: 403 `person_only`, nothing changes)
+unless it waits in Triage or a person accepted it there; it can make the task in that project, where it waits.
 It is on for every new project, made in the app, by a key (`POST /projects`), from a template, by an import
 or as the first "Tasks" project (AIS1); projects made before keep what they had. Only a person signed in
 turns it off: `triage: false` from a key, on create or on `PATCH /projects/{id}`, answers 403 `person_only`.
@@ -1077,7 +1079,7 @@ Agent members are workspace members of kind `agent` (see docs/adr/0008-agents-as
 A read only link to a doc or a project board for someone who is not in the workspace (a client or a partner), without making them a guest.
 
 - `POST /api/v1/share-links` with `{ kind: "doc" | "project_board", targetId, expiresInDays?: 7 | 30, showWorkspaceName?: boolean }` answers 201 with `{ link: { id, kind, targetId, showWorkspaceName, createdBy, createdAt, expiresAt, url } }`. `url` is `https://multies.si/s/<token>` (32 random bytes, base64url) and is shown only this once: only the token's SHA-256 is stored. `showWorkspaceName` defaults to true (the page says "Shared by <workspace>"); false hides it. One row written.
-- How long a link works (AIS1): `expiresInDays` left out means 30 days. `null` (never expires) needs a person signed in to Multies: an API key, an agent member key or a connected AI app gets 403 `person_only`. In the app a person may still pick Always (`expiresInDays: null`); the web Share sheet starts at 30 days. Links made before this keep the end date they had.
+- How long a link works (AIS1): `expiresInDays` left out means 30 days. `null` (never expires) needs a person signed in to Multies: a workspace key or a connected AI app gets 403 `person_only`, and so does an agent member key over MCP (over the public API agent and agent member keys can't use `/share-links` at all). In the app a person may still pick Always (`expiresInDays: null`); the web Share sheet starts at 30 days. Links made before this keep the end date they had.
 - `GET /api/v1/share-links?kind=&targetId=` lists active links (not revoked, not expired), newest first, at most 200, with `allowShareLinks`. Read only keys can list.
 - `DELETE /api/v1/share-links/{id}` revokes a link at once. Revoking twice is fine.
 - The page `GET /s/<token>` needs no sign in. A doc shows its title and body (comments dropped, mentions as plain names, links into the app as plain text). A board shows its columns by status with each card's title, assignee initials, due date and labels; never notes, comments, files or custom fields. An unknown, revoked or expired token, a deleted target, or share links turned off answer 404 with "This link is no longer active". Headers: `Cache-Control: private, max-age=0`, `X-Robots-Tag: noindex, nofollow`, `Referrer-Policy: no-referrer`, and the app's page CSP. 60 opens a minute per IP (429 after). Opening a link writes nothing (views are not counted).
