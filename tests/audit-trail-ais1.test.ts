@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { auditLogs } from "@/server/db/schema";
 import { pkceChallenge } from "@/server/services/developer/oauth";
@@ -17,6 +17,7 @@ import { auditWho, callerStampOf, viaLabel } from "@/shared/audit-caller";
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { memberSafeAudit } from "@/server/routes/dashboard";
 import { describeAudit } from "@/web/components/app-bits";
+import { TEAMAI_CAPS } from "@/shared/teamai-td8";
 
 const IP = "203.0.113.7";
 const APP_IP = "198.51.100.4";
@@ -210,6 +211,26 @@ describe("AIS1 row 15: thread reads, deleted keys and IPs", () => {
 
   it("a member's dashboard never shows a thread subject from the audit log", () => {
     expect(memberSafeAudit({ ip: "1.2.3.4", actorEmail: "agent:a@b.c", metadata: { subject: "Payroll", messages: 2 } })).toEqual({ ip: null, actorEmail: "agent:a@b.c", metadata: { messages: 2 } });
+  });
+});
+
+describe("AIS1 row 15: the Team AI run log", () => {
+  it("keeps the Team AI run log for a year, not 30 days", async () => {
+    expect(TEAMAI_CAPS.keepRunsDays).toBe(365);
+    const t = await makeTestApp({ TEAMAI_TD8: "on" });
+    const u = new Client(t.app);
+    await u.signup("ai@acme.io");
+    const orgId = (await u.get("/api/account/me")).body.organization.id as string;
+    const day = 86_400_000;
+    const now = Date.now();
+    // A run still going is never pruned, however old it is.
+    for (const [id, age, status] of [["r40", 40, "done"], ["r300", 300, "failed"], ["r400", 400, "done"], ["s400", 400, "skipped"], ["g400", 400, "running"]] as const) {
+      await t.deps.db.run(sql`insert into teamai_runs (id, org_id, kind, event_key, status, created_at, started_at) values (${id}, ${orgId}, 'try', ${id}, ${status}, ${now - age * day}, ${now})`);
+    }
+    const { runTeamAiPass } = await import("@/server/services/teamai-td8");
+    await runTeamAiPass(t.deps);
+    const left = await t.deps.db.all<{ id: string }>(sql`select id from teamai_runs order by id`);
+    expect(left.map((r) => r.id)).toEqual(["g400", "r300", "r40"]);
   });
 });
 

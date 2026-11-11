@@ -699,7 +699,8 @@ export async function runTeamAiPass(deps: Deps): Promise<{ queued: number; ran: 
   await deps.db.run(sql`update teamai_runs set status = 'failed', reason = 'timeout', input = null, finished_at = ${now} where status = 'running' and started_at < ${now - 10 * 60_000}`);
   const waiting = await deps.db.all<{ id: string }>(sql`select id from teamai_runs where status = 'queued' order by created_at asc limit ${CAP.runsPerPass}`);
   for (const x of waiting) { await processRun(deps, x.id); ran++; }
-  await deps.db.run(sql`delete from teamai_runs where created_at < ${now - CAP.keepRunsDays * 86_400_000} and status not in ('queued', 'running')`);
+  // AIS1: finished runs only, through teamai_runs_status_idx (status, created_at), so a year of runs is not scanned each pass.
+  await deps.db.run(sql`delete from teamai_runs where status in ('done', 'skipped', 'failed') and created_at < ${now - CAP.keepRunsDays * 86_400_000}`);
   takePending();
   return { queued, ran };
 }
