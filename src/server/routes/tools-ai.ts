@@ -228,7 +228,7 @@ export async function fillInvoices(c: Context<AppEnv>, feature: "extract" | "exp
     if (useAi && missing.length && !note) {
       const p = invoiceFillPrompt(doc, missing);
       const r = await askAi(c.var.deps, c.var.auth.orgId, { task: "chat", system: p.system, user: p.user, maxTokens: 160 });
-      if (r.ok) row = applyInvoiceFill(row, parseJsonObject(r.text));
+      if (r.ok) { row = applyInvoiceFill(row, parseJsonObject(r.text)); if (r.fallback) note = r.fallback.message; } // QUAL1: built-in AI stood in
       else note = r.message;
     }
     rows.push(row);
@@ -297,6 +297,7 @@ export function toolsAiRoutes() {
       return c.json({
         name, question: q ?? null, answer: q ? text : null, bullets: q ? null : bullets(text), pages: citedPages(text, shown),
         partial: shown.length < chunks.length, pagesRead: doc.pages.length, source: r.ok ? r.source : null,
+        ...(r.ok && r.fallback ? { fallback: r.fallback } : {}), // QUAL1: built-in AI answered because the workspace's key was refused
       });
     })
     // 11 Translate: one batch of segments a call (the page shows progress), metered as one reservation.
@@ -317,7 +318,7 @@ export function toolsAiRoutes() {
       const translations: Record<string, string> = {};
       if (r.ok) batch.forEach((s, i) => { if (r.texts[i]) translations[String(s.id)] = r.texts[i]; });
       const next = input.offset + batch.length;
-      return c.json({ translations, total: segs.length, done: Math.min(next, segs.length), next: next < segs.length ? next : null });
+      return c.json({ translations, total: segs.length, done: Math.min(next, segs.length), next: next < segs.length ? next : null, ...(r.ok && r.fallback ? { fallback: r.fallback } : {}) });
     })
     // 11 Put the translations back into the file, keeping its layout. Attachment (JSON) or upload (multipart).
     .post("/translate/apply", async (c) => {
@@ -430,7 +431,7 @@ export function toolsAiRoutes() {
       if (missing.length) {
         const p = contractFillPrompt(doc, missing);
         const r = await askAi(c.var.deps, c.var.auth.orgId, { task: "chat", system: p.system, user: p.user, maxTokens: 200 });
-        if (r.ok) facts = applyContractFill(facts, parseJsonObject(r.text));
+        if (r.ok) { facts = applyContractFill(facts, parseJsonObject(r.text)); if (r.fallback) note = r.fallback.message; } // QUAL1
         else note = r.message;
       }
       const today = c.var.deps.now().toISOString().slice(0, 10);

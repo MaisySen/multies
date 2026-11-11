@@ -178,6 +178,17 @@ describe("built-in AI stands in for a refused key, and says so (QUAL1, row 14)",
     expect((await t.keyRow())?.problem).toBe("key_refused");
   });
 
+  it("Settings, AI trust names built-in AI as answering in the key's place while it is refused", async () => {
+    const t = await setup();
+    t.deps.ai = fakeAi() as unknown as typeof t.deps.ai;
+    const before = (await t.c.get("/api/ai-trust")).body.providers as { use: string }[];
+    expect(before.some((p) => p.use.includes("while your key is refused"))).toBe(false);
+    t.setAnswer(refused);
+    await t.c.post("/api/ai/summary", { messageId: t.messageId });
+    const after = (await t.c.get("/api/ai-trust")).body.providers as { use: string; name: string }[];
+    expect(after.find((p) => p.use.includes("while your key is refused"))).toBeTruthy();
+  });
+
   it("AI_KEY_FALLBACK=off keeps the plain 409 instead", async () => {
     const t = await setup({ AI_KEY_FALLBACK: "off" });
     const ai = fakeAi();

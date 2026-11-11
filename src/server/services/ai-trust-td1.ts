@@ -30,7 +30,7 @@ async function trustRow(deps: Deps, orgId: string) {
 async function rows(deps: Deps, orgId: string) {
   const [trust, key] = await Promise.all([
     deps.db.select().from(aiTrust).where(eq(aiTrust.orgId, orgId)).get(),
-    deps.db.select({ provider: aiKeys.provider }).from(aiKeys).where(eq(aiKeys.orgId, orgId)).get(),
+    deps.db.select({ provider: aiKeys.provider, problem: aiKeys.problem }).from(aiKeys).where(eq(aiKeys.orgId, orgId)).get(),
   ]);
   return { trust, key };
 }
@@ -56,8 +56,10 @@ export async function aiTrustState(deps: Deps, orgId: string, role: string): Pro
   const on = !deps.config.askTd1 ? true : trust ? !!trust.enabled : true;
   const builtin = whereOf("builtin");
   const own = key ? whereOf(key.provider) : null;
+  // QUAL1 (audit row 14): while the provider refuses the saved key, built-in AI answers in its place, and this list says so.
+  const standIn = !!key?.problem && !!deps.ai && deps.config.aiKeyFallback !== false;
   const providers = own
-    ? [...(deps.config.askR110 ? [{ use: "Ask", ...builtin }] : []), { use: "Mail, meetings and Tools AI", ...own }]
+    ? [...(deps.config.askR110 ? [{ use: "Ask", ...builtin }] : []), { use: "Mail, meetings and Tools AI", ...own }, ...(standIn ? [{ use: "In their place while your key is refused", ...builtin }] : [])]
     : [{ use: [deps.config.askR110 ? "Ask" : null, "Tools AI", deps.config.aiConnectAi2 ? "mail" : null].filter(Boolean).join(", ").replace(/, ([^,]*)$/, " and $1"), ...builtin }];
   return {
     controls: !!deps.config.askTd1, on, source: trust ? "admin" : "default",

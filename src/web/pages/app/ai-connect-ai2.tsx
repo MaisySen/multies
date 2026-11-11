@@ -17,7 +17,7 @@ import { ConfirmButton } from "@/web/components/ui/confirm";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { IconCheck, IconExternalLink, IconEye, IconEyeOff, IconRefresh, IconSparkle } from "@/web/components/ui/icon";
 import { AI2_RESULT_TEXT, cleanPastedKey, detectProvider, type Ai2Model, type Ai2ProviderCard, type Ai2ProviderId } from "@/shared/ai-connect-ai2";
-import { KEY_PROBLEM_BADGE, type AiStatus } from "./ai-section";
+import { keyProblemBadge, type AiStatus } from "./ai-section";
 import { AI_OFF_MEMBER, AI_OFF_MESSAGE } from "@/shared/ask-td1";
 
 export interface BuiltinStatus { off?: boolean; available: boolean; active: boolean; paused: boolean; percent: number; calls: number; message: string | null }
@@ -53,7 +53,7 @@ export function AiConnectPanel({ status, isAdmin }: { status: AiStatus; isAdmin:
   }
   return (
     <div className="space-y-4" data-testid="ai2-panel">
-      <BuiltinCard builtin={status.builtin} ownKey={status.connected} keyProblem={!!status.problem} />
+      <BuiltinCard builtin={status.builtin} ownKey={status.connected} keyProblem={!!status.problem && status.keyFallback !== false} />
       <section className={cardClass} aria-labelledby="ai2-own-title">
         <button
           type="button" className="flex w-full items-center justify-between gap-3 text-left" aria-expanded={advanced}
@@ -70,7 +70,7 @@ export function AiConnectPanel({ status, isAdmin }: { status: AiStatus; isAdmin:
             {status.connected && (
               <div className="flex flex-wrap items-center gap-3 text-sm" data-testid="ai2-connected">
                 {/* QUAL1 (audit row 14): a key the provider refused is never a green "Connected". */}
-                {status.problem ? <Badge tone="bad" dot>{KEY_PROBLEM_BADGE[status.problem]}</Badge> : <Badge tone="ok" dot>Connected</Badge>}
+                {status.problem ? <Badge tone="bad" dot>{keyProblemBadge(status.problem)}</Badge> : <Badge tone="ok" dot>Connected</Badge>}
                 <span>{status.providerName}{status.baseHost ? ` (${status.baseHost})` : ""}, key ending {status.keyHint}</span>
                 {isAdmin && (
                   <span className="ml-auto flex flex-wrap gap-2">

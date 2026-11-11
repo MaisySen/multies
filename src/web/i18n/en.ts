@@ -5,6 +5,9 @@
 import type { Bundle } from "./core";
 
 export const en: Bundle = {
+  "ai.badge_key_refused": "Key refused",
+  "ai.badge_model_unavailable": "Model not offered",
+  "ai.badge_no_credit": "No credit",
   "ai.fix_key": "Fix it in Settings, AI",
   "appearance.language": "Language",
   "appearance.language_draft_note": "This translation is new. Some pages are still in English while we finish them.",

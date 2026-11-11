@@ -5,6 +5,9 @@
 import type { Bundle } from "./core";
 
 export const ne: Bundle = {
+  "ai.badge_key_refused": "कुञ्जी अस्वीकृत",
+  "ai.badge_model_unavailable": "मोडेल उपलब्ध छैन",
+  "ai.badge_no_credit": "क्रेडिट छैन",
   "ai.fix_key": "सेटिङ, AI मा मिलाउनुहोस्",
   "appearance.language": "भाषा",
   "appearance.language_draft_note": "यो अनुवाद नयाँ हो। हामीले काम सिध्याउँदै गर्दा केही पृष्ठहरू अझै अंग्रेजीमा छन्।",

@@ -157,12 +157,15 @@ notes and recordings, catch-up, forms, the connection test and the model list). 
 - `GET /api/ai/status` adds `problem` (`key_refused`, `no_credit` or `model_unavailable`), `problemAt` (ISO time) and
   `problemMessage` (the plain sentence the app shows) while the key is refused. They are absent while it works; `connected`
   stays `true` because the key is still saved.
-- `POST /api/ai/summary`, `/api/ai/draft` and `/api/ai/triage` (and the other routes that run on the key) answer **409**
-  with the code `ai_key_refused`, `ai_no_credit` or `ai_model_unavailable`, the same sentence, and
-  `details.fix: "/app/settings#ai"`. A provider that is down or rate limited is still `502 ai_provider_error`.
+- `POST /api/ai/summary`, `/api/ai/draft` and `/api/ai/triage` (and the meeting suggestions, the forms AI draft, the
+  live meeting summary and `POST /api/catchup/summary`) answer **409** with the code `ai_key_refused`, `ai_no_credit` or
+  `ai_model_unavailable`, the same sentence, and `details.fix: "/app/settings#ai"`. A provider that is down or rate
+  limited is still `502 ai_provider_error`. A recording chunk the provider refuses stays `502 ai_provider_error` (so the
+  phone keeps the chunk and retries it) with the same sentence.
 - With built-in AI on (AI2), it answers instead, inside the free daily meter, and the answer carries
-  `fallback: { reason, message }` (`message` starts "Built-in AI wrote this because ..."). The document tools say the same
-  in their results, and a Team AI run ends with that line. The deployment switch `AI_KEY_FALLBACK=off` turns this off.
+  `fallback: { reason, message }` (`message` starts "Built-in AI wrote this because ..."). The document tools' Ask and
+  Translate answers carry the same `fallback`, their invoice and contract readers put the sentence in `note`, and a Team
+  AI run ends with that line. The deployment switch `AI_KEY_FALLBACK=off` turns this off.
 - `POST /api/ai/models` with a refused key answers the short list of common models with `live: false`,
   `problem: "key_refused"` and a note saying so, and keeps no cached copy.
 - `GET /api/team-ai/state` shows `ai.keyProblem` and `ai.keyProblemMessage`; `ai.source` is `built_in` (or `none`)

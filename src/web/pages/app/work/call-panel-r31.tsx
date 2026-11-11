@@ -7,8 +7,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconCheckCircle, IconCircle, IconClock, IconClose, IconGavel, IconHash, IconNotes, IconSparkle, IconTeam, IconChat } from "@/web/components/ui/icon";
-import { api } from "@/web/lib/api";
-import { showError } from "@/web/lib/show-error";
+import { api, errorMessage } from "@/web/lib/api";
 import { Button } from "@/web/components/ui/button";
 import { Skeleton } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
@@ -81,7 +80,7 @@ function Todos({ todos }: { todos: { text: string; done: boolean }[] }) {
   );
 }
 
-export function SoFarView({ data, onWrite, writing, written }: { data: SoFar; onWrite?: () => void; writing?: boolean; written?: string | null }) {
+export function SoFarView({ data, onWrite, writing, written, writeError }: { data: SoFar; onWrite?: () => void; writing?: boolean; written?: string | null; writeError?: string | null }) {
   const open = data.notes?.todos ?? [];
   return (
     <div data-testid="so-far" aria-live="polite">
@@ -90,6 +89,8 @@ export function SoFarView({ data, onWrite, writing, written }: { data: SoFar; on
         <span className="flex items-center gap-1 text-[12px] text-muted"><IconClock className="h-3.5 w-3.5" aria-hidden />{data.elapsedMin} {tr("meetings.min_since_the_start")}</span>
       </div>
       {written && <p className="mx-4 mt-3 whitespace-pre-line rounded-xl bg-brand-soft p-3 text-[13px] text-fg" data-testid="so-far-written">{written}</p>}
+      {/* QUAL1 (audit row 12): why the summary was not written stays here; Write a summary again retries. */}
+      {writeError && <p role="alert" className="mx-4 mt-3 rounded-xl bg-bad-soft p-3 text-[13px] text-bad" data-testid="so-far-write-error">{writeError}</p>}
       <Section icon={<IconTeam className="h-3.5 w-3.5" aria-hidden />} title={tr("meetings.here_now_length", { length: data.participants.length })}>
         {data.participants.length ? (
           <ul className="space-y-1 text-[13px]" data-testid="so-far-people">
@@ -178,7 +179,7 @@ export function CallSidePanel({ meetingId, guestToken, member, tab, onClose, so 
   const [written, setWritten] = useState<string | null>(null);
   const write = useMutation({
     mutationFn: () => api.post<{ summary: string }>(`/meeting-live/${meetingId}/so-far/summary`, {}),
-    onSuccess: (r) => setWritten(r.summary), onError: (e) => showError(e as Error),
+    onSuccess: (r) => setWritten(r.summary),
   });
   return (
     <aside className="flex w-full shrink-0 flex-col overflow-hidden rounded-xl border border-line bg-elevated md:w-[360px] motion-safe:animate-[fade-in_160ms_ease-out]" aria-label={tab === "notes" ? tr("meetings.call_notes") : tab === "live" ? tr("meetings.live_polls") : tr("meetings.so_far")} data-testid="call-panel">
@@ -190,7 +191,7 @@ export function CallSidePanel({ meetingId, guestToken, member, tab, onClose, so 
         {tab === "live" ? (member && meetingId ? <MeetingLivePanel meetingId={meetingId} isAdmin={false} /> : null)
           : tab === "notes"
           ? (member && meetingId ? <div className="p-2"><MeetingNotes meetingId={meetingId} /></div> : guestToken ? <GuestNotesView token={guestToken} /> : null)
-          : so.data ? <SoFarView data={so.data} onWrite={() => write.mutate()} writing={write.isPending} written={written} />
+          : so.data ? <SoFarView data={so.data} onWrite={() => write.mutate()} writing={write.isPending} written={written} writeError={write.error ? errorMessage(write.error) : null} />
           : so.error ? <p className="p-4 text-[13px] text-muted">{(so.error as Error).message}</p>
           : <div className="space-y-2 p-4"><Skeleton className="h-5" /><Skeleton className="h-16" /><Skeleton className="h-16" /></div>}
       </div>

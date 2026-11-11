@@ -15,7 +15,7 @@ import type { TeamAiState } from "@/shared/teamai-td8";
 
 const REFUSED = aiKeyProblemText("key_refused", "Anthropic");
 const builtin = { available: true, active: false, paused: false, percent: 0, calls: 0, message: null };
-const status = (extra: Record<string, unknown> = {}) => ({
+const status = (extra: Record<string, unknown> = {}) => ({ keyFallback: true,
   connected: true, provider: "anthropic", providerName: "Anthropic", model: "claude-haiku-5-5", keyHint: "WXYZ",
   providers: [], ai2: true, cards: [], builtin, mcp: { url: "https://x/api/v1/mcp", docs: "/agents" }, message: "", ...extra,
 });
@@ -99,5 +99,16 @@ describe("the mail assistant (QUAL1, row 12)", () => {
     expect(body).not.toMatch(/onError: \(e\) => showError\(e\)/);
     // The answer from built-in AI says so.
     expect(body).toContain("data-testid=\"mail-ai-fallback\"");
+  });
+
+  it("the meeting Suggest button and the live meeting summary keep their failure on screen too", () => {
+    const suggest = readFileSync(join(process.cwd(), "src/web/pages/app/work/meeting-suggest-td3.tsx"), "utf8");
+    expect(suggest).toContain("data-testid=\"meeting-suggest-error\"");
+    expect(suggest).toContain("onClick={() => void doSuggest()} loading={busy === \"suggest\"}>{tr(\"common.retry\")}");
+    // A refused key does not lock the button: the key may work again, and a refusal answers in plain words.
+    expect(suggest).toContain("!(aiReady || v.ai.state === \"key_problem\")");
+    const panel = readFileSync(join(process.cwd(), "src/web/pages/app/work/call-panel-r31.tsx"), "utf8");
+    expect(panel).toContain("data-testid=\"so-far-write-error\"");
+    expect(panel).not.toContain("showError");
   });
 });
