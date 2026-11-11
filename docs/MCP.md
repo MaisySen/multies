@@ -553,7 +553,7 @@ Registered in src/server/routes/mcp-r26-share.ts. Making or revoking a link need
 
 | Tool | What it does |
 | --- | --- |
-| `create_share_link` | Make a read only link anyone can open without signing in: `kind` `doc` (the doc, read only) or `project_board` (columns, card titles, assignee initials, due dates and labels; never notes, comments, files or custom fields). `expiresInDays` 7 or 30 (left out: never), `showWorkspaceName` (default true). Returns the url once. One row written |
+| `create_share_link` | Make a read only link anyone can open without signing in: `kind` `doc` (the doc, read only) or `project_board` (columns, card titles, assignee initials, due dates and labels; never notes, comments, files or custom fields). `expiresInDays` 7 or 30 (left out: 30); `null` (never) answers `person_only`, because only a person in Multies makes a link that never expires (AIS1). `showWorkspaceName` (default true). Returns the url once. One row written |
 | `list_share_links` | Active links (not revoked, not expired), newest first; pass `kind` and `targetId` for one doc or project |
 | `revoke_share_link` | Stop a link at once by id; its page then says it is no longer active |
 

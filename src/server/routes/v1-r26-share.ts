@@ -36,7 +36,7 @@ export function registerShareLinkRoutes(api: OpenAPIHono<AppEnv>) {
 
   api.openapi(createRoute({
     method: "post", path: "/share-links", tags: ["Docs"], summary: "Make a read only share link", security: [{ bearerAuth: [] }],
-    description: "Body: { kind: doc | project_board, targetId, expiresInDays?: 7 | 30 | null (default never), showWorkspaceName?: boolean (default true) }. Returns the link with its url (https://multies.si/s/<token>), shown only this once. Anyone with the url can read the doc, or the board's columns, card titles, assignee initials, due dates and labels; never notes, comments, files or custom fields. Writes one row.",
+    description: "Body: { kind: doc | project_board, targetId, expiresInDays?: 7 | 30 (default 30), showWorkspaceName?: boolean (default true) }. null (never expires) needs a person signed in to Multies: an API key gets 403 person_only. Returns the link with its url (https://multies.si/s/<token>), shown only this once. Anyone with the url can read the doc, or the board's columns, card titles, assignee initials, due dates and labels; never notes, comments, files or custom fields. Writes one row.",
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     request: { body: { required: true, content: { "application/json": { schema: z.object({}).passthrough() as any } } } }, responses,
   }), async (c) => {

@@ -1,6 +1,6 @@
 /**
  * R26 (MB-87): share links in the web app (cookie session) and the public page.
- *   POST   /api/share-links            { kind: doc | project_board, targetId, expiresInDays?: 7 | 30 | null, showWorkspaceName? }
+ *   POST   /api/share-links            { kind: doc | project_board, targetId, expiresInDays?: 7 | 30 | null (30 when left out), showWorkspaceName? }
  *   GET    /api/share-links            ?kind=&targetId= (active links, newest first)
  *   DELETE /api/share-links/:id        revoke
  *   GET    /api/share-links/settings   { allowShareLinks }

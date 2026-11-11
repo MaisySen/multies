@@ -41,7 +41,8 @@ function ShareSheet({ kind, targetId, onClose }: { kind: Kind; targetId: string;
     try { await api.put(`/docs-plus/share/${l.id}`, { comments: on }); toast.success(on ? tr("docs.comments_on_new_ones_wait_for_your_review_in_the") : tr("docs.comments_off_for_this_link")); void qc.invalidateQueries({ queryKey: key }); void qc.invalidateQueries({ queryKey: ["doc-comments-r103", targetId] }); } catch (e) { showError(e as Error); }
   };
   const q = useQuery({ queryKey: key, queryFn: () => api.get<{ links: ShareLink[]; allowShareLinks: boolean }>(`/share-links?kind=${kind}&targetId=${encodeURIComponent(targetId)}`) });
-  const [expiry, setExpiry] = useState<"never" | "7" | "30">("never");
+  // AIS1 (audit row 67): a new link ends after 30 days unless the person picks another choice (Always stays one).
+  const [expiry, setExpiry] = useState<"never" | "7" | "30">("30");
   const [showWs, setShowWs] = useState(true);
   const [fresh, setFresh] = useState<ShareLink | null>(null);
   const [busy, setBusy] = useState(false);
