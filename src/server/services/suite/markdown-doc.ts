@@ -8,8 +8,9 @@
  * so nothing is lost. Link targets are filtered later by the docs service (http, https, mailto only).
  *
  * QUAL1: any member, key or connected AI app can send up to 200,000 characters here, so no line may make the parser
- * backtrack over itself. Headings and fences are read with plain scans; a run of spaces before the rest of a line is
- * taken whole ("(?=(\s+))\N" never gives part of it back); inline formatting has a work budget per line. Each case
+ * backtrack over itself. Headings, fences and link targets are read with plain scans; a run of spaces before the rest
+ * of a line is taken whole ("(?=(\s+))\N" never gives part of it back); inline scans are remembered per line and have
+ * a work budget per line as a backstop. Each case
  * that used to take seconds is timed in tests/markdown-redos-qual1.test.ts, which also checks that every rewritten
  * pattern reads lines exactly as the old one did.
  */
@@ -278,8 +279,10 @@ function plainWithLinks(s: string, marks: MdMark[]): MdNode[] {
 
 /**
  * QUAL1: the work inline formatting may do on one line, in characters scanned: about INLINE_SCANS passes over it.
- * Ordinary text needs a few. A line built to make the scans quadratic (thousands of unclosed *, _, ~~, [ or `) runs
- * out and is kept as plain text with its web links, instead of holding the server for seconds.
+ * Each scan is done once per line and remembered (where each [ closes, where a span of each kind can close), so a line
+ * needs a few passes however many unclosed *, _, ~~ or [ it has: the heaviest of 200,000 random lines packed with
+ * marks took under 8. A line built to make the scans quadratic, such as thousands of unmatched runs of backticks, runs
+ * out; it is kept as plain text with its web links, instead of holding the server for seconds.
  */
 const INLINE_SCANS = 16;
 const INLINE_SLACK = 1024;
@@ -290,6 +293,12 @@ function spend(work: Work, chars: number) {
   work.left -= chars;
   if (work.left < 0) throw OUT_OF_WORK;
 }
+
+/**
+ * What the scans of one string have found, so no scan runs twice: where each [ closes, and per delimiter where the scan
+ * for a closer that passes each position ends (stored plus 2, so 0 means not scanned yet).
+ */
+interface Seen { brackets?: Int32Array; closers: Map<string, Int32Array> }
 
 /** Inline markdown: code spans, links, bold, italic and strike, with backslash escapes. */
 export function inline(s: string, marks: MdMark[], depth = 0): MdNode[] {
@@ -304,6 +313,7 @@ export function inline(s: string, marks: MdMark[], depth = 0): MdNode[] {
 
 function spans(s: string, marks: MdMark[], depth: number, work: Work): MdNode[] {
   const out: MdNode[] = [];
+  const seen: Seen = { closers: new Map() };
   let buf = "";
   const flush = () => { if (buf) { pushAll(out, plainWithLinks(buf, marks)); buf = ""; } };
   const has = (t: string) => marks.some((m) => m.type === t);
@@ -328,12 +338,12 @@ function spans(s: string, marks: MdMark[], depth: number, work: Work): MdNode[] 
     }
     if (depth < 8) {
       if (ch === "[" && !has("link")) {
-        const close = matchBracket(s, i, work);
-        const url = close > 0 && s[close + 1] === "(" ? s.slice(close + 2).match(/^\s*<?([^\s()<>]*(?:\([^\s()]*\)[^\s()<>]*)*)>?(?:\s+["'][^"']*["'])?\s*\)/) : null;
+        const close = matchBracket(s, i, work, seen);
+        const url = close > 0 && s[close + 1] === "(" ? linkTarget(s, close + 2, work) : null;
         if (url) {
           flush();
-          pushAll(out, spans(s.slice(i + 1, close), [...marks, { type: "link", attrs: { href: url[1] } }], depth + 1, work));
-          i = close + 2 + url[0].length;
+          pushAll(out, spans(s.slice(i + 1, close), [...marks, { type: "link", attrs: { href: url.href } }], depth + 1, work));
+          i = url.end;
           continue;
         }
       }
@@ -345,8 +355,9 @@ function spans(s: string, marks: MdMark[], depth: number, work: Work): MdNode[] 
       if (delim) {
         const mark = delim === "~~" ? "strike" : delim.length === 2 ? "bold" : "italic";
         const leftOk = delim[0] !== "_" || i === 0 || !/[\p{L}\p{N}]/u.test(s[i - 1]);
-        const end = leftOk && !/\s/.test(s[i + delim.length] ?? " ") ? closing(s, i + delim.length, delim, work) : -1;
-        if (end > 0 && !has(mark)) {
+        // A mark already open here is not opened again, so its closer is not looked for.
+        const end = leftOk && !has(mark) && !/\s/.test(s[i + delim.length] ?? " ") ? closing(s, i + delim.length, delim, work, seen) : -1;
+        if (end > 0) {
           flush();
           pushAll(out, spans(s.slice(i + delim.length, end), [...marks, { type: mark }], depth + 1, work));
           i = end + delim.length;
@@ -361,35 +372,129 @@ function spans(s: string, marks: MdMark[], depth: number, work: Work): MdNode[] 
   return out;
 }
 
-function matchBracket(s: string, open: number, work: Work): number {
-  let level = 0;
-  for (let i = open; i < s.length; i++) {
-    if (s[i] === "\\") { i++; continue; }
-    if (s[i] === "[") level++;
-    else if (s[i] === "]" && --level === 0) { spend(work, i - open); return i; }
+/**
+ * The index of the ] that closes the [ at `open`, or -1. A backslash takes the next character with it. QUAL1: every [
+ * the inline scan stops at lies on the one chain of positions this walk takes from the start of the string (the scan
+ * passes over a backslash pair, a code span, a link or a span, and none of those ends in a backslash), so one pass with
+ * a stack finds every pair, the same ones a walk from each [ found before.
+ */
+function matchBracket(s: string, open: number, work: Work, seen: Seen): number {
+  if (!seen.brackets) {
+    spend(work, s.length);
+    const pairs = new Int32Array(s.length).fill(-1);
+    const stack: number[] = [];
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] === "\\") { i++; continue; }
+      if (s[i] === "[") stack.push(i);
+      else if (s[i] === "]" && stack.length) pairs[stack.pop()!] = i;
+    }
+    seen.brackets = pairs;
   }
-  spend(work, s.length - open);
-  return -1;
+  return seen.brackets[open];
+}
+
+const SPACE = /\s/;
+const isQuoteMark = (c: string | undefined) => c === '"' || c === "'";
+
+/**
+ * The target of a link whose "](" ends just before `at`: the address and the index after its ")", or null. A title in
+ * quotes may follow the address; < and > around it are dropped. Reads text exactly as
+ * /^\s*<?([^\s()<>]*(?:\([^\s()]*\)[^\s()<>]*)*)>?(?:\s+["'][^"']*["'])?\s*\)/ did before QUAL1, which backtracked
+ * quadratically on a long run of spaces with no ")" after it. tests/markdown-redos-qual1.test.ts compares the two.
+ */
+export function linkTarget(s: string, at: number, work?: { left: number }): { href: string; end: number } | null {
+  const n = s.length;
+  const space = (k: number) => k < n && SPACE.test(s[k]);
+  const plain = (k: number) => k < n && !SPACE.test(s[k]) && s[k] !== "(" && s[k] !== ")" && s[k] !== "<" && s[k] !== ">";
+  let far = at;
+  // Spaces, an optional "title" after them, spaces, then ")": the index after the ")", or -1.
+  const close = (u: number): number => {
+    let v = u;
+    while (space(v)) v++;
+    if (v > u && isQuoteMark(s[v])) {
+      let x = v + 1;
+      while (x < n && !isQuoteMark(s[x])) x++;
+      far = Math.max(far, x);
+      if (x >= n) return -1;
+      let z = x + 1;
+      while (space(z)) z++;
+      far = Math.max(far, z);
+      return s[z] === ")" ? z + 1 : -1;
+    }
+    far = Math.max(far, v);
+    return s[v] === ")" ? v + 1 : -1;
+  };
+  let w = at;
+  while (space(w)) w++;
+  let q = w;
+  if (s[q] === "<") q++;
+  const start = q;
+  while (plain(q)) q++;
+  // (parts) in brackets, with no spaces or brackets inside, then more plain characters.
+  while (s[q] === "(") {
+    let k = q + 1;
+    while (k < n && !SPACE.test(s[k]) && s[k] !== "(" && s[k] !== ")") k++;
+    if (s[k] !== ")") { far = Math.max(far, k); break; }
+    k++;
+    while (plain(k)) k++;
+    q = k;
+  }
+  const href = s.slice(start, q);
+  if (s[q] === ">") q++;
+  let end = close(q);
+  let found: { href: string; end: number } | null = end >= 0 ? { href, end } : null;
+  // As the pattern did when that fails: no address, and the leading spaces start a title.
+  if (!found && w > at) {
+    end = close(at);
+    if (end >= 0) found = { href: "", end };
+  }
+  if (work) spend(work, far - at + 1);
+  return found;
+}
+
+/**
+ * Where a scan for a closing `delim` goes from position i: i itself when a closer stands there, or the next position
+ * to look at (a backslash takes the next character with it, a closed code span is passed over whole).
+ */
+function closeStep(s: string, i: number, delim: string, work: Work): number {
+  if (s[i] === "\\") return i + 2;
+  if (s[i] === "`") {
+    let j = i;
+    while (s[j] === "`") j++;
+    const e = s.indexOf(s.slice(i, j), j);
+    spend(work, (e > 0 ? e : s.length) - i);
+    if (e > 0) return e + (j - i);
+  }
+  if (!s.startsWith(delim, i) || SPACE.test(s[i - 1])) return i + 1;
+  if (delim.length === 1 && s[i + 1] === delim) return i + 2; // a double delimiter inside a single span
+  if (delim[0] === "_" && i + delim.length < s.length && /[\p{L}\p{N}]/u.test(s[i + delim.length])) return i + 1;
+  return i;
+}
+
+/**
+ * The first closer the scan meets from `start` on, or -1. Where the scan goes from a position depends on that position
+ * alone, so every position it passes is remembered with the answer, and a later scan that reaches one stops there.
+ */
+function scanFrom(s: string, start: number, delim: string, work: Work, memo: Int32Array): number {
+  const path: number[] = [];
+  let found = -1;
+  for (let i = start; i < s.length;) {
+    if (memo[i]) { found = memo[i] - 2; break; }
+    path.push(i);
+    const next = closeStep(s, i, delim, work);
+    if (next === i) { found = i; break; }
+    i = next;
+  }
+  spend(work, path.length);
+  for (const p of path) memo[p] = found + 2;
+  return found;
 }
 
 /** The index of the delimiter that closes a span opened just before `from`, or -1. */
-function closing(s: string, from: number, delim: string, work: Work): number {
-  for (let i = from; i < s.length; i++) {
-    if (s[i] === "\\") { i++; continue; }
-    if (s[i] === "`") {
-      let j = i;
-      while (s[j] === "`") j++;
-      const e = s.indexOf(s.slice(i, j), j);
-      spend(work, (e > 0 ? e : s.length) - i);
-      if (e > 0) { i = e + (j - i) - 1; continue; }
-    }
-    if (!s.startsWith(delim, i) || /\s/.test(s[i - 1])) continue;
-    if (delim.length === 1 && s[i + 1] === delim) { i++; continue; } // a double delimiter inside a single span
-    if (delim[0] === "_" && i + delim.length < s.length && /[\p{L}\p{N}]/u.test(s[i + delim.length])) continue;
-    if (i === from) continue;
-    spend(work, i - from);
-    return i;
-  }
-  spend(work, s.length - from);
-  return -1;
+function closing(s: string, from: number, delim: string, work: Work, seen: Seen): number {
+  let memo = seen.closers.get(delim);
+  if (!memo) { memo = new Int32Array(s.length + 1); seen.closers.set(delim, memo); }
+  const first = scanFrom(s, from, delim, work, memo);
+  // A closer right at `from` would make an empty span; the scan goes on past it.
+  return first === from ? scanFrom(s, from + 1, delim, work, memo) : first;
 }

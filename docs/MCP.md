@@ -139,7 +139,7 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `read_doc` | Read a doc |
 | `create_doc` | Create a doc |
 | `append_to_doc` | Add to a doc |
-| `docs_append` | Append markdown to a doc (R28): keeps what is there; `ifVersion` fails with `version_conflict` if the doc changed; a line too complex to format (thousands of unclosed marks) stays plain text |
+| `docs_append` | Append markdown to a doc (R28): keeps what is there; `ifVersion` fails with `version_conflict` if the doc changed; a line too complex to format (for example thousands of unmatched runs of backticks) stays plain text |
 | `docs_add_block` | Add a table (`rows`, `header`), an image (`url` https, `alt`) or a callout (`text`, `variant` info, success, warning, danger) to the end of a doc (R32); `ifVersion` as for `docs_append` |
 | `search_contacts` | Search contacts |
 | `contact_timeline` | Contact timeline |
