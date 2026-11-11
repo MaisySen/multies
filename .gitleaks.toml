@@ -2,59 +2,56 @@
 [extend]
 useDefault = true
 
+# QUAL1: every entry below allows only the exact value gitleaks found (regexTarget "secret",
+# anchored with ^ and $), never the whole line, so a real key added beside one of these
+# values, or in place of one, is still reported. Each entry also names its files.
+
 # The DKIM key generator (src/server/lib/crypto.ts) wraps a freshly generated key in PEM
-# armour with a template string. The line holds no key material, so it is allowed by
-# path and pattern, which keeps working whatever commit id the line has.
+# armour with a template string. What gitleaks takes for the key is the template itself,
+# "${toB64(pkcs8)...}", which holds no key material.
 [[allowlists]]
 description = "PEM armour template in the DKIM key generator"
 condition = "AND"
-paths = ['src/server/lib/crypto\.ts']
-regexTarget = "line"
-regexes = ['-----BEGIN PRIVATE KEY-----\\n\$\{toB64']
+paths = ['^src/server/lib/crypto\.ts$']
+regexTarget = "secret"
+regexes = ['^-----BEGIN PRIVATE KEY-----\\n\$\{toB64\(pkcs8\)']
 
-# tests/ai.test.ts uses a made up AI provider key to prove the real one is stored encrypted
-# and never echoed. It is not a credential for any service.
+# Made up AI provider keys in the provider's shape: tests/ai.test.ts proves a workspace's
+# own key is stored encrypted and never echoed, and the call recording (R23), write cost
+# and later tests and specs reuse the same fakes (with a Groq shaped twin and an e2e
+# variant). None is a credential for any service.
 [[allowlists]]
-description = "Made up AI key in the bring your own AI tests"
+description = "Made up AI keys in tests and specs"
 condition = "AND"
-paths = ['tests/ai\.test\.ts']
-regexTarget = "line"
-regexes = ['const KEY = "sk-test-0123456789abcdefWXYZ"']
+paths = ['^tests/', '^e2e/']
+regexTarget = "secret"
+regexes = ['^sk-test-0123456789abcdefWXYZ$', '^gsk_test0123456789abcdefWXYZ$', '^sk-e2e-0123456789abcdefWXYZ$']
 
 # R32: the web push tests use the published worked example from RFC 8291 Appendix A
 # (public keys, private keys and auth secret printed in the RFC itself). They sign and
-# decrypt nothing real. Allowed by path and by those exact published values only.
+# decrypt nothing real.
 [[allowlists]]
 description = "RFC 8291 Appendix A example keys in the web push tests"
 condition = "AND"
-paths = ['tests/web-push(-routes)?-r32\.test\.ts']
-regexTarget = "line"
-regexes = ['yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw|q1dXpw3UpT5VOmu_cf_v6ih07Aems3njxI-JWgLcM94|BTBZMqHH6r4Tts7J_aSIgg']
+paths = ['^tests/web-push(-routes)?-r32\.test\.ts$']
+regexTarget = "secret"
+regexes = ['^yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw$', '^q1dXpw3UpT5VOmu_cf_v6ih07Aems3njxI-JWgLcM94$', '^BTBZMqHH6r4Tts7J_aSIgg$']
 
-# QUAL1: the call recording tests (R23) and the write cost test prove a workspace's own AI key is stored
-# encrypted and never echoed, using made up keys in the provider's shape (the same fake as tests/ai.test.ts,
-# a Groq shaped twin, and an e2e variant). None is a credential for any service. Path and exact value only.
-[[allowlists]]
-description = "Made up AI keys in the call recording and write cost tests"
-condition = "AND"
-paths = ['tests/meeting-record-r23\.test\.ts', 'tests/write-cost\.test\.ts', 'e2e/meeting-record-r23\.spec\.ts']
-regexTarget = "line"
-regexes = ['"sk-test-0123456789abcdefWXYZ"', '"gsk_test0123456789abcdefWXYZ"', '"sk-e2e-0123456789abcdefWXYZ"']
-
-# QUAL1: R26 log masking test input. The token is built from {"alg":"HS256"}, {"sub":"1234567890"} and the
-# word "signature" twice; it signs nothing. Path and exact value only.
+# QUAL1: R26 log masking test input. The token is built from {"alg":"HS256"},
+# {"sub":"1234567890"} and the word "signature" twice; it signs nothing.
 [[allowlists]]
 description = "Made up token in the log masking test"
 condition = "AND"
-paths = ['tests/secret-mask-r26\.test\.ts']
-regexTarget = "line"
-regexes = ['"jwt eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiIxMjM0NTY3ODkwIn0\.c2lnbmF0dXJlc2lnbmF0dXJl"']
+paths = ['^tests/secret-mask-r26\.test\.ts$']
+regexTarget = "secret"
+regexes = ['^eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiIxMjM0NTY3ODkwIn0\.c2lnbmF0dXJlc2lnbmF0dXJl$']
 
-# QUAL1: phone app copy for Send securely. The key names contain "secret" and the values are plain English
-# messages, which the generic key rule mistakes for a key. Path and these two keys only.
+# QUAL1: phone app copy for Send securely. A message that contains the word "secret" makes
+# the generic key rule take the next key's name ("m.compose3.secret_failed") for a key.
+# Only names of that form are allowed; any other value on those lines is still reported.
 [[allowlists]]
-description = "Send securely messages in the phone app strings"
+description = "Send securely string names in the phone app strings"
 condition = "AND"
-paths = ['mobile/src/i18n/mpar3\.ts']
-regexTarget = "line"
-regexes = ['^\s*"m\.compose3\.secret_(empty|failed)": "']
+paths = ['^mobile/src/i18n/mpar3\.ts$']
+regexTarget = "secret"
+regexes = ['^m\.compose3\.secret_[a-z]+$']
