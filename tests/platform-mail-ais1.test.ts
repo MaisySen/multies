@@ -4,8 +4,8 @@ import { unzipSync, strFromU8 } from "fflate";
 import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { makeTestApp, Client } from "./helpers";
-import { aliases, deliveries, messages } from "@/server/db/schema";
-import { sendSystemEmail } from "@/server/services/system-mail";
+import { aliases, deliveries, domains, messages } from "@/server/db/schema";
+import { ACCOUNT_MAIL_NOT_SENT_TO_AGENT, sendSystemEmail } from "@/server/services/system-mail";
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { NOT_FORWARDED_TO_AGENT } from "@/server/services/agents/platform-mail";
 import { recordEvent } from "@/server/services/agents";
@@ -150,7 +150,15 @@ describe("AIS1 row 32: the platform's own mail never gives an agent its codes or
     const r = await sendSystemEmail(ctx.deps, { to: "agent@acme.io", accountSecurity: true, subject: "Reset your Multies password", text: "Reset it.", action: { label: "Choose a new password", url: `http://localhost/reset/${SECRET}` } });
     expect(r).toMatchObject({ delivered: false, via: "none" });
     expect(r.detail).toContain("AI agent's inbox");
+    expect(await sendSystemEmail(ctx.deps, { to: "Agent+Signup@acme.io", accountSecurity: true, subject: "Reset your Multies password", text: "Reset it." })).toMatchObject({ delivered: false, via: "none" });
     expect(await ctx.db.select().from(messages).where(eq(messages.subject, "Reset your Multies password")).get()).toBeUndefined();
+    expect(ctx.outbound.sent.filter((m) => m.subject === "Reset your Multies password")).toEqual([]);
+    // Review 2: the agent's workspace sees why it never arrived, by address, in its delivery log.
+    const log = await ctx.db.select().from(deliveries).where(eq(deliveries.orgId, orgId));
+    expect(log.filter((d) => d.status === "rejected").map((d) => [d.toAddress, d.subject, d.detail]).sort()).toEqual([
+      ["agent+signup@acme.io", "Reset your Multies password", ACCOUNT_MAIL_NOT_SENT_TO_AGENT],
+      ["agent@acme.io", "Reset your Multies password", ACCOUNT_MAIL_NOT_SENT_TO_AGENT],
+    ]);
   });
 
   it("outside senders' codes and links keep working, a forged Multies sender is hidden, a bounce notice is readable", async () => {
@@ -249,12 +257,47 @@ describe("AIS1 row 32 (review): a forward never hands the platform's own mail to
     expect(ctx.outbound.sent.filter((m) => m.to.includes("bot@beta.test")).map((m) => m.subject)).toEqual(["Your code"]);
   });
 
-  it("account mail to an alias that reaches an agent is not sent at all", async () => {
-    await ctx.db.insert(aliases).values({ id: "als_ops", orgId, domainId, localPart: "ops", address: "ops@acme.io", destinations: JSON.stringify(["agent@acme.io"]) });
-    const r = await sendSystemEmail(ctx.deps, { to: "ops@acme.io", accountSecurity: true, subject: "Reset your Multies password", text: "Reset it.", action: { label: "Choose a new password", url: `http://localhost/reset/${SECRET}` } });
-    expect(r).toMatchObject({ delivered: false, via: "none" });
-    expect(r.detail).toContain("AI agent's inbox");
-    expect(ctx.outbound.sent.filter((m) => m.subject === "Reset your Multies password")).toEqual([]);
+  it("a person whose own sign in alias also copies their agent still gets a password reset; the agent's copy is withheld", async () => {
+    // Review 2: PRIV1b P37 lets a member make an alias at their own sign in address. Olive sends her mail to her Gmail
+    // and her AI, an ordinary setup. Her reset goes out as usual (it was skipped, with no trace, before).
+    const alias = await owner.post("/api/aliases", { domainId, localPart: "owner", destinations: ["owner@home.example", "agent@acme.io"] });
+    expect(alias.status).toBe(201);
+    ctx.outbound.sent.length = 0;
+    const anon = new Client(ctx.app);
+    const rq = await anon.call("POST", "/api/auth/request-password-reset", { email: "owner@acme.io", redirectTo: "/reset-password" }, { "cf-connecting-ip": "203.0.113.91" });
+    expect(rq.status).toBe(200);
+    const sent = ctx.outbound.sent.filter((m) => m.to.includes("owner@acme.io") && /reset/i.test(m.subject));
+    expect(sent).toHaveLength(1);
+    const link = /https?:\/\/\S+/.exec(sent[0].text ?? "")?.[0] ?? "";
+    const token = link.split("?")[0].split("/").pop() ?? "";
+    expect(token.length).toBeGreaterThan(10);
+    expect((await ctx.db.select().from(deliveries).where(eq(deliveries.orgId, orgId))).filter((d) => d.status === "rejected")).toEqual([]);
+    // The provider hands it back to owner@acme.io: the Gmail copy goes out, the agent's copy has no text, link or code.
+    const sys = ctx.deps.config.systemFrom.address;
+    const back = await deliverInbound(ctx.deps, {
+      envelopeFrom: sys, rcptTo: "owner@acme.io", sizeBytes: 600, via: "test",
+      email: { messageId: "<sys.reset@localhost>", from: { address: sys, name: "Multies" }, to: [{ address: "owner@acme.io" }], cc: [], subject: sent[0].subject, text: sent[0].text ?? "", date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+    });
+    expect(back.forwardedTo).toEqual(["owner@home.example"]);
+    const agentCopy = (await ctx.db.select().from(messages).where(eq(messages.mailboxId, inboxId))).find((m) => m.subject === sent[0].subject)!;
+    expect(agentCopy).toBeTruthy();
+    expect(JSON.stringify((await api(agentKey, "GET", "/events?after=0")).body)).not.toContain(token);
+    expect(JSON.stringify((await api(agentKey, "GET", `/threads/${agentCopy.threadId}`)).body)).not.toContain(token);
+  });
+
+  it("account mail to an address an agent catch-all gets goes out too, and the agent's copy is withheld", async () => {
+    await ctx.db.update(domains).set({ catchAllMailboxId: inboxId }).where(eq(domains.id, domainId));
+    const r = await sendSystemEmail(ctx.deps, { to: "sam@acme.io", accountSecurity: true, subject: "Reset your Multies password", text: "Reset it.", action: { label: "Choose a new password", url: `http://localhost/reset/${SECRET}` } });
+    expect(r.via).toBe("none"); // the log transport: it went to the provider, not into the agent's inbox
+    expect(ctx.outbound.sent.filter((m) => m.to.includes("sam@acme.io")).map((m) => m.subject)).toEqual(["Reset your Multies password"]);
+    expect(await ctx.db.select().from(messages).where(eq(messages.mailboxId, inboxId))).toEqual([]);
+    const sys = ctx.deps.config.systemFrom.address;
+    await deliverInbound(ctx.deps, {
+      envelopeFrom: sys, rcptTo: "sam@acme.io", sizeBytes: 300, via: "test",
+      email: { messageId: "<sys.sam@localhost>", from: { address: sys, name: "Multies" }, to: [{ address: "sam@acme.io" }], cc: [], subject: "Reset your Multies password", text: `Choose a new password: http://localhost/reset/${SECRET}`, date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+    });
+    expect((await ctx.db.select().from(messages).where(eq(messages.mailboxId, inboxId))).map((m) => m.subject)).toEqual(["Reset your Multies password"]);
+    expect(JSON.stringify((await api(agentKey, "GET", "/events?after=0")).body)).not.toContain(SECRET);
   });
 });
 

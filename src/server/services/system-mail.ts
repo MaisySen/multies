@@ -11,6 +11,7 @@ import { enqueue, PermanentJobError, registerJob } from "./jobs";
 import { eq } from "drizzle-orm";
 import { domains, organizations } from "../db/schema";
 import { systemDomainOf } from "./suite/operator-inbox";
+import type { AgentAddress } from "./agents/agent-address";
 
 /**
  * PRIV1b (SP5): the one stamp rule for mail the platform delivers as itself (account mail, bounce notices). Pass while
@@ -47,6 +48,15 @@ export interface SystemEmail {
   accountSecurity?: boolean;
 }
 
+/**
+ * AIS1 (row 32): where account mail (accountSecurity) is not sent at all: an AI agent's own inbox (a +tag of it
+ * included) and an agent member's internal address. Not "alias" or "catch_all": see sendSystemEmail.
+ */
+const SKIP_ACCOUNT_MAIL: ReadonlySet<AgentAddress["via"]> = new Set<AgentAddress["via"]>(["agent_inbox", "agent_member"]);
+
+/** Why account mail to an AI agent's inbox was not sent (the result's detail and the agent workspace's delivery log). */
+export const ACCOUNT_MAIL_NOT_SENT_TO_AGENT = "Not sent: this address is an AI agent's inbox. Multies doesn't send account email to agents.";
+
 export interface SystemEmailResult {
   /** True when the email reached a real inbox (a Multies mailbox or an external provider). */
   delivered: boolean;
@@ -79,15 +89,25 @@ export async function sendSystemEmail(deps: Deps, e: SystemEmail): Promise<Syste
   const to = e.to.toLowerCase();
 
   const route = await routeRecipient(deps.db, to);
-  // AIS1 (row 32): mail that can take over an account never goes to an AI agent at all: its inbox, a +tag of it, or an
-  // alias or a catch-all that reaches one in any workspace (it would otherwise go out and come back in through it).
-  // A few indexed reads, only for account mail (sign up, reset, invite), never on a signed in request.
+  // AIS1 (row 32): mail that can take over an account is never sent to an AI agent's own address: its inbox (or a
+  // +tag of it) or an agent member's internal address. Nobody else reads mail there. An alias or a catch-all that
+  // also reaches an agent is often a person's own address ("send my mail to my Gmail and my AI"), so that mail goes
+  // out as usual: it comes back in from the system sender, and the agent's copy is withheld (agents/platform-mail.ts),
+  // and an alias never forwards it to another workspace's agent (mail/delivery.ts). A few indexed reads, only for
+  // account mail (sign up, reset, invite), never on a signed in request. To skip more, add a `via` to SKIP_ACCOUNT_MAIL.
   if (e.accountSecurity) {
     const { agentAddress } = await import("./agents/agent-address");
     const agent = await agentAddress(deps.db, to);
-    if (agent) {
-      deps.log?.warn("system_mail.agent_inbox_skipped", { template: e.template ?? "notice", via: agent.via });
-      return { delivered: false, via: "none", detail: "This address delivers to an AI agent's inbox. Multies doesn't send account email to agents." };
+    if (agent && SKIP_ACCOUNT_MAIL.has(agent.via)) {
+      deps.log?.warn("system_mail.agent_inbox_skipped", { template: e.template ?? "notice", via: agent.via, orgId: agent.orgId });
+      // The agent's workspace sees why it never arrived: the delivery log names the address. One write, only here.
+      if (agent.orgId) {
+        await logDelivery(deps.db, {
+          orgId: agent.orgId, direction: "outbound", fromAddress: config.systemFrom.address, toAddress: to, subject: e.subject,
+          status: "rejected", provider: "internal", detail: ACCOUNT_MAIL_NOT_SENT_TO_AGENT,
+        }).catch((err: unknown) => deps.reportError?.(err, { where: "system_mail.agent_inbox_skipped" }));
+      }
+      return { delivered: false, via: "none", detail: ACCOUNT_MAIL_NOT_SENT_TO_AGENT };
     }
   }
   const internal = e.accountSecurity ? route.kind === "mailbox" && route.mailbox.address.toLowerCase() === to : route.kind !== "none";
