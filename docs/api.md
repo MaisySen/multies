@@ -164,8 +164,10 @@ saying the provider would not answer this request. Rate limits are not noted eit
   live meeting summary, `POST /api/catchup/summary`, the mail Translate `POST /api/translate`, and the document tools'
   `POST /api/tools/ai/ask` and `/api/tools/ai/translate`) answer **409** with the code `ai_key_refused`, `ai_no_credit`
   or `ai_model_unavailable`, the same sentence, and `details.fix: "/app/settings#ai"`. A provider that is down or rate
-  limited is still `502 ai_provider_error`. A recording chunk the provider refuses stays `502 ai_provider_error` (so the
-  phone keeps the chunk and retries it) with the same sentence.
+  limited is still `502 ai_provider_error`. A recording chunk the provider refuses stays `502 ai_provider_error` with the
+  same sentence (the web recorder tries it again, then names the reason at Stop; the phone app does not record). While
+  the key is noted refused or out of credit, `GET /api/meetings/:id/recordings` keeps `setup.ready: true` (a chunk that
+  works clears the note) with `setup.keyProblem` and the sentence in `setup.message`, which the meeting room shows.
 - Built-in AI answers in the key's place only where the deployment sets `AI_KEY_FALLBACK=on` (with AI2 on). It is off
   by default: the workspace chose its own provider, so its text never goes to another processor unless the operator
   turns this on (after the privacy policy says so). When it is on, `GET /api/ai-trust` lists built-in AI "In their

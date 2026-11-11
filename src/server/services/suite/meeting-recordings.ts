@@ -72,10 +72,15 @@ export async function recordingSetup(deps: Deps, a: SuiteActor) {
   // PAR1: the workspace AI switch (TD1) comes first: off means no transcript, whatever key is saved.
   const on = await aiAllowed(deps, a.orgId);
   const ready = on && canTranscribe(k.provider);
+  // QUAL1 review (audit row 14): a key the provider refused (or with no credit) cannot transcribe. Recording still
+  // starts (only a call that works or a passed test clears the note, so blocking it would keep a fixed key stuck), but
+  // the room says why the transcript may not come. The transcribe model is fixed, so a model note does not apply.
+  const keyProblem = ready && (k.problem === "key_refused" || k.problem === "no_credit") ? k.problem : null;
   return {
     ready, provider: k.provider, providerName: k.providerName,
     code: ready ? null : !on ? SETUP_CODES.aiOff : k.provider ? SETUP_CODES.wrongProvider : SETUP_CODES.noKey,
-    message: ready ? null : !on ? RECORDING_AI_OFF_MESSAGE : RECORDING_SETUP_MESSAGE,
+    message: ready ? (keyProblem ? k.problemMessage ?? null : null) : !on ? RECORDING_AI_OFF_MESSAGE : RECORDING_SETUP_MESSAGE,
+    ...(keyProblem ? { keyProblem } : {}),
     /** Owners and admins change Settings > AI; others ask them. */
     canConfigure: a.role === "owner" || a.role === "admin",
   };
