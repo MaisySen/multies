@@ -31,7 +31,7 @@ const LEVELS: Level[] = ["read", "reply", "send_as"];
 const levelName = (l: Level) => t(`priv1a.level_${l}`);
 
 export function useMailboxPrivacy() {
-  return useQuery({ queryKey: MINE_KEY, queryFn: () => api.get<Mine>("/api/mailboxes/privacy/mine"), staleTime: 60_000 });
+  return useQuery({ queryKey: MINE_KEY, queryFn: () => api.get<Mine>("/mailboxes/privacy/mine"), staleTime: 60_000 });
 }
 
 /** The one time notice for owners and admins: shown while a personal inbox in the workspace is closed to them, until dismissed. */
@@ -39,7 +39,7 @@ export function PrivateInboxNotice() {
   const me = useMe().data;
   const role = me?.organization?.role;
   const lead = role === "owner" || role === "admin";
-  const q = useQuery({ queryKey: MINE_KEY, queryFn: () => api.get<Mine>("/api/mailboxes/privacy/mine"), staleTime: 300_000, enabled: lead });
+  const q = useQuery({ queryKey: MINE_KEY, queryFn: () => api.get<Mine>("/mailboxes/privacy/mine"), staleTime: 300_000, enabled: lead });
   // PRIV1b (P66): dismissed per person and workspace, so the next admin on this browser still sees it.
   const storeKey = noticeKey(me?.user?.id, me?.organization?.id);
   const [hiddenFor, setHiddenFor] = useState<string | null>(null);
@@ -61,7 +61,7 @@ export function MailboxPrivacyPanel() {
   const qc = useQueryClient();
   const me = useMe().data?.user?.id;
   const leave = useMutation({
-    mutationFn: (id: string) => api.del(`/api/mailboxes/${id}/sharing/${me}`),
+    mutationFn: (id: string) => api.del(`/mailboxes/${id}/sharing/${me}`),
     // PRIV1b (P66): the left mailbox also leaves Mail and every mailbox list at once.
     onSuccess: () => Promise.all([["mailbox-privacy"], ["mail"], qk.mailboxes, ["team-inbox"]].map((queryKey) => qc.invalidateQueries({ queryKey }))),
     onError: showError,
@@ -92,12 +92,12 @@ export function MailboxPrivacyPanel() {
 
 function ShareCard({ id, address }: { id: string; address: string }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: sharingKey(id), queryFn: () => api.get<Sharing>(`/api/mailboxes/${id}/sharing`) });
+  const q = useQuery({ queryKey: sharingKey(id), queryFn: () => api.get<Sharing>(`/mailboxes/${id}/sharing`) });
   const [person, setPerson] = useState("");
   const [level, setLevel] = useState<Level>("read");
   const done = (v: Sharing) => { qc.setQueryData(sharingKey(id), v); toast.success(t("priv1a.saved")); };
-  const share = useMutation({ mutationFn: (b: { userId: string; level: Level }) => api.put<Sharing>(`/api/mailboxes/${id}/sharing/${b.userId}`, { level: b.level }), onSuccess: (v) => { setPerson(""); done(v); }, onError: showError });
-  const stop = useMutation({ mutationFn: (userId: string) => api.del<Sharing>(`/api/mailboxes/${id}/sharing/${userId}`), onSuccess: done, onError: showError });
+  const share = useMutation({ mutationFn: (b: { userId: string; level: Level }) => api.put<Sharing>(`/mailboxes/${id}/sharing/${b.userId}`, { level: b.level }), onSuccess: (v) => { setPerson(""); done(v); }, onError: showError });
+  const stop = useMutation({ mutationFn: (userId: string) => api.del<Sharing>(`/mailboxes/${id}/sharing/${userId}`), onSuccess: done, onError: showError });
   const v = q.data;
   return (
     <div className="rounded-xl border border-line p-3" data-testid="priv1a-share-card">
