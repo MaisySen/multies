@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { and, eq } from "drizzle-orm";
+import { Webhook } from "standardwebhooks";
 import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { makeTestApp, Client } from "./helpers";
-import { auditLogs, organizations } from "@/server/db/schema";
+import { auditLogs, authEmailHooks, organizations } from "@/server/db/schema";
+import { encryptSecret } from "@/server/lib/crypto";
 import { pkceChallenge } from "@/server/services/developer/oauth";
 import { AGENT_DEFAULT_DAILY_SENDS } from "@/server/services/agents";
 
@@ -231,6 +233,73 @@ describe("AIS1 gap: mail from an agent's inbox always goes through the agent's r
     const r = await c.post("/api/mail/send", { mailboxId: agent.inboxId, to: ["grace@example.com"], subject: "From a person", text: "x" });
     expect(r.status).toBe(201);
     expect(ctx.outbound.sent.filter((m) => m.subject === "From a person")).toHaveLength(1);
+  });
+});
+
+// AIS1 repair (review of this branch): a sign-up email hook sends as the system, which the agent_inbox check lets through.
+// So a hook must never be put on an agent's inbox, or a key or an AI app could choose (or be handed) the signing secret,
+// sign its own calls and mail anyone from the agent's address with no approval, no cap and no allowed recipients.
+describe("AIS1 gap: sign-up email hooks can't send from an agent's inbox", () => {
+  const SECRET = `v1,whsec_${Buffer.from("review-hook-secret-0123456789abcd").toString("base64")}`;
+  const signup = (to: string) => JSON.stringify({ user: { email: to }, email_data: { token: "1", token_hash: "h", redirect_to: "https://attacker.example/pay", email_action_type: "signup", site_url: "https://attacker.example" } });
+  async function hookCall(path: string, secret: string, body: string) {
+    const now = new Date();
+    const sig = new Webhook(secret.replace(/^v1,/, "")).sign("wh_g1", now, body);
+    return (await ctx.app.request(path, { method: "POST", headers: { "content-type": "application/json", "webhook-id": "wh_g1", "webhook-timestamp": String(Math.floor(now.getTime() / 1000)), "webhook-signature": sig }, body })).status;
+  }
+  const sentFrom = (address: string) => ctx.outbound.sent.filter((m) => m.from.address === address);
+
+  it("a workspace key can't make a hook on an agent's inbox or move one onto it (REST)", async () => {
+    const { agent } = (await api(wsKey, "POST", "/agents", { name: "Safe" })).body;
+    expect(agent).toMatchObject({ approvalMode: "always", allowedRecipients: ["@acme.io"] });
+    const made = await api(wsKey, "POST", "/auth-email-hooks", {
+      from: agent.address, secret: SECRET, supabaseUrl: "https://attacker1234.supabase.co", appName: "Acme billing",
+      branding: { templates: { signup: { subject: "Your invoice is overdue", intro: "Pay now at the link below.", buttonLabel: "Pay" } } },
+    });
+    expect(made.status).toBe(422);
+    expect(made.body.error.code).toBe("validation_failed");
+    // A hook on a team mailbox works, and can't be moved onto the agent.
+    expect((await c.post("/api/mailboxes", { domainId, localPart: "no-reply", displayName: "Acme" })).status).toBe(201);
+    const team = await api(wsKey, "POST", "/auth-email-hooks", { from: "no-reply@acme.io", secret: SECRET, supabaseUrl: "https://abcd1234.supabase.co", appName: "Acme" });
+    expect(team.status).toBe(201);
+    expect((await api(wsKey, "PATCH", `/auth-email-hooks/${team.body.hook.id}`, { from: agent.address })).status).toBe(422);
+    // The Sign-up emails settings don't offer the agent, and a key's save refuses it.
+    expect((await api(wsKey, "GET", "/auth-email-settings")).body.senders.map((s: { address: string }) => s.address)).toEqual(["no-reply@acme.io"]);
+    expect((await api(wsKey, "PUT", "/auth-email-settings", { from: agent.address })).status).toBe(422);
+    // The signed call goes out from the team mailbox; nothing ever leaves the agent's address.
+    expect(await hookCall(new URL(team.body.hook.url).pathname, SECRET, signup("victim@example.com"))).toBe(200);
+    expect(sentFrom("no-reply@acme.io")).toHaveLength(1);
+    expect(sentFrom(agent.address)).toEqual([]);
+  });
+
+  it("a connected AI app can't point the Sign-up emails settings at an agent's inbox (MCP)", async () => {
+    const mcp = await mcpFor(await oauthToken());
+    const agent = JSON.parse(text(await mcp.callTool({ name: "create_agent_inbox", arguments: { name: "Safe" } }))).agent as { address: string };
+    const saved = await mcp.callTool({ name: "update_auth_email_settings", arguments: { from: agent.address, supabaseUrl: "https://attacker1234.supabase.co", appName: "Acme billing" } });
+    await mcp.close();
+    expect(saved.isError).toBe(true);
+    expect(text(saved)).not.toContain("whsec_");
+    expect(sentFrom(agent.address)).toEqual([]);
+  });
+
+  it("a hook saved on an agent's inbox before this change gets no new secret from a key or an AI app", async () => {
+    const { agent } = (await c.post("/api/agents", { name: "Old" })).body;
+    await ctx.db.insert(authEmailHooks).values({ id: "ahk_legacy", orgId, mailboxId: agent.inboxId, kind: "supabase", secretEnc: await encryptSecret(ctx.deps.config.appSecret, SECRET.replace(/^v1,/, "")), supabaseUrl: "https://abcd1234.supabase.co", appName: "Acme" });
+    const byKey = await api(wsKey, "POST", "/auth-email-settings/secret", {});
+    expect(byKey.status).toBe(403);
+    expect(byKey.body.error.code).toBe("person_only");
+    expect(JSON.stringify(byKey.body)).not.toContain("whsec_");
+    const mcp = await mcpFor(await oauthToken());
+    const viaApp = await mcp.callTool({ name: "regenerate_auth_email_secret", arguments: {} });
+    await mcp.close();
+    expect(viaApp.isError).toBe(true);
+    expect(text(viaApp)).toContain("person_only");
+    // Decision: a working sign-up flow isn't cut off, so the saved secret (which only Supabase holds) still sends.
+    expect(await hookCall("/api/auth-hooks/supabase/ahk_legacy", SECRET, signup("new.user@example.com"))).toBe(200);
+    // A person may still make a new secret for it; that is their own setup, as Compose is.
+    const byPerson = await c.post("/api/auth-email-settings/secret", {});
+    expect(byPerson.status).toBe(200);
+    expect(byPerson.body.secret).toMatch(/^v1,whsec_/);
   });
 });
 

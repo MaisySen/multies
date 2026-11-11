@@ -11,7 +11,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { Webhook } from "standardwebhooks";
 import type { AuthContext, Deps } from "../../context";
-import { authEmailHooks, mailboxes } from "../../db/schema";
+import { authEmailHooks, domains, mailboxes } from "../../db/schema";
 import { decryptSecret, encryptSecret, newId } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { sendMessage } from "./send";
@@ -44,12 +44,32 @@ export function normaliseHookSecret(raw: string): string {
   return s;
 }
 
+/**
+ * AIS1 (audit row 44): where sign-up emails may come from. An active team mailbox (not someone's personal mailbox, not
+ * an AI agent's inbox) on one of the workspace's own verified domains. The platform's shared rows (connected Gmail
+ * and other providers, free addresses, the agents' shared domain) belong to the platform, never to the workspace, so
+ * their mailboxes never qualify. The Sign-up emails From list, its save, and the v1 hook create and update all use this.
+ */
+export function senderMailboxCond(orgId: string) {
+  return and(eq(mailboxes.orgId, orgId), eq(domains.orgId, orgId), eq(domains.status, "verified"), eq(mailboxes.status, "active"), eq(mailboxes.personal, false), eq(mailboxes.kind, "person"));
+}
+
+/** The mailbox at `address` when sign-up emails may come from it (senderMailboxCond), else undefined. */
+export async function senderMailbox(deps: Deps, orgId: string, address: string) {
+  const row = await deps.db.select({ mb: mailboxes }).from(mailboxes).innerJoin(domains, eq(domains.id, mailboxes.domainId))
+    .where(and(senderMailboxCond(orgId), eq(mailboxes.address, address))).get();
+  return row?.mb;
+}
+
+const notASender = (from: string) => bad(`${from} can't send sign-up emails. Use a team mailbox on one of this workspace's verified domains (no-reply@ works well), not an agent's inbox or a connected or personal address.`);
+
 export async function createAuthHook(deps: Deps, a: AuthContext & { agentId?: string | null }, input: AuthHookInput, opts: { id?: string; retry?: boolean } = {}) {
   assertManager(a);
   const from = input.from.trim().toLowerCase();
   // PRIV1b (W1): team mailboxes only. A personal mailbox belongs to its owner; an admin key can't send sign-up mail as them.
-  const mb = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.orgId, a.orgId), eq(mailboxes.address, from), eq(mailboxes.personal, false))).get();
-  if (!mb) throw bad(`${from} isn't a mailbox in this workspace. Create it first (no-reply@ works well).`);
+  // AIS1 (row 44): and only on the workspace's own verified domains, never an agent's inbox.
+  const mb = await senderMailbox(deps, a.orgId, from);
+  if (!mb) throw notASender(from);
   if (opts.id && opts.retry) {
     // R55 (MB-239): a retry under the same Idempotency-Key whose first attempt saved the hook gets that hook back. One read, only on a retry.
     const hit = await deps.db.select().from(authEmailHooks).where(and(eq(authEmailHooks.id, opts.id), eq(authEmailHooks.orgId, a.orgId))).get();
@@ -109,9 +129,9 @@ export async function updateAuthHook(deps: Deps, a: AuthContext & { agentId?: st
   let mb = await deps.db.select().from(mailboxes).where(eq(mailboxes.id, h.mailboxId)).get();
   if (input.from !== undefined) {
     const from = input.from.trim().toLowerCase();
-    // PRIV1b (W1): as on create, a hook can't move to a personal mailbox.
-    const next = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.orgId, a.orgId), eq(mailboxes.address, from), eq(mailboxes.personal, false))).get();
-    if (!next) throw bad(`${from} isn't a mailbox in this workspace. Create it first (no-reply@ works well).`);
+    // PRIV1b (W1): as on create, a hook can't move to a personal mailbox. AIS1 (row 44): nor to an agent's inbox or another domain.
+    const next = await senderMailbox(deps, a.orgId, from);
+    if (!next) throw notASender(from);
     if (next.id !== h.mailboxId) set.mailboxId = next.id;
     mb = next;
   }

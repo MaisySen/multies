@@ -350,13 +350,22 @@ Approving a waiting send is a person's decision: `POST /api/v1/approvals/{id}/ap
 Keys can list approvals and reject them (`POST /api/v1/approvals/{id}/reject`), which only stops mail. People
 approve in the app (Approvals, or `POST /api/approvals/{id}/approve`).
 
-Mail from an agent's inbox always goes through the agent, so its rules apply: `POST /api/v1/agents/{id}/send`,
-`/agents/{id}/threads/{threadId}/reply`, and on MCP `send_email`, `reply`, `schedule_send` and
-`schedule_meeting` with an agent. `POST /api/v1/messages` naming an agent inbox (by `mailboxId` or `from`)
-answers 403 `agent_inbox` and points at the agent's send. A person can still write from an agent inbox in the
-app's Compose (or Send later); that message is theirs, not the agent's. The other ways mail leaves (mail rules,
-mail merge, campaigns, e-sign, meeting invites from a person) run as the person who set them up, from mailboxes
-they chose in the app; meeting invites from a person only use person mailboxes.
+Mail a key or a connected AI app sends from an agent's inbox goes through the agent, so its rules apply:
+`POST /api/v1/agents/{id}/send`, `/agents/{id}/threads/{threadId}/reply`, and on MCP `send_email`, `reply`,
+`schedule_send` and `schedule_meeting` with an agent. `POST /api/v1/messages` naming an agent inbox (by
+`mailboxId` or `from`) answers 403 `agent_inbox` and points at the agent's send. A person can still write from
+an agent inbox in the app's Compose (or Send later); that message is theirs, not the agent's. The other ways mail
+leaves (mail rules, mail merge, campaigns, e-sign, meeting invites from a person) run as the person who set them
+up, from mailboxes they chose in the app; meeting invites from a person only use person mailboxes.
+
+Sign-up emails (the Supabase auth email hook) are sent by Multies itself, outside any agent's rules, so they never
+come from an agent's inbox: the Sign-up emails From list doesn't offer one, and `POST` or `PATCH
+/api/v1/auth-email-hooks`, `PUT /api/v1/auth-email-settings` and MCP `update_auth_email_hook` and
+`update_auth_email_settings` answer 422 for an agent's address. One exception is left on purpose, so a working
+sign-up flow isn't cut off: a hook saved on an agent's inbox before this change keeps sending what Supabase signs.
+A key or a connected AI app can't get a new signing secret for such a hook (`POST
+/api/v1/auth-email-settings/secret` and MCP `regenerate_auth_email_secret` answer 403 `person_only`); move its
+From to a team mailbox first, or have a person do it in the app.
 
 ## Weekly meeting series
 
@@ -1302,7 +1311,7 @@ The Email Worker signs each delivery with a workspace's inbound key. Owner and a
 
 Settings, Sign-up emails (workspace owners and admins) and the REST API manage the workspace's auth email hook (the Supabase Send Email Hook above) without hand calls. Full workspace keys only: members, agent keys and read only keys get 403.
 
-- `GET /api/v1/auth-email-settings`: `{ settings, senders, types, testSendsPerHour }`. `settings` is `null` before the first save, else `{ id, enabled, senderName, from, appName, supabaseUrl, branding, endpointUrl, secret: { set, masked }, testSendsLeft, lastUsedAt }`. The secret itself is never returned here; `masked` shows its last 4 characters. `senders` are the mailboxes on the workspace's verified domains.
+- `GET /api/v1/auth-email-settings`: `{ settings, senders, types, testSendsPerHour }`. `settings` is `null` before the first save, else `{ id, enabled, senderName, from, appName, supabaseUrl, branding, endpointUrl, secret: { set, masked }, testSendsLeft, lastUsedAt }`. The secret itself is never returned here; `masked` shows its last 4 characters. `senders` are the active team mailboxes on the workspace's own verified domains. AIS1 (audit row 44): never an AI agent's inbox, a personal mailbox or a connected address (Gmail and the like); `PUT` here and `POST` or `PATCH /api/v1/auth-email-hooks` refuse any other `from` with 422. Hooks saved before keep sending until their From is changed.
 - `PUT /api/v1/auth-email-settings` with any of `{ enabled, senderName, from, appName, supabaseUrl, branding }` (`from` and `supabaseUrl` are needed the first time; `branding` merges as in PATCH above, `null` clears it). The first save answers with `secret` once, in the form Supabase takes (`v1,whsec_...`). `enabled: false` makes the hook answer 503 and send nothing; `senderName` is the From name (null uses the mailbox's display name).
 - `POST /api/v1/auth-email-settings/secret`: a new signing secret, returned once; the old one stops working at once.
 - `POST /api/v1/auth-email-settings/preview` with `{ type?, appName?, branding?, email? }`: the email one type would send, with unsaved changes merged in. Nothing is sent or stored.
