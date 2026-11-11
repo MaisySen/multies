@@ -30,6 +30,10 @@ npx playwright test                 # starts a local Node server on :8788 with D
 npm run a11y:audit -- <base-url> <out-file>   # add --cookies for signed in pages
 ```
 
+`npm run typecheck` checks about 7,000 files and needs about 5.3 GB of memory (measured on Linux, Node 22,
+11 November 2026), more than Node's default heap, so the script runs tsc with a 6 GB heap. That fits the
+7 GB CI runner. If it runs out of memory again, measure first (`/usr/bin/time -v`) before raising the cap.
+
 `npx playwright test` starts its own server (`src/entry/node.ts` on port 8788 with a fresh database
 in `.data/e2e.db` and an outbox in `.data/e2e-outbox`), so nothing else needs to run.
 
