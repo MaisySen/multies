@@ -22,9 +22,14 @@ export interface AiStatus {
   providers: { id: AiProviderId; name: string; defaultModel: string; keysUrl: string }[];
   /** AI2 (AI_CONNECT_AI2): set only while the flag is on. */
   ai2?: boolean; cards?: Ai2ProviderCard[]; builtin?: BuiltinStatus; baseHost?: string | null;
+  /** QUAL1 (audit rows 12, 14): present only while the provider refuses the saved key, its credit or its model. */
+  problem?: "key_refused" | "no_credit" | "model_unavailable"; problemAt?: string; problemMessage?: string;
   mcp: { url: string; docs: string };
   message: string;
 }
+
+/** QUAL1: the badge for a saved key the provider refused (never the green "Connected"). */
+export const KEY_PROBLEM_BADGE: Record<NonNullable<AiStatus["problem"]>, string> = { key_refused: "Key refused", no_credit: "No credit", model_unavailable: "Model not offered" };
 
 export const BYO_AI_LINE = "Bring your own AI: connect a desktop chat app, a code editor or any MCP client, free.";
 
@@ -79,8 +84,9 @@ export function AiSection() {
         <p className="text-muted">{tr("home.the_assistant_in_the_inbox_summaries_drafted_rep")}</p>
         {d?.connected ? (
           <div className="flex flex-wrap items-center gap-3">
-            <Badge tone="ok" dot>{tr("home.connected")}</Badge>
+            {d.problem ? <Badge tone="bad" dot>{KEY_PROBLEM_BADGE[d.problem]}</Badge> : <Badge tone="ok" dot>{tr("home.connected")}</Badge>}
             <span>{d.providerName}, {d.model}{tr("home.key_ending")} {d.keyHint}</span>
+            {d.problemMessage && <span className="basis-full text-bad" role="status" data-testid="ai-key-problem">{d.problemMessage}</span>}
             {isAdmin && <Button size="sm" variant="ghost" loading={remove.isPending} onClick={() => remove.mutate()}>{tr("home.remove_key")}</Button>}
           </div>
         ) : <p className="text-muted">{tr("home.no_key_added_so_the_assistant_is_off")}</p>}

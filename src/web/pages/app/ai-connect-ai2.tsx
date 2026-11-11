@@ -17,11 +17,11 @@ import { ConfirmButton } from "@/web/components/ui/confirm";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { IconCheck, IconExternalLink, IconEye, IconEyeOff, IconRefresh, IconSparkle } from "@/web/components/ui/icon";
 import { AI2_RESULT_TEXT, cleanPastedKey, detectProvider, type Ai2Model, type Ai2ProviderCard, type Ai2ProviderId } from "@/shared/ai-connect-ai2";
-import type { AiStatus } from "./ai-section";
+import { KEY_PROBLEM_BADGE, type AiStatus } from "./ai-section";
 import { AI_OFF_MEMBER, AI_OFF_MESSAGE } from "@/shared/ask-td1";
 
 export interface BuiltinStatus { off?: boolean; available: boolean; active: boolean; paused: boolean; percent: number; calls: number; message: string | null }
-interface ModelList { provider: Ai2ProviderId; models: Ai2Model[]; recommended: string | null; live: boolean; current: string; note: string | null }
+interface ModelList { provider: Ai2ProviderId; models: Ai2Model[]; recommended: string | null; live: boolean; current: string; note: string | null; problem?: "key_refused" | "no_credit" }
 interface TestResult { ok: boolean; code: keyof typeof AI2_RESULT_TEXT; message: string; ms: number | null; model: string }
 
 const cardClass = "rounded-xl border border-line bg-elevated/60 p-4";
@@ -53,7 +53,7 @@ export function AiConnectPanel({ status, isAdmin }: { status: AiStatus; isAdmin:
   }
   return (
     <div className="space-y-4" data-testid="ai2-panel">
-      <BuiltinCard builtin={status.builtin} ownKey={status.connected} />
+      <BuiltinCard builtin={status.builtin} ownKey={status.connected} keyProblem={!!status.problem} />
       <section className={cardClass} aria-labelledby="ai2-own-title">
         <button
           type="button" className="flex w-full items-center justify-between gap-3 text-left" aria-expanded={advanced}
@@ -69,7 +69,8 @@ export function AiConnectPanel({ status, isAdmin }: { status: AiStatus; isAdmin:
           <div id="ai2-own-body" className="mt-4 space-y-4">
             {status.connected && (
               <div className="flex flex-wrap items-center gap-3 text-sm" data-testid="ai2-connected">
-                <Badge tone="ok" dot>Connected</Badge>
+                {/* QUAL1 (audit row 14): a key the provider refused is never a green "Connected". */}
+                {status.problem ? <Badge tone="bad" dot>{KEY_PROBLEM_BADGE[status.problem]}</Badge> : <Badge tone="ok" dot>Connected</Badge>}
                 <span>{status.providerName}{status.baseHost ? ` (${status.baseHost})` : ""}, key ending {status.keyHint}</span>
                 {isAdmin && (
                   <span className="ml-auto flex flex-wrap gap-2">
@@ -77,6 +78,14 @@ export function AiConnectPanel({ status, isAdmin }: { status: AiStatus; isAdmin:
                     <ConfirmButton size="sm" variant="ghost" armedLabel="Tap again to remove" onConfirm={() => remove.mutate()} disabled={remove.isPending}>Remove key</ConfirmButton>
                   </span>
                 )}
+              </div>
+            )}
+            {status.connected && status.problem && (
+              <div role="status" data-testid="ai2-key-problem" className="rounded-lg bg-bad-soft px-3 py-2 text-[13px] text-bad">
+                <p>{status.problemMessage}{status.problemAt ? ` Since ${new Date(status.problemAt).toLocaleString()}.` : ""}</p>
+                {isAdmin
+                  ? <p className="mt-1 text-fg">{status.problem === "model_unavailable" ? "Pick another model below, then test the connection." : "Paste a new key with Change provider or key, or fix it with your provider and press Test connection."}</p>
+                  : <p className="mt-1 text-fg">Ask an admin to fix it.</p>}
               </div>
             )}
             {status.connected && isAdmin && !changing && <ModelAndTest status={status} />}
@@ -106,9 +115,10 @@ function useReturnFromSignIn(qc: ReturnType<typeof useQueryClient>) {
   }, [qc]);
 }
 
-function BuiltinCard({ builtin, ownKey }: { builtin?: BuiltinStatus; ownKey: boolean }) {
+function BuiltinCard({ builtin, ownKey, keyProblem }: { builtin?: BuiltinStatus; ownKey: boolean; keyProblem?: boolean }) {
   if (!builtin) return null;
-  const state = !builtin.available ? "off" : ownKey ? "standby" : builtin.paused ? "paused" : "on";
+  // QUAL1: while the own key is refused, built-in AI answers in its place (the answers say so).
+  const state = !builtin.available ? "off" : ownKey && keyProblem ? "standing_in" : ownKey ? "standby" : builtin.paused ? "paused" : "on";
   return (
     <section className={cardClass} aria-labelledby="ai2-builtin-title" data-testid="ai2-builtin">
       <div className="flex flex-wrap items-center gap-2">
@@ -117,6 +127,7 @@ function BuiltinCard({ builtin, ownKey }: { builtin?: BuiltinStatus; ownKey: boo
         {state === "on" && <Badge tone="ok" dot>On</Badge>}
         {state === "paused" && <Badge tone="warn" dot>Paused until tomorrow</Badge>}
         {state === "standby" && <Badge tone="neutral">Not in use: your own key is used</Badge>}
+        {state === "standing_in" && <Badge tone="warn" dot>Answering while your key is refused</Badge>}
         {state === "off" && <Badge tone="neutral">Not available here</Badge>}
       </div>
       <p className="mt-1 text-sm text-muted">Free, with no key. Sorting, summaries and drafted replies work right away, within a fair daily limit for each workspace.</p>
@@ -225,7 +236,10 @@ function ModelAndTest({ status }: { status: AiStatus }) {
     onSuccess: (r) => { qc.setQueryData(["ai-status"], { ...status, model: r.model }); qc.setQueryData(key, (d: ModelList | undefined) => (d ? { ...d, current: r.model } : d)); setResult(null); setTyped(""); toast.success("Model saved"); },
     onError: (e) => showError(e),
   });
-  const test = useMutation({ mutationFn: () => api.post<TestResult>("/ai/test", {}), onSuccess: setResult, onError: (e) => showError(e) });
+  // QUAL1: a test can clear or set the key's refusal, so the status (badge, Team AI, the assistant) is read again.
+  const test = useMutation({ mutationFn: () => api.post<TestResult>("/ai/test", {}), onSuccess: (r) => { setResult(r); void qc.invalidateQueries({ queryKey: ["ai-status"] }); if (r.ok && list.data?.problem) void list.refetch(); }, onError: (e) => showError(e) });
+  // QUAL1: the list found the key refused before anything else did: show it on the badge too.
+  useEffect(() => { if (list.data?.problem && !status.problem) void qc.invalidateQueries({ queryKey: ["ai-status"] }); }, [list.data?.problem, status.problem, qc]);
   const current = list.data?.current ?? status.model ?? "";
   const shown = useMemo(() => {
     const all = list.data?.models ?? [];
@@ -267,7 +281,7 @@ function ModelAndTest({ status }: { status: AiStatus }) {
         </div>
       )}
       {list.data && !list.data.live && (
-        <p className="text-xs text-muted" role="status" data-testid="ai2-fallback">{list.data.note}</p>
+        <p className={list.data.problem ? "text-xs text-bad" : "text-xs text-muted"} role="status" data-testid="ai2-fallback">{list.data.note}</p>
       )}
       <div className="flex flex-wrap items-center gap-3">
         <Button size="sm" variant="secondary" onClick={() => { setResult(null); test.mutate(); }} loading={test.isPending} data-testid="ai2-test">Test connection</Button>

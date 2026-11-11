@@ -17,6 +17,7 @@ import { Card, Skeleton } from "@/web/components/ui/misc";
 import { attachToNewEmail } from "@/web/lib/compose-files";
 import { LoadErrorInline, LoadFailure } from "@/web/components/load-error-t1g";
 import { tr } from "@/web/i18n"; // R104B
+import { AI_KEY_FIX_PATH } from "@/shared/ai-connect-ai2"; // QUAL1
 import "@/web/i18n/w2/en-meetings"; // R104B
 
 interface Who { type: "member" | "agent"; id: string; name: string }
@@ -27,7 +28,7 @@ export interface Suggestion {
 interface View {
   suggestions: Suggestion[]; attendees: Who[]; people: Who[];
   sources: { recordings: { id: string; startedAt: string; status: string }[]; notes: boolean };
-  ai: { state: "ready" | "off" | "no_key"; message: string | null };
+  ai: { state: "ready" | "off" | "no_key" | "key_problem"; message: string | null };
 }
 
 const dayLabel = (d: string) => new Date(`${d.slice(0, 10)}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
@@ -157,7 +158,8 @@ export function MeetingSuggestions({ meetingId }: { meetingId: string }) {
         </Button>
         {source !== "pasted" && <Button size="sm" variant="ghost" className="h-9" onClick={() => setShowText((x) => !x)} aria-expanded={showText} data-testid="meeting-suggest-show-text">{showText ? tr("meetings.hide_text") : tr("meetings.show_text")}</Button>}
       </div>
-      {!aiReady && v.ai.message && <p className="mt-2 text-[12.5px] text-muted" data-testid="meeting-suggest-ai-note">{v.ai.message}</p>}
+      {/* QUAL1: a refused AI key shows its plain sentence even while built-in AI stands in, with the way to fix it. */}
+      {v.ai.message && <p className="mt-2 text-[12.5px] text-muted" data-testid="meeting-suggest-ai-note">{v.ai.message}{v.ai.state === "key_problem" || v.ai.state === "ready" ? <> <Link to={AI_KEY_FIX_PATH} className="font-medium text-brand-hover underline-offset-2 hover:underline">{tr("ai.fix_key")}</Link></> : null}</p>}
 
       {source === "pasted" && (
         <Textarea className="mt-3 min-h-[120px] text-[13px]" aria-label={tr("meetings.paste_the_transcript_or_notes")} placeholder={tr("meetings.paste_the_transcript_or_notes_from_another_tool")}

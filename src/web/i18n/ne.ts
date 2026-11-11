@@ -5,6 +5,7 @@
 import type { Bundle } from "./core";
 
 export const ne: Bundle = {
+  "ai.fix_key": "सेटिङ, AI मा मिलाउनुहोस्",
   "appearance.language": "भाषा",
   "appearance.language_draft_note": "यो अनुवाद नयाँ हो। हामीले काम सिध्याउँदै गर्दा केही पृष्ठहरू अझै अंग्रेजीमा छन्।",
   "appearance.language_hint": "तपाईंका लागि मात्र। मेनु, बटन र सन्देशहरू यही भाषामा देखिन्छन्, र मिति तथा अंकहरू पनि यसैअनुसार हुन्छन्।",

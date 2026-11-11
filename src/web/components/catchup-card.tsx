@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { IconClose, IconHistory } from "@/web/components/ui/icon";
-import { api } from "@/web/lib/api";
+import { api, errorMessage } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -17,6 +17,7 @@ export function CatchupCard({ type, id, className }: { type: CatchupType; id: st
   const [hidden, setHidden] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null); // QUAL1 (audit row 12): the reason stays on the card
   const q = useQuery({
     queryKey: ["catchup", type, id], staleTime: Infinity, gcTime: 60_000, refetchOnWindowFocus: false, retry: false,
     queryFn: async () => (await api.get<{ catchup: CatchupDigest }>(`/catchup?type=${type}&id=${encodeURIComponent(id)}&visit=1`)).catchup,
@@ -28,8 +29,8 @@ export function CatchupCard({ type, id, className }: { type: CatchupType; id: st
     try { await api.post("/catchup/visit", { type, id }); } catch (e) { showError(e as Error); }
   };
   const summarise = async () => {
-    setBusy(true);
-    try { setSummary((await api.post<{ summary: string }>("/catchup/summary", { type, id })).summary); } catch (e) { showError(e as Error); } finally { setBusy(false); }
+    setBusy(true); setFailed(null);
+    try { setSummary((await api.post<{ summary: string }>("/catchup/summary", { type, id })).summary); } catch (e) { setFailed(errorMessage(e)); } finally { setBusy(false); }
   };
   return (
     <section aria-label="Since your last visit" data-testid="catchup-card"
@@ -53,10 +54,11 @@ export function CatchupCard({ type, id, className }: { type: CatchupType; id: st
             </ul>
           )}
           {summary && <p className="mt-2 rounded-lg bg-bg px-2.5 py-2 text-fg" data-testid="catchup-summary">{summary}</p>}
+          {failed && <p role="alert" className="mt-2 rounded-lg bg-bad-soft px-2.5 py-2 text-bad" data-testid="catchup-summary-error">{failed}</p>}
           <div className="mt-2.5 flex flex-wrap gap-1.5">
             <button onClick={() => void caughtUp()} className="rounded-md bg-brand px-2.5 py-1 text-[12.5px] font-medium text-white hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">Mark as caught up</button>
             {d.canSummarise && !summary && (
-              <button onClick={() => void summarise()} disabled={busy} className="rounded-md border border-line px-2.5 py-1 text-[12.5px] hover:bg-fill disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">{busy ? "Writing..." : "Write a summary"}</button>
+              <button onClick={() => void summarise()} disabled={busy} className="rounded-md border border-line px-2.5 py-1 text-[12.5px] hover:bg-fill disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">{busy ? "Writing..." : failed ? "Try again" : "Write a summary"}</button>
             )}
           </div>
         </div>

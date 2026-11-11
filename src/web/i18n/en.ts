@@ -5,6 +5,7 @@
 import type { Bundle } from "./core";
 
 export const en: Bundle = {
+  "ai.fix_key": "Fix it in Settings, AI",
   "appearance.language": "Language",
   "appearance.language_draft_note": "This translation is new. Some pages are still in English while we finish them.",
   "appearance.language_hint": "Just for you. Menus, buttons and messages show in this language, and dates and numbers follow it.",
