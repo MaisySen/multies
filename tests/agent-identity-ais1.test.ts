@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
-import { agents, aliases, auditLogs, domains, invitations, mailboxes, members, organizations, projectGuests, projects, sendApprovals, users } from "@/server/db/schema";
+import { agents, aliases, auditLogs, authEmailHooks, domains, invitations, mailboxes, members, organizations, projectGuests, projects, sendApprovals, users } from "@/server/db/schema";
 import { agentAddress } from "@/server/services/agents/agent-address";
 import { listStaff } from "@/server/services/people-r126";
 import { assignees } from "@/server/services/suite/tasks";
@@ -325,6 +325,18 @@ describe("AIS1 row 44: sign-up emails come only from the workspace's own verifie
     expect(ok.status).toBe(201);
     const moved = await api(wsKey, "PATCH", `/auth-email-hooks/${ok.body.hook?.id ?? ok.body.id}`, { from: "agent@acme.io" });
     expect(moved.status).toBe(422);
+  });
+
+  it("a hook saved before the rule with an agent's inbox as From keeps sending, and Settings says so", async () => {
+    expect((await owner.post("/api/mailboxes", { domainId, localPart: "no-reply", displayName: "Acme" })).status).toBe(201);
+    const ok = await api(wsKey, "POST", "/auth-email-hooks", { from: "no-reply@acme.io", secret: SECRET, supabaseUrl: "https://abcd1234.supabase.co", appName: "Acme" });
+    expect(ok.status).toBe(201);
+    expect((await owner.get("/api/auth-email-settings")).body.settings).toMatchObject({ from: "no-reply@acme.io", fromAllowed: true });
+    // What a workspace saved before AIS1 looks like: the hook sends from the agent's inbox.
+    await ctx.db.update(authEmailHooks).set({ mailboxId: inboxId });
+    const got = (await owner.get("/api/auth-email-settings")).body;
+    expect(got.settings).toMatchObject({ from: "agent@acme.io", fromAllowed: false });
+    expect(got.senders.map((x: { address: string }) => x.address)).toEqual(["no-reply@acme.io"]);
   });
 });
 

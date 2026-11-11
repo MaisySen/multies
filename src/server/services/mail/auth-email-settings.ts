@@ -95,9 +95,13 @@ async function present(deps: Deps, h: HookRow) {
 export async function getAuthEmailSettings(deps: Deps, a: Actor) {
   assertSettingsAdmin(a);
   const h = await currentHook(deps, a.orgId);
+  const senders = (await senderMailboxes(deps, a.orgId)).map((m) => ({ address: m.address, displayName: m.displayName }));
+  const settings = h ? await present(deps, h) : null;
   return {
-    settings: h ? await present(deps, h) : null,
-    senders: (await senderMailboxes(deps, a.orgId)).map((m) => ({ address: m.address, displayName: m.displayName })),
+    // AIS1 (row 44): a hook saved before the rule keeps sending from where it was, so the owner is told when that From
+    // is no longer allowed (an agent's inbox, a connected or personal address, another domain) and can change it.
+    settings: settings ? { ...settings, fromAllowed: senders.some((s) => s.address === settings.from) } : null,
+    senders,
     types: AUTH_EMAIL_TYPES,
     testSendsPerHour: TEST_SENDS_PER_HOUR,
   };
