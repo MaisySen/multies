@@ -18,6 +18,8 @@ import { DEFAULT_TIMEZONE } from "@/shared/locale";
 import { sendInviteEmail, takeInviteSend } from "./invite-email";
 import { chunkIds, inIds } from "../lib/sql-chunks";
 import { assertOpen, canOpen, scopeFor, whoCanOpen, type Need } from "./mail-access-priv1a";
+import { refuseAgentAddress } from "./agents/agent-address";
+import { callerKind } from "../lib/actor-kind";
 
 /** MB-220: shown when someone in the demo tries to invite a person. */
 export const DEMO_INVITES_OFF = "Invites are off in the demo. Sign up to invite your team.";
@@ -140,6 +142,8 @@ export async function createInvite(deps: Deps, auth: AuthContext, headers: Heade
   const { db } = deps;
   const email = input.email.trim().toLowerCase();
   const key = viaKey(auth);
+  // AIS1 (row 1): an AI agent's inbox (or an alias or catch-all that reaches one) is never invited as a person.
+  await refuseAgentAddress(deps, email, { action: "member.invite_refused", orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, metadata: { via: callerKind(auth) } });
   // A workspace key acts with the admin role; inviting an admin needs the key's creator to be the owner.
   let inviterRole: Role = auth.role;
   if (key) {
@@ -256,6 +260,8 @@ export async function acceptInvite(deps: Deps, auth: AuthContext, headers: Heade
   if (!inv || inv.status === "canceled" || inv.status === "rejected") throw notFound("Invitation");
   if (inv.status === "accepted") throw new HttpError(410, "invite_used", "This invitation has already been used.");
   if (inv.expiresAt <= deps.now()) throw new HttpError(410, "invite_expired", "This invitation has expired. Ask for a new one.");
+  // AIS1 (row 1): an invite made before the fix, to an address that reaches an AI agent, never makes it a member.
+  await refuseAgentAddress(deps, inv.email, { action: "member.join_refused", orgId: inv.organizationId, actorUserId: auth.userId, actorEmail: auth.email, metadata: { invitationId: inv.id } });
   if (inv.email !== auth.email.toLowerCase()) throw forbidden(`This invitation is for ${inv.email}. Sign in with that address to accept it.`);
   // R39 security hotfix: the invite id alone is not proof. The account must own the invited address,
   // so an account made with someone else's address but never confirmed can't take their seat or role.

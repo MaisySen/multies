@@ -17,6 +17,8 @@ import { assertWritable, createdBy, iso, recordWrite, sortableId, type SuiteActo
 import { addComment, getProject, listComments, listTasks, resolveTaskId, type Task } from "./tasks";
 import { listFields } from "./fields";
 import { deferrableWrite } from "../write-priority";
+import { refuseAgentAddress } from "../agents/agent-address";
+import { callerKind } from "../../lib/actor-kind";
 
 const INVITE_DAYS = 14;
 export const GUEST_COOKIE = "mm_guest";
@@ -58,6 +60,8 @@ export async function inviteGuest(deps: Deps, actor: SuiteActor, projectId: stri
   const project = await getProject(deps, actor.orgId, projectId);
   const email = input.email.trim().toLowerCase();
   if (!looksLikeEmail(email)) throw new HttpError(422, "validation_failed", "That email address doesn't look right.");
+  // AIS1 (row 1): an AI agent's inbox is never a guest: the invite link would land in the agent's feed.
+  await refuseAgentAddress(deps, email, { action: "guest.invite_refused", orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, metadata: { projectId: project.id, via: callerKind(actor), ...(actor.agentId ? { agentId: actor.agentId } : {}) } });
   const existing = await deps.db.select().from(projectGuests).where(and(eq(projectGuests.projectId, project.id), eq(projectGuests.email, email))).get();
   if (!existing) {
     const count = (await listGuests(deps, actor.orgId, project.id)).length;
@@ -115,6 +119,7 @@ export async function newGuestLink(deps: Deps, actor: SuiteActor, guestId: strin
   if (!g || g.status === "revoked") throw notFound("Guest");
   if (g.status === "active") throw new HttpError(409, "already_joined", "This guest has already joined, so they don't need a link.");
   if (g.approvalId) throw new HttpError(409, "waiting_for_approval", "This invite is waiting for approval, so it can't be shared by hand yet.");
+  await refuseAgentAddress(deps, g.email, { action: "guest.invite_refused", orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, metadata: { guestId: g.id } });
   await getProject(deps, actor.orgId, g.projectId); // the project must still be there
   const token = randomToken(32);
   const now = deps.now();
@@ -140,6 +145,8 @@ export async function acceptInvite(deps: Deps, token: string) {
   const now = deps.now();
   if (!g || g.status === "revoked") throw new HttpError(404, "invite_not_found", "This invite link is not valid. Ask for a new one.");
   if (!g.inviteExpiresAt || g.inviteExpiresAt < now) throw new HttpError(410, "invite_expired", "This invite link has expired. Ask for a new one.");
+  // AIS1 (row 1): an invite made before the fix to an address that reaches an AI agent never opens.
+  await refuseAgentAddress(deps, g.email, { action: "guest.join_refused", orgId: g.orgId, metadata: { guestId: g.id } });
   if (g.approvalId) {
     // An agent's invite counts only once a person approved its email.
     const a = await deps.db.select({ status: sendApprovals.status }).from(sendApprovals).where(eq(sendApprovals.id, g.approvalId)).get();
