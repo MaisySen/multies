@@ -234,7 +234,15 @@ Give a mail thread an owner, mark it done, list threads by view and read reply t
 Agents read only the threads they can open, and anything an agent sends outside Multies still goes
 through its approval rule. Sends and approvals are in the audit log. Thread reads by an agent are in
 the audit log too, rolled up to one entry per agent, thread and hour so a polling agent doesn't fill
-the log (or the database's daily write budget).
+the log (or the database's daily write budget). Each read names the thread (its id and subject).
+
+Everything a tool call writes to the audit log says it came over MCP: the entry carries the request's IP
+and `metadata.caller`, which names the key (`kind` `workspace_key`, `agent_key` or `agent_member_key`,
+with the key's `key` name and `prefix`) or, for a connected app that signed in with OAuth, `kind`
+`oauth` and the name the app registered with in `app`. Workspace admins see it in the app as "via
+Acme Assistant (connected app)" or "via API key Billing bot (mm_live_3kf9)", and in the CSV and JSON export. A
+task made or changed by a tool carries the same `caller` in its history (`get_task`, `activity[].data`).
+See "Audit log: which key or connected app acted" in the REST API reference.
 
 ### Sprints (round 21)
 

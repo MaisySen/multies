@@ -1313,3 +1313,17 @@ Session routes under `/api`, and the same under `/api/v1` with an API key (OpenA
 - `DELETE /blocks/:userId` answers `204`, or `404` when you had not blocked that person.
 - Effect of a block (A blocks B): every chat read A makes (channel messages and `?since=` polls, threads, pins, search, chat search, first unread, unread counts, the channel list preview, catch up digests, meeting "so far") leaves out B's messages on the server. B can't start a DM with A or post in one: `403 { error: { code: "blocked", message: "You can't message this person." } }`. B's mentions, replies and DMs don't notify A (so no push). Live socket events are filtered by the clients with `GET /blocks`. Channel members and `GET /chat/people` carry `blockedByMe`.
 - Operator only (platform admins): `GET /api/admin/reports?status=open|resolved|dismissed|all`, `GET /api/admin/reports/count`, `POST /api/admin/reports/:id/action` body `{ action: "dismiss" | "resolve" | "remove_message" | "suspend_user", note? }`.
+
+## Audit log: which key or connected app acted (AIS1)
+
+The audit log (Activity, Audit log in the app; `GET /api/v1/agents/{id}/audit`; the CSV and JSON export) says what made each change:
+
+- An entry made through an API key or a connected AI app carries `metadata.caller`: `{ kind, key?, prefix?, app? }`. `kind` is `workspace_key`, `agent_key`, `agent_member_key` or `oauth` (a connected app over MCP). A key's entry has the key's `key` (its name) and `prefix` (for example `mm_live_3kf9`); a connected app's entry has `app`, the name it registered with (for example Acme Assistant). A person's own action in the web or phone app has no `caller`, so it reads apart from the same person's connected app, although both carry that person's id and email.
+- What a key's or a connected app's request causes (its agent's send, a rule that fires) carries the same `caller`. A row that a person's request writes for an agent or the system carries neither the person's IP nor a `caller`.
+- `ip` is the request's address on every entry a request made: REST, MCP, the app and sign in. Entries from scheduled jobs have none, and an address Multies can't read is left empty.
+- `caller` is a copy, so an entry still names its key after the key is deleted. `api_key.created`, `api_key.scope_changed`, `api_key.deleted`, `agent.key_created`, `agent.key_revoked`, `agent_member.key_created` and `agent_member.key_revoked` also carry the key's `name` and `prefix`. Entries written before this change have no `caller`; an old key entry shows its actor as `api-key:<prefix>`.
+- An agent's thread read (`agent.message_read`, one per agent, thread and hour) names the thread: `targetId` is the thread id and `metadata.subject` its subject (first 200 characters). A plain member's dashboard never shows a subject from the audit log.
+- The CSV and JSON export end with two more columns: `callerKind` and `via` (for example `via Acme Assistant (connected app)` or `via API key Billing bot (mm_live_3kf9)`). Both are empty for a person in the app.
+- Task history (`activity` on `GET /api/v1/tasks/{id}`, MCP `get_task`) carries the same `caller` in a line's `data` when the change came through a key or a connected app.
+- No extra writes: the stamp rides on the row each change already writes.
+- The Team AI run log keeps runs for 365 days (it was 30). The audit log itself keeps everything for the life of the workspace.
