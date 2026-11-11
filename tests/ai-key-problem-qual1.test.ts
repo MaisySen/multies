@@ -233,7 +233,7 @@ describe("built-in AI stands in for a refused key, and says so (QUAL1, row 14)",
     expect(failed.reasonText).toMatch(/refused the workspace's AI key/);
   });
 
-  it("the default Anthropic model is a current one: the same id the curated list recommends (claude-3-5-haiku-latest was retired)", () => {
+  it("the default Anthropic model is a current one: the same id the curated list recommends (not the older claude-3-5-haiku-latest)", () => {
     expect(AI_PROVIDER_INFO.anthropic.defaultModel).toBe(pickRecommended("anthropic", AI2_CURATED_MODELS.anthropic));
     expect(AI_PROVIDER_INFO.anthropic.defaultModel).not.toMatch(/claude-3/);
   });

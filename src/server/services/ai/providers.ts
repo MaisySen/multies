@@ -21,7 +21,7 @@ export interface AiProviderInfo {
 
 export const AI_PROVIDER_INFO: Record<AiProviderId, AiProviderInfo> = {
   openai: { id: "openai", name: "OpenAI", defaultModel: "gpt-4o-mini", keysUrl: "https://platform.openai.com/api-keys" },
-  // QUAL1 (audit row 14): was claude-3-5-haiku-latest, an alias of Claude Haiku 3.5, which Anthropic retired on 19 Feb 2026;
+  // QUAL1 (audit row 14): was claude-3-5-haiku-latest, an alias of the older Claude Haiku 3.5 that the curated list no longer offers;
   // now the current Haiku, the same id the AI2 curated list recommends (shared/ai-connect-ai2.ts).
   anthropic: { id: "anthropic", name: "Anthropic", defaultModel: "claude-haiku-5-5", keysUrl: "https://console.anthropic.com/settings/keys" },
   openrouter: { id: "openrouter", name: "OpenRouter", defaultModel: "openai/gpt-4o-mini", keysUrl: "https://openrouter.ai/keys" },
