@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R24 follow ups: a person's own weekly capacity on the workload view (set on their row, kept after a
@@ -46,8 +47,8 @@ test("workload: set my own weekly capacity on my row and see the load against it
   await expect(load).toHaveText("18 / 15 pts");
   const stored = (await (await page.request.get("/api/workload/capacity")).json()) as { people: { person: string; points: number | null }[] };
   expect(stored.people.find((p) => p.person === `member:${me.id}`)?.points).toBe(15);
-  mkdirSync("/home/user/tab/files/multies-r24", { recursive: true });
-  await page.screenshot({ path: "/home/user/tab/files/multies-r24/capacity.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r24`, { recursive: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r24/capacity.png` });
   await ctx.close();
 });
 
@@ -69,7 +70,7 @@ test("meeting notes: type @ to pick who an action item is for", async ({ page })
   const picker = page.getByTestId("mention-picker");
   await expect(picker).toBeVisible();
   await expect(picker.getByRole("option").first()).toContainText(me.name);
-  await page.screenshot({ path: "/home/user/tab/files/multies-r24/mention-picker.png" });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r24/mention-picker.png` });
   await page.keyboard.press("Enter");
   await expect(picker).toBeHidden();
   await page.keyboard.type("due Friday");

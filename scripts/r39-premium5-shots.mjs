@@ -2,7 +2,7 @@
 import { chromium } from "@playwright/test";
 // R39 premium pass 5: before and after shots of mailboxes, team, deliverability and connections.
 const [,, phase, only] = process.argv;
-const OUT = "/home/user/tab/files/multies-r39";
+const OUT = (process.env.SHOTS_ROOT || "/home/user/tab/files") + "/multies-r39";
 const base = process.env.BASE || "http://localhost:8983";
 const PAGES = [
   ["mailboxes", "/app/mailboxes"], ["team", "/app/settings/team"], ["deliverability", "/app/deliverability"], ["connections", "/app/settings/connections"],

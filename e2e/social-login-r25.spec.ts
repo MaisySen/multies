@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 25: "Continue with Google" and "Continue with Microsoft", end to end against the local
@@ -46,7 +47,7 @@ test("Continue with Google signs in and lands on My Work; the same email later i
   await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue with Microsoft" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue with Multies" })).toBeVisible();
-  await page.screenshot({ path: "/home/user/tab/files/multies-r25/r25-auth.png" });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r25/r25-auth.png` });
 
   await freshAddress(page);
   await page.getByRole("button", { name: "Continue with Google" }).click();

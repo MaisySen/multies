@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 21 (R21.4): task types and epics. Make an epic, put two tasks in it, finish one and see
@@ -90,8 +91,8 @@ test("an epic with two tasks shows 50 percent once one is done; a bug shows its 
   await expect(page.getByTestId("epic-section").getByTestId("epic-progress")).toHaveText("2 of 4 done, 50%");
   await expect(page.getByTestId("board-card").first()).toBeVisible();
   await page.waitForTimeout(400);
-  mkdirSync("/home/user/tab/files/multies-r21", { recursive: true });
-  await page.screenshot({ path: "/home/user/tab/files/multies-r21/types.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r21`, { recursive: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r21/types.png` });
 
   await page.goto(`/app/tasks?view=list&project=${project.id}&type=bug`);
   await expect(page.getByTestId("task-table").getByText("App closes when the camera opens")).toBeVisible();

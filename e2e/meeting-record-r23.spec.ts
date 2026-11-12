@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 23 (R23.2) end to end: recording a call and its transcript on the workspace's own AI key.
@@ -85,9 +86,9 @@ test("with a key, chunks become a transcript, the summary shows on the meeting p
   await expect(newest).toContainText("Sam, due Thursday");
   await newest.getByTestId("recording-transcript").locator("summary").click();
   await expect(newest.getByTestId("recording-transcript")).toContainText("[10:00] Maria: Let's ship the pricing page on Friday.");
-  mkdirSync("/home/user/tab/files/multies-r23", { recursive: true });
+  mkdirSync(`${SHOTS_ROOT}/multies-r23`, { recursive: true });
   await page.getByTestId("recording-section").scrollIntoViewIfNeeded();
-  await page.screenshot({ path: "/home/user/tab/files/multies-r23/record.png", fullPage: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r23/record.png`, fullPage: true });
 
   // The channel the call started from has one summary per recording, from the person who recorded.
   await page.goto(`/app/chat/${channelId}`);

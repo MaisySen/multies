@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R58 (MB-246): in the command menu a move says the ref will change, and a label no task has yet is made only after
@@ -37,7 +38,7 @@ test("a move says the ref changes, and a new label asks before it is made", asyn
   await typeIn(page, `move ${task.ref} to ${other.name}`);
   const row = page.getByTestId("palette-action-preview");
   await expect(row).toContainText(`${task.ref} gets a new ${other.key} number`, { timeout: 10_000 });
-  await page.screenshot({ path: "/home/user/tab/files/multies-r58/command-after-move-ref-desktop-light.png" });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r58/command-after-move-ref-desktop-light.png` });
   await page.keyboard.press("Escape");
 
   // A new label: the first Enter asks, the second makes it.
@@ -49,7 +50,7 @@ test("a move says the ref changes, and a new label asks before it is made", asyn
   await expect(page.getByTestId("palette-new-label")).toHaveText("Make the new label r58fresh? Press Enter again to apply.");
   await expect(page.getByRole("dialog")).toBeVisible();
   expect(patches).toBe(0);
-  await page.screenshot({ path: "/home/user/tab/files/multies-r58/command-after-new-label-ask-desktop-light.png" });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r58/command-after-new-label-ask-desktop-light.png` });
   await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog")).toBeHidden();
   await expect.poll(async () => ((await (await page.request.get(`/api/tasks/${task.id}`)).json()).task as TaskRow).labels, { timeout: 10_000 }).toContain("r58fresh");

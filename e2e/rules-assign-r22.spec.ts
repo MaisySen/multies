@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 22 (R22.5) end to end: on a demo workspace, an admin makes a mail rule in Automations that hands
@@ -69,7 +70,7 @@ test("a round robin mail rule assigns new support threads to two people in turn;
   await expect(page.getByTestId("thread-age").first()).toBeVisible();
   await row("Order 1182 arrived damaged").getByRole("button").click();
   await expect(page.getByTestId("thread-assign").getByRole("button", { name: "Waiting" })).toBeVisible();
-  const dir = "/home/user/tab/files/multies-r22";
+  const dir = `${SHOTS_ROOT}/multies-r22`;
   mkdirSync(dir, { recursive: true });
   await page.screenshot({ path: `${dir}/rules.png` });
 

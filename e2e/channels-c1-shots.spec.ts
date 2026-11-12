@@ -1,12 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * C1 chat channel shots: the shared inbox and Settings, desktop 1280 and phone 390, light and dark.
  * SHOT_PHASE=before or after names the files; the after phase also shoots Settings, Channels, chat rows,
  * the chat view with the reply window open and closed (with the template sheet), and the chat view at 360.
  */
-const DIR = "/home/user/tab/files/multies-c1";
+const DIR = `${SHOTS_ROOT}/multies-c1`;
 const PHASE = process.env.SHOT_PHASE ?? "after";
 let visitor = 0;
 const ip = () => `10.151.${test.info().workerIndex % 200}.${++visitor}`;

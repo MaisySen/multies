@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R27: Settings, Sign-up emails. An admin sets up the workspace's branded auth emails (the R25 hook), sees
@@ -49,5 +50,5 @@ test("an admin edits sign-up emails and the preview follows", async ({ page }) =
   await expect(page.getByLabel("Signing secret")).toHaveValue(/^whsec_\u2022+.{4}$/);
   await expect(page.getByTestId("auth-preview-subject")).toHaveText("Welcome to Haajir / हाजिरमा स्वागत छ");
   await page.setViewportSize({ width: 1280, height: 1640 });
-  await page.screenshot({ path: "/home/user/tab/files/multies-r27/auth-hook-settings.png", fullPage: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r27/auth-hook-settings.png`, fullPage: true });
 });

@@ -1,5 +1,6 @@
 import { test, expect, type Browser, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 24: meeting notes are live. Two windows on one meeting's notes see each other's typing,
@@ -103,9 +104,9 @@ test("two windows co-edit one meeting's notes live, with the doc page in the sam
   await expect(b.getByTestId("action-item")).toHaveCount(2, { timeout: 15_000 });
   await notes(b).locator('ul[data-type="taskList"] li p').first().click();
   await expect(a.getByTestId("notes-peer")).toHaveCount(1);
-  mkdirSync("/home/user/tab/files/multies-r24", { recursive: true });
+  mkdirSync(`${SHOTS_ROOT}/multies-r24`, { recursive: true });
   await a.getByTestId("meeting-notes").scrollIntoViewIfNeeded();
-  await a.screenshot({ path: "/home/user/tab/files/multies-r24/collab.png", fullPage: true });
+  await a.screenshot({ path: `${SHOTS_ROOT}/multies-r24/collab.png`, fullPage: true });
   await close();
 });
 

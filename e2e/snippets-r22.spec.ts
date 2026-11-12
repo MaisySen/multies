@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 22 (R22.4b) end to end: on a demo workspace, make a saved reply with {{first_name}} in
@@ -61,8 +62,8 @@ test("a saved reply made in settings goes into a webmail reply with the first na
   await search.fill("");
   await expect(picker.getByRole("option", { name: /Thanks for writing/ })).toBeVisible();
 
-  mkdirSync("/home/user/tab/files/multies-r22", { recursive: true });
-  await page.screenshot({ path: "/home/user/tab/files/multies-r22/snippets.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r22`, { recursive: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r22/snippets.png` });
 
   await search.fill("thanks");
   await search.press("Enter");

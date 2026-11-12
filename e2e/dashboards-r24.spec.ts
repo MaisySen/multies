@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R24.3 Dashboards end to end: seed tasks, make Team overview in one click and check its counts,
@@ -82,7 +83,7 @@ test("make Team overview, see the counts, add a widget from a saved filter, reor
   expect(await titles()).toEqual(["Open tasks by person", "Tasks by status", "Due this week and overdue", "Completed per week", "High priority tasks"]);
   await expect(page.locator('[data-title="High priority tasks"]').getByTestId("widget-number")).toHaveText("2");
   await expect(page.locator('[data-title="Completed per week"] .recharts-line-dots circle')).toHaveCount(8);
-  mkdirSync("/home/user/tab/files/multies-r24", { recursive: true });
-  await page.screenshot({ path: "/home/user/tab/files/multies-r24/dash.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r24`, { recursive: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r24/dash.png` });
   await ctx.close();
 });

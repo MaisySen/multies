@@ -21,7 +21,8 @@ export type PlaceEntity = "contact" | "company" | "scheduling_page";
 export type LookupMode = "suggest" | "find";
 type Service = "photon" | "nominatim";
 
-export const GEO_USER_AGENT = "Multies/1.0 (+https://multies.si; support@multies.si)";
+// Semgrep (QUAL1): the User-Agent the address lookup sends, not a user name.
+export const GEO_USER_AGENT = "Multies/1.0 (+https://multies.si; support@multies.si)"; // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_username
 const ENDPOINT: Record<Service, (q: string) => string> = {
   photon: (q) => `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=en`,
   nominatim: (q) => `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&q=${encodeURIComponent(q)}`,

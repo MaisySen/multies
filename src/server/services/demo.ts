@@ -57,7 +57,7 @@ const SAMPLE_INBOUND: { from: { address: string; name: string }; to: string; sub
 /** The host every sample connection points at. .example never resolves (RFC 2606), and sync skips it before any network call. */
 export const SAMPLE_CONNECTION_HOST = "imap.sample.example";
 /** Stored in place of an encrypted password on a sample connection: not a secret, and it never decrypts. */
-export const SAMPLE_CONNECTION_SECRET = "sample:none";
+export const SAMPLE_CONNECTION_SECRET = "sample:none"; // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
 
 /** True for the demo workspace's sample connected mailbox, which must never reach out to a provider. */
 export function isSampleConnection(c: { imapHost: string; secretEnc: string }) {

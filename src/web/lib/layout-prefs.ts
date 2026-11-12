@@ -35,7 +35,8 @@ export const DEFAULT_LAYOUT: LayoutPrefs = {
 };
 
 const PREFIX = "multies.layout.";
-let userKey = "anon";
+// Semgrep (QUAL1): the storage key for a signed out visitor, not a user name.
+let userKey = "anon"; // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_username
 let cache: LayoutPrefs | null = null;
 const listeners = new Set<() => void>();
 

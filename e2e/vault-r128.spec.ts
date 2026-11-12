@@ -14,9 +14,10 @@ let visitor = 0;
 const ip = () => `10.198.${test.info().workerIndex % 200}.${++visitor}`;
 type Person = { ctx: BrowserContext; page: Page; headers: Record<string, string> };
 let owner: Person, member: Person;
-const OWNER_PASS = "owner vault passphrase 42";
-const MEMBER_PASS = "member vault passphrase 7";
-const SECRET = "Pw-for-the-router-9!";
+// Semgrep (QUAL1): made up vault passphrases and a sample secret for the e2e vault test.
+const OWNER_PASS = "owner vault passphrase 42"; // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_password
+const MEMBER_PASS = "member vault passphrase 7"; // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_password
+const SECRET = "Pw-for-the-router-9!"; // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
 const sent: string[] = [];
 
 async function person(browser: Browser, email: string, name: string): Promise<Person> {

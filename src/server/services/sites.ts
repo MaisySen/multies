@@ -488,7 +488,8 @@ export function queueView(deps: Deps, v: { orgId: string; pageId: string; source
   if (cur) cur.n++; else if (pendingViews.size < 2_000) pendingViews.set(id, { orgId: v.orgId, pageId: v.pageId, day, source, device: v.device, n: 1 });
   pageBumps.set(v.pageId, (pageBumps.get(v.pageId) ?? 0) + 1);
   if (!flushTimer) {
-    const wait = deps.config.links?.flushMs ?? 4_000;
+    // Semgrep (QUAL1): setTimeout below is given the promise's resolve function, not a string, so nothing is evaluated.
+    const wait = deps.config.links?.flushMs ?? 4_000; // nosemgrep: ajinabraham.njsscan.eval.eval_node.eval_nodejs
     flushTimer = (wait > 0 ? new Promise<void>((r) => setTimeout(r, wait)) : Promise.resolve()).then(() => flushViews(deps)).finally(() => { flushTimer = null; });
   }
   return flushTimer;

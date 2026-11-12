@@ -457,7 +457,8 @@ async function requeueOrFail(db: DB, p: { id: number; tries: number }, now: Date
   await db.run(sql`update attachment_text set status = ${next}, job_id = null, updated_at = ${now.getTime()} where id = ${p.id} and status = 'pending'`);
 }
 
-const INDEX_USER = "indexer";
+// Semgrep (QUAL1): a label for the indexer in the activity log, not a login.
+const INDEX_USER = "indexer"; // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_username
 
 /** Starts one engine extract-text job. Answers its id, "busy" (engine full or down: try later) or "failed" (the engine refused this file). */
 async function submitJob(deps: Deps, engine: EngineConfig, q: { org_id: string; filename: string }, bytes: Uint8Array, lang: string): Promise<string | "busy" | "failed"> {

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R24.4 Automation recipes end to end: open the Recipes tab, turn on "When a task is done, post in
@@ -45,10 +46,10 @@ test("turn on a recipe, finish a task, and the post shows in the channel", async
   await expect(card).toContainText("On");
   await expect(card.getByRole("button", { name: "Edit as rule" })).toBeVisible();
 
-  mkdirSync("/home/user/tab/files/multies-r24", { recursive: true });
+  mkdirSync(`${SHOTS_ROOT}/multies-r24`, { recursive: true });
   await page.mouse.move(0, 0);
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-  await page.screenshot({ path: "/home/user/tab/files/multies-r24/recipes.png", fullPage: false });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r24/recipes.png`, fullPage: false });
 
   // The rule is a normal rule on the first tab.
   await page.getByRole("tab", { name: "Your rules" }).click();

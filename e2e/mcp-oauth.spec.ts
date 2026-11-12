@@ -3,12 +3,13 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { UnauthorizedError, type OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import type { OAuthClientInformationFull, OAuthClientMetadata, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 20: an MCP client adds Multies by URL only. The SDK's own OAuth client discovers the server from
  * the 401, registers itself, sends the person to the consent page, and lists the tools with the token.
  */
-const SHOTS = process.env.R20_SHOTS ?? "/home/user/tab/files/multies-r20";
+const SHOTS = process.env.R20_SHOTS ?? `${SHOTS_ROOT}/multies-r20`;
 
 class MemoryProvider implements OAuthClientProvider {
   info?: OAuthClientInformationFull; tok?: OAuthTokens; verifier = ""; authUrl?: URL;

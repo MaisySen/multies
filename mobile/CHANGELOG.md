@@ -167,7 +167,7 @@ Carries everything in 1.9.12.
 - iPhone symbols: tabs, buttons and rows draw the phone's own SF Symbols, with the filled symbol on
   the selected tab.
 - Softer bars: the tab bar and the compact title bar use the iPhone's blurred material.
-- Unlock with Face ID: turn it on in Settings, Security. Multies then asks for Face ID, Touch ID or
+- App lock with Face ID: turn it on in Settings, Security. Multies then asks for Face ID, Touch ID or
   your fingerprint when you open it and each time you come back to it. It is off until you turn it
   on.
 - App icon shortcuts: press and hold the Multies icon for New task, Compose, Search and Inbox.

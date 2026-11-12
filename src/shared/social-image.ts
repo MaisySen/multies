@@ -91,12 +91,11 @@ export const PHOTO_QUALITIES = [0.88, 0.8, 0.72, 0.64, 0.56] as const;
 export async function encodeUnder<T extends { bytes: number }>(
   w: number, h: number, budget: number, encode: (w: number, h: number, quality: number) => Promise<T>,
 ): Promise<{ out: T; w: number; h: number; quality: number }> {
-  let cw = w; let ch = h; let last: { out: T; w: number; h: number; quality: number } | null = null;
+  let cw = w; let ch = h;
   for (let round = 0; round < 12; round++) {
     for (const q of PHOTO_QUALITIES) {
       const out = await encode(cw, ch, q);
-      last = { out, w: cw, h: ch, quality: q };
-      if (out.bytes <= budget) return last;
+      if (out.bytes <= budget) return { out, w: cw, h: ch, quality: q };
     }
     if (Math.max(cw, ch) <= 320) break;
     cw = Math.max(1, Math.round(cw * 0.85)); ch = Math.max(1, Math.round(ch * 0.85));

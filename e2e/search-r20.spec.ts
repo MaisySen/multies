@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 20: search everything from Cmd+K and the My Work page, on the seeded demo.
@@ -63,8 +64,8 @@ test("Cmd+K finds a word in a doc, a task and a chat message and opens each; My 
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible({ timeout: 15_000 });
   let dialog = await openSearch(page, "harbor");
   for (const type of ["tasks", "docs", "chat"]) await expect(dialog.getByTestId(`search-group-${type}`)).toBeVisible();
-  mkdirSync("/home/user/tab/files/multies-r20", { recursive: true });
-  await page.screenshot({ path: "/home/user/tab/files/multies-r20/search-mywork.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r20`, { recursive: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r20/search-mywork.png` });
 
   // The doc, by mouse.
   await dialog.getByTestId("search-group-docs").getByTestId("search-result").first().click();
@@ -104,7 +105,7 @@ test("Cmd+K finds a word in a doc, a task and a chat message and opens each; My 
   await expect(page.getByText("My Work", { exact: true }).last()).toBeVisible();
   const due = page.getByTestId("mywork-due");
   await expect(due.getByText("Call Blue Harbor about invoices")).toBeVisible();
-  await page.screenshot({ path: "/home/user/tab/files/multies-r20/my-work.png", fullPage: true });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r20/my-work.png`, fullPage: true });
   await due.getByText("Call Blue Harbor about invoices").click();
   await expect(page).toHaveURL(/\/app\/tasks\?project=.+&task=tsk_/);
 });

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R24 polish end to end: a dashboard widget moves with its card menu (no drag), and a project
@@ -74,8 +75,8 @@ test("move dashboard widgets from the card menu, and a guest sees the page tree 
   await expect(linked.getByRole("button", { name: /Moving day checklist/ })).toBeVisible();
   await expect(linked.getByRole("button", { name: /Supplier contacts/ })).toBeVisible();
   await expect(linked).toContainText("before the movers arrive");
-  mkdirSync("/home/user/tab/files/multies-r24", { recursive: true });
-  await guest.screenshot({ path: "/home/user/tab/files/multies-r24/polish.png" });
+  mkdirSync(`${SHOTS_ROOT}/multies-r24`, { recursive: true });
+  await guest.screenshot({ path: `${SHOTS_ROOT}/multies-r24/polish.png` });
   // Follow a backlink; a page nobody links to says so.
   await linked.getByRole("button", { name: /Supplier contacts/ }).click();
   await expect(guest.getByRole("heading", { name: "Supplier contacts" })).toBeVisible();

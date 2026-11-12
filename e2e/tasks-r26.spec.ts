@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R26 end to end: a checklist inside a task (add with Enter, tick, see "1 of 3" and the card chip), and the task
@@ -7,7 +8,7 @@ import { mkdirSync } from "node:fs";
  */
 let visitor = 0;
 const ip = () => `10.126.${test.info().workerIndex % 200}.${++visitor}`;
-const SHOTS = "/home/user/tab/files/multies-r26";
+const SHOTS = `${SHOTS_ROOT}/multies-r26`;
 
 test("checklist in the task panel and a task query saved as a view", async ({ browser }) => {
   const base = test.info().project.use.baseURL!;

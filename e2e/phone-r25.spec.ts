@@ -1,5 +1,6 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 25 phone layout (DF-10) at 390 x 844 on a touch screen: the main pages have no sideways
@@ -8,7 +9,7 @@ import { mkdirSync } from "node:fs";
  * hints and no made up task ref.
  */
 test.describe.configure({ mode: "serial" });
-const SHOTS = "/home/user/tab/files/multies-r25";
+const SHOTS = `${SHOTS_ROOT}/multies-r25`;
 let ctx: BrowserContext, page: Page;
 const errors: string[] = [];
 let visitor = 0;

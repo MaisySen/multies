@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 20 (R20.3): snooze a thread and watch it come back, and send later from Compose.
@@ -46,7 +47,7 @@ test("snooze a thread, see it in Snoozed, and see it come back to the top of Inb
   const back = page.getByTestId("returned-row").first();
   await expect(back).toContainText(target.subject);
   await expect(back).toContainText("Snoozed");
-  await page.screenshot({ path: "/home/user/tab/files/multies-r20/mail-snooze.png" });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r20/mail-snooze.png` });
   await back.click();
   await expect(page.getByTestId("returned-row")).toHaveCount(0);
 });

@@ -1,5 +1,6 @@
 import { test, expect, type BrowserContext, type CDPSession, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 25 wave 2 phone pass at 390 x 844 on a touch screen: chat message actions sit behind one
@@ -8,7 +9,7 @@ import { mkdirSync } from "node:fs";
  * Settings tabs, the landing page and pricing fit with no sideways scroll. Any page error fails.
  */
 test.describe.configure({ mode: "serial" });
-const SHOTS = "/home/user/tab/files/multies-r25";
+const SHOTS = `${SHOTS_ROOT}/multies-r25`;
 let ctx: BrowserContext, page: Page;
 const errors: string[] = [];
 let visitor = 0;

@@ -39,7 +39,8 @@ function account(local: string) {
 }
 
 async function withImap<T>(user: string, pass: string, fn: (c: ImapFlow) => Promise<T>) {
-  const c = new ImapFlow({ host: imapHost, port: Number(imapPort), secure: false, doSTARTTLS: true, logger: false, auth: { user, pass }, tls: { rejectUnauthorized: false } });
+  // Semgrep (QUAL1): the local test mail server's self signed certificate (e2e only).
+  const c = new ImapFlow({ host: imapHost, port: Number(imapPort), secure: false, doSTARTTLS: true, logger: false, auth: { user, pass }, tls: { rejectUnauthorized: false } }); // nosemgrep: problem-based-packs.insecure-transport.js-node.bypass-tls-verification.bypass-tls-verification
   await c.connect();
   try { return await fn(c); } finally { await c.logout(); }
 }
