@@ -9,10 +9,13 @@ import { listAudit } from "../services/audit";
 type OnboardingMeta = { onboardingDismissedAt?: string };
 const readMeta = (raw: string | null): OnboardingMeta & Record<string, unknown> => { try { return raw ? JSON.parse(raw) : {}; } catch { return {}; } };
 
-const PRIVATE_KEYS = /email|^ip$|ipAddress|userAgent|invit|token/i;
-/** What a plain member may see of an audit row: no IP, no addresses or invite details in its metadata. */
+// MB-367: "address", "destinations" and "replyTo" carried mailbox addresses (a personal Gmail someone connected, a
+// personal mailbox's Reply-To) into the member's recent activity; they are private now too.
+const PRIVATE_KEYS = /email|address|destination|recipient|replyTo|reply_to|^(to|cc|bcc|from)$|^ip$|ipAddress|userAgent|invit|token/i;
+const EMAIL_IN = /[^\s@"<>]+@[^\s@"<>]+\.[a-z]{2,}/i;
+/** What a plain member may see of an audit row: no IP, no addresses or invite details in its metadata (MB-367: no value that holds an address, whatever its key). */
 export function memberSafeAudit<T extends { ip?: string | null; actorEmail?: string | null; metadata?: Record<string, unknown> | null }>(row: T): T {
-  const metadata = row.metadata ? Object.fromEntries(Object.entries(row.metadata).filter(([k]) => !PRIVATE_KEYS.test(k))) : row.metadata;
+  const metadata = row.metadata ? Object.fromEntries(Object.entries(row.metadata).filter(([k, v]) => !PRIVATE_KEYS.test(k) && !EMAIL_IN.test(typeof v === "string" ? v : JSON.stringify(v) ?? ""))) : row.metadata;
   return { ...row, ip: null, metadata };
 }
 

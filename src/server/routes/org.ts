@@ -9,7 +9,7 @@ import { audit, listAudit, type AuditFilter } from "../services/audit";
 import { AUDIT_AREAS } from "@/shared/mail-archive";
 import { getAddons, getOrg, getOrgCached, getPlanCached, overLimits, usage } from "../services/plans";
 import { PLANS, effectiveLimits, isPlanId, PLAN_ORDER } from "@/shared/plans";
-import { badRequest, forbidden, HttpError } from "../lib/errors";
+import { badRequest, forbidden, HttpError, nothingToChange } from "../lib/errors";
 import { isCountry, isTimeZone } from "@/shared/locale";
 
 // R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
@@ -32,6 +32,8 @@ export function orgRoutes() {
         timezone: z.string().refine(isTimeZone, "Unknown time zone.").optional(),
         country: z.string().refine(isCountry, "Pick a country from the list.").optional(),
       }));
+      // MB-368: an empty body (or one with only unknown fields) used to reach the database as an empty update: a 500.
+      if (!Object.values(input).some((v) => v !== undefined)) throw nothingToChange();
       const { auth, deps } = c.var;
       const before = await getOrg(deps.db, auth.orgId);
       await deps.db.update(organizations).set(input).where(eq(organizations.id, auth.orgId));
