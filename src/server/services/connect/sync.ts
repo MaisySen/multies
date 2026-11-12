@@ -221,13 +221,14 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
     session = await imapConnector(deps)({ host: c.imapHost, port: c.imapPort, security: c.imapSecurity }, { user: c.username, secret: access, xoauth2: c.authKind === "oauth" }, { allowSelfSigned: cfg.allowSelfSigned });
   } catch (err) {
     const problem = classifyProblem(err, "imap", c.provider as ConnectPresetId, c.imapHost);
-    const authProblem = ["auth_failed", "app_password_needed", "imap_disabled", "oauth_required"].includes(problem.code);
+    // G1: a sign in Google paused waits for the person too (trying every few minutes would keep it paused).
+    const authProblem = ["auth_failed", "app_password_needed", "imap_disabled", "oauth_required", "web_login_required"].includes(problem.code);
     await deps.db.update(mailConnections).set({
       status: authProblem ? "auth_failed" : "error", lastError: problem.message,
       // Network trouble: try again at the next interval. A refused password waits for the person.
       nextSyncAt: new Date(now.getTime() + cfg.intervalMinutes * 60_000),
     }).where(and(eq(mailConnections.id, c.id), notPaused)); // PRIV1b (P9): a pause made meanwhile (owner left) stays
-    deps.log?.warn("mail_sync.connect_failed", { connection: c.id, code: problem.code });
+    deps.log?.warn("mail_sync.connect_failed", { connection: c.id, code: problem.code, detail: problem.detail ?? null });
     return { ...empty, skipped: authProblem ? "auth_failed" : undefined, error: problem.message };
   }
 

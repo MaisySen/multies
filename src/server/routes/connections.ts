@@ -34,7 +34,8 @@ const connectBody = z.object({
 
 /** A failed connection test answers 422 with the problem, in words a person can act on. */
 function failed(problem: ConnectFailed["problem"]) {
-  return new HttpError(422, problem.code, problem.message, { step: problem.step });
+  // G1: the provider's cleaned reason rides beside the step, for the page to show under the message.
+  return new HttpError(422, problem.code, problem.message, { step: problem.step, ...(problem.detail ? { detail: problem.detail } : {}) });
 }
 
 export function connectionRoutes() {
