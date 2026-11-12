@@ -54,7 +54,8 @@ describe("AIS1 review 2: an agent's send through a person's connected app names 
     const w = await privacyWorld();
     const { connectClaude, mcp, who, callerOf, grantOf } = harness(w);
 
-    const made = await w.owner.post("/api/agents", { name: "Desk", localPart: `desk${w.n}`, approvalMode: "always" });
+    // AIS1 (PR 22): a new agent only sends to the workspace's own domains unless a person chooses its recipients. Here the person chooses anyone (null), so the send reaches the outside address this test is about.
+    const made = await w.owner.post("/api/agents", { name: "Desk", localPart: `desk${w.n}`, approvalMode: "always", allowedRecipients: null });
     expect(made.status).toBe(201);
     const agentId = made.body.agent.id as string;
     const olive = (await w.owner.get("/api/account/me")).body.user.id as string;
@@ -91,7 +92,8 @@ describe("AIS1 review 2: an agent's send through a person's connected app names 
     const w = await privacyWorld();
     const { connectClaude, mcp, who } = harness(w);
 
-    const made = await w.owner.post("/api/agents", { name: "Fast desk", localPart: `fastdesk${w.n}`, approvalMode: "never" });
+    // AIS1 (PR 22): a new agent only sends to the workspace's own domains unless a person chooses its recipients. Here the person chooses anyone (null), so the send reaches the outside address this test is about.
+    const made = await w.owner.post("/api/agents", { name: "Fast desk", localPart: `fastdesk${w.n}`, approvalMode: "never", allowedRecipients: null });
     expect(made.status).toBe(201);
     const agentId = made.body.agent.id as string;
 

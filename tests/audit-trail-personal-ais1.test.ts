@@ -64,7 +64,8 @@ describe("AIS1 review 2: an agent's reply in a personal thread keeps the subject
   it("Pat's agent reads, replies (queued, then approved), sends at once and is blocked; no row names the subject or an address", async () => {
     const w = await privacyWorld();
     expect((await w.owner.patch(`/api/team/members/${w.pat.id}`, { role: "admin" })).status).toBe(200);
-    const made = await w.pat.c.post("/api/agents", { name: "Pat helper", localPart: `pathelper${w.n}`, approvalMode: "always", mailboxIds: [w.boxes.personal] });
+    // AIS1 (PR 22): a new agent only sends to the workspace's own domains unless a person chooses its recipients. Here the person chooses anyone (null), so the send reaches the outside address this test is about.
+    const made = await w.pat.c.post("/api/agents", { name: "Pat helper", localPart: `pathelper${w.n}`, approvalMode: "always", mailboxIds: [w.boxes.personal], allowedRecipients: null });
     expect(made.status).toBe(201);
     const secret = made.body.apiKey.secret as string;
     const agentId = made.body.agent.id as string;
@@ -118,7 +119,8 @@ describe("AIS1 review 2: an agent's reply in a personal thread keeps the subject
 
   it("a team mailbox send still names its subject and recipients for an admin; a member sees neither, and keeps a plan change's from and to", async () => {
     const w = await privacyWorld();
-    const made = await w.owner.post("/api/agents", { name: "Desk", localPart: `desk${w.n}`, approvalMode: "always" });
+    // AIS1 (PR 22): a new agent only sends to the workspace's own domains unless a person chooses its recipients. Here the person chooses anyone (null), so the send reaches the outside address this test is about.
+    const made = await w.owner.post("/api/agents", { name: "Desk", localPart: `desk${w.n}`, approvalMode: "always", allowedRecipients: null });
     expect(made.status).toBe(201);
     const secret = made.body.apiKey.secret as string;
     const agentId = made.body.agent.id as string;
