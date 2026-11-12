@@ -19,14 +19,15 @@ import { HttpError, notFound, forbidden } from "../lib/errors";
 import { newId } from "../lib/crypto";
 import { audit } from "./audit";
 import type { SuiteActor } from "./suite/common";
-import { aiKeyStatus, providerFor } from "./ai/keys";
-import { AiProviderError, type AiProvider } from "./ai/providers";
+import { aiKeyStatus, keyFallbackOn, keyFor } from "./ai/keys";
+import { AI_PROVIDER_INFO, AiProviderError, keyProblemOf, type AiProvider, type AiProviderId } from "./ai/providers";
+import { aiFallbackText, aiKeyProblemText, isAiKeyProblem } from "@/shared/ai-connect-ai2"; // QUAL1
 import { isAskExcluded, retrieveFor } from "./ask-r110";
 import { openableR98, type RetrievedR98 } from "./search-r98";
 import { teamAiSwitchOn } from "./teamai-gate-td8";
 import { askAi, STRONG_CHAT_MODEL } from "./tools/ai-meter";
 import {
-  TEAMAI_CAPS as CAP, REASON_TEXT, ROUTINE_OUTPUTS, ROUTINE_TRIGGERS, citedNumbers, cleanText, dayStart, mentionsAssistant, nextRunAt, questionOf,
+  TEAMAI_CAPS as CAP, FINISHED_RUN_STATUSES, REASON_TEXT, ROUTINE_OUTPUTS, ROUTINE_TRIGGERS, citedNumbers, cleanText, dayStart, mentionsAssistant, nextRunAt, questionOf,
   FREE_LIMIT_REPLY, freeWindowStart, type InstructionSet, type MemoryEntry, type Routine, type RoutineOutput, type RoutineTrigger, type RunEntry, type RunKind, type RunStatus, type TeamAiState,
 } from "@/shared/teamai-td8";
 
@@ -76,8 +77,15 @@ async function freeUsedNow(deps: Deps, orgId: string): Promise<number> {
 }
 async function aiState(deps: Deps, orgId: string) {
   const [on, key, freeUsed] = await Promise.all([teamAiSwitchOn(deps, orgId), aiKeyStatus(deps, orgId), freeUsedNow(deps, orgId)]);
-  const source: "own_key" | "built_in" | "none" = key.connected ? "own_key" : deps.ai ? "built_in" : "none";
-  return { on, key: key.connected, provider: key.connected ? key.providerName : null, source, freeUsed, freeLimit: freeLimitOf(deps), freePeriod: freePeriodOf(deps) };
+  // QUAL1 (audit row 14): a key the provider refused is not "Ready": built-in AI stands in under the free limit when
+  // it is here, else nothing can run, and the page says which and why.
+  const problem = key.connected ? key.problem ?? null : null;
+  const builtIn = !!deps.ai && (!problem || builtinStandsIn(deps));
+  const source: "own_key" | "built_in" | "none" = key.connected && !problem ? "own_key" : builtIn ? "built_in" : "none";
+  return {
+    on, key: key.connected, provider: key.connected ? key.providerName : null, source, freeUsed, freeLimit: freeLimitOf(deps), freePeriod: freePeriodOf(deps),
+    ...(problem ? { keyProblem: problem, keyProblemMessage: key.problemMessage ?? null } : {}),
+  };
 }
 async function usedToday(deps: Deps, orgId: string): Promise<number> {
   const [r] = await deps.db.all<{ n: number }>(sql`select count(*) as n from teamai_runs where org_id = ${orgId} and created_at >= ${dayStart(deps.now().getTime())}
@@ -390,6 +398,8 @@ export async function deleteRun(deps: Deps, a: A, id: string): Promise<{ ok: tru
   if (!isAdmin(a) && r.kind !== "try") throw forbidden("Only workspace admins can do that.");
   if (r.status === "running" || r.status === "queued") throw new HttpError(409, "busy", "This run is still going. Try again in a minute.");
   await deps.db.run(sql`delete from teamai_runs where id = ${r.id} and org_id = ${a.orgId}`);
+  // AIS1 (audit row 15): removing a run from the AI log is itself kept, for the life of the workspace (one row, on a click).
+  await audit(deps.db, { orgId: a.orgId, actorUserId: a.userId || null, actorEmail: a.email, action: "teamai.run_deleted", targetType: "teamai_run", targetId: r.id, metadata: { kind: r.kind, name: r.label, status: r.status, at: new Date(Number(r.created_at)).toISOString() } });
   return { ok: true };
 }
 
@@ -488,7 +498,10 @@ async function finish(deps: Deps, r: RunRow, status: RunStatus, reason: string |
  * once cannot pass the limit), then goes through askAi, which checks the AI switch again, reserves on the single shared
  * meter before the call and never bills. A refusal made before any call gives the free run back.
  */
-async function callBuiltIn(deps: Deps, r: RunRow, req: { system: string; user: string }): Promise<string> {
+/** QUAL1: built-in AI may stand in for a refused own key: the one check every AI path uses (./ai/keys keyFallbackOn). */
+const builtinStandsIn = (deps: Deps) => keyFallbackOn(deps);
+
+async function callBuiltIn(deps: Deps, r: RunRow, req: { system: string; user: string }, skipOwnKey = false): Promise<string> {
   if (!deps.ai) throw new RunStop("no_key", "skipped"); // no key and no built in AI here: nothing can run
   const claimed = await deps.db.all<{ id: string }>(sql`update teamai_runs set ai_source = 'free' where id = ${r.id} and org_id = ${r.org_id}
     and (select count(*) from teamai_runs where org_id = ${r.org_id} and created_at >= ${freeSince(deps)} and ai_source = 'free') < ${freeLimitOf(deps)} returning id`);
@@ -497,7 +510,7 @@ async function callBuiltIn(deps: Deps, r: RunRow, req: { system: string; user: s
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_, rej) => { timer = setTimeout(() => rej(new RunStop("timeout")), CAP.callTimeoutMs); });
   try {
-    const res = await Promise.race([askAi(deps, r.org_id, { task: "chat", system: req.system, user: req.user, maxTokens: CAP.answerTokens, model: STRONG_CHAT_MODEL }), deadline]);
+    const res = await Promise.race([askAi(deps, r.org_id, { task: "chat", system: req.system, user: req.user, maxTokens: CAP.answerTokens, model: STRONG_CHAT_MODEL }, { skipOwnKey }), deadline]);
     if (!res.ok) {
       if (res.reason === "error") throw new RunStop("provider_error");
       await giveBack();
@@ -525,7 +538,8 @@ async function callProvider(p: AiProvider, req: { system: string; user: string }
     return out;
   } catch (err) {
     if (err instanceof RunStop) throw err;
-    throw Object.assign(new RunStop("provider_error"), { providerStatus: err instanceof AiProviderError ? err.status : null });
+    // QUAL1: a refused key, credit or model is its own reason (the key itself is marked by keyFor), not "did not answer".
+    throw Object.assign(new RunStop(keyProblemOf(err) ?? "provider_error"), { providerStatus: err instanceof AiProviderError ? err.status : null });
   } finally { if (timer) clearTimeout(timer); }
 }
 
@@ -637,16 +651,38 @@ export async function processRun(deps: Deps, runId: string): Promise<void> {
     }
 
     // Own key first (no free limit, no meter); otherwise built in AI under the free limit and the shared cap.
-    const provider = await providerFor(deps, r.org_id);
+    const key = await keyFor(deps, r.org_id);
     let text: string;
     try {
-      text = provider ? await callProvider(provider, { system, user }) : await callBuiltIn(deps, r, { system, user });
+      try {
+        text = key ? await callProvider(key.provider, { system, user }) : await callBuiltIn(deps, r, { system, user });
+      } catch (e) {
+        // QUAL1 (audit row 14): the provider refused the workspace's key: built-in AI answers under the same free limit
+        // when the deployment lets it (AI_KEY_FALLBACK), and the answer says so in its last line.
+        if (!key || !(e instanceof RunStop) || !isAiKeyProblem(e.reason) || !builtinStandsIn(deps)) throw e;
+        try {
+          text = `${await callBuiltIn(deps, r, { system, user }, true)}\n\n${aiFallbackText(e.reason, AI_PROVIDER_INFO[key.providerId as AiProviderId].name)}`.slice(0, CAP.draftChars);
+        } catch (stand) {
+          // QUAL1 review: built-in AI could not stand in (its free limit, a refusal): the key is the thing to fix, so that
+          // is the reason, never "add your own AI key" to a workspace that has one. A timeout stays a timeout.
+          if (stand instanceof RunStop && stand.reason !== "timeout") throw e;
+          throw stand;
+        }
+      }
     } catch (e) {
       // In a thread, say plainly that today's free runs are used up (a fixed line, no AI call) instead of going quiet.
       if (e instanceof RunStop && e.reason === "free_limit" && r.kind === "mention" && poster && channelId) {
         const { postMessage } = await import("./suite/chat");
         const m = await postMessage(deps, poster, channelId, { body: FREE_LIMIT_REPLY, parentId });
         await finish(deps, r, "skipped", "free_limit", { messageId: m.id });
+        return;
+      }
+      // QUAL1 review: the same for a refused key, its credit or its model (a fixed line naming the provider, no AI
+      // call), so an @assistant mention never goes quiet.
+      if (e instanceof RunStop && isAiKeyProblem(e.reason) && key && r.kind === "mention" && poster && channelId) {
+        const { postMessage } = await import("./suite/chat");
+        const m = await postMessage(deps, poster, channelId, { body: aiKeyProblemText(e.reason, AI_PROVIDER_INFO[key.providerId as AiProviderId].name), parentId });
+        await finish(deps, r, "failed", e.reason, { messageId: m.id });
         return;
       }
       throw e;
@@ -699,7 +735,10 @@ export async function runTeamAiPass(deps: Deps): Promise<{ queued: number; ran: 
   await deps.db.run(sql`update teamai_runs set status = 'failed', reason = 'timeout', input = null, finished_at = ${now} where status = 'running' and started_at < ${now - 10 * 60_000}`);
   const waiting = await deps.db.all<{ id: string }>(sql`select id from teamai_runs where status = 'queued' order by created_at asc limit ${CAP.runsPerPass}`);
   for (const x of waiting) { await processRun(deps, x.id); ran++; }
-  await deps.db.run(sql`delete from teamai_runs where created_at < ${now - CAP.keepRunsDays * 86_400_000} and status not in ('queued', 'running')`);
+  // AIS1: finished runs only, through teamai_runs_status_idx (status, created_at), so a year of runs is not scanned each pass.
+  // FINISHED_RUN_STATUSES is every status but queued and running, so a status added later is pruned too.
+  const finished = sql.join(FINISHED_RUN_STATUSES.map((s) => sql`${s}`), sql`, `);
+  await deps.db.run(sql`delete from teamai_runs where status in (${finished}) and created_at < ${now - CAP.keepRunsDays * 86_400_000}`);
   takePending();
   return { queued, ran };
 }

@@ -1,12 +1,13 @@
 import { test, expect, type Page, type Browser } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R54 (plan idea 8): the command menu acts on typed words. "assign BHM-3 to Ana due tomorrow" shows one
  * preview row in plain words; nothing changes until Enter; Enter patches the task once, a toast offers Undo,
  * and Undo puts the old assignee and due date back.
  */
-const SHOTS = "/home/user/tab/files/multies-r54/command-bar";
+const SHOTS = `${SHOTS_ROOT}/multies-r54/command-bar`;
 const TAG = process.env.SHOTS_TAG ?? "after";
 let visitor = 0;
 const ip = () => `10.54.${test.info().workerIndex % 200}.${++visitor % 250}`;

@@ -10,7 +10,7 @@ import { parseBody, requireAuth } from "../middleware";
 import { HttpError } from "../lib/errors";
 import { idempotency, idempotentRunKeys, sessionIdempotencyScope } from "../lib/idempotency"; // R40 (MB-201), R53
 import { exportWorkspace } from "../services/privacy";
-import { exportFinished, getMove, listMoves, openExport, previewMove, runMove, startExport, undoMove } from "../services/data-move/service";
+import { exportFinished, exportWithholds, getMove, listMoves, openExport, previewMove, runMove, startExport, undoMove } from "../services/data-move/service";
 import { WorkImportRun } from "./work-imports";
 import { importMboxBatch, MBOX_BATCH, stopMbox } from "../services/data-move/mbox"; // R40 mbox upload
 import { keepMboxPart } from "../services/data-move/kept-file"; // R43 background finish
@@ -34,7 +34,8 @@ export function dataMoveDownloadRoutes() {
   return new Hono<AppEnv>().get("/exports/:id/download", async (c) => {
     const deps = c.var.deps;
     const { move, auth } = await openExport(deps, c.req.param("id"), c.req.query("token") ?? "");
-    const stream = exportWorkspace(deps, auth, { onDone: (counts) => exportFinished(deps, move.id, counts) });
+    // AIS1 (row 32): an export a key or a connected app started gets Multies' own mail without its text.
+    const stream = exportWorkspace(deps, auth, { onDone: (counts) => exportFinished(deps, move.id, counts), withholdPlatformMail: exportWithholds(move) });
     const day = move.createdAt.toISOString().slice(0, 10);
     return new Response(stream, { headers: { "content-type": "application/zip", "content-disposition": `attachment; filename="workspace-export-${day}.zip"`, "cache-control": "no-store", "x-robots-tag": "noindex" } });
   });

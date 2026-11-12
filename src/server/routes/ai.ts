@@ -6,7 +6,7 @@ import { randomToken } from "../lib/crypto";
 import { HttpError } from "../lib/errors";
 import { DbRateLimitStore } from "../lib/rate-limit";
 import { parseBody, requireAdmin, requireAuth } from "../middleware";
-import { AI_PROVIDERS, AI_PROVIDER_INFO, BYO_AI_MESSAGE, aiKeyStatus, deleteAiKey, draftReply, invoiceChase, saveAiKey, summariseThread, triageMessage } from "../services/ai";
+import { AI_PROVIDERS, AI_PROVIDER_INFO, BYO_AI_MESSAGE, aiKeyStatus, canFallBack, deleteAiKey, draftReply, invoiceChase, saveAiKey, summariseThread, triageMessage } from "../services/ai";
 import { LEGACY_AI_PROVIDERS } from "../services/ai/providers";
 import { AI2_PROVIDERS, AI2_PROVIDER_CARDS } from "../../shared/ai-connect-ai2";
 
@@ -57,7 +57,7 @@ export function aiRoutes() {
       return c.json({
         ...(await aiKeyStatus(c.var.deps, c.var.auth.orgId)),
         providers: (ai2 ? AI_PROVIDERS : LEGACY_AI_PROVIDERS).map((id) => AI_PROVIDER_INFO[id]),
-        ...(ai2 ? { ai2: true, cards: AI2_PROVIDERS.map((id) => AI2_PROVIDER_CARDS[id]), builtin: await (await import("../services/ai/builtin-ai2")).builtinStatus(c.var.deps, c.var.auth.orgId) } : {}),
+        ...(ai2 ? { ai2: true, cards: AI2_PROVIDERS.map((id) => AI2_PROVIDER_CARDS[id]), builtin: await (await import("../services/ai/builtin-ai2")).builtinStatus(c.var.deps, c.var.auth.orgId), keyFallback: canFallBack(c.var.deps) } : {}),
         mcp: { url: new URL("/api/v1/mcp", c.var.deps.config.appUrl).toString(), docs: "/agents" },
         message: BYO_AI_MESSAGE,
       });

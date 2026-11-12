@@ -1,4 +1,5 @@
 import { test, expect, type Browser } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R31: the docs "/" menu. "/" then "head" and Enter makes a heading; "/" then "to" makes a
@@ -18,7 +19,7 @@ async function signUp(browser: Browser) {
   return { ctx, page, headers, base };
 }
 
-const SHOTS = "/home/user/tab/files/multies-r31";
+const SHOTS = `${SHOTS_ROOT}/multies-r31`;
 
 test("slash menu: heading, to-do, keyboard, and one copy for a second person", async ({ browser }) => {
   test.setTimeout(180_000);

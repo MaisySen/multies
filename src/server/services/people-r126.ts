@@ -4,6 +4,7 @@
  * users, keys or agents); vv8k and PEOPLE_EXCLUDE answer 404. No salary or ID numbers are ever stored.
  */
 import { sql } from "drizzle-orm";
+import { agentInboxIdAt } from "./agents/agent-address";
 import type { AuthContext, Deps } from "../context";
 import { HttpError, badRequest, forbidden } from "../lib/errors";
 import { newId } from "../lib/crypto";
@@ -63,7 +64,9 @@ export async function listStaff(deps: Deps, a: A): Promise<StaffPerson[]> {
       s.start_date, s.location, s.phone, s.days_off
     from members m join users u on u.id = m.user_id
     left join staff_profiles s on s.org_id = m.organization_id and s.user_id = m.user_id
-    where m.organization_id = ${a.orgId} and m.kind = 'human' order by lower(u.name), u.email`);
+    where m.organization_id = ${a.orgId} and m.kind = 'human'
+      and ${agentInboxIdAt(sql.raw("u.email"))} is null
+    order by lower(u.name), u.email`);
   return rows.map(toPerson);
 }
 

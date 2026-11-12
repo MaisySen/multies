@@ -186,7 +186,11 @@ export function Td7Starter({ onUse }: { onUse: (d: { name?: string; description?
   };
   const draft = async () => {
     setBusy(true); setErr("");
-    try { const r = await api.post<{ draft: { name: string; description: string; fields: ImportedField[] } }>("/forms/td7/ai-draft", { prompt: text }); onUse(r.draft); setMode(""); setText(""); }
+    try {
+      const r = await api.post<{ draft: { name: string; description: string; fields: ImportedField[] }; fallback?: { message: string } }>("/forms/td7/ai-draft", { prompt: text });
+      onUse(r.draft); setMode(""); setText("");
+      if (r.fallback) toast(r.fallback.message); // QUAL1 review: built-in AI drafted in place of the workspace's refused key
+    }
     catch (e) { if (e instanceof ApiError && e.status !== 0 && e.status < 500) setErr(e.fields?.prompt ?? e.message); else showError(e as Error); }
     finally { setBusy(false); }
   };

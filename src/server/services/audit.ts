@@ -3,6 +3,7 @@ import type { DB } from "../db";
 import { auditLogs } from "../db/schema";
 import { newId } from "../lib/crypto";
 import { containsText, startsWithText } from "../lib/like-search";
+import { stampFor } from "../lib/request-caller";
 
 export interface AuditEntry {
   orgId: string;
@@ -19,8 +20,14 @@ export interface AuditEntry {
   at?: Date;
 }
 
-/** Appends an immutable audit record. Actions are dotted verbs, e.g. `domain.verified`. */
+/**
+ * Appends an immutable audit record. Actions are dotted verbs, e.g. `domain.verified`.
+ * AIS1: inside a request, an entry the caller made also gets the request's IP when none was passed, and, when the caller
+ * is an API key or a connected AI app, `metadata.caller` naming it (lib/request-caller.ts). Same row, no extra write.
+ */
 export async function audit(db: DB, e: AuditEntry): Promise<void> {
+  const req = stampFor(e);
+  const metadata = req?.caller && !(e.metadata && "caller" in e.metadata) ? { ...(e.metadata ?? {}), caller: req.caller } : e.metadata;
   await db.insert(auditLogs).values({
     id: newId("aud"),
     orgId: e.orgId,
@@ -29,8 +36,8 @@ export async function audit(db: DB, e: AuditEntry): Promise<void> {
     action: e.action,
     targetType: e.targetType ?? null,
     targetId: e.targetId ?? null,
-    metadata: e.metadata ? JSON.stringify(e.metadata) : null,
-    ip: e.ip ?? null,
+    metadata: metadata ? JSON.stringify(metadata) : null,
+    ip: e.ip ?? req?.ip ?? null,
     agentId: e.agentId ?? null,
     ...(e.at ? { createdAt: e.at } : {}),
   });
@@ -64,6 +71,21 @@ export function redactAuditRow<T extends { targetType?: string | null; targetId?
     out.metadata = maskValue(out.metadata, "");
   }
   return out;
+}
+
+const PRIVATE_KEYS = /email|^ip$|ipAddress|userAgent|invit|token|^subject$/i;
+const ADDRESS = /[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+/;
+/** AIS1 review: a value that is, or lists, a mail address (an agent send's to, cc, bcc or from). */
+const holdsAddress = (v: unknown): boolean => (typeof v === "string" ? ADDRESS.test(v) : Array.isArray(v) && v.some((x) => typeof x === "string" && ADDRESS.test(x)));
+/**
+ * What a plain member may see of an audit row: no IP, no addresses or invite details in its metadata. AIS1: and no mail
+ * subject (an agent's read or send names its thread, which may be in a mailbox the member can't open), and no field
+ * that holds a mail address under any name, so an agent send's recipients and sender stay hidden while a plan change's
+ * from and to stay readable. Used by the dashboard and, since AIS1, by an agent's audit log (app and v1).
+ */
+export function memberSafeAudit<T extends { ip?: string | null; actorEmail?: string | null; metadata?: Record<string, unknown> | null }>(row: T): T {
+  const metadata = row.metadata ? Object.fromEntries(Object.entries(row.metadata).filter(([k, v]) => !PRIVATE_KEYS.test(k) && !holdsAddress(v))) : row.metadata;
+  return { ...row, ip: null, metadata };
 }
 
 /** R111: Audit log filters (Activity > Audit log, flag MAIL_ARCHIVE_R111): action prefixes, who did it, a date range. */

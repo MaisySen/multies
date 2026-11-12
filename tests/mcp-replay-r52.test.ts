@@ -11,6 +11,8 @@ async function setup() {
   const t = await makeTestApp();
   const c = new Client(t.app);
   await c.signup("owner.mcp52@acme.io", "Olive Owner");
+  // AIS1: a key's task with no project goes to the first project; this one has Triage off, so it shows in list_tasks.
+  await c.post("/api/projects", { name: "Work", triage: false });
   const secret = (await c.post("/api/developer/keys", { name: "mcp" })).body.secret as string;
   const rpc = async (method: string, params: unknown, id: number, extra: Record<string, string> = {}) => {
     const r = await t.app.request("/api/v1/mcp", { method: "POST", headers: { host: "localhost", authorization: `Bearer ${secret}`, "content-type": "application/json", accept: "application/json, text/event-stream", ...extra },

@@ -1,6 +1,7 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 23 calls in chat end to end: in a DM between two people, Ada presses Call; Ben gets
@@ -73,7 +74,7 @@ test("the card and header show who is in the call, then Call ended", async () =>
   const header = b.getByTestId("call-header");
   await expect(header).toContainText("In call: Ada Owner, Ben Mate");
   await expect(header.getByTestId("call-header-join")).toBeVisible();
-  const shots = "/home/user/tab/files/multies-r23";
+  const shots = `${SHOTS_ROOT}/multies-r23`;
   mkdirSync(shots, { recursive: true });
   await b.mouse.move(900, 620);
   await b.screenshot({ path: `${shots}/calls.png` });

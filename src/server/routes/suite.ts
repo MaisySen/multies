@@ -87,7 +87,7 @@ export function taskRoutes() {
       const fieldFilters = parseFieldFilters(c.req.query());
       // R26 (MB-86): q is the task query language (plain words still search titles and notes).
       const queryConds = q.q ? applyTaskQuery(q.q, { deps: c.var.deps, actor: c.var.auth }) : undefined;
-      const filters = { ...q, q: undefined, queryConds, includeSubtasks: q.includeSubtasks === "true" || (!!q.q && wantsSubtasks(q.q)), fieldFilters, sprintId: q.sprintId === "none" ? null : q.sprintId };
+      const filters = { ...q, q: undefined, queryConds, search: !!q.q?.trim(), includeSubtasks: q.includeSubtasks === "true" || (!!q.q && wantsSubtasks(q.q)), fieldFilters, sprintId: q.sprintId === "none" ? null : q.sprintId };
       // R46 (MB-234): board, list and backlog read every page once (paged=1, then cursor), then refresh only the tasks
       // the change feed names (ids=a,b,c with the same filters).
       const pageMode = !!paged || ids !== undefined;
@@ -117,7 +117,7 @@ export function taskRoutes() {
       const b = await parseBody(c, TaskFromEmail);
       return c.json({ task: await createTaskFromThread(c.var.deps, c.var.auth, { ...b, assignee: parseAssignee(b.assignee) }) }, 201);
     })
-    .get("/assignees", async (c) => c.json({ assignees: await assignees(c.var.deps, c.var.auth.orgId) }))
+    .get("/assignees", async (c) => c.json({ assignees: await assignees(c.var.deps, c.var.auth.orgId, { pickers: true }) }))
     // R84: workspace tags with colours.
     .get("/tags", async (c) => c.json({ tags: await listTags(c.var.deps, c.var.auth.orgId, { counts: c.req.query("counts") === "1" }) }))
     .post("/tags", async (c) => c.json({ tag: await createTag(c.var.deps, c.var.auth, await parseBody(c, TagCreate)) }, 201))

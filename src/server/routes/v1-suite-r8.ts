@@ -31,6 +31,7 @@ const Field = z.object({
 const Guest = z.object({
   id: z.string(), projectId: z.string(), email: z.string(), name: z.string(), status: z.enum(["pending", "active", "revoked"]),
   invitedBy: z.object({ type: z.string(), id: z.string().nullable() }), approvalId: z.string().nullable(), lastSeenAt: z.string().nullable(), inviteExpiresAt: z.string().nullable(), createdAt: z.string(),
+  awaitingConfirmation: z.boolean().optional().openapi({ description: "AIS1: made by a key or a connected app; nothing is sent and no link works until a person confirms it in the app." }),
 }).openapi("Guest");
 const PortfolioRow = z.object({
   id: z.string(), name: z.string(), key: z.string(), color: z.string(), archived: z.boolean(),
@@ -69,9 +70,9 @@ export function registerSuiteR8Routes(api: OpenAPIHono<AppEnv>) {
   async (c) => send(c, { guests: await listGuests(c.var.deps, actor(c).orgId, c.req.valid("param").id) }));
 
   api.openapi(createRoute({ method: "post", path: "/projects/{id}/guests", tags: ["Guests"], summary: "Invite a guest to a project", security: secured,
-    description: "Guests are free on every plan and take no seat. They see the project's tasks, comments and docs, and can comment and upload files. From an agent key (or with agentId) the invite email goes from that agent's inbox and follows its approval rules, so it may wait in the approval queue: delivery.status is then pending_approval.",
+    description: "Guests are free on every plan and take no seat. They see the project's tasks, comments and docs, and can comment and upload files. AIS1: an invite lets someone in, so it never goes out without a person. From an agent key (or with agentId) the invite email goes from that agent's inbox and always waits in the approval queue (delivery.status pending_approval), whatever the agent's approval rule. From a workspace key without agentId nothing is sent: delivery.status is awaiting_confirmation and a person sends it from the project's Guests in the app. An address whose mail reaches an AI agent answers 422 agent_address.",
     request: { params: Id, ...body(GuestInvite) },
-    responses: { 201: json(z.object({ guest: Guest, delivery: z.object({ status: z.enum(["sent", "pending_approval", "not_sent"]), approvalId: z.string().optional(), detail: z.string().optional() }) }), "The guest and how the invite went."), 401: errors[401], 403: errors[403], 404: errors[404], 422: errors[422] } }),
+    responses: { 201: json(z.object({ guest: Guest, delivery: z.object({ status: z.enum(["sent", "pending_approval", "not_sent", "awaiting_confirmation"]), approvalId: z.string().optional(), detail: z.string().optional() }) }), "The guest and how the invite went."), 401: errors[401], 403: errors[403], 404: errors[404], 422: errors[422] } }),
   async (c) => {
     const b = c.req.valid("json");
     let a = actor(c);

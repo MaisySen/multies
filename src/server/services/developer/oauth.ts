@@ -163,7 +163,8 @@ export async function deny(deps: Deps, q: AuthorizeRequest) {
   return { redirectTo: url.toString() };
 }
 
-async function signingKey(deps: Deps) { return hmacSha256Hex(deps.config.appSecret, "multies-mcp-oauth-access-v1"); }
+// Semgrep (QUAL1): the string is the derivation label; the key is the deployment's APP_SECRET.
+async function signingKey(deps: Deps) { return hmacSha256Hex(deps.config.appSecret, "multies-mcp-oauth-access-v1"); } // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
 
 async function issueTokens(deps: Deps, grant: typeof oauthGrants.$inferSelect) {
   const now = deps.now();

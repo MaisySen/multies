@@ -1,7 +1,7 @@
 
 import { chromium } from "@playwright/test";
 const [,, phase, only] = process.argv;
-const OUT = "/home/user/tab/files/multies-r35";
+const OUT = (process.env.SHOTS_ROOT || "/home/user/tab/files") + "/multies-r35";
 const base = "http://localhost:8962";
 const screens = [
   ["home", "/app/my-work"], ["mail", "/app/mail"], ["tasks", "/app/tasks?view=list"],

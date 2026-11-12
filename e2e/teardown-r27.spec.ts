@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R27 teardown end to end: Watch a task from the task panel (the creator already watches, stop and start again,
@@ -7,7 +8,7 @@ import { mkdirSync } from "node:fs";
  */
 let visitor = 0;
 const ip = () => `10.127.${test.info().workerIndex % 200}.${++visitor}`;
-const SHOTS = "/home/user/tab/files/multies-r27";
+const SHOTS = `${SHOTS_ROOT}/multies-r27`;
 
 test("watch a task and duplicate it with its subtask and checklist", async ({ browser }) => {
   const base = test.info().project.use.baseURL!;

@@ -27,7 +27,7 @@ const wsKey = async (c: W["admin"]["c"]) => (await c.post("/api/developer/keys",
 /** Pat becomes an admin (members can't make agents) and makes an agent on her own personal mailbox. */
 async function patAgent(w: W, approvalMode: "always" | "never" = "always") {
   expect((await w.owner.patch(`/api/team/members/${w.pat.id}`, { role: "admin" })).status).toBe(200);
-  const r = await w.pat.c.post("/api/agents", { name: "Pat helper", localPart: `pathelper${w.n}`, approvalMode, mailboxIds: [w.boxes.personal] });
+  const r = await w.pat.c.post("/api/agents", { name: "Pat helper", localPart: `pathelper${w.n}`, approvalMode, mailboxIds: [w.boxes.personal], allowedRecipients: null }); // AIS1: a person picks "anyone"
   expect(r.status).toBe(201);
   expect(r.body.agent.mailboxIds).toContain(w.boxes.personal);
   return { id: r.body.agent.id as string, inbox: r.body.agent.inboxId as string, secret: r.body.apiKey.secret as string, keyId: r.body.apiKey.id as string };
@@ -147,7 +147,7 @@ describe("PRIV1b P51: external approval mode treats other workspaces as outside"
     const otherDomain = await verifiedDomain(w.ctx, w.outsider, `other${w.n}.io`);
     const mb = await w.outsider.post("/api/mailboxes", { domainId: otherDomain, localPart: "hello", displayName: "Hello" });
     expect(mb.status).toBe(201);
-    const ag = await w.admin.c.post("/api/agents", { name: "Outreach", localPart: `outreach${w.n}`, approvalMode: "external", mailboxIds: [w.boxes.team] });
+    const ag = await w.admin.c.post("/api/agents", { name: "Outreach", localPart: `outreach${w.n}`, approvalMode: "external", mailboxIds: [w.boxes.team], allowedRecipients: null }); // AIS1: "anyone", or the other workspace is off the list
     const key = ag.body.apiKey.secret as string;
     const inside = await v1(w, key, "POST", `/agents/${ag.body.agent.id}/send`, { to: ["team@acme.io"], subject: "Inside", text: "x" });
     expect(inside.status).toBe(200);

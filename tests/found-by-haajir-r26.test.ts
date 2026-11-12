@@ -123,7 +123,10 @@ describe("MB-77: chat messages read back, edit and delete", () => {
 
 describe("MB-72: sprint filter and strict query parameters on GET /tasks", () => {
   it("sprintId lists one sprint, none the backlog, and an unknown parameter answers 400", async () => {
+    // AIS1: a key's project starts with Triage on and only a person turns it off; off here so the key's tasks
+    // go straight to the lists this test reads.
     const proj = (await v1(key, "POST", "/projects", { name: "MVP build", key: "MVP" })).body.project;
+    expect((await owner.patch(`/api/projects/${proj.id}`, { triage: false })).body.project.triage).toBe(false);
     const sprint = (await v1(key, "POST", `/projects/${proj.id}/sprints`, { name: "Sprint 2" })).body.sprint;
     const inSprint = (await v1(key, "POST", "/tasks", { projectId: proj.id, title: "Push", sprintId: sprint.id })).body.task;
     const backlog = (await v1(key, "POST", "/tasks", { projectId: proj.id, title: "Android" })).body.task;

@@ -234,8 +234,7 @@
     "create_agent_inbox": {
       "arguments": {
         "name": "Support agent",
-        "localPart": "support",
-        "approvalMode": "external"
+        "localPart": "support"
       },
       "result": {
         "agent": {
@@ -244,9 +243,11 @@
           "description": null,
           "address": "support@acme.io",
           "inboxId": "mbx_0079gx0i",
-          "approvalMode": "external",
+          "approvalMode": "always",
           "sendCapDaily": 100,
-          "allowedRecipients": null,
+          "allowedRecipients": [
+            "@acme.io"
+          ],
           "status": "active",
           "mailboxIds": [
             "mbx_0079gx0i"
@@ -1067,7 +1068,7 @@
             "agentId": "agt_0079e6a5",
             "name": "Support agent",
             "address": "support@acme.io",
-            "approvalMode": "external",
+            "approvalMode": "always",
             "sentToday": 0,
             "sendCapDaily": 100,
             "status": "active",

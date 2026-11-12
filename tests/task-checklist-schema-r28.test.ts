@@ -30,7 +30,8 @@ beforeEach(async () => {
   c = new Client(ctx.app);
   await c.signup("owner@acme.io", "Olive Owner");
   key = (await c.post("/api/developer/keys", { name: "Mobile" })).body.secret;
-  projectId = (await c.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
+  // AIS1: new projects start with Triage on; off here so the key's tasks go straight to the lists read below.
+  projectId = (await c.post("/api/projects", { name: "Launch", key: "LAU", triage: false })).body.project.id;
   const res = await ctx.app.request("/api/v1/openapi.json", { headers: { host: "localhost" } });
   spec = (await res.json()) as Spec;
 });

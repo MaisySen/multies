@@ -1,11 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R43 ui helper (MB-210): long lists render only the rows on screen. The Tasks list gets 5,000 tasks from a mocked
  * API (the demo's own first task, cloned), then the spec counts DOM nodes and times scroll frames, and checks that
  * keyboard moves, the sticky header, the inline Add task row and the phone card list still work.
- * MEASURE=before runs only the numbers against a build of main; numbers land in /home/user/tab/files/multies-r43/.
+ * MEASURE=before runs only the numbers against a build of main; numbers land in SHOTS_ROOT/multies-r43/.
  * SHOTS=before or SHOTS=after saves screenshots there too.
  */
 let visitor = 0;
@@ -16,7 +17,7 @@ test.setTimeout(180_000);
 
 const LABEL = process.env.MEASURE === "before" ? "before" : "after";
 const AFTER = LABEL === "after";
-const DIR = "/home/user/tab/files/multies-r43";
+const DIR = `${SHOTS_ROOT}/multies-r43`;
 const N = 5000;
 
 async function demo(page: Page) {

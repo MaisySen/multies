@@ -21,7 +21,7 @@ import { runBatch } from "../../db";
 import { HttpError } from "../../lib/errors";
 import { writeBudget } from "../write-budget";
 import { assertWritable, changeRow, createdBy, actorOf, sortableId, type SuiteActor } from "../suite/common";
-import { createProject, DEFAULT_STATUSES, getProject } from "../suite/tasks";
+import { createProject, DEFAULT_STATUSES, getProject, machineTriage } from "../suite/tasks";
 import { suggestStatusMap } from "../../../shared/status-import-k1";
 import {
   FIELD_LABELS, ImportFileError, MAP_FIELDS, SOURCE_LABELS, categoryOf, defaultMapping, mapRows, readTable, trelloListOrder, uniqueHeaders,
@@ -168,7 +168,7 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
     const early: StopReason | null = level === "warn" || level === "shed" ? "write_budget" : (await usedToday(deps, actor.orgId)) >= DAILY_TASK_CAP ? "daily_cap" : null;
     if (early) {
       if (input.projectId) await getProject(deps, actor.orgId, input.projectId);
-      return { projectId: input.projectId ?? null, projectName: null, continued: false, source: table.source, sourceLabel: label, total: rows.length, created: 0, alreadyThere: existing.size, left: pendingCount, skipped, comments: 0, checklistItems: 0, unknownAssignees: 0, stopped: early, projectCreated: false, createdTaskIds: [] as string[], createdStatusIds: [] as string[] };
+      return { projectId: input.projectId ?? null, projectName: null, continued: false, source: table.source, sourceLabel: label, total: rows.length, created: 0, alreadyThere: existing.size, left: pendingCount, skipped, comments: 0, checklistItems: 0, unknownAssignees: 0, stopped: early, projectCreated: false, createdTaskIds: [] as string[], createdStatusIds: [] as string[], triage: false };
     }
   }
 
@@ -202,6 +202,10 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
     projectCreated = true;
   }
   const project = await getProject(deps, actor.orgId, projectId);
+  // AIS1 review (row 35): an API key's or a connected AI app's import into a project with Triage on (a new project
+  // the import makes starts with it on) waits there for a person, subtasks too, like the key's own tasks. A person's
+  // import goes straight to the board. Nothing extra is read or written: the rows carry the flag.
+  const wait = project.triage ? machineTriage(actor) : null;
 
   // K1: a file status the person left on its default lands in the column that means the same ("Complete" in
   // "Done"), so an import from another tool does not grow the board a second done column. A status sent as null
@@ -360,6 +364,7 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
         assigneeType: assignee ? "member" : null, assigneeId: assignee, priority: r.priority, startAt: r.start, dueAt: r.due,
         labels: JSON.stringify(r.labels), parentId: parentOf(r), position: maxPos + (created + j + 1) * 1024, completedAt: st.category === "done" ? at : null,
         importKey: key, ...createdBy(actor), createdAt: at, updatedAt: at,
+        ...(wait ? { triageState: "pending" as const, triageSource: wait.source } : {}),
         ...(sub ? { subtaskTotal: sub.total, subtaskDone: sub.done } : {}),
         ...(atomic ? { commentCount: r.comments.length, checklistTotal: r.checklist.length, checklistDone: r.checklist.filter((c) => c.done).length } : {}),
       }).onConflictDoNothing();
@@ -397,5 +402,7 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
     projectId, projectName: project.name, continued, source: table.source, sourceLabel: label,
     total: rows.length, created, alreadyThere: existing.size, left: pending.length - created, skipped, comments, checklistItems, unknownAssignees, stopped,
     projectCreated, createdTaskIds, createdStatusIds,
+    /** AIS1 review: true when the tasks wait in the project's Triage for a person (a key's or an AI app's import). */
+    triage: !!wait,
   };
 }

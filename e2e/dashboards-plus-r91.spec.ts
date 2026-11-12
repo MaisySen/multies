@@ -1,6 +1,7 @@
 import { test, expect, type Browser, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mkdirSync, readdirSync, readFileSync, existsSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R91 Dashboards plus: build a question and add it as a card, share by link (opens logged out, password),
@@ -9,7 +10,7 @@ import { mkdirSync, readdirSync, readFileSync, existsSync } from "node:fs";
  */
 let visitor = 0;
 const ip = () => `10.191.${test.info().workerIndex % 200}.${++visitor}`;
-const SHOTS = process.env.SHOTS_DIR ?? "/home/user/tab/files/catalogue/r91/shots";
+const SHOTS = process.env.SHOTS_DIR ?? `${SHOTS_ROOT}/catalogue/r91/shots`;
 const local = !process.env.E2E_BASE_URL;
 
 async function account(browser: Browser, opts: { width?: number; scheme?: "light" | "dark" } = {}) {

@@ -7,7 +7,7 @@ import { audit } from "../services/audit";
 import { markWorkspace } from "../auth/workspace-mark";
 import { getPlanCached } from "../services/plans";
 import {
-  acceptInvite, createInvite, describeInvite, getInvite, listInvites, listMembers, removeMember, revokeInvite, seatsUsed,
+  acceptInvite, confirmInvite, createInvite, describeInvite, getInvite, listInvites, listMembers, removeMember, revokeInvite, seatsUsed,
   transferOwnership, updateMember,
 } from "../services/team";
 import { RateLimiter } from "../lib/rate-limit";
@@ -95,6 +95,13 @@ export function teamRoutes() {
       const res = await createInvite(deps, auth, c.req.raw.headers, { email: inv.email, role, mailboxIds: JSON.parse(inv.mailboxIds ?? "[]") });
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "member.invite_resent", metadata: { email: inv.email }, ip: c.var.ip });
       return c.json(res, 201);
+    })
+    // AIS1 (audit row 1): an invite an API key or a connected app made waits here for a person to confirm it.
+    .post("/invites/:id/confirm", requireAdmin, async (c) => {
+      const { auth, deps } = c.var;
+      const res = await confirmInvite(deps, auth, c.req.param("id"));
+      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "member.invite_confirmed", targetType: "invitation", targetId: res.id, metadata: { email: res.email }, ip: c.var.ip });
+      return c.json(res);
     })
     .delete("/invites/:id", requireAdmin, async (c) => {
       const { auth, deps } = c.var;

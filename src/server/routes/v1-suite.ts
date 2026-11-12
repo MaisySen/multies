@@ -97,7 +97,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
     strictTaskParams(c.req.query(), Object.keys(TaskPageQuery.shape));
     const { cursor, ...q } = c.req.valid("query");
     // ---- R26 (MB-86) task query: q is the query language (plain words still search title and notes); 400 bad_query with position.
-    const r26 = q.q ? { q: undefined, queryConds: applyTaskQuery(q.q, { deps: c.var.deps, actor: actor(c) }), includeSubtasks: q.includeSubtasks === "true" || wantsSubtasks(q.q) } : {};
+    const r26 = q.q ? { q: undefined, queryConds: applyTaskQuery(q.q, { deps: c.var.deps, actor: actor(c) }), search: !!q.q.trim(), includeSubtasks: q.includeSubtasks === "true" || wantsSubtasks(q.q) } : {};
     // ---- end R26 (MB-86)
     const page = await listTasksPage(c.var.deps, actor(c), { ...q, sprintId: sprintFilter(q.sprintId), includeSubtasks: q.includeSubtasks === "true", fieldFilters: parseFieldFilters(c.req.query()), ...r26, cursor, noChangeCursor: true });
     return send(c, { tasks: page.tasks, next: page.next });
@@ -116,12 +116,12 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   });
 
   api.openapi(createRoute({ method: "post", path: "/tasks", tags: tag("Tasks"), summary: "Create a task", security: secured,
-    description: "Pass source.messageId or source.threadId to link the task to an email thread: replies on the thread then show on the task. When the project uses Triage, the new task waits there (triage.state pending, source api) until someone accepts it.",
+    description: "Pass source.messageId or source.threadId to link the task to an email thread: replies on the thread then show on the task. When the project uses Triage (new projects do), the new task, and a subtask too, waits there (triage.state pending, source api) until a person accepts it.",
     request: body(TaskCreate), responses: { 201: json(z.object({ task: Task }), "The task."), 401: errors[401], 422: errors[422] } }),
   async (c) => { const b = c.req.valid("json"); return send(c, { task: await createTask(c.var.deps, actor(c), { ...b, assignee: assigneeOf(b), triage: { source: "api", when: "if_project" } }, { id: await idempotentId(c.req.raw, "tsk") }) }, 201); }); // R32: waits in Triage when the project uses it
 
   api.openapi(createRoute({ method: "post", path: "/tasks/from-email", tags: tag("Tasks"), summary: "Make a task from an email", security: secured,
-    description: "One call: the title comes from the subject, the notes from the newest text without quoted history, and the task links to the thread.",
+    description: "One call: the title comes from the subject, the notes (unless you pass them) from the newest text without quoted history (for Multies' own mail, such as an invite or a password reset, a short notice instead of its text), and the task links to the thread. When the project uses Triage (new projects do), the task waits there (triage.state pending, source api) until a person accepts it.",
     request: body(TaskFromEmail), responses: { 201: json(z.object({ task: Task }), "The task."), 401: errors[401], 404: errors[404], 422: errors[422] } }),
   async (c) => { const b = c.req.valid("json"); return send(c, { task: await createTaskFromThread(c.var.deps, actor(c), { ...b, assignee: parseAssignee(b.assignee) }, await idempotentCreate(c.req.raw, "tsk")) }, 201); });
 
@@ -140,12 +140,13 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   async (c) => send(c, await taskDetail(c.var.deps, actor(c), c.req.valid("param").id)));
 
   api.openapi(createRoute({ method: "patch", path: "/tasks/{id}", tags: tag("Tasks"), summary: "Update a task", security: secured,
-    description: "Change any field, move it to another status or project, or reorder it with position. Send version to reject the write if the task changed since you read it.",
-    request: { params: Id, ...body(TaskPatch) }, responses: { 200: json(z.object({ task: Task }), "The task."), 401: errors[401], 404: errors[404], 409: errors[409], 422: errors[422] } }),
+    description: "Change any field, move it to another status or project, or reorder it with position. Send version to reject the write if the task changed since you read it. A key can't move a task from a project with Triage off into one with Triage on (403 person_only) unless it waits in Triage or a person accepted it there; make it in that project instead, where it waits. It also can't put a task that isn't waiting under one that waits in Triage (parentId, 403 person_only).",
+    request: { params: Id, ...body(TaskPatch) }, responses: { 200: json(z.object({ task: Task }), "The task."), 401: errors[401], 403: err("A person must move this task into a project with Triage on, or under an item that waits in Triage (person_only)."), 404: errors[404], 409: errors[409], 422: errors[422] } }),
   async (c) => { const b = c.req.valid("json"); return send(c, { task: await updateTask(c.var.deps, actor(c), c.req.valid("param").id, { ...b, assignee: assigneeOf(b), assignees: b.assignees?.map((x) => parseAssignee(x)!) }) }); });
 
   api.openapi(createRoute({ method: "delete", path: "/tasks/{id}", tags: tag("Tasks"), summary: "Delete a task and its subtasks", security: secured,
-    request: { params: Id }, responses: { 200: json(z.object({ ok: z.boolean() }), "Deleted."), 401: errors[401], 404: errors[404] } }),
+    description: "Deletes the task and its subtasks. A key can't delete a task that waits in Triage, or one whose subtask waits there (403 person_only): a person decides those.",
+    request: { params: Id }, responses: { 200: json(z.object({ ok: z.boolean() }), "Deleted."), 401: errors[401], 403: err("A person must decide a task that waits in Triage (person_only)."), 404: errors[404] } }),
   async (c) => send(c, await deleteTask(c.var.deps, actor(c), c.req.valid("param").id)));
 
   api.openapi(createRoute({ method: "post", path: "/tasks/{id}/comments", tags: tag("Tasks"), summary: "Comment on a task", security: secured,
@@ -158,8 +159,8 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   async (c) => send(c, { projects: await listProjects(c.var.deps, actor(c).orgId) }));
 
   api.openapi(createRoute({ method: "post", path: "/projects", tags: tag("Projects"), summary: "Create a project", security: secured,
-    description: "Statuses are optional: the default is To do, In progress, In review and Done. Each status belongs to a group (todo, doing, done).",
-    request: body(ProjectCreate), responses: { 201: json(z.object({ project: Project }), "The project."), 401: errors[401], 422: errors[422] } }),
+    description: "Statuses are optional: the default is To do, In progress, In review and Done. Each status belongs to a group (todo, doing, done). Triage is on unless a person signed in to Multies chooses off.",
+    request: body(ProjectCreate), responses: { 201: json(z.object({ project: Project }), "The project."), 401: errors[401], 403: err("Only a person signed in to Multies can make a project with Triage off (person_only)."), 422: errors[422] } }),
   async (c) => send(c, { project: await createProject(c.var.deps, actor(c), c.req.valid("json"), { id: await idempotentId(c.req.raw, "prj") }) }, 201));
 
   api.openapi(createRoute({ method: "get", path: "/projects/{id}", tags: tag("Projects"), summary: "Get a project", security: secured,
@@ -167,13 +168,13 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   async (c) => send(c, { project: await getProject(c.var.deps, actor(c).orgId, c.req.valid("param").id) }));
 
   api.openapi(createRoute({ method: "patch", path: "/projects/{id}", tags: tag("Projects"), summary: "Update a project or its statuses", security: secured,
-    request: { params: Id, ...body(ProjectPatch) }, responses: { 200: json(z.object({ project: Project }), "The project."), 401: errors[401], 404: errors[404], 409: err("The key is used by another project (key_taken)."), 422: errors[422] } }),
+    request: { params: Id, ...body(ProjectPatch) }, responses: { 200: json(z.object({ project: Project }), "The project."), 401: errors[401], 403: err("Only a person signed in to Multies can turn Triage off (person_only)."), 404: errors[404], 409: err("The key is used by another project (key_taken)."), 422: errors[422] } }),
   async (c) => send(c, { project: await updateProject(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json")) }));
 
   // R44: a key could create a project but not remove it. Same rule as the app: admins only, so an agent
   // member's key (role member) is refused; the project and its tasks are soft deleted.
   api.openapi(createRoute({ method: "delete", path: "/projects/{id}", tags: tag("Projects"), summary: "Delete a project and its tasks", security: secured,
-    request: { params: Id }, responses: { 200: json(z.object({ ok: z.boolean() }), "Deleted."), 401: errors[401], 403: err("Only an admin's key can delete a project (admin_only)."), 404: errors[404] } }),
+    request: { params: Id }, responses: { 200: json(z.object({ ok: z.boolean() }), "Deleted."), 401: errors[401], 403: err("Only an admin's key can delete a project (admin_only), and not while items wait in its Triage (person_only)."), 404: errors[404] } }),
   async (c) => {
     if (c.var.auth.role === "member") throw new HttpError(403, "admin_only", "Only an admin can delete a project. Use a workspace key.");
     return send(c, await deleteProject(c.var.deps, actor(c), c.req.valid("param").id));

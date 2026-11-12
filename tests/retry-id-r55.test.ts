@@ -68,6 +68,9 @@ async function setup() {
 
   // Seeds every case can use.
   const project = (await v1("POST", "/projects", { name: "Seed" })).project.id as string;
+  // AIS1: a key's project starts with Triage on and only a person turns it off. Off here, so the seed tasks are
+  // normal tasks (a task still in Triage can't be duplicated).
+  await c.patch(`/api/projects/${project}`, { triage: false });
   const task = async (title = "Seed") => (await v1("POST", "/tasks", { title, projectId: project })).task.id as string;
   const channel = (await v1("POST", "/chat/channels", { name: "seed-room" })).channel.id as string;
   const chat = async (body = "Please check the invoice") => (await v1("POST", `/chat/channels/${channel}/messages`, { body })).message.id as string;

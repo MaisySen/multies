@@ -3,6 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { confirmEmail } from "./support/confirm-email";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, statSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * VID3 end to end: meeting recording on phone browsers, on a real local LiveKit dev server (LIVEKIT_URL=ws://localhost,
@@ -16,7 +17,7 @@ import { mkdirSync, rmSync, statSync } from "node:fs";
  */
 const LIVE = /^ws:\/\/(localhost|127\.0\.0\.1)/.test(process.env.LIVEKIT_URL ?? "");
 const ON = String(process.env.FEATURES ?? "").split(",").map((s) => s.trim()).includes("VIDEO_PHONE_VID3");
-const SHOTS = process.env.SHOTS_DIR ?? "/home/user/tab/files/catalogue/vid3/shots";
+const SHOTS = process.env.SHOTS_DIR ?? `${SHOTS_ROOT}/catalogue/vid3/shots`;
 const TMP = "/tmp/vid3-e2e";
 test.skip(!LIVE, "needs the local LiveKit dev server (run with LIVEKIT_URL=ws://localhost:<port>)");
 test.describe.configure({ mode: "serial" });
@@ -27,7 +28,8 @@ let visitor = 0;
 const ip = () => `10.191.${test.info().workerIndex % 200}.${++visitor}`;
 let origin = "";
 const tag = Math.random().toString(36).slice(2, 8);
-const PASSWORD = "a-strong-password";
+// Semgrep (QUAL1): a made up password for a throwaway e2e account.
+const PASSWORD = "a-strong-password"; // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_password
 const ownerEmail = `olive-vid3-${tag}@example.com`;
 let meetingId = "";
 let iphoneCtx: BrowserContext, pixelCtx: BrowserContext, mateCtx: BrowserContext;

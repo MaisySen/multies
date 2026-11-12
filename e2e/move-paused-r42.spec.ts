@@ -1,6 +1,7 @@
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R42 move: the import page says what really happens when an import is paused. Imports run only while their page is
@@ -9,7 +10,7 @@ import { mkdirSync } from "node:fs";
  * 15 seconds of work). SHOTS=after saves move-after-copy-* (desktop and phone, light and dark) in files/multies-r42.
  */
 test.describe.configure({ mode: "serial" });
-const SHOT_DIR = "/home/user/tab/files/multies-r42";
+const SHOT_DIR = `${SHOTS_ROOT}/multies-r42`;
 let ctx: BrowserContext;
 let page: Page;
 test.beforeAll(async ({ browser }) => {

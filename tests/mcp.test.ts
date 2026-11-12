@@ -246,7 +246,7 @@ describe("MCP server", () => {
   });
 
   it("acts as one agent with an agent key: reads, searches, waits for mail and replies for approval", async () => {
-    const { agent, apiKey } = (await c.post("/api/agents", { name: "Signup bot", localPart: "signups" })).body;
+    const { agent, apiKey } = (await c.post("/api/agents", { name: "Signup bot", localPart: "signups", allowedRecipients: null })).body; // AIS1: the reply goes outside the default list
     await c.post("/api/developer/keys", { name: "spare" });
     const mcp = await connect(apiKey.secret);
     const tools = (await mcp.listTools()).tools.map((t) => t.name);

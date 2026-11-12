@@ -201,6 +201,17 @@ export const joinHtml = (pieces: Piece[], map: Map<string, string>) => joinPiece
 
 /** Preferences, kept per person on this device. */
 export type R116Prefs = { target: R116Language; autoOffer: boolean };
+
+/**
+ * QUAL1 (audit row 29): what the mail toolbar offers. Mail already in the reader's language gets no "Translate to
+ * <that language>" button (it could only answer "already in English"); the language list stays, and picking another
+ * language there translates at once. `note` is the "This looks like Nepali" offer for mail in another language.
+ */
+export function translateOffer(detected: R116Language | null, target: R116Language, translated: boolean): { button: boolean; note: boolean; pickTranslates: boolean } {
+  if (translated) return { button: true, note: false, pickTranslates: true };
+  const same = !!detected && detected === target;
+  return { button: !same, note: !!detected && !same, pickTranslates: same };
+}
 export const R116_PREFS_KEY = (userId: string) => `multies.translate.${userId}`;
 export function readPrefs(raw: string | null, fallback: R116Language = "en"): R116Prefs {
   try {

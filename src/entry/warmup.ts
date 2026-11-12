@@ -19,8 +19,11 @@ import { forgetUserCaches } from "../server/lib/isolate-cache";
 import { forgetOrgCache } from "../server/services/plans";
 import { clearAuthCache } from "../server/auth/guards";
 
-/** The warm up copy's own app secret. Not a secret: it only signs the fixture's session for the throwaway copy. */
-export const WARM_SECRET = "warm-up-only-copy-signing-value-not-a-secret-0001";
+/**
+ * The warm up copy's own app secret. Not a secret: it only signs the fixture's session for the throwaway copy, whose
+ * config, database and bindings are its own (src/entry/worker.ts startupWarm). Semgrep (QUAL1) is told so on the line below.
+ */
+export const WARM_SECRET = "warm-up-only-copy-signing-value-not-a-secret-0001"; // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
 
 export interface WarmFixture {
   cookie: string;

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * Round 22 leftovers end to end: a chat message goes to Triage from its menu, and the board groups
@@ -67,5 +68,5 @@ test("the board groups by epic and a drag moves a card into another epic", async
   await page.mouse.up();
   await expect(col("Onboarding")).toContainText("Pay button");
   await expect.poll(async () => (await (await page.request.get(`/api/tasks/${pay.id}`, { headers })).json()).task.parentId).toBe(onboarding.id);
-  await page.screenshot({ path: "/home/user/tab/files/multies-r22/board-by-epic.png" });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r22/board-by-epic.png` });
 });

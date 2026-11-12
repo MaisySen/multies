@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R37: every keyboard shortcut the ? sheet lists, pressed for real. Global keys and every G then key,
@@ -10,7 +11,7 @@ import Database from "better-sqlite3";
  * and Shift+Enter, doc slash, checklist Alt+Up and Enter, comment Cmd+Enter, saved reply Tab) and the meeting
  * pre-join Enter have their own specs (chat, docs, tasks, comments, saved replies and meeting lobby e2e).
  */
-const SHOTS = "/home/user/tab/files/multies-r37";
+const SHOTS = `${SHOTS_ROOT}/multies-r37`;
 let visitor = 0;
 test.beforeEach(async ({ context }) => {
   if (!process.env.E2E_BASE_URL) await context.setExtraHTTPHeaders({ "x-forwarded-for": `10.37.${test.info().workerIndex % 200}.${++visitor}` });

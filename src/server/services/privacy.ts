@@ -18,7 +18,9 @@ import { cancelForDeletion } from "./billing";
 import { inIds } from "../lib/sql-chunks";
 import { EXPORT_README, writeWorkData, type ZipSink } from "./data-move/export";
 import { toMboxEntry } from "./data-move/formats";
+import { WITHHELD_TEXT, withheldRow } from "./agents/platform-mail";
 import { endPersonalMail } from "./team";
+import { callerStampOf, viaLabel } from "@/shared/audit-caller";
 
 const PAGE = 200;
 const enc = new TextEncoder();
@@ -50,13 +52,20 @@ export async function personalData(deps: Deps, userId: string) {
   };
 }
 
-/** Audit log rows for a workspace in a date range, oldest first. */
+/**
+ * Audit log rows for a workspace in a date range, oldest first. AIS1: the last two columns say which key or connected
+ * AI app made the change (callerKind, and via in plain words), empty for a person in the app or an older entry.
+ */
 export async function auditRows(deps: Deps, orgId: string, from?: Date, to?: Date) {
   const rows = await deps.db.select().from(auditLogs).where(eq(auditLogs.orgId, orgId)).orderBy(asc(auditLogs.createdAt)).limit(50_000);
   return rows
     .filter((r) => (!from || r.createdAt >= from) && (!to || r.createdAt <= to))
-    .map((r) => redactAuditRow({ at: iso(r.createdAt), action: r.action, actor: r.actorEmail ?? "", actorUserId: r.actorUserId ?? "", targetType: r.targetType ?? "", targetId: r.targetId ?? "", ip: r.ip ?? "", metadata: r.metadata ?? "" }));
+    .map((r) => {
+      const stamp = r.metadata?.includes("\"caller\"") ? callerStampOf(parseMeta(r.metadata)?.caller) : null;
+      return redactAuditRow({ at: iso(r.createdAt), action: r.action, actor: r.actorEmail ?? "", actorUserId: r.actorUserId ?? "", targetType: r.targetType ?? "", targetId: r.targetId ?? "", ip: r.ip ?? "", metadata: r.metadata ?? "", callerKind: stamp?.kind ?? "", via: stamp ? viaLabel(stamp) : "" });
+    });
 }
+const parseMeta = (raw: string): Record<string, unknown> | null => { try { return JSON.parse(raw) as Record<string, unknown>; } catch { return null; } };
 
 export const toCsv = (rows: Record<string, unknown>[]) => Papa.unparse(rows, { quotes: false, newline: "\r\n" });
 
@@ -67,11 +76,15 @@ function requireWorkspaceAdmin(auth: AuthContext) {
 /**
  * Streams a ZIP of the whole workspace: settings, members, domains, mailboxes, aliases,
  * integrations (no secrets), the audit log, and every message with its attachments.
+ * AIS1 (row 32): `withholdPlatformMail` (an export a workspace key or a connected app started) writes Multies' own mail
+ * (invites, confirmations, resets) with its subject and sender only, as every other read path gives them.
  */
-export function exportWorkspace(deps: Deps, auth: AuthContext, opts: { onDone?: (counts: Record<string, number>) => Promise<void> } = {}): ReadableStream<Uint8Array> {
+export function exportWorkspace(deps: Deps, auth: AuthContext, opts: { onDone?: (counts: Record<string, number>) => Promise<void>; withholdPlatformMail?: boolean } = {}): ReadableStream<Uint8Array> {
   requireWorkspaceAdmin(auth);
   const { db } = deps;
   const orgId = auth.orgId;
+  const systemFrom = deps.config.systemFrom.address;
+  const hide = (m: { authResults: string | null; fromAddress: string }) => !!opts.withholdPlatformMail && withheldRow(m, systemFrom);
   let zip: Zip;
   return new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -131,10 +144,12 @@ export function exportWorkspace(deps: Deps, auth: AuthContext, opts: { onDone?: 
               .orderBy(asc(messages.id)).limit(PAGE);
             if (!page.length) break;
             const atts = await db.select().from(attachments).where(inIds(attachments.messageId, page.map((m) => m.id)));
-            const lines = page.map((m) => JSON.stringify({
-              ...m, to: JSON.parse(m.to), cc: JSON.parse(m.cc), bcc: JSON.parse(m.bcc),
-              attachments: atts.filter((a) => a.messageId === m.id).map(({ messageId: _m, ...a }) => a),
-            })).join("\n") + "\n";
+            const lines = page.map((m) => JSON.stringify(hide(m)
+              ? { ...m, to: JSON.parse(m.to), cc: JSON.parse(m.cc), bcc: JSON.parse(m.bcc), text: WITHHELD_TEXT, html: null, snippet: WITHHELD_TEXT.slice(0, 200), attachments: [], withheld: "platform_mail" }
+              : {
+                ...m, to: JSON.parse(m.to), cc: JSON.parse(m.cc), bcc: JSON.parse(m.bcc),
+                attachments: atts.filter((a) => a.messageId === m.id).map(({ messageId: _m, ...a }) => a),
+              })).join("\n") + "\n";
             file.push(enc.encode(lines));
             mailCount += page.length;
             cursor = page[page.length - 1]!.id;
@@ -146,10 +161,10 @@ export function exportWorkspace(deps: Deps, auth: AuthContext, opts: { onDone?: 
           zip.add(mbox);
           let c2 = "";
           for (;;) {
-            const page = await db.select({ id: messages.id, fromAddress: messages.fromAddress, fromName: messages.fromName, to: messages.to, cc: messages.cc, subject: messages.subject, text: messages.text, html: messages.html, messageIdHeader: messages.messageIdHeader, inReplyTo: messages.inReplyTo, createdAt: messages.createdAt })
+            const page = await db.select({ id: messages.id, fromAddress: messages.fromAddress, fromName: messages.fromName, to: messages.to, cc: messages.cc, subject: messages.subject, text: messages.text, html: messages.html, messageIdHeader: messages.messageIdHeader, inReplyTo: messages.inReplyTo, createdAt: messages.createdAt, authResults: messages.authResults })
               .from(messages).where(and(eq(messages.mailboxId, box.id), c2 ? gt(messages.id, c2) : undefined)).orderBy(asc(messages.id)).limit(PAGE);
             if (!page.length) break;
-            mbox.push(enc.encode(page.map((m) => toMboxEntry(m)).join("")));
+            mbox.push(enc.encode(page.map(({ authResults, ...m }) => toMboxEntry(hide({ authResults, fromAddress: m.fromAddress }) ? { ...m, text: WITHHELD_TEXT, html: null } : m)).join("")));
             c2 = page[page.length - 1]!.id;
             if (page.length < PAGE) break;
           }

@@ -4,9 +4,15 @@
  * the app theme. If the tiles cannot load, the caller's text and links still work and this says so in plain words.
  */
 import { useEffect, useId, useRef, useState } from "react";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+// QUAL1: MapLibre 6 ships ES modules only (no default export) and loads its worker from a separate file that it finds
+// next to its own module at run time, which a bundled chunk is not. Vite copies the worker into the build and the map
+// is pointed at it, same origin (worker-src 'self' in the page policy).
+import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import { MAP_CREDITS } from "@/shared/maps-r115";
+
+maplibregl.setWorkerUrl(mapWorkerUrl);
 
 export interface MapPoint { lat: number; lon: number; label: string; n?: number }
 

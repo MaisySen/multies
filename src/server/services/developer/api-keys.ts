@@ -60,7 +60,9 @@ export async function deleteApiKey(deps: Deps, orgId: string, id: string) {
  * acts as a workspace admin; `read` keys are limited to GET by the API layer. An agent
  * key (agentId set) acts only as that agent, enforced by the agent routes.
  */
-export type ApiKeyAuth = AuthContext & { apiKeyId: string; scope: ApiKeyScope; orgSuspended: boolean; agentId: string | null; title?: string | null; toolList?: "scoped" };
+export type ApiKeyAuth = AuthContext & { apiKeyId: string; scope: ApiKeyScope; orgSuspended: boolean; agentId: string | null; title?: string | null; toolList?: "scoped";
+  /** AIS1: the key's name and prefix, so the audit log and task history can say which key acted (lib/request-caller.ts). */
+  keyName?: string; keyPrefix?: string };
 
 export async function resolveApiKey(deps: Deps, header: string | undefined): Promise<ApiKeyAuth | null> {
   const token = header?.match(/^Bearer\s+(mm_live_[A-Za-z0-9_-]{20,})$/)?.[1];
@@ -94,7 +96,7 @@ export async function resolveApiKey(deps: Deps, header: string | undefined): Pro
   const name = agentMember ? row.creatorName ?? k.name : row.agentName ?? row.orgName;
   return {
     userId, email: `api-key:${k.prefix}`, name, title: agentMember ? row.memberTitle ?? null : null, orgId: k.orgId, role: agentMember ? "member" : "admin",
-    sessionId: `apikey:${k.id}`, apiKeyId: k.id, ...keyScope(k.scope), orgSuspended: !!row.suspendedAt, agentId: k.agentId ?? null,
+    sessionId: `apikey:${k.id}`, apiKeyId: k.id, ...keyScope(k.scope), orgSuspended: !!row.suspendedAt, agentId: k.agentId ?? null, keyName: k.name, keyPrefix: k.prefix,
   };
 }
 

@@ -7,6 +7,10 @@
  * workspace). Guests have no session here, agent keys and read only keys are refused, and an admin can turn
  * every link off with "Allow share links" (on by default; kept in the workspace's metadata JSON).
  *
+ * AIS1 (audit row 67): how long a link works. With no end date given it works SHARE_DEFAULT_EXPIRY_DAYS days.
+ * Only a person signed in to Multies may choose "never" (null); an API key or a connected AI app gets 403
+ * person_only. Links made before this keep the end date they had.
+ *
  * What the public page shows: for a doc, its title and body rendered read only on the server (comments and
  * unknown marks dropped, mentions are plain names, links into the app become plain text so no ids leak); for
  * a board, its columns by status with each card's title, assignee initials, due date and labels. Never notes,
@@ -18,10 +22,13 @@ import { agents, docs, organizations, projectStatuses, projects, shareLinks, tas
 import { newId, randomToken, sha256Hex } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { inChunks } from "../../lib/sql-chunks";
+import { requirePerson } from "../../lib/actor-kind";
 import type { SuiteActor } from "./common";
 
 export type ShareKind = "doc" | "project_board";
 export const SHARE_EXPIRY_DAYS = [7, 30] as const;
+/** AIS1 (audit row 67): a link made without an end date works this many days. */
+export const SHARE_DEFAULT_EXPIRY_DAYS = 30;
 /** Cards shown on a shared board (top level tasks, newest work first within a column). */
 export const SHARE_BOARD_MAX_CARDS = 500;
 
@@ -40,7 +47,7 @@ export async function shareLinksAllowed(deps: Deps, orgId: string): Promise<bool
 
 /** Admins and owners only. One organizations row write when the value changes, none when it does not. */
 export async function setShareLinksAllowed(deps: Deps, actor: Actor, allowed: boolean) {
-  assertPerson(actor);
+  assertNotGuestOrAgent(actor);
   if (actor.role !== "owner" && actor.role !== "admin") throw new HttpError(403, "forbidden", "Only workspace admins can do that.");
   const org = await deps.db.select({ metadata: organizations.metadata }).from(organizations).where(eq(organizations.id, actor.orgId)).get();
   if (!org) throw notFound("Workspace");
@@ -52,13 +59,17 @@ export async function setShareLinksAllowed(deps: Deps, actor: Actor, allowed: bo
   return { allowShareLinks: allowed };
 }
 
-function assertPerson(actor: Actor) {
+/**
+ * Refuses guests and agent keys only. A workspace key and a connected AI app pass: this is not a person check
+ * (AIS1 renamed it from assertPerson; use requirePerson from lib/actor-kind for that).
+ */
+function assertNotGuestOrAgent(actor: Actor) {
   if (actor.guest) throw new HttpError(403, "forbidden", "Guests can't share links.");
   if (actor.agentId) throw new HttpError(403, "agent_key_scope", "Agent keys can't make share links. Use a workspace key.");
 }
 
 function assertCanWrite(actor: Actor) {
-  assertPerson(actor);
+  assertNotGuestOrAgent(actor);
   if (actor.scope === "read") throw new HttpError(403, "read_only_key", "This API key can only read.");
 }
 
@@ -86,11 +97,14 @@ const present = (r: Row) => ({
   comments: r.comments ?? "off", // R103
 });
 
+/** expiresInDays: 7 or 30; left out means SHARE_DEFAULT_EXPIRY_DAYS; null means never (a person signed in only). */
 export interface CreateShareInput { kind: ShareKind; targetId: string; expiresInDays?: 7 | 30 | null; showWorkspaceName?: boolean }
 
 /** Makes a link. Writes one share_links row (plus its token index). The token is returned once and never stored. */
 export async function createShareLink(deps: Deps, actor: Actor, input: CreateShareInput) {
   assertCanWrite(actor);
+  const days = input.expiresInDays === undefined ? SHARE_DEFAULT_EXPIRY_DAYS : input.expiresInDays;
+  if (days === null) requirePerson(actor, "A share link that never expires");
   await targetTitle(deps, actor.orgId, input.kind, input.targetId);
   if (!(await shareLinksAllowed(deps, actor.orgId))) throw new HttpError(403, "share_links_off", "An admin turned share links off for this workspace.");
   const token = randomToken(32);
@@ -98,7 +112,7 @@ export async function createShareLink(deps: Deps, actor: Actor, input: CreateSha
   const row: Row = {
     id: newId("shl"), orgId: actor.orgId, kind: input.kind, targetId: input.targetId, tokenHash: await sha256Hex(token), comments: "off",
     showWorkspace: input.showWorkspaceName ?? true, createdBy: actor.userId || actor.email || "unknown", createdAt: now,
-    expiresAt: input.expiresInDays ? new Date(now.getTime() + input.expiresInDays * 86_400_000) : null, revokedAt: null,
+    expiresAt: days ? new Date(now.getTime() + days * 86_400_000) : null, revokedAt: null,
   };
   await deps.db.insert(shareLinks).values(row);
   return { link: { ...present(row), url: shareUrl(deps, token) }, token };
@@ -106,7 +120,7 @@ export async function createShareLink(deps: Deps, actor: Actor, input: CreateSha
 
 /** Active links (not revoked, not expired), newest first; for one target when given. Reads only. */
 export async function listShareLinks(deps: Deps, actor: Actor, q: { kind?: ShareKind; targetId?: string } = {}) {
-  assertPerson(actor);
+  assertNotGuestOrAgent(actor);
   if (q.targetId && q.kind) await targetTitle(deps, actor.orgId, q.kind, q.targetId);
   const where = [eq(shareLinks.orgId, actor.orgId), isNull(shareLinks.revokedAt)];
   if (q.kind) where.push(eq(shareLinks.kind, q.kind));

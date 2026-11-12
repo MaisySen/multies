@@ -732,7 +732,7 @@ export async function readChatFile(deps: Deps, a: SuiteActor | null, fileId: str
 }
 
 export async function chatPeople(deps: Deps, orgId: string) {
-  return assignees(deps, orgId);
+  return assignees(deps, orgId, { pickers: true }); // AIS1 (row 52): the mention picker shows one AI once
 }
 
 // ---------------------------------------------------------------- guests

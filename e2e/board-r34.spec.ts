@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R34 (MB-186): board swimlanes and WIP limits. Turn on lanes by assignee, drag an unassigned card into a
@@ -70,10 +71,10 @@ test("lanes by assignee: a drag into a person's lane assigns the card; a limit o
   await expect(header.getByTestId("column-count")).toContainText("Over limit");
   await expect.poll(async () => (await (await page.request.get(`/api/projects/${project.id}/board`)).json()).board.limits[todo]?.max).toBe(1);
 
-  mkdirSync("/home/user/tab/files/multies-r34", { recursive: true });
+  mkdirSync(`${SHOTS_ROOT}/multies-r34`, { recursive: true });
   await lanes.evaluate((el) => { el.scrollLeft = 0; });
   await page.mouse.move(5, 5);
-  await page.screenshot({ path: "/home/user/tab/files/multies-r34/board-swimlanes.png" });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r34/board-swimlanes.png` });
 
   // Fold a lane; it stays folded after a reload (this device only).
   await myLane.getByTestId("lane-toggle").click();
@@ -87,5 +88,5 @@ test("lanes by assignee: a drag into a person's lane assigns the card; a limit o
   await expect(page.getByTestId("lane-board")).toBeVisible({ timeout: 15_000 });
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
-  await page.screenshot({ path: "/home/user/tab/files/multies-r34/board-swimlanes-390.png" });
+  await page.screenshot({ path: `${SHOTS_ROOT}/multies-r34/board-swimlanes-390.png` });
 });

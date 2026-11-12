@@ -90,7 +90,7 @@ async function setup() {
     return st;
   };
   const measure = async <T>(fn: () => Promise<T>) => { log = []; const r = await fn(); const statements = log; log = null; return { r, statements }; };
-  return { t, post, v1, msg, out, call, count, fail, measure };
+  return { t, c, post, v1, msg, out, call, count, fail, measure };
 }
 
 const appStatements = (s: string[]) => s.filter((q) => !/idempotency_keys/i.test(q));
@@ -99,6 +99,9 @@ describe("MCP create tools keep the same id on a 5xx retry (R53 MB-239)", () => 
   it.each(cases)("$tool: the retry returns the same id and makes no second row", async (k) => {
     const s0 = await setup();
     const project = (await s0.v1("POST", "/projects", { name: "Seed" })).project!.id;
+    // AIS1: a key's project starts with Triage on and only a person turns it off. Off here, so the seed task is a
+    // normal task (a task still in Triage can't be duplicated).
+    await s0.c.patch(`/api/projects/${project}`, { triage: false });
     const task = (await s0.v1("POST", "/tasks", { title: "Seed", projectId: project })).task!.id;
     const channel = (await s0.v1("POST", "/chat/channels", { name: "seed-53" })).channel!.id;
     if (k.domain) await s0.v1("POST", "/domains", { name: "retry-r53.io" });

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R26 (MB-87) share links end to end: make a doc, press Share, create a link, open it signed out (read only,
@@ -7,7 +8,7 @@ import { mkdirSync } from "node:fs";
  */
 let visitor = 0;
 const ip = () => `10.126.${test.info().workerIndex % 200}.${++visitor}`;
-const SHOTS = "/home/user/tab/files/multies-r26";
+const SHOTS = `${SHOTS_ROOT}/multies-r26`;
 
 test("share a doc read only, open it signed out, revoke it", async ({ browser }) => {
   const base = test.info().project.use.baseURL!;

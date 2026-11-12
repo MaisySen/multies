@@ -17,6 +17,8 @@ import { assertWritable, createdBy, iso, recordWrite, sortableId, type SuiteActo
 import { addComment, getProject, listComments, listTasks, resolveTaskId, type Task } from "./tasks";
 import { listFields } from "./fields";
 import { deferrableWrite } from "../write-priority";
+import { refuseAgentAddress } from "../agents/agent-address";
+import { callerKind, isPersonSession, requirePerson } from "../../lib/actor-kind";
 
 const INVITE_DAYS = 14;
 export const GUEST_COOKIE = "mm_guest";
@@ -25,12 +27,20 @@ export const MAX_GUESTS_PER_PROJECT = 50;
 
 type GuestRow = typeof projectGuests.$inferSelect;
 type ApprovalStatus = (typeof sendApprovals.$inferSelect)["status"];
+/**
+ * AIS1 (audit row 1): an invite a workspace key or a connected app made waits for a person. It has no link (no invite
+ * hash, so nothing can open it) and no approval (that is an agent's invite), and no email went out. A person sends
+ * it with confirmGuest (or hands a link with newGuestLink).
+ */
+export const isHeldGuest = (g: Pick<GuestRow, "status" | "inviteHash" | "approvalId">) => g.status === "pending" && !g.inviteHash && !g.approvalId;
 export function presentGuest(g: GuestRow, approvalStatus: ApprovalStatus | null = null) {
   return {
     id: g.id, projectId: g.projectId, email: g.email, name: g.name, status: g.status,
     invitedBy: { type: g.invitedByType, id: g.invitedById }, approvalId: g.approvalId,
     /** For an agent's invite: where its email stands in the approval queue. */
     approvalStatus: g.approvalId ? approvalStatus : null,
+    /** AIS1: made by a key or a connected app; nothing is sent until a person confirms it. */
+    awaitingConfirmation: isHeldGuest(g),
     lastSeenAt: iso(g.lastSeenAt), inviteExpiresAt: iso(g.inviteExpiresAt), createdAt: g.createdAt.toISOString(),
   };
 }
@@ -49,26 +59,34 @@ function inviteText(inviter: string, org: string, project: string) {
 }
 
 /**
- * Invites a guest. A person (or a workspace key) sends the invite at once through Multies'
- * own account mail. An agent's invite is mail that leaves the business, so it goes through
- * that agent's approval rules and waits in the approval queue when they require it.
+ * Invites a guest. A person sends the invite at once through Multies' own account mail.
+ * AIS1 (audit row 1): an invite lets someone in, so it never goes out without a person. An agent's invite (mail from
+ * its inbox) always waits in the approval queue, whatever the agent's own approval rule; a workspace key's or a
+ * connected app's waits unsent, with no link, until a person confirms it (confirmGuest).
  */
 export async function inviteGuest(deps: Deps, actor: SuiteActor, projectId: string, input: { email: string; name?: string }) {
   assertWritable(actor);
   const project = await getProject(deps, actor.orgId, projectId);
   const email = input.email.trim().toLowerCase();
   if (!looksLikeEmail(email)) throw new HttpError(422, "validation_failed", "That email address doesn't look right.");
+  // AIS1 (row 1): an AI agent's inbox is never a guest: the invite link would land in the agent's feed.
+  await refuseAgentAddress(deps, email, { action: "guest.invite_refused", orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, metadata: { projectId: project.id, via: callerKind(actor), ...(actor.agentId ? { agentId: actor.agentId } : {}) } });
   const existing = await deps.db.select().from(projectGuests).where(and(eq(projectGuests.projectId, project.id), eq(projectGuests.email, email))).get();
   if (!existing) {
     const count = (await listGuests(deps, actor.orgId, project.id)).length;
     if (count >= MAX_GUESTS_PER_PROJECT) throw new HttpError(422, "too_many_guests", `A project can have up to ${MAX_GUESTS_PER_PROJECT} guests.`);
+  }
+  const held = !actor.agentId && !isPersonSession(actor);
+  if (held && existing?.status === "active") {
+    return { guest: presentGuest(existing), delivery: { status: "not_sent" as const, detail: "This guest has already joined." } };
   }
   const token = randomToken(32);
   const now = deps.now();
   const by = createdBy(actor);
   const values = {
     name: (input.name ?? existing?.name ?? "").trim().slice(0, 80), status: existing?.status === "active" ? "active" as const : "pending" as const,
-    inviteHash: await sha256Hex(token), inviteExpiresAt: new Date(now.getTime() + INVITE_DAYS * 86_400_000),
+    inviteHash: held ? null : await sha256Hex(token), inviteExpiresAt: new Date(now.getTime() + INVITE_DAYS * 86_400_000),
+    ...(held ? { approvalId: null } : {}),
     invitedByType: (by.createdByType === "agent" ? "agent" : "member") as "agent" | "member", invitedById: by.createdById, updatedAt: now,
   };
   const id = existing?.id ?? sortableId("gst", now.getTime());
@@ -78,28 +96,58 @@ export async function inviteGuest(deps: Deps, actor: SuiteActor, projectId: stri
   const org = await deps.db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, actor.orgId)).get();
   const url = `${deps.config.appUrl}/g/${token}`;
   const subject = `You're invited to ${project.name}`;
-  let delivery: { status: "sent" | "pending_approval" | "not_sent"; approvalId?: string; detail?: string };
-  if (actor.agentId) {
+  let delivery: { status: "sent" | "pending_approval" | "not_sent" | "awaiting_confirmation"; approvalId?: string; detail?: string };
+  if (held) {
+    delivery = { status: "awaiting_confirmation", detail: GUEST_HELD_DETAIL };
+  } else if (actor.agentId) {
     const { requestSend } = await import("../agents");
     const res = await requestSend(deps, actor as unknown as AuthContext & { agentId: string }, actor.agentId, {
       to: [email], subject, text: `${inviteText(actor.name, org?.name ?? "Multies", project.name)}\n\nOpen the project: ${url}\n`,
-    });
+    }, { requireApproval: true });
     if (res.status === "pending_approval") {
       await deps.db.update(projectGuests).set({ approvalId: res.approval.id }).where(eq(projectGuests.id, id));
       delivery = { status: "pending_approval", approvalId: res.approval.id };
     } else delivery = { status: "sent" };
   } else {
-    const { sendSystemEmail } = await import("../system-mail");
-    const res = await sendSystemEmail(deps, {
-      to: email, subject, text: inviteText(actor.name || actor.email, org?.name ?? "Multies", project.name),
-      action: { label: "Open the project", url }, template: "guest-invite", orgId: actor.orgId,
-    });
-    delivery = res.delivered ? { status: "sent" } : { status: "not_sent", detail: res.detail };
+    delivery = await mailGuestInvite(deps, actor, { email, url, subject, org: org?.name ?? "Multies", project: project.name });
   }
   const guest = presentGuest((await deps.db.select().from(projectGuests).where(eq(projectGuests.id, id)).get())!, delivery.status === "pending_approval" ? "pending" : null);
   await recordWrite(deps, actor, { entityType: "project", entityId: project.id, op: "update", verb: "invited_guest", data: { guestId: id, email }, event: "guest.invited", eventData: { guest, delivery: delivery.status } });
   // The link is only handed back when the email did not go out, so a person can pass it on by hand.
   return { guest, delivery, ...(delivery.status === "not_sent" && !actor.agentId ? { inviteUrl: url } : {}) };
+}
+
+export const GUEST_HELD_DETAIL = "Nothing was sent yet. A person confirms this invite in the project's Guests, and it is emailed then.";
+
+async function mailGuestInvite(deps: Deps, actor: SuiteActor, v: { email: string; url: string; subject: string; org: string; project: string }) {
+  const { sendSystemEmail } = await import("../system-mail");
+  const res = await sendSystemEmail(deps, {
+    to: v.email, subject: v.subject, text: inviteText(actor.name || actor.email, v.org, v.project),
+    action: { label: "Open the project", url: v.url }, template: "guest-invite", orgId: actor.orgId,
+  });
+  return res.delivered ? { status: "sent" as const } : { status: "not_sent" as const, detail: res.detail };
+}
+
+/**
+ * AIS1 (audit row 1): a person sends a guest invite a workspace key or a connected app made (isHeldGuest). The address
+ * is checked again, the invite gets its link and the email goes out from Multies' account mail as from this person.
+ */
+export async function confirmGuest(deps: Deps, actor: SuiteActor, guestId: string) {
+  assertWritable(actor);
+  requirePerson(actor, "Sending a guest invite a key or an app made");
+  const g = await deps.db.select().from(projectGuests).where(and(eq(projectGuests.orgId, actor.orgId), eq(projectGuests.id, guestId))).get();
+  if (!g || !isHeldGuest(g)) throw notFound("Guest");
+  const project = await getProject(deps, actor.orgId, g.projectId);
+  await refuseAgentAddress(deps, g.email, { action: "guest.invite_refused", orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, metadata: { guestId: g.id, via: "confirm" } });
+  const token = randomToken(32);
+  const now = deps.now();
+  await deps.db.update(projectGuests).set({ inviteHash: await sha256Hex(token), inviteExpiresAt: new Date(now.getTime() + INVITE_DAYS * 86_400_000), updatedAt: now }).where(eq(projectGuests.id, g.id));
+  const org = await deps.db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, actor.orgId)).get();
+  const url = `${deps.config.appUrl}/g/${token}`;
+  const delivery = await mailGuestInvite(deps, actor, { email: g.email, url, subject: `You're invited to ${project.name}`, org: org?.name ?? "Multies", project: project.name });
+  const guest = presentGuest((await deps.db.select().from(projectGuests).where(eq(projectGuests.id, g.id)).get())!);
+  await recordWrite(deps, actor, { entityType: "project", entityId: project.id, op: "update", verb: "invited_guest", data: { guestId: g.id, email: g.email, confirmed: true }, event: "guest.invited", eventData: { guest, delivery: delivery.status } });
+  return { guest, delivery, ...(delivery.status === "not_sent" ? { inviteUrl: url } : {}) };
 }
 
 /**
@@ -111,10 +159,12 @@ export async function inviteGuest(deps: Deps, actor: SuiteActor, projectId: stri
 export async function newGuestLink(deps: Deps, actor: SuiteActor, guestId: string) {
   assertWritable(actor);
   if (actor.agentId) throw new HttpError(403, "forbidden", "Only a person can get an invite link to share.");
+  requirePerson(actor, "Getting a guest invite link"); // AIS1: a key or a connected app can't either
   const g = await deps.db.select().from(projectGuests).where(and(eq(projectGuests.orgId, actor.orgId), eq(projectGuests.id, guestId))).get();
   if (!g || g.status === "revoked") throw notFound("Guest");
   if (g.status === "active") throw new HttpError(409, "already_joined", "This guest has already joined, so they don't need a link.");
   if (g.approvalId) throw new HttpError(409, "waiting_for_approval", "This invite is waiting for approval, so it can't be shared by hand yet.");
+  await refuseAgentAddress(deps, g.email, { action: "guest.invite_refused", orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email, metadata: { guestId: g.id } });
   await getProject(deps, actor.orgId, g.projectId); // the project must still be there
   const token = randomToken(32);
   const now = deps.now();
@@ -140,6 +190,8 @@ export async function acceptInvite(deps: Deps, token: string) {
   const now = deps.now();
   if (!g || g.status === "revoked") throw new HttpError(404, "invite_not_found", "This invite link is not valid. Ask for a new one.");
   if (!g.inviteExpiresAt || g.inviteExpiresAt < now) throw new HttpError(410, "invite_expired", "This invite link has expired. Ask for a new one.");
+  // AIS1 (row 1): an invite made before the fix to an address that reaches an AI agent never opens.
+  await refuseAgentAddress(deps, g.email, { action: "guest.join_refused", orgId: g.orgId, metadata: { guestId: g.id } });
   if (g.approvalId) {
     // An agent's invite counts only once a person approved its email.
     const a = await deps.db.select({ status: sendApprovals.status }).from(sendApprovals).where(eq(sendApprovals.id, g.approvalId)).get();

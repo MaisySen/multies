@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { loadConfig } from "@/server/config";
-import { appSettings, organizations, usageCounters } from "@/server/db/schema";
+import { appSettings, organizations, usageCounters, users } from "@/server/db/schema";
 import {
   FLUSH_ROWS, WORKSPACE_ROWS_METRIC, flushAllWorkspaces, isBudgetExempt, recordWorkspaceWrites, resetWorkspaceBudget,
   runMetered, withWriteMeter, workspaceLevel, workspaceUsage,
@@ -126,12 +126,15 @@ describe("R48 per workspace write budget (MB-235)", () => {
     expect(after?.count).toBe(FLUSH_ROWS + 810 + FLUSH_ROWS + 5);
   });
 
-  it("shows today's busiest workspaces on /api/health as counts only", async () => {
+  it("shows today's busiest workspaces on /api/admin/health as counts only, never on the public health", async () => {
     const ctx = await makeTestApp({ WORKSPACE_DAILY_WRITES: "1000" });
     const a = new Client(ctx.app); await a.signup("h@health.io", "Hal", "Health");
     const org = (await ctx.db.select().from(organizations).where(eq(organizations.name, "Health")).get())!;
     await seed(ctx.db, org.id, 900);
-    const h = await new Client(ctx.app).get("/api/health");
+    // QUAL1 (audit row 36): the public health has no workspace sizes; a platform operator reads them.
+    expect((await new Client(ctx.app).get("/api/health")).body).toEqual({ ok: true, db: "ok" });
+    await ctx.db.update(users).set({ role: "admin" }).where(eq(users.email, "h@health.io"));
+    const h = await a.get("/api/admin/health");
     expect(h.body.workspaces).toMatchObject({ budget: 1000, nearAt: 80, top: [900], near: 1, over: 0 });
     expect(JSON.stringify(h.body)).not.toContain(org.id);
   });

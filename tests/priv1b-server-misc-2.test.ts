@@ -253,7 +253,7 @@ describe("AP1: approval.requested carries the mailbox id", () => {
     const domainId = (await owner.post("/api/domains", { name: "acme.io" })).body.domain.id as string;
     await ctx.db.update(domains).set({ status: "verified" }).where(eq(domains.id, domainId));
     await createEndpoint(ctx.deps, orgId, { url: "https://example.com/hook", events: ["approval.requested"] });
-    const made = await owner.post("/api/agents", { name: "Approver", localPart: "approver" });
+    const made = await owner.post("/api/agents", { name: "Approver", localPart: "approver", allowedRecipients: null }); // AIS1: x@example.org is outside the default list
     expect(made.status).toBe(201);
     const agent = made.body.agent as { id: string; mailboxId?: string };
     expect((await owner.patch(`/api/agents/${agent.id}`, { approvalMode: "always" })).status).toBeLessThan(300);

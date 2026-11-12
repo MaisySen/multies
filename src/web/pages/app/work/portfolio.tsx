@@ -31,8 +31,9 @@ export function PortfolioPage() {
   const [archived, setArchived] = useState(false);
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["portfolio", archived], queryFn: async () => (await api.get<{ projects: PortfolioRow[] }>(`/portfolio${archived ? "?archived=1" : ""}`)).projects });
-  const team = useQuery({ queryKey: ["portfolio-members"], staleTime: 120_000, queryFn: async () => (await api.get<{ assignees: { id: string; type: string; name: string; email: string | null }[] }>("/tasks/assignees")).assignees
-    .filter((a) => a.type === "member").map<Member>((a) => ({ userId: a.id.replace(/^member:/, ""), name: a.name, email: a.email ?? "" })) });
+  // AIS1 (audit row 41): a project owner is a person, so AI agent members (isAgent) are not offered.
+  const team = useQuery({ queryKey: ["portfolio-members"], staleTime: 120_000, queryFn: async () => (await api.get<{ assignees: { id: string; type: string; name: string; email: string | null; isAgent?: boolean }[] }>("/tasks/assignees")).assignees
+    .filter((a) => a.type === "member" && !a.isAgent).map<Member>((a) => ({ userId: a.id.replace(/^member:/, ""), name: a.name, email: a.email ?? "" })) });
   const save = async (id: string, patch: Record<string, unknown>) => {
     try { await api.patch(`/projects/${id}`, patch); await qc.invalidateQueries({ queryKey: ["portfolio"] }); } catch (e) { showError(e as Error); }
   };

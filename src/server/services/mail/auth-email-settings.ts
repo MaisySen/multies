@@ -15,10 +15,12 @@ import type { AuthContext, Deps } from "../../context";
 import { authEmailHooks, domains, mailboxes, users } from "../../db/schema";
 import { decryptSecret, encryptSecret, newId } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
+import { isPersonSession, requirePerson } from "../../lib/actor-kind";
+import { AGENT_INBOX_HOOK_EDIT } from "./auth-email-hooks";
 import { audit } from "../audit";
 import { sendMessage } from "./send";
 import { AUTH_EMAIL_TYPES, mergeBranding, parseBranding, renderAuthEmail, type AuthEmailBranding } from "./auth-email-branding";
-import { parseBrandingInput } from "./auth-email-hooks";
+import { parseBrandingInput, senderMailboxCond } from "./auth-email-hooks";
 
 export const TEST_SENDS_PER_HOUR = 5;
 const HOUR = 3_600_000;
@@ -66,11 +68,13 @@ async function currentHook(deps: Deps, orgId: string): Promise<HookRow | undefin
 /**
  * Mailboxes on the workspace's verified domains: the addresses auth emails can come from. PRIV1b (W1): team mailboxes
  * only; a person's personal mailbox is theirs, so an admin can neither list it here nor send sign-up emails as it.
+ * AIS1 (audit row 44): the workspace's own domains only (a connected Gmail sits on the platform's shared row, which is
+ * stored verified, so it used to show up) and never an AI agent's inbox. See senderMailboxCond.
  */
 export async function senderMailboxes(deps: Deps, orgId: string) {
   return deps.db.select({ id: mailboxes.id, address: mailboxes.address, displayName: mailboxes.displayName }).from(mailboxes)
     .innerJoin(domains, eq(domains.id, mailboxes.domainId))
-    .where(and(eq(mailboxes.orgId, orgId), eq(domains.status, "verified"), eq(mailboxes.status, "active"), eq(mailboxes.personal, false))).orderBy(mailboxes.address);
+    .where(senderMailboxCond(orgId)).orderBy(mailboxes.address);
 }
 
 const recentTests = (h: HookRow, now: number) => {
@@ -93,9 +97,13 @@ async function present(deps: Deps, h: HookRow) {
 export async function getAuthEmailSettings(deps: Deps, a: Actor) {
   assertSettingsAdmin(a);
   const h = await currentHook(deps, a.orgId);
+  const senders = (await senderMailboxes(deps, a.orgId)).map((m) => ({ address: m.address, displayName: m.displayName }));
+  const settings = h ? await present(deps, h) : null;
   return {
-    settings: h ? await present(deps, h) : null,
-    senders: (await senderMailboxes(deps, a.orgId)).map((m) => ({ address: m.address, displayName: m.displayName })),
+    // AIS1 (row 44): a hook saved before the rule keeps sending from where it was, so the owner is told when that From
+    // is no longer allowed (an agent's inbox, a connected or personal address, another domain) and can change it.
+    settings: settings ? { ...settings, fromAllowed: senders.some((s) => s.address === settings.from) } : null,
+    senders,
     types: AUTH_EMAIL_TYPES,
     testSendsPerHour: TEST_SENDS_PER_HOUR,
   };
@@ -105,6 +113,10 @@ async function senderFor(deps: Deps, orgId: string, from: string) {
   const mb = (await senderMailboxes(deps, orgId)).find((m) => m.address === from);
   if (!mb) throw bad(`${from} isn't a mailbox on one of this workspace's verified domains. Add the domain and a mailbox such as no-reply@ first.`, "from");
   return mb;
+}
+/** AIS1: whether a hook still sends from an AI agent's inbox (saved there before row 44). One read by primary key. */
+async function onAgentInbox(deps: Deps, h: HookRow) {
+  return (await deps.db.select({ kind: mailboxes.kind }).from(mailboxes).where(eq(mailboxes.id, h.mailboxId)).get())?.kind === "agent";
 }
 function cleanSupabaseUrl(raw: string) {
   let url: URL;
@@ -163,6 +175,12 @@ export async function putAuthEmailSettings(deps: Deps, a: Actor, raw: unknown, m
     const json = next ? JSON.stringify(next) : null;
     if (json !== (h.branding ?? null)) set.branding = json;
   }
+  // AIS1 (review 2): a hook saved on an AI agent's inbox before row 44 still sends, as the system, outside the agent's
+  // rules. A key or a connected AI app may switch it off or move it to a team mailbox (in this same call too), not
+  // switch it on or change what it sends while it stays there. Checked before any write.
+  if (!isPersonSession(a) && set.mailboxId === undefined && Object.keys(set).some((f) => f !== "enabled" || set.enabled !== false) && await onAgentInbox(deps, h)) {
+    requirePerson(a, AGENT_INBOX_HOOK_EDIT);
+  }
   const fields = Object.keys(set);
   if (fields.length) {
     await deps.db.update(authEmailHooks).set(set).where(and(eq(authEmailHooks.id, h.id), eq(authEmailHooks.orgId, a.orgId)));
@@ -177,6 +195,12 @@ export async function regenerateAuthEmailSecret(deps: Deps, a: Actor, meta: { ip
   assertWritableKey(a);
   const h = await currentHook(deps, a.orgId);
   if (!h) throw notFound("Sign-up email settings");
+  // AIS1: a hook saved on an AI agent's inbox before row 44 still sends, as the system, so the agent's approval rule,
+  // daily limit and allowed recipients don't apply. A key or a connected AI app must not get a fresh secret for it and
+  // sign its own calls. A person may (their own setup, as Compose is). One read by primary key, only for a non-person.
+  if (!isPersonSession(a) && await onAgentInbox(deps, h)) {
+    requirePerson(a, "A new signing secret for sign-up emails sent from an AI agent's inbox");
+  }
   const secret = newHookSecret();
   await deps.db.update(authEmailHooks).set({ secretEnc: await encryptSecret(deps.config.appSecret, secret) }).where(eq(authEmailHooks.id, h.id));
   await audit(deps.db, { orgId: a.orgId, actorUserId: a.userId || null, actorEmail: a.email ?? null, agentId: a.agentId ?? null, ip: meta.ip ?? null, action: "auth_email_settings.secret_regenerated", targetType: "auth_email_hook", targetId: h.id });

@@ -1,4 +1,5 @@
 import { test, expect, type Browser } from "@playwright/test";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R31: form logic and results. Build a form where "Details" shows only when "Is it urgent?" is
@@ -19,7 +20,7 @@ async function signUp(browser: Browser) {
   return { ctx, page, headers, base };
 }
 
-const SHOTS = "/home/user/tab/files/multies-r31";
+const SHOTS = `${SHOTS_ROOT}/multies-r31`;
 
 test("a question shown only for one answer, inline errors, and the Responses view", async ({ browser }) => {
   test.setTimeout(180_000);

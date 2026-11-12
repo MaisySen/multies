@@ -9,7 +9,7 @@
   var api = base + "/api/widget/" + encodeURIComponent(key);
   var store = "mq_chat_" + key;
   var st = { open: false, cfg: null, token: null, last: 0, msgs: {}, timer: 0, typingAt: 0, mode: "chat", asked: false, status: "open" };
-  try { var saved = JSON.parse(localStorage.getItem(store) || "null"); if (saved && saved.token) st.token = saved.token; } catch (e) { /* private mode */ }
+  try { var saved = JSON.parse(localStorage.getItem(store) || "null"); if (saved && saved.token) st.token = saved.token; } catch (_e) { /* private mode */ }
 
   var host = document.createElement("div");
   host.setAttribute("data-mq-chat", "");
@@ -71,10 +71,10 @@
   var panel = null, log = null, typingEl = null, input = null, errEl = null;
 
   function setColor(c) { host.style.setProperty("--c", c); host.style.setProperty("--i", ink(c)); }
-  function save() { try { localStorage.setItem(store, JSON.stringify({ token: st.token })); } catch (e) { /* ignore */ } }
-  function fmtTime(iso) { try { return new Date(iso).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; } }
+  function save() { try { localStorage.setItem(store, JSON.stringify({ token: st.token })); } catch (_e) { /* ignore */ } }
+  function fmtTime(iso) { try { return new Date(iso).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }); } catch (_e) { return ""; } }
 
-  function toggle() { st.open ? close() : open(); }
+  function toggle() { if (st.open) close(); else open(); }
   function close() {
     st.open = false; fab.setAttribute("aria-expanded", "false"); fab.setAttribute("aria-label", "Open chat");
     if (panel) panel.hidden = true;

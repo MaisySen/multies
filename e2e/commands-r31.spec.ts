@@ -1,12 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R31: one command registry. G then T goes to Tasks; J focuses a task and S opens its status picker inside the
  * command menu; Cmd+K with a task focused leads with its actions; the ? sheet lists the task keys; E archives
  * the open email.
  */
-const SHOTS = "/home/user/tab/files/multies-r31";
+const SHOTS = `${SHOTS_ROOT}/multies-r31`;
 let visitor = 0;
 test.beforeEach(async ({ context }) => {
   if (!process.env.E2E_BASE_URL) await context.setExtraHTTPHeaders({ "x-forwarded-for": `10.31.${test.info().workerIndex % 200}.${++visitor}` });

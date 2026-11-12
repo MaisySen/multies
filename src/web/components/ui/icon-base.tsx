@@ -49,7 +49,8 @@ export function makeIcon(name: string, regular: string, fill: string): IconCompo
       <svg ref={ref} xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 256 256" fill="currentColor"
         className={className ? `mm-icon ${className}` : "mm-icon"} aria-hidden={labelled ? undefined : true} focusable="false"
         role={labelled ? "img" : undefined} data-icon={name} {...rest}
-        dangerouslySetInnerHTML={{ __html: (title ? `<title>${esc(title)}</title>` : "") + body }} />
+        // Semgrep (QUAL1): the title is escaped (esc) and the body is a fixed glyph from our icon set.
+        dangerouslySetInnerHTML={{ __html: (title ? `<title>${esc(title)}</title>` : "") + body }} /> // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml
     );
   });
   C.displayName = `Icon(${name})`;

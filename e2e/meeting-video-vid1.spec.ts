@@ -3,6 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { confirmEmail } from "./support/confirm-email";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, statSync, readFileSync, rmSync } from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * VID1 end to end: an owner saves a video of the whole call on their own device. Two people join a real local
@@ -13,7 +14,7 @@ import { existsSync, mkdirSync, statSync, readFileSync, rmSync } from "node:fs";
  */
 const LIVE = /^ws:\/\/(localhost|127\.0\.0\.1)/.test(process.env.LIVEKIT_URL ?? "");
 const ON = ["1", "true", "on"].includes(String(process.env.VIDEO_REC_VID1 ?? "").toLowerCase());
-const SHOTS = process.env.SHOTS_DIR ?? "/home/user/tab/files/catalogue/vid1/shots";
+const SHOTS = process.env.SHOTS_DIR ?? `${SHOTS_ROOT}/catalogue/vid1/shots`;
 test.skip(!LIVE, "needs the local LiveKit dev server (run with LIVEKIT_URL=ws://localhost:<port>)");
 test.describe.configure({ mode: "serial" });
 test.use({ launchOptions: { args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--autoplay-policy=no-user-gesture-required"] } });

@@ -1,12 +1,13 @@
 import { test, expect, type Page, type Locator } from "@playwright/test";
 import fs from "node:fs";
+import { SHOTS_ROOT } from "./support/shots";
 
 /**
  * R44 ui helper (MB-210 follow ups): a board column with 5,000 cards and a backlog with 5,000 rows render only what
  * is on screen. Mocked API like ui-r43: the demo's first task cloned 5,000 times (one status, so one column), and a
  * mocked sprint list with one planned sprint plus a 5,000 row backlog with 1 to 3 points each.
  * MEASURE=before only takes the numbers (run against a build of main); SHOTS=before|after saves screenshots.
- * Numbers land in /home/user/tab/files/multies-r44/.
+ * Numbers land in SHOTS_ROOT/multies-r44/.
  */
 let visitor = 0;
 test.beforeEach(async ({ context }) => {
@@ -16,7 +17,7 @@ test.setTimeout(240_000);
 
 const LABEL = process.env.MEASURE === "before" ? "before" : "after";
 const AFTER = LABEL === "after";
-const DIR = "/home/user/tab/files/multies-r44";
+const DIR = `${SHOTS_ROOT}/multies-r44`;
 const N = 5000;
 const pts = (i: number) => (i % 3) + 1;
 const FULL_POINTS = Array.from({ length: N }, (_, i) => pts(i)).reduce((a, b) => a + b, 0);

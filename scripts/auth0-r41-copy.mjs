@@ -54,7 +54,8 @@ async function main() {
   const copy = JSON.parse(readFileSync(path.join(here, "..", "deploy", "auth0", "r41-copy.json"), "utf8"));
   const problems = copyProblems(copy);
   if (problems.length) { console.error("copy problems:\n" + problems.join("\n")); process.exit(1); }
-  const s = JSON.parse(readFileSync(process.env.AUTH0_MULTIES_SECRETS || path.join(os.homedir(), ".multies-secrets", "auth0-multies.json"), "utf8"));
+  // Semgrep (QUAL1): reads the private secrets file (AUTH0_MULTIES_SECRETS or ~/.multies-secrets); no value in the repo.
+  const s = JSON.parse(readFileSync(process.env.AUTH0_MULTIES_SECRETS || path.join(os.homedir(), ".multies-secrets", "auth0-multies.json"), "utf8")); // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
   const domain = s.domain;
   const tr = await fetch(`https://${domain}/oauth/token`, {
     method: "POST", headers: { "content-type": "application/json" },

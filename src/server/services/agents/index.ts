@@ -9,14 +9,15 @@
 import { and, asc, count, desc, eq, gt, gte, lt, or, sql, type SQL } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import {
-  agentEvents, agentMailboxAccess, agents, apiKeys, attachments, auditLogs, domains, mailboxes, messages, sendApprovals,
+  agentEvents, agentMailboxAccess, agents, apiKeys, attachments, auditLogs, domains, mailboxes, messages, sendApprovals, users,
 } from "../../db/schema";
 
-/** Agent thread reads are audited once per agent, thread and hour. */
+/** Agent thread reads are audited once per agent, thread, key or connected app (AIS1) and hour. */
 export const READ_AUDIT_ROLLUP_MS = 60 * 60_000;
 import { fromB64Or, newId, randomToken } from "../../lib/crypto";
 import { HttpError, badRequest, conflict, forbidden, notFound, planLimit } from "../../lib/errors";
 import { audit } from "../audit";
+import { stampFor } from "../../lib/request-caller";
 import { addonHint, assertCanCreate, bumpCounter, getPlan, readCounter } from "../plans";
 import { createApiKey, listApiKeys } from "../developer/api-keys";
 import { emitEvent } from "../developer/webhooks";
@@ -29,9 +30,11 @@ import { assertOpen, keepOpenableBy } from "../mail-access-priv1a";
 import { assertMailboxNotHeld } from "../mail/archive-r111"; // PRIV1b (P44)
 import { logMailboxOpen } from "../mailbox-sharing-priv1a";
 import { agentMessage, extractCodes, extractLinks, latestText } from "./parse";
+import { safeSnippet, withheldRow, withheldSql, withheldView } from "./platform-mail";
 import { listThreadStates, threadViewCond, type ThreadView } from "../mail/thread-state";
 import { inChunks, inIds } from "../../lib/sql-chunks";
 import { containsAny } from "../../lib/like-search";
+import { callerKind, isPersonSession, requirePerson } from "../../lib/actor-kind";
 
 type Agent = typeof agents.$inferSelect;
 type Mailbox = typeof mailboxes.$inferSelect;
@@ -43,6 +46,16 @@ export type ApprovalMode = Agent["approvalMode"];
 
 const DAY = 86_400_000;
 const APPROVAL_TTL_DAYS = 7;
+
+/**
+ * AIS1 (row 51): a new agent's daily send cap when nobody asks for another. A person in the app may set more, up
+ * to the plan's limit; a key or a connected AI app may only set less. It used to default to the plan's limit
+ * (2,000 a day on Business), for agents made in the app and through the API alike.
+ */
+export const AGENT_DEFAULT_DAILY_SENDS = 100;
+
+/** AIS1 (row 4): how much each approval mode holds back. A key may move an agent up this scale, never down. */
+const APPROVAL_RANK: Record<"never" | "external" | "always", number> = { never: 0, external: 1, always: 2 };
 
 const slug = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "agent";
 
@@ -150,6 +163,65 @@ const actorFields = (actor: Actor) => ({ actorUserId: actor.userId || null, acto
 /** For an agent's own actions: the audit actor is the agent, by address. */
 const agentActor = (a: Agent, mb: Pick<Mailbox, "address">) => ({ actorUserId: null, actorEmail: `agent:${mb.address}`, agentId: a.id });
 
+/** An allow list as it is stored: lower case, and an empty list means anyone (null). */
+const allowList = (v: string[] | null | undefined) => (v?.length ? v.map((r) => r.toLowerCase()) : null);
+
+/**
+ * AIS1 (row 4): an agent's guardrails are lowered only by a person signed in to the app. A workspace key or a
+ * connected AI app (OAuth) that tries is refused with 403 person_only naming the fields, and the attempt is written
+ * to the audit log (on the agent's own log when the agent exists). Nothing is written to the agent.
+ */
+const REFUSED = {
+  "agent.create_refused": "Creating an agent with looser guardrails",
+  "agent.update_refused": "Loosening an agent's guardrails",
+  "agent.delete_refused": "Deleting a paused agent or one with a lowered daily cap",
+} as const;
+
+async function refuseLoosening(deps: Deps, actor: Actor, fields: string[], at: { action: keyof typeof REFUSED; agentId?: string; name?: string }) {
+  if (!fields.length || isPersonSession(actor)) return;
+  // The kind of caller goes in `via`, as on the invite refusals: audit() adds `caller`, the key's or app's name and
+  // prefix, only when the entry has none of its own, so a plain string there would hide which key it was.
+  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: at.agentId ?? null, action: at.action, targetType: "agent", targetId: at.agentId, metadata: { fields, via: callerKind(actor), ...(at.name ? { name: at.name } : {}) } });
+  try {
+    requirePerson(actor, `${REFUSED[at.action]} (${fields.join(", ")})`);
+  } catch (err) {
+    if (err instanceof HttpError) err.details = { fields };
+    throw err;
+  }
+}
+
+/**
+ * AIS1 (row 4): the fields of a patch that would loosen the agent. Tightening is fine: more approval, a lower cap,
+ * a narrower allow list (every new entry inside the current one), a pause, fewer mailboxes. The same value sent back
+ * is not a loosening, so a client can GET, change one field and PATCH the lot.
+ */
+function looserFields(a: Agent, patch: UpdateAgentInput, held: Set<string>): string[] {
+  const out: string[] = [];
+  if (patch.approvalMode && APPROVAL_RANK[patch.approvalMode] < APPROVAL_RANK[a.approvalMode]) out.push("approvalMode");
+  if (patch.sendCapDaily !== undefined && patch.sendCapDaily > a.sendCapDaily) out.push("sendCapDaily");
+  if (patch.allowedRecipients !== undefined) {
+    const now = parseAllow(a.allowedRecipients);
+    const next = allowList(patch.allowedRecipients);
+    // null (or an empty list) is "anyone". "@acme.io" covers bob@acme.io; bob@acme.io doesn't cover "@acme.io".
+    if (now && (!next || next.some((r) => !recipientAllowed(now, r)))) out.push("allowedRecipients");
+  }
+  if (patch.status === "active" && a.status !== "active") out.push("status");
+  if (patch.mailboxIds?.some((m) => m !== a.mailboxId && !held.has(m))) out.push("mailboxIds");
+  return out;
+}
+
+/**
+ * AIS1 (row 51): who a new agent may write to unless a person chose otherwise: the workspace's own verified domains.
+ * With none verified yet, the creator's own address (a key's: the person who made the key), so the list is never
+ * empty, which would mean anyone. Later domains don't join existing agents' lists.
+ */
+async function defaultAllowList(deps: Deps, actor: Actor, agentAddress: string): Promise<string[]> {
+  const own = await deps.db.select({ name: domains.name }).from(domains).where(and(eq(domains.orgId, actor.orgId), eq(domains.status, "verified"))).orderBy(asc(domains.createdAt));
+  if (own.length) return own.map((d) => `@${d.name.toLowerCase()}`);
+  const me = actor.userId ? await deps.db.select({ email: users.email }).from(users).where(eq(users.id, actor.userId)).get() : undefined;
+  return [(me?.email || agentAddress).toLowerCase()];
+}
+
 export async function recordEvent(deps: Deps, orgId: string, agentId: string | null, type: string, data: Record<string, unknown>) {
   await deps.db.insert(agentEvents).values({ orgId, agentId, type, data: JSON.stringify(data) });
 }
@@ -197,9 +269,15 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
   // R52 (MB-239): a retry under the same Idempotency-Key returns the agent the first attempt made. Its key secret
   // was shown once, in the answer that was lost, so the retry returns apiKey null: make a new key with POST /agents/{id}/keys.
   if (opts.id && opts.retry && await db.select({ id: agents.id }).from(agents).where(and(eq(agents.id, opts.id), eq(agents.orgId, actor.orgId))).get()) return { agent: await getAgent(deps, actor.orgId, opts.id), apiKey: null };
+  // AIS1 (row 4): a key or a connected AI app makes agents that a person approves every message of, at the default cap or lower.
+  await refuseLoosening(deps, actor, [
+    ...(input.approvalMode && input.approvalMode !== "always" ? ["approvalMode"] : []),
+    ...(input.sendCapDaily !== undefined && input.sendCapDaily > AGENT_DEFAULT_DAILY_SENDS ? ["sendCapDaily"] : []),
+  ], { action: "agent.create_refused", name: input.name });
   await assertCanCreate(db, actor.orgId, "agentInboxes");
   const plan = await getPlan(db, actor.orgId);
-  const cap = Math.min(input.sendCapDaily ?? plan.limits.agentDailySends, plan.limits.agentDailySends);
+  // AIS1 (row 51): 100 a day unless someone asks, never above the plan's limit.
+  const cap = Math.min(input.sendCapDaily ?? AGENT_DEFAULT_DAILY_SENDS, plan.limits.agentDailySends);
   const { domain, shared } = await pickDomain(deps, actor.orgId, input.domainId);
   const local = input.localPart?.toLowerCase() ?? (shared ? `${slug(input.name)}-${randomToken(4).toLowerCase().replace(/[^a-z0-9]/g, "x")}` : slug(input.name));
   if (!/^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/.test(local)) throw badRequest("Use letters, numbers, dots, dashes or underscores for the address.");
@@ -214,6 +292,9 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
     if (ok.length !== extra.length) throw badRequest("One of those mailboxes doesn't exist in this workspace.");
     await assertOwnPersonal(deps, actor, extra);
   }
+  // AIS1 (row 51): a named list is kept. With none, or "anyone" (null or []) from a key or an AI app, the agent may
+  // mail only the workspace's own domains. Only a person in the app picks "anyone" for a new agent.
+  const allow = allowList(input.allowedRecipients) ?? (input.allowedRecipients !== undefined && isPersonSession(actor) ? null : await defaultAllowList(deps, actor, address));
   const mailboxId = opts.mailboxId ?? newId("mbx");
   await db.insert(mailboxes).values({
     id: mailboxId, orgId: actor.orgId, domainId: domain.id, localPart: local, address, displayName: input.name, quotaMb: plan.limits.storagePerMailboxMb, kind: "agent",
@@ -222,16 +303,16 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
   await db.insert(agents).values({
     id, orgId: actor.orgId, mailboxId, name: input.name, description: input.description ?? null,
     approvalMode: input.approvalMode ?? "always", sendCapDaily: cap,
-    allowedRecipients: input.allowedRecipients?.length ? JSON.stringify(input.allowedRecipients.map((r) => r.toLowerCase())) : null,
+    allowedRecipients: allow ? JSON.stringify(allow) : null,
     createdByUserId: actor.userId || null,
   });
   if (extra.length) await db.insert(agentMailboxAccess).values(extra.map((m) => ({ agentId: id, mailboxId: m, orgId: actor.orgId })));
-  await audit(db, { orgId: actor.orgId, ...actorFields(actor), agentId: id, action: "agent.created", targetType: "agent", targetId: id, metadata: { name: input.name, address, approvalMode: input.approvalMode ?? "always", via: actor.apiKeyId ? "api" : "app" } });
+  await audit(db, { orgId: actor.orgId, ...actorFields(actor), agentId: id, action: "agent.created", targetType: "agent", targetId: id, metadata: { name: input.name, address, approvalMode: input.approvalMode ?? "always", sendCapDaily: cap, allowedRecipients: allow, via: actor.apiKeyId ? "api" : "app" } });
   let key: { id: string; secret: string; prefix: string } | null = null;
   if (input.createKey !== false) {
     const k = await createApiKey(deps, actor, { name: `${input.name} agent key`, scope: "full", agentId: id });
     key = { id: k.apiKey.id, prefix: k.apiKey.prefix, secret: k.secret };
-    await audit(db, { orgId: actor.orgId, ...actorFields(actor), agentId: id, action: "agent.key_created", targetType: "api_key", targetId: k.apiKey.id });
+    await audit(db, { orgId: actor.orgId, ...actorFields(actor), agentId: id, action: "agent.key_created", targetType: "api_key", targetId: k.apiKey.id, metadata: { name: k.apiKey.name, prefix: k.apiKey.prefix } });
   }
   const agent = await getAgent(deps, actor.orgId, id);
   await recordEvent(deps, actor.orgId, id, "agent.created", { agentId: id, address });
@@ -252,23 +333,28 @@ export interface UpdateAgentInput {
 export async function updateAgent(deps: Deps, actor: Actor, id: string, patch: UpdateAgentInput) {
   assertWorkspaceActor(actor);
   const { a } = await row(deps, actor.orgId, id);
+  const held = patch.mailboxIds ? new Set((await deps.db.select({ id: agentMailboxAccess.mailboxId }).from(agentMailboxAccess).where(eq(agentMailboxAccess.agentId, a.id))).map((r) => r.id)) : new Set<string>();
+  // AIS1 (row 4): a key or a connected AI app may only tighten an agent. Checked before any write, the whole patch refused.
+  await refuseLoosening(deps, actor, looserFields(a, patch, held), { action: "agent.update_refused", agentId: a.id });
   if (patch.mailboxIds) {
     // PRIV1b (P3, P4): checked before any write. Mailboxes the agent already holds may stay; new personal ones need their owner.
-    const held = new Set((await deps.db.select({ id: agentMailboxAccess.mailboxId }).from(agentMailboxAccess).where(eq(agentMailboxAccess.agentId, a.id))).map((r) => r.id));
     await assertOwnPersonal(deps, actor, [...new Set(patch.mailboxIds)].filter((m) => m !== a.mailboxId && !held.has(m)));
   }
   const plan = await getPlan(deps.db, actor.orgId);
   if (patch.sendCapDaily !== undefined && patch.sendCapDaily > plan.limits.agentDailySends) {
     throw planLimit(`Agents can send up to ${plan.limits.agentDailySends} messages a day on your plan.`);
   }
-  await deps.db.update(agents).set({
+  const allow = patch.allowedRecipients === undefined ? undefined : allowList(patch.allowedRecipients);
+  const set = {
     ...(patch.name !== undefined ? { name: patch.name } : {}),
     ...(patch.description !== undefined ? { description: patch.description } : {}),
     ...(patch.approvalMode ? { approvalMode: patch.approvalMode } : {}),
     ...(patch.sendCapDaily !== undefined ? { sendCapDaily: patch.sendCapDaily } : {}),
-    ...(patch.allowedRecipients !== undefined ? { allowedRecipients: patch.allowedRecipients?.length ? JSON.stringify(patch.allowedRecipients.map((r) => r.toLowerCase())) : null } : {}),
+    ...(allow !== undefined ? { allowedRecipients: allow ? JSON.stringify(allow) : null } : {}),
     ...(patch.status ? { status: patch.status } : {}),
-  }).where(eq(agents.id, a.id));
+  };
+  // AIS1: a patch of only mailboxIds (taking a mailbox away) has nothing to set on the agent row.
+  if (Object.keys(set).length) await deps.db.update(agents).set(set).where(eq(agents.id, a.id));
   if (patch.name) await deps.db.update(mailboxes).set({ displayName: patch.name }).where(eq(mailboxes.id, a.mailboxId));
   if (patch.mailboxIds) {
     const ids = [...new Set(patch.mailboxIds.filter((m) => m !== a.mailboxId))];
@@ -287,6 +373,14 @@ export async function updateAgent(deps: Deps, actor: Actor, id: string, patch: U
 export async function deleteAgent(deps: Deps, actor: Actor, id: string) {
   assertWorkspaceActor(actor);
   const { a, mb } = await row(deps, actor.orgId, id);
+  // AIS1 (review): made again at the same address, a deleted agent comes back active at the default daily cap, so for a
+  // key or an AI app deleting a paused agent, or one held under that cap, would undo a person's pause or lower cap. Only
+  // a person deletes those. The allow list is left out on purpose: a key may name any list on a new agent (approval
+  // stays "always"). Change it here. One plan read, only for a key or an app deleting such an agent.
+  if (!isPersonSession(actor) && (a.status !== "active" || a.sendCapDaily < AGENT_DEFAULT_DAILY_SENDS)) {
+    const recreated = { status: "active" as const, sendCapDaily: Math.min(AGENT_DEFAULT_DAILY_SENDS, (await getPlan(deps.db, actor.orgId)).limits.agentDailySends) };
+    await refuseLoosening(deps, actor, looserFields(a, recreated, new Set()), { action: "agent.delete_refused", agentId: a.id, name: a.name });
+  }
   await assertMailboxNotHeld(deps, actor.orgId, mb.id); // PRIV1b (P44): a held agent inbox stays, as DELETE /api/mailboxes/:id
   await deprovisionMailbox(deps, actor.orgId, mb.id).catch(() => undefined);
   await deps.db.delete(apiKeys).where(eq(apiKeys.agentId, a.id));
@@ -309,7 +403,7 @@ export async function createAgentKey(deps: Deps, actor: Actor, agentId: string, 
     if (personal) throw forbidden("This agent works a personal mailbox. Only the person who made it can create its keys.");
   }
   const k = await createApiKey(deps, actor, { name: name ?? `${a.name} agent key`, scope: "full", agentId: a.id });
-  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: a.id, action: "agent.key_created", targetType: "api_key", targetId: k.apiKey.id });
+  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: a.id, action: "agent.key_created", targetType: "api_key", targetId: k.apiKey.id, metadata: { name: k.apiKey.name, prefix: k.apiKey.prefix } });
   return k;
 }
 
@@ -324,7 +418,7 @@ export async function revokeAgentKey(deps: Deps, actor: Actor, agentId: string, 
   const k = await deps.db.select().from(apiKeys).where(and(eq(apiKeys.id, keyId), eq(apiKeys.orgId, actor.orgId), eq(apiKeys.agentId, agentId))).get();
   if (!k) throw notFound("Agent key");
   await deps.db.delete(apiKeys).where(eq(apiKeys.id, k.id));
-  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId, action: "agent.key_revoked", targetType: "api_key", targetId: k.id });
+  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId, action: "agent.key_revoked", targetType: "api_key", targetId: k.id, metadata: { name: k.name, prefix: k.prefix } }); // AIS1: the row is hard deleted, the log keeps its name
   return { id: k.id, revoked: true };
 }
 
@@ -387,7 +481,8 @@ export async function listThreads(deps: Deps, orgId: string, scope: string[] | n
       const other = inThread.find((x) => x.folder !== "sent") ?? m;
       const agentIds = [...new Set(inThread.map((x) => x.sentByAgentId).filter((x): x is string => !!x))];
       return {
-        id: r.threadId, mailboxId: m.mailboxId, subject: first.subject, snippet: m.snippet,
+        // AIS1 (row 32): a preview of the platform's own mail stored before the fix loses its links and codes here.
+        id: r.threadId, mailboxId: m.mailboxId, subject: first.subject, snippet: safeSnippet(m.snippet, m.fromAddress, deps.config.systemFrom.address),
         lastMessageAt: new Date(Number(r.last)).toISOString(), messageCount: Number(r.total), unreadCount: Number(r.unread ?? 0),
         from: { address: other.fromAddress, name: other.fromName || undefined },
         lastSentBy: m.sentByAgentId ? { type: "agent" as const, agentId: m.sentByAgentId, name: names.agents.get(m.sentByAgentId) ?? null } : m.folder === "sent" ? { type: "person" as const } : { type: "external" as const },
@@ -410,6 +505,7 @@ export async function readThread(deps: Deps, actor: Actor, threadId: string, ori
   if (!rows.length) throw notFound("Thread");
   const atts = await deps.db.select().from(attachments).where(inIds(attachments.messageId, rows.map((r) => r.id)));
   const names = await agentNames(deps, actor.orgId);
+  const app = !isPersonSession(actor);
   // PRIV1b (P15): approvals are keyed by thread, which a personal mailbox's copy can share: only mailboxes in scope.
   const approvals = await deps.db.select().from(sendApprovals).where(and(eq(sendApprovals.orgId, actor.orgId), eq(sendApprovals.threadId, threadId), eq(sendApprovals.status, "pending"), scope ? inIds(sendApprovals.mailboxId, scope) : undefined));
   // PRIV1b (P17): the Team inbox reader, v1 GET /threads/{id} and MCP read_thread land in "Who opened my mailbox".
@@ -418,17 +514,33 @@ export async function readThread(deps: Deps, actor: Actor, threadId: string, ori
     const { a, mb } = await row(deps, actor.orgId, actor.agentId);
     // Reads roll up to one audit row per agent, thread and hour (round 20): an agent polling a thread
     // every minute used to write 3 D1 rows a minute. The row still says who read what and when.
+    // AIS1 (audit row 15): it names the thread by its subject as well as its id (the same row, one more field).
+    // AIS1 review: and one row per key or connected app, since the row names it (metadata.caller): a second key reading
+    // the same thread in that hour gets its own row. audit() appends the same stamp object, so its JSON text matches.
+    const caller = stampFor(agentActor(a, mb))?.caller;
+    const sameCaller = caller ? sql`instr(${auditLogs.metadata}, ${`"caller":${JSON.stringify(caller)}`}) > 0` : undefined;
     const since = new Date(deps.now().getTime() - READ_AUDIT_ROLLUP_MS);
     const recent = await deps.db.select({ id: auditLogs.id }).from(auditLogs)
-      .where(and(eq(auditLogs.agentId, a.id), gte(auditLogs.createdAt, since), eq(auditLogs.action, "agent.message_read"), eq(auditLogs.targetId, threadId))).limit(1).get();
-    if (!recent) await audit(deps.db, { orgId: actor.orgId, ...agentActor(a, mb), action: "agent.message_read", targetType: "thread", targetId: threadId, metadata: { messages: rows.length, via: actor.sessionId.startsWith("mcp:") ? "mcp" : "api", rollup: "hour" } });
+      .where(and(eq(auditLogs.agentId, a.id), gte(auditLogs.createdAt, since), eq(auditLogs.action, "agent.message_read"), eq(auditLogs.targetId, threadId), sameCaller)).limit(1).get();
+    if (!recent) {
+      // AIS1 review: a personal mailbox (PRIV1a) is opened only by its owner, but admins and the workspace owner read the
+      // audit log and its export. A thread in one keeps its id and loses its subject. One read, on the write path only.
+      const personal = await deps.db.select({ id: mailboxes.id }).from(mailboxes)
+        .where(and(eq(mailboxes.orgId, actor.orgId), inIds(mailboxes.id, [...new Set(rows.map((r) => r.mailboxId))]), eq(mailboxes.personal, true))).limit(1).get();
+      const subject = personal ? {} : { subject: rows[0].subject.slice(0, 200) };
+      await audit(deps.db, { orgId: actor.orgId, ...agentActor(a, mb), action: "agent.message_read", targetType: "thread", targetId: threadId, metadata: { messages: rows.length, ...subject, via: actor.sessionId.startsWith("mcp:") ? "mcp" : "api", rollup: "hour" } });
+    }
   }
   return {
     id: threadId,
     mailboxId: rows[0].mailboxId,
     subject: rows[0].subject,
     messageCount: rows.length,
-    messages: rows.map((m) => agentMessage(m, atts.filter((a) => a.messageId === m.id), origin, names)),
+    // AIS1 (row 32): an agent or an app reads the platform's own mail without its text, codes or links.
+    messages: rows.map((m) => {
+      const out = agentMessage(m, atts.filter((a) => a.messageId === m.id), origin, names);
+      return app && withheldRow(m, deps.config.systemFrom.address) ? withheldView(out) : out;
+    }),
     pendingApprovals: approvals.map(presentApproval),
   };
 }
@@ -438,7 +550,9 @@ export async function searchMessages(deps: Deps, actor: Actor, query: string, li
   const scope = await scopeFor(deps, actor);
   const fields = [messages.subject, messages.fromAddress, messages.fromName, messages.text, messages.to];
   const rows = await deps.db.select().from(messages)
-    .where(and(eq(messages.orgId, actor.orgId), scopeCond(scope), sql`${messages.folder} <> 'trash'`, containsAny(fields, query.trim())))
+    .where(and(eq(messages.orgId, actor.orgId), scopeCond(scope), sql`${messages.folder} <> 'trash'`, containsAny(fields, query.trim()),
+      // AIS1 (row 32): a search is an oracle on the text, so an agent or an app never searches the platform's own mail.
+      isPersonSession(actor) ? undefined : sql`not ${withheldSql(deps.config.systemFrom.address)}`))
     .orderBy(desc(messages.date)).limit(Math.min(Math.max(limit, 1), 100));
   return rows.map((m) => ({
     id: m.id, threadId: m.threadId, mailboxId: m.mailboxId, folder: m.folder, subject: m.subject, snippet: m.snippet,
@@ -460,6 +574,17 @@ export interface AgentSendInput {
   inReplyToId?: string;
   /** Files sent with the message, e.g. a meeting's calendar invite. */
   attachments?: { filename: string; contentType: string; contentBase64: string }[];
+}
+
+/**
+ * AIS1 review: what an audit row says about a send. Mail in someone's personal mailbox (PRIV1a) is theirs alone, but
+ * admins, the workspace owner and the export read the audit log, and a reply's subject is the private thread's own
+ * subject. So a send from a personal mailbox (or one Multies can't place) keeps how many people it went to, not the
+ * subject or any address, as task history does for personal mail (suite/hooks.ts).
+ */
+function sendAuditFacts(personal: boolean, input: Pick<AgentSendInput, "to" | "cc" | "bcc" | "subject">, fromAddress?: string): Record<string, unknown> {
+  if (personal) return { personal: true, recipientCount: input.to.length + (input.cc?.length ?? 0) + (input.bcc?.length ?? 0) };
+  return { to: input.to, subject: input.subject, ...(fromAddress ? { from: fromAddress } : {}) };
 }
 
 function recipientAllowed(allow: string[] | null, address: string) {
@@ -498,19 +623,23 @@ async function deliverAsAgent(deps: Deps, orgId: string, a: Agent, mb: Mailbox, 
  * An agent asks to send. Checks status, recipients, the daily cap and the plan's monthly
  * allowance, then either sends now or queues the message for a person to approve.
  */
-export async function requestSend(deps: Deps, actor: Actor, agentId: string, input: AgentSendInput): Promise<{ status: "sent"; result: SendResult } | { status: "pending_approval"; approval: ReturnType<typeof presentApproval> }> {
+export async function requestSend(deps: Deps, actor: Actor, agentId: string, input: AgentSendInput, opts: { requireApproval?: boolean } = {}): Promise<{ status: "sent"; result: SendResult } | { status: "pending_approval"; approval: ReturnType<typeof presentApproval> }> {
   assertActsAs(actor, agentId);
   const { a, mb } = await row(deps, actor.orgId, agentId);
   const who = agentActor(a, mb);
+  const fromId = input.mailboxId ?? a.mailboxId;
+  // AIS1 review: read before the first check, so even a blocked send's row knows whether the mailbox is personal.
+  // The same read the send needed anyway; only the two refusals before it (agent paused, mailbox not allowed) read
+  // one more row than before.
+  const from = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.id, fromId), eq(mailboxes.orgId, actor.orgId))).get();
+  const personal = !from || from.personal;
   const block = async (code: string, message: string, status: 403 | 429 = 403) => {
-    await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.send_blocked", metadata: { code, to: input.to, subject: input.subject } });
+    await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.send_blocked", metadata: { code, ...sendAuditFacts(personal, input) } });
     return new HttpError(status, code, message);
   };
   if (a.status !== "active") throw await block("agent_paused", "This agent is paused. A person can resume it in Agents.");
-  const fromId = input.mailboxId ?? a.mailboxId;
   const allowed = await agentMailboxIdsFor(deps, actor, a);
-  if (!allowed.includes(fromId)) throw await block("mailbox_not_allowed", "This agent can't send from that mailbox.");
-  const from = (await deps.db.select().from(mailboxes).where(eq(mailboxes.id, fromId)).get())!;
+  if (!from || !allowed.includes(fromId)) throw await block("mailbox_not_allowed", "This agent can't send from that mailbox.");
   const recipients = [...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])];
   const allow = parseAllow(a.allowedRecipients);
   const outside = recipients.filter((r) => !recipientAllowed(allow, r));
@@ -539,7 +668,8 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
     return Array.isArray(dest) && dest.length > 0 && (await Promise.all(dest.map((d) => typeof d === "string" && box(d)))).every(Boolean);
   };
   const external = (await Promise.all(recipients.map(ours))).some((h) => !h);
-  const needsApproval = a.approvalMode === "always" || (a.approvalMode === "external" && external);
+  // AIS1 (row 1): some sends need a person whatever the agent's own rule says (a guest invite: it lets someone in).
+  const needsApproval = !!opts.requireApproval || a.approvalMode === "always" || (a.approvalMode === "external" && external);
   if (needsApproval) {
     const id = newId("apr");
     await deps.db.insert(sendApprovals).values({
@@ -547,7 +677,7 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
       apiKeyId: actor.apiKeyId ?? null, expiresAt: new Date(deps.now().getTime() + APPROVAL_TTL_DAYS * DAY),
     });
     const approval = presentApproval((await deps.db.select().from(sendApprovals).where(eq(sendApprovals.id, id)).get())!);
-    await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.send_queued", targetType: "approval", targetId: id, metadata: { to: input.to, subject: input.subject, reason: a.approvalMode } });
+    await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.send_queued", targetType: "approval", targetId: id, metadata: { ...sendAuditFacts(personal, input), reason: a.approvalMode } });
     await recordEvent(deps, actor.orgId, a.id, "approval.requested", { approvalId: id, mailboxId: from.id, to: input.to, subject: input.subject, threadId }); // PRIV1b (S3): filtered like message events
     await emitEvent(deps, actor.orgId, "approval.requested", { approvalId: id, agentId: a.id, agent: a.name, mailboxId: from.id, from: from.address, to: input.to, subject: input.subject, threadId }); // PRIV1b (AP1): mailboxId, so the webhook filter does not rest on the from address
     // Everyone who can open that inbox gets it in their notifications inbox (and on their phone).
@@ -561,7 +691,7 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
     return { status: "pending_approval", approval };
   }
   const result = await deliverAsAgent(deps, actor.orgId, a, mb, from, input);
-  await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.message_sent", targetType: "message", targetId: result.messageId, metadata: { to: input.to, subject: input.subject, from: from.address } });
+  await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.message_sent", targetType: "message", targetId: result.messageId, metadata: sendAuditFacts(personal, input, from.address) });
   await recordEvent(deps, actor.orgId, a.id, "message.sent", { messageId: result.messageId, mailboxId: from.id, to: input.to, subject: input.subject });
   return { status: "sent", result };
 }
@@ -600,6 +730,9 @@ export async function listApprovals(deps: Deps, actor: Actor, q: { status?: stri
 
 async function approvalFor(deps: Deps, actor: Actor, id: string, need: "reply" | "send") {
   if (actor.agentId) throw new HttpError(403, "agent_key_scope", "An agent can't approve its own messages. A person approves them in the app.");
+  // AIS1: approving sends the agent's mail, so it is a person's decision: never a workspace key or a connected AI app
+  // (the key that queued the send could otherwise approve it). Rejecting only stops mail, so a key may still reject.
+  if (need === "send") requirePerson(actor, "Approving an agent's message");
   const r = await deps.db.select().from(sendApprovals).where(and(eq(sendApprovals.id, id), eq(sendApprovals.orgId, actor.orgId))).get();
   if (!r) throw notFound("Approval");
   const scope = await scopeFor(deps, actor);
@@ -624,7 +757,7 @@ export async function approveSend(deps: Deps, actor: Actor, id: string, edits: {
   try {
     const result = await deliverAsAgent(deps, actor.orgId, a, mb, from, input, actor);
     await deps.db.update(sendApprovals).set({ messageId: result.messageId, payload: JSON.stringify(input) }).where(eq(sendApprovals.id, r.id));
-    await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: a.id, action: "approval.approved", targetType: "approval", targetId: r.id, metadata: { messageId: result.messageId, edited: Object.keys(edits).length > 0, to: input.to, subject: input.subject } });
+    await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: a.id, action: "approval.approved", targetType: "approval", targetId: r.id, metadata: { messageId: result.messageId, edited: Object.keys(edits).length > 0, ...sendAuditFacts(from.personal, input) } });
     await recordEvent(deps, actor.orgId, a.id, "approval.decided", { approvalId: r.id, decision: "approved", messageId: result.messageId });
     await emitEvent(deps, actor.orgId, "approval.decided", { approvalId: r.id, agentId: a.id, decision: "approved", messageId: result.messageId, by: actor.email });
     return { approval: presentApproval((await deps.db.select().from(sendApprovals).where(eq(sendApprovals.id, r.id)).get())!), result };
@@ -656,7 +789,7 @@ export async function expireApprovals(deps: Deps) {
 // ---------------------------------------------------------------- inbound and events
 
 /** Called after mail lands in a mailbox: every agent that can read it gets an event. */
-export async function notifyAgentsOfInbound(deps: Deps, mb: Pick<Mailbox, "id" | "orgId">, m: { id: string; threadId: string; from: { address: string; name?: string }; subject: string; text: string; html?: string | null }) {
+export async function notifyAgentsOfInbound(deps: Deps, mb: Pick<Mailbox, "id" | "orgId">, m: { id: string; threadId: string; from: { address: string; name?: string }; subject: string; text: string; html?: string | null; withheld?: boolean }) {
   const own = await deps.db.select({ id: agents.id }).from(agents).where(eq(agents.mailboxId, mb.id));
   const given = await deps.db.select({ id: agents.id, maker: agents.createdByUserId }).from(agentMailboxAccess).innerJoin(agents, eq(agents.id, agentMailboxAccess.agentId))
     .where(eq(agentMailboxAccess.mailboxId, mb.id));
@@ -671,7 +804,10 @@ export async function notifyAgentsOfInbound(deps: Deps, mb: Pick<Mailbox, "id" |
     }
   }
   const ids = [...new Set([...own, ...shared].map((r) => r.id))];
-  const parsed = { messageId: m.id, threadId: m.threadId, mailboxId: mb.id, from: m.from, subject: m.subject, latestText: latestText(m.text), codes: extractCodes(m.text, m.subject), links: extractLinks(m.text, m.html) };
+  const full = { messageId: m.id, threadId: m.threadId, mailboxId: mb.id, from: m.from, subject: m.subject, latestText: latestText(m.text), codes: extractCodes(m.text, m.subject), links: extractLinks(m.text, m.html) };
+  // AIS1 (row 32): the platform's own mail (invites, confirmations, resets) reaches the feed, wait_for_email and the
+  // message.received webhook without its text, codes or links.
+  const parsed = m.withheld ? withheldView(full) : full;
   for (const id of ids) await recordEvent(deps, mb.orgId, id, "message.received", parsed);
   return { agentIds: ids, parsed };
 }
@@ -693,7 +829,7 @@ export async function eventsPage(deps: Deps, actor: Actor, q: { after?: number; 
   const base = and(eq(agentEvents.orgId, actor.orgId), gt(agentEvents.seq, q.after ?? 0), agentId ? eq(agentEvents.agentId, agentId) : undefined);
   const read = async (cond: SQL | undefined) => (await deps.db.select().from(agentEvents).where(and(base, cond)).orderBy(asc(agentEvents.seq)).limit(limit))
     .map((r) => ({ id: r.seq, type: r.type, agentId: r.agentId, data: JSON.parse(r.data) as Record<string, unknown>, createdAt: r.createdAt }));
-  const page = (events: Awaited<ReturnType<typeof read>>) => ({ events, last: events.length ? events[events.length - 1].id : q.after ?? 0 });
+  const page = async (events: Awaited<ReturnType<typeof read>>) => ({ events: await withholdOldEvents(deps, actor.orgId, events), last: events.length ? events[events.length - 1].id : q.after ?? 0 });
   // PRIV1b (P3, S3): message events and approval.requested carry mail (to, subject, codes), so they are kept only when
   // their mailbox is in the caller's scope. A quiet poll needs no scope read.
   const all = await read(undefined);
@@ -708,6 +844,27 @@ export async function eventsPage(deps: Deps, actor: Actor, q: { after?: number; 
 }
 const carriesMail = (e: { type: string }) => e.type.startsWith("message.") || e.type === "approval.requested";
 
+/**
+ * AIS1 (row 32): a message.received event written before the fix for the platform's own mail (From the system sender,
+ * no `withheld`) is served withheld too, as notifyAgentsOfInbound writes it now. Its message decides: a bounce notice
+ * stays readable, and a message no longer there counts as withheld. One read, only when such an event is on the page.
+ */
+async function withholdOldEvents<E extends { type: string; data: Record<string, unknown> }>(deps: Deps, orgId: string, events: E[]): Promise<E[]> {
+  const sys = deps.config.systemFrom.address.trim().toLowerCase();
+  const fromSystem = (e: E) => String((e.data.from as { address?: unknown } | undefined)?.address ?? "").trim().toLowerCase() === sys;
+  const old = events.filter((e) => e.type === "message.received" && !e.data.withheld && fromSystem(e));
+  if (!old.length) return events;
+  const ids = [...new Set(old.map((e) => String(e.data.messageId ?? "")).filter(Boolean))];
+  const rows = ids.length ? await deps.db.select({ id: messages.id, authResults: messages.authResults, fromAddress: messages.fromAddress }).from(messages)
+    .where(and(eq(messages.orgId, orgId), inIds(messages.id, ids))) : [];
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const hide = new Set(old.filter((e) => {
+    const r = byId.get(String(e.data.messageId ?? ""));
+    return !r || withheldRow(r, deps.config.systemFrom.address);
+  }));
+  return events.map((e) => (hide.has(e) ? { ...e, data: withheldView(e.data as { latestText?: string; codes?: string[]; links?: string[] }) as Record<string, unknown> } : e));
+}
+
 /** The newest event sequence number, so a new stream starts from now. */
 export async function latestEventSeq(deps: Deps, orgId: string) {
   const r = await deps.db.select({ n: sql<number>`coalesce(max(${agentEvents.seq}), 0)` }).from(agentEvents).where(eq(agentEvents.orgId, orgId)).get();
@@ -721,7 +878,9 @@ export async function pruneAgentEvents(deps: Deps) {
 }
 
 export async function agentAudit(deps: Deps, actor: Actor, agentId: string, limit = 100) {
-  const { listAudit } = await import("../audit");
+  const { listAudit, memberSafeAudit } = await import("../audit");
   await row(deps, actor.orgId, agentId);
-  return listAudit(deps.db, actor.orgId, { agentId, limit });
+  const rows = await listAudit(deps.db, actor.orgId, { agentId, limit });
+  // AIS1: a plain member (or an agent member's key) sees no IPs, addresses or mail subjects, as on the dashboard.
+  return actor.role === "member" ? rows.map(memberSafeAudit) : rows;
 }

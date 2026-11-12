@@ -147,6 +147,45 @@ last visit: `counts` (messages, replies, comments, edits, statusChanges, assigne
 minute per item. `POST /api/catchup/visit` (`{ type, id }`) marks the item caught up now. With the workspace's own AI key,
 `POST /api/catchup/summary` writes a short summary on that key (409 `ai_key_required` without one). MCP: `catchup_get`.
 
+## The workspace's own AI key: refusals and built-in AI (QUAL1)
+
+When the provider refuses the workspace's own key (401, or a 403 that names the key or a permission), says its account
+has no credit (402 or its own quota or balance code), or no longer offers the saved model, Multies notes it on the key
+with the time, on any AI call (the mail assistant, Tools, Team AI, meeting notes and recordings, catch-up, forms, the
+connection test and the model list). A call on the key that works, a passed `POST /api/ai/test`, a new key, or (for the
+model) a new model clears it. A provider turning down the request's own text (its moderation or a guardrail flags it,
+or it is too long) is never noted on the key and never goes to built-in AI: the answer is `502 ai_provider_error`
+saying the provider would not answer this request, on the mail assistant and on mail Translate and the document
+tools alike. Rate limits are not noted either: a 429 counts as no credit only when it names the credit itself (an
+`insufficient_quota` code), so a per minute limit (a 429 `RESOURCE_EXHAUSTED`) passes. A 402 is always no credit,
+also when its text mentions `max_tokens`. A saved key that can't be read (the app secret changed)
+answers 409 `ai_key_refused` asking an admin to paste it again, and goes to built-in AI only when the stand-in is on.
+
+- `GET /api/ai/status` adds `problem` (`key_refused`, `no_credit` or `model_unavailable`), `problemAt` (ISO time) and
+  `problemMessage` (the plain sentence the app shows) while the key is refused. They are absent while it works; `connected`
+  stays `true` because the key is still saved.
+- `POST /api/ai/summary`, `/api/ai/draft` and `/api/ai/triage` (and the meeting suggestions, the forms AI draft, the
+  live meeting summary, `POST /api/catchup/summary`, the mail Translate `POST /api/translate`, and the document tools'
+  `POST /api/tools/ai/ask` and `/api/tools/ai/translate`) answer **409** with the code `ai_key_refused`, `ai_no_credit`
+  or `ai_model_unavailable`, the same sentence, and `details.fix: "/app/settings#ai"`. A provider that is down or rate
+  limited is still `502 ai_provider_error`. A recording chunk the provider refuses stays `502 ai_provider_error` with the
+  same sentence (the web recorder tries it again, then names the reason at Stop; the phone app does not record). While
+  the key is noted refused or out of credit, `GET /api/meetings/:id/recordings` keeps `setup.ready: true` (a chunk that
+  works clears the note) with `setup.keyProblem` and the sentence in `setup.message`, which the meeting room shows.
+- Built-in AI answers in the key's place only where the deployment sets `AI_KEY_FALLBACK=on` (with AI2 on). It is off
+  by default: the workspace chose its own provider, so its text never goes to another processor unless the operator
+  turns this on (after the privacy policy says so). When it is on, `GET /api/ai-trust` lists built-in AI "In their
+  place if your provider refuses your key" before any refusal, and each answer it writes inside the free daily meter
+  carries `fallback: { reason, message }` (`message` starts "Built-in AI wrote this because ..."). `POST /api/translate`
+  (also when served from its cache), the forms AI draft and the document tools' Ask and Translate answers carry the
+  same `fallback`, their invoice and contract readers put the sentence in `note`, and a Team AI run ends with that line.
+- `POST /api/ai/models` with a refused key answers the short list of common models with `live: false`,
+  `problem: "key_refused"` and a note saying so, and keeps no cached copy.
+- `GET /api/team-ai/state` shows `ai.keyProblem` and `ai.keyProblemMessage`; `ai.source` is `built_in` (or `none`)
+  while the key is refused, never `own_key`. An `@assistant` mention whose key is refused posts that sentence in the
+  thread (a fixed line, no AI call) and the run ends `failed` with the reason `key_refused`, `no_credit` or
+  `model_unavailable`.
+
 ## Repeating tasks
 
 A task's `repeat` field takes a rule: `{ freq: daily | weekly | monthly | yearly, interval?, weekdays?
@@ -164,7 +203,8 @@ with `{ ids, patch }` and `POST /api/v1/tasks/bulk-delete` with `{ ids }` (the a
 `statusId`, `assignee` (`member:<id>`, `agent:<id>` or null), `priority`, `dueAt` and `startAt` (null
 clears), `addLabels`, `removeLabels`, `type` (task, story or bug; epics change one at a time) and `projectId` (moves the tasks; numbers come from the new
 project and each status maps to the same group there). If any id is not in the workspace nothing is
-changed (404). Read only keys get 403. The writes go out in one batch: each changed task writes its
+changed (404). Read only keys get 403. Deleting a task that waits in Triage, or one with a subtask that waits,
+needs a person signed in: a key gets 403 `person_only` and nothing is deleted (AIS1). The writes go out in one batch: each changed task writes its
 row and one sync feed change, and the action writes one summary activity entry. Webhooks still get
 one `task.updated` (or `task.deleted`) per task. When the daily database write budget is nearly
 used, bulk changes answer 503 and single edits still work. MCP: `bulk_update_tasks`.
@@ -263,9 +303,23 @@ No paid calendar APIs and no phone spend. A booking costs two inserts; a slot ca
 
 ## Triage (Round 21)
 
-New work can wait in Triage before it becomes a task. A project's `triage` setting (off for existing
-projects) sends tasks made by mail rules, public forms and incoming hooks there; a form's own "Send to
-triage" switch (`triage: true`, on by default for new forms in the app) does the same for that form.
+New work can wait in Triage before it becomes a task. A project's `triage` setting sends tasks from mail
+rules (workspace automations and a person's own rules), public forms, incoming hooks, API keys and AI apps
+(MCP, agents) there, subtasks, copies and imports included (`POST /work-imports/run`,
+`POST /data-moves/imports/run` and MCP `import_file` from a key, also into a new project the import makes; the
+work import answers `triage: true` then); tasks a person makes or imports in the app go straight to the board.
+A decision on a task takes its subtasks with it: accept brings in the ones that wait (into the accept's
+`projectId` too), decline and merge remove the ones that came through Triage, and undo puts them back. A subtask
+that never came through Triage only leaves the declined item. A key or an AI app can't put a task that isn't
+waiting under a waiting item (`PATCH /tasks/{id}` with `parentId`: 403 `person_only`), and when it finishes its
+own waiting repeating task the next one waits too. A key or an AI app can't move a task from a project with Triage off into one
+with Triage on (`PATCH /tasks/{id}` or `POST /tasks/bulk` with `projectId`: 403 `person_only`, nothing changes)
+unless it waits in Triage or a person accepted it there; it can make the task in that project, where it waits.
+It is on for every new project, made in the app, by a key (`POST /projects`), from a template, by an import
+or as the first "Tasks" project (AIS1); projects made before keep what they had. Only a person signed in
+turns it off: `triage: false` from a key, on create or on `PATCH /projects/{id}`, answers 403 `person_only`.
+A form's own "Send to triage" switch (`triage: true`, on by default for new forms, also from the API and
+MCP) sends its answers there whatever the project's setting.
 A triage item is a task row with `triage_state = 'pending'`: it keeps its number, and lists, boards,
 My Work, search, reports, the portfolio and counts leave it out (`GET /api/tasks?triage=pending` asks
 for them). Accept clears the flag in the same task write as any other change; decline soft deletes the
@@ -277,6 +331,13 @@ deletes the item.
 - App API: `GET /api/triage` (`projectId`, `limit`), `GET /api/triage/count`, `POST /api/triage`, `GET /api/triage/:id`, `POST /api/triage/:id/accept` `{ projectId?, assignee?, statusId?, status?, priority?, due? }`, `POST /api/triage/:id/decline` `{ reason?, reply?, message? }`, `POST /api/triage/:id/merge` `{ targetId }`, `POST /api/triage/bulk` `{ ids (up to 100), action: accept | decline, accept?, decline? }`
 - Public API: the same under `/api/v1/triage` (`GET /triage`, `GET /triage/count`, `POST /triage`, `GET /triage/{id}`, `POST /triage/{id}/accept`, `POST /triage/{id}/decline`, `POST /triage/{id}/merge`, `POST /triage/bulk`). Read only keys can list but not change anything.
 - MCP: `list_triage`, `triage_accept`, `triage_decline`, `triage_merge`, `create_triage_item`.
+- Who decides (AIS1): only a person signed in to Multies (the web app or the phone) accepts, declines, merges
+  or restores an item, or deletes one that still waits (`DELETE /tasks/{id}` and `POST /tasks/bulk-delete`,
+  also when a waiting subtask would go with it). An API key, an agent key or a connected AI app (MCP over
+  OAuth) gets 403 `person_only` there, and `POST /triage/bulk` refuses the whole call. Keys and AI apps can
+  still add items, read the queue and its count, unsnooze, and snooze until at most 7 days after the item came
+  in, so snoozing again doesn't keep it out longer (later answers 403 `person_only`; a person may snooze up to a
+  year). The MCP decision tools stay listed and answer `person_only`.
 
 ## People and AI agent members
 
@@ -284,20 +345,28 @@ Every member has an optional `title` (up to 80 characters) and `bio` (up to 500)
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/v1/people` | People (`kind: "human"`), agent members (`kind: "agent"`, `email` null) and mail agents, each with `title` and `bio`. |
+| GET | `/api/v1/people` | People (`kind: "human"`), agent members (`kind: "agent"`, `email` null) and mail agents, each with `title` and `bio`. A person member whose address is an AI agent's inbox carries `agentInbox: true` (AIS1). |
 | GET | `/api/v1/people/{id}` | One member by user id. |
 | PATCH | `/api/v1/people/{id}` | `{ title?, bio?, name? }`. A workspace key edits anyone but the owner; an agent member's key edits itself; `name` is for agent members only. |
 | POST | `/api/v1/agent-members` | `{ name, title?, bio?, scope? }` (`full` or `read`). Returns `{ member, apiKey, secret }`; the secret is shown once. |
 | DELETE | `/api/v1/agent-members/{id}` | Removes the member and revokes its keys. What it posted stays under its name. |
 | GET, POST | `/api/v1/agent-members/{id}/keys` | List keys, or make another (`{ name?, scope? }`). |
 | DELETE | `/api/v1/agent-members/{id}/keys/{keyId}` | Revokes one key. |
-| GET | `/api/v1/invites` | Pending invitations, newest first, with `role`, `mailboxIds`, `title` and `bio`. Members who joined are in `/people`. |
-| POST | `/api/v1/invites` | `{ email, role?, mailboxIds?, title?, bio? }` (`role` is `member` or `admin`). Sends the invitation email and returns `{ id, link, emailed, emailDetail? }`: `emailed` is true only when the email really went out; when the provider held or refused it (for example a deployment that cannot yet email outside addresses) it is false and `emailDetail` says why in plain words, so share `link` instead. The title and bio become the member's own when they join. The key acts as its creator: an admin invite needs a key made by the owner, the plan's seats apply (403 `plan_limit`), an address already in the workspace answers 409, and the same address again renews its pending invitation. Agent keys, agent member keys and read only keys get 403. Nobody is invited as owner; transfer ownership once they have joined. |
+| GET | `/api/v1/invites` | Pending invitations, newest first, with `role`, `mailboxIds`, `title`, `bio` and `awaitingApproval` (AIS1: true while a key's invite waits for a person). Members who joined are in `/people`. |
+| POST | `/api/v1/invites` | `{ email, role?, mailboxIds?, title?, bio? }` (`role` is `member` or `admin`). AIS1 (audit row 1): a key's invite waits for a person. It returns `{ id, link, status: "awaiting_approval", emailed: false, emailDetail }`; nothing is emailed and the link doesn't work until an owner or admin confirms the invite in Multies (Settings, Team), which sends the invitation email and gives the link a fresh 7 days. The title and bio become the member's own when they join. The key acts as its creator: an admin invite needs a key made by the owner (and only the owner confirms it), the plan's seats apply to waiting invites too (403 `plan_limit`), an address already in the workspace answers 409, and the same address again holds its invitation again with the new details (a person's live invite to it then waits too). An address whose mail reaches an AI agent (an agent inbox, a `+tag` of one, an alias or a catch-all that reaches one, in any workspace) answers 422 `agent_address` and is flagged in the audit log. Agent keys, agent member keys and read only keys get 403. Nobody is invited as owner; transfer ownership once they have joined. |
 | DELETE | `/api/v1/invites/{id}` | Revokes a pending invitation; another workspace's, an accepted or a revoked one answers 404. |
 
 Creating a workspace and minting its first API key stay sign up steps in the app (a key can't make the workspace it belongs to).
 
 In the app the same actions live under `/api/team/people` and `/api/team/agents`. MCP: `list_people` (optional `kind`).
+
+### An agent can't become a person (AIS1)
+
+- No invite (member or guest, from the app, a key, MCP or an agent), sign-up, invite acceptance or new membership (a workspace of its own on a first sign in included) for an address whose mail reaches an AI agent: an agent inbox, a `+tag` of one, an alias (in any workspace, through nested aliases) or a catch-all that reaches one, or an agent member's internal address. The answer is 422 `agent_address` (403 from sign-up), and each refusal is in the audit log (`member.invite_refused`, `guest.invite_refused`, `member.join_refused`, `guest.join_refused`, `account.signup_refused`).
+- An invite lets someone in, so it never goes out without a person. A key's member invite waits as `awaiting_approval` (see `POST /invites` above). A guest invite from an agent (`POST /projects/{id}/guests` with an agent key or `agentId`, MCP `invite_guest`) always waits in the approval queue, whatever the agent's approval rule; from a workspace key without `agentId` nothing is sent (`delivery.status: "awaiting_confirmation"`, the guest has `awaitingConfirmation: true` and no working link) until a person sends it from the project's Guests in the app.
+- Multies' own mail (invites, email confirmations, password resets, guest invites, and everything else Multies sends as itself) carries a marker only the platform sets. Agents, agent keys, workspace keys and connected AI apps get its subject and sender, but `text` and `latestText` become a short notice, `html` is null, `codes` and `links` are empty and `withheld: "platform_mail"` is set: in the agent feed (`GET /events`, the event stream, MCP `wait_for_email`), the `message.received` webhook, `GET /threads/{id}`, `GET /messages/{id}`, MCP `read_thread` and the thread on a task. A task made from it (`POST /tasks/from-email`, MCP `create_task` with `messageId` or `threadId`, a mail rule or an automation) gets that notice as its notes when none are passed, whoever made it. A workspace export a key or a connected app starts (`POST /data-moves/exports`, MCP `export_workspace`) has it with its subject and sender only. Text searches by a key, an agent or a connected app (`/search`, `GET /messages?search=`, `POST /mail/bulk-jobs` with `scope.q`, MCP `search` and `mail_bulk_job` with `query`) never match it, so a count can't be used to guess its text. Mail that can take over an account (a password reset, an email confirmation, an invite) is not sent at all to an AI agent's own inbox (or a `+tag` of it), and the delivery log of the agent's workspace shows it rejected with the address. To an alias or a catch-all that also reaches an agent (a person's own address that copies their AI, say) it is sent as usual: the person gets it and the agent's copy is withheld as above. A person's mail rule never forwards Multies' own mail to an address that reaches an AI agent (its inbox, a `+tag`, an alias or a catch-all to one, in any workspace; the rule's run log says `Not sent`), and a forward of it anywhere else keeps the marker on its Sent copy and on every copy delivered inside Multies. An alias never forwards it out to such an address either (the delivery log shows it rejected). People read all of it in the app. Mail from anyone else keeps its codes and links.
+- What counts as reaching an agent is judged only on domains whose owner proved them in DNS: an agent inbox on a domain claim nobody verified never gets that address's mail, so it blocks no invite, sign-up or reset, and marks no member as an AI (`agentInbox`, `isAgent` and the project owner check below follow the same rule).
+- An AI that joined as a person before this fix (a member whose address is an AI agent's inbox) is shown as an AI and kept out of people only lists. `GET /api/team` members, `GET /api/v1/people` and MCP `list_people` carry `agentInbox: true` for it (the Team page shows an AI badge, so an admin can find and remove it). Staff and the org chart leave it out. `GET /api/tasks/assignees` and `GET /api/chat/people` mark it `isAgent: true` with `email` null, and leave it out when it is the inbox of a mail agent in the workspace, so one AI shows once (as `agent:<id>`); tasks already assigned to it keep it. A project owner is a person: `PATCH /projects/{id}` with an AI agent (an agent member or such a member) as `ownerId` answers 422, while an owner set before stays until it changes.
 
 ## Agent track record (earned autonomy)
 
@@ -318,6 +387,58 @@ failed delivery neither builds nor breaks the streak.
 Nothing changes on its own: an admin applies a suggestion with the usual `PATCH /api/agents/{id}`.
 The agent page shows the record, a bar of outcomes and the suggestion with a one tap switch. The
 read writes nothing.
+
+## Agent guardrails (AIS1)
+
+An agent inbox has guardrails: its approval mode, its daily send cap, its allowed recipients, whether it is
+paused, and the mailboxes it works. Only a person signed in to Multies (the web app or the phone app) can lower
+them. An API key or a connected AI app (OAuth on MCP) can create agents and tighten them, nothing more:
+
+| Field | A key or a connected AI app may | Only a person may |
+|---|---|---|
+| `approvalMode` | create with `always` (the default); raise it (`never`, then `external`, then `always`) | create with `external` or `never`; lower it |
+| `sendCapDaily` | create with 100 or less; lower it | create with more than 100 (up to the plan's limit); raise it |
+| `allowedRecipients` | name a list on create; narrow it (every new entry inside the current list: `@acme.io` covers `bob@acme.io`, not the other way round); give a list to an agent that may mail anyone | choose anyone (`null` or `[]`); widen it |
+| `status` | pause (`paused`); delete an active agent at 100 sends a day or more | resume (`active`); delete a paused agent, or one held under 100 a day (or the plan's daily limit, if lower): `DELETE /api/v1/agents/{id}` answers 403 `person_only` naming `status` or `sendCapDaily`, logged as `agent.delete_refused`, since made again at the same address it would come back active at 100 a day. A narrower allow list doesn't stop a key's delete: a key may name any list on a new agent, and a person approves its every message |
+| `mailboxIds` | take mailboxes away | add mailboxes |
+
+`name` and `description` stay open. Sending a field's current value back is not a loosening, so a client can
+read the agent, change one field and send them all. A loosening answers 403 `person_only`; the message and
+`details.fields` name the fields, nothing in the call is applied, and the attempt is written to the audit log
+(`agent.update_refused` on the agent's own log, `GET /api/v1/agents/{id}/audit`, or `agent.create_refused`).
+
+Every new agent, made in the app, over REST or over MCP, starts with approval `always`, 100 sends a day (never
+above the plan's daily limit for agents) and the workspace's own verified domains as allowed
+recipients (`["@acme.io"]`). With no verified domain yet it is the creator's own address (for a key, the person
+who made the key). From a key, `allowedRecipients` of `null` or `[]` gets this default too; a person who wants
+"anyone" picks it in the app (or sends `null` to `POST /api/agents`). Agents made before this change keep their
+settings, and domains verified later don't join existing agents' lists.
+
+Approving a waiting send is a person's decision: `POST /api/v1/approvals/{id}/approve` answers 403
+`person_only` to a workspace key (an agent key still gets `agent_key_scope`), and there is no MCP approve tool.
+Keys can list approvals and reject them (`POST /api/v1/approvals/{id}/reject`), which only stops mail. People
+approve in the app (Approvals, or `POST /api/approvals/{id}/approve`).
+
+Mail a key or a connected AI app sends from an agent's inbox goes through the agent, so its rules apply:
+`POST /api/v1/agents/{id}/send`, `/agents/{id}/threads/{threadId}/reply`, and on MCP `send_email`, `reply`,
+`schedule_send` and `schedule_meeting` with an agent. `POST /api/v1/messages` naming an agent inbox (by
+`mailboxId` or `from`) answers 403 `agent_inbox` and points at the agent's send. A person can still write from
+an agent inbox in the app's Compose (or Send later); that message is theirs, not the agent's. The other ways mail
+leaves (mail rules, mail merge, campaigns, e-sign, meeting invites from a person) run as the person who set them
+up, from mailboxes they chose in the app; meeting invites from a person only use person mailboxes.
+
+Sign-up emails (the Supabase auth email hook) are sent by Multies itself, outside any agent's rules, so they never
+come from an agent's inbox: the Sign-up emails From list doesn't offer one, and `POST` or `PATCH
+/api/v1/auth-email-hooks`, `PUT /api/v1/auth-email-settings` and MCP `update_auth_email_hook` and
+`update_auth_email_settings` answer 422 for an agent's address. One exception is left on purpose, so a working
+sign-up flow isn't cut off: a hook saved on an agent's inbox before this change keeps sending what Supabase signs,
+as it was last saved. While it stays there, a key or a connected AI app may only
+switch it off (`enabled: false`), move its From to a team mailbox (`from`, in the same call or before other
+changes) or delete it. Anything else answers 403 `person_only` and changes nothing: switching it back on, the
+subject and intro, Reply-To, the project URL its links point at, the sender or product name (`PUT
+/api/v1/auth-email-settings`, `PATCH /api/v1/auth-email-hooks/{id}`, MCP `update_auth_email_settings` and
+`update_auth_email_hook`), and a new signing secret (`POST /api/v1/auth-email-settings/secret`, MCP
+`regenerate_auth_email_secret`). A person can do all of it in the app.
 
 ## Weekly meeting series
 
@@ -419,9 +540,9 @@ calls are in the public API (`data-moves`, admin area; a read only key may start
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/v1/data-moves` | The last 50 imports and exports: `kind`, `source`, `status` (running, stopped, done, undone, ready, expired), `done` of `total`, `created` (items made), `canUndo` |
-| POST | `/api/v1/data-moves/exports` | Answers `downloadUrl`, a ZIP that works for 24 hours without a key. Owners and admins only, one every 10 minutes (429), written to the audit log |
+| POST | `/api/v1/data-moves/exports` | Answers `downloadUrl`, a ZIP that works for 24 hours without a key. Owners and admins only, one every 10 minutes (429), written to the audit log. AIS1: in an export a key or a connected app starts, Multies' own mail (invites, confirmations, resets) has its subject and sender only (`withheld: "platform_mail"`); an export a person starts in the app has it whole |
 | POST | `/api/v1/data-moves/imports/preview` | `{ kind, content, fileName?, mapping? }`. Writes nothing; answers the count and the first 20 rows |
-| POST | `/api/v1/data-moves/imports/run` | `{ kind, content, fileName?, mapping?, projectId?, projectName?, statusMap?, people?, moveId? }`. One step of about 15 seconds; while `move.status` is `stopped`, send it again with `moveId` |
+| POST | `/api/v1/data-moves/imports/run` | `{ kind, content, fileName?, mapping?, projectId?, projectName?, statusMap?, people?, moveId? }`. One step of about 15 seconds; while `move.status` is `stopped`, send it again with `moveId`. Tasks a key brings into a project with Triage on wait there for a person |
 | POST | `/api/v1/data-moves/{id}/undo` | Removes exactly what that import made |
 | POST | `/api/v1/data-moves/mbox/batch` | R40 mail archive upload. `{ mailboxId, total, messages, moveId?, fileName?, folder?, last? }`: at most 10 raw messages (base64), about 512 KB a call, with an `Idempotency-Key`. Messages already in the mailbox (same Message-ID) are counted as duplicates. Answers `move` and `counts` (`stored`, `duplicates`, `unreadable`). Owners and admins only |
 | POST | `/api/v1/data-moves/mbox/{id}/stop` | Stops a mail archive upload part way; what came in stays |
@@ -459,7 +580,7 @@ and its owners are emailed.
 
 Events (57): `message.received`, `message.sent`, `message.bounced`, `message.complained`, `domain.verified`, `domain.failed`, `approval.requested`, `approval.decided`, `agent.created`, `agent.deleted`, `task.created`, `task.updated`, `task.deleted`, `task.commented`, `task.file_added`, `task.recurred`, `project.created`, `project.updated`, `project.deleted`, `doc.created`, `doc.updated`, `doc.deleted`, `contact.created`, `contact.updated`, `deal.created`, `deal.updated`, `time_entry.created`, `time_entry.updated`, `form.submitted`, `meeting.created`, `meeting.updated`, `meeting.deleted`, `custom_field.created`, `custom_field.updated`, `custom_field.deleted`, `guest.invited`, `guest.joined`, `guest.revoked`, `chat.channel.created`, `chat.message.created`, `chat.message.updated`, `chat.message.deleted`, `chat.mention`, `template.used`, `goal.created`, `goal.updated`, `goal.deleted`, `incoming_hook.received`, `booking.created`, `booking.cancelled`, `triage.created`, `triage.accepted`, `triage.declined`, `triage.merged`, `comment.created`, `comment.updated`, `comment.deleted`.
 
-Triage events (round 22): `triage.created` carries `{ task, source }` when new work lands in Triage (from mail rules, forms with triage on, incoming hooks, chat or the API); `triage.accepted` carries the accepted `task`; `triage.declined` carries `{ id, title, number, source, reason?, replied }`; `triage.merged` carries `{ id, title, source, into }` (the target task). The matching `task.*` events still fire as before.
+Triage events (round 22): `triage.created` carries `{ task, source }` when new work lands in Triage (from mail rules, forms, incoming hooks, chat, the API or AI apps); `triage.accepted` carries the accepted `task`; `triage.declined` carries `{ id, title, number, source, reason?, replied }`; `triage.merged` carries `{ id, title, source, into }` (the target task). The matching `task.*` events still fire as before.
 
 Delete and comment events (R51): `project.deleted` carries `{ id, object: "project", name }`. Its tasks go with it, and since R52 each sends its own `task.deleted` `{ id, object: "task", title, projectId, viaProject: true }` to endpoints that take `task.deleted`, written as one batch (one insert for all of them); up to 1,000 tasks get one, and past that `project.deleted` carries `taskEventsTruncated: true` and the rest send none. The first 10 deliveries go out at once and the rest on the retry pass. With no endpoint for `task.deleted` the delete reads no task ids and costs exactly what it did before. `meeting.deleted` (R52) carries `{ id, object: "meeting", title, startsAt, durationMin, status }`, the same fields as `meeting.created`; `doc.deleted` carries `{ id, object: "doc", title }`; `comment.created`, `comment.updated` and `comment.deleted` carry `{ id, object: "comment", taskId }`, with the `comment` on create and update. A new comment still sends `task.commented` too, now with the same `id` and `object` added, and an endpoint gets only the names it subscribed to. Every event carries the `actor`. Events are sent after the change is saved, and an event nobody subscribed to costs no database write. Meetings have no delete; a cancelled meeting is a `meeting.updated` with `status: "cancelled"`.
 
@@ -1001,7 +1122,7 @@ R35: a board view may also store `lanes` (none, assignee, epic, priority or proj
 
 ## Round 25: fixes found by Haajir
 
-- `GET /health` and `GET /healthz` answer the same JSON as `/api/health` (MB-53).
+- `GET /health` and `GET /healthz` answer the same JSON as `/api/health` (MB-53). Since QUAL1 that is only `{ "ok": true, "db": "ok" }` (or `"degraded": true, "db": "migrations_pending"` during a deploy, or 503 `{ "ok": false, "db": "unreachable" }`); the release is on `/api/config`, and the detail (release, D1 writes and reads, budgets, the busiest workspaces) is on `GET /api/admin/health` for platform operators. The public `GET /api/status` shows component states and plain words but no mail volume; operators read the 24 hour volume on `GET /api/admin/status`.
 - `GET /api/v1/projects/{id}/tasks`: a project's tasks, the same filters as `GET /api/v1/tasks?projectId={id}` (MB-52).
 - Sprints: `startDate` and `endDate` are accepted as names for `startAt` and `endAt`. A date with no time (`2026-11-01`) is that calendar day in the workspace's time zone: a start is its first moment, an end its last, on create and on `PATCH` alike. A new sprint with no dates starts today (or the day after the last sprint) in that zone (MB-54, MB-55).
 - Every sprint object carries `url`, the page that opens that sprint (`/app/tasks?project=<id>&view=sprints&sprint=<id>`) (MB-62).
@@ -1059,7 +1180,8 @@ Agent members are workspace members of kind `agent` (see docs/adr/0008-agents-as
 
 A read only link to a doc or a project board for someone who is not in the workspace (a client or a partner), without making them a guest.
 
-- `POST /api/v1/share-links` with `{ kind: "doc" | "project_board", targetId, expiresInDays?: 7 | 30 | null, showWorkspaceName?: boolean }` answers 201 with `{ link: { id, kind, targetId, showWorkspaceName, createdBy, createdAt, expiresAt, url } }`. `url` is `https://multies.si/s/<token>` (32 random bytes, base64url) and is shown only this once: only the token's SHA-256 is stored. `showWorkspaceName` defaults to true (the page says "Shared by <workspace>"); false hides it. One row written.
+- `POST /api/v1/share-links` with `{ kind: "doc" | "project_board", targetId, expiresInDays?: 7 | 30, showWorkspaceName?: boolean }` answers 201 with `{ link: { id, kind, targetId, showWorkspaceName, createdBy, createdAt, expiresAt, url } }`. `url` is `https://multies.si/s/<token>` (32 random bytes, base64url) and is shown only this once: only the token's SHA-256 is stored. `showWorkspaceName` defaults to true (the page says "Shared by <workspace>"); false hides it. One row written.
+- How long a link works (AIS1): `expiresInDays` left out means 30 days. `null` (never expires) needs a person signed in to Multies: a workspace key or a connected AI app gets 403 `person_only`, and so does an agent member key over MCP (over the public API agent and agent member keys can't use `/share-links` at all). In the app a person may still pick Always (`expiresInDays: null`); the web Share sheet starts at 30 days. Links made before this keep the end date they had.
 - `GET /api/v1/share-links?kind=&targetId=` lists active links (not revoked, not expired), newest first, at most 200, with `allowShareLinks`. Read only keys can list.
 - `DELETE /api/v1/share-links/{id}` revokes a link at once. Revoking twice is fine.
 - The page `GET /s/<token>` needs no sign in. A doc shows its title and body (comments dropped, mentions as plain names, links into the app as plain text). A board shows its columns by status with each card's title, assignee initials, due date and labels; never notes, comments, files or custom fields. An unknown, revoked or expired token, a deleted target, or share links turned off answer 404 with "This link is no longer active". Headers: `Cache-Control: private, max-age=0`, `X-Robots-Tag: noindex, nofollow`, `Referrer-Policy: no-referrer`, and the app's page CSP. 60 opens a minute per IP (429 after). Opening a link writes nothing (views are not counted).
@@ -1263,7 +1385,7 @@ The Email Worker signs each delivery with a workspace's inbound key. Owner and a
 
 Settings, Sign-up emails (workspace owners and admins) and the REST API manage the workspace's auth email hook (the Supabase Send Email Hook above) without hand calls. Full workspace keys only: members, agent keys and read only keys get 403.
 
-- `GET /api/v1/auth-email-settings`: `{ settings, senders, types, testSendsPerHour }`. `settings` is `null` before the first save, else `{ id, enabled, senderName, from, appName, supabaseUrl, branding, endpointUrl, secret: { set, masked }, testSendsLeft, lastUsedAt }`. The secret itself is never returned here; `masked` shows its last 4 characters. `senders` are the mailboxes on the workspace's verified domains.
+- `GET /api/v1/auth-email-settings`: `{ settings, senders, types, testSendsPerHour }`. `settings` is `null` before the first save, else `{ id, enabled, senderName, from, appName, supabaseUrl, branding, endpointUrl, secret: { set, masked }, testSendsLeft, lastUsedAt }`. The secret itself is never returned here; `masked` shows its last 4 characters. `senders` are the active team mailboxes on the workspace's own verified domains. AIS1 (audit row 44): never an AI agent's inbox, a personal mailbox or a connected address (Gmail and the like); `PUT` here and `POST` or `PATCH /api/v1/auth-email-hooks` refuse any other `from` with 422. Hooks saved before keep sending until their From is changed; for such a hook `settings.fromAllowed` is false, and Settings, Sign-up emails says so.
 - `PUT /api/v1/auth-email-settings` with any of `{ enabled, senderName, from, appName, supabaseUrl, branding }` (`from` and `supabaseUrl` are needed the first time; `branding` merges as in PATCH above, `null` clears it). The first save answers with `secret` once, in the form Supabase takes (`v1,whsec_...`). `enabled: false` makes the hook answer 503 and send nothing; `senderName` is the From name (null uses the mailbox's display name).
 - `POST /api/v1/auth-email-settings/secret`: a new signing secret, returned once; the old one stops working at once.
 - `POST /api/v1/auth-email-settings/preview` with `{ type?, appName?, branding?, email? }`: the email one type would send, with unsaved changes merged in. Nothing is sent or stored.
@@ -1274,7 +1396,7 @@ Settings, Sign-up emails (workspace owners and admins) and the REST API manage t
 
 ## Docs: append and version check (R28, found by Haajir)
 
-- `POST /api/v1/docs/{id}/append` with `{ markdown }` or `{ text }` (one of them, up to 200,000 characters) adds to the end of the doc and keeps everything already there, headings included. `markdown` takes `#` to `######` headings, paragraphs, `-`/`*`/`+` bullets, `1.` numbered lists (nested by indenting), `- [ ]` and `- [x]` task lists, `>` quotes, fenced code blocks (with a language), `---` rules, `**bold**`, `*italic*`, `~~strike~~`, `` `code` ``, `[links](https://...)` and bare https links. `text` keeps the plain text rules of create (`#` headings, `-` bullets). Link targets other than http, https, mailto and in-app paths are dropped. A doc over 1 MB answers 413; a read only key answers 403.
+- `POST /api/v1/docs/{id}/append` with `{ markdown }` or `{ text }` (one of them, up to 200,000 characters) adds to the end of the doc and keeps everything already there, headings included. `markdown` takes `#` to `######` headings, paragraphs, `-`/`*`/`+` bullets, `1.` numbered lists (nested by indenting), `- [ ]` and `- [x]` task lists, `>` quotes, fenced code blocks (with a language), `---` rules, `**bold**`, `*italic*`, `~~strike~~`, `` `code` ``, `[links](https://...)` and bare https links. `text` keeps the plain text rules of create (`#` headings, `-` bullets). Link targets other than http, https, mailto and in-app paths are dropped. A line whose formatting would take too long to work out (for example thousands of unmatched runs of backticks) is kept as plain text, with its web links. A doc over 1 MB answers 413; a read only key answers 403.
 - Version check on every doc write: `GET`, `PATCH` and `append` answer with `ETag: "<version>"`. Send the version you read as `ifVersion` in the body (`PATCH` also takes `version`) or as an `If-Match: "<version>"` header. If the doc changed since, the answer is `409` with `{ error: { code: "version_conflict", details: { currentVersion } } }` and nothing is written. Without a version the write goes ahead (last write wins), as before. The check is also made in the write itself, so two writers racing on the same version get one success and one 409.
 - MCP: `docs_append` with `{ id, markdown, ifVersion? }` (the older `append_to_doc` still takes plain text).
 
@@ -1298,7 +1420,7 @@ When the database is briefly unavailable (an export in progress, overloaded, a l
 ## R33: project keys and the timeline
 
 - `PATCH /api/projects/{id}` and `PATCH /api/v1/projects/{id}` take `key` (letters and digits, up to 6, stored in capitals). A key another project in the workspace uses, compared without case, or one another project used before its own key edit, answers 409 `key_taken` with a plain message; nothing changes. MCP: `update_project` (name, description, color, key) answers the same refusal.
-- `DELETE /api/v1/projects/{id}` (R44) deletes a project and its tasks, as Delete project does in the app. Only a workspace key with write access can do it: a read only key answers 403 `insufficient_scope` and an agent member's key 403 `admin_only`. Answers `{ ok: true }`.
+- `DELETE /api/v1/projects/{id}` (R44) deletes a project and its tasks, as Delete project does in the app. Only a workspace key with write access can do it: a read only key answers 403 `insufficient_scope` and an agent member's key 403 `admin_only`. While items wait in the project's Triage a key answers 403 `person_only`: a person decides or deletes them in Multies first (AIS1). Answers `{ ok: true }`.
 - After a key edit the old key keeps resolving: `GET /api/v1/tasks/OPS-12` still opens the task after OPS became OPR (the task's `ref` reads OPR-12).
 - The task and contact timeline (`activity` in task detail) reads one change row per write since migration 0073; entries written after it have ids starting `chg_`. Shapes are unchanged.
 
@@ -1313,3 +1435,19 @@ Session routes under `/api`, and the same under `/api/v1` with an API key (OpenA
 - `DELETE /blocks/:userId` answers `204`, or `404` when you had not blocked that person.
 - Effect of a block (A blocks B): every chat read A makes (channel messages and `?since=` polls, threads, pins, search, chat search, first unread, unread counts, the channel list preview, catch up digests, meeting "so far") leaves out B's messages on the server. B can't start a DM with A or post in one: `403 { error: { code: "blocked", message: "You can't message this person." } }`. B's mentions, replies and DMs don't notify A (so no push). Live socket events are filtered by the clients with `GET /blocks`. Channel members and `GET /chat/people` carry `blockedByMe`.
 - Operator only (platform admins): `GET /api/admin/reports?status=open|resolved|dismissed|all`, `GET /api/admin/reports/count`, `POST /api/admin/reports/:id/action` body `{ action: "dismiss" | "resolve" | "remove_message" | "suspend_user", note? }`.
+
+## Audit log: which key or connected app acted (AIS1)
+
+The audit log (Activity, Audit log in the app; `GET /api/v1/agents/{id}/audit`; the CSV and JSON export) says what made each change:
+
+- An entry made through an API key or a connected AI app carries `metadata.caller`: `{ kind, key?, prefix?, app?, user?, person?, grant? }`. `kind` is `workspace_key`, `agent_key`, `agent_member_key` or `oauth` (a connected app over MCP). A key's entry has the key's `key` (its name) and `prefix` (for example `mm_live_3kf9`); a connected app's entry has `app`, the name it registered with (for example Acme Assistant). A person's own action in the web or phone app has no `caller`, so it reads apart from the same person's connected app, although both carry that person's id and email.
+- What a key's or a connected app's request causes (its agent's send, a rule that fires) carries the same `caller`. A connected app's `caller` there also names whose app it was, because that row's actor is the agent, not the person: `user` (the id of the person who connected it), `person` (their name) and `grant` (the connection's id, as `GET /api/oauth/grants` lists it), for example `{ kind: "oauth", app: "Acme Assistant", user, person: "Ada Lee", grant }`. A row that a person's request writes for an agent or the system carries neither the person's IP nor a `caller`.
+- `ip` is the request's address on every entry the caller made (REST, MCP, the app, and signing up or in, a password change or a lockout) and on everything a key or a connected app causes. Entries from scheduled jobs have none, and an address Multies can't read is left empty.
+- `caller` is a copy, so an entry still names its key after the key is deleted. `api_key.created`, `api_key.scope_changed`, `api_key.deleted`, `agent.key_created`, `agent.key_revoked`, `agent_member.key_created` and `agent_member.key_revoked` also carry the key's `name` and `prefix`. Entries written before this change have no `caller`; an old key entry shows its actor as `api-key:<prefix>`.
+- An agent's thread read (`agent.message_read`) names the thread: `targetId` is the thread id and `metadata.subject` its subject (first 200 characters). Only an agent's own key writes a read entry (a workspace key or a connected app reading a thread writes none), rolled up to one per agent, thread, agent key and hour. A thread in a personal mailbox (a connected inbox or a claimed free address) keeps its id but has no `subject`, because only the mailbox's owner may read it and admins read the audit log.
+- The same goes for an agent's send from a personal mailbox, a reply in a personal thread included: `agent.send_queued`, `agent.message_sent`, `agent.send_blocked` and `approval.approved` have no `subject`, `to` or `from`, only `personal: true` and `recipientCount`. A send from any other mailbox still has its `to`, `subject` and (once sent) `from`.
+- A plain member (or an agent member's key) reading the audit log, on the dashboard or in an agent's audit log, gets no IP and no subject or mail address in an entry's `metadata`: a metadata field that holds an address is left out whatever its name. The entry's actor (a person's email, or `agent:<address>` for an agent) is still shown.
+- The CSV and JSON export end with two more columns: `callerKind` and `via` (for example `via Acme Assistant (connected app)`, `via Ada Lee's Acme Assistant (connected app)` on an agent's send through Ada's app, or `via API key Billing bot (mm_live_3kf9)`). Both are empty for a person in the app.
+- Task history (`activity` on `GET /api/v1/tasks/{id}`, MCP `get_task`) carries the same `caller` in a line's `data` when the change came through a key or a connected app. So do the lines for a move into or out of an epic or an active sprint, a bulk change or delete, a task import and a contact import.
+- No extra writes: the stamp rides on the row each change already writes.
+- The Team AI run log keeps runs for 365 days (it was 30); deleting a run writes a `teamai.run_deleted` entry with its kind, name and status. The audit log itself keeps everything for the life of the workspace.

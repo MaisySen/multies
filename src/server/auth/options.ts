@@ -25,7 +25,7 @@ import { localPasswordEnabled } from "./config";
 import { multiesAuthPlugin } from "./mobile";
 import { clearFailures, lockedUntil, recordFailure } from "../services/lockout";
 import { audit } from "../services/audit";
-import { and, count, desc, eq, ne } from "drizzle-orm";
+import { and, count, desc, eq, inArray, ne } from "drizzle-orm";
 import type { Deps } from "../context";
 import * as schema from "../db/schema";
 import { hashPassword, newId, randomToken, verifyPassword } from "../lib/crypto";
@@ -59,6 +59,20 @@ const ID_PREFIX: Record<string, string> = {
   user: "usr", session: "ses", account: "acc", verification: "vrf", organization: "org",
   member: "mem", twoFactor: "tfa", rateLimit: "rl",
 };
+
+/**
+ * AIS1 (row 1): an address that reaches an AI agent (its inbox, an alias or catch-all to it) never gets an account or
+ * a membership. The check loads only when an account or a membership is about to be made, never on sign in.
+ */
+async function refuseAgentAccount(deps: Deps, email: string, action: string, orgId?: string | null) {
+  const { refuseAgentAddress } = await import("../services/agents/agent-address");
+  try {
+    await refuseAgentAddress(deps, email, { action, orgId: orgId ?? null, actorEmail: email });
+  } catch (err) {
+    if (err instanceof HttpError) throw new APIError("FORBIDDEN", { message: err.message, code: "AGENT_ADDRESS" });
+    throw err;
+  }
+}
 
 async function sendWelcome(deps: Deps, user: { email: string; name: string }) {
   if (user.email.endsWith(".test")) return;
@@ -269,6 +283,8 @@ export function authOptions(deps: Deps) {
       },
       user: {
         create: {
+          // AIS1 (row 1): every way an account is made (password, social, identity provider) passes here.
+          before: async (user) => { await refuseAgentAccount(deps, user.email, "account.signup_refused"); },
           // Social sign ups arrive verified, so they get the welcome straight away.
           after: async (user) => { if (user.emailVerified) await sendWelcome(deps, user); },
         },
@@ -320,7 +336,8 @@ export function authOptions(deps: Deps) {
             const [m, p] = await Promise.all([
               // AI agent members take no seat.
               db.select({ n: count() }).from(schema.members).where(and(eq(schema.members.organizationId, org.id), eq(schema.members.kind, "human"))).get(),
-              db.select({ n: count() }).from(schema.invitations).where(and(eq(schema.invitations.organizationId, org.id), eq(schema.invitations.status, "pending"), ne(schema.invitations.email, invitation.email))).get(),
+              // AIS1: an invite a key made, waiting for a person, holds its seat too.
+              db.select({ n: count() }).from(schema.invitations).where(and(eq(schema.invitations.organizationId, org.id), inArray(schema.invitations.status, ["pending", "awaiting_approval"]), ne(schema.invitations.email, invitation.email))).get(),
             ]);
             if ((m?.n ?? 0) + (p?.n ?? 0) >= plan.limits.seats) {
               throw new APIError("FORBIDDEN", { message: `Your ${plan.name} plan includes ${plan.limits.seats} seats, and they're all taken or invited. Upgrade to add more people.`, code: "PLAN_LIMIT" });
@@ -333,6 +350,13 @@ export function authOptions(deps: Deps) {
               if (found.length !== new Set(ids).size) throw new APIError("BAD_REQUEST", { message: "One of those mailboxes doesn't exist in this workspace." });
             }
             return { data: { ...invitation, mailboxIds: JSON.stringify(ids) } };
+          },
+          // AIS1 (row 1): the invite page and the first sign in join both accept through here.
+          beforeAcceptInvitation: async ({ invitation, user }) => {
+            await refuseAgentAccount(deps, user.email, "member.join_refused", invitation.organizationId);
+          },
+          beforeAddMember: async ({ user, organization: org }) => {
+            await refuseAgentAccount(deps, user.email, "member.join_refused", org.id);
           },
           afterAcceptInvitation: async ({ invitation, member }) => {
             const ids = JSON.parse((invitation.mailboxIds as string | undefined) ?? "[]") as string[];

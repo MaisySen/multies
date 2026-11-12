@@ -22,7 +22,7 @@ import { and, asc, eq, gte, inArray, isNull, like, ne, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { activity, activityFeed, changes, organizations, projects, sprints, tasks, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
-import { assertWritable, createdBy, iso, sortableId, actorOf, type SuiteActor } from "./common";
+import { assertWritable, createdBy, iso, sortableId, actorOf, withCaller, type SuiteActor } from "./common";
 import { endOfDayIn, sprintDate, sprintDateAliases, startOfDayIn, todayIn } from "./sprint-dates";
 import { listTasks, listTasksPage, resolveTaskId, type Task } from "./tasks";
 import { dateFormat, dayInZone } from "../../lib/intl-cache";
@@ -302,7 +302,7 @@ async function moveTasks(deps: Deps, actor: SuiteActor, s: SprintRow | null, pro
       const removed = op === "remove" ? moving.map((t) => t.id) : moving.filter((t) => t.sprintId === sid).map((t) => t.id);
       statements.push(deps.db.insert(activity).values({
         id: sortableId("act", now.getTime()), orgId: actor.orgId, actorType: a.type, actorId: a.id, actorName: a.name,
-        verb: "sprint_scope", entityType: "sprint", entityId: sid, data: JSON.stringify({ added, removed }), createdAt: now,
+        verb: "sprint_scope", entityType: "sprint", entityId: sid, data: JSON.stringify(withCaller(a, { added, removed })), createdAt: now,
       }));
     }
   }

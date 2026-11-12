@@ -33,7 +33,9 @@ templates  [{ name, kind?: task|doc, description?, category?, title, notes }]   
 People references: `member:self` (the founder), `member:<email>` (a member who has joined),
 `agent:<key>` (an agent from the `agents` list). Since round 12 agents are agent members: a
 title, a bio (which should say it is an AI agent), their own key ("<Agent name> key"), no seat
-and no mailbox, 10 on Free. Channel purposes go through `PATCH /api/v1/chat/channels/{id}`, each
+and no mailbox, 10 on Free. A mail agent (`inbox: true`) always starts with a person approving
+every message, since an API key can't lower that (AIS1); with `approvalMode` set to `external` or
+`never` the script says so and you change it in the app (Agents, the agent, Guardrails). Channel purposes go through `PATCH /api/v1/chat/channels/{id}`, each
 welcome post is pinned, and templates are written from scratch with `POST /api/v1/templates`
 (`kind: doc` for a doc template, with `notes` as its body).
 
@@ -140,6 +142,6 @@ this org pass `--agent cto` (the config's key for Builder).
 
 ## Org setup writes (round 17, 25 Oct 2026)
 
-`scripts/dogfood/org-setup.ts` now estimates before it writes. `--dry-run` prints every call it would make and the database rows it would cost, against the server's daily write budget from `/api/health`; for a workspace that doesn't exist yet it plans everything from the config. `--max-writes N` (default 400) stops a live run before more create or update calls than that, and a re-run continues. `--skip docs,templates` leaves whole steps out. With ORG_SESSION_COOKIE and ORG_API_KEY a dry run writes nothing at all.
+`scripts/dogfood/org-setup.ts` now estimates before it writes. `--dry-run` prints every call it would make and the database rows it would cost, against the server's daily write budget from `/api/admin/health` (shown when the session is a platform operator's); for a workspace that doesn't exist yet it plans everything from the config. `--max-writes N` (default 400) stops a live run before more create or update calls than that, and a re-run continues. `--skip docs,templates` leaves whole steps out. With ORG_SESSION_COOKIE and ORG_API_KEY a dry run writes nothing at all.
 
 Local check with `example-org.json`: the dry run planned 64 calls; the live run made 64 calls and wrote 180 rows; a second dry run planned 0 calls and wrote 1 row (the password sign in's session). Run a dry run against production first and only run live when the estimate is well under what is left of the day's budget.

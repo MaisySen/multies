@@ -5,6 +5,10 @@
 import type { Bundle } from "./core";
 
 export const ne: Bundle = {
+  "ai.badge_key_refused": "कुञ्जी अस्वीकृत",
+  "ai.badge_model_unavailable": "मोडेल उपलब्ध छैन",
+  "ai.badge_no_credit": "क्रेडिट छैन",
+  "ai.fix_key": "सेटिङ, AI मा मिलाउनुहोस्",
   "appearance.language": "भाषा",
   "appearance.language_draft_note": "यो अनुवाद नयाँ हो। हामीले काम सिध्याउँदै गर्दा केही पृष्ठहरू अझै अंग्रेजीमा छन्।",
   "appearance.language_hint": "तपाईंका लागि मात्र। मेनु, बटन र सन्देशहरू यही भाषामा देखिन्छन्, र मिति तथा अंकहरू पनि यसैअनुसार हुन्छन्।",
@@ -892,7 +896,7 @@ export const ne: Bundle = {
   "tasks.tag": "ट्याग",
   "tasks.tag_filter": "ट्याग फिल्टर",
   "tasks.tags": "ट्यागहरू",
-  "tasks.tasks_made_from_mail_rules_and_forms_wait_in_tri": "मेल नियम र फारमबाट बनेका काम कसैले स्वीकार नगरुन्जेल छनोटमा पर्खिन्छन्।",
+  "tasks.triage_switch_hint": "मेल नियम, फारम, API र AI एपबाट आएका काम कुनै व्यक्तिले स्वीकार नगरुन्जेल छनोटमा पर्खिन्छन्। तपाईंले आफैं थपेका काम सिधै बोर्डमा जान्छन्।",
   "tasks.template": "ढाँचा",
   "tasks.the_mind_map_shows_one_project_s_tasks_and_subta": "माइन्ड म्यापले एउटा परियोजनाका काम र उपकाम देखाउँछ। माथि परियोजना रोज्नुहोस्।",
   "tasks.to_do": "गर्नुपर्ने",

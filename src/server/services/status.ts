@@ -1,7 +1,8 @@
 /**
  * Public system status: each component is probed live (with a short timeout) and the
  * result is cached for 30 seconds per instance, so the page cannot be used to hammer
- * dependencies. Only aggregate, tenant-free numbers are exposed.
+ * dependencies. QUAL1 (audit row 69): the public page shows states and plain words only, never how much mail the
+ * platform handles; the 24 hour volume is in `volume`, which only the operators' route (/api/admin/status) returns.
  */
 import { eq, gte, lt, sql } from "drizzle-orm";
 import type { Deps } from "../context";
@@ -12,6 +13,15 @@ import { breakerState } from "./resilience";
 
 export type ComponentState = "operational" | "degraded" | "down" | "not_configured";
 export interface ComponentStatus { id: string; name: string; state: ComponentState; detail: string; latencyMs?: number }
+
+/** "1 message", "2 messages": the one plural rule for the operators' volume lines. */
+export const messagesLine = (n: number) => `${n.toLocaleString("en-AU")} ${n === 1 ? "message" : "messages"}`;
+
+/** The public status body: everything but the operators' mail volume. */
+export function publicStatus<T extends { volume?: unknown }>(body: T): Omit<T, "volume"> {
+  const { volume: _volume, ...rest } = body;
+  return rest;
+}
 
 async function timed<T>(fn: () => Promise<T>, ms = 4000): Promise<{ value?: T; error?: unknown; latencyMs: number }> {
   const t0 = Date.now();
@@ -57,7 +67,7 @@ async function computeStatus(deps: Deps) {
   components.push({
     id: "inbound", name: "Receiving mail",
     state: inboundRate > 0.25 ? "degraded" : "operational",
-    detail: Number(stats.inbound) ? `${Number(stats.inbound).toLocaleString("en-AU")} messages in the last 24 hours.` : "No mail received in the last 24 hours.",
+    detail: inboundRate > 0.25 ? "Some incoming mail is failing. It is retried or returned to the sender." : "Receiving normally.",
   });
 
   // Self-hosted installs send through their own mail server (SMTP_HOST, src/entry/smtp-outbound.ts).
@@ -75,7 +85,7 @@ async function computeStatus(deps: Deps) {
     components.push({
       id: "outbound", name: "Sending mail",
       state: !reachable || circuit === "open" ? "degraded" : outboundRate > 0.25 ? "degraded" : "operational",
-      detail: !reachable || circuit === "open" ? "The sending provider is not responding. Outgoing mail is queued and retried automatically." : Number(stats.outbound) ? `${Number(stats.outbound).toLocaleString("en-AU")} messages sent to other providers in the last 24 hours.` : "Ready.",
+      detail: !reachable || circuit === "open" ? "The sending provider is not responding. Outgoing mail is queued and retried automatically." : outboundRate > 0.25 ? "Some outgoing mail is failing. It is retried automatically." : "Sending normally.",
       latencyMs: probe.latencyMs,
     });
   }
@@ -86,7 +96,8 @@ async function computeStatus(deps: Deps) {
     const backlog = q.value.oldestPendingAgeMs > 30 * 60_000;
     components.push({
       id: "queue", name: "Retries and background work", state: backlog ? "degraded" : "operational",
-      detail: backlog ? "Some queued work is waiting longer than usual." : q.value.pending ? `${q.value.pending} item${q.value.pending === 1 ? "" : "s"} queued.` : "Nothing waiting.",
+      // QUAL1 review: no count on the public page (it shows how busy the platform is); operators read it in `volume`.
+      detail: backlog ? "Some queued work is waiting longer than usual." : q.value.pending ? "Work is queued and running normally." : "Nothing waiting.",
       latencyMs: q.latencyMs,
     });
   }
@@ -110,7 +121,18 @@ async function computeStatus(deps: Deps) {
 
   const live = components.filter((c) => c.state !== "not_configured");
   const overall: Exclude<ComponentState, "not_configured"> = live.some((c) => c.state === "down") ? "down" : live.some((c) => c.state === "degraded") ? "degraded" : "operational";
-  return { overall, checkedAt: deps.now().toISOString(), components };
+  const received = Number(stats.inbound) || 0, sent = Number(stats.outbound) || 0;
+  return {
+    overall, checkedAt: deps.now().toISOString(), components,
+    /** Operators only (publicStatus drops it): the last 24 hours of mail, with failures. */
+    volume: {
+      received, receivedFailed: Number(stats.inboundFailed) || 0, sent, sentFailed: Number(stats.outboundFailed) || 0,
+      receivedLine: received ? `${messagesLine(received)} received in the last 24 hours.` : "No mail received in the last 24 hours.",
+      sentLine: sent ? `${messagesLine(sent)} sent to other providers in the last 24 hours.` : "No mail sent to other providers in the last 24 hours.",
+      /** Retries and background work waiting now (null when the queue could not be read). */
+      queued: q.value ? q.value.pending : null,
+    },
+  };
 }
 
 /** Days of history the status page shows. */

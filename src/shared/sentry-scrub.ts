@@ -13,7 +13,8 @@ const API_KEY = /\bmm_(live|test)_[A-Za-z0-9]{8,}/g;
 const CODE_PARAM = /([?&](?:code|token)=)[^&\s"'#]+/gi;
 
 export function scrubText(s: string): string {
-  return s.replace(BEARER, "$1[redacted]").replace(CODE_PARAM, "$1[redacted]").replace(API_KEY, "mm_$1_[redacted]").replace(EMAIL, "[email]");
+  // Semgrep (QUAL1): node_api_key reads "mm_$1_[redacted]" as a key; it is the mask that replaces one.
+  return s.replace(BEARER, "$1[redacted]").replace(CODE_PARAM, "$1[redacted]").replace(API_KEY, "mm_$1_[redacted]").replace(EMAIL, "[email]"); // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_api_key
 }
 
 export function scrubUrl(raw: string): string {

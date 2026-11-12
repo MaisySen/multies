@@ -22,7 +22,8 @@ beforeEach(async () => {
   ctx = await makeTestApp();
   c = new Client(ctx.app);
   await c.signup("owner@acme.io");
-  projectId = (await c.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
+  // AIS1: new projects start with Triage on; off here so the key's tasks go straight to the lists read below.
+  projectId = (await c.post("/api/projects", { name: "Launch", key: "LAU", triage: false })).body.project.id;
 });
 
 describe("task types", () => {
