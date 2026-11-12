@@ -83,13 +83,13 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | --- | --- |
 | `list_inboxes` | List inboxes |
 | `list_threads` | List threads (R31: `split` narrows to an Inbox tab) |
-| `read_thread` | Read a thread |
+| `read_thread` | Read a thread (AIS1: Multies' own mail is `withheld`, as in `wait_for_email`) |
 | `search` | Search mail |
 | `search_everything` | One search across mail, tasks (or a key like OPS-12), docs, chat, contacts and deals, grouped by type. Only what the key can open (read only) |
 | `my_work` | What is waiting today: tasks due today and overdue, mentions, threads on my tasks, approvals waiting, today's meetings (read only) |
 | `send_email` | Send an email |
 | `reply` | Reply in a thread |
-| `wait_for_email` | Wait for new email |
+| `wait_for_email` | Wait for new email. AIS1: Multies' own mail (invites, confirmations, resets) comes with `withheld: "platform_mail"`, no codes, links or text; mail from anyone else keeps them |
 | `create_agent_inbox` | Create an agent inbox. It starts safe: a person approves every message, 100 sends a day, only the workspace's own verified domains as recipients. `approvalMode` other than `always` answers `person_only`; a person loosens it in the app (AIS1) |
 | `create_agent_member` | Add an AI agent member (no seat, mailbox optional); returns its first key, shown once. Full workspace key (R26) |
 | `set_mailbox_reply_to` | Set a mailbox's default Reply-To, used when a send names none (R25, MB-61) |
@@ -114,7 +114,7 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | `check_task_schedule` | Date clashes along dependencies: tasks that start before a task they wait on ends, each with `lagDays`, `overlapDays` and `fix { taskId, start, due }`; with `projectId` also the project's schedule rules (R37, R38, `tasks:read`) |
 | `reschedule_task` | Move a task (`start`, `due`) and shift the tasks that wait on it by just enough, keeping their length; `strict: true` moves them all by the same days (R38); `moveDependents: false` moves only this one, `preview: true` changes nothing (R37, `tasks:write`) |
 | `set_project_schedule` | A project's rules for dependency dates: `workingDaysOnly` (with `daysOff`) and `strict` moves (R38, `tasks:write`) |
-| `export_workspace` | Starts a full workspace export and answers `downloadUrl` (a ZIP that works for 24 hours) and `counts` (R38, `admin:read`, owners and admins) |
+| `export_workspace` | Starts a full workspace export and answers `downloadUrl` (a ZIP that works for 24 hours) and `counts` (R38, `admin:read`, owners and admins). AIS1: Multies' own mail (invites, confirmations, resets) is in it with its subject and sender only |
 | `list_data_moves` | The last 50 imports and exports with status, progress and whether each can be undone (R38, `admin:read`) |
 | `import_file` | Brings in a file: `kind` tasks, calendar, contacts, docs or workspace, one step of about 15 seconds; call again with `moveId` while it says stopped (R38, `admin:write`) |
 | `undo_import` | Removes exactly what one import made (R38, `admin:write`) |
@@ -127,7 +127,7 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | `set_project_health` | Set a project's health |
 | `update_project` | Rename a project or change its key (a key used by another project, any case, is refused with key_taken; R33) |
 | `list_guests` | List a project's guests |
-| `invite_guest` | Invite a guest to a project |
+| `invite_guest` | Invite a guest to a project. AIS1: the invite email always waits for a person to approve it, and an AI agent's address is refused (`agent_address`) |
 | `list_epics` | List epics with progress: done of total, percent, points when tasks carry points (round 21, registered in src/server/routes/mcp-r21-types.ts) |
 | `get_epic` | One epic with its items and progress (round 21) |
 | `add_to_epic` | Put tasks, stories or bugs in an epic, or take them out with `remove: true` (round 21) |
@@ -169,7 +169,7 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `list_goals` | Goals and key results |
 | `create_goal` | Create a goal |
 | `update_key_result` | Record progress on a key result |
-| `list_people` | List people and agents |
+| `list_people` | List people and agents (AIS1: a person member whose address is an AI agent's inbox carries `agentInbox: true`) |
 | `list_agent_members` | AI agent members with avatar, paused state, linked inbox and key count (R26) |
 | `update_agent_member` | Edit an agent member or pause it (its keys are refused until resumed). Full workspace key (R26) |
 | `list_notifications` | Your notifications |
@@ -291,7 +291,7 @@ Registered in src/server/routes/mcp-r32-mail.ts. Same service as the web app's s
 | Tool | What it does |
 | --- | --- |
 | `mail_bulk_action` | One action on up to 500 message ids: read, unread, star, unstar, archive, inbox, spam, trash, delete (forever), move (`to`), snooze (`until` or `preset`) or unsnooze. Inverses undo: inbox undoes archive or trash, unread undoes read, unsnooze undoes snooze |
-| `mail_bulk_job` | Every message in a folder or search (up to 20,000) as one job: read, unread, star, unstar, archive, inbox, spam, trash (delete, undoable), snooze (`snooze_until` or `snooze_preset`; Undo clears it) or move (`to`, a synced folder; R35: Undo moves each message back to the folder it came from). Give your own `job_id`; call again with it to continue until `done` (900 per call). Mail that arrived after `max_received_at` is left alone. `undo: true` puts back exactly what the job changed |
+| `mail_bulk_job` | Every message in a folder or search (up to 20,000) as one job: read, unread, star, unstar, archive, inbox, spam, trash (delete, undoable), snooze (`snooze_until` or `snooze_preset`; Undo clears it) or move (`to`, a synced folder; R35: Undo moves each message back to the folder it came from). Give your own `job_id`; call again with it to continue until `done` (900 per call). Mail that arrived after `max_received_at` is left alone. `undo: true` puts back exactly what the job changed. AIS1: a `query` from a key, an agent or a connected app never matches Multies' own mail (invites, confirmations, resets), so a count can't guess its text |
 
 ### Live chat typing (R32)
 
@@ -535,7 +535,7 @@ Registered in src/server/routes/mcp-r28-auth-email-settings.ts, over the same se
 
 | Tool | What it does |
 | --- | --- |
-| `get_auth_email_settings` | The settings (`enabled`, `senderName`, `from`, `appName`, `supabaseUrl`, `branding`, `endpointUrl`, `secret: { set, masked }`, `testSendsLeft`) and the sender mailboxes on verified domains. `settings` is null before the first save. Writes nothing |
+| `get_auth_email_settings` | The settings (`enabled`, `senderName`, `from`, `appName`, `supabaseUrl`, `branding`, `endpointUrl`, `secret: { set, masked }`, `testSendsLeft`, and `fromAllowed`, false when a From saved before AIS1 may no longer send) and the sender mailboxes on verified domains. `settings` is null before the first save. Writes nothing |
 | `update_auth_email_settings` | Create (`from` and `supabaseUrl` needed the first time; that answer carries `secret` once) or change any of `enabled`, `senderName`, `from`, `appName`, `supabaseUrl`, `branding` (merged, null clears), with the API's validation. Audited; a change that changes nothing writes nothing |
 | `regenerate_auth_email_secret` | A new signing secret, returned once as `secret`; the old one stops working at once. Audited without the value |
 | `preview_auth_email` | The email one `type` would send (signup by default), with a sample link and the code 123456, and unsaved `appName` or `branding` merged in. Nothing sent or stored |

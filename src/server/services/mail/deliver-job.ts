@@ -109,6 +109,7 @@ export async function onDeliverDead(deps: Deps, payload: unknown, _job: unknown,
   const { systemMailAuth } = await import("../system-mail");
   await deliverInbound(deps, {
     envelopeFrom: deps.config.systemFrom.address, rcptTo: mb.address, sizeBytes: text.length, via: "internal",
+    platformMail: "notice", // AIS1: a bounce notice grants no access, so an agent may read it
     email: {
       messageId: `<ndr.${m.id}@${deps.config.systemFrom.address.split("@")[1] ?? "localhost"}>`,
       from: { address: deps.config.systemFrom.address, name: "Mail Delivery" }, to: [{ address: mb.address }], cc: [],

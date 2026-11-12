@@ -1237,3 +1237,28 @@ it("R26 (MB-85): a checklist item costs its row plus two index entries to add, t
   await u.get(`/api/tasks?q=${encodeURIComponent("has:checklist status:todo -label:wontfix")}`);
   expect(take()).toBe(0);
 });
+
+it("AIS1: a session whose address is an AI agent's inbox and has no workspace writes once, not on every refused request", async () => {
+  const { eq } = await import("drizzle-orm");
+  const { members, users } = await import("@/server/db/schema");
+  const ctx = await makeTestApp();
+  const owner = new Client(ctx.app);
+  await owner.signup("owner@acme.io", "Olive Owner");
+  await verifiedDomain(ctx, owner, "acme.io");
+  const key = (await owner.post("/api/developer/keys", { name: "Setup" })).body.secret as string;
+  const made = await ctx.app.request("/api/v1/agents", { method: "POST", headers: { host: "localhost", authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify({ name: "Agent", localPart: "agent" }) });
+  expect(made.status).toBe(201);
+  // An account made before the fix whose member row the owner removed; its session lives on.
+  const legacy = new Client(ctx.app);
+  await legacy.signup("legacy@elsewhere.test", "Agent", "");
+  const userId = (await ctx.db.select().from(users).where(eq(users.email, "legacy@elsewhere.test")).get())!.id;
+  await ctx.db.delete(members).where(eq(members.userId, userId));
+  await ctx.db.update(users).set({ email: "agent@acme.io", emailVerified: true }).where(eq(users.id, userId));
+  legacy.autoVerify = false;
+  const take = meter(ctx.db);
+  expect((await legacy.get("/api/account/me")).status).toBe(403);
+  // The one audit row and its indexes.
+  expect(take()).toBeLessThanOrEqual(5);
+  for (let i = 0; i < 4; i++) expect((await legacy.get("/api/account/me")).status).toBe(403);
+  expect(take()).toBe(0);
+});

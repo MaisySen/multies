@@ -21,6 +21,7 @@ import {
 } from "@/shared/mail-rules-r85";
 import { isRobotSender } from "@/shared/mail-splits";
 import { assertOpen, canOpen, personalInfo, personalOwnerState, personalOwnership, whoCanOpen, type Need } from "../mail-access-priv1a";
+import { NOT_FORWARDED_TO_AGENT, withheldRow } from "../agents/platform-mail";
 
 export interface RuleActor { orgId: string; userId: string; role?: AuthContext["role"]; agentId?: string | null; scope?: string; email?: string; name?: string }
 const DAY = 86_400_000;
@@ -266,6 +267,16 @@ async function runAction(c: Ctx, act: MailRuleActionT, guard: { own: Set<string>
         return step(true, from);
       }
       if (act.to.toLowerCase() === from) return step(false, "Not sent: it would go back to the sender.");
+      // AIS1 (row 32): Multies' own mail (an invite, an email confirmation, a password reset) is never forwarded to an
+      // address that reaches an AI agent, and anywhere else its forwarded copies keep the mark (agents/platform-mail.ts).
+      const platformMail = withheldRow(msg, deps.config.systemFrom.address);
+      if (platformMail) {
+        const { agentAddress } = await import("../agents/agent-address");
+        if (await agentAddress(deps.db, act.to)) {
+          deps.log?.warn("mail_rule.platform_mail_not_forwarded", { ruleId: rule.id });
+          return step(false, NOT_FORWARDED_TO_AGENT);
+        }
+      }
       const atts = await deps.db.select().from(attachments).where(eq(attachments.messageId, msg.id));
       const { attachmentBytes } = await import("./store");
       const files: { filename: string; contentType: string; content: Uint8Array }[] = [];
@@ -278,7 +289,7 @@ async function runAction(c: Ctx, act: MailRuleActionT, guard: { own: Set<string>
         bytes += at.sizeBytes;
       }
       const head = `---------- Forwarded message ----------\nFrom: ${msg.fromName ? `${msg.fromName} <${msg.fromAddress}>` : msg.fromAddress}\nDate: ${msg.date.toUTCString()}\nSubject: ${msg.subject}\n\n`;
-      await sendMessage(deps, auth, { mailboxId: msg.mailboxId, to: [act.to], subject: /^fwd?:/i.test(msg.subject) ? msg.subject : `Fwd: ${msg.subject}`, text: head + msg.text }, { noQueue: true, attachments: files });
+      await sendMessage(deps, auth, { mailboxId: msg.mailboxId, to: [act.to], subject: /^fwd?:/i.test(msg.subject) ? msg.subject : `Fwd: ${msg.subject}`, text: head + msg.text }, { noQueue: true, attachments: files, ...(platformMail ? { platformMail: "system" as const } : {}) });
       return step(true, act.to);
     }
   }

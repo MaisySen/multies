@@ -60,6 +60,13 @@ const ACTIONS: Record<string, string> = {
   "member.invited": "invited",
   "member.invite_resent": "re-sent an invitation to",
   "member.invite_revoked": "revoked the invitation for",
+  // AIS1 (audit row 1): an AI agent's address can't join as a person, and a key's invite waits for a person.
+  "member.invite_confirmed": "confirmed and sent the invitation for",
+  "member.invite_refused": "was stopped from inviting an AI agent's inbox",
+  "member.join_refused": "was stopped from joining with an AI agent's inbox",
+  "account.signup_refused": "was stopped from signing up with an AI agent's inbox",
+  "guest.invite_refused": "was stopped from inviting an AI agent's inbox as a guest",
+  "guest.join_refused": "was stopped from opening a guest invite for an AI agent's inbox",
   "member.joined": "joined the workspace",
   "member.updated": "updated access for",
   "member.removed": "removed",

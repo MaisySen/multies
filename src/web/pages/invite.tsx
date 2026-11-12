@@ -14,7 +14,7 @@ import { forgetInvite, rememberInvite, settleAfterJoin } from "@/web/lib/pending
 import { startIdentitySignIn, useAuthProviders } from "@/web/pages/auth";
 
 interface InviteView {
-  email: string; role: "admin" | "member"; state: "pending" | "accepted" | "expired" | "revoked";
+  email: string; role: "admin" | "member"; state: "pending" | "accepted" | "expired" | "revoked" | "awaiting_approval";
   hasAccount: boolean; organization: { name: string }; invitedBy: string | null; expiresAt: string;
 }
 
@@ -87,7 +87,7 @@ export function InvitePage() {
       </ul>
       {dead ? (
         <p className="mt-6 rounded-lg border border-warn/25 bg-warn-soft px-3 py-2 text-sm text-warn">
-          {inv.state === "expired" ? "This invitation has expired. Ask for a new one." : inv.state === "accepted" ? "This invitation has already been used." : "This invitation was withdrawn."}
+          {inv.state === "expired" ? "This invitation has expired. Ask for a new one." : inv.state === "accepted" ? "This invitation has already been used." : inv.state === "awaiting_approval" ? "This invitation isn't ready yet. Someone at the workspace needs to confirm it first. Try the link again later." : "This invitation was withdrawn."}
         </p>
       ) : signedInAs === inv.email ? (
         <>

@@ -117,7 +117,7 @@ export function taskRoutes() {
       const b = await parseBody(c, TaskFromEmail);
       return c.json({ task: await createTaskFromThread(c.var.deps, c.var.auth, { ...b, assignee: parseAssignee(b.assignee) }) }, 201);
     })
-    .get("/assignees", async (c) => c.json({ assignees: await assignees(c.var.deps, c.var.auth.orgId) }))
+    .get("/assignees", async (c) => c.json({ assignees: await assignees(c.var.deps, c.var.auth.orgId, { pickers: true }) }))
     // R84: workspace tags with colours.
     .get("/tags", async (c) => c.json({ tags: await listTags(c.var.deps, c.var.auth.orgId, { counts: c.req.query("counts") === "1" }) }))
     .post("/tags", async (c) => c.json({ tag: await createTag(c.var.deps, c.var.auth, await parseBody(c, TagCreate)) }, 201))

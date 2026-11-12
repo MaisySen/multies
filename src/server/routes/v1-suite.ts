@@ -121,7 +121,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   async (c) => { const b = c.req.valid("json"); return send(c, { task: await createTask(c.var.deps, actor(c), { ...b, assignee: assigneeOf(b), triage: { source: "api", when: "if_project" } }, { id: await idempotentId(c.req.raw, "tsk") }) }, 201); }); // R32: waits in Triage when the project uses it
 
   api.openapi(createRoute({ method: "post", path: "/tasks/from-email", tags: tag("Tasks"), summary: "Make a task from an email", security: secured,
-    description: "One call: the title comes from the subject, the notes from the newest text without quoted history, and the task links to the thread.",
+    description: "One call: the title comes from the subject, the notes (unless you pass them) from the newest text without quoted history (for Multies' own mail, such as an invite or a password reset, a short notice instead of its text), and the task links to the thread.",
     request: body(TaskFromEmail), responses: { 201: json(z.object({ task: Task }), "The task."), 401: errors[401], 404: errors[404], 422: errors[422] } }),
   async (c) => { const b = c.req.valid("json"); return send(c, { task: await createTaskFromThread(c.var.deps, actor(c), { ...b, assignee: parseAssignee(b.assignee) }, await idempotentCreate(c.req.raw, "tsk")) }, 201); });
 

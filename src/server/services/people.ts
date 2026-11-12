@@ -15,6 +15,7 @@ import { forbidden, HttpError, notFound, planLimit } from "../lib/errors";
 import { audit } from "./audit";
 import { createApiKey, presentApiKey } from "./developer/api-keys";
 import { getPlan } from "./plans";
+import { agentInboxIdAt } from "./agents/agent-address";
 
 type Actor = Pick<AuthContext, "orgId" | "userId" | "email" | "role"> & { agentId?: string | null; apiKeyId?: string };
 
@@ -36,6 +37,8 @@ export interface Person {
   agentId: string | null;
   name: string;
   email: string | null;
+  /** AIS1 (audit row 41): a person member whose address is an AI agent's inbox: an AI, whatever its kind says. */
+  agentInbox?: boolean;
   role: "owner" | "admin" | "member" | null;
   title: string | null;
   bio: string | null;
@@ -46,8 +49,9 @@ export interface Person {
 /** Everyone in the workspace: people first, then agent members, then mail agents. Reads only. */
 export async function listPeople(deps: Deps, orgId: string): Promise<Person[]> {
   const [rows, mailAgents] = await Promise.all([
-    deps.db.select({ userId: users.id, email: users.email, name: users.name, role: members.role, kind: members.kind, title: members.title, bio: members.bio, at: members.createdAt })
-      .from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.organizationId, orgId)),
+    deps.db.select({ userId: users.id, email: users.email, name: users.name, role: members.role, kind: members.kind, title: members.title, bio: members.bio, at: members.createdAt, agentInboxId: agentInboxIdAt(users.email) })
+      .from(members).innerJoin(users, eq(users.id, members.userId))
+      .where(eq(members.organizationId, orgId)),
     deps.db.select({ id: agents.id, name: agents.name, description: agents.description, address: mailboxes.address, at: agents.createdAt })
       .from(agents).innerJoin(mailboxes, eq(mailboxes.id, agents.mailboxId)).where(eq(agents.orgId, orgId)),
   ]);
@@ -56,7 +60,7 @@ export async function listPeople(deps: Deps, orgId: string): Promise<Person[]> {
     .sort((a, b) => Number(a.kind === "agent") - Number(b.kind === "agent") || order[a.role] - order[b.role] || a.at.getTime() - b.at.getTime())
     .map((r) => ({
       id: r.userId, type: "member", kind: r.kind, userId: r.userId, agentId: null, name: r.name,
-      email: r.kind === "agent" ? null : r.email, role: r.role, title: r.title, bio: r.bio, inbox: null, joinedAt: r.at.toISOString(),
+      email: r.kind === "agent" ? null : r.email, ...(r.agentInboxId ? { agentInbox: true } : {}), role: r.role, title: r.title, bio: r.bio, inbox: null, joinedAt: r.at.toISOString(),
     }));
   for (const a of mailAgents.sort((x, y) => x.at.getTime() - y.at.getTime())) {
     people.push({ id: a.id, type: "mail_agent", kind: "agent", userId: null, agentId: a.id, name: a.name, email: null, role: null, title: "Mail agent", bio: a.description ?? null, inbox: a.address, joinedAt: a.at.toISOString() });

@@ -22,6 +22,8 @@ interface Branding { logoUrl?: string; brandColor?: string; replyTo?: string; fo
 interface Settings {
   id: string; enabled: boolean; senderName: string | null; from: string; fromDisplayName: string | null; appName: string; supabaseUrl: string;
   branding: Branding; endpointUrl: string; secret: { set: boolean; masked: string | null }; testSendsLeft: number; lastUsedAt: string | null;
+  /** AIS1 (row 44): false when the saved From may no longer send sign-up emails (it keeps sending until changed). */
+  fromAllowed?: boolean;
 }
 interface SettingsResponse { settings: Settings | null; senders: { address: string; displayName: string }[]; types: string[]; testSendsPerHour: number }
 interface Preview { subject: string; html: string; to: string }
@@ -36,7 +38,7 @@ interface Draft {
   templates: Record<string, Template>; lang: string; second: Record<string, Template>; note: string;
 }
 const fromSettings = (s: Settings | null, senders: SettingsResponse["senders"]): Draft => ({
-  enabled: s?.enabled ?? true, senderName: s?.senderName ?? "", from: s?.from ?? senders[0]?.address ?? "", appName: s?.appName ?? "",
+  enabled: s?.enabled ?? true, senderName: s?.senderName ?? "", from: (s?.fromAllowed === false ? undefined : s?.from) ?? senders[0]?.address ?? "", appName: s?.appName ?? "",
   supabaseUrl: s?.supabaseUrl ?? "", brandColor: s?.branding.brandColor ?? "", logoUrl: s?.branding.logoUrl ?? "",
   templates: s?.branding.templates ?? {}, lang: s?.branding.secondaryLanguage?.lang ?? "", second: s?.branding.secondaryLanguage?.templates ?? {},
   note: s?.branding.secondaryLanguage?.note ?? "",
@@ -121,6 +123,7 @@ function AuthEmailSettingsForm() {
     <div className="space-y-6">
       <Section id="sign-up-emails" title="Sign-up emails" description="Your app's sign-up confirmation, password reset and magic link emails, sent from your own domain with your name, colour and logo.">
         {!senders.length && <p className="mb-4 rounded-lg border border-line bg-elevated px-4 py-3 text-sm text-muted">Add a verified domain and a mailbox such as no-reply@ first. Sign-up emails come from it.</p>}
+        {s?.fromAllowed === false && <p role="alert" className="mb-4 rounded-lg bg-warn-soft px-4 py-3 text-sm text-warn">{s.from} still sends your sign-up emails, but it can't be chosen anymore. Only a team mailbox on one of your verified domains can send them, never an AI agent's inbox. Pick a mailbox below and save.</p>}
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3 rounded-lg border border-line px-4 py-3">
             <div>

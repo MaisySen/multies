@@ -238,7 +238,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string, call?:
 
   server.registerTool("wait_for_email", {
     title: "Wait for new email", annotations: ro,
-    description: "Wait up to timeoutSeconds for new mail to an agent inbox (for example a sign up code), then return the new messages, parsed. Pass the cursor from the last call to avoid repeats.",
+    description: "Wait up to timeoutSeconds for new mail to an agent inbox (for example a sign up code from another service), then return the new messages, parsed. Multies' own mail (invites, confirmations, resets) comes withheld: no text, codes or links. Pass the cursor from the last call to avoid repeats.",
     inputSchema: {
       agentId: z.string().optional(),
       timeoutSeconds: z.number().int().min(0).max(50).default(25),
@@ -678,7 +678,7 @@ function registerR8Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
 
   server.registerTool("invite_guest", {
     title: "Invite a guest to a project", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
-    description: "Invite an outside person by email to one project. Guests are free and see only that project's tasks, comments and docs. The invite email goes from this agent's inbox and follows its approval rules, so it may wait for a person to approve it.",
+    description: "Invite an outside person by email to one project. Guests are free and see only that project's tasks, comments and docs. The invite email goes from this agent's inbox and always waits for a person to approve it, whatever the agent's approval rule. An AI agent's address can't be invited.",
     inputSchema: { projectId: z.string(), email: z.string().email(), name: z.string().max(80).optional() },
   }, tool(async (x: { projectId: string; email: string; name?: string }) => {
     writable();

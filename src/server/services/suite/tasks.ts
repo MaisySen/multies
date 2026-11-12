@@ -18,6 +18,9 @@ import { claimNumbers } from "./project-counter";
 import { invalidateStatuses, orgStatuses } from "./read-cache";
 import { SQL_IN_CHUNK, inChunks, inIds } from "../../lib/sql-chunks";
 import { isAgentEmail } from "../people";
+import { agentInboxIdAt } from "../agents/agent-address";
+import { WITHHELD_TEXT, withheldRow } from "../agents/platform-mail";
+import { isPersonSession } from "../../lib/actor-kind";
 import { containsAny, containsText } from "../../lib/like-search";
 import { rowMapper, selectMapped } from "../../db/fast-rows"; // R52
 
@@ -169,8 +172,13 @@ export async function updateProject(deps: Deps, actor: SuiteActor, id: string, p
   const now = deps.now();
   const key = patch.key !== undefined ? await assertKeyFree(deps, actor.orgId, patch.key, id) : undefined;
   if (patch.ownerId) {
-    const m = await deps.db.select({ id: members.id }).from(members).where(and(eq(members.organizationId, actor.orgId), eq(members.userId, patch.ownerId))).get();
+    const m = await deps.db.select({ id: members.id, kind: members.kind, agentInboxId: agentInboxIdAt(users.email) }).from(members).innerJoin(users, eq(users.id, members.userId))
+      .where(and(eq(members.organizationId, actor.orgId), eq(members.userId, patch.ownerId))).get();
     if (!m) throw new HttpError(422, "validation_failed", "The owner must be a member of this workspace.");
+    // AIS1 (audit row 41): a project owner is a person, never an AI agent. An owner set before stays until it changes.
+    if ((m.kind === "agent" || m.agentInboxId) && patch.ownerId !== p.ownerUserId) {
+      throw new HttpError(422, "validation_failed", "A project owner is a person. Choose someone on the team, not an AI agent.");
+    }
   }
   await deps.db.update(projects).set({
     ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
@@ -676,7 +684,8 @@ export async function createTaskFromThread(deps: Deps, actor: SuiteActor, input:
   }
   const fromLine = m.fromName || m.fromAddress;
   const title = input.title?.trim() || cleanSubject(m.subject) || `Follow up with ${fromLine}`;
-  const notes = input.notes ?? latestText(m.text).slice(0, 2000);
+  // AIS1 (row 32): a task is read by agents and apps too, so it never copies the text of the platform's own mail.
+  const notes = input.notes ?? (withheldRow(m, deps.config.systemFrom.address) ? WITHHELD_TEXT : latestText(m.text).slice(0, 2000));
   // R21: mail turned into tasks by rules lands in Triage when the project has it on.
   const triage = input.triage !== undefined ? input.triage : actor.system ? { source: "mail" as const, when: "if_project" as const } : null;
   return createTask(deps, actor, { ...input, title, notes, source: { messageId: m.id, threadId: m.threadId }, triage }, opts); // R53: same id on a retry
@@ -968,12 +977,15 @@ export async function listComments(deps: Deps, orgId: string, taskId: string) {
 /** The thread behind a task: every message the viewer can open, newest last, quoted history removed. */
 export async function threadForTask(deps: Deps, actor: SuiteActor, threadId: string) {
   const scope = await scopeOf(deps, actor);
-  const rows = await deps.db.select({ id: messages.id, mailboxId: messages.mailboxId, folder: messages.folder, fromAddress: messages.fromAddress, fromName: messages.fromName, subject: messages.subject, text: messages.text, date: messages.date, sentByAgentId: messages.sentByAgentId })
+  const app = !isPersonSession(actor);
+  const rows = await deps.db.select({ id: messages.id, mailboxId: messages.mailboxId, folder: messages.folder, fromAddress: messages.fromAddress, fromName: messages.fromName, subject: messages.subject, text: messages.text, date: messages.date, sentByAgentId: messages.sentByAgentId, authResults: messages.authResults })
     .from(messages).where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), ne(messages.folder, "drafts"), scope ? inIds(messages.mailboxId, scope) : undefined))
     .orderBy(asc(messages.date)).limit(200);
   return rows.map((m) => ({
     id: m.id, mailboxId: m.mailboxId, direction: m.folder === "sent" ? "outbound" as const : "inbound" as const,
-    from: { address: m.fromAddress, name: m.fromName }, subject: m.subject, date: m.date.toISOString(), latestText: latestText(m.text).slice(0, 4000), byAgent: !!m.sentByAgentId,
+    from: { address: m.fromAddress, name: m.fromName }, subject: m.subject, date: m.date.toISOString(),
+    // AIS1 (row 32): an agent or an app reading the task gets no text from the platform's own mail.
+    latestText: app && withheldRow(m, deps.config.systemFrom.address) ? WITHHELD_TEXT : latestText(m.text).slice(0, 4000), byAgent: !!m.sentByAgentId,
   }));
 }
 
@@ -1209,15 +1221,27 @@ export async function deleteView(deps: Deps, actor: SuiteActor, id: string) {
   return { ok: true };
 }
 
-/** Everyone a task can go to: members and agents. */
-export async function assignees(deps: Deps, orgId: string) {
+/**
+ * Everyone a task can go to: members and agents.
+ * AIS1 (audit rows 41, 52): a person member whose address is an AI agent's inbox (it joined before invites to agents
+ * were refused) is an AI and carries isAgent. With `pickers` (the assignee and mention pickers and filters), one that
+ * is the inbox of a mail agent in this workspace is left out, so the one AI shows once (as its mail agent). Without
+ * it (names, workload, capacity) everyone stays, so tasks already assigned to it keep their name.
+ */
+export async function assignees(deps: Deps, orgId: string, opts: { pickers?: boolean } = {}) {
   const [ms, ags] = await Promise.all([
-    deps.db.select({ id: users.id, name: users.name, email: users.email, kind: members.kind, disabledAt: members.disabledAt }).from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.organizationId, orgId)),
-    deps.db.select({ id: agents.id, name: agents.name, status: agents.status }).from(agents).where(eq(agents.orgId, orgId)),
+    deps.db.select({ id: users.id, name: users.name, email: users.email, kind: members.kind, disabledAt: members.disabledAt, agentInboxId: agentInboxIdAt(users.email) }).from(members).innerJoin(users, eq(users.id, members.userId))
+      .where(eq(members.organizationId, orgId)),
+    deps.db.select({ id: agents.id, name: agents.name, status: agents.status, mailboxId: agents.mailboxId }).from(agents).where(eq(agents.orgId, orgId)),
   ]);
+  const agentInboxes = new Set(ags.map((a) => a.mailboxId));
+  const twin = (m: { agentInboxId: string | null }) => !!m.agentInboxId && agentInboxes.has(m.agentInboxId);
   return [
     // An AI agent member is assigned like a person; its internal address is never shown.
-    ...ms.map((m) => ({ id: `member:${m.id}`, type: "member" as const, name: m.name, email: m.kind === "agent" ? null : m.email as string | null, ...(m.kind === "agent" ? { isAgent: true } : {}), ...(m.disabledAt ? { paused: true } : {}) })), // R26: pickers hide paused agents
+    ...(opts.pickers ? ms.filter((m) => !twin(m)) : ms).map((m) => {
+      const ai = m.kind === "agent" || !!m.agentInboxId;
+      return { id: `member:${m.id}`, type: "member" as const, name: m.name, email: ai ? null : m.email as string | null, ...(ai ? { isAgent: true } : {}), ...(m.disabledAt ? { paused: true } : {}) }; // R26: pickers hide paused agents
+    }),
     ...ags.map((a) => ({ id: `agent:${a.id}`, type: "agent" as const, name: a.name, email: null as string | null })),
   ];
 }
