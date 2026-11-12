@@ -308,8 +308,17 @@ export const messages = sqliteTable("messages", {
   isBulk: integer("is_bulk", { mode: "boolean" }),
   date: ts("date").notNull(),
   createdAt: createdAt(),
+  /**
+   * MPLAT-108 (0171): 1 on the earliest message (by date, then id) of its mailbox and lower(from_address), among
+   * messages not in Sent or Drafts; the "first time sender" part of the Important rule. Kept by triggers (0171), never
+   * written by the app.
+   */
+  firstOfSender: integer("first_of_sender", { mode: "boolean" }).notNull().default(false),
 }, (t) => [
   index("messages_mailbox_folder_idx").on(t.mailboxId, t.folder, t.date),
+  // MPLAT-108 (0171): the trigger lookups for first_of_sender.
+  index("messages_sender_first_idx").on(t.mailboxId, sql`lower(${t.fromAddress})`, t.date, t.id).where(sql`${t.folder} <> 'sent' AND ${t.folder} <> 'drafts'`),
+  index("messages_first_of_sender_idx").on(t.mailboxId, sql`lower(${t.fromAddress})`).where(sql`${t.firstOfSender} = 1`),
   index("messages_thread_idx").on(t.threadId),
   // R25 (0052): replaces messages_org_idx (org_id); the org prefix still serves org only lookups.
   index("messages_org_folder_date_idx").on(t.orgId, t.folder, t.date),
@@ -1132,7 +1141,9 @@ export const contacts = sqliteTable("contacts", {
   firstContactAt: ts("first_contact_at"),
   lastContactAt: ts("last_contact_at"),
   ...suiteCols(),
-}, (t) => [uniqueIndex("contacts_org_email_uq").on(t.orgId, t.email), index("contacts_org_last_idx").on(t.orgId, t.lastContactAt), index("contacts_org_recent_live_idx").on(t.orgId, sql`coalesce(${t.lastContactAt}, ${t.updatedAt})`).where(sql`${t.deletedAt} IS NULL`), index("contacts_company_idx").on(t.companyId).where(sql`${t.companyId} IS NOT NULL`)]);
+}, (t) => [uniqueIndex("contacts_org_email_uq").on(t.orgId, t.email), index("contacts_org_last_idx").on(t.orgId, t.lastContactAt), index("contacts_org_recent_live_idx").on(t.orgId, sql`coalesce(${t.lastContactAt}, ${t.updatedAt})`).where(sql`${t.deletedAt} IS NULL`), index("contacts_company_idx").on(t.companyId).where(sql`${t.companyId} IS NOT NULL`),
+  // MPLAT-108 (0171): saved contacts for the Important rule, without reading the automatic "mail" contacts.
+  index("contacts_org_kept_email_idx").on(t.orgId, sql`lower(${t.email})`).where(sql`${t.source} <> 'mail'`)]);
 
 /** A simple sales pipeline. Values are in cents, AUD. */
 export const deals = sqliteTable("deals", {
