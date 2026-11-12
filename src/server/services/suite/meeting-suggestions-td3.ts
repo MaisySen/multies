@@ -340,7 +340,7 @@ export async function undoSuggestions(deps: Deps, a: SuiteActor, meetingId: stri
       if (!r.decidedAt || now.getTime() - r.decidedAt.getTime() > UNDO_MS) throw new HttpError(409, "too_late", "This task was made over 30 minutes ago. Delete it from the task instead.");
       const x = await deps.db.update(meetingSuggestions).set(reopen).where(and(eq(meetingSuggestions.orgId, a.orgId), eq(meetingSuggestions.meetingId, meetingId), eq(meetingSuggestions.id, r.id), eq(meetingSuggestions.taskId, r.taskId))).returning({ id: meetingSuggestions.id });
       if (!x.length) continue;
-      try { await deleteTask(deps, a, r.taskId); } catch (err) { if (!(err instanceof HttpError && err.status === 404)) throw err; }
+      try { await deleteTask(deps, a, r.taskId, { own: true }); } catch (err) { if (!(err instanceof HttpError && err.status === 404)) throw err; }
       undone.push(r.id);
     }
   }

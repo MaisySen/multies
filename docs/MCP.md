@@ -105,9 +105,9 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | `list_tasks` | List tasks |
 | `get_task` | Get a task |
 | `next_task` | Next task for this agent |
-| `create_task` | Create a task (with `type`, `points` and `sprintId` when wanted) |
-| `update_task` | Update a task, including its type, estimate (`points`) and sprint (`sprintId`, null for the backlog) |
-| `bulk_update_tasks` | Change up to 500 tasks at once: status, assignee, priority, dates, labels, type (task, story, bug) or project (round 21, registered in src/server/routes/mcp-r21-table.ts) |
+| `create_task` | Create a task (with `type`, `points` and `sprintId` when wanted). When the project uses Triage (new projects do), the task waits there for a person, also when made from an email or as a subtask (AIS1) |
+| `update_task` | Update a task, including its type, estimate (`points`) and sprint (`sprintId`, null for the backlog). Moving a task from a project with Triage off into one with Triage on answers `person_only` (AIS1) |
+| `bulk_update_tasks` | Change up to 500 tasks at once: status, assignee, priority, dates, labels, type (task, story, bug) or project; moving tasks from a project with Triage off into one with Triage on answers `person_only` (round 21, registered in src/server/routes/mcp-r21-table.ts) |
 | `comment_on_task` | Comment on a task |
 | `list_projects` | List projects |
 | `set_task_blocked_by` | Set a task as blocked by another; `lagDays` sets a wait after the blocker ends, negative for a lead (R38) |
@@ -116,7 +116,7 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | `set_project_schedule` | A project's rules for dependency dates: `workingDaysOnly` (with `daysOff`) and `strict` moves (R38, `tasks:write`) |
 | `export_workspace` | Starts a full workspace export and answers `downloadUrl` (a ZIP that works for 24 hours) and `counts` (R38, `admin:read`, owners and admins). AIS1: Multies' own mail (invites, confirmations, resets) is in it with its subject and sender only |
 | `list_data_moves` | The last 50 imports and exports with status, progress and whether each can be undone (R38, `admin:read`) |
-| `import_file` | Brings in a file: `kind` tasks, calendar, contacts, docs or workspace, one step of about 15 seconds; call again with `moveId` while it says stopped (R38, `admin:write`) |
+| `import_file` | Brings in a file: `kind` tasks, calendar, contacts, docs or workspace, one step of about 15 seconds; call again with `moveId` while it says stopped. Tasks it brings into a project with Triage on wait there for a person (R38, `admin:write`) |
 | `undo_import` | Removes exactly what one import made (R38, `admin:write`) |
 | `set_task_repeat` | Make a task repeat |
 | `list_custom_fields` | List a project's custom fields |
@@ -193,12 +193,12 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `read_chat_thread` | Read a chat thread |
 | `post_message` | Post in a chat channel |
 | `pin_message` | Pin or unpin a chat message |
-| `message_to_task` | Turn a chat message into a task |
+| `message_to_task` | Turn a chat message into a task. It waits in Triage when the project uses it; `triage: true` sends it there anyway |
 | `react_to_chat_message` | Add or take off an emoji reaction on a chat message (write keys) |
 
 ### Triage
 
-New work from mail rules, public forms, incoming hooks or the API can wait in Triage before it becomes a task. Read only keys can list; the rest need a write key.
+New work from mail rules, public forms, incoming hooks, the API or AI apps can wait in Triage before it becomes a task. Read only keys can list; adding needs a write key. Since AIS1 a new project has Triage on, and every task an AI app or a key makes in a project with Triage on waits there: `create_task` (also from an email and as a subtask), `duplicate_task`, `use_template`, `message_to_task`, `checklist_item_to_subtask`, `create_action_items` and `import_file` (also into a new project the import makes). A decision on a task takes its subtasks with it, and undo puts them back. `update_task` and `bulk_update_tasks` can't move a task from a project with Triage off into one with Triage on (`person_only`). A task form made with `create_form` sends its answers to Triage. Only a person turns a project's Triage off. Only a person signed in to Multies decides: `triage_accept`, `triage_decline` and `triage_merge` answer `person_only` for an API key or a connected AI app (AIS1).
 
 | Tool | What it does |
 | --- | --- |
@@ -303,12 +303,12 @@ Registered in src/server/routes/mcp-r32-live.ts.
 
 ### Task triage queue (R32)
 
-Registered in src/server/routes/mcp-r32-triage.ts. Same service as the Triage page and the v1 triage routes.
+Registered in src/server/routes/mcp-r32-triage.ts. Same service as the Triage page and the v1 triage routes. Over MCP only snooze and unsnooze work: accept, decline, duplicate and restore answer `person_only`, because a person decides Triage in Multies (AIS1).
 
 | Tool | What it does |
 | --- | --- |
 | `task_triage_list` | Tasks waiting in Triage (from mail, forms, the API and agents), newest first, with the count. `view`: pending (default) or snoozed |
-| `task_triage_action` | accept (optional status, project, assignee), decline (optional reason), snooze (`until`, at most a year out), unsnooze, duplicate (`duplicateOf`) or restore (undo an accept, decline or duplicate from the last day). `comment`: a one line note written with an accept or decline (the answer carries `comment.id`); `commentId` with restore removes it in the same undo |
+| `task_triage_action` | accept (optional status, project, assignee), decline (optional reason), snooze (`until`; a key or an AI app may snooze only until 7 days after the item came in, a person up to a year), unsnooze, duplicate (`duplicateOf`) or restore (undo an accept, decline or duplicate from the last day). `comment`: a one line note written with an accept or decline (the answer carries `comment.id`); `commentId` with restore removes it in the same undo |
 
 ### Chat channels (C1)
 
@@ -558,7 +558,7 @@ Registered in src/server/routes/mcp-r26-share.ts. Making or revoking a link need
 
 | Tool | What it does |
 | --- | --- |
-| `create_share_link` | Make a read only link anyone can open without signing in: `kind` `doc` (the doc, read only) or `project_board` (columns, card titles, assignee initials, due dates and labels; never notes, comments, files or custom fields). `expiresInDays` 7 or 30 (left out: never), `showWorkspaceName` (default true). Returns the url once. One row written |
+| `create_share_link` | Make a read only link anyone can open without signing in: `kind` `doc` (the doc, read only) or `project_board` (columns, card titles, assignee initials, due dates and labels; never notes, comments, files or custom fields). `expiresInDays` 7 or 30 (left out: 30); `null` (never) answers `person_only`, because only a person in Multies makes a link that never expires (AIS1). `showWorkspaceName` (default true). Returns the url once. One row written |
 | `list_share_links` | Active links (not revoked, not expired), newest first; pass `kind` and `targetId` for one doc or project |
 | `revoke_share_link` | Stop a link at once by id; its page then says it is no longer active |
 

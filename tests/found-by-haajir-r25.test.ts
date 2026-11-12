@@ -94,8 +94,9 @@ describe("MB-54, MB-55, MB-62: sprints", () => {
 
 describe("MB-52 and MB-56: task lists and epic items", () => {
   it("lists a project's tasks at /projects/{id}/tasks and refuses another workspace's project", async () => {
-    const projectId = (await owner.post("/api/projects", { name: "Build" })).body.project.id as string;
-    const other = (await owner.post("/api/projects", { name: "Other" })).body.project.id as string;
+    // AIS1: new projects start with Triage on; off here so the key's tasks go straight to the list this test reads.
+    const projectId = (await owner.post("/api/projects", { name: "Build", triage: false })).body.project.id as string;
+    const other = (await owner.post("/api/projects", { name: "Other", triage: false })).body.project.id as string;
     await api(key, "POST", "/tasks", { title: "In build", projectId });
     await api(key, "POST", "/tasks", { title: "Elsewhere", projectId: other });
     const r = await api(key, "GET", `/projects/${projectId}/tasks`);

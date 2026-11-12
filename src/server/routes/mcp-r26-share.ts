@@ -1,7 +1,8 @@
 /**
  * R26 (MB-87): share links over MCP: create_share_link, list_share_links and revoke_share_link, the same as
  * /api/v1/share-links. Making or revoking needs a write key; agent keys are refused (an agent never hands out a
- * public link), and another workspace's doc, project or link is not found.
+ * public link), and another workspace's doc, project or link is not found. AIS1 (audit row 67): a link made here
+ * always ends: 30 days unless 7 is asked for; null (never) answers person_only.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -18,11 +19,11 @@ export function registerShareLinkTools(server: McpServer, deps: Deps, actor: Sco
 
   server.registerTool("create_share_link", {
     title: "Make a read only share link", annotations: rw,
-    description: "Makes a link anyone can open without signing in: a doc (kind doc) read only, or a project's board (kind project_board) with its columns, card titles, assignee initials, due dates and labels; never notes, comments, files or custom fields. expiresInDays 7 or 30, or leave it out for never. showWorkspaceName (default true) shows the workspace name on the page. The url is shown only this once. Writes one row.",
+    description: "Makes a link anyone can open without signing in: a doc (kind doc) read only, or a project's board (kind project_board) with its columns, card titles, assignee initials, due dates and labels; never notes, comments, files or custom fields. expiresInDays 7 or 30; left out it is 30. A link that never expires (null) needs a person signed in to Multies, so it answers person_only here. showWorkspaceName (default true) shows the workspace name on the page. The url is shown only this once. Writes one row.",
     inputSchema: {
       kind: z.enum(["doc", "project_board"]),
       targetId: z.string().min(1).describe("The doc id, or the project id for a board."),
-      expiresInDays: z.union([z.literal(7), z.literal(30)]).nullable().optional(),
+      expiresInDays: z.union([z.literal(7), z.literal(30)]).nullable().optional().describe("7 or 30 days; 30 when left out. null (never) is refused: only a person in Multies makes a link that never expires."),
       showWorkspaceName: z.boolean().optional(),
     },
   }, tool(async (x: { kind: "doc" | "project_board"; targetId: string; expiresInDays?: 7 | 30 | null; showWorkspaceName?: boolean }) => {

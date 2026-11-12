@@ -540,8 +540,8 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
   const pickTemplate = (t: ProjectTemplate) => { setTemplate(t); setStatuses(templateStatuses(t)); };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // R21: new mail and form tasks for this project wait in Triage.
-  // R32: on by default for a new project (existing projects keep what they have).
+  // R21: tasks from mail rules, forms, the API and AI apps wait in Triage for this project.
+  // R32: on by default for a new project (existing projects keep what they have). AIS1: the server defaults it too.
   const [triage, setTriage] = useState(project ? !!(project as Project & { triage?: boolean }).triage : true);
   const move = (i: number, d: number) => setStatuses((s) => { const n = [...s]; const [x] = n.splice(i, 1); n.splice(i + d, 0, x); return n; });
   const valid = useMemo(() => name.trim() && statuses.length && statuses.some((s) => s.category === "done") && statuses.every((s) => s.name.trim()), [name, statuses]);
@@ -551,8 +551,7 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
     const k = key.trim().toUpperCase();
     const body = { name, ...(k && k !== project?.key ? { key: k } : {}), statuses: statuses.map((s) => ({ ...(s.id ? { id: s.id } : {}), name: s.name, category: s.category, color: s.color })) };
     try {
-      let r = project ? await api.patch<{ project: Project }>(`/projects/${project.id}`, { ...body, triage }) : await api.create<{ project: Project }>("/projects", body);
-      if (!project && triage) r = await api.patch<{ project: Project }>(`/projects/${r.project.id}`, { triage });
+      const r = project ? await api.patch<{ project: Project }>(`/projects/${project.id}`, { ...body, triage }) : await api.create<{ project: Project }>("/projects", { ...body, triage });
       await qc.invalidateQueries({ queryKey: sk.projects }); await qc.invalidateQueries({ queryKey: ["tasks"] });
       onSaved(r.project);
     } catch (e) {
@@ -609,7 +608,7 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
           {project && <p className="mt-2 text-[12px] text-subtle">{tr("tasks.removing_a_status_moves_its_tasks_to_the_first_s")}</p>}
         </div>
         <div className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2.5">
-          <div><div className="text-[13px] font-medium">{tr("tasks.send_to_triage")}</div><div className="text-[12px] text-muted">{tr("tasks.tasks_made_from_mail_rules_and_forms_wait_in_tri")}</div></div>
+          <div><div className="text-[13px] font-medium">{tr("tasks.send_to_triage")}</div><div className="text-[12px] text-muted">{tr("tasks.triage_switch_hint")}</div></div>
           <Switch checked={triage} onChange={setTriage} label={tr("tasks.send_to_triage")} />
         </div>
         </>}

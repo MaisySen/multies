@@ -12,13 +12,14 @@ export const StatusInput = z.object({ id: z.string().optional(), name: z.string(
 export const ProjectCreate = z.object({
   name: z.string().trim().min(1).max(80), description: z.string().max(2000).optional(), key: z.string().trim().max(6).regex(/^[A-Za-z0-9]*$/).optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), statuses: z.array(StatusInput).min(1).max(20).optional(),
+  triage: z.boolean().optional().openapi({ description: "Tasks from mail rules, forms, the API and AI apps wait in Triage until a person accepts them. On when left out. Only a person signed in to Multies may choose false: an API key gets 403 person_only." }),
 }).openapi("ProjectCreate");
 export const ProjectPatch = z.object({
   name: z.string().trim().min(1).max(80).optional(), description: z.string().max(2000).optional(), color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   archived: z.boolean().optional(), statuses: z.array(StatusInput).min(1).max(20).optional(),
   health: z.enum(["on_track", "at_risk", "off_track"]).nullable().optional().openapi({ description: "Set by hand on the portfolio: on_track, at_risk, off_track, or null for not set." }),
   healthNote: z.string().max(500).optional(), ownerId: z.string().nullable().optional().openapi({ description: "The user id of the project's owner, or null. The owner is a person: an AI agent is refused with 422." }),
-  triage: z.boolean().optional().openapi({ description: "R21: new mail and form tasks wait in Triage until someone accepts them." }),
+  triage: z.boolean().optional().openapi({ description: "Tasks from mail rules, forms, the API and AI apps wait in Triage until a person accepts them. Tasks a person makes go straight to the board. Only a person signed in to Multies turns it off: an API key gets 403 person_only." }),
   key: z.string().trim().min(1).max(6).regex(/^[A-Za-z0-9]+$/).optional().openapi({ description: "R33: the short key before task numbers (letters and digits, up to 6, stored in capitals). A key another project in the workspace uses, in any case, answers 409 key_taken.", example: "OPS" }),
 }).openapi("ProjectPatch");
 

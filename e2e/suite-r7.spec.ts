@@ -59,6 +59,9 @@ test("a public form submission makes a task", async ({ page, browser }) => {
   await f.getByRole("button", { name: "Send" }).click();
   await expect(outsider.getByTestId("form-done")).toBeVisible();
   await expect.poll(async () => ((await (await page.request.get(`/api/tasks?q=${encodeURIComponent(subject)}`)).json()).tasks ?? []).length).toBe(1);
+  // AIS1 (PR 24): the answer waits in Triage until a person accepts it, and search shows it with that state.
+  const found = (await (await page.request.get(`/api/tasks?q=${encodeURIComponent(subject)}`)).json()).tasks;
+  expect(found[0].triage).toMatchObject({ state: "pending", source: "form" });
   await page.goto("/app/forms");
   await expect(page.getByTestId("form-row").filter({ hasText: "Website enquiry" })).toContainText("1 answer");
 });

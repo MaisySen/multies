@@ -25,6 +25,12 @@ describe("v1 project delete", () => {
     const evil = (await other.post("/api/developer/keys", { name: "x" })).body.secret;
     expect((await ctx.app.request(`/api/v1/projects/${pid}`, { method: "DELETE", headers: h(evil) })).status).toBe(404);
 
+    // AIS1: the key's task waits in Triage (new projects start with it on), and a key can't delete a project while
+    // an item waits there. Once a person accepts it, the key can.
+    const waiting = await ctx.app.request(`/api/v1/projects/${pid}`, { method: "DELETE", headers: h(rw) });
+    expect(waiting.status).toBe(403);
+    expect(((await waiting.json()) as { error: { code: string } }).error.code).toBe("person_only");
+    expect((await c.post(`/api/triage/${tid}/accept`, {})).status).toBe(200);
     const del = await ctx.app.request(`/api/v1/projects/${pid}`, { method: "DELETE", headers: h(rw) });
     expect(del.status).toBe(200);
     expect(await del.json()).toEqual({ ok: true });

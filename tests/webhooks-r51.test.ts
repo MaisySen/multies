@@ -22,7 +22,7 @@ async function setup(events: string[] | null) {
   const tables = db.all(sql`select name from sqlite_master where type = 'table' and name not like 'sqlite_%' and name not like '%_fts%'`).map((r) => r.name!);
   const total = () => tables.reduce((s, n) => s + Number(db.all(sql.raw(`select count(*) as n from "${n}"`))[0]!.n), 0);
   const sent = async () => (await t.db.select().from(webhookDeliveries)).map((d) => ({ type: d.eventType, data: JSON.parse(d.payload).data as Record<string, unknown> }));
-  return { ...t, v1, total, sent };
+  return { ...t, c, v1, total, sent };
 }
 
 describe("webhook events for projects, docs and comments (R51 MB-239)", () => {
@@ -33,6 +33,9 @@ describe("webhook events for projects, docs and comments (R51 MB-239)", () => {
   it("fires project.deleted, doc.deleted and the three comment events with id and object", async () => {
     const s = await setup(["project.deleted", "doc.deleted", "comment.created", "comment.updated", "comment.deleted", "task.deleted", "task.commented"]);
     const p = (await s.v1("POST", "/projects", { name: "Hook project" })).body.project!.id;
+    // AIS1: a key's project starts with Triage on and only a person turns it off. Off here, so the key's task is a
+    // normal task that the key may delete (a key can't delete one that waits in Triage).
+    await s.c.patch(`/api/projects/${p}`, { triage: false });
     const task = (await s.v1("POST", "/tasks", { title: "Hook task", projectId: p })).body.task!.id;
     const cm = await s.v1("POST", `/tasks/${task}/comments`, { body: "First" });
     expect(cm.status).toBe(201);

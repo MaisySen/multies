@@ -17,10 +17,10 @@ import { checkTypeRules, topLevelCondition, type TaskType } from "./task-types";
 import { claimNumbers } from "./project-counter";
 import { invalidateStatuses, orgStatuses } from "./read-cache";
 import { SQL_IN_CHUNK, inChunks, inIds } from "../../lib/sql-chunks";
+import { callerKind, isPersonSession, requirePerson } from "../../lib/actor-kind";
 import { isAgentEmail } from "../people";
 import { agentInboxIdAt } from "../agents/agent-address";
 import { WITHHELD_TEXT, withheldRow } from "../agents/platform-mail";
-import { isPersonSession } from "../../lib/actor-kind";
 import { containsAny, containsText } from "../../lib/like-search";
 import { rowMapper, selectMapped } from "../../db/fast-rows"; // R52
 
@@ -125,8 +125,17 @@ export async function getProject(deps: Deps, orgId: string, id: string) {
 
 export interface StatusInput { id?: string; name: string; category: Category; color?: string }
 
-export async function createProject(deps: Deps, actor: SuiteActor, input: { name: string; description?: string; key?: string; color?: string; statuses?: StatusInput[] }, opts: { id?: string; retry?: boolean } = {}) {
+/**
+ * AIS1 (audit row 35): a new project starts with Triage on, made in the app, by a key, from a template, an import
+ * or the first "Tasks" project alike, so work from mail rules, forms, the API and AI apps waits for a person. A
+ * person may choose off; a key or a connected AI app may not (403 person_only). Existing projects keep theirs.
+ */
+export const NEW_PROJECT_TRIAGE = true;
+
+export async function createProject(deps: Deps, actor: SuiteActor, input: { name: string; description?: string; key?: string; color?: string; statuses?: StatusInput[]; triage?: boolean }, opts: { id?: string; retry?: boolean } = {}) {
   assertWritable(actor);
+  const triage = input.triage ?? NEW_PROJECT_TRIAGE;
+  if (!triage) requirePerson(actor, "Turning Triage off for a project");
   // R40 (MB-201): a retried create (same Idempotency-Key) carries the same id; if the first attempt committed, return it.
   // R53: a caller that knows this is a first attempt (retry false) skips the read.
   if (opts.id && opts.retry !== false && await deps.db.select({ id: projects.id }).from(projects).where(and(eq(projects.id, opts.id), eq(projects.orgId, actor.orgId))).get()) return getProject(deps, actor.orgId, opts.id);
@@ -138,7 +147,7 @@ export async function createProject(deps: Deps, actor: SuiteActor, input: { name
   const taken = new Set((await deps.db.select({ key: projects.key }).from(projects).where(and(eq(projects.orgId, actor.orgId), isNull(projects.deletedAt)))).map((r) => r.key));
   let key = base;
   for (let n = 2; taken.has(key) && n < 1000; n++) key = base.slice(0, 6 - String(n).length) + n;
-  await deps.db.insert(projects).values({ id, orgId: actor.orgId, name: input.name.trim(), description: input.description ?? "", key, color: input.color ?? "#ff5a36", ...createdBy(actor), createdAt: now, updatedAt: now });
+  await deps.db.insert(projects).values({ id, orgId: actor.orgId, name: input.name.trim(), description: input.description ?? "", key, color: input.color ?? "#ff5a36", triage, ...createdBy(actor), createdAt: now, updatedAt: now });
   const list = input.statuses?.length ? input.statuses : DEFAULT_STATUSES;
   if (!list.some((s) => s.category === "done")) throw new HttpError(422, "validation_failed", "Add at least one status in the Done group.");
   // R84: the workspace's own fields show in the new project too.
@@ -162,13 +171,15 @@ export async function defaultProject(deps: Deps, actor: SuiteActor) {
 export async function updateProject(deps: Deps, actor: SuiteActor, id: string, patch: {
   name?: string; description?: string; color?: string; archived?: boolean; statuses?: StatusInput[];
   health?: "on_track" | "at_risk" | "off_track" | null; healthNote?: string; ownerId?: string | null;
-  /** R21: send new mail and form tasks to Triage first. */
+  /** R21: tasks from mail rules, forms, the API and AI apps wait in Triage first. Only a person turns it off (AIS1). */
   triage?: boolean;
   /** R33: a new key; unique in the workspace (any case), else 409 key_taken. */
   key?: string;
 }) {
   assertWritable(actor);
   const p = await projectRow(deps, actor.orgId, id);
+  // AIS1 (audit row 35): a key or a connected AI app may turn Triage on, never off.
+  if (patch.triage === false && p.triage) requirePerson(actor, "Turning Triage off for a project");
   const now = deps.now();
   const key = patch.key !== undefined ? await assertKeyFree(deps, actor.orgId, patch.key, id) : undefined;
   if (patch.ownerId) {
@@ -256,6 +267,11 @@ async function replaceStatuses(deps: Deps, actor: SuiteActor, p: ProjectRow, lis
 export async function deleteProject(deps: Deps, actor: SuiteActor, id: string) {
   assertWritable(actor);
   const p = await projectRow(deps, actor.orgId, id);
+  // AIS1 (audit row 66): the delete would take items that wait in Triage with nobody deciding them. One read on
+  // the Triage index, and only for a key or a connected AI app.
+  if (!isPersonSession(actor) && await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.orgId, actor.orgId), eq(tasks.triageState, "pending"), isNull(tasks.deletedAt), eq(tasks.projectId, id))).get()) {
+    requirePerson(actor, "Deleting a project with items that wait in Triage");
+  }
   const now = deps.now();
   // R52 (MB-239): the endpoints are read once, here instead of inside emitEvent, so nobody subscribed costs exactly
   // what it did before. Only when someone takes task.deleted are the task ids read (one SELECT, before the delete).
@@ -379,8 +395,14 @@ export interface TaskFilters {
   type?: TaskType;
   /** Round 21: tasks in this sprint, or null for the backlog (no sprint). */
   sprintId?: string | null;
-  /** R21: "pending" lists only items waiting in Triage; without it they are left out. */
+  /** R21: "pending" lists only items waiting in Triage; without it they are left out (except in a text search, below). */
   triage?: "pending";
+  /**
+   * AIS1 review: set by GET /api/tasks and GET /api/v1/tasks when q is given. A text search there also finds items
+   * waiting in Triage, each shown with its triage state, so a public form answer can be found the moment it arrives.
+   * Lists, boards and counts without a search still leave them out. Same workspace rules as every other task.
+   */
+  search?: boolean;
   /** R46 (MB-234): only these task ids (at most 100), still under every other filter. */
   ids?: string[];
   /** R26 (MB-86): conditions from a task query (services/suite/task-query.ts), ANDed with the rest. */
@@ -402,7 +424,8 @@ async function orderFor(deps: Deps, orgId: string, f: TaskFilters): Promise<SQL[
 
 async function listConds(deps: Deps, actor: SuiteActor, f: TaskFilters): Promise<(SQL | undefined)[]> {
   const conds: (SQL | undefined)[] = [eq(tasks.orgId, actor.orgId), isNull(tasks.deletedAt)];
-  conds.push(f.triage ? eq(tasks.triageState, f.triage) : isNull(tasks.triageState));
+  if (f.triage) conds.push(eq(tasks.triageState, f.triage));
+  else if (!f.search) conds.push(isNull(tasks.triageState));
   if (f.projectId) conds.push(eq(tasks.projectId, f.projectId));
   if (f.status) conds.push(eq(tasks.status, f.status));
   if (f.statusId) conds.push(eq(tasks.statusId, f.statusId));
@@ -578,8 +601,35 @@ export interface CreateTaskInput {
   type?: TaskType;
   /** Round 21: a sprint of the same project, and an estimate (points or hours). */
   sprintId?: string | null; points?: number | null;
-  /** R21: land in Triage. "always" does; "if_project" only when the project has Triage on. */
+  /**
+   * R21: land in Triage. "always" does; "if_project" only when the project has Triage on. Left out, a key, an
+   * agent or a connected AI app gets machineTriage (AIS1); null means never (a repeat's next task).
+   */
   triage?: { source: "mail" | "form" | "api" | "chat" | "agent"; when: "always" | "if_project"; from?: string | null } | null;
+}
+
+/**
+ * AIS1 (audit row 35): where work goes that a key, an agent or a connected AI app makes without naming a Triage
+ * rule (from an email, a copy, a template, meeting notes, a chat message, a checklist item): it waits when the
+ * project has Triage on, as v1 POST /tasks and MCP create_task always did. Source "api" for a workspace key over
+ * REST, "agent" for agents and AI apps (and MCP). People and automations (system) get none.
+ */
+export function machineTriage(actor: SuiteActor): NonNullable<CreateTaskInput["triage"]> | null {
+  const kind = callerKind(actor);
+  if (kind === "person" || kind === "system") return null;
+  const viaMcp = ((actor as { sessionId?: string }).sessionId ?? "").startsWith("mcp:");
+  return { source: kind === "workspace_key" && !viaMcp ? "api" : "agent", when: "if_project" };
+}
+
+/**
+ * AIS1 review (row 35): a key or a connected AI app may not move a task out of a project with Triage off into one
+ * with Triage on, or work it made where nobody checks would land on a checked board unseen (403 person_only, nothing
+ * changes). A task that waits, or that a person accepted in Triage before, may move; so may one between two projects
+ * with Triage on. People and automations (system) may move anything. Reads nothing: the caller has the rows.
+ */
+export function assertMoveKeepsTriage(actor: SuiteActor, intoTriage: boolean, rows: { triageState: string | null; triageSource: string | null; fromTriage: boolean }[]) {
+  if (!intoTriage || !machineTriage(actor)) return;
+  if (rows.some((r) => !r.triageState && !r.triageSource && !r.fromTriage)) requirePerson(actor, "Moving a task from a project without Triage into one with Triage on");
 }
 
 const cleanSubject = (s: string) => s.replace(/^\s*((re|fw|fwd|aw)\s*:\s*)+/i, "").trim();
@@ -614,7 +664,10 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
     source = { threadId: m.threadId, messageId: m.id, from: m.fromName ? `${m.fromName} <${m.fromAddress}>` : m.fromAddress, subject: m.subject };
   }
 
-  const triage = input.triage && !input.parentId && (input.triage.when === "always" || project.triage) ? input.triage : null;
+  // AIS1: subtasks skip Triage for people and automations, but a key's or an AI app's subtask waits like any task.
+  const machine = machineTriage(actor);
+  const spec = input.triage !== undefined ? input.triage : machine;
+  const triage = spec && (!input.parentId || machine) && (spec.when === "always" || project.triage) ? spec : null;
   const now = deps.now();
   // Claim the next number in the project. The unique index on (project, number) guards races.
   // R33: one narrow UPSERT on project_counters (1 row written) instead of rewriting the projects row (3).
@@ -686,8 +739,9 @@ export async function createTaskFromThread(deps: Deps, actor: SuiteActor, input:
   const title = input.title?.trim() || cleanSubject(m.subject) || `Follow up with ${fromLine}`;
   // AIS1 (row 32): a task is read by agents and apps too, so it never copies the text of the platform's own mail.
   const notes = input.notes ?? (withheldRow(m, deps.config.systemFrom.address) ? WITHHELD_TEXT : latestText(m.text).slice(0, 2000));
-  // R21: mail turned into tasks by rules lands in Triage when the project has it on.
-  const triage = input.triage !== undefined ? input.triage : actor.system ? { source: "mail" as const, when: "if_project" as const } : null;
+  // R21: mail turned into tasks by rules lands in Triage when the project has it on. AIS1: left undefined for
+  // everyone else, so a key's or an AI app's task waits too (createTask's machineTriage); a person's never does.
+  const triage = input.triage !== undefined ? input.triage : actor.system ? { source: "mail" as const, when: "if_project" as const } : undefined;
   return createTask(deps, actor, { ...input, title, notes, source: { messageId: m.id, threadId: m.threadId }, triage }, opts); // R53: same id on a retry
 }
 
@@ -742,7 +796,10 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
   if (patch.parentId !== undefined) {
     if (patch.parentId === t.id) throw new HttpError(422, "validation_failed", "A task can't be its own parent.");
     if (patch.parentId) {
-      await taskRow(deps, actor.orgId, patch.parentId);
+      const parent = await taskRow(deps, actor.orgId, patch.parentId);
+      // AIS1 second review (row 66): a decision on a waiting item takes its subtasks with it, so a key or an AI app may
+      // not put a task that isn't waiting under one (a person's task would go with a decline nobody meant for it).
+      if (parent.triageState === "pending" && t.triageState !== "pending" && machineTriage(actor)) requirePerson(actor, "Putting a task under an item that waits in Triage");
       // R95: a task can't go under its own subtask (the mind map moves branches; a loop would hide them).
       let at: string | null = patch.parentId;
       for (let i = 0; at && i < 50; i++) {
@@ -785,6 +842,8 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
     const p = await projectRow(deps, actor.orgId, patch.projectId);
     // R34: the ref it leaves behind (OPS-12) keeps opening it after the move.
     const from = await projectRow(deps, actor.orgId, t.projectId).catch(() => null);
+    // AIS1 review (row 35): checked before the number claim below writes anything.
+    assertMoveKeepsTriage(actor, !!p.triage, [{ ...t, fromTriage: !!from?.triage }]);
     // R55: moving back to a project it left gives the task its old number again when it is free (exact Undo).
     const refs = await import("./task-refs-r34");
     set.projectId = p.id; set.number = (await refs.keptNumberFor(deps, actor.orgId, p, t.id)) ?? await claimNumbers(deps, p.id); projectId = p.id;
@@ -891,23 +950,45 @@ async function spawnRepeat(deps: Deps, actor: SuiteActor, taskId: string) {
   if (!due) return null;
   const shift = due.getTime() - base.getTime();
   const fields = (await valuesForTasks(deps, actor.orgId, [t.id])).get(t.id) ?? {};
+  const waits: CreateTaskInput["triage"] = t.triageState === "pending"
+    ? { source: (t.triageSource ?? machineTriage(actor)?.source ?? "api") as NonNullable<CreateTaskInput["triage"]>["source"], when: "always" }
+    : null;
   const next = await createTask(deps, actor, {
     title: t.title, notes: t.notes, projectId: t.projectId, status: "todo",
     assignee: await rotatedAssignee(deps, actor.orgId, rule, t.assigneeType && t.assigneeId ? { type: t.assigneeType, id: t.assigneeId } : null),
     priority: t.priority, labels: JSON.parse(t.labels) as string[], parentId: t.parentId,
     start: t.startAt ? new Date(t.startAt.getTime() + shift).toISOString() : null, due: due.toISOString(),
     fields: Object.keys(fields).length ? fields : undefined, repeat: rule, type: t.type,
+    // AIS1: the next one continues work a person already has, so it doesn't wait in Triage. AIS1 second review: unless
+    // nobody has decided this one yet (a key finishing its own waiting task), then the next one waits as well.
+    triage: waits,
   });
   const subs = await deps.db.select({ title: tasks.title }).from(tasks).where(and(eq(tasks.parentId, t.id), isNull(tasks.deletedAt))).orderBy(asc(tasks.position));
-  for (const sub of subs) await createTask(deps, actor, { title: sub.title, parentId: next.id, projectId: t.projectId });
+  for (const sub of subs) await createTask(deps, actor, { title: sub.title, parentId: next.id, projectId: t.projectId, triage: waits });
   await link(deps, actor.orgId, { type: "task", id: next.id }, { type: "task", id: t.id }, "repeat_of");
   await recordWrite(deps, actor, { entityType: "task", entityId: next.id, op: "update", version: next.version, verb: "repeated", data: { from: t.id }, event: "task.recurred", eventData: { task: next, previousTaskId: t.id } });
   return next;
 }
 
-export async function deleteTask(deps: Deps, actor: SuiteActor, idOrRef: string) {
+/**
+ * AIS1 (audit row 66): deleting an item that still waits in Triage removes it with nobody deciding, so a key or a
+ * connected AI app may not; a person may. A delete takes the subtasks too, so a waiting subtask counts. Reads nothing
+ * for a person; one read on the Triage index otherwise.
+ */
+export async function assertNoWaitingItems(deps: Deps, actor: SuiteActor, rows: { id: string; triageState: string | null }[]) {
+  if (!rows.length || isPersonSession(actor)) return;
+  const what = "Deleting a task that waits in Triage";
+  if (rows.some((r) => r.triageState === "pending")) requirePerson(actor, what);
+  const sub = await deps.db.select({ id: tasks.id }).from(tasks)
+    .where(and(eq(tasks.orgId, actor.orgId), eq(tasks.triageState, "pending"), isNull(tasks.deletedAt), inIds(tasks.parentId, rows.map((r) => r.id)))).get();
+  if (sub) requirePerson(actor, what);
+}
+
+/** `own`: the caller removes a task it made moments ago (a lost race, an Undo), so a waiting one may go too. */
+export async function deleteTask(deps: Deps, actor: SuiteActor, idOrRef: string, opts: { own?: boolean } = {}) {
   assertWritable(actor);
   const t = await taskRow(deps, actor.orgId, await resolveTaskId(deps, actor.orgId, idOrRef));
+  if (!opts.own) await assertNoWaitingItems(deps, actor, [t]);
   const now = deps.now();
   await deps.db.update(tasks).set({ deletedAt: now, updatedAt: now, version: t.version + 1 }).where(or(eq(tasks.id, t.id), eq(tasks.parentId, t.id)));
   await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "delete", version: t.version + 1, verb: "deleted", data: { title: t.title }, event: "task.deleted", eventData: { id: t.id } });

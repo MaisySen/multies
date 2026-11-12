@@ -2,20 +2,28 @@
  * R32: the rest of task Triage. Snooze a pending item until a time (it leaves the queue and its count,
  * then comes back by itself), undo the last accept, decline or snooze, and one action door
  * (accept, decline, snooze, unsnooze, duplicate, restore) that the app, the REST API and MCP share.
+ * AIS1 (audit row 66): accept, decline, duplicate and restore need a person signed in; keys may unsnooze, and
+ * snooze until at most MACHINE_SNOOZE_MAX_DAYS days after the item came in.
  */
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { tasks } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
+import { requirePerson } from "../../lib/actor-kind";
 import { assertWritable, recordWrite, type SuiteActor } from "./common";
 import { getTask } from "./tasks";
-import { acceptTriage, declineTriage, mergeTriage, type AcceptInput, type DeclineInput } from "./triage";
+import { acceptTriage, assertDecider, declineTriage, mergeTriage, type AcceptInput, type DeclineInput } from "./triage";
 import { checkTriageComment, insertTriageComment, oneLine, removeTriageComment } from "./triage-comment-r33";
 
 export const TRIAGE_ACTIONS = ["accept", "decline", "snooze", "unsnooze", "duplicate", "restore"] as const;
 export type TriageAction = (typeof TRIAGE_ACTIONS)[number];
 /** A snooze can reach at most a year ahead. */
 const MAX_SNOOZE_MS = 366 * 24 * 3600_000;
+/**
+ * AIS1 (audit row 66): a key or a connected AI app may keep an item snoozed until at most this many days after it came
+ * into Triage, so it can't hide work from the people who decide for long. A person signed in may snooze up to a year.
+ */
+export const MACHINE_SNOOZE_MAX_DAYS = 7;
 
 const notFound = () => new HttpError(404, "not_found", "That item isn't in Triage.");
 
@@ -42,6 +50,9 @@ export async function snoozeTriage(deps: Deps, actor: SuiteActor, id: string, un
   assertWritable(actor);
   const t = await pendingRow(deps, actor, id);
   const when = parseSnoozeUntil(until, deps.now());
+  // AIS1 review: counted from when the item came in, not from now, so snoozing again (or unsnoozing first) can't
+  // keep it out of the queue for longer. No extra read: the row is already here.
+  if (when.getTime() - t.createdAt.getTime() > MACHINE_SNOOZE_MAX_DAYS * 86_400_000) requirePerson(actor, `Snoozing a Triage item past ${MACHINE_SNOOZE_MAX_DAYS} days after it came in`);
   await deps.db.update(tasks).set({ triageSnoozedUntil: when, updatedAt: deps.now(), version: t.version + 1 }).where(eq(tasks.id, t.id));
   await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "update", version: t.version + 1, verb: "triage_snoozed", data: { title: t.title, until: when.toISOString() } });
   return getTask(deps, actor, t.id);
@@ -62,13 +73,20 @@ export async function unsnoozeTriage(deps: Deps, actor: SuiteActor, id: string) 
  * was accepted (and is not done) or declined or merged (soft deleted), within a day of that change.
  */
 export async function restoreTriage(deps: Deps, actor: SuiteActor, id: string) {
-  assertWritable(actor);
+  assertDecider(actor, "Undoing a Triage decision");
   const t = await deps.db.select().from(tasks).where(and(eq(tasks.id, id), eq(tasks.orgId, actor.orgId), isNotNull(tasks.triageSource))).get();
   if (!t) throw notFound();
   if (t.triageState === "pending" && !t.deletedAt) return getTask(deps, actor, t.id);
   if (deps.now().getTime() - t.updatedAt.getTime() > 24 * 3600_000) throw new HttpError(409, "too_late", "That change is more than a day old. Make a new task instead.");
   if (!t.deletedAt && t.status === "done") throw new HttpError(409, "conflict", "That task is already done.");
   await deps.db.update(tasks).set({ triageState: "pending", deletedAt: null, triageSnoozedUntil: null, triageReason: null, duplicateOf: null, updatedAt: deps.now(), version: t.version + 1 }).where(eq(tasks.id, t.id));
+  // AIS1 review: its subtasks go back with it. After a decline or merge, the ones removed in that same write (the
+  // same deletedAt) come back as they were; after an accept, the ones that came in through Triage and aren't done
+  // wait again. A subtask removed earlier on its own stays removed.
+  const kids = and(eq(tasks.orgId, actor.orgId), eq(tasks.parentId, t.id));
+  const back = { updatedAt: deps.now(), version: sql`${tasks.version} + 1` };
+  if (t.deletedAt) await deps.db.update(tasks).set({ deletedAt: null, ...back }).where(and(kids, eq(tasks.deletedAt, t.deletedAt)));
+  else await deps.db.update(tasks).set({ triageState: "pending", ...back }).where(and(kids, isNull(tasks.deletedAt), isNull(tasks.triageState), isNotNull(tasks.triageSource), ne(tasks.status, "done")));
   await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "update", version: t.version + 1, verb: "triage_restored", data: { title: t.title, was: t.deletedAt ? "removed" : "accepted" } });
   return getTask(deps, actor, t.id);
 }
@@ -87,6 +105,9 @@ export interface TriageActionInput {
 
 /** One door for every Triage action. Answers { action, task? , ... } with the item as it is now. */
 export async function triageAction(deps: Deps, actor: SuiteActor, id: string, input: TriageActionInput) {
+  // AIS1: checked before anything is read or written, so a refused decline with a comment writes no comment.
+  if (input.action === "restore") assertDecider(actor, "Undoing a Triage decision");
+  else if (input.action === "accept" || input.action === "decline" || input.action === "duplicate") assertDecider(actor);
   const note = oneLine(input.comment);
   switch (input.action) {
     case "accept": {

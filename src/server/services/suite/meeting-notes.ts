@@ -251,7 +251,7 @@ export async function createActionItems(deps: Deps, actor: SuiteActor, meetingId
   for (const p of todo) {
     const task = await createTask(deps, actor, { title: p.title.slice(0, 500), assignee: p.assignee, due: p.due, projectId, notes: `From the meeting "${m.title}".` }, p.id ? { id: p.id, retry: opts.retry ?? false } : {});
     const claimed = await deps.db.insert(meetingActionItems).values({ orgId: actor.orgId, meetingId, itemKey: p.key, taskId: task.id, createdAt: now }).onConflictDoNothing().returning({ k: meetingActionItems.itemKey });
-    if (!claimed.length) { await deleteTask(deps, actor, task.id); continue; } // another click got there first
+    if (!claimed.length) { await deleteTask(deps, actor, task.id, { own: true }); continue; } // another click got there first
     await link(deps, actor.orgId, { type: "task", id: task.id }, { type: "meeting", id: meetingId }, "about");
     created.push(task);
   }

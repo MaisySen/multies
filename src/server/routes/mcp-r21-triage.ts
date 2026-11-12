@@ -1,6 +1,7 @@
 /**
- * Round 21 (R21.3): the Triage queue on MCP. Read only keys can list; accept, decline, merge and
- * create need a write key. The same services back the app and the REST API.
+ * Round 21 (R21.3): the Triage queue on MCP. Read only keys can list; create needs a write key.
+ * AIS1 (audit row 66): accept, decline and merge stay listed but answer person_only: a person decides in Multies.
+ * The same services back the app and the REST API.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -19,7 +20,7 @@ export function registerTriageTools(server: McpServer, deps: Deps, actor: Scoped
 
   server.registerTool("list_triage", {
     title: "List the Triage queue", annotations: { readOnlyHint: true, openWorldHint: false },
-    description: "New work waiting in Triage (from mail rules, public forms, incoming hooks or the API), newest first, before it becomes a normal task. Accept, decline or merge each one.",
+    description: "New work waiting in Triage (from mail rules, public forms, incoming hooks, the API or AI apps), newest first, before it becomes a normal task. A person accepts, declines or merges each one in Multies.",
     inputSchema: { projectId: z.string().optional(), limit: z.number().int().min(1).max(500).optional() },
   }, tool(async (x: { projectId?: string; limit?: number }) => {
     const r = await listTriage(deps, a, x);
@@ -31,7 +32,7 @@ export function registerTriageTools(server: McpServer, deps: Deps, actor: Scoped
 
   server.registerTool("triage_accept", {
     title: "Accept a Triage item", annotations: rw,
-    description: "Makes a Triage item a normal task, in the same step optionally setting its project, assignee (member:<userId> or agent:<agentId>), status, priority and due date.",
+    description: "Makes a Triage item a normal task, in the same step optionally setting its project, assignee (member:<userId> or agent:<agentId>), status, priority and due date. Only a person signed in to Multies decides Triage: an API key or a connected AI app gets person_only.",
     inputSchema: {
       id: z.string().min(1),
       projectId: z.string().optional(),
@@ -48,7 +49,7 @@ export function registerTriageTools(server: McpServer, deps: Deps, actor: Scoped
 
   server.registerTool("triage_decline", {
     title: "Decline a Triage item", annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
-    description: "Declines and deletes a Triage item with an optional reason. reply: true also emails the sender a short polite note (skipped for no-reply addresses); message replaces the default text.",
+    description: "Declines and deletes a Triage item with an optional reason. reply: true also emails the sender a short polite note (skipped for no-reply addresses); message replaces the default text. Only a person signed in to Multies decides Triage: an API key or a connected AI app gets person_only.",
     inputSchema: { id: z.string().min(1), reason: z.string().max(500).optional(), reply: z.boolean().optional(), message: z.string().max(5000).optional() },
   }, tool(async (x: { id: string; reason?: string; reply?: boolean; message?: string }) => {
     writable();
@@ -57,7 +58,7 @@ export function registerTriageTools(server: McpServer, deps: Deps, actor: Scoped
 
   server.registerTool("triage_merge", {
     title: "Merge a Triage item into a task", annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
-    description: "Folds a Triage item into an existing task: its notes become a comment on the target, its mail thread moves to the target when the target has none, and the item is deleted.",
+    description: "Folds a Triage item into an existing task: its notes become a comment on the target, its mail thread moves to the target when the target has none, and the item is deleted. Only a person signed in to Multies decides Triage: an API key or a connected AI app gets person_only.",
     inputSchema: { id: z.string().min(1), targetId: z.string().min(1).describe("The task id to merge into.") },
   }, tool(async (x: { id: string; targetId: string }) => {
     writable();

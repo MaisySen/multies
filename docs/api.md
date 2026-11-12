@@ -203,7 +203,8 @@ with `{ ids, patch }` and `POST /api/v1/tasks/bulk-delete` with `{ ids }` (the a
 `statusId`, `assignee` (`member:<id>`, `agent:<id>` or null), `priority`, `dueAt` and `startAt` (null
 clears), `addLabels`, `removeLabels`, `type` (task, story or bug; epics change one at a time) and `projectId` (moves the tasks; numbers come from the new
 project and each status maps to the same group there). If any id is not in the workspace nothing is
-changed (404). Read only keys get 403. The writes go out in one batch: each changed task writes its
+changed (404). Read only keys get 403. Deleting a task that waits in Triage, or one with a subtask that waits,
+needs a person signed in: a key gets 403 `person_only` and nothing is deleted (AIS1). The writes go out in one batch: each changed task writes its
 row and one sync feed change, and the action writes one summary activity entry. Webhooks still get
 one `task.updated` (or `task.deleted`) per task. When the daily database write budget is nearly
 used, bulk changes answer 503 and single edits still work. MCP: `bulk_update_tasks`.
@@ -302,9 +303,23 @@ No paid calendar APIs and no phone spend. A booking costs two inserts; a slot ca
 
 ## Triage (Round 21)
 
-New work can wait in Triage before it becomes a task. A project's `triage` setting (off for existing
-projects) sends tasks made by mail rules, public forms and incoming hooks there; a form's own "Send to
-triage" switch (`triage: true`, on by default for new forms in the app) does the same for that form.
+New work can wait in Triage before it becomes a task. A project's `triage` setting sends tasks from mail
+rules (workspace automations and a person's own rules), public forms, incoming hooks, API keys and AI apps
+(MCP, agents) there, subtasks, copies and imports included (`POST /work-imports/run`,
+`POST /data-moves/imports/run` and MCP `import_file` from a key, also into a new project the import makes; the
+work import answers `triage: true` then); tasks a person makes or imports in the app go straight to the board.
+A decision on a task takes its subtasks with it: accept brings in the ones that wait (into the accept's
+`projectId` too), decline and merge remove the ones that came through Triage, and undo puts them back. A subtask
+that never came through Triage only leaves the declined item. A key or an AI app can't put a task that isn't
+waiting under a waiting item (`PATCH /tasks/{id}` with `parentId`: 403 `person_only`), and when it finishes its
+own waiting repeating task the next one waits too. A key or an AI app can't move a task from a project with Triage off into one
+with Triage on (`PATCH /tasks/{id}` or `POST /tasks/bulk` with `projectId`: 403 `person_only`, nothing changes)
+unless it waits in Triage or a person accepted it there; it can make the task in that project, where it waits.
+It is on for every new project, made in the app, by a key (`POST /projects`), from a template, by an import
+or as the first "Tasks" project (AIS1); projects made before keep what they had. Only a person signed in
+turns it off: `triage: false` from a key, on create or on `PATCH /projects/{id}`, answers 403 `person_only`.
+A form's own "Send to triage" switch (`triage: true`, on by default for new forms, also from the API and
+MCP) sends its answers there whatever the project's setting.
 A triage item is a task row with `triage_state = 'pending'`: it keeps its number, and lists, boards,
 My Work, search, reports, the portfolio and counts leave it out (`GET /api/tasks?triage=pending` asks
 for them). Accept clears the flag in the same task write as any other change; decline soft deletes the
@@ -316,6 +331,13 @@ deletes the item.
 - App API: `GET /api/triage` (`projectId`, `limit`), `GET /api/triage/count`, `POST /api/triage`, `GET /api/triage/:id`, `POST /api/triage/:id/accept` `{ projectId?, assignee?, statusId?, status?, priority?, due? }`, `POST /api/triage/:id/decline` `{ reason?, reply?, message? }`, `POST /api/triage/:id/merge` `{ targetId }`, `POST /api/triage/bulk` `{ ids (up to 100), action: accept | decline, accept?, decline? }`
 - Public API: the same under `/api/v1/triage` (`GET /triage`, `GET /triage/count`, `POST /triage`, `GET /triage/{id}`, `POST /triage/{id}/accept`, `POST /triage/{id}/decline`, `POST /triage/{id}/merge`, `POST /triage/bulk`). Read only keys can list but not change anything.
 - MCP: `list_triage`, `triage_accept`, `triage_decline`, `triage_merge`, `create_triage_item`.
+- Who decides (AIS1): only a person signed in to Multies (the web app or the phone) accepts, declines, merges
+  or restores an item, or deletes one that still waits (`DELETE /tasks/{id}` and `POST /tasks/bulk-delete`,
+  also when a waiting subtask would go with it). An API key, an agent key or a connected AI app (MCP over
+  OAuth) gets 403 `person_only` there, and `POST /triage/bulk` refuses the whole call. Keys and AI apps can
+  still add items, read the queue and its count, unsnooze, and snooze until at most 7 days after the item came
+  in, so snoozing again doesn't keep it out longer (later answers 403 `person_only`; a person may snooze up to a
+  year). The MCP decision tools stay listed and answer `person_only`.
 
 ## People and AI agent members
 
@@ -520,7 +542,7 @@ calls are in the public API (`data-moves`, admin area; a read only key may start
 | GET | `/api/v1/data-moves` | The last 50 imports and exports: `kind`, `source`, `status` (running, stopped, done, undone, ready, expired), `done` of `total`, `created` (items made), `canUndo` |
 | POST | `/api/v1/data-moves/exports` | Answers `downloadUrl`, a ZIP that works for 24 hours without a key. Owners and admins only, one every 10 minutes (429), written to the audit log. AIS1: in an export a key or a connected app starts, Multies' own mail (invites, confirmations, resets) has its subject and sender only (`withheld: "platform_mail"`); an export a person starts in the app has it whole |
 | POST | `/api/v1/data-moves/imports/preview` | `{ kind, content, fileName?, mapping? }`. Writes nothing; answers the count and the first 20 rows |
-| POST | `/api/v1/data-moves/imports/run` | `{ kind, content, fileName?, mapping?, projectId?, projectName?, statusMap?, people?, moveId? }`. One step of about 15 seconds; while `move.status` is `stopped`, send it again with `moveId` |
+| POST | `/api/v1/data-moves/imports/run` | `{ kind, content, fileName?, mapping?, projectId?, projectName?, statusMap?, people?, moveId? }`. One step of about 15 seconds; while `move.status` is `stopped`, send it again with `moveId`. Tasks a key brings into a project with Triage on wait there for a person |
 | POST | `/api/v1/data-moves/{id}/undo` | Removes exactly what that import made |
 | POST | `/api/v1/data-moves/mbox/batch` | R40 mail archive upload. `{ mailboxId, total, messages, moveId?, fileName?, folder?, last? }`: at most 10 raw messages (base64), about 512 KB a call, with an `Idempotency-Key`. Messages already in the mailbox (same Message-ID) are counted as duplicates. Answers `move` and `counts` (`stored`, `duplicates`, `unreadable`). Owners and admins only |
 | POST | `/api/v1/data-moves/mbox/{id}/stop` | Stops a mail archive upload part way; what came in stays |
@@ -558,7 +580,7 @@ and its owners are emailed.
 
 Events (57): `message.received`, `message.sent`, `message.bounced`, `message.complained`, `domain.verified`, `domain.failed`, `approval.requested`, `approval.decided`, `agent.created`, `agent.deleted`, `task.created`, `task.updated`, `task.deleted`, `task.commented`, `task.file_added`, `task.recurred`, `project.created`, `project.updated`, `project.deleted`, `doc.created`, `doc.updated`, `doc.deleted`, `contact.created`, `contact.updated`, `deal.created`, `deal.updated`, `time_entry.created`, `time_entry.updated`, `form.submitted`, `meeting.created`, `meeting.updated`, `meeting.deleted`, `custom_field.created`, `custom_field.updated`, `custom_field.deleted`, `guest.invited`, `guest.joined`, `guest.revoked`, `chat.channel.created`, `chat.message.created`, `chat.message.updated`, `chat.message.deleted`, `chat.mention`, `template.used`, `goal.created`, `goal.updated`, `goal.deleted`, `incoming_hook.received`, `booking.created`, `booking.cancelled`, `triage.created`, `triage.accepted`, `triage.declined`, `triage.merged`, `comment.created`, `comment.updated`, `comment.deleted`.
 
-Triage events (round 22): `triage.created` carries `{ task, source }` when new work lands in Triage (from mail rules, forms with triage on, incoming hooks, chat or the API); `triage.accepted` carries the accepted `task`; `triage.declined` carries `{ id, title, number, source, reason?, replied }`; `triage.merged` carries `{ id, title, source, into }` (the target task). The matching `task.*` events still fire as before.
+Triage events (round 22): `triage.created` carries `{ task, source }` when new work lands in Triage (from mail rules, forms, incoming hooks, chat, the API or AI apps); `triage.accepted` carries the accepted `task`; `triage.declined` carries `{ id, title, number, source, reason?, replied }`; `triage.merged` carries `{ id, title, source, into }` (the target task). The matching `task.*` events still fire as before.
 
 Delete and comment events (R51): `project.deleted` carries `{ id, object: "project", name }`. Its tasks go with it, and since R52 each sends its own `task.deleted` `{ id, object: "task", title, projectId, viaProject: true }` to endpoints that take `task.deleted`, written as one batch (one insert for all of them); up to 1,000 tasks get one, and past that `project.deleted` carries `taskEventsTruncated: true` and the rest send none. The first 10 deliveries go out at once and the rest on the retry pass. With no endpoint for `task.deleted` the delete reads no task ids and costs exactly what it did before. `meeting.deleted` (R52) carries `{ id, object: "meeting", title, startsAt, durationMin, status }`, the same fields as `meeting.created`; `doc.deleted` carries `{ id, object: "doc", title }`; `comment.created`, `comment.updated` and `comment.deleted` carry `{ id, object: "comment", taskId }`, with the `comment` on create and update. A new comment still sends `task.commented` too, now with the same `id` and `object` added, and an endpoint gets only the names it subscribed to. Every event carries the `actor`. Events are sent after the change is saved, and an event nobody subscribed to costs no database write. Meetings have no delete; a cancelled meeting is a `meeting.updated` with `status: "cancelled"`.
 
@@ -1158,7 +1180,8 @@ Agent members are workspace members of kind `agent` (see docs/adr/0008-agents-as
 
 A read only link to a doc or a project board for someone who is not in the workspace (a client or a partner), without making them a guest.
 
-- `POST /api/v1/share-links` with `{ kind: "doc" | "project_board", targetId, expiresInDays?: 7 | 30 | null, showWorkspaceName?: boolean }` answers 201 with `{ link: { id, kind, targetId, showWorkspaceName, createdBy, createdAt, expiresAt, url } }`. `url` is `https://multies.si/s/<token>` (32 random bytes, base64url) and is shown only this once: only the token's SHA-256 is stored. `showWorkspaceName` defaults to true (the page says "Shared by <workspace>"); false hides it. One row written.
+- `POST /api/v1/share-links` with `{ kind: "doc" | "project_board", targetId, expiresInDays?: 7 | 30, showWorkspaceName?: boolean }` answers 201 with `{ link: { id, kind, targetId, showWorkspaceName, createdBy, createdAt, expiresAt, url } }`. `url` is `https://multies.si/s/<token>` (32 random bytes, base64url) and is shown only this once: only the token's SHA-256 is stored. `showWorkspaceName` defaults to true (the page says "Shared by <workspace>"); false hides it. One row written.
+- How long a link works (AIS1): `expiresInDays` left out means 30 days. `null` (never expires) needs a person signed in to Multies: a workspace key or a connected AI app gets 403 `person_only`, and so does an agent member key over MCP (over the public API agent and agent member keys can't use `/share-links` at all). In the app a person may still pick Always (`expiresInDays: null`); the web Share sheet starts at 30 days. Links made before this keep the end date they had.
 - `GET /api/v1/share-links?kind=&targetId=` lists active links (not revoked, not expired), newest first, at most 200, with `allowShareLinks`. Read only keys can list.
 - `DELETE /api/v1/share-links/{id}` revokes a link at once. Revoking twice is fine.
 - The page `GET /s/<token>` needs no sign in. A doc shows its title and body (comments dropped, mentions as plain names, links into the app as plain text). A board shows its columns by status with each card's title, assignee initials, due date and labels; never notes, comments, files or custom fields. An unknown, revoked or expired token, a deleted target, or share links turned off answer 404 with "This link is no longer active". Headers: `Cache-Control: private, max-age=0`, `X-Robots-Tag: noindex, nofollow`, `Referrer-Policy: no-referrer`, and the app's page CSP. 60 opens a minute per IP (429 after). Opening a link writes nothing (views are not counted).
@@ -1397,7 +1420,7 @@ When the database is briefly unavailable (an export in progress, overloaded, a l
 ## R33: project keys and the timeline
 
 - `PATCH /api/projects/{id}` and `PATCH /api/v1/projects/{id}` take `key` (letters and digits, up to 6, stored in capitals). A key another project in the workspace uses, compared without case, or one another project used before its own key edit, answers 409 `key_taken` with a plain message; nothing changes. MCP: `update_project` (name, description, color, key) answers the same refusal.
-- `DELETE /api/v1/projects/{id}` (R44) deletes a project and its tasks, as Delete project does in the app. Only a workspace key with write access can do it: a read only key answers 403 `insufficient_scope` and an agent member's key 403 `admin_only`. Answers `{ ok: true }`.
+- `DELETE /api/v1/projects/{id}` (R44) deletes a project and its tasks, as Delete project does in the app. Only a workspace key with write access can do it: a read only key answers 403 `insufficient_scope` and an agent member's key 403 `admin_only`. While items wait in the project's Triage a key answers 403 `person_only`: a person decides or deletes them in Multies first (AIS1). Answers `{ ok: true }`.
 - After a key edit the old key keeps resolving: `GET /api/v1/tasks/OPS-12` still opens the task after OPS became OPR (the task's `ref` reads OPR-12).
 - The task and contact timeline (`activity` in task detail) reads one change row per write since migration 0073; entries written after it have ids starting `chg_`. Shapes are unchanged.
 

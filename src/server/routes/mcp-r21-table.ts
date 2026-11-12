@@ -15,7 +15,7 @@ export function registerTaskBulkTools(server: McpServer, deps: Deps, actor: Scop
   const a = actor as unknown as SuiteActor;
   server.registerTool("bulk_update_tasks", {
     title: "Change many tasks at once", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
-    description: "Apply one change to up to 500 tasks by id or reference (OPS-12): status (todo, doing, done) or a statusId, assignee, priority, due or start date (null clears), labels to add or remove, a type (task, story, bug), or a project to move them to. If any task is not in this workspace nothing is changed.",
+    description: "Apply one change to up to 500 tasks by id or reference (OPS-12): status (todo, doing, done) or a statusId, assignee, priority, due or start date (null clears), labels to add or remove, a type (task, story, bug), or a project to move them to. If any task is not in this workspace nothing is changed. Moving tasks from a project with Triage off into one with Triage on answers person_only and changes nothing.",
     inputSchema: {
       ids: z.array(z.string().min(1).max(80)).min(1).max(500),
       status: z.enum(["todo", "doing", "done"]).optional(), statusId: z.string().max(80).optional(),

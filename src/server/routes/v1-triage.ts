@@ -1,6 +1,7 @@
 /**
- * Round 21 (R21.3) in the public API (v1): the Triage queue. Read only keys can list; writes need a
- * full key. Items are tasks waiting for someone to accept, decline or merge them.
+ * Round 21 (R21.3) in the public API (v1): the Triage queue. Read only keys can list; adding needs a
+ * full key. Items are tasks waiting for a person to accept, decline or merge them. AIS1 (audit row 66):
+ * a key gets 403 person_only on accept, decline, merge and bulk; a person decides in Multies.
  */
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
@@ -33,14 +34,14 @@ export function registerTriageRoutes(api: OpenAPIHono<AppEnv>) {
     async (c) => send(c, { count: await triageCount(c.var.deps, actor(c)) }));
   api.openapi(route("post", "/triage", "Create a Triage item", "Body: { title, notes?, source? (mail, form, api or chat; api by default), from? (an email address or \"Name <address>\" to reply to), projectId? (the default project when left out) }.", { request: body(TriageCreate) }),
     async (c) => send(c, { item: await createTriageItem(c.var.deps, actor(c), await jsonBody(c, TriageCreate), await idempotentCreate(c.req.raw, "tsk")) }, 201));
-  api.openapi(route("post", "/triage/bulk", "Accept or decline several items", "Body: { ids (up to 100), action: accept | decline, accept?: { projectId?, assignee?, statusId?, status?, priority?, due? }, decline?: { reason?, reply?, message? } }. Each id reports ok or its error.", { request: body(TriageBulk) }),
+  api.openapi(route("post", "/triage/bulk", "Accept or decline several items", "Body: { ids (up to 100), action: accept | decline, accept?: { projectId?, assignee?, statusId?, status?, priority?, due? }, decline?: { reason?, reply?, message? } }. Each id reports ok or its error. A person decides Triage in Multies: an API key gets 403 person_only for the whole call.", { request: body(TriageBulk) }),
     async (c) => { const b = await jsonBody(c, TriageBulk); return send(c, await bulkTriage(c.var.deps, actor(c), { ...b, accept: b.accept ? acceptInput(b.accept) : undefined })); });
   api.openapi(route("get", "/triage/{id}", "Read a Triage item", "The item as a task.", { request: { params: Id } }),
     async (c) => send(c, { item: await getTriageItem(c.var.deps, actor(c), pid(c)) }));
-  api.openapi(route("post", "/triage/{id}/accept", "Accept a Triage item", "Makes it a normal task. Body (all optional): { projectId, assignee (member:<id>, agent:<id> or null), statusId, status, priority, due }. The task keeps its number unless it moves project.", { request: { params: Id, ...body(TriageAccept) } }),
+  api.openapi(route("post", "/triage/{id}/accept", "Accept a Triage item", "Makes it a normal task. Body (all optional): { projectId, assignee (member:<id>, agent:<id> or null), statusId, status, priority, due }. The task keeps its number unless it moves project. A person decides Triage in Multies: an API key gets 403 person_only.", { request: { params: Id, ...body(TriageAccept) } }),
     async (c) => send(c, { task: await acceptTriage(c.var.deps, actor(c), pid(c), acceptInput(await jsonBody(c, TriageAccept))) }));
-  api.openapi(route("post", "/triage/{id}/decline", "Decline a Triage item", "Deletes the item with an optional reason. reply: true sends the sender a short polite email (never to no-reply addresses); message replaces the default text.", { request: { params: Id, ...body(TriageDecline) } }),
+  api.openapi(route("post", "/triage/{id}/decline", "Decline a Triage item", "Deletes the item with an optional reason. reply: true sends the sender a short polite email (never to no-reply addresses); message replaces the default text. A person decides Triage in Multies: an API key gets 403 person_only.", { request: { params: Id, ...body(TriageDecline) } }),
     async (c) => send(c, await declineTriage(c.var.deps, actor(c), pid(c), await jsonBody(c, TriageDecline))));
-  api.openapi(route("post", "/triage/{id}/merge", "Merge a Triage item into a task", "Body: { targetId }. The item's notes become a comment on the target, its mail thread moves to the target when the target has none, and the item is deleted.", { request: { params: Id, ...body(TriageMerge) } }),
+  api.openapi(route("post", "/triage/{id}/merge", "Merge a Triage item into a task", "Body: { targetId }. The item's notes become a comment on the target, its mail thread moves to the target when the target has none, and the item is deleted. A person decides Triage in Multies: an API key gets 403 person_only.", { request: { params: Id, ...body(TriageMerge) } }),
     async (c) => send(c, await mergeTriage(c.var.deps, actor(c), pid(c), (await jsonBody(c, TriageMerge)).targetId)));
 }
