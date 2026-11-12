@@ -261,11 +261,12 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string, call?:
   if (!actor.agentId && actor.role !== "member") {
     server.registerTool("create_agent_inbox", {
       title: "Create an agent inbox", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
-      description: "Create a new agent with its own email address on the workspace's domain. Its sends need a person's approval unless approvalMode says otherwise. Returns the agent and a key for it, shown once.",
+      // AIS1 (row 4): MCP callers are keys or connected AI apps, never a person in the app, so the agent starts safe.
+      description: "Create a new agent with its own email address on the workspace's domain. It starts safe: a person approves every message it sends, 100 sends a day, and only the workspace's own domains as recipients. Only a person in the Multies app can loosen those. Returns the agent and a key for it, shown once.",
       inputSchema: {
         name: z.string().min(1).max(80),
         localPart: z.string().regex(/^[a-z0-9._-]+$/i).max(64).optional().describe("The part before the @."),
-        approvalMode: z.enum(["always", "external", "never"]).default("always"),
+        approvalMode: z.enum(["always", "external", "never"]).default("always").describe("Leave it out. Only \"always\" is accepted here; \"external\" and \"never\" are a person's choice in the app (person_only)."),
       },
     }, tool(async (a: { name: string; localPart?: string; approvalMode: "always" | "external" | "never" }) => {
       writable();

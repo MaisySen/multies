@@ -165,7 +165,8 @@ test("create an agent inbox with one API call, then act as the agent by API and 
   await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
   const workspaceKey = (await page.getByRole("dialog", { name: "Copy your API key" }).locator("code").first().textContent())!.trim();
 
-  const made = await request.post("/api/v1/agents", { headers: { authorization: `Bearer ${workspaceKey}` }, data: { name: "Quote bot", localPart: "quotes" } });
+  // AIS1: a new agent may write only to the workspace's own domains unless a list is named, so the key names the buyer's domain.
+  const made = await request.post("/api/v1/agents", { headers: { authorization: `Bearer ${workspaceKey}` }, data: { name: "Quote bot", localPart: "quotes", allowedRecipients: ["@example.com"] } });
   expect(made.status()).toBe(201);
   const { agent, apiKey } = await made.json();
   expect(agent.address).toMatch(/^quotes@/);

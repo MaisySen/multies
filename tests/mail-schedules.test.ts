@@ -428,7 +428,7 @@ describe("MCP: snooze_thread and schedule_send", () => {
     expect(await inboxIds(hello.id)).not.toContain(m.id);
     await mcp.close();
 
-    const { agent, apiKey } = (await c.post("/api/agents", { name: "Outreach", localPart: "outreach", approvalMode: "always" })).body;
+    const { agent, apiKey } = (await c.post("/api/agents", { name: "Outreach", localPart: "outreach", approvalMode: "always", allowedRecipients: null })).body; // AIS1: lead@example.com is outside the default list
     const am = await mcpConnect(apiKey.secret);
     const sched = data(await am.callTool({ name: "schedule_send", arguments: { to: ["lead@example.com"], subject: "Intro", text: "Hello", at: new Date(Date.now() + 3_600_000).toISOString() } }));
     expect(sched.id).toMatch(/^msch_/);

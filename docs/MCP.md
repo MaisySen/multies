@@ -15,6 +15,11 @@ General, AI; it is encrypted at rest.
 ## Signing in
 
 There are two ways in. Both keep every guardrail: agent approval rules, daily send caps and read only access.
+Neither can loosen them: only a person signed in to Multies lowers an agent's approval rule, send cap or allowed
+recipients, resumes an agent, deletes a paused one or one held under 100 sends a day, or approves an agent's
+waiting message (AIS1). Sign-up emails can't
+be set to come from an agent's inbox. An older hook that still does can only be switched off, moved to a team
+mailbox or deleted this way: switching it back on, changing its words or links, or a new signing secret needs a person.
 
 ### OAuth: add Multies by its URL (round 20)
 
@@ -85,7 +90,7 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | `send_email` | Send an email |
 | `reply` | Reply in a thread |
 | `wait_for_email` | Wait for new email |
-| `create_agent_inbox` | Create an agent inbox |
+| `create_agent_inbox` | Create an agent inbox. It starts safe: a person approves every message, 100 sends a day, only the workspace's own verified domains as recipients. `approvalMode` other than `always` answers `person_only`; a person loosens it in the app (AIS1) |
 | `create_agent_member` | Add an AI agent member (no seat, mailbox optional); returns its first key, shown once. Full workspace key (R26) |
 | `set_mailbox_reply_to` | Set a mailbox's default Reply-To, used when a send names none (R25, MB-61) |
 | `snooze_thread` | Snooze a thread until a time (round 20, registered in src/server/routes/mcp-mail-schedule.ts) |

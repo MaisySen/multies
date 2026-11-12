@@ -50,7 +50,7 @@ describe("GET /api/agents/:id/track-record", () => {
       const res = await ctx.app.request(`/api/v1${path}`, { method, headers: { authorization: `Bearer ${key}`, host: "localhost", "content-type": "application/json" }, body: b === undefined ? undefined : JSON.stringify(b) });
       return res.json() as Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
     };
-    const { agent, apiKey } = await v1(wsKey, "POST", "/agents", { name: "Outreach", approvalMode: "always", sendCapDaily: 50 });
+    const { agent, apiKey } = await v1(wsKey, "POST", "/agents", { name: "Outreach", approvalMode: "always", sendCapDaily: 50, allowedRecipients: ["@example.com"] }); // AIS1: outside the default list
     const ids: string[] = [];
     for (const s of ["one", "two", "three"]) ids.push((await v1(apiKey.secret, "POST", `/agents/${agent.id}/send`, { to: ["lead@example.com"], subject: s, text: s })).approval.id);
     expect((await c.post(`/api/approvals/${ids[0]}/approve`, {})).status).toBe(200);

@@ -4,8 +4,9 @@ import { suppressedAmong } from "../deliverability/suppressions";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { inIds } from "../../lib/sql-chunks";
 import type { AuthContext, Deps } from "../../context";
-import { domains, mailboxes, mailSchedules, messages } from "../../db/schema";
+import { agents, domains, mailboxes, mailSchedules, messages } from "../../db/schema";
 import { assertOpen, canOpen } from "../mail-access-priv1a";
+import { callerKind } from "../../lib/actor-kind";
 import type { DB } from "../../db";
 import { decide, externalSentToday, guardConfig, newSenderCap, nextUtcMidnight, providerSentToday, sendingOff, SENDING_OFF_MESSAGE } from "./send-guard-r34";
 import { newId } from "../../lib/crypto";
@@ -102,6 +103,24 @@ export async function assertSendLevel(db: DB, who: Pick<AuthContext, "userId" | 
   if (want.some((a) => !seen.has(a))) throw refuse();
 }
 
+/**
+ * AIS1: an agent's inbox sends through its agent (requestSend), so the agent's approval rule, daily cap and allowed
+ * recipients always apply. A workspace key or a connected AI app that names the inbox directly (v1 POST /messages
+ * with its mailboxId or from) is refused and pointed at the agent's own send. Checked before anything else, so a
+ * send can't slip through as a queued R34 send either. Allowed: the agent itself (extra.agentId, set by
+ * deliverAsAgent), a person writing from it in the app (their own decision, labelled as theirs), and system senders
+ * with no person behind them (a Supabase auth email hook set on the inbox: audit row 44 stops picking agent inboxes
+ * there, so working sign up mail doesn't stop here without warning).
+ */
+async function assertAgentInboxSend(db: DB, auth: AuthContext, mb: { id: string; kind: string; address: string }, extra: SendExtras) {
+  if (mb.kind !== "agent" || extra.agentId) return;
+  const kind = callerKind(auth);
+  if (kind === "person" || kind === "system") return;
+  const agent = await db.select({ id: agents.id }).from(agents).where(eq(agents.mailboxId, mb.id)).get();
+  const where = agent ? `POST /api/v1/agents/${agent.id}/send` : "POST /api/v1/agents/{id}/send";
+  throw new HttpError(403, "agent_inbox", `${mb.address} is an agent's inbox. Send as the agent instead (${where}, or send_email on MCP), so its approval rule, daily limit and allowed recipients apply.`);
+}
+
 /** Sends a message from one of the org's mailboxes. Internal recipients are delivered directly. */
 /** PRIV1b (P58): the refusal for a connected mailbox whose connection is gone (kept for a legal hold). */
 const connectionRemoved = (address: string) => new HttpError(409, "connection_removed", `${address} is no longer connected, so it can't send. Connect it again in Settings, Connections, Mail accounts.`);
@@ -110,6 +129,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   const { db } = deps;
   const mb = await db.select().from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, auth.orgId))).get();
   if (!mb) throw notFound("Mailbox");
+  await assertAgentInboxSend(db, auth, mb, extra); // AIS1
   // PRIV1a (MB-366): a personal mailbox sends only for its owner and the people it was shared with (a reply needs
   // Read and reply, new mail needs Send as). Every send path (app, phone, REST, MCP, schedules) comes through here.
   // PRIV1b (P10): a reply share answers the thread's own people only (assertSendLevel).

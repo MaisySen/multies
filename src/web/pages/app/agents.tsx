@@ -113,7 +113,7 @@ function NewAgentDialog({ open, onClose }: { open: boolean; onClose: () => void 
               </Select>}
             </Field>
           </div>
-          <Field label="Before it sends" hint="You can change this any time.">
+          <Field label="Before it sends" hint="It starts at 100 messages a day and writes only to your own verified domains (or just to you until one is verified). Change any of this later under Guardrails.">
             {(p) => <Select {...p} value={mode} onChange={(e) => setMode(e.target.value as AgentInfo["approvalMode"])}>
               <option value="always">A person approves every message</option>
               <option value="external">A person approves mail to outside addresses</option>

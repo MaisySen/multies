@@ -358,6 +358,58 @@ Nothing changes on its own: an admin applies a suggestion with the usual `PATCH 
 The agent page shows the record, a bar of outcomes and the suggestion with a one tap switch. The
 read writes nothing.
 
+## Agent guardrails (AIS1)
+
+An agent inbox has guardrails: its approval mode, its daily send cap, its allowed recipients, whether it is
+paused, and the mailboxes it works. Only a person signed in to Multies (the web app or the phone app) can lower
+them. An API key or a connected AI app (OAuth on MCP) can create agents and tighten them, nothing more:
+
+| Field | A key or a connected AI app may | Only a person may |
+|---|---|---|
+| `approvalMode` | create with `always` (the default); raise it (`never`, then `external`, then `always`) | create with `external` or `never`; lower it |
+| `sendCapDaily` | create with 100 or less; lower it | create with more than 100 (up to the plan's limit); raise it |
+| `allowedRecipients` | name a list on create; narrow it (every new entry inside the current list: `@acme.io` covers `bob@acme.io`, not the other way round); give a list to an agent that may mail anyone | choose anyone (`null` or `[]`); widen it |
+| `status` | pause (`paused`); delete an active agent at 100 sends a day or more | resume (`active`); delete a paused agent, or one held under 100 a day (or the plan's daily limit, if lower): `DELETE /api/v1/agents/{id}` answers 403 `person_only` naming `status` or `sendCapDaily`, logged as `agent.delete_refused`, since made again at the same address it would come back active at 100 a day. A narrower allow list doesn't stop a key's delete: a key may name any list on a new agent, and a person approves its every message |
+| `mailboxIds` | take mailboxes away | add mailboxes |
+
+`name` and `description` stay open. Sending a field's current value back is not a loosening, so a client can
+read the agent, change one field and send them all. A loosening answers 403 `person_only`; the message and
+`details.fields` name the fields, nothing in the call is applied, and the attempt is written to the audit log
+(`agent.update_refused` on the agent's own log, `GET /api/v1/agents/{id}/audit`, or `agent.create_refused`).
+
+Every new agent, made in the app, over REST or over MCP, starts with approval `always`, 100 sends a day (never
+above the plan's daily limit for agents) and the workspace's own verified domains as allowed
+recipients (`["@acme.io"]`). With no verified domain yet it is the creator's own address (for a key, the person
+who made the key). From a key, `allowedRecipients` of `null` or `[]` gets this default too; a person who wants
+"anyone" picks it in the app (or sends `null` to `POST /api/agents`). Agents made before this change keep their
+settings, and domains verified later don't join existing agents' lists.
+
+Approving a waiting send is a person's decision: `POST /api/v1/approvals/{id}/approve` answers 403
+`person_only` to a workspace key (an agent key still gets `agent_key_scope`), and there is no MCP approve tool.
+Keys can list approvals and reject them (`POST /api/v1/approvals/{id}/reject`), which only stops mail. People
+approve in the app (Approvals, or `POST /api/approvals/{id}/approve`).
+
+Mail a key or a connected AI app sends from an agent's inbox goes through the agent, so its rules apply:
+`POST /api/v1/agents/{id}/send`, `/agents/{id}/threads/{threadId}/reply`, and on MCP `send_email`, `reply`,
+`schedule_send` and `schedule_meeting` with an agent. `POST /api/v1/messages` naming an agent inbox (by
+`mailboxId` or `from`) answers 403 `agent_inbox` and points at the agent's send. A person can still write from
+an agent inbox in the app's Compose (or Send later); that message is theirs, not the agent's. The other ways mail
+leaves (mail rules, mail merge, campaigns, e-sign, meeting invites from a person) run as the person who set them
+up, from mailboxes they chose in the app; meeting invites from a person only use person mailboxes.
+
+Sign-up emails (the Supabase auth email hook) are sent by Multies itself, outside any agent's rules, so they never
+come from an agent's inbox: the Sign-up emails From list doesn't offer one, and `POST` or `PATCH
+/api/v1/auth-email-hooks`, `PUT /api/v1/auth-email-settings` and MCP `update_auth_email_hook` and
+`update_auth_email_settings` answer 422 for an agent's address. One exception is left on purpose, so a working
+sign-up flow isn't cut off: a hook saved on an agent's inbox before this change keeps sending what Supabase signs,
+as it was last saved. While it stays there, a key or a connected AI app may only
+switch it off (`enabled: false`), move its From to a team mailbox (`from`, in the same call or before other
+changes) or delete it. Anything else answers 403 `person_only` and changes nothing: switching it back on, the
+subject and intro, Reply-To, the project URL its links point at, the sender or product name (`PUT
+/api/v1/auth-email-settings`, `PATCH /api/v1/auth-email-hooks/{id}`, MCP `update_auth_email_settings` and
+`update_auth_email_hook`), and a new signing secret (`POST /api/v1/auth-email-settings/secret`, MCP
+`regenerate_auth_email_secret`). A person can do all of it in the app.
+
 ## Weekly meeting series
 
 A meeting can repeat weekly: every 1 or 2 weeks on chosen days, with an optional last day or number of meetings. A series is one meeting row; the upcoming list (`GET /api/v1/meetings?upcoming=true`) works out the next occurrences on read (up to 12 per series over the next 60 days), each with the series' `id` and `seriesStartsAt`. Nothing is written per occurrence. Times keep their wall clock time in the series' time zone across daylight saving changes.
@@ -1302,7 +1354,7 @@ The Email Worker signs each delivery with a workspace's inbound key. Owner and a
 
 Settings, Sign-up emails (workspace owners and admins) and the REST API manage the workspace's auth email hook (the Supabase Send Email Hook above) without hand calls. Full workspace keys only: members, agent keys and read only keys get 403.
 
-- `GET /api/v1/auth-email-settings`: `{ settings, senders, types, testSendsPerHour }`. `settings` is `null` before the first save, else `{ id, enabled, senderName, from, appName, supabaseUrl, branding, endpointUrl, secret: { set, masked }, testSendsLeft, lastUsedAt }`. The secret itself is never returned here; `masked` shows its last 4 characters. `senders` are the mailboxes on the workspace's verified domains.
+- `GET /api/v1/auth-email-settings`: `{ settings, senders, types, testSendsPerHour }`. `settings` is `null` before the first save, else `{ id, enabled, senderName, from, appName, supabaseUrl, branding, endpointUrl, secret: { set, masked }, testSendsLeft, lastUsedAt }`. The secret itself is never returned here; `masked` shows its last 4 characters. `senders` are the active team mailboxes on the workspace's own verified domains. AIS1 (audit row 44): never an AI agent's inbox, a personal mailbox or a connected address (Gmail and the like); `PUT` here and `POST` or `PATCH /api/v1/auth-email-hooks` refuse any other `from` with 422. Hooks saved before keep sending until their From is changed.
 - `PUT /api/v1/auth-email-settings` with any of `{ enabled, senderName, from, appName, supabaseUrl, branding }` (`from` and `supabaseUrl` are needed the first time; `branding` merges as in PATCH above, `null` clears it). The first save answers with `secret` once, in the form Supabase takes (`v1,whsec_...`). `enabled: false` makes the hook answer 503 and send nothing; `senderName` is the From name (null uses the mailbox's display name).
 - `POST /api/v1/auth-email-settings/secret`: a new signing secret, returned once; the old one stops working at once.
 - `POST /api/v1/auth-email-settings/preview` with `{ type?, appName?, branding?, email? }`: the email one type would send, with unsaved changes merged in. Nothing is sent or stored.

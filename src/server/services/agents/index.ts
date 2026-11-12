@@ -9,7 +9,7 @@
 import { and, asc, count, desc, eq, gt, gte, lt, or, sql, type SQL } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import {
-  agentEvents, agentMailboxAccess, agents, apiKeys, attachments, auditLogs, domains, mailboxes, messages, sendApprovals,
+  agentEvents, agentMailboxAccess, agents, apiKeys, attachments, auditLogs, domains, mailboxes, messages, sendApprovals, users,
 } from "../../db/schema";
 
 /** Agent thread reads are audited once per agent, thread and hour. */
@@ -32,6 +32,7 @@ import { agentMessage, extractCodes, extractLinks, latestText } from "./parse";
 import { listThreadStates, threadViewCond, type ThreadView } from "../mail/thread-state";
 import { inChunks, inIds } from "../../lib/sql-chunks";
 import { containsAny } from "../../lib/like-search";
+import { callerKind, isPersonSession, requirePerson } from "../../lib/actor-kind";
 
 type Agent = typeof agents.$inferSelect;
 type Mailbox = typeof mailboxes.$inferSelect;
@@ -43,6 +44,16 @@ export type ApprovalMode = Agent["approvalMode"];
 
 const DAY = 86_400_000;
 const APPROVAL_TTL_DAYS = 7;
+
+/**
+ * AIS1 (row 51): a new agent's daily send cap when nobody asks for another. A person in the app may set more, up
+ * to the plan's limit; a key or a connected AI app may only set less. It used to default to the plan's limit
+ * (2,000 a day on Business), for agents made in the app and through the API alike.
+ */
+export const AGENT_DEFAULT_DAILY_SENDS = 100;
+
+/** AIS1 (row 4): how much each approval mode holds back. A key may move an agent up this scale, never down. */
+const APPROVAL_RANK: Record<"never" | "external" | "always", number> = { never: 0, external: 1, always: 2 };
 
 const slug = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "agent";
 
@@ -150,6 +161,65 @@ const actorFields = (actor: Actor) => ({ actorUserId: actor.userId || null, acto
 /** For an agent's own actions: the audit actor is the agent, by address. */
 const agentActor = (a: Agent, mb: Pick<Mailbox, "address">) => ({ actorUserId: null, actorEmail: `agent:${mb.address}`, agentId: a.id });
 
+/** An allow list as it is stored: lower case, and an empty list means anyone (null). */
+const allowList = (v: string[] | null | undefined) => (v?.length ? v.map((r) => r.toLowerCase()) : null);
+
+/**
+ * AIS1 (row 4): an agent's guardrails are lowered only by a person signed in to the app. A workspace key or a
+ * connected AI app (OAuth) that tries is refused with 403 person_only naming the fields, and the attempt is written
+ * to the audit log (on the agent's own log when the agent exists). Nothing is written to the agent.
+ */
+const REFUSED = {
+  "agent.create_refused": "Creating an agent with looser guardrails",
+  "agent.update_refused": "Loosening an agent's guardrails",
+  "agent.delete_refused": "Deleting a paused agent or one with a lowered daily cap",
+} as const;
+
+async function refuseLoosening(deps: Deps, actor: Actor, fields: string[], at: { action: keyof typeof REFUSED; agentId?: string; name?: string }) {
+  if (!fields.length || isPersonSession(actor)) return;
+  // The kind of caller goes in `via`, as on the invite refusals: audit() adds `caller`, the key's or app's name and
+  // prefix, only when the entry has none of its own, so a plain string there would hide which key it was.
+  await audit(deps.db, { orgId: actor.orgId, ...actorFields(actor), agentId: at.agentId ?? null, action: at.action, targetType: "agent", targetId: at.agentId, metadata: { fields, via: callerKind(actor), ...(at.name ? { name: at.name } : {}) } });
+  try {
+    requirePerson(actor, `${REFUSED[at.action]} (${fields.join(", ")})`);
+  } catch (err) {
+    if (err instanceof HttpError) err.details = { fields };
+    throw err;
+  }
+}
+
+/**
+ * AIS1 (row 4): the fields of a patch that would loosen the agent. Tightening is fine: more approval, a lower cap,
+ * a narrower allow list (every new entry inside the current one), a pause, fewer mailboxes. The same value sent back
+ * is not a loosening, so a client can GET, change one field and PATCH the lot.
+ */
+function looserFields(a: Agent, patch: UpdateAgentInput, held: Set<string>): string[] {
+  const out: string[] = [];
+  if (patch.approvalMode && APPROVAL_RANK[patch.approvalMode] < APPROVAL_RANK[a.approvalMode]) out.push("approvalMode");
+  if (patch.sendCapDaily !== undefined && patch.sendCapDaily > a.sendCapDaily) out.push("sendCapDaily");
+  if (patch.allowedRecipients !== undefined) {
+    const now = parseAllow(a.allowedRecipients);
+    const next = allowList(patch.allowedRecipients);
+    // null (or an empty list) is "anyone". "@acme.io" covers bob@acme.io; bob@acme.io doesn't cover "@acme.io".
+    if (now && (!next || next.some((r) => !recipientAllowed(now, r)))) out.push("allowedRecipients");
+  }
+  if (patch.status === "active" && a.status !== "active") out.push("status");
+  if (patch.mailboxIds?.some((m) => m !== a.mailboxId && !held.has(m))) out.push("mailboxIds");
+  return out;
+}
+
+/**
+ * AIS1 (row 51): who a new agent may write to unless a person chose otherwise: the workspace's own verified domains.
+ * With none verified yet, the creator's own address (a key's: the person who made the key), so the list is never
+ * empty, which would mean anyone. Later domains don't join existing agents' lists.
+ */
+async function defaultAllowList(deps: Deps, actor: Actor, agentAddress: string): Promise<string[]> {
+  const own = await deps.db.select({ name: domains.name }).from(domains).where(and(eq(domains.orgId, actor.orgId), eq(domains.status, "verified"))).orderBy(asc(domains.createdAt));
+  if (own.length) return own.map((d) => `@${d.name.toLowerCase()}`);
+  const me = actor.userId ? await deps.db.select({ email: users.email }).from(users).where(eq(users.id, actor.userId)).get() : undefined;
+  return [(me?.email || agentAddress).toLowerCase()];
+}
+
 export async function recordEvent(deps: Deps, orgId: string, agentId: string | null, type: string, data: Record<string, unknown>) {
   await deps.db.insert(agentEvents).values({ orgId, agentId, type, data: JSON.stringify(data) });
 }
@@ -197,9 +267,15 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
   // R52 (MB-239): a retry under the same Idempotency-Key returns the agent the first attempt made. Its key secret
   // was shown once, in the answer that was lost, so the retry returns apiKey null: make a new key with POST /agents/{id}/keys.
   if (opts.id && opts.retry && await db.select({ id: agents.id }).from(agents).where(and(eq(agents.id, opts.id), eq(agents.orgId, actor.orgId))).get()) return { agent: await getAgent(deps, actor.orgId, opts.id), apiKey: null };
+  // AIS1 (row 4): a key or a connected AI app makes agents that a person approves every message of, at the default cap or lower.
+  await refuseLoosening(deps, actor, [
+    ...(input.approvalMode && input.approvalMode !== "always" ? ["approvalMode"] : []),
+    ...(input.sendCapDaily !== undefined && input.sendCapDaily > AGENT_DEFAULT_DAILY_SENDS ? ["sendCapDaily"] : []),
+  ], { action: "agent.create_refused", name: input.name });
   await assertCanCreate(db, actor.orgId, "agentInboxes");
   const plan = await getPlan(db, actor.orgId);
-  const cap = Math.min(input.sendCapDaily ?? plan.limits.agentDailySends, plan.limits.agentDailySends);
+  // AIS1 (row 51): 100 a day unless someone asks, never above the plan's limit.
+  const cap = Math.min(input.sendCapDaily ?? AGENT_DEFAULT_DAILY_SENDS, plan.limits.agentDailySends);
   const { domain, shared } = await pickDomain(deps, actor.orgId, input.domainId);
   const local = input.localPart?.toLowerCase() ?? (shared ? `${slug(input.name)}-${randomToken(4).toLowerCase().replace(/[^a-z0-9]/g, "x")}` : slug(input.name));
   if (!/^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/.test(local)) throw badRequest("Use letters, numbers, dots, dashes or underscores for the address.");
@@ -214,6 +290,9 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
     if (ok.length !== extra.length) throw badRequest("One of those mailboxes doesn't exist in this workspace.");
     await assertOwnPersonal(deps, actor, extra);
   }
+  // AIS1 (row 51): a named list is kept. With none, or "anyone" (null or []) from a key or an AI app, the agent may
+  // mail only the workspace's own domains. Only a person in the app picks "anyone" for a new agent.
+  const allow = allowList(input.allowedRecipients) ?? (input.allowedRecipients !== undefined && isPersonSession(actor) ? null : await defaultAllowList(deps, actor, address));
   const mailboxId = opts.mailboxId ?? newId("mbx");
   await db.insert(mailboxes).values({
     id: mailboxId, orgId: actor.orgId, domainId: domain.id, localPart: local, address, displayName: input.name, quotaMb: plan.limits.storagePerMailboxMb, kind: "agent",
@@ -222,11 +301,11 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
   await db.insert(agents).values({
     id, orgId: actor.orgId, mailboxId, name: input.name, description: input.description ?? null,
     approvalMode: input.approvalMode ?? "always", sendCapDaily: cap,
-    allowedRecipients: input.allowedRecipients?.length ? JSON.stringify(input.allowedRecipients.map((r) => r.toLowerCase())) : null,
+    allowedRecipients: allow ? JSON.stringify(allow) : null,
     createdByUserId: actor.userId || null,
   });
   if (extra.length) await db.insert(agentMailboxAccess).values(extra.map((m) => ({ agentId: id, mailboxId: m, orgId: actor.orgId })));
-  await audit(db, { orgId: actor.orgId, ...actorFields(actor), agentId: id, action: "agent.created", targetType: "agent", targetId: id, metadata: { name: input.name, address, approvalMode: input.approvalMode ?? "always", via: actor.apiKeyId ? "api" : "app" } });
+  await audit(db, { orgId: actor.orgId, ...actorFields(actor), agentId: id, action: "agent.created", targetType: "agent", targetId: id, metadata: { name: input.name, address, approvalMode: input.approvalMode ?? "always", sendCapDaily: cap, allowedRecipients: allow, via: actor.apiKeyId ? "api" : "app" } });
   let key: { id: string; secret: string; prefix: string } | null = null;
   if (input.createKey !== false) {
     const k = await createApiKey(deps, actor, { name: `${input.name} agent key`, scope: "full", agentId: id });
@@ -252,23 +331,28 @@ export interface UpdateAgentInput {
 export async function updateAgent(deps: Deps, actor: Actor, id: string, patch: UpdateAgentInput) {
   assertWorkspaceActor(actor);
   const { a } = await row(deps, actor.orgId, id);
+  const held = patch.mailboxIds ? new Set((await deps.db.select({ id: agentMailboxAccess.mailboxId }).from(agentMailboxAccess).where(eq(agentMailboxAccess.agentId, a.id))).map((r) => r.id)) : new Set<string>();
+  // AIS1 (row 4): a key or a connected AI app may only tighten an agent. Checked before any write, the whole patch refused.
+  await refuseLoosening(deps, actor, looserFields(a, patch, held), { action: "agent.update_refused", agentId: a.id });
   if (patch.mailboxIds) {
     // PRIV1b (P3, P4): checked before any write. Mailboxes the agent already holds may stay; new personal ones need their owner.
-    const held = new Set((await deps.db.select({ id: agentMailboxAccess.mailboxId }).from(agentMailboxAccess).where(eq(agentMailboxAccess.agentId, a.id))).map((r) => r.id));
     await assertOwnPersonal(deps, actor, [...new Set(patch.mailboxIds)].filter((m) => m !== a.mailboxId && !held.has(m)));
   }
   const plan = await getPlan(deps.db, actor.orgId);
   if (patch.sendCapDaily !== undefined && patch.sendCapDaily > plan.limits.agentDailySends) {
     throw planLimit(`Agents can send up to ${plan.limits.agentDailySends} messages a day on your plan.`);
   }
-  await deps.db.update(agents).set({
+  const allow = patch.allowedRecipients === undefined ? undefined : allowList(patch.allowedRecipients);
+  const set = {
     ...(patch.name !== undefined ? { name: patch.name } : {}),
     ...(patch.description !== undefined ? { description: patch.description } : {}),
     ...(patch.approvalMode ? { approvalMode: patch.approvalMode } : {}),
     ...(patch.sendCapDaily !== undefined ? { sendCapDaily: patch.sendCapDaily } : {}),
-    ...(patch.allowedRecipients !== undefined ? { allowedRecipients: patch.allowedRecipients?.length ? JSON.stringify(patch.allowedRecipients.map((r) => r.toLowerCase())) : null } : {}),
+    ...(allow !== undefined ? { allowedRecipients: allow ? JSON.stringify(allow) : null } : {}),
     ...(patch.status ? { status: patch.status } : {}),
-  }).where(eq(agents.id, a.id));
+  };
+  // AIS1: a patch of only mailboxIds (taking a mailbox away) has nothing to set on the agent row.
+  if (Object.keys(set).length) await deps.db.update(agents).set(set).where(eq(agents.id, a.id));
   if (patch.name) await deps.db.update(mailboxes).set({ displayName: patch.name }).where(eq(mailboxes.id, a.mailboxId));
   if (patch.mailboxIds) {
     const ids = [...new Set(patch.mailboxIds.filter((m) => m !== a.mailboxId))];
@@ -287,6 +371,14 @@ export async function updateAgent(deps: Deps, actor: Actor, id: string, patch: U
 export async function deleteAgent(deps: Deps, actor: Actor, id: string) {
   assertWorkspaceActor(actor);
   const { a, mb } = await row(deps, actor.orgId, id);
+  // AIS1 (review): made again at the same address, a deleted agent comes back active at the default daily cap, so for a
+  // key or an AI app deleting a paused agent, or one held under that cap, would undo a person's pause or lower cap. Only
+  // a person deletes those. The allow list is left out on purpose: a key may name any list on a new agent (approval
+  // stays "always"). Change it here. One plan read, only for a key or an app deleting such an agent.
+  if (!isPersonSession(actor) && (a.status !== "active" || a.sendCapDaily < AGENT_DEFAULT_DAILY_SENDS)) {
+    const recreated = { status: "active" as const, sendCapDaily: Math.min(AGENT_DEFAULT_DAILY_SENDS, (await getPlan(deps.db, actor.orgId)).limits.agentDailySends) };
+    await refuseLoosening(deps, actor, looserFields(a, recreated, new Set()), { action: "agent.delete_refused", agentId: a.id, name: a.name });
+  }
   await assertMailboxNotHeld(deps, actor.orgId, mb.id); // PRIV1b (P44): a held agent inbox stays, as DELETE /api/mailboxes/:id
   await deprovisionMailbox(deps, actor.orgId, mb.id).catch(() => undefined);
   await deps.db.delete(apiKeys).where(eq(apiKeys.agentId, a.id));
@@ -600,6 +692,9 @@ export async function listApprovals(deps: Deps, actor: Actor, q: { status?: stri
 
 async function approvalFor(deps: Deps, actor: Actor, id: string, need: "reply" | "send") {
   if (actor.agentId) throw new HttpError(403, "agent_key_scope", "An agent can't approve its own messages. A person approves them in the app.");
+  // AIS1: approving sends the agent's mail, so it is a person's decision: never a workspace key or a connected AI app
+  // (the key that queued the send could otherwise approve it). Rejecting only stops mail, so a key may still reject.
+  if (need === "send") requirePerson(actor, "Approving an agent's message");
   const r = await deps.db.select().from(sendApprovals).where(and(eq(sendApprovals.id, id), eq(sendApprovals.orgId, actor.orgId))).get();
   if (!r) throw notFound("Approval");
   const scope = await scopeFor(deps, actor);

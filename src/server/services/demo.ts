@@ -245,10 +245,14 @@ export async function createDemoWorkspace(deps: Deps, opts: { check?: boolean } 
   return { userId, orgId, headers: signup.headers };
 }
 
-/** Two agents at work: one on its own inbox chasing invoices, one triaging support@ beside the team. */
+/**
+ * Two agents at work: one on its own inbox chasing invoices, one triaging support@ beside the team. Both answer
+ * outside customers, so the seed (a person) picks "anyone" for them; a new agent otherwise mails only the
+ * workspace's own domains (AIS1, row 51).
+ */
 export async function seedDemoAgents(deps: Deps, auth: AuthContext, domain: { id: string; name: string }, now: number) {
   const support = (await listMailboxes(deps.db, auth.orgId)).find((m) => m.localPart === "support")!;
-  const [invoices, triage] = await Promise.all([createAgent(deps, auth, { name: "Invoice chaser", localPart: "accounts", domainId: domain.id, createKey: false, sendCapDaily: 40, allowedRecipients: null }), createAgent(deps, auth, { name: "Support triage", localPart: "triage", domainId: domain.id, createKey: false, approvalMode: "external", mailboxIds: [support.id] })]);
+  const [invoices, triage] = await Promise.all([createAgent(deps, auth, { name: "Invoice chaser", localPart: "accounts", domainId: domain.id, createKey: false, sendCapDaily: 40, allowedRecipients: null }), createAgent(deps, auth, { name: "Support triage", localPart: "triage", domainId: domain.id, createKey: false, approvalMode: "external", mailboxIds: [support.id], allowedRecipients: null })]);
   const inbound = async (to: string, from: { address: string; name: string }, subject: string, text: string, hoursAgo: number) => {
     const email: ParsedEmail = {
       messageId: `<${randomToken(9)}@${from.address.split("@")[1]}>`, from, to: [{ address: to }], cc: [], subject, text, date: new Date(now - hoursAgo * 3600_000),
