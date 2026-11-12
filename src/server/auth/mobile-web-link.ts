@@ -88,6 +88,14 @@ export function safeNext(raw: unknown): string {
 
 interface Bound { u: string; o: string; m: string; c: number }
 
+/** The page the app asked for, marked so the web says this browser kept its own account (MEET fixes). */
+export function accountKept(target: string): string {
+  const hash = target.indexOf("#");
+  const path = hash < 0 ? target : target.slice(0, hash);
+  const tail = hash < 0 ? "" : target.slice(hash);
+  return `${path}${path.includes("?") ? "&" : "?"}account=kept${tail}`;
+}
+
 function notFound(c: Context<AppEnv>) {
   return c.json({ error: { code: "not_found", message: "Not found." } }, 404);
 }
@@ -163,9 +171,12 @@ export function installMobileWebLink(app: Hono<AppEnv>) {
     const member = await db.select({ id: members.id }).from(members).where(and(eq(members.userId, bound.u), eq(members.organizationId, bound.o))).get();
     if (!member) return refuse("member");
     // PRIV1b (P20): never swap a browser already signed in as someone else to this code's person: keep that session.
+    // MEET fixes (12 Nov 2026): the browser keeps its own account, but the link is no longer lost. Before, it went
+    // to /app with no word, so a Join from the app landed on the wrong account's home page. Now it opens the page
+    // the app asked for with ?account=kept, and the page says whose account this browser is using (accountKept).
     if (sessionCookieKey(c.req.raw.headers)) {
       const current = await authFor(deps).api.getSession({ headers: authHeaders(c.req.raw.headers, deps.config.mode === "production") }).catch(() => null);
-      if (current && current.user.id !== bound.u) return refuse("other_user", "/app");
+      if (current && current.user.id !== bound.u) return refuse("other_user", accountKept(target));
     }
     let headers: Headers;
     let sessionId: string;
