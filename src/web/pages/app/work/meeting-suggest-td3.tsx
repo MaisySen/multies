@@ -94,12 +94,14 @@ export function MeetingSuggestions({ meetingId }: { meetingId: string }) {
 
   const doSuggest = () => { setSuggestErr(null); return run("suggest", async () => {
     const body = source === "notes" ? { source: "notes" } : source === "pasted" ? { source: "pasted", text: pasted } : { source: "recording", recordingId: source.slice(4) };
-    let r: { suggestions: Suggestion[]; added: number };
-    try { r = await api.post<{ suggestions: Suggestion[]; added: number }>(`/meeting-td3/${meetingId}/suggest`, body); }
+    let r: { suggestions: Suggestion[]; added: number; fallback?: { message: string } };
+    try { r = await api.post<{ suggestions: Suggestion[]; added: number; fallback?: { message: string } }>(`/meeting-td3/${meetingId}/suggest`, body); }
     catch (e) { setSuggestErr(errorMessage(e)); if (e instanceof ApiError && e.code.startsWith("ai_")) void refresh(); return; }
     setList(r.suggestions);
     setNoneFound(!r.added);
     toast.success(r.added ? `${r.added} ${r.added === 1 ? "suggestion" : "suggestions"} ready to review` : tr("meetings.no_action_items_found_in_this_text"));
+    // QUAL1 second review: built-in AI stood in for the workspace's key; say so now, not after a reload.
+    if (r.fallback) { toast.message(r.fallback.message); void refresh(); }
   }); };
   const accept = (s: Suggestion) => run(s.id, async () => {
     const r = await api.post<{ suggestion: Suggestion | null }>(`/meeting-td3/${meetingId}/suggestions/${s.id}/accept`, {});

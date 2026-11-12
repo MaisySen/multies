@@ -128,6 +128,12 @@ const CONTENT_REFUSAL = /moderat|flagged|guardrail|content[ _-]?(policy|filter|m
  */
 const NO_CREDIT = /insufficient[ _](quota|balance|credits?|funds)|credit balance|out of credits?|no credits? (left|remaining)|exceeded your current quota|billing[ _]hard[ _]limit|payment[ _]required|key limit exceeded/;
 /**
+ * QUAL1 second review: a 429 is a rate limit unless it names the account's credit itself. Gemini's per minute limit
+ * (429 RESOURCE_EXHAUSTED) also says "exceeded your current quota", so that phrase alone is not enough on a 429;
+ * OpenAI's out of credit 429 carries insufficient_quota.
+ */
+const NO_CREDIT_429 = /insufficient[ _](quota|balance|credits?|funds)|credit balance|out of credits?|no credits? (left|remaining)|billing[ _]hard[ _]limit/;
+/**
  * A 403 about the key itself: it names the key, signing in or permission. Not a bare "forbidden" or "access denied":
  * that is what a firewall in front of a custom server answers when it blocks a request for its content.
  */
@@ -144,8 +150,8 @@ export function mapFailure(status: number | null, body = ""): Ai2ResultCode {
   if (status === null) return "unreachable";
   if (status === 401) return "key_refused";
   if (status === 403) return NO_CREDIT.test(b) ? "no_credit" : "key_refused";
+  if (status === 429) return NO_CREDIT_429.test(b) ? "no_credit" : "rate_limited"; // second review: Gemini's per minute limit
   if (status === 402 || NO_CREDIT.test(b)) return "no_credit";
-  if (status === 429) return "rate_limited";
   if (status === 404) return "model_unavailable";
   if ((status === 400 || status === 422) && MODEL_GONE.test(b)) return "model_unavailable";
   if (status === 400 && /api key|api_key|apikey|authentication|unauthor/.test(b)) return "key_refused";
@@ -163,8 +169,13 @@ export function keyProblemOf(err: unknown): AiKeyProblem | null {
   if (!(err instanceof AiProviderError) || err.status === null) return null;
   const s = err.status, b = err.message.toLowerCase();
   if (s === 401) return "key_refused";
+  // QUAL1 second review: 402 Payment Required is never about the text. OpenRouter's out of credit answer is a 402 that
+  // says "requires more credits, or fewer max_tokens", which the content check below would otherwise take.
+  if (s === 402) return "no_credit";
+  // A 429 is a rate limit (passing) unless it names the credit itself (OpenAI insufficient_quota).
+  if (s === 429) return NO_CREDIT_429.test(b) ? "no_credit" : null;
   if (CONTENT_REFUSAL.test(b)) return null;
-  if (s === 402 || NO_CREDIT.test(b)) return "no_credit";
+  if (NO_CREDIT.test(b)) return "no_credit";
   if (s === 403) return KEY_WORDS.test(b) ? "key_refused" : null;
   if (s === 404) return "model_unavailable";
   if ((s === 400 || s === 422) && MODEL_GONE.test(b)) return "model_unavailable";

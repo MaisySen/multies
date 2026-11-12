@@ -16,7 +16,7 @@ import { sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { type PlanId } from "@/shared/plans";
 import { keyFallbackOn, keyFor } from "../ai/keys";
-import { AI_PROVIDER_INFO, keyProblemOf, type AiProvider, type AiProviderId } from "../ai/providers";
+import { AI_PROVIDER_INFO, AiProviderError, keyProblemOf, type AiProvider, type AiProviderId } from "../ai/providers";
 import { AI_KEY_FIX_PATH, aiFallbackText, aiKeyProblemText, type AiKeyProblem } from "@/shared/ai-connect-ai2";
 import { HttpError } from "../../lib/errors";
 import { dayOf } from "./usage";
@@ -89,7 +89,11 @@ export type AiOk = { ok: true; source: AiSource; text: string; texts: string[]; 
  * problem (QUAL1 review): set with reason "error" when the provider refused the workspace's own key, its credit or its
  * model (and built-in AI did not stand in), so a route can answer 409 ai_<problem> with the fix link (aiRefusalError).
  */
-export type AiRefused = { ok: false; reason: "limit" | "workspace_limit" | "too_big" | "unavailable" | "error"; message: string; problem?: AiKeyProblem };
+export type AiRefused = {
+  ok: false; reason: "limit" | "workspace_limit" | "too_big" | "unavailable" | "error"; message: string; problem?: AiKeyProblem;
+  /** QUAL1 second review: the provider would not answer this request's own text (too long, its content rules); a retry won't help. */
+  refused?: boolean;
+};
 export type AiResult = AiOk | AiRefused;
 
 const enc = new TextEncoder();
@@ -202,6 +206,11 @@ async function runOwnKey(provider: AiProvider, req: AiRequest): Promise<{ result
     const problem = keyProblemOf(err);
     const name = AI_PROVIDER_INFO[provider.name as AiProviderId]?.name ?? null;
     if (problem) return { result: { ok: false, reason: "error", message: aiKeyProblemText(problem, name), problem }, problem };
+    // QUAL1 second review: a 4xx that is not about the key is the provider refusing this request's text (too long, its
+    // content rules). Saying "try again" sends the person round the same refusal, so say what happened, as ask() does.
+    if (err instanceof AiProviderError && err.status && err.status >= 400 && err.status < 500 && err.status !== 429) {
+      return { result: { ok: false, reason: "error", refused: true, message: `${name ?? "Your AI provider"} would not answer this request (status ${err.status}). It may be too long, or the provider's content rules stopped it.` }, problem: null };
+    }
     return { result: { ok: false, reason: "error", message: `${name ?? "Your AI provider"} could not answer just now. Try again in a minute.` }, problem: null };
   }
 }
@@ -292,8 +301,20 @@ async function runFree(deps: Deps, req: AiRequest): Promise<{ texts: string[]; a
 export async function askAi(deps: Deps, orgId: string, req: AiRequest, opts: { skipOwnKey?: boolean } = {}): Promise<AiResult> {
   if (req.task === "translate" && req.texts.length === 0) return { ok: true, source: "free", text: "", texts: [], units: 0 };
   if (!(await aiAllowed(deps, orgId))) return { ok: false, reason: "unavailable", message: AI_OFF_MESSAGE }; // TD1: AI off, no provider call
-  const own = opts.skipOwnKey ? null : await keyFor(deps, orgId).catch(() => null);
   let fallback: AiOk["fallback"];
+  let own: Awaited<ReturnType<typeof keyFor>> = null;
+  if (!opts.skipOwnKey) {
+    try {
+      own = await keyFor(deps, orgId);
+    } catch (err) {
+      // QUAL1 second review: a saved key that can't be read (the app secret changed, a failed read) is not "no key".
+      // Say so, and send the text to built-in AI only when the stand-in is on, as for a refused key.
+      deps.log?.warn?.("ai.key_unreadable", { error: err instanceof Error ? err.message.slice(0, 120) : "error" });
+      const message = "The workspace's AI key could not be read. An admin can paste it again in Settings, AI.";
+      if (!keyFallbackOn(deps)) return { ok: false, reason: "error", message, problem: "key_refused" };
+      fallback = { reason: "key_refused", message: aiFallbackText("key_refused", null) };
+    }
+  }
   // QUAL1 review: when built-in AI cannot stand in after all (its limit, a failure), the key problem is the thing to fix.
   let keyRefusal: AiRefused | null = null;
   if (own) {

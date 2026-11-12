@@ -155,7 +155,11 @@ with the time, on any AI call (the mail assistant, Tools, Team AI, meeting notes
 connection test and the model list). A call on the key that works, a passed `POST /api/ai/test`, a new key, or (for the
 model) a new model clears it. A provider turning down the request's own text (its moderation or a guardrail flags it,
 or it is too long) is never noted on the key and never goes to built-in AI: the answer is `502 ai_provider_error`
-saying the provider would not answer this request. Rate limits are not noted either.
+saying the provider would not answer this request, on the mail assistant and on mail Translate and the document
+tools alike. Rate limits are not noted either: a 429 counts as no credit only when it names the credit itself (an
+`insufficient_quota` code), so a per minute limit (a 429 `RESOURCE_EXHAUSTED`) passes. A 402 is always no credit,
+also when its text mentions `max_tokens`. A saved key that can't be read (the app secret changed)
+answers 409 `ai_key_refused` asking an admin to paste it again, and goes to built-in AI only when the stand-in is on.
 
 - `GET /api/ai/status` adds `problem` (`key_refused`, `no_credit` or `model_unavailable`), `problemAt` (ISO time) and
   `problemMessage` (the plain sentence the app shows) while the key is refused. They are absent while it works; `connected`

@@ -73,6 +73,8 @@ export async function translateTexts(deps: Deps, actor: { orgId: string; userId:
     if (r.reason === "limit" || r.reason === "workspace_limit") throw new HttpError(429, "ai_limit", r.message);
     if (r.reason === "too_big") throw new HttpError(413, "too_large", r.message);
     if (r.reason === "unavailable") throw new HttpError(r.message === AI_OFF_MESSAGE ? 409 : 503, r.message === AI_OFF_MESSAGE ? "ai_off" : "ai_unavailable", r.message);
+    // QUAL1 second review: the provider refused this text (too long, its content rules); a retry won't help.
+    if (r.refused) throw new HttpError(502, "ai_provider_error", r.message);
     throw new HttpError(502, "ai_failed", "The translation failed. Try again in a moment.");
   }
   // A string the model left empty keeps its original words.

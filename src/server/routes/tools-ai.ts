@@ -164,6 +164,8 @@ const aiFail = (r: AiResult): never => {
   // QUAL1 review: a refused workspace key answers 409 ai_key_refused with the fix link, as the mail assistant does.
   const keyProblem = aiRefusalError(r);
   if (keyProblem) throw keyProblem;
+  // QUAL1 second review: the provider refused this request's text; 502 ai_provider_error as the mail assistant answers.
+  if (r.refused) throw new HttpError(502, "ai_provider_error", r.message);
   throw new HttpError(r.reason === "limit" || r.reason === "workspace_limit" ? 429 : r.reason === "too_big" ? 413 : 503, `ai_${r.reason}`, r.message);
 };
 

@@ -98,7 +98,10 @@ export async function recordKeyProblem(deps: Deps, orgId: string, version: Date,
   try {
     await deps.db.update(aiKeys).set({ problem, problemAt: problem ? deps.now() : null }).where(and(eq(aiKeys.orgId, orgId), eq(aiKeys.updatedAt, version)));
     if (problem) deps.log?.warn("ai.key_problem", { problem });
-  } catch { /* a failed note must not hide the answer or the real error */ }
+  } catch (err) {
+    // A failed note must not hide the answer or the real error, but it is never silent (QUAL1 second review).
+    deps.log?.warn("ai.key_problem_save_failed", { problem, error: err instanceof Error ? err.message.slice(0, 120) : "error" });
+  }
 }
 
 /** The workspace's provider and its key's recorded problem, or null when it has not added a key. */
