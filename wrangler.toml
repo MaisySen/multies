@@ -168,7 +168,7 @@ INBOX_TD6 = "on" # TD6: One inbox (production after verifier v35 PASS on staging
 FORMS_TD7 = "on" # TD7: Forms pro B (production after verifier v35 PASS on staging 692d35adf22e)
 TEAMAI_TD8 = "on" # TD8: Team AI (production after verifier v36 PASS on staging 9e3a9d452b8d; free built in AI limit default 50 a day)
 CRM_TD10 = "on" # TD10: CRM suggestions from mail, saved analyses, shortcut switch (production after verifier v36 PASS on staging d40da88576f5)
-TOOLS_FEATURES = "editor,forms,compare,ocr_langs,scan,protect,stamps,convert_plus,excel,autoredact,batch,share,rules,workflows,templates,api,file_requests,secrets,links,tools_c,esign,tools_c2,merge_plus_r109"
+TOOLS_FEATURES = "editor,forms,compare,ocr_langs,scan,protect,stamps,convert_plus,excel,autoredact,batch,share,rules,workflows,templates,api,file_requests,secrets,links,tools_c,esign,tools_c2,merge_plus_r109,merge_mail,ask,translate,extract,expenses,contracts"
 # R107: e-sign v2 (email code, signing record, seal, templates, bulk send). On in prod after the verifier pass; "off" turns new requests back to the old flow.
 # esign itself left that list on 31 Oct (owner unheld e-sign; R107 adds it to TOOLS_FEATURES above after the verifier pass).
 ESIGN_V2 = "on"
