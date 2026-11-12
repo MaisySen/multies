@@ -137,6 +137,26 @@ export interface ConnectionView {
   sample?: boolean;
 }
 
+/**
+ * MPLAT-110 (PRIV1b, P46): an owner or admin sees a personal connected mailbox they can't open as this reduced row.
+ * It has no counts, no settings and no actions; screens show it read only.
+ */
+export interface ConnectionLimited {
+  id: string;
+  mailboxId: string;
+  email: string;
+  status: ConnectionView["status"];
+  openable: false;
+}
+
+/** One row of GET /api/connections: the full view for a mailbox the person can open, else the reduced row. */
+export type ConnectionListItem = (ConnectionView & { openable?: true }) | ConnectionLimited;
+
+/** True for a full row. A row without `openable` (a server from before PRIV1b) is a full row. */
+export function isFullConnection(c: ConnectionListItem): c is ConnectionView & { openable?: true } {
+  return c.openable !== false;
+}
+
 /** A failed connection test, in words a person can act on. */
 export interface ConnectProblem {
   code: "auth_failed" | "app_password_needed" | "imap_disabled" | "smtp_disabled" | "unreachable" | "tls_failed" | "timeout" | "server_error" | "oauth_required";

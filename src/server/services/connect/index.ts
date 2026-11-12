@@ -22,7 +22,7 @@ import { audit } from "../audit";
 import { ensurePlatformDomain } from "../free-address";
 import { getPlan } from "../plans";
 import { canOpen, isPersonalOwner, personalInfo, scopeFor } from "../mail-access-priv1a";
-import { CONNECT_PRESETS, presetForEmail, serversFor, type ConnectionView, type ConnectPresetId, type ServerSettings } from "@/shared/mail-connect";
+import { CONNECT_PRESETS, presetForEmail, serversFor, type ConnectionLimited, type ConnectionView, type ConnectPresetId, type ServerSettings } from "@/shared/mail-connect";
 import { imapflowConnector, type ImapAuth } from "./imap";
 import { nodeSocketOpenerLazy } from "./default-socket";
 import { classifyProblem, ConnectFailed } from "./problems";
@@ -196,8 +196,7 @@ export async function listConnections(deps: Deps, auth: AuthContext) {
   ]);
   const open = scope ? new Set(scope) : null;
   const admin = auth.role === "owner" || auth.role === "admin";
-  type Reduced = Pick<ConnectionView, "id" | "mailboxId" | "email" | "status"> & { openable: false };
-  return rows.flatMap<(ConnectionView & { openable: true }) | Reduced>((r) => !open || open.has(r.c.mailboxId) ? [{ ...present(r.c, r), openable: true as const }]
+  return rows.flatMap<(ConnectionView & { openable: true }) | ConnectionLimited>((r) => !open || open.has(r.c.mailboxId) ? [{ ...present(r.c, r), openable: true as const }]
     : admin ? [{ id: r.c.id, mailboxId: r.c.mailboxId, email: r.address, status: r.c.status, openable: false as const }] : []);
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
-import { IconArrowRight, IconKey, IconPlug, IconRefresh, IconTrash } from "@/web/components/ui/icon";
+import { IconArrowRight, IconKey, IconLock, IconPlug, IconRefresh, IconTrash } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { qk } from "@/web/lib/queries";
@@ -12,7 +12,7 @@ import { Button, ButtonLink } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input } from "@/web/components/ui/input";
 import { ConnectMailboxForm, connectionsKey, useConnections } from "@/web/components/connect-mailbox";
-import type { ConnectionView } from "@/shared/mail-connect";
+import { isFullConnection, type ConnectionLimited, type ConnectionView } from "@/shared/mail-connect";
 import { Section } from "./settings";
 import { MailFolderArt } from "@/web/components/illustrations";
 import { AvatarTile, PlainStatusPill } from "@/web/components/premium5-r39";
@@ -57,7 +57,7 @@ export function ConnectionsSettings() {
           <EmptyState icon={<IconPlug className="h-5 w-5" />} art={<MailFolderArt />} title="No connected mailboxes yet" body="Connect one with an app password from your provider. It takes about a minute." action={<Button onClick={() => setAdding(true)} data-testid="connect-start">Connect a mailbox</Button>} />
         ) : (
           <div className="space-y-3" data-testid="connections-list">
-            {list.map((c) => <ConnectionRow key={c.id} c={c} />)}
+            {list.map((c) => (isFullConnection(c) ? <ConnectionRow key={c.id} c={c} /> : <LimitedConnectionRow key={c.id} c={c} />))}
             {!adding && <Button variant="secondary" onClick={() => setAdding(true)} data-testid="connect-start">Connect another mailbox</Button>}
           </div>
         )}
@@ -71,6 +71,30 @@ export function ConnectionsSettings() {
         </Section>
       )}
     </div>
+  );
+}
+
+/**
+ * MPLAT-110: a personal mailbox another person connected, which this owner or admin can't open (PRIV1b, P46). The
+ * server sends only its address and status, so the row is read only: no counts, no sync, no Reconnect, no Remove.
+ */
+export function LimitedConnectionRow({ c }: { c: ConnectionLimited }) {
+  const s = STATUS[c.status] ?? STATUS.paused;
+  return (
+    <Card className="p-4" data-testid="connection-row-limited">
+      <div className="flex items-start gap-3">
+        <AvatarTile label={(c.email || "?").slice(0, 1).toUpperCase()} name={c.email || "Mailbox"} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="min-w-0 truncate text-[15px] font-semibold" data-testid="connection-email">{c.email}</span>
+            <Badge tone={s.tone} dot>{s.label}</Badge>
+          </div>
+          <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-muted" data-testid="connection-limited-note">
+            <IconLock className="h-3.5 w-3.5 shrink-0" aria-hidden />Personal mailbox, owner only
+          </p>
+        </div>
+      </div>
+    </Card>
   );
 }
 

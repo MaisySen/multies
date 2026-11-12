@@ -7,9 +7,10 @@ import { qk } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { cn } from "@/web/lib/cn";
-import { CONNECT_PRESETS, PRESET_ORDER, presetForEmail, serversFor, type ConnectionView, type ConnectPresetId, type ConnectSecurity } from "@/shared/mail-connect";
+import { CONNECT_PRESETS, PRESET_ORDER, presetForEmail, serversFor, type ConnectionListItem, type ConnectionView, type ConnectPresetId, type ConnectSecurity } from "@/shared/mail-connect";
 
-export interface ConnectionsInfo { enabled: boolean; oauth: ("google" | "microsoft")[]; connections: ConnectionView[] }
+/** MPLAT-110: `connections` can hold reduced rows (owners and admins, personal mailboxes they can't open); check isFullConnection. */
+export interface ConnectionsInfo { enabled: boolean; oauth: ("google" | "microsoft")[]; connections: ConnectionListItem[] }
 export const connectionsKey = ["connections"] as const;
 
 export function useConnections() {

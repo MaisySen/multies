@@ -3,7 +3,7 @@ import { Alert, Platform, Pressable, RefreshControl, ScrollView, Text, View } fr
 import { router } from "expo-router";
 import { Badge, Banner, Button, Icon, type IconName } from "@/components/ui";
 import { useConnectionActions, useConnections, useFreeAddress, useOverview } from "@/lib/queries";
-import { connectionStatusLabel, connectionTone, lastSyncLabel, type ConnectionView } from "@/lib/mail-connect";
+import { connectionStatusLabel, connectionTone, isFullConnection, lastSyncLabel, type ConnectionLimited, type ConnectionView } from "@/lib/mail-connect";
 import { WEB_PAGES } from "@/config";
 import { colors, font, radius, space } from "@/theme";
 import { openWeb } from "@/lib/web-open";
@@ -53,7 +53,7 @@ export default function EmailSetup() {
       {connections.length ? (
         <View style={{ gap: space.sm, marginTop: space.md }}>
           <Text style={[font.tiny, { textTransform: "uppercase", letterSpacing: 0.6 }]} accessibilityRole="header">Connected accounts</Text>
-          {connections.map((c) => <ConnectionCard key={c.id} c={c} />)}
+          {connections.map((c) => (isFullConnection(c) ? <ConnectionCard key={c.id} c={c} /> : <LimitedConnectionCard key={c.id} c={c} />))}
         </View>
       ) : null}
       {conns.error ? <Banner tone="bad" icon="alert-circle" text={`Couldn't load connected accounts. ${conns.error.message}`} /> : null}
@@ -86,6 +86,20 @@ function PressRow({ children, onPress, testID, label }: { children: ReactNode; o
       style={({ pressed }) => [{ flexDirection: "row", alignItems: "center", gap: space.md, padding: space.lg, minHeight: 64 }, pressed && { backgroundColor: colors.hover }]}>
       {children}
     </Pressable>
+  );
+}
+
+/** MPLAT-110: a personal mailbox someone else connected, which this owner or admin can't open. Read only, no actions. */
+function LimitedConnectionCard({ c }: { c: ConnectionLimited }) {
+  return (
+    <View testID={`connection-limited-${c.id}`} style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: space.lg, gap: space.sm }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+        <Icon name="lock" size={18} color={colors.muted} />
+        <Text style={[font.heading, { fontSize: 16, flex: 1 }]} numberOfLines={1}>{c.email}</Text>
+        <Badge label={connectionStatusLabel(c.status)} tone={connectionTone(c.status)} />
+      </View>
+      <Text style={font.small}>Personal mailbox, owner only.</Text>
+    </View>
   );
 }
 

@@ -131,10 +131,29 @@ export interface ConnectionView {
   createdAt: string;
 }
 
+/**
+ * MPLAT-110: an owner or admin sees a personal connected mailbox they can't open as this reduced row (address and
+ * status only). Show it read only, with no counts and no actions.
+ */
+export interface ConnectionLimited {
+  id: string;
+  mailboxId: string;
+  email: string;
+  status: ConnectionView["status"];
+  openable: false;
+}
+
+/** One row of GET /api/connections. A row without `openable` (an older server) is a full row. */
+export type ConnectionListItem = (ConnectionView & { openable?: true }) | ConnectionLimited;
+
+export function isFullConnection(c: ConnectionListItem): c is ConnectionView & { openable?: true } {
+  return c.openable !== false;
+}
+
 export interface ConnectionsInfo {
   enabled: boolean;
   oauth?: unknown;
-  connections: ConnectionView[];
+  connections: ConnectionListItem[];
 }
 
 /** The body POST /api/connections and POST /api/connections/test take. */

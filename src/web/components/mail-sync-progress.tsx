@@ -5,7 +5,7 @@ import { showError } from "@/web/lib/show-error";
 import { Meter } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { connectionsKey } from "@/web/components/connect-mailbox";
-import type { ConnectionView } from "@/shared/mail-connect";
+import { isFullConnection, type ConnectionListItem, type ConnectionView } from "@/shared/mail-connect";
 
 type Backfill = NonNullable<ConnectionView["backfill"]>;
 
@@ -54,11 +54,12 @@ export function MailboxSyncProgress({ c, compact = false }: { c: ConnectionView;
 export function MailSyncBanner() {
   const q = useQuery({
     queryKey: connectionsKey,
-    queryFn: () => api.get<{ connections: ConnectionView[] }>("/connections"),
+    queryFn: () => api.get<{ connections: ConnectionListItem[] }>("/connections"),
     retry: false,
-    refetchInterval: (query) => ((query.state.data as { connections?: ConnectionView[] } | undefined)?.connections ?? []).some((c) => c.backfill && !c.backfill.done && !c.backfill.paused && !c.backfill.wait) ? 20_000 : false,
+    // MPLAT-110: reduced rows (a personal mailbox the viewer can't open) have no backfill and are never shown here.
+    refetchInterval: (query) => ((query.state.data as { connections?: ConnectionListItem[] } | undefined)?.connections ?? []).filter(isFullConnection).some((c) => c.backfill && !c.backfill.done && !c.backfill.paused && !c.backfill.wait) ? 20_000 : false,
   });
-  const syncing = (q.data?.connections ?? []).filter((c) => c.backfill && !c.backfill.done && !c.sample && c.status !== "paused");
+  const syncing = (q.data?.connections ?? []).filter(isFullConnection).filter((c) => c.backfill && !c.backfill.done && !c.sample && c.status !== "paused");
   if (!syncing.length) return null;
   return (
     <div className="space-y-1 border-b border-line bg-brand-soft/40 px-4 py-2" data-testid="mail-sync-banner">

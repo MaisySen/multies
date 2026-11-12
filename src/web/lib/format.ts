@@ -29,7 +29,8 @@ export const tz = () => displayTimeZone;
 const dayKey = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: displayTimeZone });
 
 /** Locale-formatted number (en-AU). */
-export const num = (n: number) => n.toLocaleString(numberLocale(loc()));
+// MPLAT-110: a missing count shows as 0 instead of throwing and taking the whole page down.
+export const num = (n: number) => (n ?? 0).toLocaleString(numberLocale(loc()));
 
 /** A date (no time) in the workspace's zone, e.g. "23 Oct 2026". */
 export function shortDate(iso: string | Date, opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }) {
