@@ -139,7 +139,31 @@ export interface ConnectionView {
 
 /** A failed connection test, in words a person can act on. */
 export interface ConnectProblem {
-  code: "auth_failed" | "app_password_needed" | "imap_disabled" | "smtp_disabled" | "unreachable" | "tls_failed" | "timeout" | "server_error" | "oauth_required";
+  code: "auth_failed" | "app_password_needed" | "imap_disabled" | "smtp_disabled" | "unreachable" | "tls_failed" | "timeout" | "server_error" | "oauth_required" | "web_login_required";
   step: "imap" | "smtp";
   message: string;
+  /**
+   * G1: the provider's own reason, cleaned of addresses, links, network addresses and request ids, so the person can
+   * see what the server actually said (for example "Invalid credentials") under the plain message. Absent when the
+   * provider gave no words worth showing.
+   */
+  detail?: string;
+}
+
+/** G1: providers whose app passwords are 16 letters, shown in four groups of four. */
+const LETTER_CODE_PRESETS = new Set<ConnectPresetId>(["gmail", "google_workspace", "yahoo"]);
+
+/**
+ * G1: cleans a pasted app password. Copying from a provider's page can bring a non breaking space between the groups,
+ * an invisible zero width character, or a trailing space or line break, and the provider then refuses the code. Only a
+ * value that is exactly one 16 letter code (one run, or four groups of four) once every kind of space is removed is touched: it comes back as the four
+ * groups separated by plain spaces, the way the provider shows it (and accepts it). Anything else is returned as typed.
+ */
+export function cleanAppPassword(preset: ConnectPresetId, password: string): string {
+  if (!LETTER_CODE_PRESETS.has(preset)) return password;
+  const groups = password.replace(/[\u200b-\u200d\u2060\ufeff]/g, "").split(/[\s\u00a0]+/).filter(Boolean);
+  const bare = groups.join("");
+  // One run of 16 letters, or four groups of four: a normal password that happens to have 16 letters is left alone.
+  if (!/^[a-z]{16}$/i.test(bare) || !(groups.length === 1 || groups.every((g) => g.length === 4))) return password;
+  return bare.match(/.{4}/g)!.join(" ");
 }
