@@ -781,7 +781,10 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
   if (patch.parentId !== undefined) {
     if (patch.parentId === t.id) throw new HttpError(422, "validation_failed", "A task can't be its own parent.");
     if (patch.parentId) {
-      await taskRow(deps, actor.orgId, patch.parentId);
+      const parent = await taskRow(deps, actor.orgId, patch.parentId);
+      // AIS1 second review (row 66): a decision on a waiting item takes its subtasks with it, so a key or an AI app may
+      // not put a task that isn't waiting under one (a person's task would go with a decline nobody meant for it).
+      if (parent.triageState === "pending" && t.triageState !== "pending" && machineTriage(actor)) requirePerson(actor, "Putting a task under an item that waits in Triage");
       // R95: a task can't go under its own subtask (the mind map moves branches; a loop would hide them).
       let at: string | null = patch.parentId;
       for (let i = 0; at && i < 50; i++) {
@@ -932,16 +935,21 @@ async function spawnRepeat(deps: Deps, actor: SuiteActor, taskId: string) {
   if (!due) return null;
   const shift = due.getTime() - base.getTime();
   const fields = (await valuesForTasks(deps, actor.orgId, [t.id])).get(t.id) ?? {};
+  const waits: CreateTaskInput["triage"] = t.triageState === "pending"
+    ? { source: (t.triageSource ?? machineTriage(actor)?.source ?? "api") as NonNullable<CreateTaskInput["triage"]>["source"], when: "always" }
+    : null;
   const next = await createTask(deps, actor, {
     title: t.title, notes: t.notes, projectId: t.projectId, status: "todo",
     assignee: await rotatedAssignee(deps, actor.orgId, rule, t.assigneeType && t.assigneeId ? { type: t.assigneeType, id: t.assigneeId } : null),
     priority: t.priority, labels: JSON.parse(t.labels) as string[], parentId: t.parentId,
     start: t.startAt ? new Date(t.startAt.getTime() + shift).toISOString() : null, due: due.toISOString(),
     fields: Object.keys(fields).length ? fields : undefined, repeat: rule, type: t.type,
-    triage: null, // AIS1: the next one continues work a person already has, so it never waits in Triage
+    // AIS1: the next one continues work a person already has, so it doesn't wait in Triage. AIS1 second review: unless
+    // nobody has decided this one yet (a key finishing its own waiting task), then the next one waits as well.
+    triage: waits,
   });
   const subs = await deps.db.select({ title: tasks.title }).from(tasks).where(and(eq(tasks.parentId, t.id), isNull(tasks.deletedAt))).orderBy(asc(tasks.position));
-  for (const sub of subs) await createTask(deps, actor, { title: sub.title, parentId: next.id, projectId: t.projectId, triage: null });
+  for (const sub of subs) await createTask(deps, actor, { title: sub.title, parentId: next.id, projectId: t.projectId, triage: waits });
   await link(deps, actor.orgId, { type: "task", id: next.id }, { type: "task", id: t.id }, "repeat_of");
   await recordWrite(deps, actor, { entityType: "task", entityId: next.id, op: "update", version: next.version, verb: "repeated", data: { from: t.id }, event: "task.recurred", eventData: { task: next, previousTaskId: t.id } });
   return next;

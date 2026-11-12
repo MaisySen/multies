@@ -13,7 +13,7 @@
  * the parent takes its direct subtasks with it: accept brings the waiting ones in, decline and merge remove them all
  * (as a delete does), and restore in triage-r32.ts puts them back.
  */
-import { and, count, eq, isNull, lte, or, sql } from "drizzle-orm";
+import { and, count, eq, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { organizations, taskComments, tasks } from "../../db/schema";
 import { requirePerson } from "../../lib/actor-kind";
@@ -99,13 +99,21 @@ function children(deps: Deps, actor: SuiteActor, parentId: string, waiting: bool
     .where(and(eq(tasks.orgId, actor.orgId), eq(tasks.parentId, parentId), isNull(tasks.deletedAt), waiting ? eq(tasks.triageState, "pending") : undefined));
 }
 
-/** Decline and merge remove the item's live direct subtasks with it, at the same time, so restore finds them again. */
+/**
+ * Decline and merge remove the item's live direct subtasks that came through Triage with it, at the same time, so
+ * restore finds them again. AIS1 second review: a subtask that never came through Triage (a person's own task that
+ * was put under the item) is not part of what was declined, so it stays and only leaves the item (parentId null).
+ */
 async function removeChildren(deps: Deps, actor: SuiteActor, parentId: string, now: Date, opts: DecideOpts) {
-  const ids = (await children(deps, actor, parentId, false)).map((r) => r.id);
-  if (!ids.length) return;
-  await deps.db.update(tasks).set({ deletedAt: now, updatedAt: now, version: sql`${tasks.version} + 1` })
+  const rows = await deps.db.select({ id: tasks.id, src: tasks.triageSource, state: tasks.triageState }).from(tasks)
     .where(and(eq(tasks.orgId, actor.orgId), eq(tasks.parentId, parentId), isNull(tasks.deletedAt)));
-  for (const c of ids) opts.cascaded?.add(c);
+  if (!rows.length) return;
+  const viaTriage = (r: { src: string | null; state: string | null }) => !!r.src || r.state === "pending";
+  const live = and(eq(tasks.orgId, actor.orgId), eq(tasks.parentId, parentId), isNull(tasks.deletedAt));
+  const bump = { updatedAt: now, version: sql`${tasks.version} + 1` };
+  if (rows.some(viaTriage)) await deps.db.update(tasks).set({ deletedAt: now, ...bump }).where(and(live, or(isNotNull(tasks.triageSource), eq(tasks.triageState, "pending"))));
+  if (rows.some((r) => !viaTriage(r))) await deps.db.update(tasks).set({ parentId: null, ...bump }).where(and(live, isNull(tasks.triageSource), or(isNull(tasks.triageState), ne(tasks.triageState, "pending"))));
+  for (const r of rows) if (viaTriage(r)) opts.cascaded?.add(r.id);
 }
 
 /** Makes the item a normal task. Every change rides the one task update that clears the flag. */
@@ -121,11 +129,12 @@ export async function acceptTriage(deps: Deps, actor: SuiteActor, id: string, in
   if (input.priority !== undefined) patch.priority = input.priority;
   if (input.due !== undefined) patch.due = input.due;
   const task = await updateTask(deps, actor, t.id, patch);
-  // AIS1 review: its waiting subtasks come in with it (the options above are for the item itself).
+  // AIS1 review: its waiting subtasks come in with it (the options above, apart from the project, are for the item itself).
   for (const c of await children(deps, actor, t.id, true)) {
     if (opts.leave?.has(c.id)) continue;
     if (c.snoozed) await deps.db.update(tasks).set({ triageSnoozedUntil: null }).where(eq(tasks.id, c.id));
-    await updateTask(deps, actor, c.id, { triage: null });
+    // AIS1 second review: an accept into another project takes them there too, so they don't stay behind.
+    await updateTask(deps, actor, c.id, { triage: null, ...(input.projectId ? { projectId: input.projectId } : {}) });
     opts.cascaded?.add(c.id);
   }
   await emitTriage(deps, actor, "triage.accepted", { task, source: t.triageSource ?? null });

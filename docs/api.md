@@ -269,8 +269,11 @@ rules (workspace automations and a person's own rules), public forms, incoming h
 (MCP, agents) there, subtasks, copies and imports included (`POST /work-imports/run`,
 `POST /data-moves/imports/run` and MCP `import_file` from a key, also into a new project the import makes; the
 work import answers `triage: true` then); tasks a person makes or imports in the app go straight to the board.
-A decision on a task takes its subtasks with it: accept brings in the ones that wait, decline and merge remove
-them, and undo puts them back. A key or an AI app can't move a task from a project with Triage off into one
+A decision on a task takes its subtasks with it: accept brings in the ones that wait (into the accept's
+`projectId` too), decline and merge remove the ones that came through Triage, and undo puts them back. A subtask
+that never came through Triage only leaves the declined item. A key or an AI app can't put a task that isn't
+waiting under a waiting item (`PATCH /tasks/{id}` with `parentId`: 403 `person_only`), and when it finishes its
+own waiting repeating task the next one waits too. A key or an AI app can't move a task from a project with Triage off into one
 with Triage on (`PATCH /tasks/{id}` or `POST /tasks/bulk` with `projectId`: 403 `person_only`, nothing changes)
 unless it waits in Triage or a person accepted it there; it can make the task in that project, where it waits.
 It is on for every new project, made in the app, by a key (`POST /projects`), from a template, by an import
