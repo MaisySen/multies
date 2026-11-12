@@ -162,7 +162,8 @@ describe("importing into a project", () => {
     const run = await c.post("/api/work-imports/run", { content, projectId: project.id, mapping: { priority: null } });
     expect(run.body).toMatchObject({ created: 3, comments: 3 });
     const names = (await deps.db.select().from(projectStatuses).where(eq(projectStatuses.projectId, project.id))).map((s) => s.name);
-    expect(names).toEqual(["To do", "In progress", "In review", "Done", "Closed"]); // "To Do" and "In Progress" matched the project's own
+    // "To Do" and "In Progress" matched the project's own; K1: "Closed" means done, so it lands in "Done" instead of a second done column.
+    expect(names).toEqual(["To do", "In progress", "In review", "Done"]);
     const list = (await c.get(`/api/tasks?projectId=${project.id}&includeSubtasks=true`)).body.tasks as { title: string; priority: string; parentId: string | null; id: string; status: string }[];
     expect(list.every((t) => t.priority === "none")).toBe(true);
     const login = list.find((t) => t.title === "Login page")!;

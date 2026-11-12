@@ -22,6 +22,7 @@ import { HttpError } from "../../lib/errors";
 import { writeBudget } from "../write-budget";
 import { assertWritable, changeRow, createdBy, actorOf, sortableId, type SuiteActor } from "../suite/common";
 import { createProject, DEFAULT_STATUSES, getProject } from "../suite/tasks";
+import { suggestStatusMap } from "../../../shared/status-import-k1";
 import {
   FIELD_LABELS, ImportFileError, MAP_FIELDS, SOURCE_LABELS, categoryOf, defaultMapping, mapRows, readTable, trelloListOrder, uniqueHeaders,
   type Category, type ImportRow, type Mapping, type Table,
@@ -182,7 +183,8 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
       if (p) { projectId = p.id; continued = true; }
     }
   }
-  const mapped = new Map(Object.entries(input.statusMap ?? {}).filter(([, v]) => v).map(([k, v]) => [k.trim().toLowerCase(), v!]));
+  const chosen = Object.fromEntries(Object.entries(input.statusMap ?? {}).map(([k, v]) => [k.trim().toLowerCase(), v]));
+  const mapped = new Map(Object.entries(chosen).filter(([, v]) => v).map(([k, v]) => [k, v!]));
   const plan = statusPlan(table, rows, input.content);
   const fallbackNeeded = (c: Category) => rows.some((r) => r.category === c && (!r.status || plan.find((s) => s.name.toLowerCase() === r.status!.toLowerCase())?.category !== c));
   if (!projectId) {
@@ -200,6 +202,16 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
     projectCreated = true;
   }
   const project = await getProject(deps, actor.orgId, projectId);
+
+  // K1: a file status the person left on its default lands in the column that means the same ("Complete" in
+  // "Done"), so an import from another tool does not grow the board a second done column. A status sent as null
+  // is the person's "Add as new" and is added as before.
+  // A column with the very same name is left to the name match below, as before.
+  if (!projectCreated) {
+    for (const [k, id] of Object.entries(suggestStatusMap(plan, project.statuses, chosen))) {
+      if (!project.statuses.some((x) => x.name.toLowerCase() === k)) mapped.set(k, id);
+    }
+  }
 
   // Statuses the project lacks are added after its own, in the file's order.
   const statuses = [...project.statuses];
